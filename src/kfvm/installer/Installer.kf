@@ -1,0 +1,73 @@
+package kfvm.installer
+
+import kof.io
+import kfvm.system
+import kfvm.github
+import kfvm.store
+
+class Installer {
+    GitHubClient github
+    Store store
+    Console console
+
+    constructor(GitHubClient github, Store store, Console console) {
+        this.github = github
+        this.store = store
+        this.console = console
+    }
+
+    void install(RemoteRelease release) {
+        Directory(store.root()).createDirectories()
+        var staging = Shell.run("mktemp", listOf("-d", store.root() + "/.kfvm-tmp-XXXXXX")).trim()
+        try {
+            var archive = download(release, staging)
+            verify(staging, archive)
+            var extracted = extract(staging, archive)
+            Shell.run("mv", listOf(extracted, store.dirOf(release.version())))
+        } finally {
+            Shell.run("rm", listOf("-rf", staging))
+        }
+    }
+
+    String download(RemoteRelease release, String staging) {
+        var archive = release.name() + ".tar.gz"
+        console.info("downloading " + archive + " (" + release.sizeInMb() + " MB) ...")
+        fetch(github.downloadUrl(release, archive), staging + "/" + archive)
+        fetch(github.downloadUrl(release, "SHA256SUMS"), staging + "/SHA256SUMS")
+        return archive
+    }
+
+    void fetch(String url, String destination) {
+        Shell.run("curl", listOf("-fsSL", "--retry", "3", "-o", destination, url))
+    }
+
+    void verify(String staging, String archive) {
+        console.info("verifying checksum ...")
+        var ok = if (Shell.available("sha256sum"))
+            Shell.succeeds("sha256sum", listOf("-c", "SHA256SUMS"), staging)
+        else
+            Shell.succeeds("shasum", listOf("-a", "256", "-c", "SHA256SUMS"), staging)
+        if (!ok) {
+            throw "checksum mismatch for " + archive
+        }
+    }
+
+    String extract(String staging, String archive) {
+        var target = staging + "/x"
+        Directory(target).createDirectories()
+        Shell.run("tar", listOf("-xzf", staging + "/" + archive, "-C", target))
+        var root = distributionRoot(target)
+        if (!File(root + "/bin/kof").exists()) {
+            throw "archive does not contain bin/kof"
+        }
+        return root
+    }
+
+    String distributionRoot(String dir) {
+        var entries = Directory(dir).list()
+        if (entries.size == 1 && File(dir + "/" + entries.get(0)).isDirectory()) {
+            return dir + "/" + entries.get(0)
+        }
+        return dir
+    }
+}
