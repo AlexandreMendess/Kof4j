@@ -15517,7 +15517,7 @@ para o conserto JÁ EXISTE: `NativeJsonSchema` emite `.Lsch_<Name>` (token
 `kof_json_schema_find` — infra SEM consumidor (escrita para exatamente este
 caso; o record escalar dobrou por outro caminho).
 
-**Conserto (raiz, commit `89268b394`):** tag 4 (`elemType instanceof
+**Conserto (raiz, commit `ee094e55d`):** tag 4 (`elemType instanceof
 ClassType`) em `JsonDispatch.listTag` + função asm NOVA
 `kof_json_encode_object` (`RuntimeJsonEncode`): resolve o schema pelo
 **typeId** no header do objeto via `.Lsch_type_registry` (pares

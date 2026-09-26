@@ -569,32 +569,7 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
             // VerifyError (bug 36).
             operandType = new Type.ClassType("java.lang", "Object", List.of());
         }
-        switch (be.operator()) {
-            case "+" -> ops.add(new KofBinary(KofBinaryOp.ADD, operandType));
-            case "-" -> ops.add(new KofBinary(KofBinaryOp.SUB, operandType));
-            case "*" -> ops.add(new KofBinary(KofBinaryOp.MUL, operandType));
-            case "/" -> ops.add(new KofBinary(KofBinaryOp.DIV, operandType));
-            case "%" -> ops.add(new KofBinary(KofBinaryOp.MOD, operandType));
-            case "==" -> ops.add(new KofBinary(KofBinaryOp.EQ, operandType));
-            case "!=" -> ops.add(new KofBinary(KofBinaryOp.NE, operandType));
-            case "<" -> ops.add(new KofBinary(KofBinaryOp.LT, operandType));
-            case "<=" -> ops.add(new KofBinary(KofBinaryOp.LE, operandType));
-            case ">" -> ops.add(new KofBinary(KofBinaryOp.GT, operandType));
-            case ">=" -> ops.add(new KofBinary(KofBinaryOp.GE, operandType));
-            case "&&" -> ops.add(new KofBinary(KofBinaryOp.AND, operandType));
-            case "||" -> ops.add(new KofBinary(KofBinaryOp.OR, operandType));
-            case "&" -> ops.add(new KofBinary(KofBinaryOp.AND, operandType));
-            case "|" -> ops.add(new KofBinary(KofBinaryOp.OR, operandType));
-            case "^" -> ops.add(new KofBinary(KofBinaryOp.XOR, operandType));
-            case "<<" -> ops.add(new KofBinary(KofBinaryOp.SHL, operandType));
-            case ">>" -> ops.add(new KofBinary(KofBinaryOp.SHR, operandType));
-            case ">>>" -> ops.add(new KofBinary(KofBinaryOp.USHR, operandType));
-            default -> ops.add(new KofBinary(KofBinaryOp.ADD, operandType));
-        }
-        accType = switch (be.operator()) {
-            case "==", "!=", "<", "<=", ">", ">=" -> Type.PrimitiveType.BOOL;
-            default -> accType;
-        };
+        accType = ExpressionBinaryFallbackOps.emit(ops, be.operator(), operandType, accType);
     }
 }
 return localIdx;
