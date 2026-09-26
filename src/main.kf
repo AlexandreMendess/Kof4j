@@ -1,0 +1,39 @@
+import kfvm.system
+import kfvm.platform
+import kfvm.github
+import kfvm.store
+import kfvm.installer
+import kfvm.cli
+
+main(args: List<String>) {
+    var console = Console()
+    var home = Env.getOr("KFVM_HOME", Env.get("HOME") + "/.local/share/kof")
+    var first = if (args.size > 0) args.get(0) else ""
+
+    if (first == "" || first == "-h" || first == "--help" || first == "help") {
+        console.out(Usage.text(home))
+        return
+    }
+
+    if (first == "-v" || first == "--version") {
+        console.out("kfvm " + Usage.VERSION)
+        return
+    }
+
+    try {
+        var platform = Platforms.detect().id()
+        var github = GitHubClient("KofLang/Kof4j", platform, Env.get("GITHUB_TOKEN"))
+        var store = Store(home, platform)
+        var installer = Installer(github, store, console)
+        var installed = InstalledVersions(github, store)
+        var commands = listOf<kfvm.cli.Command>()
+        commands.add(ListCommand(github, store, console))
+        commands.add(InstallCommand(github, store, installer, console))
+        commands.add(UseCommand(installed, store, console))
+        commands.add(UninstallCommand(installed, store, console))
+        process.exit(Cli(commands, console, home).run(args))
+    } catch (String e) {
+        console.error(e)
+        process.exit(1)
+    }
+}

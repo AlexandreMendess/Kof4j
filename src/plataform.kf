@@ -1,0 +1,23 @@
+String detectPlatform() {
+    var os = shell.run("uname", listOf("-s")).stdout.trim()
+    var arch = shell.run("uname", listOf("-m")).stdout.trim()
+    var o = ""
+    if (os.startsWith("Linux")) {
+        o = "linux"
+    }
+    if (os.startsWith("Darwin")) {
+        o = "macos"
+    }
+    var a = ""
+    if (arch == "x86_64" || arch == "amd64") {
+        a = "x86_64"
+    }
+    if (arch == "aarch64" || arch == "arm64") {
+        a = "arm64"
+    }
+    if (o == "" || a == "") {
+        println("kfvm: error: unsupported platform: " + os + " " + arch)
+        process.exit(1)
+    }
+    return o + "-" + a
+}

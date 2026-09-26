@@ -1,0 +1,5 @@
+String pad(String s, Int width) {
+    var out = s
+    while (out.length < width) { out = out + " " }
+    return out
+}

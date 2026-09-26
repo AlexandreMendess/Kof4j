@@ -1,0 +1,45 @@
+import kfvm.versions
+
+List<Candidate> sample() {
+    return listOf(
+        Candidate("0.5.0-beta+2026.09.25", true),
+        Candidate("0.4.10-beta", false),
+        Candidate("0.4.9-beta", false))
+}
+
+test "compare orders numeric fields" {
+    assert(Versions.compare("0.4.10-beta", "0.4.9-beta") > 0)
+    assert(Versions.compare("0.10.0", "0.9.9") > 0)
+    assert(Versions.compare("1.0.0", "1.0.0") == 0)
+}
+
+test "compare breaks ties by suffix" {
+    assert(Versions.compare("0.5.0-beta", "0.5.0-beta+2026.09.25") < 0)
+}
+
+test "sortAscending" {
+    var sorted = Versions.sortAscending(listOf("0.10.0", "0.4.10-beta", "0.4.9-beta", "0.5.0-beta"))
+    assert(sorted.get(0) == "0.4.9-beta")
+    assert(sorted.get(1) == "0.4.10-beta")
+    assert(sorted.get(2) == "0.5.0-beta")
+    assert(sorted.get(3) == "0.10.0")
+}
+
+test "select channels" {
+    assert(Selector.select("lst", sample()) == "0.4.10-beta")
+    assert(Selector.select("latest", sample()) == "0.4.10-beta")
+    assert(Selector.select("nightly", sample()) == "0.5.0-beta+2026.09.25")
+}
+
+test "select exact and prefix" {
+    assert(Selector.select("0.4.9-beta", sample()) == "0.4.9-beta")
+    assert(Selector.select("v0.4.10", sample()) == "0.4.10-beta")
+    assert(Selector.select("0.5.0", sample()) == "0.5.0-beta+2026.09.25")
+}
+
+test "select rejects unknown and ambiguous" {
+    var cs = sample()
+    cs.add(Candidate("0.5.0-beta", false))
+    assert(Selector.select("9.9.9", cs) == "")
+    assert(Selector.select("0.5.0", cs) == "")
+}
