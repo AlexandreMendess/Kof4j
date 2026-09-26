@@ -1,0 +1,27 @@
+package kfvm.platform
+
+import kfvm.system
+
+record Platform(String os, String arch) {
+    String id() { return os + "-" + arch }
+}
+
+class Platforms {
+    static Platform detect() {
+        var os = normalizeOs(Shell.run("uname", listOf("-s")).trim())
+        var arch = normalizeArch(Shell.run("uname", listOf("-m")).trim())
+        return Platform(os, arch)
+    }
+
+    static String normalizeOs(String raw) {
+        if (raw.startsWith("Linux")) { return "linux" }
+        if (raw.startsWith("Darwin")) { return "macos" }
+        throw "unsupported OS: " + raw
+    }
+
+    static String normalizeArch(String raw) {
+        if (raw == "x86_64" || raw == "amd64") { return "x86_64" }
+        if (raw == "aarch64" || raw == "arm64") { return "arm64" }
+        throw "unsupported architecture: " + raw
+    }
+}

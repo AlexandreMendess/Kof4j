@@ -1,0 +1,9 @@
+package kfvm.system
+
+class Console {
+    void info(String message) { println("kfvm: " + message) }
+
+    void error(String message) { println("kfvm: error: " + message) }
+
+    void out(String line) { println(line) }
+}
