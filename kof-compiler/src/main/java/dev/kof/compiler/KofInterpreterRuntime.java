@@ -59,6 +59,25 @@ public final class KofInterpreterRuntime {
                 && args[0] instanceof Map<?, ?> m) {
             return encodeMap(m);
         }
+        // §516 fatia 2 (26/09): List<Record> no SCRIPT — o fallback por
+        // reflexão chama o KofRuntime GERADO, que lê fields de instância
+        // real; no interpretador o record é KofObj (mapa de campos) e saía
+        // `{}`/`null` no wire (KeyError 'x' medido no motor py). Espelha o
+        // encodeKof/encodeMap de cima — mesma superfície do JVM/nativo.
+        if (name.startsWith("kof_json_encode_")
+                && (name.equals("kof_json_encode_list") || name.equals("kof_json_encode_set"))
+                && args.length == 2 && args[1] instanceof Number n4
+                && n4.intValue() == 4 && args[0] instanceof java.util.List<?> l4) {
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < l4.size(); i++) {
+                if (i > 0) sb.append(',');
+                Object el = l4.get(i);
+                if (el instanceof KofInterpreter.KofObj ko) sb.append(encodeKof(ko));
+                else if (el instanceof Map<?, ?> mm) sb.append(encodeMap(mm));
+                else sb.append(runtimeFn("kof_json_encode", new Object[]{el}));
+            }
+            return sb.append(']').toString();
+        }
         // json.decode<KofClass>: o método gerado faz Class.forName(nome) — mas
         // no interpretador a classe Kof é KofObj (NUNCA vira classe JVM).
         // Espelha encodeKof: parse com o MESMO parser do runtime gerado e

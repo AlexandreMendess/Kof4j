@@ -278,6 +278,8 @@ public final class RuntimeJsonUtils {
             .Jfv_vstrdone:
                 movq %r8, %rsi
                 subq %rdi, %rsi
+                call .Ljf_unstr             # §516: valor string de record
+                jmp .Jfv_exit              # sai JA sem aspas E desescapado
             .Jfv_mk:
                 call .Ljf_mkstr
                 jmp .Jfv_exit
@@ -294,6 +296,82 @@ public final class RuntimeJsonUtils {
                 movq %rcx, %rax
             .Jfv_exit:
                 popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            .Ljf_unstr:
+                # §516: rdi=src, rsi=len (corpo SEM aspas de um JSON string
+                # value) -> rax=KofString* com escapes resolvidos (\n \t \r
+                # \" \\ \\/). FOLD de decode<Record> consome isto direto: o
+                # decode_string pede LITERAL com aspas (uso top-level).
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                movq %rdi, %rbx
+                movq %rsi, %r12
+                leaq 25(%r12), %rdi
+                call kof_alloc
+                movq %rax, %r13
+                movl $1, 0(%r13)
+                movl $0, 4(%r13)
+                movq $0, 8(%r13)
+                movl $0, 20(%r13)
+                xorq %r14, %r14
+                xorq %rcx, %rcx
+            .Lus_loop:
+                cmpq %r12, %rcx
+                jge .Lus_done
+                movzbl (%rbx,%rcx), %eax
+                cmpb $92, %al
+                jne .Lus_put
+                incq %rcx
+                cmpq %r12, %rcx
+                jge .Lus_done
+                movzbl (%rbx,%rcx), %eax
+                cmpb $110, %al
+                je .Lus_nl
+                cmpb $116, %al
+                je .Lus_tab
+                cmpb $114, %al
+                je .Lus_cr
+                cmpb $34, %al
+                je .Lus_q
+                cmpb $92, %al
+                je .Lus_bs
+                cmpb $47, %al
+                je .Lus_sl
+                jmp .Lus_put
+            .Lus_nl:
+                movl $10, %eax
+                jmp .Lus_put
+            .Lus_tab:
+                movl $9, %eax
+                jmp .Lus_put
+            .Lus_cr:
+                movl $13, %eax
+                jmp .Lus_put
+            .Lus_q:
+                movl $34, %eax
+                jmp .Lus_put
+            .Lus_bs:
+                movl $92, %eax
+                jmp .Lus_put
+            .Lus_sl:
+                movl $47, %eax
+                jmp .Lus_put
+            .Lus_put:
+                movb %al, 24(%r13,%r14)
+                incq %r14
+                incq %rcx
+                jmp .Lus_loop
+            .Lus_done:
+                movl %r14d, 16(%r13)
+                movb $0, 24(%r13,%r14)
+                movq %r13, %rax
                 popq %r14
                 popq %r13
                 popq %r12

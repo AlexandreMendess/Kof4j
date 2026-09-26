@@ -29,7 +29,7 @@ class KofPy {
             "    s=json.loads(sys.argv[1])\n" +
             "    try:\n" +
             "        r=globals()[s[\"fn\"]](*s[\"args\"])\n" +
-            "        sys.stdout.write(\"KOFOK\\n\"+json.dumps(r,default=str)+\"\\n\")\n" +
+            "        sys.stdout.write(\"KOFOK\\n\"+json.dumps(r,default=str,separators=(\",\",\":\"))+\"\\n\")\n" +
             "    except Exception:\n" +
             "        sys.stdout.write(\"KOFERR\\n\"+traceback.format_exc().replace(\"\\n\",\" | \")+\"\\n\")\n" +
             "    sys.stdout.flush()\n" +
@@ -69,5 +69,14 @@ class KofPy {
 
     String callString(String funcName, List<String> args) {
         return json.decode<String>(this.kofPyLine(funcName, json.encode(args)))
+    }
+
+    // Fatia 2 (§516): args/resultado RECORD via JSON cru — o usuario compoe
+    // `json.encode(listOf(record))` p/ dentro e `json.decode<R>` p/ fora (a
+    // face congelada na regra 11: um metodo de passagem, zero parser no host,
+    // zero face nova de compilador). O dict/tuple python volta como JSON
+    // (json.dumps default=str) e decodifica no record tipado do usuario.
+    String callJson(String funcName, String argsJson) {
+        return this.kofPyLine(funcName, argsJson)
     }
 }

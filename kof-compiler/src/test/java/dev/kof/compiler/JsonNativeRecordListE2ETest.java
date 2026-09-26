@@ -39,6 +39,23 @@ class JsonNativeRecordListE2ETest {
     private static final String ORACLE =
             "[{\"x\":1,\"y\":2}]\n[{\"x\":3,\"y\":4},{\"x\":5,\"y\":6}]\n[{\"ok\":true},{\"ok\":false}]\n7\n8\n";
 
+    // §516 complemento (26/09): campo String de record. Dois bugs de raiz
+    // achados no round-trip Python: (1) o coletor de schema testava campo
+    // aninhado para QUALQUER ClassType — java.lang.String caia aqui, nao e
+    // classe de usuario, e a tabela INTEIRA era pulada (encode List<S> dava
+    // o "null" do notfound); (2) o fold nativo de decode passava ao
+    // decode_string (que pede LITERAL com aspas) o valor ja cru do
+    // find_value (sem aspas) -> campo String saia vazio ate para "abc".
+    private static final String SRC4 = """
+            record S(String t, Int n)
+            main() {
+                println(json.encode(listOf(S("hi", 1))))
+                println(json.encode(listOf(S("a\\"b", 2), S("c\\nd", 3))))
+                var m = json.decode<S>("{\\"t\\":\\"p\\\\\\"q\\\\nr\\",\\"n\\":9}")
+                println(m.t())
+                println(m.n())
+            }
+            """;
     private String runJvm(Path src, Path out) throws Exception {
         CompilationResult r = driver.compile(src, out, Target.JVM);
         assertTrue(r.diagnostics().getDiagnostics().isEmpty(), "JVM compilação: " + diags(r));
@@ -67,6 +84,19 @@ class JsonNativeRecordListE2ETest {
         String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         assertEquals(0, p.waitFor(), "exit nativo: " + o);
         return o;
+    }
+
+    @Test
+    void stringFieldRecordsMatchJvmOracleOnX86(@TempDir Path tmp) throws Exception {
+        assumeTrue(Files.exists(Path.of("/usr/bin/as")) || Files.exists(Path.of("/bin/as")),
+                "as ausente — gate de ambiente, não regressão");
+        Path src = tmp.resolve("RecStr.kf");
+        Files.writeString(src, SRC4);
+        String jvm = runJvm(src, tmp.resolve("out-jvm"));
+        String nat = runNative(src, tmp.resolve("out-nat"));
+        assertEquals(jvm, nat, "§516: JVM≡x86 — String field encode/decode (escapes incluídos)");
+        assertTrue(jvm.contains("[{\"t\":\"hi\",\"n\":1}]"),
+                "golden JVM (medido 26/09): " + jvm);
     }
 
     private static String diags(CompilationResult r) {

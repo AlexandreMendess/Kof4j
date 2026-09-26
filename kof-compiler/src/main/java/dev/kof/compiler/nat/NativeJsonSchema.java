@@ -65,7 +65,13 @@ public final class NativeJsonSchema {
             for (FieldLayout f : layout.fields()) {
                 Long code = jsonFieldTypeCode(f.type());
                 if (code == null) { allSupported = false; continue; }
-                if (f.type() instanceof Type.ClassType ct) {
+                // §516 RAIZ: o teste de campo-aninhado rodava para QUALQUER
+                // ClassType — inclusive java.lang.String (code 4!), que nao e
+                // classe do usuario em allClassesMap -> has=false -> a tabela
+                // INTEIRA era pulada (encode de List<record com String> virava
+                // o "null" do notfound). So campos code 5 (objeto) precisam da
+                // verificacao de tabela interna.
+                if (code == 5L && f.type() instanceof Type.ClassType ct) {
                     // campo aninhado: so se a classe alvo tambem tiver tabela
                     boolean has = false;
                     for (IRClass c : nb.allClassesMap.values()) {

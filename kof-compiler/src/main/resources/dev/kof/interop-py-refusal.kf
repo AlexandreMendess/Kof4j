@@ -27,4 +27,8 @@ class KofPy {
     String callString(String funcName, List<String> args) {
         throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
     }
+
+    String callJson(String funcName, String argsJson) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
 }

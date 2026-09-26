@@ -74,65 +74,6 @@ public final class RuntimeJsonEncode {
                 popq %rbp
                 ret
 
-            .globl kof_json_encode_string
-            .type kof_json_encode_string, @function
-            kof_json_encode_string:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                pushq %r14
-                movq %rdi, %rbx
-                call kof_json_builder_new
-                movq %rax, %r12
-                movq %r12, %rdi
-                movl $34, %esi
-                call kof_json_builder_char
-                movl 16(%rbx), %r13d
-                xorq %r14, %r14
-            .Lkof_json_esc_loop:
-                cmpl %r13d, %r14d
-                jge .Lkof_json_esc_done
-                leaq 24(%rbx), %rax
-                movzbl (%rax,%r14), %eax
-                cmpb $34, %al
-                je .Lkof_json_esc_quote
-                cmpb $92, %al
-                je .Lkof_json_esc_backslash
-                movq %r12, %rdi
-                movl %eax, %esi
-                call kof_json_builder_char
-                incq %r14
-                jmp .Lkof_json_esc_loop
-            .Lkof_json_esc_quote:
-                movq %r12, %rdi
-                movl $92, %esi
-                call kof_json_builder_char
-                movq %r12, %rdi
-                movl $34, %esi
-                call kof_json_builder_char
-                incq %r14
-                jmp .Lkof_json_esc_loop
-            .Lkof_json_esc_backslash:
-                movq %r12, %rdi
-                movl $92, %esi
-                call kof_json_builder_char
-                movq %r12, %rdi
-                movl $92, %esi
-                call kof_json_builder_char
-                incq %r14
-                jmp .Lkof_json_esc_loop
-            .Lkof_json_esc_done:
-                movq %r12, %rdi
-                movl $34, %esi
-                call kof_json_builder_char
-                movq %r12, %rdi
-                call kof_json_builder_result
-                popq %r14
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-
 
             .globl kof_json_encode_list
             .type kof_json_encode_list, @function

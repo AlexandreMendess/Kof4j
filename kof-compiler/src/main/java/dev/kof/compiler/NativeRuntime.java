@@ -35,6 +35,7 @@ import dev.kof.compiler.runtime.RuntimeJsonArrayDecode2;
 import dev.kof.compiler.runtime.RuntimeJsonBuilder;
 import dev.kof.compiler.runtime.RuntimeJsonDecode;
 import dev.kof.compiler.runtime.RuntimeJsonEncode;
+import dev.kof.compiler.runtime.RuntimeJsonEncodeString;
 import dev.kof.compiler.runtime.RuntimeJsonObjectEncode;
 import dev.kof.compiler.runtime.RuntimeJsonUtils;
 import dev.kof.compiler.runtime.RuntimeList;
@@ -136,6 +137,7 @@ public final class NativeRuntime {
         RuntimeCollectionToString.emit(sb);
         RuntimeJsonBuilder.emitJsonBuilder(sb);
         RuntimeJsonEncode.emitJsonEncode(sb);
+        RuntimeJsonEncodeString.emitJsonEncodeString(sb);
         RuntimeJsonObjectEncode.emitJsonObjectEncode(sb);
         RuntimeJsonDecode.emitJsonDecode(sb);
         RuntimeJsonArrayDecode1.emit(sb);

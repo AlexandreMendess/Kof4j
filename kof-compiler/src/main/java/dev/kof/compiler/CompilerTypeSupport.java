@@ -131,6 +131,20 @@ public final class CompilerTypeSupport {
             else if (BuiltinTypes.isMap(type)) walkerElem = BuiltinTypes.mapValue(type);
         }
         if (walkerElem instanceof Type.ClassType wct && !BuiltinTypes.isString(walkerElem)) {
+            if (BuiltinTypes.isList(walkerElem) || BuiltinTypes.isMap(walkerElem)
+                    || BuiltinTypes.isSet(walkerElem)) {
+                // §516 (R6): List/Map/Set de List/Map — o walker nativo e v1
+                // flat; a classe colecao nao tem tabela de schema, e sem este
+                // gate o elemento virava o "null" falso do notfound. O gate de
+                // CAMPO interno (abaixo) ja cobria record; este cobre a colecao
+                // como ELEMENTO direto. JVM/Script seguem normais.
+                driver.currentDiagnostics.error("", 0, 0, 0,
+                        "json: nested List/Map/Set element is not supported by the Native JSON walker"
+                                + " (v1 flat, §516) — use the JVM/JS target or wrap the inner"
+                                + " collection in a record with supported fields",
+                        "JSN002");
+                return false;
+            }
             String wcn = wct.packageName().isEmpty() ? wct.name()
                     : wct.packageName() + "." + wct.name();
             return nativeRecordWalkerOk(driver, wcn, new java.util.HashSet<>());

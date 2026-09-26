@@ -238,10 +238,11 @@ public final class ExpressionJsonCallLowerer {
                     case "int", "char", "byte", "short" -> "kof_json_decode_int";
                     case "long" -> "kof_json_decode_long";
                     case "bool" -> "kof_json_decode_bool";
-                    default -> "kof_json_decode_string";
-                };
-                ops.add(new KofCall(targetType, dec,
-                        List.of(BuiltinTypes.STRING), ft, KofCallKind.FUNCTION));
+                    default -> null; // §516: String ja vem pronta do
+                };               // find_value (sem aspas, desescapado);
+                if (dec != null) // decode_string so serve p/ literal
+                    ops.add(new KofCall(targetType, dec,
+                            List.of(BuiltinTypes.STRING), ft, KofCallKind.FUNCTION));
             }
             ops.add(new KofCall(targetType, "<init>", ctorTypes,
                     Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
