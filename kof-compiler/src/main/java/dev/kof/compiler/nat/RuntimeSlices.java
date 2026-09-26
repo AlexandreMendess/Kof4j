@@ -106,7 +106,7 @@ public final class RuntimeSlices {
      *  exatamente estes 3, definidos em `NativeClassMeta`): `.Lnewline`,
      *  `.Lkof_str_true`, `.Lkof_str_false`. */
     public static Set<String> programSideLocals() {
-        return Set.of(".Lnewline", ".Lkof_str_true", ".Lkof_str_false");
+        return Set.of(".Lnewline", ".Lkof_str_true", ".Lkof_str_false", ".Lsch_type_registry");
     }
     private static final Pattern SLICE_CALL =
             Pattern.compile("([A-Za-z][A-Za-z0-9_.]*)\\.([A-Za-z0-9_]+)\\(sb\\)");

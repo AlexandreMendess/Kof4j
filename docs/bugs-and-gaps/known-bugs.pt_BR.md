@@ -13016,7 +13016,7 @@ organizacao dele (aqui: pacote), nao uma instancia sortuda.
 
 <!-- pt-switch --> **EN:** [§515 (EN)](known-bugs.md#515--jsondecoderecord-on-a-packaged-record-died-at-runtime-with-nosuchmethoderror-kof_json_decode_simplename-the-runtime-defines-the-decoder-under-the-mangled-fully-qualified-name---fixed-2609-paritymedia-lane-627)
 
-## §516 — o `json.encode` de uma `List<Record>` no x86 despejava o ponteiro cru do objeto (`encode_int`) porque o walker de lista não tem tag de elemento-objeto — a dobra JSN002 só cobre o record ESCALAR — 🟡 OPEN (dona = lane compiler; fatia 2 X2)
+## §516 — o `json.encode` de uma `List<Record>` no x86 despejava o ponteiro cru do objeto (`encode_int`) porque a dobra JSN002 só cobre o record ESCALAR — ✅ FIXADO 26/09 (lane compiler; fatia 2 X2)
 
 **Sintoma (medido 26/09, recon da fatia 2 X2):** no NATIVE x86,
 ```
@@ -13036,20 +13036,38 @@ conserto JÁ EXISTE: `NativeJsonSchema` emite `.Lsch_<Name>` (token
 `kof_json_schema_find` — infra SEM consumidor (escrita exatamente para este
 caso; o record escalar dobrou por outro caminho).
 
-**Conserto (design, fatia 2):** tag 4 (`elemType instanceof ClassType`) em
-`listTag` + ramo `.Lkof_json_el_object` chamando um `kof_json_encode_object`
-NOVO (asm genérico: schema_find pelo nome da classe no header do objeto →
-walk dos campos → builder; ~40 linhas no padrão dos walkers do §512) + o
-mesmo no walker de MAP (valores record). riscv64/aarch64: mesmo port do §514
-(a face de lista de objetos cross entra junto). Prova:
-`JsonNativeRecordListE2ETest` com oráculo JVM medido, JVM≡x86, e o
-round-trip `listOf(record)` no spec do motor X2 (args de `KofPy`).
+**Conserto (raiz, commit `89268b394`):** tag 4 (`elemType instanceof
+ClassType`) em `JsonDispatch.listTag` + função asm NOVA
+`kof_json_encode_object` (`RuntimeJsonEncode`): resolve o schema pelo
+**typeId** no header do objeto via `.Lsch_type_registry` (pares
+`.quad typeId/.quad tabela`, emitida por `NativeJsonSchema` — antes só
+existia `.Lsch_registry` por nome, sem consumidor), anda os campos (token via
+`kof_string_from_literal` + `kof_json_builder_str`; valores via
+`kof_json_encode_int/long/bool/string`; campo-objeto = recursão, com estado
+em registradores callee-saved), e o MESMO ramo `tag 4` entra no walker de MAP
+(`.Lkjm_valobject`). Registry com terminator **mesmo sem schemas** — senão
+qualquer programa JSON nativo quebrava no link (achado pelo batch).
+**Gate honesto (R6):** `jsonSupported` ganha `nativeRecordWalkerOk` para
+`List`/`Map` de record em ENCODE nativo — espelha as regras do COLETOR
+(int/char/byte/short/long/bool/string + classe aninhada com tabela;
+float/double SEM tabela → `JSN002` em tempo de compilação, nunca o `"null"`
+falso do notfound nem o ponteiro cru). A dobra escalar (`fieldOk`) permanece
+intacta: lá float/double funcionam via `kof_double_to_string`. Decode de
+`List<Record>` segue o `JSN004` próprio do lowerer. riscv64/aarch64:
+declarado no §514 (tags 3/4/5 pendentes no translator; sem regressão — antes
+era lixo também).
+
+**Prova (Q0/Q1/Q3, mesmo commit):** `JsonNativeRecordListE2ETest` **3/3**
+RED→GREEN com oráculo JVM medido — lista simples, multi-record, `Bool`,
+record ANINHADO, `Map<String,Record>`, e campo `Float` → `JSN002` no nativo
+com a JVM compilando limpo. Vizinhos `Json*/Interop*/ProcessSpawn*`: 0F.
+Contagem viva 5→4.
 
 **Repro mínimo:** o trecho acima compilado com `-t native` neste host
 (`as`/`ld` presentes). Não é regressão do §512: o §512 cobriu Double/Long
 crus; objeto-elemento nunca teve tag.
 
-<!-- pt-switch --> **EN:** [§516 (EN)](known-bugs.md#516--jsonencode-de-uma-listrecord-no-x86-despejava-o-ponteiro-cru-do-objeto-encode_int-porque-o-walker-de-lista-nao-tem-tag-de-elemento-objeto--a-dobra-jsn002-so-cobre-o-record-escalar---open-owner--lane-compiler-fatia-2-x2)
+<!-- pt-switch --> **EN:** [§516 (EN)](known-bugs.md#516--jsonencode-de-uma-listrecord-no-x86-despejava-o-ponteiro-cru-do-objeto-encode_int-porque-o-walker-de-lista-nao-tem-tag-de-elemento-objeto--a-dobra-jsn002-so-cobre-o-record-escalar---fixed-2609-lane-compiler-fatia-2-x2)
 
 ## §517 — os PREDICADOS BOOL do kof.io no host JS devolviam o número 1/0 em vez de Bool (String.valueOf → "1", List<Bool>.contains(true) → false) — ✅ FIXED 26/09 (lane paridade/media, #630)
 **Sintoma (medido 26/09, issue #630, host Windows):** no alvo JS os

@@ -10,6 +10,16 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — §516 (26/09): `json.encode` de `List<Record>`/`Map<String,Record>`
+    no x86 despejava o ponteiro cru — agora anda pela tabela de schema pelo
+    typeId (`kof_json_encode_object` + `.Lsch_type_registry` com terminator
+    mesmo sem schema + tag 4 no `listTag` e no andador de map); record SEM
+    tabela de schema (campos float/double, campo-colecao) → `JSN002` em
+    tempo de compilacao, nunca o "null" falso (R6)** — prova:
+    `JsonNativeRecordListE2ETest` 3/3 RED→GREEN (oraculos JVM medidos: lista
+    simples, multi-record, Bool, record aninhado, `Map<String,Record>`; campo
+    Float → JSN002 no nativo com JVM limpa). Cross riscv64/aarch64 declarado
+    no §514. Catalog: known-bugs.md §516 (+EN).
   - **Correcao — #631 (26/09): `Directory.list()` no JS devolvia o caminho COMPLETO
     de cada entrada em vez do NOME — `pasta + "/" + entrada` (o uso natural, o que a
     doc sugere) saia duplicado/malformado e so explodia no open, sem erro de
