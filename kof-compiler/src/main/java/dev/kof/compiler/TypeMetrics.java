@@ -136,6 +136,12 @@ public final class TypeMetrics {
     }
 
     public static Type boxedTypeFor(Type primitive) {
+        // §519/#632 (UIW050): handle de kof.ui/midia APAGA para int no JVM —
+        // nas bordas de referencia (Object slot, valueOf, `.equals` do I6) ele
+        // e boxed como Integer, exatamente como o primitivo cru que espelha.
+        if (primitive instanceof Type.NullableType nh) return boxedTypeFor(nh.inner());
+        if (primitive instanceof Type.ClassType && (KofUi.isUiType(primitive) || KofMedia.isHandleType(primitive)))
+            return new Type.ClassType("java.lang", "Integer", List.of());
         if (primitive instanceof Type.PrimitiveType pt) {
             return switch (pt.name()) {
                 case "int", "Int", "char", "Char" -> new Type.ClassType("java.lang", "Integer", List.of());

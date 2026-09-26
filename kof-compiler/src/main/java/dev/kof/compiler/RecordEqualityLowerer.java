@@ -64,7 +64,7 @@ final class RecordEqualityLowerer {
             // (`m.get("a") == 1`) — no JS não há física de boxing real, mas
             // o box IR é no-op lá (número continua número); mantém o par
             // simétrico com o box do lado esquerdo (ExpressionBinaryLowerer).
-            if (rightType instanceof Type.PrimitiveType rpt0 && !Type.isVoid(rpt0)) {
+            if ((rightType instanceof Type.PrimitiveType rpt0 && !Type.isVoid(rpt0)) || ExpressionBinaryPredicates.isBareHandleErasedToInt(rightType)) {
                 // §284-map: native = kof_box_* (TypeEmitter e JVM-only).
                 if (driver.target.isNative()) {
                     CompilerEmissionHelpers.emitErasureBox(driver, ops, rightType);
@@ -90,7 +90,7 @@ final class RecordEqualityLowerer {
         // D-NULL-INTENT (I6, caso misto): lado direito primitivo CRU
         // precisa boxear antes de entrar no par de temporários Object
         // abaixo (KofStoreLocal ASTORE exige referência na pilha).
-        if (rightType instanceof Type.PrimitiveType rpt1 && !Type.isVoid(rpt1)) {
+        if ((rightType instanceof Type.PrimitiveType rpt1 && !Type.isVoid(rpt1)) || ExpressionBinaryPredicates.isBareHandleErasedToInt(rightType)) {
             // §284-map: native = kof_box_* (o literal `1` de `m.get("a") == 1`
             // precisa chegar CAIXA p/ o kof_box_equals comparar por valor).
             if (driver.target.isNative()) {
@@ -114,6 +114,12 @@ final class RecordEqualityLowerer {
         } else if (rightType instanceof Type.NullableType ntq && ntq.inner() instanceof Type.PrimitiveType rpt
                 && TypeMetrics.boxedTypeFor(rpt) instanceof Type.ClassType rboxed) {
             recordType = rboxed;
+        } else if (ExpressionBinaryPredicates.boxedHandleType(accType) instanceof Type.ClassType hb1) {
+            // §519/#632: Nullable(handle)/handle — a caixa fisica e Integer
+            // (UIW050); `.equals` do wrapper e o caminho de VALOR null-safe.
+            recordType = hb1;
+        } else if (ExpressionBinaryPredicates.boxedHandleType(rightType) instanceof Type.ClassType hb2) {
+            recordType = hb2;
         } else {
             recordType = objT;
         }

@@ -10,6 +10,19 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — #632 (26/09): valores de `kof.ui`/midia (handles apagados p/ int,
+    UIW050) cruzavam bordas de REFERENCIA sem boxar na JVM — `println(cor)`
+    empilhava int cru em `String.valueOf(Object)`; `m.get(k) == m.get(k)` (map
+    de widget) fazia `if_icmpeq` sobre dois `Integer` boxed; `a == null` fazia
+    `if_icmpeq` contra `aconst_null`** — a CLASSE INTEIRA nao carregava
+    (VerifyError), violando learn/35 ("alvos sem render = no-ops, o programa
+    roda"). Fix espelha a familia D-NULL-INTENT do primitivo boxed (boxedTypeFor/
+    boxPrimitive reconhecem handle; dispatcher de `==` roteia Nullable(handle)
+    p/ o `.equals` null-safe; handle-cru-vs-`null` = fold never-null). Native
+    intocado. A face-of-issue original (resultado entrando em `listOf`) ja
+    estava boxada desde aa9442fb5 — travada como teste tambem. Prova:
+    `UiListHandlesJvmE2ETest` (golden JVM 26/09, JS e Script byte a byte; RED
+    pre-fix / GREEN post). Catalog: known-bugs.md §519 (+PT).
   - **Fix — §516 (26/09): `json.encode` de `List<Record>`/`Map<String,Record>`
     no x86 despejava o ponteiro cru — agora anda pela tabela de schema pelo
     typeId (`kof_json_encode_object` + `.Lsch_type_registry` com terminator

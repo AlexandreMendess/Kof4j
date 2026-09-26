@@ -16,6 +16,7 @@ import dev.kof.compiler.WhileStmt;
 import dev.kof.compiler.ExpressionNode;
 import dev.kof.compiler.ExpressionStmt;
 import dev.kof.compiler.FieldAccessExpr;
+import dev.kof.compiler.ForInStmt;
 import dev.kof.compiler.IdentifierExpr;
 import dev.kof.compiler.LambdaExpr;
 import dev.kof.compiler.MethodCallExpr;
@@ -50,6 +51,10 @@ import java.util.Map;
  *   <li>{@code MEM013} (L-04, fatia 3): escape por {@code return} do proprio
  *       reivindicante depois do close — o handle morto escaparia ao chamador
  *       (escape analysis na fronteira de saida da regiao).</li>
+ *   <li>{@code MEM022} (B-05, fatia 4): mutacao mudadora-de-tamanho da
+ *       propria colecao iterada por um {@code for-in} ({@code add}/
+ *       {@code remove}/{@code clear}/{@code addAll}) — o loop por indice
+ *       reavalia {@code size} a cada iteracao; WARNING de postura zero-FP.</li>
  * </ul>
  *
  * <p><b>Fatia 2 (26/09) — cruzamento de fluxo sem propagar, anti-falso-
@@ -97,10 +102,16 @@ public final class OwnershipPass {
     }
 
     private static final class Region {
+        /** Mutadores de tamanho/indices da List que disparam B-05/MEM022. */
+        private static final java.util.Set<String> MUTATORS =
+                java.util.Set.of("add", "remove", "clear", "addAll");
+
         private final DiagnosticCollector diag;
         private final Map<String, Group> groups;
         private final Map<String, String> aliasOf;
         private StatementNode stmt;
+        /** B-05/MEM022: raiz da colecao de um {@code for-in} que envolve este ponto. */
+        private String iteratedBase;
 
         Region(DiagnosticCollector diag) {
             this.diag = diag;
@@ -113,6 +124,7 @@ public final class OwnershipPass {
             this.diag = parent.diag;
             this.groups = new HashMap<>(parent.groups);
             this.aliasOf = new HashMap<>(parent.aliasOf);
+            this.iteratedBase = parent.iteratedBase;
         }
 
         void walkBody(List<StatementNode> body) {
@@ -173,6 +185,21 @@ public final class OwnershipPass {
                     readExpr(fr.condition());
                     branch(fr.body());
                     readExpr(fr.update());
+                }
+                case ForInStmt fi -> {
+                    // B-05/MEM022 (fatia 4): o for-in baixa para um loop por
+                    // indice que RE-AVALIA kof_list_size a cada iteracao e le
+                    // kof_list_get(coll, idx) — mutar a propria colecao
+                    // iterada (add/remove/clear/addAll) muda o tamanho/desloca
+                    // indices durante a varredura. A colecao e lida na regiao
+                    // externa; o corpo roda numa copia que carrega a raiz
+                    // iterada, propagada para blocos/braços aninhados.
+                    readExpr(fi.collection());
+                    Region loop = new Region(this);
+                    if (fi.collection() instanceof IdentifierExpr cid) {
+                        loop.iteratedBase = base(cid.name());
+                    }
+                    loop.step(fi.body());
                 }
                 case TryStmt tr -> {
                     // try/catch/finally partem do snapshot PRE-try (face
@@ -269,6 +296,37 @@ public final class OwnershipPass {
             }
         }
 
+        /**
+         * B-05/MEM022 (fatia 4) — mutacao MUDADORA DE TAMANHO da propria
+         * colecao iterada por um {@code for-in} que envolve este ponto. O
+         * for-in de Kof e por indice com {@code size} reavaliado por iteracao
+         * (medido em {@code StatementLowerer}); {@code add}/{@code addAll}
+         * podem prolongar/estender a varredura, {@code remove}/{@code clear}
+         * a encurtam ou deslocam indices — sempre sem copia explicita.
+         * WARNING (nao erro), espelhando a postura zero-falso-positivo de
+         * {@link ResourceLeakAnalysis} (MEM014): o padrao worklist (BFS que
+         * cresce a fila enquanto a varre) e intencional e continua compilando;
+         * mutacoes de OUTRA colecao, de campo de elemento ou dentro de lambda
+         * (execucao adiada) nao ardém.
+         */
+        private void mutationDuringIteration(MethodCallExpr mc) {
+            if (iteratedBase == null || !MUTATORS.contains(mc.methodName())) {
+                return;
+            }
+            if (!(mc.receiver() instanceof IdentifierExpr recv)) {
+                return;
+            }
+            if (!base(recv.name()).equals(iteratedBase)) {
+                return;
+            }
+            diag.warning(stmt, "B-05: mutation during iteration — '" + recv.name()
+                    + "." + mc.methodName() + "(...)' changes the collection being"
+                    + " iterated by 'for (var ... in " + iteratedBase + ")'; the"
+                    + " index-based loop re-reads its size every iteration. Iterate"
+                    + " a copy or use an explicit index/while loop (MEM022)",
+                    "MEM022");
+        }
+
         private void readExpr(ExpressionNode e) {
             switch (e) {
                 case IdentifierExpr id -> readName(id.name());
@@ -279,6 +337,7 @@ public final class OwnershipPass {
                         claim(recv.name());
                         return;
                     }
+                    mutationDuringIteration(mc);
                     if (mc.receiver() != null) {
                         readExpr(mc.receiver());
                     }

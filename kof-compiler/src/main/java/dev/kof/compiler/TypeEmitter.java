@@ -31,6 +31,17 @@ public final class TypeEmitter {
             };
             Type boxParam = "char".equals(name) ? Type.PrimitiveType.INT : type;
             ops.add(new KofCall(boxed, "valueOf", List.of(boxParam), boxed, KofCallKind.STATIC));
+            return;
+        }
+        // §519/#632 (UIW050): handle de kof.ui/midia e int-apagado no stack.
+        // Na borda de referencia (Object slot, valueOf, receiver invokevirtual,
+        // par Object do RecordEqualityLowerer) precisa virar `Integer.valueOf(I)`
+        // sobre o INT cru — o valor fisicamente empilhado e um int, nunca a
+        // Classe nominal View/Color (senao String.valueOf(Object) recebe int cru
+        // e o verifier JVM rejeita: VerifyError "integer not assignable Object").
+        if (type instanceof Type.ClassType && (KofUi.isUiType(type) || KofMedia.isHandleType(type))) {
+            Type boxed = new Type.ClassType("java.lang", "Integer", List.of());
+            ops.add(new KofCall(boxed, "valueOf", List.of(Type.PrimitiveType.INT), boxed, KofCallKind.STATIC));
         }
     }
 }

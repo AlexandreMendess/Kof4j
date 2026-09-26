@@ -62,7 +62,14 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
         // o JS não stringificam um objeto custom por valueOf(Object)).
         ops.add(new KofCall(argType, "toString", List.of(), BuiltinTypes.STRING,
                 KofCallKind.INSTANCE));
-    } else if (TypeMetrics.isPrimitiveType(argType)
+    } else if ((TypeMetrics.isPrimitiveType(argType)
+            // §519/#632 (JVM): handle BARE e int-apagado (UIW050) — mesma
+            // caixa do primitivo: boxa p/ Integer antes do valueOf(Object);
+            // sem isto, `println(cor)` empilhava int cru em slot de
+            // referencia (VerifyError medido no tip). Nullable(handle) (get)
+            // ja chega boxed e cai no ramo final de referencia.
+            || (driver.target == Target.JVM
+                && ExpressionBinaryPredicates.isBareHandleErasedToInt(argType)))
             && !ExpressionTyper.boxesOwnBranches(driver, mc.arguments().get(0), locals)) {
         // D-PRINT (#168, maintainer 15/09): `println(Char)` imprime o
         // CARÁTER ("A"), nunca o code point ("65"), com ou sem aspas — a

@@ -462,4 +462,175 @@ class MemorySafetyE2ETest {
         assertEquals(0, p.waitFor(), "saida: " + out);
         assertEquals("green", out, "JVM golden");
     }
+
+    // ---- fatia 4: B-05/MEM022 mutacao durante iteracao (WARNING, zero-FP) ----
+
+    private void assertMutationWarnsOnAllTargets(Path tempDir, String name, String src) throws IOException {
+        for (Target t : new Target[]{Target.JVM, Target.NATIVE, Target.JS}) {
+            CompilationResult r = compile(tempDir, name + "-" + t, src, t);
+            assertTrue(r.success(), t + ": MEM022 e warning, build verde — " + diagText(r));
+            assertTrue(diagText(r).contains("MEM022"), t + ": esperado MEM022 — " + diagText(r));
+        }
+    }
+
+    @Test
+    void addDuringIterationWarnsMem022OnAllTargets(@TempDir Path tempDir) throws IOException {
+        String src = """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    for (var x in list) {
+                        list.add(x)
+                    }
+                }
+                """;
+        assertMutationWarnsOnAllTargets(tempDir, "mem022-add", src);
+    }
+
+    @Test
+    void removeClearAndAddAllDuringIterationWarnMem022(@TempDir Path tempDir) throws IOException {
+        assertMutationWarnsOnAllTargets(tempDir, "mem022-remove", """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    for (var x in list) {
+                        list.remove(0)
+                    }
+                }
+                """);
+        assertMutationWarnsOnAllTargets(tempDir, "mem022-clear", """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    for (var x in list) {
+                        list.clear()
+                    }
+                }
+                """);
+        assertMutationWarnsOnAllTargets(tempDir, "mem022-addall", """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    for (var x in list) {
+                        list.addAll(listOf(9))
+                    }
+                }
+                """);
+    }
+
+    @Test
+    void mutationThroughAliasDuringIterationWarnsMem022(@TempDir Path tempDir) throws IOException {
+        CompilationResult r = compile(tempDir, "mem022-alias", """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    var alias = list
+                    for (var x in list) {
+                        alias.add(x)
+                    }
+                }
+                """, Target.JVM);
+        assertTrue(r.success(), "build: " + diagText(r));
+        assertTrue(diagText(r).contains("MEM022"), "alias muta a raiz iterada — " + diagText(r));
+    }
+
+    @Test
+    void mutationInsideNestedBranchDuringIterationWarnsMem022(@TempDir Path tempDir) throws IOException {
+        CompilationResult r = compile(tempDir, "mem022-branch", """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    var flag = true
+                    for (var x in list) {
+                        if (flag) {
+                            list.add(x)
+                        }
+                    }
+                }
+                """, Target.JVM);
+        assertTrue(r.success(), "build: " + diagText(r));
+        assertTrue(diagText(r).contains("MEM022"), "braco aninhado herda a raiz — " + diagText(r));
+    }
+
+    @Test
+    void mutationOfAnotherCollectionDuringIterationStaysSilent(@TempDir Path tempDir) throws IOException {
+        CompilationResult r = compile(tempDir, "mem022-other", """
+                main() {
+                    var a = listOf(1, 2, 3)
+                    var b = listOf(4)
+                    for (var x in a) {
+                        b.add(x)
+                    }
+                }
+                """, Target.JVM);
+        assertTrue(r.success(), "build: " + diagText(r));
+        assertFalse(diagText(r).contains("MEM022"), "mutar OUTRA colecao nao e B-05 — " + diagText(r));
+    }
+
+    @Test
+    void mutationOfElementFieldDuringIterationStaysSilent(@TempDir Path tempDir) throws IOException {
+        CompilationResult r = compile(tempDir, "mem022-field", """
+                class Bag {
+                    List<Int> items
+                    public constructor(List<Int> items) { this.items = items }
+                }
+                main() {
+                    var bags = listOf(Bag(listOf(1)), Bag(listOf(2)))
+                    for (var b in bags) {
+                        b.items.add(3)
+                    }
+                }
+                """, Target.JVM);
+        assertTrue(r.success(), "build: " + diagText(r));
+        assertFalse(diagText(r).contains("MEM022"),
+                "mutar campo de ELEMENTO nao e a colecao iterada — " + diagText(r));
+    }
+
+    @Test
+    void deferredMutationInsideLambdaDuringIterationStaysSilent(@TempDir Path tempDir) throws IOException {
+        CompilationResult r = compile(tempDir, "mem022-lambda", """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    for (var x in list) {
+                        var f = () -> { list.add(x) }
+                    }
+                }
+                """, Target.JVM);
+        assertFalse(diagText(r).contains("MEM022"),
+                "lambda adiada nao e mutacao durante a varredura — " + diagText(r));
+    }
+
+    @Test
+    void setDuringIterationStaysSilent(@TempDir Path tempDir) throws IOException {
+        CompilationResult r = compile(tempDir, "mem022-set", """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    for (var x in list) {
+                        list.set(0, x)
+                    }
+                }
+                """, Target.JVM);
+        assertTrue(r.success(), "build: " + diagText(r));
+        assertFalse(diagText(r).contains("MEM022"), "set nao muda tamanho/indices — " + diagText(r));
+    }
+
+    @Test
+    void validIterationRunsOnJvmWithGoldenOutput(@TempDir Path tempDir) throws Exception {
+        String src = """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    var sum = 0
+                    for (var x in list) {
+                        sum = sum + x
+                    }
+                    println(sum)
+                }
+                """;
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, src);
+        Path outDir = tempDir.resolve("out-" + System.nanoTime());
+        CompilationResult r = driver.compile(file, outDir, Target.JVM);
+        assertTrue(r.success(), "compile: " + diagText(r));
+        Process p = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
+                "-cp", outDir.toString(), "Default.Main")
+                .redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "saida: " + out);
+        assertEquals("6", out, "JVM golden");
+    }
 }

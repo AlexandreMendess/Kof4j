@@ -15607,3 +15607,52 @@ Same run covers the empty-dir/missing-dir faces via the neighbors cluster.
 
 
 <!-- pt-switch --> **PT:** [§518 (pt_BR)](known-bugs.pt_BR.md#518--directorylist-no-host-js-devolvia-o-caminho-completo-de-cada-entrada-em-vez-do-nome--o-padrao-natural-pasta----entrada-construia-caminho-quebrado-em-silencio---fixed-2609-lane-paridademedia-631)
+
+## §519 — kof.ui/media values (handles erased to int, UIW050) crossed REFERENCE boundaries un-boxed on the JVM — `println(cor)`, `m.get(k) == m.get(k)` and `a == null` brought down the WHOLE CLASS with VerifyError — ✅ FIXED 26/09 (parity/media lane, #632)
+**Symptom (measured 26/09, issue #632 + complement on the thread):** with the
+`kof.ui` value crossing a boundary, the JVM class refused to load with
+`VerifyError: Bad type on operand stack` — three faces alive at the tip:
+(1) `var cor = fundo()` + `println(cor)` → `String.valueOf(Object)` receiving
+the raw int (@8); (2) `m.get(k) == m.get(k)` (map with widget value) →
+`if_icmpeq` over two boxed `Integer` references (@48); (3) `makeView() == null`
+→ `if_icmpeq` against `aconst_null` (@7). The headline of the issue itself
+(result entering `listOf<...>`) was ALREADY fixed at the tip by `aa9442fb5`
+(add-boxing) — the test now locks it too. The contract (learn/35): targets
+without render treat the handles as no-ops, the program RUNS; it did not even
+load.
+
+**Root cause (read in code):** the handle erasure (UIW050) was honored by the
+emitters of SLOT (local/map store-load as int) and of the `add` boxes, but the
+general REFERENCE boundaries kept asking "is it primitive?" from
+`Type.PrimitiveType` alone — a handle is `ClassType`, answered "reference, no
+box needed", and the verifier found int in Object's place. The JVM already had
+this exact family solved for the boxed primitives of D-NULL-INTENT
+(`Nullable(Int)` → wrapper `.equals`/fold never-null); the handle was never
+let through the door.
+
+**Fix (mirror the family, not a new contract):** `boxedTypeFor`/`boxPrimitive`
+recognize handle (box `Integer.valueOf(I)` over the erased int); `println` and
+stringification box the BARE handle on the JVM (the `Nullable(handle)` of a
+slot already arrives boxed — re-boxing it is the documented §278 trap); the
+`==`/`!=` dispatcher routes `Nullable(handle)` to the SAME null-safe path of
+`RecordEqualityLowerer` (wrapper `.equals` by value), and bare-handle-vs-`null`
+gets the same never-null fold of the bare primitive (false/true) — target-
+independent, same observable semantics as the `===` of JS measured before the
+fix. Native UNTOUCHED (own representation; the clause is gated
+`driver.target == Target.JVM`).
+
+**Proof:** `UiListHandlesJvmE2ETest` (new) — golden measured 26/09 on the JVM
+(`2\n169090815\ntrue\ntrue\nfalse\ntrue\n`), JS and Script compared byte a
+byte; RED pre-fix (VerifyError @8/@48/@7 on the faces), GREEN after; the
+issue's own snippet (`desenhar`/`listOf<View>`) locked as a second test.
+Neighbors: Ui* 29/10/7/6 green, NullablePrimitiveContractE2ETest 26/26 (the
+family I mirrored), KofJsE2ETest 40/40, ScriptTargetTest 7/7, CoreRegression
+102/102, ConformanceMatrix 14/14; full suite before the push.
+
+**Lesson (Q4):** "the verifier only fails at LOAD, far from the bug" — any new
+type erased by UIW050 needs to pass the SAME boxes of the primitive, in EVERY
+reference boundary (valueOf, Object slot, null, equals); the grep
+`instanceof Type.PrimitiveType` in the comparison/print lowerers is the radar.
+
+
+<!-- pt-switch --> **PT:** [§519 (pt_BR)](known-bugs.pt_BR.md#519--valores-de-kofuimidia-handles-apagados-para-int-uiw050-cruzavam-bordas-de-referencia-sem-boxar-na-jvm--printlncor-mgetk--mgetk-e-a--null-derrubavam-a-classe-inteira-com-verifyerror---fixed-2609-lane-paridademedia-632)
