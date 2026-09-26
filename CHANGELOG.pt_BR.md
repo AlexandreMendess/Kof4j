@@ -47,6 +47,18 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     agora devolvem o booleano real. Prova: `IoPredicateFacesJsE2ETest` (oraculo
     JVM+Script medido, JS byte a byte; RED antes / GREEN depois). Catalogo:
     known-bugs.md §517 (+PT).
+  - **Memory-safety Fase 3 fatia 4 — mutação durante iteração arde
+    `MEM022` (B-05) como warning** (26/09): dentro de `for (var x in C)`,
+    qualquer mutação mudadora de tamanho de `C` (`add`/`remove`/`clear`/
+    `addAll`, direta ou via alias da raiz de `C`) emite `MEM022`. O `for-in` de
+    Kof baixa para um loop por índice que relê `kof_list_size` a cada volta,
+    então crescer a coleção iterada estende a varredura e encolhê-la a trunca/
+    desloca. WARNING (não erro), espelhando a postura zero-FP do
+    `ResourceLeakAnalysis`: o padrão worklist/BFS é intencional e continua
+    compilando; mutar outra coleção, campo de elemento ou corpo de lambda
+    adiada segue silente. Prova: `MemorySafetyE2ETest` 29/29 (9 faces novas).
+    A fatia 4 da Fase 3 foi reordenada de B-03/B-04 (borrow FFI → Fase 5;
+    captura de spawn → Fase 4) para B-05, a face 100% decidível.
   - **Memory-safety Fase 3 fatia 3 — escape por `return` arde `MEM013`**
     (26/09): a primeira face compile-time da L-04 na superfície real — uma
     funcao que fecha um recurso e depois devolve o MESMO binding reivindicante

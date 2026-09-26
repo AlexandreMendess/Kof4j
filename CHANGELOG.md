@@ -47,6 +47,18 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     agora devolvem o booleano real. Prova: `IoPredicateFacesJsE2ETest` (oraculo
     JVM+Script medido, JS byte a byte; RED pre-fix / GREEN post). Catalog:
     known-bugs.md §517 (+PT).
+  - **Memory-safety Fase 3 fatia 4 — mutation during iteration burns
+    `MEM022` (B-05) as a warning** (26/09): inside `for (var x in C)`, any
+    size-changing mutation of `C` (`add`/`remove`/`clear`/`addAll`, direct or
+    through an alias of `C`'s root) emits `MEM022`. The Kof `for-in` lowers to
+    an index loop that re-reads `kof_list_size` every turn, so growing the
+    iterated collection extends the scan and shrinking it truncates/skews it.
+    WARNING (not an error), mirroring `ResourceLeakAnalysis`'s zero-FP posture:
+    the worklist/BFS pattern is intentional and keeps compiling; mutating
+    another collection, an element's field, or a deferred lambda body stays
+    silent. Proof: `MemorySafetyE2ETest` 29/29 (9 new faces). Fase 3 slice 4
+    was reordered from B-03/B-04 (FFI borrow → Fase 5; spawn capture → Fase 4)
+    to B-05, the fully decidable face.
   - **Memory-safety Fase 3 fatia 3 — escape by `return` burns `MEM013`**
     (26/09): L-04's first compile-time face on the real surface — a function
     that closes a resource and then returns the SAME claiming binding (direct

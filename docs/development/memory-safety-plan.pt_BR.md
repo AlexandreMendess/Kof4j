@@ -94,7 +94,7 @@ comportamento. A fila de representação está EXAUSTA.
 | **1** Regiao retilinea | O-01/`MEM001` dupla reivindicacao + O-02/`MEM002` uso-apos-claim via alias — `OwnershipPass` ligado no `StatementAnalyzer.analyzeBody` (frontend compartilhado = mesma analise nos 4 alvos), `MemorySafetyE2ETest` (invalidos nos 4, validos byte-green com golden JVM/Script) | POUSADA 26/09 |
 | **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | POUSADA 26/09 |
 | **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | POUSADA 26/09 |
-| **4** Aliasing mutavel em fronteiras | B-03/`MEM020` (buffer FFI escrevivel unico) + B-04/`MEM021` em `spawn` | pendente |
+| **4** Aliasing mutável em fronteiras | B-05/`MEM022` — mutação mudadora de tamanho da coleção iterada (`add`/`remove`/`clear`/`addAll` dentro do próprio `for-in`), WARNING + zero-FP por construção; o `for-in` do frontend é loop por índice que relê `size` a cada volta (`StatementLowerer`), então é bug real de live-alias | POUSADA 26/09 |
 | **5** Containers & nao fechados | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | **parte web FEITA 26/09 (fatia 3.1b)**; containers + db/file pendentes |
 
 ## Fase 3 — design (DESTRAVADA 26/09 por `D-COMPLETE-FIRST`; pacote = passe + emissão + prova por alvo)
@@ -124,6 +124,26 @@ A superfície de emissão é o que EXISTE na superfície do usuário (medido
   Mesmo diagnostico em JVM/Native/JS fixado por `ResourceLeakE2ETest` 5/5; ciclos
   validos permanecem silentes e byte-green. Criadores db/file entram aqui quando
   suas superficies de close forem medidas.
+
+- **MEM022 (mutação durante iteração, B-05) — fatia 4**: ✅ **POUSADA 26/09**
+  (`OwnershipPass`, mesmo hook do frontend compartilhado): dentro de
+  `for (var x in C)`, qualquer mutação mudadora de tamanho de `C` —
+  `add`/`remove`/`clear`/`addAll`, direta ou via alias da raiz de `C` — emite
+  **WARNING** `MEM022`. WARNING e não erro por decisão, espelhando a postura
+  zero-FP do `ResourceLeakAnalysis`: a semântica de loop por índice torna a
+  mutação observável, mas o padrão worklist/BFS (crescer a fila enquanto
+  varre) é intencional e tem de continuar compilando. Mutar OUTRA coleção,
+  campo de elemento ou corpo de lambda adiada segue silente.
+  `MemorySafetyE2ETest` 29/29 (9 faces novas: add/remove/clear/addAll, alias,
+  braço aninhado; silentes: outra coleção, campo de elemento, lambda, `set`).
+
+- **Reordenação (26/09):** a fatia 4 estava especificada como B-03/`MEM020` +
+  B-04/`MEM021`. As duas foram avaliadas primeiro e movidas (nomeadas, não gaps
+  aceitos): B-03 (buffer FFI escrevível único) exige a superfície de
+  borrow/lifetime FFI (**Fase 5**); B-04 (estado mutável compartilhado em
+  `spawn`) exige o contexto de captura de closure/async (**Fase 4**). A fatia 4
+  pousou como B-05/`MEM022`, a face 100% decidível, pela autorização do próprio
+  plano para reordenar.
 
 - **MEM021 (aliasing mutável em spawn) — fatia 3.2**: `spawn` capturando
   objeto MUTÁVEL que o pai também muta depois do spawn (e vice-versa), sem

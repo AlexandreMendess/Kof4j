@@ -93,8 +93,8 @@ comportamento. A fila de representacao esta EXAUSTA.
 | **1** Regiao retilinea | O-01/`MEM001` dupla reivindicacao + O-02/`MEM002` use-after-claim via alias — `OwnershipPass` ligado no `StatementAnalyzer.analyzeBody` (frontend compartilhado = mesma analise nos 4 alvos), `MemorySafetyE2ETest` (invalidos nos 4, validos byte-green com golden JVM/Script) | LANDED 26/09 |
 | **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | LANDED 26/09 |
 | **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | LANDED 26/09 |
-| **4** Aliasing mutavel em fronteiras | B-03/`MEM020` (buffer FFI escrevivel unico) + B-04/`MEM021` em `spawn` | pendente |
-| **5** Containers & unclosed | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | **web parte FEITA 26/09 (fatia 3.1b)**; containers + db/file pendentes |
+| **4** Mutable aliasing at boundaries | B-05/`MEM022` — size-changing mutation of the collection being iterated (`add`/`remove`/`clear`/`addAll` inside its own `for-in`), WARNING + zero-FP by construction; the frontend `for-in` is an index loop re-reading `size` each turn (`StatementLowerer`), so this is a real live-alias bug | LANDED 26/09 |
+| **5** Containers & unclosed | O-03/`MEM003` (clear releases) + L-05/`MEM014` (§9: web/db without close) | **web part DONE 26/09 (slice 3.1b)**; containers + db/file pending |
 
 ## Fase 3 — design (UNLOCKED 26/09 by `D-COMPLETE-FIRST`; package = pass + emission + per-target proof)
 
@@ -123,6 +123,24 @@ not assumed):
   it (conservative, zero-FP by construction). Same diagnostic on JVM/Native/JS
   pinned by `ResourceLeakE2ETest` 5/5; valid lifecycles stay silent and
   byte-green. db/file creators join here when their close surfaces are measured.
+
+- **MEM022 (mutation during iteration, B-05) — slice 4**: ✅ **LANDED 26/09**
+  (`OwnershipPass`, same shared-frontend hook): inside `for (var x in C)`, any
+  size-changing mutation of `C` — `add`/`remove`/`clear`/`addAll`, directly or
+  through an alias of `C`'s root — emits a `MEM022` **WARNING**. WARNING and not
+  an error by design, mirroring `ResourceLeakAnalysis`'s zero-FP posture: the
+  index-loop semantics make mutation observable, but the worklist/BFS pattern
+  (growing the queue while scanning it) is intentional and must keep compiling.
+  Mutating ANOTHER collection, a field of an element, or a deferred lambda body
+  stays silent. `MemorySafetyE2ETest` 29/29 (9 new faces: add/remove/clear/addAll,
+  alias, nested branch; silent: other collection, element field, lambda, `set`).
+
+- **Reordering (26/09):** slice 4 was specified as B-03/`MEM020` + B-04/`MEM021`.
+  Both were evaluated first and moved out (named, not accepted gaps): B-03
+  (single writable FFI buffer) needs the FFI borrow/lifetime surface (**Fase
+  5**); B-04 (`spawn` shared mutable state) needs the closure/async capture
+  context (**Fase 4**). Slice 4 landed as B-05/`MEM022`, the fully decidable
+  face, per the plan's own authorisation to reorder.
 
 - **MEM021 (spawn mutable aliasing) — fatia 3.2**: `spawn` capturing a
   MUTABLE object that the parent also mutates after the spawn (and vice
