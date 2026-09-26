@@ -193,6 +193,21 @@ setup_path() {
     say "added $BIN_DIR to PATH in $rc (open a new terminal or run: . $rc)"
 }
 
+add_kof_into_path() {
+    command -v kof >/dev/null 2>&1 && return
+    if [ ! -e "$KFVM_HOME/current" ]; then
+        ln -sfn "$(dirname "$(dirname "$KOF")")" "$KFVM_HOME/current"
+    fi
+    mkdir -p "$BIN_DIR"
+    cat > "$BIN_DIR/kof.tmp" <<EOF
+#!/bin/sh
+exec "\${KFVM_HOME:-$KFVM_HOME}/current/bin/kof" "\$@"
+EOF
+    chmod 755 "$BIN_DIR/kof.tmp"
+    mv "$BIN_DIR/kof.tmp" "$BIN_DIR/kof"
+    say "installed kof launcher to $BIN_DIR/kof"
+}
+
 main() {
     need curl
     need tar
@@ -203,6 +218,7 @@ main() {
     get_source
     REQUIRED="$(vnum "$KOF_MIN")"
     find_kof || install_kof
+    add_kof_into_path
     say "using $KOF ($("$KOF" version </dev/null | head -n 1))"
     say "building kfvm"
     if build_native; then

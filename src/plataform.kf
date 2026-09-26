@@ -16,7 +16,7 @@ String detectPlatform() {
         a = "arm64"
     }
     if (o == "" || a == "") {
-        println("kfvm: error: unsupported platform: " + os + " " + arch)
+        println("[ERR]: unsupported platform: '" + os + " (" + arch + ")'")
         process.exit(1)
     }
     return o + "-" + a
