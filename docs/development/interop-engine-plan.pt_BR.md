@@ -8,7 +8,7 @@ toda face que chega na superfície da linguagem).
 
 ## Landing log (deltas medidos contra a tabela — a tabela fica como o claim; isto é o que pousou)
 
-**Fatia 2 — records↔JSON POUSADA 26/09 (commit `4dfa2cfe8`, §520; testes no mesmo commit).** Deltas medidos ao construir:
+**Fatia 2 — records↔JSON POUSADA 26/09 (commit `f73c284cd`, §520; testes no mesmo commit).** Deltas medidos ao construir:
 1. **Face congelada como planejado: `String callJson(nomeFn, argsJson)`** — um passthrough cru da linha de resultado JSON; o usuario compoe `json.encode(args)` e `json.decode<R>(wire)`. Zero face nova de compilador (regra 11): a dobra escalar de `decode<Record>` ja existia nos 4 alvos do motor.
 2. **Quatro causas raiz entre o plano e a realidade (§520):** o coletor de schema pulava a tabela INTEIRA de todo record com campo String (o teste de campo-aninhado engolia `java.lang.String`); a dobra de decode nativa entregava o corpo SEM aspas do `find_value` ao `decode_string` (contrato de literal com aspas — todo campo String decodificava vazio); o `encode_string` deixava bytes de controle crus (wire JVM ≠ x86, medido); e o interpretador nao tinha ramo tag-4 no `encode_list` (o `KofObj` via um andador de reflexao lendo fields de instancia real → `{}`). As quatro corrigidas na raiz, nao mascaradas.
 3. **Wire = separadores COMPACTOS canonicos** (`json.dumps(separators=(",",":")) no prelude): o `": "` do python quebrava a busca de token de todo decode escalar nativo sobre resultado remoto.

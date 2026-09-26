@@ -15697,7 +15697,7 @@ Kof encoder; python's default `": "` broke the token search of the native
 scalar decoder on every remote call. `List<Record>` DECODE on x86 stays
 `JSN004` (declared gap, unchanged); cross riscv/aarch stays §514.
 
-**Proof (same commit `4dfa2cfe8`):** `JsonNativeRecordListE2ETest.
+**Proof (same commit `f73c284cd`):** `JsonNativeRecordListE2ETest.
 stringFieldRecordsMatchJvmOracleOnX86` (encode + decode with `\"`/`\n` escapes,
 golden JVM-measured, RED pre-fix: `[null]`/empty field); `InteropPyRecordE2ETest`
 3/3 (round-trip arg+result JVM≡x86≡JS byte a byte with quote/newline in the

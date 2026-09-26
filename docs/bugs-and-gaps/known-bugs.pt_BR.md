@@ -13218,7 +13218,7 @@ de token do decodificador escalar nativo em toda chamada remota. `List<Record>`
 DECODE no x86 permanece `JSN004` (gap declarado, inalterado); cross riscv/aarch
 permanece §514.
 
-**Prova (mesmo commit `4dfa2cfe8`):** `JsonNativeRecordListE2ETest.
+**Prova (mesmo commit `f73c284cd`):** `JsonNativeRecordListE2ETest.
 stringFieldRecordsMatchJvmOracleOnX86` (encode + decode com escapes `\"`/`\n`,
 golden JVM medido, RED pre-fix: `[null]`/campo vazio); `InteropPyRecordE2ETest`
 3/3 (round-trip arg+resultado JVM≡x86≡JS byte a byte com aspa/newline na face
