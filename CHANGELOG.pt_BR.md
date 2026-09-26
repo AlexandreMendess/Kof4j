@@ -35,6 +35,20 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     MEDIDOS. Split `RuntimeJsonEncodeString` (537->405, regra <=500). Catalog:
     known-bugs.md §520 (+PT).
 - **Correcao — #632 (26/09): valores de `kof.ui`/midia (handles apagados p/
+
+  - **Correcao — #634 (26/09): funcao com parametro/retorno `Map<K,V>` era emitida
+    com o descritor CONCRETO `Ljava/util/HashMap;`, entao um `Map` vindo de
+    `json.decode<Map<...>>` (interface `java/util/Map`) falhava a verificacao de
+    bytecode da JVM — a classe nem carregava (`VerifyError` mascarado pelo
+    launcher como "JavaFX runtime components not found"; mensagem nunca
+    benigna). A erasure de `Map` agora e a INTERFACE `java/util/Map`
+    (`JvmTypeMapper`), casando com as operacoes `INVOKEINTERFACE java/util/Map`
+    ja existentes e com o retorno dos decoders; `mapOf()` continua
+    `new HashMap` (atribuivel). Prova: `MapParamErasureE2ETest` (programa da
+    issue + controle `mapOf`; RED pre-fix = mensagem JavaFX/exit 1; GREEN pos).
+    Catalog: known-bugs.md §521 (+PT). JVM-only (Script/JS/Native sem verifier).
+
+  - **Correcao — #632 (26/09): valores de `kof.ui`/midia (handles apagados p/
     int, UIW050) cruzavam bordas de REFERENCIA sem boxar na JVM — `println(cor)`
     empilhava int cru em `String.valueOf(Object)`; `m.get(k) == m.get(k)` (map de
     widget) fazia `if_icmpeq` sobre dois `Integer` boxed; `a == null` fazia

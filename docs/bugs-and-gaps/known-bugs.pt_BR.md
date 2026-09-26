@@ -13236,3 +13236,43 @@ em NativeJsonSchema/lowerers e o radar.
 
 
 <!-- pt-switch --> **EN:** [§520 (EN)](known-bugs.md#520--records-with-string-fields-were-invisible-to-the-x86script-json-machine--the-schema-collector-skipped-the-whole-table-the-nested-class-check-swallowed-javalangstring-native-decoderecord-handed-the-un-quoted-value-to-decode_string-encode_string-left-control-chars-raw-and-the-interpreter-encoded-listrecord-as----fixed-2609-compiler-lane-x2-fatia-2)
+
+## §521 — Kof `Map<K,V>` era apagado para o descritor CONCRETO `Ljava/util/HashMap;`, então um valor `Map` de `json.decode<Map<...>>` falhava a verificação de bytecode da JVM e o `VerifyError` real ficava mascarado como "JavaFX runtime components not found" (GitHub #634) — ✅ FIXED 26/09 (lane paridade/JSON)
+**Sintoma (medido 26/09, issue #634, autor externo):** um programa com uma
+função declarada `Map<String,String> copiar(Map<String,String>)` alimentada com
+o resultado de `json.decode<Map<String,String>>(...)` abortava no CARREGAMENTO
+da classe: `java -cp out Default.Main` imprimia so "Erro: os componentes de
+runtime do JavaFX nao foram encontrados..." e saia 1 — a causa real era um
+`VerifyError` (fallback generico do launcher; AGENTS: essa mensagem nunca e
+benigna). O `javap` mostrava a função compilada como
+`public static java.util.HashMap copiar(java.util.HashMap)`: descritor especifico
+demais para a interface `java.util.Map` que o decoder devolve (um
+`LinkedHashMap`), entao o verifier rejeitava o `invokestatic` (Map nao e subtipo
+de HashMap). O mesmo mapa construido com `mapOf()` funcionava — `mapOf` devolve
+um `HashMap`, entao call-sites que so passavam `HashMap` nunca percebiam.
+
+**Causa-raiz (lida no codigo):** a erasure de Kof `Map<K,V>` em
+`JvmTypeMapper.classDescriptor`/`toInternalName` era o CONCRETO
+`java/util/HashMap`, mas toda operacao de `Map` ja e emitida com
+`INVOKEINTERFACE java/util/Map` (`JvmOpMap`) e os decoders JSON ja sao
+declarados `Ljava/util/Map;` (`JvmRuntimeReturnDescriptors`). O descritor de
+parametro/retorno/campo era o ultimo lugar ainda com a classe concreta — a
+convencao `List` → `ArrayList` nao tem razao de valer para `Map`, cujo conjunto
+de operacoes inteiro e baseado em interface.
+
+**Fix:** `JvmTypeMapper` apaga `kof.Map` para a INTERFACE `java/util/Map`
+(`classDescriptor` + `toInternalName`). `mapOf()` continua emitindo `new
+java/util/HashMap` (atribuivel a interface); toda operacao ja usava o owner de
+interface, entao nada mais muda. JVM-only por construcao — Script/JS/Native nao
+tem verifier de bytecode e apagam `Map` de outra forma.
+
+**Prova (Q0/Q1/Q3):** `MapParamErasureE2ETest` compila o programa da issue
+(record com campo `Map<String,String>` + `json.encode`; o resultado do decode
+passado a uma funcao tipada `Map<K,V>`; e um CONTROLE construido com `mapOf`) e
+afirma exit 0 + golden na JVM. RED pre-fix = a mensagem exata "JavaFX runtime
+components not found" com exit 1 (a rejeicao do verifier); GREEN pos-fix.
+Cluster verde: `JsonCompleteE2ETest`, `JsonNativeRecordListE2ETest`,
+`JsonDecodePackagedRecordE2ETest`, `PackageRecordGenericListE2ETest`,
+`ConformanceMatrixTest` (4 alvos), `KofJsTest`, `ScriptTargetE2ETest`.
+
+<!-- pt-switch --> **EN:** [§520 (EN)](known-bugs.md#521--kof-mapkv-was-erased-to-the-concrete-descriptor-ljavautilhashmap-so-a-map-value-from-jsondecodemap-failed-jvm-bytecode-verification-and-the-real-verifyerror-was-masked-as-javafx-runtime-components-not-found-github-634---fixed-2609-parityjson-lane)

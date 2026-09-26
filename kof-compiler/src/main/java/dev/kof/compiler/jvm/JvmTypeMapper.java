@@ -69,8 +69,16 @@ public final class JvmTypeMapper {
         if ("kof".equals(c.packageName()) && "Set".equals(c.name())) {
             return "Ljava/util/HashSet;";
         }
+        // #634: Kof `Map<K,V>` apaga para a INTERFACE `java.util.Map` (não
+        // `HashMap`): toda operação de mapa já é `INVOKEINTERFACE
+        // java/util/Map` (JvmOpMap) e os decoders JSON já devolvem
+        // `Ljava/util/Map;` — o descritor concreto em parâmetro/retorno/campo
+        // fazia o verifier rejeitar a passagem de um `Map` do decode para uma
+        // função declarada `Map<K,V>` (VerifyError escondido atrás da
+        // mensagem de JavaFX do launcher). `mapOf()` continua `new HashMap` —
+        // atribuível à interface.
         if ("kof".equals(c.packageName()) && "Map".equals(c.name())) {
-            return "Ljava/util/HashMap;";
+            return "Ljava/util/Map;";
         }
         if ("kof.concurrent".equals(c.packageName()) && "Channel".equals(c.name())) {
             return "Ljava/util/concurrent/LinkedBlockingQueue;";
@@ -198,7 +206,7 @@ public final class JvmTypeMapper {
         if (simpleName.contains(".")) return simpleName.replace('.', '/');
         if ("kof".equals(packageName) && "List".equals(simpleName)) return "java/util/ArrayList";
         if ("kof".equals(packageName) && "Set".equals(simpleName)) return "java/util/HashSet";
-        if ("kof".equals(packageName) && "Map".equals(simpleName)) return "java/util/HashMap";
+        if ("kof".equals(packageName) && "Map".equals(simpleName)) return "java/util/Map";
         if ("kof.concurrent".equals(packageName) && "Channel".equals(simpleName)) return "java/util/concurrent/LinkedBlockingQueue";
         if ("kof.concurrent".equals(packageName) && "Handle".equals(simpleName)) return "java/util/concurrent/CompletableFuture";
         if ("kof.process".equals(packageName) && "Result".equals(simpleName)) return "dev/kof/runtime/KofRuntime$ProcessResult";
