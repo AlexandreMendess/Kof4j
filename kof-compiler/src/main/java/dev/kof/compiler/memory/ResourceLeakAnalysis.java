@@ -35,9 +35,13 @@ import java.util.List;
  * a close found ANYWHERE in the body (even inside an {@code if}/loop/lambda)
  * silences the warning; any escape shape silences it (the caller/collaborator
  * owns the close); {@code app.close()}/{@code app.port()} in receiver position
- * is a use, NOT an escape; only {@code web.app()} creators are tracked (the
- * measured close-bearing surface — db/file handles join in later slices of
- * §5 without inventing unmeasured shapes).</p>
+ * is a use, NOT an escape; {@code db.close(handle)} in argument position is
+ * likewise a use, not an escape. Two measured close-bearing creators are
+ * tracked: {@code web.app()} (closed via {@code handle.close()}) and
+ * {@code db.connect(...)} (closed via {@code db.close(handle)} — the handle is
+ * a String, §9 L-05). {@code kof.io} has NO close-bearing file handle (reads
+ * and writes are stateless by path), so there is no file shape to track here
+ * without inventing one.</p>
  */
 public final class ResourceLeakAnalysis {
 
@@ -52,33 +56,45 @@ public final class ResourceLeakAnalysis {
             if (!(stmt instanceof VarDeclStmt v) || v.initializer() == null) {
                 continue;
             }
-            if (!createsWebApp(v.initializer())) {
+            String creator = creatorLabel(v.initializer());
+            if (creator == null) {
                 continue;
             }
             if (closedAnywhere(body, v.name()) || escapesAnywhere(body, v.name())) {
                 continue;
             }
-            diag.warning(v, "L-05: resource '" + v.name() + "' from 'web.app()' is never"
-                    + " closed in this scope and never handed to anyone — call '"
-                    + v.name() + ".close()' or return/transfer the handle"
-                    + " (MEM014)", "MEM014");
+            diag.warning(v, "L-05: resource '" + v.name() + "' from '" + creator
+                    + "' is never closed in this scope and never handed to anyone — call"
+                    + (creator.startsWith("db.") ? " 'db.close(" + v.name() + ")'"
+                            : " '" + v.name() + ".close()'")
+                    + " or return/transfer the handle (MEM014)", "MEM014");
         }
     }
 
-    private static boolean createsWebApp(ExpressionNode expr) {
+    /** Measured close-bearing creators; label names the surface in the warning. */
+    private static String creatorLabel(ExpressionNode expr) {
         if (expr instanceof MethodCallExpr mc
                 && "app".equals(mc.methodName())
                 && mc.arguments().isEmpty()
                 && mc.receiver() instanceof IdentifierExpr ns
                 && "web".equals(ns.name())) {
-            return true;
+            return "web.app()";
+        }
+        if (expr instanceof MethodCallExpr mc
+                && "connect".equals(mc.methodName())
+                && mc.receiver() instanceof IdentifierExpr ns
+                && "db".equals(ns.name())) {
+            return "db.connect()";
         }
         for (Object child : children(expr)) {
-            if (child instanceof ExpressionNode e && createsWebApp(e)) {
-                return true;
+            if (child instanceof ExpressionNode e) {
+                String label = creatorLabel(e);
+                if (label != null) {
+                    return label;
+                }
             }
         }
-        return false;
+        return null;
     }
 
     /** A close on ANY binding of the handle, at any depth (lambda included). */
@@ -95,10 +111,18 @@ public final class ResourceLeakAnalysis {
         if (node == null || shadows(node, name)) {
             return false;
         }
-        if (node instanceof MethodCallExpr mc && "close".equals(mc.methodName())
-                && mc.arguments().isEmpty()
-                && mc.receiver() instanceof IdentifierExpr id && id.name().equals(name)) {
-            return true;
+        if (node instanceof MethodCallExpr mc && "close".equals(mc.methodName())) {
+            // web.app(): handle.close()
+            if (mc.arguments().isEmpty()
+                    && mc.receiver() instanceof IdentifierExpr id && id.name().equals(name)) {
+                return true;
+            }
+            // db.connect(): db.close(handle)
+            if (mc.receiver() instanceof IdentifierExpr r && "db".equals(r.name())
+                    && mc.arguments().size() == 1
+                    && mc.arguments().get(0) instanceof IdentifierExpr a && a.name().equals(name)) {
+                return true;
+            }
         }
         for (Object child : children(node)) {
             if (hasClose(child, name)) {
@@ -159,7 +183,14 @@ public final class ResourceLeakAnalysis {
                     && mentionsEscaping(mc.receiver(), name)) {
                 return true;
             }
+            // db.close(handle): the handle in ARGUMENT position is being used, not
+            // handed away — the namespace receiver is not the handle.
+            boolean dbClose = "close".equals(mc.methodName())
+                    && mc.receiver() instanceof IdentifierExpr r && "db".equals(r.name());
             for (ExpressionNode arg : mc.arguments()) {
+                if (dbClose && arg instanceof IdentifierExpr a && a.name().equals(name)) {
+                    continue;
+                }
                 if (mentionsEscaping(arg, name)) {
                     return true;
                 }

@@ -59,6 +59,34 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     adiada segue silente. Prova: `MemorySafetyE2ETest` 29/29 (9 faces novas).
     A fatia 4 da Fase 3 foi reordenada de B-03/B-04 (borrow FFI → Fase 5;
     captura de spawn → Fase 4) para B-05, a face 100% decidível.
+  - **Memory-safety Fase 3 fatia 5 — vida de conexao db arde
+    `MEM014` (L-05); O-03/`MEM003` aberta como rule-6 DECISION REQUEST**
+    (26/09): `ResourceLeakAnalysis` tambem rastreia o segundo criador com
+    close medido — `db.connect(...)` (handle String fechado via
+    `db.close(handle)`): nunca fechada em nenhum ponto do corpo e nunca
+    devolvida/aliada/passada → WARNING `MEM014` no sitio de criacao; qualquer
+    `db.close(handle)` em qualquer depth ou qualquer escape silencia
+    (conservador, zero-FP; `db.close(handle)` em posicao de argumento e uso,
+    nao transferencia). O `kof.io` NAO tem handle de arquivo com close
+    (leituras/escritas sao stateless por caminho), entao nao ha face de
+    arquivo — ausencia, nao gap. Prova: `DbResourceLeakE2ETest` 4/4; face web
+    intacta (`ResourceLeakE2ETest` 5/5). A linha O-03/`MEM003` da spec nao
+    define padrao decidivel de programa de usuario (`clear()` e reset legal;
+    "nulling elements" e propriedade de runtime), entao nenhum diagnostico
+    `MEM003` e emitido e a questao de contrato fica no plano como DECISION
+    REQUEST para a mantenedora (regra 6).
+  - **Memory-safety Fase 3 fatia 4 — mutação durante iteração arde
+    `MEM022` (B-05) como warning** (26/09): dentro de `for (var x in C)`,
+    qualquer mutação mudadora de tamanho de `C` (`add`/`remove`/`clear`/
+    `addAll`, direta ou via alias da raiz de `C`) emite `MEM022`. O `for-in` de
+    Kof baixa para um loop por índice que relê `kof_list_size` a cada volta,
+    então crescer a coleção iterada estende a varredura e encolhê-la a trunca/
+    desloca. WARNING (não erro), espelhando a postura zero-FP do
+    `ResourceLeakAnalysis`: o padrão worklist/BFS é intencional e continua
+    compilando; mutar outra coleção, campo de elemento ou corpo de lambda
+    adiada segue silente. Prova: `MemorySafetyE2ETest` 29/29 (9 faces novas).
+    A fatia 4 da Fase 3 foi reordenada de B-03/B-04 (borrow FFI → Fase 5;
+    captura de spawn → Fase 4) para B-05, a face 100% decidível.
   - **Memory-safety Fase 3 fatia 3 — escape por `return` arde `MEM013`**
     (26/09): a primeira face compile-time da L-04 na superfície real — uma
     funcao que fecha um recurso e depois devolve o MESMO binding reivindicante

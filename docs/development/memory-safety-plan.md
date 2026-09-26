@@ -94,7 +94,22 @@ comportamento. A fila de representacao esta EXAUSTA.
 | **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | LANDED 26/09 |
 | **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | LANDED 26/09 |
 | **4** Mutable aliasing at boundaries | B-05/`MEM022` — size-changing mutation of the collection being iterated (`add`/`remove`/`clear`/`addAll` inside its own `for-in`), WARNING + zero-FP by construction; the frontend `for-in` is an index loop re-reading `size` each turn (`StatementLowerer`), so this is a real live-alias bug | LANDED 26/09 |
-| **5** Containers & unclosed | O-03/`MEM003` (clear releases) + L-05/`MEM014` (§9: web/db without close) | **web part DONE 26/09 (slice 3.1b)**; containers + db/file pending |
+| **5** Containers & unclosed | O-03/`MEM003` (container release — **DECISION REQUEST rule 6**, below) + L-05/`MEM014` db connection (web landed 3.1b; `kof.io` has NO close-bearing file handle) | db `MEM014` **LANDED 26/09**; O-03 pending maintainer decision |
+
+> **DECISION REQUEST (rule 6) — O-03/`MEM003` (container release semantics):**
+> the spec §3 row ("Container ownership | `list.add(x)` → list owns `x`;
+> `list.clear()` releases | Container holding reference after clear without
+> nulling elements | `MEM003` | Compile-time") does not, as measured 26/09,
+> define a decidable **user-program pattern**: `clear()` is a legal reset
+> (`list.clear()` then `list.add(y)` reuses the container), and the "nulling
+> elements" clause is a runtime implementation property of `kof_list_clear`,
+> not a shape an AST pass can flag. The maintainer must decide the CONTRACT:
+> **(a)** `clear()` MUST null every slot before shrinking — then `MEM003` is a
+> runtime guarantee proven by a test, never a compile face; or **(b)** there is
+> a real user-level "container still referenced after release" pattern to
+> diagnose at compile time, which must be named with its exact shape. Until
+> decided, **no `MEM003` diagnostic is emitted** — silence is honest; inventing
+> a face would be a stub (Q7 forbids it).
 
 ## Fase 3 — design (UNLOCKED 26/09 by `D-COMPLETE-FIRST`; package = pass + emission + per-target proof)
 
@@ -122,7 +137,11 @@ not assumed):
   WARNING at the creation site; any close at any depth or any escape silences
   it (conservative, zero-FP by construction). Same diagnostic on JVM/Native/JS
   pinned by `ResourceLeakE2ETest` 5/5; valid lifecycles stay silent and
-  byte-green. db/file creators join here when their close surfaces are measured.
+  byte-green. **Slice 5 (26/09) added `db.connect(...)`** (a String handle
+  closed via `db.close(handle)`): same warning at the creation site, pinned by
+  `DbResourceLeakE2ETest` 4/4. `kof.io` has NO close-bearing file handle
+  (reads/writes are stateless by path), so there is no file face to track —
+  absence, not a gap.
 
 - **MEM022 (mutation during iteration, B-05) — slice 4**: ✅ **LANDED 26/09**
   (`OwnershipPass`, same shared-frontend hook): inside `for (var x in C)`, any

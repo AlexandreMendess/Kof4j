@@ -47,6 +47,21 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     agora devolvem o booleano real. Prova: `IoPredicateFacesJsE2ETest` (oraculo
     JVM+Script medido, JS byte a byte; RED pre-fix / GREEN post). Catalog:
     known-bugs.md §517 (+PT).
+  - **Memory-safety Fase 3 fatia 5 — db-connection lifetime burns
+    `MEM014` (L-05); O-03/`MEM003` opened as a rule-6 DECISION REQUEST**
+    (26/09): `ResourceLeakAnalysis` now also tracks the second measured
+    close-bearing creator — `db.connect(...)` (a String handle closed via
+    `db.close(handle)`): never closed anywhere in the body and never
+    returned/aliased/passed → `MEM014` WARNING at the creation site; any
+    `db.close(handle)` at any depth or any escape silences it (conservative,
+    zero-FP; `db.close(handle)` in argument position is a use, not a transfer).
+    `kof.io` has NO close-bearing file handle (reads/writes are stateless by
+    path), so there is no file face — absence, not a gap. Proof:
+    `DbResourceLeakE2ETest` 4/4; web face intact (`ResourceLeakE2ETest` 5/5).
+    O-03/`MEM003`'s spec row defines no decidable user-program pattern
+    (`clear()` is a legal reset; "nulling elements" is a runtime property), so
+    no `MEM003` diagnostic is emitted and the contract question is recorded in
+    the plan as a DECISION REQUEST for the maintainer (rule 6).
   - **Memory-safety Fase 3 fatia 4 — mutation during iteration burns
     `MEM022` (B-05) as a warning** (26/09): inside `for (var x in C)`, any
     size-changing mutation of `C` (`add`/`remove`/`clear`/`addAll`, direct or

@@ -95,7 +95,22 @@ comportamento. A fila de representação está EXAUSTA.
 | **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | POUSADA 26/09 |
 | **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | POUSADA 26/09 |
 | **4** Aliasing mutável em fronteiras | B-05/`MEM022` — mutação mudadora de tamanho da coleção iterada (`add`/`remove`/`clear`/`addAll` dentro do próprio `for-in`), WARNING + zero-FP por construção; o `for-in` do frontend é loop por índice que relê `size` a cada volta (`StatementLowerer`), então é bug real de live-alias | POUSADA 26/09 |
-| **5** Containers & nao fechados | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | **parte web FEITA 26/09 (fatia 3.1b)**; containers + db/file pendentes |
+| **5** Containers & nao fechados | O-03/`MEM003` (release de container — **DECISION REQUEST regra 6**, abaixo) + L-05/`MEM014` conexao db (web pousou 3.1b; `kof.io` NAO tem handle de arquivo com close) | db `MEM014` **POUSADA 26/09**; O-03 pendente decisao da mantenedora |
+
+> **DECISION REQUEST (regra 6) — O-03/`MEM003` (semantica de release de container):**
+> a linha §3 da spec ("Container ownership | `list.add(x)` → list owns `x`;
+> `list.clear()` releases | Container holding reference after clear without
+> nulling elements | `MEM003` | Compile-time") nao define, como medido em 26/09,
+> um **padrao de programa de usuario** decidivel: `clear()` e um reset legal
+> (`list.clear()` seguido de `list.add(y)` reusa o container), e a clausula
+> "nulling elements" e propriedade de implementacao de runtime do
+> `kof_list_clear`, nao uma forma que um passe AST consiga apontar. A mantenedora
+> precisa decidir o CONTRATO: **(a)** `clear()` DEVE anular todo slot antes de
+> encolher — entao `MEM003` e garantia de runtime provada por teste, nunca face
+> de compilacao; ou **(b)** existe um padrao real de usuario "container ainda
+> referenciado apos release" a diagnosticar em compile-time, que precisa ser
+> nomeado com sua forma exata. Ate a decisao, **nenhum diagnostico `MEM003` e
+> emitido** — o silencio e honesto; inventar uma face seria stub (Q7 proibe).
 
 ## Fase 3 — design (DESTRAVADA 26/09 por `D-COMPLETE-FIRST`; pacote = passe + emissão + prova por alvo)
 
@@ -122,8 +137,12 @@ A superfície de emissão é o que EXISTE na superfície do usuário (medido
   passado recebe WARNING no sitio de criacao; qualquer close em qualquer depth
   ou qualquer escape silencia (conservador, zero falso-positivo por construcao).
   Mesmo diagnostico em JVM/Native/JS fixado por `ResourceLeakE2ETest` 5/5; ciclos
-  validos permanecem silentes e byte-green. Criadores db/file entram aqui quando
-  suas superficies de close forem medidas.
+  validos permanecem silentes e byte-green. **Fatia 5 (26/09) adicionou
+  `db.connect(...)`** (handle String fechado via `db.close(handle)`): mesmo
+  WARNING no sitio de criacao, fixado por `DbResourceLeakE2ETest` 4/4. O
+  `kof.io` NAO tem handle de arquivo com close (leituras/escritas sao
+  stateless por caminho), entao nao ha face de arquivo para rastrear —
+  ausencia, nao gap.
 
 - **MEM022 (mutação durante iteração, B-05) — fatia 4**: ✅ **POUSADA 26/09**
   (`OwnershipPass`, mesmo hook do frontend compartilhado): dentro de
