@@ -251,13 +251,27 @@ final class CompilerInterop {
             // mesma classe e o construtor falha com o código nomeado INTEROP005
             // (R6 — nunca silêncio). O schema (`interop-host.kf` acima) é
             // compile-time e segue em todos os alvos.
-            String engineRes = PY_ENGINE_TARGETS.contains(driver.target)
+            boolean engineTargets = PY_ENGINE_TARGETS.contains(driver.target);
+            String engineRes = engineTargets
                     ? "/dev/kof/interop-py-host.kf" : "/dev/kof/interop-py-refusal.kf";
             CompilationUnitNode engineUnit = parseHostResource(engineRes, diagnostics);
             if (engineUnit != null) {
                 for (AstNode d : engineUnit.declarations()) {
                     driver.declarationPackages.put(d, "");
                     decls.add(d);
+                }
+            }
+            // Motor R (X2 fatia 2, 26/09): simetria total com o KofPy — host
+            // real nos alvos do motor, e no refusal (que ja define as duas
+            // classes) o KofR recusa com INTEROP005 nomeado.
+            if (engineTargets) {
+                CompilationUnitNode rUnit =
+                        parseHostResource("/dev/kof/interop-r-host.kf", diagnostics);
+                if (rUnit != null) {
+                    for (AstNode d : rUnit.declarations()) {
+                        driver.declarationPackages.put(d, "");
+                        decls.add(d);
+                    }
                 }
             }
             return new CompilationUnitNode(unit.position(), unit.packageName(), imports, decls);

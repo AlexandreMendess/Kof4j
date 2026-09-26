@@ -32,3 +32,34 @@ class KofPy {
         throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
     }
 }
+
+// Simetria X2 motor R (26/09): mesma classe de recusa para o KofR — o
+// mesmo shape publico, toda entrada falha com o codigo NOMEADO INTEROP005
+// (R6 — nunca silencio nem metodo desconhecido).
+class KofR {
+    String source
+
+    public constructor(String source) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    Int callInt(String funcName, List<Int> args) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    Double callDouble(String funcName, List<Double> args) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    Bool callBool(String funcName, List<Bool> args) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    String callString(String funcName, List<String> args) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    String callJson(String funcName, String argsJson) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+}

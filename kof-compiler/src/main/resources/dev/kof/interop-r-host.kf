@@ -1,0 +1,58 @@
+// Motor R do kof.interop (X2, D-COMPLETE-FIRST item 2 — plano
+// docs/development/interop-engine-plan.md). KOF-first (rule 10) + simetria
+// total com o KofPy (regra 11): MESMO protocolo de 2 linhas, MESMAS faces,
+// spec via argv, `source` reaplicada por chamada (modelo replay). O codec
+// JSON do lado R e o jsonlite do ecossistema (interop-first R9 — o motor
+// nao implementa parser JSON proprio); sem jsonlite a face falha NOMEADA,
+// nunca silenciosa (R6).
+class KofR {
+    String source
+
+    public constructor(String source) {
+        this.source = source
+    }
+
+    String kofRPrelude() {
+        return            "if (!requireNamespace(\"jsonlite\", quietly=TRUE)) { cat(\"KOFERR\\n\"); cat(\"jsonlite package missing (install: Rscript -e 'install.packages(\\\"jsonlite\\\")')\\n\"); quit(status=0) }\n" +
+            "s <- jsonlite::fromJSON(commandArgs(TRUE)[1], simplifyVector=FALSE)\n" +
+            "ok <- TRUE\n" +
+            "r <- tryCatch({ do.call(get(s$fn, envir=globalenv()), as.list(s$args)) }, error=function(e) { ok <<- FALSE; gsub(\"\\n\", \" | \", conditionMessage(e), fixed=TRUE) })\n" +
+            "cat(if (ok) \"KOFOK\\n\" else \"KOFERR\\n\")\n" +
+            "cat(if (ok) paste0(jsonlite::toJSON(r, auto_unbox=TRUE), \"\\n\") else paste0(r, \"\\n\"))\n" 
+    }
+
+    String kofRLine(String funcName, String argsJson) {
+        val spec = "{\"fn\":\"" + funcName + "\",\"args\":" + argsJson + ",\"source\":" + json.encode(this.source) + "}"
+        val h = process.spawn("Rscript", "--vanilla", "-e", this.kofRPrelude(), spec)
+        val status = h.readLine()
+        if (status == "") {
+            throw "INTEROP004: Rscript exited without responding (interpreter missing or fatal startup error, exit " + h.exitCode() + ")"
+        }
+        if (status == "KOFOK") {
+            return h.readLine()
+        }
+        throw "INTEROP006: " + funcName + " failed: " + h.readLine()
+    }
+
+    Int callInt(String funcName, List<Int> args) {
+        return json.decode<Int>(this.kofRLine(funcName, json.encode(args)))
+    }
+
+    Double callDouble(String funcName, List<Double> args) {
+        return json.decode<Double>(this.kofRLine(funcName, json.encode(args)))
+    }
+
+    Bool callBool(String funcName, List<Bool> args) {
+        return json.decode<Bool>(this.kofRLine(funcName, json.encode(args)))
+    }
+
+    String callString(String funcName, List<String> args) {
+        return json.decode<String>(this.kofRLine(funcName, json.encode(args)))
+    }
+
+    // Simetria com o KofPy (fatia 2): args/resultado RECORD via JSON cru —
+    // o usuario compoe `json.encode(listOf(record))` e `json.decode<R>`.
+    String callJson(String funcName, String argsJson) {
+        return this.kofRLine(funcName, argsJson)
+    }
+}

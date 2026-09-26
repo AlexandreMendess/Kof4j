@@ -82,6 +82,17 @@ jobs:
       - name: Install native webview deps (Linux)
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
 
+      - name: Install R engine (X2 motor R — InteropRE2ETest roda de verdade)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends r-base-core r-cran-jsonlite
+          # o runner pode ter R proprio em /usr/local/bin (PATH na frente do
+          # apt) que nao ve a site-library do apt — garante jsonlite visivel
+          # ao Rscript ATIVO, instalando na user-library se preciso.
+          if ! Rscript -e 'requireNamespace("jsonlite", quietly=TRUE)' 2>/dev/null; then
+            Rscript -e 'install.packages("jsonlite", repos="https://cloud.r-project.org")'
+          fi
+          Rscript --version
       - name: Build native webview shell
         run: scripts/build-webview.sh
 
