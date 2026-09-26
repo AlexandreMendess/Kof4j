@@ -8,6 +8,12 @@ toda face que chega na superfície da linguagem).
 
 ## Landing log (deltas medidos contra a tabela — a tabela fica como o claim; isto é o que pousou)
 
+**Fatia 2 — records↔JSON POUSADA 26/09 (commit `4dfa2cfe8`, §520; testes no mesmo commit).** Deltas medidos ao construir:
+1. **Face congelada como planejado: `String callJson(nomeFn, argsJson)`** — um passthrough cru da linha de resultado JSON; o usuario compoe `json.encode(args)` e `json.decode<R>(wire)`. Zero face nova de compilador (regra 11): a dobra escalar de `decode<Record>` ja existia nos 4 alvos do motor.
+2. **Quatro causas raiz entre o plano e a realidade (§520):** o coletor de schema pulava a tabela INTEIRA de todo record com campo String (o teste de campo-aninhado engolia `java.lang.String`); a dobra de decode nativa entregava o corpo SEM aspas do `find_value` ao `decode_string` (contrato de literal com aspas — todo campo String decodificava vazio); o `encode_string` deixava bytes de controle crus (wire JVM ≠ x86, medido); e o interpretador nao tinha ramo tag-4 no `encode_list` (o `KofObj` via um andador de reflexao lendo fields de instancia real → `{}`). As quatro corrigidas na raiz, nao mascaradas.
+3. **Wire = separadores COMPACTOS canonicos** (`json.dumps(separators=(",",":")) no prelude): o `": "` do python quebrava a busca de token de todo decode escalar nativo sobre resultado remoto.
+4. **Prova:** round-trip arg+resultado JVM≡x86≡JS≡SCRIPT byte a byte com aspa/newline dentro da face String (`InteropPyRecordE2ETest` 3/3 + `InteropPyRecordScriptE2ETest`); falha remota nomeada `INTEROP006`; elemento-colecao aninhado recusado `JSN002` em compile-time (R6). DECODE de `List<Record>` no x86 PERMANECE `JSN004` (declarado, inalterado). RESTA na fatia 2: o motor R (`Rscript` ausente neste host — `assumeTrue` + medir o CI), depois a fatia 3 (cross) com o §514.
+
 **Fatia 1 POUSADA 26/09 (testes no mesmo commit).** Deltas medidos ao construir:
 1. **Modelo = replay sem estado sobre `-c`, não um `python -` de vida longa.**
    Medido: `python3 -` num pipe NÃO executa nada antes do EOF do stdin, e o handle

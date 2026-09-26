@@ -10,7 +10,31 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
-  - **Correcao — #632 (26/09): valores de `kof.ui`/midia (handles apagados p/
+    - **Correcao — §520 (26/09): records com campo String eram INVISIVEIS a maquina
+    JSON do x86/SCRIPT — o coletor de schema pulava a tabela INTEIRA (o teste de
+    campo-aninhado rodava para QUALQUER ClassType e `java.lang.String` nao e
+    classe de usuario -> `encode(listOf(S))` dava `[null]`); o `decode<Record>`
+    nativo entregava o valor SEM aspas do `find_value` ao `decode_string` (que
+    espera LITERAL com aspas) -> campo String saia VAZIO ate para "abc"; o
+    `encode_string` escapava so aspa/contrabarra -> controle `< 0x20` cru no wire
+    (JVM `c\nd` vs x86 newline cru, medido); e o interpretador nao tinha ramo
+    tag-4 no `encode_list` — a reflexao le fields de instancia real e o `KofObj`
+    saia `{}`** — fix na raiz dos 4: coletor gated `code == 5`; `find_value`
+    emite string JA desescapada (`.Ljf_unstr`; primitivos e consumidores de
+    Security intocados); a dobra consome o valor direto (`decode_string` segue
+    servindo o top-level com aspas); `encode_string` espelha Jackson
+    (`\b \t \n \f \r` + `\u00XX`); interp roteia tag-4 p/ `encodeKof`
+    (paridade por construcao). Host py emite `json.dumps` com separators
+    compactos — o wire canonico de todo encoder Kof (o `": ` do python quebrava
+    a busca de token do decoder escalar nativo). `List<Record>` decode x86
+    permanece `JSN004` (declarado); cross permanece §514. Prova:
+    `JsonNativeRecordListE2ETest.stringFieldRecordsMatchJvmOracleOnX86` +
+    `InteropPyRecordE2ETest` 3/3 (round-trip JVM≡x86≡JS byte a byte com
+    aspa/newline na face String; `INTEROP006` nomeado; elemento-colecao aninhado
+    -> `JSN002` honesto) + `InteropPyRecordScriptE2ETest` (JVM≡SCRIPT); goldens
+    MEDIDOS. Split `RuntimeJsonEncodeString` (537->405, regra <=500). Catalog:
+    known-bugs.md §520 (+PT).
+- **Correcao — #632 (26/09): valores de `kof.ui`/midia (handles apagados p/
     int, UIW050) cruzavam bordas de REFERENCIA sem boxar na JVM — `println(cor)`
     empilhava int cru em `String.valueOf(Object)`; `m.get(k) == m.get(k)` (map de
     widget) fazia `if_icmpeq` sobre dois `Integer` boxed; `a == null` fazia

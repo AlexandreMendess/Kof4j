@@ -13176,3 +13176,63 @@ reference boundary (valueOf, Object slot, null, equals); the grep
 
 
 <!-- pt-switch --> **EN:** [§519 (EN)](known-bugs.md#519--kofuimedia-values-handles-erased-to-int-uiw050-crossed-reference-boundaries-un-boxed-on-the-jvm--printlncor-mgetk--mgetk-and-a--null-brought-down-the-whole-class-with-verifyerror---fixed-2609-paritymedia-lane-632)
+
+
+## §520 — records com campo String eram INVISIVEIS à maquina JSON do x86/SCRIPT — o coletor de schema pulava a tabela INTEIRA (o teste de campo-aninhado engolia `java.lang.String`), o `decode<Record>` nativo entregava o valor SEM aspas ao `decode_string`, o `encode_string` deixava caracteres de controle crus e o interpretador codificava `List<Record>` como `{}` — ✅ FIXADO 26/09 (lane compiler; X2 fatia 2)
+
+**Sintoma (medido 26/09, round-trip da fatia 2 X2):** com `record S(String t)`,
+`json.encode(listOf(S("hi")))` no x86 emitia `[null]` (o ramo notfound sem
+esquema — a maquina do §516 estava viva para records Int/Bool e CEGA exatamente
+onde havia campo String); `json.decode<S>(...)` no x86 devolvia o campo String
+VAZIO ate para `{"text":"abc"}`; um valor com newline era impresso cru (JVM
+emitia `c\nd`, x86 emitia `c` LF `d` — o wire NAO era JSON valido); e no SCRIPT
+o mesmo `encode(listOf(record))` chegava ao RPC python como `{}` (KeyError 'x'
+medido no host). Quatro faces, quatro maquinas — nenhuma delas a causa de
+ponteiro cru do §516.
+
+**Causa raiz (lida no codigo):** (1) o `collectJsonSchemas` rodava o teste de
+campo-aninhado para QUALQUER campo `ClassType` — `java.lang.String` (code 4)
+nao e classe de usuario em `allClassesMap`, entao `has=false` pulava a tabela
+INTEIRA; (2) a dobra nativa de `decode<Record>` entregava o corpo SEM aspas do
+`kof_json_find_value` ao `kof_json_decode_string`, que espera LITERAL com aspas
+— a colisao de contrato esvaziava todo campo String; (3) o
+`kof_json_encode_string` escapava so aspa/contrabarra — bytes de controle
+`< 0x20` saiam crus (Jackson escapa; JSON.stringify do JS tambem — a superficie
+de paridade e definida pelos dois irmaos); (4) o interpretador nao tinha ramo
+`kof_json_encode_list` tag-4: o fallback por reflexao chama o `KofRuntime`
+GERADO, que le fields de instancia real — no interpretador o record e `KofObj`
+(mapa de campos) e o walker nao via nada.
+
+**Correcao:** o teste de campo-aninhado do coletor ficou gated em `code == 5`
+(so campo-objeto precisa de tabela interna); o `find_value` agora emite o valor
+string JA DESESCAPADO (`.Ljf_unstr` — `\"` `\\` `\/` `\n` `\r` `\t`;
+primitivos intocados — os consumidores de Security continuam comparando o valor
+cru); a dobra consome o valor diretamente (sem `decode_string` p/ campo String —
+a funcao segue servindo o `json.decode<String>` top-level, com aspas); o
+`encode_string` espelha o Jackson (`\b \t \n \f \r` + `\u00XX`); o
+interpretador roteia elemento tag-4 para `encodeKof`, espelhando o `encodeMap`
+de cima — mesma superficie, paridade por construcao. O prelude do host python
+passou a emitir `json.dumps(..., separators=(",",":"))`: o separador COMPACTO e
+o wire canonico de todo encoder Kof; o `": "` padrao do python quebrava a busca
+de token do decodificador escalar nativo em toda chamada remota. `List<Record>`
+DECODE no x86 permanece `JSN004` (gap declarado, inalterado); cross riscv/aarch
+permanece §514.
+
+**Prova (mesmo commit `4dfa2cfe8`):** `JsonNativeRecordListE2ETest.
+stringFieldRecordsMatchJvmOracleOnX86` (encode + decode com escapes `\"`/`\n`,
+golden JVM medido, RED pre-fix: `[null]`/campo vazio); `InteropPyRecordE2ETest`
+3/3 (round-trip arg+resultado JVM≡x86≡JS byte a byte com aspa/newline na face
+String, `INTEROP006` de falha remota nomeado, elemento-colecao aninhada →
+`JSN002` honesto); `InteropPyRecordScriptE2ETest` (JVM≡SCRIPT, golden medido).
+Vizinhos: cluster Json*/Interop*/Security* 116/116 verde; registry de fatias
+7/7 apos o split `RuntimeJsonEncodeString` (537→405, regra ≤500).
+
+**Licao (Q4):** "o tipo que PARECE tratado e o que cai no buraco" — um campo
+String E um `ClassType`; todo gate `instanceof ClassType` precisa perguntar "e
+classe BUILTIN?" antes do caminho de classe de usuario, e toda dobra de
+compile-time que chama um parser de runtime deve casar com o CONTRATO do parser
+(com aspas vs sem aspas), nao com o nome dele. O grep `instanceof Type.ClassType`
+em NativeJsonSchema/lowerers e o radar.
+
+
+<!-- pt-switch --> **EN:** [§520 (EN)](known-bugs.md#520--records-with-string-fields-were-invisible-to-the-x86script-json-machine--the-schema-collector-skipped-the-whole-table-the-nested-class-check-swallowed-javalangstring-native-decoderecord-handed-the-un-quoted-value-to-decode_string-encode_string-left-control-chars-raw-and-the-interpreter-encoded-listrecord-as----fixed-2609-compiler-lane-x2-fatia-2)

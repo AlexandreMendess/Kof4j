@@ -8,6 +8,12 @@ every face that reaches the language surface).
 
 ## Landing log (measured deltas against the table — the table stays as the claim; this is what shipped)
 
+**Fatia 2 — records↔JSON LANDED 26/09 (commit `4dfa2cfe8`, §520; tests in the same commit).** Deltas measured while building:
+1. **Face frozen as planned: `String callJson(fnName, argsJson)`** — a raw JSON passthrough of the result line; the user composes `json.encode(args)` and `json.decode<R>(wire)`. Zero new compiler surface (rule 11): the scalar `decode<Record>` fold already existed in the 4 engine targets.
+2. **Four root causes found between the plan and reality (§520):** the schema collector skipped the WHOLE table for any record with a String field (the nested-class check swallowed `java.lang.String`); the native decode fold fed the UN-QUOTED `find_value` body to `decode_string` (quoted-literal contract — every String field decoded empty); `encode_string` left control bytes raw (JVM ≠ x86 wire, measured); and the interpreter had no tag-4 branch in `encode_list` (the `KofObj` met a reflection walker reading real instance fields → `{}`). All four fixed at the root, not masked.
+3. **Wire = the canonical COMPACT separators** (`json.dumps(separators=(",",":")) in the prelude): `": "` was breaking the token search of every native scalar decode over a remote result.
+4. **Proof:** round-trip arg+result JVM≡x86≡JS≡SCRIPT byte a byte with quote/newline inside the String face (`InteropPyRecordE2ETest` 3/3 + `InteropPyRecordScriptE2ETest`); remote failure named `INTEROP006`; nested-collection element refused `JSN002` at compile time (R6). `List<Record>` DECODE on x86 STAYS `JSN004` (declared, unchanged). REMAINING in fatia 2: the R engine (`Rscript` absent on this host — `assumeTrue` + measure CI availability), then fatia 3 (cross) with §514.
+
 **Fatia 1 LANDED 26/09 (commit `X2-f1`, tests in the same commit).** Deltas
 measured while building:
 1. **Model = stateless replay over `-c`, not a long-lived `python -`.** Measured:
