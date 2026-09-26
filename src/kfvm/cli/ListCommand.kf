@@ -1,0 +1,60 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.github
+import kfvm.store
+
+class ListCommand implements kfvm.cli.Command {
+    GitHubClient github
+    Store store
+    Console console
+
+    constructor(GitHubClient github, Store store, Console console) {
+        this.github = github
+        this.store = store
+        this.console = console
+    }
+
+    List<String> names() { return listOf("ls", "list") }
+
+    void run(List<String> args) {
+        if (args.size == 0) {
+            listInstalled()
+            return
+        }
+        var option = args.get(0)
+        if (option != "-r" && option != "--remote") {
+            throw "unknown option for ls: " + option
+        }
+        listRemote()
+    }
+
+    void listInstalled() {
+        var installed = store.installed()
+        if (installed.size == 0) {
+            console.info("no versions installed (try: kfvm i lst)")
+            return
+        }
+        var current = store.current()
+        for (var v in installed) {
+            console.out(if (v == current) "* " + v + " (current)" else "  " + v)
+        }
+    }
+
+    void listRemote() {
+        var current = store.current()
+        var installed = store.installed()
+        for (var r in github.releases()) {
+            var marker = if (r.version() == current) "* " else "  "
+            var channel = if (r.nightly()) "nightly" else "stable"
+            var status = if (installed.contains(r.version())) " installed" else ""
+            console.out(marker + pad(r.version(), 28) + " " + pad(channel, 8) + status)
+        }
+    }
+
+    String pad(String s, Int width) {
+        var out = s
+        while (out.length < width) { out = out + " " }
+        return out
+    }
+}

@@ -1,0 +1,27 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.store
+
+class UseCommand implements kfvm.cli.Command {
+    InstalledVersions versions
+    Store store
+    Console console
+
+    constructor(InstalledVersions versions, Store store, Console console) {
+        this.versions = versions
+        this.store = store
+        this.console = console
+    }
+
+    List<String> names() { return listOf("u", "use") }
+
+    void run(List<String> args) {
+        if (args.size == 0) {
+            throw "usage: kfvm u <ver|lst|nightly>"
+        }
+        var version = versions.resolve(args.get(0))
+        store.activate(version)
+        console.info("now using kof " + version)
+    }
+}

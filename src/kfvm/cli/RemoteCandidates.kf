@@ -1,0 +1,21 @@
+package kfvm.cli
+
+import kfvm.github
+import kfvm.versions
+
+class RemoteCandidates {
+    static List<Candidate> of(List<RemoteRelease> releases) {
+        var out = listOf<Candidate>()
+        for (var r in releases) {
+            out.add(Candidate(r.version(), r.nightly()))
+        }
+        return out
+    }
+
+    static RemoteRelease find(String version, List<RemoteRelease> releases) {
+        for (var r in releases) {
+            if (r.version() == version) { return r }
+        }
+        throw "version " + version + " not found"
+    }
+}

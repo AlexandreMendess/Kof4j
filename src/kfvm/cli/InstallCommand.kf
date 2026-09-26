@@ -1,0 +1,47 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.github
+import kfvm.store
+import kfvm.versions
+import kfvm.installer
+
+class InstallCommand implements kfvm.cli.Command {
+    GitHubClient github
+    Store store
+    Installer installer
+    Console console
+
+    constructor(GitHubClient github, Store store, Installer installer, Console console) {
+        this.github = github
+        this.store = store
+        this.installer = installer
+        this.console = console
+    }
+
+    List<String> names() { return listOf("i", "install") }
+
+    void run(List<String> args) {
+        if (args.size == 0) {
+            throw "usage: kfvm i <ver|lst|nightly>"
+        }
+        var query = args.get(0)
+        var releases = github.releases()
+        var version = Selector.select(query, RemoteCandidates.of(releases))
+        if (version == "") {
+            throw "version '" + query + "' not found for " + github.platform + " (see: kfvm ls -r)"
+        }
+        if (store.isInstalled(version)) {
+            console.info("kof " + version + " already installed")
+        } else {
+            installer.install(RemoteCandidates.find(version, releases))
+            console.info("installed kof " + version + " at " + store.dirOf(version))
+        }
+        if (store.current() == "") {
+            store.activate(version)
+            console.info("now using kof " + version)
+        } else if (store.current() != version) {
+            console.info("run 'kfvm u " + version + "' to activate it")
+        }
+    }
+}

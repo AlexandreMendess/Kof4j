@@ -1,0 +1,39 @@
+package kfvm.cli
+
+import kfvm.system
+
+class Cli {
+    List<kfvm.cli.Command> commands
+    Console console
+    String home
+
+    constructor(commands: List<kfvm.cli.Command>, console: Console, home: String) {
+        this.commands = commands
+        this.console = console
+        this.home = home
+    }
+
+    Int run(args: List<String>) {
+        var name = if (args.size > 0) args.get(0) else ""
+        var rest = args.subList(if (args.size > 0) 1 else 0, args.size)
+        for (var c in commands) {
+            if (c.names().contains(name)) {
+                return execute(c, rest)
+            }
+        }
+        console.error("unknown command: " + name)
+        console.out("")
+        console.out(Usage.text(home))
+        return 1
+    }
+
+    Int execute(command: kfvm.cli.Command, args: List<String>) {
+        try {
+            command.run(args)
+            return 0
+        } catch (String e) {
+            console.error(e)
+            return 1
+        }
+    }
+}
