@@ -17,6 +17,9 @@ public final class JsonDispatch {
         // (dívida catalogada no mesmo §512).
         if (elemType instanceof Type.PrimitiveType pt && "double".equals(pt.name())) return 3;
         if (elemType instanceof Type.PrimitiveType pt && "long".equals(pt.name())) return 5;
+        // §516 (26/09): elemento-objeto (record/classe) — walk em runtime pela
+        // tabela de schema resolve pelo TYPE_ID no header (kof_json_encode_object).
+        if (elemType instanceof Type.ClassType) return 4;
         return 0;
     }
 

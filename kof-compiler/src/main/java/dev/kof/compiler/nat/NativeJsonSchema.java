@@ -31,7 +31,7 @@ public final class NativeJsonSchema {
      */
     record JsonSchemaEntry(String tokenCstr, long offset, long typeCode, String className,
                                     String auxCstr) {}
-    record JsonSchemaTable(String tableLabel, String classCstr, long totalSize,
+    record JsonSchemaTable(String tableLabel, String classCstr, long typeId, long totalSize,
                                    java.util.List<JsonSchemaEntry> entries) {}
 
 
@@ -91,13 +91,20 @@ public final class NativeJsonSchema {
             String tableLabel = ".Lsch_" + nb.sanitizeName(clazz.name());
             String classCstr = nb.internString(clazz.name());
             jsonSchemas.add(new JsonSchemaTable(tableLabel, classCstr,
-                    layout.totalSize(), java.util.List.copyOf(entries)));
+                    clazz.typeId(), layout.totalSize(), java.util.List.copyOf(entries)));
         }
     }
 
     /** Emite as tabelas de schema + registro + finder (apos emitStringData). */
     void emitJsonSchemaData(StringBuilder sb) {
-        if (jsonSchemas.isEmpty()) return;
+        if (jsonSchemas.isEmpty()) {
+            // §516: o runtime asm referencia .Lsch_type_registry sempre (a
+            // funcao kof_json_encode_object e estatica no binario) — sem
+            // schemas o link ainda precisa do terminador, senao undefined
+            // reference em qualquer programa com lista/map JSON.
+            sb.append(".section .data\n.Lsch_type_registry:\n    .quad 0\n");
+            return;
+        }
         sb.append(".section .data\n");
         for (JsonSchemaTable t : jsonSchemas) {
             sb.append(t.tableLabel()).append(":\n");
@@ -113,6 +120,14 @@ public final class NativeJsonSchema {
         sb.append(".Lsch_registry:\n");
         for (JsonSchemaTable t : jsonSchemas) {
             sb.append("    .quad ").append(t.classCstr()).append("\n");
+            sb.append("    .quad ").append(t.tableLabel()).append("\n");
+        }
+        sb.append("    .quad 0\n");
+        // §516 (26/09): registro por TYPE_ID — o encoder de objeto em runtime
+        // resolve o schema a partir do header do objeto (offset 0), sem nome.
+        sb.append(".Lsch_type_registry:\n");
+        for (JsonSchemaTable t : jsonSchemas) {
+            sb.append("    .quad ").append(t.typeId()).append("\n");
             sb.append("    .quad ").append(t.tableLabel()).append("\n");
         }
         sb.append("    .quad 0\n");
