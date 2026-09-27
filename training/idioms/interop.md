@@ -101,6 +101,41 @@ An invalid use is an honest diagnostic (R6), never silence: an unknown member of
 language foundation: no runtime metaprogramming, no dynamic dispatch, no write
 path.
 
+
+**(e) Engines `KofPy`/`KofR` (X2 fatias 1–3 — 26–27/09, `D-COMPLETE-FIRST`)** — the language of
+the engine is a detail; the Kof face is the contract (the SAME on both):
+
+```kof
+import kof.interop
+var py = KofPy("def sq(n):\n    return n*n")          // definitions = the session
+var r  = KofR("sq <- function(n) n*n")                 // same face, second engine
+println(py.callInt("sq", listOf(5)))                   // 25 (also callDouble/Bool/String/Json)
+println(r.callInt("sq", listOf(5)))                    // 25 — byte-identical wire, JSON is the contract
+
+// records through the boundary: composition is the platform's own JSON
+var wire = py.callJson("norm", json.encode(listOf(p)))
+var back = json.decode[Point](wire)
+
+// the call can never hang (fatia 3) — the DEADLINE RUNS IN THE CHILD:
+py.timeout(2000)              // default 30000; 0 = no limit (declared, never silent)
+try {
+    println(py.callInt("loop", listOf()))
+} catch (String e) {
+    println(e)                // INTEROP007: loop exceeded the 2000ms deadline and was stopped by the engine itself
+}
+spawn killer(py)              // a task calling py.cancel() stops the LIVE call: INTEROP008
+                              // (KofR: cancel() kills the child; the PARENT names the death —
+                              //  a reply that landed first wins; idle cancel = no-op)
+```
+
+Every failure is NAMED, never a silent value or an exit-code guess: `INTEROP004` interpreter
+missing/died without responding, `INTEROP005` target without a proven process runtime
+(cross §514, ANDROID/MCU/RISCV32 — compile-time refusal that keeps the face), `INTEROP006`
+remote error (traceback carried), `INTEROP007` deadline, `INTEROP008` cancelled.
+The engines are **experimental** until the cross encoders land (R5) — the JVM/x86/JS/Script
+faces are CI-certified (`InteropPyE2ETest` 5/5, `InteropRE2ETest` 10/10 skipped-0 with real R
+on the runner, `InteropTimeoutE2ETest` 4/4, `InteropTimeoutScriptE2ETest` 1/1).
+
 ## BAD → GOOD
 
 | ❌ BAD | ✅ GOOD | Why |
@@ -113,6 +148,9 @@ path.
 | reusing `Byte[]`/`String` for a C out-buffer | declare the nominal **`Buffer(U8)`** in the `extern` and create it with `buffer.alloc(n)` (D-R3-BUFFER/D6-3) | an out-buffer is mutable and bidirectional (copy-in + copy-back); `T[]` is copy-in read-only and `String`/`char*` is read-only — distinct ABI kinds |
 | hand-emitting bytecode for a struct/array/out-buffer call | declare the `record`/`new T[n]`/`Buffer(U8)` in the `extern`; the compiler classifies the ABI (`AbiLayout`) | complexity belongs to the compiler (iron rule 2); a hand-rolled ABI is a silent bug on the next target |
 | hand-writing a per-record mapper/schema (field names + types duplicated in a string) | derive it from `interop.schema(R)` at the boundary | the compiler already knows the record structure — zero runtime reflection, identical output on the 4 targets |
+| the engine call can hang forever, or hand-rolling a watchdog thread that kills it | `py.timeout(2000)` + `catch (String e)` naming `INTEROP007`/`INTEROP008` | the deadline lives in the CHILD, thrown by the engine's own language (py SIGALRM/`_KofTimeout`, R `setTimeLimit`) — no orphan, no exit-code guess, no parent-side hack; the default 30000 ms is the §418 bounded-wait precedent |
+| killing a live call by pid archaeology or `Thread.stop`-style tricks | `spawn killer(x)` with `x.cancel()` (SIGINT to the child the wire introduced via `KOFPID`) | intention, not mechanism (iron rule 1); on R the parent NAMES the child's SIGINT death (flag + EOF) because the exit context cannot carry a status — both paths land on the same named `INTEROP008` |
+| treating "exit code ≠ 0" as the reason for a failure | read the named `INTEROP00x` string | interpretation belongs to the platform (R6 never-silent); the exit code is a mechanism the engine's stdlib already read for you |
 | hand-rolling `process.spawn("python3","-c",...)` + manual JSON per call | `import kof.interop` + `var py = KofPy(source)` + `py.callInt("sq", listOf(5))` | the engine is stdlib (fatia 1 X2 26/09): typed result is the METHOD name, args are a homogeneous typed Kof list; RPC lines, spec quoting and traceback naming (`INTEROP004`/`INTEROP006`) belong to the platform — session = the source (definitions persist; mutated globals do not), and the face refuses with `INTEROP005` where the process runtime is unproven (cross §514, ANDROID/MCU) |
 | passing `record` values into/out of the engine with hand-written field mapping | `py.callJson("norm", json.encode(listOf(p)))` + `json.decode<Point>(wire)` | fatia 2 X2 (26/09, §520): `callJson` is the raw-JSON face — composition is the platform's own JSON (`json.encode`/`json.decode<T>`, the compile-time fold, zero runtime reflection); the wire is the canonical COMPACT Kof wire; a remote failure stays named `INTEROP006`; `List<Record>` decode on x86 is `JSN004` (declared gap, never silent) |
 
