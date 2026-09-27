@@ -52,7 +52,7 @@ class KofR {
             "tm <- as.numeric(s$timeout_ms); " +
             "if (tm > 0) setTimeLimit(elapsed = tm/1000); " +
             "status <- \"KOFERR\"; " +
-            "r <- tryCatch({ v <- do.call(get(s$fn, envir=globalenv()), as.list(s$args)); if (tm > 0) setTimeLimit(0); status <<- \"KOFOK\"; paste0(jsonlite::toJSON(v, auto_unbox=TRUE), \"\\n\") }, error = function(e) { m <- conditionMessage(e); if (grepl(\"reached elapsed time limit\", m, fixed=TRUE)) { status <<- \"KOFTIME\" } else { status <<- \"KOFERR\"; gsub(\"\\n\", \" | \", m, fixed=TRUE) } }); " +
+            "r <- tryCatch({ v <- do.call(get(s$fn, envir=globalenv()), as.list(s$args)); if (tm > 0) setTimeLimit(0); status <<- \"KOFOK\"; paste0(jsonlite::toJSON(v, auto_unbox=TRUE), \"\\n\") }, error = function(e) { m <- conditionMessage(e); if (tm > 0 && grepl(\"reached elapsed time limit\", m, fixed=TRUE)) { status <<- \"KOFTIME\" } else { status <<- \"KOFERR\"; gsub(\"\\n\", \" | \", m, fixed=TRUE) } }); " +
             "cat(status, \"\\n\", sep=\"\"); " +
             "if (status == \"KOFOK\") cat(r) else if (status == \"KOFERR\") cat(paste0(r, \"\\n\"))"
     }

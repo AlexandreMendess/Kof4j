@@ -49,8 +49,10 @@ class KofPy {
 
     String kofPyPrelude() {
         return "import json,os,signal,sys,traceback\n" +
+            "class _KofTimeout(Exception):\n" +
+            "    pass\n" +
             "def _kof_alarm(sig,frm):\n" +
-            "    raise TimeoutError(\"KOFTIME\")\n" +
+            "    raise _KofTimeout()\n" +
             "def _kof_rpc():\n" +
             "    s=json.loads(sys.argv[1])\n" +
             "    sys.stdout.write(\"KOFPID \"+str(os.getpid())+\"\\n\")\n" +
@@ -69,7 +71,7 @@ class KofPy {
             "        if armed:\n" +
             "            signal.setitimer(signal.ITIMER_REAL,0)\n" +
             "        sys.stdout.write(\"KOFOK\\n\"+json.dumps(r,default=str,separators=(\",\",\":\"))+\"\\n\")\n" +
-            "    except TimeoutError:\n" +
+            "    except _KofTimeout:\n" +
             "        sys.stdout.write(\"KOFTIME\\n\")\n" +
             "    except KeyboardInterrupt:\n" +
             "        sys.stdout.write(\"KOFCANCEL\\n\")\n" +
