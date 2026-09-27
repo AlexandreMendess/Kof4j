@@ -2,11 +2,19 @@
 
 # Kofmd implementation plan — typed, intent-oriented Markdown (D-KOFMD)
 
-> **State (27/09): IN DEVELOPMENT — Fase 1 (investigation) DONE in this
-> doc; Fase 2 (this plan) lands here; Fase 3+ execute as slices below.**
-> Explicit maintainer decision 27/09/2026 (`D-KOFMD`): Kofmd is
-> INDISPENSABLE for 0.5.0 — doc verbosity is the problem it solves.
-> Queue: roadmap §23 (opened in the same commit as `D-KOFMD`).
+last: 3.8-golden-corpus
+doing: 3.7b-lsp-hook
+next: 3.9-hot-doc-migration
+location: kofmd-plan
+state: active
+constraint: learn-training-not-migrated
+decision: D-KOFMD
+
+> **Fase 1 (investigation) is DONE in this doc; Fase 2 (this plan) is frozen
+> as §2; Fase 3+ execute as the slices in §3.** Explicit maintainer decision
+> 27/09/2026 (`D-KOFMD`): Kofmd is INDISPENSABLE for 0.5.0 — doc verbosity is
+> the problem it solves. Queue: roadmap §23 (opened in the same commit as
+> `D-KOFMD`).
 
 ## 0. Contract (the 37+13 spec, condensed — the full text lives in chat)
 
@@ -95,3 +103,23 @@ would destroy the very readability they exist to provide, for zero
 operational gain: no agent loop reads `learn/` per turn. If a future
 maintainer decision ever re-opens this, it re-opens as its own rule-6 vote,
 never as drift inside slice 3.9.
+
+### Hot-doc state header (migration convention)
+
+Every hot working document in the scope above **MUST** carry a canonical
+Kofmd state block immediately after its title, encoding the continuity
+fields the autonomous loop reads:
+
+```text
+last: <token>
+doing: <token>
+next: <token>
+location: <doc-or-module>
+state: <active|blocked|done|failed>
+```
+
+`constraint` and `decision` follow when a rule or a frozen choice governs
+the document. The block is the machine-readable source of truth for
+continuity; the document's prose below it (claims, history, rationale) is
+preserved and is never duplicated into fields (zero-redundancy, spec §3.6).
+Migration is applied document by document.

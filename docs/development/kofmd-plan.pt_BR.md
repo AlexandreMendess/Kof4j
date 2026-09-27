@@ -2,11 +2,19 @@
 
 # Plano de implementação do Kofmd — Markdown tipado, orientado a intenção (D-KOFMD)
 
-> **Estado (27/09): EM DESENVOLVIMENTO — Fase 1 (investigação) FEITA
-> neste doc; Fase 2 (este plano) pousa aqui; Fase 3+ executa nas fatias
-> abaixo.** Decisão explícita da mantenedora 27/09/2026 (`D-KOFMD`): o
-> Kofmd é INDISPENSÁVEL para a 0.5.0 — a verbosidade das docs é o problema
-> que ele resolve. Fila: roadmap §23 (aberta no mesmo commit do `D-KOFMD`).
+last: 3.8-golden-corpus
+doing: 3.7b-lsp-hook
+next: 3.9-hot-doc-migration
+location: kofmd-plan
+state: active
+constraint: learn-training-not-migrated
+decision: D-KOFMD
+
+> **A Fase 1 (investigação) está FEITA neste doc; a Fase 2 (este plano) está
+> congelada como §2; a Fase 3+ executa nas fatias do §3.** Decisão explícita
+> da mantenedora 27/09/2026 (`D-KOFMD`): o Kofmd é INDISPENSÁVEL para a
+> 0.5.0 — a verbosidade das docs é o problema que ele resolve. Fila:
+> roadmap §23 (aberta no mesmo commit do `D-KOFMD`).
 
 ## 0. Contrato (a spec 37+13, condensada — o texto completo mora no chat)
 
@@ -100,3 +108,23 @@ destruiria a legibilidade que justifica a existência deles, por zero ganho
 operacional: nenhum loop de agente lê `learn/` por turno. Se uma futura
 decisão da mantenedora reabrir isto, reabre como voto regra-6 próprio,
 nunca como deriva dentro da fatia 3.9.
+
+### Cabeçalho de estado de doc quente (convenção da migração)
+
+Todo documento quente de trabalho no escopo acima **DEVE** carregar um bloco
+de estado Kofmd canônico logo após o título, codificando os campos de
+continuidade que o loop autônomo lê:
+
+```text
+last: <token>
+doing: <token>
+next: <token>
+location: <doc-ou-módulo>
+state: <active|blocked|done|failed>
+```
+
+`constraint` e `decision` seguem quando uma regra ou uma escolha congelada
+governa o documento. O bloco é a fonte de verdade legível por máquina da
+continuidade; a prosa do documento abaixo dele (claims, histórico, razão) é
+preservada e nunca duplicada em campos (zero-redundância, spec §3.6). A
+migração é aplicada documento a documento.
