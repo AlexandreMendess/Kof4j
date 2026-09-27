@@ -148,6 +148,16 @@ class InteropRE2ETest {
                 "spec embutida como literal R entre aspas simples");
         assertTrue(lines[1].contains("eval(parse(text=s$source))"),
                 "source reaplicada ANTES do dispatch (replay identico ao py)");
+        // fatia 3 (timeout/cancel) — as tres pecas do protocolo novo, geradas
+        // SEM R (mesma licao da familia efa8805ab: a geracao e o ponto cego):
+        assertTrue(lines[1].contains("cat(paste0(\"KOFPID \", Sys.getpid(), \"\\n\"))"),
+                "linha KOFPID (combustivel do cancel) deve estar na expressao");
+        assertTrue(lines[1].contains("setTimeLimit(elapsed = tm/1000)"),
+                "deadline corre no FILHO (elapsed timer do R)");
+        assertTrue(lines[1].contains("KOFTIME"),
+                "status KOFTIME nomeia o 007");
+        assertTrue(lines[1].contains("signalHandler(\"SIGINT\""),
+                "SIGINT capturado via tools::signalHandler (R>=4.3 do CI) -> KOFCANCEL");
     }
 
     @Test
@@ -247,6 +257,61 @@ class InteropRE2ETest {
                 jvm.output(), "motor R round-trip == golden py");
         Run nat = runNative(src, tmp.resolve("out-recnat"));
         assertEquals(jvm.output(), nat.output(), "motor R record JVM≡x86");
+    }
+
+    @Test
+    void hangingCallIsStoppedByOwnDeadlineNamed007OnR() throws Exception {
+        requireR();
+        Path src = tmp.resolve("d007.kf");
+        Files.writeString(src, """
+                import kof.interop
+                main() {
+                    var r = KofR("loop <- function() { while (TRUE) {} }\\nsq <- function(n) n*n")
+                    r.timeout(1000)
+                    try {
+                        println(r.callInt("loop", listOf()))
+                    } catch (String e) {
+                        println(e)
+                    }
+                    println(r.callInt("sq", listOf(5)))
+                }
+                """);
+        Run jvm = runJvm(src, tmp.resolve("out-d007"));
+        assertTrue(jvm.ok(), "JVM: " + jvm.output());
+        assertTrue(jvm.output().contains("INTEROP007"),
+                "deadline do R (setTimeLimit) nomeia 007: " + jvm.output());
+        assertTrue(jvm.output().contains("25"),
+                "motor vivo de novo depois do 007 (reuse): " + jvm.output());
+    }
+
+    @Test
+    void cancelFromAnotherTaskStopsTheRunningCallNamed008OnR() throws Exception {
+        requireR();
+        Path src = tmp.resolve("d008.kf");
+        Files.writeString(src, """
+                import kof.interop
+                void later(KofR r) {
+                    time.sleep(700)
+                    r.cancel()
+                }
+                main() {
+                    var r = KofR("nap <- function() { Sys.sleep(30); 1 }")
+                    r.timeout(0)
+                    val t = spawn later(r)
+                    try {
+                        println(r.callInt("nap", listOf()))
+                    } catch (String e) {
+                        println(e)
+                    }
+                    await t
+                    println("fim")
+                }
+                """);
+        Run jvm = runJvm(src, tmp.resolve("out-d008"));
+        assertTrue(jvm.ok(), "JVM: " + jvm.output());
+        assertTrue(jvm.output().contains("INTEROP008"),
+                "SIGINT capturado pelo tools::signalHandler nomeia 008: " + jvm.output());
+        assertTrue(jvm.output().contains("fim"), "task do killer completou: " + jvm.output());
     }
 
     @Test

@@ -31,6 +31,14 @@ class KofPy {
     String callJson(String funcName, String argsJson) {
         throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
     }
+
+    void timeout(Int ms) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    void cancel() {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
 }
 
 // Simetria X2 motor R (26/09): mesma classe de recusa para o KofR — o
@@ -60,6 +68,14 @@ class KofR {
     }
 
     String callJson(String funcName, String argsJson) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    void timeout(Int ms) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    void cancel() {
         throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
     }
 }
