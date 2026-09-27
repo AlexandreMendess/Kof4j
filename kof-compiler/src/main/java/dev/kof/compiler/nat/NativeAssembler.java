@@ -22,7 +22,7 @@ public final class NativeAssembler {
     /** #431: `ffiLibs` = as `library()` dos `extern` bound (link-by-use). Um
      *  caminho (contém '/') entra como input posicional do ld; um soname vira
      *  `-l:<nome>` — exatamente o padrão do SQLite (DB001), sem dlopen. */
-    static void assemble(Path asmFile, Path binFile, boolean usesDb, boolean usesMysql,
+    static void assemble(Path asmFile, Path binFile, boolean usesDb,
                    boolean usesConcurrency, java.util.Collection<String> ffiLibs,
                    boolean usesPow, boolean freestanding) throws IOException {
         Path objFile = asmFile.resolveSibling(asmFile.getFileName() + ".o");
@@ -139,7 +139,11 @@ public final class NativeAssembler {
                     "-dynamic-linker", "/lib64/ld-linux-x86-64.so.2", "-lc"));
             if (usesDb) {
                 cmdL.add("-l:libsqlite3.so.0");
-                if (usesMysql) cmdL.add("-l:libmariadb.so.3");
+                // §523 (27/09): sem `-l:libmariadb.so.3` — o wire mysql e
+                // auto-contido (sockets + SHA1 proprios; zero simbolo
+                // mariadb/mysql no binario, medido via readelf) desde sempre;
+                // a flag so quebrava o link em host sem a lib (CI) e criava
+                // NEEDED fantasma no load. Precedente S5.4 no cross (moot).
             }
             if (usesConcurrency) cmdL.add("-l:libpthread.so.0");
             // R2 fatia 1 (20/09): pow → libm só POR USO (decisão 7a mantida;
@@ -161,9 +165,7 @@ public final class NativeAssembler {
             if (usesDb) {
                 String os2 = System.getProperty("os.name", "").toLowerCase();
                 if (os2.contains("linux")) {
-                    String[] extra = usesMysql
-                            ? new String[]{"-l:libsqlite3.so.0", "-l:libmariadb.so.3"}
-                            : new String[]{"-l:libsqlite3.so.0"};
+                    String[] extra = new String[]{"-l:libsqlite3.so.0"};
                     String[] cmd = new String[7 + extra.length];
                     cmd[0] = "ld"; cmd[1] = "-o"; cmd[2] = binFile.toString(); cmd[3] = objFile.toString();
                     cmd[4] = "-dynamic-linker"; cmd[5] = "/lib64/ld-linux-x86-64.so.2"; cmd[6] = "-lc";

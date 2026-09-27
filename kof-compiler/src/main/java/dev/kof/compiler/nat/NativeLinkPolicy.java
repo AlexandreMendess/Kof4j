@@ -32,22 +32,22 @@ final class NativeLinkPolicy {
         // então linkar sem libm fecha; usaPow só quando a fonte chama
         // kof_math_pow (scan acima — único caminho ao shim). A história do
         // 7f174a6f (arg morto, link incondicional) mora aqui.
-        NativeAssembler.assemble(asmFile, binFile, backend.usesDb || backend.usesOrm, backend.usesMysql,
+        NativeAssembler.assemble(asmFile, binFile, backend.usesDb || backend.usesOrm,
                 backend.usesConcurrency, backend.ffiLibs, backend.usesPow, backend.freestanding);
     }
 
     /** Detecta o protocolo do URL de conexão quando é um literal em
-     *  compile-time (intenção conhecida pelo compilador): mysql/mariadb
-     *  exigem a lib do cliente no link; sqlite, não. URLs dinâmicos
-     *  linkam as duas (default conservador). */
+     *  compile-time (intenção conhecida pelo compilador). Desde §523 (27/09)
+     *  o wire mysql é auto-contido e NÃO exige lib no link (S0 recusa NOMEADA
+     *  no runtime para o resto); o flag restante serve ao gate freestanding
+     *  (sem sockets sem libc). URLs dinâmicos seguem conservadores (true). */
     static boolean connectsToMysql(int callIndex, List<KofOperation> ops) {
         for (int j = callIndex - 1; j >= 0 && j >= callIndex - 8; j--) {
             if (ops.get(j) instanceof KofLoadLiteral lit && lit.value() instanceof String url) {
                 String u = url.toLowerCase();
-                // link-by-use: só o wire mysql exige libmariadb. Scheme literal
-                // sqlite:/jdbc:h2:/etc. não chama o wire (S0 recusa NOMEADA no
-                // runtime), então não linka a lib — desbloqueia a prova do §421
-                // em host sem libmariadb. URL dinâmica segue conservadora (true).
+                // §523: sem link-by-use de libmariadb — o wire nunca chamou a
+                // lib (zero simbolo, medido via readelf); sem a flag, a prova
+                // hermética linka em host sem a lib (CI).
                 return u.startsWith("mysql://") || u.startsWith("mariadb://")
                         || u.startsWith("jdbc:mysql://");
             }

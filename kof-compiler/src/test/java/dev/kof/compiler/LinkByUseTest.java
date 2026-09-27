@@ -14,8 +14,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * R2 (fatia 1, 20/09) — "capability/link by use" generalizado ao `libm` do
- * x86-64: assim como sqlite/mariadb/pthread so entram no link quando a fonte
- * usa a capacidade (usesDb/usesMysql/usesConcurrency), `-lm` deve entrar
+ * x86-64: assim como sqlite/pthread so entram no link quando a fonte
+ * usa a capacidade (usesDb/usesConcurrency), `-lm` deve entrar
  * somente quando ha chamada real a `kof_math_pow`. Antes desta fatia o ld
  * x86 ligava libm SEMPRE (comentario "sempre ligado" em NativeAssembler) —
  * o shim `call pow` do monolito virou fraco (`.weak pow`), entao o link sem
