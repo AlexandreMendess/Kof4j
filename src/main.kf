@@ -22,6 +22,9 @@ main(args: List<String>) {
 
     try {
         var platform = Platforms.detect()
+        if (platform.isWindows()) {
+            NullDevice.ensure()
+        }
         var fs = platform.fileSystem()
         var github = GitHubClient("KofLang/Kof4j", platform.id(), Env.get("GITHUB_TOKEN"))
         var store = Store(home, platform.id(), fs)
