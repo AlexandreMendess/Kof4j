@@ -26,14 +26,15 @@
 
 | # | Surface | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Gap code | Tracker / owner lane |
 |---|---------|------------|----------------|--------------------------|----|----------|----------------------|
-| 1 | `process.run`/`spawn`/`exit` | ✅ | ✅ x86 `run`/`exit`/`spawn` + whole-record `println(r)`/`"x"+r` 26/09 (`RuntimeProcess`/`RuntimeProcessSpawn`/`RuntimeProcessResult`; JVM §367 content with trailing CR/LF trimmed; handle: `readLine`/`write`/`exitCode`/`kill`/`alive`) | ✅ cross `run`/`spawn`+handles + whole-record print 26/09 (`NativeRiscvAsmProcess`/`NativeRiscvAsmProcessSpawn`/`NativeRiscvAsmProcessResult`; golden `ProcessResultWholePrintE2ETest` JVM≡riscv64≡aarch64) | ✅ (KofJsRunner) | `PROC001` (MCU/riscv32: `run`/`spawn`/whole-record print) | native-cross lane (run x86 ✅ 25/09, cross ✅ 26/09; spawn x86 ✅ 26/09, cross ✅ 26/09; whole-record x86+cross ✅ 26/09) |
-| 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 `cmd`/`run`/`ok` 26/09 (`RuntimeSsh` + `SshE2ETest#allSshFacesMatchJvmAcrossAllTargets`) | ✅ riscv64/aarch64 `cmd`/`run`/`ok` 26/09 (`NativeRiscvAsmSsh` + `SshCrossE2ETest` + golden JVM≡riscv64≡aarch64) | ✅ JS 26/09 (`kofSshArgv`/`kofSshRun` + golden JVM≡JS in `SshE2ETest`) | `PROC001` (MCU/riscv32: no process layer) | native-cross lane (JVM/JS/x86/cross ✅ 26/09) |
-| 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ⚠️ x86-64 `Video`+`Audio` ✅ 26/09 (`RuntimeMedia`/`RuntimeMediaMp4`/`RuntimeMediaWav` — MP4 moov/mvhd incl. extended size, WAV PCM-16 parse+save com mkdirs recursivo; `MediaNativeE2ETest` byte-for-byte vs JVM + cap-64 honesto; `Image`/`Mic` ficam `MEDIA001` — decoder/encoder = regra 6) | ✅ riscv64/aarch64 `Video` ✅ 26/09 fatia 2A (`NativeRiscvAsmMedia`/`NativeRiscvAsmMediaMp4` — newfstatat S_IFREG + read, cap-64, MP4 be-scan c/ size=1/0, mvhd v0/v1, `bytes()` signed) + `Audio` ✅ 26/09 fatia 2B (`NativeRiscvAsmMediaWav` — WAV PCM-16 parse+save c/ mkdirs recursivo, cap-64; `MediaCrossE2ETest` byte-for-byte vs JVM nos 2 arcos sob qemu) | ❌ | `MEDIA001`/`MEDIA003` (Image/Mic all; JS) | media front (x86 fatia 1 + cross Video 2A + Audio 2B ✅ 26/09; JS/Image/Mic = `MEDIA00x`) |
-| 10 | `math.pow` cross | ✅ | ✅ (libm `-lm`) | ✅ riscv64/aarch64 27/09 (shim `kof_math_pow` → `pow@PLT`; peça PRÓPRIA + `-lm` POR USO via `NativeCrossLink.needsLibm`; golden `KofMathTest#powCrossArch` JVM≡riscv64≡aarch64 sob qemu) | ✅ | — | parity lane (closed 27/09) |
-| 11 | `strings.reverse` non-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | native/js lanes |
-| 12 | web T1 (`kof.http.server` faces) on native/cross | ✅ | ⏳ | ❌ `WEB002`–`WEB006` | ✅ | `WEB00x` | web lane |
-| 13 | `kof.io` file faces on cross | ✅ | ✅ x86 | ✅ full — stat+text+fs (`exists`/`isFile`/`isDirectory`/`readText`/`writeText`/`appendText`/`delete`/`create`/`createDirectories`/`mkdirs`/`size`/`readBytes`/`writeBytes`/`appendBytes`/`list`/`readRange`/`name`/`path_fileName`/`path_parent`/`path_extension`/`path_isAbsolute`/`path_resolve`/`path_normalize`/`path_toAbsolute`) ✅ (`NativeRiscvAsmIoStat`/`IoText`/`IoFs`/`IoMkdirs`/`IoSize`/`IoBytes`/`IoDirList`/`IoReadRange`/`IoPath`/`IoResolve`/`IoNormalize`/`IoToAbsolute`/`IoDirDelete` — recursive `delete` ✅ cross **and x86-64** 26/09; `modifiedTime`+`isSymlink` ✅ cross+x86-64 via `NativeRiscvAsmIoMeta`/`RuntimeIoMeta`; `moveTo` ✅ all native via `RuntimeIoMove`/`NativeRiscvAsmIoMove` (`renameat2`); `copyTo` ✅ all native via `RuntimeIoCopy`/`NativeRiscvAsmIoCopy` → **row 13 COMPLETE, no `NAT006` face left** (§497 FIXED); `size()` msg JVM×x86 diverge (§494) | ✅ | `NAT006`/`NAT007` | native cross lane |
-| 14 | security family on cross/native (bcrypt/argon2/keystore faces) | ✅ | partial | ❌ `SECN001`/`003`/`004`/`005` | ⏳ | `SECN00x` | security lane |
+| 11 | `strings.reverse` non-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | native/js lanes — **IMPLEMENT now** (`D-PARITY-050-SCOPE`) |
+
+> **Closed by `D-PARITY-050-SCOPE` (maintainer 27/09):** rows 1 (`process`) and
+> 3 (`ssh`) leave the 0.5.0 ledger for the SIX release targets (MCU/riscv32
+> `PROC001` → Deferred to 1.0); rows 10 (`math.pow` cross) and 13 (`kof.io`
+> cross) were already CLOSED (bookkeeping). **Deferred to 1.0 (declared gaps,
+> never acceptance):** row 4 media `Image`/`Mic`, row 12 web T1 on native/cross,
+> row 14 security cross/JS — see the Deferred section. The 0.5.0 ledger has ONE
+> open row: **row 11 strings**, implemented now.
 
 > **Rows 15 (`orm.*` native) and 16 (`db.*` native) CLOSED 24/09 by the
 > gaps-db lane (S5.5)** — the cross (riscv64/aarch64) was the last open cells;
@@ -74,6 +75,24 @@ runner is re-run at every release-gate execution (condition 1), so a
 regression re-opens the row (zero regression, freeze rule 1).
 
 ## Closed (proof recorded here when a row empties)
+
+- **Row 13 — `kof.io` file faces on cross** — closed 27/09 (`D-PARITY-050-SCOPE`
+  bookkeeping). Every face is ✅ on x86-64 **and** riscv64/aarch64: stat+text+fs
+  (`NativeRiscvAsmIo*` family — `IoStat`/`IoText`/`IoFs`/`IoMkdirs`/`IoSize`/
+  `IoBytes`/`IoDirList`/`IoReadRange`/`IoPath`/`IoResolve`/`IoNormalize`/
+  `IoToAbsolute`/`IoDirDelete`, plus `IoMeta`/`IoMove`/`IoCopy`), recursive
+  `delete` cross+x86, `modifiedTime`/`isSymlink` cross+x86, `moveTo`/`copyTo`
+  all native; `NAT006` face is gone (§497 FIXED). Proof: the `NativeIo*CrossTest`
+  batteries + `MediaNativeE2ETest`/`MediaCrossE2ETest` neighbors, and §494
+  (`NativeIoSizeCrossTest` 7/7) for the `size()` message.
+
+- **Row 1 — `process.run`/`spawn`/`exit` and Row 3 — `ssh.cmd`/`run`/`ok`** —
+  closed 27/09 for the SIX release targets (`D-PARITY-050-SCOPE`). All six
+  columns ✅ (x86 `RuntimeProcess`/`RuntimeProcessSpawn`/`RuntimeProcessResult` +
+  cross `NativeRiscvAsmProcess*`, golden `ProcessResultWholePrintE2ETest`;
+  ssh x86 `RuntimeSsh` + cross `NativeRiscvAsmSsh`, goldens `SshE2ETest`/
+  `SshCrossE2ETest` JVM≡native≡JS). The MCU/riscv32 `PROC001` residual (no
+  process layer) is Deferred to 1.0 — outside the 0.5.0 ledger.
 
 - **Row 10 — `math.pow` cross (riscv64/aarch64)** — closed 27/09 (lane parity,
   D-DECISION-BATCH-2709B #3). The cross runtime refused `pow` with `MATH001`
@@ -211,3 +230,18 @@ regression re-opens the row (zero regression, freeze rule 1).
 3. Parity table in `learn/39-stdlib.md`, `training/idioms/stdlib.md` and the
    namespace chapter under `learn/stdlib/` updated in the SAME commit.
 4. Row removed from this ledger in the SAME commit + `full_parity` gate re-run.
+
+## Deferred to 1.0 (maintainer-ratified 27/09, `D-PARITY-050-SCOPE` — OUTSIDE the 0.5.0 ledger)
+
+These rows are DECLARED gaps, never an acceptance state (`D-COMPLETE-FIRST`).
+They do not block the 0.5.0 cut; each keeps its honest gap code and its tracker.
+
+- **Row 4 media `Image.open`/`Mic.record`** — `MEDIA001` (all targets) +
+  `MEDIA003` (JS). `Video`/`Audio` are ✅ (26/09); the `Image`/`Mic`
+  decoder/encoder is rule-6 work deferred to 1.0.
+- **Row 12 web T1 (`kof.http.server` faces) on native/cross** — `WEB002`–`WEB006`
+  (x86 ⏳, cross ❌). JVM/JS ✅. Deferred to 1.0.
+- **Row 14 security family on cross/JS** — `SECN001`/`003`/`004`/`005` (cross ❌)
+  + JS ⏳ (bcrypt/argon2/keystore). Deferred to 1.0.
+- **MCU/riscv32 process layer** — the `PROC001` residual of rows 1/3 (no process
+  layer on MCU). Outside the 0.5.0 ledger; 1.0 scope.

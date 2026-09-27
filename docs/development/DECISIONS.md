@@ -4128,3 +4128,36 @@ and becomes part of every change's definition of done; a doc edited without its
 Kofmd pass is an incomplete unit and must not be pushed.
 
 - **Relationships:** `Related: D-KOFMD, D-DOC-SLIM, rule 5, rule 6`.
+
+## D-PARITY-050-SCOPE — the 0.5.0 full-parity ledger covers the SIX release targets; MCU/riscv32 + four faces are deferred to 1.0 (maintainer 27/09/2026, voted batch)
+
+Amends `D-FULL-PARITY-050`: the 0.5.0 release ledger is measured over the SIX
+release targets — JVM, Script, JS, Native x86-64, Native riscv64, Native
+aarch64. MCU/riscv32 stays OUT of the 0.5.0 ledger (no process layer). Votes:
+
+- rows 10 (`math.pow` cross) and 13 (`kof.io` cross) — **CLOSED** (already proved; bookkeeping only);
+- rows 1 (`process`) and 3 (`ssh`) — **closed for the 6 targets**; the MCU/riscv32 `PROC001` residual leaves the 0.5.0 ledger;
+- row 4 media `Image`/`Mic`, row 12 web T1 on native/cross, row 14 security cross/JS — **DEFERRED to 1.0** (declared gaps `MEDIA00x`/`WEB00x`/`SECN00x`; never an acceptance state, `D-COMPLETE-FIRST`);
+- row 11 strings (`NAT-STR01`/`STR003`) — **IMPLEMENT now** (native+JS Unicode parity): the only remaining 0.5.0 open row.
+
+- **Relationships:** `Related: D-FULL-PARITY-050, D-COMPLETE-FIRST, D-RELEASE-0.5.0-GATE`.
+
+## D-BUGS-050-QUARANTINE — §524 and §533 are harness/environment conditions, quarantined by deterministic isolation (maintainer 27/09/2026, voted)
+
+Both are green in isolation and red only under full-suite load (host scheduler);
+they are NOT code regressions. §524 = the qemu aarch64 harnesses
+(`NativeRiscvGc*`/`Dtoa`/`DbWire`) SIGSEGV 139 under load; §533 =
+`InteropTimeout.cancelFromAnotherTask…008` (the host-python `never` registration
+race). Contract: make them deterministic by ISOLATION (run the harnesses/tests
+outside the load, pinned), keep the entries honest — the isolation must be
+proved, never a hidden failure / false green (Q5).
+
+- **Relationships:** `Related: D-RELEASE-0.5.0-GATE, zero-regression`.
+
+## D-534-JS-DEFER — §534 (`kof run --target js` ignores provisioned JDBC drivers) deferred to 1.0 (maintainer 27/09/2026, voted)
+
+The JS-run provisioning (TCCL `URLClassLoader` or child re-exec) is a real
+feature with no 0.5.0 surface; it is declared and deferred, and `DB001` stays the
+honest diagnostic on JS.
+
+- **Relationships:** `Related: D-DB-ZERODRIVER, D-FULL-PARITY-050`.
