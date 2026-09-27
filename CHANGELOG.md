@@ -10,6 +10,18 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Paridade — linha 4 do ledger (26/09, fatia 2B): `kof.media` Audio (WAV
+    PCM 16-bit) no cross riscv64/aarch64** — `NativeRiscvAsmMediaWav` porta o
+    `RuntimeMediaWav` x86 (varredura RIFF LE, "fmt " antes de "data", pad de
+    tamanho ímpar, último "data" vence; `saveWav` com mkdirs recursivo; cap-64
+    honesto); aarch64 herda pelo tradutor. A tabela única
+    `KofMedia.mediaFaceReady` abre SÓ Audio no cross (Video já na 2A;
+    Image/Mic seguem `MEDIA001`/`003`). Prova:
+    `MediaCrossE2ETest#audioFacesMatchJvmGoldenOnCross` — golden byte a byte
+    JVM ≡ riscv64 ≡ aarch64 sob qemu + os bytes do WAV gravado idênticos
+    (incl. `nx/deeper/` provando o mkdirs recursivo);
+    `MediaNativeE2ETest#imageMicStayGapAndCrossNeverLeaks` flipado (Audio
+    agora COMPILA no cross). Ledger linha 4, learn/training de media EN+PT.
   - **Fix — §493 (26/09): `orm.delete`/`orm.deleteAll` sobre MySQL no Native
     devolviam `true` quando o servidor REJEITAVA a sentencia — a JVM lanca
     (lei = `D-DECISION-BATCH-2609` item 1)** — o x86-64 `.Lorm_del_my`/

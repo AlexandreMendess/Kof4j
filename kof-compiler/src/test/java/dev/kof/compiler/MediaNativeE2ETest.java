@@ -261,9 +261,9 @@ class MediaNativeE2ETest {
         CompilationResult ok = driver.compile(tmp.resolve("GAP-VID.kf"),
                 tmp.resolve("o-gap-vid-x86"), Target.NATIVE);
         assertTrue(ok.success(), "Video deve compilar no x86: " + ok.diagnostics().getDiagnostics());
-        // (c) FATIA 2A (26/09): Video COMPILA no cross (runtime riscv portado;
-        // aarch64 herda); Audio/Image/Mic continuam MEDIA001 la (fatias
-        // seguintes) — o gate nao vaza por face.
+        // (c) FATIA 2A (26/09): Video COMPILA no cross; FATIA 2B (26/09): Audio
+        // COMPILA no cross (runtimes riscv portados; aarch64 herda); Image/Mic
+        // continuam MEDIA001/003 la — o gate nao vaza por face.
         String aud = "main() {\n    var a = Audio.openWav(\"x.wav\")\n    println(a.sampleRate())\n}\n";
         Files.writeString(tmp.resolve("GAP-AUD.kf"), aud);
         for (Target cross : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -273,10 +273,8 @@ class MediaNativeE2ETest {
                     + r.diagnostics().getDiagnostics());
             CompilationResult ra = driver.compile(tmp.resolve("GAP-AUD.kf"),
                     tmp.resolve("o-gap-aud-" + cross), cross);
-            assertFalse(ra.success(), cross + " deve recusar Audio (fatia 2B pendente)");
-            assertTrue(ra.diagnostics().getDiagnostics().stream()
-                            .anyMatch(d -> "MEDIA001".equals(d.code())),
-                    cross + " audio: esperava MEDIA001: " + ra.diagnostics().getDiagnostics());
+            assertTrue(ra.success(), cross + " deve compilar Audio (fatia 2B): "
+                    + ra.diagnostics().getDiagnostics());
         }
     }
 }

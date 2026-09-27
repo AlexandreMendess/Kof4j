@@ -3,9 +3,9 @@
 # kof.media — Image/Audio/Video/Mic como I/O de mídia
 
 > **Status: JVM ✅ · Native x86-64: `Video`+`Audio` ✅ (26/09, byte-for-byte
-> vs JVM) · riscv64/aarch64: `Video` ✅ (26/09 fatia 2A, byte a byte sob
-> qemu; `Audio` = fatia 2B); `Image`/`Mic` e JS = `MEDIA001` (compile-time, honesto) —
-> linha 4 do ledger de paridade.**
+> vs JVM) · riscv64/aarch64: `Video` ✅ (26/09 fatia 2A) + `Audio` ✅ (26/09
+> fatia 2B), byte a byte sob qemu; `Image`/`Mic` e JS = `MEDIA001`
+> (compile-time, honesto) — linha 4 do ledger de paridade.**
 
 | Face | Membros (medidos) |
 |------|--------------------|

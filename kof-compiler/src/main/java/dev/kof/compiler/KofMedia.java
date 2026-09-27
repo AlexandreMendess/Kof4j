@@ -172,7 +172,12 @@ public final class KofMedia {
             return target == Target.NATIVE || target == Target.NATIVE_RISCV64
                     || target == Target.NATIVE_AARCH64;
         }
-        return function.startsWith("kof_media_audio_") && target == Target.NATIVE;
+        // FATIA 2B (26/09): Audio (WAV PCM 16-bit) cross (riscv64; aarch64
+        // herda pelo tradutor) em NativeRiscvAsmMediaWav — E2E byte a byte vs
+        // oraculo JVM (MediaCrossE2ETest).
+        return function.startsWith("kof_media_audio_")
+                && (target == Target.NATIVE || target == Target.NATIVE_RISCV64
+                        || target == Target.NATIVE_AARCH64);
     }
 
     static String gapCode(String function) {

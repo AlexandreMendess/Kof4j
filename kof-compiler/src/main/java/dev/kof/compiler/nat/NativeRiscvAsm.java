@@ -326,6 +326,10 @@ public final class NativeRiscvAsm {
                 // MEDIA001 declarado ate as fatias seguintes.
                 .append(NativeRiscvAsmMedia.RISCV_ASM_MEDIA)
                 .append(NativeRiscvAsmMediaMp4.RISCV_ASM_MEDIA_MP4)
+                // D-FULL-PARITY-050 linha 4 FATIA 2B (26/09): Audio (WAV PCM
+                // 16-bit) do kof.media no cross — port de RuntimeMediaWav
+                // (aarch64 herda via tradutor); Image/Mic seguem MEDIA001/003.
+                .append(NativeRiscvAsmMediaWav.RISCV_ASM_MEDIA_WAV)
                 .toString();
     }
     static final String RISCV_MAPSET_ASM = runtimeMapset();

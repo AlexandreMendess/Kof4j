@@ -334,8 +334,10 @@ val inputs = Mic.list()                  // available capture devices
 WHY: `Image` in `kof.ui` is a **view widget**; `Image.open` here is **media I/O**
 (same name, different intent — do not confuse them). Everything the platform
 decodes stays in the backend; user code never touches buffers or codecs. Honest
-gates (measured 19/09): JVM ✅; **JS and Native = `MEDIA001`** at compile-time (R6);
-riscv/aarch ⏳. Scope note: this is today's **data face** of `kof.media`. The
+gates (measured 26/09): JVM ✅; Native x86-64 ✅ (`Video`+`Audio`); riscv64/
+aarch64 ✅ (`Video` fatia 2A + `Audio` fatia 2B, byte-for-byte under qemu);
+**JS = `MEDIA001`** and `Image`/`Mic` = `MEDIA001`/`003` at compile-time (R6).
+Scope note: this is today's **data face** of `kof.media`. The
 future graphics/gaming/media surface is **Kof's own engine** with FULL 4-target
 parity as its acceptance criterion (`DECISIONS.md` §D-GRAPHICS-GAMING addenda 2+4;
 plan `docs/development/future/graphics-gaming-plan.md`) — `MEDIA001` is honest for
@@ -364,7 +366,7 @@ the legacy face, not the model for what gets promoted.
 | `process.spawn` | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ Kof JS host (`KofJsRunner`); bare node = honest diagnostic |
 | `observability.*` (spans 01/09 + metrics/health 8.5 19/09) | ✅ (measured 19/09) | ✅ x86 (measured 19/09) | ✅ cross (row 7 closed 26/09 — `KofObservabilityTest` 12/12) | ✅ (measured 19/09) |
 | `gpu.available`/`failReason`/`dispatchMatmul(Int)` | ✅ | ✅ (measured 19/09) | ✅ cross (row 6 closed 26/09 — honest CPU fallback) | ✅ JS/Script fallback (row 6; `GPU001` retired) |
-| `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record/list` | ✅ (measured 19/09) | `Video`+`Audio` ✅ (26/09 fatia 1 — `MediaNativeE2ETest` byte-for-byte vs JVM); `Image`/`Mic` ❌ `MEDIA001` | `Video` ✅ (26/09 fatia 2A — `MediaCrossE2ETest` riscv64/aarch64 byte-for-byte sob qemu); `Audio`/`Image`/`Mic` ❌ `MEDIA001` | ❌ `MEDIA001` |
+| `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record/list` | ✅ (measured 19/09) | `Video`+`Audio` ✅ (26/09 fatia 1 — `MediaNativeE2ETest` byte-for-byte vs JVM); `Image`/`Mic` ❌ `MEDIA001` | `Video` ✅ (26/09 fatia 2A) + `Audio` ✅ (26/09 fatia 2B — `MediaCrossE2ETest` riscv64/aarch64 byte-for-byte sob qemu); `Image`/`Mic` ❌ `MEDIA001` | ❌ `MEDIA001` |
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (compile-time) | ❌ `PROC001` | ✅ byte-parity |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ Kof JS host (chain + pump, 20/09 `081a48f8`; bare node = honest diagnostic) |
 

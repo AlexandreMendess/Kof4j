@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -133,5 +134,78 @@ class MediaCrossE2ETest {
         String aarch = runCross(Target.NATIVE_AARCH64, "aarch64",
                 tmp.resolve("XMED.kf"), tmp.resolve("o-xmed-aa"));
         assertEquals(jvm, aarch, "Video aarch64 == oraculo JVM byte a byte (regra 5)");
+    }
+
+    // ── Audio (WAV PCM 16-bit) — fixtures MESMOS bytes do oracle x86 ──────
+
+    private static void le16(byte[] b, int off, int v) {
+        b[off] = (byte) v; b[off + 1] = (byte) (v >> 8);
+    }
+
+    private static void le32(byte[] b, int off, int v) {
+        le16(b, off, v & 0xFFFF); le16(b, off + 2, v >> 16);
+    }
+
+    private static byte[] wav(int format, int channels, int rate, int bits, byte[] data) {
+        byte[] b = new byte[44 + data.length];
+        type4(b, 0, "RIFF"); le32(b, 4, 36 + data.length); type4(b, 8, "WAVE");
+        type4(b, 12, "fmt "); le32(b, 16, 16);
+        le16(b, 20, format); le16(b, 22, channels); le32(b, 24, rate);
+        le32(b, 28, rate * channels * 2); le16(b, 32, channels * 2); le16(b, 34, bits);
+        type4(b, 36, "data"); le32(b, 40, data.length);
+        System.arraycopy(data, 0, b, 44, data.length);
+        return b;
+    }
+
+    @Test
+    void audioFacesMatchJvmGoldenOnCross() throws Exception {
+        assumeTrue(NativeRiscv64E2ETest.hasToolchain("riscv64"),
+                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
+        byte[] pcm = {0x12, 0x34, (byte) 0xDC, (byte) 0xFE, 0, 0,
+                (byte) 0xFF, 0x7F, 0, (byte) 0x80, (byte) 0xFF, 0,
+                (byte) 0x80, 0, 0, 0x01};
+        byte[] note = wav(1, 1, 8000, 16, pcm);
+        Files.write(tmp.resolve("note.wav"), note);
+        Files.write(tmp.resolve("float.wav"), wav(3, 1, 8000, 16, pcm));
+        Files.write(tmp.resolve("pcm24.wav"), wav(1, 1, 8000, 24, pcm));
+        Files.write(tmp.resolve("bad.wav"), "not riff at all......".getBytes(StandardCharsets.US_ASCII));
+        String t = tmp.toString().replace('\\', '/');
+        Files.writeString(tmp.resolve("XAUD.kf"), """
+                main() {
+                    var a = Audio.openWav("%1$s/note.wav")
+                    println(a.sampleRate())
+                    println(a.durationMs())
+                    println(a.pcmBytes())
+                    println(a.saveWav("%1$s/nx/out.wav"))
+                    try { Audio.openWav("%1$s/float.wav") } catch (String e) { println(e) }
+                    try { Audio.openWav("%1$s/pcm24.wav") } catch (String e) { println(e) }
+                    try { Audio.openWav("%1$s/bad.wav") } catch (String e) { println(e) }
+                    var n = Audio.openWav("%1$s/note.wav")
+                    println(n.saveWav("%1$s/nx/deeper/out2.wav"))
+                    println(n.durationMs())
+                }
+                """.formatted(t));
+
+        String jvm = runJvm(tmp.resolve("XAUD.kf"), tmp.resolve("o-xaud-jvm"));
+        assertArrayEquals(note, Files.readAllBytes(tmp.resolve("nx/out.wav")),
+                "JVM saveWav deve reproduzir o WAV canonico byte a byte");
+
+        String riscv = runCross(Target.NATIVE_RISCV64, "riscv64",
+                tmp.resolve("XAUD.kf"), tmp.resolve("o-xaud-rv"));
+        assertEquals(jvm, riscv, "Audio riscv64 == oraculo JVM byte a byte (regra 5)");
+        assertArrayEquals(note, Files.readAllBytes(tmp.resolve("nx/out.wav")),
+                "riscv64 saveWav bytes");
+        assertArrayEquals(note, Files.readAllBytes(tmp.resolve("nx/deeper/out2.wav")),
+                "riscv64 saveWav/mkdirs recursivo bytes");
+
+        assumeTrue(NativeRiscv64E2ETest.hasToolchain("aarch64"),
+                "cross toolchain aarch64 + qemu ausente — riscv ja provado");
+        String aarch = runCross(Target.NATIVE_AARCH64, "aarch64",
+                tmp.resolve("XAUD.kf"), tmp.resolve("o-xaud-aa"));
+        assertEquals(jvm, aarch, "Audio aarch64 == oraculo JVM byte a byte (regra 5)");
+        assertArrayEquals(note, Files.readAllBytes(tmp.resolve("nx/out.wav")),
+                "aarch64 saveWav bytes");
+        assertArrayEquals(note, Files.readAllBytes(tmp.resolve("nx/deeper/out2.wav")),
+                "aarch64 saveWav/mkdirs recursivo bytes");
     }
 }
