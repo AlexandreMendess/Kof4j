@@ -80,6 +80,20 @@ public final class NativeCrossLink {
         return false;
     }
 
+    /** row 10 (27/09, D-DECISION-BATCH-2709B #3): `call pow` (shim
+     *  kof_math_pow, peça própria) torna o link cross dinâmico COM `-lm`
+     *  POR USO — quem não chama pow não tem a peça, logo não liga libm. */
+    static boolean needsLibm(String asmText) {
+        for (String line : asmText.split("\n", -1)) {
+            String t = line.strip();
+            if (t.startsWith("#")) continue;
+            int hash = t.indexOf('#');
+            if (hash > 0) t = t.substring(0, hash).stripTrailing();
+            if (t.startsWith("call ") && t.substring(5).strip().equals("pow")) return true;
+        }
+        return false;
+    }
+
     /** Caminho do `libsqlite3.so*` no sysroot resolvido para a arch, ou null
      *  se não houver libsqlite3-cross (CI instala só `libc6-*-cross`). */
     static String sqliteLibFor(String arch) {
@@ -188,6 +202,15 @@ public final class NativeCrossLink {
     static String[] ldArgs(String ld, Path binFile, Path objFile, String arch,
                            boolean dynamic, String sysroot, boolean sqlite,
                            java.util.Collection<String> ffiLibs) {
+        return ldArgs(ld, binFile, objFile, arch, dynamic, sysroot, sqlite, ffiLibs, false);
+    }
+
+    /** row 10 (27/09): {@code libm} acrescenta {@code -lm} (POR USO, quando o
+     *  texto podado contém {@code call pow}). O chamador já passa
+     *  {@code dynamic=true}` nesse caso (pow ∈ LIBC_SYMBOLS). */
+    static String[] ldArgs(String ld, Path binFile, Path objFile, String arch,
+                           boolean dynamic, String sysroot, boolean sqlite,
+                           java.util.Collection<String> ffiLibs, boolean libm) {
         List<String> a = new ArrayList<>();
         a.add(ld);
         if (arch.equals("riscv64")) a.add("--no-relax");
@@ -209,6 +232,7 @@ public final class NativeCrossLink {
         a.add(objFile.toString());
         a.add("-lc");
         if (sqlite) a.add(sqliteLinkArg(arch));
+        if (libm) a.add("-lm");
         for (String lib : ffiLibs) a.add(ffiLinkArg(lib));
         return a.toArray(new String[0]);
     }

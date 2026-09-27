@@ -113,12 +113,14 @@ class StdParityGapAuditTest {
     }
 
     @Test
-    @DisplayName("math.pow: cross riscv/aarch gated (MATH001)")
-    void mathPowGatesCross() {
+    @DisplayName("math.pow: suportado em TODOS os alvos — cross liga libm por uso (row 10, 27/09)")
+    void mathPowSupportedEverywhere() {
         assertTrue(KofMath.supportedOn("kof_math_pow", Target.JVM));
-        assertEquals(Set.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64),
-                unsupported(t -> KofMath.supportedOn("kof_math_pow", t)));
-        assertEquals("MATH001", KofMath.gapCode("kof_math_pow"));
+        // D-DECISION-BATCH-2709B #3 (27/09): riscv/aarch deixaram de ser gated —
+        // o shim kof_math_pow chama pow@PLT e o cross liga `-lm` POR USO.
+        assertEquals(Set.of(), unsupported(t -> KofMath.supportedOn("kof_math_pow", t)),
+                "pow não é mais gated no cross (libm por uso)");
+        assertEquals("MATH001", KofMath.gapCode("kof_math_pow")); // código reservado
     }
 
     @Test

@@ -205,6 +205,7 @@ final class NativeArchEmitter {
         // #431: extern BINDA — a `library()` vira input do ld cross (link-by-use,
         // DB001) e força o dinâmico (sem ela o `call sym` não resolve).
         boolean ffi = !nb.ffiLibs.isEmpty();
+        boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
         boolean dynamic = sqlite || ffi || NativeCrossLink.needsLibc(prunedRiscv);
         String sysroot = NativeCrossLink.sysrootFor("riscv64");
         if (dynamic && sysroot == null) {
@@ -219,7 +220,8 @@ final class NativeArchEmitter {
                     "sysroot (CI installs only libc6-*-cross) — ld will abort with undefined reference");
         }
         if (dynamic) System.err.println("NativeBackend: riscv64 dynamic link (" +
-                (sqlite ? "libc+libsqlite3 detected" : "libc detected") + (ffi ? " +ffi libs" : "") + ")");
+                (sqlite ? "libc+libsqlite3 detected" : "libc detected") + (ffi ? " +ffi libs" : "")
+                + (libm ? " +libm" : "") + ")");
 
         try {
             Path objFile = asmFile.resolveSibling("kof.o");
@@ -237,7 +239,7 @@ final class NativeArchEmitter {
             // root_start.._end; seção deletada fora do intervalo = raiz que
             // o coletor nunca vê — precisa primeiro o fim explícito).
             nb.runCommand(NativeCrossLink.ldArgs(crossTool("riscv64-linux-gnu-ld"), binFile, objFile,
-                    "riscv64", dynamic, sysroot, sqlite, nb.ffiLibs), "riscv64-ld");
+                    "riscv64", dynamic, sysroot, sqlite, nb.ffiLibs, libm), "riscv64-ld");
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
@@ -405,6 +407,7 @@ final class NativeArchEmitter {
         System.err.println("NativeBackend: generated aarch64 " + asmFile);
         boolean sqlite = NativeCrossLink.needsSqlite(prunedRiscv);
         boolean ffi = !nb.ffiLibs.isEmpty();
+        boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
         boolean dynamic = sqlite || ffi || NativeCrossLink.needsLibc(prunedRiscv);
         String sysroot = NativeCrossLink.sysrootFor("aarch64");
         if (sqlite && !NativeCrossLink.sqliteAvailable("aarch64")) {
@@ -412,12 +415,13 @@ final class NativeArchEmitter {
                     "sysroot (CI installs only libc6-*-cross) — ld will abort with undefined reference");
         }
         if (dynamic) System.err.println("NativeBackend: aarch64 dynamic link (" +
-                (sqlite ? "libc+libsqlite3 detected" : "libc detected") + (ffi ? " +ffi libs" : "") + ")");
+                (sqlite ? "libc+libsqlite3 detected" : "libc detected") + (ffi ? " +ffi libs" : "")
+                + (libm ? " +libm" : "") + ")");
         try {
             Path objFile = asmFile.resolveSibling("kof.o");
             nb.runCommand(new String[]{crossTool("aarch64-linux-gnu-as"), "-o", objFile.toString(), asmFile.toString()}, "aarch64-as");
             nb.runCommand(NativeCrossLink.ldArgs(crossTool("aarch64-linux-gnu-ld"), binFile, objFile,
-                    "aarch64", dynamic, sysroot, sqlite, nb.ffiLibs), "aarch64-ld");
+                    "aarch64", dynamic, sysroot, sqlite, nb.ffiLibs, libm), "aarch64-ld");
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);

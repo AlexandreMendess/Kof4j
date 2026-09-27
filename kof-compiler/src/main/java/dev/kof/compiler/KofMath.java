@@ -128,9 +128,8 @@ public final class KofMath {
      * ligar libm = decisão de arquitetura, regra 6). Recusa com código
      * MATH001 (R6), nunca undefined-reference silencioso. */
     static boolean supportedOn(@SuppressWarnings("unused") String function, @SuppressWarnings("unused") Target target) {
-        if ("kof_math_pow".equals(function)) {
-            return target != Target.NATIVE_RISCV64 && target != Target.NATIVE_AARCH64;
-        }
+        // row 10 (27/09, D-DECISION-BATCH-2709B #3): pow roda tambem no cross
+        // (shim kof_math_pow -> pow@PLT; -lm por uso). MATH001 fica reservado.
         return true;
     }
 

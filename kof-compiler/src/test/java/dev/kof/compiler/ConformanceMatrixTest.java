@@ -775,10 +775,10 @@ class ConformanceMatrixTest {
                     println(math.isDecimal(4.0) == false)
                 }
                 """, "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue", Set.of(), tempDir);
-        // STDLIB S1b.2 — kof.math.pow (decisão 7a): primeiro caso libm no
-        // native x86 (`pow@PLT` + `-lm`); JVM/JS Math.pow; riscv/aarch =
-        // MATH001 (link estático sem libc — gap diagnosticado, fora das 4
-        // colunas). Subset determinístico travado nos 4 targets.
+        // STDLIB S1b.2 — kof.math.pow: primeiro caso libm no native x86
+        // (`pow@PLT` + `-lm`); JVM/JS Math.pow; riscv/aarch idem desde row 10
+        // (27/09, D-DECISION-BATCH-2709B #3: libm por uso no cross — E2E sob
+        // qemu em KofMathTest#powCrossArch). Subset determinístico nos 4 alvos.
         matrix("stdmathpow", """
                 main() {
                     println(math.pow(2.0, 10.0) == 1024.0)
