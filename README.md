@@ -1,6 +1,6 @@
 # kfvm — Kof Version Manager
 
-Install, switch between and remove versions of the [Kof](https://github.com/KofLang/Kof4j) toolchain from the command line.
+Install, switch between and remove versions of the [Kof](https://github.com/KofLang/Kof4j) toolchain from the command line, on Linux, macOS and Windows.
 
 ```console
 $ kfvm i lst        # install the latest stable release
@@ -21,11 +21,33 @@ Kof ships as a self-contained distribution (compiler, CLI, runtime, stdlib and a
 
 ## Installation
 
+### Linux and macOS
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/etieppo/kfvm/master/install.sh | sh
 ```
 
 The script builds kfvm from source. If no Kof 0.5.0 or newer is found, it first installs one into `~/.local/share/kof`. When Kof can compile kfvm into a native binary, that binary is installed as `~/.local/bin/kfvm`. Otherwise kfvm is installed as `~/.local/share/kfvm/kfvm.jar` plus a launcher in `~/.local/bin/kfvm`, which runs on the embedded JDK of an installed Kof version. If `~/.local/bin` is not in your `PATH`, the script adds it to your shell config.
+
+### Windows
+
+In PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/etieppo/kfvm/master/install.ps1 | iex
+```
+
+Or from `cmd`:
+
+```bat
+powershell -c "irm https://raw.githubusercontent.com/etieppo/kfvm/master/install.ps1 | iex"
+```
+
+Requires Windows 10 (1803 or newer) or Windows 11, which ship `curl.exe` and `tar.exe`. Kof publishes Windows builds for x86_64 only.
+
+`install.ps1` does the same as `install.sh`, with the same layout under `%USERPROFILE%`: Kof versions go to `%USERPROFILE%\.local\share\kof`, kfvm is installed as `%USERPROFILE%\.local\share\kfvm\kfvm.jar` plus the launcher `%USERPROFILE%\.local\bin\kfvm.cmd`, and `%USERPROFILE%\.local\bin` is added to your user `PATH`. Open a new terminal after installing.
+
+To call `kof` directly, add `%USERPROFILE%\.local\share\kof\current\bin` to your `PATH` as well.
 
 ### Install manually
 
@@ -33,6 +55,14 @@ The script builds kfvm from source. If no Kof 0.5.0 or newer is found, it first 
 git clone https://github.com/etieppo/kfvm
 cd kfvm
 KFVM_SOURCE=. sh install.sh
+```
+
+On Windows:
+
+```powershell
+git clone https://github.com/etieppo/kfvm
+cd kfvm
+$env:KFVM_SOURCE = '.'; powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 ## Usage
@@ -78,6 +108,8 @@ kof version
 kfvm uni 0.4.10
 ```
 
+On Windows, kfvm runs on the JDK of the active Kof version and files in use cannot be deleted, so switch to another version (`kfvm u <ver>`) before removing the active one.
+
 ## Version specifiers
 
 | Specifier | Meaning | Example |
@@ -101,6 +133,8 @@ Each version is extracted into its own folder under the install directory, and a
 
 This is the same layout used by Kof's official installer (`scripts/install.sh`), so kfvm can manage versions that were installed with it, and vice versa.
 
+On Windows the layout lives under `%USERPROFILE%\.local\share\kof`, versions end in `-windows-x86_64`, and `current` is a directory junction, which needs neither administrator rights nor Developer Mode. The `kof` launcher of each version is `bin\kof.bat`.
+
 ## Running a specific version without switching
 
 Every installed version can be called directly by its path, which is useful for comparing behavior between releases:
@@ -116,4 +150,10 @@ Remove the Kof versions you no longer need with `kfvm uni`, then delete `~/.loca
 
 ```bash
 rm -rf ~/.local/share/kof
+```
+
+On Windows, delete `%USERPROFILE%\.local\bin\kfvm.cmd` and `%USERPROFILE%\.local\share\kfvm`, and remove `%USERPROFILE%\.local\bin` from your user `PATH`. To remove every Kof version as well:
+
+```powershell
+Remove-Item -Recurse -Force "$env:USERPROFILE\.local\share\kof"
 ```
