@@ -4107,3 +4107,24 @@ the decision request in `docs/development/memory-safety-plan.md`; the test lands
 under the memory-safety E2E suite on all four targets.
 
 - **Relationships:** `Related: D-MEMORY-SAFETY, D-COMPLETE-FIRST`.
+
+## D-KOFMD-ON-EDIT — every document an agent edits is Kofmd-compressed in the same commit; the rule is absolute (maintainer 27/09/2026, explicit order)
+
+Divides the doc-wide compression work in `D-DOC-SLIM` across agents by making
+compression an **obligation of any edit**: from now on, whoever edits a document
+also compresses it. It is no longer a separate front one lane owns — each agent
+migrates the documents it touches. Absolute rule ("a regra é absoluta"):
+
+- an agent that edits any eligible document MUST bring it to canonical Kofmd in
+  the **same commit** — canonical state block, typed fields, prose only for what
+  fields cannot express, zero field duplication;
+- it is a `before_commit` / Final-self-check item, not an optional follow-up;
+- the exclusions of `D-DOC-SLIM` still hold: `learn/`, `training/`,
+  `libs/kofmd/corpus/*.md` and the generated `CHANGELOG` body are never
+  compressed.
+
+Consequence: the "unowned compression queue" stops being a single lane's queue
+and becomes part of every change's definition of done; a doc edited without its
+Kofmd pass is an incomplete unit and must not be pushed.
+
+- **Relationships:** `Related: D-KOFMD, D-DOC-SLIM, rule 5, rule 6`.

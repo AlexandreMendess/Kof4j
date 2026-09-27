@@ -41,6 +41,7 @@ decision:
 * D-BOOTSTRAP
 * D-DB-GAPS
 * D-GRAPHICS-GAMING
+* D-KOFMD-ON-EDIT: todo documento editado por um agente é comprimido em Kofmd no mesmo commit
 
 ---
 
@@ -276,6 +277,7 @@ rule:
 * future não é trabalho atual sem promoção
 * não criar documentos de planejamento para evitar implementação
 * uma decisão tomada em chat vira DECISIONS.md + fila no mesmo commit
+* todo documento editado por um agente é comprimido em Kofmd no mesmo commit (`D-KOFMD-ON-EDIT`)
 
 hot_docs:
 
@@ -298,6 +300,7 @@ kofmd:
 * informação tipada deve ser tipada
 * prosa deve carregar somente informação que não pode ser representada estruturalmente
 * nunca duplicar campos na prosa
+* obrigatório ao editar: todo documento tocado por um agente é comprimido no mesmo commit
 * learn/ e training/ são excluídos da compressão Kofmd
 
 ---
@@ -805,6 +808,7 @@ before_commit:
 * testes relevantes verdes
 * suíte completa executada
 * árvore pós-rebase inspecionada
+* docs editados por agente comprimidos para Kofmd
 * DOING.md atualizado
 
 commit:

@@ -4094,3 +4094,24 @@ face de compile `MEM003` é criada. Resolve o decision request em
 memory-safety nos quatro alvos.
 
 - **Relações:** `Related: D-MEMORY-SAFETY, D-COMPLETE-FIRST`.
+
+## D-KOFMD-ON-EDIT — todo documento editado por um agente é comprimido em Kofmd no mesmo commit; a regra é absoluta (mantenedora 27/09/2026, ordem explícita)
+
+Divide o trabalho de compressão doc-wide do `D-DOC-SLIM` entre os agentes ao
+tornar a compressão uma **obrigação de qualquer edição**: a partir de agora,
+quem edita um documento também o comprime. Não é mais uma frente separada de
+uma lane — cada agente migra os documentos que toca. Regra absoluta ("a regra é
+absoluta"):
+
+- um agente que edita qualquer documento elegível DEVE levá-lo a Kofmd canônico
+  no **mesmo commit** — bloco de estado canônico, campos tipados, prosa só para
+  o que os campos não expressam, zero duplicação de campo;
+- é item de `before_commit` / Autoverificação final, não follow-up opcional;
+- as exclusões do `D-DOC-SLIM` seguem valendo: `learn/`, `training/`,
+  `libs/kofmd/corpus/*.md` e o corpo gerado do `CHANGELOG` nunca são comprimidos.
+
+Consequência: a "fila de compressão sem dono" deixa de ser fila de uma lane e
+passa a fazer parte da definição de pronto de toda mudança; um documento
+editado sem o seu passe Kofmd é unidade incompleta e não deve ser empurrado.
+
+- **Relações:** `Related: D-KOFMD, D-DOC-SLIM, regra 5, regra 6`.

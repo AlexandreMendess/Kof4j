@@ -37,6 +37,7 @@ decision:
 * D-BOOTSTRAP
 * D-DB-GAPS
 * D-GRAPHICS-GAMING
+* D-KOFMD-ON-EDIT: every document an agent edits is Kofmd-compressed in the same commit
 
 ---
 
@@ -236,6 +237,7 @@ rule:
 * future is not current work without promotion
 * do not create planning documents to avoid implementation
 * a chat decision becomes DECISIONS.md + queue in the same commit
+* every document an agent edits is Kofmd-compressed in the same commit (`D-KOFMD-ON-EDIT`)
 
 hot_docs:
 
@@ -258,6 +260,7 @@ kofmd:
 * typed information is typed
 * prose only carries information not representable structurally
 * never duplicate fields in prose
+* mandatory on edit: any doc an agent touches is compressed in the same commit
 * learn/ and training/ are excluded from Kofmd compression
 
 ---
@@ -704,6 +707,7 @@ before_commit:
 * relevant tests green
 * full suite executed
 * post-rebase tree inspected
+* agent-edited docs compressed to Kofmd
 * DOING.md updated
 
 commit:
