@@ -280,6 +280,24 @@ final class CmdBuild {
         List<Path> files = KofCliSupport.collect(backendDir);
         if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        // D-DB-ZERODRIVER (a): mesmos drivers auto no build JVM (cp de
+        // compilação + embed no --fat via externalEntries, que o
+        // buildFatJar empacota). Native/JS não embarcam driver (R7).
+        if (target == Target.JVM) {
+            try {
+                String autoDbCp = DbDrivers.provision(Path.of("."), files);
+                if (!autoDbCp.isBlank()) {
+                    for (String part : autoDbCp.split(java.util.regex.Pattern.quote(
+                            System.getProperty("os.name", "").toLowerCase().contains("win") ? ";" : ":"))) {
+                        if (!part.isBlank()) externalEntries.add(Path.of(part));
+                    }
+                    driver.setExternalClasspath(externalEntries);
+                }
+            } catch (IOException e) {
+                System.err.println("build: cannot provision db driver: " + e.getMessage());
+                return;
+            }
+        }
         Path backendOut = out;
         if (layout.fullStack()) {
             Path buildRoot = outFlagged ? out : Path.of("build");

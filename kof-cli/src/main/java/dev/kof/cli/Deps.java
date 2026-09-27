@@ -367,17 +367,44 @@ final class Deps {
         return Path.of(home, ".kof", "deps");
     }
 
-    private static Path jarPath(String group, String artifact, String version) {
+    static Path jarPath(String group, String artifact, String version) {
         Path dir = cacheDir().resolve(group.replace('.', '/')).resolve(artifact).resolve(version);
         return dir.resolve(artifact + "-" + version + ".jar");
     }
 
-    private static void download(String group, String artifact, String version) throws IOException {
+    /** Seam de teste/air-gap: propriedade {@code kof.maven.central} aponta a
+     *  base de download p/ outro repo (ex. `file:///srv/mirror/`); produção
+     *  usa o Maven Central. */
+    static String mavenBase() {
+        String seam = System.getProperty("kof.maven.central");
+        if (seam != null && !seam.isBlank()) return seam.endsWith("/") ? seam : seam + "/";
+        return MAVEN_CENTRAL;
+    }
+
+    static void download(String group, String artifact, String version) throws IOException {
         Path jar = jarPath(group, artifact, version);
         if (Files.exists(jar)) return;
         Files.createDirectories(jar.getParent());
-        String url = MAVEN_CENTRAL + group.replace('.', '/') + "/" + artifact + "/"
+        String rel = group.replace('.', '/') + "/" + artifact + "/"
                 + version + "/" + artifact + "-" + version + ".jar";
+        String base = mavenBase();
+        if (base.startsWith("file:")) {
+            Path src;
+            try {
+                src = Path.of(URI.create(base + rel));
+            } catch (Exception e) {
+                throw new IOException("file repo inválido: " + base + rel);
+            }
+            try {
+                Files.copy(src, jar, StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception e) {
+                Files.deleteIfExists(jar);
+                throw new IOException("file repo " + src + ": " + e.getMessage());
+            }
+            System.out.println("baixado " + group + ":" + artifact + ":" + version);
+            return;
+        }
+        String url = base + rel;
         HttpRequest req = HttpRequest.newBuilder(URI.create(url)).GET().build();
         try {
             HttpResponse<Path> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofFile(jar));

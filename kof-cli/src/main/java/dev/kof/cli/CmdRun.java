@@ -159,6 +159,40 @@ final class CmdRun {
                 return;
             }
         }
+        // D-DB-ZERODRIVER (a): drivers JDBC auto-provisionados — resolve o
+        // driver do scheme usado no programa (cache ~/.kof/deps) em vez de
+        // exigir download manual. Só JVM/SCRIPT consomem classpath de driver
+        // aqui (native não precisa; JS roda in-process no cp da CLI =
+        // follow-up medido; android só gera projeto).
+        String autoDbCp = "";
+        if (target == Target.JVM || target == Target.SCRIPT) {
+            try {
+                autoDbCp = DbDrivers.provision(Path.of("."), file);
+                if (!autoDbCp.isBlank()) {
+                    List<Path> merged = new ArrayList<>();
+                    try {
+                        String dc = Deps.classpath();
+                        if (!dc.isBlank()) {
+                            for (String part : dc.split(java.util.regex.Pattern.quote(
+                                    System.getProperty("os.name", "").toLowerCase().contains("win") ? ";" : ":"))) {
+                                if (!part.isBlank()) merged.add(Path.of(part));
+                            }
+                        }
+                    } catch (IOException ignored) {
+                    }
+                    for (String part : autoDbCp.split(java.util.regex.Pattern.quote(
+                            java.io.File.pathSeparator))) {
+                        if (!part.isBlank()) merged.add(Path.of(part));
+                    }
+                    driver.setExternalClasspath(merged);
+                }
+            } catch (IOException e) {
+                System.err.println("run: cannot provision db driver: " + e.getMessage());
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+                return;
+            }
+        }
         // KofScript: coringa de execução — interpreta a IR no mesmo frontend,
         // sem emitir .class/.native/.js/.wasm/.apk (fase 2 do plano de plataforma).
         if (target == Target.SCRIPT) {
@@ -299,6 +333,7 @@ final class CmdRun {
             } catch (IOException ignored) {
             }
         }
+        if (!autoDbCp.isBlank()) jvmCp += java.io.File.pathSeparator + autoDbCp;
         javaArgs.add(jvmCp);
         javaArgs.add(className);
         for (int i = argStart; i < args.length; i++) javaArgs.add(args[i]);

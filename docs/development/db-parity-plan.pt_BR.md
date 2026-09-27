@@ -435,7 +435,20 @@ por scheme é a prova.
      `mysql: connection lost` (escopo votado). Prova RED-first hermética +
      perna lei-JVM em `KofDbE2ETest`; pin-flip no `NativeRiscvDbWireTest`.
      Fixtures user-land `~/.local/share/kof-mariadb` (13306 skip-grant, 13307
-     auth). Até cada uma pousar, fica **gap interino declarado** (nunca aceite
+     auth). **Provisionamento (D-DB-ZERODRIVER trilha a) FEITO 27/09 (lane
+     issues):** `kof run` (JVM/SCRIPT) e `kof build` (JVM, incl. embed no
+     `--fat`) resolvem o driver do scheme usado a partir de `~/.kof/deps`
+     (GAVs pinnados: mariadb 3.5.10, sqlite 3.53.4.0, postgresql 42.7.13, h2
+     2.5.250, mongodb-driver-sync/core/bson 5.12.0), baixando do Maven Central
+     no primeiro uso — sem download manual, sem flag `--deps` para drivers.
+     Offline ou falha de download é ALTO (nomeia o GAV + o caminho de drop
+     manual, R6). Pin do usuário no `kofdeps` vence (nunca duas versões).
+     Prova: `DbDriversTest` 9/9 + probe manual flagship (`kof run Db.kf
+     --target jvm`, cache zerado → `baixado org.mariadb.jdbc…` + linha).
+     **Follow-ups (declarados, não silenciosos):** provision no run JS → §534
+     (lane js); wiring do pom android (precisa recon do `AndroidProjectWriter`);
+     wire MySQL puro-Java S6 PLANEJADO, não-bloqueante (aceitação de schemes já
+     vale via drivers provisionados). Até cada uma pousar, fica **gap interino declarado** (nunca aceite
      silencioso), e a mensagem do `kof_orm_conn` deve nomear a causa real (ORM
      mysql ainda não portado) em vez de `unknown db connection`.
 

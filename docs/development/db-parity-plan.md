@@ -445,6 +445,23 @@ typed roundtrip) produces the **same observable result** on all four targets, or
      (voted scope). RED-first hermetic + JVM-law proof in `KofDbE2ETest`;
      `NativeRiscvDbWireTest` pin-flip. User-land fixtures
      `~/.local/share/kof-mariadb` (13306 skip-grant, 13307 auth).
+     **Provisioning (D-DB-ZERODRIVER track a) DONE 27/09 (lane issues):**
+     `kof run` (JVM/SCRIPT) and `kof build` (JVM, incl. `--fat` embed) resolve
+     the driver of the used scheme from `~/.kof/deps` (pinned GAVs:
+     mariadb 3.5.10, sqlite 3.53.4.0, postgresql 42.7.13, h2 2.5.250,
+     mongodb-driver-sync/core/bson 5.12.0), downloading from Maven Central on
+     first use — no manual download, no `--deps` flag for drivers. Offline or
+     download failure is LOUD (names the GAV + the manual-drop path, R6). A
+     `kofdeps` pin on the same artifact wins (never two versions). Proof:
+     `DbDriversTest` 9/9 (map/scan/preseed-cache/file://-repo/offline-loud/
+     user-pin/mongo-trio + `kof run` E2E with zeroed cache + `--fat` embed) +
+     the flagship manual probe (`kof run Db.kf --target jvm`, empty cache →
+     `baixado org.mariadb.jdbc…` + row).
+     **Follow-ups (declared, not silent):** JS-run provisioning → §534 (lane
+     js — `KofJsRunner` in-process never gains the jars); android-pom driver
+     wiring (needs `AndroidProjectWriter` recon); S6 pure-Java MySQL wire
+     PLANNED, non-blocking (scheme acceptance already holds via provisioned
+     drivers).
     Until each lands this stays a **declared interim gap** (never a silent
     accept), and `kof_orm_conn`'s message should name the real cause (mysql ORM
     not yet ported) instead of `unknown db connection`.

@@ -13707,3 +13707,22 @@ acusar um commit; um vermelho de isolamento em host limpo é bug novo e ganha §
 
 <!-- en-switch --> **EN:** [§533 (known-bugs)](known-bugs.md#533--interoptimeoute2etestcancelfromanothertaskstopstherunningcallnamed008-is-red-33-inside-the-full-reactor-and-green-44-in-isolation-the-never-rpc-call-returns-keyerrorinterop006-before-cancel-can-name-interop008-harness-setup-race-under-load---open-owner--lane-interop)
 
+## §534 — `kof run --target js` ignora drivers JDBC provisionados/declarados (KofJsRunner in-process) — DB001 onde o JVM conecta — 🟡 OPEN (dona = lane js)
+**Sintoma (medido 27/09):** o auto-provision D-DB-ZERODRIVER pousou para
+`kof run --target jvm` (programa `mysql://` nu, sem `--deps`, cache vazio →
+baixa mariadb-java-client 3.5.10, imprime a linha) e `kof build --fat`
+(embebe o jar). O MESMO programa sob `kof run --target js` morre com
+`DB001: no JDBC driver for this URL` — mesmo com o driver declarado no
+`kofdeps` + `--deps`. Causa: `KofJsRunner.run` executa in-process no classpath
+próprio da CLI (`CmdRun.java:238`), que nunca ganha os jars provisionados; a
+ponte está correta (normaliza por D-DB-NORMALIZE, e o programa fica verde via
+`KofDbE2ETest#jsBareMysqlNormalizesToJdbc` onde a JVM de teste tem drivers).
+**Esperado:** o mesmo provisionamento zero-cerimônia no run JS (URLClassLoader
+via TCCL com os jars provisionados ao redor do guest, ou re-exec filho com cp
+estendido) — ou diagnóstico nomeado se o JS genuinamente não puder (nunca
+divergência silenciosa run-vs-run).
+**Repro mínimo:** `java -cp <cli-classes+deps> dev.kof.cli.Main run Db.kf --target js`
+com `Db.kf` = `db.connect("mysql://root:kofpass@127.0.0.1:13306/test")` + query
+→ DB001; `--target jvm` → linha.
+
+<!-- en-switch --> **EN:** [§534 (EN)](known-bugs.md#534--kof-run---target-js-ignores-provisioneddeclared-jdbc-drivers-in-process-kofjsrunner--db001-where-jvm-connects---open-owner--lane-js)
