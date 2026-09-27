@@ -4085,3 +4085,25 @@ hand-edited). Supersedes the "doc-wide migration" non-goal of `kofmd-plan.md`
 §4/§5.
 
 - **Relationships:** `Related: D-KOFMD, D-KOF-FIRST, D-KOF-FIRST-IMPL (rule 12), rule 11`.
+
+## D-IO-SIZE-JVM-LAW — §494: the JVM is the law for the `kof.io` `size()` error message (maintainer 27/09/2026, voted option A)
+
+The JVM's `file not found: <path>` is the contract; the Native x86-64 and cross
+`size: ` prefix is the divergence to remove. Same family as §493 (JVM is law):
+the fix drops `.Lstr_io_size_prefix` from `RuntimeIo2.kof_io_file_size` and
+`NativeRiscvAsmIoSize`, and the `NativeIoSizeCrossTest` pins collapse to the JVM
+message. The success path (`st_size`) stays byte-identical. Aligns the thrown
+String to the JVM; no other frozen semantics change.
+
+- **Relationships:** `Related: §493, D-FULL-PARITY-050, D-COMPLETE-FIRST`.
+
+## D-MEMORY-CLEAR — O-03/`MEM003`: `clear()` nulls every slot before shrinking; `MEM003` is a runtime guarantee, never a compile face (maintainer 27/09/2026, voted option a)
+
+The spec §3 O-03 row had no decidable user-program shape, so no `MEM003` was
+emitted (honest silence). The maintainer chose the CONTRACT: `clear()` MUST null
+every slot before shrinking, so the guarantee is proven by a per-target runtime
+test, not by a compile diagnostic. No `MEM003` compile face is created. Resolves
+the decision request in `docs/development/memory-safety-plan.md`; the test lands
+under the memory-safety E2E suite on all four targets.
+
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-COMPLETE-FIRST`.

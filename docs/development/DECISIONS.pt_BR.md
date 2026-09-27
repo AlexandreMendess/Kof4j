@@ -4071,3 +4071,26 @@ exclusões técnicas, confirmadas com a mantenedora: `libs/kofmd/corpus/*.md`
 Substitui o non-goal "doc-wide migration" do `kofmd-plan.md` §4/§5.
 
 - **Relações:** `Related: D-KOFMD, D-KOF-FIRST, D-KOF-FIRST-IMPL (regra 12), regra 11`.
+
+## D-IO-SIZE-JVM-LAW — §494: a JVM é a lei para a mensagem de erro do `size()` do `kof.io` (mantenedora 27/09/2026, opção A votada)
+
+O `file not found: <path>` da JVM é o contrato; o prefixo `size: ` do Native
+x86-64 e do cross é a divergência a remover. Mesma família do §493 (a JVM é a
+lei): o fix remove `.Lstr_io_size_prefix` de `RuntimeIo2.kof_io_file_size` e
+`NativeRiscvAsmIoSize`, e os pins do `NativeIoSizeCrossTest` colapsam para a
+mensagem da JVM. O caminho de sucesso (`st_size`) fica byte-idêntico. Alinha a
+String lançada à JVM; nenhuma outra semântica congelada muda.
+
+- **Relações:** `Related: §493, D-FULL-PARITY-050, D-COMPLETE-FIRST`.
+
+## D-MEMORY-CLEAR — O-03/`MEM003`: `clear()` anula cada slot antes de encolher; `MEM003` é garantia de runtime, nunca face de compile (mantenedora 27/09/2026, opção a votada)
+
+A linha O-03 da spec §3 não tinha padrão decidível de programa de usuário, então
+nenhum `MEM003` era emitido (silêncio honesto). A mantenedora escolheu o
+CONTRATO: `clear()` DEVE anular cada slot antes de encolher, então a garantia é
+provada por teste de runtime por alvo, não por diagnóstico de compile. Nenhuma
+face de compile `MEM003` é criada. Resolve o decision request em
+`docs/development/memory-safety-plan.md`; o teste entra na suíte E2E de
+memory-safety nos quatro alvos.
+
+- **Relações:** `Related: D-MEMORY-SAFETY, D-COMPLETE-FIRST`.
