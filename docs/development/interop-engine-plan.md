@@ -116,6 +116,22 @@ Frozen surface for fatia 2 (rule 11 gate — no new compiler surface):
 | 4 | **Native / JS / Script faces** | MEASURE per face: real port where the platform backs it, otherwise `INTEROP005` compile-time refusal (JVM-first is R7, and §510 proved the honest-refusal face is complete delivery for a target) | per-target goldens or refusal pins |
 | 5 | **Corpus + promotion DoD** | `training/idioms/interop.md` EN+PT, `learn/` section, parity-matrix rows, `ecosystem-coverage`, CHANGELOG discipline; R5 stability review | docs-lang/refs gates |
 
+## Relation to the connector ecosystem (`future/kof-connector-ecosystem-plan.md`) — "keep an eye on it", not promotion (maintainer 26/09)
+
+- The connector plan is **NOT pulled into development** — opening that front needs the
+  explicit `D-CONNECTORS` decision (rule 6 + three-states). What is registered here is the
+  RELATIONSHIP, so no lane treats the future Core as a rewrite of the landed work.
+- The X2 engines ARE the **process form** of the connector catalogue's §5.5 (Python) /
+  §5.6 (R) — the connector plan's own inventory (§2, added 26/09) lists `KofPy`/`KofR` as
+  landed substrate. The catalogue's non-goal ("process+stdout is not the *model*", §0.2) is
+  respected as written: `KofPy`/`KofR` are ONE connector each, never the whole model; the
+  embedding/CPython-C-API/R-C-API path remains unbuilt and is NOT part of X2.
+- If `D-CONNECTORS` ever opens: the X2 wire protocol + faces continue as the process
+  connector's adapter (the Core consumes it, never rewrites it for principle);
+  `INTEROP00x` codes, goldens and tests carry over intact.
+- Slices 3–5 (timeout/cancel/session, cross §514, corpus/DoD) are UNAFFECTED by this
+  relation — they remain the complete delivery of item 2 (D-COMPLETE-FIRST).
+
 **Closure:** item 2 CLOSES when every slice above has shipped evidence — then
 `DECISIONS.md` gets the LANDED note, the roadmap row flips ✅ and this doc moves
 to `docs/` (three-states rule).

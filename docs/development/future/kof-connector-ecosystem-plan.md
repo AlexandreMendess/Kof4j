@@ -116,6 +116,7 @@ the plan **evolves these mechanisms** instead of building a second implementatio
 | Target selection | `Target.java`, `TargetMatrix.java`, `CompilerPipeline.java:193` | Which connector/runtime is valid per target |
 | CLI dispatch | `kof-cli/.../Main.java:17` (`switch` on command); precedents `CmdNew.java`, `publish`/`Deps` subcommands | Where `kof connector init` lands |
 | Interop reflection (X6) | `compiler/CompilerInterop.java`, `docs/type-system-extensions-plan.md`; `training/idioms/interop.md`, `learn/21-java-interoperability.md` | Existing surface-reflection entry point |
+| Script engines as PROCESS connector (X2) | resources `dev/kof/interop-py-host.kf` / `interop-r-host.kf` (`KofPy`/`KofR`: typed faces + `callJson`, 2-line KOFOK/KOFERR protocol, `INTEROP004`/`005`/`006`) | The §5.5/§5.6 scripting connectors in their process form — LANDED 26/09 (X2); the embedding/CPython-C-API/R-C-API path remains unbuilt |
 
 > **Conclusion:** the substrate (ABI, marshal helpers, per-target runtime, class
 > resolution) largely exists. The missing piece is the **unifying layer**: the Core, the
@@ -397,7 +398,9 @@ Kof JVM Interop
 
 * **Python (`kof-python-connector`).** CPython, Python C API, embedding, extension modules,
   native libraries, objects, callables, exceptions, buffers. Handle the Python runtime
-  lifecycle and GIL explicitly — Python is **not** a plain native library.
+  lifecycle and GIL explicitly — Python is **not** a plain native library. The **process** form
+  landed 26/09 as the X2 `KofPy` engine (inventory row in §2); embedding/C-API remains unbuilt —
+  that is the goal-state form of this bullet, not the landed one.
 * **JavaScript / TypeScript (`kof-javascript-connector` / `kof-typescript-connector`).**
   KofJS already exists: make it an official integration (`Kof → KofJS → JS runtime`), not a
   duplicate. Future: `Kof → KofWasm → JS host`; the same Kof module should run in both when
@@ -416,7 +419,7 @@ Kof JVM Interop
 * **Julia (`kof-julia-connector`).** Julia C API, embedding, native libraries, arrays,
   callbacks, objects. Do not auto-map all dynamic Julia semantics.
 * **R (`kof-r-connector`).** Embedding, native extensions, C interface, vectors, data frames,
-  callbacks (scientific data).
+  callbacks (scientific data). The **process** form landed 26/09 as the X2 `KofR` engine.
 * **MATLAB/Octave (`kof-matlab-connector`, `kof-octave-connector`, evaluated).** Native
   interfaces, shared libraries, C ABI, extension APIs where officially sustainable.
 

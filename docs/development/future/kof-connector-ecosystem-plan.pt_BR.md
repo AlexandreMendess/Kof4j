@@ -119,6 +119,7 @@ honesto; o plano **evolui esses mecanismos** em vez de construir uma segunda imp
 | Seleção de alvo | `Target.java`, `TargetMatrix.java`, `CompilerPipeline.java:193` | Qual connector/runtime é válido por alvo |
 | Dispatch da CLI | `kof-cli/.../Main.java:17` (`switch` do comando); precedentes `CmdNew.java`, subcomandos `publish`/`Deps` | Onde `kof connector init` entra |
 | Reflexão de interop (X6) | `compiler/CompilerInterop.java`, `docs/type-system-extensions-plan.md`; `training/idioms/interop.md`, `learn/21-java-interoperability.md` | Ponto de entrada existente de reflexão de superfície |
+| Motores de script como connector de PROCESSO (X2) | resources `dev/kof/interop-py-host.kf` / `interop-r-host.kf` (`KofPy`/`KofR`: faces tipadas + `callJson`, protocolo de 2 linhas KOFOK/KOFERR, `INTEROP004`/`005`/`006`) | Os conectores scripting de §5.5/§5.6 na forma de processo — LANDED 26/09 (X2); a rota embedding/CPython-C-API/R-C-API segue nao-implementada |
 
 > **Conclusão:** o substrato (ABI, helpers de marshal, runtime por alvo, resolução de classes)
 > em grande parte já existe. A peça que falta é a **camada unificadora**: o Core, a Connector
@@ -404,7 +405,9 @@ Kof JVM Interop
 
 * **Python (`kof-python-connector`).** CPython, Python C API, embedding, extension modules,
   bibliotecas nativas, objetos, callables, exceções, buffers. Tratar o lifecycle do runtime
-  Python e a GIL explicitamente — Python **não** é uma biblioteca nativa comum.
+  Python e a GIL explicitamente — Python **não** é uma biblioteca nativa comum. A forma
+  **processo** landed 26/09 como o motor X2 `KofPy` (linha do inventário em §2); embedding/C-API
+  segue nao-implementada — essa é a forma-objetivo deste item, nao a landed.
 * **JavaScript / TypeScript (`kof-javascript-connector` / `kof-typescript-connector`).** O KofJS
   já existe: torná-lo integração oficial (`Kof → KofJS → runtime JS`), não duplicar. Futuro:
   `Kof → KofWasm → host JS`; o mesmo módulo Kof deve rodar em ambos quando semanticamente compatível.
@@ -422,7 +425,7 @@ Kof JVM Interop
 * **Julia (`kof-julia-connector`).** Julia C API, embedding, bibliotecas nativas, arrays,
   callbacks, objetos. Não mapear automaticamente toda a semântica dinâmica de Julia.
 * **R (`kof-r-connector`).** Embedding, extensões nativas, interface C, vectors, data frames,
-  callbacks (dados científicos).
+  callbacks (dados científicos). A forma **processo** landed 26/09 como o motor X2 `KofR`.
 * **MATLAB/Octave (`kof-matlab-connector`, `kof-octave-connector`, avaliados).** Interfaces
   nativas, bibliotecas compartilhadas, C ABI, extension APIs onde oficialmente sustentável.
 

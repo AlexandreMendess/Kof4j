@@ -120,5 +120,21 @@ Superficie congelada da fatia 2 (gate regra 11 — nenhuma superficie nova de co
 | 4 | **Faces Native / JS / Script** | MEDIR por face: porte real onde a plataforma dá backing, senão recusa `INTEROP005` em compile-time (JVM-first é R7, e o §510 provou que a face de recusa honesta é entrega completa do alvo) | goldens por alvo ou pinos de recusa |
 | 5 | **Corpus + DoD de promoção** | `training/idioms/interop.md` EN+PT, seção do `learn/`, linhas da matriz de paridade, `ecosystem-coverage`, CHANGELOG | revisão de par do registro docs |
 
+## Relacao com o ecossistema de conectores (`future/kof-connector-ecosystem-plan.md`) — "ficar de olho", nao promocao (maintainer 26/09)
+
+- O plano de conectores **NAO e puxado para development** — abrir aquele front precisa da
+  decisao explicita `D-CONNECTORS` (regra 6 + tres-estados). O que se registra aqui e a
+  RELACAO, para nenhuma lane tratar o Core futuro como rewrite do que ja landed.
+- Os motores X2 SAO a **forma processo** dos conectores §5.5 (Python) / §5.6 (R) do
+  catalogo — o inventario do proprio plano de conectores (§2, adicionado 26/09) lista
+  `KofPy`/`KofR` como substrato landed. O non-goal do catalogo ("processo+stdout nao e o
+  *modelo*", §0.2) e respeitado como escrito: `KofPy`/`KofR` sao UM connector cada, nunca o
+  modelo inteiro; a rota embedding/CPython-C-API/R-C-API segue nao-implementada e NAO e do X2.
+- Se `D-CONNECTORS` abrir um dia: o protocolo wire + as faces do X2 seguem como o adaptador
+  do connector de processo (o Core consome, nunca reescreve por principio); codigos
+  `INTEROP00x`, goldens e testes permanecem.
+- Fatias 3–5 (timeout/cancel/sessao, cross §514, corpus/DoD) NAO sao afetadas pela relacao —
+  seguem a entrega completa do item 2 (D-COMPLETE-FIRST).
+
 **Sem tocar:** arquivos IN PROGRESS de outras lanes (memory/, media cross);
 PR #619 (regra 10).
