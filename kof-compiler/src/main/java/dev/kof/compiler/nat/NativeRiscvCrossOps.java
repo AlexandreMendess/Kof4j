@@ -570,7 +570,13 @@ public final class NativeRiscvCrossOps {
             return nb.functionMangleMap.getOrDefault(key, nb.sanitizeName(mn));
         }
         if (kc.kind() == KofCallKind.CONSTRUCTOR && kc.ownerType() instanceof Type.ClassType ct) {
-            return nb.sanitizeName(ct.name()) + "_" + nb.sanitizeName("<init>") + "_" + kc.parameterTypes().size();
+            // §530: o simbolo DEFINIDO usa o nome interno COM pacote
+            // (`mini/style/GridStyle` -> `mini_style_GridStyle_init_1`); o
+            // call-site usava `ct.name()` CRU (= "GridStyle") e so casava por
+            // coincidencia quando a classe nao tinha pacote (irmao do #628).
+            // internalOwner e a forma canonica ja usada pelo ramo FUNCTION.
+            return nb.sanitizeName(NativeSymbolMangling.internalOwner(ct))
+                    + "_" + nb.sanitizeName("<init>") + "_" + kc.parameterTypes().size();
         }
         if (kc.ownerType() instanceof Type.ClassType ct) {
             String key = ct.name() + "." + mn;

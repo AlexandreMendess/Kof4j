@@ -10,14 +10,23 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
-  - **Catalog — §530 (27/09, OPEN): wiring de biblioteca oficial pousou com cobertura so-JVM** — medido pela mantenedora na
+  - **Fix — §530 (27/09, pousou FIXED no mesmo dia): wiring de biblioteca oficial pousou com cobertura so-JVM** — medido pela mantenedora na
     #629: `import pdf.*` (libs/pdf, PR #557) roda em JVM/Script e o x86-64
     linka as classes da lib (falha so no `String_join` do contribuidor);
     riscv64/aarch64 NUNCA emitem/linkam as classes (`*_init_*` indefinidos);
     JS da ICE COMP002 (lane JS). `PdfLibraryE2ETest` so chama `Target.JVM` —
     o DoD multi-target da lib nunca foi medido. Dona da face cross = esta
-    lane (roteada pela mantenedora); fix = mecanismo de wiring do fechamento
-    cross, sem `if pdf` (regra 12). Catalog: known-bugs.md §530 (+PT).
+    lane (roteada pela mantenedora). Root cause medido: o call-site de
+    CONSTRUCTOR em `NativeRiscvCrossOps.resolveCalleeNameRiscv` montava o
+    simbolo com `ct.name()` CRU (sem pacote) enquanto a definicao era
+    package-mangled — irmao do #628; project-classes sem pacote casavam por
+    coincidencia. Fix de mecanismo: `NativeSymbolMangling.internalOwner` no
+    ramo do ctor (forma canônica do ramo FUNCTION), sem `if pdf` (regra 12).
+    Prova: `CrossLibClassCtorE2ETest` 4/4 RED-medido->GREEN, paridade byte
+    JVM ≡ x86-64 ≡ riscv64 ≡ aarch64; baterias cross intactas (56+54, 1 skip
+    honesto cada). Faces restantes da #629: `String.join` na lib =
+    contribuidor PR #557; ICE JS COMP002 = lane JS. Catalog: known-bugs.md
+    §530 FIXED (+PT).
   - **Fix — §529 (27/09): `didOpen` de URI-raiz (`file:///`) derrubava o `kof
     lsp` com NPE cru — cacada Q4 sobre o gate do #638/§528** — a gate
     `isDirectory(real.getParent())` landing sem a guarda de null do design

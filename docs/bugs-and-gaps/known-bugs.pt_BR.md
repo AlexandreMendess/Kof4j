@@ -13531,8 +13531,8 @@ espelho que inventa diretorios). Bateria: `Lsp*Test` **66/66** verde
 
 <!-- pt-switch --> **EN:** [§529 (known-bugs.md)](known-bugs.md#529--kof-lsp-didopen-of-a-root-directory-uri-file-crashed-analyze-with-a-raw-npe-the-638-gate-called-isdirectorygetparent-without-the-null-guard---fixed-2709-lane-gaps-dbnative-q4-hunt-over-528)
 
-## §530 — o wiring de biblioteca oficial (`libs/pdf`, PR #557) pousou com cobertura SO-JVM: o cross riscv64/aarch64 deixa as classes da biblioteca FORA do link (`*_init_*` indefinidos) — ABERTO 27/09 (dono: lane cross — roteado pela verificacao medida da mantenedora na #629)
-**Estado**: 🟡 ABERTO (27/09) — dono: lane cross (roteado pela mantenedora na #629). Leitura de root cause + E2E cross RED = proxima unidade da lane.
+## §530 — o wiring de biblioteca oficial (`libs/pdf`, PR #557) pousou com cobertura SO-JVM: o cross riscv64/aarch64 deixa as classes da biblioteca FORA do link (`*_init_*` indefinidos) — ✅ FIXED 27/09 (dono: lane cross — roteado pela verificacao medida da mantenedora na #629)
+**Estado**: ✅ FIXED 27/09 (lane gaps-db/native) — conserto de mecanismo em `NativeRiscvCrossOps.resolveCalleeNameRiscv` + `CrossLibClassCtorE2ETest` 4/4 (oraculo JVM ≡ x86 ≡ riscv64 ≡ aarch64, byte par). Faces de #629 NAO desta entrada: `String.join` em `libs/pdf` = contribuidor (PR #557); ICE COMP002 do JS = lane JS. A extensao multi-target do `PdfLibraryE2ETest` pousa quando a lib linkar no Native (bloqueada pela face do contribuidor).
 
 **Medido na #629 (27/09, harness da mantenedora):** a biblioteca writer
 pura-Kof `libs/pdf` + wiring `officialLibraryRoot` (`CompilerImports.java:65`,
@@ -13551,19 +13551,27 @@ Native/JS/Script. Eis por que o PR pousou verde: o DoD de aceitacao de uma
 biblioteca oficial (R5/R7: todo alvo, ou gap diagnosticado `XXX00x`) nunca foi
 medido. O teste de paridade ausente e parte do escopo desta entrada.
 
-**Root cause (MEDIDO na arvore 27/09 ~10:4x, lane gaps-db/native):** uma lib
+**Root cause (MEDIDO na arvore 27/09, lane gaps-db/native):** uma lib
 minimalista limpa (sem o defeito do contribuidor) — `kof-libs/mini/hello.kf`
-(funcao) + `kof-libs/mini/style/GridStyle.kf` (classe) importadas por
-`import mini.hello` + `import mini.style.GridStyle` — compila e linka em
-**JVM e x86-64 NATIVE**, e o riscv64 morre no link com
-`undefined reference to 'GridStyle_init_1'` (o call-site de Main.kf foi
-emitido; o INIT-DE-CLASSE da classe da biblioteca nunca foi emitido no asm
-cross — o caminho x86 emite, o cross nao). Imports de FUNCOES de arquivos de
-biblioteca linkam bem no cross; o gap e especificamente a emissao de init de
-CLASSE de classes que vivem em arquivos de raiz de biblioteca. O conserto
-deve ser de wiring/mecanismo (geral, sem `if pdf` — regra 12), entao o E2E
-cross com o programa da mantenedora prova GREEN em riscv64+aarch64 com
-paridade byte a byte contra a saida x86/JVM.
+(funcao) + `kof-libs/mini/style/GridStyle.kf` (classe) — linka em JVM/x86-64 e
+morre no riscv64 com `undefined reference to 'GridStyle_init_1'`. O asm cross
+DEFINIA `mini_style_GridStyle_init_1` (o mangle da definicao carrega o nome
+interno qualificado por pacote), mas o CALL-SITE no `main` emitia o cru
+`GridStyle_init_1`: o `NativeRiscvCrossOps.resolveCalleeNameRiscv` montava o
+simbolo de CONSTRUCTOR a partir de `ct.name()` (cru) + aridade, ignorando o
+`NativeSymbolMangling.internalOwner` — mesma familia de perda de pacote do
+#628. Classes de projeto SEM pacote casavam por coincidencia (cru == interno),
+e por isso nenhum E2E cross pegava; QUALQUER chamada de construtor de classe
+COM PACOTE (projeto ou lib) linkava errado no cross. **Fix (mecanismo, sem
+`if pdf` — regra 12):** o ramo do construtor agora resolve via
+`internalOwner(ct)` — a forma canonica que o ramo FUNCTION ja usava. Donos sem
+pacote ficam byte-identicos (internalOwner == name), entao as baterias cross
+nao se moveram: `NativeRiscv64E2ETest` 56 (1 skip honesto) +
+`NativeAarch64E2ETest` 54 (1 skip honesto). **Prova:**
+`CrossLibClassCtorE2ETest` 4/4 — RED pre-fix medido (riscv64/aarch64 link
+`undefined reference to GridStyle_init_1`), GREEN pos-fix com paridade byte
+JVM ≡ x86-64 ≡ riscv64 ≡ aarch64 (modo de prova focada `KOF_CROSS_SYSROOT`,
+precedente §493).
 
 **Nota de fila (disciplina de dono):** esta lane esta sob ordem de
 estabilizacao; §523 (db) e §524 (flake native-cross) continuam SEGURADOS pela
@@ -13572,4 +13580,4 @@ entra na fila da lane NA FRENTE do par segurado porque bloqueia o item de
 aceitacao da 0.5.0 "biblioteca oficial e multi-target"; re-trigger: claim no
 DOING, ler root cause, teste RED primeiro (programa da mantenedora), consertar,
 provar.
-<!-- pt-switch --> **EN:** [§530 (known-bugs.md)](known-bugs.md#530--official-library-wiring-libspdf-pr-557-lands-with-jvm-only-coverage-cross-riscv64aarch64-leave-the-library-classes-out-of-the-link-_init_-undefined--open-2709-owner-lane-cross--routed-by-the-maintainers-measured-verification-on-629)
+<!-- pt-switch --> **EN:** [§530 (known-bugs.md)](known-bugs.md#530--official-library-wiring-libspdf-pr-557-lands-with-jvm-only-coverage-cross-riscv64aarch64-leave-the-library-classes-out-of-the-link-_init_-undefined---fixed-2709-owner-lane-cross--routed-by-the-maintainers-measured-verification-on-629)
