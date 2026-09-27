@@ -8,8 +8,8 @@ toda face que chega na superfície da linguagem).
 
 ## Landing log (deltas medidos contra a tabela — a tabela fica como o claim; isto é o que pousou)
 
-**Fatia 5 — corpus/DoD POUSADA 27/09 (so docs; matriz `4dad3b843`, idioms `300d1f774`+`589995c17`,
-learn `af334f8ab`, coverage `2ec0ac816`, flips deste commit).** O que o trabalho de corpus mediu:
+**Fatia 5 — corpus/DoD POUSADA 27/09 (so docs; matriz `8aa5883c9`, idioms `eae0ac18e`+`06319455f`,
+learn `745d1ed0f`, coverage `6b70bbaff`, flips deste commit).** O que o trabalho de corpus mediu:
 
 1. **Matriz (EN+PT):** linha `KofR` + linha `timeout`/`cancel`/reuso apos a linha `KofPy` —
    mecanismos escritos EXATAMENTE como medidos (cancel do R nomeado pelo pai; linha KOFPID;

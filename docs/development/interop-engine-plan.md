@@ -8,8 +8,8 @@ every face that reaches the language surface).
 
 ## Landing log (measured deltas against the table — the table stays as the claim; this is what shipped)
 
-**Fatia 5 — corpus/DoD LANDED 27/09 (docs-only; matrix `4dad3b843`, idioms `300d1f774`+`589995c17`,
-learn `af334f8ab`, coverage `2ec0ac816`, flips this commit).** What the corpus work measured:
+**Fatia 5 — corpus/DoD LANDED 27/09 (docs-only; matrix `8aa5883c9`, idioms `eae0ac18e`+`06319455f`,
+learn `745d1ed0f`, coverage `6b70bbaff`, flips this commit).** What the corpus work measured:
 
 1. **Matrix (EN+PT):** `KofR` row + `timeout`/`cancel`/reuse row added after the `KofPy` row —
    mechanisms written EXACTLY as measured (R cancel parent-named; KOFPID wire; child-side
