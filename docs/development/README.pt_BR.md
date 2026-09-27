@@ -1,49 +1,3 @@
-[English](README.md) | [Português](README.pt_BR.md)
-
-# Development — backlog vivo (só trabalho em desenvolvimento)
-
-> **Base:** `0.5.0-beta` · branch `beta-0.5.0` · **atualizado:** 23/09/2026
-> **Suíte medida neste HEAD:** `3225` run (2762 kof-compiler + 50 kof-script
-> + 7 kof-c-compiler + 406 kof-cli), **0 falhas / 0 erros**, 221 skip (cross
-> roda no job dedicado com qemu; o resto são guardas de toolchain/DB externo +
-> sysroot §255) — job CI Build+Tests do tip `404d8be6` em 20/09 ~18:14: o
-> **primeiro verde na `beta-0.5.0`**, reator `Kof 0.5.0-beta`. O flake §252, o
-> residual cross §181 e o §256(b) seguem fechados no código (`20495e48` /
-> `c56c74a7` / `3a593734`). **Nº autoritativo da suíte = o job CI no SHA
-> pushado** (o gate `mvn test ... -Dmaven.test.failure.ignore=true`; conferir
-> por módulo com `grep -rl FAILURE */target/surefire-reports/*.txt`), não esta
-> linha — ela apodrece a cada commit. Refold da concatenação
-> `NativeRiscvAsm` para `<clinit>` (novo anti-pattern
-> `constant-folded-runtime-asm.md`) verde no gate `gate1585.log` (HEAD 54da1325).
-> **Regra dos 3 estados (`AGENTS.md`):** `docs/` = implementado/decidido ·
-> `development/` = **trabalho técnico pendente** · `development/future/` =
-> **só plano, zero código**. Concluído → move para um submódulo de `docs/` no
-> mesmo commit; iniciado → cai aqui. A varredura de 12/09 (`655afa6b`) moveu 13
-> docs de `future/` para cá (todos com código) e 4 concluídos para `docs/`.
-> **Refactor de clareza 13/09 (mantenedora):** bugs/gaps/matrizes →
-> `docs/bugs-and-gaps/` (linhas 2, 41, §2, §3, §4.2, §5); planos **parados por
-> decisão** foram **ratificados 13/09 e consolidados em `DECISIONS.md`** (a
-> pasta `decision-pending/` foi extinta — ver §3). Este README lista o que
-> **anda**; uma decisão tomada vive em `DECISIONS.md` (regra 6: uma frente sem
-> linha ali não é atacada).
-
-**`parity/` (24/09, `D-FULL-PARITY-050`):** o ledger impeditivo de paridade
-total (`PARITY-GAPS.pt_BR.md`(+EN)) — cada linha de paridade parcial medida
-(superfície × alvo × código de gap × lane dona). Condição 8 da release
-(`full_parity`): a 0.5.0 NÃO corta com linha aberta. A regra ABSOLUTA de
-qualquer plano: paridade total.
-
-**Fontes de verdade que NÃO estão aqui (não são backlog):** `docs/status.md`
-(o que funciona + gate da suíte), `docs/backend-parity.md` (matriz de
-paridade com gaps honestos), `docs/bugs-and-gaps/specification-gaps.md`
-(SG-001–023 — fila do maintainer COMPLETA, virou referência; SG-021/022 =
-pedidos sem decisão; **SG-023 ✅ DECIDIDO 21/09 — `D-PROPERTY`, sem superfície
-nova**).
-
----
-
-## 0. O que está vivo aqui (leia primeiro)
-
 - **Pendentes (condição 3 do gate de release):** `kofmd-plan.md` (+PT) — `D-KOFMD` (mantenedora 27/09): Kofmd é INDISPENSÁVEL para o 0.5.0, portanto NÃO entra no allowlist; Fase 1 (investigação) concluída no próprio doc; fila em roadmap §23. Os planos em voo com
   dono ainda soltos (`db-parity-plan`,
   `PLAN-BAREMETAL-BOOT` e, desde 26/09, `interop-engine-plan` — X2, sob a lane
@@ -94,12 +48,12 @@ nova**).
 | — | `memory-safety-investigation.md` (+PT) — entregável da Fase 0 | `ENTREGUE 25/09 — aguardando revisão da mantenedora` — varredura de 14 pontos com evidência file:line (repr de variável, cópia/compartilhamento, zero escape analysis, val=só-ligação, captura-por-valor+box-na-mutação, raízes do GC conservador, pilhas-de-worker-nunca-raízes, regras de cópia da FFI, divergência de duas representações da nullability, aliasing não rastreado, recursos só-close-explícito, spawn compartilha refs), família de bugs de memória §503/§260/§292/§252 mapeada, 8 pontos frágeis, respostas preliminares às perguntas centrais da frente | lane paridade (gate da Fase 0 = revisão da mantenedora) | Fase 1: `docs/spec/memory-safety.md` |
 | — | `interop-engine-plan.md` (+PT) — `D-COMPLETE-FIRST` item 2, 26/09 | `EM DESENVOLVIMENTO` — X2 motor Python/R como PACOTE COMPLETO sobre o HOST_IMPORT `kof.interop` JÁ EXISTENTE (zero namespaces novos; ledger de fronteira inalterado); motor escrito em Kof (`interop-py-host.kf`) sobre `kof.process`+`kof.json`; diagnósticos nomeados a partir de `INTEROP004` (001–003 medidos tomados); regra 11: superfície do usuário = intenção (`py.call`), nunca mecanismo | **lane compiler 9092** (claim 26/09) · fatia 1 = motor Python no JVM — RECON: medir primeiro a superfície de escrita no stdin do `kof.process`; E2E com guarda python3 (presente no host; `Rscript` ausente → fatia 2 `assumeTrue`) | fatias 1–5 pela tabela do plano; fechamento = nota LANDED nos DECISIONS + linha 2.8.6 vira ✅ + doc vai para `docs/` |
 | — | `memory-safety-plan.md` (+PT) — `D-MEMORY-SAFETY` 25/09 | `EM DESENVOLVIMENTO` — mantenedora 25/09: frente de memory safety (ownership/lifetime/borrowing/aliasing/FFI) **aberta e sob a lane paridade**; Fases 0–1 (investigação + spec) são trabalho corrente, edições no compilador/core esperam a fila atual (restrição do brief); Kof-first: nada de borrow checker copiado, null safety intocável, rule 11 Lei da Simplicidade | **lane paridade** (D-MEMORY-SAFETY) · Fase 0 = varrer as 20 perguntas do §1 + bugs de referência/aliasing/lifetime do `known-bugs.md`, produzir `memory-safety-investigation.md` (EN+PT) — ZERO edições no core | Fase 1 spec `docs/spec/memory-safety.md`; Fases 2–6 gateadas pela tabela do plano |
+| — | `kofmd-plan.md` (+PT) — `D-KOFMD` 27/09 | `EM DESENVOLVIMENTO` — mantenedora 27/09: Kofmd (Markdown tipado, orientado a intenção) é INDISPENSÁVEL para a 0.5.0 — override explícito do scope-freeze só para esta frente; spec `docs/spec/kofmd.md` (+PT) é o contrato; lib pura-Kof `libs/kofmd/` (fora da stdlib, dentro do Kof); fatias 3.1→3.9 pela tabela do plano | **lane kofmd** (claim 27/09) · fatia 3.1 = `KofmdTool` varredor de blocos + goldens de parse no `KofmdE2ETest` (JVM-first) | fatias 3.2→3.9 pela tabela do plano; fechamento = nota LANDED nos DECISIONS + doc vai para `docs/` · **fatia 3.1 POUSADA neste commit** (varredor de blocos pura-Kof `libs/kofmd/Kofmd.kf` + `KofmdE2ETest` 2/2, JVM-first) |
 | — | `db-parity-plan.md` (+PT) — adendo `D-DB-GAPS` 21/09 | `EM DESENVOLVIMENTO` — mantenedora 21/09: **paridade total de DB** (todo alvo aceita mariadb/mysql/sqlite/mongodb); matriz medida + fatias S0–S4 | **lane `gaps-db`** (repassada 21/09 por ordem da mantenedora; a lane docs mantém o registro) · **S0 ✅ FEITO 21/09 (sessão 9092: recusa nomeada `DB001` + link-by-use)** (`D-DB-PARITY-OWNER`) | S1 `mariadb://` = alias mysql-wire (Native); S2 paridade JDBC JVM/JS/Android; S3 `mongodb://` interop-first (R9); S4 oracle |
 | — | ~~`codegen-step-2.2.3-assessment.md`~~ → `docs/architecture/codegen-step-2.2.3-assessment.md` (+PT) — roadmap 2.2.3 | ✅ **CONCLUÍDO + MOVIDO 21/09** — opção B (`D-DESUGAR-STEP`) **implementada** (`85779f20`: `DesugarStepPipeline` + `DesugarSteps.defaults()` com os quatro desugars; `CompilerPipeline:303`) | medido 21/09: **descompasso de fase** (hook = IR otimizada; DDL = lowering; runner = desugar de AST) → o DDL fica no lowering | — (doc em `docs/architecture/`; regra dos 3 estados) |
 | — | ~~`type-system-extensions-plan.md` (+PT)~~ → `docs/type-system-extensions-plan.md` — X5 variância+sealed / X6 reflexão de interop | ✅ **CONCLUÍDO + MOVIDO 22/09** — X5.0–X5.5 + X6.0–X6.3 todos landados (X5.5 células `sealedswitch`/`variance`/`useproj`; X6.3 célula `interopschema` + E2E binding Arrow/Parquet, `InteropSchemaE2ETest` 18/18); regra dos três-estados | — (doc em `docs/`) | — |
 | — | ~~`kof-c-cross.md` (+PT)~~ → `docs/kof-c-cross.md` — alvos cross do `kof-c-compiler` (C1–C4) | ✅ **CONCLUÍDO + MOVIDO 23/09** — C1+C2+C3+C4+C3-residual todos landados (o compilador C do repositório emite riscv64/aarch64 via emissores por ISA; `kof c --target`/`-c`/`.o`; struct multi-eightbyte param ≤48 B + return ≤16 B); prova `KofCCrossCompilerTest`/`KofCParamsCompilerTest`/`KofCStructCompilerTest` 14/14 + `KofCObjectCompilerTest` 5/5 sob qemu (oráculo x86_64) | movido p/ `docs/` (regra dos 3 estados) | — |
 | — | ~~`PLAN-BAREMETAL-BOOT.md` (+PT)~~ → `docs/PLAN-BAREMETAL-BOOT.md` — bare-metal/bootável com ring0/ring1 (faces B-0…B-6) | ✅ **CONCLUÍDO + MOVIDO 25/09** — **promovido de `future/` 22/09** (`D-BAREMETAL-BOOT`, ordem da mantenedora) · **B-0..B-3 + B-6 LANDADOS** (costura `kof_plat_*` no x86+cross; link freestanding + heap/stack configuráveis + `_end`; dtoa Schubfach libc-free no x86+cross (B-1c, §448); perfil UEFI; **boot BIOS legado roda o `main` Kof REAL bare** — B-3a+B-3b, `KO-BIOS OK`/`LM64 OK`/`PAYLOAD` sob SeaBIOS, `BiosBootE2ETest` **5/0F**; ring0/ring1 com prova de `#GP` + sabotagem da GDT) | movido p/ `docs/` (regra dos 3 estados) | — (**B-4 MCU landou no riscv32**: codegen 32-bit + port do coletor B4-GC-1..4 `NativeMcuGcTest` 8/0 + tempo B4-TIME `NativeMcuTimeTest` 2/0; fechamento por `D-BAREMETAL-MCU-GC` "and/or"; follow-ups rastreados: espelho Cortex-M3 + integração no emissor, q.v. `roadmap.md` §23) |
-| — | `kofmd-plan.md` (+PT) — `D-KOFMD` (mantenedora 27/09) | `EM DESENVOLVIMENTO` — Markdown de intenção tipada; Fase 1 (investigação) CONCLUÍDA no próprio doc; verbosidade de docs é o problema que resolve; **INDISPENSÁVEL para o 0.5.0** (não está no allowlist — barra o corte) | decisão da mantenedora 27/09, fila `roadmap.md` §23 | Fase 2+: executar em fatias pela tabela do plano; claim em `DOING.md` antes do código |
 | — | registros vivos: `conformance-matrix.md`, `ecosystem-coverage.md`, `KOFUI-AUDIT.md`, `known-bugs.md` (em `docs/bugs-and-gaps/`); `roadmap.md` (aqui); `roadmap-audit.md`/`complexity-audit.md` (em `docs/audits/`) | `VIVA` | **não são backlog** — matriz/auditoria/fila que se atualizam junto com cada fechamento | atualizar célula/seção no MESMO commit que fecha o gap |
 
 **Regra R12 (AGENTS.md):** nada de `future/` (RAII, package-compiler,
