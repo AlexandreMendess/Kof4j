@@ -15,6 +15,10 @@ class PdfBuffer {
     }
 
     content(): String {
-        return String.join("", parts)
+        var content = ""
+        for (var part in parts) {
+            content = content + part
+        }
+        return content
     }
 }
