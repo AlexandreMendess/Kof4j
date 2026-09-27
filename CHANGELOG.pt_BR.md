@@ -316,8 +316,14 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
   - **Feature — X2 fatia 3: os motores param de pendurar — `timeout`/`cancel`/reuso em
     `KofPy` e `KofR` (`INTEROP007`/`INTEROP008`)** — o deadline corre no FILHO, disparado pela
     própria linguagem do motor (python `signal.setitimer` SIGALRM→`TimeoutError`,
-    SIGINT→`KeyboardInterrupt`; R `setTimeLimit(elapsed=)`, SIGINT via
-    `tools::signalHandler`) e carregado como status novos do protocolo (`KOFTIME`/
+    SIGINT→`KeyboardInterrupt`; R `setTimeLimit(elapsed=)`→'reached elapsed time limit')
+    e o pid do proprio motor numa nova linha 1 do protocolo de 3 linhas (`KOFPID <pid>`)
+    que alimenta o `cancel()`. O python para sozinho via `signal`→`KOFCANCEL` no wire; o R
+    nao tem handler in-process confiavel (a 1a corrida real do R na CI mediu que o
+    `tools::signalHandler` nao consegue emitir um status no contexto de saida), entao o
+    `cancel()` manda SIGINT ao filho e o PAI nomeia o EOF resultante pela sua propria
+    flag → `INTEROP008` — a face esta COMPLETA nos dois motores, sem gap
+    (`D-COMPLETE-FIRST`); no-op fora de chamada. Carregado como status novos do protocolo (`KOFTIME`/
     `KOFCANCEL`) num wire de 3 linhas (linha 1 nova `KOFPID <pid>` alimenta o `cancel()`)
     — zero chute de exit code, zero superfície no compiler (regra 12), zero órfãos (um
     awaitTimeout no pai deixaria o filho girando). Faces `timeout(Int ms)` (default

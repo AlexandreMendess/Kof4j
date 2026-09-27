@@ -284,12 +284,16 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
   - **Feature — X2 fatia 3: the engines stop hanging — `timeout`/`cancel`/reuse on `KofPy`
     and `KofR` (`INTEROP007`/`INTEROP008`)** — the deadline runs in the CHILD, thrown by the
     engine's own language (python `signal.setitimer` SIGALRM→`TimeoutError`, SIGINT→
-    `KeyboardInterrupt`; R `setTimeLimit(elapsed=)`, SIGINT via `tools::signalHandler`) and
-    carried as new protocol statuses `KOFTIME`/`KOFCANCEL` on a 3-line wire (new line 1
-    `KOFPID <pid>` feeds `cancel()`) — zero exit-code guessing, zero compiler surface
-    (rule 12), zero orphan processes (a parent-side awaitTimeout would leave the child
-    spinning). Faces `timeout(Int ms)` (default 30000 — the §418 precedent; `0` = no
-    timer, declared) and `cancel()` (SIGINT to the live child; no-op outside a call);
+    `KeyboardInterrupt`; R `setTimeLimit(elapsed=)`→'reached elapsed time limit') and the
+    engine's own pid reported on a new 3-line wire line 1 `KOFPID <pid>` that feeds
+    `cancel()`. Zero exit-code guessing, zero compiler surface (rule 12), zero orphan
+    processes (a parent-side awaitTimeout would leave the child spinning). Faces
+    `timeout(Int ms)` (default 30000 — the §418 precedent; `0` = no timer, declared) and
+    `cancel()`: python self-stops via `signal`→`KOFCANCEL` on the wire, R has no reliable
+    in-process handler (the CI's first real-R run measured that `tools::signalHandler`
+    cannot emit a status from the exit context) so `cancel()` sends the child a SIGINT and
+    the PARENT names the resulting EOF from its own flag → `INTEROP008` — the feature is
+    COMPLETE on both engines, no gap (`D-COMPLETE-FIRST`); no-op outside a call;
     the engine is reusable after 007/008 by construction (replay = new child) and pinned;
     the refusal host mirrors the new shape (`INTEROP005`, never an unknown method).
     Proof: `InteropTimeoutE2ETest` 4/4 (007 wall-clock bounded + reuse; JVM≡x86 on 007;
