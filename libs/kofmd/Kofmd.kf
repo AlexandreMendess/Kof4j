@@ -584,6 +584,37 @@ class KofmdTool {
         ).contains(token)
     }
 
+    keyLabel(String key): String {
+        if (key == "last" || key == "doing" || key == "next") {
+            return "continuity"
+        }
+        if (key == "location") {
+            return "context"
+        }
+        if (key == "state") {
+            return "status"
+        }
+        if (key == "instructions") {
+            return "action"
+        }
+        if (key == "constraint") {
+            return "rule"
+        }
+        if (key == "decision") {
+            return "fact"
+        }
+        if (key == "result") {
+            return "outcome"
+        }
+        if (key == "question" || key == "answer") {
+            return "dialogue"
+        }
+        if (key == "reason" || key == "symbol") {
+            return "modifier"
+        }
+        return ""
+    }
+
     isAdvisoryValue(String key, String value): Bool {
         if (key == "state") {
             return setOf("active", "blocked", "done", "failed").contains(value)
