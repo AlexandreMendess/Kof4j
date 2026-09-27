@@ -1,0 +1,7 @@
+// Pacote virtual kof.interop (X6, D-INTEROP-REFLECT, 21/09/2026).
+// Record fornecido pelo compilador para o intrínseco de compile-time
+// `interop.schema(R)`: cada componente de R vira um Field(name, type), na
+// ordem de declaração. Zero reflexão em runtime — o compilador já conhece a
+// estrutura do record, então a dobra acontece no frontend e a saída é a mesma
+// nos 4 alvos (sem gap REF001). Só na fronteira de interop; nunca fundação.
+record Field(String name, String type)

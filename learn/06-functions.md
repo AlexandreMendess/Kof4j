@@ -2,7 +2,7 @@
 
 # 06 — Functions
 
-> **Status: implemented (JVM / Native / JS) — 0.4.0-beta — examples verified in the compiler**
+> **Status: implemented (JVM / Native / JS) — 0.5.0-beta — examples verified in the compiler**
 >
 > Top-level functions, methods, expression bodies, default parameters,
 > recursion and functions as values (lambdas) work on the JVM, Native
@@ -123,7 +123,7 @@ main() {
 > anonymous **lambda** at the call site: a bare named-function reference does not bind
 > (`training/anti-patterns/fake-idioms.md`).
 
-## Overloading (0.4.0-beta)
+## Overloading (0.5.0-beta)
 
 Two functions with the SAME name coexist when their signatures differ
 (arity or parameter types):

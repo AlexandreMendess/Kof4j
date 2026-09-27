@@ -85,12 +85,12 @@ class StdCatalogTest {
         while (m.find()) dispatched.add("Kof" + m.group(1));
         Set<String> catalogClasses = new LinkedHashSet<>(List.of(
                 "KofMath", "KofStrings", "KofEncoding", "KofNet",
-                "KofUuid", "KofRandom", "KofRng"));
+                "KofUuid", "KofRandom", "KofRng", "KofBuffer"));
         assertEquals(dispatched, catalogClasses,
                 "dispatch do KofStd mudou sem atualizar o catálogo");
-        assertEquals(32, StdCatalog.namespaces().size(), StdCatalog.namespaces().toString());
+        assertEquals(34, StdCatalog.namespaces().size(), StdCatalog.namespaces().toString());
         for (String ns : List.of("math", "strings", "encoding", "net", "uuid", "random",
-                "rng", "time", "http", "db", "cache", "process", "shell", "passwords", "crypto",
+                "rng", "time", "http", "db", "cache", "buffer", "process", "shell", "ssh", "passwords", "crypto",
                 "jwt", "secrets", "security", "auth", "json", "log", "orm", "config",
                 "gpu", "mq", "validation", "observability", "tetris", "Image", "Audio",
                 "Mic", "Video")) {

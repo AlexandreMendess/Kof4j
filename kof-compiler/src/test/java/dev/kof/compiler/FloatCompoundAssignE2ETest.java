@@ -85,7 +85,7 @@ class FloatCompoundAssignE2ETest {
         Path outDir = tempDir.resolve("outJVM");
         CompilationResult r = driver.compile(source, outDir, Target.JVM);
         assertTrue(r.success(), "must compile: " + r.diagnostics().getDiagnostics());
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
+        String javaCmd = TestJdk.javaBin();
         Process p = new ProcessBuilder(javaCmd, "-cp", outDir.toString(), "Default.Main")
                 .redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();

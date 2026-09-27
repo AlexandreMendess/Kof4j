@@ -39,7 +39,7 @@ The manual implementation carries: allocation, chaining, counting, bounds,
 iteration — everything the programmer would have to maintain and test. The domain is
 "a collection", not "chained nodes".
 
-## Preferred approach (0.4.0-beta)
+## Preferred approach (0.5.0-beta)
 
 ```kof
 class Registry {
@@ -64,7 +64,7 @@ var nomes = users.map((u: User) -> u.name)
 var pares = nums.filter((x: Int) -> x % 2 == 0)
 ```
 
-## Common manual structures → alternative (0.4.0-beta)
+## Common manual structures → alternative (0.5.0-beta)
 
 | Manual | Kof alternative |
 |---|---|

@@ -73,7 +73,18 @@ public final class JvmStringMiscRuntime {
                         if (!m.getName().equals("invoke")) continue;
                         if (m.getParameterCount() != args.length) continue;
                         if (m.isSynthetic()) continue;
-                        try { return m.invoke(lambda, args); } catch (IllegalArgumentException ignored) {}
+                        try {
+                            return m.invoke(lambda, args);
+                        } catch (java.lang.reflect.InvocationTargetException e) {
+                            // §594: a invocação reflexiva SEMPRE embrulha a exceção
+                            // lançada pelo lambda em InvocationTargetException; sem
+                            // desembrulhar, o catch (String e) do Kof não casa e o
+                            // wrapper vaza. Mesma semântica de kof_await/selectAny (§291).
+                            Throwable cause = e.getCause() != null ? e.getCause() : e;
+                            if (cause instanceof RuntimeException re) throw re;
+                            if (cause instanceof Error err) throw err;
+                            throw new RuntimeException(cause);
+                        } catch (IllegalArgumentException ignored) {}
                     }
                     throw new IllegalStateException("lambda invoke not found (" + args.length + " args)");
                 }

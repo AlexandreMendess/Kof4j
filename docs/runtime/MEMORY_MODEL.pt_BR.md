@@ -113,7 +113,7 @@ sem forwarding pointer) — o header de alocação fica 16 bytes antes do objeto
 
 ## 8. Limitações
 
-1. Sem GC automático sob exaustão (mark-sweep implementado 03/09 via `kof_gc_collect_now` manual; auto-GC desativado após hang —
+1. ~~Sem GC automático sob exaustão~~ ✅ **pousou 19/09** (D1-A, §260 FECHADO — o gatilho agora é SOUND: blanket-spill dos 15 GPRs + gate `kof_spawn_count==0` + flag one-shot; `kof_gc_collect_now` manual também disponível;
    free-list reusa `mmap`, memória devolvida só no `munmap` fallback — ver §9)
 2. Sem reference counting
 3. Sem weak references

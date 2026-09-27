@@ -6,20 +6,55 @@ package dev.kof.compiler.nat;
 // NativeAarch64Translator conhece (aarch64 deriva daqui): ld/sd/lw/sw,
 // li/mv/add/addi/slli/srai, beq/bne/blt/bge/bgt/bltu/bgeu, slt, xor, neg,
 // fmv.d.x/flt.d/feq.d. O Double do sort usa flt.d/feq.d com a semântica do
-// Double.compare medida no oráculo JDK (NaN maior, NaN==NaN, -0.0<0.0) —
-// Float fica NAT001 (sem flw tradutível). Concatenado em NativeRiscvAsm.
+// Double.compare medida no oráculo JDK (NaN maior, NaN==NaN, -0.0<0.0).
+// §352/NAT001 fechado 21/09: o Float alarga os 32 bits do slot p/ Double
+// (fmv.w.x + fcvt.d.s, ambos tradutíveis) e cai no MESMO compare. Concatenado
+// em NativeRiscvAsm.
 public final class NativeRiscvAsmLookups0 {
 
     private NativeRiscvAsmLookups0() {}
 
     static String RISCV_LOOKUPS_ASM_0 = """
+            .section .rodata
+            .p2align 3
+            .Lkvlk_magic: .8byte 0x4B4F46425F425801   # MAGIC §284 (RuntimeErasureBox)
             .section .text
+            # kof_value_kind(a0=val) -> a0: 0=raw/ponteiro, 1=String, 2=caixa
+            # §352 NAT002: guarda de arena (_kof_heap.._kof_heap_end, o bump
+            # do G-0) ANTES de derefar — bits de primitivo cru viram 0 sem
+            # leitura, o SIGSEGV clássico do slot de Double nunca ocorre.
+            .globl kof_value_kind
+            kof_value_kind:
+                beqz a0, .Lkvk_zero
+                la   t0, _kof_heap
+                bltu a0, t0, .Lkvk_zero
+                la   t0, _kof_heap_end
+                bgeu a0, t0, .Lkvk_zero
+                la   t1, .Lkvlk_magic
+                ld   t1, 0(t1)
+                ld   t0, 0(a0)
+                beq  t0, t1, .Lkvk_box
+                li   t1, 1
+                bne  t0, t1, .Lkvk_zero
+                li   a0, 1
+                ret
+            .Lkvk_box:
+                li   a0, 2
+                ret
+            .Lkvk_zero:
+                li   a0, 0
+                ret
+
             # kof_map_contains_value(a0=map, a1=val, a2=tag) -> 0/1 (#386)
-            # tag: 0=raw, 1=String, 2=caixa MAGIC, 3=miss garantido.
+            # tag: 0=raw, 1=String, 2=caixa MAGIC, 3=miss garantido,
+            # 6=valor Object dinâmico (§352: classifica arg e entradas com
+            # kof_value_kind — box/box, str/str, ptr/ptr; kind ≠ = miss).
             .globl kof_map_contains_value
             kof_map_contains_value:
                 li   t0, 3
                 beq  a2, t0, .Lmlcv_zero
+                li   t0, 6
+                beq  a2, t0, .Lmlcv_dyn
                 addi sp, sp, -56
                 sd   ra, 48(sp)
                 sd   s0, 40(sp)          # map
@@ -43,6 +78,8 @@ public final class NativeRiscvAsmLookups0 {
                 beq  s2, t0, .Lmlcv_str
                 li   t0, 2
                 beq  s2, t0, .Lmlcv_box
+                li   t0, 7
+                beq  s2, t0, .Lmlcv_obj
                 bne  s4, s1, .Lmlcv_next
                 j    .Lmlcv_yes
             .Lmlcv_str:
@@ -56,9 +93,62 @@ public final class NativeRiscvAsmLookups0 {
                 mv   a1, s1
                 call kof_box_equals
                 bnez a0, .Lmlcv_yes
+                j    .Lmlcv_next
+            .Lmlcv_obj:
+                # #615 (§104b-ii, face VALOR): mesma sonda de conteúdo que
+                # get/containsKey/remove já usam pra CHAVE desde hoje.
+                mv   a0, s4
+                mv   a1, s1
+                call kof_obj_equals
+                bnez a0, .Lmlcv_yes
             .Lmlcv_next:
                 addi s3, s3, 1
                 j    .Lmlcv_loop
+            .Lmlcv_dyn:
+                addi sp, sp, -56
+                sd   ra, 48(sp)
+                sd   s0, 40(sp)          # map
+                sd   s1, 32(sp)          # val
+                sd   s2, 24(sp)          # kind do arg
+                sd   s3, 16(sp)          # i
+                sd   s4, 8(sp)           # slot
+                sd   s5, 0(sp)           # reserva
+                mv   s0, a0
+                mv   s1, a1
+                mv   a0, s1
+                call kof_value_kind
+                mv   s2, a0
+                li   s3, 0
+            .Lmlcv_dloop:
+                lw   t1, 16(s0)
+                bge  s3, t1, .Lmlcv_no
+                ld   t1, 32(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   s4, 0(t1)
+                mv   a0, s4
+                call kof_value_kind
+                bne  a0, s2, .Lmlcv_dnext
+                li   t0, 2
+                beq  s2, t0, .Lmlcv_dbox
+                li   t0, 1
+                beq  s2, t0, .Lmlcv_dstr
+                bne  s4, s1, .Lmlcv_dnext
+                j    .Lmlcv_yes
+            .Lmlcv_dbox:
+                mv   a0, s4
+                mv   a1, s1
+                call kof_box_equals
+                bnez a0, .Lmlcv_yes
+                j    .Lmlcv_dnext
+            .Lmlcv_dstr:
+                mv   a0, s4
+                mv   a1, s1
+                call kof_string_equals
+                bnez a0, .Lmlcv_yes
+            .Lmlcv_dnext:
+                addi s3, s3, 1
+                j    .Lmlcv_dloop
             .Lmlcv_yes:
                 li   a0, 1
                 j    .Lmlcv_ret
@@ -115,14 +205,31 @@ public final class NativeRiscvAsmLookups0 {
                 ret
 
             # kof_list_cmp(a0=a, a1=b, a2=tag) -> a0 -1/0/1 (#382)
+            # tag 3 = Float (§352/NAT001 fechado 21/09): o slot guarda os 32
+            # bits crus; alarga p/ Double (fmv.w.x + fcvt.d.s) e reusa a
+            # semântica do Double.compare — sem flw, só mnemônicos que o
+            # tradutor aarch64 conhece.
             .globl kof_list_cmp
             kof_list_cmp:
                 li   t0, 1
                 beq  a2, t0, .Llk_str
                 li   t0, 2
-                bne  a2, t0, .Llk_int
+                beq  a2, t0, .Llk_dbl
+                li   t0, 3
+                beq  a2, t0, .Llk_flt
+                j    .Llk_int
+            .Llk_dbl:
                 fmv.d.x f0, a0
                 fmv.d.x f1, a1
+                j    .Llk_fp
+            .Llk_flt:
+                fmv.w.x f0, a0
+                fmv.w.x f1, a1
+                fcvt.d.s f0, f0
+                fcvt.d.s f1, f1
+                fmv.x.d a0, f0             # bits double p/ o check de ±0.0
+                fmv.x.d a1, f1
+            .Llk_fp:
                 flt.d t0, f0, f1
                 bnez t0, .Llk_lt
                 flt.d t0, f1, f0
@@ -254,12 +361,21 @@ public final class NativeRiscvAsmLookups0 {
                 ld   t2, 0(t0)
                 li   t0, 1
                 beq  s2, t0, .Llio_str
+                li   t0, 2
+                beq  s2, t0, .Llio_obj
                 bne  t2, s1, .Llio_next
                 j    .Llio_hit
             .Llio_str:
                 mv   a0, t2
                 mv   a1, s1
                 call kof_string_equals
+                bnez a0, .Llio_hit
+                j    .Llio_next
+            .Llio_obj:
+                beqz t2, .Llio_next
+                mv   a0, t2
+                mv   a1, s1
+                call kof_obj_equals
                 bnez a0, .Llio_hit
             .Llio_next:
                 addi s3, s3, 1
@@ -301,15 +417,25 @@ public final class NativeRiscvAsmLookups0 {
                 add  t0, t0, t1
                 ld   t2, 0(t0)
                 li   t0, 1
-                bne  s2, t0, .Lllo_raw
+                beq  s2, t0, .Lllo_str
+                li   t0, 2
+                beq  s2, t0, .Lllo_obj
+            .Lllo_raw:
+                bne  t2, s1, .Lllo_next
+                j    .Lllo_hit
+            .Lllo_str:
                 mv   a0, t2
                 mv   a1, s1
                 call kof_string_equals
                 bnez a0, .Lllo_hit
                 j    .Lllo_next
-            .Lllo_raw:
-                bne  t2, s1, .Lllo_next
-                j    .Lllo_hit
+            .Lllo_obj:
+                beqz t2, .Lllo_next
+                mv   a0, t2
+                mv   a1, s1
+                call kof_obj_equals
+                bnez a0, .Lllo_hit
+                j    .Lllo_next
             .Lllo_next:
                 addi s3, s3, -1
                 j    .Lllo_loop

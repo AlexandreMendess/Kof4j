@@ -155,7 +155,7 @@ class KofBlogE2ETest {
         assertTrue(result.success(), "compilation should succeed: " + result.diagnostics().getDiagnostics());
         String h2 = findH2Jar();
         assumeTrue(h2 != null, "H2 jar not on test classpath");
-        ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir + ":" + h2, "Default.Main");
+        ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir + java.io.File.pathSeparator + h2, "Default.Main");
         Path outLog = tempDir.resolve("app.log");
         pb.redirectErrorStream(true);
         pb.redirectOutput(outLog.toFile());

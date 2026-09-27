@@ -1,0 +1,77 @@
+package pdf
+
+import pdf.PdfElement
+import pdf.style.GridStyle
+
+class GridRow {
+    List<String> cells
+
+    constructor(List<String> cells) {
+        this.cells = cells
+    }
+}
+
+class GridElement implements PdfElement {
+    Int columns
+    List<String> headerCells
+    List<GridRow> gridRows
+    List<Int> customWidths
+    GridStyle gridStyle
+
+    constructor(Int columns) {
+        if (columns <= 0) {
+            throw "Grid must have at least one column"
+        }
+
+        this.columns = columns
+        this.headerCells = listOf<String>()
+        this.gridRows = listOf<GridRow>()
+        this.customWidths = listOf<Int>()
+        this.gridStyle = GridStyle()
+    }
+
+    header(List<String> cells): GridElement {
+        validateCellCount(cells)
+        headerCells = cells
+        return this
+    }
+
+    row(List<String> cells): GridElement {
+        validateCellCount(cells)
+        gridRows.add(GridRow(cells))
+        return this
+    }
+
+    rows(List<List<String>> data): GridElement {
+        for (var cells in data) {
+            row(cells)
+        }
+        return this
+    }
+
+    widths(List<Int> values): GridElement {
+        if (values.size != columns) {
+            throw "Column width count must match the number of grid columns"
+        }
+
+        for (var value in values) {
+            if (value <= 0) {
+                throw "Column width must be greater than zero"
+            }
+        }
+
+        customWidths = values
+        return this
+    }
+
+    style(GridStyle value): GridElement {
+        gridStyle = value.copy()
+        return this
+    }
+
+    validateCellCount(List<String> cells) {
+        if (cells.size != columns) {
+            throw "Cell count must match the number of grid columns"
+        }
+    }
+}

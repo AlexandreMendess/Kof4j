@@ -1,0 +1,323 @@
+package pdf
+
+import pdf.PdfElement
+import pdf.TextElement
+import pdf.GridElement
+import pdf.PdfEncoding
+import pdf.PdfBuffer
+import pdf.style.PdfColor
+import pdf.style.TextAlign
+import pdf.style.TextStyle
+import pdf.style.GridStyle
+
+class LayoutEngine {
+    Int pageWidth = 595
+    Int pageHeight = 842
+    Int marginLeft = 40
+    Int marginRight = 40
+    Int marginTop = 40
+
+    layout(List<PdfElement> elements): String {
+        PdfBuffer commands = PdfBuffer()
+        var y = pageHeight - marginTop
+
+        for (var element in elements) {
+            if (element instanceof TextElement) {
+                TextElement text = element as TextElement
+                var textX = marginLeft
+                var textY = y
+
+                if (text.positioned) {
+                    textX = text.x
+                    textY = text.y
+                }
+
+                String textCommand = drawStyledText(
+                    text.content,
+                    textX,
+                    textY,
+                    text.boxWidth,
+                    text.textStyle
+                )
+                commands.append(textCommand)
+                y = textY - text.spacingAfter
+            } else if (element instanceof GridElement) {
+                GridElement grid = element as GridElement
+                GridLayoutResult result = drawGrid(grid, y)
+                commands.append(result.commands)
+                y = result.nextY
+            }
+        }
+
+        return commands.content()
+    }
+
+    drawGrid(GridElement grid, Int startY): GridLayoutResult {
+        PdfBuffer commands = PdfBuffer()
+        var y = startY
+        var availableWidth = pageWidth - marginLeft - marginRight
+        List<Int> columnWidths = resolveColumnWidths(grid, availableWidth)
+        GridStyle style = grid.gridStyle
+
+        validateGridStyle(columnWidths, style)
+
+        if (!grid.headerCells.isEmpty()) {
+            String headerCommand = drawGridRow(
+                grid.headerCells,
+                columnWidths,
+                y,
+                style.headerText,
+                style.headerFill,
+                style
+            )
+            commands.append(headerCommand)
+            y = y - style.height
+        }
+
+        for (var row in grid.gridRows) {
+            String rowCommand = drawGridRow(
+                row.cells,
+                columnWidths,
+                y,
+                style.cellText,
+                style.cellFill,
+                style
+            )
+            commands.append(rowCommand)
+            y = y - style.height
+        }
+
+        return GridLayoutResult(commands.content(), y - 12)
+    }
+
+    resolveColumnWidths(GridElement grid, Int availableWidth): List<Int> {
+        if (!grid.customWidths.isEmpty()) {
+            var total = 0
+            for (var width in grid.customWidths) {
+                total = total + width
+            }
+
+            if (total > availableWidth) {
+                throw "Total grid width exceeds the usable page width"
+            }
+
+            return grid.customWidths
+        }
+
+        List<Int> widths = listOf<Int>()
+        var baseWidth = availableWidth / grid.columns
+        var usedWidth = 0
+
+        for (var index = 0; index < grid.columns; index++) {
+            var width = baseWidth
+            if (index == grid.columns - 1) {
+                width = availableWidth - usedWidth
+            }
+            widths.add(width)
+            usedWidth = usedWidth + width
+        }
+
+        return widths
+    }
+
+    validateGridStyle(List<Int> widths, GridStyle style) {
+        if (style.headerText.size + style.cellPadding * 2 > style.height) {
+            throw "Header style does not fit within the row height"
+        }
+        if (style.cellText.size + style.cellPadding * 2 > style.height) {
+            throw "Cell style does not fit within the row height"
+        }
+        for (var width in widths) {
+            if (style.cellPadding * 2 >= width) {
+                throw "Grid padding does not fit within the column width"
+            }
+        }
+    }
+
+    drawGridRow(
+        List<String> cells,
+        List<Int> widths,
+        Int top,
+        TextStyle textStyle,
+        PdfColor background,
+        GridStyle gridStyle
+    ): String {
+        PdfBuffer commands = PdfBuffer()
+        var x = marginLeft
+
+        for (var index = 0; index < widths.size; index++) {
+            Int columnWidth = widths.get(index)
+            var bottom = top - gridStyle.height
+
+            String fillCommand = drawFilledRectangle(
+                x,
+                bottom,
+                columnWidth,
+                gridStyle.height,
+                background
+            )
+            commands.append(fillCommand)
+
+            if (gridStyle.borderSize > 0) {
+                String borderCommand = drawBorderRectangle(
+                    x,
+                    bottom,
+                    columnWidth,
+                    gridStyle.height,
+                    gridStyle.borderSize,
+                    gridStyle.border
+                )
+                commands.append(borderCommand)
+            }
+
+            if (index < cells.size) {
+                var innerX = x + gridStyle.cellPadding
+                var innerWidth = columnWidth - gridStyle.cellPadding * 2
+                var baseline = top - gridStyle.cellPadding - textStyle.size
+                String cellCommand = drawStyledText(
+                    cells.get(index),
+                    innerX,
+                    baseline,
+                    innerWidth,
+                    textStyle
+                )
+                commands.append(cellCommand)
+            }
+
+            x = x + columnWidth
+        }
+
+        return commands.content()
+    }
+
+    drawStyledText(String value, Int x, Int y, Int width, TextStyle style): String {
+        Int textX = resolveTextX(value, x, width, style)
+        String colorCommand = fillColor(style.color)
+        String escapedValue = PdfEncoding().escape(value)
+        PdfBuffer command = PdfBuffer()
+        command.append("q\n")
+        command.append(colorCommand)
+        command.append("BT /F1 ")
+        command.append(style.size.toString())
+        command.append(" Tf ")
+        command.append(textX.toString())
+        command.append(" ")
+        command.append(y.toString())
+        command.append(" Td (")
+        command.append(escapedValue)
+        command.append(") Tj ET\nQ\n")
+        return command.content()
+    }
+
+    resolveTextX(String value, Int x, Int width, TextStyle style): Int {
+        if (width <= 0) {
+            return x
+        }
+
+        Int measuredWidth = estimateTextWidth(value, style.size)
+        if (measuredWidth >= width) {
+            return x
+        }
+        if (style.alignment == TextAlign.center) {
+            return x + (width - measuredWidth) / 2
+        }
+        if (style.alignment == TextAlign.right) {
+            return x + width - measuredWidth
+        }
+        return x
+    }
+
+    estimateTextWidth(String value, Int fontSize): Int {
+        return value.length * fontSize * 6 / 10
+    }
+
+    drawFilledRectangle(Int x, Int y, Int width, Int height, PdfColor color): String {
+        String colorCommand = fillColor(color)
+        PdfBuffer command = PdfBuffer()
+        command.append("q\n")
+        command.append(colorCommand)
+        command.append(x.toString())
+        command.append(" ")
+        command.append(y.toString())
+        command.append(" ")
+        command.append(width.toString())
+        command.append(" ")
+        command.append(height.toString())
+        command.append(" re f\nQ\n")
+        return command.content()
+    }
+
+    drawBorderRectangle(Int x, Int y, Int width, Int height, Int borderWidth, PdfColor color): String {
+        String colorCommand = strokeColor(color)
+        PdfBuffer command = PdfBuffer()
+        command.append("q\n")
+        command.append(colorCommand)
+        command.append(borderWidth.toString())
+        command.append(" w\n")
+        command.append(x.toString())
+        command.append(" ")
+        command.append(y.toString())
+        command.append(" ")
+        command.append(width.toString())
+        command.append(" ")
+        command.append(height.toString())
+        command.append(" re S\nQ\n")
+        return command.content()
+    }
+
+    fillColor(PdfColor color): String {
+        return colorCommand(color, "rg")
+    }
+
+    strokeColor(PdfColor color): String {
+        return colorCommand(color, "RG")
+    }
+
+    colorCommand(PdfColor color, String operator): String {
+        String red = colorComponent(color.red)
+        String green = colorComponent(color.green)
+        String blue = colorComponent(color.blue)
+        PdfBuffer command = PdfBuffer()
+        command.append(red)
+        command.append(" ")
+        command.append(green)
+        command.append(" ")
+        command.append(blue)
+        command.append(" ")
+        command.append(operator)
+        command.append("\n")
+        return command.content()
+    }
+
+    colorComponent(Int value): String {
+        if (value <= 0) {
+            return "0"
+        }
+        if (value >= 255) {
+            return "1"
+        }
+
+        var scaled = value * 1000 / 255
+        String digits = scaled.toString()
+        PdfBuffer result = PdfBuffer()
+        result.append("0.")
+        if (digits.length == 1) {
+            result.append("00")
+        } else if (digits.length == 2) {
+            result.append("0")
+        }
+        result.append(digits)
+        return result.content()
+    }
+
+}
+
+class GridLayoutResult {
+    String commands
+    Int nextY
+
+    constructor(String commands, Int nextY) {
+        this.commands = commands
+        this.nextY = nextY
+    }
+}

@@ -15,7 +15,7 @@ final class NativeDwarfCrossRegister {
     private NativeDwarfCrossRegister() {}
 
     static void register(NativeRiscvCrossEmit re, StringBuilder sb, String mangled,
-            dev.kof.compiler.IRClass clazz, dev.kof.compiler.IRMethod method) {
+            dev.kof.compiler.IRMethod method) {
                 // X7-2 fatia 2: espelho exato do registro x86 (NativeMethodEmitter
                 // :147-175) — `.Lfe_` p/ o high_pc (offset) e o Fn com os slots
                 // REAIS da moldura cross (o prologue grava cada idx em

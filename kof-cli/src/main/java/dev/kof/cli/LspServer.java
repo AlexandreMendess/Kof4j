@@ -129,7 +129,12 @@ final class LspServer {
             case "textDocument/documentSymbol" -> documentSymbol(id, params);
                 case "workspace/symbol" -> workspaceSymbol(id, params);
             case "textDocument/codeAction" -> codeAction(id, params);
-            default -> {  }
+            default -> {
+                // A request carries an `id` and MUST be answered (JSON-RPC 2.0):
+                // silence makes a compliant client block until timeout. A
+                // notification (no `id`, e.g. $/setTrace) stays ignored.
+                if (id != null) respondError(id, -32601, "Method not found: " + method);
+            }
         }
     }
 
@@ -141,19 +146,16 @@ final class LspServer {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("uri", uri);
         result.put("diagnostics", List.of());
-        Map<String, Object> notification = new LinkedHashMap<>();
-        notification.put("jsonrpc", "2.0");
-        notification.put("method", "textDocument/publishDiagnostics");
-        notification.put("params", result);
-        writeMessage(Json.stringify(notification));
+        writeMessage(LspJsonRpc.notification("textDocument/publishDiagnostics", result));
     }
 
     private void respond(Object id, Object result) {
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("jsonrpc", "2.0");
-        response.put("id", id);
-        response.put("result", result);
-        writeMessage(Json.stringify(response));
+        writeMessage(LspJsonRpc.success(id, result));
+    }
+
+    /** JSON-RPC 2.0 error response (no `result` field). */
+    private void respondError(Object id, int code, String message) {
+        writeMessage(LspJsonRpc.error(id, code, message));
     }
 
     @SuppressWarnings("unchecked")
@@ -173,24 +175,21 @@ final class LspServer {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("uri", uri);
         result.put("diagnostics", diagnostics);
-        Map<String, Object> notification = new LinkedHashMap<>();
-        notification.put("jsonrpc", "2.0");
-        notification.put("method", "textDocument/publishDiagnostics");
-        notification.put("params", result);
-        writeMessage(Json.stringify(notification));
+        writeMessage(LspJsonRpc.notification("textDocument/publishDiagnostics", result));
     }
 
     private List<Object> analyze(String uri, String text) {
+        if (LspKofmd.isMd(uri)) {
+            // fatia 3.7 (spec kofmd §16): .md = gancho Kofmd na URI CRUA
+            // (fileNameOf normaliza nao-.kf/.ks para LspMain.kf de proposito).
+            return LspKofmd.diagnostics(text);
+        }
         List<Object> diagnostics = new ArrayList<>();
         Path tmpDir = null;
         Path file = null;
         try {
             tmpDir = Files.createTempDirectory("kof-lsp-");
-            String name = "LspMain.kf";
-            String path = uri.startsWith("file:") ? uri.substring("file:".length()) : uri;
-            int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-            if (slash >= 0) path = path.substring(slash + 1);
-            if (path.endsWith(".kf") || path.endsWith(".ks")) name = path;
+            String name = LspProject.fileNameOf(uri);
             // KofScript = Kof puro executado direto: sem sugar de outra
             // linguagem; o wrapper só dá modelo de script (statements ->
             // main(), var/val de topo -> globals).
@@ -199,29 +198,32 @@ final class LspServer {
                 outText = text.contains("main()") ? text : dev.kof.script.KofScript.wrapPureKof(text);
                 name = name.replace(".ks", ".kf");
             }
-            file = tmpDir.resolve(name);
-            Files.writeString(file, outText);
+            // #636: documento que E arquivo de projeto real (kof.toml ancestral
+            // ou raiz do initialize) compila dentro do ESPELHO da arvore com o
+            // buffer por cima do disco. O arquivo unico num kof-lsp-XXXX
+            // perdia a raiz do modulo e todo import local virava o PKG006/
+            // PKG004 que o `kof check` nao da. Sem raiz = modo antigo exato;
+            // #638: sem-save com pai no disco tem raiz (paridade da borda do save).
+            Path real = LspProject.toPath(uri);
+            Path root = (real != null && (Files.isRegularFile(real)
+                    || (real.getParent() != null && Files.isDirectory(real.getParent()))))
+                    ? LspProject.projectRootOf(real, workspaceRoot) : null;
+            // #636 residual: fontes de deps instaladas como no `kof run --deps`; sem raiz = limpas.
+            driver.setDependencySourceRoots(root != null
+                    ? LspProject.dependencySourceRoots(root) : List.of());
+            if (root != null) {
+                file = LspProject.mirror(real, outText, root, tmpDir);
+            } else {
+                file = tmpDir.resolve(name);
+                Files.writeString(file, outText);
+            }
 
             CompilationResult result = driver.compile(file, tmpDir.resolve("out"), Target.JVM);
-            for (Diagnostic d : result.diagnostics().getDiagnostics()) {
-                Map<String, Object> diag = new LinkedHashMap<>();
-                Map<String, Object> range = new LinkedHashMap<>();
-                Map<String, Object> start = new LinkedHashMap<>();
-                Map<String, Object> end = new LinkedHashMap<>();
-                start.put("line", Math.max(0, d.line() - 1));
-                start.put("character", Math.max(0, d.column() - 1));
-                end.put("line", Math.max(0, d.line() - 1));
-                end.put("character", Math.max(0, d.column() - 1 + Math.max(0, d.length())));
-                range.put("start", start);
-                range.put("end", end);
-                diag.put("range", range);
-                diag.put("severity", d.severity() == Diagnostic.Severity.ERROR ? 1 : 2);
-                diag.put("source", "kof");
-                diag.put("code", d.code());
-                diag.put("message", d.message() + (d.code() != null && !d.code().isEmpty()
-                        ? " [" + d.code() + "]" : ""));
-                diagnostics.add(diag);
-            }
+            // modo projeto: o build ve os irmaos espelhados — so as linhas do
+            // alvo podem ser publicadas neste buffer (posicao de irmao e lixo).
+            diagnostics.addAll(root != null
+                    ? LspDiagnostics.forFile(result, file)
+                    : LspDiagnostics.all(result));
         } catch (IOException e) {
             Map<String, Object> diag = new LinkedHashMap<>();
             Map<String, Object> range = new LinkedHashMap<>();
@@ -278,6 +280,12 @@ final class LspServer {
         long line = pos.get("line") instanceof Number n ? n.longValue() : 0;
         long ch = pos.get("character") instanceof Number n ? n.longValue() : 0;
         String word = wordAt(text, offsetOf(text, line, ch));
+        if (LspKofmd.isMd(str(td.get("uri")))) {
+            String md = LspKofmd.hoverAt(text, (int) line + 1, word);
+            respond(id, md.isEmpty() ? null : Map.of("contents", Map.of("kind", "markdown",
+                    "value", "**" + word + "** \u2014 Kofmd " + md)));
+            return;
+        }
         String contents = word.isEmpty() ? null : LspHover.hoverFor(word, text, offsetOf(text, line, ch));
         if (contents == null && !word.isEmpty()) {
             // X10 fatia 7: declaração do projeto (buffer ou .kf irmão) como fallback.
@@ -432,7 +440,9 @@ final class LspServer {
         } catch (RuntimeException e) {
             return null;
         }
-        if (formatted.equals(text)) return null;
+        // §625: com parse-error ou fonte não-fechável o formatter devolve null —
+        // responder null (sem edit) ao cliente, e NAO dar NPE no equals derrubando o server.
+        if (formatted == null || formatted.equals(text)) return null;
         Map<String, Object> edit = new LinkedHashMap<>();
         edit.put("range", rangeOf(text, 0, text.length()));
         edit.put("newText", formatted);

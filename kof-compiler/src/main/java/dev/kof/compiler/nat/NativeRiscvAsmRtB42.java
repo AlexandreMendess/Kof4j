@@ -253,7 +253,8 @@ public final class NativeRiscvAsmRtB42 {
             # helper local: a0 = uint -> write(1, decimal). Buffer de 24B na
             # pilha (sem alloc); clobbera t0..t3, a0/a1/a2.
             .Lgc_put_uint:
-                addi sp, sp, -32
+                addi sp, sp, -48
+                sd   ra, 32(sp)
                 addi t0, sp, 31
                 sb   zero, 0(t0)
                 mv   t1, a0
@@ -276,14 +277,16 @@ public final class NativeRiscvAsmRtB42 {
                 sub  a2, a2, t0
                 mv   a1, t0
                 li   a0, 1
-                li   a7, 64
-                ecall
-                addi sp, sp, 32
+                call kof_plat_write
+                ld   ra, 32(sp)
+                addi sp, sp, 48
                 ret
 
             # helper local: a0 = asciz -> write(1, ...). Não faz call; clobbera
             # t0..t3 e a0/a1/a2 (caller-saved).
             .Lms_puts:
+                addi sp, sp, -16
+                sd   ra, 8(sp)
                 mv   t0, a0
                 li   t1, 0
             .Lms_puts_len:
@@ -296,8 +299,9 @@ public final class NativeRiscvAsmRtB42 {
                 mv   a1, t0
                 mv   a2, t1
                 li   a0, 1
-                li   a7, 64
-                ecall
+                call kof_plat_write
+                ld   ra, 8(sp)
+                addi sp, sp, 16
                 ret
 
             .section .rodata

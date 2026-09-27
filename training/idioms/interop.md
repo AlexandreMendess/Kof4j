@@ -2,7 +2,7 @@
 
 # Idioms — Interop (JVM types and C FFI)
 
-**Status:** partial (whitelist) · **Introduced:** 0.3.x (TIER 2.1) · **Updated:** 18/09 (R3 JVM generalized — scalar ABI + void + String return; **callbacks C2 — JVM gate OPEN**; see `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` 3.6/3.4) · **Updated:** 17/09
+**Status:** partial (whitelist) · **Introduced:** 0.3.x (TIER 2.1) · **Updated:** 21/09 (D6 struct/array/out-buffer shapes LAND on the JVM — record by value in/out, scalar `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT; see the FFI front in `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` 3.8b)
 
 ## What it is
 
@@ -10,7 +10,7 @@ Two surfaces, one rule: the platform already exists — do not rebuild it.
 **(a)** JVM: any Java type on the classpath by qualified name. **(b)** C FFI:
 `extern "<lib>" f(T): R` binds a native function (JVM via `java.lang.foreign`).
 
-## Real API (measured in the compiler — 0.4.0-beta)
+## Real API (measured in the compiler — 0.5.0-beta)
 
 ```kof
 // (a) JVM interop — qualified name, no wrapper
@@ -24,8 +24,11 @@ extern "/lib/x86_64-linux-gnu/libm.so.6" fmod(Double a, Double b): Double  // ok
 extern "/lib/x86_64-linux-gnu/libc.so.6" puts(String s): void     // ok — void binds
 extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — String return, "mel" measured
 // The Kof function NAME is the C symbol (no alias syntax) — kof_fmod failed lookup, fmod works.
-// Non-scalar types (objects, generics) -> FFI001 compile-time diagnostic.
-// JS runner  -> SAME scalar ABI via KofJsFfiBridge (F2/F3 ✅ 18/09; FfiE2ETest 16/16); browser -> honest runtime error (R7, no host); non-scalar -> FFI002
+// Non-scalar types -> FFI001 compile-time diagnostic (JVM exception, 3.8b ✅ 20-21/09: a `record`
+//   by value as arg/return and a scalar `T[]`->`ptr` BIND — FfiStructE2ETest 10/10, FfiArrayE2ETest 5/5).
+// JS runner  -> SAME scalar ABI via KofJsFfiBridge (F2/F3 ✅ 18/09; FfiE2ETest 16/16) AND the D6
+//   record/array/out-buffer shapes (R54/R55/R57/R58/R59 ✅ 21/09, JVM==JS); browser -> honest runtime
+//   error (R7, no host); a genuinely unsupported shape (String[]/List/Handle) -> FFI002
 // Native (x86-64/riscv64/aarch64) -> SAME scalar ABI binds DIRECT since #431 20/09 (§61 CLOSED, §369):
 //   no dlopen — link-by-use of library() + call sym@PLT; String<->char* = UTF-8 payload at offset 24
 //   (NULL->NULL); >=9 same-class args spill; String return = boundary copy (C buffer never freed);
@@ -48,7 +51,90 @@ kof_cb_slen("hello", (x: String) -> x.length())  // char* -> String arg (C3.4)
 // JS (host runner) binds callbacks too (C3.2/C3.4 ✅ 18/09, byte-for-byte JVM~JS;
 // browser = honest runtime degrade R7); struct/pointer-in-callback, a String
 // RETURN, and callback-as-return -> FFI001 (JVM) — never a silent stub.
+
+// (d) STRUCT / ARRAY / OUT-BUFFER (D6, JVM — 3.8b fatias 1–4, 20–21/09):
+//   a `record` of scalar fields crosses BY VALUE (arg and return), a scalar
+//   `T[]` crosses as a `ptr` with COPY-IN per call (read-only), and an
+//   out-buffer is the nominal `Buffer(U8)` crossing INOUT (copy-in / call /
+//   copy-back). A buffer is NEVER a reuse of `String`/`Byte[]` — distinct
+//   ABI kinds (length, direction, mutability).
+record Pt(Int x, Int y)
+extern "libshapes.so" mkpt(Int x, Int y): Pt          // record by value (return; register or sret)
+extern "libshapes.so" ptlen(Pt p): Int                // record by value (argument)
+extern "libshapes.so" sumn(Int[] xs, Int n): Int      // scalar array -> ptr (copy-in; C never writes back)
+extern "libshapes.so" fill(Buffer(U8) b, Int n): Int  // out-buffer INOUT (copy-back after the call)
+// call site:
+var xs = new Int[3]                                   // `new Int[n]` is the array surface (not `[...]`)
+var b = buffer.alloc(4)                               // Buffer(U8) — lifetime is automatic (no malloc/free)
+fill(b, 4)                                            // C writes into the buffer
+println(b.bytes())                                    // Byte[] clone (read it back)
+println(ptlen(Pt(1, 2)))                              // 2 (record passed by value)
+// Native: record/array/buffer externs = FFI001 (honest gap, R6 — the Native
+// struct/sret ABI is 3.7). JS binds the same D6 shapes since R54/R55/R57/R58/R59
+// (byte-for-byte JVM==JS). The scalar ABI binds on every target.
 ```
+
+## Reflection at the boundary — `interop.schema(R)` (X6, `D-INTEROP-REFLECT`)
+
+A **read-only** view of a `record`'s structure, available **only at the interop
+boundary** (Arrow/Parquet/ML schemas), so external data binds to Kof records
+without hand-written mappers. It is a **compile-time intrinsic** — zero runtime
+reflection, so the same output on every target (no `REF001` gap). Enabled by an
+explicit `import kof.interop`; resolves to an immutable `List<Field>` with the
+compiler-provided `record Field(String name, String type)`, in declaration order.
+
+```kof
+import kof.interop
+
+record Order(String id, Double amount, Long qty)
+
+main() {
+    for (var f in interop.schema(Order)) {
+        println(f.name() + ":" + f.type())   // id:String, amount:Double, qty:Long
+    }
+}
+```
+
+An invalid use is an honest diagnostic (R6), never silence: an unknown member of
+`interop` → `INTEROP002`; wrong arity, a value, a class or an enum (not a
+`record`) → `INTEROP001`. An `entity` counts as a record. It is **not** a
+language foundation: no runtime metaprogramming, no dynamic dispatch, no write
+path.
+
+
+**(e) Engines `KofPy`/`KofR` (X2 fatias 1–3 — 26–27/09, `D-COMPLETE-FIRST`)** — the language of
+the engine is a detail; the Kof face is the contract (the SAME on both):
+
+```kof
+import kof.interop
+var py = KofPy("def sq(n):\n    return n*n")          // definitions = the session
+var r  = KofR("sq <- function(n) n*n")                 // same face, second engine
+println(py.callInt("sq", listOf(5)))                   // 25 (also callDouble/Bool/String/Json)
+println(r.callInt("sq", listOf(5)))                    // 25 — byte-identical wire, JSON is the contract
+
+// records through the boundary: composition is the platform's own JSON
+var wire = py.callJson("norm", json.encode(listOf(p)))
+var back = json.decode[Point](wire)
+
+// the call can never hang (fatia 3) — the DEADLINE RUNS IN THE CHILD:
+py.timeout(2000)              // default 30000; 0 = no limit (declared, never silent)
+try {
+    println(py.callInt("loop", listOf()))
+} catch (String e) {
+    println(e)                // INTEROP007: loop exceeded the 2000ms deadline and was stopped by the engine itself
+}
+spawn killer(py)              // a task calling py.cancel() stops the LIVE call: INTEROP008
+                              // (KofR: cancel() kills the child; the PARENT names the death —
+                              //  a reply that landed first wins; idle cancel = no-op)
+```
+
+Every failure is NAMED, never a silent value or an exit-code guess: `INTEROP004` interpreter
+missing/died without responding, `INTEROP005` target without a proven process runtime
+(cross §514, ANDROID/MCU/RISCV32 — compile-time refusal that keeps the face), `INTEROP006`
+remote error (traceback carried), `INTEROP007` deadline, `INTEROP008` cancelled.
+The engines are **experimental** until the cross encoders land (R5) — the JVM/x86/JS/Script
+faces are CI-certified (`InteropPyE2ETest` 5/5, `InteropRE2ETest` 10/10 skipped-0 with real R
+on the runner, `InteropTimeoutE2ETest` 4/4, `InteropTimeoutScriptE2ETest` 1/1).
 
 ## BAD → GOOD
 
@@ -59,9 +145,17 @@ kof_cb_slen("hello", (x: String) -> x.length())  // char* -> String arg (C3.4)
 | storing the callback pointer to call LATER (atexit/signal/async) | keep callbacks synchronous and non-escaping | escapantes exigem política de vida/GC-rooting (R12) — ficam `FFI001`, nunca stub pendurado |
 | reimplementing sin/cos/strcmp in Kof | bind the system lib (any scalar shape since 18/09) | complexity belongs to the platform (iron rule 2) |
 | assuming `library()` means the same thing on every target | on JVM/JS it is the dlopen path; on **Native** it is resolved **by basename at LINK time through the sysroot** (`libc.so.6` → `-l:libc.so.6`; an absolute HOST path is wrong-arch cross) | Native has no FFM: a bound `extern` is a `call sym@PLT` + link-by-use (#431 20/09, §369) |
+| reusing `Byte[]`/`String` for a C out-buffer | declare the nominal **`Buffer(U8)`** in the `extern` and create it with `buffer.alloc(n)` (D-R3-BUFFER/D6-3) | an out-buffer is mutable and bidirectional (copy-in + copy-back); `T[]` is copy-in read-only and `String`/`char*` is read-only — distinct ABI kinds |
+| hand-emitting bytecode for a struct/array/out-buffer call | declare the `record`/`new T[n]`/`Buffer(U8)` in the `extern`; the compiler classifies the ABI (`AbiLayout`) | complexity belongs to the compiler (iron rule 2); a hand-rolled ABI is a silent bug on the next target |
+| hand-writing a per-record mapper/schema (field names + types duplicated in a string) | derive it from `interop.schema(R)` at the boundary | the compiler already knows the record structure — zero runtime reflection, identical output on the 4 targets |
+| the engine call can hang forever, or hand-rolling a watchdog thread that kills it | `py.timeout(2000)` + `catch (String e)` naming `INTEROP007`/`INTEROP008` | the deadline lives in the CHILD, thrown by the engine's own language (py SIGALRM/`_KofTimeout`, R `setTimeLimit`) — no orphan, no exit-code guess, no parent-side hack; the default 30000 ms is the §418 bounded-wait precedent |
+| killing a live call by pid archaeology or `Thread.stop`-style tricks | `spawn killer(x)` with `x.cancel()` (SIGINT to the child the wire introduced via `KOFPID`) | intention, not mechanism (iron rule 1); on R the parent NAMES the child's SIGINT death (flag + EOF) because the exit context cannot carry a status — both paths land on the same named `INTEROP008` |
+| treating "exit code ≠ 0" as the reason for a failure | read the named `INTEROP00x` string | interpretation belongs to the platform (R6 never-silent); the exit code is a mechanism the engine's stdlib already read for you |
+| hand-rolling `process.spawn("python3","-c",...)` + manual JSON per call | `import kof.interop` + `var py = KofPy(source)` + `py.callInt("sq", listOf(5))` | the engine is stdlib (fatia 1 X2 26/09): typed result is the METHOD name, args are a homogeneous typed Kof list; RPC lines, spec quoting and traceback naming (`INTEROP004`/`INTEROP006`) belong to the platform — session = the source (definitions persist; mutated globals do not), and the face refuses with `INTEROP005` where the process runtime is unproven (cross §514, ANDROID/MCU) |
+| passing `record` values into/out of the engine with hand-written field mapping | `py.callJson("norm", json.encode(listOf(p)))` + `json.decode<Point>(wire)` | fatia 2 X2 (26/09, §520): `callJson` is the raw-JSON face — composition is the platform's own JSON (`json.encode`/`json.decode<T>`, the compile-time fold, zero runtime reflection); the wire is the canonical COMPACT Kof wire; a remote failure stays named `INTEROP006`; `List<Record>` decode on x86 is `JSN004` (declared gap, never silent) |
 
 ## See also
 
 `docs/language-reference/syntax.md` (§FFI to C), `grammar.md`
 (`extern-declaration`), `modules.md` §6; gaps `FFI001`/`FFI002`;
-R3 landed: JVM arbitrary scalar (arity/void/String-return, 18/09) + JS host parity (3.6.F2/F3 ✅ 18/09) + **callbacks bind on JVM AND the JS host runner, byte-for-byte parity (C2 ✅ + C3.2/C3.3/C3.4 ✅ 18/09 — primitive + `String`-arg callbacks; `JvmFfiCallbackE2ETest` incl. `jvmAndJsCallbacksMatchByteForByte` and `stringCallbackArgsBindAndMatchJvmJs`)**; remaining: opaque handles (3.3), variadics (3.5, ⛔ surface decision), struct/array ABI (D6 ⛔), callbacks/upcalls on Native (no mechanism — `FFI001`); **the Native scalar ABI BINDS on all 3 archs (fatias 1–2 ✅ 20/09 — §369, §61 CLOSED: `FfiNativeE2ETest` 16/16 x86-64 + `FfiNativeCrossE2ETest` 6/6 riscv64×aarch64 byte-identical under qemu)**.
+R3 landed: JVM arbitrary scalar (arity/void/String-return, 18/09) + JS host parity (3.6.F2/F3 ✅ 18/09) + **callbacks bind on JVM AND the JS host runner, byte-for-byte parity (C2 ✅ + C3.2/C3.3/C3.4 ✅ 18/09 — primitive + `String`-arg callbacks; `JvmFfiCallbackE2ETest` incl. `jvmAndJsCallbacksMatchByteForByte` and `stringCallbackArgsBindAndMatchJvmJs`)** + **D6 struct/array/out-buffer shapes on the JVM (3.8b fatias 1–4 ✅ 20–21/09: record by value in/out, scalar `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT; `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferE2ETest` 4/4, `BufferFfiE2ETest` 4/4)** + **the same D6 shapes on the JS target (3.8b bridge ✅ 21/09 — R54 record arg, R55 scalar `T[]`→ptr copy-in, R57 `kof.buffer` namespace, R58 `Buffer(U8)` INOUT, R59 record return by value; byte-for-byte JVM==JS: `FfiStructE2ETest#structReturnByValueJsParity`, `FfiArrayE2ETest#arrayParamByValueJsParity`, `BufferE2ETest#allocAndBytesJsParity`, `BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`)** + **the Native scalar ABI binds on all 3 archs (fatias 1–2 ✅ 20/09 — §369, §61 CLOSED: `FfiNativeE2ETest` 16/16 x86-64 + `FfiNativeCrossE2ETest` 6/6 riscv64×aarch64 byte-identical under qemu)**; **decided 21/09:** variadics = none (`D-R3-3.5`), opaque `Handle` + `Buffer(U8,INOUT)` (`D-R3-3.3` — Buffer landed, `Handle` waits on the RAII front). Remaining (cross-lane/later): Native struct/sret (3.7), callbacks/upcalls on Native (no mechanism — `FFI001`), `Handle` lifetimes (`future/scoped-resources-plan.md`).

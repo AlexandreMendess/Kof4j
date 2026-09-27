@@ -1,29 +1,45 @@
 [English](39-stdlib.md) | [Português](39-stdlib.pt_BR.md)
 
-# 39 — Universal Standard Library (math, strings, encoding, uuid, validation, time)
+# 39 — Universal Standard Library
 
-> **Kof 0.4.0-beta — `intention->Kof->frontend->IR->backend->runtime`**
+> **Every namespace now has its own chapter under [`stdlib/`](stdlib/README.md)
+> — the function tables there are the 1:1 contract (measured from the real
+> dispatchers). This chapter keeps the narrative, the examples and the honest
+> parity table.**
 
-Kof's Standard Library exists for one thing: **so you never reimplement the
-obvious**. Common-use math, string predicates and converters,
-encoding (hex/base64/url), UUID, validation (BR documents, network, card)
-and civil calendar — all called by **intention**, with the same result on the
-JVM, in the KofScript interpreter, in JS and in the native binary (x86_64, riscv64,
-aarch64).
-
-```kof
-var phone = "1234"
-var gateway = "192.168.0.1"
-if (strings.isNumeric(phone)) {          // intention, not a char loop
-    println(validation.isIpv4(gateway))  // same API on every target
-}
-```
-
-
-> Project rule: if it looks like translated Java, it is wrong. A manual byte
-> loop to validate a CPF is the anti-pattern; `validation.isCpf(...)` is the
-> idiom. The complete "why" (BAD/GOOD/WHY) is in
-> `training/idioms/stdlib.md`.
+| Namespace | Chapter |
+|-----------|---------|
+| `json` | [stdlib/json](stdlib/json.md) |
+| `db` | [stdlib/db](stdlib/db.md) |
+| `http` | [stdlib/http](stdlib/http.md) |
+| `cache` | [stdlib/cache](stdlib/cache.md) |
+| `config` | [stdlib/config](stdlib/config.md) |
+| `log` | [stdlib/log](stdlib/log.md) |
+| `process` | [stdlib/process](stdlib/process.md) |
+| `shell` | [stdlib/shell](stdlib/shell.md) |
+| `ssh` | [stdlib/ssh](stdlib/ssh.md) |
+| `net` | [stdlib/net](stdlib/net.md) |
+| `orm` | [stdlib/orm](stdlib/orm.md) |
+| `gpu` | [stdlib/gpu](stdlib/gpu.md) |
+| `mq` | [stdlib/mq](stdlib/mq.md) |
+| `observability` | [stdlib/observability](stdlib/observability.md) |
+| `tetris` | [stdlib/tetris](stdlib/tetris.md) |
+| `media` | [stdlib/media](stdlib/media.md) |
+| `buffer` | [stdlib/buffer](stdlib/buffer.md) |
+| `passwords` | [stdlib/passwords](stdlib/passwords.md) |
+| `crypto` | [stdlib/crypto](stdlib/crypto.md) |
+| `jwt` | [stdlib/jwt](stdlib/jwt.md) |
+| `secrets` | [stdlib/secrets](stdlib/secrets.md) |
+| `security` | [stdlib/security](stdlib/security.md) |
+| `auth` | [stdlib/auth](stdlib/auth.md) |
+| `math` | [stdlib/math](stdlib/math.md) |
+| `strings` | [stdlib/strings](stdlib/strings.md) |
+| `encoding` | [stdlib/encoding](stdlib/encoding.md) |
+| `uuid` | [stdlib/uuid](stdlib/uuid.md) |
+| `time` | [stdlib/time](stdlib/time.md) |
+| `random` | [stdlib/random](stdlib/random.md) |
+| `rng` | [stdlib/rng](stdlib/rng.md) |
+| `validation` | [stdlib/validation](stdlib/validation.md) |
 
 ## math — arithmetic that every program repeats
 

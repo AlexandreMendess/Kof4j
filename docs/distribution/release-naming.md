@@ -3,7 +3,7 @@
 # Release Naming — Kof
 
 **Last updated:** 09/16/2026
-**Current version:** 0.4.0-beta
+**Current version:** 0.5.0-beta
 
 ---
 
@@ -11,7 +11,7 @@
 
 ```text
 MAJOR.MINOR.PATCH-<stage>
-0.4.0-beta
+0.5.0-beta
 ```
 
 - `MAJOR.MINOR.PATCH` — standard semver (`pom.xml` + `VERSION` file).
@@ -70,7 +70,7 @@ already defined all at once. When the list runs out, it restarts or extends
 ## Rules
 
 1. **Codename per notable release** — not every patch bump gets a name
-   (`0.4.0-beta` → `0.4.0-beta` has no codename; a landmark cut like
+   (`0.5.0-beta` → `0.5.0-beta` has no codename; a landmark cut like
    "Phase 6 Router + Phase 9 diffing closed" does).
 2. **`Alpha` and `Beta` have already been consumed as a phase**, not as a
    codename for a specific release — the codename list effectively starts at

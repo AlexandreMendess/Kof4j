@@ -2,7 +2,7 @@
 
 # 15 — Pattern Matching
 
-> **Status: implemented (JVM / Native / JS) — 0.4.0-beta**
+> **Status: implemented (JVM / Native / JS) — 0.5.0-beta**
 >
 > `switch case String s` (type pattern) and record destructuring `case Point(x, y):` work on the three targets. Parser + Semantic + CompilerDriver with `Native rbx→rcx` fix and `JS typeof`.
 >
@@ -101,25 +101,27 @@ main() {
 
 Compile and run on the three targets — the chain `intention->Kof->frontend->IR->backend->runtime` keeps the semantics: the frontend normalizes `Ponto(x, y)` to `PatternExpr`, the IR emits `instanceof`+`checkcast`+`getfield` (JVM) / direct loads (Native) / `typeof`+field access (JS).
 
-## Patterns in sealed hierarchies (planned)
+## Patterns in sealed hierarchies (0.5.0-beta — X5.2)
 
-`sealed ... permits` is not yet consumed by the parser (see ch. 10). The
-example illustrates how the `switch` pattern would cover the hierarchy when sealed
-is implemented:
+A `switch` **expression** over a `sealed` subject must cover every direct
+subtype (all declared in the same file, see ch. 10) or provide `default`; a
+missing case is `SEM081`. No `permits` clause is needed:
 
-```kf
-sealed class Resultado<T> permits Sucesso<T>, Erro<T> {}
+```kof
+sealed class Shape
+class Circle extends Shape { ... }
+class Square extends Shape { ... }
 
-String mensagem(Resultado<String> r) {
-    switch (r) {
-        case Sucesso s: { return "ok: " + s.valor() }
-        case Erro e: { return "falha: " + e.mensagem() }
-        default: { return "?" }
+String describe(Shape sh) {
+    return switch (sh) {
+        case Circle c -> "circle"
+        case Square q -> "square"
     }
 }
 ```
 
-The compiler verifies whether all cases have been covered when there is sealed (exhaustiveness check in evolution).
+The exhaustiveness check is part of the typer (`SEM081` missing case; `SEM080`
+subtype outside the sealed type's compilation unit).
 
 ## Patterns with guards (planned)
 

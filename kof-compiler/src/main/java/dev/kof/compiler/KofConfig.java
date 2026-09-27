@@ -22,7 +22,9 @@ import java.util.List;
  * Sources, in precedence order: explicit file ({@code KOF_CONFIG} env var),
  * environment variable {@code KOF_<KEY>}, profile file
  * ({@code kof.<KOF_PROFILE>.config} or {@code kof.config} in the working
- * directory). Native and JS targets report {@code CONF001} at compile time.
+ * directory). Real implementations exist on JVM, Native x86_64 (own asm),
+ * riscv64/aarch64 cross (own asm, D-FULL-PARITY-050 row 9, 26/09) and JS
+ * ({@code kof_platform}).
  */
 public final class KofConfig {
 
@@ -39,8 +41,12 @@ public final class KofConfig {
         return "config".equals(name);
     }
 
-    /** kof.config: JVM + Native + JS (via process.env / kof_platform). */
-    static boolean supportedOn(@SuppressWarnings("unused") Target target) {
+    /**
+     * kof.config: real on all targets. riscv64/aarch64 gained their own lookup
+     * runtime (environ + file/env/profile + interpolation) on 26/09, closing
+     * the {@code CONF001} gap (D-FULL-PARITY-050 row 9).
+     */
+    static boolean supportedOn(Target target) {
         return true;
     }
 

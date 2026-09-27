@@ -16,6 +16,19 @@ import java.util.Set;
 
 /** F3: emissão de arquivos .s riscv64/aarch64 (emitRiscv/emitAarch64). */
 final class NativeArchEmitter {
+
+    /**
+     * Resolve a ferramenta de cross (as/ld) com prefixo de diretorio via
+     * {@code KOF_CROSS_PREFIX} — override de teste/ambiente, o MESMO padrao
+     * da casa de {@code KOF_GDB}/{@code KOF_CROSS_SYSROOT}/{@code KOF_PUBLISH_API}:
+     * sem a env, os nomes Debian de PATH (comportamento inalterado); com ela,
+     * {@code <prefix>/<nome>} (stub de toolchain host-provavel; toolchain real
+     * continua o caminho de producao/CI).
+     */
+    static String crossTool(String name) {
+        String prefix = System.getenv("KOF_CROSS_PREFIX");
+        return (prefix == null || prefix.isBlank()) ? name : Path.of(prefix, name).toString();
+    }
     private final NativeBackend nb;
     NativeArchEmitter(NativeBackend nb) { this.nb = nb; }
 
@@ -44,8 +57,8 @@ final class NativeArchEmitter {
         for (IRClass c : module.classes()) {
             for (IRMethod m : c.methods()) {
                 if ("<clinit>".equals(m.name())) continue;
-                String mg = NativeSymbolMangling.fnSymbol(c.name(), m.name(), m.parameterTypes(), nb.allClassesMap);
-                nb.functionMangleMap.putIfAbsent(NativeSymbolMangling.fnKey(c.name(), m.name(), m.parameterTypes(), nb.allClassesMap), mg);
+                String mg = NativeSymbolMangling.fnSymbol(c.name(), m, nb.allClassesMap);
+                nb.functionMangleMap.putIfAbsent(NativeSymbolMangling.fnKey(c.name(), m, nb.allClassesMap), mg);
             }
         }
 
@@ -102,6 +115,9 @@ final class NativeArchEmitter {
             sb.append("    .word ").append(c.typeId()).append(", ").append(superTypeId).append("\n");
         }
         sb.append("    .word 0, 0\n");
+        NativeClassMeta.emitToStringTable(nb, sb);
+        NativeClassMeta.emitEqualsTable(nb, sb);
+        NativeClassMeta.emitHashCodeTable(nb, sb);
         // vtables por classe (offset 8 do header aponta para elas)
         for (IRClass c : module.classes()) {
             nb.currentClass = c;
@@ -127,7 +143,7 @@ final class NativeArchEmitter {
         // #431 fatia 2: helper char*→String p/ extern com retorno String —
         // no texto do PROGRAMA (a poda só alcança o blob do runtime), em
         // plena seção .text; o aarch64 o recebe pela tradução linha-a-linha.
-        if (nb.ffiUsesCstr) NativeFfiCall.emitRiscvCstrHelper(sb);
+        if (nb.ffiUsesCstr) NativeFfiCallRiscv.emitRiscvCstrHelper(sb);
 
         // Ponto de entrada: chama <mainClass>_main e sai via exit_group(94).
         // O runtime é asm puro — binário estático. exit_group (não exit/93)
@@ -146,12 +162,15 @@ final class NativeArchEmitter {
             sb.append("    call fflush\n");
         }
         sb.append("    li a0, 0\n");
-        sb.append("    li a7, 94\n");
-        sb.append("    ecall\n");
+        sb.append("    call kof_plat_exit_group\n");
         int rtStart = sb.length();
         sb.append(NativeRiscvAsm.RISCV_RUNTIME_ASM).append(NativeRiscvAsm.RISCV_STRN002_ASM).append(NativeRiscvAsm.RISCV_RUNTIME_ASM_B).append(NativeRiscvAsm.RISCV_MAPSET_ASM);
         int rtEnd = sb.length();
-
+        // Fora de [rtStart,rtEnd): o pruner reconstrói a região a partir de
+        // RiscvSlices (peças fixas) e descartaria texto avulso; o resolver
+        // por-programa precisa sobreviver (referenciado pelo RtB57 find).
+        NativeOrmCtors.collect(nb, module.classes());
+        if (!nb.ormCtorClasses.isEmpty()) sb.append(NativeRiscvOrmCtors.emit(nb, nb.ormCtorClasses));
         // NATIVE002-stdlib: http.get/post/status riscv64 (asm puro, syscalls
         // asm-generic — mesmos números do aarch64; aarch64 herda via tradutor).
         for (IRClass c : module.classes()) {
@@ -186,6 +205,7 @@ final class NativeArchEmitter {
         // #431: extern BINDA — a `library()` vira input do ld cross (link-by-use,
         // DB001) e força o dinâmico (sem ela o `call sym` não resolve).
         boolean ffi = !nb.ffiLibs.isEmpty();
+        boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
         boolean dynamic = sqlite || ffi || NativeCrossLink.needsLibc(prunedRiscv);
         String sysroot = NativeCrossLink.sysrootFor("riscv64");
         if (dynamic && sysroot == null) {
@@ -200,14 +220,17 @@ final class NativeArchEmitter {
                     "sysroot (CI installs only libc6-*-cross) — ld will abort with undefined reference");
         }
         if (dynamic) System.err.println("NativeBackend: riscv64 dynamic link (" +
-                (sqlite ? "libc+libsqlite3 detected" : "libc detected") + (ffi ? " +ffi libs" : "") + ")");
+                (sqlite ? "libc+libsqlite3 detected" : "libc detected") + (ffi ? " +ffi libs" : "")
+                + (libm ? " +libm" : "") + ")");
 
         try {
             Path objFile = asmFile.resolveSibling("kof.o");
-            // --no-relax (as+ld): sem gp-relaxation. Nosso _start não inicializa
-            // gp (binário estático, sem C runtime); `la` relaxado vira `addi rd,gp,off`
-            // e faulta (gp=0). Forçado PC-relative (auipc+addi) — sempre correto.
-            nb.runCommand(new String[]{"riscv64-linux-gnu-as", "-mno-relax", "-o", objFile.toString(), asmFile.toString()}, "riscv64-as");
+            // --no-relax SÓ no ld (NativeCrossLink.ldArgs): a gp-relaxation que
+            // quebra `la`→`addi rd,gp,off` com gp=0 é LINK-time; o `-mno-relax`
+            // no `as` fazia o GAS ligar branch local à frente SEM relocação
+            // (`.L*` definido em outra `.section .text.<fn>` da S-5 vira `j .`
+            // silencioso — §445). PC-relative (auipc+addi) sempre correto.
+            nb.runCommand(new String[]{crossTool("riscv64-linux-gnu-as"), "-o", objFile.toString(), asmFile.toString()}, "riscv64-as");
             // S-5 (cross): --gc-sections remove as seções .text.<fn> mortas
             // criadas por sectionizeTextFunctions. Seguro aqui: NÃO existe GC
             // no asm riscv/aarch (bump-pointer, sem scan conservative) — nada
@@ -215,8 +238,8 @@ final class NativeArchEmitter {
             // gc-sections até a fase `kof_heap_root_end` (root-scan varre
             // root_start.._end; seção deletada fora do intervalo = raiz que
             // o coletor nunca vê — precisa primeiro o fim explícito).
-            nb.runCommand(NativeCrossLink.ldArgs("riscv64-linux-gnu-ld", binFile, objFile,
-                    "riscv64", dynamic, sysroot, sqlite, nb.ffiLibs), "riscv64-ld");
+            nb.runCommand(NativeCrossLink.ldArgs(crossTool("riscv64-linux-gnu-ld"), binFile, objFile,
+                    "riscv64", dynamic, sysroot, sqlite, nb.ffiLibs, libm), "riscv64-ld");
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
@@ -252,8 +275,8 @@ final class NativeArchEmitter {
         for (IRClass c : module.classes()) {
             for (IRMethod m : c.methods()) {
                 if ("<clinit>".equals(m.name())) continue;
-                String mg = NativeSymbolMangling.fnSymbol(c.name(), m.name(), m.parameterTypes(), nb.allClassesMap);
-                nb.functionMangleMap.putIfAbsent(NativeSymbolMangling.fnKey(c.name(), m.name(), m.parameterTypes(), nb.allClassesMap), mg);
+                String mg = NativeSymbolMangling.fnSymbol(c.name(), m, nb.allClassesMap);
+                nb.functionMangleMap.putIfAbsent(NativeSymbolMangling.fnKey(c.name(), m, nb.allClassesMap), mg);
             }
         }
         StringBuilder riscvSb = new StringBuilder();
@@ -299,6 +322,9 @@ final class NativeArchEmitter {
             riscvSb.append("    .word ").append(c.typeId()).append(", ").append(superTypeId).append("\n");
         }
         riscvSb.append("    .word 0, 0\n");
+        NativeClassMeta.emitToStringTable(nb, riscvSb);
+        NativeClassMeta.emitEqualsTable(nb, riscvSb);
+        NativeClassMeta.emitHashCodeTable(nb, riscvSb);
         for (IRClass c : module.classes()) {
             nb.currentClass = c;
             nb.crossEmit().emitMethodTableRiscv(riscvSb, c);
@@ -319,7 +345,7 @@ final class NativeArchEmitter {
         }
         // #431 fatia 2: idem riscv — o helper entra ANTES da tradução p/ o
         // ARM (linhas todas cobertas pelo tradutor: beqz/lbu/j/mv/li/sd/ld/call/ret).
-        if (nb.ffiUsesCstr) NativeFfiCall.emitRiscvCstrHelper(riscvSb);
+        if (nb.ffiUsesCstr) NativeFfiCallRiscv.emitRiscvCstrHelper(riscvSb);
         String mainEntry = mainClass != null ? nb.sanitizeName(mainClass.name()) + "_main" : "kof_main";
         riscvSb.append("\n.globl _start\n");
         riscvSb.append("_start:\n");
@@ -336,11 +362,15 @@ final class NativeArchEmitter {
         // de uma lib C (GLFW/raylib) sobrevivem ao main e o processo NUNCA
         // morre (hang medido sob qemu antes do fix; o x86 e o riscv já
         // usavam 94 — M32.3). Números riscv/aarch idênticos (asm-generic).
-        riscvSb.append("    li a7, 94\n");
-        riscvSb.append("    ecall\n");
+        // B-0 (D-BAREMETAL-BOOT): a saída cruza a costura kof_plat_exit_group.
+        riscvSb.append("    call kof_plat_exit_group\n");
         int rtStart = riscvSb.length();
         riscvSb.append(NativeRiscvAsm.RISCV_RUNTIME_ASM).append(NativeRiscvAsm.RISCV_STRN002_ASM).append(NativeRiscvAsm.RISCV_RUNTIME_ASM_B).append(NativeRiscvAsm.RISCV_MAPSET_ASM);
         int rtEnd = riscvSb.length();
+        // Fora de [rtStart,rtEnd): sobrevive ao pruner (ver emitRiscv) e entra
+        // no riscv ANTES do tradutor — o aarch64 herda linha-a-linha.
+        NativeOrmCtors.collect(nb, module.classes());
+        if (!nb.ormCtorClasses.isEmpty()) riscvSb.append(NativeRiscvOrmCtors.emit(nb, nb.ormCtorClasses));
 
         // NATIVE002-stdlib: http riscv64 → aarch64 (traduzido). Mesma detecção
         // de uso do emitRiscv; o aarch64 herda linha-a-linha do riscv64.
@@ -377,6 +407,7 @@ final class NativeArchEmitter {
         System.err.println("NativeBackend: generated aarch64 " + asmFile);
         boolean sqlite = NativeCrossLink.needsSqlite(prunedRiscv);
         boolean ffi = !nb.ffiLibs.isEmpty();
+        boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
         boolean dynamic = sqlite || ffi || NativeCrossLink.needsLibc(prunedRiscv);
         String sysroot = NativeCrossLink.sysrootFor("aarch64");
         if (sqlite && !NativeCrossLink.sqliteAvailable("aarch64")) {
@@ -384,12 +415,13 @@ final class NativeArchEmitter {
                     "sysroot (CI installs only libc6-*-cross) — ld will abort with undefined reference");
         }
         if (dynamic) System.err.println("NativeBackend: aarch64 dynamic link (" +
-                (sqlite ? "libc+libsqlite3 detected" : "libc detected") + (ffi ? " +ffi libs" : "") + ")");
+                (sqlite ? "libc+libsqlite3 detected" : "libc detected") + (ffi ? " +ffi libs" : "")
+                + (libm ? " +libm" : "") + ")");
         try {
             Path objFile = asmFile.resolveSibling("kof.o");
-            nb.runCommand(new String[]{"aarch64-linux-gnu-as", "-o", objFile.toString(), asmFile.toString()}, "aarch64-as");
-            nb.runCommand(NativeCrossLink.ldArgs("aarch64-linux-gnu-ld", binFile, objFile,
-                    "aarch64", dynamic, sysroot, sqlite, nb.ffiLibs), "aarch64-ld");
+            nb.runCommand(new String[]{crossTool("aarch64-linux-gnu-as"), "-o", objFile.toString(), asmFile.toString()}, "aarch64-as");
+            nb.runCommand(NativeCrossLink.ldArgs(crossTool("aarch64-linux-gnu-ld"), binFile, objFile,
+                    "aarch64", dynamic, sysroot, sqlite, nb.ffiLibs, libm), "aarch64-ld");
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
@@ -422,7 +454,7 @@ final class NativeArchEmitter {
             java.util.Set<Integer> keep = RiscvSlices.keepForProgramText(programText);
             java.util.List<RiscvSlices.Piece> pieces = RiscvSlices.pieces();
             if (keep.size() >= pieces.size()) return all;
-            String subset = sectionizeTextFunctions(RiscvSlices.renderSubset(keep));
+            String subset = NativeCrossSections.sectionizeTextFunctions(RiscvSlices.renderSubset(keep));
             StringBuilder out = new StringBuilder(all.substring(0, rtStart));
             out.append(subset);
             if (!subset.endsWith("\n")) out.append('\n');
@@ -438,55 +470,6 @@ final class NativeArchEmitter {
             return all;
         }
     }
-
-    /** S-5 (issue #97, T1b — parte cross): cada FUNÇÃO do subset mantido do
-     *  runtime abre a própria `.section .text.<nome>,"ax"` para que o
-     *  `ld --gc-sections` (NativeBackend.runCommand) delete os irmãos mortos
-     *  dentro de uma peça mantida — a granularidade fina que faltava à S-4
-     *  (peças inteiras). Transformação puramente textual e determinística:
-     *  padrão `.globl X` → (`type`) → `X:` em seção `.text` anônima; labels
-     *  locais `.L*`, dados (.data/.bss/.rodata) e o programa (fora do subset)
-     *  ficam como estão — o scan conservative existe SÓ no x86 (lá a fase
-     *  exige `kof_heap_root_end` primeiro; cross não tem GC no asm → sem
-     *  raiz oculta, seguro deletar). keep-all continua byte-idêntico (a
-     *  seção-injection só roda no caminho podado). aarch64: a linha passa
-     *  ilesa pelo tradutor (diretiva não-matching → passthrough) e o GAS
-     *  ARMv8 aceita a mesma sintaxe de flags. */
-    static String sectionizeTextFunctions(String text) {
-        String[] lines = text.split("\n", -1);
-        StringBuilder out = new StringBuilder();
-        boolean inText = false;
-        String pendingFn = null;   // último .globl sem label visto ainda
-        for (int i = 0; i < lines.length; i++) {
-            String s = lines[i].strip();
-            if (s.startsWith(".section")) {
-                inText = s.startsWith(".section .text") || s.equals(".section .text");
-                pendingFn = null;
-                out.append(lines[i]).append('\n');
-                continue;
-            }
-            if (inText && s.startsWith(".globl")) {
-                pendingFn = s.substring(".globl".length()).trim();
-                out.append(lines[i]).append('\n');
-                continue;
-            }
-            if (inText && s.endsWith(":") && !s.contains(" ") && !s.startsWith(".L")) {
-                String label = s.substring(0, s.length() - 1);
-                if (pendingFn != null && pendingFn.equals(label) && label.matches("[A-Za-z_][A-Za-z0-9_]*")) {
-                    out.append("    .section .text.").append(label).append(",\"ax\"\n");
-                }
-                pendingFn = null;
-            }
-            out.append(lines[i]).append('\n');
-        }
-        // split(-1) + append('\n') por linha: reconstitui exatamente o
-        // original quando nada é injetado (e o último '' do split vira o
-        // newline final — remove o '\n' sobra se o texto não terminava em \n)
-        String r = out.toString();
-        if (!text.endsWith("\n") && r.endsWith("\n")) r = r.substring(0, r.length() - 1);
-        return r;
-    }
-
 
     /** #133 (§186): chama cada <clinit> do módulo antes do main (riscv64/aarch64). */
     private void emitClinitCallsRiscv(StringBuilder sb, IRModule module) {

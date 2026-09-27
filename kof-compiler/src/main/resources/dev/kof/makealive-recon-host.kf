@@ -1,0 +1,51 @@
+// dev/kof/makealive-recon-host.kf — linha 3.3 do tracker universal
+// (D-MAKEALIVE Q2/Q4; docs/development/makealive-plan.md §5 3.3): o LOOP de
+// reconciliação.
+//
+// reconcile(design, provider, intervalMs) = a convergência que o apply() faz
+// uma vez vira laço contínuo: cada tick roda `apply(design, last, provider)`
+// dentro de um `spawn` (a forma permitida p/ async em callback de timer —
+// CONC003-JS-01: JVM = thread por disparo, JS = pump cooperativo; mesmo
+// desenho do schedule() de workflow-sched-host.kf) e grava o novo State na
+// célula do job. O retorno é o jobId do próprio scheduler: parar o laço =
+// `scheduler.cancel(id)` direto — nenhuma face nova (regra 11).
+//
+// Concorrência: ticks podem se sobrepor (spawn é assíncrono). Isso é seguro
+// por construção: a fonte da verdade da idempotência é o READ do provider
+// (§3 do núcleo), então dois applies sobrepostos convergem o MESMO mundo; o
+// único campo corrido (`last`) é uma dica do estado anterior, nunca
+// autoritativo.
+//
+// Native: SEM STUB — correção medida da fila §5 (que supunha o gate CRON001
+// aqui). O gate CRON001 é do `scheduler.at` (expressão cron); reconcile usa
+// só `scheduler.every`, e every é REAL em TODOS os alvos — SCHED001 fechado
+// 05/09 (riscv64/aarch64 = clone+nanosleep; x86-64 = pthread+usleep,
+// RuntimeScheduler). O gap honesto do Native continua no ESTADO (ORM001),
+// que vive no provider do usuário, nunca nesta fatia.
+//
+// Injetada flat pelo CompilerMakealive no `import kof.makealive` (todos os
+// alvos — DD-OTP-01 opção A).
+
+class ReconJob {
+    Infrastructure design = null
+    Provider provider = null
+    State last = null
+}
+
+String reconcile(Infrastructure design, Provider provider, Int intervalMs) {
+    if (design == null) { throw "makealive: reconcile() com design nulo" }
+    if (provider == null) { throw "makealive: reconcile() com provider nulo" }
+    if (intervalMs <= 0) { throw "makealive: reconcile() exige intervalMs > 0" }
+    var job = ReconJob()
+    job.design = design
+    job.provider = provider
+    job.last = State()
+    return scheduler.every(intervalMs, () -> {
+        spawn {
+            var rep = apply(job.design, job.last, job.provider)
+            job.last = rep.state
+            return true
+        }
+        return true
+    })
+}

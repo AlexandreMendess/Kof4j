@@ -37,9 +37,7 @@ public final class RuntimeRandom {
                 subq $4, %rsp
                 movq %rsp, %rdi
                 movq $1, %rsi
-                xorq %rdx, %rdx
-                movq $318, %rax
-                syscall
+                call kof_plat_random
                 testq %rax, %rax
                 jle .Lv_rand_bool_fail
                 movzbl (%rsp), %eax
@@ -71,9 +69,7 @@ public final class RuntimeRandom {
                 subq $16, %rsp                  # buf 8 bytes (16-align)
                 movq %rsp, %rdi
                 movq $8, %rsi
-                xorq %rdx, %rdx
-                movq $318, %rax                 # getrandom
-                syscall
+                call kof_plat_random
                 testq %rax, %rax
                 js .Lrnd_d_fail
                 movq (%rsp), %rax               # 64 bits aleatorios

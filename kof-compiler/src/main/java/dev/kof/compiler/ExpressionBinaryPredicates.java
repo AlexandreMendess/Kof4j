@@ -15,7 +15,37 @@ final class ExpressionBinaryPredicates {
                 || (t instanceof Type.NullableType nt && nt.inner() instanceof Type.UnknownType);
     }
 
-    /** Int (ou Nullable(Int)) — alvo de cast que handle de UI/mídia satisfaz. */
+        /**
+     * §519/#632 (UIW050): handle de kof.ui/midia APAGA para int no JVM. Nas
+     * bordas de referencia ele e boxed como Integer — exatamente a familia
+     * "Nullable(primitivo)" do D-NULL-INTENT. Estes predicados casam SO o
+     * handle (nunca primitivo real) e so entram em clausulas gated p/ JVM.
+     */
+    static Type boxedHandleType(Type t) {
+        Type inner = t instanceof Type.NullableType nt ? nt.inner() : t;
+        if (inner instanceof Type.ClassType ct
+                && (KofUi.isUiType(ct) || KofMedia.isHandleType(ct))) {
+            return TypeMetrics.boxedTypeFor(inner);
+        }
+        return null;
+    }
+
+    /** `Nullable(View)`/`Nullable(Color)` — o slot boxed (igual `Nullable(Int)`). */
+    static boolean isNullableHandleLike(Type t) {
+        return t instanceof Type.NullableType nt && boxedHandleType(nt) != null;
+    }
+
+    /** `View` cru (nao-nullable) — int fisico, precisa boxar p/ borda Object. */
+    static boolean isBareHandleErasedToInt(Type t) {
+        return !(t instanceof Type.NullableType) && boxedHandleType(t) != null;
+    }
+
+    /** Lado comparavel na caixa de slot boxed: primitivo (nullable ou cru) OU handle (nullable ou cru). */
+    static boolean isNullablePrimOrBarePrimOrHandle(Type t) {
+        return isNullablePrimOrBarePrim(t) || isNullableHandleLike(t) || isBareHandleErasedToInt(t);
+    }
+
+/** Int (ou Nullable(Int)) — alvo de cast que handle de UI/mídia satisfaz. */
     static boolean isIntPrimitive(Type t) {
         if (t instanceof Type.NullableType nt) return isIntPrimitive(nt.inner());
         return t instanceof Type.PrimitiveType pt

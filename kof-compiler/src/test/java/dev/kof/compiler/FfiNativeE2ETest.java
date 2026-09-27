@@ -321,14 +321,14 @@ class FfiNativeE2ETest {
     void listArgStaysFfi001AtDeclLineNative(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("ffi-list.kf");
         Files.writeString(src, """
-                extern "libc.so.6" sum(Int[] xs): Int
+                extern "libc.so.6" sum(String[] xs): Int
 
                 main() {
                     println("hi")
                 }
                 """);
         CompilationResult r = driver.compile(src, dir.resolve("out"), Target.NATIVE);
-        assertFalse(r.success(), "List arg must stay an honest gap on Native");
+        assertFalse(r.success(), "String[] (array de ponteiros) segue gap honesto no Native");
         String diags = r.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("FFI001"), "expected FFI001, got: " + diags);
         assertTrue(diags.contains("line=1, column=1"), "diagnostic must point at the DECL line (§350): " + diags);

@@ -2,7 +2,7 @@
 
 # 18 — Concorrência
 
-> **Status: implementado (JVM / Native / JS) — 0.4.0-beta — `spawn`/`await` nos 3 targets**
+> **Status: implementado (JVM / Native / JS) — 0.5.0-beta — `spawn`/`await` nos 3 targets**
 >
 > Kof não expõe `Thread`, `Runnable` nem `CompletableFuture`: a intenção é
 > `spawn` (rode em paralelo) e `await` (espere o resultado). JVM usa virtual
@@ -141,6 +141,31 @@ Bloqueia até **qualquer** handle completar e devolve o valor dele. No JS é
 `Promise.race` sobre os handles (`js/JsRuntimeUiLayout.java:304`); no Native
 x86_64 funciona por polling de 1 ms sobre os handles; em riscv64/aarch64
 também funciona desde 15/09 (CONC001 fechado).
+
+## Canais — FIFO tipado entre workers
+
+```kf
+val c = channel<Int>()     // canal tipado (FIFO, bloqueante)
+c.send(5)                  // bloqueia até um receptor pegar
+var x = c.receive()        // bloqueia até um produtor entregar
+println(x)                 // 5
+```
+
+- `channel<T>()` cria um canal tipado; um `channel()` nu boxeia pelo tipo do
+  argumento (§374).
+- `send(v)` devolve `void`; `receive()` devolve `T` — ambos bloqueiam (JVM:
+  put/take de `LinkedBlockingQueue`; Native: fila de futex do runtime
+  `kof_channel_*`; JS: fila sequencial com a mesma ordem observável).
+- Os membros válidos são exatamente `send`/`receive` — qualquer outro é SEM025.
+- Canais funcionam em TODOS os alvos, incluindo riscv64/aarch64 (§423 fechado
+  em 23/09), e o fix §485 (24/09) garante que uma fila drenada nunca devolve
+  NULL velho (SIGSEGV determinístico antes; repro single-threaded agora limpo).
+
+```kf
+// produtor/consumidor
+spawn produtor(c)
+var v = c.receive()
+```
 
 ## Semântica
 

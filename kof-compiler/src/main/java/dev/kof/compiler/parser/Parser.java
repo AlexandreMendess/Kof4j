@@ -5,9 +5,12 @@ import dev.kof.compiler.AstNode;
 import dev.kof.compiler.CompilationUnitNode;
 import dev.kof.compiler.DiagnosticCollector;
 import dev.kof.compiler.ExpressionNode;
+import dev.kof.compiler.ExpressionStmt;
 import dev.kof.compiler.ExternalFunctionNode;
 import dev.kof.compiler.FormalParameterNode;
 import dev.kof.compiler.FunctionDeclarationNode;
+import dev.kof.compiler.InfraDeclarationNode;
+import dev.kof.compiler.MethodCallExpr;
 import dev.kof.compiler.ReturnStmt;
 import dev.kof.compiler.SourcePosition;
 import dev.kof.compiler.StatementNode;
@@ -59,11 +62,19 @@ public class Parser {
             } else if (ctx.check(TokenType.IDENTIFIER) && "application".equals(ctx.peek().value())
                     && ctx.checkNext(TokenType.LBRACE)) {
                 declarations.add(parseApplicationDeclaration(ctx));
+            } else if (ctx.check(TokenType.IDENTIFIER) && "infra".equals(ctx.peek().value())
+                    && ctx.checkNext(TokenType.STRING_LITERAL)) {
+                declarations.add(parseInfraDeclaration(ctx));
             } else if (!annos.isEmpty()
                     && (ctx.check(TokenType.CLASS, TokenType.INTERFACE, TokenType.RECORD, TokenType.ENTITY))) {
                 declarations.add(TypeDeclarations.parseTypeDeclaration(ctx, annos));
             } else if (ctx.check(TokenType.EXTERN)) {
                 declarations.add(parseExternDeclaration(ctx));
+            } else if (ctx.sealedModifierAhead()) {
+                // X5.1 (D-X5-SURFACE): `sealed class/record/interface` — keyword
+                // contextual; sem este ramo o IDENTIFIER `sealed` cairia no ramo
+                // de função (PARSE010).
+                declarations.add(TypeDeclarations.parseTypeDeclaration(ctx, annos));
             } else if (ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.VOID) || TypeParser.isPrimitiveType(ctx)
                     || ctx.check(TokenType.LPAREN)) {
                 declarations.add(parseFunctionDeclaration(ctx, List.of(), annos));
@@ -84,8 +95,18 @@ public class Parser {
         SourcePosition p = ctx.pos();
         ctx.advance(); // consome 'test'
         Token nameToken = ctx.expect(TokenType.STRING_LITERAL, "Expected test name string", "PARSE010");
+        java.util.List<String> tags = new java.util.ArrayList<>();
+        while (ctx.peek().type() == TokenType.COMMA) {
+            ctx.advance();
+            Token tag = ctx.expect(TokenType.STRING_LITERAL,
+                    "Expected tag string after ',' in test declaration", "PARSE010");
+            if (tag.value().isEmpty()) {
+                ctx.error("test tag must not be empty", "PARSE010");
+            }
+            tags.add(tag.value());
+        }
         List<StatementNode> body = StatementParser.parseBlock(ctx);
-        return new TestDeclarationNode(p, nameToken.value(), body);
+        return new TestDeclarationNode(p, nameToken.value(), tags, body);
     }
 
     /**
@@ -121,6 +142,29 @@ public class Parser {
         }
         ctx.expect(TokenType.RBRACE, "Expected '}' after application block", "PARSE051");
         return new ApplicationDeclarationNode(p, onStart, onShutdown);
+    }
+
+    /**
+     * `infra "prod" { resource("fs", "web") ... }` — bloco declarativo do
+     * Makealive (linha 3.2, {@code D-MAKEALIVE-SYNTAX} 21/09). É açúcar puro:
+     * o lowering vira `design(): Infrastructure`. O corpo só aceita CHAMADAS
+     * diretas às faces do host (`resource`/`prop`/`requires`) — qualquer outro
+     * statement é erro honesto (R6), nunca ignorado em silêncio.
+     */
+    static InfraDeclarationNode parseInfraDeclaration(ParseContext ctx) {
+        SourcePosition p = ctx.pos();
+        ctx.advance(); // consome 'infra'
+        Token nameToken = ctx.expect(TokenType.STRING_LITERAL, "Expected infra name string", "PARSE010");
+        List<StatementNode> body = StatementParser.parseBlock(ctx);
+        for (StatementNode st : body) {
+            boolean builderCall = st instanceof ExpressionStmt es
+                    && es.expression() instanceof MethodCallExpr mc && mc.receiver() == null;
+            if (!builderCall) {
+                ctx.error("infra body accepts only builder calls (resource/prop/requires)", "PARSE051");
+                break;
+            }
+        }
+        return new InfraDeclarationNode(p, nameToken.value(), body);
     }
 
     static FunctionDeclarationNode parseFunctionDeclaration(ParseContext ctx, List<String> mods, List<AnnotationNode> annos) {
@@ -246,11 +290,39 @@ public class Parser {
         for (int i = 1; i + 1 < ctx.tokens.size() - ctx.pos; i++) {
             TokenType t = ctx.tokens.get(ctx.pos + i).type();
             if (t == TokenType.LESS) depth++;
-            else if (t == TokenType.GREATER) {
-                depth--;
-                if (depth == 0) {
-                    return ctx.tokens.get(ctx.pos + i + 1).type() == TokenType.IDENTIFIER
-                            && ctx.tokens.get(ctx.pos + i + 2).type() == TokenType.LPAREN;
+            else if (t == TokenType.GREATER || t == TokenType.GREATER_GREATER
+                    || t == TokenType.GREATER_GREATER_GREATER) {
+                // #620: `List<List<Int>>` — o lexer emite `>>` como UM token
+                // (maximal munch); sem contar seu fechamento duplo, esta
+                // varredura nunca via depth chegar a 0 e devolvia false —
+                // `List<List<Int>> nest()` era mal-interpretado como
+                // função chamada "List" com type-params `<List<Int>>`,
+                // que também não fecha (mesma classe de bug em
+                // parseTypeParameters), cascata de PARSE075/PARSE011/...
+                depth -= t == TokenType.GREATER ? 1 : t == TokenType.GREATER_GREATER ? 2 : 3;
+                if (depth <= 0) {
+                    // #622: o retorno aceita sufixo `?` e/ou `[]` repetido
+                    // depois do fecho do generic (`List<Int>? f()`,
+                    // `List<Int>[] f()` — mesmas regras de
+                    // parseFunctionDeclaration). Sem pular isso aqui, o
+                    // lookahead exigia IDENTIFIER+LPAREN IMEDIATAMENTE após
+                    // o `>`/`>>`/`>>>` — `List<Int>? maybeList()` (sem
+                    // aninhamento nenhum) já falhava por essa lacuna, não
+                    // só o caso aninhado do #620.
+                    int j = i + 1;
+                    while (j + 1 < ctx.tokens.size() - ctx.pos) {
+                        TokenType nt = ctx.tokens.get(ctx.pos + j).type();
+                        if (nt == TokenType.QUESTION) {
+                            j++;
+                        } else if (nt == TokenType.LBRACKET
+                                && ctx.tokens.get(ctx.pos + j + 1).type() == TokenType.RBRACKET) {
+                            j += 2;
+                        } else {
+                            break;
+                        }
+                    }
+                    return ctx.tokens.get(ctx.pos + j).type() == TokenType.IDENTIFIER
+                            && ctx.tokens.get(ctx.pos + j + 1).type() == TokenType.LPAREN;
                 }
             } else if (t == TokenType.EOF) {
                 return false;

@@ -2,7 +2,7 @@
 
 # 10 — Herança
 
-> **Status: implementado (JVM / JS — Native SUP001) — 0.4.0-beta — Target separation `native.risc/arm` preserva dispatch**
+> **Status: implementado (JVM / JS — Native SUP001) — 0.5.0-beta — Target separation `native.risc/arm` preserva dispatch**
 >
 > `extends`, virtual dispatch, sobrescrita, construtor `super(...)` e
 > `super.metodo()` funcionam nos targets JVM e KofJS; no Native, herança e
@@ -85,23 +85,31 @@ class Retangulo(Double largura, Double altura) extends Forma {
 }
 ```
 
-## sealed classes (adiado — não faz parte da gramática)
+## sealed classes (0.5.0-beta — X5.1/X5.2)
 
-`sealed` **não** é palavra-chave: foi removida do lexer com a SG-002
-(12/09) porque a gramática nunca a usou — hoje `sealed class S {}` falha com
-`PARSE010` (travado por `CompilerDriverTest.deadTokensGiveCleanLexerError`).
-A feature em si está **decidida a adiar** (roadmap §2.5: `enum` +
-`record`/`interface` cobrem o caso; só abre com bump de versão).
-Exemplo ilustrativo do que se pretende, quando landar:
+`sealed` restringe os subtipos diretos de um tipo: todo subtipo direto precisa
+estar na **mesma unidade de compilação** (arquivo) do tipo selado — um subtipo
+declarado em outro arquivo falha com `SEM080`. Um `switch` sobre sujeito sealed
+precisa cobrir todos os subtipos diretos ou ter `default` (`SEM081`), e o
+compilador verifica a completude:
 
-```kf
-sealed class Resultado<T> permits Sucesso<T>, Erro<T> {}
+```kof
+sealed class Shape
 
-class Sucesso<T>(T valor) extends Resultado<T> {}
-class Erro<T>(String mensagem) extends Resultado<T> {}
+class Circle extends Shape { ... }
+class Square extends Shape { ... }
+
+String describe(Shape sh) {
+    return switch (sh) {
+        case Circle c -> "circle"
+        case Square q -> "square"
+    }
+}
 ```
 
-Isso garante que `Resultado` só pode ser implementado por `Sucesso` e `Erro`. O compilador pode verificar a completude do `switch`.
+- `sealed` é keyword **contextual** (segue identificador válido).
+- É apagado na emissão — sem custo de runtime, idêntico em todos os alvos.
+- Não há cláusula `permits`: o conjunto fechado **é** a regra de mesmo arquivo.
 
 ## Polimorfismo
 

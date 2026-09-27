@@ -23,6 +23,85 @@ final class LspProject {
         }
     }
 
+    /**
+     * Nome do documento a partir do URI (herdado do `analyze`): o basename
+     * `.kf`/`.ks` do URI, senao `LspMain.kf`.
+     */
+    static String fileNameOf(String uri) {
+        String path = uri.startsWith("file:") ? uri.substring("file:".length()) : uri;
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        if (slash >= 0) path = path.substring(slash + 1);
+        return (path.endsWith(".kf") || path.endsWith(".ks")) ? path : "LspMain.kf";
+    }
+
+    /**
+     * #636 (residual — o proprio issue: "the LSP never calls it"): as fontes
+     * de deps INSTALADAS no cache (#566 opção b) entram na analise pela mesma
+     * porta do `kof run --deps` (`DepsSources`: kofdeps da raiz; sem kofdeps
+     * = lista vazia, nunca silencio inventado).
+     */
+    static List<Path> dependencySourceRoots(Path root) throws java.io.IOException {
+        return DepsSources.roots(root);
+    }
+
+    /**
+     * (#636) Raiz de projeto do arquivo: o ancestral com `kof.toml` (MESMO
+     * criterio do `kof check` via ProjectLocator); sem manifesto, a raiz do
+     * workspace do `initialize` que contenha o arquivo; nada disso = null e o
+     * chamador mantem o modo arquivo-unico.
+     */
+    static Path projectRootOf(Path file, Path workspaceRoot) {
+        Path abs = file.toAbsolutePath().normalize();
+        Path dir = abs.getParent();
+        for (int i = 0; i < 64 && dir != null; i++) {
+            if (Files.isRegularFile(dir.resolve("kof.toml"))) return dir;
+            dir = dir.getParent();
+        }
+        if (workspaceRoot != null) {
+            Path root = workspaceRoot.toAbsolutePath().normalize();
+            if (abs.startsWith(root)) return root;
+        }
+        return null;
+    }
+
+    /**
+     * (#636) Espelha a arvore do projeto num diretorio temporario (estrutura
+     * preservada; so os arquivos que o build ve — `kof.toml`, `.kf`, `.ks`)
+     * com o BUFFER por cima do disco: a compilacao roda com a mesma raiz que
+     * o CLI sem tocar em arquivo do usuario. Arvore ilegivel = espelho sem
+     * irmaos (nunca crash, nunca diagnostico inventado — R6).
+     */
+    static Path mirror(Path real, String bufferText, Path root, Path mirrorDir)
+            throws java.io.IOException {
+        Path abs = real.toAbsolutePath().normalize();
+        Path rel = root.relativize(abs);
+        Path target = mirrorDir.resolve(rel.toString());
+        String name = target.getFileName().toString();
+        if (name.endsWith(".ks")) {
+            target = target.resolveSibling(name.replace(".ks", ".kf"));
+        }
+        Files.createDirectories(target.getParent());
+        Files.writeString(target, bufferText);
+        try (var walk = Files.walk(root, 12)) {
+            walk.filter(Files::isRegularFile).forEach(p -> {
+                String n = p.getFileName().toString();
+                if (!(n.endsWith(".kf") || n.endsWith(".ks") || n.equals("kof.toml"))) return;
+                if (p.toAbsolutePath().normalize().equals(abs)) return; // o buffer vence o disco
+                Path dst = mirrorDir.resolve(
+                        root.relativize(p.toAbsolutePath().normalize()).toString());
+                try {
+                    Files.createDirectories(dst.getParent());
+                    Files.copy(p, dst);
+                } catch (java.io.IOException unreadable) {
+                    // irmao ilegivel fora do espelho — nao e erro do documento aberto
+                }
+            });
+        } catch (java.io.IOException unreadableTree) {
+            // raiz sem irmaos acessiveis: degrada para o comportamento antigo
+        }
+        return target;
+    }
+
     /** Arquivos `.kf` irmãos na árvore do projeto (profundidade ≤6, ordenados). */
     static List<Path> siblings(Path self) {
         return siblings(self, null);

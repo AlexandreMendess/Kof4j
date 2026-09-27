@@ -45,10 +45,10 @@ class GenericIfaceEmitE2ETest {
                     }
                 }
                 """);
-            Process pCompile = new ProcessBuilder("javac", "-d", runnerDir.toString(), runnerSrc.toString()).start();
+            Process pCompile = new ProcessBuilder(TestJdk.javacBin(), "-d", runnerDir.toString(), runnerSrc.toString()).start();
             assertEquals(0, pCompile.waitFor());
-            Process p = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
-                    "-cp", outDir.toString() + ":" + runnerDir.toString(), "Run", "Default.Main")
+            Process p = new ProcessBuilder(TestJdk.javaBin(),
+                    "-cp", outDir.toString() + java.io.File.pathSeparator + runnerDir.toString(), "Run", "Default.Main")
                     .redirectErrorStream(true).start();
             String output = new String(p.getInputStream().readAllBytes(),
                     java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
@@ -195,6 +195,131 @@ class GenericIfaceEmitE2ETest {
                 }
                 """);
         assertEquals("5\nx", out, "bridges por erasure de parâmetros, não por nome+aridade");
+    }
+
+    private String runNative(Path tempDir, String source) throws IOException {
+        Path file = tempDir.resolve("N-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path outDir = tempDir.resolve("outn-" + System.nanoTime());
+        CompilationResult result = driver.compile(file, outDir, Target.NATIVE);
+        assertTrue(result.success(), "native compile failed: " + result.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        assertTrue(Files.exists(bin), "ELF produced");
+        try {
+            Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+            String output = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+            int ec = p.waitFor();
+            assertEquals(0, ec, "native exit " + ec + ", output: " + output);
+            return output;
+        } catch (InterruptedException e) {
+            throw new IOException("interrupted", e);
+        }
+    }
+
+    // ---- #613: bridge param-less (T get()) colidia com o concreto no mangling
+    //      Native e o record nunca ganhava bridge (slot da interface → int cru) ----
+
+    @Test
+    void recordParamLessCovariantReturnRunsOnNative(@TempDir Path tmp) throws IOException {
+        // RED pré-fix (medido 23/09, tip 4104657fb): `kof build --target native`
+        // gera ELF que sai com SIGSEGV (exit 139) e 0 bytes no stdout; o slot
+        // da vtable `Box.get` apontava para o concreto `Int get()` (int lido
+        // como Object no default `"Box: " + get()`). lowerRecord nunca chamava
+        // generateCovariantReturnBridges (só lowerClass).
+        String out = runNative(tmp, """
+                interface Box<T> {
+                    T get()
+                    default String describe() {
+                        return "Box: " + get()
+                    }
+                }
+                record IntBox(Int value) implements Box<Int> {
+                    Int get() { return value }
+                }
+                main() {
+                    println(IntBox(42).describe())
+                }
+                """);
+        assertEquals("Box: 42", out, "#613: record + interface genérica + default no Native");
+    }
+
+    // ---- #608 (face JVM — PR #609/#614, autoria Publio Santos): record (não
+    //      class) implementando interface genérica também precisa da bridge no
+    //      JVM — o invokeinterface do default usa o descritor apagado ----
+
+    @Test
+    void recordImplementingGenericInterfaceGetsErasureBridgeOnJvm(@TempDir Path tmp) throws IOException {
+        // RED pré-fix (medido 23/09, tip 99419aa0c): AbstractMethodError
+        // `Method IntBox.get()Ljava/lang/Object; is abstract` — o invokeinterface
+        // de describe() dispara pelo slot apagado da interface e o record só
+        // tinha `Int get()`. Mesma face do §356/#385 para classes; o lowerRecord
+        // nunca chamava generateCovariantReturnBridges no gate JVM.
+        String out = runJvm(tmp, """
+                interface Box<T> {
+                    T get()
+                    default String describe() {
+                        return "Box: " + get()
+                    }
+                }
+                record IntBox(Int value) implements Box<Int> {
+                    Int get() { return value }
+                }
+                main() {
+                    println(IntBox(42).describe())
+                }
+                """);
+        assertEquals("Box: 42", out, "#608: record implementando interface genérica sem bridge de erasure (JVM)");
+    }
+
+    @Test
+    void classParamLessCovariantReturnRunsOnNative(@TempDir Path tmp) throws IOException {
+        // RED pré-fix (medido 23/09): o bridge JÁ era gerado (lowerClass) mas o
+        // símbolo colidia com o concreto — os dois viravam `IntBox_get` (tag de
+        // params vazia) e o GNU as abortava com "symbol '.Lfe_IntBox_get'
+        // already defined" (COMP001). O sufixo de retorno do bridge (#613)
+        // separa os descritores, como o JVM faz.
+        String out = runNative(tmp, """
+                interface Box<T> {
+                    T get()
+                    default String describe() {
+                        return "Box: " + get()
+                    }
+                }
+                class IntBox implements Box<Int> {
+                    Int value
+                    public constructor(Int value) { this.value = value }
+                    Int get() { return value }
+                }
+                main() {
+                    println(IntBox(42).describe())
+                }
+                """);
+        assertEquals("Box: 42", out, "#613: class param-less covariante (param tag vazia) no Native");
+    }
+
+    @Test
+    void directConcreteCallStaysUnboxedOnNative(@TempDir Path tmp) throws IOException {
+        // Q4: o call site com owner de CLASSE tem de continuar escolhendo o
+        // MÉTODO CONCRETO (retorno Int cru), não o bridge boxado — `println`
+        // precisa de `42`, não do handle do box.
+        String out = runNative(tmp, """
+                interface Box<T> {
+                    T get()
+                    default String describe() {
+                        return "Box: " + get()
+                    }
+                }
+                record IntBox(Int value) implements Box<Int> {
+                    Int get() { return value }
+                }
+                main() {
+                    var b = IntBox(42)
+                    println(b.get())
+                    println(b.describe())
+                }
+                """);
+        assertEquals("42\nBox: 42", out, "#613: chamada direta no concreto continua sem box");
     }
 
     @Test

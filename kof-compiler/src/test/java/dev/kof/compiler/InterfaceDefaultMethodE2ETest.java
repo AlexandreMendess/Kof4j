@@ -174,4 +174,83 @@ class InterfaceDefaultMethodE2ETest {
         assertTrue(r.success(), "JVM compile failed (#213 static iface): " + r.diagnostics().getDiagnostics());
         assertEquals("ZV\nhey mel", runJvm(out));
     }
+
+    /** §248 verbatim repro: interface default method inherited by an implementor. */
+    private static final String DEFAULT_REPRO = """
+            interface Greeter {
+                String greet(String name)
+                String greetLoud(String name) { return greet(name).toUpperCase() }
+            }
+            class SimpleGreeter implements Greeter {
+                String greet(String name) { return "Hello " + name }
+            }
+            main() {
+                var g = new SimpleGreeter()
+                println(g.greetLoud("Alice"))
+                println(g.greet("Bob"))
+            }
+            """;
+
+    @Test
+    void defaultMethodRunsOnNative(@TempDir Path tempDir) throws IOException {
+        // §248: Native used to print `null` / `Hello Bob` (the default body
+        // resolved to an empty body) — silent cross-target divergence.
+        assertEquals("HELLO ALICE\nHello Bob", runNative(tempDir, DEFAULT_REPRO),
+                "§248: interface default must run on Native");
+    }
+
+    @Test
+    void defaultMethodRunsOnJs(@TempDir Path tempDir) throws IOException {
+        // §248: JS used to throw `TypeError: g.greetLoud is not a function`
+        // because the INTERFACE IR class is skipped and the implementor did not
+        // inherit the default body.
+        assertEquals("HELLO ALICE\nHello Bob", runJs(tempDir, DEFAULT_REPRO),
+                "§248: interface default must run on JS");
+    }
+
+    private String runNative(Path tempDir, String source) throws IOException {
+        Path file = tempDir.resolve("n-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path outDir = tempDir.resolve("outn-" + System.nanoTime());
+        CompilationResult r = driver.compile(file, outDir, Target.NATIVE);
+        assertTrue(r.success(), "Native compile failed (#248 default): " + r.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        assertTrue(Files.exists(bin), "ELF produced");
+        try {
+            Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec = p.waitFor();
+            assertEquals(0, ec, "Native exit " + ec + ", output: " + output);
+            return output;
+        } catch (InterruptedException e) {
+            throw new IOException("interrupted", e);
+        }
+    }
+
+    private String runJs(Path tempDir, String source) throws IOException {
+        Path file = tempDir.resolve("j-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path outDir = tempDir.resolve("outj-" + System.nanoTime());
+        CompilationResult r = driver.compile(file, outDir, Target.JS);
+        assertTrue(r.success(), "JS compile failed (#248 default): " + r.diagnostics().getDiagnostics());
+        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
+            int ec = dev.kof.runtime.KofJsRunner.run(findJsEntry(outDir), buf,
+                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
+            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
+            assertEquals(0, ec, "JS exit code, output: " + output);
+            return output;
+        }
+    }
+
+    private static Path findJsEntry(Path dir) throws IOException {
+        try (var s = Files.walk(dir)) {
+            var opt = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst();
+            if (opt.isPresent()) return opt.get();
+        }
+        try (var s = Files.walk(dir)) {
+            return s.filter(p -> p.toString().endsWith(".mjs"))
+                    .findFirst().orElseThrow(() -> new IOException("no .mjs in " + dir));
+        }
+    }
 }

@@ -39,8 +39,12 @@ sobre ler/escrever arquivos, trabalhar com paths e listar diretórios.
 | `File("x").writeText(s)` / `.appendText(s)` | Bool |
 | `File("x").readBytes()` | `Int[]` (0-255); `null` se falhar |
 | `File("x").writeBytes(b)` / `.appendBytes(b)` | Bool |
+| Params de bytes e impressão de um `Int[]` (§388) | Os params de bytes pedem **array primitivo** — `writeBytes(listOf(65,66))` é erro em tempo de compilação (`SEM099`, §388-A); imprimir o array inteiro usa o formato de container §107: `println(f.readBytes())` → `[65, 66]` (voto da mantenedora 21/09, §388-B) |
 | `File("x").size()` | Long; **lança exceção** se o arquivo não existe (02/09 — sem sentinela `-1`) |
 | `File("x").delete()` | Bool |
+| `File("x").mkdir()` / `.mkdirs()` | aliases POSIX de `create()` / `createDirectories()`: criam o diretório / todo o caminho (Bool) |
+
+**Membro desconhecido é erro em tempo de compilação (`SEM102`, #617):** um método que não está nas tabelas acima num valor `File`/`Directory`/`Path` não compila, com `'File' has no method 'x()'` (hint: `Directory(path).createDirectories()` para criar diretório). Antes do guard, a chamada compilava em silêncio e não fazia nada em runtime — as tabelas de membros aqui SÃO o contrato.
 | `File("x").name()` / `.path()` | String |
 
 Estáticas: `File.exists(p)`, `File.readText(p)`, `File.writeText(p, s)`,
@@ -53,6 +57,7 @@ Estáticas: `File.exists(p)`, `File.readText(p)`, `File.writeText(p, s)`,
 | `Directory("d").exists()` | Bool |
 | `Directory("d").create()` | cria; falha se já existe |
 | `Directory("d").createDirectories()` | cria recursivamente |
+| `Directory("d").mkdir()` / `.mkdirs()` | aliases POSIX de `create()` / `createDirectories()` |
 | `Directory("d").list()` | `List<String>` dos nomes (ordenado) |
 | `Directory("d").delete()` | remove diretório vazio |
 
@@ -101,7 +106,7 @@ println(file.readBytes().length)
   inexistente — o `-1` sentinela foi removido (era anti-pattern do corpus).
 - Operações booleanas retornam `true`/`false`.
 
-## Limitações atuais (0.4.0-beta)
+## Limitações atuais (0.5.0-beta)
 
 - Native: Linux x86_64 (syscalls POSIX) + riscv64/aarch64 placeholder via qemu; GC free-list aplica-se a buffers de arquivo.
 - Symlinks, timestamps e permissões são futuros.

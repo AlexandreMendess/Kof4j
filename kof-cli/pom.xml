@@ -1,7 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version='1.0' encoding='utf-8'?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -29,7 +27,7 @@
             <artifactId>kof-c-compiler</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <dependency>
+        <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><version>2.5.250</version><scope>test</scope></dependency><dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
@@ -61,11 +59,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <!--
-                      The embedded JavaScript engine (GraalJS/Truffle) is a
-                      multi-release jar; the shaded uber-jar must keep that
-                      attribute or Truffle refuses to initialize.
-                    -->
+                    
                     <createDependencyReducedPom>true</createDependencyReducedPom>
                     <transformers>
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
@@ -74,13 +68,8 @@
                                 <Multi-Release>true</Multi-Release>
                             </manifestEntries>
                         </transformer>
-                        <!--
-                          Truffle languages (js, regex) register themselves
-                          through META-INF/services; merging the providers
-                          keeps the embedded JavaScript engine fully working
-                          in the shaded uber-jar.
-                        -->
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                        
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                     </transformers>
                     <filters>
                         <filter>
@@ -89,11 +78,10 @@
                                 <exclude>META-INF/*.SF</exclude>
                                 <exclude>META-INF/*.DSA</exclude>
                                 <exclude>META-INF/*.RSA</exclude>
-                                <!-- multi-release deps (GraalJS/Truffle) trazem
-                                     module-info; o uber-jar não é um módulo JPMS -->
+                                
                                 <exclude>module-info.class</exclude>
                                 <exclude>META-INF/versions/*/module-info.class</exclude>
-                                <!-- o Manifest vem do transformer -->
+                                
                                 <exclude>META-INF/MANIFEST.MF</exclude>
                             </excludes>
                         </filter>

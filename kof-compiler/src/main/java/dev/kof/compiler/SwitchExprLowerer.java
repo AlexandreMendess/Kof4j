@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -12,7 +13,15 @@ public final class SwitchExprLowerer {
     static int emitSwitchExpr(CompilerDriver driver, SwitchExpr se, List<KofOperation> ops, String owner,
                                int localIdx, List<IRLocalVariable> locals) {
         Type switchType = ExpressionTyper.inferExprType(driver, se.expression(), locals);
-        Type resultType = ExpressionTyper.inferExprType(driver, se, locals);
+        // §601: a inferência do resultado corre ANTES do lowering — um primeiro
+        // case `Lit(var v) -> v` infere Unknown (o id bound pelo pattern não
+        // está em `locals` ainda) e o fallback sintético nasce BOXADO
+        // (defaultValueOp(Unknown)) contra corpos int = merge int×ref =
+        // VerifyError no load. Projeta os bindings dos patterns num
+        // locals-descartável só para a inferência (os slots reais continuam
+        // nascendo no emitPatternBinding, com os índices do emit).
+        Type resultType = ExpressionTyper.inferExprType(driver, se,
+                projectPatternBindings(driver, se.cases(), locals));
         // §149: switch exaustivo sobre enum NÃO tem default explícito; o fallback
         // sintético precisa ter o tipo do RESULTADO (corpo dos casos), não o tipo
         // do subject. Sem isso, `switch(c){case Color.Red -> 1 ...}` fazia o merge
@@ -93,6 +102,11 @@ public final class SwitchExprLowerer {
         } else {
             ops.add(new KofLoadLocal(switchType, switchTmp));
             localIdx = ExpressionLowerer.emitExpression(driver, sc.value(), ops, owner, localIdx, locals);
+            // #473: promove o literal do case ao tipo do subject (Int → Long/
+            // Double/Float) antes do EQ largo — sem isto o LCMP/DCMP operava
+            // sobre largura errada e o frame do ASM estourava.
+            Type caseValType = ExpressionTyper.inferExprType(driver, sc.value(), locals);
+            driver.emitWideningIfNeeded(ops, caseValType, switchType);
             if (Type.isString(switchType)) {
                 // igualdade de String é por conteúdo (bug 4 do statement)
                 ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
@@ -170,5 +184,46 @@ public final class SwitchExprLowerer {
             ops.add(new KofStoreLocal(fieldType, varIdx));
         }
         return localIdx;
+    }
+
+    /**
+     * §601 — cópia DESCARTÁVEL de `locals` com os bindings de pattern dos
+     * cases já projetados (nome+tipo, os mesmos que o {@link #emitPatternBinding}
+     * criará), para a inferência do tipo do resultado da switch-expr correr
+     * com os identificadores bound. Sem emit; os índices são fictícios — a
+     * alocação real acontece no lowering, com a numeração do emit.
+     */
+    static List<IRLocalVariable> projectPatternBindings(CompilerDriver driver,
+            List<SwitchExprCase> cases, List<IRLocalVariable> locals) {
+        List<IRLocalVariable> proj = new ArrayList<>(locals);
+        int ghost = -1;
+        for (SwitchExprCase c : cases) {
+            if (!(c.value() instanceof PatternExpr pe)) continue;
+            Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
+            if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
+            if (TypeMetrics.isPrimitiveType(patType)) continue;
+            if (pe.varName() != null) {
+                proj.add(new IRLocalVariable(ghost--, pe.varName(), patType));
+                continue;
+            }
+            proj.add(new IRLocalVariable(ghost--, "#patCast", patType));
+            String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
+            for (int fi = 0; fi < pe.fieldVars().size(); fi++) {
+                Type fieldType = Type.UnknownType.UNKNOWN;
+                if (driver.currentUnit != null) {
+                    for (AstNode d : driver.currentUnit.declarations()) {
+                        if (d instanceof RecordDeclarationNode rec && rec.name().equals(simple)) {
+                            if (fi < rec.components().size()) {
+                                fieldType = CompilerTypes.toType(rec.components().get(fi).type(), driver.currentUnit);
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (fieldType instanceof Type.UnknownType) fieldType = BuiltinTypes.STRING;
+                proj.add(new IRLocalVariable(ghost--, pe.fieldVars().get(fi), fieldType));
+            }
+        }
+        return proj;
     }
 }

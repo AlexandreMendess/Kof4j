@@ -2,7 +2,7 @@
 
 # 00 — Introduction
 
-> **Kof 0.4.0-beta — Sep 2026 — targets jvm/native/native.risc/native.arm/js/kofc**
+> **Kof 0.5.0-beta — Sep 2026 — targets jvm/native/native.risc/native.arm/js/kofc**
 
 ## What Kof is
 

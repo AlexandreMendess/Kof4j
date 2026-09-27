@@ -2,7 +2,7 @@
 
 # Roadmap KofNative
 
-> **0.4.0-beta — set 2026 — free-list GC done, Target separation done, MySQL via kof_db WIP**
+> **0.5.0-beta — set 2026 — free-list GC done, Target separation done, MySQL via kof_db WIP**
 
 ## Princípios
 

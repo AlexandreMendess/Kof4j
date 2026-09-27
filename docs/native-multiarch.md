@@ -65,7 +65,10 @@
 > the collector (G-4) is what actually reclaims; (2) the
 > DB001 cross face CLOSED 15/09 (SQLite; JS keeps DB001) and the CONC001
 > helpers (selectAny/done/poll/cancel/cancelled/awaitTimeout) CLOSED 15/09
-> — remaining refusals: SECN000/JSN004 (OTP001 removed 19/09); (3) FP-collection on cross
+> and `channel<T>` send/receive CLOSED 23/09 (slice `RtB61`, §423) — remaining refusals: SECN000/JSN004,
+> `kof.io` File/Path/Directory → **NAT006** and web-T1 `listen`/`route` →
+> **NAT007** (§427, 21/09; honest compile-time refusal — the x86_64 runtimes
+> were never ported to the cross) (OTP001 removed 19/09); (3) FP-collection on cross
 > (FLT001 CLOSED 15/09 — slice `RtB45`; §107 record/nested **CLOSED 19/09 ON
 > ALL 3 ARCHES** — x86 `.rodata` recursive descriptor (face (3) x86) + cross
 > port (face (4)): slice `B39` now interprets the SAME descriptor grammar
@@ -284,12 +287,13 @@ Each step: commit with the complete cross suite green + DOING.md on the line.
 > markers — did NOT need the x86 `kof_heap_root_end` of S-5); G-4 (sweep+
 > collect) is next and does not depend on it either.
 >
-> **Beyond the GC (future, no scheduled step):** the maintainer directive of
+> **Beyond the GC (promoted to development 22/09):** the maintainer directive of
 > 15/09 ("all native code must also talk directly to barebones — bootable code
-> for microcontrollers, legacy and UEFI with Kof") is recorded, decomposed and
-> kept plan-only in `docs/development/future/PLAN-BAREMETAL-BOOT.md` (faces
-> B-0…B-5: `kof_plat_*` HAL seam + freestanding profile + UEFI/BIOS/MCU). The
-> MCU face depends on the collector (G-4/G-5) above.
+> for microcontrollers, legacy and UEFI with Kof") is decomposed in
+> `docs/PLAN-BAREMETAL-BOOT.md` (faces
+> B-0…B-6: `kof_plat_*` HAL seam + freestanding profile + UEFI/BIOS/MCU + x86_64
+> ring0/ring1) — **IN DEVELOPMENT** since 22/09 (`D-BAREMETAL-BOOT`, maintainer
+> order). The MCU face depends on the collector (G-4/G-5) above.
 >
 > **Status:** `IN DEVELOPMENT (partial)` — **riscv64 + aarch64 with complete core (03/09)**: classes/arrays/List/strings/instanceof/switch/try-catch/FP/recursion in pure asm on both; advanced parity pending *(see re-audit 12/09 above — much of what was "pending" already runs under qemu; what remains has an honest gap code)*.
 > **Version:** 0.2.6-beta · **Date:** 2026-09-03
@@ -537,5 +541,5 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters
   are hardwired to Linux `ecall`/`syscall` and a `_start` ABI, and there is no
-  freestanding link profile. Plan-only, not scheduled:
-  `docs/development/future/PLAN-BAREMETAL-BOOT.md` (faces B-0…B-5).
+  freestanding link profile. IN DEVELOPMENT since 22/09:
+  `docs/PLAN-BAREMETAL-BOOT.md` (faces B-0…B-6).

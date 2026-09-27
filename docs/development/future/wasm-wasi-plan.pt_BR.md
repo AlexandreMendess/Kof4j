@@ -457,7 +457,7 @@ implementação real. Gerar `.wasm` **não** é suficiente:
 
 ## 33. Relação com o roadmap
 
-- A fila transversal de `docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
+- A fila transversal de `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
   lista **WASM** como capacidade (série X) — esta doc é a spec profunda
   dela; a *ordem* obedece **R12** (estágio SYSTEMS fecha primeiro).
 - `roadmap.md` §23 é o único plano ordenado — promoção de `future/` exige

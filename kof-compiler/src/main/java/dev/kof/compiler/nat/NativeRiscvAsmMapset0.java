@@ -63,15 +63,24 @@ public final class NativeRiscvAsmMapset0 {
                 add  t1, t1, t2
                 ld   a0, 0(t1)           # candidato
                 li   t3, 1
-                bne  s3, t3, .Lkmf_raw
+                beq  s3, t3, .Lkmf_str
+                li   t3, 2
+                beq  s3, t3, .Lkmf_obj
+            .Lkmf_raw:
+                bne  a0, s1, .Lkmf_next
+                j    .Lkmf_hit
+            .Lkmf_str:
                 beqz a0, .Lkmf_next
                 mv   a1, s1
                 call kof_string_equals
                 bnez a0, .Lkmf_hit
                 j    .Lkmf_next
-            .Lkmf_raw:
-                bne  a0, s1, .Lkmf_next
-                j    .Lkmf_hit
+            .Lkmf_obj:                      # §104b-ii: tag 2 = objeto Kof
+                beqz a0, .Lkmf_next
+                mv   a1, s1
+                call kof_obj_equals
+                bnez a0, .Lkmf_hit
+                j    .Lkmf_next
             .Lkmf_next:
                 addi s2, s2, 1
                 j    .Lkmf_loop
@@ -316,9 +325,24 @@ public final class NativeRiscvAsmMapset0 {
                 seqz a0, a0
                 ret
 
-            # kof_map_clear(map)
+            # kof_map_clear(map) — D-MEMORY-CLEAR (O-03): anula keys e vals
+            # ANTES de encolher (o map nao retem mais nenhuma referencia)
             .globl kof_map_clear
             kof_map_clear:
+                lw   t0, 16(a0)          # size
+                ld   t1, 24(a0)          # keys
+                ld   t2, 32(a0)          # vals
+                li   t3, 0               # i
+            .LKMC_loop:
+                bge  t3, t0, .LKMC_done
+                slli t4, t3, 3
+                add  t5, t1, t4
+                sd   zero, 0(t5)
+                add  t5, t2, t4
+                sd   zero, 0(t5)
+                addi t3, t3, 1
+                j    .LKMC_loop
+            .LKMC_done:
                 sw   zero, 16(a0)
                 ret
 
@@ -429,6 +453,8 @@ public final class NativeRiscvAsmMapset0 {
                 ld   t3, 0(t1)           # candidato
                 li   t4, 1
                 beq  s2, t4, .Lksc_str
+                li   t4, 2
+                beq  s2, t4, .Lksc_obj
                 beq  t3, s1, .Lksc_yes   # pointer
                 j    .Lksc_next
             .Lksc_str:
@@ -436,6 +462,13 @@ public final class NativeRiscvAsmMapset0 {
                 mv   a0, t3
                 mv   a1, s1
                 call kof_string_equals
+                bnez a0, .Lksc_yes
+                j    .Lksc_next
+            .Lksc_obj:
+                beqz t3, .Lksc_next
+                mv   a0, t3
+                mv   a1, s1
+                call kof_obj_equals
                 bnez a0, .Lksc_yes
             .Lksc_next:
                 addi s3, s3, 1
@@ -504,6 +537,8 @@ public final class NativeRiscvAsmMapset0 {
                 ld   t3, 0(t1)
                 li   t4, 1
                 beq  s2, t4, .Lksr_str
+                li   t4, 2
+                beq  s2, t4, .Lksr_obj
                 beq  t3, s1, .Lksr_found
                 j    .Lksr_next
             .Lksr_str:
@@ -511,6 +546,13 @@ public final class NativeRiscvAsmMapset0 {
                 mv   a0, t3
                 mv   a1, s1
                 call kof_string_equals
+                bnez a0, .Lksr_found
+                j    .Lksr_next
+            .Lksr_obj:
+                beqz t3, .Lksr_next
+                mv   a0, t3
+                mv   a1, s1
+                call kof_obj_equals
                 bnez a0, .Lksr_found
             .Lksr_next:
                 addi s3, s3, 1

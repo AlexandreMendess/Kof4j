@@ -2,7 +2,7 @@
 
 # Idioms — Classes
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.4.0-beta (Sep 2026)
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.5.0-beta (Sep 2026)
 
 ## What it is
 
@@ -151,7 +151,7 @@ class Rect extends Shape {
 }
 ```
 
-## Generics Box<T> (0.4.0-beta)
+## Generics Box<T> (0.5.0-beta)
 
 ```kof
 class Box<T>(T value) {
@@ -161,7 +161,59 @@ var b: Box<Int> = Box(42)
 println(b.get())   // erasure + substituteTypeVariable — Native OK
 ```
 
-## Method Overloading (0.4.0-beta, §131)
+## Sealed types and exhaustive switch (0.5.0-beta, §X5.1/§X5.2)
+
+`sealed` closes the set of direct subtypes: every direct subtype must live in
+the **same compilation unit** as the sealed type (`SEM080`). A `switch`
+expression over a sealed subject must cover every direct subtype, or provide
+`default` (`SEM081`).
+
+```kof
+sealed class Shape
+class Circle extends Shape { ... }
+class Square extends Shape { ... }
+
+String describe(Shape sh) {
+    return switch (sh) {
+        case Circle c -> "circle"
+        case Square q -> "square"
+    }
+}
+```
+
+- `sealed` is a **contextual** keyword (still a valid identifier).
+- It is erased in codegen — no runtime cost, identical on every target.
+
+## Variance `out`/`in` and use-site projection (0.5.0-beta, §X5.3/§X5.4)
+
+`out T` (covariant) / `in T` (contravariant) on a generic parameter states that
+the type only **produces** / only **consumes** `T`; with no prefix the parameter
+is invariant (the default).
+
+```kof
+record Source<out T>(T value)      // read-only component = out position
+class Sink<in T> { String consume(T v) { return "x" } }
+
+Source<Animal> up(Source<Dog> d) { return d }  // OK — covariance
+Sink<Dog> down(Sink<Animal> w) { return w }    // OK — contravariance
+```
+
+A `out T` in an input position (parameter/writable field) or `in T` in an output
+position (return/field/record component) is unsound → `SEM082`.
+
+The projection can also be written at the **use site**, on any type — even an
+invariant one:
+
+```kof
+List<out Animal> up(List<Dog> xs) { return xs }   // covariant at the use site
+List<in Dog> down(List<Animal> xs) { return xs }  // contravariant at the use site
+List<Animal> same(List<Dog> xs) { return xs }     // SEM021 — invariant
+```
+
+- `out`/`in` remain contextual keywords inside type-arguments.
+- Variance and projection are **compile-time only** — erased in codegen.
+
+## Method Overloading (0.5.0-beta, §131)
 
 ```kof
 class Calc {

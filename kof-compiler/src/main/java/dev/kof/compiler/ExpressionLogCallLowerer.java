@@ -16,6 +16,8 @@ public final class ExpressionLogCallLowerer {
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     KofLog.LogCall logCall = KofLog.staticCall(mc.methodName(), argTypes);
     if (logCall != null) {
+        SecretRevealLint.warnIfRevealed(driver, mc.arguments(),
+                "log." + mc.methodName());
         if (!KofLog.supportedOn(driver.target)) {
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",

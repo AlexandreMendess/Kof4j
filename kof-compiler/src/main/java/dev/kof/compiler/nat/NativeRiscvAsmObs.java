@@ -41,9 +41,7 @@ public final class NativeRiscvAsmObs {
                 sw   zero, 20(s1)
                 addi a0, s1, 24                # buf = dados
                 mv   a1, s0
-                li   a2, 0
-                li   a7, 278                   # getrandom(2)
-                ecall
+                call kof_plat_random           # (getrandom)
                 bltz a0, .Lorh_fail
                 addi s2, s0, -1                # i = n-1; HEX EXPANDE IN PLACE — loop
             .Lorh_loop:                        # REVERSO (como o x86): avancar leria
@@ -92,10 +90,8 @@ public final class NativeRiscvAsmObs {
             kof_obs_epoch_micros:
                 addi sp, sp, -32
                 sd   ra, 24(sp)
-                addi a1, sp, 0                 # timespec no frame proprio
-                li   a0, 0
-                li   a7, 113                   # clock_gettime
-                ecall
+                addi a0, sp, 0                 # timespec no frame proprio
+                call kof_plat_time
                 ld   t0, 0(sp)                 # sec
                 ld   t1, 8(sp)                 # nsec
                 li   t2, 1000
@@ -112,10 +108,8 @@ public final class NativeRiscvAsmObs {
             kof_obs_mono_nanos:
                 addi sp, sp, -32
                 sd   ra, 24(sp)
-                addi a1, sp, 0
-                li   a0, 1
-                li   a7, 113
-                ecall
+                addi a0, sp, 0
+                call kof_plat_time_mono
                 ld   t0, 0(sp)
                 ld   t1, 8(sp)
                 li   t2, 1000000000

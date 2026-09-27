@@ -121,6 +121,29 @@ class NativeE2ETest {
         assertTrue(result.success(), "Compilation should succeed");
     }
 
+    @Test
+    void execPrintNullRecordAndNullStringMatchesJvm(@TempDir Path tempDir) throws IOException {
+        // §396: println CRU de NULL (record via `T?`-API e String? via API) SIGSEGVava
+        // no x86-64 — o caminho generico de kof_println desreferencia (%rdi) no teste
+        // de MAGIC sem guard de null. Oraculo JVM (medido): "null\nnull\nPoint[x=1, y=2]".
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            record Point(Int x, Int y)
+            Point? nope() {
+                return null
+            }
+            String? noString() {
+                return null
+            }
+            main() {
+                println(nope())
+                println(noString())
+                println(Point(1, 2))
+            }
+            """);
+        runNative(source, tempDir.resolve("out"), "null\nnull\nPoint[x=1, y=2]");
+    }
+
 
 
 
@@ -826,6 +849,40 @@ class NativeE2ETest {
             }
             """);
         runNative(source, tempDir.resolve("out"), "7");
+    }
+
+    // §444 — generic class + T-ARG constructor: `Box(7)` tipa o local como Box
+    // SEM type-arguments (BuiltinCallTyper devolve ClassType de args vazios),
+    // então `b.get()`/`b.value` ficam TypeVariable(T) e o dispatcher do
+    // valueOf nativo não casava ramo algum (retornava sem emitir conversão) —
+    // o box de erasure cru (o ctor genérico boxeia o primitivo) caía no
+    // println_string: stdout vazio/lixo com exit 0. Fix: ramo TypeVariable →
+    // kof_box_to_string (invariante §284: T apagado é box ou referência) no
+    // x86 e no cross riscv (aarch64 herda via tradutor). Oracle JVM: 7/7/hi/true.
+    @Test
+    void genericCtorArgPrintsLikeJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            class Box<T> {
+                T value
+                public constructor(T value) {
+                    this.value = value
+                }
+                get(): T {
+                    return this.value
+                }
+            }
+            main() {
+                var b = Box(7)
+                println(b.get())
+                println(b.value)
+                var s = Box("hi")
+                println(s.get())
+                var t = Box(true)
+                println(t.get())
+            }
+            """);
+        runNative(source, tempDir.resolve("out"), "7\n7\nhi\ntrue");
     }
 
     @Test

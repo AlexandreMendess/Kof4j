@@ -30,7 +30,11 @@ class ExternalClasspathE2ETest {
         Files.writeString(srcRoot.resolve("ext/Greeter.java"), """
             package ext;
             public class Greeter {
+                private final String name;
+                public Greeter() { this("nobody"); }
+                public Greeter(String name) { this.name = name; }
                 public static String hello(String n) { return "hi " + n; }
+                public String greet(String who) { return "hi " + who + " from " + name; }
             }
             """);
         Path classes = tempDir.resolve("extcls");
@@ -59,7 +63,7 @@ class ExternalClasspathE2ETest {
         assertTrue(r.success(), "compilação deve passar (PKG006/SEM011 não podem aparecer): "
                 + r.diagnostics().getDiagnostics());
         ProcessBuilder pb = new ProcessBuilder("java", "-cp",
-                tempDir.resolve("out").toString() + ":" + jar, "Default.Main");
+                tempDir.resolve("out").toString() + java.io.File.pathSeparator + jar, "Default.Main");
         pb.redirectErrorStream(true);
         Process p = pb.start();
         String out = new String(p.getInputStream().readAllBytes()).trim();
@@ -86,6 +90,57 @@ class ExternalClasspathE2ETest {
                 println(g != null)
             }
             """, "true");
+    }
+
+    @Test
+    void implicitConstructorOnExternalClassFromJarCompilesAndRuns(@TempDir Path tempDir) throws Exception {
+        // #568 (defeito (ii) do #566): o construtor IMPLICITO `Greeter()`
+        // (sem `new`) caía no resolver de funções e disparava SEM015 falso,
+        // embora o emit/lowering funcionem e o programa rode. O teste §134
+        // cobria só a chamada estática (`Greeter.hello`) e o `new Greeter()`.
+        Path jar = buildJar(tempDir);
+        compileAndRun(tempDir, jar, """
+            import ext.Greeter
+            main() {
+                var g = Greeter()
+                println(g != null)
+            }
+            """, "true");
+    }
+
+    @Test
+    void implicitConstructorWithArgsAndInstanceCallOnExternalClass(@TempDir Path tempDir) throws Exception {
+        // #568 — caso exato do relator (#566): `Greeter("producer").greet("consumer")`.
+        // Prova que o <init> com ARGUMENTOS resolve pelo descritor real do
+        // classpath externo (não só o default) e que o método de instância
+        // encadeado no objeto recém-construído despacha certo.
+        Path jar = buildJar(tempDir);
+        compileAndRun(tempDir, jar, """
+            import ext.Greeter
+            main() { println(Greeter("producer").greet("consumer")) }
+            """, "hi consumer from producer");
+    }
+
+    @Test
+    void implicitConstructorOnUnknownExternalClassStillFailsNotSilent(@TempDir Path tempDir) throws Exception {
+        // R6: o fix não pode virar bypass — um nome que NÃO existe nos entries
+        // (nem é classe do módulo) continua SEM015 honesto.
+        Path jar = buildJar(tempDir);
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            import ext.Greeter
+            main() {
+                var g = Absent()
+                println(g != null)
+            }
+            """);
+        CompilerDriver d = new CompilerDriver();
+        d.setExternalClasspath(List.of(jar));
+        CompilationResult r = d.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(r.success(), "nome inexistente não pode compilar");
+        assertTrue(r.diagnostics().getDiagnostics().stream()
+                .anyMatch(x -> x.code().equals("SEM015")),
+                "esperado SEM015, veio: " + r.diagnostics().getDiagnostics());
     }
 
     @Test

@@ -38,9 +38,13 @@ class KofDebugNativeTest {
         pb.redirectErrorStream(true);
         pb.environment().putAll(env);
         Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertTrue(p.waitFor(120, TimeUnit.SECONDS), "timeout\n" + out);
-        return new Cli(p.exitValue(), out);
+        try {
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(p.waitFor(120, TimeUnit.SECONDS), "timeout\n" + out);
+            return new Cli(p.exitValue(), out);
+        } finally {
+            CliProcessTree.terminate(p);
+        }
     }
 
     private static String stubGdb(Path dir) throws Exception {

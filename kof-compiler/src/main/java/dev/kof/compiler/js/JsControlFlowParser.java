@@ -176,10 +176,14 @@ List<JsIr.JsStatement> parseStatement(MethodCtx ctx, int[] pos) {
      * Label(false), (else), Label(end)].
      */
 JsIr.JsStatement parseIfBody(MethodCtx ctx, int[] pos, KofConditionalJump cj,
-                                         JsIr.JsExpression condition, List<Object> stack) {        if (!(ctx.ops.get(pos[0]) instanceof KofLabel kl && kl.label().equals(cj.trueLabel()))) {
+                                          JsIr.JsExpression condition) {
+        if (!(ctx.ops.get(pos[0]) instanceof KofLabel kl && kl.label().equals(cj.trueLabel()))) {
             throw new IllegalStateException("KofJS: if pattern expected Label(true)");
         }
         pos[0]++;
+        // §380: falseLabel ativo na pilha — um `if` interno nunca consome label de
+        // estrutura envolvente (exceção aborta a compilação: sem leak de pilha).
+        ctx.enclosingIfFalses.push(cj.falseLabel());
         List<JsIr.JsStatement> thenBranch = parseStatements(ctx, pos, Set.of(cj.falseLabel()), new ArrayList<>());
         if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel kl2
                 && kl2.label().equals(cj.falseLabel())) {
@@ -190,9 +194,11 @@ JsIr.JsStatement parseIfBody(MethodCtx ctx, int[] pos, KofConditionalJump cj,
             // endLabel de um try ENVOLVENTE não é do if (consumi-lo deixa o
             // KofCatchStart solto no statement level — COMP002, §174).
             KofLabel end = (KofLabel) ctx.ops.get(pos[0]);
-            if (ctx.isIfEndLabel(pos, end.label())) {
+            if (ctx.isIfEndLabel(pos, end.label())
+                    && !ctx.isEnclosingIfFalse(end.label())) { // §380: fronteira alheia
                 pos[0]++;
             }
+            ctx.enclosingIfFalses.pop();
             return new JsIr.JsIf(condition, thenBranch, List.of());
         }
         // §147 (12/09, #101 — detalhe em JsIfThrowElse): IR linear sem
@@ -205,10 +211,12 @@ JsIr.JsStatement parseIfBody(MethodCtx ctx, int[] pos, KofConditionalJump cj,
             elseBranch = parseStatements(ctx, pos, Set.of(), new ArrayList<>());
         }
         if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel kl3
-                && ctx.isIfEndLabel(pos, kl3.label())) {
+                && ctx.isIfEndLabel(pos, kl3.label())
+                && !ctx.isEnclosingIfFalse(kl3.label())) { // §380
             // Label(end) — end of else branch (loop labels belong to the loop)
             pos[0]++;
         }
+        ctx.enclosingIfFalses.pop();
         return new JsIr.JsIf(condition, thenBranch, elseBranch);
     }
 

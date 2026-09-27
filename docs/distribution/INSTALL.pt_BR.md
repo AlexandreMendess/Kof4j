@@ -5,7 +5,7 @@
 Guia oficial de instalação a partir dos artefatos publicados no **GitHub
 Releases**. Siga o passo a passo do **seu sistema** e pronto.
 
-> **Versão atual:** 0.4.0-beta (ver `VERSION` na raiz do repo). Este guia **não depende da
+> **Versão atual:** 0.5.0-beta (ver `VERSION` na raiz do repo). Este guia **não depende da
 > versão**: os comandos funcionam em qualquer release, atual ou futura.
 > Você não precisa saber qual é a versão para instalar.
 
@@ -160,7 +160,11 @@ echo 'export PATH="$HOME/<pasta>/kof-*-macos-arm64/bin:$PATH"' >> ~/.zshrc
 ```
 
 > Se o macOS avisar sobre o arquivo, é só clicar em **Abrir** uma vez nas
-> Configurações de Privacidade — o pacote é assinado pela pipeline oficial.
+> Configurações de Privacidade — o pacote **não é assinado pela Apple** (a
+> pipeline não faz codesign hoje). A confiança ancora no digest `SHA256SUMS`
+> verificado acima; proveniência de build atestada pelo workflow oficial é o
+> contrato ratificado `DECISIONS.md` §D-ARTIFACT-TRUST (fila de execução em
+> pouso), nunca uma afirmação em tempo presente.
 
 ### 🪟 Windows
 
@@ -197,7 +201,7 @@ kof version
 Saída esperada (o número é o da sua release):
 
 ```
-kof 0.4.0-beta
+kof 0.5.0-beta
 ```
 
 Relatório completo do ambiente:
@@ -209,7 +213,7 @@ kof info
 Saída esperada (resumo):
 
 ```
-Kof 0.4.0-beta
+Kof 0.5.0-beta
 Release channel: beta
 Tooling API: 21
 OS: linux
@@ -256,7 +260,7 @@ Principais comandos já disponíveis (detalhes em
 | `kof build <dir|file.kf> [--target ...]` | compila para jvm / native / native.risc / native.arm / js / android |
 | `kof serve app.kf` | sobe um app `web.app()` |
 | `kof test <dir>` | roda a suíte de testes |
-| `kof deploy <dir|file.kf> [--target jvm|native|js|android[,..]|all] [--publish [<owner/repo>]]` | empacota uma release autocontida: artefato + `RELEASE.md` + `SHA256SUMS` + `.tar.gz` (JS embarca o fecho do runtime, §298); lista vírgula/`all` faz o multi-target da MESMA fonte com um `.deploy-manifest.json` por execução (8.4); `--publish` sobe o(s) artefato(s) ao GitHub Releases (`GH_TOKEN`, D2-A); cross riscv64/aarch64 recusam com `DEP001` |
+| `kof deploy <dir|file.kf> [--target jvm|native|native.riscv64|native.aarch64|js|android[,..]|all] [--publish [<owner/repo>]]` | empacota uma release autocontida: artefato + `RELEASE.md` + `SHA256SUMS` + `.tar.gz` (JS embarca o fecho do runtime, §298); lista vírgula/`all` faz o multi-target da MESMA fonte com um `.deploy-manifest.json` por execução (8.4); `--publish` sobe o(s) artefato(s) ao GitHub Releases (`GH_TOKEN`, D2-A); cross riscv64/aarch64 também empacota o ELF cross (X9 fatia 6; sem a toolchain cross a falha honesta nomeia a ferramenta — `KOF_CROSS_PREFIX` sobrepõe o prefixo das ferramentas `riscv64-`/`aarch64-`) |
 | `kof check <dir>` | type-check sem emitir código |
 | `kof script <f.kf>` / `kof repl` | execução direta / REPL |
 | `kof fmt <f.kf>` | formata o código |

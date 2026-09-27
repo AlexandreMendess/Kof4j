@@ -97,6 +97,22 @@ final class JsRuntimeTime {
                 }
                 kofTimeJobs.delete(key);
             }
+
+            // §426 (improved 25/09): time.collect() (manual GC). Previously
+            // imported but never exported -> clean compile + module-load
+            // failure; the fix is a REAL host request, not a no-op stub (R6).
+            // The KofJsRunner host exposes kof_platform.gcCollect()
+            // (System.gc(), the exact JVM semantics used by JVM/SCRIPT). A
+            // hostless runtime (browser) has no GC control -> honest error,
+            // never a silent success (R7).
+            export function kofGcCollectNow() {
+                const host = globalThis.kof_platform;
+                if (host) {
+                    host.gcCollect();
+                    return;
+                }
+                throw new Error("kof.time: collect() is not available in this host (no GC control)");
+            }
             """;
     }
 }

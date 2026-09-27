@@ -1,0 +1,221 @@
+package kofmd
+
+import kofmd.KofmdTypes
+import kofmd.KofmdLists
+import kofmd.KofmdScan
+import kofmd.KofmdInfer
+
+class KofmdSchemas {
+    parseSchemas(String text): List<KofmdSchema> {
+        var lists = KofmdLists()
+        var seed = KofmdSchema("Kofmd", lists.newSchemaFieldList())
+        var schemas = listOf(seed)
+        schemas.clear()
+        String[] lines = text.split("\n")
+        for (var line in lines) {
+            String trimmed = line.trim()
+            if (KofmdScan().isSchemaLine(trimmed)) {
+                var parsed = parseSchemaLine(trimmed)
+                if (parsed.name().length > 0) {
+                    schemas.add(parsed)
+                }
+            }
+        }
+        return schemas
+    }
+
+    parseSchemaLine(String trimmed): KofmdSchema {
+        var lists = KofmdLists()
+        var empty = KofmdSchema("", lists.newSchemaFieldList())
+        if (!KofmdScan().isSchemaLine(trimmed)) {
+            return empty
+        }
+        String body = trimmed.substring(7, trimmed.length).trim()
+        Int open = schemaParen(body)
+        if (open < 0) {
+            return empty
+        }
+        String name = body.substring(0, open).trim()
+        if (!isTypeName(name)) {
+            return empty
+        }
+        String inner = body.substring(open + 1, body.length - 1)
+        var seed = KofmdSchemaField("kofmd", "String")
+        var fields = listOf(seed)
+        fields.clear()
+        String[] parts = inner.split(",")
+        for (var part in parts) {
+            String entry = part.trim()
+            if (entry.length == 0) {
+                continue
+            }
+            String[] words = entry.split(" ")
+            String typeName = ""
+            String fieldName = ""
+            for (var word in words) {
+                String token = word.trim()
+                if (token.length == 0) {
+                    continue
+                }
+                if (typeName.length == 0) {
+                    typeName = token
+                    continue
+                }
+                if (fieldName.length == 0) {
+                    fieldName = token
+                }
+            }
+            if (typeName.length == 0 || fieldName.length == 0) {
+                continue
+            }
+            if (!isTypeName(typeName)) {
+                continue
+            }
+            if (!isFieldKey(fieldName)) {
+                continue
+            }
+            fields.add(KofmdSchemaField(fieldName, typeName))
+        }
+        return KofmdSchema(name, fields)
+    }
+
+    schemaParen(String body): Int {
+        var index = 0
+        while (index < body.length) {
+            if (body.charAt(index) == 40) {
+                return index
+            }
+            index = index + 1
+        }
+        return -1
+    }
+
+    isTypeName(String name): Bool {
+        if (name.length == 0) {
+            return false
+        }
+        Int first = name.charAt(0)
+        if (first < 65 || first > 90) {
+            return false
+        }
+        var index = 1
+        while (index < name.length) {
+            Int code = name.charAt(index)
+            Bool word = false
+            if (code >= 65 && code <= 90) {
+                word = true
+            }
+            if (code >= 97 && code <= 122) {
+                word = true
+            }
+            if (code >= 48 && code <= 57) {
+                word = true
+            }
+            if (code == 95) {
+                word = true
+            }
+            if (!word) {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+
+    isFieldKey(String name): Bool {
+        if (name.length == 0) {
+            return false
+        }
+        Int first = name.charAt(0)
+        if (first < 97 || first > 122) {
+            return false
+        }
+        var index = 1
+        while (index < name.length) {
+            Int code = name.charAt(index)
+            Bool word = false
+            if (code >= 97 && code <= 122) {
+                word = true
+            }
+            if (code >= 48 && code <= 57) {
+                word = true
+            }
+            if (code == 95) {
+                word = true
+            }
+            if (!word) {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+
+    validateField(KofmdField field, KofmdSchema schema): String {
+        Int slot = schemaSlot(schema, field.name())
+        if (slot < 0) {
+            return ""
+        }
+        String want = schema.fields().get(slot).type()
+        if (want.endsWith("?")) {
+            want = want.substring(0, want.length - 1)
+        }
+        if (field.items().size > 0) {
+            return "MD002"
+        }
+        if (field.value().length == 0) {
+            return ""
+        }
+        String got = KofmdInfer().inferScalar(field.value(), field.quoted())
+        if (got == want) {
+            return ""
+        }
+        if (want == "String") {
+            return ""
+        }
+        if (want == "Float" && got == "Int") {
+            return ""
+        }
+        return "MD002"
+    }
+
+    schemaSlot(KofmdSchema schema, String name): Int {
+        var index = 0
+        while (index < schema.fields().size) {
+            if (schema.fields().get(index).name() == name) {
+                return index
+            }
+            index = index + 1
+        }
+        return -1
+    }
+
+    validateBlock(KofmdBlock block, KofmdSchema schema): List<String> {
+        var diags = KofmdLists().newStrList()
+        var index = 0
+        while (index < block.fields().size) {
+            KofmdField field = block.fields().get(index)
+            String diag = validateField(field, schema)
+            if (diag.length > 0) {
+                diags.add(diag + ":" + field.line().toString() + ":" + field.name())
+            }
+            index = index + 1
+        }
+        return diags
+    }
+
+    validateDoc(KofmdDoc doc, KofmdSchema schema): List<String> {
+        var diags = KofmdLists().newStrList()
+        var index = 0
+        while (index < doc.blocks().size) {
+            List<String> blockDiags = validateBlock(doc.blocks().get(index), schema)
+            var inner = 0
+            while (inner < blockDiags.size) {
+                diags.add(blockDiags.get(inner))
+                inner = inner + 1
+            }
+            index = index + 1
+        }
+        return diags
+    }
+}

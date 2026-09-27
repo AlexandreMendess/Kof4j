@@ -86,10 +86,11 @@ public final class KofTime {
         // civil Hinnant + alocação de String no asm; harness C 200k fuzz +
         // matriz stdtime2 rodando local).
         // S7c-1 (11/09): riscv64/aarch64 FECHADOS — TIME002 encerrado.
-        // Fatia B35 (NativeRiscvAsmRtB35) = transcrição fiel da máquina x86
+        // Fatia B33 (NativeRiscvAsmRtB33) = transcrição fiel da máquina x86
         // (parse2/civil/put4/put2 + kof_time_addDays/diffDays) reusando
         // kdv_valid/kdv_epoch da B14; aarch64 via tradutor (divu/remu/
-        // sext.w cobertos — verificado). golden stdtime2 nos 4 targets.
+        // sext.w cobertos — verificado). golden stdtime2 nos 4 targets
+        // (KofTimeE2ETest#timeAddDaysDiffDaysJvmShapeAndCrossArch).
         // S7h (D1 ratificado 13/09): tzOffsetSeconds = fuso do HOST.
         // Native = gap honesto TIME003 (D1: sem TZ//etc/localtime no asm —
         // implementar seria paridade acidental/falsa). JVM/JS/SCRIPT seguem.
@@ -98,13 +99,21 @@ public final class KofTime {
                     || target == Target.NATIVE_AARCH64)) {
             return false;
         }
+        // §426 (improved 25/09): `collect` (manual GC) now has a real face on
+        // JS too — `kofGcCollectNow` requests the host GC (`KofJsRunner`
+        // `kof_platform.gcCollect` -> `System.gc()`), the SAME JVM semantics
+        // as the JVM/SCRIPT runtime (both are GC requests, not guarantees);
+        // browser/hostless degrades to an honest runtime error (R7), never a
+        // silent no-op. JVM/SCRIPT (JVM runtime), x86 (RuntimeGc) and
+        // riscv64/aarch64 (RtB44 + translator) keep the real mark-sweep.
         return true;
     }
 
     static String gapCode(String method) {
         // TIME001 (interval/cancel) fechado no cross (05/09); TIME002
-        // (addDays/diffDays) fechado no cross 11/09 (S7c-1, fatia B35).
-        // gapCode só alimenta o gate de suporte; mantém a chave por
+        // (addDays/diffDays) fechado no cross 11/09 (S7c-1, fatia B35);
+        // TIME004 (collect no JS) fechado 25/09 (face real via host GC).
+        // gapCode só alimenta o gate de suporte; mantém as chaves por
         // retrocompatibilidade dos diagnósticos existentes.
         if ("tzOffsetSeconds".equals(method)) return "TIME003";
         return ("addDays".equals(method) || "diffDays".equals(method))
@@ -150,9 +159,9 @@ public final class KofTime {
                     ? new TimeCall("kof_time_daysBetween", INT,
                             List.of(INT, INT, INT, INT, INT, INT)) : null;
             // STDLIB S7a — data ISO (String) add/diff. JVM/SCRIPT via
-            // java.time; Native/JS = gap honesto TIME002 (parse+alocação de
-            // String no asm é escopo próprio, R6). Inválido => ""/0 (paridade
-            // com a política "invalid => 0" do calendário wedge).
+            // java.time; x86 (RuntimeTimeIso), riscv64/aarch64 (NativeRiscvAsmRtB33)
+            // e JS (JsRuntimeUiWeb) fecham TIME002 (11/09). Inválido => ""/0
+            // (paridade com a política "invalid => 0" do calendário wedge).
             case "addDays" -> argTypes.size() == 2 && argTypes.get(0) == STR
                     && argTypes.get(1) == INT
                     ? new TimeCall("kof_time_addDays", STR, List.of(STR, INT)) : null;

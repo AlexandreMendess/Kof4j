@@ -2,7 +2,7 @@
 
 # Idioms — Collections
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.4.0-beta (Sep 2026) (02 Sep 2026)
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.5.0-beta (Sep 2026) (02 Sep 2026)
 
 ## What it is
 
@@ -10,7 +10,7 @@
 Available on JVM (ArrayList), Native (its own implementation with free-list GC) and JS (Array) with the same API.
 `Map<K,V>` and `Set<T>` have existed since 0.1.0 on the 3 targets (JVM HashMap/HashSet, Native own asm, JS Map/Set).
 
-## Real API (verified in the compiler — 0.4.0-beta)
+## Real API (verified in the compiler — 0.5.0-beta)
 
 ```kof
 var l = listOf(1, 2, 3, 4)
@@ -92,7 +92,7 @@ prev = m.putIfAbsent("z", 9)             // overwrite; null when the key is new
   `sort()` is natural order, period. To search a position, `indexOf(x)`
   (not a manual `get(i)` loop with `||`).
 
-## `listOf` with related subtypes infers the common ancestor (0.4.0-beta, §285)
+## `listOf` with related subtypes infers the common ancestor (0.5.0-beta, §285)
 
 ```kof
 interface Animal { String sound() }
@@ -182,7 +182,7 @@ class Registry {
 }
 ```
 
-## GOOD — declarative transformation (0.4.0-beta)
+## GOOD — declarative transformation (0.5.0-beta)
 
 ```kof
 var nomes = users.map((u: User) -> u.name)

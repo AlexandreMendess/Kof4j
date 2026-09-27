@@ -339,7 +339,7 @@ handles no-ops.
 - Nível 0 (conexão + SQL), 2 (ORM básico) e 4 (migrations) implementados; SQLite nativo + MySQL handshake `kof_db_mysql_scramble` 27/08.
 - Pendente: nível 3 query DSL tipada `User.query { where ... }`, connection pooling, MySQL completo (query/prepared), kof.db/kof.orm fora do JVM (DB001/ORM001 — JS).
 
-### Plataforma (gaps — docs/ecosystem-coverage.md §4)
+### Plataforma (gaps — docs/bugs-and-gaps/ecosystem-coverage.md §4)
 - Todos P0 originais fechados em 0.1.0; 0.2.0 fecha pattern matching, null safety básica, kof.http JS, free-list GC, target separation, KofScriptGlobals, KofCcompiler; 0.2.6-beta (30-31/08) fecha WebSocket/SSE (JVM), `kof.cache` (3 targets), `kof.http` retry/circuit (JVM+JS) e `spawn` Native (CONC001).
 - Residual: scheduler Native (SCHED001), `kof.http` Native (HTTP002), tracing, MySQL nativo (prepared), RISC/ARM codegen, GC mark-sweep.
 

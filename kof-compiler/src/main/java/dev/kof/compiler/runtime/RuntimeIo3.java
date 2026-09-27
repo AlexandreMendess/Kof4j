@@ -232,21 +232,114 @@ public final class RuntimeIo3 {
                 xorl %eax, %eax
                 ret
 
+            .section .rodata
+            .Lio_dd_slash:
+                .byte 47
+            .section .text
+            // D-FULL-PARITY-050 row 13 slice 14 (native x86-64, 26/09): recursivo
+            // (JVM Files.walk: dir+arquivo+subdir); stat -> dir? itera getdents64 e
+            // recursa em cada filho, depois rmdir; nao-dir -> unlink. Ausente/falha=0.
             .globl kof_io_dir_delete
             .type kof_io_dir_delete, @function
             kof_io_dir_delete:
                 pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $32, %rsp
                 movq %rdi, %rbx
+                call kof_io_stat_mode
+                testl %eax, %eax
+                js .Lio_dd_zero
+                andl $0xF000, %eax
+                cmpl $0x4000, %eax
+                jne .Lio_dd_file
+                movq $-100, %rdi
+                leaq 24(%rbx), %rsi
+                xorl %edx, %edx
+                movq $257, %rax
+                syscall
+                testq %rax, %rax
+                js .Lio_dd_zero
+                movq %rax, %r12
+                movq $8192, %rdi
+                call kof_alloc
+                movq %rax, %r13
+            .Lio_dd_loop:
+                movq %r12, %rdi
+                movq %r13, %rsi
+                movq $8192, %rdx
+                movq $217, %rax
+                syscall
+                testq %rax, %rax
+                jle .Lio_dd_loop_done
+                movq %rax, %r14
+                movq %r13, %r15
+            .Lio_dd_entry:
+                movzwq 16(%r15), %rdx
+                testq %rdx, %rdx
+                je .Lio_dd_loop_done
+                cmpb $46, 19(%r15)
+                jne .Lio_dd_add
+                cmpb $0, 20(%r15)
+                je .Lio_dd_skip
+                cmpb $46, 20(%r15)
+                jne .Lio_dd_add
+                cmpb $0, 21(%r15)
+                je .Lio_dd_skip
+            .Lio_dd_add:
+                leaq 19(%r15), %rdi
+                call kof_io_strlen
+                movq %rax, %rsi
+                leaq 19(%r15), %rdi
+                call kof_io_make_string
+                movq %rax, (%rsp)
+                leaq .Lio_dd_slash(%rip), %rdi
+                movq $1, %rsi
+                call kof_io_make_string
+                movq %rax, %rsi
+                movq %rbx, %rdi
+                call kof_string_concat
+                movq %rax, %rdi
+                movq (%rsp), %rsi
+                call kof_string_concat
+                movq %rax, %rdi
+                call kof_io_dir_delete
+            .Lio_dd_skip:
+                movzwq 16(%r15), %rdx
+                addq %rdx, %r15
+                leaq (%r13,%r14), %rax
+                cmpq %rax, %r15
+                jb .Lio_dd_entry
+                jmp .Lio_dd_loop
+            .Lio_dd_loop_done:
+                movq %r12, %rdi
+                movq $3, %rax
+                syscall
                 leaq 24(%rbx), %rdi
                 movq $84, %rax
                 syscall
                 testq %rax, %rax
-                je .Lio_rmdir_ok
-                xorl %eax, %eax
-                popq %rbx
-                ret
-            .Lio_rmdir_ok:
+                jne .Lio_dd_zero
                 movq $1, %rax
+                jmp .Lio_dd_done
+            .Lio_dd_file:
+                leaq 24(%rbx), %rdi
+                movq $87, %rax
+                syscall
+                testq %rax, %rax
+                jne .Lio_dd_zero
+                movq $1, %rax
+                jmp .Lio_dd_done
+            .Lio_dd_zero:
+                xorl %eax, %eax
+            .Lio_dd_done:
+                addq $32, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
                 popq %rbx
                 ret
 

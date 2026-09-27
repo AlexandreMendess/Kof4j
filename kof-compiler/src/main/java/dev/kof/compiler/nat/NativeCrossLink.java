@@ -44,7 +44,7 @@ public final class NativeCrossLink {
             "snprintf", "strtod", "printf", "malloc", "calloc", "realloc", "free",
             "pow", "sqrt", "fmod", "dlopen", "dlsym", "dlclose",
             "fopen", "fclose", "fwrite", "fread", "memcpy", "memset",
-            "strlen", "strcmp", "strncmp", "open", "read", "write");
+            "strlen", "strcmp", "strncmp", "open", "read", "write", "execvp");
 
     /** true se o texto asm (pós-poda) chama algum símbolo de libc. */
     static boolean needsLibc(String asmText) {
@@ -76,6 +76,20 @@ public final class NativeCrossLink {
                 String sym = t.substring(5).strip();
                 if (sym.startsWith(SQLITE_PREFIX)) return true;
             }
+        }
+        return false;
+    }
+
+    /** row 10 (27/09, D-DECISION-BATCH-2709B #3): `call pow` (shim
+     *  kof_math_pow, peça própria) torna o link cross dinâmico COM `-lm`
+     *  POR USO — quem não chama pow não tem a peça, logo não liga libm. */
+    static boolean needsLibm(String asmText) {
+        for (String line : asmText.split("\n", -1)) {
+            String t = line.strip();
+            if (t.startsWith("#")) continue;
+            int hash = t.indexOf('#');
+            if (hash > 0) t = t.substring(0, hash).stripTrailing();
+            if (t.startsWith("call ") && t.substring(5).strip().equals("pow")) return true;
         }
         return false;
     }
@@ -173,8 +187,12 @@ public final class NativeCrossLink {
 
     /** #431: arg de link p/ uma `library()` de extern no cross. Caminho
      *  absoluto NÃO é cross-arch (é host) — só o basename vale no sysroot:
-     *  `libX.so[.N]` → `-l:libX.so.N` (igual x86), nome cru `X` → `-lX`. */
+     *  `libX.so[.N]` → `-l:libX.so.N` (igual x86), nome cru `X` → `-lX`.
+     *  Exceção (fatia C4-x): um objeto {@code .o} já montado PARA A ARCH
+     *  (ex.: fixture gerada pelo `kof-c-compiler` cross) é cross-arch e entra
+     *  posicional, preservando o path — o mesmo padrão que o x86 já usa. */
     static String ffiLinkArg(String lib) {
+        if (lib.endsWith(".o")) return lib;
         String base = lib.startsWith("/") ? lib.substring(lib.lastIndexOf('/') + 1) : lib;
         return base.contains(".so") ? "-l:" + base : "-l" + base;
     }
@@ -184,6 +202,15 @@ public final class NativeCrossLink {
     static String[] ldArgs(String ld, Path binFile, Path objFile, String arch,
                            boolean dynamic, String sysroot, boolean sqlite,
                            java.util.Collection<String> ffiLibs) {
+        return ldArgs(ld, binFile, objFile, arch, dynamic, sysroot, sqlite, ffiLibs, false);
+    }
+
+    /** row 10 (27/09): {@code libm} acrescenta {@code -lm} (POR USO, quando o
+     *  texto podado contém {@code call pow}). O chamador já passa
+     *  {@code dynamic=true}` nesse caso (pow ∈ LIBC_SYMBOLS). */
+    static String[] ldArgs(String ld, Path binFile, Path objFile, String arch,
+                           boolean dynamic, String sysroot, boolean sqlite,
+                           java.util.Collection<String> ffiLibs, boolean libm) {
         List<String> a = new ArrayList<>();
         a.add(ld);
         if (arch.equals("riscv64")) a.add("--no-relax");
@@ -205,6 +232,7 @@ public final class NativeCrossLink {
         a.add(objFile.toString());
         a.add("-lc");
         if (sqlite) a.add(sqliteLinkArg(arch));
+        if (libm) a.add("-lm");
         for (String lib : ffiLibs) a.add(ffiLinkArg(lib));
         return a.toArray(new String[0]);
     }

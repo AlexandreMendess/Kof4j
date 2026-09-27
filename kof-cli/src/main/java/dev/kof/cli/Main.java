@@ -19,6 +19,7 @@ public final class Main {
             case "run" -> CmdRun.run(args);
             case "serve" -> CmdServe.run(args);
             case "check" -> System.exit(CmdCheck.run(args));
+            case "md" -> System.exit(CmdMd.run(args));
             case "test" -> CmdTest.run(args);
             case "bench" -> System.exit(Bench.run(args));
             case "profile" -> System.exit(Profile.run(args));
@@ -38,6 +39,7 @@ public final class Main {
             case "deps" -> System.exit(Deps.run(args));
             case "deploy" -> CmdDeploy.run(args);
             case "workflow" -> System.exit(CmdWorkflow.run(args));
+            case "makealive" -> System.exit(CmdMakealive.run(args));
             case "c" -> c(args);
             case "fmt" -> System.exit(Fmt.run(args));
             case "editor" -> System.exit(CmdEditor.run(args));
@@ -56,10 +58,11 @@ public final class Main {
 
     private static void printUsage() {
         System.out.println("usage: kof <command>");
-        System.out.println("  build <dir|file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--output <dir>] [--release] [--apk] [--aab] [--min-sdk <n>] [--target-sdk <n>]");
-        System.out.println("  run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]");
+        System.out.println("  build <dir|file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--output <dir>] [--release] [--apk] [--aab] [--min-sdk <n>] [--target-sdk <n>]");
+        System.out.println("  run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]");
         System.out.println("  serve <file.kf> [--port <port>] [--host <host>] [--backend <t>] [--frontend <t>]");
         System.out.println("  check <file.kf|dir> [--target <t>] [--json]   type-check without emitting output");
+        System.out.println("  md check|format <file.md>     Kofmd validate (non-zero exit on MDxxx) / canonical rewrite (JVM-first)");
         System.out.println("  script <file.ks|kf> [--target jvm|native|js]   direct KofScript execution (JVM/Native/JS, diagnostics with file:line)");
         System.out.println("  repl                         REPL incremental KofScript (type 'exit' to quit)");
         System.out.println("  test <file.kf|dir> [--target jvm|native|js]   run programs, PASS/FAIL by exit code");
@@ -289,7 +292,7 @@ public final class Main {
 
     private static void c(String[] args) {
         if (args.length < 2 || "--help".equals(args[1]) || "-h".equals(args[1])) {
-            System.out.println("usage: kof c <file.c> [--output <bin>] [--run]");
+            System.out.println("usage: kof c <file.c> [--output <bin>] [--run] [--target x86_64|riscv64|aarch64]");
             System.out.println("  Compiles C subset to native ELF64 via KofCcompiler (no JVM)");
             return;
         }
@@ -297,26 +300,32 @@ public final class Main {
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
         Path outDir = null;
         boolean run = false;
+        dev.kof.c.KofCTarget target = dev.kof.c.KofCTarget.X86_64;
         for (int i = 2; i < args.length; i++) {
             if (args[i].equals("--output") && i + 1 < args.length) { outDir = Path.of(args[++i]); }
             else if (args[i].startsWith("--output=")) { outDir = Path.of(args[i].substring("--output=".length())); }
             else if (args[i].equals("--run")) { run = true; }
+            else if (args[i].equals("--target") && i + 1 < args.length) { target = dev.kof.c.KofCTarget.parse(args[++i]); }
+            else if (args[i].startsWith("--target=")) { target = dev.kof.c.KofCTarget.parse(args[i].substring("--target=".length())); }
         }
         try {
             if (outDir == null) outDir = Files.createTempDirectory("kof-c-");
             else Files.createDirectories(outDir);
-            var res = dev.kof.c.KofCCompiler.compile(src, outDir);
+            var res = dev.kof.c.KofCCompiler.compile(src, outDir, target);
             if (!res.success()) { System.err.println(res.diagnostics()); System.exit(1); return; }
             System.out.println("KofC built " + res.binary());
+            String[] runCmd = target.qemu() != null
+                    ? new String[] { target.qemu(), res.binary().toString() }
+                    : new String[] { res.binary().toString() };
             if (run) {
-                ProcessBuilder pb = new ProcessBuilder(res.binary().toString());
+                ProcessBuilder pb = new ProcessBuilder(runCmd);
                 pb.inheritIO();
                 Process p = pb.start();
                 int ec = p.waitFor();
                 System.exit(ec);
             } else if (outDir.toString().contains("kof-c-")) {
                 // temp dir: run immediately for feedback
-                ProcessBuilder pb = new ProcessBuilder(res.binary().toString());
+                ProcessBuilder pb = new ProcessBuilder(runCmd);
                 pb.redirectErrorStream(true);
                 Process p = pb.start();
                 String out = new String(p.getInputStream().readAllBytes());

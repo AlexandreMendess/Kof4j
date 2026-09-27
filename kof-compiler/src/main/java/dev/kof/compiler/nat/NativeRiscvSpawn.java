@@ -82,14 +82,14 @@ public final class NativeRiscvSpawn {
                 # herda s0,s1; o KERNEL grava o TID do filho em &handle->tid
                 # (ctid), que kof_cancel (B48) usa p/ achar a entry de flag.
                 # §129: a cadeia é por-TID (kof_exc_slot), então não precisa de
-                # TLS no clone.
+                # TLS no clone. B-1: o clone cruza a costura kof_plat_thread_create
+                # (o `call` riscv não empilha — o frame do pai fica intacto).
                 li   a0, 0x3D0F00
                 mv   a1, s2
                 addi a2, s1, 32
                 li   a3, 0
                 li   a4, 0
-                li   a7, 220
-                ecall
+                call kof_plat_thread_create
                 bltz a0, .Lsp_inline
                 bnez a0, .Lsp_reg           # pai: registra handle p/ join
                 # ---- filho: a0=0, s0=task, s1=handle ----
@@ -199,8 +199,7 @@ public final class NativeRiscvSpawn {
                 addi a0, s1, 4              # &done (futex word)
                 li   a1, 129                # FUTEX_WAKE_PRIVATE
                 li   a2, 1
-                li   a7, 98
-                ecall
+                call kof_plat_sync
                 # CONC001/§286: slot volta a vazio (tid=0) sem tocar worker
                 # alheio — a entry vem do FRAME (40(sp)), não do handle
                 # (reciclável entre done=1 e este delete).
@@ -237,8 +236,7 @@ public final class NativeRiscvSpawn {
                 li   a1, 128                # FUTEX_WAIT_PRIVATE
                 li   a2, 0                  # esperado done==0
                 li   a3, 0
-                li   a7, 98
-                ecall
+                call kof_plat_sync
                 lw   t0, 4(s0)
                 beqz t0, .Lkw_wait
                 mv   a0, s0
@@ -284,8 +282,7 @@ public final class NativeRiscvSpawn {
                 li   a1, 128                # FUTEX_WAIT_PRIVATE
                 li   a2, 0
                 li   a3, 0
-                li   a7, 98
-                ecall
+                call kof_plat_sync
                 j    .Lkj_wait
             .Lkj_next:
                 addi s2, s2, 1

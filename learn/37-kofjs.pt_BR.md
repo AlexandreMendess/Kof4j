@@ -2,7 +2,7 @@
 
 # 37 — KofJS: o caminho da Web
 
-> **Kof 0.4.0-beta — targets jvm/native/native.risc/native.arm/js/kofc — `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.5.0-beta — targets jvm/native/native.risc/native.arm/js/kofc — `intention->Kof->frontend->IR->backend->runtime`**
 
 KofJS é o target `js` da Kof: a mesma linguagem, o mesmo frontend e a
 mesma Kof IR gerando **ES Modules (ECMAScript 2022+)** — sem Node.js, sem

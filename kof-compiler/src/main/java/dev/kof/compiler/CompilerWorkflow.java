@@ -76,17 +76,17 @@ final class CompilerWorkflow {
             // entra o STUB (throw CRON001 em runtime, R6), nunca a
             // delegação (que derrubaria o host INTEIRO na recusa).
             if (!driver.target.isNative()) {
-                mergeHostSlice(driver, unit, decls, diagnostics, "/dev/kof/workflow-sched-host.kf");
+                mergeHostSlice(driver, decls, diagnostics, "/dev/kof/workflow-sched-host.kf");
             } else {
-                mergeHostSlice(driver, unit, decls, diagnostics, "/dev/kof/workflow-sched-host.native.kf");
+                mergeHostSlice(driver, decls, diagnostics, "/dev/kof/workflow-sched-host.native.kf");
             }
             // fatia checkpoint (bundle 2.1.3): MESMO mecanismo — o gate
             // ORM001 do kof.orm é estático; não-Native injeta a fatia orm
             // (entity KofWfCk + hooks), Native injeta o stub ORM001.
             if (!driver.target.isNative()) {
-                mergeHostSlice(driver, unit, decls, diagnostics, "/dev/kof/workflow-ckpt-host.kf");
+                mergeHostSlice(driver, decls, diagnostics, "/dev/kof/workflow-ckpt-host.kf");
             } else {
-                mergeHostSlice(driver, unit, decls, diagnostics, "/dev/kof/workflow-ckpt-host.native.kf");
+                mergeHostSlice(driver, decls, diagnostics, "/dev/kof/workflow-ckpt-host.native.kf");
             }
             // fatia supervisão (bundle 2.1.3, plano §3: o workflow DELEGA o
             // restart ao kof.supervisor — nunca re-implementa). O
@@ -109,10 +109,10 @@ final class CompilerWorkflow {
                     (d instanceof TypeDeclarationNode t && "KofWfSupStatus".equals(t.name()))
                             || (d instanceof FunctionDeclarationNode f && "runSupervised".equals(f.name())));
             if (!hostSupJa && !colideHostSup) {
-                mergeHostSlice(driver, unit, decls, diagnostics, "/dev/kof/supervisor-host.kf");
+                mergeHostSlice(driver, decls, diagnostics, "/dev/kof/supervisor-host.kf");
             }
             if (!colideHostSup && !colideFace) {
-                mergeHostSlice(driver, unit, decls, diagnostics, "/dev/kof/workflow-sup-host.kf");
+                mergeHostSlice(driver, decls, diagnostics, "/dev/kof/workflow-sup-host.kf");
             }
             return new CompilationUnitNode(unit.position(), unit.packageName(), imports, decls);
         } catch (IOException e) {
@@ -123,7 +123,6 @@ final class CompilerWorkflow {
     }
 
     private static void mergeHostSlice(CompilerDriver driver,
-                                       CompilationUnitNode unit,
                                        List<AstNode> decls,
                                        DiagnosticCollector diagnostics,
                                        String resource) {

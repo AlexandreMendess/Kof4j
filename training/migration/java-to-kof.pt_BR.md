@@ -2,7 +2,7 @@
 
 # Java to Kof Migration
 
-**Version:** 0.4.0-beta (Sep 2026)
+**Version:** 0.5.0-beta (Sep 2026)
 
 ## Classes
 
@@ -152,7 +152,7 @@ Optional<String> maybe = Optional.of("hi");
 String nullable = null;
 ```
 
-### Kof (0.4.0-beta)
+### Kof (0.5.0-beta)
 ```kof
 String? maybe = mapOf("k", "oi").get("ausente")   // null via API, NAO `= null` (SEM048 desde 10/09)
 if (maybe != null) {
@@ -176,7 +176,7 @@ public class UserController {
 }
 ```
 
-### Kof (0.4.0-beta)
+### Kof (0.5.0-beta)
 ```kof
 // kof.http client — JVM + JS (Java HttpClient interop), Native HTTP002
 // verbos: get/post/put/delete/patch/options
@@ -215,7 +215,7 @@ import a.b.*
 
 ### Java — não aplicável
 
-### Kof (0.4.0-beta)
+### Kof (0.5.0-beta)
 ```kof
 var x = 5            // top-level var → KofScriptGlobals (.ks)
 val y: Int = 10

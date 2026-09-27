@@ -113,7 +113,7 @@ no forwarding pointer) — the allocation header sits 16 bytes before the object
 
 ## 8. Limitations
 
-1. No automatic GC on exhaustion (mark-sweep implemented 03/09 via manual `kof_gc_collect_now`; auto-GC disabled after a hang —
+1. ~~No automatic GC on exhaustion~~ ✅ **landed 19/09** (D1-A, §260 CLOSED — the trigger is now SOUND: blanket-spill of the 15 GPRs + `kof_spawn_count==0` gate + one-shot flag; manual `kof_gc_collect_now` also available;
    free-list reuses `mmap`, memory returned only on the `munmap` fallback — see §9)
 2. No reference counting
 3. No weak references

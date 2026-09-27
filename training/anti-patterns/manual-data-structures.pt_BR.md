@@ -39,7 +39,7 @@ A implementação manual carrega: alocação, encadeamento, contagem, bounds,
 iteração — tudo que o programador teria que manter e testar. O domínio é
 "uma coleção", não "nós encadeados".
 
-## Preferred approach (0.4.0-beta)
+## Preferred approach (0.5.0-beta)
 
 ```kof
 class Registry {
@@ -64,7 +64,7 @@ var nomes = users.map((u: User) -> u.name)
 var pares = nums.filter((x: Int) -> x % 2 == 0)
 ```
 
-## Estruturas manuais comuns → alternativa (0.4.0-beta)
+## Estruturas manuais comuns → alternativa (0.5.0-beta)
 
 | Manual | Alternativa Kof |
 |---|---|

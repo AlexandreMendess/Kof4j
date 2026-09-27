@@ -3,7 +3,7 @@
 # stdlib config — Configuração Nativa do Kof
 
 **Última atualização:** 12 de setembro de 2026
-**Versão:** 0.4.0-beta
+**Versão:** 0.5.0-beta
 **Status:** implementado (Fase 3 do plano de independência do Spring) — 3 targets (JVM / Native asm próprio `/proc/self/environ` + free-list / JS `kof_platform`) + `required`/interpolação `${key}`/`kof config gen` (30/08)
 
 ---
@@ -80,18 +80,18 @@ main() {
 }
 ```
 
-## 5. Targets (0.4.0-beta)
+## 5. Targets (0.5.0-beta)
 
 | Target | Estado | Notas |
 |--------|--------|-------|
 | JVM | ✅ completo | `KofRuntime` gerado |
 | Native x86_64 | ✅ completo (asm próprio, 27/08) | `/proc/self/environ` scan, trim, comentários, free-list `kof_free_head`, interpolação `kof_config_interpolate` |
-| Native riscv64/aarch64 | ✅/placeholder | riscv64 `li a7` syscalls; aarch64 placeholder |
-| JS | ✅ completo | `kof_platform` (`kofConfigLookup`/`kofConfigStr/Int/Bool/Long/Required` + `kofConfigInterpolate`); `KofConfig.supportedOn` = todos os targets (CONF001 fechado) |
+| Native riscv64/aarch64 | ✅ completo (asm próprio, 26/09) | `NativeRiscvAsmConfig1/2/3` — scan de `/proc/self/environ`, find de arquivo `chave=valor`, lookup `KOF_CONFIG` → env `KOF_<KEY>` → perfil `kof.<KOF_PROFILE>.config`/`kof.config`, interpolação `${key}`, wrappers tipados; o gate `CONF001` foi removido (`KofConfig.supportedOn` true; D-FULL-PARITY-050 linha 9); prova `KofConfigCrossTest` |
+| JS | ✅ completo | `kof_platform` (`kofConfigLookup`/`kofConfigStr/Int/Bool/Long/Required` + `kofConfigInterpolate`) |
 
 ## 6. Testes
 
-`KofConfigE2ETest` — 11 testes E2E (0.4.0-beta): env por convenção, defaults,
+`KofConfigE2ETest` — 11 testes E2E (0.5.0-beta): env por convenção, defaults,
 arquivo explícito, profiles, arquivo padrão no diretório de trabalho, `env()`,
 precedência completa, `required` (presente em todos os targets + falha rápida
 se ausente) e interpolação `${key}` (JVM/Native/JS).
@@ -109,7 +109,7 @@ descoberto por reflection.
 
 ## 8. Onde estamos vs. o padrão ouro (Spring/Quarkus) — auditoria honesta
 
-**Última revisão:** re-synced 17/09/2026 (0.4.0-beta; auditoria base 30/08/2026)
+**Última revisão:** re-synced 17/09/2026 (0.5.0-beta; auditoria base 30/08/2026)
 
 | Capacidade | kof.config hoje | Spring Boot | Status |
 |------------|-----------------|-------------|--------|

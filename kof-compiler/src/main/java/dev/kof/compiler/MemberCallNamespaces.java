@@ -32,7 +32,7 @@ final class MemberCallNamespaces {
                     || ("decode".equals(mc.methodName()) && mc.arguments().size() == 1
                         && !mc.typeArguments().isEmpty());
             if (!valid && sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "Cannot resolve method '" + mc.methodName() + "' on namespace 'json' — "
                                 + ("decode".equals(mc.methodName())
                                         ? "use json.decode<T>(s) (1 arg + type argument)"
@@ -96,7 +96,7 @@ final class MemberCallNamespaces {
             KofProcess.ProcessCall exitCall = KofProcess.exitCall(argTypes);
             if (exitCall != null) return exitCall.returnType();
             if (sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "Cannot resolve method '" + mc.methodName() + "' on 'process' (valid: run, spawn, exit)",
                         "SEM025");
             }
@@ -109,9 +109,23 @@ final class MemberCallNamespaces {
             KofShell.ShellCall shellCall = KofShell.staticCall(mc.methodName(), argTypes);
             if (shellCall != null) return shellCall.returnType();
             if (sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "Cannot resolve method '" + mc.methodName() + "' on 'shell' (valid: "
                                 + String.join(", ", KofShell.functions()) + ")",
+                        "SEM025");
+            }
+            return Type.UnknownType.UNKNOWN;
+        }
+        if (mc.receiver() instanceof IdentifierExpr rid && "ssh".equals(rid.name())
+                && !SemExpressionTyper.isLocalName(scope, rid.name())) {
+            List<Type> argTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            KofSsh.SshCall sshCall = KofSsh.staticCall(mc.methodName(), argTypes);
+            if (sshCall != null) return sshCall.returnType();
+            if (sa.diagnostics() != null) {
+                sa.diagnostics().error(mc,
+                        "Cannot resolve method '" + mc.methodName() + "' on 'ssh' (valid: "
+                                + String.join(", ", KofSsh.functions()) + ")",
                         "SEM025");
             }
             return Type.UnknownType.UNKNOWN;
@@ -204,9 +218,31 @@ final class MemberCallNamespaces {
             }
             return unknown(sa, rid.name(), mc.methodName());
         }
-        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofWeb.isWebNamespace(rid.name())
-                && "app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
-            return KofWeb.APP;
+        // §494: o namespace `scheduler` não passava pelo gate central de
+        // namespaces — `scheduler.bogus()` inferia UNKNOWN em silêncio e o
+        // lowering (ExpressionSchedulerCallLowerer, schedCall == null)
+        // devolvia sem emitir nada → operand stack underflow (VerifyError no
+        // load), o mesmo R6/Q7 do #126 (json) e do §490. Agora é SEM025,
+        // igual a math/strings/db/log/orm.
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name())
+                && KofScheduler.isSchedulerNamespace(rid.name())) {
+            List<Type> argTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            KofScheduler.SchedulerCall sc = KofScheduler.staticCall(mc.methodName(), argTypes);
+            if (sc != null) return sc.returnType();
+            return unknown(sa, "scheduler", mc.methodName());
+        }
+        // §498: o namespace `web` só expõe `web.app()`. Um método desconhecido
+        // (`web.bogus()`) caía em webInstance com recvType UNKNOWN, que devolve
+        // null — sem diagnóstico — e o lowering não emitia nada (no-op silencioso;
+        // como expressão, operand stack underflow → VerifyError no load). Mesma
+        // família R6/Q7 do §495/#126.
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name())
+                && KofWeb.isWebNamespace(rid.name())) {
+            if ("app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+                return KofWeb.APP;
+            }
+            return unknown(sa, "web", mc.methodName());
         }
         return webInstance(sa, mc, scope, recvType);
     }

@@ -29,6 +29,33 @@ class KofSecurityTest {
             }
             """;
 
+    // §278 (D-TECHDEBT-23/09): kof.security roda no Android — ANDROID reusa o
+    // JvmBackend e os shims `kof_sec_*` do JVM sao JCA/java.util (MessageDigest,
+    // Mac, Cipher, SecureRandom, Base64, KeyStore, java.nio.file). A paridade e'
+    // travada no BYTECODE (mesmo pin do DB-2 p/ kof.db/kof.orm): Main.class
+    // ANDROID == JVM.
+    @Test
+    void androidSecurityCompilesByteIdenticalToJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    println(crypto.sha256("x"))
+                    println(crypto.sha512("x"))
+                    println(crypto.hmacSha256("key", "data"))
+                    println(passwords.verify("hunter2", passwords.hash("hunter2")))
+                    println(secrets.of("topsecret"))
+                }
+                """);
+        CompilationResult jvm = driver.compile(source, tempDir.resolve("jvm"), Target.JVM);
+        assertTrue(jvm.success(), "JVM baseline: " + jvm.diagnostics().getDiagnostics());
+        CompilationResult android = driver.compile(source, tempDir.resolve("android"), Target.ANDROID);
+        assertTrue(android.success(), "android compila kof.security desde §278: "
+                + android.diagnostics().getDiagnostics());
+        byte[] a = Files.readAllBytes(tempDir.resolve("jvm/Default/Main.class"));
+        byte[] b = Files.readAllBytes(tempDir.resolve("android/Default/Main.class"));
+        assertArrayEquals(a, b, "Main.class ANDROID deve ser identico ao JVM (paridade por construcao)");
+    }
+
     @Test
     void passwordsJvm(@TempDir Path tempDir) throws IOException {
         runJvm(tempDir, PASSWORDS_SOURCE, "true\nfalse\nfalse");

@@ -100,6 +100,67 @@ class CmdBuildFatTest {
         }
     }
 
+    /** #565: o output nunca é input — nem o jar em escrita (build 1), nem o antigo (rebuild). */
+    @Test
+    void fatJarNeverIncludesItsOwnOutputEvenOnRebuild(@TempDir Path dir) throws Exception {
+        Path classes = dir.resolve("classes");
+        Files.createDirectories(classes.resolve("Default"));
+        Files.write(classes.resolve("Default/Main.class"), new byte[]{1});
+
+        Path first = CmdBuild.buildFatJar(classes, java.util.List.of());
+        assertEquals(classes.resolve("kof-app.jar"), first, "path público do fat jar não muda");
+        try (var zip = new java.util.zip.ZipFile(first.toFile())) {
+            assertNull(zip.getEntry("kof-app.jar"),
+                    "build 1: fat jar não pode conter o próprio arquivo de saída");
+            assertNotNull(zip.getEntry("Default/Main.class"), "classes do app continuam no jar");
+        }
+
+        // repetição: agora existe um kof-app.jar antigo dentro de classesDir
+        Path second = CmdBuild.buildFatJar(classes, java.util.List.of());
+        try (var zip = new java.util.zip.ZipFile(second.toFile())) {
+            assertNull(zip.getEntry("kof-app.jar"),
+                    "rebuild no mesmo classesDir não pode embutir o jar anterior");
+            assertNotNull(zip.getEntry("Default/Main.class"), "classes do app continuam no jar");
+        }
+        try (var jf = new java.util.jar.JarFile(second.toFile())) {
+            assertEquals("Default.Main", jf.getManifest().getMainAttributes().getValue("Main-Class"));
+        }
+    }
+
+    /** #565 (edge de recurso): falha no meio não deixa staging órfão nem troca o jar bom por parcial. */
+    @Test
+    void failedRebuildLeavesNoStagingAndKeepsPreviousJar(@TempDir Path dir) throws Exception {
+        Path classes = dir.resolve("classes");
+        Files.createDirectories(classes.resolve("Default"));
+        Files.write(classes.resolve("Default/Main.class"), new byte[]{1});
+        Path dep = dir.resolve("dep.jar");
+        try (var jos = new java.util.jar.JarOutputStream(Files.newOutputStream(dep))) {
+            jos.putNextEntry(new java.util.jar.JarEntry("lib/Util.class"));
+            jos.write(new byte[]{2});
+            jos.closeEntry();
+        }
+        Path good = CmdBuild.buildFatJar(classes, java.util.List.of(dep));
+        byte[] before = Files.readAllBytes(good);
+
+        // a dep corrompida vem ANTES da válida: um jar parcial perderia lib/Util.class
+        Path corruptDep = dir.resolve("corrupt.jar");
+        Files.write(corruptDep, "isto não é um zip".getBytes(StandardCharsets.UTF_8));
+        assertThrows(IOException.class,
+                () -> CmdBuild.buildFatJar(classes, java.util.List.of(corruptDep, dep)),
+                "dependência inválida deve falhar honestamente");
+
+        assertArrayEquals(before, Files.readAllBytes(good),
+                "falha de rebuild não pode substituir o jar bom por um parcial");
+        try (var zip = new java.util.zip.ZipFile(good.toFile())) {
+            assertNotNull(zip.getEntry("lib/Util.class"), "jar bom anterior continua íntegro");
+        }
+        try (var s = Files.list(dir)) {
+            assertEquals(java.util.List.of(), s.map(p -> p.getFileName().toString())
+                    .filter(n -> n.startsWith(".kof-app-")).toList(),
+                    "nenhum staging .kof-app-*.jar pode ficar órfão");
+        }
+    }
+
     @Test
     void defaultDoesNotProduceJar(@TempDir Path dir) throws Exception {
         Path src = writeApp(dir);

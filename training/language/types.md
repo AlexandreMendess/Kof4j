@@ -2,7 +2,7 @@
 
 # Kof Types
 
-**Version:** 0.4.0-beta (Sep 2026)
+**Version:** 0.5.0-beta (Sep 2026)
 
 ## Primitive Types
 
@@ -134,7 +134,7 @@ into `Char`/`Char?`) is SEM012, field or local. Sentinel `= null` literals stay 
 reaches a `T?` field via the API or the never-written read, exactly like locals.
 
 
-### Troolean (three-state — 0.4.0-beta, D-TROOL)
+### Troolean (three-state — 0.5.0-beta, D-TROOL)
 
 `Bool` has **exactly two values**. What needs `true / false / unknown` is
 `Troolean` (DECISIONS.md §D-TROOL):

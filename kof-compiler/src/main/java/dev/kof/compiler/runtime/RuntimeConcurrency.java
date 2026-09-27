@@ -245,7 +245,7 @@ public final class RuntimeConcurrency {
                 pushq %r15                      # [A-8]=r15c ; rsp=A-8
                 movq %rsp, %r15                 # r15=A-8
                 andq $-16, %rsp                 # rsp=B (B%16==0)
-                call pthread_create
+                call kof_plat_thread_create
                 subq %rsp, %r15                 # r15=(A-8)-B = delta
                 addq %r15, %rsp                 # rsp=B+delta=A-8
                 popq %r15                       # r15c ; rsp=A (frame restaurado)

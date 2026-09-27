@@ -23,7 +23,7 @@ final class CmdBuild {
     private CmdBuild() {
     }
 
-    private static final String USAGE = "usage: kof build <source-dir|file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--aab] [--fat] [--print-sizes] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]] [--min-sdk <n>] [--target-sdk <n>]";
+    private static final String USAGE = "usage: kof build <source-dir|file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--aab] [--fat] [--print-sizes] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]] [--min-sdk <n>] [--target-sdk <n>]";
 
     static void run(String[] args) {
         if (args.length < 2) { System.err.println(USAGE); return; }
@@ -79,6 +79,7 @@ final class CmdBuild {
         String keyalias = null;
         String minSdkArg = null;
         String targetSdkArg = null;
+        String profileArg = null;
         boolean useDeps = false;
         boolean printSizes = false;
         for (int i = 2; i < args.length; i++) {
@@ -145,6 +146,10 @@ final class CmdBuild {
                 targetSdkArg = arg.substring("--target-sdk=".length());
             } else if (arg.equals("--target-sdk") && i + 1 < args.length) {
                 targetSdkArg = args[++i];
+            } else if (arg.startsWith("--profile=")) {
+                profileArg = arg.substring("--profile=".length());
+            } else if (arg.equals("--profile") && i + 1 < args.length) {
+                profileArg = args[++i];
             } else if (arg.equals("--help") || arg.equals("-h")) {
                 System.out.println(USAGE);
                 return;
@@ -207,7 +212,14 @@ final class CmdBuild {
             System.exit(1);
             return;
         }
+        // B-1: --profile host|freestanding (BuildProfileFlag; R6: só native).
         CompilerDriver driver = new CompilerDriver();
+        String profileErr = BuildProfileFlag.apply(driver, "build", target, profileArg);
+        if (profileErr != null) {
+            System.err.println(profileErr);
+            System.exit(1);
+            return;
+        }
         if (release) driver.setDebugInfoEnabled(false);
         // kof-android Fase 4: minSdk/targetSdk por flag explícita (nunca
         // arquivo mágico). Honesto e cedo (R6): as flags só valem para o
@@ -242,6 +254,7 @@ final class CmdBuild {
         // kofdeps: dependências Maven resolvidas no cache ~/.kof/deps
         if (useDeps) {
             try {
+                driver.setDependencySourceRoots(DepsSources.roots(Path.of(".")));   // #566 (b)
                 String depsCp = Deps.classpath();
                 if (!depsCp.isBlank()) {
                     externalEntries = new ArrayList<>();
@@ -267,6 +280,24 @@ final class CmdBuild {
         List<Path> files = KofCliSupport.collect(backendDir);
         if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        // D-DB-ZERODRIVER (a): mesmos drivers auto no build JVM (cp de
+        // compilação + embed no --fat via externalEntries, que o
+        // buildFatJar empacota). Native/JS não embarcam driver (R7).
+        if (target == Target.JVM) {
+            try {
+                String autoDbCp = DbDrivers.provision(Path.of("."), files);
+                if (!autoDbCp.isBlank()) {
+                    for (String part : autoDbCp.split(java.util.regex.Pattern.quote(
+                            System.getProperty("os.name", "").toLowerCase().contains("win") ? ";" : ":"))) {
+                        if (!part.isBlank()) externalEntries.add(Path.of(part));
+                    }
+                    driver.setExternalClasspath(externalEntries);
+                }
+            } catch (IOException e) {
+                System.err.println("build: cannot provision db driver: " + e.getMessage());
+                return;
+            }
+        }
         Path backendOut = out;
         if (layout.fullStack()) {
             Path buildRoot = outFlagged ? out : Path.of("build");
@@ -351,33 +382,53 @@ final class CmdBuild {
      * do app têm precedência sobre as de dependências (first-wins) e arquivos
      * de assinatura de jars deps são descartados (não fazem sentido num fat
      * jar). Retorna o caminho do jar gerado.
+     *
+     * <p>#565: o output nunca é input. O jar é montado num staging FORA de
+     * {@code classesDir} (senão o {@code Files.walk} o lia ainda incompleto e o
+     * embutia truncado), o path final exato é excluído da varredura (um
+     * {@code kof-app.jar} de build anterior também não vira input) e só é
+     * substituído depois de fechado; em falha o staging é apagado e o jar
+     * anterior fica intacto.</p>
      */
     static Path buildFatJar(Path classesDir, List<Path> deps) throws IOException {
         String mainClass = KofCliSupport.findMainClass(classesDir);
         if (mainClass == null) throw new IOException("no main class found em " + classesDir);
         Path jar = classesDir.resolve("kof-app.jar");
+        Path finalJar = jar.toAbsolutePath().normalize();
+        Path stagingDir = classesDir.toAbsolutePath().normalize().getParent();
+        if (stagingDir == null) throw new IOException("cannot stage fat jar outside " + classesDir);
+        Path tempJar = Files.createTempFile(stagingDir, ".kof-app-", ".jar");
         java.util.jar.Manifest manifest = new java.util.jar.Manifest();
         manifest.getMainAttributes().put(java.util.jar.Attributes.Name.MANIFEST_VERSION, "1.0");
         manifest.getMainAttributes().put(java.util.jar.Attributes.Name.MAIN_CLASS, mainClass);
         java.util.Set<String> seen = new java.util.HashSet<>();
-        try (java.util.jar.JarOutputStream jos =
-                     new java.util.jar.JarOutputStream(Files.newOutputStream(jar), manifest)) {
-            addClassesToJar(jos, classesDir, classesDir, seen);
-            for (Path dep : deps) {
-                if (Files.isDirectory(dep)) {
-                    addClassesToJar(jos, dep, dep, seen);
-                } else if (dep.toString().endsWith(".jar") && Files.isRegularFile(dep)) {
-                    addJarEntriesToJar(jos, dep, seen);
+        boolean moved = false;
+        try {
+            try (java.util.jar.JarOutputStream jos =
+                         new java.util.jar.JarOutputStream(Files.newOutputStream(tempJar), manifest)) {
+                addClassesToJar(jos, classesDir, classesDir, seen, finalJar);
+                for (Path dep : deps) {
+                    if (Files.isDirectory(dep)) {
+                        addClassesToJar(jos, dep, dep, seen, finalJar);
+                    } else if (dep.toString().endsWith(".jar") && Files.isRegularFile(dep)) {
+                        addJarEntriesToJar(jos, dep, seen);
+                    }
                 }
             }
+            Files.move(tempJar, finalJar, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            moved = true;
+        } finally {
+            if (!moved) Files.deleteIfExists(tempJar);
         }
         return jar;
     }
 
     private static void addClassesToJar(java.util.jar.JarOutputStream jos, Path root, Path dir,
-                                        java.util.Set<String> seen) throws IOException {
+                                        java.util.Set<String> seen, Path excludedOutput)
+            throws IOException {
         try (var s = Files.walk(dir)) {
             for (Path p : s.filter(Files::isRegularFile).sorted().toList()) {
+                if (p.toAbsolutePath().normalize().equals(excludedOutput)) continue;
                 String name = root.relativize(p).toString().replace(java.io.File.separatorChar, '/');
                 if (skipJarEntry(name) || !seen.add(name)) continue;
                 java.util.jar.JarEntry e = new java.util.jar.JarEntry(name);

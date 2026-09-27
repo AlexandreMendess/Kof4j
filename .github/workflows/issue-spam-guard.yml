@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: issue-spam-guard-${{ github.event.issue.user.login }}
@@ -21,6 +20,8 @@ concurrency:
 jobs:
   guard:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write # fecha a issue excedente + comentario
     env:
       GH_TOKEN: ${{ github.token }}
       LIMIT: "10"

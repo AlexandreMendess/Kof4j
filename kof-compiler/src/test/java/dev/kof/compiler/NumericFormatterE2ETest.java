@@ -32,7 +32,7 @@ class NumericFormatterE2ETest {
 
     private String runJvm(Path outDir) throws IOException {
         try {
-            ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
+            ProcessBuilder pb = new ProcessBuilder(TestJdk.javaBin(), "-cp", outDir.toString(), "Default.Main");
             pb.redirectErrorStream(true);
             Process p = pb.start();
             String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)

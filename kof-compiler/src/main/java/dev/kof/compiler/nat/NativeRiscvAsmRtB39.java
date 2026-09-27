@@ -66,6 +66,8 @@ final class NativeRiscvAsmRtB39 {
                 beq  t0, t1, .Lce_list
                 li   t1, 10
                 beq  t0, t1, .Lce_map
+                li   t1, 11
+                beq  t0, t1, .Lce_arr
                 li   t1, 1
                 beq  t0, t1, .Lce_str
                 li   t1, 2
@@ -134,6 +136,15 @@ final class NativeRiscvAsmRtB39 {
                 add  a2, a1, t1              # &nó valor
                 addi a1, a1, 3               # &nó chave
                 call kof_map_to_string
+                j    .Lce_ret
+            # §388-B: 11 = array primitivo aninhado; nó=[11,esz,child]; o slot
+            # carrega o ponteiro do array interno; child = a1+2 (esz real vem
+            # do header do bloco).
+            .Lce_arr:
+                ld   a0, 0(a0)
+                beqz a0, .Lce_null
+                addi a1, a1, 2
+                call kof_array_to_string
                 j    .Lce_ret
             .Lce_null:
                 la   a0, .Lc2s_null
@@ -309,6 +320,104 @@ final class NativeRiscvAsmRtB39 {
                 call kof_string_concat
                 ld   ra, 80(sp)
                 addi sp, sp, 88
+                ret
+
+            # §388-B: kof_array_to_string(a0 = array cru, a1 = descritor do
+            # componente). Bloco [tag@0][len@16][esz@20][data@24] — MESMA fonte
+            # elementTypeSize do alloc. Espelha o kof_list_to_string acima no
+            # formato ([a, b]) e no mecanismo; a diferença é o carregamento:
+            # packed por esz (1/2/4/8) num slot de 8 bytes na pilha (o
+            # kof_elem_to_string lê pelo TAG, não pela passada do bloco — sem
+            # staging um bool[2] leria 4 bytes vizinhos). Aninhado = tag 11
+            # recursa aqui. Aarch64 herda via tradutor (regra 5).
+            .globl kof_array_to_string
+            kof_array_to_string:
+                addi sp, sp, -104
+                sd   ra, 96(sp)
+                sd   a0, 0(sp)            # array (raiz)
+                sd   a1, 8(sp)            # descritor do componente
+                lw   t0, 16(a0)
+                sd   t0, 16(sp)           # len
+                lw   t0, 20(a0)
+                sd   t0, 72(sp)           # esz
+                addi t0, a0, 24
+                sd   t0, 64(sp)           # data
+                sd   zero, 32(sp)         # i = 0
+                la   a0, .Lc2s_lbr
+                li   a1, 1
+                call kof_string_from_literal
+                sd   a0, 24(sp)           # acc = '['
+                ld   t0, 16(sp)
+                beqz t0, .Lca_fin
+            .Lca_loop:
+                ld   t1, 32(sp)
+                beqz t1, .Lca_sep0
+                la   a0, .Lc2s_comma
+                li   a1, 2
+                call kof_string_from_literal
+                sd   a0, 40(sp)
+                j    .Lca_haveSep
+            .Lca_sep0:
+                la   a0, .Lc2s_lbr
+                li   a1, 0
+                call kof_string_from_literal
+                sd   a0, 40(sp)
+            .Lca_haveSep:
+                ld   t0, 32(sp)           # i
+                ld   t1, 72(sp)           # esz
+                mul  t0, t0, t1
+                ld   t2, 64(sp)
+                add  t0, t2, t0           # &elem[i]
+                sd   zero, 88(sp)         # slot de 8B
+                li   t3, 4
+                beq  t1, t3, .Lca_ld4
+                li   t3, 1
+                beq  t1, t3, .Lca_ld1
+                li   t3, 2
+                beq  t1, t3, .Lca_ld2
+                ld   t4, 0(t0)            # esz 8 (long/double/String/array)
+                sd   t4, 88(sp)
+                j    .Lca_sep
+            .Lca_ld4:
+                lw   t4, 0(t0)
+                sd   t4, 88(sp)
+                j    .Lca_sep
+            .Lca_ld2:
+                lhu  t4, 0(t0)
+                sd   t4, 88(sp)
+                j    .Lca_sep
+            .Lca_ld1:
+                lbu  t4, 0(t0)
+                sd   t4, 88(sp)
+            .Lca_sep:
+                addi a0, sp, 88
+                ld   a1, 8(sp)
+                call kof_elem_to_string
+                sd   a0, 48(sp)           # elemStr
+                ld   a0, 40(sp)
+                ld   a1, 48(sp)
+                call kof_string_concat    # sep + elem
+                sd   a0, 48(sp)
+                ld   a0, 24(sp)
+                ld   a1, 48(sp)
+                call kof_string_concat    # acc + (sep + elem)
+                sd   a0, 24(sp)
+                ld   t0, 32(sp)
+                addi t0, t0, 1
+                sd   t0, 32(sp)
+                ld   t0, 32(sp)
+                ld   t1, 16(sp)
+                blt  t0, t1, .Lca_loop
+            .Lca_fin:
+                la   a0, .Lc2s_rbr
+                li   a1, 1
+                call kof_string_from_literal
+                sd   a0, 56(sp)
+                ld   a0, 24(sp)
+                ld   a1, 56(sp)
+                call kof_string_concat
+                ld   ra, 96(sp)
+                addi sp, sp, 104
                 ret
             """;
 }

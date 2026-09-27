@@ -2,7 +2,7 @@
 
 # KofNative Architecture
 
-> **Kof 0.4.0-beta — Target separation + free-list GC + kof_db MySQL**
+> **Kof 0.5.0-beta — Target separation + free-list GC + kof_db MySQL**
 
 ## Overview
 

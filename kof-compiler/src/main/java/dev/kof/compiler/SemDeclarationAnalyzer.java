@@ -47,7 +47,7 @@ final class SemDeclarationAnalyzer {
         }
         for (int pass = 0; pass < 4; pass++) {
             boolean changed = false;
-            sa.clearExpressionTypes();
+            sa.beginExpressionTypeGroup();
             for (AstNode member : rec.members()) {
                 if (member instanceof MethodDeclarationNode method) {
                     SymbolTable.MethodSymbol ms = sa.methodSymbols().get(method);
@@ -59,7 +59,11 @@ final class SemDeclarationAnalyzer {
                     }
                 }
             }
-            if (!changed) break;
+            if (!changed) {
+                sa.discardExpressionTypeGroup();
+                break;
+            }
+            sa.clearExpressionTypes();
         }
         sa.setCurrentScope(prevScope);
         sa.setCurrentClassName(prevClass);
@@ -88,12 +92,17 @@ final class SemDeclarationAnalyzer {
                         + base + "' (interfaces may only extend interfaces)", "SEM064");
             }
         }
+        // X5.1 (D-X5-SURFACE): interface que estende interface `sealed` só na
+        // mesma unidade de compilação (SEM080).
+        SealedTypeChecks.checkSubtype(sa, iface.position(), iface.name(), null, iface.interfaces());
+        // X5.3 (D-TYPE-VARIANCE): restrição de posição de `out`/`in`.
+        VarianceChecks.checkInterface(sa, iface);
         // #213: corpos de métodos default de interface precisam ser analisados
         // (resolução de `greet(name)` como this.greet, tipos de retorno) — antes
         // eram ignorados e a chamada nua virava função hoisted.
         for (int pass = 0; pass < 4; pass++) {
             boolean changed = false;
-            sa.clearExpressionTypes();
+            sa.beginExpressionTypeGroup();
             for (AstNode member : iface.members()) {
                 if (member instanceof MethodDeclarationNode method
                         && method.body() != null && !method.body().isEmpty()) {
@@ -104,7 +113,11 @@ final class SemDeclarationAnalyzer {
                     if (before != null && after != null && !before.equals(after)) changed = true;
                 }
             }
-            if (!changed) break;
+            if (!changed) {
+                sa.discardExpressionTypeGroup();
+                break;
+            }
+            sa.clearExpressionTypes();
         }
         sa.setCurrentScope(prevScope);
         sa.setCurrentClassName(prevClass);
@@ -173,7 +186,13 @@ final class SemDeclarationAnalyzer {
             // como type-variable (com bound), senão o Type.of de sempre.
             Type paramType = TypeParams.variable(param.type(), func.typeParameters(),
                     sa.unit(), sa);
-            if (paramType == null) paramType = Type.of(param.type());
+            // #639 face 2 residual: parâmetro top-level usava `Type.of` cru —
+            // um caminho qualificado (`List<p1.Item>`) ficava com o arg
+            // `ClassType("","p1.Item")` SEM separar pacote, então a resolução
+            // do membro do elemento caía no dono errado e o retorno saía
+            // Object (`areturn` de String → VerifyError "Bad return type").
+            // Mesma resolução que os params de MÉTODO (MemberResolver.resolveType).
+            if (paramType == null) paramType = sa.resolveType(param.type(), funcScope);
             funcScope.define(new SymbolTable.ParameterSymbol(param.name(), paramType, idx));
             idx++;
         }

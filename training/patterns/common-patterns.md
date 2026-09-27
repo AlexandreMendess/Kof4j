@@ -2,7 +2,7 @@
 
 # Kof Common Patterns
 
-**Version:** 0.4.0-beta (Sep 2026)
+**Version:** 0.5.0-beta (Sep 2026)
 
 ## CRUD Entity (record + primary constructor)
 
@@ -11,7 +11,7 @@ record User(String name, String email)
 var u = User("Mel", "mel@kof.dev")
 ```
 
-## Service Pattern — prefer top-level functions (0.4.0-beta)
+## Service Pattern — prefer top-level functions (0.5.0-beta)
 
 ```kof
 // Kof doesn't need Service/Repository ceremony — a top-level function is idiomatic
@@ -61,7 +61,7 @@ Complete `web.app()` on the JVM (routes `get/post/put/delete/patch/options`, `st
 `headerSet`, `app.use`, WebSocket `app.ws`, SSE `app.sse` with `sse.send/event/close`,
 `listenSecure` TLS) — 30/08. Native base ✅ 03/09 (TLS `WEB002`, ws `WEB004`, sse `WEB003`); JS base (`web.app`/routes/context-fns) ✅ 16/09, `app.ws`/`app.sse` = WEB004/WEB003 compile-time.
 
-## HTTP client (0.4.0-beta)
+## HTTP client (0.5.0-beta)
 
 ```kof
 var html = http.get("https://example.com")
@@ -86,7 +86,7 @@ try {
     println("Cleanup")
 }
 
-// Absence as a value — String? (0.4.0-beta)
+// Absence as a value — String? (0.5.0-beta)
 String? maybe = find("key")
 if (maybe != null) {
     println(maybe)
@@ -95,7 +95,7 @@ if (maybe != null) {
 }
 ```
 
-## Collections — higher-order (0.4.0-beta)
+## Collections — higher-order (0.5.0-beta)
 
 ```kof
 var nomes = users.map((u: User) -> u.name)
@@ -106,7 +106,7 @@ var soma = nums.reduce((a: Int, b: Int) -> a + b, 0)
 var x = listOf(1,2,3).get(1)   // 2
 ```
 
-## Record pattern destructuring (0.4.0-beta)
+## Record pattern destructuring (0.5.0-beta)
 
 ```kof
 record Point(Int x, Int y)
@@ -161,7 +161,7 @@ class Entity implements Serializable {
 }
 ```
 
-## KofScript global (0.4.0-beta)
+## KofScript global (0.5.0-beta)
 
 ```kof
 var x = 5

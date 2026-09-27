@@ -7,7 +7,7 @@
 ## Status: Accepted
 
 **Last updated:** September 13, 2026
-**Version:** 0.4.0-beta
+**Version:** 0.5.0-beta
 
 > **Visual improvement 13/09 (issue #109):** the ASCII diagrams of this ADR
 > (Pipeline, Type Representation, IR, backends and stdlib dispatch) became
@@ -108,7 +108,7 @@ CLI: `kof build/run --target jvm|native|native.risc|native.arm|js` (aliases `nat
 
 ## Type System
 
-The type system supports (0.4.0-beta, re-synced 17/09/2026):
+The type system supports (0.5.0-beta, re-synced 17/09/2026):
 
 - Primitive types: `bool`, `byte`, `short`, `int`, `long`, `float`, `double`, `char`
 - Reference types: classes, interfaces, enums (with `values()/valueOf` + exhaustiveness), records
@@ -202,7 +202,7 @@ client with **retry/circuit breaker** (`KOF_HTTP_RETRIES`/`KOF_HTTP_TRIPS`/
 
 ## Native Backend
 
-The native backend generates ELF binaries (0.4.0-beta).
+The native backend generates ELF binaries (0.5.0-beta).
 
 ```mermaid
 flowchart TD
@@ -213,8 +213,8 @@ flowchart TD
     E --> F["ELF binary"]
 ```
 
-Targets (0.4.0-beta, re-synced 17/09):
-- `native` (x86_64) **stable**: ELF x86_64, syscalls, free-list allocator (`kof_free_head`; mark-sweep implemented 03/09, manual `kof_gc_collect_now` — auto-GC disabled, auto-collect on exhaustion pending §260; `munmap` fallback), strings/lists/JSON (objects/records + FP arrays, 31/08), exceptions with unwinding, `spawn`/`await` via `pthread_create` + trampoline + `pthread_join` with thread-safe allocator (futex) — CONC001 (31/08), real FP in XMM (`vcvtsi2sd`/`mulsd`, dtoa via `snprintf`) — FLT001, `kof_db_mysql_scramble` + wire protocol in progress
+Targets (0.5.0-beta, re-synced 17/09):
+- `native` (x86_64) **stable**: ELF x86_64, syscalls, free-list allocator (`kof_free_head`; mark-sweep implemented 03/09, manual `kof_gc_collect_now` — **auto-collect on exhaustion ✅ 19/09 (D1-A, §260 CLOSED)**; `munmap` fallback), strings/lists/JSON (objects/records + FP arrays, 31/08), exceptions with unwinding, `spawn`/`await` via `pthread_create` + trampoline + `pthread_join` with thread-safe allocator (futex) — CONC001 (31/08), real FP in XMM (`vcvtsi2sd`/`mulsd`, dtoa via `snprintf`) — FLT001, `kof_db_mysql_scramble` + wire protocol in progress
 - `native.risc` (riscv64) **real**: riscv64 lowering (`NativeBackend.emitRiscv`); `riscv64-linux-gnu-as/ld` + qemu
 - `native.arm` (aarch64) **real**: translation from riscv64 (`translateRiscvToAarch64`); `aarch64-linux-gnu-as/ld` + qemu
 
@@ -223,7 +223,7 @@ Current capabilities (x86_64):
 - Integer arithmetic, bitwise, real floating-point in XMM (`vcvtsi2sd`/`mulsd`), control flow (if/else, while/for/do-while/break/continue, switch with pattern matching)
 - Function calls (all forms), lambdas with captures (`BoxN`), exceptions (unwinding), `spawn`/`await` with threads (pthread, 31/08)
 - Strings, arrays, `List<T>` with `map/filter/reduce`, `Map<K,V>`, `Set<T>`, `Box<T>` (`kof_int_to_string`), JSON objects/records + arrays (Int/Long/Bool/String/Double, 31/08)
-- `kof.io`, `kof.time` (now/sleep), `kof.config` (own asm, `/proc/self/environ`), `kof.log` (asm), `kof.security` (SHA-256/HMAC asm), `kof.cache` (30/08 — register clobber fixed), `kof.db` SQLite (direct `.so`) + MySQL wire protocol (SHA-1 scramble, WIP)
+- `kof.io`, `kof.time` (now/sleep), `kof.config` (own asm, `/proc/self/environ`), `kof.log` (asm), `kof.security` (SHA-256/HMAC asm), `kof.cache` (30/08 — register clobber fixed), `kof.db` SQLite (direct `.so`) + MySQL wire protocol (SHA-1 scramble; 13 ORM faces real on x86-64, F2d1–F2d7 22/09)
 
 Runtime functions (x86-64, `NativeRuntime.java:1`):
 - `kof_alloc` / `kof_free_head` free-list (mmap reuse) / `kof_gc_collect` (mark-sweep implemented 03/09)
@@ -237,7 +237,7 @@ Runtime functions (x86-64, `NativeRuntime.java:1`):
 - Generates ES Modules, executed by embedded GraalJS (`KofJsRunner`) — no Node.js required
 - Supports pattern matching (`case String s` + `Point(x,y)` via `typeof` + destructuring), `String?` basic, `kof.http` via `Java HttpClient` interop (+ fetch fallback; retry/circuit in parity with the JVM, 30/08), `List map/filter/reduce`, `Box<T>` via `substituteTypeVariable`
 - Scheduler `kof.time` via `setInterval` (27/08); `spawn`/`await` with real async/await/Promise (statement/expression; CONC003 closed 03/09)
-- Status alpha (0.4.0-beta)
+- Status alpha (0.5.0-beta)
 
 ## KofCCompiler
 
@@ -247,7 +247,7 @@ Runtime functions (x86-64, `NativeRuntime.java:1`):
 
 KofScript is a **direct execution target**: pure Kof executed by the
 IR interpreter, with no compilation step and no JVM fork
-(0.4.0-beta). **It is not JavaScript** — `let`/`const`/`async`/`fn` do not
+(0.5.0-beta). **It is not JavaScript** — `let`/`const`/`async`/`fn` do not
 exist; they fail with the normal Kof parser diagnostic.
 
 ```bash
@@ -288,7 +288,7 @@ flowchart TD
 Target gaps produce **clear compile-time diagnostics** (SECN00x,
 CONC001, JSN00x, DB001, CONF001, LOG001) — never silently different behavior.
 
-Modules (0.4.0-beta, re-synced 17/09): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objects/records + arrays on the 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (routes/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequential), `kof.test`, `kof.cli` (18 commands: `build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/debug/info/lsp/install/version`), `kof.db`/`kof.orm` (native SQLite `.so` + MySQL wire protocol WIP), `kof.config`/`kof.log`. Full state in docs/stdlib/stdlib.md and docs/status.md (current suite count).
+Modules (0.5.0-beta, re-synced 17/09): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objects/records + arrays on the 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (routes/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequential), `kof.test`, `kof.cli` (18 commands: `build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/debug/info/lsp/install/version`), `kof.db`/`kof.orm` (native SQLite `.so` + MySQL wire x86-64 real (13 ORM faces, F2d1–F2d7)), `kof.config`/`kof.log`. Full state in docs/stdlib/stdlib.md and docs/status.md (current suite count).
 
 ## Diagnostics
 

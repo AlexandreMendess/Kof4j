@@ -119,7 +119,13 @@ public final class RuntimeStringsConv {
                 popq %rbx
                 ret
 
-            # kof_strings_reverse(rdi=str) -> String (byte-reverso, ASCII)
+            # kof_strings_reverse(rdi=str) -> String (inverso por CODE POINT)
+            # Inverte a sequência de code points UTF-8, mantendo cada sequência
+            # multi-byte intacta — mesmo resultado do JVM
+            # (StringBuilder.reverse, que preserva pares surrogate) e do JS
+            # ([...v].reverse()). O store é UTF-8 (length@16 = bytes), então o
+            # cursor de escrita anda de trás para frente copiando cada code
+            # point inteiro (D-FULL-PARITY-050 linha 11).
             # null/"" => retorna o ponteiro original (paridade JVM).
             .globl kof_strings_reverse
             .type kof_strings_reverse, @function
@@ -143,16 +149,38 @@ public final class RuntimeStringsConv {
                 movq $0, 8(%r13)
                 movl %r12d, 16(%r13)
                 movl $0, 20(%r13)
-                xorq %r14, %r14            # i
+                movq %r12, %r14            # i = byteLen (cursor de leitura)
+                xorq %r15, %r15            # o = 0 (cursor de escrita, do início)
             .Lv_str_rev_loop:
-                cmpq %r12, %r14
-                jge .Lv_str_rev_term
-                movq %r12, %r15
-                subq %r14, %r15
-                decq %r15
-                movzbl 24(%rbx,%r15), %eax # s[len-1-i]
-                movb %al, 24(%r13,%r14)
-                incq %r14
+                testq %r14, %r14
+                jle .Lv_str_rev_term
+                movq %r14, %rcx            # j = i-1
+                decq %rcx
+            .Lv_str_rev_scan:
+                testq %rcx, %rcx
+                jle .Lv_str_rev_start
+                movzbl 24(%rbx,%rcx), %eax
+                andl $0xC0, %eax
+                cmpl $0x80, %eax           # byte de continuação 10xxxxxx?
+                jne .Lv_str_rev_start
+                decq %rcx
+                jmp .Lv_str_rev_scan
+            .Lv_str_rev_start:
+                movq %r14, %rdx            # len = i - j
+                subq %rcx, %rdx
+                xorq %r8, %r8              # k
+            .Lv_str_rev_copy:
+                cmpq %rdx, %r8
+                jge .Lv_str_rev_copied
+                movzbl 24(%rbx,%rcx), %eax # in[j+k]
+                movb %al, 24(%r13,%r15)    # out[o+k]
+                incq %rcx
+                incq %r15
+                incq %r8
+                jmp .Lv_str_rev_copy
+            .Lv_str_rev_copied:
+                subq %rdx, %rcx            # rcx = j (início do code point)
+                movq %rcx, %r14
                 jmp .Lv_str_rev_loop
             .Lv_str_rev_term:
                 movb $0, 24(%r13,%r12)

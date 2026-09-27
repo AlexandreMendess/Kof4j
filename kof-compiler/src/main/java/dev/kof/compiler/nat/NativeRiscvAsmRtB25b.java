@@ -31,9 +31,7 @@ public final class NativeRiscvAsmRtB25b {
                 # --- getrandom(sp+0, 16, 0) -> buf[0..15] ---
                 addi a0, sp, 0
                 li   a1, 16
-                li   a2, 0
-                li   a7, 278
-                ecall
+                call kof_plat_random
                 li   t1, 16
                 bne  a0, t1, .Lu7_null       # rc != 16 (falha/parcial) => null
                 # --- ts = kof_time_now(); bltz => null (relogio quebrado) ---

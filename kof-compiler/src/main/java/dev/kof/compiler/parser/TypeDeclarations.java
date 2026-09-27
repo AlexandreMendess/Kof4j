@@ -46,10 +46,20 @@ final class TypeDeclarations {
 
     static List<String> parseModifiers(ParseContext ctx) {
         List<String> mods = new ArrayList<>();
-        while (ctx.check(TokenType.PUBLIC, TokenType.PRIVATE, TokenType.PROTECTED, TokenType.STATIC,
-                TokenType.FINAL, TokenType.ABSTRACT, TokenType.TRANSIENT, TokenType.VOLATILE,
-                TokenType.SYNCHRONIZED, TokenType.NATIVE, TokenType.DEFAULT, TokenType.OVERRIDE)) {
-            mods.add(ctx.advance().value());
+        while (true) {
+            if (ctx.check(TokenType.PUBLIC, TokenType.PRIVATE, TokenType.PROTECTED, TokenType.STATIC,
+                    TokenType.FINAL, TokenType.ABSTRACT, TokenType.TRANSIENT, TokenType.VOLATILE,
+                    TokenType.SYNCHRONIZED, TokenType.NATIVE, TokenType.DEFAULT, TokenType.OVERRIDE)) {
+                mods.add(ctx.advance().value());
+                continue;
+            }
+            // X5.1 (D-X5-SURFACE): `sealed` contextual antes de class/record/
+            // interface — vira modificador; fora desse contexto segue IDENTIFIER.
+            if (ctx.sealedModifierAhead()) {
+                mods.add(ctx.advance().value());
+                continue;
+            }
+            break;
         }
         return mods;
     }
@@ -162,6 +172,16 @@ final class TypeDeclarations {
         ctx.expect(TokenType.LBRACE, "Expected '{' after entity name", "PARSE024");
         while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
             SourcePosition fieldPos = ctx.pos();
+            // §381: expectId reporta SEM consumir; num nome de campo
+            // palavra-reservada o loop fazia progresso-zero e vivia alocando
+            // diagnostico + node ate o heap morrer (OOM medido). Recuperacao
+            // de panico classica: reporta uma vez e consome o token ofensor
+            // — a gramatica nao muda (decisao do maintainer 20/09).
+            if (!ctx.check(TokenType.IDENTIFIER)) {
+                ctx.expectId("Expected field name in entity", "PARSE024");
+                ctx.advance();
+                continue;
+            }
             String fieldName = ctx.expectId("Expected field name in entity", "PARSE024");
             ctx.expect(TokenType.COLON, "Expected ':' after field name", "PARSE024");
             String fieldType = TypeParser.parseTypeRef(ctx);
@@ -173,6 +193,7 @@ final class TypeDeclarations {
                 ctx.advance();
             }
             fields.add(new EntityFieldNode(fieldPos, fieldType, fieldName, generated, unique));
+            if (ctx.pos().offset() == fieldPos.offset()) ctx.advance(); // trava de progresso
         }
         ctx.expect(TokenType.RBRACE, "Expected '}' after entity body", "PARSE024");
         return new EntityDeclarationNode(ctx.pos(), name, mods, fields, annos);

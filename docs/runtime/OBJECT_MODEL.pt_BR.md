@@ -247,9 +247,9 @@ GETFIELD Point.name Ljava/lang/String;  # String name
 >
 > **Atualizado (0.2.6-beta, 31/08):** os objetos são alocados na free-list
 > `kof_free_head` (reuso `mmap`); o allocator é **thread-safe** (futex) por
-> causa do `spawn` em pthreads. GC mark-sweep ainda pendente (ver
-> MEMORY_MODEL.md §9) — a flag MARKED do header continua reservada para
-> essa fase.
+> causa do `spawn` em pthreads. GC mark-sweep implementado 03/09 (manual; ver
+> MEMORY_MODEL.md §9) — auto-collect sob exaustão ✅ pousou 19/09 (D1-A, §260 FECHADO;
+> `a904317e`).
 
 ## 8. Herança (Histórico — implementada em F.3)
 
@@ -306,7 +306,9 @@ VTable:
 ## 10. GC Future
 
 > **Implementado 03/09:** mark-sweep existe (`kof_gc_mark`/`kof_gc_sweep`,
-> `kof_gc_collect_now` manual); auto-collect sob exaustão pendente (§260).
+> `kof_gc_collect_now` manual). **Auto-collect sob exaustão ✅ pousou 19/09**
+> (D1-A, §260 FECHADO: blanket-spill dos 15 GPRs no `kof_gc_collect_now` +
+> gate `kof_spawn_count==0` + flag one-shot; `a904317e`).
 > O bit de marca abaixo é rastreado no prefixo do bloco do allocator.
 
 O object model DEVE suportar GC:

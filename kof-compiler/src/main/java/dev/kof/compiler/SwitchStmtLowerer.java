@@ -59,7 +59,12 @@ if (hasPattern) {
         nextTestLabels.add(LabelId.create());
     }
     LabelId endLabelPat = LabelId.create();
-    LabelId defaultLabelPat = ss.defaultBody().isEmpty() ? endLabelPat : LabelId.create();
+    // #588: the empty-default label MUST be a label of its own. Aliasing it
+    // to endLabelPat puts KofLabel(end)+KofJump(end) at the same position,
+    // and the backend resolves the jump to its own offset (`goto <self>` =
+    // infinite loop). A dedicated label + unconditional trailing jump keeps
+    // one label → one position, on every backend (rule 5: shared IR).
+    LabelId defaultLabelPat = LabelId.create();
     for (int i = 0; i < ss.cases().size(); i++) {
         if (i > 0) ops.add(new KofLabel(nextTestLabels.get(i)));
         SwitchCase sc = ss.cases().get(i);
@@ -89,17 +94,56 @@ if (hasPattern) {
             ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
             ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, bodyLabels.get(i)));
         } else {
+            // §476: case de VALOR primitivo dentro de pattern-switch com subject
+            // REFERENCE (`switch (Tag(k)) { ... case 99: ... }`) emitia
+            // `if_acmpeq` (EQ de referência do ClassType do subject) sobre um
+            // literal INT = VerifyError "Bad type on operand stack" no load do
+            // JVM (javap: aload_3 + bipush 99 + if_acmpeq). Ref×int nunca é um
+            // par de igualdade válido — a recusa SEM035 existente (mesma lei
+            // do site dos testes acima) cobre a face, sem inventar semântica.
+            Type guardValType = ExpressionTyper.inferExprType(driver, sc.value(), locals);
+            if (TypeMetrics.isPrimitiveType(guardValType) && !(switchType instanceof Type.ArrayType)
+                    && switchType instanceof Type.ClassType) {
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition pp = sc.position();
+                    driver.currentDiagnostics.error(pp != null ? pp.file() : "",
+                            pp != null ? pp.line() : 0, pp != null ? pp.column() : 0, 0,
+                            "case of primitive type is not supported in pattern matching "
+                                    + "(use a reference type or the value directly)",
+                            "SEM035");
+                }
+                // (sem pop: o push do #587 acontece DEPOIS deste loop de
+                // testes — a pilha aqui ainda tem só o contexto externo.)
+                return localIdx;
+            }
             ops.add(new KofLoadLocal(switchType, switchTmp));
             localIdx = ExpressionLowerer.emitExpression(driver, sc.value(), ops, owner, localIdx, locals);
+            // #473: o valor do case é tipado por si (um literal `1` é Int)
+            // enquanto o subject pode ser largo (`switch (x: Long)`). Sem a
+            // promoção, `KofBinary(EQ, long)` emitia LCMP sobre [long, int] e
+            // o frame calculation do ASM estourava (NegativeArraySizeException
+            // em COMPUTE_FRAMES) — mesmo mecanismo do widening de `long == int`.
+            Type caseValType = ExpressionTyper.inferExprType(driver, sc.value(), locals);
+            driver.emitWideningIfNeeded(ops, caseValType, switchType);
             ops.add(new KofBinary(KofBinaryOp.EQ, switchType));
             ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
             ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, bodyLabels.get(i)));
         }
     }
+    // #587: o switch statement é contexto quebrável mais interno (statements.md
+    // §5.5/§6 — "break ... do loop mais interno (ou switch)"; break em case é
+    // "aceito (e redundante)"). Sem o registro, o break do case caía no POP da
+    // pilha de breakLabels do LOOP externo e truncava a iteração. Empurra o fim
+    // do switch em volta de default + corpos (só corpos têm statements; os
+    // testes são expressões). O salto de auto-término do case vai pro MESMO
+    // endLabelPat — o break vira no-op semântico exatamente como documentado.
+    driver.breakLabels.push(endLabelPat);
     ops.add(new KofLabel(defaultLabelPat));
     if (!ss.defaultBody().isEmpty()) {
         localIdx = driver.emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
     }
+    // #588: unconditional (the default label is never the end label, so no
+    // self-jump is possible; empty body simply falls through to endLabelPat).
     ops.add(new KofJump(endLabelPat));
     for (int i = 0; i < ss.cases().size(); i++) {
         SwitchCase sc = ss.cases().get(i);
@@ -116,11 +160,14 @@ if (hasPattern) {
                                     + "(use a reference type or the value directly)",
                             "SEM035");
                 }
+                // #587: o push do breakLabels (contexto quebrável do switch)
+                // cobre a região de corpos — este early-return não pode vazar o
+                // label do switch para o contexto externo.
+                driver.breakLabels.pop();
                 return localIdx;
             }
             ops.add(new KofLoadLocal(switchType, switchTmp));
-            ops.add(new KofCheckCast(patType));
-            if (pe.varName() != null) {
+            ops.add(new KofCheckCast(patType));            if (pe.varName() != null) {
                 int varIdx = localIdx++;
                 locals.add(new IRLocalVariable(varIdx, pe.varName(), patType));
                 ops.add(new KofStoreLocal(patType, varIdx));
@@ -162,6 +209,7 @@ if (hasPattern) {
         localIdx = driver.emitStatement(new BlockStmt(sc.position(), sc.body()), ops, owner, localIdx, locals, returnType);
         ops.add(new KofJump(endLabelPat));
     }
+    driver.breakLabels.pop();
     ops.add(new KofLabel(endLabelPat));
     return localIdx;
 }
@@ -176,6 +224,10 @@ for (int i = 0; i < ss.cases().size(); i++) {
     SwitchCase sc = ss.cases().get(i);
     ops.add(new KofLoadLocal(switchType, switchTmp));
     localIdx = ExpressionLowerer.emitExpression(driver, sc.value(), ops, owner, localIdx, locals);
+    // #473: promove o valor do case ao tipo do subject (literal Int em
+    // `switch (Long)` precisa de I2L antes do KofBinary/EQ largo).
+    Type caseValType = ExpressionTyper.inferExprType(driver, sc.value(), locals);
+    driver.emitWideningIfNeeded(ops, caseValType, switchType);
     if (enumSwitch) {
         // D-ENUM207: as constantes são INSTÂNCIAS (singletons), a igualdade
         // é por IDENTIDADE (if_acmp) — não mais kof_string_equals sobre o
@@ -214,6 +266,9 @@ for (int i = 0; i < ss.cases().size(); i++) {
                 i + 1 < ss.cases().size() ? testLabels.get(i + 1) : defaultLabel));
     }
 }
+// #587: MESMO registro de contexto quebrável do ramo pattern — break em
+// case (ou no default) termina o SWITCH, não o loop externo (docs §5.5/§6).
+driver.breakLabels.push(endLabel);
 for (int i = 0; i < ss.cases().size(); i++) {
     SwitchCase sc = ss.cases().get(i);
     ops.add(new KofLabel(bodyLabels.get(i)));
@@ -224,6 +279,7 @@ ops.add(new KofLabel(defaultLabel));
 if (!ss.defaultBody().isEmpty()) {
     localIdx = driver.emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
 }
+driver.breakLabels.pop();
 ops.add(new KofLabel(endLabel));
         return localIdx;
     }

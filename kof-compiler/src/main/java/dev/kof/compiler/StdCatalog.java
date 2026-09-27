@@ -42,8 +42,10 @@ public final class StdCatalog {
         m.put("http", KofHttp.functions());
         m.put("db", KofDb.functions());
         m.put("cache", KofCache.functions());
+        m.put("buffer", KofBuffer.functions());
         m.put("process", KofProcess.functions());
         m.put("shell", KofShell.functions());
+        m.put("ssh", KofSsh.functions());
         m.putAll(KofSecurity.functions());
         // fatia 3: receiver-typed com dispatch próprio (MemberCallNamespaces)
         m.put("json", List.of("encode", "decode"));
@@ -122,6 +124,10 @@ public final class StdCatalog {
                     Map.entry("run", List.of("run(String program) -> Result", "run(String program, List<String> args) -> Result")),
                     Map.entry("runWith", List.of("runWith(List<String> argv, String cwd, Map<String,String> env) -> Result")),
                     Map.entry("pipeline", List.of("pipeline(List<List<String>> stages) -> Result")),
+                    Map.entry("ok", List.of("ok(result) -> Bool")))),
+            Map.entry("ssh", java.util.Map.ofEntries(
+                    Map.entry("cmd", List.of("cmd(String host, String command) -> List<String>")),
+                    Map.entry("run", List.of("run(String host, String command) -> Result")),
                     Map.entry("ok", List.of("ok(result) -> Bool")))),
             Map.entry("net", java.util.Map.ofEntries(
                     Map.entry("scheme", List.of("scheme(String url) -> String")),
@@ -312,20 +318,26 @@ public final class StdCatalog {
             Map.entry("crypto", java.util.Map.ofEntries(
                     Map.entry("sha256", List.of("sha256(String s) -> String")),
                     Map.entry("sha512", List.of("sha512(String s) -> String")),
-                    Map.entry("hmacSha256", List.of("hmacSha256(String key, String msg) -> String")),
-                    Map.entry("encryptAesGcm", List.of("encryptAesGcm(String plain, String keyHex64) -> String")),
-                    Map.entry("decryptAesGcm", List.of("decryptAesGcm(String cipher, String keyHex64) -> String")),
-                    Map.entry("encryptChacha20", List.of("encryptChacha20(String plain, String keyHex) -> String")),
-                    Map.entry("decryptChacha20", List.of("decryptChacha20(String cipher, String keyHex) -> String")),
+                    Map.entry("hmacSha256", List.of("hmacSha256(String key, String msg) -> String", "hmacSha256(KeyHandle key, String msg) -> String")),
+                    Map.entry("encryptAesGcm", List.of("encryptAesGcm(String plain, String keyHex64) -> String", "encryptAesGcm(String plain, KeyHandle key) -> String")),
+                    Map.entry("decryptAesGcm", List.of("decryptAesGcm(String cipher, String keyHex64) -> String", "decryptAesGcm(String cipher, KeyHandle key) -> String")),
+                    Map.entry("encryptChacha20", List.of("encryptChacha20(String plain, String keyHex) -> String", "encryptChacha20(String plain, KeyHandle key) -> String")),
+                    Map.entry("decryptChacha20", List.of("decryptChacha20(String cipher, String keyHex) -> String", "decryptChacha20(String cipher, KeyHandle key) -> String")),
                     Map.entry("randomHex", List.of("randomHex(Int n) -> String")),
                     Map.entry("randomInt", List.of("randomInt(Int max) -> Int")))),
             Map.entry("jwt", java.util.Map.ofEntries(
-                    Map.entry("create", List.of("create(String claims, String secret) -> String", "create(String claims, String secret, Int ttlSeconds) -> String")),
-                    Map.entry("verify", List.of("verify(String token, String secret) -> String", "verify(String token, String secret, String iss, String aud) -> String")),
+                    Map.entry("create", List.of("create(String claims, String secret) -> String", "create(String claims, String secret, Int ttlSeconds) -> String", "create(String claims, KeyHandle key) -> String", "create(String claims, KeyHandle key, Int ttlSeconds) -> String")),
+                    Map.entry("verify", List.of("verify(String token, String secret) -> String", "verify(String token, String secret, String iss, String aud) -> String", "verify(String token, KeyHandle key) -> String", "verify(String token, KeyHandle key, String iss, String aud) -> String")),
                     Map.entry("secret", List.of("secret() -> String")))),
             Map.entry("secrets", java.util.Map.ofEntries(
                     Map.entry("get", List.of("get(String key) -> String", "get(String key, String d) -> String")),
-                    Map.entry("redact", List.of("redact(String s) -> String")))),
+                    Map.entry("redact", List.of("redact(String s) -> String")),
+                    Map.entry("of", List.of("of(String literal) -> Secret")),
+                    Map.entry("secret", List.of("secret(String name) -> Secret")),
+                    Map.entry("fromBytes", List.of("fromBytes(Int[] bytes) -> Secret")),
+                    Map.entry("keyFromHex", List.of("keyFromHex(String hex) -> KeyHandle")),
+                    Map.entry("keyFromPem", List.of("keyFromPem(String path) -> KeyHandle")),
+                    Map.entry("keyFromKeystore", List.of("keyFromKeystore(String path, String alias, String password) -> KeyHandle")))),
             Map.entry("security", java.util.Map.ofEntries(
                     Map.entry("constantTimeEquals", List.of("constantTimeEquals(String a, String b) -> Bool")),
                     Map.entry("randomHex", List.of("randomHex(Int n) -> String")),

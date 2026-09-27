@@ -7,6 +7,9 @@ on:
       - '**'
       - '!main'
 
+permissions:
+  contents: read
+
 jobs:
   # Gates ESTRUTURAIS (contrato de qualidade do repositório). Job PRÓPRIO e
   # independente do funcional: uma violação estrutural (ex.: classe >=600
@@ -19,10 +22,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # doc-refs (agent tests) verifies that every SHA cited in docs/development
+          # exists as a git object; the default shallow clone (fetch-depth: 1) turns
+          # every historical SHA into a false "SHA FANTASMA".
+          fetch-depth: 0
 
       - name: Set up JDK 25 (Tooling API baseline)
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '25'
@@ -60,10 +68,10 @@ jobs:
           - 27017:27017
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up JDK 25 (Tooling API baseline)
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '25'
@@ -74,6 +82,17 @@ jobs:
       - name: Install native webview deps (Linux)
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
 
+      - name: Install R engine (X2 motor R — InteropRE2ETest roda de verdade)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends r-base-core r-cran-jsonlite
+          # o runner pode ter R proprio em /usr/local/bin (PATH na frente do
+          # apt) que nao ve a site-library do apt — garante jsonlite visivel
+          # ao Rscript ATIVO, instalando na user-library se preciso.
+          if ! Rscript -e 'requireNamespace("jsonlite", quietly=TRUE)' 2>/dev/null; then
+            Rscript -e 'install.packages("jsonlite", repos="https://cloud.r-project.org")'
+          fi
+          Rscript --version
       - name: Build native webview shell
         run: scripts/build-webview.sh
 
@@ -95,10 +114,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up JDK 25 (Tooling API baseline)
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '25'
@@ -117,10 +136,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '25'

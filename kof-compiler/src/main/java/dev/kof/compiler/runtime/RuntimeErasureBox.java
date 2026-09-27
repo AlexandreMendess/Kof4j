@@ -403,6 +403,21 @@ public final class RuntimeErasureBox {
             .Lkbs_pass_end:
                 popq %rbx
             .Lkbs_pass:
+                # N2 (23/09): REFERENCIA nao-caixa. String (type_id==1 no
+                # offset 0) passa cru; qualquer outro objeto despacha o SEU
+                # toString por kof_tostring_table[type_id] (tail-call: rdi ja
+                # e o this, o ret cai no chamador original). Sem entrada na
+                # tabela -> passthrough (comportamento anterior, sem
+                # regressao). Discriminador = type_id, o MESMO do kof_instanceof.
+                movl (%rdi), %eax
+                cmpl $1, %eax
+                je .Lkbs_pass_ret
+                leaq kof_tostring_table(%rip), %rcx
+                movq (%rcx,%rax,8), %rax
+                testq %rax, %rax
+                jz .Lkbs_pass_ret
+                jmp *%rax
+            .Lkbs_pass_ret:
                 movq %rdi, %rax
                 ret
             .Lkbs_null:

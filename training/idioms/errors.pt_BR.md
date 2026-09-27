@@ -2,7 +2,7 @@
 
 # Idioms — Errors
 
-**Status:** available (JVM, Native, JS) · **Introduced:** 0.0.4-alpha · **Updated:**  0.4.0-beta (Sep 2026)
+**Status:** available (JVM, Native, JS) · **Introduced:** 0.0.4-alpha · **Updated:**  0.5.0-beta (Sep 2026)
 
 ## What it is
 
@@ -29,7 +29,7 @@ try {
 
 - Fluxo normal de controle — use `if`.
 - Validação simples — `if` + retorno.
-- Ausência como valor (não erro) — use `String?` + `if (x != null)` (0.4.0-beta) em vez de sentinela. `Option<T>` genérico ainda é planned.
+- Ausência como valor (não erro) — use `String?` + `if (x != null)` (0.5.0-beta) em vez de sentinela. `Option<T>` genérico ainda é planned.
 
 ## BAD — sentinela
 

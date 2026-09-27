@@ -6,7 +6,7 @@
 
 Neste capítulo você vai entender como declara variáveis, como o sistema de tipos funciona, e como a inferência de tipos opera.
 
-## Declaração de variáveis (0.4.0-beta)
+## Declaração de variáveis (0.5.0-beta)
 
 Em Kof existem duas palavras-chave para variáveis (`var`/`val`); NÃO há
 `let`/`const` (sugar JS removido do KofScript em 06/09 — ver abaixo):
@@ -75,6 +75,14 @@ String nome = "Mel"
 ```kf
 record Point(Int x, Int y)
 ```
+
+### Troolean (trivalente)
+
+`Bool` tem exatamente dois valores; `Troolean` carrega `true`/`false`/`unknown`
+(D-TROOL, 0.5.0-beta). `Bool?` escrito pelo usuário é SEM095 — o erro aponta
+`Troolean`. `if (t)` é açúcar para `if (t == true)`; `&&`/`||`/`!` seguem as
+tabelas de Kleene (o unknown persiste). Detalhes: `training/language/types.md`
+§Troolean.
 
 ### Classes
 
@@ -182,7 +190,7 @@ String? s = mapOf("k", "abc").get("k")   // nullable básico — null via API (=
 if (s != null) { println(s.length()) }
 ```
 
-## Status atual (0.4.0-beta)
+## Status atual (0.5.0-beta)
 
 ✅ `var` e `val` funcionam
 ✅ `var`/`val` no topo do KofScript → `KofScriptGlobals` (NÃO existe `let`/`const` — sugar JS removido 06/09)

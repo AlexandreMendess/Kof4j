@@ -51,7 +51,7 @@ diagnósticos produzidos são publicados ao editor via
 | `textDocument/completion` | gatilho `.`: **membros de stdlib por domínio** via `StdCatalog` — os 31 namespaces reais do typer (math, strings, rng, json, log, db, http, Image/Audio/Video/Mic, ...), travados contra as fontes do typer (X10 fatias 1–3); prefixo fora da stdlib = zero invenção |
 | `textDocument/references` | por palavra, no buffer **e nos `.kf` irmãos do projeto** (somente-leitura; X10 fatia 5) |
 | `textDocument/rename` | **rename cross-file (LSP-A ✅ 19/09, `LspRename`)**: edições por palavra no buffer aberto + em todo `.kf` do projeto (a mesma convenção textual dos `references`); palavras-chave e namespaces da stdlib recusam com null (nunca reescreve a linguagem) |
-| `textDocument/formatting` | formata pelo formatador `kof fmt` (mesmo motor, sem escritor paralelo) |
+| `textDocument/formatting` | formata pelo formatador `kof fmt` (mesmo motor, sem escritor paralelo; comentários sempre preservados, §509) |
 | `textDocument/documentSymbol` | sumário do buffer (tipos + funções, varredura textual) |
 | `workspace/symbol` | símbolos do **projeto inteiro**: buffers abertos (fonte da verdade) + `.kf` irmãos não-abertos; filtro substring, ordem prefixo→substring→nome→uri (X10 fatia 6) |
 | `shutdown` | responde `null` |
@@ -84,6 +84,7 @@ cliente LSP (`cmd: ["kof", "lsp"]`).
 - A varredura cross-file do projeto (`definition`/`references`/`hover`/`workspace.symbol`) é **convenção textual** (`LspSymbols` — a mesma da navegação de arquivo único), não índice tipado/semântico: nunca mente sobre uma posição que não leu, mas não desambigua nomes iguais entre arquivos (primeiro hit, ordem determinística);
 - `rename` é textual, não tipado: como os `references`, renomeia TODA ocorrência por fronteira de palavra no projeto — identificadores homônimos em arquivos sem relação entram na mesma edição (o cliente previewa antes de aplicar; índice tipado não existe por opção). Renomear keyword ou namespace da stdlib devolve null (R6);
 - sincronização completa do documento (incremental planejada).
+- Uma **request** JSON-RPC cujo `method` não tem handler é respondida com `-32601 MethodNotFound` (o cliente nunca trava numa method não anunciada); uma **notificação** (sem `id`) é ignorada por desenho (§429).
 
 O caminho de evolução é sempre o mesmo: **novas capacidades do LSP
 alimentam-se do frontend oficial**, nunca de um parser paralelo.

@@ -182,7 +182,7 @@ public final class JvmOpEmitter {
                     JvmOpCollections.emitChannelCall(c.mv(), kc);
                 }
                 else if (BuiltinTypes.isMap(kc.ownerType())) {
-                    JvmOpCollections.emitMapCall(c.mv(), kc);
+                    JvmOpMap.emitMapCall(ctx, c.mv(), kc);
                 }
                 else if (BuiltinTypes.isSet(kc.ownerType())) {
                     JvmOpCollections.emitSetCall(c.mv(), kc);

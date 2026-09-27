@@ -37,9 +37,7 @@ public final class NativeRiscvAsmRtB25 {
                 # --- getrandom(sp+0, 16, 0) ---
                 addi a0, sp, 0
                 li   a1, 16
-                li   a2, 0
-                li   a7, 278
-                ecall
+                call kof_plat_random
                 li   t1, 16
                 bne  a0, t1, .Lv_uuid_null   # rc != 16 (falha OU parcial) =>
                                              # null — NUNCA uuid fraco (R11)

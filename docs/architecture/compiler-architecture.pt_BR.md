@@ -2,7 +2,7 @@
 
 # Arquitetura do Compilador Kof
 
-**Versão:** 0.4.0-beta · **Evidência:** `kof-compiler/src/main/java/dev/kof/compiler/`
+**Versão:** 0.5.0-beta · **Evidência:** `kof-compiler/src/main/java/dev/kof/compiler/`
 
 Este documento descreve **como o compilador Kof implementa a linguagem**. Ele é
 **normativo sobre a implementação**, não sobre a linguagem — as regras da
@@ -31,28 +31,86 @@ arquitetura mudar (refatoração, novo backend), a **linguagem não muda**.
 
 `CompilerDriver.compileSources` (`:141-323`):
 
-`text
-1. Lexer.tokenize()                    → List<Token>
-2. Parser.parse()                      → CompilationUnitNode (AST crua)
-3. CompilerImports.expandKofImports()  → AST (imports de diretório resolvidos)
-4. BuiltinTypes.registerEnum()         → registro global de enums
-5. CompilerDesugar.desugarTests()      → AST (blocos test → harness)
-6. CompilerDesugar.desugarApplication()→ AST (application → main embrulhado)
-7. [ANDROID] appendAndroidHostIfNeeded → AST (+android-host.kf)
-8. SemanticAnalyzer.analyze()          → AST + maps laterais (tipos, métodos)
-   ├── preDeclareType                  (fase 1)
-   ├── defineMembers                   (fase 2)
-   ├── analyzeDeclaration              (fase 3, fixpoint ≤4 por classe)
-   └── resolveMethodCalls              (fase 4, no-op efetivo)
-9. [aborta se diagnostics.hasErrors()]
-10. LabelId.reset()
-11. lowerToIR()                        → IRModule
-12. applySuperBridges()                → IRModule (bridges de override)
-13. [if optimizeEnabled] Optimizer.optimize() → IRModule
-14. selectBackend(target)              → Backend
-15. backend.emit(irModule, outputDir, debugInfo)
-16. [ANDROID] AndroidProjectWriter.write()
-`
+```mermaid
+---
+config:
+  theme: default
+  themeVariables:
+    darkMode: false
+    background: "#ffffff"
+    textColor: "#000000"
+    lineColor: "#333333"
+---
+flowchart TB
+    N1(["1. Lexer.tokenize"]) --> D1[/"List das Tokens"/]
+    D1 --> N2(["2. Parser.parse"])
+    N2 --> D2[/"CompilationUnitNode AST Crua"/]
+    D2 ==> N3(["3. CompilerImports.expandKofImports"])
+    N3 --> D3[/"AST com imports resolvidos"/]
+    D3 --> N4(["4. BuiltinTypes.registerEnum"])
+    N4 --> N5(["5. CompilerDesugar.desugarTests"])
+    N5 --> N6(["6. CompilerDesugar.desugarApplication"])
+    N6 --> C7{"7. Target é ANDROID?"}
+    C7 -- "Sim" --> N7(["appendAndroidHostIfNeeded"])
+    N7 --> D7[/"AST + android-host.kf"/]
+    C7 -- "Não" --> M1(("AST Finalizada"))
+    D7 --> M1
+    M1 ==> N8(["8. SemanticAnalyzer.analyze"])
+    N8 --> N8A["Fase 1: preDeclareType"]
+    N8A --> N8B["Fase 2: defineMembers"]
+    N8B --> N8C["Fase 3: analyzeDeclaration fixpoint ≤4 por classe"]
+    N8C --> N8D["Fase 4: resolveMethodCalls no-op"]
+    N8D --> D8[/"AST + Maps Laterais tipos, métodos"/]
+    D8 --> C9{"9. diagnostics.hasErrors?"}
+    C9 -- "Sim" --> E9["Aborta Compilação"]
+    C9 -- "Não" --> N10(["10. LabelId.reset"])
+    N10 --> N11(["11. lowerToIR"])
+    N11 --> D11[/"IRModule"/]
+    D11 --> N12(["12. applySuperBridges"])
+    N12 --> D12[/"IRModule + bridges"/]
+    D12 --> C13{"13. optimizeEnabled?"}
+    C13 -- "Sim" --> N13(["Optimizer.optimize"])
+    N13 --> D13[/"IRModule Otimizado"/]
+    C13 -- "Não" --> M2(("IR Pronta"))
+    D13 --> M2
+    M2 ==> N14(["14. selectBackend"])
+    N14 --> N15(["15. backend.emit irModule, outputDir, debugInfo"])
+    N15 --> C16{"16. Target é ANDROID?"}
+    C16 -- "Sim" --> N16(["AndroidProjectWriter.write"])
+    N16 --> F(("Fim da Compilação"))
+    C16 -- "Não" --> F
+
+    N1:::process
+    D1:::data
+    N2:::process
+    D2:::data
+    N3:::process
+    D3:::data
+    N4:::process
+    N5:::process
+    N6:::process
+    C7:::condition
+    D7:::data
+    N8:::process
+    D8:::data
+    C9:::condition
+    E9:::error
+    D11:::data
+    D12:::data
+    C13:::condition
+    D13:::data
+    M2:::android
+    N14:::process
+    N15:::process
+    N16:::android
+
+    classDef phase fill:#eef2ff,stroke:#818cf8,stroke-width:2px,color:#1e40af
+    classDef process fill:#f0f9ff,stroke:#38bdf8,stroke-width:1px,color:#0369a1
+    classDef data fill:#f5f3ff,stroke:#a78bfa,stroke-width:1px,color:#6d28d9
+    classDef condition fill:#fefce8,stroke:#facc15,stroke-width:1px,color:#854d0e
+    classDef error fill:#fef2f2,stroke:#f87171,stroke-width:1px,color:#991b1b
+    classDef android fill:#f0fdf4,stroke:#4ade80,stroke-width:1px,color:#15803d
+```
 
 **Nenhum passo é "type checking" separado** — a checagem de tipos está
 entrelaçada com a resolução de nomes dentro de `inferType` (passo 8). Ver

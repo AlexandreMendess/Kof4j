@@ -92,6 +92,12 @@ class NativeRiscvGcFreeListTest {
             .globl kof_super_table
             kof_super_table:
                 .word 0
+                .globl kof_equals_table
+                kof_equals_table:
+                .quad 0
+                .globl kof_hashcode_table
+                kof_hashcode_table:
+                .quad 0
             .section .rodata
             .Lharness_ok: .asciz "reuse"
             .Lharness_fail: .asciz "fail"

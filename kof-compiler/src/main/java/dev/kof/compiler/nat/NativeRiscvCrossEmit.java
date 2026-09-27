@@ -68,7 +68,7 @@ public final class NativeRiscvCrossEmit {
 
     void emitCrossMethodRiscv(StringBuilder sb, IRClass clazz, IRMethod method, boolean joinMain) {
         // Mangle idêntico ao x86_64 (vtables referenciam esses símbolos).
-        String mangled = NativeSymbolMangling.fnSymbol(clazz.name(), method.name(), method.parameterTypes(), nb.allClassesMap);
+        String mangled = NativeSymbolMangling.fnSymbol(clazz.name(), method, nb.allClassesMap);
         int maxSlot = method.localVariables().stream().mapToInt(IRLocalVariable::index).max().orElse(0);
         int frameSize = Math.max((maxSlot + 1) * 8 + 16, 32);
         frameSize = (frameSize + 15) & ~15;
@@ -124,7 +124,7 @@ public final class NativeRiscvCrossEmit {
             sb.append("    addi sp, sp, 16\n");
             sb.append("    ret\n");
         }
-        if (nb.debugInfo) NativeDwarfCrossRegister.register(this, sb, mangled, clazz, method);
+        if (nb.debugInfo) NativeDwarfCrossRegister.register(this, sb, mangled, method);
     }
 
     int crossLocalOffRiscv(int idx) { return -(idx + 1) * 8 - 16; }

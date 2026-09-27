@@ -2,9 +2,11 @@
 
 # DEBUGGING.md — Depuração Kof (visão de uso)
 
-**Status:** MVP funcional no target JVM (`kof debug app.kf`)
-**Data:** 27 de agosto de 2026
-**Versão:** 0.4.0-beta (7 targets; free-list + pthread spawn + FP XMM)
+**Status:** Debug DAP nos targets **JVM e Native** (`kof debug`,
+`kof debug --dap --target native`), batch `--break` no Native, `--attach` nos
+dois; JS = gap honesto (motor embutido — ver `debugging-js.pt_BR.md`)
+**Data:** 20 de setembro de 2026
+**Versão:** 0.5.0-beta (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 
@@ -50,9 +52,13 @@ kof debug --target native app.kf # ✅ X7-3 (`cfa67238`): builda o ELF com DWARF
                                  #    delega ao gdb do alvo (`-x` arquivo de comandos, `-iex set
                                  #    directories` ate a fonte Kof) — breakpoints em
                                  #    `Main.kf:2`, nunca no mangle
+kof debug --target native --break 4 --output out app.kf # ✅ X7-3 fatia 2 (`64114449`): sessão
+                                 #    batch scriptável (gdb `-batch`, `break Main.kf:N`, `run`, `bt`);
+                                 #    `--output <dir>` preserva o ELF; ambos recusam no DAP JVM
+kof debug --attach <pid>         # ✅ X7-5 (`bda631a7`): JVM = JDWP cru numa VM viva (o debuggee
+                                 #    sobrevive ao disconnect); Native = gdb `-p`
 kof debug --target js app.kf     # gap honesto: o alvo JS roda no motor EMBUTIDO (sem
                                  #    protocolo devtools ainda) — diagnostico, nao silencio
-kof debug --attach <pid>         # futuro
 kof build app.kf --debug         # metadata extra (padrão: debug info ligado)
 kof build app.kf --release
 ```
@@ -70,14 +76,24 @@ A sessão compila com metadata de debug, lança o JVM com
 - stack traces com nomes e linhas Kof (via LineNumberTable)
 - `continue` e `disconnect`
 
-**Planejadas (Fases 4-7 — ver `debug-adapter.md`):**
+**Implementado além do MVP JVM (medido nos handlers DAP 20/09):**
 
-- step over/into/out, pause, restart
-- scopes/locals por frame (`StackFrame.GetValues`)
-- exceções (break on throw / uncaught) com stack Kof
-- avaliação de expressões (com respeito ao type system)
+- `next` / `stepIn` / `stepOut`, `scopes` / `variables` e `evaluate` — ✅ no
+  Native (DAP↔gdb/MI) e, desde 20/09, também no DAP **JVM** (JDWP `SingleStep`;
+  `evaluate` resolve o **nome** de um local — o JDWP não tem avaliador de
+  expressão, então qualquer outra coisa é recusa honesta)
+- `pause` e `setExceptionBreakpoints` — ✅ JVM + Native 20/09 (JVM: JDWP
+  `ThreadReference.Suspend` sobre as threads de usuário — nunca nas do agente — e
+  o evento Exception; Native: `-exec-interrupt --all` e um breakpoint em
+  `kof_throw_string`, com o refinamento caught/uncaught sendo `verified:false`
+  honesto)
+- attach (`--attach <pid>`) no JVM e no Native — ✅ X7-5
 - ~~Native (DWARF — Fase 5)~~ ✅ **X7-3 pousou 20/09** (`cfa67238`, `KofDebugNativeTest`);
   JS (source maps — Fase 6) = diagnostico honesto hoje (motor embutido)
+
+**Ainda planejadas (Fase 4 — ver `debugger-architecture.md`):**
+
+- Fase 4: UI do Kof Editor (o servidor DAP — JVM + Native — está pronto)
 
 ## 4. Integração
 
@@ -86,8 +102,8 @@ Kof Editor
     ├── LSP ────► Kof Language Server (diagnostics, symbols, hover)
     └── DAP ────► kof-debug
                       ├── JVM (JDWP)
-                      ├── Native (DWARF)
-                      └── JS (Node Inspector)
+                      ├── Native (DWARF ↔ gdb/MI)
+                      └── JS (gap honesto — motor embutido)
 ```
 
 LSP e DAP não se misturam: LSP = código; DAP = execução.
@@ -97,15 +113,19 @@ LSP e DAP não se misturam: LSP = código; DAP = execução.
 - Fase 1 (DebugInfo na IR) — ✅
 - Fase 2 (JVM: SourceFile, LineNumberTable, LocalVariableTable) — ✅
 - Fase 3 (`kof-debug` MVP: DAP + JDWP cru) — ✅
-  - requests DAP: `initialize`, `launch`, `setBreakpoints`,
-    `configurationDone`, `continue`, `threads`, `stackTrace`, `disconnect`
+  - requests DAP: `initialize`, `launch`, `attach`, `setBreakpoints`,
+    `setExceptionBreakpoints`, `configurationDone`, `continue`, `pause`,
+    `next`, `stepIn`, `stepOut`, `threads`,
+    `stackTrace`, `scopes`, `variables`, `evaluate`, `disconnect`
   - evento `stopped` quando um breakpoint Kof é atingido
   - call stack com funções Kof, arquivo e linha (via LineNumberTable)
 - Fase 5 (Native) — ✅ entregue como a ponte DAP↔gdb/MI2
   (`kof debug --dap --target native`, `bda631a7`; garantias medidas em
-  `debug-adapter.md`). Fase 6 (JS) — recusa honesta (engine embutido, sem
-  node/inspector — nunca uma ponte falsa). Fase 4 (UI do Kof Editor) e os
-  refinamentos da Fase 7 — ver `debugger-architecture.md`.
+  `debug-adapter.md`), incluindo `next`/`stepIn`/`stepOut`, `scopes`,
+  `variables` e `evaluate`. Fase 6 (JS) — recusa honesta (engine embutido,
+  sem node/inspector — nunca uma ponte falsa; ver
+  `debugging-js.pt_BR.md`). Fase 4 (UI do Kof Editor) e os refinamentos da
+  Fase 7 — ver `debugger-architecture.md`.
 
 ## 6. Medindo um fix pousado — a armadilha do jar obsoleto (lição 20/09)
 

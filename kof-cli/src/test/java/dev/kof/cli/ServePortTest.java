@@ -98,6 +98,11 @@ class ServePortTest {
                 """.formatted(appPort));
 
         Process p = startCli(tmp, "serve", "App.kf", "--port", String.valueOf(cliPort));
+        // §390: o `kof serve` de app kof-native gera um JVM FILHO (o app
+        // servido). Mata-se a ÁRVORE no teardown: `destroyForcibly` na CLI
+        // (SIGKILL) não roda o shutdown hook, então o filho ficava ÓRFÃO
+        // (19 JVMs vazados em 2 dias, `ppid=1`).
+        List<ProcessHandle> served = List.of();
         try {
             String out = readUntil(p, "note:", 30_000);
             assertTrue(out.contains("--port " + cliPort + " is ignored"),
@@ -111,8 +116,18 @@ class ServePortTest {
             assertTrue(up, "app deve responder na porta do app.listen(" + appPort + ")");
             assertTrue(code(cliPort, "/ping") != 200,
                     "a porta --port da CLI NUNCA deve responder neste modo");
+            served = p.descendants().toList();
+            assertFalse(served.isEmpty(),
+                    "§390: `kof serve` de app kof-native deve ter o JVM filho (o app servido)");
         } finally {
+            p.descendants().forEach(ProcessHandle::destroyForcibly);
             p.destroyForcibly();
+        }
+        // §390 (RED-first): o filho NÃO pode sobreviver ao teardown.
+        for (ProcessHandle h : served) {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (h.isAlive() && System.nanoTime() < deadline) Thread.sleep(50);
+            assertFalse(h.isAlive(), "§390: o app servido ficou órfão após o teste");
         }
     }
 

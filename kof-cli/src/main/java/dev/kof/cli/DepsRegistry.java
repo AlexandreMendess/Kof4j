@@ -14,6 +14,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -83,94 +84,137 @@ final class DepsRegistry {
         String ver = versionOf(spec);
         if (ver != null) {
             Path cached = jarPath(owner, repo, ver);
-            if (Files.exists(cached)) return cached;
+            if (installed(cached)) return cached;
         }
         String base = apiBase();
         String releaseUrl = ver == null
                 ? base + "/repos/" + owner + "/" + repo + "/releases/latest"
                 : base + "/repos/" + owner + "/" + repo + "/releases/tags/" + repo + "-" + ver;
-        HttpResponse<String> res = get(releaseUrl, String.class);
+        HttpResponse<String> res = getJson(releaseUrl);
         if (res.statusCode() == 404) {
             throw new IOException("REG001: release not found on registry: " + owner + "/" + repo
                     + (ver == null ? " (latest)" : " tag " + repo + "-" + ver)
                     + " (private repo without GITHUB_TOKEN? unpublished?)");
         }
         require2xx(res.statusCode(), res.body(), "read release " + owner + "/" + repo);
-        String json = res.body();
-        String tag = DeployPublish.jsonField(json, "tag_name");
+        ReleaseMeta release = parseRelease(res.body(), owner + "/" + repo);
+        String tag = release.tag();
         String version = ver != null ? ver : stripTagPrefix(tag, repo);
         if (version == null || version.isEmpty()) {
             throw new IOException("REG001: release has no parsable version tag: " + tag);
         }
         Path cached = jarPath(owner, repo, version);
-        if (Files.exists(cached)) return cached;   // latest aponta p/ já instalado
-        Asset asset = pickTarball(json, repo, version);
+        if (installed(cached)) return cached;   // latest aponta p/ já instalado
+        Asset asset = pickTarball(release, repo, version);
         if (asset == null) {
             throw new IOException("REG002: release " + tag + " has no .tar.gz asset (publish a"
                     + " `kof deploy --publish` release first)");
         }
         Path tmpDir = Files.createTempDirectory("kofdep-reg");
-        HttpResponse<Path> dl = null;
+        Path dl = null;
         try {
-            dl = get(asset.downloadUrl(), Path.class);
-            if (dl.statusCode() != 200) {
-                throw new IOException("REG002: asset download failed: HTTP " + dl.statusCode()
-                        + " " + asset.downloadUrl());
-            }
-            extractTarGz(dl.body(), tmpDir);
+            dl = downloadAsset(asset.apiUrl());
+            verifyProvenance(owner, repo, tag, release, asset, dl);   // D-ARTIFACT-TRUST: antes de tocar no conteudo
+            extractTarGz(dl, tmpDir);
             Path sums = tmpDir.resolve("SHA256SUMS");
             if (!Files.exists(sums)) {
                 throw new IOException("REG004: package has no SHA256SUMS (integrity is not"
                         + " optional) — refusing to install " + owner + "/" + repo);
             }
             Path jar = findJar(tmpDir);
-            if (jar == null) {
-                throw new IOException("REG003: package has no .jar (non-JVM face?) — "
+            // #566 (b): o pacote e consumido como MODULO-FONTE — o jar e opcional numa biblioteca
+            if (jar == null && !Files.isDirectory(tmpDir.resolve(DepsSources.DIR))) {
+                throw new IOException("REG003: package has no .jar and no sources (non-JVM face?) — "
                         + owner + "/" + repo + "@" + version);
             }
-            verifyChecksum(sums, jar);
-            Files.createDirectories(cached.getParent());
-            Files.move(jar, cached, StandardCopyOption.REPLACE_EXISTING);
+            if (jar != null) verifyChecksum(sums, jar);
+            DepsSources.install(sums, tmpDir, cached.getParent());   // fontes verificadas; nada se falha
+            if (jar != null) {
+                Files.createDirectories(cached.getParent());
+                Files.move(jar, cached, StandardCopyOption.REPLACE_EXISTING);
+            }
         } finally {
-            if (dl != null) Files.deleteIfExists(dl.body());
+            if (dl != null) Files.deleteIfExists(dl);
             deleteTree(tmpDir);
         }
         System.out.println("baixado " + owner + "/" + repo + "@" + version);
         return cached;
     }
 
-    // ---- JSON mínimo (assets[] do GitHub; mesmo leitor single-source) ----
+    // ---- release do GitHub: JSON ESTRUTURAL (Json.parse, o mesmo leitor do resto do CLI) ----
+    // #564: o scanner anterior fatiava o texto por posição (1ª `}` e chave `download_url`) e só
+    // funcionava contra um mock plano; a API real aninha `uploader{...}` no asset e não tem
+    // `download_url`. Campos desconhecidos e a ordem das chaves são irrelevantes aqui.
 
-    private record Asset(String name, String downloadUrl) {}
+    /** Asset publicado: nome + `url` da API (o binário sai daí, com `Accept: octet-stream`). */
+    record Asset(String name, String apiUrl) {}
 
-    /** O tar.gz da face: `<repo>-<ver>.tar.gz` exato; senão o primeiro .tar.gz. */
-    private static Asset pickTarball(String json, String repo, String version) {
-        int key = json.indexOf("\"assets\"");
-        if (key < 0) return null;
-        int open = json.indexOf('[', key);
-        if (open < 0) return null;
+    record ReleaseMeta(String tag, List<Asset> assets) {}
+
+    /** Lê `tag_name` e `assets[*].{name,url}`; JSON inválido/inesperado = REG001 honesto. */
+    static ReleaseMeta parseRelease(String json, String what) throws IOException {
+        Object root;
+        try {
+            root = Json.parse(json);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("REG001: invalid release JSON from registry for " + what
+                    + " (" + e.getMessage() + ")", e);
+        }
+        if (!(root instanceof Map<?, ?> rel)) {
+            throw new IOException("REG001: invalid release JSON from registry for " + what
+                    + " (expected an object)");
+        }
+        String tag = rel.get("tag_name") instanceof String t ? t : null;
         List<Asset> assets = new ArrayList<>();
-        int depth = 0;
-        for (int i = open; i < json.length(); i++) {
-            char c = json.charAt(i);
-            if (c == '[') depth++;
-            else if (c == ']') { depth--; if (depth == 0) break; }
-            else if (c == '{') {
-                int end = json.indexOf('}', i);
-                if (end < 0) break;
-                String obj = json.substring(i, end + 1);
-                String name = DeployPublish.jsonField(obj, "name");
-                String url = DeployPublish.jsonField(obj, "download_url");
-                if (name != null && url != null) assets.add(new Asset(name, url));
-                i = end;
+        if (rel.get("assets") instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> a && a.get("name") instanceof String n
+                        && a.get("url") instanceof String u) {
+                    assets.add(new Asset(n, u));
+                }
             }
         }
+        return new ReleaseMeta(tag, assets);
+    }
+
+    /** O tar.gz da face: `<repo>-<ver>.tar.gz` exato; senão `-jvm`; senão o primeiro .tar.gz. */
+    static Asset pickTarball(ReleaseMeta release, String repo, String version) {
+        List<Asset> assets = release.assets();
         String exact = repo + "-" + version + ".tar.gz";
         for (Asset a : assets) if (a.name().equals(exact)) return a;
         String multi = repo + "-" + version + "-jvm.tar.gz";
         for (Asset a : assets) if (a.name().equals(multi)) return a;
         for (Asset a : assets) if (a.name().endsWith(".tar.gz")) return a;
         return null;
+    }
+
+    /** Sufixos aceitos do bundle de atestacao ao lado do tar.gz (nome exato; a confirmar com a lane CI). */
+    private static final List<String> EVIDENCE_SUFFIXES = List.of(".sigstore.json", ".intoto.jsonl", ".jsonl");
+
+    static Asset pickEvidence(ReleaseMeta release, Asset tarball) {
+        for (String suffix : EVIDENCE_SUFFIXES) {
+            for (Asset a : release.assets()) if (a.name().equals(tarball.name() + suffix)) return a;
+        }
+        return null;
+    }
+
+    /**
+     * D-ARTIFACT-TRUST (c): confere a proveniencia do tar.gz baixado contra o PEDIDO (owner/repo@tag),
+     * nao contra o que a release declara. Oficial sem evidencia valida = REG005..REG008 e nada instala;
+     * comunitario = aviso honesto. O commit da tag so e resolvido (rede) quando ha evidencia a amarrar.
+     */
+    private static void verifyProvenance(String owner, String repo, String tag, ReleaseMeta release,
+                                         Asset tarball, Path downloaded) throws IOException {
+        Asset ev = pickEvidence(release, tarball);
+        Path bundle = null;
+        try {
+            if (ev != null) bundle = downloadAsset(ev.apiUrl());
+            String commit = ev == null ? null : RegistryTags.commitOf(owner, repo, tag);
+            TrustGate.check(owner, repo, tag, downloaded, bundle, TrustGate.verifier(), commit,
+                    TrustGate.enforcing());
+        } finally {
+            if (bundle != null) Files.deleteIfExists(bundle);
+        }
     }
 
     private static String stripTagPrefix(String tag, String repo) {
@@ -210,9 +254,16 @@ final class DepsRegistry {
         }
     }
 
+    /** Versão já instalada: o jar (pacote de aplicação) OU as fontes (pacote-biblioteca, #566). */
+    private static boolean installed(Path jar) {
+        return Files.exists(jar) || DepsSources.hasSources(jar.getParent());
+    }
+
     private static Path findJar(Path dir) throws IOException {
+        Path sources = dir.resolve(DepsSources.DIR);
         try (var walk = Files.walk(dir)) {
             return walk.filter(Files::isRegularFile)
+                    .filter(p -> !p.startsWith(sources))     // um .jar dentro de src/ nunca e "o" jar
                     .filter(p -> p.getFileName().toString().endsWith(".jar"))
                     .sorted().findFirst().orElse(null);
         }
@@ -243,26 +294,89 @@ final class DepsRegistry {
 
     // ---- http/dirs helpers ----
 
-    @SuppressWarnings("unchecked")
-    private static <T> HttpResponse<T> get(String url, Class<T> kind) throws IOException {
-        HttpRequest.Builder rb = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofSeconds(60))
-                .header("Accept", "application/vnd.github+json");
+    /** Versão da API de Releases pinada: uma mudança implícita não altera o cliente sem revisão. */
+    private static final String API_VERSION = "2022-11-28";
+
+    /** Sem redirect automático: o salto para o CDN é manual, para o token não segui-lo. */
+    private static final HttpClient NO_REDIRECT = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .connectTimeout(Duration.ofSeconds(15)).build();
+
+    private static String token() {
         String token = System.getenv("GH_TOKEN");
         if (token == null || token.isBlank()) token = System.getenv("GITHUB_TOKEN");
-        if (token != null && !token.isBlank()) rb.header("Authorization", "Bearer " + token);
+        return (token == null || token.isBlank()) ? null : token;
+    }
+
+    /** Cabeçalhos exigidos/pinados pela API de Releases (User-Agent é obrigatório). */
+    private static HttpRequest.Builder request(URI uri, String accept, boolean withToken) {
+        HttpRequest.Builder rb = HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(60))
+                .header("Accept", accept)
+                .header("User-Agent", "kof-cli")
+                .header("X-GitHub-Api-Version", API_VERSION);
+        String token = token();
+        if (withToken && token != null) rb.header("Authorization", "Bearer " + token);
+        return rb;
+    }
+
+    /** Metadata da release (JSON). */
+    static HttpResponse<String> getJson(String url) throws IOException {
         try {
-            HttpResponse.BodyHandler<T> handler = (HttpResponse.BodyHandler<T>)
-                    (kind == Path.class ? HttpResponse.BodyHandlers.ofFile(
-                            Files.createTempFile("kofdep-dl", ".bin"))
-                            : HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            return HTTP.send(rb.build(), handler);
+            return HTTP.send(request(URI.create(url), "application/vnd.github+json", true).build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("registry fetch interrupted", e);
         } catch (java.net.ConnectException e) {
             throw new IOException("cannot reach the registry endpoint: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Baixa o binário pelo `url` do asset (API) com `Accept: application/octet-stream`: a API
+     * responde 200 direto ou 302 para o armazenamento. O redirect é seguido à mão e o
+     * {@code Authorization} só vai para a origem da API — nunca para o host do CDN.
+     */
+    private static Path downloadAsset(String apiUrl) throws IOException {
+        URI uri = URI.create(apiUrl);
+        String apiOrigin = originOf(uri);
+        for (int hop = 0; hop < 5; hop++) {
+            Path tmp = Files.createTempFile("kofdep-dl", ".bin");
+            try {
+                HttpResponse<Path> res = NO_REDIRECT.send(
+                        request(uri, "application/octet-stream", originOf(uri).equals(apiOrigin))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofFile(tmp));
+                int sc = res.statusCode();
+                if (sc == 200) return tmp;
+                Files.deleteIfExists(tmp);
+                if (sc == 301 || sc == 302 || sc == 303 || sc == 307 || sc == 308) {
+                    String loc = res.headers().firstValue("Location").orElse(null);
+                    if (loc == null) {
+                        throw new IOException("REG002: asset redirect without Location: " + apiUrl);
+                    }
+                    uri = uri.resolve(loc);
+                    continue;
+                }
+                throw new IOException("REG002: asset download failed: HTTP " + sc + " " + apiUrl);
+            } catch (InterruptedException e) {
+                Files.deleteIfExists(tmp);
+                Thread.currentThread().interrupt();
+                throw new IOException("registry fetch interrupted", e);
+            } catch (java.net.ConnectException e) {
+                Files.deleteIfExists(tmp);
+                throw new IOException("cannot reach the registry endpoint: " + e.getMessage(), e);
+            } catch (IOException e) {
+                Files.deleteIfExists(tmp);
+                throw e;
+            }
+        }
+        throw new IOException("REG002: too many redirects downloading asset " + apiUrl);
+    }
+
+    private static String originOf(URI u) {
+        return u.getScheme() + "://" + u.getHost() + ":" + u.getPort();
     }
 
     private static void require2xx(int status, String body, String what) throws IOException {

@@ -74,64 +74,6 @@ public final class RuntimeJsonEncode {
                 popq %rbp
                 ret
 
-            .globl kof_json_encode_string
-            .type kof_json_encode_string, @function
-            kof_json_encode_string:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                pushq %r14
-                movq %rdi, %rbx
-                call kof_json_builder_new
-                movq %rax, %r12
-                movq %r12, %rdi
-                movl $34, %esi
-                call kof_json_builder_char
-                movl 16(%rbx), %r13d
-                xorq %r14, %r14
-            .Lkof_json_esc_loop:
-                cmpl %r13d, %r14d
-                jge .Lkof_json_esc_done
-                leaq 24(%rbx), %rax
-                movzbl (%rax,%r14), %eax
-                cmpb $34, %al
-                je .Lkof_json_esc_quote
-                cmpb $92, %al
-                je .Lkof_json_esc_backslash
-                movq %r12, %rdi
-                movl %eax, %esi
-                call kof_json_builder_char
-                incq %r14
-                jmp .Lkof_json_esc_loop
-            .Lkof_json_esc_quote:
-                movq %r12, %rdi
-                movl $92, %esi
-                call kof_json_builder_char
-                movq %r12, %rdi
-                movl $34, %esi
-                call kof_json_builder_char
-                incq %r14
-                jmp .Lkof_json_esc_loop
-            .Lkof_json_esc_backslash:
-                movq %r12, %rdi
-                movl $92, %esi
-                call kof_json_builder_char
-                movq %r12, %rdi
-                movl $92, %esi
-                call kof_json_builder_char
-                incq %r14
-                jmp .Lkof_json_esc_loop
-            .Lkof_json_esc_done:
-                movq %r12, %rdi
-                movl $34, %esi
-                call kof_json_builder_char
-                movq %r12, %rdi
-                call kof_json_builder_result
-                popq %r14
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
 
             .globl kof_json_encode_list
             .type kof_json_encode_list, @function
@@ -165,6 +107,12 @@ public final class RuntimeJsonEncode {
                 je .Lkof_json_el_string
                 cmpl $2, %r15d
                 je .Lkof_json_el_bool
+                cmpl $3, %r15d
+                je .Lkof_json_el_double
+                cmpl $5, %r15d
+                je .Lkof_json_el_long
+                cmpl $4, %r15d
+                je .Lkof_json_el_object
                 call kof_json_encode_int
                 jmp .Lkof_json_el_appended
             .Lkof_json_el_string:
@@ -172,6 +120,17 @@ public final class RuntimeJsonEncode {
                 jmp .Lkof_json_el_appended
             .Lkof_json_el_bool:
                 call kof_json_encode_bool
+                jmp .Lkof_json_el_appended
+            .Lkof_json_el_double:
+                movq %rdi, %xmm0
+                call kof_json_encode_double
+                jmp .Lkof_json_el_appended
+            .Lkof_json_el_long:
+                call kof_json_encode_long
+                jmp .Lkof_json_el_appended
+            .Lkof_json_el_object:
+                # §516 (26/09): elemento record/classe — walk pelo schema via typeId
+                call kof_json_encode_object
             .Lkof_json_el_appended:
                 movq %r12, %rdi
                 movq %rax, %rsi
@@ -371,10 +330,23 @@ public final class RuntimeJsonEncode {
                 je .Lkjm_valstr
                 cmpl $2, 0(%rsp)
                 je .Lkjm_valbool
+                cmpl $3, 0(%rsp)
+                je .Lkjm_valdouble
                 cmpl $7, 0(%rsp)
                 je .Lkjm_valbox
+                cmpl $4, 0(%rsp)
+                je .Lkjm_valobject
                 movq %rax, %rdi
                 call kof_json_encode_int
+                jmp .Lkjm_vapp
+            .Lkjm_valobject:
+                movq %rax, %rdi
+                call kof_json_encode_object
+                jmp .Lkjm_vapp
+            .Lkjm_valdouble:
+                movq %rax, %rdi
+                movq %rdi, %xmm0
+                call kof_json_encode_double
                 jmp .Lkjm_vapp
             .Lkjm_valbox:
                 testq %rax, %rax

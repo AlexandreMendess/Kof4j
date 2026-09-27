@@ -2,7 +2,7 @@
 
 # 27 — Best Practices
 
-> **Kof 0.4.0-beta — `String?`, `Point(x,y)`, `map/filter/reduce`, `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.5.0-beta — `String?`, `Point(x,y)`, `map/filter/reduce`, `intention->Kof->frontend->IR->backend->runtime`**
 
 ## 0.2.0 news that affect style
 

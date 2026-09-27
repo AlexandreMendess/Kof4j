@@ -36,6 +36,12 @@ final class MethodCallNamespaces {
             if (consts.contains(mc.methodName())) return enumT;
             return Type.UnknownType.UNKNOWN;
         }
+        // X6 (D-INTEROP-REFLECT): `interop.schema(R)` é intrínseco de
+        // compile-time — o tipo é List<Field> (host kof.interop), dobrado no
+        // lowerer sem reflexão em runtime.
+        if (CompilerInterop.isSchemaCall(mc) && CompilerInterop.hostPresent(driver)) {
+            return CompilerInterop.schemaType();
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && "json".equals(rid.name())) {
             if ("encode".equals(mc.methodName())) return BuiltinTypes.STRING;
             if ("decode".equals(mc.methodName()) && !mc.typeArguments().isEmpty()) {
@@ -156,6 +162,14 @@ final class MethodCallNamespaces {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             KofShell.ShellCall shellCall = KofShell.staticCall(mc.methodName(), argTypes);
             if (shellCall != null) return shellCall.returnType();
+            return Type.UnknownType.UNKNOWN;
+        }
+        if (mc.receiver() instanceof IdentifierExpr rid && "ssh".equals(rid.name())
+                && driver.findLocalVar(rid.name(), locals) == null) {
+            List<Type> argTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+            KofSsh.SshCall sshCall = KofSsh.staticCall(mc.methodName(), argTypes);
+            if (sshCall != null) return sshCall.returnType();
             return Type.UnknownType.UNKNOWN;
         }
         if (mc.receiver() instanceof IdentifierExpr rid && KofConfig.isConfigNamespace(rid.name())) {

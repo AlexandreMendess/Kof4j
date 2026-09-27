@@ -1,0 +1,123 @@
+// Motor R do kof.interop (X2, D-COMPLETE-FIRST item 2 — plano
+// docs/development/interop-engine-plan.md). KOF-first (rule 10) + simetria
+// total com o KofPy (regra 11): MESMO protocolo de 3 linhas (KOFPID + status
+// + payload), faces da fatia 3: timeout + cancel reais — o cancel nomeia a morte do filho no SIGINT pelo ESTADO do pai, nunca por adivinhaçao de exit code, spec embutida
+// na expressao -e (literal R escapado), `source` reaplicada por
+// chamada (modelo replay). O codec
+// JSON do lado R e o jsonlite do ecossistema (interop-first R9 — o motor
+// nao implementa parser JSON proprio); sem jsonlite a face falha NOMEADA,
+// nunca silenciosa (R6).
+class KofR {
+    String source
+    Int timeoutMs
+    String currentPid
+    Bool cancelRequested
+
+    public constructor(String source) {
+        this.source = source
+        this.timeoutMs = 30000
+        this.currentPid = ""
+        this.cancelRequested = false
+    }
+
+    // Deadline em ms (0 = sem limite, declarado). Default 30000 — precedente
+    // §418; corre no FILHO via setTimeLimit(elapsed=) do proprio R.
+    void timeout(Int ms) {
+        this.timeoutMs = ms
+    }
+
+    // Interrompe a chamada EM CURSO: SIGINT no filho. Medida na CI 27/09:
+    // o Rscript nao-interativo NAO carrega um status proprio pelo pipe
+    // nesse contexto (o handler tools::signalHandler morreu na estrada) —
+    // mas o filho MORRE no SIGINT (default POSIX; EOF observado no stdout).
+    // Quem sabe que o sinal foi nosso e o PAI (flag), nunca a saida do
+    // filho: EOF com flag = INTEROP008 nomeado; EOF sem flag = INTEROP004
+    // real; resposta chegada primeiro vence (sem corrida de interpretacao).
+    // Fora de chamada = no-op.
+    void cancel() {
+        if (this.currentPid != "") {
+            this.cancelRequested = true
+            process.run("kill", "-2", this.currentPid)
+        }
+    }
+
+    String kofREscape(String s) {
+        // Embedding no literal R '...': backslash primeiro, depois a aspa
+        return s.replace("\\", "\\\\").replace("'", "\\'")
+    }
+
+    String kofRExpr(String spec) {
+        // Canais descartados por MEDIDA no CI (efa8805ab): stdin do filho e
+        // /dev/null no spawn JVM (JvmRuntimeCore redirectInput — por isso o
+        // py host nunca usou stdin) e `Rscript -e <expr> <posicional>` trata
+        // o posicional como FICHEIRO a sourcear (Rscript man). Sobra a
+        // expressao: spec vira literal R com escapamento backslash-aspa.
+        // `;` entre statements: -e aceita a expressao multi-statement inteira.
+        return "if (!requireNamespace(\"jsonlite\", quietly=TRUE)) { cat(\"KOFERR\\n\"); cat(\"jsonlite package missing (install.packages jsonlite)\\n\"); quit(status=0) }; " +
+            "s <- jsonlite::fromJSON('" + this.kofREscape(spec) + "', simplifyVector=FALSE); " +
+            "cat(paste0(\"KOFPID \", Sys.getpid(), \"\\n\")); " +
+            "eval(parse(text=s$source)); " +
+            "tm <- as.numeric(s$timeout_ms); " +
+            "if (tm > 0) setTimeLimit(elapsed = tm/1000); " +
+            "status <- \"KOFERR\"; " +
+            "r <- tryCatch({ v <- do.call(get(s$fn, envir=globalenv()), as.list(s$args)); if (tm > 0) setTimeLimit(0); status <<- \"KOFOK\"; paste0(jsonlite::toJSON(v, auto_unbox=TRUE), \"\\n\") }, error = function(e) { m <- conditionMessage(e); if (tm > 0 && grepl(\"reached elapsed time limit\", m, fixed=TRUE)) { status <<- \"KOFTIME\" } else { status <<- \"KOFERR\"; gsub(\"\\n\", \" | \", m, fixed=TRUE) } }); " +
+            "cat(status, \"\\n\", sep=\"\"); " +
+            "if (status == \"KOFOK\") cat(r) else if (status == \"KOFERR\") cat(paste0(r, \"\\n\"))"
+    }
+
+    String kofRLine(String funcName, String argsJson) {
+        val spec = "{\"fn\":\"" + funcName + "\",\"args\":" + argsJson + ",\"source\":" + json.encode(this.source) + ",\"timeout_ms\":" + this.timeoutMs + "}"
+        val h = process.spawn("Rscript", "--vanilla", "-e", this.kofRExpr(spec))
+        this.currentPid = ""
+        val first = h.readLine()
+        var status = first
+        if (first.startsWith("KOFPID ")) {
+            this.currentPid = first.substring(7)
+            status = h.readLine()
+        }
+        if (status == "") {
+            val byCancel = this.cancelRequested
+            this.currentPid = ""
+            this.cancelRequested = false
+            if (byCancel) {
+                throw "INTEROP008: " + funcName + " was cancelled (the engine stopped on the SIGINT sent by cancel())"
+            }
+            throw "INTEROP004: Rscript exited without responding (interpreter missing or fatal startup error, exit " + h.exitCode() + ")"
+        }
+        this.cancelRequested = false
+        if (status == "KOFTIME") {
+            this.currentPid = ""
+            throw "INTEROP007: " + funcName + " exceeded the " + this.timeoutMs + "ms deadline and was stopped by the engine itself"
+        }
+        if (status == "KOFOK") {
+            val payload = h.readLine()
+            this.currentPid = ""
+            return payload
+        }
+        val remote = h.readLine()
+        this.currentPid = ""
+        throw "INTEROP006: " + funcName + " failed: " + remote
+    }
+
+    Int callInt(String funcName, List<Int> args) {
+        return json.decode<Int>(this.kofRLine(funcName, json.encode(args)))
+    }
+
+    Double callDouble(String funcName, List<Double> args) {
+        return json.decode<Double>(this.kofRLine(funcName, json.encode(args)))
+    }
+
+    Bool callBool(String funcName, List<Bool> args) {
+        return json.decode<Bool>(this.kofRLine(funcName, json.encode(args)))
+    }
+
+    String callString(String funcName, List<String> args) {
+        return json.decode<String>(this.kofRLine(funcName, json.encode(args)))
+    }
+
+    // Simetria com o KofPy (fatia 2): args/resultado RECORD via JSON cru —
+    // o usuario compoe `json.encode(listOf(record))` e `json.decode<R>`.
+    String callJson(String funcName, String argsJson) {
+        return this.kofRLine(funcName, argsJson)
+    }
+}

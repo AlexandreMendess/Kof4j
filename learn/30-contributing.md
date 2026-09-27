@@ -2,7 +2,7 @@
 
 # 30 — Contributing
 
-> **Kof 0.4.0-beta — Sep 2026 — targets jvm/native/native.risc/native.arm/js/kofc**
+> **Kof 0.5.0-beta — Sep 2026 — targets jvm/native/native.risc/native.arm/js/kofc**
 
 ## Repository structure
 
@@ -15,7 +15,7 @@ kof/
 ├── kof-runtime/        ← native runtime (free-list GC)
 ├── docs/               ← internal documentation
 ├── learn/              ← this material (intention->Kof->frontend->IR->backend->runtime)
-├── tests/              ← golden tests (2218)
+├── tests/              ← golden tests (3225)
 ├── pom.xml             ← Maven build (`${revision}`)
 └── README.md
 ```
@@ -151,7 +151,7 @@ Whenever a feature changes:
 
 ## Current state of the project
 
-The project is at 0.4.0-beta, functional:
+The project is at 0.5.0-beta, functional:
 
 **Works today:**
 - Complete frontend: lexer, parser, `SemanticAnalyzer` (type checking + nullability `String?`)
@@ -164,7 +164,7 @@ The project is at 0.4.0-beta, functional:
 - KofJS — ES Modules via GraalJS (`kof.http` via Java HttpClient interop)
 - KofScript (`var`/`val`→`KofScriptGlobals`, repl, --watch) + KofC (`kof c` native-only)
 - stdlib: kof.io, kof.web, kof.http, kof.security, kof.db, kof.orm, kof.ui, kof.config, kof.log, kof.cache, kof.mq
-- Tests: 2218 (golden 16/16, integration 9/9)
+- Tests: 3225 (golden 16/16, integration 9/9)
 
 **In development:**
 - Full native MySQL/MariaDB (wire protocol: SHA-1 auth done)

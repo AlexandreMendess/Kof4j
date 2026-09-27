@@ -37,7 +37,13 @@ class RouterE2ETest {
 
 
     @Test
-    void debugConc001(@TempDir Path tempDir) throws Exception {
+    void concurrentSpawnAwaitNativeRuns(@TempDir Path tempDir) throws Exception {
+        // §430: used to be a zero-assertion debug probe (`debugConc001`, always
+        // green). Now a real Native E2E with an honest toolchain gate: spawn +
+        // await must compile and the awaited value must print.
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                dev.kof.compiler.nat.NativeToolchainGate.present(),
+                "Native toolchain (as/ld) ausente no host — pulando honesto");
         Path source = tempDir.resolve("sp.kf");
         Files.writeString(source, """
             Int work(Int x) { return x * 2 }
@@ -51,19 +57,15 @@ class RouterE2ETest {
             }
             """);
         CompilationResult rn = driver.compile(source, tempDir.resolve("nout"), Target.NATIVE);
-        System.err.println("DEBUG-CONC001 native ok=" + rn.success() + (rn.success() ? "" : " " + rn.diagnostics().getDiagnostics()));
-        if (!rn.success()) {
-            try { for (java.nio.file.Path s : Files.walk(tempDir.resolve("nout")).filter(f -> f.toString().endsWith(".s")).toList()) {
-                String asm = Files.readString(s);
-                for (String line : asm.split("\n")) if (line.contains("kof_spawn") || line.contains("pthread")) System.err.println("ASM: " + line.trim());
-            } } catch (Exception e) {}
-        }
-        if (rn.success()) {
-            Path bin = tempDir.resolve("nout").resolve("Default/Main");
-            Process p2 = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
-            String out = new String(p2.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-            System.err.println("DEBUG-CONC001 ec=" + p2.waitFor() + " out=[" + out.trim() + "]");
-        }
+        assertTrue(rn.success(), "compilação Native de spawn/await: "
+                + rn.diagnostics().getDiagnostics());
+        Path bin = tempDir.resolve("nout/Default/Main");
+        Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "exit nativo, saida: " + out);
+        assertTrue(out.contains("42"), "await r deve imprimir 42: " + out);
+        assertTrue(out.contains("after"), "main continua apos await: " + out);
     }
 
     @Test

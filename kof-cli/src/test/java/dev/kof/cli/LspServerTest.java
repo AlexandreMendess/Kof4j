@@ -92,6 +92,24 @@ class LspServerTest {
         assertEquals(Boolean.TRUE, caps.get("renameProvider"));
     }
 
+    /** §429: an unknown REQUEST (has `id`) is answered -32601 MethodNotFound;
+     *  an unknown NOTIFICATION (no `id`) stays silent. */
+    @SuppressWarnings("unchecked")
+    @Test
+    void unknownRequestAnswersMethodNotFoundAndNotificationStaysSilent() throws Exception {
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/inlayHint\",\"params\":{}}";
+        String notif = "{\"jsonrpc\":\"2.0\",\"method\":\"$/unknownNotification\",\"params\":{}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(all(frame(req), frame(notif))), out).run();
+        List<Map<String, Object>> msgs = messages(out.toString(StandardCharsets.UTF_8));
+        assertEquals(1, msgs.size(), "só o request vira resposta; a notificação é silenciosa: " + msgs);
+        Map<String, Object> resp = byId(msgs, 7);
+        assertNull(resp.get("result"), "erro não carrega result: " + resp);
+        Map<String, Object> err = (Map<String, Object>) resp.get("error");
+        assertNotNull(err, "request desconhecido deve responder error: " + resp);
+        assertEquals(-32601, ((Number) err.get("code")).intValue(), "código MethodNotFound: " + err);
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     void referencesReturnsAllWordBoundaries() throws Exception {
@@ -377,6 +395,45 @@ class LspServerTest {
         List<Object> edits = formattingEdits(formatted);
         assertNotNull(edits);
         assertTrue(edits.isEmpty(), "já formatado → nenhum edit, foi: " + edits);
+    }
+
+    // ---- §509 / issue #625: formatting nunca perde comentario, nunca NPE --
+
+    private static final String REPRO_625 = "main() {\n    val a = 1\n    val b = 2\n"
+            + "    // soma os valores\n    val c = a + b\n    println(c)\n}\n";
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void formattingPreservesCommentsIssue625() throws Exception {
+        // antes: o edit de documento inteiro DELETAVA a linha do comentario
+        // (AST vencia pelo heuristica de 50%) — o format-on-save do editor
+        // destrua trabalho do usuario em silencio (R6).
+        String unformatted = "main(){\nval a=1\n// soma os valores\nprintln( a )\n}\n";
+        List<Object> edits = formattingEdits(unformatted);
+        assertEquals(1, edits.size(), "um edit de substituição total");
+        String newText = (String) ((Map<String, Object>) edits.get(0)).get("newText");
+        assertTrue(newText.contains("// soma os valores"),
+                "comentario preservado no newText: " + newText);
+        assertTrue(newText.contains("println(a)"), "e o codigo formata: " + newText);
+    }
+
+    @Test
+    void formattingCanonicalWithCommentsProposesNoEdit() throws Exception {
+        // o fonte do issue ja esta na forma canonica do formatador de
+        // comentarios (token-based) — o servidor NAO pode propor reescrita
+        // lossy (era exatamente isso que o bug fazia: edit "limpando" a
+        // linha do comentario)
+        List<Object> edits = formattingEdits(REPRO_625);
+        assertTrue(edits.isEmpty(), "ja canonico com comentario → nenhum edit, foi: " + edits);
+    }
+
+    @Test
+    void formattingUnformattableSourceNeverCrashesServer() throws Exception {
+        // antes: KofFormatter devolvia null (fonte nao-parseavel) e o
+        // formatEdit fazia formatted.equals(text) → NPE matava o servidor
+        // (LspServer.java:433). Agora: resposta valida, servidor vivo.
+        List<Object> edits = formattingEdits("main( {\n// nota\n");
+        assertNotNull(edits, "servidor responde (edits ou vazio), nao morre");
     }
 
     // ---- EDI001 §15: textDocument/documentSymbol (outline) ---------------

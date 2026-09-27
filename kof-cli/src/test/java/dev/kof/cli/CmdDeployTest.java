@@ -44,6 +44,24 @@ class CmdDeployTest {
 
     private record CliResult(int exit, String out) {}
 
+    private static CliResult runEnv(Path workDir, java.util.Map<String, String> env,
+                                    String... cliArgs) throws Exception {
+        java.util.List<String> cmd = new java.util.ArrayList<>();
+        cmd.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+        cmd.add("-cp");
+        cmd.add(System.getProperty("java.class.path"));
+        cmd.add("dev.kof.cli.Main");
+        cmd.addAll(java.util.List.of(cliArgs));
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.directory(workDir.toFile());
+        pb.redirectErrorStream(true);
+        pb.environment().putAll(env);
+        Process p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        p.waitFor(180, TimeUnit.SECONDS);
+        return new CliResult(p.exitValue(), out);
+    }
+
     private static CliResult run(Path workDir, String... cliArgs) throws Exception {
         Process p = startCli(workDir, cliArgs);
         String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
@@ -63,6 +81,13 @@ class CmdDeployTest {
         Path jar = releaseDir.resolve("servico-1.2.3.jar");
         assertTrue(Files.isRegularFile(jar), "jar ausente:\n" + r.out());
 
+        // #565: o artefato distribuído não embute cópia truncada de si mesmo
+        try (var zip = new java.util.zip.ZipFile(jar.toFile())) {
+            assertNull(zip.getEntry("kof-app.jar"),
+                    "deploy JVM não pode publicar cópia truncada do próprio fat jar");
+            assertNotNull(zip.getEntry("Default/Main.class"), "classes do app no jar publicado");
+        }
+
         // prova real: o artefato empacotado RODA
         Process run = new ProcessBuilder(
                 Path.of(System.getProperty("java.home"), "bin", "java").toString(),
@@ -76,7 +101,7 @@ class CmdDeployTest {
         // checksum confere com o artefato
         String sums = Files.readString(releaseDir.resolve("SHA256SUMS"), StandardCharsets.UTF_8);
         String expected = CmdDeploy.sha256Hex(jar) + "  servico-1.2.3.jar";
-        assertEquals(expected, sums.trim(), "SHA256SUMS diverge do artefato");
+        assertEquals(expected, sums.lines().findFirst().orElse(""), "1a linha do SHA256SUMS = o artefato (as fontes vem depois, #566)");
 
         // RELEASE.md com os metadados
         String release = Files.readString(releaseDir.resolve("RELEASE.md"), StandardCharsets.UTF_8);
@@ -85,18 +110,22 @@ class CmdDeployTest {
         assertTrue(release.contains("Default.Main"), release);
         assertTrue(release.contains("java -jar servico-1.2.3.jar"), release);
 
-        // tar.gz: ustar legível, primeiro entry = jar, 3 entries no total
+        // tar.gz: ustar legível, primeiro entry = jar, depois as FONTES (#566, opção b: contrato do
+        // tar mudou de propósito — era 3 entries), RELEASE.md e SHA256SUMS por último.
         Path tgz = dir.resolve("dist/deploy/servico-1.2.3.tar.gz");
         assertTrue(Files.size(tgz) > 512, "tar vazio");
         try (GZIPInputStream in = new GZIPInputStream(Files.newInputStream(tgz))) {
             TarEntry e1 = tarEntry(in);
             assertEquals("servico-1.2.3.jar", e1.name(), "1º entry");
             skipTarPayload(in, e1.size());
+            TarEntry srcEntry = tarEntry(in);
+            assertEquals("src/Main.kf", srcEntry.name(), "2º entry = a fonte do módulo");
+            skipTarPayload(in, srcEntry.size());
             TarEntry rel = tarEntry(in);
-            assertEquals("RELEASE.md", rel.name(), "2º entry");
+            assertEquals("RELEASE.md", rel.name(), "3º entry");
             skipTarPayload(in, rel.size());
             TarEntry sumsEntry = tarEntry(in);
-            assertEquals("SHA256SUMS", sumsEntry.name(), "3º entry");
+            assertEquals("SHA256SUMS", sumsEntry.name(), "4º entry");
             skipTarPayload(in, sumsEntry.size());
             byte[] eof = new byte[512];
             assertEquals(512, in.readNBytes(eof, 0, 512));
@@ -314,7 +343,7 @@ class CmdDeployTest {
         // checksum confere
         String sums = Files.readString(dir.resolve("dist/deploy/edge-2.0.0/SHA256SUMS"),
                 StandardCharsets.UTF_8);
-        assertEquals(CmdDeploy.sha256Hex(bin) + "  edge-2.0.0", sums.trim(),
+        assertEquals(CmdDeploy.sha256Hex(bin) + "  edge-2.0.0", sums.lines().findFirst().orElse(""),
                 "SHA256SUMS diverge do ELF");
 
         // tar: artefato com mode 0755 no header
@@ -361,14 +390,62 @@ class CmdDeployTest {
         assertTrue(release.contains("js"), release);
     }
 
-    /** X9 fatia 3: cross riscv/arm continuam DEP001 honesto. */
+    /** X9 fatia 6: sem toolchain cross o deploy FALHA honesto nomeando a
+     *  ferramenta (R6) — nao e mais recusa preventiva DEP001: ele TENTOU. */
     @Test
-    void crossTargetsStayHonestGaps(@TempDir Path dir) throws Exception {
+    void crossDeployWithoutToolchainFailsHonestly(@TempDir Path dir) throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                !hasCrossToolchain(), "host com toolchain cross real: face provada e o empacotamento");
         Path src = writeApp(dir, "main() { println(\"x\") }\n");
-        for (String t : new String[]{"native.risc", "native.arm"}) {
+        for (String t : new String[]{"native.riscv64", "native.aarch64"}) {
             CliResult r = run(dir, "deploy", src.toString(), "--target", t);
-            assertEquals(1, r.exit(), t + " deve recusar (DEP001): " + r.out());
-            assertTrue(r.out().contains("DEP001"), t + " esperava DEP001: " + r.out());
+            assertEquals(1, r.exit(), t + " sem toolchain deve falhar: " + r.out());
+            assertTrue(r.out().contains("binary not found"), t + " esperava falha honesta: " + r.out());
+            assertTrue(r.out().contains(t.contains("risc") ? "riscv64" : "aarch64"),
+                    t + " deve nomear a ferramenta: " + r.out());
+        }
+    }
+
+    private static boolean hasCrossToolchain() {
+        for (String tool : new String[]{"riscv64-linux-gnu-as", "aarch64-linux-gnu-as"}) {
+            try {
+                if (new ProcessBuilder(tool, "--version").start().waitFor() == 0) return true;
+            } catch (Exception ignored) { }
+        }
+        return false;
+    }
+
+    /** X9 fatia 6 (padrao house X7-3/X7-4): stubs de as/ld via KOF_CROSS_PREFIX
+     *  provam no host o pipeline INTEIRO do cross-release (argv do alvo certo,
+     *  ELF 0755, RELEASE.md, SHA256SUMS, tar.gz). Toolchain real = CI. */
+    @Test
+    void crossReleasePackagesWithStubToolchain(@TempDir Path dir) throws Exception {
+        Path stubs = dir.resolve("crossbin");
+        Files.createDirectories(stubs);
+        for (String tool : new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld",
+                "aarch64-linux-gnu-as", "aarch64-linux-gnu-ld"}) {
+            Path sh = stubs.resolve(tool);
+            Files.writeString(sh, "#!/bin/sh\nprev=\"\"\nfor a in \"$@\"; do\n"
+                    + "  if [ \"$prev\" = \"-o\" ]; then printf 'STUBKOFELF' > \"$a\"; exit 0; fi\n"
+                    + "  prev=\"$a\"\ndone\nexit 0\n");
+            sh.toFile().setExecutable(true);
+        }
+        Path src = writeApp(dir, "main() { println(\"x\") }\n");
+        for (String t : new String[]{"native.riscv64", "native.aarch64"}) {
+            CliResult r = runEnv(dir, java.util.Map.of("KOF_CROSS_PREFIX", stubs.toString()),
+                    "deploy", src.toString(), "--target", t,
+                    "--output", "dist-" + t, "--name", "xapp", "--version", "9.9.9");
+            assertEquals(0, r.exit(), t + " deploy com stub deve empacotar: " + r.out());
+            Path rel = dir.resolve("dist-" + t + "/deploy/xapp-9.9.9");
+            Path bin = rel.resolve("xapp-9.9.9");
+            assertTrue(Files.isRegularFile(bin), t + " artefato ELF ausente:\n" + r.out());
+            assertTrue(Files.isExecutable(bin), t + " artefato deve ser executavel (0755 no tar)");
+            String sums = Files.readString(rel.resolve("SHA256SUMS"));
+            assertEquals(CmdDeploy.sha256Hex(bin) + "  xapp-9.9.9", sums.lines().findFirst().orElse(""), t + " checksum");
+            String release = Files.readString(rel.resolve("RELEASE.md"));
+            assertTrue(release.contains("./xapp-9.9.9"), t + " run hint deve ser ./binario: " + release);
+            assertTrue(Files.isRegularFile(dir.resolve("dist-" + t + "/deploy/xapp-9.9.9.tar.gz")),
+                    t + " tar.gz ausente");
         }
     }
 
@@ -396,7 +473,11 @@ class CmdDeployTest {
     @Test
     void multiTargetPartialFailureIsHonest(@TempDir Path dir) throws Exception {
         Path src = writeApp(dir, "main() { println(\"x\") }\n");
-        CliResult r = run(dir, "deploy", src.toString(), "--target", "jvm,native.risc",
+        // X9 fatia 6: o cross TENTOU (não é mais recusa preventiva). Falha forcada
+        // de forma DETERMINISTICA em qualquer host (inclusive CI com toolchain real):
+        // KOF_CROSS_PREFIX apontando para pasta sem ferramentas.
+        CliResult r = runEnv(dir, java.util.Map.of("KOF_CROSS_PREFIX", dir.resolve("emptybin").toString()),
+                "deploy", src.toString(), "--target", "jvm,native.risc",
                 "--output", "dist", "--name", "par", "--version", "1.0");
         assertEquals(1, r.exit(), "com falha o exit é 1:\n" + r.out());
         assertTrue(Files.isDirectory(dir.resolve("dist").resolve("deploy").resolve("par-1.0-jvm")),
@@ -404,8 +485,8 @@ class CmdDeployTest {
         String manifest = Files.readString(dir.resolve("dist").resolve("deploy")
                 .resolve("par-1.0.deploy-manifest.json"));
         assertTrue(manifest.contains("\"target\": \"jvm\", \"status\": \"SUCCESS\""), manifest);
-        assertTrue(manifest.contains("\"error\"") && manifest.contains("DEP001"),
-                "risc deve entrar FAIL com o gap DEP001:\n" + manifest);
+        assertTrue(manifest.contains("\"error\"") && manifest.contains("binary not found"),
+                "risc deve entrar FAIL com a causa real (toolchain), nunca DEP001 preventivo:\n" + manifest);
     }
 
     /** 8.4: lista com repetição deduplica vira single — layout legado sem sufixo preservado. */
@@ -460,7 +541,7 @@ class CmdDeployTest {
         assertTrue(Files.isRegularFile(apk), "APK ausente:\n" + r.out());
         String sums = Files.readString(dir.resolve("dist/deploy/app-1.0.0/SHA256SUMS"),
                 StandardCharsets.UTF_8);
-        assertEquals(CmdDeploy.sha256Hex(apk) + "  app-1.0.0.apk", sums.trim());
+        assertEquals(CmdDeploy.sha256Hex(apk) + "  app-1.0.0.apk", sums.lines().findFirst().orElse(""));
     }
 
     @Test

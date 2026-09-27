@@ -71,4 +71,24 @@ final class Narrowing {
         SymbolTable.LocalVariableSymbol decl = declarationOf(scope, name);
         return decl != null ? decl : resolved;
     }
+/**
+     * §353 (early-return narrowing): o ramo garante que o fluxo NÃO continua
+     * apos o `if` — return/throw/continue/break; bloco cujo ULTIMO statement
+     * sai; if/else em que AMBOS os ramos saem. Conservador: qualquer outra
+     * forma (loop, ramo unico sem else) = NAO sai. Vive aqui por ser do
+     * dominio de narrowing (regra 7); gate <=500 do StatementAnalyzer.
+     */
+    static boolean thenBranchExits(StatementNode s) {
+        if (s instanceof ReturnStmt || s instanceof ThrowStmt) return true;
+        if (s instanceof ContinueStmt || s instanceof BreakStmt) return true;
+        if (s instanceof BlockStmt b) {
+            return !b.statements().isEmpty()
+                    && thenBranchExits(b.statements().get(b.statements().size() - 1));
+        }
+        if (s instanceof IfStmt i) {
+            return i.elseBranch() != null && thenBranchExits(i.thenBranch())
+                    && thenBranchExits(i.elseBranch());
+        }
+        return false;
+    }
 }

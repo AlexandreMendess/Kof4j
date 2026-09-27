@@ -57,12 +57,12 @@ target (`kof run --target=js`) without depending on Node.js.
 ## K
 
 **Kof IR** — Kof's single intermediate representation: the same frontend generates the
-IR and the backends (JVM, Native x86-64/riscv64/aarch64, KofJS, KofC) consume it — `intention->Kof->frontend->IR->backend->runtime` (0.4.0-beta, Target separation).
+IR and the backends (JVM, Native x86-64/riscv64/aarch64, KofJS, KofC) consume it — `intention->Kof->frontend->IR->backend->runtime` (0.5.0-beta, Target separation).
 
 **KofFormatter** — formatter of `kof fmt` (31/08): formatting via the real parser
 (`KofFormatter`), idempotent.
 
-**kof.web** — native web stack (0.4.0-beta): `web.app()` + routes
+**kof.web** — native web stack (0.5.0-beta): `web.app()` + routes
 (`get/post/put/delete/patch/options` + `ws` WebSocket + `sse` SSE — 30/08),
 middleware `app.use { }`, `status(código, body)` + `headerSet`, HTTP engine
 generated inside the program runtime (no container). JVM; `WEB002` on Native.
@@ -82,20 +82,20 @@ Native: SQLite via `.so` + MySQL WIP; JS: untyped (16/09), `query<T>` typed = `D
 + `transaction {}`; ORM with declarative `entity` (CRUD, `where`, `page`,
 `migrate`, MongoDB; native `ORM001`, JS CLOSED 18/09).
 
-**KofC** — `kof c <file.c>` : compiler of a C subset (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`) → native-only x86-64 ELF (0.4.0-beta, Target separation).
+**KofC** — `kof c <file.c>` : compiler of a C subset (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`) → native-only x86-64 ELF (0.5.0-beta, Target separation).
 
 **KofJS** — Kof's `js` target: generates ES Modules (ECMAScript 2022+) from the
 Kof IR (JVM+JS for `kof.http`, HTTP002 Native). See `learn/37-kofjs.md`.
 
-**KofScript** — `kof script <file.ks|kf>` + `kof repl` : direct execution; top-level `var`/`val` become persistent `KofScriptGlobals` (there is NO `let`/`const` — JS sugar removed 06/09), `--watch` re-executes; jvm/native/js targets (0.4.0-beta).
+**KofScript** — `kof script <file.ks|kf>` + `kof repl` : direct execution; top-level `var`/`val` become persistent `KofScriptGlobals` (there is NO `let`/`const` — JS sugar removed 06/09), `--watch` re-executes; jvm/native/js targets (0.5.0-beta).
 
-**String?** — basic nullable type (0.4.0-beta): `String? x = get(k); if (x != null) x.length()` (null reaches `T?` only via API — the `= null` literal is SEM048 since 10/09).
+**String?** — basic nullable type (0.5.0-beta): `String? x = get(k); if (x != null) x.length()` (null reaches `T?` only via API — the `= null` literal is SEM048 since 10/09).
 
-**Pattern matching** — `switch (o) { case String s: ... case Point(x,y): ... }` with type pattern + destructuring (0.4.0-beta, JVM/Native/JS).
+**Pattern matching** — `switch (o) { case String s: ... case Point(x,y): ... }` with type pattern + destructuring (0.5.0-beta, JVM/Native/JS).
 
-**Free-list GC** — Native allocator `kof_free_head` (0.4.0-beta): reuses `mmap` via free-list, GC mark-sweep pending.
+**Free-list GC** — Native allocator `kof_free_head` (0.5.0-beta): reuses `mmap` via free-list, GC mark-sweep pending.
 
-**kof_db / MySQL** — `kof_db` (JVM: JDBC/SQLite/MySQL/PostgreSQL/MongoDB; Native: SQLite via `.so` + MySQL wire protocol WIP with SHA-1 auth) (0.4.0-beta).
+**kof_db / MySQL** — `kof_db` (JVM: JDBC/SQLite/MySQL/PostgreSQL/MongoDB; Native: SQLite via `.so` + MySQL wire protocol WIP with SHA-1 auth) (0.5.0-beta).
 
 **Target separation** — `Target {JVM,NATIVE,NATIVE_RISCV64,NATIVE_AARCH64,JS,ANDROID}` + `parseTarget native.risc/arm` (`Target.nativeArch()`).
 

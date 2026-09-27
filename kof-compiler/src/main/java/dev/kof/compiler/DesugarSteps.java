@@ -1,0 +1,67 @@
+package dev.kof.compiler;
+
+import java.util.List;
+
+/**
+ * The four built-in AST desugars as {@link DesugarStep}s (2.2.3,
+ * `DECISIONS.md` §D-DESUGAR-STEP 21/09).
+ *
+ * <p>The order is significant and mirrors the historical call order in the
+ * pipeline: tests, application, infra, nested functions. Each step delegates to
+ * the existing {@link CompilerDesugar} routine, so the transformation is
+ * behavior-free (freeze rule 3).
+ */
+final class DesugarSteps {
+
+    private DesugarSteps() {
+    }
+
+    static List<DesugarStep> defaults() {
+        return List.of(
+                new DesugarStep() {
+                    @Override
+                    public String name() {
+                        return "tests";
+                    }
+
+                    @Override
+                    public CompilationUnitNode apply(CompilationUnitNode unit, CompilerDriver driver) {
+                        return CompilerDesugar.desugarTests(unit, driver.discoveredTests,
+                                driver.testHarnessMode, driver.currentSourceName);
+                    }
+                },
+                new DesugarStep() {
+                    @Override
+                    public String name() {
+                        return "application";
+                    }
+
+                    @Override
+                    public CompilationUnitNode apply(CompilationUnitNode unit, CompilerDriver driver) {
+                        return CompilerDesugar.desugarApplication(unit);
+                    }
+                },
+                new DesugarStep() {
+                    @Override
+                    public String name() {
+                        return "infra";
+                    }
+
+                    @Override
+                    public CompilationUnitNode apply(CompilationUnitNode unit, CompilerDriver driver) {
+                        return CompilerDesugar.desugarInfra(unit);
+                    }
+                },
+                new DesugarStep() {
+                    @Override
+                    public String name() {
+                        return "nested-functions";
+                    }
+
+                    @Override
+                    public CompilationUnitNode apply(CompilationUnitNode unit, CompilerDriver driver) {
+                        return CompilerDesugar.desugarNestedFunctions(unit);
+                    }
+                });
+    }
+}

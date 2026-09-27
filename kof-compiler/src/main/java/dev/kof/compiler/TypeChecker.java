@@ -4,8 +4,9 @@ import java.util.List;
 
 /**
  * Checagem de tipos extraída do SemanticAnalyzer (REFACTOR-500 fase 6):
- * assignabilidade, conferência de argumentos, tipos de resultado de
- * operações binárias e literais. Sem estado — diagnostics por parâmetro.
+ * assignabilidade, conferência de argumentos e tipos de literais. O resultado
+ * de operações binárias mora no SemBinaryResultTyper (split §446).
+ * Sem estado — diagnostics por parâmetro.
  */
 public final class TypeChecker {
 
@@ -25,147 +26,6 @@ public final class TypeChecker {
         };
     }
 
-    /** String OU Nullable(String) — para o guard de ordem em String (bug 98). */
-    private static boolean isMaybeString(Type t) {
-        if (t instanceof Type.NullableType nt) return BuiltinTypes.isString(nt.inner());
-        return BuiltinTypes.isString(t);
-    }
-
-    /** Enum OU Nullable(enum) — D-ENUM207 (a comparação enum×String é SEM062). */
-    private static boolean isEnumRef(Type t) {
-        if (t instanceof Type.NullableType nt) return isEnumRef(nt.inner());
-        return BuiltinTypes.isEnumType(t);
-    }
-
-    static Type inferBinaryResultType(DiagnosticCollector diagnostics, String operator, Type left, Type right) {
-        // bug 98 (paridade absoluta JVM=JS=X86=ARM=RISC, opção B da mantenedora):
-        // `<`/`<=`/`>`/`>=` entre Strings — a ordem era UNspecified no reference
-        // (expressions.md:56-58) e cada target dava lixo DIFERENTE: JVM tudo
-        // false (if_acmp em referência), Native comparava PONTEIRO (ordem de
-        // alocação), Script dava lexicográfico — paridade quebrada em silêncio
-        // (R6). REJEITAR em compile-time com SEM053 (o MESMO erro nos 5 alvos:
-        // este typer é o frontend único) apontando para o idiom do corpus —
-        // `s.compareTo(t) < 0` (ordem lexicográfica, paridade §97). `==`/`!=`
-        // (conteúdo, congelado) e `+` (concat) NÃO são afetados.
-        if (("<".equals(operator) || "<=".equals(operator) || ">".equals(operator)
-                || ">=".equals(operator))
-                && (isMaybeString(left) || isMaybeString(right))) {
-            if (diagnostics != null) {
-                String rel = switch (operator) {
-                    case "<" -> "< 0";
-                    case "<=" -> "<= 0";
-                    case ">" -> "> 0";
-                    default -> ">= 0";
-                };
-                diagnostics.error("", 0, 0, 0,
-                        "Kof has no operator '" + operator + "' for String "
-                                + "(lexicographic order is Unspecified — it diverges per target); "
-                                + "use: s.compareTo(t) " + rel,
-                        "SEM053");
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        // §211 / D-ENUM207: um valor de enum NÃO é uma String. `Dir.N == "N"`
-        // compilava e devolvia `true` (o valor era `ldc "N"`), quebrando a
-        // identidade que a issue #207 exige. A mantenedora ratificou o erro de
-        // tipo (DECISIONS D-ENUM207). Rejeitado no frontend COMPARTILHADO —
-        // o mesmo SEM062 nos 4 alvos (sem divergência, freeze regra 5).
-        if (("==".equals(operator) || "!=".equals(operator))
-                && (isEnumRef(left) && isMaybeString(right) || isMaybeString(left) && isEnumRef(right))) {
-            if (diagnostics != null) {
-                diagnostics.error("", 0, 0, 0,
-                        "Cannot compare an enum value to a String: an enum constant is not "
-                                + "a String (D-ENUM207). Compare two enum values, or use "
-                                + ".name() explicitly to get the name",
-                        "SEM062");
-            }
-            return Type.PrimitiveType.BOOL;
-        }
-        if ("==".equals(operator) || "!=".equals(operator) || "<".equals(operator) ||
-                ">".equals(operator) || "<=".equals(operator) || ">=".equals(operator)) {
-            return Type.PrimitiveType.BOOL;
-        }
-
-        // D-TROOL (19/09): com um `Troolean` num dos lados, `&&`/`||`/`!`
-        // produzem tres estados (Kleene, DECISIONS.md) — o tipo semantico
-        // precisa casar com o da pilha do lowering (caixa Boolean|null),
-        // senão o slot do consumidor mente (classe do §462).
-        if ("&&".equals(operator) || "||".equals(operator) || "!".equals(operator)) {
-            if (Type.isTroolean(left) || Type.isTroolean(right)) {
-                return new Type.NullableType(Type.PrimitiveType.BOOL);
-            }
-            return Type.PrimitiveType.BOOL;
-        }
-        if ("instanceof".equals(operator)) {
-            return Type.PrimitiveType.BOOL;
-        }
-        if ("as".equals(operator)) {
-            return right;
-        }
-        if (Type.isString(left) || Type.isString(right)) {
-            if ("+".equals(operator)) {
-                return BuiltinTypes.STRING;
-            }
-            if (diagnostics != null) {
-                diagnostics.error("", 0, 0, 0,
-                        "Cannot apply '" + operator + "' to String and " + right, "SEM001");
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        if (left instanceof Type.PrimitiveType lp && right instanceof Type.PrimitiveType rp) {
-            if ("int".equals(lp.name())) {
-                if ("long".equals(rp.name()) || "Long".equals(rp.name())) return Type.PrimitiveType.LONG;
-                if ("float".equals(rp.name()) || "Float".equals(rp.name())) return Type.PrimitiveType.FLOAT;
-                if ("double".equals(rp.name()) || "Double".equals(rp.name())) return Type.PrimitiveType.DOUBLE;
-                return Type.PrimitiveType.INT;
-            }
-            if ("long".equals(lp.name()) || "Long".equals(lp.name())) {
-                if ("float".equals(rp.name()) || "Float".equals(rp.name())) return Type.PrimitiveType.FLOAT;
-                if ("double".equals(rp.name()) || "Double".equals(rp.name())) return Type.PrimitiveType.DOUBLE;
-                return Type.PrimitiveType.LONG;
-            }
-            if ("float".equals(lp.name()) || "Float".equals(lp.name())) {
-                if ("double".equals(rp.name()) || "Double".equals(rp.name())) return Type.PrimitiveType.DOUBLE;
-                return Type.PrimitiveType.FLOAT;
-            }
-            if ("double".equals(lp.name()) || "Double".equals(lp.name())) {
-                return Type.PrimitiveType.DOUBLE;
-            }
-                if ("bool".equals(lp.name()) || "bool".equals(rp.name())) {
-                    if ("+".equals(operator) || "-".equals(operator) || "*".equals(operator) ||
-                            "/".equals(operator) || "%".equals(operator)) {
-                        if (diagnostics != null) {
-                            diagnostics.error("", 0, 0, 0,
-                                    "Cannot apply '" + operator + "' to boolean types. Use == or != for comparison.", "SEM002");
-                        }
-                        return Type.UnknownType.UNKNOWN;
-                    }
-                }
-            return left;
-        }
-        if (left instanceof Type.ArrayType || right instanceof Type.ArrayType) {
-            return Type.UnknownType.UNKNOWN;
-        }
-        if (left instanceof Type.UnknownType || right instanceof Type.UnknownType) {
-            return Type.UnknownType.UNKNOWN;
-        }
-        // Aritmética sobre tipo referência (ex.: param de lambda sem anotação
-        // → Object) não tem opcode: o emit cairia em IADD sobre referência e a
-        // JVM rejeitaria o bytecode (VerifyError). Diagnóstico explícito, nunca
-        // fallback silencioso (R6). String + já foi tratado acima.
-        if (isArithmeticOp(operator) && (isReferenceType(left) || isReferenceType(right))) {
-            if (diagnostics != null) {
-                diagnostics.error("", 0, 0, 0,
-                        "Cannot apply '" + operator + "' to non-numeric type "
-                                + (isReferenceType(left) ? left : right)
-                                + " (declare the parameter type, e.g. (x: Int) -> ...)",
-                        "SEM001");
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        return left;
-    }
-
     static boolean isConcurrentHandle(Type t) {
         return t instanceof Type.ClassType ct
                 && "kof.concurrent".equals(ct.packageName())
@@ -183,9 +43,15 @@ public final class TypeChecker {
 
     static void checkArgTypes(DiagnosticCollector diagnostics, String methodName,
                               List<Type> argTypes, List<Type> paramTypes) {
+        checkArgTypes(diagnostics, methodName, argTypes, paramTypes, null);
+    }
+
+    static void checkArgTypes(DiagnosticCollector diagnostics, String methodName,
+                              List<Type> argTypes, List<Type> paramTypes,
+                              List<ExpressionNode> argNodes) {
         if (diagnostics == null || paramTypes.isEmpty() && !argTypes.isEmpty()) return;
         if (argTypes.size() != paramTypes.size()) {
-            diagnostics.error("", 0, 0, 0,
+            diagnostics.error(argNodeAt(argNodes, 0),
                     "Wrong number of arguments for '" + methodName + "': expected "
                             + paramTypes.size() + " but got " + argTypes.size(), "SEM013");
             return;
@@ -193,12 +59,16 @@ public final class TypeChecker {
         for (int i = 0; i < argTypes.size(); i++) {
             if (!Type.isUnknown(argTypes.get(i)) && !Type.isUnknown(paramTypes.get(i))
                     && !isAssignable(argTypes.get(i), paramTypes.get(i))) {
-                diagnostics.error("", 0, 0, 0,
+                diagnostics.error(argNodeAt(argNodes, i),
                         "Argument " + (i + 1) + " of '" + methodName + "': expected '" + Type.display(paramTypes.get(i))
                                 + "' but got '" + Type.display(argTypes.get(i)) + "'", "SEM014");
                 return;
             }
         }
+    }
+
+    private static ExpressionNode argNodeAt(List<ExpressionNode> argNodes, int i) {
+        return argNodes != null && i < argNodes.size() ? argNodes.get(i) : null;
     }
 
     /**
@@ -242,7 +112,7 @@ public final class TypeChecker {
      * classe externa têm de continuar compilando). Aridade sem candidato e
      * SEM023 de quem chama (ja existente).
      */
-    static void checkCtorArgTypes(SemanticAnalyzer sa,
+    static void checkCtorArgTypes(SemanticAnalyzer sa, AstNode node,
             SymbolTable members, String typeName, List<Type> argTypes) {
         if (sa == null || sa.diagnostics() == null) return;
         SymbolTable.Symbol init = members.resolve("<init>");
@@ -265,7 +135,7 @@ public final class TypeChecker {
             Type formal = firstArity.parameterTypes().get(i);
             Type arg = argTypes.get(i);
             if (!emitCtorPairCompatible(formal, arg)) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(node,
                         "Argument " + (i + 1) + " of '" + typeName + "': expected "
                                 + formal + " but got " + arg
                                 + " (no constructor matches the argument types)",
@@ -302,6 +172,20 @@ public final class TypeChecker {
             return isAssignable(fa.componentType(), ta.componentType());
         }
         if (from.equals(to)) return true;
+        // §288 (#396): função declarada com type-param do escopo (`(T) -> T`
+        // em `class Box<T>`) apaga para Object nos componentes — `(Int) -> Int`
+        // CONFORMA-se a ela (o invoke da interface sintética recebe/retorna
+        // Object; o call site faz a conversão). Comparação por componente,
+        // invariante: aridade e cada par param/retorno seguem a MESMA regra
+        // (o TypeVariable no topo já aceita qualquer coisa; `(Int)->Int` vs
+        // `(String)->String` continua rejeitado, como antes).
+        if (from instanceof Type.FunctionType ff && to instanceof Type.FunctionType tf) {
+            if (ff.parameterTypes().size() != tf.parameterTypes().size()) return false;
+            for (int i = 0; i < ff.parameterTypes().size(); i++) {
+                if (!isAssignable(ff.parameterTypes().get(i), tf.parameterTypes().get(i))) return false;
+            }
+            return isAssignable(ff.returnType(), tf.returnType());
+        }
         if (from instanceof Type.PrimitiveType fp && to instanceof Type.PrimitiveType tp) {
             if ("bool".equals(Type.canonicalPrimitiveName(fp.name())) || "bool".equals(Type.canonicalPrimitiveName(tp.name()))) {
                 return "bool".equals(Type.canonicalPrimitiveName(fp.name())) && "bool".equals(Type.canonicalPrimitiveName(tp.name()));
@@ -349,6 +233,49 @@ public final class TypeChecker {
     /** Nome RAW de um ClassType (pkg.Simple), ignorando type-args. §270. */
     static String rawTypeOf(Type.ClassType ct) {
         return ct.packageName().isEmpty() ? ct.name() : ct.packageName() + "." + ct.name();
+    }
+
+    /**
+     * X5.3 (D-TYPE-VARIANCE): compatibilidade dos args de um MESMO raw à luz
+     * da variância declaration-site do tipo. Sem variância registrada (tipo
+     * builtin/JDK ou declarado sem `out`/`in`) cai na regra §270 invariante
+     * (igualdade exata) — compatível com tudo o que já existia. Com variância:
+     * `out` aceita `from.arg -> to.arg` (covariante), `in` aceita
+     * `to.arg -> from.arg` (contravariante); UNKNOWN/TypeVariable permanecem
+     * permissivos como no §270.
+     */
+    static boolean genericArgsCompatible(SemanticAnalyzer sa, List<Type> from, List<Type> to,
+                                         List<String> variance) {
+        if (from.isEmpty() || to.isEmpty() || from.size() != to.size()) return true;
+        for (int i = 0; i < from.size(); i++) {
+            Type a = from.get(i), b = to.get(i);
+            // X5.4 (D-X5-SURFACE): projeção no sítio de uso no lado DECLARADO —
+            // `List<out Animal>` aceita `List<Dog>`; `List<in Dog>` aceita
+            // `List<Animal>` (espelha a variância declaration-site, aplicada
+            // por USO). A projeção é apagada na emissão (WildcardType).
+            if (b instanceof Type.WildcardType wb) {
+                if (wb.bound() == null) continue;
+                if (Type.isUnknown(a) || a instanceof Type.TypeVariable
+                        || a instanceof Type.WildcardType) return true;
+                if (wb.upper() ? !isAssignable(sa, a, wb.bound())
+                               : !isAssignable(sa, wb.bound(), a)) {
+                    return false;
+                }
+                continue;
+            }
+            if (a instanceof Type.WildcardType) return true; // projeção na origem: conservador
+            if (Type.isUnknown(a) || Type.isUnknown(b)
+                    || a instanceof Type.TypeVariable || b instanceof Type.TypeVariable) {
+                return true;
+            }
+            String v = (variance != null && i < variance.size()) ? variance.get(i) : "";
+            switch (v) {
+                case "out" -> { if (!isAssignable(sa, a, b)) return false; }
+                case "in" -> { if (!isAssignable(sa, b, a)) return false; }
+                default -> { if (!a.equals(b)) return false; }
+            }
+        }
+        return true;
     }
 
     /**
@@ -424,8 +351,9 @@ public final class TypeChecker {
         // semântica é inferência/erasure: args vazios (raw, ou classe →
         // interface do #400), UNKNOWN (`listOf()` vazio/inferido),
         // TypeVariable (`T`) e aridades diferentes ficam permissivos.
-        if (argsIncompatible(fc.typeArguments(), tc.typeArguments())
-                && rawTypeOf(fc).equals(rawTypeOf(tc))) {
+        if (rawTypeOf(fc).equals(rawTypeOf(tc))
+                && !genericArgsCompatible(sa, fc.typeArguments(), tc.typeArguments(),
+                        sa != null ? sa.varianceOf(fc.name()) : null)) {
             return false;
         }
         // tipos builtin (String, List, Map, Set...) têm relações próprias

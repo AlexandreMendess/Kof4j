@@ -1,0 +1,7 @@
+package pdf.style
+
+enum TextAlign {
+    left,
+    center,
+    right
+}

@@ -74,7 +74,7 @@ String findOrThrow(String key) { if (found) return value; throw "not found: " + 
   captures (no type dispatch between multiple catches).
 - **finally**: always executed (normal path, caught path, propagation).
 
-## Limitations (0.4.0-beta)
+## Limitations (0.5.0-beta)
 
 - No stack traces in Native
 - Exceptions are **Strings** — `throw 42`/`catch (Int e)` geram bytecode

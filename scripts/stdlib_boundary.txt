@@ -2,58 +2,67 @@
 # surfaces (dev/kof/compiler/*.java + runtime). Layer values follow
 # docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md §3.4 (core -> base stdlib ->
 # platform -> official packages -> interop). Gate: scripts/check_stdlib_boundary.sh
+# R5 tier (D4-A, machine-gated 21/09): every namespace line carries a stability
+# tier — `experimental` (born here; may change) or `stable` (compatibility
+# guarantee). Promotion to `stable` needs the FULL R5 DoD + a row in
+# docs/backend-parity.md §Stability + a pin in this gate's STABLE_ALLOWLIST —
+# never in bulk, never by age. A missing/invalid tier or an unpinned `stable`
+# fails the gate (never silent).
 # HARD-DENY (heavy domain, never stdlib/platform): ml bio hpc data sci cloud infra game
 # `excluded` = the string "kof.<x>" is not a namespace (tooling keys, parser
 # artifacts); each line states why. New namespaces need a line HERE — the
 # ledger is the decision; silence is a violation.
 #
-# <ns> <layer> — <evidence>
-math base-stdlib — KofStd.java (essentials: numeric ops, small)
-encoding base-stdlib — KofStd.java
-net base-stdlib — KofStd.java
-random base-stdlib — KofStd.java
-strings base-stdlib — KofStd.java
-uuid base-stdlib — KofStd.java
-io base-stdlib — KofIo.java (streams/console/files; essential)
-concurrent base-stdlib — MethodCallTyper.java (spawn/await/channel are language-level)
-test platform — kof.test (golden/test runner)
-time platform — KofTime.java (clock/timers; TIME00x gap-gated per target)
-json platform — receiver-dispatched surface (`"json".equals(rid.name())` in MemberCallNamespaces/MethodCallNamespaces/ExpressionJsonCallLowerer); registered in BARE_SURFACES
-db platform — ExpressionStaticCallLowerer.java (essential-to-platform, optional per program)
-orm platform — ExpressionOrmCallLowerer.java (rides on kof.db)
-http platform — KofHttp.java (stdlib-documented, platform-essential)
-web platform — KofWeb.java
-cache platform — KofCache.java
-config platform — KofConfig.java
-log platform — ExpressionLogCallLowerer.java
-mq platform — KofMq.java
-observability platform — ExpressionMethodCallLowerer.java (metrics/health)
-trace platform — ExpressionMethodCallLowerer.java (tracing/OTel seed)
-process platform — KofProcess.java
-shell platform — KofShell.java (sugar over kof.process; universal plan Stage 2 / 2.2)
-scheduler platform — KofScheduler.java
-security platform — ExpressionMethodCallLowerer.java (auth/JWT/rate-limit; stdlib-documented)
-supervisor platform — CompilerSupervisor.java (otp-style supervision, systems layer)
-workflow platform — CompilerWorkflow.java (pure-Kof workflow host, composition layer)
-makealive platform — CompilerMakealive.java (pure-Kof makealive host, composition layer; D-MAKEALIVE Q1)
-validation platform — ExpressionMethodCallLowerer.java
-version platform — KofVersion.java
-ui platform — ExpressionStaticCallLowerer.java (declared platform capability, not core)
-media platform — KofMedia.java (gap-gated MEDIA00x on non-JVM targets)
-gpu platform — KofGpu.java (gap-gated GPU00x; interop-first via FFI)
-tetris platform — demo namespace shipped in the runtime surface (ExpressionMethodCallLowerer.java); documented, registered
-build excluded — VscodeExtensionContent.java (generated editor manifest snippet, not a namespace)
-check excluded — VscodeExtensionContent.java (same)
-executable excluded — VscodeExtensionContent.java (same)
-fmt excluded — VscodeExtensionContent.java (same)
-mvn excluded — Deps.java (tooling command string, not a namespace)
-run excluded — VscodeExtensionContent.java (same)
-serve excluded — VscodeExtensionContent.java (same)
-test excluded — VscodeExtensionContent.java (CLI command literal; the registered namespace `test platform` above stands)
-target excluded — VscodeExtensionContent.java (same)
-toml excluded — ProjectLocator.java (file format name in path handling, not a namespace)
-o excluded — NativeArchEmitter.java (register-name artifact, not a namespace)
-root excluded — JvmMediaCoreRuntime.java (filesystem path string, not a namespace)
-super excluded — keyword receiver (MemberCallTyper.java "super".equals(rid.name())), not a module
-this excluded — keyword receiver (same pattern), not a module
-rng base-stdlib — KofRng.java
+# <ns> <layer> <tier> — <evidence>
+math base-stdlib experimental — KofStd.java (essentials: numeric ops, small)
+encoding base-stdlib experimental — KofStd.java
+net base-stdlib experimental — KofStd.java
+random base-stdlib experimental — KofStd.java
+strings base-stdlib experimental — KofStd.java
+uuid base-stdlib experimental — KofStd.java
+io base-stdlib experimental — KofIo.java (streams/console/files; essential)
+concurrent base-stdlib experimental — MethodCallTyper.java (spawn/await/channel are language-level)
+test platform experimental — kof.test (golden/test runner)
+time platform experimental — KofTime.java (clock/timers; TIME00x gap-gated per target)
+json platform experimental — receiver-dispatched surface (`"json".equals(rid.name())` in MemberCallNamespaces/MethodCallNamespaces/ExpressionJsonCallLowerer); registered in BARE_SURFACES
+db platform experimental — ExpressionStaticCallLowerer.java (essential-to-platform, optional per program)
+orm platform experimental — ExpressionOrmCallLowerer.java (rides on kof.db)
+http platform experimental — KofHttp.java (stdlib-documented, platform-essential)
+web platform experimental — KofWeb.java
+cache platform experimental — KofCache.java
+config platform experimental — KofConfig.java
+log platform experimental — ExpressionLogCallLowerer.java
+mq platform experimental — KofMq.java
+observability platform experimental — ExpressionMethodCallLowerer.java (metrics/health)
+trace platform experimental — ExpressionMethodCallLowerer.java (tracing/OTel seed)
+process platform experimental — KofProcess.java
+shell platform experimental — KofShell.java (sugar over kof.process; universal plan Stage 2 / 2.2)
+ssh platform experimental — KofSsh.java (sugar over kof.process; universal plan Stage 2 / 2.3)
+scheduler platform experimental — KofScheduler.java
+security platform experimental — ExpressionMethodCallLowerer.java (auth/JWT/rate-limit; stdlib-documented)
+supervisor platform experimental — CompilerSupervisor.java (otp-style supervision, systems layer)
+workflow platform experimental — CompilerWorkflow.java (pure-Kof workflow host, composition layer)
+makealive platform experimental — CompilerMakealive.java (pure-Kof makealive host, composition layer; D-MAKEALIVE Q1)
+validation platform experimental — ExpressionMethodCallLowerer.java
+version platform experimental — KofVersion.java
+ui platform experimental — ExpressionStaticCallLowerer.java (declared platform capability, not core)
+media platform experimental — KofMedia.java (gap-gated MEDIA00x on non-JVM targets)
+gpu platform experimental — KofGpu.java (gap-gated GPU00x; interop-first via FFI)
+tetris platform experimental — demo namespace shipped in the runtime surface (ExpressionMethodCallLowerer.java); documented, registered
+build excluded - — VscodeExtensionContent.java (generated editor manifest snippet, not a namespace)
+check excluded - — VscodeExtensionContent.java (same)
+executable excluded - — VscodeExtensionContent.java (same)
+fmt excluded - — VscodeExtensionContent.java (same)
+mvn excluded - — Deps.java (tooling command string, not a namespace)
+run excluded - — VscodeExtensionContent.java (same)
+serve excluded - — VscodeExtensionContent.java (same)
+test excluded - — VscodeExtensionContent.java (CLI command literal; the registered namespace `test platform` above stands)
+target excluded - — VscodeExtensionContent.java (same)
+toml excluded - — ProjectLocator.java (file format name in path handling, not a namespace)
+o excluded - — NativeArchEmitter.java (register-name artifact, not a namespace)
+root excluded - — JvmMediaCoreRuntime.java (filesystem path string, not a namespace)
+super excluded - — keyword receiver (MemberCallTyper.java "super".equals(rid.name())), not a module
+this excluded - — keyword receiver (same pattern), not a module
+rng base-stdlib experimental — KofRng.java
+ffi interop experimental — FfiStructLayout.java (PKG marker "kof.ffi"; KofCall owner emitted by the extern lowering for FFI marshaling, R3/3.7)
+interop interop experimental — CompilerInterop.java (HOST_IMPORT "kof.interop"; interop.schema(R) compile-time intrinsic, X6.1/D-INTEROP-REFLECT)

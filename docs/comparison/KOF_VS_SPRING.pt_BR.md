@@ -3,7 +3,7 @@
 # Kof vs Spring — O Problema que Kof Resolve
 
 **Última atualização:** 12 de setembro de 2026
-**Versão:** 0.4.0-beta (web stack completa: ws/sse/middleware/cache; `kof.http` JVM+JS com retry/circuit; `kof.db` SQLite nativo + MySQL WIP)
+**Versão:** 0.5.0-beta (web stack completa: ws/sse/middleware/cache; `kof.http` JVM+JS com retry/circuit; `kof.db` SQLite nativo + MySQL wire x86-64 real, 13 faces ORM)
 
 ---
 
@@ -232,7 +232,7 @@ test "find user by id" {
 
 ## Prioridade
 
-| Feature | Prioridade | Justificativa | Status (0.4.0-beta) |
+| Feature | Prioridade | Justificativa | Status (0.5.0-beta) |
 |---------|-----------|---------------|----------------------------|
 | DI | Alta | Elimina boilerplate massivo | planejado (proposta `service`) |
 | HTTP routing | Alta | Essencial para backends | ✅ `web.app()` JVM (rotas, middleware, JSON, ws/sse) |

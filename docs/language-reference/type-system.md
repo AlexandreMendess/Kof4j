@@ -217,6 +217,67 @@ collection element type (`SEM056`) — all enforced at compile time:
 - `abstract class A; new A()`/`A()` → `SEM041` at compile time.
 - `l.add("x")` on a `List<Int>` → `SEM056`.
 
+**`sealed` (X5.1/X5.2 — `D-X5-SURFACE`, 21/09):** `sealed class`/`record`/`interface`
+closes its subtype set at compile time — the set is the declarations of the
+**same compilation unit** (file). A direct subtype (`extends`/`implements`)
+declared elsewhere is **`SEM080`** (the compiler cannot know it), never a silent
+open set. A `switch` **expression** over a sealed subject is **exhaustive without
+`default`** when it covers every direct subtype (`case Subtype v ->`); a missing
+subtype is **`SEM081`**. `sealed` is a **compile-time-only** modifier (erased in
+codegen: identical bytes on JVM/Native/JS) and a **contextual** keyword — `sealed`
+stays a valid identifier outside a type declaration.
+
+**Declaration-site variance `out`/`in` (X5.3 — `D-TYPE-VARIANCE`, 21/09):**
+a generic type parameter may carry a variance prefix — `class Source<out T>` is
+**covariant**, `class Sink<in T>` is **contravariant**, and no prefix means
+**invariant** (the default, unchanged from before). The variance governs the
+compatibility of the **type arguments of the same raw type**:
+
+```kof
+record Source<out T>(T value)          // read-only component = out position
+Source<Animal> up(Source<Dog> d) { return d }   // OK: Dog <: Animal (covariant)
+
+class Sink<in T> { String consume(T v) { return "x" } }   // input position
+Sink<Dog> down(Sink<Animal> w) { return w }     // OK: Animal >: Dog (contravariant)
+
+class Box<T> { T value ... }           // invariant
+Box<Animal> f(Box<Dog> d) { return d } // SEM021: rejected (§270)
+```
+
+`out`/`in` are **contextual** keywords (still valid identifiers). Erased in
+codegen: descriptors and execution bytes are identical on JVM/Native/JS (the
+variance lives only in the typer). **Soundness guard (`SEM082`):** `out T` is
+forbidden in an input position (method/constructor parameter, writable class
+field) and `in T` is forbidden in an output position (return type, any field or
+record component), because a writable `out` / readable `in` would allow the
+covariant/contravariant alias to store or expose a value of the wrong type.
+Record components and interface fields are read-only, so `out T` is allowed
+there. **Heritage guard (`SEM083`, X5.3b):** a type parameter declared `out`/
+`in` may not be passed to a supertype parameter whose variance is
+**incompatible** — `class Bad<out T> extends Sink<T>` is rejected when `Sink`
+declares `in T` (the supertype would reintroduce `T` in an input position), and
+`class Bad<in T> extends Source<T>` is rejected when `Source` declares `out T`.
+Passing a variance to an **invariant** supertype parameter is also rejected
+(invariant requires both read and write). The matching case
+(`class Good<out T> extends Source<T>` with `Source<out T>`) is allowed.
+
+**Use-site projection `List<out T>` / `List<in T>` (X5.4 — `D-X5-SURFACE`,
+21/09):** even a type declared **invariant** accepts a projection at the use
+site, exactly like Java wildcards but with Kof's `out`/`in` spelling:
+
+```kof
+List<out Animal> up(List<Dog> xs) { return xs }   // OK: covariant use
+List<in Dog> down(List<Animal> xs) { return xs }  // OK: contravariant use
+List<Animal> same(List<Dog> xs) { return xs }     // SEM021: invariant, rejected
+```
+
+`List<out T>` accepts any `List<S>` with `S <: T`; `List<in T>` accepts any
+`List<S>` with `S >: T`. This is the same compile-time-only information as
+declaration-site variance — codegen erases it (the projection becomes the
+existing `WildcardType`, which all four targets already erase), so descriptors
+and execution bytes are unchanged. `out`/`in` in a type-argument remain
+contextual (still valid identifiers).
+
 **Guarantee of the type checker:** a function/method **that does not exist on a
 known type** is an error (`SEM015`/`SEM025`); argument/constructor arity is
 checked (`SEM013`/`SEM023`); an incompatible return type is an error (`SEM010`);
@@ -378,6 +439,10 @@ the lambda's return (*probe*: map/filter/reduce correct).
 | `SEM077` | `Style("<declarations>")` malformed declaration, or a non-literal argument | `KofStyleParser` (D-UI-STYLE/UI007) |
 | `SEM078` | `Style("<declarations>")` with an invalid value for a known property | `KofStyleParser` (D-UI-STYLE/UI007) |
 | `SEM079` | design-system token misuse: unknown member of `Spacing`/`Radius`/`Border`/`Elevation`/`Typography`, or a method call on a token namespace | `KofUiTokens` (Fase 10) |
+| `SEM080` | subtype (`extends`/`implements`) of a `sealed` type declared outside its compilation unit (the sealed subtype set is closed) | `SealedTypeChecks` (X5.1/D-X5-SURFACE) |
+| `SEM081` | `switch` expression over a `sealed` subject missing a direct subtype case (no `default`) | `MemberResolver` (X5.2/D-X5-SURFACE) |
+| `SEM082` | `out` type parameter used in an input position (parameter/writable field) or `in` type parameter used in an output position (return/field/record component) — declaration-site variance soundness | `VarianceChecks` (X5.3/D-TYPE-VARIANCE) |
+| `SEM083` | `out`/`in` type parameter passed to a supertype parameter with incompatible variance (or to an invariant one) in `extends`/`implements` — variance soundness in heritage position | `VarianceChecks` (X5.3b/D-TYPE-VARIANCE) |
 | `ARITH001` | division/remainder by a **constant** zero | `ExpressionBinaryLowerer` (constant-zero guard) |
 
 Division by a **non-constant** zero (`7 / z` with `z=0`) → **runtime**

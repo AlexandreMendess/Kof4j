@@ -30,19 +30,163 @@ public final class FfiSignature {
         return t == null || t.isEmpty() || "void".equals(t) || "Void".equals(t);
     }
 
-    static String signature(ExternalFunctionNode ext) {
+    static String signature(CompilerDriver driver, ExternalFunctionNode ext) {
         StringBuilder sb = new StringBuilder();
-        sb.append(returnChar(ext.returnType()));
+        // 3.8b fatia 2: retorno struct (record) vira o token `@`; o nome binário
+        // do record vai como sufixo `:` (após os chars dos params) para o runtime
+        // reconstruir a instância a partir do struct devolvido por valor.
+        String structRet = structReturnName(ext.returnType(), driver);
+        if (structRet != null) {
+            // JVM: `@` basta (o runtime reflete o record pelo sufixo `:Nome`).
+            // JS: o host não reflete — o retorno carrega os chars do layout com
+            // prefixo de TAMANHO (`@2ij`), como no param, e o guest reconstrói.
+            String retFields = structFieldChars(ext.returnType(), driver);
+            if (driver.target == Target.JS) {
+                sb.append('@').append(retFields.length()).append(retFields);
+            } else {
+                sb.append('@');
+            }
+        } else {
+            Character rc = returnChar(ext.returnType());
+            sb.append(rc != null ? rc.charValue() : '?');
+        }
         for (var p : ext.parameters()) {
             Character c = paramChar(p.type());
             if (c != null) {
-                sb.append(c);
-            } else {
+                sb.append(c.charValue());
+            } else if (callbackDescriptor(p.type()) != null) {
                 // callback (R3, 3.4): token aninhado "(<retchar><paramchars>)"
                 sb.append('(').append(callbackDescriptor(p.type())).append(')');
+            } else if (structFieldChars(p.type(), driver) != null) {
+                // D6-1 (A) / 3.8b: um `record` de campos escalares atravessa por
+                // valor como struct C. No JVM o runtime deriva o layout e os
+                // valores da própria classe (reflexão em RecordComponent) — o
+                // token `@` basta. No JS o host não reflete um objeto GraalJS:
+                // o token carrega os chars do layout com prefixo de TAMANHO
+                // (`@2ij`) — sem ambiguidade com o escalar seguinte — e o
+                // `__kof_ffi_fields` do record entrega os valores no fio.
+                String fields = structFieldChars(p.type(), driver);
+                if (driver.target == Target.JS) {
+                    sb.append('@').append(fields.length()).append(fields);
+                } else {
+                    sb.append('@');
+                }
+            } else if (arrayElemChar(p.type()) != null) {
+                // D6-2 / 3.8b fatia 3: `T[]` primitivo vira `ptr` C — token `p` +
+                // o char do ELEMENTO (o runtime faz copy-in por chamada).
+                sb.append('p').append(arrayElemChar(p.type()).charValue());
+            } else if (isBufferParam(p.type())) {
+                // D6-3 / D-R3-BUFFER: `Buffer(U8)` (INOUT) — token `B`; o runtime
+                // faz copy-in (arena da chamada), chama e copia de volta.
+                sb.append('B');
+            } else {
+                // inalcançável: isExternBound filtra antes; nunca silencioso (R6).
+                sb.append('?');
             }
         }
+        if (structRet != null) sb.append(':').append(structRet);
         return sb.toString();
+    }
+
+    /** Nome simples (sem pacote) do tipo escrito no `extern`. */
+    static String simpleName(String typeName) {
+        String simple = typeName;
+        int dot = simple.lastIndexOf('.');
+        if (dot >= 0) simple = simple.substring(dot + 1);
+        int slash = simple.lastIndexOf('/');
+        if (slash >= 0) simple = simple.substring(slash + 1);
+        return simple;
+    }
+
+    /** 3.8b fatia 2 (JVM): nome binário (dots) do `record` de RETORNO bindável
+     *  (campos escalares), ou null se o retorno não for um struct bindável. O sig
+     *  carrega esse nome para o runtime reconstruir o record devolvido por valor. */
+    static String structReturnName(String typeName, CompilerDriver driver) {
+        if (structFieldChars(typeName, driver) == null) return null;
+        String simple = simpleName(typeName);
+        if (driver.semanticAnalyzer != null) {
+            SymbolTable.ClassSymbol cs = driver.semanticAnalyzer.getClass(simple);
+            if (cs != null) return cs.internalName().replace('/', '.');
+        }
+        return simple;   // pacote default: o próprio nome
+    }
+
+    /** Type do retorno quando é um struct bindável (record), senão null. */
+    static Type structReturnType(String typeName, CompilerDriver driver) {
+        String bin = structReturnName(typeName, driver);
+        if (bin == null) return null;
+        int dot = bin.lastIndexOf('.');
+        if (dot < 0) return new Type.ClassType("", bin, List.of());
+        return new Type.ClassType(bin.substring(0, dot), bin.substring(dot + 1), List.of());
+    }
+
+    /** Retorno bindável no JVM e no JS (Native fica FFI001) — gate do
+     *  `isExternBound` (agora em `CompilerFfiBinding`, fora do pipeline p/
+     *  manter a classe ≤500). No JS
+     *  o host devolve os campos e o guest reconstrói (`__kof_ffi_from`). */
+    static boolean structReturnBindable(CompilerDriver driver, ExternalFunctionNode ext) {
+        return (driver.target == Target.JVM || driver.target == Target.JS)
+                && structReturnType(ext.returnType(), driver) != null;
+    }
+
+    /** Type do `KofCall` de retorno do `kof_ffi`: o ClassType do record se for
+     *  struct bindável, senão o escalar de sempre (lowerer ≤500). */
+    static Type callReturnType(CompilerDriver driver, ExternalFunctionNode ext) {
+        Type st = structReturnType(ext.returnType(), driver);
+        return st != null ? st : returnType(ext.returnType());
+    }
+
+    /** D6-1/3.8b (JVM): se {@code typeName} for um `record` do unit corrente cujos
+     *  campos são TODOS escalares não-ponteiro (i/j/f/d/b — `String`/`S` fica de
+     *  fora no v1: campo `char*` é ponteiro, outra fatia), devolve a string de
+     *  chars dos campos (ex. "ii"); senão null (o gate mantém FFI001/FFI002). */
+    static String structFieldChars(String typeName, CompilerDriver driver) {
+        if (typeName == null || driver == null || driver.currentUnit == null) return null;
+        String simple = simpleName(typeName);
+        RecordDeclarationNode rec = null;
+        for (AstNode d : driver.currentUnit.declarations()) {
+            if (d instanceof RecordDeclarationNode r && r.name().equals(simple)) { rec = r; break; }
+        }
+        if (rec == null || rec.components().isEmpty()) return null;
+        StringBuilder sb = new StringBuilder();
+        for (RecordComponentNode comp : rec.components()) {
+            Character ch = structFieldChar(comp.type());
+            if (ch == null) return null;   // campo não-escalar/ponteiro → não-bindável
+            sb.append(ch.charValue());
+        }
+        return sb.toString();
+    }
+
+    /** char do layout de um campo de struct: só numérico/bool (sem `S`/ponteiro). */
+    static Character structFieldChar(String t) {
+        if (isLongFFI(t)) return 'j';
+        if (isFloatFFI(t)) return 'f';
+        if (isBoolFFI(t)) return 'b';
+        if (CompilerPipeline.isDoubleType(t)) return 'd';
+        if (CompilerPipeline.isIntType(t)) return 'i';
+        return null;
+    }
+
+    /** D6-2 (3.8b fatia 3): `T[]` de elemento escalar numérico/bool vira um `ptr`
+     *  C (copy-in por chamada). Devolve o char do ELEMENTO (i/j/f/d/b) ou null
+     *  se não for array de escalar (ex. `String[]` = array de ponteiros, fora do
+     *  v1; aninhado também). */
+    static Character arrayElemChar(String typeName) {
+        if (typeName == null || !typeName.endsWith("[]")) return null;
+        String base = typeName.substring(0, typeName.length() - 2);
+        Character c = paramChar(base);
+        return (c == null || c.charValue() == 'S') ? null : c;
+    }
+
+    /** D6-3 / D-R3-BUFFER: `Buffer(U8)` como parâmetro `extern` (INOUT). Aceita
+     *  `Buffer`, `Buffer(U8)` e `Buffer<Byte>` (o parser normaliza `Buffer(U8)`→
+     *  `Buffer`); o runtime faz copy-in / chamada / copy-back. */
+    static boolean isBufferParam(String typeName) {
+        if (typeName == null) return false;
+        String s = simpleName(typeName);
+        if (!s.startsWith("Buffer")) return false;
+        String rest = s.substring("Buffer".length());
+        return rest.isEmpty() || rest.startsWith("(") || rest.startsWith("<");
     }
 
     static Type returnType(String r) {

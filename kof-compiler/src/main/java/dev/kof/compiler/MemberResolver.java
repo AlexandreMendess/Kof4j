@@ -27,6 +27,40 @@ public final class MemberResolver {
         return null;
     }
 
+    /**
+     * #610b: coleta TODOS os métodos com {@code methodName} na hierarquia
+     * (classe + supers + interfaces), para seleção por aridade/args. O
+     * {@link #resolveInHierarchy} devolve o PRIMEIRO por nome e perde os
+     * overloads que vivem em interfaces irmãs — `C().greet("mel")` com
+     * `A.greet()`/`B.greet(String)` resolvia para o default de A (aridade
+     * errada) e o JVM estourava em VerifyError. Devolve um único símbolo
+     * quando só há um candidato, senão um MethodSet (select por aridade).
+     */
+    static SymbolTable.Symbol resolveMethodsInHierarchy(SemanticAnalyzer sa,
+            String className, String methodName) {
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        java.util.Queue<String> queue = new java.util.LinkedList<>();
+        queue.add(className);
+        visited.add(className);
+        java.util.LinkedHashMap<String, SymbolTable.MethodSymbol> bySig = new java.util.LinkedHashMap<>();
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            SymbolTable.ClassSymbol cs = sa.getClass(current);
+            if (cs == null) continue;
+            SymbolTable.Symbol s = cs.members().resolve(methodName);
+            java.util.List<SymbolTable.MethodSymbol> methods = new java.util.ArrayList<>();
+            if (s instanceof SymbolTable.MethodSymbol m) methods.add(m);
+            else if (s instanceof SymbolTable.MethodSet set) methods.addAll(set.methods());
+            for (SymbolTable.MethodSymbol m : methods) {
+                bySig.putIfAbsent(m.parameterTypes().toString(), m);
+            }
+            enqueueAncestors(cs, visited, queue);
+        }
+        if (bySig.isEmpty()) return null;
+        if (bySig.size() == 1) return bySig.values().iterator().next();
+        return new SymbolTable.MethodSet(new java.util.ArrayList<>(bySig.values()));
+    }
+
     /** BFS pela hierarquia buscando campo com prioridade sobre métodos de mesmo nome. */
     static SymbolTable.Symbol resolveFieldInHierarchy(SemanticAnalyzer sa, String className, String fieldName) {
         java.util.Set<String> visited = new java.util.HashSet<>();
@@ -52,7 +86,7 @@ public final class MemberResolver {
      * qualquer uma dessas formas (SEM025/SEM011 falsos em herança
      * cross-package → lowerField perdia o tipo do campo herdado).
      */
-    private static void enqueueAncestors(SymbolTable.ClassSymbol cs,
+    static void enqueueAncestors(SymbolTable.ClassSymbol cs,
                                          java.util.Set<String> visited, java.util.Queue<String> queue) {
         String sup = HierarchyResolver.simpleOfStored(cs.superClass());
         if (sup != null && !sup.isEmpty() && !"Object".equals(sup) && visited.add(sup)) {
@@ -197,6 +231,9 @@ public final class MemberResolver {
         if (sa.allClasses().containsKey(name)) return false;
         if (CompilerTypes.unitDeclaresType(sa.unit(), name)) return false;
         if (qualifyViaImports(sa.unit(), name, sa.externalTypes()) != null) return false;
+        // §268 (A): classe do `java.lang` (`Thread`, `Runnable`, `Object`…) —
+        // resolve sem import pelo probe cacheado (mesma regra do toType).
+        if (JavaLangProbe.qualifiedOrNull(name) != null) return false;
         return true;
     }
 
@@ -229,6 +266,10 @@ public final class MemberResolver {
             }
             return declaredTypeUnresolved(sa, ret, typeParams);
         }
+        // X5.4 (D-X5-SURFACE): projeção no sítio de uso — `out T`/`in T` como
+        // type-argument. Valida o BOUND (a variância não é um tipo).
+        if (t.startsWith("out ")) return declaredTypeUnresolved(sa, t.substring(4).trim(), typeParams);
+        if (t.startsWith("in ")) return declaredTypeUnresolved(sa, t.substring(3).trim(), typeParams);
         if (t.endsWith("?")) return declaredTypeUnresolved(sa, t.substring(0, t.length() - 1), typeParams);
         if (t.endsWith("[]")) return declaredTypeUnresolved(sa, t.substring(0, t.length() - 2), typeParams);
         int lt = t.indexOf('<');
@@ -351,7 +392,46 @@ public final class MemberResolver {
         return hasTrue && hasFalse;
     }
 
+    /** X5.2: subtipos DIRETOS declarados de um tipo `sealed` (nome simples). */
+    static List<String> sealedDirectSubtypes(SemanticAnalyzer sa, String sealedSimple) {
+        List<String> subs = new java.util.ArrayList<>();
+        for (SymbolTable.ClassSymbol cs : sa.allClasses().values()) {
+            if (cs.name().equals(sealedSimple)) continue;
+            boolean matches = cs.superClass() != null
+                    && sealedSimple.equals(ClassShapeChecks.simpleName(cs.superClass()));
+            if (!matches && cs.interfaces() != null) {
+                for (String iface : cs.interfaces()) {
+                    if (sealedSimple.equals(ClassShapeChecks.simpleName(iface))) {
+                        matches = true;
+                        break;
+                    }
+                }
+            }
+            if (matches) subs.add(cs.name());
+        }
+        return subs;
+    }
+
     static void checkSwitchExprExhaustiveness(SemanticAnalyzer sa, SwitchExpr se, Type subjectType) {
+        // X5.2 (D-X5-SURFACE): sujeito `sealed` — os subtipos DIRETOS são o
+        // conjunto fechado; cobrir todos os casos de pattern dispensa o
+        // `default`. Faltando caso = SEM081.
+        if (subjectType instanceof Type.ClassType sct && sa.isSealedType(sct.name())) {
+            java.util.Set<String> covered = new java.util.HashSet<>();
+            for (SwitchExprCase sc : se.cases()) {
+                if (sc.value() instanceof PatternExpr pe) {
+                    covered.add(ClassShapeChecks.simpleName(pe.typeName()));
+                }
+            }
+            List<String> subtypes = sealedDirectSubtypes(sa, sct.name());
+            List<String> missing = subtypes.stream().filter(c -> !covered.contains(c)).toList();
+            if (!missing.isEmpty()) {
+                sa.reportError(se, "switch expression on sealed type '" + sct.name()
+                        + "' does not cover: " + String.join(", ", missing)
+                        + " (add a default or the missing cases)", "SEM081");
+            }
+            return;
+        }
         if (isBooleanType(subjectType)) {
             if (!isBooleanExhaustive(se.cases())) {
                 sa.reportError(se, "switch expression on Boolean does not cover all values (true and false)", "SEM032");
@@ -415,7 +495,7 @@ public final class MemberResolver {
                     }
                 }
                 if (!implemented) {
-                    sa.diagnostics().error("", 0, 0, 0,
+                    sa.diagnostics().error(cls,
                             "class '" + cls.name() + "' does not implement abstract method '"
                                     + am.name() + "()' from superclass '" + superCs.name() + "'",
                             "SEM043");

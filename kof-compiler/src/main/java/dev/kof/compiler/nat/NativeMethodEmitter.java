@@ -5,6 +5,7 @@ import dev.kof.compiler.KofArrayStore;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
+import dev.kof.compiler.KofFunctionAddress;
 import dev.kof.compiler.KofDup;
 import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofDupX1;
@@ -64,8 +65,8 @@ final class NativeMethodEmitter {
 
         nb.currentClass = clazz;
 
-        String mangled = NativeSymbolMangling.fnSymbol(clazz.name(), method.name(), method.parameterTypes(), nb.allClassesMap);
-        nb.functionMangleMap.put(NativeSymbolMangling.fnKey(clazz.name(), method.name(), method.parameterTypes(), nb.allClassesMap), mangled);
+        String mangled = NativeSymbolMangling.fnSymbol(clazz.name(), method, nb.allClassesMap);
+        nb.functionMangleMap.put(NativeSymbolMangling.fnKey(clazz.name(), method, nb.allClassesMap), mangled);
         sb.append("\n.globl ").append(mangled).append("\n");
         sb.append(".type ").append(mangled).append(", @function\n");
         sb.append(mangled).append(":\n");
@@ -311,6 +312,7 @@ final class NativeMethodEmitter {
             case KofJump kj -> sb.append("    jmp ").append(nb.resolveLabel(kj.target())).append("\n");
             case KofConditionalJump kc -> nb.emitConditionalJump(sb, kc);
             case KofCall kc -> nb.emitCall(sb, kc);
+            case KofFunctionAddress fa -> NativeOpHelpers.emitFunctionAddress(nb, sb, fa);
             case KofNewObject no -> nb.emitNewObject(sb, no);
             case KofDup _ -> sb.append("    movq (%rsp), %rax\n    pushq %rax\n");
             case KofDup2 _ -> sb.append("""
@@ -391,6 +393,14 @@ final class NativeMethodEmitter {
     }
 
     void emitStart(StringBuilder sb, IRClass clazz) {
+        if (nb.bios) {
+            emitStartBios(sb, clazz);
+            return;
+        }
+        if (nb.uefi) {
+            emitStartUefi(sb, clazz);
+            return;
+        }
         boolean hasMain = clazz.methods().stream().anyMatch(m -> "main".equals(m.name()));
         if (!hasMain) return;
         boolean mainHasArgs = clazz.methods().stream()
@@ -398,14 +408,17 @@ final class NativeMethodEmitter {
                 .anyMatch(m -> !m.parameterTypes().isEmpty());
         sb.append("\n.globl _start\n");
         sb.append("_start:\n");
+        if (nb.freestanding) {
+            // B-1: pilha vinda do linker script, nao a que o carregador deu.
+            sb.append("    leaq __kof_stack_top(%rip), %rsp\n");
+        }
         // G-6b (16/09): fundo da pilha da thread main (rsp na entrada, antes de
         // qualquer push) — o kof_gc_mark varre a pilha INTEIRA ate aqui, nao so
         // o frame corrente (causa (1) do §260: String viva no frame de main
         // enquanto um helper aloca era INVISIVEL ao mark -> sweep liberava vivo)
         sb.append("    movq %rsp, kof_main_stack_bottom(%rip)\n");
-        // grava o TID do main thread (SYS_gettid=186) — limita GC ao main
-        sb.append("    movq $186, %rax\n");
-        sb.append("    syscall\n");
+        // grava o TID do main thread — limita GC ao main (B-0: via costura kof_plat_)
+        sb.append("    call kof_plat_thread_id\n");
         sb.append("    movq %rax, kof_main_tid(%rip)\n");
         if (mainHasArgs) {
             // N3: passa array vazio — evita segfault ao tratar argc como ponteiro
@@ -416,14 +429,7 @@ final class NativeMethodEmitter {
         }
         // #133 (§186): chama cada <clinit> antes do main (ordem de classes no
         // módulo — link-ordem estática; não há dependência dinâmica declarada).
-        for (IRClass c : nb.allClassesMap.values()) {
-            for (IRMethod m : c.methods()) {
-                if ("<clinit>".equals(m.name())) {
-                    sb.append("    call ").append(NativeSymbolMangling.fnSymbol(
-                            c.name(), m.name(), m.parameterTypes(), nb.allClassesMap)).append("\n");
-                }
-            }
-        }
+        emitClinitCalls(sb);
         sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");
         // #431: com externs bindados a libc flusha o stdio DA C antes do
         // exit_group cru — puts/printf da lib ficam no buffer do processo e
@@ -442,9 +448,105 @@ final class NativeMethodEmitter {
         }
         // M32.3: SYS_exit_group (231) — SYS_exit (60) só mata a thread
         // chamadora; com threads do driver Vulkan o processo fica pendurado.
-        sb.append("    movq $231, %rax\n");
-        sb.append("    xorq %rdi, %rdi\n");
-        sb.append("    syscall\n");
+        // B-0 (D-BAREMETAL-BOOT): a saída cruza a costura kof_plat_exit_group.
+        sb.append("    xorl %edi, %edi\n");
+        sb.append("    call kof_plat_exit_group\n");
+    }
+
+    private void emitClinitCalls(StringBuilder sb) {
+        for (IRClass c : nb.allClassesMap.values()) {
+            for (IRMethod m : c.methods()) {
+                if ("<clinit>".equals(m.name())) {
+                    sb.append("    call ").append(NativeSymbolMangling.fnSymbol(
+                            c.name(), m.name(), m.parameterTypes(), nb.allClassesMap)).append("\n");
+                }
+            }
+        }
+    }
+
+    /**
+     * B-2 (PLAN-BAREMETAL-BOOT): entry UEFI x86_64 — PE32+ com
+     * {@code objcopy --target=pei-x86-64} (NativeAssembler). UEFI x86_64 é
+     * MS x64: {@code RCX=ImageHandle, RDX=SystemTable} (medição B-2: chamar
+     * OutputString com This/String em RCX/RDX + rsp%16==0 na chamada). O
+     * fim é {@code BootServices->Exit} via a costura ({@code RuntimeUefi}) —
+     * nunca retorna, análogo ao {@code exit_group} do perfil host.
+     */
+    private void emitStartUefi(StringBuilder sb, IRClass clazz) {
+        boolean hasMain = clazz.methods().stream().anyMatch(m -> "main".equals(m.name()));
+        if (!hasMain) return;
+        boolean mainHasArgs = clazz.methods().stream()
+                .filter(m -> "main".equals(m.name()))
+                .anyMatch(m -> !m.parameterTypes().isEmpty());
+        sb.append("\n.globl _start\n");
+        sb.append("_start:\n");
+        // MS x64: RCX=ImageHandle, RDX=SystemTable -> globals (RuntimeUefi).
+        sb.append("    call kof_efi_save_args\n");
+        // G-6b: fundo da pilha do main ANTES do alinhamento (mesmo contrato do host).
+        sb.append("    movq %rsp, kof_main_stack_bottom(%rip)\n");
+        sb.append("    andq $-16, %rsp\n");       // o firmware entra MS: rsp%16==8
+        sb.append("    call kof_plat_thread_id\n");
+        sb.append("    movq %rax, kof_main_tid(%rip)\n");
+        if (nb.rings) sb.append("    call kof_rings_init\n    call kof_rings_selftest\n    call kof_ring1_selftest\n    call kof_ring1_gp_selftest\n    call kof_ring1_sabotage_selftest\n    call kof_rings_restore\n"); // B-6.1/B-6.2a/B-6.3
+        if (mainHasArgs) {
+            // N3: array vazio — mesmo contrato do _start host.
+            sb.append("    xorl %edi, %edi\n");
+            sb.append("    movl $8, %esi\n");
+            sb.append("    call kof_array_alloc\n");
+            sb.append("    movq %rax, %rdi\n");
+        }
+        emitClinitCalls(sb);
+        sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");
+        // Saída pela costura: no UEFI o corpo DEVOLVE o status em RAX
+        // (retorno ao StartImage) — o _start termina com ret, nunca cai fora.
+        sb.append("    xorl %edi, %edi\n");
+        sb.append("    call kof_plat_exit_group\n");
+        sb.append("    ret\n");
+    }
+
+    /**
+     * B-3 (PLAN-BAREMETAL-BOOT): entry LEGACY BIOS. A emissão do setor de
+     * boot (modo real 16-bit, carga do payload e long mode) vive em
+     * {@link NativeBiosBootEmitter} (gate <=500 linhas); aqui só delegamos.
+     * B-3b-3: o entry do PROGRAMA Kof é emitido como {@code kof_payload_entry}
+     * (mesmo corpo do _start freestanding; rótulo distinto evita colisão com
+     * o {@code _start} do setor de boot) — o boot salta para ele após copiar
+     * o staging para a base 0x100000, tornando o programa REACHABLE (o
+     * --gc-sections não poda mais o runtime).
+     */
+    private void emitStartBios(StringBuilder sb, IRClass clazz) {
+        NativeBiosBootEmitter.emit(sb, clazz);
+        emitPayloadEntry(sb, clazz);
+    }
+
+    private void emitPayloadEntry(StringBuilder sb, IRClass clazz) {
+        boolean hasMain = clazz.methods().stream().anyMatch(m -> "main".equals(m.name()));
+        if (!hasMain) return;
+        boolean mainHasArgs = clazz.methods().stream()
+                .filter(m -> "main".equals(m.name()))
+                .anyMatch(m -> !m.parameterTypes().isEmpty());
+        sb.append("\n.section .text\n");
+        sb.append(".globl kof_payload_entry\n");
+        sb.append("kof_payload_entry:\n");
+        // B-1: pilha vinda do linker script (arena de heap+pilha do payload).
+        sb.append("    leaq __kof_stack_top(%rip), %rsp\n");
+        // G-6b: fundo da pilha da thread main — contrato idêntico ao _start.
+        sb.append("    movq %rsp, kof_main_stack_bottom(%rip)\n");
+        sb.append("    call kof_plat_thread_id\n");
+        sb.append("    movq %rax, kof_main_tid(%rip)\n");
+        if (mainHasArgs) {
+            // N3: array vazio — mesmo contrato do _start host.
+            sb.append("    xorl %edi, %edi\n");
+            sb.append("    movl $8, %esi\n");
+            sb.append("    call kof_array_alloc\n");
+            sb.append("    movq %rax, %rdi\n");
+        }
+        emitClinitCalls(sb);
+        sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");
+        // B-3b-3: a saída cruza a costura kof_plat_exit_group (corpo BIOS:
+        // cli;hlt — nunca retorna ao boot).
+        sb.append("    xorl %edi, %edi\n");
+        sb.append("    call kof_plat_exit_group\n");
     }
 
 }

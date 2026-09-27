@@ -87,7 +87,9 @@ public final class JvmRuntimeJson {
                         Object e = list.get(i);
                         switch (tag) {
                             case 1 -> sb.append(kof_json_encode_string((String) e));
-                            case 2 -> sb.append(kof_json_encode_bool(((Integer) e).intValue()));
+                            // §512 (26/09): o slot JVM de List<Bool> guarda BOOLEAN
+                            // (não Integer) — o cast antigo estourava CCE; x86 lê 0/1 cru.
+                            case 2 -> sb.append(kof_json_encode_bool(((Boolean) e).booleanValue() ? 1 : 0));
                             default -> sb.append(kof_json_encode(e));
                         }
                     }
@@ -123,6 +125,10 @@ public final class JvmRuntimeJson {
                     }
                     if (value.getClass().isArray()) return kof_json_encode_array(value);
                     if (value instanceof Map<?, ?> m) return kof_json_encode_map(m, 0);
+                    // D-SECRETS P2 (redação forçada, camada runtime): um Secret que
+                    // chega ao serializador por qualquer caminho (inclusive
+                    // reflexão/interop) vira a forma REDIGIDA — nunca os campos.
+                    if (value instanceof Secret s) return kof_json_encode_string(s.toString());
                     return kof_json_encode_object(value);
                 }
 
@@ -333,7 +339,15 @@ public final class JvmRuntimeJson {
                         return value instanceof Number n ? n.doubleValue() : Double.parseDouble(String.valueOf(value));
                     if (type == Number.class) return value;
                     if (type == boolean.class || type == Boolean.class) {
-                        return value instanceof Boolean b ? b : Boolean.parseBoolean(String.valueOf(value));
+                        if (value instanceof Boolean b) return b;
+                        // §397: drivers SQL devolvem Integer p/ Bool no
+                        // rs.getObject (SQLite int; H2) -- parseBoolean("1")
+                        // virava false em SILENCIO em todo binder compartilhado
+                        // (orm.find/all/where, db.query<T>, json.decode<T>).
+                        // Numero !=0 -> true (regra do bind); string segue
+                        // parseBoolean ("true"/"false" explicitos).
+                        if (value instanceof Number n) return n.intValue() != 0;
+                        return Boolean.parseBoolean(String.valueOf(value));
                     }
                     if (type == char.class || type == Character.class) {
                         return value.toString().charAt(0);
@@ -346,6 +360,18 @@ public final class JvmRuntimeJson {
                             for (Object e : l) out.add(bindByType(elem, e));
                             return out;
                         }
+                    }
+                    // #633: alvo `Map<K,V>` (interface desde #634) — decodifica
+                    // os VALORES pelo type-arg refletido (genérico completo),
+                    // recursivamente. Sem isto, um campo de record
+                    // `Map<String,E>` caía no ramo reflexivo abaixo e virava
+                    // mapa VAZIO (ou NoSuchMethod após #634); ver JvmRuntimeJsonMap.
+                    if (value instanceof Map<?, ?> mv && java.util.Map.class.isAssignableFrom(type)) {
+                        java.lang.reflect.Type vt = mapValueType(generic);
+                        java.util.Map<Object, Object> out = new LinkedHashMap<>();
+                        for (Map.Entry<?, ?> e : mv.entrySet())
+                            out.put(e.getKey(), vt == null ? e.getValue() : bindByType(vt, e.getValue()));
+                        return out;
                     }
                     if (value instanceof Map<?, ?> m) {
                         if (type.isRecord()) {

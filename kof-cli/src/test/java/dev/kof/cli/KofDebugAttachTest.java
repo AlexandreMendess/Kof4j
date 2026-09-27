@@ -133,7 +133,7 @@ class KofDebugAttachTest {
             c.p().waitFor(10, TimeUnit.SECONDS);
             assertTrue(debuggee.isAlive(),
                     "SEMANTICA DE ATTACH: disconnect fecha o ADAPTADOR, nunca mata o processo do usuario");
-            debuggee.destroy();
+            CliProcessTree.terminate(debuggee);
         }
     }
 
@@ -175,7 +175,7 @@ class KofDebugAttachTest {
             send(c, 3, "stackTrace", "\"startFrame\":0");
             assertTrue(await(c, "\"command\":\"stackTrace\"", "stack").contains("Main.kf"));
         } finally {
-            p.destroy();
+            CliProcessTree.terminate(p);
         }
         String argv = Files.readString(argsFile);
         assertTrue(argv.contains("-p 4242"), "attach NATIVE = gdb -p PID, sem build, sem launch: " + argv);
@@ -185,12 +185,17 @@ class KofDebugAttachTest {
     void attachArgIsStrictAndJsStaysHonest(@TempDir Path dir) throws Exception {
         Files.writeString(dir.resolve("Main.kf"), "main() { println(1) }\n");
         Cli bad = cli(dir, "debug", "--attach", "nao-e-porta", "Main.kf");
-        assertTrue(bad.p().waitFor(60, TimeUnit.SECONDS));
-        assertNotEquals(0, bad.p().exitValue());
-        String out = new String(bad.err().readAllBytes(), StandardCharsets.UTF_8);
-        assertTrue(out.contains("number"), "erro nomeia o problema (R6): " + out);
         Cli js = cli(dir, "debug", "--attach", "9", "--target", "js", "Main.kf");
-        assertTrue(js.p().waitFor(60, TimeUnit.SECONDS));
-        assertEquals(1, js.p().exitValue(), "attach JS = mesma recusa honesta do launch");
+        try {
+            assertTrue(bad.p().waitFor(60, TimeUnit.SECONDS));
+            assertNotEquals(0, bad.p().exitValue());
+            String out = new String(bad.err().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(out.contains("number"), "erro nomeia o problema (R6): " + out);
+            assertTrue(js.p().waitFor(60, TimeUnit.SECONDS));
+            assertEquals(1, js.p().exitValue(), "attach JS = mesma recusa honesta do launch");
+        } finally {
+            CliProcessTree.terminate(bad.p());
+            CliProcessTree.terminate(js.p());
+        }
     }
 }

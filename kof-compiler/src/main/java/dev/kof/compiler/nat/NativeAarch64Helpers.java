@@ -68,6 +68,10 @@ final class NativeAarch64Helpers {
     static String aarch64Reg(String r) {
         return switch (r) {
             case "zero" -> "xzr";
+            // §352: `x0` no asm riscv É o registrador zero (hardwired); sem
+            // este mapa o tradutor emitia `cmp a0, x0` comparando com o X0
+            // real — `slt t2, a0, x0` virava sempre false (face ±0.0 do sort).
+            case "x0" -> "xzr";
             case "ra" -> "x30";
             case "sp" -> "sp";
             case "gp" -> "x3";

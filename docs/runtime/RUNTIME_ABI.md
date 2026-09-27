@@ -244,7 +244,25 @@ AArch64 inherits through the cross translator.
 | `kof_unbox_<t>` (strict) | accepts only a valid box of the expected tag. A malformed box or tag mismatch is an **honest runtime error** — never `wrong type → default` |
 | `kof_unbox_<t>_soft` | box → opens it; raw → passes through; `null` → usage error |
 | `kof_box_equals(l, r)` | lifted **value** equality: `null == null` → `1`; `null` vs present → `0`; box vs box → payload (cross-tag Int/Long compare equal) |
-| `kof_box_to_string` | understands tags 0, 2, 3, 4, 5 |
+| `kof_box_to_string` | understands tags 0, 2, 3, 4, 5; for a **non-box reference** it passes a Kof `String` through (type_id 1) and otherwise dispatches the object's own `toString` (see below) |
+
+**Reference face (N2, 23/09):** a value typed `Object` may hold a boxed
+primitive **or** a real reference (record/class). `kof_box_to_string` decides
+by the same discriminator `kof_instanceof` uses — the 4-byte `type_id` at
+offset 0:
+
+- `null` → `"null"` (JVM `String.valueOf(null)` parity);
+- `*(u64) == MAGIC` → primitive-box tag dispatch (table above);
+- `type_id == 1` → already a Kof `String`, passed through;
+- otherwise → `kof_tostring_table[type_id]` (a program-side `.quad` table
+  emitted next to `kof_super_table`) is tail-called with the object as
+  `this`; a `0` entry (class without `toString`) keeps the passthrough. No
+  second ABI: the table only stores the addresses of the `toString`
+  functions the class vtables already reference.
+
+This is what makes `println(Point(1,2) as Object)` and
+`var o: Object = Point(1,2); println(o)` print by content on Native instead
+of an empty line (JVM oracle: `Point[x=1, y=2]`).
 
 `Char?` carries no tag of its own — tag 0 is shared with Int/Short/Byte, so
 `kof_box_to_string` alone cannot tell `Int(65)` from `Char('A')`. This needs no
@@ -350,9 +368,9 @@ TypeTable:
 >
 > **Updated (0.2.6-beta, 31/08):** `spawn`/`await` in Native was
 > implemented (CONC001 closed — `pthread_create` + trampoline +
-> `pthread_join` + thread-safe allocator with futex). Automatic GC remains
-> out (mark-sweep implemented 03/09, manual; free-list `kof_free_head` reuses `mmap`,
-> auto-GC disabled after a hang).
+> `pthread_join` + thread-safe allocator with futex). Automatic GC on exhaustion
+> ✅ landed 19/09 (D1-A, §260 CLOSED; mark-sweep implemented 03/09 + manual
+> `kof_gc_collect_now`; free-list `kof_free_head` reuses `mmap`).
 
 ## 8. NOT included in this ABI
 

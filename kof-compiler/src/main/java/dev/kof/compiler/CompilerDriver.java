@@ -108,6 +108,24 @@ public class CompilerDriver extends CompilerDriverState {
         return CompilerPipeline.rootFor(sources);
     }
 Target target = Target.JVM;
+dev.kof.compiler.nat.NativeProfile nativeProfile = dev.kof.compiler.nat.NativeProfile.HOST;
+
+/**
+ * B-1 (PLAN-BAREMETAL-BOOT): seleciona o perfil de link nativo
+ * ({@code HOST} | {@code FREESTANDING}) — a superfície CLI `--profile` passa
+ * por aqui. O perfil só tem efeito em alvos nativos; o CLI recusa
+ * {@code freestanding} fora de {@code --target native} (x86_64) antes de
+ * compilar (R6, nunca no-op silencioso).
+ */
+public void setNativeProfile(dev.kof.compiler.nat.NativeProfile profile) {
+    this.nativeProfile = java.util.Objects.requireNonNull(profile, "profile");
+}
+
+/** Perfil de link nativo corrente (B-1). */
+public dev.kof.compiler.nat.NativeProfile nativeProfile() {
+    return nativeProfile;
+}
+
 
 
     /** Um caso `test "nome" { }` descoberto em compile-time. */

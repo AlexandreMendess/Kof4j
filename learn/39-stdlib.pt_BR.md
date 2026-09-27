@@ -2,28 +2,44 @@
 
 # 39 — Standard Library universal (math, strings, encoding, uuid, validation, time)
 
-> **Kof 0.4.0-beta — `intention->Kof->frontend->IR->backend->runtime`**
+> **Todo namespace agora tem capítulo próprio em [`stdlib/`](stdlib/README.pt_BR.md)
+> — as tabelas de funções lá são o contrato 1:1 (medidas dos dispatchers
+> reais). Este capítulo mantém a narrativa, os exemplos e a tabela honesta de
+> paridade.**
 
-A Standard Library do Kof existe para uma coisa: **você nunca reimplementar o
-óbvio**. Matemática de uso comum, predicados e conversores de string,
-codificação (hex/base64/url), UUID, validação (documentos BR, rede, cartão)
-e calendário civil — tudo chamado por **intenção**, com o mesmo resultado no
-JVM, no interpretador KofScript, no JS e no binário nativo (x86_64, riscv64,
-aarch64).
-
-```kof
-var phone = "1234"
-var gateway = "192.168.0.1"
-if (strings.isNumeric(phone)) {          // intenção, não loop de char
-    println(validation.isIpv4(gateway))  // mesma API em todo target
-}
-```
-
-
-> Regra do projeto: se parece Java traduzido, está errado. Loop de bytes
-> manual para validar CPF é o anti-pattern; `validation.isCpf(...)` é o
-> idiom. O "por quê" completo (BAD/GOOD/WHY) está em
-> `training/idioms/stdlib.md`.
+| Namespace | Capítulo |
+|-----------|----------|
+| `json` | [stdlib/json](stdlib/json.pt_BR.md) |
+| `db` | [stdlib/db](stdlib/db.pt_BR.md) |
+| `http` | [stdlib/http](stdlib/http.pt_BR.md) |
+| `cache` | [stdlib/cache](stdlib/cache.pt_BR.md) |
+| `config` | [stdlib/config](stdlib/config.pt_BR.md) |
+| `log` | [stdlib/log](stdlib/log.pt_BR.md) |
+| `process` | [stdlib/process](stdlib/process.pt_BR.md) |
+| `shell` | [stdlib/shell](stdlib/shell.pt_BR.md) |
+| `ssh` | [stdlib/ssh](stdlib/ssh.pt_BR.md) |
+| `net` | [stdlib/net](stdlib/net.pt_BR.md) |
+| `orm` | [stdlib/orm](stdlib/orm.pt_BR.md) |
+| `gpu` | [stdlib/gpu](stdlib/gpu.pt_BR.md) |
+| `mq` | [stdlib/mq](stdlib/mq.pt_BR.md) |
+| `observability` | [stdlib/observability](stdlib/observability.pt_BR.md) |
+| `tetris` | [stdlib/tetris](stdlib/tetris.pt_BR.md) |
+| `media` | [stdlib/media](stdlib/media.pt_BR.md) |
+| `buffer` | [stdlib/buffer](stdlib/buffer.pt_BR.md) |
+| `passwords` | [stdlib/passwords](stdlib/passwords.pt_BR.md) |
+| `crypto` | [stdlib/crypto](stdlib/crypto.pt_BR.md) |
+| `jwt` | [stdlib/jwt](stdlib/jwt.pt_BR.md) |
+| `secrets` | [stdlib/secrets](stdlib/secrets.pt_BR.md) |
+| `security` | [stdlib/security](stdlib/security.pt_BR.md) |
+| `auth` | [stdlib/auth](stdlib/auth.pt_BR.md) |
+| `math` | [stdlib/math](stdlib/math.pt_BR.md) |
+| `strings` | [stdlib/strings](stdlib/strings.pt_BR.md) |
+| `encoding` | [stdlib/encoding](stdlib/encoding.pt_BR.md) |
+| `uuid` | [stdlib/uuid](stdlib/uuid.pt_BR.md) |
+| `time` | [stdlib/time](stdlib/time.pt_BR.md) |
+| `random` | [stdlib/random](stdlib/random.pt_BR.md) |
+| `rng` | [stdlib/rng](stdlib/rng.pt_BR.md) |
+| `validation` | [stdlib/validation](stdlib/validation.pt_BR.md) |
 
 ## math — aritmética que todo programa repete
 

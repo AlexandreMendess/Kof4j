@@ -3,7 +3,7 @@
 # Kof Standard Library — Architecture
 
 **Last updated:** September 12, 2026
-**Version:** 0.4.0-beta
+**Version:** 0.5.0-beta
 
 > Kof's Standard Library is the platform: HTTP, REST, auth, authorization,
 > validation, serialization, database, messaging, observability and testing
@@ -66,7 +66,7 @@ JSN00x) — never silently different behavior.
 | `kof.c` | ✅ | `KofCcompiler` C subset (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`) → native x86_64 (5 kof-c-compiler tests, 27/08) |
 | `kof.metrics` | ✅ | `kof bench`/`kof profile` (harness + baseline, 37 benchmarks, `benchmark.yml` threshold 1.20) |
 | `kof.rest` | ⏳ | planned |
-| `kof.database` | ✅ | `kof.db` (JVM JDBC: H2/MySQL/MariaDB/PostgreSQL; Native SQLite via direct `.so` + MySQL wire protocol WIP — SHA-1 auth scramble; **riscv64/aarch64 SQLite ✅ 15/09** link-by-use `libsqlite3` + slices `RtB46/RtB47`; JS **✅ 16/09** untyped via GraalJS-host bridge, typed `query<T>` **✅ 18/09** (`DB002` closed)) + `kof.orm` (entity, create/save/saveAll/find/where/count/page/delete/deleteAll/migrate; **typed column in where/count: non-field literal → `ORM003` at compile-time**; JVM + MongoDB; Native `ORM001`, JS CLOSED 18/09 (`KofJsOrmBridge`)) — see `docs/stdlib/DATABASE_VISION.md` |
+| `kof.database` | ✅ | `kof.db` (JVM JDBC: H2/MySQL/MariaDB/PostgreSQL; Native SQLite via direct `.so` + MySQL wire real on x86-64 — SHA-1 auth scramble; **riscv64/aarch64 SQLite ✅ 15/09** link-by-use `libsqlite3` + slices `RtB46/RtB47`; JS **✅ 16/09** untyped via GraalJS-host bridge, typed `query<T>` **✅ 18/09** (`DB002` closed)) + `kof.orm` (entity, create/save/saveAll/find/where/count/page/delete/deleteAll/migrate; **typed column in where/count: non-field literal → `ORM003` at compile-time**; JVM + MongoDB; Native `ORM001`, JS CLOSED 18/09 (`KofJsOrmBridge`)) — see `docs/stdlib/DATABASE_VISION.md` |
 | `kof.messaging` | ✅ | `kof.mq` publish/subscribe/queue — **3 targets** (JVM in-memory; Native asm 01/09; JS in-process) — `KofMqE2ETest` 4/4 |
 | `kof.supervisor` | ✅ | OTP core (issue #83): `supervisor(name).child(id,factory,policy)`+`restartLimit`+`escalate`+`start`/`stop`/`stats` — host **pure-Kof** injected by `import kof.supervisor` (android-host mechanism). **JVM+Script ✅ 11/09**, **Native x86 ✅ 15/09** (§129 closed — TLS per-thread chain + per-worker handler); **Native riscv64/aarch64 ✅ 19/09** (§129 cross port — per-TID chain table `kof_exc_slots`; `OTP001` removed), **JS ✅ 18/09** (§132 closed — cooperative async `time.sleep`; `OTP002` lifted; `supervisorJsParity`). **S3 ✅ 14/09**: `restartLimitWindow(max, windowMs)` (sliding window, ring per child), `.clock(nowFn)` (injectable, DD-OTP-10), `stats().dropped` = temporary children actually dropped. `KofSupervisorE2ETest` 16/16 |
 | `kof.validation` | ✅ | `validation.required/notBlank/minLength/maxLength/lengthBetween/isEmail/isUrl/matches/isInt/isLong/inRange/min/max` — JVM/Native/JS (`KofValidationTest` 3/3) |
@@ -104,7 +104,7 @@ architecture, priority and strategy) lives in **`docs/bugs-and-gaps/ecosystem-co
 platform (a checklist derived from the Spring ecosystem, used as a
 capability matrix, not as an API specification).
 
-Executive summary (0.4.0-beta, re-synced 17/09):
+Executive summary (0.5.0-beta, re-synced 17/09):
 
 | Category | Status |
 |-----------|--------|
@@ -116,13 +116,13 @@ Executive summary (0.4.0-beta, re-synced 17/09):
 | observability | DONE (kof.observability: health/metrics/request IDs — JVM/Native/JS) |
 | `KofScript` / `KofCcompiler` / riscv64/aarch64 targets | DONE (KofScript 8, KofC 5, riscv64 toolchain stable) |
 | messaging (`kof.mq` 3 targets), scheduling (`scheduler` 3 targets — SCHED001 closed 31/08), sessions, rate limiting, TLS, WebSocket/SSE (JVM), `kof.cache` (3 targets) | DONE (real gaps: `WEB002` TLS, `WEB003/004` WS/SSE) |
-| GC Native mark-sweep | ✅ real sweep 03/09 (`kof_gc_mark` conservative stack+bss + `kof_gc_sweep` → free-list + manual `kof_gc_collect_now`; `KofGcE2ETest` 3/3). ⚠️ **auto-collect on exhaustion still PENDING** — needs safe-points/root-map (calling from `kof_alloc` without one = double-free; see `docs/status.md` "auto-collect pending" + `KofGcE2ETest` note) |
+| GC Native mark-sweep | ✅ real sweep 03/09 (`kof_gc_mark` conservative stack+bss + `kof_gc_sweep` → free-list + manual `kof_gc_collect_now`; `KofGcE2ETest` 3/3). ✅ **auto-collect on exhaustion landed 19/09** (D1-A, §260 CLOSED: blanket-spill of the 15 GPRs + `kof_spawn_count==0` gate + one-shot flag; `a904317e`) |
 
 # 6. NEXT STEPS (residual post-0.2.0)
 
 1. Complete Native aarch64 codegen (placeholder today)
 2. ~~Complete GC mark-sweep~~ ✅ 03/09 (KofGcE2ETest 3/3)
-3. Complete native MySQL/MariaDB (SHA-1 auth scramble + lenenc done; handshake/query/prepared pending — WIP)
+3. ~~Complete native MySQL/MariaDB~~ — ✅ x86-64 closed 22/09 (scramble + lenenc + handshake/query/prepared + the 13 ORM faces, F2d1–F2d7; cross riscv64/aarch64 open)
 4. Typed query DSL `User.query { where age > 18 }` (level 3 DATABASE_VISION)
 5. `kof fmt` (P5) + complete LSP + DWARF/JS source maps debugger
 6. tracing / OpenTelemetry (WebSocket/SSE ✅ JVM and `kof.cache` ✅ 3 targets closed 30/08)

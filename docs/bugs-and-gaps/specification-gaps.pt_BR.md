@@ -9,7 +9,7 @@
 > (o que cada SG exige e onde está travado); novos gaps de spec entram aqui com
 > status próprio. Bugs abertos ficam em `docs/bugs-and-gaps/known-bugs.md`.
 
-**Versão:** 0.4.0-beta (pom `revision`; era 0.3.0-beta na auditoria) · **Data:** 06/09/2026 · **Fonte:** auditoria completa do
+**Versão:** 0.5.0-beta (pom `revision`; era 0.3.0-beta na auditoria) · **Data:** 06/09/2026 · **Fonte:** auditoria completa do
 `kof-compiler` + probes de execução + revisão de `docs/`, `training/`, `AGENTS.md`
 
 Este é o relatório de inconsistências encontradas na auditoria. Cada item
@@ -430,6 +430,45 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   JS boxearia. Qualquer implementação deve declarar o comportamento honesto
   por alvo (R6/R7), nunca prometer alocação na pilha.
 
+### SG-023 — Runner de property-based testing + fixtures de suíte no `kof test` — ✅ DECIDIDO 21/09 (sem superfície nova: opção C + iii)
+
+- **Origem:** restante da fatia 3 do tracker **X8** (`ecosystem-coverage.md` G6
+  "next"): depois do `rng` (fatias 1–2 ✅ 18/09, `KofRngTest` 11/11) e da fatia 3
+  do `kof test` (`--timeout` ✅ 19/09; **suítes nomeadas por diretório ✅ 21/09**,
+  `CmdTestSuiteTest` 2/2), restam duas faces e ambas precisam de superfície.
+- **Pedido (a) runner de property:** rodar o corpo de um `test` sobre entradas
+  geradas por `kof.rng` (`forAll`), com seed/replay determinístico e minimização
+  no FAIL.
+- **Pedido (b) fixtures:** setup/teardown por suíte, compartilhados por todos os
+  arquivos de um diretório.
+- **Estado da spec:** `rng` existe (xorshift128+splitmix32 seedável, JVM/JS/Native-x86)
+  e o `kof test` roda `test "name" { }` com timeouts + suítes nomeadas — mas **não**
+  há runner de property nem contrato de fixtures; o corpus nunca prometeu nenhum.
+- **Superfícies candidatas** (Lei da Simplicidade, regra 11 — a menor que declara a
+  intenção): **property** → (A) `property "name" { forAll((gen) -> …) }`, espelhando
+  `test "name" { }`; (B) um modo `kof test --props` reinterpretando um `test`
+  existente (implícito, mais pesado); (C) nada novo — documentar o idioma
+  `rng` + loop e manter o runner fora do v1. **fixtures** → (i) blocos
+  `setup { }`/`teardown { }`; (ii) arquivo de convenção por diretório (`_suite.kf`);
+  (iii) nada novo.
+- **Por que não é edição do lane:** ambas adicionam **superfície de linguagem
+  voltada ao usuário** (uma palavra-chave ou contrato de CLI) → regra 6; valem o
+  portão da simplicidade (regra 11) e o `D-KOF-FIRST` (o contrato Kof precede
+  qualquer empréstimo de QuickCheck/Hypothesis).
+- **Todo de implementação (quando decidido):** 1. fixar a superfície (uma opção de
+  cada); 2. parser/typer + runner no `kof-cli`/`kof-script`; 3. seed + replay
+  determinístico; 4. paridade por alvo JVM/Native-x86/JS (`RNG001` honesto em
+  cross/Android); 5. E2E por alvo + corpus (`training/`, `learn/23-testing`);
+  6. implementação completa ou gap diagnosticado — sem stub (Q7/R6).
+- **Decidido (21/09, delegado pela mantenedora, `D-PROPERTY`):** opção **C** + opção
+  **iii** — **sem sintaxe nova**; o runner de property é o idioma existente
+  `test "name" { }` + `kof.rng` + `assert`, e as fixtures são o padrão
+  `close()` + `try/finally` (`D5-B`). Prova: `PropertyTestIdiomE2ETest` **7/7**
+  (reuso semeado, `checksum` idêntico byte a byte JVM==JS e JVM==Native-x86,
+  property falsificável FALHA com exit 1, property de zero iterações PASSA
+  vacuousamente). Documentado em `training/idioms/stdlib.md` + `learn/23-testing.md`.
+  Nenhum parser/typer/codegen tocado.
+
 ---
 
 ## Categoria C — Divergências entre targets (paridade) — atualizada 10/09
@@ -496,9 +535,10 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
 
 ## Resumo
 
-- **22 gaps SG-00x** (A: contradições doc/código; B: comportamento não
+- **23 gaps SG-00x** (A: contradições doc/código; B: comportamento não
   especificado; SG-021 json pretty-print e SG-022 value records = pedidos sem
-  decisão). **Fila do maintainer (2ª rodada, 10/09) COMPLETA:**
+  decisão; **SG-023 property runner + fixtures ✅ DECIDIDO 21/09 — sem superfície
+  nova, `D-PROPERTY`**). **Fila da mantenedora (2ª rodada, 10/09) COMPLETA:**
   SG-008 ✅, SG-005 ✅, SG-009 ✅, SG-020 ✅ — ver histórico em cada seção.
 - **8 divergências de target** (C).
 - **3 docs desatualizados** (E) — **todos ✅** (E1 residual 10/09, E2

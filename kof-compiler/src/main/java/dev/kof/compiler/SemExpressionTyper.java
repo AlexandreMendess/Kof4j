@@ -15,9 +15,16 @@ public final class SemExpressionTyper {
     static Type inferType(SemanticAnalyzer sa, ExpressionNode expr, SymbolTable scope) {
         Type cached = sa.expressionTypes().get(expr);
         if (cached != null && !Type.isUnknown(cached)) return cached;
-        Type result = inferTypeInternal(sa, expr, scope);
-        sa.putExpressionType(expr, result);
-        return result;
+        DiagnosticCollector diag = sa.diagnostics();
+        SourcePosition prev = diag == null ? null : diag.fallbackPosition();
+        if (diag != null && expr != null && expr.position() != null) diag.setFallbackPosition(expr.position());
+        try {
+            Type result = inferTypeInternal(sa, expr, scope);
+            sa.putExpressionType(expr, result);
+            return result;
+        } finally {
+            if (diag != null) diag.setFallbackPosition(prev);
+        }
     }
 
     static boolean isLocalName(SymbolTable scope, String name) {
@@ -96,8 +103,30 @@ public final class SemExpressionTyper {
                         yield fieldSym.type();
                     }
                 }
+                // §400 (voto D-CLOSEALL-BATCH, mantenedora 21/09, opção A):
+                // FUNÇÃO top-level nomeada usada como VALOR em posição de
+                // argumento (`job("e", probe)` com `Bool probe()`) — não é um
+                // variável indefinida: diagnostica a regra real e aponta o
+                // idiom lambda que já existe (`() -> probe()`).
+                boolean namedTopLevelFunc = false;
+                if (sa.unit() != null) {
+                    for (AstNode f0 : sa.unit().declarations()) {
+                        if (f0 instanceof FunctionDeclarationNode fd0
+                                && ie.name().equals(fd0.name())) { namedTopLevelFunc = true; break; }
+                    }
+                }
+                if (namedTopLevelFunc) {
+                    SourcePosition pn = ie.position();
+                    sa.diagnostics().error(pn != null ? pn.file() : "",
+                            pn != null ? pn.line() : 0, pn != null ? pn.column() : 0,
+                            0,
+                            ie.name() + " is a top-level function, not a value in argument position — "
+                                    + "pass the call wrapped in a lambda: () -> " + ie.name() + "()",
+                            "SEM011");
+                    yield Type.UnknownType.UNKNOWN;
+                }
                 if (SemUndefinedVarGuard.reportsUndefined(sa, ie.name())) {
-                    sa.diagnostics().error("", 0, 0, 0,
+                    sa.diagnostics().error(ie,
                             "Undefined variable or type: '" + ie.name() + "'", "SEM011");
                 }
                 yield Type.UnknownType.UNKNOWN;
@@ -108,7 +137,7 @@ public final class SemExpressionTyper {
                 // expressão — rejeita com diagnóstico limpo (statements passam
                 // pelo ExpressionStmt, que não chega aqui).
                 if (sa.diagnostics() != null) {
-                    sa.diagnostics().error("", 0, 0, 0,
+                    sa.diagnostics().error(ae,
                             "assignment is a statement, not an expression (use '=' on its own line)",
                             "SEM027");
                 }
@@ -124,6 +153,7 @@ public final class SemExpressionTyper {
                         }
                         if (!hasField
                                 && !"json".equals(ie.name()) && !"process".equals(ie.name()) && !"shell".equals(ie.name())
+                                && !"ssh".equals(ie.name())
                                 && !KofWeb.isWebNamespace(ie.name())
                                 && !KofConfig.isConfigNamespace(ie.name())
                                 && !KofCache.isCacheNamespace(ie.name())
@@ -140,7 +170,7 @@ public final class SemExpressionTyper {
                                 && !KofTime.isTimeNamespace(ie.name())
                                 && !KofScheduler.isSchedulerNamespace(ie.name())
                                 && !sa.allClasses().containsKey(ie.name())) {
-                            sa.diagnostics().error("", 0, 0, 0,
+                            sa.diagnostics().error(ie,
                                     "undefined variable: '" + ie.name() + "'", "SEM020");
                         }
                     }
@@ -150,7 +180,7 @@ public final class SemExpressionTyper {
                         if (sa.diagnostics() != null && !Type.isUnknown(targetType) && !Type.isUnknown(valueType)
                                 && !strConcat
                                 && !TypeChecker.isAssignable(sa, valueType, targetType)) {
-                            sa.diagnostics().error("", 0, 0, 0,
+                            sa.diagnostics().error(ae,
                                     "Type mismatch: cannot assign " + valueType + " to " + targetType, "SEM012");
                         }
                     }
@@ -167,7 +197,7 @@ public final class SemExpressionTyper {
                     Type leftT = inferType(sa, bin.left(), scope);
                     SymbolTable rightScope = SemNarrowing.narrowedScope(bin.left(), scope);
                     Type rightT = inferType(sa, bin.right(), rightScope);
-                    yield TypeChecker.inferBinaryResultType(sa.diagnostics(), "&&", leftT, rightT);
+                    yield SemBinaryResultTyper.inferBinaryResultType(sa.diagnostics(), "&&", leftT, rightT);
                 }
                 // Left-associative chains (huge string concatenations in
                 // generated UIs, editors) are iterated instead of recursed:
@@ -194,12 +224,36 @@ public final class SemExpressionTyper {
                         Type q = CompilerTypes.toType(rie.name(), sa.unit());
                         if (!(q instanceof Type.UnknownType)) rightType = q;
                     }
-                    accType = TypeChecker.inferBinaryResultType(sa.diagnostics(), be.operator(), accType, rightType);
+                    accType = SemBinaryResultTyper.inferBinaryResultType(sa.diagnostics(), be.operator(), accType, rightType);
                 }
                 yield accType;
             }
             case UnaryExpr ue -> {
                 Type operandType = inferType(sa, ue.operand(), scope);
+                // #469: `record.x++`/`--` passava no `check` e só falhava em
+                // runtime (IllegalAccessError no JVM / TypeError no JS — o
+                // campo é privado/final). A escrita direta (`x = v`) e o
+                // composto (`x += v`) já são SEM038 no StatementAnalyzer; o
+                // incremento não passava por lá. Mesmo contrato (record
+                // imutável), mesmo diagnóstico, agora em compile-time nos 4
+                // alvos.
+                if (("++".equals(ue.operator()) || "--".equals(ue.operator()))
+                        && ue.operand() instanceof FieldAccessExpr incFa
+                        && sa.diagnostics() != null) {
+                    boolean incOnThis = incFa.receiver() instanceof IdentifierExpr rid2
+                            && "this".equals(rid2.name());
+                    Type incRecv = incOnThis
+                            ? (sa.currentClassName() != null
+                                    ? new Type.ClassType("", sa.currentClassName(), List.of()) : null)
+                            : inferType(sa, incFa.receiver(), scope);
+                    if (incRecv != null && CompilerTypes.isRecordType(incRecv, sa.unit(), sa)
+                            && !(incOnThis && sa.inConstructor)) {
+                        sa.diagnostics().error(incFa,
+                                "cannot assign to '" + incFa.fieldName()
+                                        + "': record is immutable",
+                                "SEM038");
+                    }
+                }
                 // D-TROOL (19/09): `!Troolean` = tres estados (Kleene `!U = U`)
                 // — o tipo semantico tem de casar com a caixa do lowering.
                 if ("!".equals(ue.operator())) yield CompilerComparisons.isNullableBool(operandType)
@@ -208,206 +262,8 @@ public final class SemExpressionTyper {
                 yield operandType;
             }
             case MethodCallExpr mc -> SemMethodCallTyper.infer(sa, mc, scope);
-            case NewExpr ne -> {
-                Type coll = CompilerTypes.builtinCollectionType(ne.typeName(), sa.unit(), sa);
-                if (coll != null) {
-                    // #193/#198: aplicar os type-arguments no tipo da colecao,
-                    // espelhando o ExpressionTyper do emit (que sempre aplicou).
-                    // Sem isso `new List<() -> Int>()` tipava como List<Unknown>
-                    // no SEMANTICO e o get(0) devolvia Unknown -> `f()` dava
-                    // SEM015 (#193) e o call-chainado `get(0)()` emitia Methodref
-                    // vazio (ClassFormatError, #198).
-                    if (!ne.typeArguments().isEmpty() && coll instanceof Type.ClassType ct) {
-                        coll = new Type.ClassType(ct.packageName(), ct.name(),
-                                ne.typeArguments().stream().map(Type::of).toList());
-                    }
-                    yield coll;
-                }
-                SymbolTable.ClassSymbol cs = sa.getClass(ne.typeName());
-                if (cs != null) {
-                    // SG-017 (SEM041): classe abstrata não pode ser instanciada.
-                    if (sa.abstractClasses().contains(ne.typeName()) && sa.diagnostics() != null) {
-                        sa.diagnostics().error("", 0, 0, 0,
-                                "cannot instantiate abstract class '" + ne.typeName() + "'",
-                                "SEM041");
-                    }
-                    // #340 (SEM071): interface não é instanciável — `new I()`.
-                    ClassShapeChecks.checkInstantiable(sa, ne.typeName());
-                    // Inferencia dos argumentos: o efeito colateral importa
-                    // (cache expressionTypes + diagnostics de SEM nas exprs), a
-                    // resolucao do construtor e por aridade (constructorFor
-                    // aceita int) — o container de tipos era write-only
-                    // (CodeQL unused-container: achado real, nao FP).
-                    for (ExpressionNode arg : ne.arguments()) {
-                        inferType(sa, arg, scope);
-                    }
-                    SymbolTable.ConstructorSymbol ctor3 =
-                            SymbolTable.constructorFor(cs.members(), ne.arguments().size());
-                    if (ctor3 != null) {
-                        sa.putResolvedConstructor(ne, ctor3);
-                        // #323: a RESOLUCAO era so por aridade; o tipo dos
-                        // argumentos nunca era conferido contra a assinatura
-                        // do construtor. Sem isto, `new A("x")` num ctor
-                        // `(Int)` compila e a chamada inventa <init>(String)V
-                        // → VerifyError no load (R6/Q7: nunca silencioso).
-                        // Overload-aware: irmao de mesma aridade que casa
-                        // (isAssignable) passa — mesmo predicado do emit.
-                        List<Type> argTypes3 = new ArrayList<>();
-                        for (ExpressionNode arg : ne.arguments()) {
-                            argTypes3.add(inferType(sa, arg, scope));
-                        }
-                        TypeChecker.checkCtorArgTypes(sa, cs.members(), ne.typeName(),
-                                argTypes3);
-                    } else if (sa.diagnostics() != null) {
-                        SymbolTable.Symbol anyInit = cs.members().resolve("<init>");
-                        if (anyInit instanceof SymbolTable.ConstructorSymbol c) {
-                            sa.diagnostics().error("", 0, 0, 0,
-                                    "no constructor of '" + ne.typeName() + "' with "
-                                            + ne.arguments().size() + " argument(s) (expected "
-                                            + c.parameterTypes().size() + ")",
-                                    "SEM023");
-                        } else if (anyInit instanceof SymbolTable.ConstructorSet set
-                                && !set.constructors().isEmpty()) {
-                            sa.diagnostics().error("", 0, 0, 0,
-                                    "no constructor of '" + ne.typeName() + "' with "
-                                            + ne.arguments().size() + " argument(s)",
-                                    "SEM023");
-                        }
-                    }
-                    yield new Type.ClassType(cs.packageName(), cs.name(), List.of());
-                }
-                // classe EXTERNA (android.webkit.WebView etc.): qualifica pelo
-                // import e registra o construtor do classpath — sem isso a
-                // variável fica Unknown e toda a cadeia de chamadas seguinte
-                // perde o tipo
-                String qname = ne.typeName();
-                if (!qname.contains(".")) {
-                    Type viaImport = MemberResolver.qualifyViaImports(sa.unit(), qname,
-                            sa.externalTypes());
-                    if (viaImport != null) qname = viaImport instanceof Type.ClassType qt
-                            ? qt.packageName() + "." + qt.name() : qname;
-                }
-                if (qname.contains(".") && sa.externalTypes() != null) {
-                    String internal = qname.replace('.', '/');
-                    if (sa.externalTypes().knows(internal)) {
-                        ExternalClasspath.MethodSignature sig =
-                                sa.externalTypes().resolveConstructor(internal, ne.arguments().size());
-                        if (sig != null) {
-                            List<Type> params = new ArrayList<>();
-                            for (String d : sig.parameterDescriptors()) {
-                                params.add(ExternalClasspath.typeFromDescriptor(d));
-                            }
-                            sa.putResolvedConstructor(ne, new SymbolTable.ConstructorSymbol(
-                                    internal.substring(internal.lastIndexOf('/') + 1), params, 1));
-                        }
-                        int lastDot = qname.lastIndexOf('.');
-                        yield new Type.ClassType(qname.substring(0, lastDot),
-                                qname.substring(lastDot + 1), List.of());
-                    }
-                }
-                yield Type.UnknownType.UNKNOWN;
-            }
-            case FieldAccessExpr fa -> {
-                if (fa.receiver() instanceof IdentifierExpr pId && KofUi.isPalette(pId.name()) && KofUi.paletteColor(fa.fieldName()) != null) yield KofUi.COLOR;
-                if (fa.receiver() instanceof IdentifierExpr tid && KofUiTokens.isTokenNamespace(tid.name())) {
-                    if (KofUiTokens.tokenValue(tid.name(), fa.fieldName()) == null && sa.diagnostics() != null) {
-                        sa.diagnostics().error("", 0, 0, 0,
-                                KofUiTokens.unknownMemberMessage(tid.name(), fa.fieldName()), "SEM079");
-                    }
-                    yield Type.PrimitiveType.INT;
-                }
-                String en = MemberResolver.enumNameOfConstant(sa.unit(), fa);
-                if (en != null) yield CompilerTypes.enumTypeOf(en, sa); // #445: pkg real via ClassSymbol
-                Type recvType = inferType(sa, fa.receiver(), scope);
-                Type nf = Narrowing.narrowedField(scope, Narrowing.pathOf(fa));
-                if (nf != null) yield nf;
-                // bug 99 (R6, nunca silencioso): `Int.MAX_VALUE`/`Long.foo` etc.
-                // — acesso a campo num NOME DE TIPO PRIMITIVO. `Int` resolve p/
-                // UNKNOWN (a isenção isBuiltinTypeName de SEM011 existe p/ posição
-                // de TIPO, não p/ receiver de campo) e o guard SEM025 abaixo só
-                // dispara em ClassType → o campo passava SEM diagnóstico e o
-                // lowering emitia `getfield "?".field` (NoClassDefFoundError/SIGSEGV
-                // nos 3 targets; `var x = Int.MAX_VALUE` ainda CRASHAVA o
-                // compilador — ASM visitMaxs NegativeArraySizeException). Não há
-                // constante estática de primitivo em Kof (idiom = literal/`as`).
-                if (recvType instanceof Type.UnknownType
-                        && fa.receiver() instanceof IdentifierExpr rid
-                        && MemberResolver.isBuiltinTypeName(rid.name())
-                        && sa.diagnostics() != null) {
-                    sa.diagnostics().error("", 0, 0, 0,
-                            "'" + rid.name() + "' is a primitive type, it has no static field "
-                                    + "'" + fa.fieldName() + "' (use the literal, "
-                                    + "e.g. 2147483647 for Int; there is no Int.MAX_VALUE in Kof)",
-                            "SEM050");
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                // SG-005: deref de T? sem narrowing é erro (espelha SEM049 de
-                // method call) — `s.length` em String? seria NPE em runtime.
-                if (recvType instanceof Type.NullableType && sa.diagnostics() != null) {
-                    SourcePosition faPos = fa.position();
-                    sa.diagnostics().error(faPos != null ? faPos.file() : "",
-                            faPos != null ? faPos.line() : 0, faPos != null ? faPos.column() : 0, 0,
-                            "receiver is nullable (T?); narrow first: if (x != null) { x.field }",
-                            "SEM049");
-                }
-                if (KofUi.isComponent(recvType) && "state".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (KofProcess.isResult(recvType) && KofProcess.isField(fa.fieldName())) {
-                    yield KofProcess.fieldType(fa.fieldName());
-                }
-                if (recvType instanceof Type.ArrayType && "length".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (Type.isString(recvType) && "length".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (Type.isString(recvType) && ("name".equals(fa.fieldName()) || "path".equals(fa.fieldName()))) {
-                    yield BuiltinTypes.STRING;
-                }
-                // #375/§355 (rio da erasure): receiver é type-variable COM bound
-                // (`item.name` com `item: T: Animal`) — o membro resolve no
-                // BOUND, como javac após a erasure. Sem isto o tipo caía em
-                // UNKNOWN e o emit saía owner "?" / descritor Object →
-                // NoClassDefFoundError: "?".
-                if (recvType instanceof Type.TypeVariable tv && tv.bound() != null) {
-                    recvType = tv.bound();
-                }
-                if (recvType instanceof Type.ClassType ct) {
-                    SymbolTable.Symbol field = MemberResolver.resolveFieldInHierarchy(sa, ct.name(), fa.fieldName());
-                    if (field != null) {
-                        // #331/#327 (espelha SEM046 dos metodos): acesso a
-                        // campo private/protected de fora da declarante
-                        // compila e o load estourava IllegalAccessError em
-                        // silencio (R6/Q7). so com `this.x`/x nu (owner ==
-                        // caller) e dentro da declarante/subclasse passa.
-                        if (field instanceof SymbolTable.FieldSymbol fs) {
-                            MemberCallTyper.checkFieldAccess(sa, fs);
-                        }
-                        yield CompilerTypes.substituteTypeVariableIn(field.type(), recvType, sa.unit());
-                    }
-                    if (sa.isExternal(ct)) {
-                        String desc = sa.externalTypes().resolveFieldType(ct.internalName(), fa.fieldName());
-                        if (desc != null) {
-                            yield ExternalClasspath.typeFromDescriptor(desc);
-                        }
-                    }
-                    // P0 #3: campo inexistente em classe conhecida nao pode
-                    // mascarar com UNKNOWN (mesma regra SEM025 do metodo) —
-                    // erro primeiro, depois UNKNOWN p/ error recovery.
-                    // Excecoes: constante de enum (Color.Red e FieldAccess)
-                    // e metodos de Object (nao sao campos).
-                    boolean isKnownReceiver = sa.allClasses().containsKey(ct.name()) || sa.isExternal(ct);
-                    boolean isEnumConstant = MemberResolver.enumConstantOfExpr(sa.unit(), fa) != null;
-                    if (sa.diagnostics() != null && isKnownReceiver && !isEnumConstant && !MemberResolver.isObjectMethod(fa.fieldName(), 0)) {
-                        sa.diagnostics().error("", 0, 0, 0,
-                                "Cannot resolve field '" + fa.fieldName()
-                                        + "' on type '" + ct.name() + "'",
-                                "SEM025");
-                    }
-                }
-                yield Type.UnknownType.UNKNOWN;
-            }
+            case NewExpr ne -> SemNewExprTyper.infer(sa, ne, scope);
+            case FieldAccessExpr fa -> SemFieldAccessTyper.infer(sa, fa, scope);
             case NewArrayExpr na -> {
                 Type elemType = Type.of(na.elementType());
                 inferType(sa, na.size(), scope);
@@ -545,3 +401,4 @@ public final class SemExpressionTyper {
         return "get(i)";
     }
 }
+

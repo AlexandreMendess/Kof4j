@@ -252,7 +252,7 @@ class AndroidInteropE2ETest {
         // --release 21: bytecode legível pelo ASM embutido do compilador
         // (o android.jar real usa bytecode antigo; JDKs novos emitiriam
         // major version além do suportado)
-        ProcessBuilder pb1 = new ProcessBuilder("javac", "--release", "21", "-d", classes.toString(),
+        ProcessBuilder pb1 = new ProcessBuilder(TestJdk.javacBin(), "--release", "21", "-d", classes.toString(),
                 classes.resolve("android/os/Bundle.java").toString(),
                 classes.resolve("android/view/View.java").toString());
         pb1.redirectErrorStream(true);
@@ -296,7 +296,7 @@ class AndroidInteropE2ETest {
         assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
 
         ProcessBuilder pb2 = new ProcessBuilder("java", "-cp",
-                tempDir.resolve("out").toString() + ":" + jar, "Default.Main");
+                tempDir.resolve("out").toString() + java.io.File.pathSeparator + jar, "Default.Main");
         pb2.redirectErrorStream(true);
         Process p2 = pb2.start();
         String output = new String(p2.getInputStream().readAllBytes()).trim();
@@ -788,7 +788,7 @@ class AndroidInteropE2ETest {
             public class Sub extends Base {
             }
             """);
-        ProcessBuilder pb = new ProcessBuilder("javac", "--release", "21", "-d", classes.toString(),
+        ProcessBuilder pb = new ProcessBuilder(TestJdk.javacBin(), "--release", "21", "-d", classes.toString(),
                 baseDir.resolve("Base.java").toString(), baseDir.resolve("Sub.java").toString());
         pb.redirectErrorStream(true);
         Process p = pb.start();

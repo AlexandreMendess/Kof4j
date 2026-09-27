@@ -2,7 +2,7 @@
 
 # PLAN-MULTIPARADIGMA — Multiparadigma, Pipelines Funcionais e Consultas Declarativas
 
-**Status:** `PLANO FUTURO` · **Data:** 2026-09-16 · **Versão:** 0.4.0-beta · **Tier:** 2.x (core) → 8 (dados, adiado)
+**Status:** `PLANO FUTURO` · **Data:** 2026-09-16 · **Versão:** 0.5.0-beta · **Tier:** 2.x (core) → 8 (dados, adiado)
 **Autor:** investigação no HEAD `beta-0.4.0` · **Lane:** nenhuma ainda — apenas design, zero código neste doc
 **Depende de:** `docs/development/roadmap.md` §23 (SYSTEMS fecha antes do Tier 6+; `DECISIONS.md` fila D-NULL-INTENT N1→N4 da lane compiler), `docs/architecture/compiler-architecture.md`, `docs/language-reference/*`
 
@@ -380,5 +380,5 @@ Sem cópia de Scala/Kotlin/Haskell/Rust/LINQ; sem API funcional gigante sem sem�
 - `docs/bugs-and-gaps/specification-gaps.md` (SG-009, SG-012, SG-002)
 - `docs/bugs-and-gaps/known-bugs.md` (bugs 19/20, §170, §181)
 - `docs/development/roadmap.md` §23 Tiers 0–12, `docs/development/DECISIONS.md` (D-NULL-INTENT N1→N4)
-- `docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (invariants R1–R12)
+- `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (invariants R1–R12)
 - `training/idioms/collections.md`

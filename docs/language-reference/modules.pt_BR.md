@@ -130,7 +130,7 @@ define as assinaturas. **Experimental** como superfície (muda entre versões).
   quando no classpath (`ExternalClasspath.resolveMethod`, `:1535-1549`).
   **Target-specific.**
 - **FFI com C (`extern "<lib>" f(T): R`)** — binding direto a bibliotecas
-  nativas (JVM, `java.lang.foreign`). **Superfície medida 18/09 (0.4.0-beta)**: a
+  nativas (JVM, `java.lang.foreign`). **Superfície medida 18/09 (0.5.0-beta)**: a
   JVM casa **qualquer assinatura composta pelo conjunto escalar** `{Int, Long,
   Float, Double, Boolean, String}` em **todas as posições de parâmetro (aridade
   arbitrária, ≥0)** e qualquer um deles como **retorno**, além de **retorno `void`**
@@ -161,17 +161,14 @@ define as assinaturas. **Experimental** como superfície (muda entre versões).
     callback cobre **primitivos + argumentos `String`** (3.4-C3.4, `b120945c`: um `char*` entregue pelo C e lido como `String` Kof na fronteira do upcall, JVM↔JS byte-for-byte) — um argumento struct/ponteiro dentro do callback, ou
     retorno `String`/callback-como-retorno, segue `FFI001`/`FFI002` honesto. No JS o valor de função compilado
     é um **objeto** `Lambda…` (não uma arrow nativa), então a ponte do runner chama
-    `fn.getMember("invoke").execute(...)`. Browser sem host → degrade honesto (R7). Ainda NÃO bound — `FFI001` honesto em
-    compilação (JVM/Native), nunca stub silencioso (R6): ABI de struct/array/pointer (design D6,
-    ⛔ mantenedora), variadics (3.5, ⛔) e handles
-    opacos/out-buffers (3.3, ⛔). **O Native liga a ABI escalar DIRETO em
+    `fn.getMember("invoke").execute(...)`. Browser sem host → degrade honesto (R7). Ainda **parcialmente** bound — a fatia **struct/array/out-buffer da JVM pousou 20–21/09 (3.8b)**: um `record` por valor como argumento **e** como retorno, um `T[]` escalar→`ptr` com copy-in por chamada, e um out-buffer `Buffer(U8)` INOUT (copy-in / chamada / copy-back, criado com `buffer.alloc`; `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 4/4). As faces restantes seguem `FFI001` honesto em compilação (nunca stub silencioso, R6): out-buffers/out-params no **Native/JS** (`Buffer(U8,INOUT)` liga na JVM por `D-R3-3.3` ✅ decidido 21/09), struct/array no **Native** e a bridge de struct no JS, e callbacks no Native; variadics = `D-R3-3.5` (✅ opção A: sem variadics gerais, gap documentado); D6 ✅ decidido 20/09. **O Native liga a ABI escalar DIRETO em
     x86-64/riscv64/aarch64 (#431 fatias 1–2, 20/09, §369)** — link-by-use da `library()` +
     `call sym@PLT`, sem `dlopen` (§61 fechado); no Native, assinaturas não-escalares, callbacks e
     `library()` ausente seguem `FFI001` na linha da declaração. Lib/símbolo ausente falha em **runtime** com exceção `kof_ffi` nomeando
     `lib::symbol` (stack trace, não mensagem cirúrgica). Fatias R3 restantes
-    (structs/D6, variadics, handles, callbacks Native; **JVM e JS escalar+callback e Native escalar fechados**)
+    (handle lifetime `D-R3-3.3`, struct/array + callbacks no Native, bridge de struct no JS; variadics fechado como gap documentado; **struct/array + out-buffer JVM 3.8b + paridade JVM/JS escalar+callback + Native escalar fechados**)
     em
-  `docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (use-case #431).
+  `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (use-case #431).
 
 - **Native/JS**: não há interop com tipos do host da mesma forma. **Unspecified.**
 - **Annotations** (`@Name`, `@JsonFormat`) são metadados de interop emitidos no

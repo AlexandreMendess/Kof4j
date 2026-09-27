@@ -123,5 +123,14 @@ public final class NativeRiscvAsmRtB5 {
                 li   a0, 1
                 ret
 
+            # kof_double_hash(a0=bits do double) -> a0 = (int)(bits ^ (bits>>32))
+            # §114 face hash: Double.hashCode do JVM (port do x86, bits crus).
+            .globl kof_double_hash
+            kof_double_hash:
+                srli t0, a0, 32
+                xor  a0, a0, t0
+                sext.w a0, a0
+                ret
+
             """;
 }

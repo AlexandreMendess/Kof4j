@@ -69,8 +69,16 @@ public final class JvmTypeMapper {
         if ("kof".equals(c.packageName()) && "Set".equals(c.name())) {
             return "Ljava/util/HashSet;";
         }
+        // #634: Kof `Map<K,V>` apaga para a INTERFACE `java.util.Map` (não
+        // `HashMap`): toda operação de mapa já é `INVOKEINTERFACE
+        // java/util/Map` (JvmOpMap) e os decoders JSON já devolvem
+        // `Ljava/util/Map;` — o descritor concreto em parâmetro/retorno/campo
+        // fazia o verifier rejeitar a passagem de um `Map` do decode para uma
+        // função declarada `Map<K,V>` (VerifyError escondido atrás da
+        // mensagem de JavaFX do launcher). `mapOf()` continua `new HashMap` —
+        // atribuível à interface.
         if ("kof".equals(c.packageName()) && "Map".equals(c.name())) {
-            return "Ljava/util/HashMap;";
+            return "Ljava/util/Map;";
         }
         if ("kof.concurrent".equals(c.packageName()) && "Channel".equals(c.name())) {
             return "Ljava/util/concurrent/LinkedBlockingQueue;";
@@ -89,6 +97,23 @@ public final class JvmTypeMapper {
         if ("kof.process".equals(c.packageName()) && "Result".equals(c.name())) {
             return "Ldev/kof/runtime/KofRuntime$ProcessResult;";
         }
+        // D-R3-BUFFER: Buffer(U8) apaga para KofRuntime$Buffer (o runtime real do
+        // out-buffer) — sem isto, `Buffer` virava a classe inexistente `kof/Buffer`
+        // → ClassNotFoundException/NoClassDefFoundError (mesma forma do #31).
+        if ("kof".equals(c.packageName()) && "Buffer".equals(c.name())) {
+            return "Ldev/kof/runtime/KofRuntime$Buffer;";
+        }
+        // D-SECRETS face 1: o tipo Kof `Secret` apaga para KofRuntime$Secret
+        // (wrapper com toString redigido); sem isto virava a classe inexistente
+        // `kof/Secret` → ClassNotFoundException.
+        if ("kof".equals(c.packageName()) && "Secret".equals(c.name())) {
+            return "Ldev/kof/runtime/KofRuntime$Secret;";
+        }
+        // D-SECRETS P3: `KeyHandle` apaga para KofRuntime$KeyHandle (mesmo
+        // padrao do Secret).
+        if ("kof".equals(c.packageName()) && "KeyHandle".equals(c.name())) {
+            return "Ldev/kof/runtime/KofRuntime$KeyHandle;";
+        }
         // enum: D-ENUM207 — o valor é uma INSTÂNCIA de enum (classe real
         // emitida por CompilerEnumLowering), não a String do nome. Descriptor
         // próprio L<Dir>; (antes era apagado p/ Ljava/lang/String;).
@@ -104,7 +129,7 @@ public final class JvmTypeMapper {
      * records (GitHub #34 / bug 58). Retorna null quando o tipo não tem
      * type-args (assinatura == descriptor, redundante).
      */
-    static String toGenericSignature(Type type) {
+    public static String toGenericSignature(Type type) {
         // §128/§187-Native: NullableType (`List<T>?`) NÃO tinha assinatura —
         // o Signature do record component/field ficava ausente e
         // `RecordComponent.getGenericType()` devolvia `List` cru → o decoder
@@ -181,7 +206,7 @@ public final class JvmTypeMapper {
         if (simpleName.contains(".")) return simpleName.replace('.', '/');
         if ("kof".equals(packageName) && "List".equals(simpleName)) return "java/util/ArrayList";
         if ("kof".equals(packageName) && "Set".equals(simpleName)) return "java/util/HashSet";
-        if ("kof".equals(packageName) && "Map".equals(simpleName)) return "java/util/HashMap";
+        if ("kof".equals(packageName) && "Map".equals(simpleName)) return "java/util/Map";
         if ("kof.concurrent".equals(packageName) && "Channel".equals(simpleName)) return "java/util/concurrent/LinkedBlockingQueue";
         if ("kof.concurrent".equals(packageName) && "Handle".equals(simpleName)) return "java/util/concurrent/CompletableFuture";
         if ("kof.process".equals(packageName) && "Result".equals(simpleName)) return "dev/kof/runtime/KofRuntime$ProcessResult";

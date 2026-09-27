@@ -14,9 +14,20 @@ public final class ExpressionStaticCallLowerer {
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                       String owner, int localIdx, List<IRLocalVariable> locals) {
 // with the same name: ClassName(args) is implicit construction.
-SymbolTable.ClassSymbol userCtor = driver.semanticAnalyzer != null
-        ? driver.semanticAnalyzer.getClass(mc.methodName()) : null;
-if (mc.receiver() == null && userCtor != null) {
+// #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(args)` — construção
+// qualificada; o receiver é um PACOTE, resolvido pelo índice FQN ADITIVO
+// (preserva colisões de nome simples). Só dispara quando existe um tipo do
+// módulo com o caminho exato — nenhum receiver comum é afetado.
+SymbolTable.ClassSymbol userCtor = null;
+if (mc.receiver() == null && driver.semanticAnalyzer != null) {
+    userCtor = driver.semanticAnalyzer.getClass(mc.methodName());
+} else if (mc.receiver() instanceof IdentifierExpr qualRecv
+        && !"this".equals(qualRecv.name()) && !"super".equals(qualRecv.name())
+        && driver.semanticAnalyzer != null) {
+    userCtor = driver.semanticAnalyzer.findQualifiedClass(
+            qualRecv.name() + "." + mc.methodName());
+}
+if (userCtor != null) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     SymbolTable.ConstructorSymbol ctor = null;
@@ -74,6 +85,12 @@ if (mc.receiver() == null && "uiNodesLive".equals(mc.methodName()) && mc.argumen
 if (mc.receiver() == null && "storesLive".equals(mc.methodName()) && mc.arguments().isEmpty()) {
     ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
             "kof_ui_stores_live", List.of(), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "subscriptionsLive".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+    // D-COMPLETE-FIRST item 4: leak probe de subscriptions vivas.
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_subscriptions_live", List.of(), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
 if (mc.receiver() == null && "emit".equals(mc.methodName()) && mc.arguments().size() == 2) {
@@ -183,6 +200,21 @@ if (mc.receiver() == null && "Color".equals(mc.methodName()) && mc.arguments().s
         int handledUi = ExpressionUiStaticLowerer.lower(driver, mc, ops, owner, localIdx, locals);
         if (handledUi >= 0) return handledUi;
     }
+// X6 (D-INTEROP-REFLECT, X6.2): TODO uso do namespace `interop` é dono do
+// CompilerInterop — `schema(R)` dobra para as mesmas ops que
+// `listOf(Field("n","t"), …)` emitiria (sem reflexão em runtime, mesma saída
+// nos 4 alvos); membro desconhecido, aridade errada ou argumento que não é o
+// nome de um record declarado são diagnóstico honesto (R6) — nunca silêncio
+// (antes caíam no instance-lowerer genérico e a chamada sumia). Locais,
+// campos da classe corrente e classes/records do usuário chamados `interop`
+// sombream o namespace e seguem o caminho de instância/classe normal.
+if (mc.receiver() instanceof IdentifierExpr rid
+        && CompilerInterop.isInteropNamespace(rid.name())
+        && !driver.isLocalVarName(rid.name(), locals)
+        && !ExpressionMethodCallLowerer.shadowsFieldOfCurrentClass(driver, owner, rid.name())
+        && (driver.semanticAnalyzer == null || driver.semanticAnalyzer.getClass(rid.name()) == null)) {
+    return CompilerInterop.lowerNamespaceCall(driver, mc, ops, owner, localIdx, locals);
+}
 if ("listOf".equals(mc.methodName()) && mc.receiver() == null) {
     Type elemType = driver.listOfElementType(mc, locals);
     Type listType = new Type.ClassType("kof", "List", List.of(elemType));
@@ -194,7 +226,9 @@ if ("listOf".equals(mc.methodName()) && mc.receiver() == null) {
         // Int-pinado) virava VerifyError no JVM, `listOf(1L, 2)` (widening)
         // quebrava igual. Mesma disciplina do add: rejeitar o que quebra,
         // converter o widening abençoado.
-        if (CollectionWrites.pollutesPinned(elemType, argType) && driver.currentDiagnostics != null) {
+        if ((CollectionWrites.pollutesPinned(elemType, argType)
+                || CollectionWrites.breaksPinnedList(elemType, argType))
+                && driver.currentDiagnostics != null) {
             var pos = mc.position();
             driver.currentDiagnostics.error(pos != null ? pos.file() : "",
                     pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
@@ -207,7 +241,7 @@ if ("listOf".equals(mc.methodName()) && mc.receiver() == null) {
         ops.add(new KofDup());
         localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
         Type paramT = argType;
-        if (CompilerEmissionHelpers.coerceStoreWiden(driver, ops, argType, elemType)) {
+        if (CompilerEmissionHelpers.coerceStoreWiden(driver, ops, argType, elemType, true)) {
             paramT = elemType instanceof Type.NullableType nt ? nt.inner() : elemType;
         }
         ops.add(new KofCall(listType, "kof_list_add", List.of(paramT),
@@ -303,6 +337,35 @@ if (mc.receiver() == null && "awaitTimeout".equals(mc.methodName())
             new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
             "kof_await_timeout", List.of(hT, Type.PrimitiveType.INT),
             resT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "ring1".equals(mc.methodName())
+        && mc.arguments().size() == 1
+        && driver.findLocalVar("ring1", locals) == null
+        && !hasUserFunctionNamed(driver, "ring1")) {
+    // B-6.2b: builtin marcador `ring1(fn)` (D-BAREMETAL-RING1-SURFACE) — so
+    // baixa no perfil x86_64 UEFI_RING; nos demais alvos/perfis e NATIVE003
+    // nomeado (R6/R7, nunca silencioso). O alvo roda em CPL1: so pode tocar
+    // memoria e retornar (chamar firmware ring0, ex. println, geraria #GP).
+    ExpressionNode arg0 = mc.arguments().get(0);
+    String fnName = arg0 instanceof IdentifierExpr id ? id.name() : null;
+    if (fnName != null
+            && driver.target == Target.NATIVE
+            && dev.kof.compiler.nat.NativeProfile.UEFI_RING.equals(driver.nativeProfile())) {
+        ops.add(new KofFunctionAddress(
+                CompilerTypes.mainClassType(driver.currentModule), fnName, List.of()));
+        ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
+                "kof_ring1_run", List.of(Type.PrimitiveType.LONG),
+                Type.PrimitiveType.VOID, KofCallKind.FUNCTION));
+        return localIdx;
+    }
+    if (driver.currentDiagnostics != null) {
+        var rpos = arg0.position() != null ? arg0.position() : mc.position();
+        driver.currentDiagnostics.error(rpos != null ? rpos.file() : "",
+                rpos != null ? rpos.line() : 0, rpos != null ? rpos.column() : 0, 0,
+                "ring1(fn): only available on --target native --profile uefi-ring"
+                        + " (x86_64) (NATIVE003)", "NATIVE003");
+    }
     return localIdx;
 }
 if (mc.receiver() == null && "channel".equals(mc.methodName())
@@ -412,7 +475,7 @@ if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
         localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(ai + 1), ops, owner, localIdx, locals);
         // §121/§143 (B1): widening abençoado no VALOR (M1: put(2) em Map<_,Long>
         // dava CCE no get — Integer salvo sob pin Long).
-        if (CompilerEmissionHelpers.coerceStoreWiden(driver, ops, vType, valueType)) {
+        if (CompilerEmissionHelpers.coerceStoreWiden(driver, ops, vType, valueType, false)) {
             vType = valueType instanceof Type.NullableType nt2 ? nt2.inner() : valueType;
         }
         // §284-map (18/09): UMA convenção física para o valor do Map — o
@@ -437,10 +500,21 @@ if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
     for (ExpressionNode arg : mc.arguments()) {
         ops.add(new KofDup());
         localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+        Type argType = ExpressionTyper.inferExprType(driver, arg, locals);
+        List<Type> addArgs = new ArrayList<>(List.of(argType));
+        if (driver.target.isNative()) {
+            // §104b-ii (24/09): MESMA convenção do set.add (CollectionCallLowerer)
+            // — sem o tag o runtime lia um registrador SUJO (a2/edx) e o tag 2
+            // (objeto Kof) disparava despacho indevido (SIGSEGV riscv em
+            // `setOf(1, 2)` depois de um println de lista; dedup de String
+            // também dependia da sujeira).
+            addArgs.add(Type.PrimitiveType.INT);
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
+                    CollectionWrites.stringTag(elemType, List.of(argType), 0)));
+        }
         // VOID na construção: o backend descarta o bool e o set
         // duplicado continua na pilha para o próximo append
-        ops.add(new KofCall(setType, "kof_set_add",
-                List.of(ExpressionTyper.inferExprType(driver, arg, locals)), Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
+        ops.add(new KofCall(setType, "kof_set_add", addArgs, Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
     }
     return localIdx;
 }
@@ -456,4 +530,15 @@ if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
     // slot; TID real via gettid(178) gravado pelo kernel no clone ctid).
     // O caminho do frontend é o MESMO do x86 (kof_* FUNCTION, assinaturas
     // idênticas) — NativeX86Calls é a referência de semântica.
+
+    /** B-6.2b: `ring1` so vale como builtin se nenhuma funcao do usuario usa
+     *  o nome (nao sombreia — freeze regra 2). */
+    private static boolean hasUserFunctionNamed(CompilerDriver driver, String name) {
+        if (driver.currentUnit == null) return false;
+        for (AstNode d : driver.currentUnit.declarations()) {
+            if (d instanceof FunctionDeclarationNode fn && fn.name().equals(name)) return true;
+            if (d instanceof ExternalFunctionNode ext && ext.name().equals(name)) return true;
+        }
+        return false;
+    }
 }

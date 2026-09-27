@@ -52,6 +52,22 @@ class JsonCompleteE2ETest {
     }
 
     @Test
+    void jvmDecodeIntFieldIntoBoolRecordBindsTrue(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            record Flag(Bool ok)
+
+            main() {
+                var a = json.decode<Flag>("{\\"ok\\": 1}")
+                var b = json.decode<Flag>("{\\"ok\\": 0}")
+                println(a.ok)
+                println(b.ok)
+            }
+            """);
+        runJvm(source, tempDir.resolve("out"), "true\nfalse");
+    }
+
+    @Test
     void jvmEncodeNaNAsNull(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, """

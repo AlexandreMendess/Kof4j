@@ -1,5 +1,6 @@
 package dev.kof.compiler.js;
 import dev.kof.compiler.backend.Backend;
+import dev.kof.compiler.AccessFlags;
 import dev.kof.compiler.IRClass;
 import dev.kof.compiler.IRMethod;
 import dev.kof.compiler.IRModule;
@@ -68,10 +69,11 @@ public class JsBackend implements Backend {
     // ── Module lowering ─────────────────────────────────────────────
 
     private JsIr.JsModule lowerModule(IRModule module) {
+        List<IRClass> effClasses = injectInterfaceDefaults(module.classes());
         List<JsIr.JsClass> classes = new ArrayList<>();
         List<JsIr.JsFunction> functions = new ArrayList<>();
         Map<String, Set<String>> methodNames = new HashMap<>();
-        for (IRClass clazz : module.classes()) {
+        for (IRClass clazz : effClasses) {
             if (!JsLoweringContext.skipClass(clazz)) {
                 methodNames.put(clazz.name(), new HashSet<>());
                 for (IRMethod m : clazz.methods()) {
@@ -87,7 +89,7 @@ public class JsBackend implements Backend {
         }
         this.lc.classMethodNames = methodNames;
         lc.recordClassNames.clear();
-        for (IRClass clazz : module.classes()) {
+        for (IRClass clazz : effClasses) {
             if ("java/lang/Record".equals(clazz.superName())) {
                 lc.recordClassNames.add(clazz.name());
                 lc.recordClassNames.add(clazz.name().replace('/', '.'));
@@ -101,7 +103,7 @@ public class JsBackend implements Backend {
         // are routed by (name, arity).
         this.lc.fnArityNames = new HashMap<>();
         this.lc.fnSigNames = new HashMap<>();
-        for (IRClass clazz : module.classes()) {
+        for (IRClass clazz : effClasses) {
             if (JsLoweringContext.skipClass(clazz)) continue;
             Map<String, Integer> maxArity = new HashMap<>();
             Map<String, Set<String>> sigsByName = new HashMap<>();
@@ -131,11 +133,11 @@ public class JsBackend implements Backend {
                 }
             }
         }
-        computeAsyncColoring(module);
+        computeAsyncColoring(effClasses);
         // #133 (§186): clinit por classe (inclui Main) — chamado no topo do
         // módulo, antes do main; JS não tem <clinit> nativo.
         List<JsIr.JsExpression> clinitTargets = new ArrayList<>();
-        for (IRClass clazz : module.classes()) {
+        for (IRClass clazz : effClasses) {
             if (JsLoweringContext.skipClass(clazz)) continue;
             if (JsLoweringContext.isMainClass(clazz)) {
                 for (IRMethod method : clazz.methods()) {
@@ -159,11 +161,11 @@ public class JsBackend implements Backend {
                 }
             }
         }
-        for (IRClass clazz : module.classes()) {
+        for (IRClass clazz : effClasses) {
             if (JsLoweringContext.skipClass(clazz) || JsLoweringContext.isMainClass(clazz)) continue;
             classes.add(classEmitter.lowerClass(clazz));
         }
-        for (IRClass clazz : module.classes()) {
+        for (IRClass clazz : effClasses) {
             if (JsLoweringContext.skipClass(clazz) || JsLoweringContext.isMainClass(clazz)) continue;
             if (lc.decodeHelpers.contains(JsTypeMapper.jsClassName(clazz.name()))) {
                 functions.add(classEmitter.lowerDecodeHelper(clazz));
@@ -189,9 +191,73 @@ public class JsBackend implements Backend {
                 new ArrayList<>(new LinkedHashSet<>(lc.ioRuntimeImports)), moduleStatements);
     }
 
-    private void computeAsyncColoring(IRModule module) {
+    /**
+     * §248: JavaScript has no runtime interface, so an interface default method
+     * inherited by an implementor has no target. Materialise each inherited
+     * default as a real method on the implementor (unless the class or one of its
+     * superclasses overrides it), mirroring the JVM/Native semantics. This keeps
+     * every downstream map (class methods, arity/signature names) consistent
+     * because it runs before they are built.
+     */
+    private static List<IRClass> injectInterfaceDefaults(List<IRClass> all) {
+        Map<String, IRClass> byName = new HashMap<>();
+        for (IRClass c : all) {
+            if (c.name() != null && !c.name().isBlank()) byName.put(c.name(), c);
+        }
+        List<IRClass> out = new ArrayList<>(all.size());
+        for (IRClass c : all) {
+            if ((c.accessFlags() & AccessFlags.INTERFACE) != 0) {
+                out.add(c);
+                continue;
+            }
+            List<IRMethod> defaults = collectInheritedDefaults(c, byName);
+            if (defaults.isEmpty()) {
+                out.add(c);
+                continue;
+            }
+            List<IRMethod> methods = new ArrayList<>(c.methods());
+            methods.addAll(defaults);
+            out.add(new IRClass(c.name(), c.superName(), c.interfaces(), c.accessFlags(),
+                    c.fields(), methods, c.innerClasses(), c.signature(), c.typeId(), c.annotations()));
+        }
+        return out;
+    }
+
+    private static List<IRMethod> collectInheritedDefaults(IRClass clazz, Map<String, IRClass> byName) {
+        Set<String> overridden = new HashSet<>();
+        Set<String> interfaces = new HashSet<>();
+        for (String current = clazz.name(); current != null && !current.isEmpty()
+                && !"java/lang/Object".equals(current) && !"java/lang/Record".equals(current); ) {
+            IRClass c = byName.get(current);
+            if (c == null) break;
+            for (IRMethod m : c.methods()) overridden.add(m.name() + "/" + m.parameterTypes().size());
+            for (String i : c.interfaces()) interfaces.add(i);
+            current = c.superName();
+        }
+        List<IRMethod> out = new ArrayList<>();
+        Set<String> visited = new HashSet<>();
+        java.util.Deque<String> queue = new java.util.ArrayDeque<>(interfaces);
+        Set<String> added = new HashSet<>();
+        while (!queue.isEmpty()) {
+            String ifaceName = queue.poll();
+            if (!visited.add(ifaceName)) continue;
+            IRClass iface = byName.get(ifaceName);
+            if (iface == null) continue;
+            for (IRMethod m : iface.methods()) {
+                if ("<init>".equals(m.name()) || "<clinit>".equals(m.name())) continue;
+                if (m.basicBlocks().isEmpty()) continue; // abstract → no body
+                String key = m.name() + "/" + m.parameterTypes().size();
+                if (overridden.contains(key) || !added.add(key)) continue;
+                out.add(m);
+            }
+            for (String i : iface.interfaces()) queue.add(i);
+        }
+        return out;
+    }
+
+    private void computeAsyncColoring(List<IRClass> effClasses) {
         Map<String, Boolean> async = new HashMap<>();
-        for (IRClass clazz : module.classes()) {
+        for (IRClass clazz : effClasses) {
             if (JsLoweringContext.skipClass(clazz)) continue;
             for (IRMethod method : clazz.methods()) {
                 String key = JsLoweringContext.asyncMethodKey(clazz, method);
@@ -206,7 +272,7 @@ public class JsBackend implements Backend {
                 if (!e.getValue()) continue;
                 asyncNamesAnywhere.add(JsLoweringContext.methodNameFromAsyncKey(e.getKey()));
             }
-            for (IRClass clazz : module.classes()) {
+            for (IRClass clazz : effClasses) {
                 if (JsLoweringContext.skipClass(clazz)) continue;
                 boolean isTaskLambda = clazz.name() != null && clazz.name().startsWith("LambdaTask");
                 boolean isRegularLambda = clazz.name() != null && clazz.name().startsWith("Lambda")

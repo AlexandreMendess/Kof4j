@@ -2,7 +2,7 @@
 
 # 24 — Build Tools
 
-> **Status: partial — Maven/Gradle via `kof build` + `kof test` (0.4.0-beta)**
+> **Status: partial — Maven/Gradle via `kof build` + `kof test` (0.5.0-beta)**
 >
 > `kof build`/`kof test` are the native build tools (); Maven/Gradle integration as an external plugin is still a planned vision, but the coexistence of `src/main/java` + `src/main/kof` already works to generate interoperable `.class` files.
 

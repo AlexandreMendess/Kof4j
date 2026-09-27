@@ -2,7 +2,7 @@
 
 # 20 — Annotations
 
-> **Status: implementado (JVM/KofJS) — 0.4.0-beta**
+> **Status: implementado (JVM/KofJS) — 0.5.0-beta**
 >
 > O parser aceita `@Name` e `@Name(valor | key = valor, ...)` em classes,
 > records, interfaces, entities, campos, métodos, construtores, funções,

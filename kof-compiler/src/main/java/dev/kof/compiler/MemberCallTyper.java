@@ -14,6 +14,20 @@ public final class MemberCallTyper {
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
         if (mc.receiver() == null) return null;
+        // #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(...)` — construção
+        // qualificada. O receiver é um NOME DE PACOTE, não um valor: resolve
+        // pelo índice FQN ADITIVO, tipa os argumentos e devolve o tipo-alvo.
+        // Sem este branch o receiver caía no SEM011 "Undefined variable or
+        // type: 'pkg'" (a superfície qualificada não existia).
+        if (mc.receiver() instanceof IdentifierExpr pkgRecv
+                && !SemExpressionTyper.isLocalName(scope, pkgRecv.name())
+                && !sa.allClasses().containsKey(pkgRecv.name())) {
+            SymbolTable.ClassSymbol qcs = sa.findQualifiedClass(pkgRecv.name() + "." + mc.methodName());
+            if (qcs != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return qcs.type();
+            }
+        }
         if (mc.receiver() instanceof IdentifierExpr rid3 && KofUi.isConstructor(rid3.name())) {
             KofUi.UiCall uiCall = KofUi.staticMethod(rid3.name(), mc.methodName(), mc.arguments().size());
             if (uiCall != null) {
@@ -32,7 +46,7 @@ public final class MemberCallTyper {
             // Fase 10: tokens são CONSTANTES — um método neles é SEM079 (R6),
             // nunca queda silenciosa p/ void.
             if (sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "token '" + tokR.name() + "' has no methods — it holds constants: "
                         + KofUiTokens.memberList(tokR.name()), "SEM079");
             }
@@ -54,7 +68,7 @@ public final class MemberCallTyper {
                             kms.name(), kt.internalName(), kms.returnType(),
                             kms.parameterTypes(), kms.accessFlags(),
                             SymbolTable.DispatchKind.STATIC));
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes0, kms.parameterTypes());
+                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes0, kms.parameterTypes(), mc.arguments());
                     return kms.returnType();
                 }
             }
@@ -66,7 +80,7 @@ public final class MemberCallTyper {
                         kms.parameterTypes(), kms.accessFlags(),
                         SymbolTable.DispatchKind.STATIC));
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), inferArgTypes(sa, mc, scope), kms.parameterTypes());
+                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), inferArgTypes(sa, mc, scope), kms.parameterTypes(), mc.arguments());
                 return kms.returnType();
             }
         }
@@ -94,6 +108,21 @@ public final class MemberCallTyper {
                             SymbolTable.DispatchKind.STATIC));
                     return ret;
                 }
+                // §500 (face método inexistente): nome de classe importada que
+                // NÃO tem o método nem por nome+aridade (o lowerer também não
+                // resolveria) caía em UNKNOWN e o emit fabricava
+                // `invokevirtual "".bogus` — classe morta no load (R6/Q7).
+                // Diagnóstico honesto, SEM025 da família #617/§490.
+                if (sa.diagnostics() != null
+                        && sa.externalTypes().resolveMethod(
+                                qt.internalName(), mc.methodName(),
+                                mc.arguments().size()) == null) {
+                    sa.diagnostics().error(mc,
+                            "Cannot resolve static method '" + mc.methodName()
+                                    + "' on imported class '" + rid.name() + "'",
+                            "SEM025");
+                    return Type.UnknownType.UNKNOWN;
+                }
             }
         }
         if (mc.receiver() instanceof IdentifierExpr rid && "super".equals(rid.name())) {
@@ -112,7 +141,7 @@ public final class MemberCallTyper {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, superName, mc.methodName());
             if (m instanceof SymbolTable.MethodSymbol ms) {
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes());
+                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
                 return ms.returnType();
             }
             // P0 #6: super.metodoInexistente() — mesma regra da classe:
@@ -122,7 +151,7 @@ public final class MemberCallTyper {
             if (sa.diagnostics() != null
                     && sa.allClasses().containsKey(superName)
                     && !MemberResolver.isObjectMethod(mc.methodName(), mc.arguments().size())) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "Cannot resolve method '" + mc.methodName()
                                 + "' in superclass '" + superName + "'",
                         "SEM025");
@@ -162,7 +191,7 @@ public final class MemberCallTyper {
             // CatchTypeCheck #332 — um gate, os 4 alvos reportam).
             if (("add".equals(mn) || "push".equals(mn) || "append".equals(mn))
                     && mc.arguments().size() != 1 && sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "List." + mn + " appends exactly one element; there is no positional insert — "
                                 + "use set(index, value) to replace at an index",
                         "SEM072");
@@ -176,7 +205,7 @@ public final class MemberCallTyper {
             // signature `(ArrayList,Object,Object)`). Reject at the shared
             // typer (same face as SEM072/#336): one gate, all four targets.
             if ("reduce".equals(mn) && mc.arguments().size() != 2 && sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "List.reduce takes exactly two arguments: the lambda AND the seed — "
                                 + "reduce((a: Int, b: Int) -> a + b, 0) or reduce(0, (a: Int, b: Int) -> a + b)",
                         "SEM073");
@@ -226,7 +255,7 @@ public final class MemberCallTyper {
             }
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
-                    sa.diagnostics().error("", 0, 0, 0,
+                    sa.diagnostics().error(mc,
                             "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/sort)",
                             "SEM025");
                 }
@@ -263,7 +292,7 @@ public final class MemberCallTyper {
             if ("keys".equals(mn)) return new Type.ClassType("kof", "List", List.of(keyType));
             if ("values".equals(mn)) return new Type.ClassType("kof", "List", List.of(valueType));
             if (sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "Cannot resolve method '" + mn + "' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)",
                         "SEM025");
             }
@@ -278,7 +307,7 @@ public final class MemberCallTyper {
             if ("add".equals(mn) || "remove".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
             if (sa.diagnostics() != null && !"toArray".equals(mn) && !"subSet".equals(mn) && !"sublist".equals(mn)) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/remove/size/clear/isEmpty)",
                         "SEM025");
             }
@@ -297,11 +326,25 @@ public final class MemberCallTyper {
         if (recvType instanceof Type.FunctionType ft) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-            TypeChecker.checkArgTypes(sa.diagnostics(), "function call", argTypes, ft.parameterTypes());
+            TypeChecker.checkArgTypes(sa.diagnostics(), "function call", argTypes, ft.parameterTypes(), mc.arguments());
             return ft.returnType();
         }
         if (recvType instanceof Type.ClassType ct) {
-            SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, ct.name(), mc.methodName());
+            // #639 face 2 (D-DECISION-BATCH-2709B): resolve o dono pelo CAMINHO
+            // do receiver quando ele carrega pacote (índice FQN aditivo). Sem
+            // isto `p1.Item(7).tag()` resolvia `tag` em `p2.Item` (nome simples,
+            // last-write) → invokevirtual de owner errado → VerifyError.
+            SymbolTable.ClassSymbol startCt = QualifiedTypeResolver.classOfType(sa, ct);
+            SymbolTable.Symbol m = QualifiedTypeResolver.resolveInHierarchy(sa, startCt, mc.methodName());
+            // #610b: o primeiro símbolo por nome pode ter aridade de OUTRO
+            // overload (defaults em interfaces irmãs) — nesse caso procura
+            // o candidato certo em toda a hierarquia antes de resolver.
+            if (m instanceof SymbolTable.MethodSymbol single
+                    && single.parameterTypes().size() != mc.arguments().size()) {
+                SymbolTable.Symbol alt = QualifiedTypeResolver.resolveMethodsInHierarchy(
+                        sa, startCt, mc.methodName());
+                if (alt != null) m = alt;
+            }
             // §131 (10a): MethodSet = sobrecarga por assinatura; seleciona
             // por aridade + compatibilidade de args.
             if (m instanceof SymbolTable.MethodSet set) {
@@ -312,7 +355,7 @@ public final class MemberCallTyper {
                     checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(),
                             "'" + ct.name() + "." + mc.methodName() + "'");
                     sa.putResolvedMethod(mc, ms);
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes0, ms.parameterTypes());
+                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes0, ms.parameterTypes(), mc.arguments());
                     return ms.returnType();
                 }
             }
@@ -325,7 +368,7 @@ public final class MemberCallTyper {
                 sa.putResolvedMethod(mc, ms);
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes());
+                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
                 return ms.returnType();
             }
             // receiver de classe EXTERNA (android.* etc.): assinatura
@@ -359,7 +402,7 @@ public final class MemberCallTyper {
                 boolean isKnownReceiver = sa.allClasses().containsKey(ct.name())
                         || sa.isExternal(ct);
                 if (isKnownReceiver) {
-                    sa.diagnostics().error("", 0, 0, 0,
+                    sa.diagnostics().error(mc,
                             "Cannot resolve method '" + mc.methodName()
                                     + "' on type '" + ct.name() + "'",
                             "SEM025");

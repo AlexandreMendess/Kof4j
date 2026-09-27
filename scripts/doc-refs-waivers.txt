@@ -1,0 +1,34 @@
+# doc-refs waivers — referencias conhecidas que NAO resolvem (mantidas pela lane docs).
+# Formato: <kind>\t<token>\t<motivo>   (kind = path | sha)
+# Toda linha aqui e divida tecnica explicita; ausencia de path/sha SEM waiver e falha
+# (check_doc_refs.sh, regra anti-neutering). Nao ampliar sem data/commit no motivo.
+path	docs/08-restricoes-kof.md	outro repo (Kof Editor); citado no PROPOSAL-1.0-EXIT-GATE
+path	docs/architecture/application-model.md	referencia pendente em DECISIONS (D-APP): retarget e decisao da mantenedora
+path	docs/development/PLAN-UNIVERSAL-PLATFORM.md	nota historica de rename (nome antigo -> IMPLEMENTATION-UNIVERSAL-PLATFORM)
+path	docs/development/future/PLAN-UNIVERSAL-PLATFORM.md	nota historica de rename
+path	docs/development/future/PLAN-UNIVERSAL-PLATFORM.pt_BR.md	nota historica de rename
+path	docs/development/future/PROPOSAL-1.0-EXIT-GATE.md	nota historica de rename (promovido)
+path	docs/stdlib/time.md	referencia pendente em DECISIONS (D-STDLIB): retarget e decisao da mantenedora
+path	docs/configuration.md	doc PROSPECTIVO: ecosystem-coverage §4 "create ... as each module takes shape" (ainda nao existe)
+path	docs/database.md	doc PROSPECTIVO: ecosystem-coverage §4 (cripto/DB nao publicado como doc)
+path	docs/messaging.md	doc PROSPECTIVO: ecosystem-coverage §4
+path	docs/platform.md	doc PROSPECTIVO: ecosystem-coverage §4
+path	docs/testing.md	doc PROSPECTIVO: ecosystem-coverage §4
+path	docs/testing/TEST-PERFORMANCE.md	referencia historica em test-architecture-plan (doc nunca criado nesse path)
+path	docs/development/planning-finally-return.md	referencia historica em known-bugs §925 (doc removido; nota de divergencia 08/09)
+path	docs/development/PLAN-MULTIPARADIGMA.md	destino de movimento FUTURO descrito em future/PLAN-MULTIPARADIGMA.md §404
+sha	154ea1a4	pre-repair git (21/09, historico reescrito): prova nao verificavel
+sha	1ff54c6e	pre-repair git (21/09): prova nao verificavel
+sha	20aa73d7	pre-repair git (21/09): prova nao verificavel
+sha	2372f6d4	pre-repair git (21/09): prova nao verificavel
+sha	367af29d	pre-repair git (21/09): prova nao verificavel
+sha	6794ca21	pre-repair git (21/09): prova nao verificavel
+sha	73ca2d58	pre-repair git (21/09): prova nao verificavel
+sha	7c9f9e59	pre-repair git (21/09): prova nao verificavel
+sha	a71f761c	pre-repair git (21/09): prova nao verificavel
+sha	bfdd452a	pre-repair git (21/09): prova nao verificavel
+sha	cc12f4d0	pre-repair git (21/09): prova nao verificavel
+path	docs/development/tech-debt.md	KILLED 24/09 (mantenedora: dívida zerada); citado como história nas decisões D-TECHDEBT/D-DEBT-SCOUT dos DECISIONS
+path	docs/development/tech-debt.pt_BR.md	KILLED 24/09 (mantenedora: dívida zerada); citado como história nos DECISIONS PT
+path	docs/development/technical-debt/DEBT_SCOUT_CONTRACT.md	KILLED 24/09 com o debt-scout por ordem da mantenedora; citado nas decisões D-DEBT-SCOUT-W2 dos DECISIONS
+path	docs/spec/memory-safety.md	Fase 1 deliverable of D-MEMORY-SAFETY (maintainer 25/09) - planned target path, doc not created yet

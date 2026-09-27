@@ -50,7 +50,7 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
-            <version>5.11.1</version>
+            <version>5.12.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -79,6 +79,26 @@
         </dependency>
     </dependencies>
     <build>
+        <resources>
+            <!-- padrão do Maven -->
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- §371 (issue #550): a ORDEM das fatias do runtime nativo e
+                 derivada dos fontes de produção (nunca transcrita). Os dois
+                 fontes abaixo entram como recursos de build no classpath
+                 (mesmo path do fonte) para que o prune funcione do jar
+                 distribuído do CLI — fora da árvore do modulo o caminho
+                 relativo ao CWD nao existe e o runtime completo vazava no
+                 link cross (-lsqlite3 → COMP001). -->
+            <resource>
+                <directory>src/main/java</directory>
+                <includes>
+                    <include>dev/kof/compiler/NativeRuntime.java</include>
+                    <include>dev/kof/compiler/nat/NativeRiscvAsm.java</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

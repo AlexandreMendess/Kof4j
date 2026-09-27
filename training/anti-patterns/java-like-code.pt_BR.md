@@ -62,9 +62,9 @@ Acesso direto: `u.name`, `u.age = 30`.
 | `StringBuilder` | `+` em loop era ineficiente | Não | `+` concatena |
 | `.equals()` | `==` não pode ser sobrecarregado | Não | `==` compara conteúdo |
 | DTO + mapper | Serialização exige no-arg + setters | Não | Record + json.encode |
-| Optional | `null` onipresente | Parcial (0.4.0-beta) | `String?` + `if (x != null)` narrowing; `Option<T>` ainda planned |
-| `instanceof` + cast | Type narrowing | Sim (0.4.0-beta) | `instanceof` + `as` e pattern `case String s:` / `case Point(x,y)` |
-| Loop manual para map | Java sem higher-order até streams | Não | `list.map/filter/reduce` (0.4.0-beta) |
+| Optional | `null` onipresente | Parcial (0.5.0-beta) | `String?` + `if (x != null)` narrowing; `Option<T>` ainda planned |
+| `instanceof` + cast | Type narrowing | Sim (0.5.0-beta) | `instanceof` + `as` e pattern `case String s:` / `case Point(x,y)` |
+| Loop manual para map | Java sem higher-order até streams | Não | `list.map/filter/reduce` (0.5.0-beta) |
 | `import java.util.*` | Java collections | Não | `listOf`/`mapOf`/`setOf` + `import a.b.C` file-specific (fix 27/08) |
 
 ## Exceptions

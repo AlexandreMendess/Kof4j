@@ -4,7 +4,7 @@
 
 **Status:** v1 implementado (18/09, `34e4344f`, plano universal Stage 2 linha 2.2) ·
 **Fonte:** `KofShell.java` (dispatch) + `ExpressionShellCallLowerer` (gates/lowering) ·
-**Testes:** `ShellE2ETest` (15) · **Registro de design:** `docs/docs/shell-plan.pt_BR.md`
+**Testes:** `ShellE2ETest` (16) · **Registro de design:** `docs/shell-plan.pt_BR.md`
 
 ## O que é
 
@@ -16,7 +16,7 @@ decidir por exit code, encadear pipelines — **sem jamais stringuificar um coma
 é mudança de gramática — regra 6); a forma-função é a resposta assinada (Q1–Q3,
 enquete da mantenedora 18/09).
 
-## API real (medida no compilador — 0.4.0-beta)
+## API real (medida no compilador — 0.5.0-beta)
 
 ```kof
 import kof.shell
@@ -82,6 +82,6 @@ pina `Result.exitCode` como dado.
 
 ## Ver também
 
-- `docs/docs/shell-plan.pt_BR.md` (decisões de design Q1–Q3, mapa de fiação, fatias 2.2.0–2.2.4)
+- `docs/shell-plan.pt_BR.md` (decisões de design Q1–Q3, mapa de fiação, fatias 2.2.0–2.2.4)
 - `docs/backend-parity.pt_BR.md` — linhas `kof.shell` na tabela de namespaces + tabela de gaps
 - Face `kof.process` no Native: `PROC001` (backend-parity, Known Gaps)

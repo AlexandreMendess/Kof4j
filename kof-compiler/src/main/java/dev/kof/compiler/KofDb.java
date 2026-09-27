@@ -48,9 +48,12 @@ public final class KofDb {
      *  {code kof_db_*} do cross vive nas fatias RtB46/RtB47. Só o subconjunto
      *  SQLite (URLs `sqlite:*`); MySQL/oracle devolvem null em runtime. JS
      *  soporta kof.db não-tipado e tipado (DB001 fechado 16/09; DB002 fechado
-     *  18/09 — bind tipado no guest via `__kof_decode_<T>`, wire untyped). */
+     *  18/09 — bind tipado no guest via `__kof_decode_<T>`, wire untyped).
+     *  ANDROID fecha 20/09 (D-DB-GAPS DB-2, §278): o alvo EMITE o mesmo
+     *  bytecode do JVM (mesmo JvmBackend), logo as gates de namespace JVM
+     *  valem para ele — "android é JVM". */
     static boolean supportedOn(Target target) {
-        return target == Target.JVM || target == Target.NATIVE
+        return target == Target.JVM || target == Target.ANDROID || target == Target.NATIVE
                 || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64
                 || target == Target.JS;
     }

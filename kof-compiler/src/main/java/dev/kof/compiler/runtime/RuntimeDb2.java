@@ -276,17 +276,17 @@ public final class RuntimeDb2 {
                 cmpb $'s', 24(%rbx)
                 jne .Ldb_conn_maybe_mysql
                 cmpb $'q', 25(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'l', 26(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'i', 27(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'t', 28(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'e', 29(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $':', 30(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 leaq 31(%rbx), %rdi
                 subq $40, %rsp
                 movq %rsp, %rsi
@@ -299,25 +299,50 @@ public final class RuntimeDb2 {
                 jmp .Ldb_connect_register
             .Ldb_conn_maybe_mysql:
                 cmpb $'m', 24(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'y', 25(%rbx)
-                jne .Ldb_connect_bad
+                je .Ldb_scheme_mysql_maybe
+                cmpb $'a', 25(%rbx)
+                jne .Ldb_connect_unsupported
+                # mariadb:// — alias do wire mysql (S1/db-parity-plan). r12 =
+                # schemeStart+2, p/ o leaq 8(%r12) cair após "mariadb://" (10
+                # chars) como o de "mysql://" (8). kof_db_type segue 2.
+                cmpb $'r', 26(%rbx)
+                jne .Ldb_connect_unsupported
+                cmpb $'i', 27(%rbx)
+                jne .Ldb_connect_unsupported
+                cmpb $'a', 28(%rbx)
+                jne .Ldb_connect_unsupported
+                cmpb $'d', 29(%rbx)
+                jne .Ldb_connect_unsupported
+                cmpb $'b', 30(%rbx)
+                jne .Ldb_connect_unsupported
+                cmpb $':', 31(%rbx)
+                jne .Ldb_connect_unsupported
+                cmpb $'/', 32(%rbx)
+                jne .Ldb_connect_unsupported
+                cmpb $'/', 33(%rbx)
+                jne .Ldb_connect_unsupported
+                leaq 26(%rbx), %r12
+                jmp .Ldb_scheme_host_init
+            .Ldb_scheme_mysql_maybe:
                 cmpb $'s', 26(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'q', 27(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'l', 28(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $':', 29(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'/', 30(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
                 cmpb $'/', 31(%rbx)
-                jne .Ldb_connect_bad
+                jne .Ldb_connect_unsupported
+                leaq 24(%rbx), %r12
+            .Ldb_scheme_host_init:
                 # mysql:// — parse [user[:pass]@]host[:port][/db] (also supports mysql://host:port/db)
                 # Simple host:port/db parsing from after "mysql://"
                 # If URL contains '@', treat host as after last '@' (fallback)
-                leaq 24(%rbx), %r12
                 leaq 8(%r12), %rsi
                 movq %rsi, %r10
                 xorq %r11, %r11

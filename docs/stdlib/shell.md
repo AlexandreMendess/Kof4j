@@ -4,7 +4,7 @@
 
 **Status:** v1 implemented (18/09, `34e4344f`, universal plan Stage 2 row 2.2) ·
 **Source:** `KofShell.java` (dispatch) + `ExpressionShellCallLowerer` (gates/lowering) ·
-**Tests:** `ShellE2ETest` (15) · **Design record:** `docs/docs/shell-plan.md`
+**Tests:** `ShellE2ETest` (16) · **Design record:** `docs/shell-plan.md`
 
 ## What it is
 
@@ -15,7 +15,7 @@ never a fork), and `run` lowers verbatim onto `kof_process_run`. Kof has no back
 no `$()`, no `|`/`&&` shell-infix operators (adding them is a grammar change — rule 6);
 the function form is the signed-off answer (Q1–Q3, maintainer poll 18/09).
 
-## Real API (measured in the compiler — 0.4.0-beta)
+## Real API (measured in the compiler — 0.5.0-beta)
 
 ```kof
 import kof.shell
@@ -80,6 +80,6 @@ pins `Result.exitCode` as data.
 
 ## See also
 
-- `docs/docs/shell-plan.md` (design decisions Q1–Q3, wiring map, slices 2.2.0–2.2.4)
+- `docs/shell-plan.md` (design decisions Q1–Q3, wiring map, slices 2.2.0–2.2.4)
 - `docs/backend-parity.md` — `kof.shell` rows in the namespace table + gap table
 - `kof.process` face on Native: `PROC001` (backend-parity, Known Gaps)

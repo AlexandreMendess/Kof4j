@@ -4,6 +4,7 @@ import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.KofHttpServer;
+import dev.kof.compiler.KofProjectConfig;
 import dev.kof.compiler.ReflectiveHandler;
 import dev.kof.compiler.Target;
 import dev.kof.compiler.TargetMatrix;
@@ -198,6 +199,20 @@ final class CmdServe {
                 Map<String, String> appEnv = new java.util.HashMap<>();
                 if (webOut != null) appEnv.put("KOF_WEB_OUT", webOut.toString());
                 if (staticOut != null) appEnv.put("KOF_STATIC_OUT", staticOut.toString());
+                // #598 (D-APP): o manifesto é lido pela CLI. Se kof.toml declara
+                // [server] port e nenhum KOF_SERVER_PORT veio do ambiente, a CLI
+                // repassa o valor ao app — `config.int("server.port", ...)` lê
+                // KOF_SERVER_PORT por convenção. Sem manifesto/valor, comportamento
+                // anterior; env explícito do usuário tem precedência.
+                Path manifestRoot = driver.resolveModuleRoot(serveSources);
+                if (manifestRoot == null) manifestRoot = serveDir;
+                Integer manifestPort = manifestRoot != null
+                        ? KofProjectConfig.load(manifestRoot).serverPort() : null;
+                if (manifestPort != null && System.getenv("KOF_SERVER_PORT") == null) {
+                    appEnv.put("KOF_SERVER_PORT", String.valueOf(manifestPort));
+                    System.out.println("kof serve: using [server] port = " + manifestPort
+                            + " from kof.toml");
+                }
                 KofCliSupport.executeProcess(List.of(KofCliSupport.javaExecutable(),
                         "-Dkof.root=" + file.toAbsolutePath().normalize().getParent(),
                         "-cp", tempDir.toString(), className), tempDir, appEnv);

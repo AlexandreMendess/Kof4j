@@ -16,6 +16,7 @@
 #   G10 stats: ticks/dispatches/avoidance/falhas
 #   G11 shadow: registra legacy_would_call + new_gate
 #   G12 seed: baseline sem despacho
+#   G13-G18 stats: custo REAL do opencode (campos exatos, janela em dias, indisponível sem inventar, --project)
 #
 # Uso: scripts/tests/agent-dispatch-gate-test.sh   (exit 0 = todos passam)
 set -uo pipefail
@@ -143,5 +144,82 @@ echo "G12 — seed"
 mk_env; set_issue 10 "t" ""
 bash "$GATE" seed issue-watcher --session s1 >/dev/null
 assert_eq 10 "$(rc_of decide_watch)" "após seed: nada a despachar"
+
+# --- custo REAL medido pelo opencode (sem estimativa) ---------------------------------------------
+write_stats_fixture() { # custo (ex.: $1.23) — formato real do `opencode stats`, com caixas
+    cat > "$FAKE_GH_DIR/opencode-stats.txt" <<'EOF'
+┌────────────────────────────────────────────────────────┐
+│                       OVERVIEW                         │
+├────────────────────────────────────────────────────────┤
+│Sessions                                              7 │
+│Messages                                             42 │
+│Days                                                  1 │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│                    COST & TOKENS                       │
+├────────────────────────────────────────────────────────┤
+│Total Cost                                      __COST__ │
+│Avg Cost/Day                                      $9.99 │
+│Input                                             16.3K │
+│Output                                                9 │
+│Cache Read                                          1.2M │
+│Cache Write                                        340K │
+└────────────────────────────────────────────────────────┘
+EOF
+    sed -i "s/__COST__/$1/" "$FAKE_GH_DIR/opencode-stats.txt"
+}
+
+echo "G13 — stats traz o custo REAL do opencode (campos exatos, sem inventar)"
+mk_env; mk_repo
+write_stats_fixture '$1.23'
+decide_loop >/dev/null
+S="$(bash "$GATE" stats --since 24h)"
+assert_contains "$S" "Custo real (opencode stats --days 1" "seção de custo real, janela de 1 dia"
+assert_contains "$S" "Total Cost:    \$1.23" "custo total exatamente como o opencode reporta"
+assert_contains "$S" "Input:         16.3K" "tokens de entrada"
+assert_contains "$S" "Output:        9" "tokens de saída"
+assert_contains "$S" "Cache Read:    1.2M" "cache read"
+assert_contains "$S" "Sessions:      7" "sessões"
+case "$S" in *"Avg Cost/Day"*|*9.99*) fail "não deve repetir/derivar Avg Cost/Day";; *) pass "só campos medidos (sem média derivada)";; esac
+assert_contains "$S" "sem estimativa" "rotula que não é estimativa"
+assert_contains "$S" "todas as sessões desta máquina" "rotula o escopo (não só o gate)"
+
+echo "G14 — janela em dias inteiros (--days)"
+mk_env; mk_repo; write_stats_fixture '$0.10'
+: > "$FAKE_GH_DIR/stats.calls"
+bash "$GATE" stats --since 24h >/dev/null; bash "$GATE" stats --since 36h >/dev/null; bash "$GATE" stats --since 7d >/dev/null
+assert_contains "$(sed -n 1p "$FAKE_GH_DIR/stats.calls")" "--days 1" "24h -> 1 dia"
+assert_contains "$(sed -n 2p "$FAKE_GH_DIR/stats.calls")" "--days 2" "36h -> 2 dias (arredonda para cima)"
+assert_contains "$(sed -n 3p "$FAKE_GH_DIR/stats.calls")" "--days 7" "7d -> 7 dias"
+
+echo "G15 — opencode ausente: indisponível, nenhum número inventado"
+mk_env; mk_repo; write_stats_fixture '$5.55'
+S="$(OPENCODE_BIN=/nao/existe/opencode bash "$GATE" stats --since 24h)"
+assert_contains "$S" "indisponível: opencode não encontrado" "diz que está indisponível"
+case "$S" in *'$'*) fail "inventou valor em dólar sem o opencode: $S";; *) pass "nenhum valor em dólar sem medição";; esac
+
+echo "G16 — opencode stats falhou / saída irreconhecível"
+mk_env; mk_repo; write_stats_fixture '$5.55'
+export FAKE_STATS_FAIL=1
+S="$(bash "$GATE" stats --since 24h)"
+assert_contains "$S" "indisponível: opencode stats falhou" "falha do stats é reportada"
+case "$S" in *'$'*) fail "inventou valor após falha";; *) pass "sem dólar após falha";; esac
+unset FAKE_STATS_FAIL
+printf 'saida sem o formato esperado\n' > "$FAKE_GH_DIR/opencode-stats.txt"
+S="$(bash "$GATE" stats --since 24h)"
+assert_contains "$S" "não reconhecida" "saída irreconhecível é reportada"
+case "$S" in *'$'*) fail "inventou valor com saída irreconhecível";; *) pass "sem dólar com saída irreconhecível";; esac
+
+echo "G17 — custo zero medido é reportado como zero (não como 'indisponível')"
+mk_env; mk_repo; write_stats_fixture '$0.00'
+S="$(bash "$GATE" stats --since 24h)"
+assert_contains "$S" "Total Cost:    \$0.00" "\$0.00 medido aparece"
+
+echo "G18 — --project filtra por projeto quando pedido (env)"
+mk_env; mk_repo; write_stats_fixture '$0.42'
+: > "$FAKE_GH_DIR/stats.calls"
+AGENT_OPENCODE_PROJECT="/repo/kof" bash "$GATE" stats --since 24h >/dev/null
+assert_contains "$(cat "$FAKE_GH_DIR/stats.calls")" "--project /repo/kof" "repassa --project ao opencode stats"
 
 finish

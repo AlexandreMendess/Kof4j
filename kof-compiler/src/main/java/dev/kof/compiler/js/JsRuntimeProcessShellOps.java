@@ -37,6 +37,18 @@ final class JsRuntimeProcessShellOps {
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofShellArgv"), args));
             return true;
         }
+        if (name.equals("kof_ssh_argv")) {
+            // kof.ssh cmd(host, command) — argv builder (Stage 2 / 2.3)
+            p.lc.registerIoRuntime("kofSshArgv");
+            stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofSshArgv"), args));
+            return true;
+        }
+        if (name.equals("kof_ssh_run")) {
+            // kof.ssh run(host, command) — executes over the process layer
+            p.lc.registerIoRuntime("kofSshRun");
+            stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofSshRun"), args));
+            return true;
+        }
         if (name.equals("kof_shell_runwith")) {
             // kof.shell runWith(argv, cwd, env) — 2.2.3 (JVM + JS host binding)
             p.lc.registerIoRuntime("kofShellRunWith");

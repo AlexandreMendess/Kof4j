@@ -154,6 +154,11 @@ public final class RuntimeMath {
             # o código GERADO nunca usa rbx e pow o preserva (callee-saved
             # SysV — medido no Arith/StringCalls: só rax/rdi/rsi/rcx/rdx).
             # Retorno = bits crus em rax (pushq do genérico).
+            # R2 fatia 1 (20/09): FRACO por design — o link sem -lm fecha
+            # (link-by-use do libm); sem libm o simbolo resolve a 0 e NUNCA e
+            # chamado (call-sites so nascem quando usesPow=true, que e quando
+            # -lm entra). Com -lm, o pow forte da libm vincula normalmente.
+            .weak pow
             .globl kof_math_pow
             .type kof_math_pow, @function
             kof_math_pow:
@@ -391,6 +396,42 @@ public final class RuntimeMath {
                 ret
             .Lv_dmod_nan:
                 movabsq $0x7ff8000000000000, %rax # NaN canônico
+                ret
+
+            # kof_double_hash(rdi=bits do double) -> eax = (int)(bits ^ (bits>>32))
+            # §114 face hash: Double.hashCode do JVM (o campo Double do record
+            # somava 0 na fórmula `31*h + campo`). Bits crus, sem xmm.
+            .globl kof_double_hash
+            .type kof_double_hash, @function
+            kof_double_hash:
+                movq %rdi, %rax
+                shrq $32, %rax
+                xorl %eax, %edi
+                movl %edi, %eax
+                ret
+
+            # kof_obj_hash(rdi=obj) -> eax = hashCode de CONTEUDO
+            # (§114 face hash aninhado). 0 se null/sem hashCode; String por
+            # kof_string_hash_code; senão despacho por kof_hashcode_table[type_id].
+            # Fica NESTA fatia (não na RuntimeList, que o hello já puxa) para não
+            # entrar em todo binário — gate ArtifactSizeTest.
+            .globl kof_obj_hash
+            .type kof_obj_hash, @function
+            kof_obj_hash:
+                testq %rdi, %rdi
+                jz .Lkoh_zero
+                movl (%rdi), %eax
+                cmpl $1, %eax
+                je .Lkoh_str
+                leaq kof_hashcode_table(%rip), %rcx
+                movq (%rcx,%rax,8), %rax
+                testq %rax, %rax
+                jz .Lkoh_zero
+                jmp *%rax
+            .Lkoh_str:
+                jmp kof_string_hash_code
+            .Lkoh_zero:
+                xorl %eax, %eax
                 ret
         """);
     }

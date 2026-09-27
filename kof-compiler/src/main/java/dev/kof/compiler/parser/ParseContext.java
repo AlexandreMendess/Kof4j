@@ -43,6 +43,27 @@ public class ParseContext {
         return next < tokens.size() && tokens.get(next).type() == type;
     }
 
+    /** Modificadores de declaração (mesma lista de {@code parseModifiers}). */
+    private static final Set<TokenType> MODIFIER_TOKENS = Set.of(
+            TokenType.PUBLIC, TokenType.PRIVATE, TokenType.PROTECTED, TokenType.STATIC,
+            TokenType.FINAL, TokenType.ABSTRACT, TokenType.TRANSIENT, TokenType.VOLATILE,
+            TokenType.SYNCHRONIZED, TokenType.NATIVE, TokenType.DEFAULT, TokenType.OVERRIDE);
+
+    /**
+     * X5.1 (`D-X5-SURFACE`) — `sealed` é keyword CONTEXTUAL: só é modificador
+     * quando precede (direta ou após outros modificadores) um declaration
+     * keyword de tipo (`class`/`record`/`interface`). Assim o identificador
+     * `sealed` continua válido em qualquer outro lugar (regra 2, retrocompat).
+     */
+    public boolean sealedModifierAhead() {
+        if (!check(TokenType.IDENTIFIER) || !"sealed".equals(peek().value())) return false;
+        int i = pos + 1;
+        while (i < tokens.size() && MODIFIER_TOKENS.contains(tokens.get(i).type())) i++;
+        if (i >= tokens.size()) return false;
+        TokenType t = tokens.get(i).type();
+        return t == TokenType.CLASS || t == TokenType.RECORD || t == TokenType.INTERFACE;
+    }
+
     boolean atEnd() {
         return pos >= tokens.size() || peek().type() == TokenType.EOF;
     }

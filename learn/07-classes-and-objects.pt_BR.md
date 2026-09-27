@@ -2,7 +2,7 @@
 
 # 07 — Classes e Objetos
 
-> **Kof 0.4.0-beta — exemplos verificados no compilador (02/09)**
+> **Kof 0.5.0-beta — exemplos verificados no compilador (02/09)**
 >
 > Kof tem **dois** modelos de "dado com parâmetros": `record`/`class X(...)`
 > (imutável, accessors) e classe com campos + `constructor(...)` (mutável,
@@ -22,8 +22,13 @@ main() {
 }
 ```
 
-O compilador gera: construtor canônico, accessors (`name()`), e no JVM
-`toString`/`equals`/`hashCode`.
+O compilador gera: construtor canônico, accessors (`name()`), e
+`toString`/`equals`/`hashCode` em todos os alvos. Igualdade e hash são POR
+CONTEÚDO em todo lugar (§104b-ii/§114, 24/09): dois records com os mesmos
+valores de campo são `==`, têm o mesmo hash, dedup em `Set`, batem como chave
+de `Map` e como valor de `containsValue` — no JVM, Native (x86-64, riscv64,
+aarch64) e JS igualmente. O `equals` sintetizado recursa em campos record/classe
+aninhados; o `hashCode` é por conteúdo para String, Double e records aninhados.
 
 Records podem ter métodos:
 
@@ -176,7 +181,7 @@ class Cachorro extends Animal {
 
 Override é implícito (mesmo nome de método); dispatch é virtual.
 
-## Sobrecarga de métodos (0.4.0-beta, §131)
+## Sobrecarga de métodos (0.5.0-beta, §131)
 
 Métodos de mesmo nome coexistem na classe quando as assinaturas diferem:
 

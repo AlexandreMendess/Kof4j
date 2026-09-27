@@ -2,7 +2,7 @@
 
 # 32 — CLI e Tooling
 
-> **Kof 0.4.0-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/android + kofc**
+> **Kof 0.5.0-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/android + kofc**
 
 A CLI é a ferramenta central da plataforma Kof.
 
@@ -16,13 +16,13 @@ A CLI é a ferramenta central da plataforma Kof.
 | `kof build <dir> --target=native.arm` | Compila para ELF aarch64 |
 | `kof build <dir> --target=js` | Compila para ES Modules |
 | `kof build <dir> --target=android` | Gera projeto Maven + APK (Fase 1: host Activity em Kof; `mvn verify` / `--apk` com o SDK) |
-| `kof run <file.kf> [--target jvm|native|native.risc|native.arm|js]` | Compila e executa |
+| `kof run <file.kf> [--target jvm|native|native.risc|native.arm|js]` | Compila e executa. O **diretório do arquivo é o módulo**: todo irmão `.kf` é compilado junto (funções de topo cross-file resolvem como um pacote — então `PKG005` nome duplicado / `PKG002` `main()` duplicado se aplicam). Arquivos independentes que só dividem o diretório pertencem a diretórios próprios; o isolamento por arquivo é o `kof test` por design (cross-file é domínio do `kof build`) |
 | `kof script <file.ks|kf> [--watch] [--target ...]` | KofScript direto (Kof puro; `var`/`val` de topo → `KofScriptGlobals`) + diagnostics com file:line |
 | `kof repl` | REPL incremental KofScript (type `exit` to quit) |
 | `kof c <file.c> [--run] [--output <bin>]` | KofC C subset → ELF x86-64 nativo-only |
 | `kof serve <file.kf>` | Web server HTTP (`web.app()` nativo + API legada `handle()`) |
 | `kof check <file.kf\|dir> [--target <t>] [--json]` | Type-check sem emitir código (gaps por alvo, ex.: `AND002` no android) |
-| `kof test <file.kf\|dir> [--target jvm|native|js]` | Suíte estruturada `test "nome" { assert(...) }` nos 3 targets + programas inteiros por exit code |
+| `kof test <file.kf\|dir> [--target jvm|native|js]` | Suíte estruturada `test "nome" { assert(...) }` nos 3 targets + programas inteiros por exit code; um diretório desce em **suítes nomeadas** (uma por diretório) |
 | `kof deploy <dir|file.kf> [--target jvm|native|js|android] [--output <dir>] [--name <n>] [--version <v>]` | Empacota uma release autocontida: artefato (fat jar / ELF 0755 / `Default.mjs` + fecho do runtime / APK assinado) + `RELEASE.md` + `SHA256SUMS` + `.tar.gz`; cross riscv64/aarch64 e `--publish` recusam honesto com `DEP001` |
 | `kof bench [paths...] [--target ...] [--iterations N] [--baseline <file>] [--threshold <ratio>] [--json] [--fail-on-regression]` | Benchmark harness (compile, run, validate, métricas, baseline) |
 | `kof profile <file.kf> [--target ...] [--methods]` | Execução + métricas (CPU, RSS, GC); `--methods`: profiler de **amostragem** method-level próprio (JFR da própria JDK no JVM, `--cpu-prof` do Node no JS) com hot spots mapeados de volta à linha `.kf` |
@@ -50,16 +50,16 @@ Todos os comandos seguem `intention->Kof->frontend->IR->backend->runtime`.
 Diagnóstico oficial do ambiente — para usuários e suporte:
 
 ```text
-Kof 0.4.0-beta
+Kof 0.5.0-beta
 Release channel: beta
 Tooling API: 21
 OS: linux
 Arch: x86_64
 Target: linux-x86_64
 JVM: Eclipse Adoptium 25.0.4 (embedded)
-Compiler: 0.4.0-beta
-Runtime: 0.4.0-beta
-Stdlib: 0.4.0-beta
+Compiler: 0.5.0-beta
+Runtime: 0.5.0-beta
+Stdlib: 0.5.0-beta
 Targets: jvm, native, js (alpha)
 LSP: available
 Editor support: available
@@ -143,10 +143,34 @@ Toda release é **autocontida**: a face JS embarca o entry junto com os módulos
 no `RELEASE.md` funciona num diretório limpo. `--publish <registry>` é
 **recusado honesto com `DEP001`** até a mantenedora decidir o registry de
 release (decisão **D2** do plano); o mesmo vale para os cross riscv64/aarch64 —
-fatias seguintes em `docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
+fatias seguintes em `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
 (X9). Android recusa `DEP001` apenas quando falta ANDROID_HOME ou as build-tools não têm um d8 que leia o bytecode do artefato (a CLI escolhe a maior versão instalada; >= 35.0.0 para Java 21)
 (guarda honesta de ambiente, nunca um APK fake). Nunca exit 0 sem artefato
 real, nunca fake-publish (R6).
+
+### Pacotes são consumidos como módulos-FONTE (#566)
+
+Uma release publicada com `kof deploy --publish` também leva as **fontes** do módulo
+(`src/<caminho>.kf`, cada uma coberta pelo `SHA256SUMS`; só `.kf`/`.kof`, nunca `tests/`,
+diretórios ocultos ou de saída). Um módulo sem `.kf` no topo — só uma árvore de pacotes —
+é uma **biblioteca**: é compilada para validar e a release leva só as fontes (sem
+artefato executável).
+
+```bash
+# produtor:  src/mylib/Thing.kf  (package mylib)
+kof deploy ./lib --name mylib --version 1.2.0 --publish owner/mylib
+
+# consumidor
+kof deps add owner/mylib@1.2.0
+kof deps resolve                     # instala as fontes VERIFICADAS (SHA256SUMS) no cache
+kof run Main.kf --deps               # `import mylib.Thing` resolve contra as fontes instaladas
+kof build src --target js --deps     # as MESMAS fontes compilam para qualquer alvo
+```
+
+O `import` procura no seu módulo primeiro, depois nas bibliotecas oficiais, depois nas
+fontes das dependências instaladas — uma dependência nunca sombreia a biblioteca padrão.
+Sem `--deps` o import é um `PKG006` honesto. Pacotes publicados antes desta mudança (só
+jar) continuam funcionando como antes (o jar vai ao classpath).
 
 ## `kof lsp`
 

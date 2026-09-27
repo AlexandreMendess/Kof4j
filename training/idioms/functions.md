@@ -2,7 +2,7 @@
 
 # Idioms — Functions
 
-**Status:** available · **Introduced:** 0.0.4-alpha (without `fun`) · **Updated:**  0.4.0-beta (Sep 2026)
+**Status:** available · **Introduced:** 0.0.4-alpha (without `fun`) · **Updated:**  0.5.0-beta (Sep 2026)
 
 ## What it is
 
@@ -56,7 +56,7 @@ int dobro(int x) {
 - Data + behavior → class or record.
 - `main()` is the only function without an explicit type and without a return.
 
-## Top-level function overloading (0.4.0-beta — oracle JVM)
+## Top-level function overloading (0.5.0-beta — oracle JVM)
 
 Same-named top-level functions with **different signatures** coexist; the
 call resolves the most specific applicable candidate, like the JVM.

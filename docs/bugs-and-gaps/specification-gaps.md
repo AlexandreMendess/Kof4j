@@ -9,7 +9,7 @@
 > (what each SG requires and where it is locked); new spec gaps enter here with
 > their own status. Open bugs stay in `docs/bugs-and-gaps/known-bugs.md`.
 
-**Version:** 0.4.0-beta (pom `revision`; was 0.3.0-beta in the audit) · **Date:** 06/09/2026 · **Source:** complete audit of
+**Version:** 0.5.0-beta (pom `revision`; was 0.3.0-beta in the audit) · **Date:** 06/09/2026 · **Source:** complete audit of
 `kof-compiler` + execution probes + review of `docs/`, `training/`, `AGENTS.md`
 
 This is the report of inconsistencies found in the audit. Each item
@@ -429,6 +429,41 @@ future recommendations (rule 14 of the task: do not change behavior).
   JS would box. Any implementation must state the honest per-target behavior
   (R6/R7), never promise stack allocation.
 
+### SG-023 — Property-based testing runner + suite fixtures in `kof test` — ✅ DECIDED 21/09 (no new surface: option C + iii)
+
+- **Origin:** tracker **X8** slice 3 remainder (`ecosystem-coverage.md` G6 "next"):
+  after `rng` (slices 1–2 ✅ 18/09, `KofRngTest` 11/11) and `kof test` fatia 3
+  (`--timeout` ✅ 19/09; **named suites by directory ✅ 21/09**, `CmdTestSuiteTest` 2/2),
+  two faces remain and both need a surface.
+- **Requested (a) property runner:** run a `test` body over generated inputs from
+  `kof.rng` (`forAll`), with a deterministic seed/replay and minimizing on failure.
+- **Requested (b) fixtures:** per-suite setup/teardown shared by every file of a
+  directory.
+- **Spec state:** `rng` exists (seedable xorshift128+splitmix32, JVM/JS/Native-x86)
+  and `kof test` runs `test "name" { }` with timeouts + named suites — but there is
+  **no** property runner and **no** fixture contract; the corpus never promised one.
+- **Candidate surfaces** (Simplicity Law, rule 11 — pick the shortest that states the
+  intent): **property** → (A) `property "name" { forAll((gen) -> …) }`, mirroring
+  `test "name" { }`; (B) a `kof test --props` mode reinterpreting an existing `test`
+  (implicit, heavier); (C) nothing new — document the `rng` + loop idiom and keep the
+  runner out of v1. **fixtures** → (i) `setup { }`/`teardown { }` blocks; (ii) a
+  per-directory convention file (`_suite.kf`); (iii) nothing new.
+- **Why it is not a lane edit:** both add **user-facing language surface** (a keyword
+  or a CLI contract) → rule 6; the simplicity gate (rule 11) and `D-KOF-FIRST`
+  (the Kof contract precedes any QuickCheck/Hypothesis borrowing) apply.
+- **Implementation todo (when decided):** 1. fix the surface (one option each);
+  2. parser/typer + runner in `kof-cli`/`kof-script`; 3. deterministic seed + replay;
+  4. per-target parity JVM/Native-x86/JS (`RNG001` honest on cross/Android);
+  5. E2E per target + corpus (`training/`, `learn/23-testing`); 6. complete or
+  diagnosed gap — no stub (Q7/R6).
+- **Decided (21/09, maintainer-delegated, `D-PROPERTY`):** option **C** + option **iii** —
+  **no new syntax**; the property runner is the existing `test "name" { }` +
+  `kof.rng` + `assert` idiom, and fixtures are the `close()` + `try/finally` pattern
+  (`D5-B`). Proof: `PropertyTestIdiomE2ETest` **7/7** (seeded reuse, `checksum`
+  bit-identical JVM==JS and JVM==Native-x86, falsifiable property FAILs with exit 1,
+  zero-iteration property PASSes vacuously). Documented in `training/idioms/stdlib.md`
+  + `learn/23-testing.md`. No parser/typer/codegen touched.
+
 ---
 
 ## Category C — Divergences between targets (parity) — updated 10/09
@@ -495,8 +530,10 @@ Not duplicated here — see [known-bugs.md](known-bugs.md):
 
 ## Summary
 
-- **22 SG-00x gaps** (A: doc/code contradictions; B: unspecified
-  behavior; SG-021 json pretty-print and SG-022 value records = requests with no decision). **Maintainer queue (2nd round, 10/09) COMPLETE:**
+- **23 SG-00x gaps** (A: doc/code contradictions; B: unspecified
+  behavior; SG-021 json pretty-print and SG-022 value records = requests with no
+  decision; **SG-023 property runner + fixtures ✅ DECIDED 21/09 — no new surface,
+  `D-PROPERTY`**). **Maintainer queue (2nd round, 10/09) COMPLETE:**
   SG-008 ✅, SG-005 ✅, SG-009 ✅, SG-020 ✅ — see the history in each section.
 - **8 target divergences** (C).
 - **3 outdated docs** (E) — **all ✅** (E1 residual 10/09, E2

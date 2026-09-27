@@ -23,9 +23,9 @@ final class CmdRun {
     }
 
     static void run(String[] args) {
-        if (args.length < 2) { System.err.println("usage: kof run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]"); return; }
+        if (args.length < 2) { System.err.println("usage: kof run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]"); return; }
         if ("--help".equals(args[1]) || "-h".equals(args[1]) || "--version".equals(args[1])) {
-            System.out.println("usage: kof run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]");
+            System.out.println("usage: kof run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]");
             return;
         }
         // O arquivo é o primeiro arg não-flag; --target/--deps/--release podem
@@ -33,9 +33,11 @@ final class CmdRun {
         int fileIdx = 1;
         while (fileIdx < args.length && args[fileIdx].startsWith("-")) {
             if ((args[fileIdx].equals("--target") || args[fileIdx].equals("--backend")
-                    || args[fileIdx].equals("--frontend")) && fileIdx + 1 < args.length) fileIdx += 2;
+                    || args[fileIdx].equals("--frontend") || args[fileIdx].equals("--profile"))
+                    && fileIdx + 1 < args.length) fileIdx += 2;
             else if (args[fileIdx].startsWith("--target=") || args[fileIdx].startsWith("--backend=")
-                    || args[fileIdx].startsWith("--frontend=")) fileIdx += 1;
+                    || args[fileIdx].startsWith("--frontend=")
+                    || args[fileIdx].startsWith("--profile=")) fileIdx += 1;
             else fileIdx += 1;
         }
         if (fileIdx >= args.length) { System.err.println("usage: kof run <file.kf> [--target ...]"); return; }
@@ -49,6 +51,7 @@ final class CmdRun {
         boolean useDeps = false;
         String backendFlag = null;
         String frontendFlag = null;
+        String profileArg = null;
         int argStart = fileIdx + 1;
         for (int i = 1; i < args.length; i++) {
             if (i == fileIdx) continue;
@@ -73,6 +76,13 @@ final class CmdRun {
                 argStart = i + 1;
             } else if (args[i].equals("--frontend") && i + 1 < args.length) {
                 frontendFlag = args[i + 1];
+                argStart = i + 2;
+                i++;
+            } else if (args[i].startsWith("--profile=")) {
+                profileArg = args[i].substring("--profile=".length());
+                argStart = i + 1;
+            } else if (args[i].equals("--profile") && i + 1 < args.length) {
+                profileArg = args[i + 1];
                 argStart = i + 2;
                 i++;
             } else if (args[i].equals("--release")) {
@@ -122,8 +132,17 @@ final class CmdRun {
                 return;
             }
         }
+        // B-1: --profile host|freestanding (BuildProfileFlag; R6: só native).
+        String profileErr = BuildProfileFlag.apply(driver, "run", target, profileArg);
+        if (profileErr != null) {
+            System.err.println(profileErr);
+            KofCliSupport.cleanup(tempDir);
+            System.exit(1);
+            return;
+        }
         if (useDeps) {
             try {
+                driver.setDependencySourceRoots(DepsSources.roots(Path.of(".")));   // #566 (b)
                 String depsCp = Deps.classpath();
                 if (!depsCp.isBlank()) {
                     java.util.List<Path> entries = new ArrayList<>();
@@ -135,6 +154,40 @@ final class CmdRun {
                 }
             } catch (IOException e) {
                 System.err.println("run: failed to read kofdeps: " + e.getMessage());
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+                return;
+            }
+        }
+        // D-DB-ZERODRIVER (a): drivers JDBC auto-provisionados — resolve o
+        // driver do scheme usado no programa (cache ~/.kof/deps) em vez de
+        // exigir download manual. Só JVM/SCRIPT consomem classpath de driver
+        // aqui (native não precisa; JS roda in-process no cp da CLI =
+        // follow-up medido; android só gera projeto).
+        String autoDbCp = "";
+        if (target == Target.JVM || target == Target.SCRIPT) {
+            try {
+                autoDbCp = DbDrivers.provision(Path.of("."), file);
+                if (!autoDbCp.isBlank()) {
+                    List<Path> merged = new ArrayList<>();
+                    try {
+                        String dc = Deps.classpath();
+                        if (!dc.isBlank()) {
+                            for (String part : dc.split(java.util.regex.Pattern.quote(
+                                    System.getProperty("os.name", "").toLowerCase().contains("win") ? ";" : ":"))) {
+                                if (!part.isBlank()) merged.add(Path.of(part));
+                            }
+                        }
+                    } catch (IOException ignored) {
+                    }
+                    for (String part : autoDbCp.split(java.util.regex.Pattern.quote(
+                            java.io.File.pathSeparator))) {
+                        if (!part.isBlank()) merged.add(Path.of(part));
+                    }
+                    driver.setExternalClasspath(merged);
+                }
+            } catch (IOException e) {
+                System.err.println("run: cannot provision db driver: " + e.getMessage());
                 KofCliSupport.cleanup(tempDir);
                 System.exit(1);
                 return;
@@ -280,6 +333,7 @@ final class CmdRun {
             } catch (IOException ignored) {
             }
         }
+        if (!autoDbCp.isBlank()) jvmCp += java.io.File.pathSeparator + autoDbCp;
         javaArgs.add(jvmCp);
         javaArgs.add(className);
         for (int i = argStart; i < args.length; i++) javaArgs.add(args[i]);

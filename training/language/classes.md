@@ -2,7 +2,7 @@
 
 # Kof Classes
 
-**Version:** 0.4.0-beta (Sep 2026)
+**Version:** 0.5.0-beta (Sep 2026)
 
 ## Basic Class — two models (verified 02/09)
 

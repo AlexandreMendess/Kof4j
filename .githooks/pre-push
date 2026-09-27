@@ -5,11 +5,15 @@
 # do commit (AGENTS.md Q1/Q2); este hook pega o caso barato: alerta novo que
 # ninguém abriu na UI.
 #
-# Bypass honesto (usar só com causa declarada no commit): CODEQL_GATE_SKIP=1
+# #555: o skip nao e mais um "exit 0" silencioso deste hook. Ele vive no
+# scripts/codeql-gate.sh: exige MOTIVO nao-vazio
+# (CODEQL_GATE_SKIP="<causa de uma frase>"), grita um banner, deixa rastro em
+# .git/codeql-gate-skips.log e e IGNORADO dentro de CI. Skip virou norma uma
+# vez (o portao quebrava todo push); o baseline (scripts/codeql-baseline.txt)
+# e o caminho certo: triagem registrada com dono e data, nao pulo.
 set -uo pipefail
 root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -x "$root/scripts/codeql-gate.sh" ] || exit 0
-[ "${CODEQL_GATE_SKIP:-0}" = "1" ] && { echo "pre-push: gate pulado (CODEQL_GATE_SKIP=1)"; exit 0; }
 for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
     [ -e "$root/.git/$marker" ] && exit 0
 done

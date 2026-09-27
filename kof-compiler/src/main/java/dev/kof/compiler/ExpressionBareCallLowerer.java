@@ -75,6 +75,12 @@ public final class ExpressionBareCallLowerer {
                         ops, owner, localIdx, locals);
                 ops.add(new KofCall(ownerType, mc.methodName(), selfMethod.parameterTypes(),
                         selfMethod.returnType(), KofCallKind.STATIC));
+                // §479: o path de MÓDULO (CLI) sai POR AQUI — o SA resolveu a
+                // função como MethodSymbol — e este ramo não adaptava o retorno
+                // genérico `T`: o call-site de referência ficava SEM checkcast
+                // (VerifyError no load) e o de primitivo sem unbox. Mesma
+                // adaptação do §477/#592, agora no caminho selfMethod.
+                GenericReturnAdapter.emit(driver, mc, ops, locals, selfMethod.returnType());
                 return localIdx;
             }
             ops.add(new KofLoadLocal(ownerType, 0));
@@ -92,9 +98,19 @@ public final class ExpressionBareCallLowerer {
             if (driver.semanticAnalyzer.isInterfaceType(selfOwner)) selfKind = KofCallKind.INTERFACE;
             ops.add(new KofCall(ownerType, mc.methodName(), selfMethod.parameterTypes(),
                     selfMethod.returnType(), selfKind));
+            // §479: mesma adaptação do ramo STATIC acima (retorno `T` do
+            // selfMethod — unbox p/ primitivo, checkcast p/ referência).
+            GenericReturnAdapter.emit(driver, mc, ops, locals, selfMethod.returnType());
             return localIdx;
         }
         SymbolTable.ClassSymbol cs = driver.semanticAnalyzer != null ? driver.semanticAnalyzer.getClass(mc.methodName()) : null;
+        if (cs == null) {
+            // §393 (#568): construtor externo implicito (`Greeter()` sem `new`)
+            // — espelho do ramo `new` do ExpressionLowerer; classe/funcao
+            // declaradas venceram acima (precedencia do typer preservada).
+            int extCtor = tryLowerExternalCtor(driver, mc, ops, owner, localIdx, locals);
+            if (extCtor >= 0) return extCtor;
+        }
         if (cs != null) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
@@ -166,6 +182,10 @@ public final class ExpressionBareCallLowerer {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
                 Type returnType = Type.UnknownType.UNKNOWN;
+                // §479: witness explícito (`idf<Point>`) — hoisted p/ o adapter
+                // depois da emissão do KofCall (descritor fica apagado).
+                boolean witnessable = false;
+                Type boundReturn = returnType;
                 if (driver.currentUnit != null) {
                     // SG-011B: mesmo veredicto do typer (frontend único). Único
                     // candidato → caminho idêntico ao antigo; ≥2 → assinatura.
@@ -187,7 +207,30 @@ public final class ExpressionBareCallLowerer {
                         if (sel >= 0) chosen = ovlCands.get(sel).fn();
                     }
                     if (chosen != null) {
+                        // §479: função top-level GENÉRICA com witness EXPLÍTITO
+                        // (`idf<Point>(...)`) — liga T := Point no retorno E nos
+                        // formais. Sem isto o path de MÓDULO (CLI) deixava o
+                        // call-site sem o checkcast do GenericReturnAdapter
+                        // (VerifyError no load; path de arquivo único cobria
+                        // pela cauda do SA) e o emit checava `T` cru (SEM014
+                        // falso-positivo). Mesma forma do witness de construtor
+                        // do §474/#585.
+                        witnessable = !chosen.typeParameters().isEmpty()
+                                && mc.typeArguments().size() == chosen.typeParameters().size();
+                        List<Type> callWitness = new ArrayList<>();
+                        if (witnessable) {
+                            for (var ta : mc.typeArguments()) {
+                                callWitness.add(MemberResolver.resolveType(driver.semanticAnalyzer, ta, null));
+                            }
+                        }
                         returnType = CompilerTypes.resolveWithTypeParams(chosen.returnType(), chosen.typeParameters(), driver.currentUnit, driver.semanticAnalyzer);
+                        // §479: o descritor do KofCall fica APAGADO (erasure,
+                        // idem declaração); o binding alimenta SÓ a adaptação
+                        // do retorno — o tipo EFETIVO ligado decide o
+                        // unbox/checkcast (o adapter no fim do ramo).
+                        if (witnessable) {
+                            boundReturn = GenericReturnAdapter.bindTypeVariables(returnType, chosen.typeParameters(), callWitness);
+                        }
                         List<Type> fnTypes = new ArrayList<>();
                         for (var pp : chosen.parameters()) fnTypes.add(CompilerTypes.resolveWithTypeParams(pp.type(), chosen.typeParameters(), driver.currentUnit, driver.semanticAnalyzer));
                         boolean hasDefaults = chosen.parameters().stream()
@@ -201,12 +244,88 @@ public final class ExpressionBareCallLowerer {
                 }
                 localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), argTypes, ops, owner, localIdx, locals);
                 ops.add(new KofCall(CompilerTypes.mainClassType(driver.currentModule), mc.methodName(), argTypes, returnType, KofCallKind.FUNCTION));
-                Type effective = ExpressionTyper.inferExprType(driver, mc, locals);
-                if (returnType instanceof Type.TypeVariable && TypeMetrics.isPrimitiveType(effective)) {
-                    driver.emitErasureUnbox(ops, effective);
+                // §592: retorno `T` de FUNÇÃO de topo — mesma adaptação do
+                // call-site de instância (unbox p/ primitivo, checkcast p/
+                // referência) pelo helper compartilhado; antes só o unbox de
+                // primitivo era tratado aqui → `idf<Point>(...)` devolvia
+                // Object sem checkcast → NoSuchMethodError/VerifyError.
+                if (witnessable) {
+                    // §479: witness explícito — o tipo EFETIVO já é conhecido,
+                    // sem depender de inferExprType (que no path de módulo/CLI
+                    // não registra o tipo da chamada e deixava o call-site de
+                    // referência SEM checkcast = VerifyError no load; §477/#592).
+                    GenericReturnAdapter.emitBound(driver, ops, boundReturn);
+                } else {
+                    GenericReturnAdapter.emit(driver, mc, ops, locals, returnType);
                 }
             }
         }
         return localIdx;
+    }
+
+    /**
+     * §393 — #568: baixa `Classe(args)` sem `new` quando `Classe` e uma classe
+     * EXTERNA (--classpath/--deps) com construtor PUBLICO de aridade
+     * compativel: KofNewObject + DUP + args convertidos aos formais do
+     * descritor + INVOKESPECIAL <init> (MESMO plano da face `new` em
+     * ExpressionLowerer:235-253, que ja resolvia via resolveConstructor).
+     * Sentinela -1 = nao e construtor externo (segue o fluxo de sempre).
+     * Guarda de precedencia (freeze regra 2): classe do programa ou funcao
+     * top-level/`extern` homonima declara o call-site — nunca sequestra.
+     */
+    private static int tryLowerExternalCtor(CompilerDriver driver, MethodCallExpr mc,
+            List<KofOperation> ops, String owner, int localIdx, List<IRLocalVariable> locals) {
+        // `driver.externalClasspath` é final + sempre construído
+        // (CompilerDriverState:75) — o null-check era morto (CodeQL #950).
+        String internal = null;
+        if (driver.semanticAnalyzer != null) {
+            SymbolTable.MethodSymbol m = driver.semanticAnalyzer.getResolvedMethod(mc);
+            if (m != null && "<init>".equals(m.name()) && m.ownerClass() != null
+                    && m.ownerClass().contains("/")) {
+                internal = m.ownerClass();
+            }
+        }
+        if (internal == null) {
+            // sem registro do typer (node recriado no desugar): refazer a
+            // qualificacao pelo import, com as MESMAS guardas do typer
+            if (mc.receiver() != null) return -1;
+            if (driver.isLocalVarName(mc.methodName(), locals)) return -1;
+            Type q = CompilerTypes.qualifyViaImports(mc.methodName(), driver.currentUnit,
+                    driver.externalClasspath);
+            if (!(q instanceof Type.ClassType ct) || ct.packageName().isEmpty()) return -1;
+            internal = ct.internalName();
+        }
+        if (driver.semanticAnalyzer != null
+                && driver.semanticAnalyzer.getClass(mc.methodName()) != null) return -1;
+        if (declaresTopLevelFunction(driver, mc.methodName())) return -1;
+        if (!driver.externalClasspath.knows(internal)) return -1;
+        ExternalClasspath.MethodSignature sig =
+                driver.externalClasspath.resolvePublicConstructor(internal, mc.arguments().size());
+        if (sig == null) return -1;
+        Type classType = ExternalClasspath.typeFromDescriptor("L" + internal + ";");
+        List<Type> formal = new ArrayList<>();
+        for (String d : sig.parameterDescriptors()) {
+            formal.add(ExternalClasspath.typeFromDescriptor(d));
+        }
+        List<Type> argTypes = new ArrayList<>();
+        for (ExpressionNode arg : mc.arguments()) {
+            argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        }
+        ops.add(new KofNewObject(classType, argTypes));
+        ops.add(new KofDup());
+        localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), formal, ops, owner,
+                localIdx, locals);
+        ops.add(new KofCall(classType, "<init>", formal, Type.PrimitiveType.VOID,
+                KofCallKind.CONSTRUCTOR));
+        return localIdx;
+    }
+
+    private static boolean declaresTopLevelFunction(CompilerDriver driver, String name) {
+        if (driver.currentUnit == null) return false;
+        for (AstNode d : driver.currentUnit.declarations()) {
+            if (d instanceof FunctionDeclarationNode fn && fn.name().equals(name)) return true;
+            if (d instanceof ExternalFunctionNode ext && ext.name().equals(name)) return true;
+        }
+        return false;
     }
 }

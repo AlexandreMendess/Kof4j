@@ -46,19 +46,17 @@ public final class RuntimeScheduler {
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
-                movq $202, %rax
-                syscall
+                call kof_plat_sync
                 jmp .Lsched_lk
             .Lsched_lkd:
                 movl 20(%rbx), %r12d              # active
                 movq 8(%rbx), %r13                # task
                 movl $0, (%rsi)                   # unlock
                 movl $1, %esi
-                movq $202, %rax
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall
+                call kof_plat_sync
                 testl %r12d, %r12d
                 jz .Lsched_done
                 movl 16(%rbx), %edi               # ms -> us (clamp evita overflow)
@@ -80,18 +78,16 @@ public final class RuntimeScheduler {
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
-                movq $202, %rax
-                syscall
+                call kof_plat_sync
                 jmp .Lsched_lk2
             .Lsched_lkd2:
                 movl 20(%rbx), %r12d
                 movl $0, (%rsi)                   # unlock
                 movl $1, %esi
-                movq $202, %rax
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall
+                call kof_plat_sync
                 testl %r12d, %r12d
                 jz .Lsched_done
                 movq %r13, %rdi                   # task
@@ -129,19 +125,17 @@ public final class RuntimeScheduler {
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
-                movq $202, %rax
-                syscall
+                call kof_plat_sync
                 jmp .Lsched_new_lk
             .Lsched_new_lkd:
                 incl kof_sched_seq(%rip)
                 movl kof_sched_seq(%rip), %ebp     # seq
                 movl $0, (%rsi)                    # unlock
                 movl $1, %esi
-                movq $202, %rax
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall
+                call kof_plat_sync
                 # id = "job-" + int_to_string(seq)
                 leaq .Lstr_job_prefix(%rip), %rdi
                 movl $4, %esi
@@ -176,8 +170,7 @@ public final class RuntimeScheduler {
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
-                movq $202, %rax
-                syscall
+                call kof_plat_sync
                 jmp .Lsched_push_lk
             .Lsched_push_lkd:
                 movq kof_sched_head(%rip), %rax
@@ -185,17 +178,16 @@ public final class RuntimeScheduler {
                 movq %rbx, kof_sched_head(%rip)    # head = job
                 movl $0, (%rsi)                    # unlock
                 movl $1, %esi
-                movq $202, %rax
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall
+                call kof_plat_sync
                 # pthread_create(&job->tid, 0, trampoline, job)
                 leaq 32(%rbx), %rdi
                 xorl %esi, %esi
                 leaq kof_sched_trampoline(%rip), %rdx
                 movq %rbx, %rcx
-                call pthread_create
+                call kof_plat_thread_create
                 movq %rbp, %rax                    # id
                 addq $8, %rsp
                 popq %rbp
@@ -249,8 +241,7 @@ public final class RuntimeScheduler {
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
-                movq $202, %rax
-                syscall
+                call kof_plat_sync
                 jmp .Lsched_can_lk
             .Lsched_can_lkd:
                 movq kof_sched_head(%rip), %rbx
@@ -270,11 +261,10 @@ public final class RuntimeScheduler {
                 leaq kof_sched_lock(%rip), %rsi
                 movl $0, (%rsi)                    # unlock
                 movl $1, %esi
-                movq $202, %rax
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall
+                call kof_plat_sync
                 xorl %eax, %eax
                 popq %r13
                 popq %r12

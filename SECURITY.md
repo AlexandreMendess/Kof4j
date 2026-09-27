@@ -11,7 +11,7 @@
    [Report a vulnerability](https://github.com/KofLang/Kof4j/security/advisories/new)
    (`Security` → `Advisories` → `Report a vulnerability`). Only the maintainer
    and designated collaborators see the content.
-2. What to include: version (`cat VERSION`, currently `0.4.0-beta`), affected
+2. What to include: version (`cat VERSION`, currently `0.5.0-beta`), affected
    target (`jvm`/`native`/`native.risc`/`native.arm`/`js`), **minimal repro**
    (minimal `.kf` + `kof run|build|serve` command), actual vs expected output,
    estimated impact (RCE, auth bypass, secret leak, DoS…). PoC is welcome;

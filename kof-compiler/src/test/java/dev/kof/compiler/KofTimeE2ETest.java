@@ -39,7 +39,7 @@ class KofTimeE2ETest {
         CompilationResult result = driver.compile(source, outDir, Target.JVM);
         assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
         try {
-            String javaCmd = System.getProperty("java.home") + "/bin/java";
+            String javaCmd = TestJdk.javaBin();
             ProcessBuilder pb = new ProcessBuilder(javaCmd, "-Dfile.encoding=UTF-8",
                     "-Dstdout.encoding=UTF-8", "-cp", outDir.toString(), "Default.Main");
             pb.redirectErrorStream(true);
@@ -254,9 +254,13 @@ class KofTimeE2ETest {
         // cross: executa via qemu. O SIGSEGV face B era o primeiro
         // pthread_create do scheduler (exit 139) — o que este test prova e
         // que a forma workaround compila e o job roda nos dois archs.
-        // aarch: o scheduler de intervalo ainda armado nao termina sob
-        // qemu-aarch (gap §283 — thread sem join na saida); o cancel
-        // explicito antes de sair e a forma que termina (medido: rc=0).
+        // aarch: (histórico) o scheduler de intervalo ainda armado não
+        // terminava sob qemu-aarch (gap §283 — thread sem join na saída) e o
+        // cancel explícito era a forma que terminava; §283 está MORTO desde a
+        // costura B-0 (kof_plat_exit_group = exit_group 94 mata as threads do
+        // scheduler) — a forma sem cancel é pinada por
+        // intervalArmedAtExitExitsCleanlyCrossArch, abaixo. O cancel fica
+        // aqui (Kof legal, a forma continua valendo como prova do job).
         // riscv: join explicito no runtime — termina sem cancel.
         if (has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")) {
             runQemu(tempDir, Target.NATIVE_RISCV64, "qemu-riscv64", """
@@ -284,6 +288,49 @@ class KofTimeE2ETest {
                     """);
         } else {
             Assumptions.assumeTrue(false, "toolchain aarch64 ausente");
+        }
+    }
+
+    /** §283 (fechado 23/09): intervalo AINDA ARMADO no fim do main termina
+     *  rc=0 nas duas archs cross — a costura B-0 (kof_plat_exit_group =
+     *  exit_group 94) mata as threads do scheduler. Bounded de propósito
+     *  (§418): uma regressão vira FALHA com timeout, não uma suíte pendurada. */
+    @Test
+    void intervalArmedAtExitExitsCleanlyCrossArch(@TempDir Path tempDir) throws IOException {
+        String src = """
+                main() {
+                    var id = ""
+                    id = time.interval(5, () -> { println("tick") })
+                    time.sleep(25)
+                    println("fim")
+                }
+                """;
+        for (String arch : new String[]{"riscv64", "aarch64"}) {
+            Assumptions.assumeTrue(has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld", "qemu-" + arch),
+                    "toolchain " + arch + " ausente");
+            Path file = tempDir.resolve("Main-" + arch + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("out-" + arch + "-" + System.nanoTime());
+            CompilationResult result = new CompilerDriver().compile(file, outDir, arch.equals("aarch64")
+                    ? Target.NATIVE_AARCH64 : Target.NATIVE_RISCV64);
+            assertTrue(result.success(), arch + " compile: " + result.diagnostics().getDiagnostics());
+            Path bin = outDir.resolve("Default/Main");
+            Process p = NativeRiscv64E2ETest.qemu(arch, bin).redirectErrorStream(true).start();
+            String output;
+            boolean done;
+            try {
+                done = p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS);
+                output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted", e);
+            } finally {
+                if (!p.isAlive()) { /* já saiu */ } else { p.destroyForcibly(); }
+            }
+            assertTrue(done, "§283 regressão: " + arch + " pendurado com intervalo armado "
+                    + "(o processo não saiu em 30s)");
+            assertEquals(0, p.exitValue(), arch + " exit, out: " + output);
+            assertTrue(output.contains("fim"), arch + " saída: " + output);
         }
     }
 
@@ -650,6 +697,23 @@ class KofTimeE2ETest {
             assertTrue(r.success(), t + " deve compilar addDays/diffDays (TIME002 fechado): "
                     + r.diagnostics().getDiagnostics());
         }
+    }
+
+    /**
+     * §426 (improved 25/09): time.collect() on JS is a REAL host GC request
+     * (kof_platform.gcCollect -> System.gc()), not the old compile-time
+     * TIME004 gate. The JS program must compile AND run to completion (the
+     * old path compiled clean but failed at module load — the export was
+     * missing).
+     */
+    @Test
+    void collectJsRunsOnHost(@TempDir Path tempDir) throws IOException {
+        runJs(tempDir, """
+                main() {
+                    time.collect()
+                    println("collected")
+                }
+                """, "collected");
     }
 
     // ── STDLIB S7e (D-STDLIB ratificado 13/09): todayIso/formatDateIso/
@@ -1277,7 +1341,6 @@ class KofTimeE2ETest {
             Class<?> rt = cl.loadClass("dev.kof.runtime.KofRuntime");
             java.lang.reflect.Method at = rt.getMethod("kof_scheduler_at", String.class, Object.class);
             java.lang.reflect.Method cancel = rt.getMethod("kof_scheduler_cancel", String.class);
-            int[] n = {0};
             TickCounter fn = new TickCounter();
             Object id = at.invoke(null, "20ms", fn);
             Thread.sleep(150);
@@ -1298,6 +1361,7 @@ class KofTimeE2ETest {
      *  e lambdas Java são package-private/hidden (IllegalAccessException). */
     public static class TickCounter implements Tick {
         public int n = 0;
+        @Override
         public void invoke() { n++; }
     }
 
@@ -1378,7 +1442,7 @@ class KofTimeE2ETest {
         CompilationResult result = driver.compile(source, outDir, Target.JVM);
         assertTrue(result.success(), "compile: " + result.diagnostics().getDiagnostics());
         try {
-            String javaCmd = System.getProperty("java.home") + "/bin/java";
+            String javaCmd = TestJdk.javaBin();
             ProcessBuilder pb = new ProcessBuilder(javaCmd, "-Dfile.encoding=UTF-8",
                     "-Dstdout.encoding=UTF-8", "-cp", outDir.toString(), "Default.Main");
             pb.redirectErrorStream(true);

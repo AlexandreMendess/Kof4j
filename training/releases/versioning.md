@@ -5,7 +5,7 @@
 Facts about Kof's versioning and release model. Use it to answer
 questions about versions, releases and the publishing process.
 
-**Version:** 0.4.0-beta (Sep 2026)
+**Version:** 0.5.0-beta (Sep 2026)
 
 ## Version format
 
@@ -21,7 +21,7 @@ MAJOR.MINOR.PATCH[-suffix]
 
 ## Current stage
 
-- Kof is at `0.4.0-beta` (branch `beta-0.4.0`, Sep 2026).
+- Kof is at `0.5.0-beta` (branch `beta-0.5.0`, Sep 2026).
 - Evolution: `0.0.5-alpha` → `0.1.0` → `0.2.6-beta` → Beta → Release Candidate → Stable.
 - The component version (compiler/runtime/stdlib) is `0.2.0`; the `-beta`
   suffix belongs to the release.
@@ -29,7 +29,7 @@ MAJOR.MINOR.PATCH[-suffix]
 
 ## Single source of truth
 
-- The version lives in the `VERSION` file at the repository root (`0.4.0-beta`).
+- The version lives in the `VERSION` file at the repository root (`0.5.0-beta`).
 - `scripts/bump-version.sh` syncs `VERSION` → `pom.xml` (`<revision>`)
   → `kof-compiler/src/main/resources/dev/kof/version.properties` (`kof.version` follows the `revision`).
 - The pipeline automatically updates: compiler, CLI, runtime, artifacts,
@@ -61,10 +61,10 @@ MAJOR.MINOR.PATCH[-suffix]
  ## Artifacts
 
  ```text
- kof-0.4.0-beta-linux-x86_64.tar.gz
- kof-0.4.0-beta-windows-x86_64.zip
- kof-0.4.0-beta-macos-arm64.tar.gz
- kof-cli-0.4.0-beta.jar
+ kof-0.5.0-beta-linux-x86_64.tar.gz
+ kof-0.5.0-beta-windows-x86_64.zip
+ kof-0.5.0-beta-macos-arm64.tar.gz
+ kof-cli-0.5.0-beta.jar
  SHA256SUMS
  ```
 
@@ -80,7 +80,7 @@ embedded JDK (Temurin 25; tooling API level 21).
 
 ## Tags
 
-- Tags follow `kof-<version>` (e.g.: `kof-0.4.0-beta`).
+- Tags follow `kof-<version>` (e.g.: `kof-0.5.0-beta`).
 - The bump commit uses `[skip ci]` so it does not re-trigger the pipeline.
 
 ## Important rules

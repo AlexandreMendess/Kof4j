@@ -108,6 +108,16 @@ public sealed interface Type {
             Type component = of(name.substring(0, name.length() - 2));
             return new ArrayType(component);
         }
+        // X5.4 (D-X5-SURFACE): projeção no sítio de uso — `List<out Animal>`
+        // (covariante) / `List<in Animal>` (contravariante). Reusa o
+        // WildcardType já existente (out→upper, in→lower); a erasure apaga a
+        // projeção (JvmTypeMapper/WildcardType).
+        if (name.startsWith("out ")) {
+            return new WildcardType(of(name.substring(4).trim()), true);
+        }
+        if (name.startsWith("in ")) {
+            return new WildcardType(of(name.substring(3).trim()), false);
+        }
         if (name.contains("<")) {
             int lt = name.indexOf('<');
             String base = name.substring(0, lt);
@@ -185,10 +195,12 @@ public sealed interface Type {
      * — {@code Bool?} nao e mais sintaxe valida (SEM095).
      */
     static boolean isTroolean(Type type) {
-        return type instanceof NullableType n && isTroolean(n);
+        return type instanceof NullableType n && isTrooleanNullable(n);
     }
 
-    private static boolean isTroolean(NullableType n) {
+    // #555 (java/confusing-method-signature): o overload privado nao chama
+    // `isTroolean` — mesma cara, dispatch diferente e a armadilha do 907.
+    private static boolean isTrooleanNullable(NullableType n) {
         return n.inner() instanceof PrimitiveType p
                 && "bool".equals(canonicalPrimitiveName(p.name()));
     }
@@ -269,7 +281,7 @@ public sealed interface Type {
     public static String display(Type type) {
         return switch (type) {
             case PrimitiveType p -> kofPrimitiveName(p.name());
-            case ClassType c -> c.name()
+            case ClassType c -> qualifiedUserName(c)
                     + (c.typeArguments().isEmpty() ? ""
                         : c.typeArguments().stream().map(Type::display)
                             .collect(java.util.stream.Collectors.joining(", ", "<", ">")));
@@ -280,6 +292,24 @@ public sealed interface Type {
             case FunctionType _ -> "function";
             case WildcardType _ -> "?";
         };
+    }
+
+    /**
+     * #640: user packages qualify in diagnostics (two records with the same
+     * simple name in different packages must not print the same text); JVM
+     * built-ins keep the spelling the user wrote (#324).
+     * #641 (residual): the same "spelling the user wrote" rule covers the
+     * Kof stdlib and the internal runtime — `List<Int>` in source means
+     * `List<Int>` in the diagnostic, never `kof.List<Int>` (the expected
+     * example in #640 itself keeps stdlib bare).
+     */
+    private static String qualifiedUserName(ClassType c) {
+        String pkg = c.packageName();
+        if (pkg == null || pkg.isEmpty() || pkg.startsWith("java.") || pkg.startsWith("javax.")
+                || pkg.equals("kof") || pkg.startsWith("kof.") || pkg.startsWith("dev.kof")) {
+            return c.name();
+        }
+        return pkg + "." + c.name();
     }
 
     static String kofPrimitiveName(String name) {

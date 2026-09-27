@@ -341,6 +341,48 @@ class KofMapSetTest {
         }
     }
 
+    // §441 — Map com CHAVE larga (Long/Double) gerava bytecode inválido no JVM:
+    // o emitter fazia `swap` com um valor de categoria 2 (VerifyError "Bad type
+    // on operand stack" em Map.put/putIfAbsent) — o `check` passava limpo e o
+    // Script/JS rodavam certo. RED no código antigo.
+    @Test
+    void mapWithWideKeyJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                var md = mapOf(1.5, "a")
+                md.put(2.5, "b")
+                md.putIfAbsent(3.5, "c")
+                println(md.get(1.5))
+                println(md.get(2.5))
+                println(md.get(3.5))
+                var ml = mapOf(10L, "x")
+                ml.put(20L, "y")
+                println(ml.get(20L))
+                var mf = mapOf(1.5f, "f")
+                println(mf.get(1.5f))
+            }
+            """, "a\nb\nc\ny\nf");
+    }
+
+    // §441 paridade: o MESMO programa com chave larga imprime byte-a-byte igual
+    // JVM e JS (o JVM era o alvo quebrado; JS sempre rodou).
+    @Test
+    void mapWithWideKeyParityJvmJs(@TempDir Path tmp) throws Exception {
+        String src = """
+            main() {
+                var md = mapOf(1.5, "a")
+                md.put(2.5, "b")
+                println(md.get(2.5))
+                var ml = mapOf(10L, "x")
+                println(ml.get(10L))
+            }
+            """;
+        String jvm = runJvm(tmp, src, null);
+        String js = runJs(tmp, src, null);
+        assertEquals("b\nx", jvm, "JVM output");
+        assertEquals(jvm, js, "JVM==JS wide map key parity");
+    }
+
     private String runJvm(Path tempDir, String source, String expected) throws java.io.IOException {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

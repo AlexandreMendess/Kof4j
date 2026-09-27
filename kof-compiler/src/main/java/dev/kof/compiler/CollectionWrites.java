@@ -45,6 +45,36 @@ public final class CollectionWrites {
         return false;
     }
 
+    /**
+     * §383/#561 (opção (a), decisao da mantenedora 20/09): cruza a fronteira
+     * primitivo↔referencia num ESCRITA de List pinada — primitivo em slot de
+     * referencia (`listOf(listOf(1)).add(true)`, face F9) e referencia em slot
+     * primitivo (`listOf(1).add(Box())`, face X3). NAO e o "miss bencao" do
+     * §126 (la os dois lados sao primitivos e o box pelo slot funciona); aqui
+     * o par QUEBRA nos dois alvos compilados, medido 20/09: JVM VerifyError no
+     * load (int cru contra add(Object) / box Integer sobre referencia), Native
+     * SIGSEGV/ponteiro-lixo — e Script/JS divergem entre si (1 vs true vs
+     * "[object Object]"). Doutina §126: rejeitar so o que quebra de verdade —
+     * este par quebra nos 4, entao SEM056 universal (mesma familia dos sites
+     * de List add/set; Nao alcanca Map/Set, onde a heterogeneidade de
+     * categorias vizinhas e tolerada pelo consenso 3/4, faces S2/M1 20/09).
+     * Unknown/TypeVariable/Nullable passam/desempacotam como em pollutesPinned.
+     */
+    public static boolean breaksPinnedList(Type pinned, Type arg) {
+        if (pinned == null || arg == null) return false;
+        Type p = pinned instanceof Type.NullableType pn ? pn.inner() : pinned;
+        Type a = arg instanceof Type.NullableType an ? an.inner() : arg;
+        if (p instanceof Type.UnknownType || a instanceof Type.UnknownType) return false;
+        if (p instanceof Type.TypeVariable || a instanceof Type.TypeVariable) return false;
+        boolean pPrim = p instanceof Type.PrimitiveType;
+        boolean aPrim = a instanceof Type.PrimitiveType;
+        if (pPrim == aPrim) return false;
+        // String↔primitivo ja e do pollutesPinned (linha isString) — sair
+        // aqui mantem a mensagem/diagnostico existentes byte-identicos.
+        if (BuiltinTypes.isString(p) || BuiltinTypes.isString(a)) return false;
+        return true;
+    }
+
     /** int/long/float/double (sem bool/char — famílias de width que casam). */
     private static boolean isNumericFamily(Type.PrimitiveType pt) {
         return switch (Type.canonicalPrimitiveName(pt.name())) {
@@ -69,6 +99,9 @@ public final class CollectionWrites {
         Type et = elemType instanceof Type.NullableType ent ? ent.inner() : elemType;
         boolean etKnown = et != null && !(et instanceof Type.UnknownType);
         boolean atKnown = at != null && !(at instanceof Type.UnknownType);
+        boolean etObj = etKnown && isKofObject(et);
+        boolean atObj = atKnown && isKofObject(at);
+        if (etObj || atObj) return 2;
         if (etKnown && atKnown) {
             return isStringLike(et) && isStringLike(at) ? 1 : 0;
         }
@@ -88,6 +121,40 @@ public final class CollectionWrites {
      */
     private static boolean isStringLike(Type t) {
         return BuiltinTypes.isString(t);
+    }
+
+    /**
+     * §104b-ii (24/09): referência Kof (record/classe) conhecida → tag 2, para
+     * o Native comparar por CONTEÚDO via {@code kof_obj_equals} (que despacha o
+     * equals virtual da classe gravado em {@code kof_equals_table}). String é
+     * tag 1; {@code Object} fica de fora porque pode carregar box de primitivo
+     * (sem vtable de equals) e o raw {@code cmpq} é o comportamento histórico.
+     */
+    /**
+     * §104b-ii (24/09) — tag da CHAVE do Map nativo (header off 40, lido por
+     * {@code kof_map_find}): 2 = objeto Kof (conteúdo via {@code kof_obj_equals}),
+     * 1 = String ({@code kof_string_equals}), 0 = raw. Devolve {@code -1} quando
+     * NENHUM lado é conhecido — o chamador NÃO escreve (mantém o default
+     * histórico 1). Espelha a conjunção receptor×arg do {@link #stringTag}.
+     */
+    public static int mapKeyTag(Type keyType, Type argType) {
+        Type kt = keyType instanceof Type.NullableType knt ? knt.inner() : keyType;
+        Type at = argType instanceof Type.NullableType ant ? ant.inner() : argType;
+        boolean ktKnown = kt != null && !(kt instanceof Type.UnknownType);
+        boolean atKnown = at != null && !(at instanceof Type.UnknownType);
+        if (ktKnown && atKnown) {
+            if (isKofObject(kt) || isKofObject(at)) return 2;
+            return isStringLike(kt) && isStringLike(at) ? 1 : 0;
+        }
+        if (ktKnown) return isKofObject(kt) ? 2 : (isStringLike(kt) ? 1 : 0);
+        if (atKnown) return isKofObject(at) ? 2 : (isStringLike(at) ? 1 : 0);
+        return -1;
+    }
+
+    static boolean isKofObject(Type t) {
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        if (!(t instanceof Type.ClassType)) return false;
+        return !BuiltinTypes.isString(t) && !BuiltinTypes.isObject(t);
     }
 
     public static String typeNameFor(Type t) {

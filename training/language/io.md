@@ -40,8 +40,12 @@ about reading/writing files, working with paths and listing directories.
 | `File("x").writeText(s)` / `.appendText(s)` | Bool |
 | `File("x").readBytes()` | `Int[]` (0-255); `null` if it fails |
 | `File("x").writeBytes(b)` / `.appendBytes(b)` | Bool |
+| Bytes params and printing an `Int[]` (§388) | The bytes params take a **primitive array** — `writeBytes(listOf(65,66))` is a compile-time error (`SEM099`, §388-A); printing a whole array uses the §107 container format: `println(f.readBytes())` → `[65, 66]` (maintainer vote 21/09, §388-B) |
 | `File("x").size()` | Long; **throws an exception** if the file does not exist (02/09 — no `-1` sentinel) |
 | `File("x").delete()` | Bool |
+| `File("x").mkdir()` / `.mkdirs()` | POSIX-style aliases of `create()` / `createDirectories()`: create the directory / the whole path (Bool) |
+
+**Unknown members are a compile-time error (`SEM102`, #617):** a method that is not in the tables above on a `File`/`Directory`/`Path` value fails compilation with `'File' has no method 'x()'` (hint: `Directory(path).createDirectories()` for directory creation). Before the guard, the call compiled silently and did nothing at runtime — the member tables here ARE the contract.
 | `File("x").name()` / `.path()` | String |
 
 Statics: `File.exists(p)`, `File.readText(p)`, `File.writeText(p, s)`,
@@ -54,6 +58,7 @@ Statics: `File.exists(p)`, `File.readText(p)`, `File.writeText(p, s)`,
 | `Directory("d").exists()` | Bool |
 | `Directory("d").create()` | creates; fails if it already exists |
 | `Directory("d").createDirectories()` | creates recursively |
+| `Directory("d").mkdir()` / `.mkdirs()` | POSIX-style aliases of `create()` / `createDirectories()` |
 | `Directory("d").list()` | `List<String>` of the names (sorted) |
 | `Directory("d").delete()` | removes an empty directory |
 
@@ -103,7 +108,7 @@ println(file.readBytes().length)
   the corpus).
 - Boolean operations return `true`/`false`.
 
-## Current limitations (0.4.0-beta)
+## Current limitations (0.5.0-beta)
 
 - Native: Linux x86_64 (POSIX syscalls) + riscv64/aarch64 placeholder via qemu; the free-list GC applies to file buffers.
 - Symlinks, timestamps and permissions are future.

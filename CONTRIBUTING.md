@@ -2,7 +2,7 @@
 
 # 30 — Contributing
 
-> **Kof 0.4.0-beta — 17 Sep 2026 — 2218 tests — targets jvm/native/native.risc/native.arm/js/kofc**
+> **Kof 0.5.0-beta — 20 Sep 2026 — 3225 tests — targets jvm/native/native.risc/native.arm/js/kofc**
 
 ## Repository structure
 
@@ -16,7 +16,7 @@ kof/
 ├── docs/               ← internal documentation
 ├── learn/              ← this material (intention->Kof->frontend->IR->backend->runtime)
 ├── tests/              ← golden tests (16 golden + 9 integration)
-├── pom.xml             ← Maven build (0.4.0-beta)
+├── pom.xml             ← Maven build (0.5.0-beta)
 └── README.md
 ```
 
@@ -150,7 +150,7 @@ Whenever a feature changes:
 6. An open issue containing the implementation plan for the feature in your PR.
 ## Current state of the project
 
-The project is at 0.4.0-beta (2218 tests), functional:
+The project is at 0.5.0-beta (3225 tests), functional:
 
 **Works today:**
 - Complete frontend: lexer, parser, `SemanticAnalyzer` (type checking + nullability `String?`)
@@ -163,7 +163,7 @@ The project is at 0.4.0-beta (2218 tests), functional:
 - KofJS — ES Modules via GraalJS (`kof.http` via Java HttpClient interop)
 - KofScript (`let`→`KofScriptGlobals`, repl, --watch) + KofC (`kof c` native-only)
 - stdlib: kof.io, kof.web, kof.http, kof.security, kof.db, kof.orm, kof.ui, kof.config, kof.log, kof.cache, kof.mq, kof.observability, kof.validation, kof.time, kof.scheduler, kof.process
-- Tests: 2218 across the 4 modules (golden 16/16, integration 9/9)
+- Tests: 3225 across the 4 modules (golden 16/16, integration 9/9)
 
 **In development:**
 - Native auto-collect on exhaustion (mark-sweep is implemented but manual — §260)

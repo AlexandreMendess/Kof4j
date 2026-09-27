@@ -140,7 +140,7 @@ class ClassShapeChecksTest {
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
         assertTrue(result.success(), "legal record/class hierarchy must keep compiling: "
                 + result.diagnostics().getDiagnostics());
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
+        String javaCmd = TestJdk.javaBin();
         Process p = new ProcessBuilder(javaCmd, "-cp", tempDir.resolve("out").toString(), "Default.Main")
                 .redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes()).trim();
@@ -167,7 +167,7 @@ class ClassShapeChecksTest {
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
         assertTrue(result.success(), "legal class shapes must keep compiling: "
                 + result.diagnostics().getDiagnostics());
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
+        String javaCmd = TestJdk.javaBin();
         Process p = new ProcessBuilder(javaCmd, "-cp", tempDir.resolve("out").toString(), "Default.Main")
                 .redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes()).trim();

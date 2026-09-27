@@ -1,5 +1,6 @@
 package dev.kof.compiler.jvm;
 import dev.kof.compiler.IRClass;
+import dev.kof.compiler.Target;
 
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
@@ -25,6 +26,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_web_")
                 || methodName.startsWith("kof_config_")
                 || methodName.startsWith("kof_cache_")
+                || methodName.startsWith("kof_buffer_")
                 || methodName.startsWith("kof_log_")
                 || methodName.startsWith("kof_db_")
                 || methodName.startsWith("kof_orm_")
@@ -45,6 +47,8 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.equals("kof_cancel") || methodName.equals("kof_cancelled")
                 || methodName.equals("kof_await_timeout")
                 || methodName.equals("kof_select_any")
+                // §388-B: display de array cru no formato de container.
+                || methodName.equals("kof_array_to_string")
                 || methodName.equals("kof_list_map") || methodName.equals("kof_list_filter") || methodName.equals("kof_list_reduce")
                 || methodName.startsWith("kof_observability_")
                 || methodName.startsWith("kof_media_")
@@ -72,6 +76,8 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.equals("kof_shell_argv")
                 || methodName.equals("kof_shell_pipeline")
                 || methodName.equals("kof_shell_runwith")
+                || methodName.equals("kof_ssh_argv")
+                || methodName.equals("kof_ssh_run")
                 || methodName.equals("kof_args_list");
     }
 
@@ -80,11 +86,16 @@ public static boolean hasRuntimeFn(String methodName) {
     }
 
     static public void ensureCompiled(Path outputDir, List<IRClass> classes, boolean usesVk, boolean usesExtern) throws IOException {
+        ensureCompiled(outputDir, classes, usesVk, usesExtern, Target.JVM);
+    }
+
+    static public void ensureCompiled(Path outputDir, List<IRClass> classes, boolean usesVk, boolean usesExtern,
+            Target target) throws IOException {
         Path runtimeDir = outputDir.resolve("dev/kof/runtime");
         if (Files.exists(runtimeDir.resolve("KofRuntime.class"))) return;
         Files.createDirectories(runtimeDir);
         Path sourceFile = outputDir.resolve("KofRuntime.java");
-        Files.writeString(sourceFile, source(classes, usesVk, usesExtern));
+        Files.writeString(sourceFile, source(classes, usesVk, usesExtern, target));
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             throw new IOException("JVM runtime requires a full JDK (javac not available)");
@@ -116,13 +127,23 @@ public static boolean hasRuntimeFn(String methodName) {
 
 
     private static String source(List<IRClass> classes, boolean usesVk, boolean usesExtern) {
+        return source(classes, usesVk, usesExtern, Target.JVM);
+    }
+
+    private static String source(List<IRClass> classes, boolean usesVk, boolean usesExtern, Target target) {
         StringBuilder decoders = new StringBuilder();
+        java.util.Set<String> emitted = new java.util.HashSet<>();
         for (IRClass clazz : classes) {
             String internal = clazz.name();
             if (internal == null || internal.isBlank() || internal.equals("java/lang/Object")) continue;
             if ("Main".equals(internal) || internal.endsWith("/Main")) continue;
             String javaName = internal.replace('/', '.');
             String mangle = javaName.replace('.', '_');
+            // #627: multi-file compilation can surface the same packaged
+            // class twice under slash/dot spellings of its internal name —
+            // both mangle identically, so a second copy was a javac
+            // "already defined" compile error of the generated KofRuntime.
+            if (!emitted.add(mangle)) continue;
             decoders.append("""
                         public static Object kof_json_decode_%s(String json) throws Exception {
                             return kof_json_decode_object(json, Class.forName("%s"));
@@ -137,15 +158,20 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmRuntimeWebDispatch.source()
                 + JvmConfigRuntime.source()
                 + JvmCacheRuntime.source()
+                + JvmBufferRuntime.source()
+                + JvmSecretRuntime.source()
                 + JvmOrmRuntime.source()
                 + JvmTimeRuntime.source()
                 + JvmStringRuntime.source()
                 + (usesExtern ? JvmFfiRuntime.source() : "")
-                + (usesVk ? JvmVkRuntime.source() : "\n            }");
+                + (usesVk
+                        ? (target == Target.ANDROID ? JvmVkStubRuntime.source() : JvmVkRuntime.source())
+                        : "\n            }");
     }
 
     private static String sourceCore(String decoders) {
         return JvmRuntimeJson.source(decoders)
+                + JvmRuntimeJsonTyped.source()
                 + JvmRuntimeJsonMap.source()
                 + JvmRuntimeUi.source()
                 + JvmRuntimeUiForms.source()

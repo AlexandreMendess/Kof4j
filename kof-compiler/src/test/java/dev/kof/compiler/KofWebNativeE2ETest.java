@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class KofWebNativeE2ETest {
 
     private Process serverProcess;
+    private int serverPort = -1;
 
     @AfterEach
     void stopServer() {
@@ -39,6 +40,9 @@ class KofWebNativeE2ETest {
     private static final String SERVER_T1 = """
             main() {
                 var app = web.app()
+                app.get("/") {
+                    return "hello"
+                }
                 app.listen(PORT)
             }
             """;
@@ -63,6 +67,7 @@ class KofWebNativeE2ETest {
 
     private Process startServer(Path tempDir, String source) throws Exception {
         int port = freePort();
+        serverPort = port;
         Path src = tempDir.resolve("App.kf");
         Files.writeString(src, source.replace("PORT", String.valueOf(port)));
         CompilerDriver driver = new CompilerDriver();
@@ -106,7 +111,9 @@ class KofWebNativeE2ETest {
     @Test
     void nativeServerAcceptsAndResponds200(@TempDir Path tempDir) throws Exception {
         serverProcess = startServer(tempDir, SERVER_T1);
-        assertTrue(true);
+        String resp = httpGet(serverPort, "/");
+        assertTrue(resp.startsWith("HTTP/1.1 200") || resp.contains(" 200 "),
+                "servidor nativo tem de responder 200 ao GET /: " + resp);
     }
 
     @Test

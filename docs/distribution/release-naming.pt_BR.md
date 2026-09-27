@@ -3,7 +3,7 @@
 # Nomenclatura de Releases — Kof
 
 **Última atualização:** 16/09/2026
-**Versão atual:** 0.4.0-beta
+**Versão atual:** 0.5.0-beta
 
 ---
 
@@ -11,7 +11,7 @@
 
 ```text
 MAJOR.MINOR.PATCH-<estágio>
-0.4.0-beta
+0.5.0-beta
 ```
 
 - `MAJOR.MINOR.PATCH` — semver padrão (`pom.xml` + arquivo `VERSION`).
@@ -70,7 +70,7 @@ futura).
 ## Regras
 
 1. **Codinome por release de destaque** — nem todo bump de patch ganha nome
-   (`0.4.0-beta` → `0.4.0-beta` não tem codinome; um corte marcante tipo
+   (`0.5.0-beta` → `0.5.0-beta` não tem codinome; um corte marcante tipo
    "Fase 6 Router + Fase 9 diffing fechadas" ganha).
 2. **`Alpha` e `Beta` já foram consumidos como fase**, não como codinome de
    release específica — a lista de codinomes efetivamente começa no

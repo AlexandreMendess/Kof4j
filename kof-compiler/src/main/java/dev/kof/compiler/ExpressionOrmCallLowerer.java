@@ -24,7 +24,7 @@ public final class ExpressionOrmCallLowerer {
     }
     KofOrm.OrmCall ormCall = KofOrm.staticCall(mc.methodName(), argTypes, typed, entityName);
     if (ormCall != null) {
-        if (!KofOrm.supportedOn(driver.target)) {
+        if (!KofOrm.fnSupportedOn(driver.target, ormCall.function())) {
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                         mc.position() != null ? mc.position().line() : 0,
@@ -59,8 +59,27 @@ public final class ExpressionOrmCallLowerer {
         for (int ai = 0; ai < mc.arguments().size(); ai++) {
             ExpressionNode arg = mc.arguments().get(ai);
             localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-            if (ai > 0 && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, arg, locals))) {
-                TypeEmitter.boxPrimitive(ops, ExpressionTyper.inferExprType(driver, arg, locals));
+            Type at = ExpressionTyper.inferExprType(driver, arg, locals);
+            if (ai > 0 && TypeMetrics.isPrimitiveType(at)) {
+                // §447 face Bool: no Native o box de erasure e kof_box_bool
+                // (§284) — o valueOf do wrapper cai no dispatch nativo de
+                // String.valueOf e o bind virava TEXTO "true"/"false"
+                // (divergia do host JVM que liga Boolean/1). Fix cirurgico no
+                // Bool: os demais primitivos seguem no valueOf (TEXTO) porque
+                // as fatias mysql x86 leem o key como texto/atoi (residuo
+                // catalogado no §447 — box-all exige auditar
+                // RuntimeOrmMysqlDelete/Find/CountWhere/Page).
+                boolean nativeTarget = switch (driver.target) {
+                    case NATIVE, NATIVE_RISCV64, NATIVE_AARCH64 -> true;
+                    default -> false;
+                };
+                boolean boolArg = at instanceof Type.PrimitiveType pt
+                        && "bool".equals(Type.canonicalPrimitiveName(pt.name()));
+                if (nativeTarget && boolArg) {
+                    CompilerEmissionHelpers.emitErasureBox(driver, ops, at);
+                } else {
+                    TypeEmitter.boxPrimitive(ops, at);
+                }
             }
         }
         // literais do schema (conhecidos em compile-time):

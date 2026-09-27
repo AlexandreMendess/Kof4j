@@ -2,7 +2,7 @@
 
 # 13 — Nullability
 
-> **Status: implemented (JVM / Native / JS) — 0.4.0-beta — examples verified in the compiler**
+> **Status: implemented (JVM / Native / JS) — 0.5.0-beta — examples verified in the compiler**
 >
 > `Tipo?` (e.g.: `String?`) declares that a value **can** be `null`. The
 > compiler requires a check (`if (x != null)`) before using it — and narrowing
@@ -105,7 +105,7 @@ String findOrThrow(Int id) {
 }
 ```
 
-## Where we are (0.4.0-beta)
+## Where we are (0.5.0-beta)
 
 - ✅ `String?`, `Int?`, `Tipo?` in the parser and type system (`NullableType`).
 - ✅ Narrowing `if (x != null)` on the 3 targets — **JVM fixed 02/09**

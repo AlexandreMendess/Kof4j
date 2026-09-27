@@ -13,6 +13,11 @@
 #   scripts/auto-loop.sh status                              # estado atual
 #   scripts/auto-loop.sh tick [--dry-run]                    # chamado pelo cron
 #
+# AUTOLOOP_NAME (env): nomeia o loop (padrão: kof-auto-loop). Cada nome tem
+# estado e linha de cron PRÓPRIOS — use `AUTOLOOP_NAME=loop-b` nos start/stop/
+# status/tick para rodar dois heartbeats em sessões diferentes ao mesmo tempo
+# sem um apagar o outro (o cron gerado carrega o env p/ o próprio tick).
+#
 # Porta (3º arg): PINA o servidor do heartbeat em http://127.0.0.1:<porta>
 # (ex.: start ses_xxx 2 9093). Sem o arg, resolve dinamicamente. Necessário
 # porque os servidores TUI compartilham storage e CONHECEM todas as sessões —
@@ -20,7 +25,11 @@
 # nunca cruzar sessões; AGENTS.md "Two sessions, two crons").
 set -euo pipefail
 
-MARKER="kof-auto-loop"
+# Nome do loop: permite DOIS heartbeats simultâneos (sessões/portas diferentes,
+# regra "never cross them"). O padrão mantém o comportamento legado byte a byte;
+# AUTOLOOP_NAME muda MARKER e portanto STATE_DIR/LOG/LOCK e a linha do cron.
+MARKER="${AUTOLOOP_NAME:-kof-auto-loop}"
+case "$MARKER" in *[!A-Za-z0-9_-]*) echo "AUTOLOOP_NAME invalido (use [A-Za-z0-9_-])" >&2; exit 1;; esac
 SCRIPT=$(readlink -f "$0")
 REPO=$(cd "$(dirname "$SCRIPT")/.." && pwd)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$MARKER"
@@ -60,13 +69,17 @@ last_session() {
 
 install_cron() {
     local n="$1" line
-    line="*/$n * * * * $SCRIPT tick # $MARKER"
-    ( { crontab -l 2>/dev/null | grep -vF "$MARKER" || true; }; echo "$line" ) | crontab -
+    if [ "$MARKER" = "kof-auto-loop" ]; then
+        line="*/$n * * * * $SCRIPT tick # $MARKER"
+    else
+        line="*/$n * * * * env AUTOLOOP_NAME=$MARKER $SCRIPT tick # $MARKER"
+    fi
+    ( { crontab -l 2>/dev/null | grep -vE "# ${MARKER}\$" || true; }; echo "$line" ) | crontab -
 }
 
 remove_cron() {
-    if crontab -l 2>/dev/null | grep -qF "$MARKER"; then
-        { crontab -l 2>/dev/null | grep -vF "$MARKER" || true; } | crontab -
+    if crontab -l 2>/dev/null | grep -qE "# ${MARKER}\$"; then
+        { crontab -l 2>/dev/null | grep -vE "# ${MARKER}\$" || true; } | crontab -
     fi
 }
 
@@ -96,7 +109,11 @@ cmd_start() {
     echo "auto-loop ATIVO: sessão $session a cada ${interval}min (log: $LOG)"
     [ -n "$server_q" ] && echo "server fixado: $server_q" || echo "AVISO: nenhum servidor vivo resolveu a sessão — o tick vai tentar a cada rodada"
     echo "prompt: ${prompt_q:0:60}..."
-    echo "parar: $SCRIPT stop"
+    if [ "$MARKER" = "kof-auto-loop" ]; then
+        echo "parar: $SCRIPT stop"
+    else
+        echo "parar: AUTOLOOP_NAME=$MARKER $SCRIPT stop"
+    fi
 }
 
 cmd_stop() {
@@ -112,7 +129,7 @@ cmd_status() {
         echo "INATIVO (sem state em $STATE)"
     fi
     echo "cron:"
-    crontab -l 2>/dev/null | grep -F "$MARKER" | sed 's/^/  /' || echo "  (nenhuma linha $MARKER)"
+    crontab -l 2>/dev/null | grep -E "# ${MARKER}\$" | sed 's/^/  /' || echo "  (nenhuma linha $MARKER)"
     if [ -f "$LOG" ]; then echo "últimos ticks:"; tail -n 5 "$LOG" | sed 's/^/  /'; fi
 }
 

@@ -1,5 +1,6 @@
 package dev.kof.compiler.nat;
 import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.CollectionWrites;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.Type;
@@ -20,7 +21,7 @@ public final class NativeX86Calls {
 
      void emitCall(StringBuilder sb, KofCall kc) {
         if (NativeFfiCall.isExternCall(kc)) {
-            // #431: extern bound (gate CompilerPipeline.isExternBound) — ABI
+            // #431: extern bound (gate CompilerFfiBinding.isExternBound) — ABI
             // escalar direta p/ a .so ligada no link (ver NativeFfiCall).
             NativeFfiCall.emitX86(nb, sb, kc);
             return;
@@ -199,121 +200,7 @@ public final class NativeX86Calls {
         // §235 native face: wrapper statics (parse*/is*) — before the generic
         // call so `java_lang_Integer_parseInt` never reaches the linker.
         if (NativeX86WrapperStatics.emit(sb, kc)) return;
-        if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(kc.methodName())) {
-            Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
-            // T? (get de Map, SG-008): o despacho usa o INNER — sem isso o
-            // Nullable(primitivo) não casava nenhum branch e o raw int
-            // seguia para println_string (SIGSEGV, bug 87)
-            Type dispatchType = argType instanceof Type.NullableType nt ? nt.inner() : argType;
-            // §284-map (18/09): Nullable(Int/Short/Byte/Long) = caixa fisica do
-            // slot de Map (escrita no lowerer; leitura Nullable(V) preserva o
-            // null). O INNER cru NAO vale aqui — despacha pela caixa
-            // (box_to_string imprime Int/Long como numero = golden JVM do
-            // contexto de erasure; o Char nulavel ja chega DESEMBALADO do
-            // lowerer, ramo acima, e nao passa por aqui).
-            if (argType instanceof Type.NullableType nnt
-                    && nnt.inner() instanceof Type.PrimitiveType ipt
-                    && NativeBoxTags.unboxFn(ipt.name()) != null) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_box_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.PrimitiveType pt && "char".equals(pt.name())) {
-                // char → string UTF-8 (kof_int_to_string imprimia o
-                // número do codepoint: String.valueOf(0xE9 as Char)
-                // devolvia "233" em vez de "é")
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_char_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.PrimitiveType pt && ("int".equals(pt.name())
-                    || "short".equals(pt.name()) || "byte".equals(pt.name()))) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_int_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.PrimitiveType pt && "long".equals(pt.name())) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_long_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.PrimitiveType pt && "bool".equals(pt.name())) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_bool_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.PrimitiveType pt && NativeTypeKinds.isFloatType(pt)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    movd %edi, %xmm0\n");
-                sb.append("    call kof_float_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.PrimitiveType pt && NativeTypeKinds.isDoubleType(pt)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    movq %rdi, %xmm0\n");
-                sb.append("    call kof_double_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.ClassType ct && BuiltinTypes.isList(ct)) {
-                // §107: List/Map/Set são tipos de RUNTIME (sem vtable) — o
-                // ramo genérico abaixo achava tosIdx=-1 e NÃO EMITIA NADA:
-                // o ponteiro cru caía em kof_println_string = lixo (R6).
-                // O descritor do elemento sai do typer (SEM056: homogênea);
-                // 19/09: nó recursivo (record/vtable + List/Set/Map filhos)
-                // em .rodata no próprio call-site (NativePrintDescriptors).
-                sb.append("    popq %rdi\n");
-                String ld = NativePrintDescriptors.emit(sb, nb.printDescriptorCounter++,
-                        NativePrintDescriptors.node(nb, BuiltinTypes.listElement(ct), false));
-                sb.append("    leaq ").append(ld).append("(%rip), %rsi\n");
-                sb.append("    call kof_list_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.ClassType ct && BuiltinTypes.isSet(ct)) {
-                sb.append("    popq %rdi\n");
-                String ld = NativePrintDescriptors.emit(sb, nb.printDescriptorCounter++,
-                        NativePrintDescriptors.node(nb, BuiltinTypes.setElement(ct), false));
-                sb.append("    leaq ").append(ld).append("(%rip), %rsi\n");
-                sb.append("    call kof_set_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.ClassType ct && BuiltinTypes.isMap(ct)) {
-                sb.append("    popq %rdi\n");
-                String lk = NativePrintDescriptors.emit(sb, nb.printDescriptorCounter++,
-                        NativePrintDescriptors.node(nb, BuiltinTypes.mapKey(ct), false));
-                String lv = NativePrintDescriptors.emit(sb, nb.printDescriptorCounter++,
-                        NativePrintDescriptors.node(nb, BuiltinTypes.mapValue(ct), true));
-                sb.append("    leaq ").append(lk).append("(%rip), %rsi\n");
-                sb.append("    leaq ").append(lv).append("(%rip), %rdx\n");
-                sb.append("    call kof_map_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (BuiltinTypes.isObject(dispatchType)) {
-                // §284: `Object` tem vtable base registrada (typeId 0) — o
-                // ramo genérico abaixo LERIA o campo tag do box como ponteiro
-                // de vtable (SIGSEGV). O static type Object na erasure SEMPRE
-                // carrega um box de primitivo ou referencia real:
-                // kof_box_to_string despacha por MAGIC+tag e passa nao-box
-                // cru (referencia real com toString = caso raro, vira
-                // passthrough — paridade de impressao mantida p/ o corpus).
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_box_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.ClassType ct && !BuiltinTypes.isString(dispatchType)) {
-                // valueOf(objeto) → obj.toString() via vtable (records têm
-                // toString no IR; String é identity). Paridade com o JVM.
-                int tosIdx = nb.findVirtualMethodIndex(ct.name(), "toString", java.util.List.of());
-                if (tosIdx >= 0) {
-                    sb.append("    popq %rax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("    movq 8(%rax), %rbx\n");
-                    sb.append("    addq $").append(tosIdx * 8).append(", %rbx\n");
-                    sb.append("    movq (%rbx), %rbx\n");
-                    sb.append("    popq %rdi\n");
-                    sb.append("    call *%rbx\n");
-                    sb.append("    pushq %rax\n");
-                } else {
-                    // §284: static type sem vtable (Object/Nullable(Object))
-                    // — o valor na pilha pode ser um BOX de erasure; sem este
-                    // ramo o box cru caia em println_string (SIGSEGV).
-                    // kof_box_to_string despacha por MAGIC+tag e passa
-                    // nao-box cru (invariante preservado).
-                    sb.append("    popq %rdi\n");
-                    sb.append("    call kof_box_to_string\n");
-                    sb.append("    pushq %rax\n");
-                }
-            }
-            return;
-        }
+        if (NativeX86ValueOf.emit(nb, sb, kc)) return;
         if (kc.kind() == KofCallKind.CONSTRUCTOR && "<init>".equals(kc.methodName())) {
             int argCount = kc.parameterTypes().size();
             String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
@@ -381,22 +268,14 @@ public final class NativeX86Calls {
                 // VALOR como arg explícito (espelho kof_list_contains); escrever
                 // no slot 40 corromperia a tag de chave do mapa (find seguinte).
                 if (collFn.startsWith("kof_map_") && !"kof_map_contains_value".equals(collFn)) {
-                    Type mkt = BuiltinTypes.mapKey(kc.ownerType());
-                    Type mat = argCount >= 1 ? kc.parameterTypes().get(0) : null;
-                    if (mkt instanceof Type.NullableType nt) mkt = nt.inner();
-                    if (mat instanceof Type.NullableType nt) mat = nt.inner();
-                    boolean ktKnown = mkt != null && !(mkt instanceof Type.UnknownType);
-                    boolean atKnown = mat != null && !(mat instanceof Type.UnknownType);
-                    if (ktKnown && atKnown) {
-                        sb.append("    movl $").append(
-                                BuiltinTypes.isString(mkt) && BuiltinTypes.isString(mat) ? 1 : 0)
-                          .append(", 40(%rdi)\n");
-                    } else if (ktKnown) {
-                        sb.append("    movl $").append(BuiltinTypes.isString(mkt) ? 1 : 0)
-                          .append(", 40(%rdi)\n");
-                    } else if (atKnown) {
-                        sb.append("    movl $").append(BuiltinTypes.isString(mat) ? 1 : 0)
-                          .append(", 40(%rdi)\n");
+                    // §104b-ii: tag 2 = objeto Kof (conteudo via kof_obj_equals),
+                    // 1 = String, 0 = raw; -1 = nenhum lado conhecido (nao
+                    // escreve, mantem o default historico 1).
+                    int keyTag = CollectionWrites.mapKeyTag(
+                            BuiltinTypes.mapKey(kc.ownerType()),
+                            argCount >= 1 ? kc.parameterTypes().get(0) : null);
+                    if (keyTag >= 0) {
+                        sb.append("    movl $").append(keyTag).append(", 40(%rdi)\n");
                     }
                 }
                 sb.append("    call ").append(collFn).append("\n");

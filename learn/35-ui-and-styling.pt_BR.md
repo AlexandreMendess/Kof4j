@@ -107,7 +107,7 @@ View homeView() {
 - **Multi-target** — a mesma árvore de objetos é desenhada por cada backend.
 - **Zero conversão** — a paleta é a API; hex e ANSI são detalhes internos.
 
-## Estado real (0.4.0-beta)
+## Estado real (0.5.0-beta)
 
 Esta visão está **implementada** como `kof.ui` (renderização KofJS):
 `Window`, `Label` (text/fontSize/bold/color), `Button` (ação por lambda com

@@ -22,6 +22,20 @@ public final class BuiltinCallTyper {
                     : MemberResolver.resolveType(sa, mc.typeArguments().get(0), scope);
             return new Type.ClassType("kof.concurrent", "Channel", List.of(elemType));
         }
+        if (mc.receiver() == null && "ring1".equals(mc.methodName())
+                && mc.arguments().size() == 1 && !hasUserFunctionNamed(sa, scope, "ring1")) {
+            // B-6.2b (D-BAREMETAL-RING1-SURFACE): `ring1(fn)` e um marcador
+            // builtin que baixa para a transicao ring0->ring1 no perfil x86_64
+            // UEFI_RING (NATIVE003 nomeado nos demais alvos, emitido no
+            // lowering). O argumento NAO e inferido: nome de funcao top-level
+            // em posicao de argumento e SEM011 por design; validamos apenas
+            // que e uma fn top-level de zero args.
+            if (mc.arguments().get(0) instanceof IdentifierExpr fnId
+                    && isZeroArgTopLevelFunction(sa, fnId.name())) {
+                return Type.PrimitiveType.VOID;
+            }
+            return null;
+        }
         if (mc.receiver() == null && "listOf".equals(mc.methodName())) {
             // listOf(...) keeps its element type: List<T> must survive
             // the whole pipeline (for-in, get, method resolution).
@@ -103,7 +117,7 @@ public final class BuiltinCallTyper {
             // SG-017 (SEM041): classe abstrata não pode ser instanciada —
             // cobre tanto `new A()` (SemExpressionTyper) quanto `A()` (aqui).
             if (sa.abstractClasses().contains(mc.methodName()) && sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                sa.diagnostics().error(mc,
                         "cannot instantiate abstract class '" + mc.methodName() + "'",
                         "SEM041");
             }
@@ -118,7 +132,7 @@ public final class BuiltinCallTyper {
                 // conferir TIPO inventava <init>(String)V (VerifyError mudo
                 // no load, R6). Sobrecarga com irmao compativel passa (o emit
                 // resolve por aridade+assignability).
-                TypeChecker.checkCtorArgTypes(sa, ctorClass.members(), mc.methodName(),
+                TypeChecker.checkCtorArgTypes(sa, mc, ctorClass.members(), mc.methodName(),
                         ctorArgTypes);
             } else {
                 // §362/#545: face IMPLICITA sem aridade casada caia aqui em
@@ -130,7 +144,15 @@ public final class BuiltinCallTyper {
                 // else e continua legal (`Z()` com `class Z {}` e o contrato).
                 reportNoCtorArity(sa, ctorClass, mc);
             }
-            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(), List.of());
+            // #585: o witness do call-site (`Box<Point>(...)`, forma idiomática
+            // de training/idioms/records.md) era descartado — a inferência
+            // devolvia a classe CRUA (typeArguments=[]) e a substituição de `T`
+            // no receptor virava no-op (`get(): T` → Methodref java/lang/Object
+            // → NoSuchMethodError no JVM com argumento reference-type; a face
+            // primitiva §288 mascarava o furo). Resolve o witness como o
+            // listOf/records fazem acima.
+            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(),
+                    resolveWitnessTypeArgs(sa, mc, scope));
         }
         if (mc.receiver() == null && ("println".equals(mc.methodName()) || "print".equals(mc.methodName()))) {
             // #495 (maintainer 19/09: "empty println should not compile"): o
@@ -213,6 +235,11 @@ public final class BuiltinCallTyper {
             // kof.ui probe de leak de stores.
             return Type.PrimitiveType.INT;
         }
+        if (mc.receiver() == null && "subscriptionsLive".equals(mc.methodName())
+                && mc.arguments().isEmpty()) {
+            // kof.ui probe de leak de subscriptions (D-COMPLETE-FIRST item 4).
+            return Type.PrimitiveType.INT;
+        }
         if (mc.receiver() == null && "readFile".equals(mc.methodName()) && mc.arguments().size() == 1) {
             SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return BuiltinTypes.STRING;
@@ -237,6 +264,31 @@ public final class BuiltinCallTyper {
      * a API String — na ordem exata e com as guardas originais (alguns
      * branches só valem sem receiver).
      */
+
+    /** B-6.2b: `ring1` so vale como builtin se nenhuma declaracao do usuario
+     *  (funcao top-level, externa, membro da classe atual ou local) ja usa o
+     *  nome — nao sombreia (freeze regra 2). */
+    private static boolean hasUserFunctionNamed(SemanticAnalyzer sa, SymbolTable scope, String name) {
+        if (scope != null && scope.resolve(name) != null) return true;
+        for (AstNode d : sa.unit().declarations()) {
+            if (d instanceof FunctionDeclarationNode fn && fn.name().equals(name)) return true;
+            if (d instanceof ExternalFunctionNode ext && ext.name().equals(name)) return true;
+        }
+        return sa.currentClassName() != null && !sa.currentClassName().isEmpty()
+                && MemberResolver.resolveInHierarchy(sa, sa.currentClassName(), name) != null;
+    }
+
+    /** B-6.2b: o alvo de `ring1(fn)` tem de ser uma funcao top-level de zero
+     *  args (o codigo ring1 nao recebe parametros por enquanto, B-6.2b). */
+    private static boolean isZeroArgTopLevelFunction(SemanticAnalyzer sa, String name) {
+        for (AstNode d : sa.unit().declarations()) {
+            if (d instanceof FunctionDeclarationNode fn && fn.name().equals(name)
+                    && fn.parameters().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /** #495: o diagnostico de aridade so vale para o BUILTIN. Se uma
      *  funcao/metodo do usuario com o MESMO nome existe (top-level com
@@ -265,7 +317,7 @@ public final class BuiltinCallTyper {
             if (localSym != null && localSym.type() instanceof Type.FunctionType lft) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, lft.parameterTypes());
+                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, lft.parameterTypes(), mc.arguments());
                 return lft.returnType();
             }
             if (localSym instanceof SymbolTable.LocalVariableSymbol
@@ -277,7 +329,7 @@ public final class BuiltinCallTyper {
                     String extra = (localSym.type() instanceof Type.UnknownType)
                             ? " (untyped — declare the type of the lambda parameter)"
                             : "";
-                    sa.diagnostics().error("", 0, 0, 0,
+                    sa.diagnostics().error(mc,
                             "variable '" + mc.methodName() + "' is not a function"
                                     + " and cannot be called" + extra,
                             "SEM015");
@@ -290,7 +342,7 @@ public final class BuiltinCallTyper {
                 if (m instanceof SymbolTable.MethodSymbol ms) {
                     List<Type> argTypes = new ArrayList<>();
                     for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes());
+                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
                     sa.putResolvedMethod(mc, ms);
                     return ms.returnType();
                 }
@@ -418,15 +470,19 @@ public final class BuiltinCallTyper {
                 // resolucao por aridade + conferencia de TIPO dos args,
                 // overload-aware (irmao compativel passa). Sem isto a chamada
                 // inventava <init>(String)V e o load estourava VerifyError.
-                TypeChecker.checkCtorArgTypes(sa, ctorClass.members(), mc.methodName(),
+                TypeChecker.checkCtorArgTypes(sa, mc, ctorClass.members(), mc.methodName(),
                         ctorArgTypes);
             } else {
                 // §362/#545: mesmo gate do site de typper acima (face implicita
                 // `Class(args)` sem `new`), fase/visitor irmão.
                 reportNoCtorArity(sa, ctorClass, mc);
             }
-            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(), List.of());
+            // #585: MESMO furo do site irmão acima — o witness descartado aqui
+            // também deixava o receptor cru (visitor inferTail).
+            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(),
+                    resolveWitnessTypeArgs(sa, mc, scope));
         }
+
         for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
         // String API: métodos que devolvem Int (indexOf, lastIndexOf,
         // length, compareTo...) — sem isso o var local infere Unknown
@@ -469,17 +525,29 @@ public final class BuiltinCallTyper {
         if (sa.diagnostics() == null) return;
         SymbolTable.Symbol anyInit = ctorClass.members().resolve("<init>");
         if (anyInit instanceof SymbolTable.ConstructorSymbol c) {
-            sa.diagnostics().error("", 0, 0, 0,
+            sa.diagnostics().error(mc,
                     "no constructor of '" + mc.methodName() + "' with "
                             + mc.arguments().size() + " argument(s) (expected "
                             + c.parameterTypes().size() + ")",
                     "SEM023");
         } else if (anyInit instanceof SymbolTable.ConstructorSet set
                 && !set.constructors().isEmpty()) {
-            sa.diagnostics().error("", 0, 0, 0,
+            sa.diagnostics().error(mc,
                     "no constructor of '" + mc.methodName() + "' with "
                             + mc.arguments().size() + " argument(s)",
                     "SEM023");
         }
     }
+    /** #585: resolve os type-arguments explícitos do call-site de construção
+     *  implícita (`ClassName<T>(...)`); sem witness, raw (compat aditivo). */
+    private static List<Type> resolveWitnessTypeArgs(SemanticAnalyzer sa, MethodCallExpr mc,
+            SymbolTable scope) {
+        if (mc.typeArguments().isEmpty()) return List.of();
+        List<Type> resolved = new ArrayList<>();
+        for (var ta : mc.typeArguments()) {
+            resolved.add(MemberResolver.resolveType(sa, ta, scope));
+        }
+        return resolved;
+    }
+
 }

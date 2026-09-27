@@ -1,0 +1,50 @@
+package pdf
+
+import pdf.PdfElement
+import pdf.TextElement
+import pdf.GridElement
+import pdf.LayoutEngine
+import pdf.PdfWriter
+import pdf.style.TextStyle
+
+class PdfDocument {
+    List<PdfElement> elements
+
+    constructor() {
+        elements = listOf<PdfElement>()
+    }
+
+    title(String content): TextElement {
+        return createText(content, 0, 0, false, 34, 20)
+    }
+
+    title(String content, Int x, Int y): TextElement {
+        return createText(content, x, y, true, 34, 20)
+    }
+
+    text(String content): TextElement {
+        return createText(content, 0, 0, false, 28, 12)
+    }
+
+    text(String content, Int x, Int y): TextElement {
+        return createText(content, x, y, true, 28, 12)
+    }
+
+    createText(String content, Int x, Int y, Bool positioned, Int spacingAfter, Int fontSize): TextElement {
+        TextStyle style = TextStyle().fontSize(fontSize)
+        TextElement element = TextElement(content, x, y, positioned, spacingAfter, style)
+        elements.add(element)
+        return element
+    }
+
+    grid(Int columns): GridElement {
+        GridElement element = GridElement(columns)
+        elements.add(element)
+        return element
+    }
+
+    save(String path) {
+        String contentStream = LayoutEngine().layout(elements)
+        PdfWriter().write(path, contentStream)
+    }
+}

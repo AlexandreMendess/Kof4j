@@ -2,7 +2,7 @@
 
 # Kof Types
 
-**Version:** 0.4.0-beta (Sep 2026)
+**Version:** 0.5.0-beta (Sep 2026)
 
 ## Primitive Types
 
@@ -133,7 +133,7 @@ aberto conhecido, §368 — nao anunciar). Literais sentinel `= null` continuam 
 como nos locais.
 
 
-### Troolean (tres estados — 0.4.0-beta, D-TROOL)
+### Troolean (tres estados — 0.5.0-beta, D-TROOL)
 
 `Bool` tem **exatamente dois valores**. O que precisa de `true / false / desconhecido`
 e `Troolean` (DECISIONS.md §D-TROOL):

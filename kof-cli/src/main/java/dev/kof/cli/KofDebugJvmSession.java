@@ -39,6 +39,7 @@ final class KofDebugJvmSession {
     private OutputStream out;
     private volatile long stoppedThread = -1;
     private volatile int stoppedLine = -1;
+    private volatile String stopReason = "breakpoint";
 
     KofDebugJvmSession(Path sourceFile, Integer attachPort) {
         this.sourceFile = sourceFile;
@@ -48,6 +49,12 @@ final class KofDebugJvmSession {
     void run() throws Exception {
         out = System.out;
         InputStream in = System.in;
+        // §438: SIGTERM (editor que fecha / host que derruba) nao passa pelo EOF
+        // do stdin. Sem o hook, o debuggee JVM (`-agentlib:jdwp=...,suspend=y`)
+        // e o diretorio temporario `kof-debug-*` ficavam orfaos, segurando o
+        // espaco ate esgotar o tmpfs e matar suites seguintes (mesmo hook do
+        // KofDebugNativeDap).
+        Runtime.getRuntime().addShutdownHook(new Thread(this::cleanupOnExit, "kof-dap-cleanup"));
         if (attachPort != null) {
             // X7-5 (doc §2 "attach — future"): anexa a um Kof JVM JA VIVO
             // (`java -agentlib:jdwp=...,server=y,suspend=n ...` + `kof debug --attach <porta>`).
@@ -88,6 +95,7 @@ final class KofDebugJvmSession {
                 Map<String, Object> caps = new LinkedHashMap<>();
                 caps.put("supportsConfigurationDoneRequest", true);
                 caps.put("supportsTerminateRequest", true);
+                caps.put("supportsEvaluateForHovers", true);
                 respond(seq, command, caps);
             }
             case "launch" -> {
@@ -131,9 +139,62 @@ final class KofDebugJvmSession {
                     ? "already attached (CLI --attach)"
                     : "use `kof debug --attach <porta>` — the Kof attach surface is CLI-side (X7-5)");
             case "continue" -> {
-                if (jdwp != null) jdwp.resume();
+                // limpar ANTES do resume: o evento do proximo breakpoint chega noutra
+                // thread e seta o id novo; limpar depois sobrescreveria esse id com -1
+                // (corrida medida — stackTrace seguinte virava FrameCount(-1)=error 20).
                 stoppedThread = -1;
+                if (jdwp != null) jdwp.resume();
                 respond(seq, command, Map.of("allThreadsContinued", true));
+            }
+            case "next" -> step(seq, command, 1);
+            case "stepIn" -> step(seq, command, 0);
+            case "stepOut" -> step(seq, command, 2);
+            case "pause" -> {
+                if (jdwp == null) {
+                    fail2(seq, command, "not launched");
+                    return;
+                }
+                long requested = args.get("threadId") instanceof Number n ? n.longValue() : -1;
+                try {
+                    if (requested >= 0) {
+                        jdwp.suspendThread(requested);
+                        stoppedThread = requested;
+                    } else {
+                        // Suspend the user threads, NEVER the JDWP agent's own threads
+                        // (see JdwpEvents.suspendUserThreads for the measured reason).
+                        stoppedThread = jdwp.suspendUserThreads();
+                    }
+                } catch (IOException e) {
+                    fail2(seq, command, "pause failed: " + e.getMessage());
+                    return;
+                }
+                stopReason = "pause";
+                respond(seq, command, Map.of());
+                notifyStopped();
+            }
+            case "setExceptionBreakpoints" -> {
+                if (jdwp == null) {
+                    fail2(seq, command, "not launched");
+                    return;
+                }
+                List<?> filters = args.get("filters") instanceof List<?> l ? l : List.of();
+                boolean caught = false;
+                boolean uncaught = false;
+                for (Object f : filters) {
+                    if ("caught".equals(f)) caught = true;
+                    else if ("uncaught".equals(f)) uncaught = true;
+                }
+                if (filters.isEmpty()) {
+                    // no filter = the DAP "all exceptions" default
+                    caught = true;
+                    uncaught = true;
+                }
+                jdwp.setExceptionRequest(caught, uncaught);
+                List<Object> result = new ArrayList<>();
+                for (Object f : filters) {
+                    result.add(Map.of("verified", true, "id", String.valueOf(f)));
+                }
+                respond(seq, command, Map.of("breakpoints", result));
             }
             case "threads" -> {
                 List<Object> threads = new ArrayList<>();
@@ -154,19 +215,26 @@ final class KofDebugJvmSession {
                             ? n.longValue() : stoppedThread;
                     int idx = 0;
                     lastFrames.clear();
-                    for (JdwpClient.FullFrame f : jdwp.framesFull(threadId, 50)) {
-                        Map<String, Object> frame = new LinkedHashMap<>();
-                        frame.put("id", idx);
-                        frame.put("name", f.methodName());
-                        Map<String, Object> src = new LinkedHashMap<>();
-                        src.put("path", sourceFile.toAbsolutePath().toString());
-                        src.put("line", f.line());
-                        frame.put("source", src);
-                        frame.put("line", f.line());
-                        frame.put("column", 1);
-                        frames.add(frame);
-                        lastFrames.add(f);
-                        idx++;
+                    try {
+                        for (JdwpClient.FullFrame f : jdwp.framesFull(threadId, 50)) {
+                            Map<String, Object> frame = new LinkedHashMap<>();
+                            frame.put("id", idx);
+                            frame.put("name", f.methodName());
+                            Map<String, Object> src = new LinkedHashMap<>();
+                            src.put("path", sourceFile.toAbsolutePath().toString());
+                            src.put("line", f.line());
+                            frame.put("source", src);
+                            frame.put("line", f.line());
+                            frame.put("column", 1);
+                            frames.add(frame);
+                            lastFrames.add(f);
+                            idx++;
+                        }
+                    } catch (IOException e) {
+                        // erro transitorio do JDWP (ex.: thread morta) = recusa honesta
+                        // desta requisicao; a sessao do editor NAO pode morrer por isso.
+                        fail2(seq, command, "JDWP: " + e.getMessage());
+                        return;
                     }
                 }
                 respond(seq, command, Map.of("stackFrames", frames, "totalFrames", frames.size()));
@@ -203,6 +271,53 @@ final class KofDebugJvmSession {
                 }
                 respond(seq, command, Map.of("variables", vars));
             }
+            case "evaluate" -> {
+                // JDWP has no expression evaluator: resolve a local variable NAME
+                // of the given frame (the DAP hover case). Anything else is an
+                // honest refusal — never an invented value (R6).
+                if (!(args.get("expression") instanceof String expr) || expr.isBlank()) {
+                    fail2(seq, command, "missing expression");
+                    return;
+                }
+                if (jdwp == null) {
+                    fail2(seq, command, "not stopped — cannot evaluate");
+                    return;
+                }
+                if (lastFrames.isEmpty() && stoppedThread >= 0) {
+                    // the client may evaluate before asking for stackTrace
+                    try {
+                        lastFrames.addAll(jdwp.framesFull(stoppedThread, 50));
+                    } catch (IOException e) {
+                        fail2(seq, command, "JDWP: " + e.getMessage());
+                        return;
+                    }
+                }
+                int frameId = args.get("frameId") instanceof Number n ? n.intValue() : 0;
+                if (frameId < 0 || frameId >= lastFrames.size()) {
+                    fail2(seq, command, "no frame — stop at a breakpoint first");
+                    return;
+                }
+                if (!expr.matches("[A-Za-z_$][A-Za-z0-9_$]*")) {
+                    fail2(seq, command, "JVM evaluate resolves a local variable name only"
+                            + " (JDWP has no expression evaluator)");
+                    return;
+                }
+                try {
+                    for (Object[] local : jdwp.locals(lastFrames.get(frameId))) {
+                        if (expr.equals(local[0])) {
+                            respond(seq, command, Map.of(
+                                    "result", formatValue(jdwp, (String) local[1], local[2]),
+                                    "type", sigType((String) local[1]),
+                                    "variablesReference", 0));
+                            return;
+                        }
+                    }
+                } catch (IOException e) {
+                    fail2(seq, command, "JDWP: " + e.getMessage());
+                    return;
+                }
+                fail2(seq, command, "no local named '" + expr + "' in this frame");
+            }
             case "disconnect", "terminate" -> {
                 if (!attached && jdwp != null) jdwp.dispose();
                 if (!attached && jvmProcess != null) jvmProcess.destroy();
@@ -211,7 +326,9 @@ final class KofDebugJvmSession {
                 out.flush();
                 System.exit(0);
             }
-            default -> respond(seq, command, Map.of());
+            // §428: request nao implementada responde erro HONESTO (nunca
+            // success:true + corpo vazio = fachada silenciosa, Q7).
+            default -> fail2(seq, command, "unsupported request: " + command);
         }
     }
 
@@ -222,8 +339,10 @@ final class KofDebugJvmSession {
                     jdwp.setLineBreakpoint(typeId, line);
                 }
                 jdwp.resume();
-            } else if (kind == 2) {
+            } else if (kind == 2 || kind == 1 || kind == 4) {
+                // 2 = Breakpoint, 1 = SingleStep (a step landed), 4 = Exception
                 stoppedThread = threadId;
+                stopReason = kind == 1 ? "step" : kind == 4 ? "exception" : "breakpoint";
                 for (JdwpClient.FrameInfo f : jdwp.frames(threadId, 1)) {
                     stoppedLine = f.line();
                 }
@@ -232,6 +351,24 @@ final class KofDebugJvmSession {
         } catch (IOException e) {
             System.err.println("kof debug: " + e.getMessage());
         }
+    }
+
+    /**
+     * DAP next/stepIn/stepOut: set a line SingleStep for the stopped thread and
+     * resume; the resulting SingleStep event arrives as a `stopped` with
+     * reason "step". {@code depth}: 1 = over, 0 = into, 2 = out (JDWP).
+     */
+    private void step(Object seq, String command, int depth) throws IOException {
+        if (jdwp == null || stoppedThread < 0) {
+            fail2(seq, command, "not stopped — cannot step");
+            return;
+        }
+        jdwp.setStepRequest(stoppedThread, depth);
+        // limpar ANTES do resume (mesma corrida do `continue`): o SingleStep chega
+        // noutra thread e seta stoppedThread; limpar depois o clobberava com -1.
+        stoppedThread = -1;
+        jdwp.resume();
+        respond(seq, command, Map.of());
     }
 
     private void launch(Path file) throws Exception {
@@ -322,7 +459,7 @@ final class KofDebugJvmSession {
         evt.put("type", "event");
         evt.put("event", "stopped");
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("reason", "breakpoint");
+        body.put("reason", stopReason);
         body.put("threadId", stoppedThread);
         body.put("allThreadsStopped", true);
         evt.put("body", body);
@@ -349,6 +486,18 @@ final class KofDebugJvmSession {
         response.put("command", command);
         response.put("body", body);
         KofDebug.writeMessage(out, Json.stringify(response));
+    }
+
+    /**
+     * §438: encerra o debuggee lançado por este processo e remove o diretório
+     * temporário. Chamado pelo shutdown hook (SIGTERM/System.exit); nunca toca
+     * um alvo ATTACH (processo do usuário).
+     */
+    private void cleanupOnExit() {
+        if (!attached && jvmProcess != null && jvmProcess.isAlive()) {
+            jvmProcess.destroyForcibly();
+        }
+        cleanup();
     }
 
     private void cleanup() {

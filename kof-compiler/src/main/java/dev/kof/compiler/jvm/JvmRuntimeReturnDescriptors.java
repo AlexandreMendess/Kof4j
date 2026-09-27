@@ -22,7 +22,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_json_decode_int_list", "kof_json_decode_string_list", "kof_json_decode_list"
                     -> "Ljava/util/ArrayList;";
             case "kof_json_decode_object_list" -> "Ljava/util/ArrayList;";
-            case "kof_json_decode_map", "kof_json_decode_object_map" -> "Ljava/util/Map;";
+            case "kof_json_decode_map", "kof_json_decode_object_map", "kof_json_decode_typed" -> "Ljava/util/Map;";
             case "kof_json_decode_int_array" -> "[I";
             case "kof_json_decode_bool_array" -> "[Z";
             case "kof_json_decode_long_array" -> "[J";
@@ -41,8 +41,12 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_process_run" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
             case "kof_process_exit" -> "V";
             case "kof_shell_argv" -> "Ljava/util/ArrayList;";
+            // §388-B: display de array primitivo no formato de container.
+            case "kof_array_to_string" -> "Ljava/lang/String;";
             case "kof_shell_pipeline" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
             case "kof_shell_runwith" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
+            case "kof_ssh_argv" -> "Ljava/util/ArrayList;";
+            case "kof_ssh_run" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
             case "kof_args_list" -> "Ljava/util/ArrayList;";
             case "kof_io_read_bytes" -> "[I";
             case "kof_io_read_range", "kof_io_read_range_path" -> "[I";
@@ -114,7 +118,7 @@ public final class JvmRuntimeReturnDescriptors {
                      "kof_ui_component_unmount", "kof_ui_flush_ui", "kof_ui_emit",
                      "kof_ui_event_stop", "kof_ui_store_set", "kof_ui_store_subscribe",
                      "kof_ui_store_unsubscribe" -> "V";
-             case "kof_ui_store_get", "kof_ui_store_new", "kof_ui_stores_live", "kof_ui_app_state" -> "I";
+             case "kof_ui_store_get", "kof_ui_store_new", "kof_ui_stores_live", "kof_ui_subscriptions_live", "kof_ui_app_state" -> "I";
              case "kof_ui_router_go1", "kof_ui_router_go2", "kof_ui_router_replace1",
                      "kof_ui_router_replace2", "kof_ui_router_back", "kof_ui_router_forward" -> "Z";
              case "kof_ui_router_param", "kof_ui_router_current" -> "Ljava/lang/String;";
@@ -215,6 +219,18 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_done", "kof_cancel", "kof_cancelled" -> "I";
             case "kof_select_any" -> "Ljava/lang/Object;";
             case "kof_tetris_run" -> "V";
+            case "kof_buffer_alloc" -> "Ldev/kof/runtime/KofRuntime$Buffer;";
+            case "kof_buffer_bytes" -> "[B";
+            // D-SECRETS face 1: tipo Secret.
+            case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_from_bytes" -> "Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_secret_reveal", "kof_sec_secret_redacted" -> "Ljava/lang/String;";
+            // D-SECRETS P3 (KeyHandle).
+            case "kof_sec_key_from_hex", "kof_sec_key_from_pem", "kof_sec_key_from_keystore",
+                    "kof_sec_key_rotate" -> "Ldev/kof/runtime/KofRuntime$KeyHandle;";
+            case "kof_sec_hmac_sha256_key", "kof_sec_aesgcm_encrypt_key", "kof_sec_aesgcm_decrypt_key",
+                    "kof_sec_chacha20_encrypt_key", "kof_sec_chacha20_decrypt_key",
+                    "kof_sec_jwt_create_key", "kof_sec_jwt_create_ttl_key",
+                    "kof_sec_jwt_verify_key", "kof_sec_jwt_verify_iss_aud_key" -> "Ljava/lang/String;";
             default -> "Ljava/lang/Object;";
         };
     }

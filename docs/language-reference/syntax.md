@@ -7,7 +7,7 @@ construct with minimal verifiable examples. The **formal rules** are in
 [grammar.md](grammar.md); the **tokens** in [lexical-structure.md](lexical-structure.md);
 the **semantics** in the domain documents. It does not repeat — it references.
 
-> Every example here **compiles** in `kof-compiler` 0.4.0-beta (verified by
+> Every example here **compiles** in `kof-compiler` 0.5.0-beta (verified by
 > probe/suite). Examples that *look* valid but do not compile are listed
 > in [lexical-structure.md](lexical-structure.md) §5.3 and
 > [specification-gaps.md](../bugs-and-gaps/specification-gaps.md).
@@ -190,8 +190,7 @@ The JVM binds **any scalar signature** (R3 generalized 18/09) — arbitrary arit
 scalars in any position, `void` and `String` returns. Measured on tip:
 `fmod(Double,Double):Double`→`1.5`; `ldexp(Double,Int):Double`→`12.0`;
 `strncmp(String,String,Int):Int`→`-1`; `puts(String):void`; `getenv(String):String`→`mel`.
-The Kof function name IS the C symbol (no alias). Non-scalar types (struct/array/
-pointer/callback) → `FFI001` at compile time; the JS **host runner** (GraalJS/node) binds the
+The Kof function name IS the C symbol (no alias). Non-scalar types are **partially** bound: on the **JVM** a `record` by value (argument and return), a scalar `T[]`→`ptr` (call-scoped copy-in) and an out-buffer `Buffer(U8)` (INOUT: copy-in / call / copy-back, created with `buffer.alloc`) bind since 3.8b (20–21/09, `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 4/4), and a function-typed parameter binds as a C callback on JVM/JS (3.4); the remaining faces (struct/array/out-buffer on Native, JS struct bridge, Native callbacks) → `FFI001` at compile time; the JS **host runner** (GraalJS/node) binds the
 same scalar ABI through `KofJsFfiBridge` — JVM↔JS parity proven 18/09 (`FfiE2ETest` 16/16,
 slice 3.6.F2/F3 ✅) — with non-scalars → `FFI002` there and the browser an honest **runtime**
 error (R7, no host, same degrade as `kof.io`); **Native binds the same scalar ABI DIRECT on
@@ -202,7 +201,8 @@ Kof conversion rule on every target (§370/#549 fixed 20/09): `Int`/`Double` int
 `Int`/`Long`/`Float` into a `Double` slot etc. are converted; String/Bool/`Double→Int` are `SEM014`.
 The lib path is resolved at **runtime** on JVM/JS (missing symbol = `kof_ffi_*` exception).
 History: widening was the R3 slice (#431); the JVM face landed 18/09 (`.18`), JS host the same day,
-Native x86-64 + riscv64/aarch64 on 20/09.
+Native x86-64 + riscv64/aarch64 on 20/09, and the D6 struct/array/out-buffer shapes on the JVM
+(record by value in/out, `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT) on 20–21/09.
 
 ## Tests and lifecycle
 

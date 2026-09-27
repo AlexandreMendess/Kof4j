@@ -24,6 +24,8 @@ class CmdWorkflowTest {
     private static Process startCli(Path workDir, String... cliArgs) throws IOException {
         java.util.List<String> cmd = new java.util.ArrayList<>();
         cmd.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+        cmd.add("--enable-native-access=ALL-UNNAMED");
+        cmd.add("--sun-misc-unsafe-memory-access=allow");
         cmd.add("-cp");
         cmd.add(System.getProperty("java.class.path"));
         cmd.add("dev.kof.cli.Main");
@@ -112,6 +114,43 @@ class CmdWorkflowTest {
     }
 
     @Test
+    void runJsTargetFacesJvmBytes(@TempDir Path dir) throws Exception {
+        Path f = pipeline(dir, "pipe.kf", CHAIN);
+        CliResult jvm = run(dir, "workflow", "run", f.toString());
+        CliResult js = run(dir, "workflow", "run", f.toString(), "--target", "js");
+        assertEquals(0, js.exit(), js.out());
+        assertEquals(jvm.out(), js.out());
+    }
+
+    @Test
+    void runJsFailureExitsOneLikeJvm(@TempDir Path dir) throws Exception {
+        Path f = pipeline(dir, "bad.kf", """
+            import kof.workflow
+            KofWfDag pipeline() {
+                var good = job("good", () -> true)
+                var bad = job("bad", () -> false).after(good)
+                return dag(listOf(good, bad))
+            }
+            """);
+        CliResult jvm = run(dir, "workflow", "run", f.toString());
+        assertEquals(1, jvm.exit(), jvm.out());
+        CliResult js = run(dir, "workflow", "run", f.toString(), "--target", "js");
+        assertEquals(1, js.exit(), js.out());
+        assertEquals(jvm.out(), js.out());
+    }
+
+    @Test
+    void runJsDryRunAndJobFacesJvm(@TempDir Path dir) throws Exception {
+        Path f = pipeline(dir, "pipe.kf", CHAIN);
+        CliResult jvm = run(dir, "workflow", "run", f.toString(), "--dry-run");
+        CliResult js = run(dir, "workflow", "run", f.toString(), "--dry-run", "--target", "js");
+        assertEquals(jvm.out(), js.out());
+        CliResult jvmJob = run(dir, "workflow", "run", f.toString(), "--job", "image");
+        CliResult jsJob = run(dir, "workflow", "run", f.toString(), "--job", "image", "--target", "js");
+        assertEquals(jvmJob.out(), jsJob.out());
+    }
+
+    @Test
     void jobRestrictsToTransitiveSubgraph(@TempDir Path dir) throws Exception {
         Path f = pipeline(dir, "chain.kf", """
             import kof.workflow
@@ -150,9 +189,12 @@ class CmdWorkflowTest {
         assertEquals(1, flag.exit(), flag.out());
         assertTrue(flag.out().contains("unknown or incomplete flag"), flag.out());
 
-        CliResult js = run(dir, "workflow", "run", f.toString(), "--target", "js");
-        assertEquals(1, js.exit(), js.out());
-        assertTrue(js.out().contains("JVM first"), js.out());
+        CliResult nativeT = run(dir, "workflow", "run", f.toString(), "--target", "native");
+        assertEquals(1, nativeT.exit(), nativeT.out());
+        assertTrue(nativeT.out().contains("not supported yet"), nativeT.out());
+
+        CliResult jsOk = run(dir, "workflow", "run", f.toString(), "--target", "js");
+        assertEquals(0, jsOk.exit(), jsOk.out());
 
         CliResult listJob = run(dir, "workflow", "list", f.toString(), "--job", "build");
         assertEquals(1, listJob.exit(), listJob.out());

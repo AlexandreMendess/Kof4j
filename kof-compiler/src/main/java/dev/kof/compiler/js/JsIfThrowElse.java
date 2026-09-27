@@ -61,6 +61,12 @@ public final class JsIfThrowElse {
                     out.add(flow.parseLoop(ctx, pos, kl.label()));
                     continue;
                 }
+                // §380: o falseLabel de um `if` ENVOLVENTE ativo não é o fim
+                // do else interno — consumi-lo rouba a fronteira do dono e
+                // absorve o epílogo externo no then (path não-throw virava
+                // undefined). Devolve sem consumir; o parseStatements do
+                // envolvente casa o label (endLabels dele).
+                if (ctx.isEnclosingIfFalse(kl.label())) return out;
                 pos[0]++;
                 return out;
             }

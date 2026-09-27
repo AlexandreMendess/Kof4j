@@ -3,7 +3,7 @@
 # Standard Library — Proposta
 
 **Última atualização:** 16 de setembro de 2026
-> **Atualizado (0.4.0-beta):** a stdlib está amplamente implementada nos 3
+> **Atualizado (0.5.0-beta):** a stdlib está amplamente implementada nos 3
 > targets (JVM/Native/JS) — `kof.core`, `kof.collections`, `kof.io`,
 > `kof.time`, `kof.json` (FP + arrays completos no Native, 31/08),
 > `kof.http` (client + resiliência JVM+JS), `kof.web` (`web.app()` +
@@ -14,7 +14,7 @@
 > matriz de módulos e a arquitetura vivem em `docs/stdlib/stdlib.md`** (fonte de
 > referência). A tabela abaixo é o plano original, com o estado atual.
 
-**Status:** amplamente implementado (0.4.0-beta; ver `docs/stdlib/stdlib.md`)
+**Status:** amplamente implementado (0.5.0-beta; ver `docs/stdlib/stdlib.md`)
 
 ---
 
@@ -136,7 +136,7 @@ Suite estruturada (`test "soma" { ... }`): implementada nos 3 targets (`Structur
 | kof.time | Média | Implementado (`now()`, `sleep`, `interval`) |
 | kof.concurrent | Alta | Implementado (`spawn`/`await`/`channel<T>`, 3 targets) |
 | kof.test | Alta | Implementado (`assert` + `test "name"` + `kof test`) |
-| kof.sql | Alta | Implementado como `kof.db`/`kof.orm` (MySQL wire WIP) — nome do módulo no plano |
+| kof.sql | Alta | Implementado como `kof.db`/`kof.orm` (MySQL wire x86-64 real, 13 faces ORM 22/09) — nome do módulo no plano |
 
 ---
 

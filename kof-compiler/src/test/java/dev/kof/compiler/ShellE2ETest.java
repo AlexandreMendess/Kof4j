@@ -191,33 +191,81 @@ class ShellE2ETest {
     }
 
     @Test
-    void runOnNativeIsHonestProc001() throws Exception {
-        assertGap(Target.NATIVE, "PROC001", """
+    void runOnNativeMatchesJvmGolden() throws Exception {
+        // D-FULL-PARITY-050 row 2 slice A: shell.run emits kof_process_run on
+        // the x86-64 native target — byte parity vs the JVM oracle.
+        assertNativeParity("""
             main() {
                 var r = shell.run("echo", listOf("hi"))
                 println(r.stdout)
+                println(r.exitCode)
             }
-            """);
+            """, "hi\n\n0\n");
     }
 
     @Test
-    void cmdOnNativeIsHonestProc001() throws Exception {
-        assertGap(Target.NATIVE, "PROC001", """
+    void cmdOnNativeBuildsArgv() throws Exception {
+        // cmd = the RuntimeShell argv prepend ([program, args...]) — the JVM
+        // oracle is exactly this (no splitting).
+        assertNativeParity("""
             main() {
                 var a = shell.cmd("echo", listOf("hi"))
                 println(a.size())
+                println(a.get(0))
+                println(a.get(1))
+            }
+            """, "2\necho\nhi\n");
+    }
+
+    @Test
+    void crossProcessAndShellFacesLanded() throws Exception {
+        // D-FULL-PARITY-050 row 1 slice C + row 2: process.run AND shell.run/
+        // cmd/ok now emit on the cross (NativeRiscvAsmProcess + NativeRiscvAsmShell);
+        // pipeline/runWith stay the honest compile-time PROC001 (R6).
+        assertCompiles(Target.NATIVE_RISCV64, """
+            main() {
+                var r = process.run("echo", "hi")
+                var s = shell.run("echo", listOf("hi"))
+                var a = shell.cmd("echo", listOf("hi"))
+                println(r.stdout)
+                println(s.stdout)
+                println(shell.ok(s))
+                println(a.size())
+            }
+            """);
+        assertCompiles(Target.NATIVE_AARCH64, """
+            main() {
+                var s = shell.run("echo", listOf("hi"))
+                println(s.stdout)
             }
             """);
     }
 
     @Test
-    void pipelineOnNativeIsHonestProc001() throws Exception {
-        assertGap(Target.NATIVE, "PROC001", """
-            main() {
-                var p = shell.pipeline(listOf(listOf("echo", "hi"), listOf("wc", "-l")))
-                println(p.stdout)
-            }
-            """);
+    void pipelineLandedOnCross() throws Exception {
+        // slice B2 — pipeline emits on the cross (kernel pipe-chaining).
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            assertCompiles(t, """
+                main() {
+                    var p = shell.pipeline(listOf(listOf("echo", "hi"), listOf("wc", "-l")))
+                    println(p.stdout)
+                }
+                """);
+        }
+    }
+
+    @Test
+    void runWithLandedOnCross() throws Exception {
+        // slice B1 — runWith(argv, cwd, env) emits on the cross (inherited
+        // cwd/env is the byte-parity path; non-empty cwd/env is an honest Result).
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            assertCompiles(t, """
+                main() {
+                    var r = shell.runWith(shell.cmd("echo", listOf("hi")), "", mapOf())
+                    println(r.stdout)
+                }
+                """);
+        }
     }
 
     @Test
@@ -291,16 +339,181 @@ class ShellE2ETest {
         assertTrue(jvm.output().contains("yes"), () -> "expected honest stderr: " + jvm.output());
     }
 
-    /** 2.2.3 — Native stays an honest PROC001 gap (waits for the native lane's
-     *  process.run; no silent stub — the §129 rule). */
+    /** 2.2.3 on the native target (row 2 slice B): runWith is real on
+     *  x86-64 — pwd proves cwd, $KOF_RWX the ADDITIVE env, $PATH the
+     *  inheritance (never a silent wipe — the JVM putAll contract), and the
+     *  empty-cwd form inherits. Byte parity JVM == NATIVE, same source. */
     @Test
-    void runWithOnNativeIsHonestProc001() throws Exception {
-        assertGap(Target.NATIVE, "PROC001", """
+    void runWithOnNativeMatchesJvmGolden() throws Exception {
+        Files.writeString(tmp.resolve("RWN.kf"), """
             main() {
-                var r = shell.runWith(shell.cmd("make", listOf("-j4")), "/src", mapOf("CC", "clang"))
-                println(r.stdout)
+                var r = shell.runWith(listOf("/bin/sh", "-c", "pwd; echo KOF_RWX=$KOF_RWX; echo P=$PATH"), "%1$s", mapOf("KOF_RWX", "on"))
+                println(r.exitCode)
+                var out = r.stdout.trim()
+                var nl = out.indexOf("\\n")
+                var pwd = out.substring(0, nl)
+                println(pwd.length() > 0)
+                println(out.contains("KOF_RWX=on"))
+                println(out.contains("P=/"))
+                var inherited = shell.runWith(listOf("/bin/pwd"), "", mapOf())
+                println(inherited.exitCode)
+            }
+            """.formatted(tmp.toString()));
+        var jvmOut = new java.io.ByteArrayOutputStream();
+        CompilationResult jr = driver.compile(tmp.resolve("RWN.kf"), tmp.resolve("o-rwn-jvm"), Target.JVM);
+        assertTrue(jr.success(), "JVM must compile: " + jr.diagnostics().getDiagnostics());
+        var oldOut = System.out;
+        System.setOut(new java.io.PrintStream(jvmOut, true, java.nio.charset.StandardCharsets.UTF_8));
+        String jvm;
+        try {
+            var cl = new java.net.URLClassLoader(new java.net.URL[]{tmp.resolve("o-rwn-jvm").toUri().toURL()},
+                    getClass().getClassLoader());
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        jvm = jvmOut.toString(java.nio.charset.StandardCharsets.UTF_8);
+        CompilationResult nr = driver.compile(tmp.resolve("RWN.kf"), tmp.resolve("o-rwn-nat"), Target.NATIVE);
+        assertTrue(nr.success(), "NATIVE must compile: " + nr.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(tmp.resolve("o-rwn-nat").resolve("Default/Main").toString())
+                .redirectErrorStream(false).start();
+        String nat = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(jvm, nat, "runWith must match the JVM golden byte-for-byte");
+        assertEquals("0\ntrue\ntrue\ntrue\n0\n", jvm, "JVM shape");
+    }
+
+    /** 2.2.3 honest failures on the native target, byte parity JVM == NATIVE:
+     *  invalid cwd → exit -1 + stderr; empty argv → exit -1 + "empty argv".
+     *  (The msg TEXT may differ per target — the flags pin the CONTRACT.) */
+    @Test
+    void runWithHonestFailuresOnNative() throws Exception {
+        Files.writeString(tmp.resolve("RWFN.kf"), """
+            main() {
+                var r = shell.runWith(listOf("pwd"), "/nonexistent-kof-2-2-3", mapOf())
+                println(r.exitCode)
+                var hasErr = "no"
+                if (r.stderr.length() > 0) {
+                    hasErr = "yes"
+                }
+                println(hasErr)
+                var e = shell.runWith(listOf(), "/tmp", mapOf())
+                println(e.exitCode)
+                var hasMsg = "no"
+                if (e.stderr.contains("empty argv")) {
+                    hasMsg = "yes"
+                }
+                println(hasMsg)
             }
             """);
+        var jvmOut = new java.io.ByteArrayOutputStream();
+        CompilationResult jr = driver.compile(tmp.resolve("RWFN.kf"), tmp.resolve("o-rwfn-jvm"), Target.JVM);
+        assertTrue(jr.success(), "JVM must compile: " + jr.diagnostics().getDiagnostics());
+        var oldOut = System.out;
+        System.setOut(new java.io.PrintStream(jvmOut, true, java.nio.charset.StandardCharsets.UTF_8));
+        String jvm;
+        try {
+            var cl = new java.net.URLClassLoader(new java.net.URL[]{tmp.resolve("o-rwfn-jvm").toUri().toURL()},
+                    getClass().getClassLoader());
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        jvm = jvmOut.toString(java.nio.charset.StandardCharsets.UTF_8);
+        CompilationResult nr = driver.compile(tmp.resolve("RWFN.kf"), tmp.resolve("o-rwfn-nat"), Target.NATIVE);
+        assertTrue(nr.success(), "NATIVE must compile: " + nr.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(tmp.resolve("o-rwfn-nat").resolve("Default/Main").toString())
+                .redirectErrorStream(false).start();
+        String nat = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(jvm, nat, "runWith failure shapes must match JVM byte-for-byte");
+        assertEquals("-1\nyes\n-1\nyes\n", jvm, "JVM shape");
+    }
+
+    /** 2.2.4 — pipeline on NATIVE x86-64: kernel pipe-chaining with last-stage
+     *  capture, byte parity JVM == NATIVE (2-stage, 3-stage, and a mid-chain
+     *  mismatch whose exit code must come from the LAST stage). */
+    @Test
+    void pipelineOnNativeMatchesJvmGolden() throws Exception {
+        Files.writeString(tmp.resolve("PLN.kf"), """
+            main() {
+                var p = shell.pipeline(listOf(listOf("echo", "one two three"), listOf("wc", "-w")))
+                println(p.exitCode)
+                println(p.stdout)
+                var q = shell.pipeline(listOf(listOf("echo", "a"), listOf("grep", "b")))
+                println(q.exitCode)
+                println(q.stdout.length())
+                var t = shell.pipeline(listOf(listOf("printf", "x"), listOf("grep", "y"), listOf("wc", "-c")))
+                println(t.exitCode)
+                println(t.stdout)
+            }
+            """);
+        var jvmOut = new java.io.ByteArrayOutputStream();
+        CompilationResult jr = driver.compile(tmp.resolve("PLN.kf"), tmp.resolve("o-pln-jvm"), Target.JVM);
+        assertTrue(jr.success(), "JVM must compile: " + jr.diagnostics().getDiagnostics());
+        var oldOut = System.out;
+        System.setOut(new java.io.PrintStream(jvmOut, true, java.nio.charset.StandardCharsets.UTF_8));
+        String jvm;
+        try {
+            var cl = new java.net.URLClassLoader(new java.net.URL[]{tmp.resolve("o-pln-jvm").toUri().toURL()},
+                    getClass().getClassLoader());
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        jvm = jvmOut.toString(java.nio.charset.StandardCharsets.UTF_8);
+        CompilationResult nr = driver.compile(tmp.resolve("PLN.kf"), tmp.resolve("o-pln-nat"), Target.NATIVE);
+        assertTrue(nr.success(), "NATIVE must compile: " + nr.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(tmp.resolve("o-pln-nat").resolve("Default/Main").toString())
+                .redirectErrorStream(false).start();
+        String nat = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(jvm, nat, "pipeline must match the JVM golden byte-for-byte");
+        assertEquals("0\n3\n\n1\n0\n0\n0\n\n", jvm, "JVM shape");
+    }
+
+    /** 2.2.4 honest failures on NATIVE x86-64, byte parity JVM == NATIVE:
+     *  no stages and an empty stage both give ("", msg, -1) with the exact
+     *  JVM oracle messages. The 65-stage JVM-vs-native cap divergence stays
+     *  a declared R7 gap (native refuses honestly; the JVM has no cap) —
+     *  pinned in the ledger, not silently divergent. */
+    @Test
+    void pipelineHonestFailuresOnNative() throws Exception {
+        Files.writeString(tmp.resolve("PLF.kf"), """
+            main() {
+                var stages: List<List<String>> = listOf()
+                var bad = shell.pipeline(stages)
+                println(bad.exitCode)
+                println(bad.stderr)
+                var empty: List<String> = listOf()
+                var p = shell.pipeline(listOf(listOf("echo", "hi"), empty))
+                println(p.exitCode)
+                println(p.stderr)
+            }
+            """);
+        var jvmOut = new java.io.ByteArrayOutputStream();
+        CompilationResult jr = driver.compile(tmp.resolve("PLF.kf"), tmp.resolve("o-plf-jvm"), Target.JVM);
+        assertTrue(jr.success(), "JVM must compile: " + jr.diagnostics().getDiagnostics());
+        var oldOut = System.out;
+        System.setOut(new java.io.PrintStream(jvmOut, true, java.nio.charset.StandardCharsets.UTF_8));
+        String jvm;
+        try {
+            var cl = new java.net.URLClassLoader(new java.net.URL[]{tmp.resolve("o-plf-jvm").toUri().toURL()},
+                    getClass().getClassLoader());
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        jvm = jvmOut.toString(java.nio.charset.StandardCharsets.UTF_8);
+        CompilationResult nr = driver.compile(tmp.resolve("PLF.kf"), tmp.resolve("o-plf-nat"), Target.NATIVE);
+        assertTrue(nr.success(), "NATIVE must compile: " + nr.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(tmp.resolve("o-plf-nat").resolve("Default/Main").toString())
+                .redirectErrorStream(false).start();
+        String nat = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(jvm, nat, "pipeline failure shapes must match JVM byte-for-byte");
+        assertEquals("-1\nkof_shell_pipeline: no stages\n-1\nkof_shell_pipeline: empty stage\n",
+                jvm, "JVM shape");
     }
 
     /** 2.2.3 — wrong arity/types on runWith fall through to SEM025 (the
@@ -315,8 +528,41 @@ class ShellE2ETest {
             """);
     }
 
-    private void assertGap(Target target, String code, String source) throws Exception {
-        Files.writeString(tmp.resolve("G.kf"), source);
+    /** Compiles the SAME source for JVM (reflection stdout capture) and
+     *  NATIVE (real binary) and demands byte-identical stdout. */
+    private void assertNativeParity(String source, String expected) throws Exception {
+        Files.writeString(tmp.resolve("P.kf"), source);
+        var jvmOut = new java.io.ByteArrayOutputStream();
+        CompilationResult jr = driver.compile(tmp.resolve("P.kf"), tmp.resolve("o-jvm"), Target.JVM);
+        assertTrue(jr.success(), "JVM must compile: " + jr.diagnostics().getDiagnostics());
+        var oldOut = System.out;
+        System.setOut(new java.io.PrintStream(jvmOut, true, java.nio.charset.StandardCharsets.UTF_8));
+        String jvm;
+        try {
+            var cl = new java.net.URLClassLoader(new java.net.URL[]{tmp.resolve("o-jvm").toUri().toURL()},
+                    getClass().getClassLoader());
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        jvm = jvmOut.toString(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(expected, jvm, "JVM golden");
+        CompilationResult nr = driver.compile(tmp.resolve("P.kf"), tmp.resolve("o-nat"), Target.NATIVE);
+        assertTrue(nr.success(), "NATIVE must compile: " + nr.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(tmp.resolve("o-nat").resolve("Default/Main").toString())
+                .redirectErrorStream(false).start();
+        String nat = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(expected, nat, "NATIVE must match the JVM golden byte-for-byte");
+    }
+
+    private void assertCompiles(Target target, String source) throws Exception {
+        Files.writeString(tmp.resolve("C.kf"), source);
+        CompilationResult r = driver.compile(tmp.resolve("C.kf"), tmp.resolve("o-c-" + target), target);
+        assertTrue(r.success(), target + " must compile: " + diags(r));
+    }
+
+    private void assertGap(Target target, String code, String source) throws Exception {        Files.writeString(tmp.resolve("G.kf"), source);
         CompilationResult r = driver.compile(tmp.resolve("G.kf"), tmp.resolve("o-" + target), target);
         assertFalse(r.success(), target + " must refuse the call (" + code + ")");
         Set<String> codes = new LinkedHashSet<>();

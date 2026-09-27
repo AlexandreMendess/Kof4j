@@ -38,6 +38,15 @@ public final class MethodCtx {
      * monotônico → sem colisões; o dispatcher remove após o uso (uma só vez).
      */
     final Set<LabelId> statementIfLabels = new java.util.HashSet<>();
+    /**
+     * §380: pilha dos falseLabels dos `if` ATIVOS (parsing em curso). Um label
+     * nesta pilha pertence a estrutura ENVOLVENTE — `parseElse`/ramo no-else de
+     * um `if` interno NUNCA o consome (o roubo do falseLabel do `if` externo
+     * era o §380: epílogo absorvido no then, caminho não-throw = undefined).
+     * Labels de loop/try têm guarda própria anterior (§147/§266 intactos).
+     */
+    final java.util.Deque<LabelId> enclosingIfFalses = new java.util.ArrayDeque<>();
+    boolean isEnclosingIfFalse(LabelId label) { return enclosingIfFalses.contains(label); }
     final boolean instanceMethod;
     final String kofClassName;
     final String methodName;

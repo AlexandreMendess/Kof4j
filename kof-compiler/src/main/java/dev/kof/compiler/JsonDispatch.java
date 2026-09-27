@@ -11,6 +11,15 @@ public final class JsonDispatch {
     static int listTag(Type elemType) {
         if (BuiltinTypes.isString(elemType)) return 1;
         if (elemType instanceof Type.PrimitiveType pt && "bool".equals(pt.name())) return 2;
+        // §512 (26/09): Double/Long crus no slot eram colapsados no tag 0 e o
+        // encoder x86 despejava `encode_int` sobre os bits IEEE (List<Double>
+        // virava lixo). float continua cru no slot de 4B — ainda tag 0
+        // (dívida catalogada no mesmo §512).
+        if (elemType instanceof Type.PrimitiveType pt && "double".equals(pt.name())) return 3;
+        if (elemType instanceof Type.PrimitiveType pt && "long".equals(pt.name())) return 5;
+        // §516 (26/09): elemento-objeto (record/classe) — walk em runtime pela
+        // tabela de schema resolve pelo TYPE_ID no header (kof_json_encode_object).
+        if (elemType instanceof Type.ClassType) return 4;
         return 0;
     }
 
@@ -66,7 +75,15 @@ public final class JsonDispatch {
             }
             return "kof_json_decode_list";
         }
-        if (type instanceof Type.ClassType ct) return "kof_json_decode_" + sanitize(ct.name());
+        if (type instanceof Type.ClassType ct) {
+            // #627: the runtime defines the per-record decoder under the
+            // mangled FULLY-QUALIFIED name (JvmRuntime.source); using the
+            // simple name worked only for default-package records and died
+            // with NoSuchMethodError for packaged ones.
+            String qn = ct.packageName().isEmpty()
+                    ? ct.name() : ct.packageName() + "." + ct.name();
+            return "kof_json_decode_" + sanitize(qn);
+        }
         return "kof_json_decode_string";
     }
 

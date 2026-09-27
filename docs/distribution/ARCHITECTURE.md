@@ -2,7 +2,7 @@
 
 # Kof Distribution Architecture
 
-**Version:** 0.4.0-beta (09/16/2026)
+**Version:** 0.5.0-beta (09/16/2026)
 
 Kof is not just a compiler — it is a distributable platform. Starting with
 0.2.x-beta, the project treats installation as an official part of the product:
@@ -171,7 +171,7 @@ sha256sum -c SHA256SUMS
 After installing:
 
 ```bash
-kof version      # kof 0.4.0-beta (the version of your release)
+kof version      # kof 0.5.0-beta (the version of your release)
 kof info         # full environment (embedded JVM shows up with "(embedded)")
 kof run hello.kf
 ```

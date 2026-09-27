@@ -2,7 +2,7 @@
 
 # 34 — Filesystem (kof.io)
 
-> **Kof 0.4.0-beta — `intention->Kof->frontend->IR->backend->runtime` — kof.io + kof.http (JVM+JS)**
+> **Kof 0.5.0-beta — `intention->Kof->frontend->IR->backend->runtime` — kof.io + kof.http (JVM+JS)**
 
 `kof.io` é a API oficial de filesystem do Kof. Uma única API para JVM e
 Native, Linux, macOS e Windows — sem expor POSIX, `java.nio` ou syscalls.

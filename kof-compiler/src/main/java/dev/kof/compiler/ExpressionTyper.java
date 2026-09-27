@@ -183,8 +183,11 @@ public final class ExpressionTyper {
                     t = coll;
                 }
                 if (!ne.typeArguments().isEmpty() && t instanceof Type.ClassType cts) {
+                    // #585: resolução ciente do analyzer — o 2-arg podia deixar
+                    // um argumento reference-type sem qualificar (internal "").
                     t = new Type.ClassType(cts.packageName(), cts.name(),
-                            ne.typeArguments().stream().map(n -> CompilerTypes.toType(n, driver.currentUnit)).toList());
+                            ne.typeArguments().stream().map(n -> CompilerTypes.toType(n,
+                                    driver.currentUnit, driver.semanticAnalyzer)).toList());
                 }
                 yield t;
             }
@@ -205,78 +208,7 @@ public final class ExpressionTyper {
                 if (recvType instanceof Type.ArrayType at) yield at.componentType();
                 yield Type.UnknownType.UNKNOWN;
             }
-            case FieldAccessExpr fa -> {
-                Type recvType = inferExprType(driver, fa.receiver(), locals);
-                // narrowing de null-safety: `if (x != null) { x.length }` — inner type
-                if (recvType instanceof Type.NullableType nt) recvType = nt.inner();
-                if (KofProcess.isResult(recvType) && KofProcess.isField(fa.fieldName())) {
-                    yield KofProcess.fieldType(fa.fieldName());
-                }
-                if (KofUi.isComponent(recvType) && "state".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (KofUi.isWindow(recvType) && "title".equals(fa.fieldName())) {
-                    yield BuiltinTypes.STRING;
-                }
-                if (KofUi.isLabel(recvType) && "text".equals(fa.fieldName())) {
-                    yield BuiltinTypes.STRING;
-                }
-                if (KofUi.isLabel(recvType) && "fontSize".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (KofUi.isLabel(recvType) && "bold".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.BOOL;
-                }
-                if (KofUi.isLabel(recvType) && "color".equals(fa.fieldName())) {
-                    yield KofUi.COLOR;
-                }
-                if (fa.receiver() instanceof IdentifierExpr pId && KofUi.isPalette(pId.name())
-                        && KofUi.paletteColor(fa.fieldName()) != null) {
-                    yield KofUi.COLOR;
-                }
-                if (fa.receiver() instanceof IdentifierExpr tid && KofUiTokens.isTokenNamespace(tid.name())
-                        && KofUiTokens.tokenValue(tid.name(), fa.fieldName()) != null) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (BuiltinTypes.isList(recvType) && ("size".equals(fa.fieldName()) || "length".equals(fa.fieldName()))) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (BuiltinTypes.isMap(recvType) && ("size".equals(fa.fieldName()) || "length".equals(fa.fieldName()))) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (BuiltinTypes.isSet(recvType) && ("size".equals(fa.fieldName()) || "length".equals(fa.fieldName()))) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (recvType instanceof Type.ArrayType && ("length".equals(fa.fieldName())
-                        || "size".equals(fa.fieldName()) || "count".equals(fa.fieldName()))) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (Type.isString(recvType) && "length".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (Type.isString(recvType) && ("name".equals(fa.fieldName()) || "path".equals(fa.fieldName()))) {
-                    yield BuiltinTypes.STRING;
-                }
-                if (recvType instanceof Type.ClassType ct
-                        && CompilerTypes.isEnumName(ct.name(), driver.currentUnit)) { // #445: pkg real
-                    if (!CompilerTypes.enumConstantsOf(ct.name(), driver.currentUnit).contains(fa.fieldName()) && driver.currentDiagnostics != null) {
-                        driver.currentDiagnostics.error("", 0, 0, 0,
-                                "enum '" + ct.name() + "' has no constant '" + fa.fieldName() + "'",
-                                "SEM030");
-                    }
-                    yield recvType;
-                }
-                if (recvType instanceof Type.ClassType ct && driver.semanticAnalyzer != null) {
-                    SymbolTable.Symbol s = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), driver.semanticAnalyzer);
-                    if (s instanceof SymbolTable.FieldSymbol fs) {
-                        yield CompilerTypes.substituteTypeVariableIn(fs.type(), recvType, driver.currentUnit);
-                    }
-                    if (s instanceof SymbolTable.MethodSymbol ms && ms.parameterTypes().isEmpty()) {
-                        yield CompilerTypes.substituteTypeVariableIn(ms.returnType(), recvType, driver.currentUnit);
-                    }
-                }
-                yield Type.UnknownType.UNKNOWN;
-            }
+            case FieldAccessExpr fa -> ExpressionFieldAccessTyper.type(driver, fa, locals);
             case LambdaExpr le -> {
                 List<Type> paramTypes = new ArrayList<>();
                 List<IRLocalVariable> extended = new ArrayList<>(locals);

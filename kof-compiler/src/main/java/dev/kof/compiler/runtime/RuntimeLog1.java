@@ -283,11 +283,9 @@ public final class RuntimeLog1 {
             .Llog_have_thresh:
                 cmpq %rax, %r12
                 jl .Llog_suppressed
-                # clock_gettime(CLOCK_REALTIME)
+                # kof_plat_time (CLOCK_REALTIME, timespec)
                 leaq 0(%rsp), %rdi
-                xorq %rsi, %rsi
-                movq $96, %rax
-                syscall
+                call kof_plat_time
                 movq 8(%rsp), %rax           # nsec
                 xorq %rdx, %rdx
                 movq $1000000, %rcx

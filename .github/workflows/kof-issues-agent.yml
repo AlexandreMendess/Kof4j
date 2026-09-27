@@ -11,49 +11,55 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
 
 jobs:
   triage:
     name: Triage Issue
     runs-on: ubuntu-latest
+    permissions:
+      issues: write # addLabels + addAssignees
     timeout-minutes: 5
     if: github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'reopened')
     steps:
       - name: Auto-label by content
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const issue = context.payload.issue;
             const body = (issue.body || '').toLowerCase();
+            // #600: match by WHOLE WORD, never by substring — a bare
+            // `body.includes('rce')` labeled "source"/"enforce"/"resource" as
+            // security (33/37 false labels), `js` matched "json", `doc`
+            // matched "docker"/"docs/...", `native` matched "alternative".
+            const word = (w) => new RegExp('(^|[^a-z0-9_])' + w + '([^a-z0-9_]|$)');
+            const has = (...ws) => ws.some((w) => word(w).test(body));
             const labels = [];
 
-            // Security-related
-            if (body.includes('security') || body.includes('vulnerability') || body.includes('exploit') || body.includes('rce') || body.includes('xss') || body.includes('sql injection')) {
+            // Security-related — never inferred from arbitrary prose.
+            if (has('security', 'vulnerability', 'exploit', 'rce', 'xss', 'sql injection')) {
               labels.push('security');
             }
 
             // Bug vs Feature
-            if (body.includes('bug') || body.includes('crash') || body.includes('error') || body.includes('exception') || body.includes('fail') || body.includes('broken')) {
+            if (has('bug', 'crash', 'error', 'exception', 'fail', 'broken')) {
               labels.push('bug');
-            } else if (body.includes('feature') || body.includes('request') || body.includes('enhancement') || body.includes('improve')) {
+            } else if (has('feature', 'request', 'enhancement', 'improve')) {
               labels.push('enhancement');
             }
 
             // Documentation
-            if (body.includes('doc') || body.includes('documentation') || body.includes('readme') || body.includes('typo')) {
+            if (has('doc', 'documentation', 'readme', 'typo')) {
               labels.push('documentation');
             }
 
             // Platform/Target
-            if (body.includes('native') || body.includes('riscv') || body.includes('aarch64') || body.includes('arm64')) {
+            if (has('native', 'riscv', 'aarch64', 'arm64')) {
               labels.push('native');
             }
-            if (body.includes('js') || body.includes('javascript') || body.includes('browser') || body.includes('node')) {
+            if (has('js', 'javascript', 'browser', 'node')) {
               labels.push('js');
             }
-            if (body.includes('jvm') || body.includes('java')) {
+            if (has('jvm', 'java')) {
               labels.push('jvm');
             }
 
@@ -67,28 +73,40 @@ jobs:
             }
 
       - name: Assign to maintainer if security
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const issue = context.payload.issue;
             const body = (issue.body || '').toLowerCase();
-            if (body.includes('security') || body.includes('vulnerability') || body.includes('exploit') || body.includes('rce')) {
-              await github.rest.issues.addAssignees({
+            // #600: `aminadojava` is NOT assignable in this repo (404) — GitHub
+            // dropped it silently and 0 of 39 security issues had an assignee.
+            // Route to an assignable account and fail loudly if it is dropped.
+            const word = (w) => new RegExp('(^|[^a-z0-9_])' + w + '([^a-z0-9_]|$)');
+            const has = (...ws) => ws.some((w) => word(w).test(body));
+            if (has('security', 'vulnerability', 'exploit', 'rce')) {
+              const assignee = 'melmonfre';
+              const res = await github.rest.issues.addAssignees({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issue.number,
-                assignees: ['aminadojava']
+                assignees: [assignee]
               });
+              const assigned = ((res && res.data && res.data.assignees) || []).map((a) => a.login);
+              if (!assigned.includes(assignee)) {
+                core.setFailed("security routing: '" + assignee + "' is not assignable in this repo — the report was NOT routed (R6)");
+              }
             }
 
   respond:
     name: Auto-respond to comments
     runs-on: ubuntu-latest
+    permissions:
+      issues: write # createComment
     timeout-minutes: 5
     if: github.event_name == 'issue_comment' && github.event.action == 'created'
     steps:
       - name: Auto-reply to new issues
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const comment = context.payload.comment;
@@ -97,34 +115,44 @@ jobs:
             // Don't reply to bot comments
             if (comment.user.type === 'Bot') return;
 
-            // Thank you for new issues
-            if (github.event.action === 'created' && context.payload.action === 'opened') {
-              const body = `Obrigado pelo reporte! 🤖
+            // #570: `github.event` is undefined inside actions/github-script
+            // (only `context`/`github` exist), and `context.payload.action` is
+            // 'created' in an issue_comment event — never 'opened'. The old line
+            // crashed on every non-bot comment AND its only branch was dead.
+            // Live intent: thank the ISSUE AUTHOR on the first comment.
+            if (comment.user.login !== issue.user.login) return;
+            if ((issue.comments == null ? 1 : issue.comments) > 1) return;
 
-              Este issue foi triado automaticamente pelo **kof-issues-agent**.
+            const body = [
+              'Obrigado pelo reporte! 🤖',
+              '',
+              'Este issue foi triado automaticamente pelo **kof-issues-agent**.',
+              '',
+              '**Próximos passos:**',
+              '1. A mantenedora (@aminadojava) fará a triagem completa',
+              '2. Se for bug de segurança, será priorizado',
+              '3. Se for feature request, entrará na fila de prioridades',
+              '',
+              'Enquanto isso, sinta-se à vontade para adicionar mais detalhes.',
+            ].join('\n');
 
-              **Próximos passos:**
-              1. A mantenedora (@aminadojava) fará a triagem completa
-              2. Se for bug de segurança, será priorizado
-              4. Se for feature request, entrará na fila de prioridades
-
-              Enquanto isso, sinta-se à vontade para adicionar mais detalhes.`;
-
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.issue.number,
-                body
-              });
-            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body
+            });
 
   stale:
     name: Stale Bot
     runs-on: ubuntu-latest
+    permissions:
+      issues: write # actions/stale: marca/fecha issues
+      pull-requests: write # actions/stale: marca/fecha PRs
     timeout-minutes: 10
     steps:
       - name: Mark stale issues/PRs
-        uses: actions/stale@v9
+        uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           stale-issue-message: 'Esta issue está inativa há 60 dias. Será fechada em 7 dias se não houver atividade. Comente para manter aberta.'

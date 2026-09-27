@@ -3,7 +3,7 @@
 # stdlib web — Stack Web Nativa do Kof
 
 **Última atualização:** 4 de setembro de 2026
-**Versão:** 0.4.0-beta (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
+**Versão:** 0.5.0-beta (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
 **Status:** implementado (Fase 1 do plano de independência do Spring) — `kof serve` + `kof.http` JVM+JS + `app.ws`/`app.sse` JVM + limites/contadores
 
 ---
@@ -313,7 +313,7 @@ handlers síncronos; o runtime decide a estratégia. Handlers SSE rodam no
 `KOF_SSE_HANDLERS` compartilhado e têm deadline `idleMs * 4`; em timeout o
 stream é fechado e a task cancelada.
 
-## 5. Limitações atuais (Fase 1, 0.4.0-beta)
+## 5. Limitações atuais (Fase 1, 0.5.0-beta)
 
 - O target `js` suporta a base da stack web (`web.app()` + rotas + context-fns com runtime: param/query/header/body/method/path/status/headerSet — `WEB001` fatia honestidade 16/09) mais **SSE handler-scoped** (`app.sse` + `sse.send/event/close/isOpen` + `sse()`, framing/headers idem JVM — 16/09); gaps residuais: SSE push depois do retorno do handler e múltiplos clientes simultâneos (`WEB003`), `app.ws` (`WEB004`) e `stats()` reportados em compile-time; `kof.http` já funciona no JS via `Java HttpClient`.
 - O target `native` (`x86_64`/`riscv64`/`aarch64`) tem a base do servidor web desde 03/09 (`NativeWebRuntime.java`: accept/route/lambda/body, `KofWebNativeE2ETest` 4/4); residuais: TLS `WEB002`, ws `WEB004`, sse `WEB003`, path params/keep-alive/`status()`/`headerSet()` `WEB001`.
@@ -329,7 +329,7 @@ stream é fechado e a task cancelada.
 > targets; `WebSocket` (`app.ws`) + `SSE` (`app.sse`) no JVM; `http.retry`/
 > `http.circuit` em paridade JVM+JS.
 
-## 6. Testes (0.4.0-beta)
+## 6. Testes (0.5.0-beta)
 
 `KofWebE2ETest` 10 + `KofHttpServerTest` 8 + `KofHttpE2ETest` 4 (JVM+JS,
 27/08) + `KofWebTlsTest` 5 + `KofWebSseE2ETest` 7 + `KofWebWsE2ETest` 11 +

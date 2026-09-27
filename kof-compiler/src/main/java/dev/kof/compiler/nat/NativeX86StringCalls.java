@@ -206,6 +206,16 @@ public final class NativeX86StringCalls {
             sb.append("    pushq %rax\n");
             return true;
         }
+        // D-FULL-PARITY-050 row 11: toCharArray → Char[] (array de code units
+        // UTF-16, paridade JVM). Sem ramo caía no fallback genérico →
+        // `java_lang_String_toCharArray` (undefined reference no link).
+        if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
+                && "toCharArray".equals(kc.methodName())) {
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_to_char_array\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
         if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
                 && "replace".equals(kc.methodName())) {
             sb.append("    popq %rdx\n");

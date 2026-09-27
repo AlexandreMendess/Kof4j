@@ -22,7 +22,8 @@ final class CmdTest {
     }
 
     private static final String USAGE =
-            "usage: kof test <file.kf|dir> [--target jvm|native|js] [--timeout <sec>]";
+            "usage: kof test <file.kf|dir> [--target jvm|native|js] [--timeout <sec>]"
+            + " [--tag <tag>]";
 
     static void run(String[] args) {
         if (args.length < 2) { System.err.println(USAGE); System.exit(1); return; }
@@ -33,6 +34,7 @@ final class CmdTest {
         Path src = Path.of(args[1]);
         Target target = Target.JVM;
         long timeoutSec = 0;   // 0 = sem limite (comportamento histórico, aditivo)
+        String tag = null;     // X8 fatia 3: filtro por tag (compile-time, único p/ 4 alvos)
         for (int i = 2; i < args.length; i++) {
             if (args[i].startsWith("--target=")) {
                 target = KofCliSupport.parseTarget(args[i].substring("--target=".length()));
@@ -48,6 +50,13 @@ final class CmdTest {
                 if (t == null) { badTimeout(); return; }
                 timeoutSec = t;
                 i++;
+            } else if (args[i].startsWith("--tag=")) {
+                tag = args[i].substring("--tag=".length());
+                if (tag.isEmpty()) { badTag(); return; }
+            } else if (args[i].equals("--tag") && i + 1 < args.length) {
+                tag = args[i + 1];
+                if (tag.isEmpty()) { badTag(); return; }
+                i++;
             } else if (args[i].equals("--help") || args[i].equals("-h")) {
                 System.err.println(USAGE);
                 return;
@@ -55,12 +64,12 @@ final class CmdTest {
                 // R6: an unknown flag (or --target/--timeout without its value) must
                 // never be silently ignored — the user/CI would believe it took effect.
                 System.err.println("test: unknown or incomplete flag: " + args[i]
-                        + " (accepts: --target jvm|native|js, --timeout <sec>)");
+                        + " (accepts: --target jvm|native|js, --timeout <sec>, --tag <tag>)");
                 System.exit(1);
                 return;
             } else {
                 System.err.println("test: unexpected argument: " + args[i]
-                        + " (accepts: --target jvm|native|js, --timeout <sec>)");
+                        + " (accepts: --target jvm|native|js, --timeout <sec>, --tag <tag>)");
                 System.exit(1);
                 return;
             }
@@ -77,14 +86,20 @@ final class CmdTest {
             System.exit(1);
             return;
         }
-        List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
+        boolean dirMode = Files.isDirectory(src);
+        List<Path> files = dirMode ? collectTests(src) : List.of(src);
         if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
         CompilerDriver driver = new CompilerDriver();
         int passed = 0;
         int failed = 0;
+        // X8 fatia 3 ("named suites by directory"): em modo diretório cada
+        // subdiretório é uma suíte nomeada (nome = caminho relativo; "." = raiz);
+        // os contadores por suíte são somados ao total no fim.
+        java.util.Map<String, int[]> suites = new java.util.LinkedHashMap<>();
         // per-file (docs/bugs-and-gaps/ecosystem-coverage.md §3.11): cada .kf é um programa
         // independente com seu próprio main() — NUNCA agrupar irmãos num
         // módulo só (PKG002: 2 main()). Cross-file é domínio de kof build.
+        if (tag != null) System.setProperty("kof.test.tag", tag);
         for (Path f : files) {
             Path tmp;
             try { tmp = Files.createTempDirectory("kof-test-"); }
@@ -194,6 +209,10 @@ final class CmdTest {
                 for (Diagnostic d : result.diagnostics().getDiagnostics()) output.append(d.format()).append('\n');
             }
             KofCliSupport.cleanup(tmp);
+            if (dirMode) {
+                int[] c = suites.computeIfAbsent(suiteOf(src, f), k -> new int[2]);
+                if (ok) c[0]++; else c[1]++;
+            }
             if (ok) {
                 passed++;
                 if (driver.discoveredTests().isEmpty()) System.out.println("PASS " + f);
@@ -204,8 +223,41 @@ final class CmdTest {
                 System.out.print(output);
             }
         }
+        if (tag != null) System.clearProperty("kof.test.tag");
+        if (dirMode) {
+            for (java.util.Map.Entry<String, int[]> e : suites.entrySet()) {
+                System.out.println("suite " + e.getKey() + ": " + e.getValue()[0]
+                        + " passed, " + e.getValue()[1] + " failed");
+            }
+        }
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
+    }
+
+    /**
+     * X8 fatia 3 ("named suites by directory"): recursão — `kof test <dir>`
+     * descobre os .kf/.kof também em subdiretórios (cada diretório = uma suíte
+     * nomeada). Aditivo: a descoberta de build/run segue não-recursiva
+     * (`KofCliSupport.collect`), porque lá um diretório é um pacote (PKG002).
+     */
+    private static void badTag() {
+        System.err.println("test: --tag requires a non-empty value");
+        System.exit(1);
+    }
+
+    private static List<Path> collectTests(Path dir) {
+        List<Path> files = new java.util.ArrayList<>();
+        try (var s = Files.walk(dir)) {
+            s.filter(KofCliSupport::isKofSource).forEach(files::add);
+        } catch (IOException e) { System.err.println("error: " + e.getMessage()); }
+        files.sort(java.util.Comparator.comparing(Path::toString));
+        return files;
+    }
+
+    /** Nome da suíte de um arquivo: diretório-pai relativo à raiz ("." = raiz). */
+    private static String suiteOf(Path root, Path file) {
+        Path rel = root.relativize(file).getParent();
+        return rel == null ? "." : rel.toString();
     }
 
     private static Long parseTimeout(String v) {

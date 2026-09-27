@@ -2,10 +2,11 @@ package dev.kof.compiler.nat;
 
 // DB001 fatia 1 (15/09, dono = 192.168.100.18): runtime kof.db SQLite no
 // cross riscv64/aarch64 (aarch64 herda via tradutor). Port do subconjunto
-// SQLite do x86 — RuntimeDb2 (resolve/type/connect), RuntimeDb4 (close/
-// execute/transaction/bind) e RuntimeDb5 (query). Os caminhos MySQL (Db1/
-// Db3/Db6/NativeDbPrepared) ficam de fora: connect só aceita "sqlite:*" e
-// devolve 0 (null handle) para qualquer outra URL.
+// SQLite do x86 — RuntimeDb2 (resolve/type/connect), RuntimeDb4
+// (close/transaction/bind). O dispatch de execute/query (com o ramo mysql,
+// fatia S5.4-2) vive na peça B47b; o connect aceita "sqlite:*" aqui e delega
+// mysql:// / mariadb:// para a peça B73 (wire TCP real, registra o fd como
+// type 2 nas tabelas .Ldb_* daqui); outro esquema vira DB001 em B73.
 //
 // Divergências honestas vs x86 (catalogadas, não silenciosas):
 // - kof_db_bind classifica Int×String pela JANELA DO HEAP cross
@@ -26,189 +27,6 @@ package dev.kof.compiler.nat;
 public final class NativeRiscvAsmRtB47 {
 
     private NativeRiscvAsmRtB47() {}
-
-    /** kof_db_execute[N](id@a0, sql@a1, b1..bN@a2..) -> rows changed.
-     *  Port Db4 KOF_DB_EXEC_N (ramo sqlite; body gerado por aridade —
-     *  .macro não sobrevive ao tradutor aarch64). */
-    private static String executeN(int n) {
-        String fn = n == 0 ? "kof_db_execute" : "kof_db_execute" + n;
-        StringBuilder sb = new StringBuilder();
-        sb.append("            .globl ").append(fn).append("\n");
-        sb.append(fn).append(":\n");
-        sb.append("            addi sp, sp, -96\n");
-        sb.append(saveS());
-        sb.append("            mv   s0, a1\n");                    // sql
-        for (int i = 1; i <= n; i++) sb.append("            mv   s").append(i).append(", a").append(i + 1).append("\n");
-        sb.append("            call kof_db_resolve\n");           // a0 = id (intacto)
-        sb.append("            mv   s5, a0\n");                   // db
-        sb.append("            beqz s5, .Lex").append(n).append("_bad\n");
-        sb.append("            sd   zero, 0(sp)\n");              // &stmt
-        sb.append("            mv   a0, s5\n");
-        sb.append("            addi a1, s0, 24\n");
-        sb.append("            li   a2, -1\n");
-        sb.append("            mv   a3, sp\n");
-        sb.append("            li   a4, 0\n");
-        sb.append("            call sqlite3_prepare_v2\n");
-        for (int i = 1; i <= n; i++) {
-            sb.append("            ld   a0, 0(sp)\n");
-            sb.append("            li   a1, ").append(i).append("\n");
-            sb.append("            mv   a2, s").append(i).append("\n");
-            sb.append("            call kof_db_bind\n");
-        }
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            call sqlite3_step\n");
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            call sqlite3_finalize\n");
-        sb.append("            mv   a0, s5\n");
-        sb.append("            call sqlite3_changes\n");
-        sb.append("            j    .Lex").append(n).append("_out\n");
-        sb.append("        .Lex").append(n).append("_bad:\n");
-        sb.append("            li   a0, 0\n");
-        sb.append("        .Lex").append(n).append("_out:\n");
-        sb.append(restoreS());
-        sb.append("            addi sp, sp, 96\n");
-        sb.append("            ret\n\n");
-        return sb.toString();
-    }
-
-    /** kof_db_query[N](id@a0, sql@a1, b1..bN@a2.., className@a(2+N)) -> List*.
-     *  Port Db5 KOF_DB_QUERY_N (ramo sqlite; className nunca lido — cabeçalho). */
-    private static String queryN(int n) {
-        String fn = n == 0 ? "kof_db_query0" : "kof_db_query" + n;
-        StringBuilder sb = new StringBuilder();
-        sb.append("            .globl ").append(fn).append("\n");
-        sb.append(fn).append(":\n");
-        sb.append("            addi sp, sp, -96\n");
-        sb.append(saveS());
-        sb.append("            mv   s0, a1\n");
-        for (int i = 1; i <= n; i++) sb.append("            mv   s").append(i).append(", a").append(i + 1).append("\n");
-        sb.append("            call kof_db_resolve\n");
-        sb.append("            mv   s5, a0\n");
-        sb.append("            beqz s5, .Lq").append(n).append("_bad\n");
-        sb.append("            sd   zero, 0(sp)\n");
-        sb.append("            mv   a0, s5\n");
-        sb.append("            addi a1, s0, 24\n");
-        sb.append("            li   a2, -1\n");
-        sb.append("            mv   a3, sp\n");
-        sb.append("            li   a4, 0\n");
-        sb.append("            call sqlite3_prepare_v2\n");
-        for (int i = 1; i <= n; i++) {
-            sb.append("            ld   a0, 0(sp)\n");
-            sb.append("            li   a1, ").append(i).append("\n");
-            sb.append("            mv   a2, s").append(i).append("\n");
-            sb.append("            call kof_db_bind\n");
-        }
-        sb.append("            call kof_list_new\n");
-        sb.append("            mv   s6, a0\n");
-        sb.append("        .Lq").append(n).append("_row:\n");
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            call sqlite3_step\n");
-        sb.append("            li   t0, 100\n");                  // SQLITE_ROW
-        sb.append("            bne  a0, t0, .Lq").append(n).append("_done\n");
-        sb.append("            call kof_json_builder_new\n");
-        sb.append("            mv   s7, a0\n");
-        sb.append("            mv   a0, s7\n");
-        sb.append("            li   a1, 123\n");                  // '{'
-        sb.append("            call kof_json_builder_char\n");
-        sb.append("            li   s8, 0\n");                    // col idx
-        sb.append("        .Lq").append(n).append("_col:\n");
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            call sqlite3_column_count\n");
-        sb.append("            bge  s8, a0, .Lq").append(n).append("_endrow\n");
-        sb.append("            beqz s8, .Lq").append(n).append("_nocomma\n");
-        sb.append("            mv   a0, s7\n");
-        sb.append("            li   a1, 44\n");                   // ','
-        sb.append("            call kof_json_builder_char\n");
-        sb.append("        .Lq").append(n).append("_nocomma:\n");
-        // nome da coluna: char* -> strlen -> KofStr -> escape JSON -> builder
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            mv   a1, s8\n");
-        sb.append("            call sqlite3_column_name\n");
-        sb.append("            sd   a0, 80(sp)\n");
-        sb.append("            call kof_io_strlen\n");
-        sb.append("            mv   a1, a0\n");
-        sb.append("            ld   a0, 80(sp)\n");
-        sb.append("            call kof_io_make_string\n");
-        sb.append("            call kof_json_encode_string\n");
-        sb.append("            mv   a1, a0\n");
-        sb.append("            mv   a0, s7\n");
-        sb.append("            call kof_json_builder_str\n");
-        sb.append("            mv   a0, s7\n");
-        sb.append("            li   a1, 58\n");                   // ':'
-        sb.append("            call kof_json_builder_char\n");
-        // valor pelo tipo da coluna
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            mv   a1, s8\n");
-        sb.append("            call sqlite3_column_type\n");
-        sb.append("            li   t0, 1\n");                    // SQLITE_INTEGER
-        sb.append("            beq  a0, t0, .Lq").append(n).append("_int\n");
-        sb.append("            li   t0, 3\n");                    // SQLITE_TEXT
-        sb.append("            beq  a0, t0, .Lq").append(n).append("_text\n");
-        // NULL -> literal `null` (divergência corrigida vs x86 — cabeçalho)
-        sb.append("            la   a0, .Ldb_null\n");
-        sb.append("            li   a1, 4\n");
-        sb.append("            call kof_io_make_string\n");
-        sb.append("            j    .Lq").append(n).append("_val\n");
-        sb.append("        .Lq").append(n).append("_int:\n");
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            mv   a1, s8\n");
-        sb.append("            call sqlite3_column_int\n");
-        sb.append("            call kof_json_encode_int\n");
-        sb.append("            j    .Lq").append(n).append("_val\n");
-        sb.append("        .Lq").append(n).append("_text:\n");
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            mv   a1, s8\n");
-        sb.append("            call sqlite3_column_text\n");
-        sb.append("            sd   a0, 80(sp)\n");
-        sb.append("            call kof_io_strlen\n");
-        sb.append("            mv   a1, a0\n");
-        sb.append("            ld   a0, 80(sp)\n");
-        sb.append("            call kof_io_make_string\n");
-        sb.append("            call kof_json_encode_string\n");
-        sb.append("        .Lq").append(n).append("_val:\n");
-        sb.append("            mv   a1, a0\n");
-        sb.append("            mv   a0, s7\n");
-        sb.append("            call kof_json_builder_str\n");
-        sb.append("            addi s8, s8, 1\n");
-        sb.append("            j    .Lq").append(n).append("_col\n");
-        sb.append("        .Lq").append(n).append("_endrow:\n");
-        sb.append("            mv   a0, s7\n");
-        sb.append("            li   a1, 125\n");                  // '}'
-        sb.append("            call kof_json_builder_char\n");
-        sb.append("            mv   a0, s7\n");
-        sb.append("            call kof_json_builder_result\n");
-        sb.append("            mv   a1, a0\n");
-        sb.append("            mv   a0, s6\n");
-        sb.append("            call kof_list_add\n");
-        sb.append("            j    .Lq").append(n).append("_row\n");
-        sb.append("        .Lq").append(n).append("_done:\n");
-        sb.append("            ld   a0, 0(sp)\n");
-        sb.append("            call sqlite3_finalize\n");
-        sb.append("            mv   a0, s6\n");
-        sb.append("            j    .Lq").append(n).append("_out\n");
-        sb.append("        .Lq").append(n).append("_bad:\n");
-        sb.append("            li   a0, 0\n");
-        sb.append("        .Lq").append(n).append("_out:\n");
-        sb.append(restoreS());
-        sb.append("            addi sp, sp, 96\n");
-        sb.append("            ret\n\n");
-        return sb.toString();
-    }
-
-    /** Save dos s-regs no frame de 96 (s0..s8 @8..80, ra @88). */
-    private static String saveS() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i <= 8; i++) sb.append("            sd   s").append(i).append(", ").append(8 + i * 8).append("(sp)\n");
-        sb.append("            sd   ra, 88(sp)\n");
-        return sb.toString();
-    }
-
-    private static String restoreS() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i <= 8; i++) sb.append("            ld   s").append(i).append(", ").append(8 + i * 8).append("(sp)\n");
-        sb.append("            ld   ra, 88(sp)\n");
-        return sb.toString();
-    }
 
     static final String RISCV_RUNTIME_ASM_B_47;
 
@@ -280,13 +98,19 @@ public final class NativeRiscvAsmRtB47 {
                     li   a0, 0
                     ret
 
-                # kof_db_connect(url@a0) — só "sqlite:*" no cross (cabeçalho).
+                # kof_db_connect(url@a0) — "sqlite:*" abre via sqlite3_open;
+                # "mysql://"/"mariadb://" delegam ao kof_db_connect_mysql (B73,
+                # S5.4); qualquer outro esquema vira DB001 nomeado na B73.
                 .globl kof_db_connect
                 kof_db_connect:
+                    # sem userinfo na assinatura: user2/pass2 = 0 (host-only
+                    # cai no parser da B73 com as credenciais vazias).
+                    li   a1, 0
+                    li   a2, 0
                     j    .Lconn_go
 
-                # kof_db_connect2(url@a0, user@a1, pass@a2) — credenciais só
-                # fazem sentido no MySQL (fora do escopo cross); ignoradas.
+                # kof_db_connect2(url@a0, user@a1, pass@a2) — userinfo explícito
+                # (forma host-only, usado pelo ORM/driver); mesma rota da B73.
                 .globl kof_db_connect2
                 kof_db_connect2:
                 .Lconn_go:
@@ -300,25 +124,25 @@ public final class NativeRiscvAsmRtB47 {
                     # prefixo "sqlite:" em data[0..6] (offsets 24..30)
                     lbu  t0, 24(a0)
                     li   t1, 115
-                    bne  t0, t1, .Lconn_bad
+                    bne  t0, t1, .Lconn_other
                     lbu  t0, 25(a0)
                     li   t1, 113
-                    bne  t0, t1, .Lconn_bad
+                    bne  t0, t1, .Lconn_other
                     lbu  t0, 26(a0)
                     li   t1, 108
-                    bne  t0, t1, .Lconn_bad
+                    bne  t0, t1, .Lconn_other
                     lbu  t0, 27(a0)
                     li   t1, 105
-                    bne  t0, t1, .Lconn_bad
+                    bne  t0, t1, .Lconn_other
                     lbu  t0, 28(a0)
                     li   t1, 116
-                    bne  t0, t1, .Lconn_bad
+                    bne  t0, t1, .Lconn_other
                     lbu  t0, 29(a0)
                     li   t1, 101
-                    bne  t0, t1, .Lconn_bad
+                    bne  t0, t1, .Lconn_other
                     lbu  t0, 30(a0)
                     li   t1, 58
-                    bne  t0, t1, .Lconn_bad
+                    bne  t0, t1, .Lconn_other
                     # sqlite3_open(data+7, &slot@96(sp))
                     sd   zero, 96(sp)
                     addi a0, a0, 31
@@ -387,6 +211,10 @@ public final class NativeRiscvAsmRtB47 {
                     sd   s4, 0(t0)
                     mv   a0, s4
                     j    .Lconn_out
+                .Lconn_other:
+                    # mysql:// | mariadb:// -> B73; outro -> DB001 nomeado lá.
+                    call kof_db_connect_mysql
+                    j    .Lconn_out
                 .Lconn_bad:
                     li   a0, 0
                 .Lconn_out:
@@ -399,7 +227,8 @@ public final class NativeRiscvAsmRtB47 {
                     addi sp, sp, 128
                     ret
 
-                # kof_db_close(id@a0). Port Db4:19 (só o ramo sqlite).
+                # kof_db_close(id@a0). Port Db4:19 + fechamento do fd mysql
+                # (type 2, S5.4 fatia 2) — sqlite3_close vs kof_plat_close.
                 .globl kof_db_close
                 kof_db_close:
                     beqz a0, .Lclose_zero
@@ -408,12 +237,20 @@ public final class NativeRiscvAsmRtB47 {
                     sd   s0, 0(sp)
                     mv   s0, a0
                     call kof_db_type
+                    li   t0, 2
+                    beq  a0, t0, .Lclose_mysql
                     li   t0, 1
                     bne  a0, t0, .Lclose_done
                     mv   a0, s0
                     call kof_db_resolve
                     beqz a0, .Lclose_done
                     call sqlite3_close
+                    j    .Lclose_done
+                .Lclose_mysql:
+                    mv   a0, s0
+                    call kof_db_resolve
+                    beqz a0, .Lclose_done
+                    call kof_plat_close
                 .Lclose_done:
                     ld   s0, 0(sp)
                     ld   ra, 8(sp)
@@ -561,11 +398,11 @@ public final class NativeRiscvAsmRtB47 {
                     .long 8
                     .long 0
                     .asciz "rollback"
+                # S0/§421: o esquema fora do contrato agora é recusado na B73
+                # (kof_db_connect_mysql) com DB001 nomeado — nunca handle nulo.
                 .section .text
 
                 """);
-        for (int n = 0; n <= 4; n++) sb.append(executeN(n));
-        for (int n = 0; n <= 4; n++) sb.append(queryN(n));
         RISCV_RUNTIME_ASM_B_47 = sb.toString();
     }
 }

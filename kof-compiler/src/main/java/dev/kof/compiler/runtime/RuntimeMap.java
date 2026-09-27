@@ -235,10 +235,32 @@ public final class RuntimeMap {
                 movzbl %al, %eax
                 ret
 
+            # D-MEMORY-CLEAR (O-03): anula keys e vals ANTES de encolher — o
+            # map nao retem mais nenhuma referencia apos clear()
             .globl kof_map_clear
             .type kof_map_clear, @function
             kof_map_clear:
-                movl $0, 16(%rdi)
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movq %rdi, %rbx
+                movl 16(%rbx), %r12d
+                movq 24(%rbx), %r13
+                movq 32(%rbx), %rdx
+                xorl %eax, %eax
+            .Lkof_map_clear_loop:
+                cmpl %r12d, %eax
+                jge .Lkof_map_clear_done
+                movslq %eax, %rcx
+                movq $0, (%r13,%rcx,8)
+                movq $0, (%rdx,%rcx,8)
+                incl %eax
+                jmp .Lkof_map_clear_loop
+            .Lkof_map_clear_done:
+                movl $0, 16(%rbx)
+                popq %r13
+                popq %r12
+                popq %rbx
                 ret
 
             .globl kof_map_keys

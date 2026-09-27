@@ -31,6 +31,7 @@ public final class RuntimeCollectionToString {
         emitElemToString(sb);
         emitListToString(sb);
         emitMapToString(sb);
+        emitArrayToString(sb);
     }
 
     /**
@@ -74,6 +75,8 @@ public final class RuntimeCollectionToString {
                 je .Lce_list
                 cmpl $10, %eax
                 je .Lce_map
+                cmpl $11, %eax
+                je .Lce_arr
                 cmpl $1, %eax
                 je .Lce_str
                 cmpl $2, %eax
@@ -155,6 +158,18 @@ public final class RuntimeCollectionToString {
                 ret
             # 9 = List/Set aninhada: slot carrega o ponteiro do container; o
             # filho do no (rsi+1) descreve os elementos dele.
+            # §388-B: 11 = array primitivo aninhado; no = [11, esz, child].
+            # O slot carrega o PONTEIRO do array interno; o child descritor
+            # fica em rsi+2 (esz fica no header do bloco — lido la).
+            .Lce_arr:
+                movq (%rdi), %rbx
+                testq %rbx, %rbx
+                jz .Lce_null
+                addq $2, %rsi
+                movq %rbx, %rdi
+                call kof_array_to_string
+                popq %rbx
+                ret
             .Lce_list:
                 movq (%rdi), %rbx
                 testq %rbx, %rbx
@@ -342,6 +357,109 @@ public final class RuntimeCollectionToString {
                 jl .Lcm_loop
             .Lcm_fin:
                 leaq .Lc2s_rcur(%rip), %rdi
+                movl $1, %esi
+                call kof_string_from_literal
+                movq %rax, %rsi
+                movq -8(%rbp), %rdi
+                call kof_string_concat
+                movq %rbp, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                popq %rbp
+                ret
+            """);
+    }
+
+    /**
+     * §388-B — kof_array_to_string(rdi = array cru, rsi = descritor do
+     * COMPONENTE): bloco [tag@0][len@16][esz@20][data@24] (mesma fonte do
+     * elementTypeSize do alloc). Espelha kof_list_to_string no formato
+     * ([a, b]) e no mecanismo (kof_string_from_literal/kof_string_concat);
+     * a diferença é o carregamento do elemento: packed por ESZ (1/4/8) num
+     * slot de 8 bytes na pilha — o kof_elem_to_string lê só os bytes que o
+     * tag pede, e aninhado (tag 11) recursa. Golden = oracle JVM/Script/JS
+     * ([65, 66]) — a célula antes imprimia o elem[0] como char ("A").
+     */
+    static void emitArrayToString(StringBuilder sb) {
+        sb.append("""
+            .globl kof_array_to_string
+            .type kof_array_to_string, @function
+            kof_array_to_string:
+                pushq %rbp
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rsp, %rbp
+                subq $64, %rsp
+                movq %rdi, -32(%rbp)        # array (raiz p/ GC)
+                movq %rsi, -40(%rbp)        # descritor do componente
+                movl 16(%rdi), %r12d        # len
+                movl 20(%rdi), %r14d        # esz
+                leaq 24(%rdi), %r13         # data
+                xorl %ebx, %ebx             # i
+                leaq .Lc2s_lbr(%rip), %rdi
+                movl $1, %esi
+                call kof_string_from_literal
+                movq %rax, -8(%rbp)         # acc = '['
+                testl %r12d, %r12d
+                jz .Lca_fin
+            .Lca_loop:
+                movslq %ebx, %rax
+                imulq %r14, %rax
+                leaq (%r13,%rax), %r15      # &elem[i]
+                movq $0, -24(%rbp)          # slot de 8B (raiz p/ ponteiros)
+                cmpl $4, %r14d
+                je .Lca_ld4
+                cmpl $1, %r14d
+                je .Lca_ld1
+                cmpl $2, %r14d
+                je .Lca_ld2
+                movq (%r15), %rax           # esz 8 (long/double/String/array)
+                movq %rax, -24(%rbp)
+                jmp .Lca_sep
+            .Lca_ld4:
+                movl (%r15), %eax           # int/char/float-as-bits/bool
+                movq %rax, -24(%rbp)
+                jmp .Lca_sep
+            .Lca_ld2:
+                movzwl (%r15), %eax         # short
+                movq %rax, -24(%rbp)
+                jmp .Lca_sep
+            .Lca_ld1:
+                movzbl (%r15), %eax         # byte/bool de 1 byte
+                movq %rax, -24(%rbp)
+            .Lca_sep:
+                testl %ebx, %ebx
+                jnz .Lca_sep2
+                leaq .Lc2s_lbr(%rip), %rdi
+                xorl %esi, %esi
+                jmp .Lca_sepcall
+            .Lca_sep2:
+                leaq .Lc2s_comma(%rip), %rdi
+                movl $2, %esi
+            .Lca_sepcall:
+                call kof_string_from_literal
+                movq %rax, -16(%rbp)        # sep (raiz p/ alloc do elem)
+                leaq -24(%rbp), %rdi
+                movq -40(%rbp), %rsi
+                call kof_elem_to_string
+                movq %rax, %rsi
+                movq -16(%rbp), %rdi
+                call kof_string_concat      # sep + elem
+                movq %rax, %rsi
+                movq -8(%rbp), %rdi
+                call kof_string_concat      # acc + (sep + elem)
+                movq %rax, -8(%rbp)
+                incl %ebx
+                cmpl %r12d, %ebx
+                jl .Lca_loop
+            .Lca_fin:
+                leaq .Lc2s_rbr(%rip), %rdi
                 movl $1, %esi
                 call kof_string_from_literal
                 movq %rax, %rsi

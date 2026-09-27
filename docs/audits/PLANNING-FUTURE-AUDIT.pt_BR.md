@@ -52,9 +52,16 @@ aninhado KofJS (na beta `5d6e68a`).
    FFI001/FFI002, `NativeFfiRuntime`/`JvmFfiRuntime`, commit `dd07cb0`),
    mas **não existe no HEAD**: o merge `c9fcd41` ("favor beta") o
    descartou. Está só no histórico.
+   **ATUALIZAÇÃO 21/09:** o FFI formalizado **pousou na lane de plataforma (R3)** —
+   `extern`/`PARSE090`, `JvmFfiRuntime`/`NativeFfiRuntime`, `FfiE2ETest`;
+   roadmap §23 2.1.x ✅. A alegação de reconciliação da branch é superada por
+   este landing real (o código da branch segue fora do HEAD — e não precisa estar).
 3. **Codegen hook (TIER 2.2)** — `CodegenStep`/`runCodegen`: idem, não
    está no HEAD. (ct-eval 2.3: `OptimizerConstantFold` já existia na
    beta — não é entrega deles.)
+   **ATUALIZAÇÃO 21/09:** o hook **foi formalizado pelo R4** (`CodegenStep`/
+   `CodegenStepPipeline`, `CodegenStepPipelineTest` 6/6) — o `runCodegen` da
+   branch não está no HEAD, mas o roadmap §23 2.2.2 agora é ✅.
 4. **`kof inspect --java`** (task Java-Inspect-CLI do ex-IMPLEMENTATION_PLAN, hoje `roadmap.md` §23):
    não implementado (Inspect só lê `.class`).
 5. **Decompiler-Confidence** (task: IR marca inferred vs exact): o enum

@@ -2,7 +2,7 @@
 
 # Idioms — Architecture
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.4.0-beta (Sep 2026)
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.5.0-beta (Sep 2026)
 
 ## What it is
 
@@ -31,7 +31,7 @@ class Http {
 }
 ```
 
-## GOOD — platform (0.4.0-beta)
+## GOOD — platform (0.5.0-beta)
 
 ```kof
 var j = json.encode(user)
@@ -115,13 +115,13 @@ Double total(Cart cart) {
 }
 ```
 
-## 4. Modules (0.4.0-beta)
+## 4. Modules (0.5.0-beta)
 
 `package`/`import` exist. `import a.b.C` file-specific fixed 27/08 — large projects with `a/b/C.kf` now compile correctly (CompilerDriver). `import a.b.*` for a directory. Targets: `jvm`, `native`, `native.risc`/`native.arm` (placeholder), `js`, `kofc`, `KofScript` (`.ks` with `let`).
 
 For small programs, a single `.kf` file is enough — the `main()` at the top.
 
-## 5. Intent constructs (0.4.0-beta)
+## 5. Intent constructs (0.5.0-beta)
 
 The compiler reduces intent constructs to normal code (the same pattern as
 `entity`/`test "nome" {}`): the syntax expresses *what*, the lowering decides *how*.

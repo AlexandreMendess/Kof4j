@@ -91,6 +91,21 @@ public final class CompilerPipeline {
                         e.getMessage(), "FLT001");
                 return new CompilationResult(false, diagnostics, outputDir);
             }
+            if (e.getMessage() != null && e.getMessage().startsWith("NATIVE002")) {
+                // NATIVE002: op fora do subset de um emissor nativo (ex.: o
+                // slice mínimo do MCU RV32I, B-4) — diagnóstico honesto, nunca
+                // um artefato que finge rodar (R6, Q7).
+                diagnostics.error(sources.get(0).toString(), 0, 0, 0,
+                        e.getMessage(), "NATIVE002");
+                return new CompilationResult(false, diagnostics, outputDir);
+            }
+            if (e.getMessage() != null && e.getMessage().startsWith("CONC003")) {
+                // CONC003: concorrência ausente num alvo single-core (ex.: o
+                // MCU RV32I, B-4) — diagnóstico honesto, nunca stub (R6).
+                diagnostics.error(sources.get(0).toString(), 0, 0, 0,
+                        e.getMessage(), "CONC003");
+                return new CompilationResult(false, diagnostics, outputDir);
+            }
             e.printStackTrace();
             diagnostics.error(sources.get(0).toString(), 0, 0, 0,
                     "Internal compiler error: " + e.getMessage(), "COMP002");
@@ -177,13 +192,15 @@ public final class CompilerPipeline {
     static Backend selectBackend(CompilerDriver driver, Target target) {
         return switch (target) {
             case JVM -> CompilerPipeline.backendWithClasspath(driver, new JvmBackend());
-            case NATIVE -> new NativeBackend(Target.NATIVE);
-            case NATIVE_RISCV64 -> new NativeBackend(Target.NATIVE_RISCV64);
-            case NATIVE_AARCH64 -> new NativeBackend(Target.NATIVE_AARCH64);
+            case NATIVE -> new NativeBackend(Target.NATIVE).profile(driver.nativeProfile);
+            case NATIVE_RISCV64 -> new NativeBackend(Target.NATIVE_RISCV64).profile(driver.nativeProfile);
+            case NATIVE_AARCH64 -> new NativeBackend(Target.NATIVE_AARCH64).profile(driver.nativeProfile);
+            case NATIVE_RISCV32 -> new NativeBackend(Target.NATIVE_RISCV32).profile(driver.nativeProfile);
+            case NATIVE_MCU_ARM -> new NativeBackend(Target.NATIVE_MCU_ARM).profile(driver.nativeProfile);
             case JS -> new JsBackend();
             // Android: ART executa bytecode dex'd — a emissão é a mesma do
             // backend JVM; o alvo vive nas validações AND* e no empacotamento
-            case ANDROID -> CompilerPipeline.backendWithClasspath(driver, new JvmBackend());
+            case ANDROID -> CompilerPipeline.backendWithClasspath(driver, new JvmBackend(Target.ANDROID));
             // SCRIPT não emite artefato — é interpretado (interpret()). O
             // chamador (lowerAndEmit) bloqueia antes; isto é defensivo.
             case SCRIPT -> throw new IllegalStateException("SCRIPT has no backend");
@@ -228,7 +245,7 @@ public final class CompilerPipeline {
                     // String→Int, Double→Double; Native Int→Int, String→Int) não é
                     // gap; o resto é gap honesto por target — FFI002 no JS (web/edge
                     // sem FFI nativo), FFI001 nos demais. Nunca stub silencioso (R6).
-                    if (diagnostics != null && !CompilerPipeline.isExternBound(driver, ext)) {
+                    if (diagnostics != null && !CompilerFfiBinding.isExternBound(driver, ext)) {
                         SourcePosition sp = ext.position();
                         String lib = ext.library() != null ? " in " + ext.library() : "";
                         String code = driver.target == Target.JS ? "FFI002" : "FFI001";
@@ -298,9 +315,9 @@ public final class CompilerPipeline {
         for (AstNode d : unit.declarations()) {
             if (d instanceof EnumDeclarationNode en) BuiltinTypes.registerEnum(en.name());
         }
-        unit = CompilerDesugar.desugarTests(unit, driver.discoveredTests, driver.testHarnessMode, driver.currentSourceName);
-        unit = CompilerDesugar.desugarApplication(unit);
-        unit = CompilerDesugar.desugarNestedFunctions(unit);
+        // 2.2.3 (D-DESUGAR-STEP): the four source desugars run through the AST
+        // registry (default order: tests, application, infra, nested functions).
+        unit = DesugarStepPipeline.run(driver.desugarSteps, unit, driver);
         driver.discoveredConfigKeys.clear();
         if (driver.target == Target.ANDROID) {
             unit = CompilerPipeline.appendAndroidHostIfNeeded(driver, unit);
@@ -326,6 +343,10 @@ public final class CompilerPipeline {
             irModule = Optimizer.optimize(irModule);
             driver.currentModule = irModule;
         }
+        // R4 (D-CODEGEN-STEP): internal codegen hooks on the optimized IR,
+        // before emit/interpret. Empty registry = identity.
+        irModule = CodegenStepPipeline.run(driver.codegenSteps, irModule, driver);
+        driver.currentModule = irModule;
         if (driver.irObserver != null) {
             driver.irObserver.accept(unoptimized, irModule);
         }
@@ -445,55 +466,16 @@ public final class CompilerPipeline {
         if (merged == null) return null;
         merged = CompilerMakealive.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
+        merged = CompilerInterop.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
         ExternalClasspath extCp = (driver.target == Target.JVM || driver.target == Target.ANDROID)
                 ? driver.externalClasspath : null;
-        merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages, extCp);
+        merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages, extCp,
+                driver.dependencySourceRoots, sources);
         if (diagnostics.hasErrors()) return null;
         return merged;
     }
 
-
-    // ── FFI (TIER 2.1.4) — binding suportado por target ──
-    static boolean isExternBound(CompilerDriver driver, ExternalFunctionNode ext) {
-        // JVM e JS (runner) compartilham a MESMA ABI escalar + callbacks (3.4-C3): o
-        // KofJS roda no host GraalJS/node, que É uma JVM com java.lang.foreign (bridge
-        // `KofJsFfiBridge` idêntico ao `kof_ffi` do target JVM; o browser não tem host e
-        // degrada em runtime como o resto do kof_platform, R7). Android intocado (§278).
-        if (driver.target == Target.JVM || driver.target == Target.JS) {
-            if (FfiSignature.returnChar(ext.returnType()) == null) return false;
-            for (var param : ext.parameters()) {
-                if (FfiSignature.paramChar(param.type()) != null) continue;
-                if (FfiSignature.callbackDescriptor(param.type()) == null) return false;
-            }
-            return true;
-        }
-        // #431/§61 (Native x86-64): ABI escalar direto — o link do binário traz a
-        // `library()` do extern como input do ld e o call-site baixa marshaling
-        // SysV + `call sym@PLT` (o mesmo caminho do consumidor SQLite/DB001, que
-        // prova o PLT a partir do _start cru). Sem dlopen em runtime — a rota do
-        // §61 que nunca dependeu de glibc initialized. Callback (sem mechanism de
-        // upcall nativo), array/struct e `extern` sem `library()` (nada a linkar)
-        // continuam FFI001 honesto na linha da declaração (R6). riscv64/aarch64:
-        // mesma ABI com shim próprio — ver branch abaixo.
-        if (driver.target.isNative()) {
-            return nativeExternBound(ext);
-        }
-        // NATIVE (riscv64/aarch64): o shim cross (LP64/AAPCS64) landou na
-        // fatia 2 do #431 — gate+lowering+E2E qemu no MESMO commit (política
-        // das fatias R3). Struct/array/callback e extern sem `library()`
-        // continuam FFI001 honesto na linha da declaração (R6).
-        return false;
-    }
-
-    private static boolean nativeExternBound(ExternalFunctionNode ext) {
-        if (ext.library() == null || ext.library().isEmpty()) return false;
-        Character rc = FfiSignature.returnChar(ext.returnType());
-        if (rc == null) return false;
-        for (var param : ext.parameters()) {
-            if (FfiSignature.paramChar(param.type()) == null) return false;
-        }
-        return true;
-    }
 
     static boolean isIntType(String t) {
         return "int".equals(t) || "Int".equals(t);

@@ -188,8 +188,7 @@ public final class NativeRiscvAsmRtB48 {
             kof_cancelled:
                 addi sp, sp, -16
                 sd   ra, 8(sp)
-                li   a7, 178                # gettid
-                ecall
+                call kof_plat_thread_id     # gettid
                 call kof_cancel_slot_find
                 beqz a0, .Lkof_cancelled_no
                 ld   a0, 8(a0)

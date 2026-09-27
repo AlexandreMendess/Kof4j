@@ -54,12 +54,26 @@ public final class JvmOpCollections {
                 mv.visitLabel(end);
             } else if (("kof_await".equals(kc.methodName())
                     || "kof_await_timeout".equals(kc.methodName())
-                    || "kof_select_any".equals(kc.methodName())) && isPrimitiveType(kc.returnType())) {
+                    || "kof_select_any".equals(kc.methodName()))
+                    && isPrimitiveType(kc.returnType())) {
                 // await/awaitTimeout/selectAny com resultado primitivo: o runtime
                 // devolve Object (boxed, do CompletableFuture). §128-JVM: selectAny
                 // compartilhava o destino primitivo de await mas NÃO era roteado
                 // aqui → istore de Object → VerifyError "not assignable to integer".
                 emitUnboxIfPrimitive(mv, kc.returnType());
+            } else if (("kof_await".equals(kc.methodName())
+                    || "kof_await_timeout".equals(kc.methodName())
+                    || "kof_select_any".equals(kc.methodName()))
+                    && Type.PrimitiveType.VOID.equals(kc.returnType())) {
+                // await/awaitTimeout/selectAny de task VAZIA: o descritor do
+                // runtime devolve Object SEMPRE (null quando a task não tem
+                // valor), mas o modelo Kof da expressão é void → o discard de
+                // statement não emite POP e o Object ficava na pilha: qualquer
+                // try/catch DEPOIS do await ganhava um handler frame órfão
+                // ("Inconsistent stackmap frames at branch target", medido no
+                // pouso da fatia 3 do motor — §527). Descartar o Object aqui,
+                // no único ponto onde a pilha JVM e o modelo divergem.
+                mv.visitInsn(POP);
             } else if ("kof_list_reduce".equals(kc.methodName()) && isPrimitiveType(kc.returnType())) {
                 emitUnboxIfPrimitive(mv, kc.returnType());
             } else if ("kof_list_reduce".equals(kc.methodName())
@@ -97,7 +111,17 @@ public final class JvmOpCollections {
                 mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
             }
             case "kof_list_add" -> {
-                emitBoxIfPrimitive(mv, elemType);
+                // §374/#553 — coleção BARE (local `List xs = listOf(1)` ou
+                // campo `List xs` pos-§373): elemType e Unknown (receiver sem
+                // type-args) e o `int` cru do argumento chegava ao
+                // ArrayList.add(Object) → VerifyError no LOAD (mesma raiz do
+                // bug 35). MESMO fallback do contains (:139): boxear pelo
+                // tipo do ARGUMENTO; com elemType tipado o resultado e
+                // identico (typer garante compatibilidade, SEM056) — colecoes
+                // tipadas intocadas.
+                Type addT = elemType instanceof Type.UnknownType && !kc.parameterTypes().isEmpty()
+                        ? kc.parameterTypes().get(0) : elemType;
+                emitBoxIfPrimitive(mv, addT);
                 // ArrayList.add empilha boolean; o emit descarta — o IR
                 // não deve adicionar KofPop para add/set/clear
                 // (hasReturnValue = false), senão underflow no frame.
@@ -124,7 +148,12 @@ public final class JvmOpCollections {
                 emitUnboxIfPrimitive(mv, elemType);
             }
             case "kof_list_set" -> {
-                emitBoxIfPrimitive(mv, elemType);
+                // §374/#553 — box-by-arg no VALOR (ultimo parametro; o
+                // indice e sempre int). Guardado em Unknown: colecao tipada
+                // mantem exatamente o emit de antes.
+                Type setT = elemType instanceof Type.UnknownType && kc.parameterTypes().size() > 1
+                        ? kc.parameterTypes().get(1) : elemType;
+                emitBoxIfPrimitive(mv, setT);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "set", "(ILjava/lang/Object;)Ljava/lang/Object;", false);
                 mv.visitInsn(POP);
             }
@@ -207,7 +236,12 @@ public final class JvmOpCollections {
                         "<init>", "()V", false);
             }
             case "kof_channel_send" -> {
-                emitBoxIfPrimitive(mv, elemType);
+                // §374/#553 — mesma familia: canal BARE (`Channel ch = ...`
+                // sem type-args) + send de primitivo = int cru no
+                // LinkedBlockingQueue.put(Object).
+                Type sendT = elemType instanceof Type.UnknownType && !kc.parameterTypes().isEmpty()
+                        ? kc.parameterTypes().get(0) : elemType;
+                emitBoxIfPrimitive(mv, sendT);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/concurrent/LinkedBlockingQueue",
                         "put", "(Ljava/lang/Object;)V", false);
             }
@@ -223,134 +257,6 @@ public final class JvmOpCollections {
                     }
                 }
                 emitUnboxIfPrimitive(mv, elemType);
-            }
-            default -> {}
-        }
-    }
-
-    static void emitMapCall(MethodVisitor mv, KofCall kc) {
-        Type keyType = Type.UnknownType.UNKNOWN;
-        Type valueType = Type.UnknownType.UNKNOWN;
-        if (kc.ownerType() instanceof Type.ClassType ct && ct.typeArguments().size() == 2
-                && !(ct.typeArguments().get(0) instanceof Type.UnknownType)) {
-            keyType = ct.typeArguments().get(0);
-            valueType = ct.typeArguments().get(1);
-        }
-        // tipos reais dos argumentos no call-site (mapOf() nasce Unknown)
-        if (!kc.parameterTypes().isEmpty()) {
-            keyType = kc.parameterTypes().get(0);
-            if (kc.parameterTypes().size() > 1 && !BuiltinTypes.isList(kc.parameterTypes().get(1))) {
-                valueType = kc.parameterTypes().get(1);
-            }
-        }
-        switch (kc.methodName()) {
-            case "kof_map_new" -> {
-                mv.visitTypeInsn(NEW, "java/util/HashMap");
-                mv.visitInsn(DUP);
-                mv.visitMethodInsn(INVOKESPECIAL, "java/util/HashMap", "<init>", "()V", false);
-            }
-            case "kof_map_put" -> {
-                // stack: map, key, value — box ambos antes do put(Object,Object)
-                emitBoxIfPrimitive(mv, valueType);          // [m,k,V]
-                if (isPrimitiveType(keyType)) {
-                    mv.visitInsn(SWAP);                     // [m,V,k]
-                    emitBoxIfPrimitive(mv, keyType);        // [m,V,K]
-                    mv.visitInsn(SWAP);                     // [m,K,V]
-                }
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
-                // VOID no call-site (ex.: pares do mapOf): o valor anterior é descartado
-                if (Type.isVoid(kc.returnType())) {
-                    mv.visitInsn(POP);
-                } else {
-                    // D-NULL-INTENT/I7 (supersede §112): HashMap.put devolve
-                    // Object (prev, possivelmente null) — o typer agora
-                    // declara V? de verdade (não V), então só falta fixar o
-                    // tipo estático. Nunca substitui ausência por default.
-                    emitNullablyBoxedMapResult(mv, valueType);
-                }
-            }
-            case "kof_map_get" -> {
-                emitBoxIfPrimitive(mv, keyType);
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
-                // D-NULL-INTENT/I7 (supersede SG-008/bug-87 default-guard):
-                // get() devolve V? de verdade — ausência é null observável,
-                // NUNCA substituído pelo default do primitivo. O unbox, para
-                // quando o consumidor pede o valor cru, é responsabilidade
-                // de quem CONSOME (guiado pelo tipo do slot/expressão), não
-                // deste ponto de chamada.
-                emitNullablyBoxedMapResult(mv, valueType);
-            }
-            case "kof_map_remove" -> {
-                emitBoxIfPrimitive(mv, keyType);
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "remove", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
-                // D-NULL-INTENT/I7 (supersede §112): mesma razão do get/put
-                // acima — remove de chave ausente devolve null de verdade.
-                emitNullablyBoxedMapResult(mv, valueType);
-            }
-            case "kof_map_get_or_default" -> {
-                emitBoxIfPrimitive(mv, keyType);
-                emitBoxIfPrimitive(mv, valueType);
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "getOrDefault",
-                        "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
-                if (!isPrimitiveType(valueType) && !KofUi.isUiType(valueType) && !KofMedia.isHandleType(valueType) && !(valueType instanceof Type.UnknownType)) {
-                    String internal = JvmTypeMapper.toInternalName(valueType instanceof Type.ClassType ct ? ct.packageName() : "", valueType instanceof Type.ClassType ct ? ct.name() : "java/lang/Object");
-                    mv.visitTypeInsn(CHECKCAST, internal);
-                }
-                emitUnboxIfPrimitive(mv, valueType);
-            }
-            case "kof_map_contains" -> {
-                emitBoxIfPrimitive(mv, keyType);
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "containsKey", "(Ljava/lang/Object;)Z", true);
-            }
-            // #386 — containsValue(Object): box pelo tipo do ARG (o arg é o
-            // valor candidato; keyType aqui resolvido do parameterTypes[0] é
-            // exatamente esse tipo — java.util usa equals, o tag extra do
-            // call-site nativo é descartado).
-            case "kof_map_contains_value" -> {
-                if (kc.parameterTypes().size() > 1) {
-                    mv.visitInsn(POP);
-                }
-                if (!kc.parameterTypes().isEmpty()) {
-                    emitBoxIfPrimitive(mv, kc.parameterTypes().get(0));
-                }
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "containsValue",
-                        "(Ljava/lang/Object;)Z", true);
-            }
-            // #386 — putIfAbsent: mesmo contrato do put (anterior OU null);
-            // box key+value como getOrDefault, resultado V? como put
-            // (emitNullablyBoxedMapResult — CHECKCAST, nunca unbox: null
-            // ausente tem que sobreviver, D-NULL-INTENT/I7).
-            case "kof_map_put_if_absent" -> {
-                emitBoxIfPrimitive(mv, valueType);
-                if (isPrimitiveType(keyType)) {
-                    mv.visitInsn(SWAP);
-                    emitBoxIfPrimitive(mv, keyType);
-                    mv.visitInsn(SWAP);
-                }
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "putIfAbsent",
-                        "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
-                if (Type.isVoid(kc.returnType())) {
-                    mv.visitInsn(POP);
-                } else {
-                    emitNullablyBoxedMapResult(mv, valueType);
-                }
-            }
-            case "kof_map_size" -> mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "size", "()I", true);
-            case "kof_map_is_empty" -> mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "isEmpty", "()Z", true);
-            case "kof_map_clear" -> mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "clear", "()V", true);
-            case "kof_map_keys" -> {
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "keySet", "()Ljava/util/Set;", true);
-                mv.visitTypeInsn(NEW, "java/util/ArrayList");
-                mv.visitInsn(DUP_X1);
-                mv.visitInsn(SWAP);
-                mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "(Ljava/util/Collection;)V", false);
-            }
-            case "kof_map_values" -> {
-                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "values", "()Ljava/util/Collection;", true);
-                mv.visitTypeInsn(NEW, "java/util/ArrayList");
-                mv.visitInsn(DUP_X1);
-                mv.visitInsn(SWAP);
-                mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "(Ljava/util/Collection;)V", false);
             }
             default -> {}
         }
@@ -482,34 +388,17 @@ public final class JvmOpCollections {
         // kof.ui handles (Color, Theme, Label, Button, Input, Column, Row,
         // View, Style, Window) are Int values on every target; on the JVM
         // they must be boxed when stored in Object slots (e.g. List<Label>).
-        if (dev.kof.compiler.KofUi.isUiType(primitive) || KofMedia.isHandleType(primitive)) {
+        // #632: the same erasure survives a nullable wrapper, so `List<View?>`
+        // still stores an int that needs `Integer.valueOf`.
+        if (isHandleType(primitive)) {
             return "java/lang/Integer";
         }
         return null;
     }
 
-    /**
-     * D-NULL-INTENT/I7 (#278, supersede §112): resultado de
-     * get/put/remove de Map — o valor já chega BOXED (ou null) de
-     * {@code java.util.Map}; aqui só se fixa o tipo ESTÁTICO via
-     * CHECKCAST, nunca se desempacota nem se substitui ausência por
-     * default. Ausência (null) e {@code Present(0)}/{@code Present(false)}
-     * ficam observáveis e distintos — o unbox primitivo, quando o
-     * consumidor pede o valor cru, é responsabilidade de quem CONSOME
-     * (guiado pelo tipo do slot), não deste ponto de chamada.
-     */
-    static void emitNullablyBoxedMapResult(MethodVisitor mv, Type valueType) {
-        String boxed = boxedClassNameFor(valueType);
-        if (boxed != null) {
-            mv.visitTypeInsn(CHECKCAST, boxed);
-            return;
-        }
-        if (!KofUi.isUiType(valueType) && !KofMedia.isHandleType(valueType) && !(valueType instanceof Type.UnknownType)) {
-            String internal = JvmTypeMapper.toInternalName(
-                    valueType instanceof Type.ClassType ct ? ct.packageName() : "",
-                    valueType instanceof Type.ClassType ct ? ct.name() : "java/lang/Object");
-            mv.visitTypeInsn(CHECKCAST, internal);
-        }
+    private static boolean isHandleType(Type type) {
+        Type inner = type instanceof Type.NullableType nt ? nt.inner() : type;
+        return KofUi.isUiType(inner) || KofMedia.isHandleType(inner);
     }
 
     static void emitBoxIfPrimitive(MethodVisitor mv, Type type) {
@@ -517,14 +406,9 @@ public final class JvmOpCollections {
         if (boxed != null) {
             String desc = JvmTypeMapper.toDescriptor(type);
             if ("char".equals(typeName(type)) || "Char".equals(typeName(type))) desc = "I";
-            if (KofUi.isUiType(type) || KofMedia.isHandleType(type)) desc = "I";
+            if (isHandleType(type)) desc = "I";
             mv.visitMethodInsn(INVOKESTATIC, boxed, "valueOf", "(" + desc + ")L" + boxed + ";", false);
         }
-    }
-
-    static public boolean isPrimitiveType(Type type) {
-        if (type instanceof Type.NullableType nt) return isPrimitiveType(nt.inner());
-        return type instanceof Type.PrimitiveType pt && !"void".equals(pt.name());
     }
 
     static void emitUnboxIfPrimitive(MethodVisitor mv, Type type) {
@@ -542,6 +426,11 @@ public final class JvmOpCollections {
         }
     }
 
+    static public boolean isPrimitiveType(Type type) {
+        if (type instanceof Type.NullableType nt) return isPrimitiveType(nt.inner());
+        return type instanceof Type.PrimitiveType pt && !"void".equals(pt.name());
+    }
+
     public static boolean isPrimitiveOf(Type type, String name) {
         if (type instanceof Type.NullableType nt) return isPrimitiveOf(nt.inner(), name);
         return type instanceof Type.PrimitiveType pt && (pt.name().equals(name) || pt.name().equals(capitalize(name)));
@@ -551,7 +440,7 @@ public final class JvmOpCollections {
         return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    private static String typeName(Type type) {
+    static String typeName(Type type) {
         return type instanceof Type.PrimitiveType pt ? pt.name() : "";
     }
 

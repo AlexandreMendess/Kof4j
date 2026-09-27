@@ -173,6 +173,12 @@ public final class ExpressionInstanceCallLowerer {
     if (recvType instanceof Type.TypeVariable tvb && tvb.bound() != null) {
         recvType = tvb.bound();
     }
+    // §358 (21/09): receiver type-parameter SEM bound em alvo nativo não tem
+    // dispatch de instância no runtime cross → recusa honesta NAT004 (o gate
+    // extraído substitui o `call <método>` nu que dava link-fail críptico).
+    if (NativeGenericDispatchGate.refuse(driver, mc, recvType)) {
+        return localIdx;
+    }
     if (KofUi.isUiType(recvType)) {
         localIdx = driver.emitUiInstance(recvType, mc, ops, owner, localIdx, locals);
         return localIdx;
@@ -186,6 +192,12 @@ public final class ExpressionInstanceCallLowerer {
     }
     if (KofMedia.isHandleType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerMedia(driver, mc, ops, owner, localIdx, locals, recvType);
+    }
+    if (KofBuffer.isBufferType(recvType)) {
+        return ExpressionBuiltinInstanceCalls.lowerBuffer(driver, mc, ops, owner, localIdx, locals, recvType);
+    }
+    if (KofSecurity.isSecretType(recvType) || KofSecurity.isKeyHandleType(recvType)) {
+        return ExpressionBuiltinInstanceCalls.lowerSecret(driver, mc, ops, owner, localIdx, locals, recvType);
     }
     if (KofIo.isIoType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerIo(driver, mc, ops, owner, localIdx, locals, recvType);
@@ -234,7 +246,20 @@ public final class ExpressionInstanceCallLowerer {
     SymbolTable.MethodSymbol resolvedMethod = driver.semanticAnalyzer != null
             ? driver.semanticAnalyzer.getResolvedMethod(mc) : null;
     if (resolvedMethod != null) {
-        recvType = CompilerTypes.ownerTypeFromInternal(resolvedMethod.ownerClass(), driver.semanticAnalyzer);
+        // #639 face 2 (D-DECISION-BATCH-2709B): o owner do método é o NOME
+        // SIMPLES; com duas packages de mesmo nome, re-derivar o pacote aqui
+        // caía no last-write (nome simples) e emitia invokevirtual do owner
+        // ERRADO (VerifyError). Quando o receiver JÁ carrega o pacote e o
+        // owner é um nome simples de mesmo nome, preserva o pacote do receiver
+        // (sem colisão o resultado é idêntico).
+        String oc = resolvedMethod.ownerClass();
+        boolean simpleOwner = oc != null && !oc.contains("/");
+        boolean recvPackagedSame = recvType instanceof Type.ClassType rct
+                && rct.packageName() != null && !rct.packageName().isEmpty()
+                && rct.name().equals(oc);
+        if (!(simpleOwner && recvPackagedSame)) {
+            recvType = CompilerTypes.ownerTypeFromInternal(oc, driver.semanticAnalyzer);
+        }
         methodReturnType = resolvedMethod.returnType();
         methodParamTypes = new ArrayList<>(resolvedMethod.parameterTypes());
     } else if (BuiltinTypes.isString(recvType)) {
@@ -266,6 +291,11 @@ public final class ExpressionInstanceCallLowerer {
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.BOOL, 0));
                 return localIdx;
             }
+        }
+        // §424: five String methods have no JS/Native lowering — refuse with an
+        // honest STR003 instead of a JS TypeError / Native ld link-fail (R6).
+        if (StringTargetGaps.refuse(driver, mc)) {
+            return localIdx;
         }
         // Guardas de diagnóstico em receptor String (SEM052/SEM066/SEM051) —
         // extraídos p/ StringReceiverGuards (gate ≤600 REFACTOR-500; são puros:

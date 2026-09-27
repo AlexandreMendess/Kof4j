@@ -2,7 +2,7 @@
 
 # Status da Especificação
 
-**Versão:** 0.4.0-beta · **Data:** 06/09/2026 · **Re-sincronizado 17/09/2026** contra os SG-00x aplicados (`docs/bugs-and-gaps/specification-gaps.md`) e os fixes #322/#330.
+**Versão:** 0.5.0-beta · **Data:** 06/09/2026 · **Re-sincronizado 17/09/2026** contra os SG-00x aplicados (`docs/bugs-and-gaps/specification-gaps.md`) e os fixes #322/#330.
 
 Classificação de cada feature da linguagem. **Nada aqui é "estável" por
 cortesia** — Stable exige semântica congelada (regra 0.2.6-beta) **e** teste
@@ -102,7 +102,7 @@ Target-specific · Unspecified · Planned**.
 | Import ambíguo (não chuta) | Stable | `CompilerTypes:102` |
 | PKG002 (1 main) | Stable | probe |
 | Interop JVM (tipos Java) | **Target-specific** | `AndroidInteropE2ETest` |
-| FFI C (`extern "<lib>"`) | **Parcial** — JVM qualquer assinatura escalar, aridade livre, retornos `void`/`String` (18/09, `.18`); não-escalar = `FFI001`; runner host JS = MESMA ABI escalar (3.6.F2/F3 ✅ 18/09, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS), não-escalar = `FFI002`, browser = runtime R7; **Native = ABI escalar DIRETA em x86-64/riscv64/aarch64** (#431 fatias 1–2 ✅ 20/09, §369: link-by-use + `call sym@PLT`, sem `dlopen`; `FfiNativeE2ETest` 16/16 + `FfiNativeCrossE2ETest` 6/6 qemu), não-escalar/callback/`library()` ausente = `FFI001` (R6, nunca silencioso); args numéricos são convertidos ao slot pela regra comum (§370/#549 ✅ 20/09, `FfiExternTypeConversionTest` 11/11 JVM/Native/host JS) |
+| FFI C (`extern "<lib>"`) | **Parcial** — JVM qualquer assinatura escalar, aridade livre, retornos `void`/`String` (18/09, `.18`); não-escalar = `FFI001` (**exceto a fatia JVM 3.8b: `record` por valor arg/retorno + `T[]` escalar→`ptr` ✅ 20–21/09**, `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); runner host JS = MESMA ABI escalar (3.6.F2/F3 ✅ 18/09, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS), não-escalar = `FFI002`, browser = runtime R7; **Native = ABI escalar DIRETA em x86-64/riscv64/aarch64** (#431 fatias 1–2 ✅ 20/09, §369: link-by-use + `call sym@PLT`, sem `dlopen`; `FfiNativeE2ETest` 16/16 + `FfiNativeCrossE2ETest` 6/6 qemu), não-escalar/callback/`library()` ausente = `FFI001` (R6, nunca silencioso); args numéricos são convertidos ao slot pela regra comum (§370/#549 ✅ 20/09, `FfiExternTypeConversionTest` 11/11 JVM/Native/host JS) |
 
 ### Concorrência
 | Feature | Status | Teste-evidência |

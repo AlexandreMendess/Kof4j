@@ -192,7 +192,7 @@ User.query(db) { where age > 18; orderBy name desc; limit 10 }
   method is `query` with 1 argument (ExpressionParser.parsePostfix (call)).
 - Lowers to `db.query<Entity>(…)` with SQL assembled at compile-time and values
   as binds (no input concatenation). Available on JVM + JS (`DB002`/`ORM001`
-  closed 18/09); `ORM001` on Native.
+  closed 18/09); `ORM001` only on Native cross riscv64/aarch64 (x86-64 real since 22/09).
 - **Experimental** (ORM domain).
 
 ---

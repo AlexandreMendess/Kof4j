@@ -99,12 +99,52 @@ class HeterogeneousListInferTest {
     }
 
     @Test
+    void recordSubtypesWidenToCommonInterface(@TempDir Path tempDir) throws Exception {
+        // #596 — records (unlike classes) carry the structural `extends Record`
+        // as their stored superclass; the BFS queued it BEFORE the record's own
+        // interfaces, so the common ancestor resolved to the unqualified
+        // `Record` and every `get()` emitted `checkcast Record` ->
+        // NoClassDefFoundError: Record at class load. Must widen to `Shape`.
+        CompilationResult r = compile(tempDir, "R", """
+                interface Shape
+                record Circle(Int r) implements Shape
+                record Square(Int s) implements Shape
+                main() {
+                  var shapes = listOf(Circle(1), Square(2))
+                  for (var sh in shapes) {
+                    println(sh)
+                  }
+                }
+                """, Target.JVM);
+        assertTrue(r.success(), "#596 records must compile: " + r.diagnostics().getDiagnostics());
+        assertRuns(tempDir.resolve("out-RJVM"), "Circle[r=1]\nSquare[s=2]", "#596 records -> interface");
+    }
+
+    @Test
     void heterogeneousListCompilesOnNativeAndJs(@TempDir Path tempDir) throws Exception {
         // rule 5: the inference is shared IR — CLI measured `woof/meow` on
         // the fixed build; gate compilation for the artifact targets.
         for (Target t : new Target[]{Target.NATIVE, Target.JS}) {
             CompilationResult r = compile(tempDir, "P", ANIMALS, t);
             assertTrue(r.success(), t + " must compile: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void recordSubtypesCompileOnNativeAndJs(@TempDir Path tempDir) throws Exception {
+        // #596 cross-target: the widening fix is shared IR; gate that records
+        // implementing a shared interface also compile on the artifact targets.
+        for (Target t : new Target[]{Target.NATIVE, Target.JS}) {
+            CompilationResult r = compile(tempDir, "PR", """
+                    interface Shape
+                    record Circle(Int r) implements Shape
+                    record Square(Int s) implements Shape
+                    main() {
+                      var shapes = listOf(Circle(1), Square(2))
+                      println(shapes.size())
+                    }
+                    """, t);
+            assertTrue(r.success(), t + " records must compile: " + r.diagnostics().getDiagnostics());
         }
     }
 }

@@ -95,6 +95,20 @@ class NativeCrossDynamicLinkTest {
         assertFalse(List.of(dynA).contains("--no-relax"), "aarch64 sem --no-relax");
     }
 
+    // ---- unit: forma do arg de link p/ `library()` de extern (#431) ----
+
+    @Test
+    void ffiLinkArgMapsSonamesAndKeepsObjectPaths() {
+        assertEquals("-l:libc.so.6", NativeCrossLink.ffiLinkArg("libc.so.6"));
+        assertEquals("-l:libm.so.6", NativeCrossLink.ffiLinkArg("/usr/lib/libm.so.6"),
+                "soname com path → basename em -l: (lib do sysroot cross)");
+        assertEquals("-lm", NativeCrossLink.ffiLinkArg("m"), "nome cru → -l<nome>");
+        assertEquals("/tmp/fixture.o", NativeCrossLink.ffiLinkArg("/tmp/fixture.o"),
+                "objeto montado p/ a arch entra posicional preservando o path (fatia C4-x)");
+        assertEquals("rel/fixture.o", NativeCrossLink.ffiLinkArg("rel/fixture.o"),
+                "path relativo de objeto também é preservado");
+    }
+
     // ---- unit: detecção do consumidor SQLite + -lsqlite3 (DB001) ----
 
     @Test
@@ -233,6 +247,22 @@ class NativeCrossDynamicLinkTest {
                 call exit
             """;
 
+    /** Versão esperada = a que a PRÓPRIA .so linkada reporta, lida do binário
+     *  (string NUL-delimitada de {@code sqlite3_libversion}): o sysroot do
+     *  host/CI tem a versão que tiver (3.45.1 no CI, 3.46.1 no host de
+     *  22/09) — o contrato é "o binário resolve a .so e imprime a versão
+     *  dela", nunca "a .so é uma versão fixa" (golden = medição real). */
+    private static String sqliteVersionFromLib(String arch) throws IOException {
+        String path = NativeCrossLink.sqliteLibFor(arch);
+        assertNotNull(path, "libsqlite3 presente (assumeTrue acima)");
+        byte[] bytes = Files.readAllBytes(Path.of(path));
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("\\x00(\\d+\\.\\d+\\.\\d+)\\x00")
+                .matcher(new String(bytes, StandardCharsets.ISO_8859_1));
+        assertTrue(m.find(), "versão embutida na libsqlite3: " + path);
+        return m.group(1);
+    }
+
     @Test
     void riscv64DynamicLinksSqliteAndRuns(@TempDir Path tempDir) throws IOException {
         Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
@@ -250,7 +280,8 @@ class NativeCrossDynamicLinkTest {
         bin.toFile().setExecutable(true);
         String out = runCapture(java.util.Map.of("QEMU_LD_PREFIX", NativeCrossLink.qemuPrefixFor("riscv64")),
                 "qemu-riscv64", bin.toString());
-        assertEquals("3.45.1", out, "libsqlite3 dinâmica deveria devolver a versão: " + out);
+        assertEquals(sqliteVersionFromLib("riscv64"), out,
+                "libsqlite3 dinâmica deveria devolver a versão da própria .so linkada: " + out);
     }
 
     @Test
@@ -273,6 +304,7 @@ class NativeCrossDynamicLinkTest {
         bin.toFile().setExecutable(true);
         String out = runCapture(java.util.Map.of("QEMU_LD_PREFIX", NativeCrossLink.qemuPrefixFor("aarch64")),
                 "qemu-aarch64", bin.toString());
-        assertEquals("3.45.1", out, "libsqlite3 dinâmica deveria devolver a versão: " + out);
+        assertEquals(sqliteVersionFromLib("aarch64"), out,
+                "libsqlite3 dinâmica deveria devolver a versão da própria .so linkada: " + out);
     }
 }

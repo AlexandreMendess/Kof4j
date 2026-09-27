@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -36,8 +37,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * derramamento (≥9 args) e Float/Bool — o caminho é o MESMO código
  * compartilhado (FfiSignature/marshaling) com x86-64, que tem golden de
  * 9-arg/spill/mix na fatia 1; o limite é de ferramenta, documentado no
- * ledger (§365). Callback/struct/array: FFI001 honesto (gate, linha da
- * declaração).
+ * ledger (§365). Callback/array e struct com campo float/HFA ou &gt; 16 B:
+ * FFI001 honesto (gate, linha da declaração); struct RETURN com campos INTEGER
+ * (≤ 16 B) binda na fatia 3 (prova `div()` abaixo).
  */
 class FfiNativeCrossE2ETest {
 
@@ -170,6 +172,66 @@ class FfiNativeCrossE2ETest {
     void riscv64ExitGroupKillsScheduler(@TempDir Path tempDir) throws Exception {
         assumeTrue(ready("riscv64"), "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
         exitGroupKillsScheduler(tempDir, "riscv64", Target.NATIVE_RISCV64);
+    }
+
+    /** 3.7 fatia 3: `record` devolvido por valor com campos INTEGER (≤ 16 B)
+     *  BINDA no cross. Prova sem fixture C: `div()` da libc devolve
+     *  `div_t { int quot; int rem; }` (8 B) num registrador inteiro conforme a
+     *  ABI — riscv: `a0`; aarch64: `x0`. O golden `3\n1` é o MESMO medido no
+     *  oráculo JVM em `FfiStructE2ETest.structReturnViaLibcDivJvm` (regra 5). */
+    private static final String DIV_PROGRAM = """
+            record Div(Int quot, Int rem)
+
+            extern "libc.so.6" div(Int a, Int b): Div
+
+            main() {
+                val d = div(7, 2)
+                println(d.quot())
+                println(d.rem())
+            }
+            """;
+
+    @Test
+    void riscv64StructReturnViaLibcDiv(@TempDir Path tempDir) throws IOException {
+        assumeTrue(ready("riscv64"), "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
+        assertEquals("3\n1", runCross("riscv64", Target.NATIVE_RISCV64, tempDir, DIV_PROGRAM),
+                "riscv64 div_t por valor (LP64: 1 doubleword empacotado em a0)");
+    }
+
+    @Test
+    void aarch64StructReturnViaLibcDiv(@TempDir Path tempDir) throws IOException {
+        assumeTrue(ready("aarch64"), "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
+        assertEquals("3\n1", runCross("aarch64", Target.NATIVE_AARCH64, tempDir, DIV_PROGRAM),
+                "aarch64 div_t por valor (AAPCS64: 1 eightword em x0)");
+    }
+
+    @Test
+    void crossStructReturnAgreesBetweenArchs(@TempDir Path tempDir) throws IOException {
+        assumeTrue(ready("riscv64") && ready("aarch64"),
+                "ambas as archs + qemu necessárias para a paridade");
+        assertEquals(runCross("riscv64", Target.NATIVE_RISCV64, tempDir, DIV_PROGRAM),
+                runCross("aarch64", Target.NATIVE_AARCH64, tempDir, DIV_PROGRAM),
+                "regra 5: struct return por valor, mesma saída nos dois cross");
+    }
+
+    @Test
+    void riscv64StructReturnWithFloatFieldStaysFfi001(@TempDir Path tempDir) throws IOException {
+        // Fatia 3 (primeiro corte): só o register path INTEGER binda. Um struct
+        // com campo float (classe SSE/HFA) segue FFI001 honesto (R6) — o gate
+        // roda ANTES do codegen, então não precisa de toolchain.
+        Path src = tempDir.resolve("FloatRet.kf");
+        Files.writeString(src, """
+                record Pair(Double d, Int i)
+
+                extern "libc.so.6" mk(): Pair
+
+                main() { println("gap") }
+                """);
+        CompilationResult r = driver.compile(src, tempDir.resolve("out-fret"), Target.NATIVE_RISCV64);
+        assertFalse(r.success(), "struct return com campo float não pode virar silêncio no cross");
+        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
+                "float/HFA no cross permanece FFI001 honesto na declaração: "
+                        + r.diagnostics().getDiagnostics());
     }
 
     @Test

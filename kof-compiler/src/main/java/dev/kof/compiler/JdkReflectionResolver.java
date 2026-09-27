@@ -47,18 +47,28 @@ final class JdkReflectionResolver {
 
             for (Method m : cls.getMethods()) {
                 if (!m.getName().equals(methodName)) continue;
-                if (m.getParameterCount() != argumentCount) continue;
+                // §500: aridade fixa OU varargs com N >= fixo. O candidato
+                // exato ainda vence (penalidade -5 nos varargs).
+                int pc = m.getParameterCount();
+                boolean varargs = m.isVarArgs();
+                if (pc != argumentCount && !(varargs && argumentCount >= pc - 1)) continue;
 
                 int score = 0;
                 if (!m.isBridge()) {
                     score += 100;
                 }
+                if (varargs) {
+                    score -= 5;
+                }
 
                 if (argumentTypes != null && argumentTypes.size() == argumentCount) {
                     Class<?>[] paramTypes = m.getParameterTypes();
+                    int fixed = varargs ? pc - 1 : pc;
+                    Class<?> varComp = varargs
+                            ? paramTypes[pc - 1].getComponentType() : null;
                     boolean compatible = true;
                     for (int i = 0; i < argumentCount; i++) {
-                        Class<?> p = paramTypes[i];
+                        Class<?> p = i < fixed ? paramTypes[i] : varComp;
                         Type argT = argumentTypes.get(i);
                         Class<?> a = toJavaClass(argT);
                         if (a != null) {
@@ -93,10 +103,81 @@ final class JdkReflectionResolver {
                 String retDesc = org.objectweb.asm.Type.getDescriptor(best.getReturnType());
                 boolean isStatic = Modifier.isStatic(best.getModifiers());
                 boolean isInterface = cls.isInterface();
-                return new ExternalClasspath.MethodSignature(paramDescs, retDesc, isStatic, isInterface);
+                return new ExternalClasspath.MethodSignature(paramDescs, retDesc, isStatic,
+                        isInterface, best.isVarArgs());
             }
         } catch (Throwable t) {
             // Se a classe não puder ser carregada, retorna null
+        }
+        return null;
+    }
+
+    /**
+     * §500 slice B: descritor de um campo PUBLIC STATIC do JDK via reflexão
+     * (`Integer.MAX_VALUE` → "I", `TimeUnit.SECONDS` → "Ljava/util/concurrent/
+     * TimeUnit;"). Só `getFields()` (públicos) + `Modifier.isStatic` — campo de
+     * instância pelo NOME da classe não existe como acesso, e a recusa é o
+     * diagnóstico (SEM025 no typer), nunca o `getfield "?"` de antes.
+     */
+    static String resolveStaticJdkFieldType(String ownerInternalName, String fieldName) {
+        if (!isJdkClass(ownerInternalName)) return null;
+        try {
+            Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            for (java.lang.reflect.Field f : cls.getFields()) {
+                if (f.getName().equals(fieldName) && Modifier.isStatic(f.getModifiers())) {
+                    return org.objectweb.asm.Type.getDescriptor(f.getType());
+                }
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+        return null;
+    }
+
+    /**
+     * §499: existe método público do JDK com este nome e aridade, ciente de
+     * varargs (`String.format(String, Object...)` casa com 1..N argumentos)?
+     * É a pergunta que o gate de método estático desconhecido em nome de tipo
+     * builtin precisa — `resolveJdkMethod` exige `getParameterCount() == argc`
+     * e por isso não vê varargs.
+     */
+    static boolean hasJdkMethod(String ownerInternalName, String methodName, int argumentCount) {
+        if (!isJdkClass(ownerInternalName)) return false;
+        try {
+            Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            for (Method m : cls.getMethods()) {
+                if (!m.getName().equals(methodName)) continue;
+                int pc = m.getParameterCount();
+                if (pc == argumentCount) return true;
+                if (m.isVarArgs() && argumentCount >= pc - 1) return true;
+            }
+        } catch (Throwable t) {
+            return false;
+        }
+        return false;
+    }
+
+    /**
+     * §393 (#568): construtor PUBLICO do JDK com a aridade dada via reflexao
+     * (`getConstructors` = so publicos; classe abstrata nao entrega
+     * construtor). Retorno sempre "V" — construtor nunca tem valor.
+     */
+    static ExternalClasspath.MethodSignature resolvePublicJdkConstructor(String ownerInternalName,
+                                                                         int argumentCount) {
+        if (!isJdkClass(ownerInternalName)) return null;
+        try {
+            Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            for (java.lang.reflect.Constructor<?> c : cls.getConstructors()) {
+                if (c.getParameterCount() != argumentCount) continue;
+                List<String> paramDescs = new ArrayList<>();
+                for (Class<?> p : c.getParameterTypes()) {
+                    paramDescs.add(org.objectweb.asm.Type.getDescriptor(p));
+                }
+                return new ExternalClasspath.MethodSignature(paramDescs, "V", false,
+                        cls.isInterface(), c.isVarArgs());
+            }
+        } catch (Throwable t) {
+            // Classe nao carregavel: sem construtor (mesma politica do resolveJdkMethod)
         }
         return null;
     }

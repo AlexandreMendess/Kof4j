@@ -356,8 +356,16 @@ public final class JvmRuntimeCore {
                     if (p != null) {
                         p.destroyForcibly();
                         SPAWNED.remove(handle);
-                        SPAWN_WRITERS.remove(handle);
-                        SPAWN_READERS.remove(handle);
+                        try {
+                            var w = SPAWN_WRITERS.remove(handle);
+                            if (w != null) w.close();
+                        } catch (Exception ignored) {
+                        }
+                        try {
+                            var r = SPAWN_READERS.remove(handle);
+                            if (r != null) r.close();
+                        } catch (Exception ignored) {
+                        }
                     }
                 }
 
@@ -411,6 +419,30 @@ public final class JvmRuntimeCore {
                     }
                 }
 
+                // ── kof.ssh (Stage 2 / 2.3) — sugar over the process layer ──
+                // argv-first (never a shell string): the host and the command stay
+                // ONE element each, so a host/command with spaces or metacharacters
+                // is never re-parsed (the sh -c injection class, same discipline as
+                // kof.shell). BatchMode + ConnectTimeout keep it non-interactive and
+                // bounded; a spawn/connection failure is an honest Result (never a
+                // silent success, R6).
+
+                public static java.util.ArrayList<String> kof_ssh_argv(String host, String command) {
+                    java.util.ArrayList<String> argv = new java.util.ArrayList<>();
+                    argv.add("ssh");
+                    argv.add("-o");
+                    argv.add("BatchMode=yes");
+                    argv.add("-o");
+                    argv.add("ConnectTimeout=5");
+                    argv.add(host);
+                    argv.add(command);
+                    return argv;
+                }
+
+                public static ProcessResult kof_ssh_run(String host, String command) {
+                    return kof_shell_runwith(kof_ssh_argv(host, command), "", java.util.Map.of());
+                }
+
                 public static ProcessResult kof_shell_pipeline(List<List<String>> stages) {
                     try {
                         if (stages == null || stages.isEmpty()) {
@@ -459,6 +491,30 @@ public final class JvmRuntimeCore {
                         return new ProcessResult("", e.getMessage() == null
                                 ? e.getClass().getSimpleName() : e.getMessage(), -1);
                     }
+                }
+
+                // ── §388-B: display de arrays primitivos ───────────
+                // println de um array cru nao e identidade Java ([I@hash):
+                // o formato de container da casa e "[a, b]" (§107 — oracle =
+                // ArrayList.toString; o JS espelha via kofFormat, o nativo via
+                // kof_list_to_string). Elemento primitivo vem pelo box (mesma
+                // saida do valueOf de colecoes), aninhado recursa, e objeto/
+                // record usa o toString de conteudo que ja existe.
+
+                public static String kof_array_to_string(Object a) {
+                    return kof_array_join(a);
+                }
+
+                private static String kof_array_join(Object a) {
+                    if (a == null) return "null";
+                    if (!a.getClass().isArray()) return String.valueOf(a);
+                    int n = java.lang.reflect.Array.getLength(a);
+                    StringBuilder sb = new StringBuilder("[");
+                    for (int i = 0; i < n; i++) {
+                        if (i > 0) sb.append(", ");
+                        sb.append(kof_array_join(java.lang.reflect.Array.get(a, i)));
+                    }
+                    return sb.append(']').toString();
                 }
 
 """;

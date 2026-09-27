@@ -74,6 +74,11 @@ public final class RuntimeSlices {
             Pattern.compile("(?<![\\w.])kof_\\w+");
     private static final Pattern LOCAL_DEF =
             Pattern.compile("(?m)^\\s*(\\.L\\w+):");
+    /** `.set .Lsym, expr` também DEFINE um local em tempo de montagem (o `as`
+     *  resolve; sem isso o scanner vê o uso e declara a aresta órfã — cego do
+     *  registry revelado 26/09 pelas `.set .Lmed_*_len` da linha 4 da paridade). */
+    private static final Pattern LOCAL_SET_DEF =
+            Pattern.compile("(?m)^\\s*\\.set\\s+(\\.L\\w+)\\b");
     private static final Pattern LOCAL_REF =
             Pattern.compile("(?<![\\w.])(\\.L\\w+)\\b");
     /** Comentário asm (#...) — NÃO é código; precisa ser riscado antes do
@@ -91,7 +96,7 @@ public final class RuntimeSlices {
         // #113: o root_start passou a ser emitido na abertura do .data do
         // PROGRAMA (NativeBackend.emit), nao no preambulo do runtime — a fatia
         // GC o referencia via leaq e o needs só fecha se ele for extern.
-        return Set.of("kof_super_table", "kof_heap_root_start");
+        return Set.of("kof_super_table", "kof_heap_root_start", "kof_tostring_table", "kof_equals_table", "kof_hashcode_table");
     }
 
     /** Rótulos locais `.L*` definidos pelo CAMINHO DE PROGRAMA (Main.s) e
@@ -101,22 +106,40 @@ public final class RuntimeSlices {
      *  exatamente estes 3, definidos em `NativeClassMeta`): `.Lnewline`,
      *  `.Lkof_str_true`, `.Lkof_str_false`. */
     public static Set<String> programSideLocals() {
-        return Set.of(".Lnewline", ".Lkof_str_true", ".Lkof_str_false");
+        return Set.of(".Lnewline", ".Lkof_str_true", ".Lkof_str_false", ".Lsch_type_registry");
     }
     private static final Pattern SLICE_CALL =
             Pattern.compile("([A-Za-z][A-Za-z0-9_.]*)\\.([A-Za-z0-9_]+)\\(sb\\)");
 
-    private static volatile List<Slice> cached;
+    private static final java.util.Map<dev.kof.compiler.nat.NativeProfile, List<Slice>> CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
-    /** Todas as fatias na ordem EXATA de emissão do runtime de produção. */
+    /**
+     * Todas as fatias na ordem EXATA de emissão do runtime de produção.
+     *
+     * <p>B-2: o cache é chaveado POR PERFIL — os corpos da costura
+     * {@code kof_plat_*} dependem do perfil (host/freestanding = syscalls
+     * Linux; UEFI = OutputString/AllocatePool), e o {@code build()} captura o
+     * TEXTO invocando os métodos emit (os guards leem
+     * {@code NativeProfile.active}). Sem a chave, o primeiro compile da JVM
+     * congelava o texto e o próximo compile com OUTRO perfil linkava corpos
+     * do perfil errado (medido: UEFI depois de FREESTANDING linkava write
+     * Linux → undefined {@code kof_efi_save_args}). */
     public static List<Slice> slices() {
-        List<Slice> s = cached;
+        dev.kof.compiler.nat.NativeProfile p = dev.kof.compiler.nat.NativeProfile.active;
+        List<Slice> s = CACHE.get(p);
         if (s == null) {
             synchronized (RuntimeSlices.class) {
-                s = cached;
+                s = CACHE.get(p);
                 if (s == null) {
-                    s = build();
-                    cached = s;
+                    dev.kof.compiler.nat.NativeProfile prev = dev.kof.compiler.nat.NativeProfile.active;
+                    dev.kof.compiler.nat.NativeProfile.active = p;
+                    try {
+                        s = build();
+                    } finally {
+                        dev.kof.compiler.nat.NativeProfile.active = prev;
+                    }
+                    CACHE.put(p, s);
                 }
             }
         }
@@ -355,6 +378,8 @@ public final class RuntimeSlices {
             Set<String> localProvides = new LinkedHashSet<>();
             Matcher lg = LOCAL_DEF.matcher(code);
             while (lg.find()) localProvides.add(lg.group(1));
+            Matcher ls = LOCAL_SET_DEF.matcher(code);
+            while (ls.find()) localProvides.add(ls.group(1));
             Set<String> localNeeds = new LinkedHashSet<>();
             Matcher lr = LOCAL_REF.matcher(code);
             while (lr.find()) {
@@ -392,21 +417,13 @@ public final class RuntimeSlices {
     }
 
     /** Lê o fonte de produção; retorna [fonte, corpoDoMetodo]. A ordem das
-     *  fatias É derivada daqui — nunca transcrita à mão. */
+     *  fatias É derivada daqui — nunca transcrita à mão. §371: classpath
+     *  primeiro (funciona do jar shipped), CWD-relativo só como fallback dev. */
     private static String[] readSourceAndOrder() {
-        String src;
-        try {
-            src = java.nio.file.Files.readString(java.nio.file.Path.of(
-                    "kof-compiler/src/main/java/dev/kof/compiler/NativeRuntime.java"));
-        } catch (Exception e) {
-            try {
-                src = java.nio.file.Files.readString(java.nio.file.Path.of(
-                        "src/main/java/dev/kof/compiler/NativeRuntime.java"));
-            } catch (Exception e2) {
-                throw new IllegalStateException(
-                        "NativeRuntime.java not found (run from the kof-compiler module)", e2);
-            }
-        }
+        String src = RuntimeSourceLoader.read(RuntimeSlices.class,
+                "/dev/kof/compiler/NativeRuntime.java",
+                "kof-compiler/src/main/java/dev/kof/compiler/NativeRuntime.java",
+                "src/main/java/dev/kof/compiler/NativeRuntime.java");
         int start = src.indexOf("generateRuntimeAssembly()");
         int end = src.indexOf("return sb.toString", start);
         if (start < 0 || end < 0) throw new IllegalStateException("body not found");

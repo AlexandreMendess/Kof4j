@@ -181,6 +181,7 @@ final class NativeRiscvAsmRtB36 {
             # 0..7 (off@0, pend@4), h em 16.
             .globl String_hashCode
             String_hashCode:
+                beqz a0, .Lb6_hc_zero
                 addi sp, sp, -64
                 sd   ra, 56(sp)
                 sd   s0, 48(sp)
@@ -210,6 +211,32 @@ final class NativeRiscvAsmRtB36 {
                 ld   s1, 40(sp)
                 ld   ra, 56(sp)
                 addi sp, sp, 64
+                ret
+            .Lb6_hc_zero:
+                li   a0, 0
+                ret
+
+            # §114 (face hash aninhado, 24/09): kof_obj_hash(a0=obj) -> a0 =
+            # hashCode de CONTEUDO. 0 se null/sem hashCode; String (type_id==1)
+            # -> String_hashCode; senao kof_hashcode_table[type_id]. Fica nesta
+            # peca (junto de String_hashCode) p/ nao criar aresta B0->B36 e
+            # inflar o piso podavel.
+            .globl kof_obj_hash
+            kof_obj_hash:
+                beqz a0, .Lkoh_zero
+                lw   t0, 0(a0)
+                li   t1, 1
+                beq  t0, t1, .Lkoh_str
+                la   t2, kof_hashcode_table
+                slli t0, t0, 3
+                add  t2, t2, t0
+                ld   t3, 0(t2)
+                beqz t3, .Lkoh_zero
+                jr   t3
+            .Lkoh_str:
+                j    String_hashCode
+            .Lkoh_zero:
+                li   a0, 0
                 ret
 
             # String_compareTo(a0=this, a1=other) -> a0=Int — port do

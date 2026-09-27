@@ -16,7 +16,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 HARD_DENY="ml bio hpc data sci cloud infra game"
-LEDGER="scripts/stdlib_boundary.txt"
+LEDGER="${R1_LEDGER:-scripts/stdlib_boundary.txt}"
+# R5 promotions (D4-A): namespaces promoted to `stable`. Empty = zero promotions
+# (every namespace is born `experimental`). A promotion adds the ns here AND a
+# registry row in docs/backend-parity.md §Stability (R5 DoD) — the gate denies a
+# `stable` tier that is not pinned here, and a pin that is not `stable` (drift).
+STABLE_ALLOWLIST=""
 # bare (non-`kof.`-prefixed) stdlib surfaces dispatched by identifier —
 # each MUST have a ledger line; adding one here without a ledger entry fails.
 BARE_SURFACES="json"
@@ -32,13 +37,22 @@ scan_ns() {
 
 if [ "${1:-}" = "--selftest" ]; then
   tmp="kof-compiler/src/main/java/R1SelfTestProbe.java"
-  trap 'rm -f "$tmp"' EXIT
+  tldg="$(mktemp "${TMPDIR:-/tmp}/r1-ledger.XXXXXX")"
+  trap 'rm -f "$tmp" "$tldg"' EXIT
   printf 'final class R1SelfTestProbe { static final String P = "kof.ml"; static final String N = "kof.quantum"; }\n' > "$tmp"
   out="$(set +e; bash "$0" 2>&1; echo "rc=$?")"
   echo "$out" | grep -q "heavy domain — forbidden" || { echo "SELFTEST FAIL: heavy-domain not caught"; exit 1; }
   echo "$out" | grep -q "undocumented namespace 'kof.quantum'" || { echo "SELFTEST FAIL: drift not caught"; exit 1; }
   echo "$out" | grep -q "rc=1" || { echo "SELFTEST FAIL: gate did not fail"; exit 1; }
-  echo "SELFTEST OK: heavy-domain + drift caught, gate rc=1"
+  # R5 tier gate (D4-A): a namespace line without a tier must fail.
+  printf 'math base-stdlib — no tier here\n' > "$tldg"
+  o2="$(set +e; R1_LEDGER="$tldg" bash "$0" 2>&1; echo "rc=$?")"
+  echo "$o2" | grep -q "no valid R5 tier" || { echo "SELFTEST FAIL: missing tier not caught"; exit 1; }
+  # R5 tier gate: an unpinned promotion to `stable` must fail (never silent, never bulk).
+  printf 'math base-stdlib stable — illegal promotion\n' > "$tldg"
+  o3="$(set +e; R1_LEDGER="$tldg" bash "$0" 2>&1; echo "rc=$?")"
+  echo "$o3" | grep -q "declared stable without the R5 DoD" || { echo "SELFTEST FAIL: illegal promotion not caught"; exit 1; }
+  echo "SELFTEST OK: heavy-domain + drift + R5 tier (missing/promotion) caught, gate rc=1"
   exit 0
 fi
 
@@ -65,8 +79,29 @@ for ns in $allowed; do
   grep -qx "$ns" <<< "$found" || echo "note: ledger entry 'kof.$ns' no longer found in sources — prune or confirm" >&2
 done
 
+# R5 tier gate (D4-A): every namespace line declares a tier; `stable` is denied
+# unless pinned in STABLE_ALLOWLIST (promotion registry), and a pin must match.
+while read -r ns layer tier _rest; do
+  case "$layer" in documented-only|excluded) continue ;; esac
+  case "$tier" in
+    experimental) ;;
+    stable)
+      grep -qw "$ns" <<< "$STABLE_ALLOWLIST" \
+        || { echo "VIOLATION: '$ns' declared stable without the R5 DoD — promotion needs the backend-parity.md §Stability registry row + a pin in STABLE_ALLOWLIST (D4-A: born experimental, never in bulk, never by age)"; fail=1; } ;;
+    *)
+      echo "VIOLATION: '$ns' has no valid R5 tier ('${tier:-<missing>}') — every namespace line needs 'experimental' or 'stable' (D4-A; R5 machine gate)"; fail=1 ;;
+  esac
+done < <(grep -vE '^\s*(#|$)' "$LEDGER")
+
+for ns in $STABLE_ALLOWLIST; do
+  tier="$(grep -vE '^\s*(#|$)' "$LEDGER" | awk -v n="$ns" '$1==n{print $3; exit}')"
+  [ "$tier" = stable ] \
+    || { echo "VIOLATION: '$ns' is pinned stable in STABLE_ALLOWLIST but the ledger tier is '${tier:-<missing>}' (drift)"; fail=1; }
+done
+
 if [ "$fail" = 0 ]; then
   echo "R1 boundary OK: $(grep -cvE '^\s*(#|$)|^\S+\s+excluded' "$LEDGER" || true) namespaces registered"
   grep -vE '^\s*(#|$)' "$LEDGER" | awk '$2!="excluded"{c[$2]++} END{for(l in c) printf "  %-18s %s\n", l":", c[l]}' | sort
+  grep -vE '^\s*(#|$)' "$LEDGER" | awk '$2!="excluded"{t[$3]++} END{for(k in t) printf "  tier %-13s %s\n", k":", t[k]}' | sort
 fi
 exit "$fail"

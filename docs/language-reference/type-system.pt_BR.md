@@ -218,6 +218,68 @@ tipo de elemento de coleção (`SEM056`) — todos impostos em compile-time:
 - `abstract class A; new A()`/`A()` → `SEM041` em compile-time.
 - `l.add("x")` numa `List<Int>` → `SEM056`.
 
+**`sealed` (X5.1/X5.2 — `D-X5-SURFACE`, 21/09):** `sealed class`/`record`/`interface`
+fecha o conjunto de subtipos em compile-time — o conjunto é o das declarações da
+**mesma unidade de compilação** (arquivo). Um subtipo direto (`extends`/
+`implements`) declarado fora dela é **`SEM080`** (o compilador não o conhece),
+nunca um conjunto aberto silencioso. Um `switch` **expressão** sobre sujeito
+selado é **exaustivo sem `default`** quando cobre todo subtipo direto
+(`case Subtype v ->`); faltando um subtipo é **`SEM081`**. `sealed` é modificador
+**só de compile-time** (apagado na emissão: bytes idênticos em JVM/Native/JS) e
+**keyword contextual** — `sealed` segue identificador válido fora de uma
+declaração de tipo.
+
+**Variância no sítio de declaração `out`/`in` (X5.3 — `D-TYPE-VARIANCE`, 21/09):**
+um type-param genérico pode carregar um prefixo de variância — `class Source<out T>`
+é **covariante**, `class Sink<in T>` é **contravariante**, e sem prefixo é
+**invariante** (o padrão, inalterado). A variância governa a compatibilidade dos
+**type-args do mesmo raw**:
+
+```kof
+record Source<out T>(T value)          // componente somente-leitura = posição de saída
+Source<Animal> up(Source<Dog> d) { return d }   // OK: Dog <: Animal (covariante)
+
+class Sink<in T> { String consume(T v) { return "x" } }   // posição de entrada
+Sink<Dog> down(Sink<Animal> w) { return w }     // OK: Animal >: Dog (contravariante)
+
+class Box<T> { T value ... }           // invariante
+Box<Animal> f(Box<Dog> d) { return d } // SEM021: rejeitado (§270)
+```
+
+`out`/`in` são **keywords contextuais** (seguem identificadores válidos). Apagados
+na emissão: descritores e bytes de execução idênticos em JVM/Native/JS (a variância
+vive só no typer). **Guarda de solidez (`SEM082`):** `out T` é proibido em posição
+de entrada (parâmetro de método/construtor, campo gravável de classe) e `in T` é
+proibido em posição de saída (retorno, qualquer campo ou componente de record),
+porque um `out` gravável / `in` legível deixaria o alias covariante/contravariante
+gravar ou expor um valor do tipo errado. Componentes de record e campos de
+interface são somente-leitura, então `out T` é permitido neles. **Guarda de
+herança (`SEM083`, X5.3b):** um type-param declarado `out`/`in` não pode ser
+passado a um parâmetro do supertipo com variância **incompatível** —
+`class Bad<out T> extends Sink<T>` é rejeitado quando `Sink` declara `in T` (o
+supertipo reintroduziria `T` numa posição de entrada), e `class Bad<in T>
+extends Source<T>` é rejeitado quando `Source` declara `out T`. Passar uma
+variância para um parâmetro **invariante** do supertipo também é rejeitado (o
+invariante exige leitura e escrita). O caso coerente (`class Good<out T> extends
+Source<T>` com `Source<out T>`) é permitido.
+
+**Projeção no sítio de uso `List<out T>` / `List<in T>` (X5.4 — `D-X5-SURFACE`,
+21/09):** mesmo um tipo declarado **invariante** aceita uma projeção no sítio de
+uso, exatamente como wildcards de Java, mas com a grafia `out`/`in` de Kof:
+
+```kof
+List<out Animal> up(List<Dog> xs) { return xs }   // OK: uso covariante
+List<in Dog> down(List<Animal> xs) { return xs }  // OK: uso contravariante
+List<Animal> same(List<Dog> xs) { return xs }     // SEM021: invariante, rejeitado
+```
+
+`List<out T>` aceita qualquer `List<S>` com `S <: T`; `List<in T>` aceita
+qualquer `List<S>` com `S >: T`. É a mesma informação só de compile-time da
+variância no sítio de declaração — a emissão a apaga (a projeção vira o
+`WildcardType` já existente, que os quatro alvos já apagam), então descritores e
+bytes de execução não mudam. `out`/`in` num type-argument continuam contextuais
+(seguem identificadores válidos).
+
 **Garantia do type checker:** chamada a função/método **inexistente em tipo
 conhecido** é erro (`SEM015`/`SEM025`); aridade de argumentos/construtores é
 checada (`SEM013`/`SEM023`); tipo de retorno incompatível é erro (`SEM010`);
@@ -379,6 +441,10 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM077` | `Style("<declarações>")` com declaração malformada, ou argumento não-literal | `KofStyleParser` (D-UI-STYLE/UI007) |
 | `SEM078` | `Style("<declarações>")` com valor inválido para propriedade conhecida | `KofStyleParser` (D-UI-STYLE/UI007) |
 | `SEM079` | uso errado de token do design system: membro inexistente de `Spacing`/`Radius`/`Border`/`Elevation`/`Typography`, ou chamada de método num namespace de token | `KofUiTokens` (Fase 10) |
+| `SEM080` | subtipo (`extends`/`implements`) de tipo `sealed` declarado fora de sua unidade de compilação (o conjunto de subtipos selado é fechado) | `SealedTypeChecks` (X5.1/D-X5-SURFACE) |
+| `SEM081` | `switch` expressão sobre sujeito `sealed` sem um caso de subtipo direto (sem `default`) | `MemberResolver` (X5.2/D-X5-SURFACE) |
+| `SEM082` | type-param `out` usado em posição de entrada (parâmetro/campo gravável) ou type-param `in` usado em posição de saída (retorno/campo/componente de record) — solidez da variância declaration-site | `VarianceChecks` (X5.3/D-TYPE-VARIANCE) |
+| `SEM083` | type-param `out`/`in` passado a um parâmetro de supertipo com variância incompatível (ou invariante) em `extends`/`implements` — solidez da variância em posição de herança | `VarianceChecks` (X5.3b/D-TYPE-VARIANCE) |
 | `ARITH001` | divisão/resto por zero **constante** | `ExpressionBinaryLowerer` (guarda de zero constante) |
 
 Divisão por zero **não-constante** (`7 / z` com `z=0`) → erro de **runtime**

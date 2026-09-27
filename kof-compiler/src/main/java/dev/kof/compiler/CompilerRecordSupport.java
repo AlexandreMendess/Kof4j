@@ -80,9 +80,18 @@ public final class CompilerRecordSupport {
             ops.add(new KofLoadField(ownerType, f.name(), f.type()));
             ops.add(new KofLoadLocal(ownerType, 1));
             ops.add(new KofLoadField(ownerType, f.name(), f.type()));
-            if (Type.isString(f.type())) {
+            if (isStringField(f.type())) {
                 ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
                         List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
+            } else if (isKofObjectField(f.type())) {
+                // §114 face aninhada: campo record/classe compara por CONTEÚDO
+                // (kof_obj_equals: null-safe, String por conteúdo, senão
+                // despacho na kof_equals_table — identidade p/ classe). Antes o
+                // EQ de ponteiro fazia Outer(Inner(1),"z") != Outer(Inner(1),"z").
+                Type objectType = new Type.ClassType("java.lang", "Object", List.of());
+                ops.add(new KofCall(objectType, "kof_obj_equals",
+                        List.of(objectType, objectType),
                         Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
             } else {
                 ops.add(new KofBinary(KofBinaryOp.EQ, f.type()));
@@ -99,6 +108,31 @@ public final class CompilerRecordSupport {
         ops.add(new KofReturn(Type.PrimitiveType.BOOL));
         return new IRMethod("equals", Type.PrimitiveType.BOOL, List.of(ownerType), AccessFlags.PUBLIC,
                 List.of(), List.of(new IRBasicBlock(0, ops)), locals);
+    }
+
+    /**
+     * §114: campo de record que é REFERÊNCIA Kof (classe/record) compara por
+     * conteúdo via `kof_obj_equals`. Ficam de fora String (já usa
+     * `kof_string_equals`), primitivos, arrays e type-vars (identidade — o
+     * mesmo contrato de `Objects.equals` no JVM, que não desce em arrays nem
+     * em `Object` cru) e `Object` (pode ser box de primitivo, sem `type_id` no
+     * offset 0).
+     */
+    private static boolean isStringField(Type type) {
+        Type t = type instanceof Type.NullableType n ? n.inner() : type;
+        return Type.isString(t);
+    }
+
+    private static boolean isDoubleField(Type type) {
+        Type t = type instanceof Type.NullableType n ? n.inner() : type;
+        return t instanceof Type.PrimitiveType pt && "double".equals(pt.name());
+    }
+
+    private static boolean isKofObjectField(Type type) {
+        Type t = type instanceof Type.NullableType n ? n.inner() : type;
+        if (!(t instanceof Type.ClassType)) return false;
+        if (Type.isString(t)) return false;
+        return !BuiltinTypes.isObject(t);
     }
 
     /**
@@ -125,7 +159,13 @@ public final class CompilerRecordSupport {
     }
 
     /**
-     * hashCode() nativo de record: 31 * h + campo (bug 42 native).
+     * hashCode() nativo de record: 31 * h + campo (bug 42 native). §114 (face
+     * hash): campo de REFERENCIA não pode somar o PONTEIRO — o contrato é o
+     * JVM (`31*h + o.hashCode()`, `o==null → 0`). String por CONTEÚDO via
+     * `kof_string_hash_code`; record/classe via `kof_obj_hash` (despacho
+     * `kof_hashcode_table`); Double via `kof_double_hash` (`(int)(bits^(bits>>>32))`).
+     * Int/Long/Bool/Char casam crus; Float casa cru (o slot de 32 bits é
+     * `floatToIntBits`). Medido: todas as faces fechadas (§114).
      */
     static IRMethod buildRecordHashCodeMethod(CompilerDriver driver, String internalName,
                                               List<IRField> fields,
@@ -140,6 +180,24 @@ public final class CompilerRecordSupport {
             ops.add(new KofBinary(KofBinaryOp.MUL, Type.PrimitiveType.INT));
             ops.add(new KofLoadLocal(ownerType, 0));
             ops.add(new KofLoadField(ownerType, f.name(), f.type()));
+            if (isStringField(f.type())) {
+                ops.add(new KofCall(BuiltinTypes.STRING, "hashCode", List.of(),
+                        Type.PrimitiveType.INT, KofCallKind.INSTANCE));
+            } else if (isDoubleField(f.type())) {
+                // §114 face hash: Double.hashCode = (int)(bits ^ (bits>>>32)).
+                // O ADD cru somava 0 (o lowering int não lê o slot de 64 bits).
+                ops.add(new KofCall(Type.PrimitiveType.DOUBLE, "kof_double_hash",
+                        List.of(Type.PrimitiveType.DOUBLE),
+                        Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            } else if (isKofObjectField(f.type())) {
+                // §114 face hash aninhada: campo record/classe soma o hashCode
+                // de CONTEUDO (kof_obj_hash: null-safe, String por conteúdo,
+                // senão kof_hashcode_table[type_id]); antes somava o PONTEIRO.
+                Type objectType = new Type.ClassType("java.lang", "Object", List.of());
+                ops.add(new KofCall(objectType, "kof_obj_hash",
+                        List.of(objectType),
+                        Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            }
             ops.add(new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT));
         }
         ops.add(new KofReturn(Type.PrimitiveType.INT));
@@ -317,6 +375,23 @@ public final class CompilerRecordSupport {
                 Type parentRet = parentMethod.returnType();
                 Type childRet = m.returnType();
                 boolean retDiffer = !childRet.equals(parentRet);
+
+                // §485 — no Native, um bridge de retorno covariante cujos
+                // PARÂMETROS já são idênticos ao slot apagado do pai (sem
+                // box/unbox/checkcast de argumento) e cujo retorno é uma
+                // REFERÊNCIA nas duas pontas é um pass-through de registrador:
+                // a vtable pode apontar direto para o método concreto. Gerar o
+                // bridge aqui só produzia dois símbolos asm idênticos
+                // (`Classe_nome`), porque `NativeSymbolMangling.sigTag` codifica
+                // apenas os TIPOS DE PARÂMETRO — o `as` falhava com "symbol
+                // already defined" (JVM/script/JS verdes; divergência rule 5).
+                // Retornos primitivos NÃO entram (o bridge faz o box e é
+                // REALMENTE necessário) — face catalogada no §485.
+                boolean childPrim = childRet instanceof Type.PrimitiveType;
+                boolean parentPrim = parentRet instanceof Type.PrimitiveType;
+                if (driver.target.isNative() && !paramsDiffer && !childPrim && !parentPrim) {
+                    continue;
+                }
 
                 if ((retDiffer || paramsDiffer)
                         && TypeChecker.isAssignable(driver.semanticAnalyzer, childRet, parentRet)) {

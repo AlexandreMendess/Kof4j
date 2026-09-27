@@ -26,6 +26,7 @@ public final class JsRuntimeOps {
 boolean isRuntimeOp(KofCall kc) {
         String name = kc.methodName();
         return name.startsWith("kof_json_") || name.startsWith("kof_io_")
+                || name.startsWith("kof_buffer_")
                 || name.startsWith("kof_ui_")
                 || name.startsWith("kof_sec_")
                 || name.startsWith("kof_validation_")
@@ -46,6 +47,7 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.equals("kof_poll") || name.equals("kof_done")
                 || name.equals("kof_cancel") || name.equals("kof_cancelled")
                 || name.equals("kof_await_timeout")
+                || name.equals("kof_gc_collect_now")
                 || name.equals("kof_select_any")
                 || name.equals("kof_list_map") || name.equals("kof_list_filter")
                 || name.equals("kof_list_reduce")
@@ -53,6 +55,7 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.startsWith("kof_time_")
                 || name.startsWith("kof_scheduler_")
                 || name.startsWith("kof_mq_")
+                || name.startsWith("kof_vk_") || name.startsWith("kof_mv64_")
                 || name.startsWith("kof_log_")
                 || name.equals("kof_ui_color_to_css")
                 || name.equals("kof_now") || name.equals("kof_read_line")
@@ -63,6 +66,7 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.equals("kof_spawn_kill") || name.equals("kof_spawn_alive")
                 || name.equals("kof_shell_argv") || name.equals("kof_shell_runwith")
                 || name.equals("kof_shell_pipeline")
+                || name.equals("kof_ssh_argv") || name.equals("kof_ssh_run")
                 || name.equals("kof_args")
                 || name.equals("kof_ffi") || name.equals("kof_ffi_void")
                 || name.equals("kof_box") || name.equals("kof_unbox");
@@ -72,6 +76,14 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                               List<JsIr.JsExpression> preambleExprs, KofCall kc,
                               JsIr.JsExpression receiver, List<JsIr.JsExpression> args) {
         String name = kc.methodName();
+        if (name.startsWith("kof_buffer_")) {
+            // kof.buffer (D-R3-BUFFER): `buffer.alloc`/`Buffer.bytes()` baixam
+            // para os helpers do runtime JS (args já trazem o receiver como 1º
+            // operando nos dois casos).
+            p.lc.registerRuntime(name);
+            stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(name), args));
+            return;
+        }
         if (name.startsWith("kof_json_")) {
             // JSON encode/decode maps directly to JSON.stringify/parse; the
             // type information stays in the Kof compiler (generics erasure).
@@ -217,6 +229,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_store_new") || name.equals("kof_ui_app_state") || name.equals("kof_ui_store_get")
                 || name.equals("kof_ui_store_set") || name.equals("kof_ui_store_subscribe")
                 || name.equals("kof_ui_store_unsubscribe") || name.equals("kof_ui_stores_live")
+                || name.equals("kof_ui_subscriptions_live")
                 || name.equals("kof_ui_route_register") || name.equals("kof_ui_router_go1")
                 || name.equals("kof_ui_router_go2") || name.equals("kof_ui_router_replace1")
                 || name.equals("kof_ui_router_replace2") || name.equals("kof_ui_router_back")
@@ -439,6 +452,17 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
         }
         callArgs.addAll(args);
         JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier(fn), callArgs);
+        if (name.equals("kof_ffi") && kc.returnType() instanceof Type.ClassType rt
+                && p.lc.recordClassNames.contains(rt.internalName())) {
+            // D6-1/3.8b (bridge JS 21/09): retorno struct por valor — o host
+            // devolve os campos do struct (array, ordem de declaração) e o
+            // factory estático `__kof_ffi_from` do record reconstrói a instância
+            // pelo construtor canônico (paridade com kof_ffi_read_struct do JVM).
+            String jsRet = JsTypeMapper.jsClassName(rt.internalName());
+            call = new JsIr.JsCall(
+                    new JsIr.JsMember(new JsIr.JsIdentifier(jsRet), "__kof_ffi_from"),
+                    List.of(call));
+        }
         if (name.startsWith("kof_db_query") && kc.returnType() instanceof Type.ClassType dbList
                 && BuiltinTypes.isList(dbList) && !dbList.typeArguments().isEmpty()
                 && dbList.typeArguments().get(0) instanceof Type.ClassType elem

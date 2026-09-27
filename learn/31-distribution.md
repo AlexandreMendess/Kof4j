@@ -2,14 +2,14 @@
 
 # 31 — Distribution
 
-> **Kof 0.4.0-beta — Sep 2026 — targets jvm/native/native.risc/native.arm/js/android + kofc**
+> **Kof 0.5.0-beta — Sep 2026 — targets jvm/native/native.risc/native.arm/js/android + kofc**
 
 ## Kof is a platform, not just a JAR
 
 Starting with 0.2.x-beta, Kof behaves like a distributable language:
 
 ```text
-Kof 0.4.0-beta
+Kof 0.5.0-beta
         ├── Compiler
         ├── CLI (build/run/serve/check/test/script/repl/c/fmt/config gen/bench/
         │    profile/inspect/debug/info/lsp/install/version)
@@ -61,7 +61,7 @@ Verification:
 
 ```bash
 kof info
-# Kof 0.4.0-beta
+# Kof 0.5.0-beta
 # Targets: jvm, native, js (alpha)
 # JVM: Eclipse Temurin 25.0.x (embedded)
 ```

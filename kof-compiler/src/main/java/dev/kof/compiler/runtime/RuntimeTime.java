@@ -19,12 +19,10 @@ public final class RuntimeTime {
             kof_now:
                 subq $16, %rsp
                 movq %rsp, %rdi
-                xorq %rsi, %rsi
-                movq $96, %rax
-                syscall
-                movq 8(%rsp), %rax
+                call kof_plat_time
+                movq 8(%rsp), %rax           # nsec
                 xorq %rdx, %rdx
-                movq $1000, %r8
+                movq $1000000, %r8
                 divq %r8
                 movq 0(%rsp), %rcx
                 imulq $1000, %rcx
@@ -475,8 +473,7 @@ public final class RuntimeTime {
                 movq %r13, 8(%rsp)
                 movq %rsp, %rdi
                 xorq %rsi, %rsi
-                movq $35, %rax
-                syscall
+                call kof_plat_sleep
                 addq $16, %rsp
                 popq %r13
                 popq %r12

@@ -171,4 +171,13 @@ class CompareTest {
         assertEquals(1, Compare.run(new String[]{"compare", "a.class", "b.kf", "--arg", "x", "--stdin"}),
                 "stdin sem valor no fim deve ser usage error, nunca throw");
     }
+
+    @Test
+    void unknownOptionIsFatalNotSilentlyRun() {
+        // #431: antes o `default` só imprimia "unknown option" e a comparação
+        // seguia, podendo sair 0. Agora é erro fatal (exit 1), como o restante
+        // da família (KofDebug/CliFlagStrictness).
+        assertEquals(1, Compare.run(new String[]{"compare", "a.class", "b.kf", "--bogus"}),
+                "opcao desconhecida deve ser fatal (exit 1)");
+    }
 }

@@ -2,7 +2,7 @@
 
 # 38 — Editors: from the installed `kof` to the open `.kof`
 
-> **Kof 0.4.0-beta — `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.5.0-beta — `intention->Kof->frontend->IR->backend->runtime`**
 
 Installing Kof is not just having compiler + runtime + CLI + stdlib. It is
 opening your editor and already having **highlighting, diagnostics,
@@ -114,7 +114,7 @@ kof editor status
 Kof Editor Environment
 
 Kof:
-  version: 0.4.0-beta
+  version: 0.5.0-beta
   compiler: OK
   LSP: OK (kof lsp)
   formatter: OK (kof fmt)

@@ -33,6 +33,12 @@ public final class CompilerComparisons {
                     || CompilerTypes.isRecordType(rightU, driver.currentUnit, driver.semanticAnalyzer)) {
                 return false;
             }
+            // D-SECRETS face 1: `Secret == Secret` compara CONTEÚDO
+            // constant-time (KofRuntime$Secret.equals) — desativa o shortcut de
+            // identidade (if_acmpeq), como o record.
+            if (KofSecurity.isSecretType(leftU) || KofSecurity.isSecretType(rightU)) {
+                return false;
+            }
             // enum == enum: D-ENUM207 — as constantes são INSTÂNCIAS (singletons
             // de <clinit>), então a igualdade é por IDENTIDADE (if_acmp), não por
             // conteúdo String. Deixa o caminho de referência assumir.
@@ -101,7 +107,6 @@ public final class CompilerComparisons {
         // preservado onde a tabela permite (a==dom nao toca em b).
         int aIdx = localIdx;
         localIdx = aIdx + 1;
-        Type nullableBool = new Type.NullableType(Type.PrimitiveType.BOOL);
         locals.add(new IRLocalVariable(aIdx, "$klt" + aIdx, lt));
         ExpressionNode a = new IdentifierExpr(pos, "$klt" + aIdx);
         ExpressionNode litTrue = new LiteralExpr(pos, ConcreteLiteralKind.BOOLEAN, "true");

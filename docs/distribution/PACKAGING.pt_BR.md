@@ -37,12 +37,12 @@ O `<os>-<arch>` vem da matriz do workflow de release (um pacote por
 plataforma). Exemplos reais:
 
 ```text
-kof-0.4.0-beta-linux-x86_64.tar.gz
-kof-0.4.0-beta-macos-arm64.tar.gz
-kof-0.4.0-beta-windows-x86_64.zip
+kof-0.5.0-beta-linux-x86_64.tar.gz
+kof-0.5.0-beta-macos-arm64.tar.gz
+kof-0.5.0-beta-windows-x86_64.zip
 ```
 
-> O nome carrega a **versão da release** (ex.: `0.4.0-beta`). O usuário não
+> O nome carrega a **versão da release** (ex.: `0.5.0-beta`). O usuário não
 > precisa decorar a versão: o guia de instalação usa o globo
 > `kof-*-<os>-<arch>.tar.gz`.
 

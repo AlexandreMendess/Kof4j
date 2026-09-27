@@ -2,7 +2,7 @@
 
 # Specification Status
 
-**Version:** 0.4.0-beta · **Date:** 06/09/2026 · **Re-synced 17/09/2026** against the applied SG-00x (`docs/bugs-and-gaps/specification-gaps.md`) and the #322/#330 fixes.
+**Version:** 0.5.0-beta · **Date:** 06/09/2026 · **Re-synced 17/09/2026** against the applied SG-00x (`docs/bugs-and-gaps/specification-gaps.md`) and the #322/#330 fixes.
 
 Classification of each language feature. **Nothing here is "stable" out of
 courtesy** — Stable requires frozen semantics (rule 0.2.6-beta) **and** a test
@@ -102,7 +102,7 @@ Target-specific · Unspecified · Planned**.
 | Ambiguous import (does not guess) | Stable | `CompilerTypes:102` |
 | PKG002 (1 main) | Stable | probe |
 | JVM interop (Java types) | **Target-specific** | `AndroidInteropE2ETest` |
-| C FFI (`extern "<lib>"`) | **Partial** — JVM any scalar signature, free arity, `void`/`String` returns (18/09, `.18`); non-scalar = `FFI001`; JS host runner = SAME scalar ABI (3.6.F2/F3 ✅ 18/09, `FfiE2ETest` 16/16 JVM↔JS byte-for-byte), non-scalar = `FFI002`, browser = runtime R7; **Native = scalar ABI DIRECT on x86-64/riscv64/aarch64** (#431 slices 1–2 ✅ 20/09, §369: link-by-use + `call sym@PLT`, no `dlopen`; `FfiNativeE2ETest` 16/16 + `FfiNativeCrossE2ETest` 6/6 qemu), non-scalar/callback/missing `library()` = `FFI001` (R6, never silent); numeric args are converted to the slot by the ordinary rule (§370/#549 ✅ 20/09, `FfiExternTypeConversionTest` 11/11 JVM/Native/JS-host) | measured 18/09 (`modules.md` §6; fmod/ldexp/strncmp/puts/getenv verbatims in `syntax.md`) (`IMPLEMENTATION-UNIVERSAL-PLATFORM.md`, #431) |
+| C FFI (`extern "<lib>"`) | **Partial** — JVM any scalar signature, free arity, `void`/`String` returns (18/09, `.18`); non-scalar = `FFI001` (**except the JVM 3.8b slice: `record` by value arg/return + scalar `T[]`→`ptr` ✅ 20–21/09**, `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); JS host runner = SAME scalar ABI (3.6.F2/F3 ✅ 18/09, `FfiE2ETest` 16/16 JVM↔JS byte-for-byte), non-scalar = `FFI002`, browser = runtime R7; **Native = scalar ABI DIRECT on x86-64/riscv64/aarch64** (#431 slices 1–2 ✅ 20/09, §369: link-by-use + `call sym@PLT`, no `dlopen`; `FfiNativeE2ETest` 16/16 + `FfiNativeCrossE2ETest` 6/6 qemu), non-scalar/callback/missing `library()` = `FFI001` (R6, never silent); numeric args are converted to the slot by the ordinary rule (§370/#549 ✅ 20/09, `FfiExternTypeConversionTest` 11/11 JVM/Native/JS-host) | measured 18/09 (`modules.md` §6; fmod/ldexp/strncmp/puts/getenv verbatims in `syntax.md`) (`IMPLEMENTATION-UNIVERSAL-PLATFORM.md`, #431) |
 
 ### Concurrency
 | Feature | Status | Test evidence |

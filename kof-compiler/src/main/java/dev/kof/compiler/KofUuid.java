@@ -61,12 +61,11 @@ public final class KofUuid {
      */
     static boolean supportedOn(@SuppressWarnings("unused") String function,
             @SuppressWarnings("unused") Target target) {
-        // v7 (S3b.2): JVM/SCRIPT/JS têm o emit (SecureRandom / Date.now /
-        // crypto). Os 3 nativos ainda não têm fatia asm — UUID001 os bloqueia
-        // com código de erro (R6: nunca link-quebrado silencioso, lição §89).
-        // S3b.2 FEITO nos 5 alvos 10/09: JVM/SCRIPT (SecureRandom), JS
+        // v7 (S3b.2) FEITO nos 5 alvos 10/09: JVM/SCRIPT (SecureRandom), JS
         // (Date.now+randomBytesHex), x86_64 (RuntimeUuid), riscv64 B25b +
-        // aarch64 (tradutor). Gate removido; supportedOn volta se outro gap.
+        // aarch64 (tradutor). UUID001 fechado (merge beta→main 10/09); gate
+        // removido — supportedOn volta se outro gap (R6: nunca link-quebrado
+        // silencioso, lição §89).
         return true;
     }
 

@@ -2,7 +2,7 @@
 
 # 01 — Installation
 
-> **Kof 0.4.0-beta — Sep 2026.** This guide does not depend on the version: the
+> **Kof 0.5.0-beta — Sep 2026.** This guide does not depend on the version: the
 > commands work on any release.
 
 ## What Kof is (and what you do NOT need to install)
@@ -81,7 +81,7 @@ To make it permanent: **Environment Variables → PATH → New** →
 ## Step 3 — Check
 
 ```bash
-kof version        # e.g.: kof 0.4.0-beta
+kof version        # e.g.: kof 0.5.0-beta
 kof info           # full environment (embedded JVM, targets, installation)
 ```
 

@@ -80,7 +80,13 @@ echo "safe-suite: mvn $*  ->  $LOG"
 STUBS=$(grep -rl "Unresolved compilation problem" */target/classes 2>/dev/null | wc -l)
 [ "$STUBS" -gt 0 ] && echo "safe-suite: $STUBS .class contaminado(s) por stub ECJ — removendo targets" >&2
 rm -rf */target/classes */target/test-classes
-mvn "$@" >"$LOG" 2>&1
+# estampa de proveniencia (R6): o log grava o SHA e a sujeira da arvore ANTES do
+# mvn, para scripts/stability-report.sh so certificar o commit que foi testado.
+SUITE_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+SUITE_DIRTY="$(git status --porcelain --untracked-files=no 2>/dev/null | wc -l | tr -d ' ')"
+{ printf 'SUITE-SHA: %s\n' "$SUITE_SHA"
+  printf 'SUITE-DIRTY: %s\n' "$SUITE_DIRTY"; } > "$LOG"
+mvn "$@" >>"$LOG" 2>&1
 RC=$?
 RC=$?
 
@@ -90,6 +96,7 @@ kill_stale_jcmd
 echo "----- resumo (rc=$RC) -----"
 grep -hE "Tests run:.*Time elapsed" "$LOG" 2>/dev/null \
   | sed -E 's/.*Tests run: ([0-9]+), Failures: ([0-9]+), Errors: ([0-9]+), Skipped: ([0-9]+).*/\1 \2 \3 \4/' \
-  | awk '{t+=$1; f+=$2; e+=$3; s+=$4} END {printf "TOTAL: tests=%d failures=%d errors=%d skipped=%d\n", t, f, e, s}'
+  | awk '{t+=$1; f+=$2; e+=$3; s+=$4} END {printf "TOTAL: tests=%d failures=%d errors=%d skipped=%d\n", t, f, e, s}' \
+  | tee -a "$LOG"
 echo "log completo: $LOG"
 exit $RC

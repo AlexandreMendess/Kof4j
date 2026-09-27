@@ -29,7 +29,7 @@ class StringCompoundAssignE2ETest {
 
     private String runJvm(Path outDir) throws IOException {
         try {
-            ProcessBuilder pb = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
+            ProcessBuilder pb = new ProcessBuilder(TestJdk.javaBin(),
                     "-cp", outDir.toString(), "Default.Main");
             pb.redirectErrorStream(true);
             Process p = pb.start();
@@ -91,7 +91,7 @@ class StringCompoundAssignE2ETest {
         Path jsOut = tempDir.resolve("cap-js");
         CompilationResult js = driver.compile(src, jsOut, Target.JS);
         assertTrue(js.success(), "JS compile: " + js.diagnostics().getDiagnostics());
-        ProcessBuilder jb = new ProcessBuilder("node", jsOut.resolve("Default.mjs").toString());
+        ProcessBuilder jb = new ProcessBuilder(TestJdk.onPath("node"), jsOut.resolve("Default.mjs").toString());
         jb.redirectErrorStream(true);
         Process jp = jb.start();
         String jout = new String(jp.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)

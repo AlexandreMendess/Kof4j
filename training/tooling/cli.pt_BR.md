@@ -5,7 +5,7 @@
 Fatos sobre a CLI oficial do Kof. Use para responder perguntas sobre
 comandos, tooling e editor support.
 
-**Version:** 0.4.0-beta (Sep 2026) — 2218 testes
+**Version:** 0.5.0-beta (Sep 2026) — 3225 testes
 
 ## Comandos oficiais (26)
 
@@ -15,7 +15,7 @@ comandos, tooling e editor support.
 | `kof run <file.kf\|dir> [--target jvm\|native\|native.risc\|native.arm\|js\|android] [args...]` | Compila e executa |
 | `kof serve <file.kf> [--port <port>] [--host <host>]` | Web server HTTP básico. `--port`/`--host` valem só no modo legacy (`handle`); app kof-native (`app.listen`) define a própria porta e a CLI avisa (#35.3) |
 | `kof check <file.kf\|dir> [--target <t>]` | Type-check sem emitir código (gaps por alvo) |
-| `kof test <file.kf\|dir> [--target jvm\|native\|js]` | Suíte estruturada `test "nome" { }`: PASS/FAIL por teste; arquivos sem testes rodam inteiros (PASS = exit 0) |
+| `kof test <file.kf\|dir> [--target jvm\|native\|js] [--timeout <sec>] [--tag <tag>]` | Suíte estruturada `test "nome", "tag" { }`: PASS/FAIL por teste; `--tag` filtra o catálogo em compile-time (mesmo harness em todo alvo); funções `setup`/`teardown` pulam (nomeado) ou finalizam testes; arquivos sem testes rodam inteiros (PASS = exit 0); um dir desce em **suítes nomeadas** (uma por diretório) |
 | `kof script <file.ks> [--target jvm\|native\|js] [--watch] [--inspect] [args...]` | KofScript: JIT com top-level `var`/`val` → KofScriptGlobals, repl, cache 64 LRU |
 | `kof repl` | Alias para `kof script` interativo |
 | `kof c <file.c> [-o outDir]` | KofCcompiler: C subset nativo-only → ELF x86_64 |
@@ -25,7 +25,7 @@ comandos, tooling e editor support.
 | `kof info [--json]` | Relatório do ambiente (inclui native.risc/arm, kofc) |
 | `kof lsp` | Language Server (stdio, LSP 3.x) — hover/completion + .ks preprocess |
 | `kof editor <list\|detect\|status\|setup\|install\|uninstall\|update>` | Integração de editores (EDI001): detecta VS Code/Vim/Neovim/IntelliJ/Geany/Nano/Emacs e instala a integração oficial (grammar + `kof lsp`), com consentimento. `install <editor>` escreve só no HOME; `uninstall` remove só o que o Kof escreveu. Docs: `docs/editors/` |
-| `kof version` | Versão da plataforma (0.4.0-beta) |
+| `kof version` | Versão da plataforma (0.5.0-beta) |
 | `kof bench [...]` | Benchmark harness com baselines |
 | `kof debug <file.kf>` | DAP MVP no JVM |
 | `kof profile <file.kf> [--target ...]` | Execução + métricas (CPU, RSS, GC) |
@@ -39,7 +39,7 @@ comandos, tooling e editor support.
 | `kof install <dir>` | Instala este build como distribuição (launcher + `kof.jar`) |
 
 `kof fmt` (parser real, idempotente) e `kof config gen` são implementados
-(0.4.0-beta). Não existe comando `kof doctor` — o diagnóstico oficial é
+(0.5.0-beta). Não existe comando `kof doctor` — o diagnóstico oficial é
 `kof info`.
 
 ## KofScript
@@ -89,7 +89,7 @@ kof c app.c
 
 ## `kof info`
 
-Informa: versão do Kof (0.4.0-beta), versão do compiler/runtime/stdlib, tooling API level, target/arquitetura, SO, JVM embutida, versão da
+Informa: versão do Kof (0.5.0-beta), versão do compiler/runtime/stdlib, tooling API level, target/arquitetura, SO, JVM embutida, versão da
 JVM, targets disponíveis (jvm, native, native.risc, native.arm, js, kofc) e localização da instalação.
 Legível por humanos; `--json` para formato estruturado.
 

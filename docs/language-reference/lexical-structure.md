@@ -67,13 +67,15 @@ true  false  null
 **RESERVED words** (their own tokens, `IDENTIFIER` **never**): `fun`,
 `fn`, `func` (SG-001, 06/09).
 
-> **SG-002 APPLIED (12/09):** `sealed` and `permits` were **keywords** of the
-> lexer (dead tokens, never accepted by the parser — `sealed class X {}` used
-> to fail with `PARSE007`); the grammar never used them, so with the removal
-> they are now **plain `IDENTIFIER`s**: `sealed class S {}` fails as
-> `PARSE010` (declaration without type). Locked by
-> `CompilerDriverTest.deadTokensGiveCleanLexerError`. See
-> [specification-gaps.md](../bugs-and-gaps/specification-gaps.md).
+> **SG-002 APPLIED (12/09) + X5.1 UPDATE (21/09):** `sealed` and `permits` were
+> **keywords** of the lexer (dead tokens, never accepted by the parser — `sealed
+> class X {}` used to fail with `PARSE007`); with SG-002 they became **plain
+> `IDENTIFIER`s**. `permits` stays a plain identifier (Kof has **no** `permits`
+> clause). `sealed`, however, is now a **contextual modifier** before
+> `class`/`record`/`interface` (`D-X5-SURFACE`, X5.1): `sealed class Shape` is
+> the closed-subtype form, while `sealed` outside that position remains a valid
+> identifier. Locked by `SealedTypeE2ETest` + `CompilerDriverTest`.
+> See [specification-gaps.md](../bugs-and-gaps/specification-gaps.md).
 
 > **SG-001 RESOLVED (06/09):** `fun`/`fn`/`func` are **reserved words**
 > (`FUN`/`FN`/`FUNC` tokens in the lexer) — they **do not exist** in Kof, neither

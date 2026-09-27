@@ -127,7 +127,14 @@ public final class RuntimeEnum {
                 movq 24(%rbx), %rax         # array de chaves
                 movq (%rax,%r14,8), %rdi    # candidato
                 cmpl $1, %r13d
-                jne .Lkmf_raw
+                je .Lkmf_str
+                cmpl $2, %r13d
+                je .Lkmf_obj
+            .Lkmf_raw:
+                cmpq %r12, %rdi             # chave 0 é legítima no modo raw
+                je .Lkmf_hit
+                jmp .Lkmf_next
+            .Lkmf_str:
                 testq %rdi, %rdi            # null-String não casa (skip)
                 jz .Lkmf_next
                 movq %r12, %rsi
@@ -135,9 +142,14 @@ public final class RuntimeEnum {
                 testl %eax, %eax
                 jnz .Lkmf_hit
                 jmp .Lkmf_next
-            .Lkmf_raw:
-                cmpq %r12, %rdi             # chave 0 é legítima no modo raw
-                je .Lkmf_hit
+            .Lkmf_obj:                      # §104b-ii: tag 2 = objeto Kof
+                testq %rdi, %rdi            # null não casa (skip)
+                jz .Lkmf_next
+                movq %r12, %rsi
+                call kof_obj_equals
+                testl %eax, %eax
+                jnz .Lkmf_hit
+                jmp .Lkmf_next
             .Lkmf_next:
                 incq %r14
                 jmp .Lkmf_loop

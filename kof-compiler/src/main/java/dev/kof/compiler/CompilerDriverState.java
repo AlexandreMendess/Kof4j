@@ -74,6 +74,9 @@ IRModule currentModule;
      */
     final ExternalClasspath externalClasspath = new ExternalClasspath();
 
+    /** Raízes de FONTE de dependências (#566, opção b): onde o `import` procura depois do módulo e da stdlib. */
+    final List<Path> dependencySourceRoots = new ArrayList<>();
+
     final List<String> pendingClasspathWarnings = new ArrayList<>();
 
     /**
@@ -88,6 +91,21 @@ IRModule currentModule;
      *  pacote (User.class); o Main é Default/Main. */
 
     final List<IRClass> syntheticClasses = new ArrayList<>();
+
+    /**
+     * R4 (`DECISIONS.md` §D-CODEGEN-STEP, 21/09): internal compile-time codegen
+     * hooks, run in registration order on the OPTIMIZED IR before emit/interpret.
+     * Empty by default = identity (zero behavior change).
+     */
+    final List<CodegenStep> codegenSteps = new ArrayList<>();
+
+    /**
+     * 2.2.3 (`DECISIONS.md` §D-DESUGAR-STEP, 21/09): internal AST-phase desugar
+     * steps, run in registration order after parse and before analysis. Default
+     * = the four built-in desugars in their historical order, so behavior is
+     * unchanged (freeze rule 3).
+     */
+    final List<DesugarStep> desugarSteps = new ArrayList<>(DesugarSteps.defaults());
 
     /**
      * G6: desugar `test "nome" { }` para função void `kof_test_N` logo
@@ -211,6 +229,14 @@ IRModule currentModule;
     }
 
     public CompilationResult compile(Path sourceFile, Path outputDir, Target target) {
+        return CompilerPipeline.compile((CompilerDriver) this, sourceFile, outputDir, target);
+    }
+
+    /** B-1: compila p/ nativo com perfil explícito (HOST padrão; FREESTANDING = estático, sem libc). */
+    public CompilationResult compile(Path sourceFile, Path outputDir, Target target,
+                                     dev.kof.compiler.nat.NativeProfile profile) {
+        ((CompilerDriver) this).nativeProfile = profile == null
+                ? dev.kof.compiler.nat.NativeProfile.HOST : profile;
         return CompilerPipeline.compile((CompilerDriver) this, sourceFile, outputDir, target);
     }
 
@@ -393,6 +419,17 @@ IRModule currentModule;
     /** Observes IR statistics (public API for tooling; no IR types exposed). */
     public CompilerDriver setIRObserver(IRObserver observer) {
         this.irStatsObserver = observer;
+        return (CompilerDriver) this;
+    }
+
+    /**
+     * #566 (opção b): pacotes publicados são consumidos como MÓDULO-FONTE. Cada raiz é o
+     * diretório-fonte de uma dependência instalada (`regsmoke/Greeter.kf` sob a raiz);
+     * o `import` a procura DEPOIS do módulo local e da stdlib oficial, em todos os alvos.
+     */
+    public CompilerDriver setDependencySourceRoots(java.util.List<Path> roots) {
+        dependencySourceRoots.clear();
+        if (roots != null) dependencySourceRoots.addAll(roots);
         return (CompilerDriver) this;
     }
 

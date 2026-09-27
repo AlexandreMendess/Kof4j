@@ -1,0 +1,2 @@
+# Isencoes do gate check_workflow_pins.sh: "<arquivo.yml> <motivo>". Divida declarada.
+release.yml faixa da lane CI — attest+verify + reescrita do fluxo de release (D-ARTIFACT-TRUST fila b); pin entra junto, nao daqui

@@ -11,8 +11,8 @@
 > **Build (na data da auditoria):** `mvn clean package` PASS, `mvn test` 810 (793 kof-compiler +8 kof-script +5 kof-c-compiler +4 kof-cli), golden 16/16, integration 9/9, `scripts/package.sh` PASS, `release.yml` 2 jobs (`test-and-bump` → `package-and-release`) × 3 plataformas, Windows SIGPIPE fix.
 >
 > **⚠️ Snapshot 02/09 — números desatualizados (16/09):** o Kof está em
-> **0.4.0-beta** e a suíte tem **2218 testes** nos 4 módulos (1911 kof-compiler
-> + 38 kof-script + 7 kof-c-compiler + 262 kof-cli; baseline medido 16/09 ~15:54, ver
+> **0.5.0-beta** e a suíte tem **3225 testes** nos 4 módulos (2762 kof-compiler
+> + 50 kof-script + 7 kof-c-compiler + 406 kof-cli; baseline medido 20/09 ~18:14, ver
 > `docs/status.md`); este documento é **inventário de
 > capacidades**, não o gate atual. A matriz de status (`DONE`/`PARTIAL`/
 > `PLANNED`) reflete em grande parte 02/09; linhas reconferidas contra o código
@@ -75,6 +75,7 @@ JSN00x, WEB001) — nunca divergência silenciosa.
 | `kof.ui` | `Color/Theme/Palette`, `Window/Label/Button/Input`, `Column/Row/View/Style`, eventos por lambda com capturas, webview nativo | KofUi.java, JsBackend (runtime), kof-webview.c | UiE2ETest (14), WindowE2ETest (3) |
 | `kof.process` | `process.run(cmd)`/`run(cmd, args)`/`exit(code)`, `process.spawn` (stdin/stdout ao vivo) → `Result` | JvmRuntimeCore / KofProcess | ProcessE2ETest, KofProcess* — JVM/JS reais; Native `PROC001` |
 | `kof.shell` | `shell.cmd(program, args)`/`shell.run`/`shell.ok(r)`/`shell.pipeline(estágios)` — açucar sobre `kof.process`, argv-como-lista, nunca `sh -c` | KofShell.java (açúcar sobre `kof.process`; helper JVM `kof_shell_pipeline`) | ShellE2ETest (11) — JVM+JS reais (`run`/`ok`/`cmd`), pipeline JVM real, JS/Native `PROC001` honesto (18/09, `34e4344f`, plano `docs/shell-plan.md`) |
+| `kof.interop` (motores, X2 fatias 1–3) | `KofPy(src)`/`KofR(src)` + `callInt/callDouble/callBool/callString/callJson(fn, listOf(...))` + `timeout(ms)`/`cancel()` — o deadline corre no FILHO, falhas NOMEADAS `INTEROP004`–`INTEROP008` (nunca chute de exit code); JVM/x86/JS/Script certificados na CI 26–27/09 — `experimental` ate os encoders cross pousarem (§514, R5); alvos sem runtime de processo provado recusam em compile-time `INTEROP005` mantendo a face (ANDROID/MCU/RISCV32/cross) | recursos `interop-py-host.kf`/`interop-r-host.kf`/`interop-py-refusal.kf` — Kof puro sobre `kof.process`+`kof.json` (regra 12: o core so fornece o mecanismo de processo) | `InteropPy*E2ETest` (8) · `InteropR*E2ETest` (12 — CI 10/10 skipped-0 com R real) · `InteropTimeout*E2ETest` (5) · recusa `InteropIdiomsCompileTest` (3) |
 | `kof.config` | `config.get/env/has`, `config.str/int/long/bool(name, fallback)` — JVM/Native (arquivo+profiles+env) + JS (env) | KofConfig.java | KofConfigE2ETest (8) |
 | `kof.log` | `log.debug/info/warn/error`, níveis (default INFO), `off`, warn→stderr | KofLog.java | KofLogE2ETest (7), NativeLogE2ETest (17) |
 | `kof.cli` | 26 comandos: `kof build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/deps/editor/init/new/version` (`fmt` + `config gen` 31/08) | kof-cli | Bench, KofDebug E2E |
@@ -138,7 +139,7 @@ BackendParity (10) · Exceptions (9) · Web E2E (9) · HttpServer (8) ·
 **KofConfig (8 + Native 8)** · **KofLog (10 + Native 7)** · Idiomatic (7+6) · Ui (14) · Assert (5) ·
 FunctionSyntax (4) · Lambda (4) · **KofTime (5)** · **KofMq (4)** ·
 **KofHttp (4, JVM+JS) + Resilience (3, JVM+JS 30/08)** · TuringComplete (3) · **KofOrm (12+, E2E MariaDB/Postgres + MongoDB + SQLite native)** ·
-**KofDb (8, + SQLite `.so` + MySQL scramble WIP)** · Spawn (3) · Window (3) · IRStatistics (2) · DebugInfo (2) ·
+**KofDb (8, + SQLite `.so` + MySQL wire x86-64 real)** · Spawn (3) · Window (3) · IRStatistics (2) · DebugInfo (2) ·
 NativeDebug (5) · StructuredTest (11) · AndroidInterop (11) · **KofScript (8)** · **KofCcompiler (5)** ·
 **KofWs (11) + KofWsFrame (7) + KofSse (7) + KofCache (5, x3 targets) + Router (E2E)** (30-31/08).
 Golden: `tests/golden/` 16/16 (8 casos × jvm+native). Integration: `tests/run-integration.sh` 9/9. `mvn test` 810.
@@ -205,8 +206,8 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 | `db.connect/query/transaction` | ✅ (+ `query<T>` tipado) | y | y | ✅ nao-tipado 16/09; tipado `query<T>` `DB002` FECHADO 18/09 | KofDbE2ETest | stdlib/DATABASE_VISION.md |
 | prepared statements | ✅ (binds `?`) | y | y | ✅ 16/09 (binds via ponte) | KofDbE2ETest | — |
 | connection pools | `PLANNED` | — | — | — | — | — |
-| migrations | ✅ `orm.migrate` versionado (`kof_migrations`) | y | – ORM001 | ✅ 18/09 | KofOrmE2ETest | stdlib/DATABASE_VISION.md |
-| repositories/ORM | ✅ `kof.orm`: `entity` + create/save/find/all/where/delete/count | y | – ORM001 | ✅ 18/09 | KofOrmE2ETest | stdlib/DATABASE_VISION.md |
+| migrations | ✅ `orm.migrate` versionado (`kof_migrations`) | y | x86-64 ✅ 22/09 (F2d1–F2d7); cross = ORM001 | ✅ 18/09 | KofOrmE2ETest | stdlib/DATABASE_VISION.md |
+| repositories/ORM | ✅ `kof.orm`: `entity` + create/save/find/all/where/delete/count | y | x86-64 ✅ 22/09 (F2d1–F2d7); cross = ORM001 | ✅ 18/09 | KofOrmE2ETest | stdlib/DATABASE_VISION.md |
 | NoSQL (MongoDB) | ✅ driver oficial via reflexão compatível | y | — | — | KofOrmE2ETest (E2E, skip condicional) | stdlib/DATABASE_VISION.md |
 | mapping | ✅ entity → linha/documento por schema de compile-time | y | – | y | JsonE2ETest, KofOrmE2ETest | — |
 | query DSL tipada (`User.query { where ... }`) | ✅ (nível 3, 01/09 — baixa p/ `db.query<T>`; E2E JVM H2) | ✅ | — | — | KofOrmE2ETest | stdlib/DATABASE_VISION.md |
@@ -279,9 +280,9 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| jobs/steps/pipelines/checkpoints | `PLANNED` | — | — | — | — | — |
-| retries / resumability / parallel | `PLANNED` | — | — | — | — | — |
-| scheduling | `PLANNED` | — | — | — | — | — |
+| jobs/steps/pipelines/checkpoints | ✅ `kof.workflow` — host puro-Kof `job`/`dag`/`after`/`run`/`Report` (2.1.2) + `checkpoint` (`ee63dc80`) | y | — (recon; compila ✅ `StdlibIdiomsCompileTest`) | y | WorkflowE2ETest 23, WorkflowPrimitivesE2ETest 6 | stdlib/workflow.md |
+| retries / resumability / parallel | ✅ `flow.retry`/`retryFixed`/`exponential` (`7db91735`) + dead-letter (`95f81747`, `Report.dead` + fs) + ordem topo do DAG | y | — (recon; checkpoint-over-ORM = `ORM001`) | y (paridade de bytes §387) | WorkflowE2ETest | stdlib/workflow.md |
+| scheduling | ✅ `schedule(expr, dag)` → `scheduler.at` (`95f81747`/`d9adeb03`) | y | — (`CRON001` honesto) | y (§274 5-campo UTC) | WorkflowE2ETest, StdlibIdiomsCompileTest | stdlib/workflow.md |
 
 ## 3.9 Observability
 
@@ -359,12 +360,12 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 
 | # | Gap | Impacto | Local proposto |
 |---|-----|---------|----------------|
-| G1 | ~~**Database/SQL** inexistente~~ — ✅ **nível 0 implementado**: `kof.db` (JDBC JVM, SQLite nativo, MySQL WIP) + `kof.orm` (entity, CRUD, where, migrate, MongoDB) | apps reais com persistência no JVM/Native-SQLite | ✅ query DSL tipada (01/09) + kof.db no JS (16/09) + `kof.orm` no JS (18/09, `ORM001` fechado); resta: pools, ORM no **Native** (`ORM001` — x86 é só MySQL; SQLite riscv64/aarch64 fechado 15/09) |
+| G1 | ~~**Database/SQL** inexistente~~ — ✅ **nível 0 implementado**: `kof.db` (JDBC JVM, SQLite nativo, MySQL wire x86-64 real) + `kof.orm` (entity, CRUD, where, migrate, MongoDB) | apps reais com persistência no JVM/Native-SQLite | ✅ query DSL tipada (01/09) + kof.db no JS (16/09) + `kof.orm` no JS (18/09, `ORM001` fechado); resta: pools; ORM no **Native** x86-64 ✅ 22/09 (13/13 faces, F2d1–F2d7), `ORM001` só em riscv64/aarch64 |
 | G2 | ~~**HTTP client** inexistente~~ — ✅ **implementado**: `kof.http` client (get/post/put/delete/patch/options/status/timeout + retry/circuit 30/08, headers; HTTP002 no Native) | integrações, testes, frontend | ✅ fechado — `KofHttpE2ETest` (4, JVM+JS) + `KofHttpResilienceE2ETest` (3) |
 | G3 | ~~Configuration~~ — ✅ `kof.config` implementado (arquivo > env > profile > default, typed `str/int/long/bool`); **CONF001 nativo fechado** (asm `/proc/self/environ`); JS: CONF001 fechado 16/09 | — | — |
 | G4 | ~~**Validation** inexistente~~ — ✅ **implementado**: `kof.validation` (13 predicados nos 3 targets) | — | `KofValidationTest` (3/3) |
 | G5 | ~~**Observabilidade runtime parcial**~~ — ✅ **implementado**: `kof.observability` (health/readiness/liveness, counter/increment/gauge, requestId/correlationId — JVM/Native/JS; `KofObservabilityTest` 10/10 incl. OBS003) | — | `KofObservabilityTest` |
-| G6 | ~~**kof.test estruturado** inexistente~~ — ✅ **implementado**: `test "nome" { }` nos 3 targets; runner sintetizado em compile-time; PASS/FAIL por nome + exit code (`StructuredTestE2ETest`) | testes como cidadãos de primeira classe | timeouts ✅ 19/09 (`kof test --timeout <sec>` — o processo do harness é morto e o FAIL é reportado, R6; `CmdTestTimeoutTest` 3/3); próximo: suites nomeadas por diretório, fixtures |
+| G6 | ~~**kof.test estruturado** inexistente~~ — ✅ **implementado**: `test "nome" { }` nos 3 targets; runner sintetizado em compile-time; PASS/FAIL por nome + exit code (`StructuredTestE2ETest`) | testes como cidadãos de primeira classe | timeouts ✅ 19/09 (`kof test --timeout <sec>` — o processo do harness é morto e o FAIL é reportado, R6; `CmdTestTimeoutTest` 3/3); **suítes nomeadas por diretório ✅ 21/09** (`kof test <dir>` recorre e reporta uma suíte nomeada por diretório com resumo por suíte; `CmdTestSuiteTest` 2/2); próximo: **`SG-023` ✅ DECIDIDO 21/09 (`D-PROPERTY`)** — sem superfície nova: property = idioma `test`+`kof.rng`+`assert`, fixtures = `close()`+`try/finally` (D5-B); prova `PropertyTestIdiomE2ETest` 7/7 (checksum JVM==JS==Native) |
 | G7 | ~~**Diagnósticos de target incompletos no security/web**~~ — ✅ **fechado**: `jwt.*` com entrada explícita (SECN004 no Native); `csrf/cors/auth/headers` já cobertos; WEB001 emitido para web.app() e métodos de app fora do JVM | viola "nunca silencioso" | manter: toda função nova entra em `supportedOn` no mesmo PR |
 | G8 | ~~**Scheduling** inexistente~~ — ✅ `kof.time.sleep` + `interval`/`cancel` 3 targets (`KofTimeE2ETest` 39/0/7skip; Native reusa scheduler, JS fila cooperativa — TIME001 fechado 02/09); **cron ✅ 17/09**: `scheduler.at(cron, fn)` = parser real de 5 campos UTC no JVM/JS (listas/faixas/passos, regra clássica DOM∨DOW; inválido → erro alto), gap honesto em compile-time no Native `CRON001` (§274) | jobs periódicos | próximos: nenhum item pendente (cron fechado) |
 | G9 | ~~**Rate limiting / sessions / API keys** inexistentes~~ — ✅ **implementado**: `security.rateLimit`/`sessionCreate`/`sessionGet`/`sessionDestroy`/`apiKeyGenerate`/`apiKeyValid` — JVM/Native/JS (`KofSecurityG9Test` 3/3) | — | `KofSecurityG9Test` |
@@ -459,7 +460,7 @@ Princípios mantidos:
 5. ~~G1~~ — ✅ `kof.db` + `kof.orm` nível 0 completo (JDBC idiomático, SQLite
    nativo, transactions, entity, migrations, **where com operadores**,
    **saveAll batch**, **page/count/deleteAll**, **MariaDB/PostgreSQL reais**,
-   MongoDB); próximo: pools, ORM no Native (`ORM001`). Query DSL tipada ✅ 01/09; `kof.db` no JS ✅ 16/09 (DB001 fechado), `kof.orm` no JS ✅ 18/09 (ORM001 fechado).
+   MongoDB); próximo: pools (ORM no Native x86-64 fechado 22/09, F2d1–F2d7). Query DSL tipada ✅ 01/09; `kof.db` no JS ✅ 16/09 (DB001 fechado), `kof.orm` no JS ✅ 18/09 (ORM001 fechado).
 6. ~~G4~~ — ✅ `kof.validation` (13 predicados nos 3 targets; `KofValidationTest` 3/3).
 7. ~~G5~~ — ✅ `kof.observability` (health/readiness/liveness, counter/increment/gauge, requestId/correlationId — JVM/Native/JS; `KofObservabilityTest` 10/10).
 8. ~~G8~~ — ✅ `kof.time.sleep` + `interval`/`cancel` 3 targets (JS: fila cooperativa — TIME001 fechado 02/09) + **cron 17/09** (JVM/JS real, Native `CRON001`; §274).

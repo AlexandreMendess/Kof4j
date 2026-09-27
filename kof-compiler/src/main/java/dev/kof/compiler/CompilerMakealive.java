@@ -33,7 +33,40 @@ final class CompilerMakealive {
     private static final List<String> HOST_MARKS = List.of(
             "Resource", "StateEntry", "State", "Spec", "Infrastructure",
             "Provider", "Plan", "Report",
-            "plan", "apply", "destroy", "kofMkTemNome");
+            "plan", "apply", "destroy", "kofMkTemNome",
+            "KofMkState", "mkSaveState", "mkLoadState", "mkMaxGen",
+            "ReconJob", "reconcile");
+
+    private static void mergeSlice(CompilerDriver driver,
+                                       List<AstNode> decls,
+                                       DiagnosticCollector diagnostics,
+                                       String resource) {
+        try (var in = CompilerDriver.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                diagnostics.error("", 0, 0, 0,
+                        "makealive host slice resource " + resource + " missing", "PKG003");
+                return;
+            }
+            String sliceSource = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            String sliceName = resource.substring(resource.lastIndexOf('/') + 1);
+            DiagnosticCollector silent = new DiagnosticCollector();
+            Lexer lexer = new Lexer(sliceSource, sliceName, silent);
+            Parser parser = new Parser(lexer.tokenize(), silent, sliceName);
+            CompilationUnitNode sliceUnit = parser.parse();
+            if (silent.hasErrors() || sliceUnit == null) {
+                for (Diagnostic d : silent.getDiagnostics()) diagnostics.report(d);
+                diagnostics.error("", 0, 0, 0, "makealive host slice did not parse: " + sliceName, "PKG003");
+                return;
+            }
+            for (AstNode d : sliceUnit.declarations()) {
+                driver.declarationPackages.put(d, "");
+                decls.add(d);
+            }
+        } catch (IOException e) {
+            diagnostics.error("", 0, 0, 0,
+                    "makealive host slice read failed: " + resource, "PKG003");
+        }
+    }
 
     static CompilationUnitNode injectHostIfNeeded(CompilerDriver driver,
                                                   CompilationUnitNode unit,
@@ -75,6 +108,19 @@ final class CompilerMakealive {
                 driver.declarationPackages.put(d, "");
                 decls.add(d);
             }
+            // fatia de ESTADO mk1 (D-MAKEALIVE Q3, espelhando o checkpoint do
+            // workflow 2.1.3): o gate ORM001 e estatico — no NATIVE entra o
+            // STUB (throw ORM001 em runtime, R6), nunca a delegacao (que
+            // derrubaria o host INTEIRO na recusa).
+            if (!driver.target.isNative()) {
+                mergeSlice(driver, decls, diagnostics, "/dev/kof/makealive-db-host.kf");
+            } else {
+                mergeSlice(driver, decls, diagnostics, "/dev/kof/makealive-db-host.native.kf");
+            }
+            // fatia RECONCILE 3.3: todos os alvos — scheduler.every é real
+            // também no Native (SCHED001 fechado 05/09; o gate CRON001 é do
+            // at/cron, que reconcile NUNCA toca). Sem stub.
+            mergeSlice(driver, decls, diagnostics, "/dev/kof/makealive-recon-host.kf");
             return new CompilationUnitNode(unit.position(), unit.packageName(), imports, decls);
         } catch (IOException e) {
             diagnostics.error("", 0, 0, 0,

@@ -162,6 +162,11 @@ public final class JsIr {
     record JsNestedArray(List<JsExpression> sizes, String baseFill) implements JsExpression {
     }
 
+    /** Array literal `[a, b, ...]` (D6-1/3.8b: `__kof_ffi_fields` devolve os
+     *  campos do record na ordem de declaração; o host empacota o struct C). */
+    record JsArrayLiteral(List<JsExpression> elements) implements JsExpression {
+    }
+
     record JsObjectLiteral(List<JsObjectEntry> entries) implements JsExpression {
     }
 

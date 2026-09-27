@@ -23,9 +23,11 @@ final class KofDebugNativeDap {
     private final Integer attachPid;
     private final OutputStream out = System.out;
     private KofGdbMi mi;
-    private Path buildDir;
+    private volatile Path buildDir;
     private int nextSeq = 1;
     private final Map<Integer, Integer> frameLevel = new LinkedHashMap<>();
+    private volatile boolean pausePending;
+    private boolean exceptionArmed;
 
     KofDebugNativeDap(Path sourceFile, Integer attachPid) {
         this.sourceFile = sourceFile;
@@ -34,6 +36,9 @@ final class KofDebugNativeDap {
 
     void run() throws Exception {
         buildDir = null;
+        // SIGTERM (editor que fecha / host que derruba) nao passa pelo EOF do stdin:
+        // sem o hook o diretorio temporario do ELF (kof-debug-native-*) vaza.
+        Runtime.getRuntime().addShutdownHook(new Thread(this::cleanup, "kof-dap-cleanup"));
         if (attachPid != null) {
             // X7-5: o alvo NATIVO ja esta vivo — gdb -p ANTES de qualquer pedido
             // (mesma semantica da sessao JVM); launch/configurationDone viram no-op honesto.
@@ -90,18 +95,15 @@ final class KofDebugNativeDap {
                 String gdb = System.getenv("KOF_GDB");
                 String gdbExe = gdb == null || gdb.isEmpty() ? "gdb" : gdb;
                 try {
-                    if (attachPid != null) {
-                        // X7-5: gdb -p PID no processo NATIVO vivo — sem build, sem launch.
-                        mi = KofGdbMi.attach(gdbExe, sourceFile.toAbsolutePath().getParent(), attachPid);
-                    } else {
-                        KofDebug.NativeBuild built = KofDebug.buildNativeElf(sourceFile);
-                        if (built == null) {
-                            fail(seq, command, "native build failed (toolchain or source error — see stderr)");
-                            return;
-                        }
-                        buildDir = built.dir();
-                        mi = new KofGdbMi(gdbExe, sourceFile.toAbsolutePath().getParent(), built.bin());
+                    // attachPid != null já retornou acima (mi já veio de run()) —
+                    // aqui só resta o caminho de build+launch.
+                    KofDebug.NativeBuild built = KofDebug.buildNativeElf(sourceFile);
+                    if (built == null) {
+                        fail(seq, command, "native build failed (toolchain or source error — see stderr)");
+                        return;
                     }
+                    buildDir = built.dir();
+                    mi = new KofGdbMi(gdbExe, sourceFile.toAbsolutePath().getParent(), built.bin());
                 } catch (IOException spawnFail) {
                     mi = null;
                     KofCliSupport.cleanup(buildDir);
@@ -143,6 +145,49 @@ final class KofDebugNativeDap {
             case "next" -> exec(seq, command, "-exec-next --all", Map.of());
             case "stepIn" -> exec(seq, command, "-exec-step --all", Map.of());
             case "stepOut" -> exec(seq, command, "-exec-finish --all", Map.of());
+            case "pause" -> {
+                if (mi == null) {
+                    fail(seq, command, "not launched");
+                    return;
+                }
+                pausePending = true;
+                mi.send("-exec-interrupt --all");
+                respond(seq, command, Map.of());
+            }
+            case "setExceptionBreakpoints" -> {
+                List<Object> result = new ArrayList<>();
+                List<?> filters = args.get("filters") instanceof List<?> l ? l : List.of();
+                boolean caught = filters.contains("caught") || filters.contains("all");
+                boolean uncaught = filters.contains("uncaught") || filters.contains("all");
+                // Native can only break on EVERY Kof throw (the runtime's own chain,
+                // not C++ exceptions; gdb's catch-throw does not apply). That is only
+                // the requested behavior when BOTH faces are asked for (empty = the
+                // DAP "all" default). A single-face request would silently over-break
+                // on the other face — honest refusal instead (R6).
+                boolean bothFaces = filters.isEmpty() || (caught && uncaught);
+                if (mi == null) {
+                    fail(seq, command, "not launched");
+                    return;
+                }
+                if (!bothFaces) {
+                    for (Object f : filters) {
+                        result.add(Map.of("verified", false, "id", String.valueOf(f),
+                                "message", "native breaks on every Kof throw;"
+                                        + " caught/uncaught refinement is JVM-only"));
+                    }
+                } else {
+                    // the native analogue of the exception event: break on the runtime's
+                    // own throw entry point (real symbol, `-f` = pending until loaded).
+                    if (!exceptionArmed) {
+                        mi.command("-break-insert -f -- kof_throw_string", 5000);
+                        exceptionArmed = true;
+                    }
+                    for (Object f : filters) {
+                        result.add(Map.of("verified", true, "id", String.valueOf(f)));
+                    }
+                }
+                respond(seq, command, Map.of("breakpoints", result));
+            }
             case "threads" -> respond(seq, command, Map.of("threads",
                     List.of(Map.of("id", 1, "name", "kof-native"))));
             case "stackTrace" -> {
@@ -232,7 +277,9 @@ final class KofDebugNativeDap {
                 out.flush();
                 Runtime.getRuntime().halt(0);
             }
-            default -> respond(seq, command, Map.of());
+            // §428: request nao implementada responde erro HONESTO (nunca
+            // success:true + corpo vazio = fachada silenciosa, Q7).
+            default -> fail(seq, command, "unsupported request: " + command);
         }
     }
 
@@ -261,12 +308,13 @@ final class KofDebugNativeDap {
                 emit("terminated", Map.of());
                 return;
             }
-            String mapped = switch (reason) {
+            String mapped = pausePending ? "pause" : switch (reason) {
                 case "entry-breakpoint" -> "entry";
                 case "end-stepping-range" -> "step";
                 case "signal-received" -> "signal";
                 default -> "breakpoint";
             };
+            pausePending = false;
             emit("stopped", Map.of("reason", mapped, "threadId", 1, "allThreadsStopped", true));
         } catch (IOException ignored) {
         }
@@ -315,9 +363,15 @@ final class KofDebugNativeDap {
         }
     }
 
-    private void cleanup() {
-        if (buildDir != null) {
-            KofCliSupport.cleanup(buildDir);
+    // synchronized: o caminho de EOF (thread main) e o shutdown hook (SIGTERM) podem
+    // chamar cleanup ao mesmo tempo; sem a trava o hook retorna antes da exclusao
+    // terminar e o JVM halta matando a main no meio — o diretorio kof-debug-native-*
+    // ficava pela metade.
+    private synchronized void cleanup() {
+        Path dir = buildDir;
+        if (dir != null) {
+            buildDir = null;
+            KofCliSupport.cleanup(dir);
         }
     }
 }

@@ -2,7 +2,7 @@
 
 # 18 — Concurrency
 
-> **Status: implemented (JVM / Native / JS) — 0.4.0-beta — `spawn`/`await` on the 3 targets**
+> **Status: implemented (JVM / Native / JS) — 0.5.0-beta — `spawn`/`await` on the 3 targets**
 >
 > Kof does not expose `Thread`, `Runnable` nor `CompletableFuture`: the intention is
 > `spawn` (run in parallel) and `await` (wait for the result). JVM uses virtual
@@ -140,6 +140,31 @@ It blocks until **any** handle completes and returns its value. On JS it is
 `Promise.race` over the handles (`js/JsRuntimeUiLayout.java:304`); on Native
 x86_64 it works by 1 ms polling over the handles; on riscv64/aarch64 it also
 works since 15/09 (CONC001 closed).
+
+## Channels — typed FIFO between workers
+
+```kf
+val c = channel<Int>()     // typed channel (FIFO, blocking)
+c.send(5)                  // blocks until a receiver takes it
+var x = c.receive()        // blocks until a sender produces
+println(x)                 // 5
+```
+
+- `channel<T>()` creates a typed channel; a bare `channel()` boxes by the
+  argument type (§374).
+- `send(v)` returns `void`; `receive()` returns `T` — both block (JVM:
+  `LinkedBlockingQueue` put/take; Native: runtime futex queue `kof_channel_*`;
+  JS: sequential queue with the same observable order).
+- Valid members are exactly `send`/`receive` — anything else is SEM025.
+- Channels work on ALL targets including riscv64/aarch64 (§423 closed 23/09),
+  and the §485 fix (24/09) guarantees a drained queue never yields a stale
+  NULL (deterministic SIGSEGV before; single-threaded repro now clean).
+
+```kf
+// producer/consumer
+spawn produtor(c)
+var v = c.receive()
+```
 
 ## Semantics
 

@@ -245,6 +245,8 @@ public final class RuntimeStringCompare {
             .globl kof_string_hash_code
             .type kof_string_hash_code, @function
             kof_string_hash_code:
+                testq %rdi, %rdi
+                je    .Lhc_zero
                 pushq %rbx
                 pushq %r12
                 subq $16, %rsp
@@ -270,6 +272,9 @@ public final class RuntimeStringCompare {
                 addq $16, %rsp
                 popq %r12
                 popq %rbx
+                ret
+            .Lhc_zero:
+                xorl %eax, %eax
                 ret
             """);
     }

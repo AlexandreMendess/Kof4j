@@ -1,0 +1,15 @@
+package pdf.style
+
+import pdf.style.PdfColor
+
+class Colors {
+    static PdfColor black = PdfColor(0, 0, 0)
+    static PdfColor white = PdfColor(255, 255, 255)
+    static PdfColor red = PdfColor(220, 38, 38)
+    static PdfColor green = PdfColor(22, 163, 74)
+    static PdfColor blue = PdfColor(37, 99, 235)
+    static PdfColor blueMedium = PdfColor(30, 64, 175)
+    static PdfColor greyLight = PdfColor(229, 231, 235)
+    static PdfColor greyMedium = PdfColor(156, 163, 175)
+    static PdfColor greyDark = PdfColor(55, 65, 81)
+}

@@ -3,7 +3,7 @@
 # stdlib log — Logging Nativo do Kof
 
 **Última atualização:** 3 de setembro de 2026
-**Versão:** 0.4.0-beta (contagens de teste em `docs/status.md`)
+**Versão:** 0.5.0-beta (contagens de teste em `docs/status.md`)
 **Status:** implementado (Fase 4 do plano de independência do Spring) — JVM+Native (Native asm UTC `kof_log_*`, 27/08); JS `console.*` (LOG001 fechado 01/09)
 
 ---
@@ -60,7 +60,7 @@ app.get("/users") {
 }
 ```
 
-## 5. Targets (0.4.0-beta)
+## 5. Targets (0.5.0-beta)
 
 | Target | Estado | Notas |
 |--------|--------|-------|

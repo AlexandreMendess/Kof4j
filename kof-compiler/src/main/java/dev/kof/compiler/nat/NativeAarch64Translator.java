@@ -300,6 +300,31 @@ public final class NativeAarch64Translator {
             String rd = R.apply(args[0].trim()), rs1 = R.apply(args[1].trim()), rs2 = R.apply(args[2].trim());
             return List.of(indent + "sdiv x17, " + rs1 + ", " + rs2, indent + "msub " + rd + ", x17, " + rs2 + ", " + rs1);
         }
+        if (mn.equals("mulhu")) {
+            // 128-bit unsigned high half — base do dtoa Schubfach no cross.
+            String[] args = rest.split(",");
+            return List.of(indent + "umulh " + R.apply(args[0].trim()) + ", " + R.apply(args[1].trim()) + ", " + R.apply(args[2].trim()));
+        }
+        if (mn.equals("sltu")) {
+            String[] args = rest.split(",");
+            String rd = R.apply(args[0].trim()), rs1 = R.apply(args[1].trim()), rs2 = R.apply(args[2].trim());
+            return List.of(indent + "cmp " + rs1 + ", " + rs2, indent + "cset " + rd + ", lo");
+        }
+        if (mn.equals("xori")) {
+            String[] args = rest.split(",");
+            String rd = R.apply(args[0].trim()), rs = R.apply(args[1].trim());
+            long imm = NativeAarch64Helpers.parseImm(args[2].trim());
+            String tmp = "x17";
+            List<String> out = new ArrayList<>();
+            for (String s2 : NativeAarch64Helpers.aarch64MovImm(tmp, imm)) out.add(indent + s2);
+            out.add(indent + "eor " + rd + ", " + rs + ", " + tmp);
+            return out;
+        }
+        if (mn.equals("sll") || mn.equals("srl") || mn.equals("sra")) {
+            String op = mn.equals("sll") ? "lsl" : mn.equals("srl") ? "lsr" : "asr";
+            String[] args = rest.split(",");
+            return List.of(indent + op + " " + R.apply(args[0].trim()) + ", " + R.apply(args[1].trim()) + ", " + R.apply(args[2].trim()));
+        }
         if (mn.equals("neg")) {
             String[] args = rest.split(",");
             return List.of(indent + "neg " + R.apply(args[0].trim()) + ", " + R.apply(args[1].trim()));

@@ -7,11 +7,11 @@
 > proven: Level 3 (typed Query DSL `User.query(db){...}` → `db.query<T>`) ✅
 > 01/09 (`KofOrmE2ETest` 22); binary prepared MySQL ✅ 03/09
 > (`KofDbE2ETest.nativeMysqlPreparedBinary`). Connection pooling is PLANNED (no pool today — each `connect` opens its own connection, §Limitations below). DB001/ORM001 in
-> (DB001 closed: riscv/aarch 15/09 + JS 16/09; ORM001 closed on JS 18/09); only `ORM001` on **Native** remains an honest R6 gap tracked in `docs/backend-parity.md`,
+> (DB001 closed: riscv/aarch 15/09 + JS 16/09; ORM001 closed on JS 18/09); ORM **F1a+F1c+F1d+F3a+F2c3+F2a+F2b+F2c1+F2c2 real since 22-23/09 on Native cross riscv64/aarch64** (`deleteAll`/`count`/`create`/`migrate`/`count` with filter/`delete`/`save`/`saveAll`/`find`/`all`/`where`/`where_op`/`page` over SQLite, pieces `RtB50`/`RtB51`/`RtB52`/`RtB53`/`RtB54`/`RtB55`+`RtB55Helpers`/`RtB56`/`RtB57`+`RtB57Helpers`/`RtB58`/`RtB59`/`RtB60` + per-program `NativeRiscvOrmCtors` (the `kof_orm_ctors` resolver); §447 fixed: Bool literal boxes `kof_box_bool` on Native; §449 fixed: x86 resolver multi-entity + `Double` read on `RuntimeOrm5/6/7/8` + `bind_key` parity), **the ORM row-object complete on the cross — no `ORM001` face remains** (x86-64 ORM real since 22/09: 13/13 faces over SQLite + MySQL wire, F2d1–F2d7) tracked in `docs/backend-parity.md`,
 > not a pending item of this vision.
 
 **Last updated:** September 12, 2026
-**Version:** 0.4.0-beta
+**Version:** 0.5.0-beta
 **Status:** Levels 0-2 and 4 implemented (`kof.db` + `kof.orm`, 0.4.0-beta):
 `entity` (schema in the language), `orm.create/save/saveAll/find/all/where/
 where-op/delete/deleteAll/count/count-filtrado/page/migrate` (JDBC on the JVM:
@@ -19,8 +19,8 @@ H2, MySQL, MariaDB, PostgreSQL, SQLite; record mappings; versioned
 migrations) + **MongoDB**; native SQLite via `libsqlite3.so.0` directly
 (real E2E roundtrip); native MySQL/MariaDB via wire protocol in progress
 (auth scramble SHA-1 `kof_db_mysql_scramble` + `lenenc` + parse `user:pass@`
-done; full handshake/query/prepared pending); `VERSION` 0.4.0-beta;
-build 2218 tests.
+done; full handshake/query/prepared pending); `VERSION` 0.5.0-beta;
+build 3225 tests.
 
 ---
 
@@ -212,7 +212,7 @@ db.close(db)
 - **Native:** SQLite via direct linking of `libsqlite3.so.0` (no JDBC driver) —
   `db.connect("sqlite:/path.db")`, typed execute/query, real E2E roundtrip
   (`nativeSqliteRoundtrip`).
-- **Native MySQL/MariaDB (WIP):** own wire protocol over native sockets
+- **Native MySQL/MariaDB:** own wire protocol over native sockets (real on x86-64: connect/prepared/query + all 13 ORM faces measured against MariaDB 12.3.2, F2d1–F2d7 22/09)
   (auth scramble SHA-1 `kof_db_mysql_scramble` + `lenenc` + parsing of
   `user:pass@` in the DSN `mysql://[user[:pass]@]host[:port][/db]`) — in
   progress: full handshake, query and prepared statements pending;
@@ -274,7 +274,7 @@ main() {
 - **MongoDB:** `save/find/all/where/delete/count` over the official driver via
   compatible reflection (`Bson`/`Class`, without `ClientSession`); E2E test with
   a real container (conditional skip; Mongo service in CI).
-- **Native:** reports `ORM001` (gap documented at compile-time). **JS:** CLOSED
+- **Native x86-64:** real (`kof_orm_*` asm over the native `kof_db_*`; SQLite + MySQL wire). **Native riscv64/aarch64:** the ORM **row-object is COMPLETE since 23/09** — F1a+F1c+F1d+F3a+F2c3+F2a+F2b+F2c1+F2c2+F2c3 real (`deleteAll`/`count`/`create`/`migrate`/`count`-with-filter/`delete`/`save`/`saveAll`/`find`/`all`/`where`/`where_op`/`page` over SQLite, pieces `RtB50`/`RtB51`/`RtB52`/`RtB53`/`RtB54`/`RtB55`+`RtB55Helpers`/`RtB56`/`RtB57`+`RtB57Helpers`/`RtB58`/`RtB59`/`RtB60` + per-program `NativeRiscvOrmCtors`; §447 Bool literal boxes `kof_box_bool` on Native; §449 x86 resolver multi-entity + `Double` read on `RuntimeOrm5/6/7/8` + `bind_key` parity); **no `ORM001` face remains on the cross** (MySQL there is an honest runtime refusal, R7). **JS:** CLOSED
   18/09 — `kof.orm` runs on the GraalJS host via `KofJsOrmBridge` (same SQL as
   `JvmOrmRuntime`), typed records bound guest-side (`__kof_decode_<T>`); byte-parity
   E2E in `KofOrmE2ETest` (`js*` cases).
@@ -327,7 +327,7 @@ Planned — not implemented. Today each `db.connect` opens its own physical conn
 
 1. **No support for multiple databases in a single connection** — initial focus on
    one backend per `connect` (JVM: H2/MySQL/MariaDB/PostgreSQL/SQLite; Native:
-   SQLite + MySQL WIP)
+   SQLite + MySQL wire x86-64 real)
 2. **No lazy loading** — can be added in the future
 3. **No cache** — can be added in the future
 4. **Migrations** — already implemented explicitly + versioned

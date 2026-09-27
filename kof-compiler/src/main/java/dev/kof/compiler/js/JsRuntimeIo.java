@@ -86,6 +86,21 @@ public final class JsRuntimeIo {
                 return [program, ...args];
             }
 
+            // kof.ssh (Stage 2 / 2.3): argv builder — host e command ficam UM
+            // elemento cada (mesma classe de segurança do sh -c). BatchMode +
+            // ConnectTimeout: nao-interativo e limitado no tempo.
+            export function kofSshArgv(host, command) {
+                return ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, command];
+            }
+
+            // kof.ssh run(host, command) — delega ao MESMO processRun do host
+            // (KofJsProcessBridge/JVM), logo paridade por construcao. Sem host
+            // (browser) o Proxy honesto acima degrada com erro alto (R7).
+            export function kofSshRun(host, command) {
+                return kofResult(kof_platform.processRun("ssh",
+                        ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, command]));
+            }
+
             // kof.shell runWith(argv, cwd, env) — 2.2.3. Map do Kof é JS Map
             // nativo; o host recebe objeto plain de strings. Browser sem
             // kof_platform: o Proxy honesto acima degrada (R7), nunca stub.

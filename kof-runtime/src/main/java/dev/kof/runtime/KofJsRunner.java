@@ -75,8 +75,7 @@ public final class KofJsRunner {
             Source source = Source.newBuilder("js", moduleFile.toFile())
                     .mimeType("application/javascript+module")
                     .build();
-            context.eval(source);
-            KofJsAsyncPump.drainActiveTasks(context);
+            KofJsAsyncPump.drainActiveTasks(context, context.eval(source));
             if (openWindow) {
                 Value uiRoot = context.getBindings("js").getMember("kof__uiRootHtml");
                 if (uiRoot != null && uiRoot.isString()) {
@@ -142,8 +141,7 @@ public final class KofJsRunner {
             Source source = Source.newBuilder("js", moduleFile.toFile())
                     .mimeType("application/javascript+module")
                     .build();
-            context.eval(source);
-            KofJsAsyncPump.drainActiveTasks(context);
+            KofJsAsyncPump.drainActiveTasks(context, context.eval(source));
             Value html = context.getBindings("js").getMember("kof__uiRootHtml");
             return html.isString() && !html.asString().isEmpty() ? html.asString() : null;
         } catch (Exception e) {
@@ -187,6 +185,15 @@ public final class KofJsRunner {
             return 0;
         });
         KofJsProcessBridge.install(platform);
+        // §426 (improved 25/09): time.collect() on JS — real host GC request.
+        // System.gc() is the exact semantics of the JVM/SCRIPT runtime's
+        // kof_gc_collect_now (a request, not a guarantee); a no-op would be a
+        // silent stub (R6). Browser/hostless never reaches here -> the JS
+        // runtime throws an honest error (R7).
+        platform.put("gcCollect", (ProxyExecutable) args -> {
+            System.gc();
+            return 0;
+        });
         // §239 (JS): String.format — ponte p/ o host java.lang.String.format
         // (paridade byte-a-byte). Os varargs chegam como array JS (o lowering
         // compart. empacota em Object[]); reconstruímos o boxed type de cada
@@ -222,14 +229,14 @@ public final class KofJsRunner {
         platform.put("writeFile", (ProxyExecutable) args -> {
             try {
                 Files.writeString(Path.of(args[0].asString()), args[1].asString());
-                return 0;
+                return 0; // global kof.io writeFile = rc INT por contrato (BuiltinCallTyper:220)
             } catch (IOException e) {
                 return -1;
             }
         });
-        platform.put("fileExists", (ProxyExecutable) args -> Files.exists(Path.of(args[0].asString())) ? 1 : 0);
-        platform.put("fileIsFile", (ProxyExecutable) args -> Files.isRegularFile(Path.of(args[0].asString())) ? 1 : 0);
-        platform.put("fileIsDir", (ProxyExecutable) args -> Files.isDirectory(Path.of(args[0].asString())) ? 1 : 0);
+        platform.put("fileExists", (ProxyExecutable) args -> Files.exists(Path.of(args[0].asString())));
+        platform.put("fileIsFile", (ProxyExecutable) args -> Files.isRegularFile(Path.of(args[0].asString())));
+        platform.put("fileIsDir", (ProxyExecutable) args -> Files.isDirectory(Path.of(args[0].asString())));
         platform.put("readText", (ProxyExecutable) args -> readFileText(args));
         platform.put("writeText", (ProxyExecutable) args -> writeFileText(args, false));
         platform.put("appendText", (ProxyExecutable) args -> writeFileText(args, true));
@@ -238,10 +245,9 @@ public final class KofJsRunner {
         platform.put("appendBytes", (ProxyExecutable) args -> writeBytes(args, true));
         platform.put("delete", (ProxyExecutable) args -> {
             try {
-                Files.deleteIfExists(Path.of(args[0].asString()));
-                return 0;
+                return Files.deleteIfExists(Path.of(args[0].asString())); // §382: booleano REAL
             } catch (IOException e) {
-                return -1;
+                return false;
             }
         });
         platform.put("fileSize", (ProxyExecutable) args -> {
@@ -271,16 +277,15 @@ public final class KofJsRunner {
         });
         platform.put("pathNormalize", (ProxyExecutable) args -> Path.of(args[0].asString()).normalize().toString());
         platform.put("pathResolve", (ProxyExecutable) args -> Path.of(args[0].asString()).resolve(args[1].asString()).toString());
-        platform.put("pathIsAbsolute", (ProxyExecutable) args -> Path.of(args[0].asString()).isAbsolute() ? 1 : 0);
+        platform.put("pathIsAbsolute", (ProxyExecutable) args -> Path.of(args[0].asString()).isAbsolute());
         platform.put("pathToAbsolute", (ProxyExecutable) args -> Path.of(args[0].asString()).toAbsolutePath().toString());
         platform.put("dirCreate", (ProxyExecutable) args -> dirCreate(args, false));
         platform.put("dirCreateDirs", (ProxyExecutable) args -> dirCreate(args, true));
         platform.put("dirDelete", (ProxyExecutable) args -> {
             try {
-                Files.deleteIfExists(Path.of(args[0].asString()));
-                return 0;
+                return Files.deleteIfExists(Path.of(args[0].asString()));
             } catch (IOException e) {
-                return -1;
+                return false;
             }
         });
         platform.put("dirList", (ProxyExecutable) args -> dirList(args));
@@ -462,9 +467,9 @@ public final class KofJsRunner {
             } else {
                 Files.writeString(Path.of(args[0].asString()), args[1].asString());
             }
-            return 0;
+            return true; // §382: face BOOL do host (era 0 = falsy no guest)
         } catch (IOException e) {
-            return -1;
+            return false;
         }
     }
 
@@ -481,7 +486,14 @@ public final class KofJsRunner {
 
     private static Object writeBytes(Value[] args, boolean append) {
         try {
-            byte[] bytes = new byte[(int) args[1].getArraySize()];
+            // §420 (familia §258/#773): era o ultimo cast bruto (int) sobre
+            // getArraySize() em kof-runtime — guest array > 2^31 truncaria sem
+            // diagnostico (R6). Bound check no precedente da mesma casa.
+            long n = args[1].getArraySize();
+            if (n > Integer.MAX_VALUE) {
+                throw new RuntimeException("lista excede o limite da ponte JS (" + n + ")");
+            }
+            byte[] bytes = new byte[(int) n];
             for (int i = 0; i < bytes.length; i++) {
                 bytes[i] = (byte) (args[1].getArrayElement(i).asInt() & 0xFF);
             }
@@ -492,9 +504,9 @@ public final class KofJsRunner {
             } else {
                 Files.write(p, bytes);
             }
-            return 0;
+            return true; // §382: face BOOL do host (era 0 = falsy no guest)
         } catch (IOException e) {
-            return -1;
+            return false;
         }
     }
 
@@ -505,16 +517,16 @@ public final class KofJsRunner {
             } else {
                 Files.createDirectory(Path.of(args[0].asString()));
             }
-            return 0;
+            return true; // §382: face BOOL do host (era 0 = falsy no guest)
         } catch (IOException e) {
-            return -1;
+            return false;
         }
     }
 
     private static Object dirList(Value[] args) {
         try (var stream = Files.list(Path.of(args[0].asString()))) {
             List<String> names = new ArrayList<>();
-            stream.map(p -> p.toString()).sorted().forEach(names::add);
+            stream.map(p -> p.getFileName().toString()).sorted().forEach(names::add);
             return names.toArray(new String[0]);
         } catch (IOException e) {
             return null;

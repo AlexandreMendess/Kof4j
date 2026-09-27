@@ -2,7 +2,7 @@
 
 # Kof Syntax Reference
 
-**Version:** 0.4.0-beta (Sep 2026)
+**Version:** 0.5.0-beta (Sep 2026)
 
 ## Declarations
 
@@ -80,7 +80,7 @@ String? maybe = find(key)   // nullable (null via API — literal `= null` é SE
 Box<Int> b = Box(42)        // generics com primitivo
 ```
 
-### Nullable (0.4.0-beta)
+### Nullable (0.5.0-beta)
 
 ```kof
 String? s = mapOf("k", "x").get("k")   // null chega ao T? via API (sem `= null` — SEM048 desde 10/09)
@@ -91,14 +91,14 @@ if (s != null) {
 String t2 = s           // erro SEM021 — não atribuível fora do check
 ```
 
-### KofScript no topo: `var`/`val` (0.4.0-beta; açúcar JS `let`/`const` REMOVIDO 06/09)
+### KofScript no topo: `var`/`val` (0.5.0-beta; açúcar JS `let`/`const` REMOVIDO 06/09)
 ```kof
 var x = 5
 val y: Int = 10
 // → KofScriptGlobals static fields (.ks / kof repl only)
 ```
 
-### Pattern matching (0.4.0-beta)
+### Pattern matching (0.5.0-beta)
 
 ```kof
 switch (obj) {
@@ -126,7 +126,7 @@ val v = await r;         // blocks; T (primitives unboxed)
 
 3 targets: JVM virtual threads, Native pthread (CONC001 fechado 31/08), JS event-loop (CONC003 fechado 03/09). Android: AND001.
 
-### kof.http (0.4.0-beta)
+### kof.http (0.5.0-beta)
 
 ```kof
 var html = http.get("https://example.com")

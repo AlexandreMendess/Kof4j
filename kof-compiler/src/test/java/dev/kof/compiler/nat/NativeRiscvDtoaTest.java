@@ -64,12 +64,22 @@ class NativeRiscvDtoaTest {
             2.2250738585072014e-308, 0.0, -0.0, 1.0, 1.0e20, 1.0e-5, 123.0,
             1230000.0, 12300000.0, 0.001, 0.0009999, 6.02e23, -3.05e-7, 2.5, 1000000.0,
             3.5, 250.0, -0.75,
+            // §448: subnormais onde o loop snprintf/strtod escolhia o mais curto
+            // (5.0E-324) e o JVM/Schubfach escolhe o mais proximo (4.9E-324).
+            Double.MIN_VALUE, Double.longBitsToDouble(2L), Double.longBitsToDouble(3L),
+            Double.longBitsToDouble(5L), Double.longBitsToDouble(1000L),
+            Double.longBitsToDouble((1L << 52) - 1), Double.MIN_NORMAL,
+            -Double.MIN_VALUE, Double.longBitsToDouble(1L << 51),
     };
 
     private static final float[] FLOATS = {
             3.14f, -1.0f, 0.5f, 1e7f, 9999999f, 1e-3f, 1.17549435e-38f,
             3.4028235e38f, 0.1f, 1.0f / 3.0f, 123456.78f, 2.5f, 100.0f, 1e-5f,
             0.001f, 0.0f, -0.0f, 6.02e23f, 7.5f, -12.25f,
+            // §448 cross: subnormais de Float (mesma face do Double).
+            Float.MIN_VALUE, Float.intBitsToFloat(2), Float.intBitsToFloat(3),
+            Float.intBitsToFloat(5), Float.intBitsToFloat((1 << 23) - 1),
+            Float.MIN_NORMAL, -Float.MIN_VALUE,
     };
 
     private static String oracle() {
@@ -100,6 +110,8 @@ class NativeRiscvDtoaTest {
         sb.append("    li a0, 0\n    li a7, 93\n    ecall\n");
         // externo program-side do runtime (vazio neste harness).
         sb.append(".globl kof_super_table\nkof_super_table:\n    .word 0\n");
+        sb.append(".globl kof_equals_table\nkof_equals_table:\n    .quad 0\n"
+                + ".globl kof_hashcode_table\nkof_hashcode_table:\n    .quad 0\n");
         return sb.toString();
     }
 
@@ -184,6 +196,16 @@ class NativeRiscvDtoaTest {
         }
         String out = buildDynamic("aarch64", tempDir, "dtoaaa", arm.toString());
         assertEquals(oracle(), out);
+    }
+
+    /** §448: o dtoa cross e libc-free — o runtime podado do harness nao pode
+     *  referenciar snprintf/strtod (antes eram o motor do loop mais-curto). */
+    @Test
+    void dtoaPrunedRuntimeHasNoLibcFormatRefs() {
+        assumeToolchain();
+        String runtime = RiscvGcTestRuntimes.prunedFor(harness());
+        assertFalse(runtime.contains("call snprintf"), "dtoa riscv nao deve chamar snprintf");
+        assertFalse(runtime.contains("call strtod"), "dtoa riscv nao deve chamar strtod");
     }
 
     @Test

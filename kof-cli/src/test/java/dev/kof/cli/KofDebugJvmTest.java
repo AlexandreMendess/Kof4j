@@ -117,7 +117,27 @@ class KofDebugJvmTest {
             assertTrue(c.p().waitFor(30, TimeUnit.SECONDS));
             assertEquals(0, c.p().exitValue());
         } finally {
-            c.p().destroy();
+            CliProcessTree.terminate(c.p());
+        }
+    }
+
+    @Test
+    void unimplementedRequestFailsHonestlyNotSilentSuccess(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("Main.kf"), "main() {\n    println(1)\n}\n");
+        Cli c = cli(dir, "debug", "--dap", "Main.kf");
+        try {
+            send(c, 1, "initialize", "");
+            await(c, "\"command\":\"initialize\"", "initialize");
+            send(c, 2, "restart", "");
+            String r = await(c, "\"command\":\"restart\"", "restart");
+            assertTrue(r.contains("\"success\":false"),
+                    "§428: request nao implementado precisa erro honesto, nunca success:true vazio: " + r);
+            assertFalse(r.contains("\"success\":true"), r);
+            send(c, 3, "disconnect", "");
+            await(c, "\"command\":\"disconnect\"", "disconnect");
+            assertTrue(c.p().waitFor(30, TimeUnit.SECONDS));
+        } finally {
+            CliProcessTree.terminate(c.p());
         }
     }
 }

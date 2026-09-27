@@ -34,20 +34,17 @@ public final class ExpressionShellCallLowerer {
             }
             return localIdx;
         }
-        if (driver.target.isNative()) {
-            // every shell call ends in process territory (run/pipeline) or in
-            // a Result the Native driver can never produce — same gap as
-            // process.run (PROC001), reported once, at compile time, never a
-            // silent stub (R6).
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(posFile(mc), posLine(mc), posCol(mc), 0,
-                        "shell." + mc.methodName() + ": not supported on the Native"
-                                + " driver.target yet (JVM and JS support the shell surface;"
-                                + " Native waits for process.run)",
-                        "PROC001");
-            }
-            return localIdx;
-        }
+        // D-FULL-PARITY-050 row 2 CLOSED on native: run/cmd/ok/runWith/
+        // pipeline emit for real on the x86-64 native target and on
+        // riscv64/aarch64 (runWith cross = NativeRiscvAsmShell, argv-first;
+        // inherited cwd/env byte-parity, a non-empty cwd/env is an honest
+        // Result failure; runWith x86-64 = kof_shell_runwith: argv split +
+        // chdir + additive setenv in the child hook; pipeline x86-64 =
+        // kof_shell_pipeline: kernel pipe-chaining, last-stage capture —
+        // JVM-parity goldens; pipeline cross = NativeRiscvAsmPipeline).
+        // Every face landed; no shell call is gated on the supported native
+        // targets anymore. When a new target (MCU/riscv32) needs per-face
+        // gates, they come back here — refusals name the face that landed (R6).
         switch (mc.methodName()) {
             case "run" -> {
                 localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0),

@@ -146,7 +146,12 @@ public final class KofInterpreterOps {
                     : KofInterpreterValues.isDoubleType(t) ? -((Number) v).doubleValue()
                     : -KofInterpreter.unboxInt(v);
             case NOT -> KofInterpreter.unboxInt(v) == 0 ? 1 : 0;
-            case I2L -> ((Number) v).longValue();
+            // §383/#561: bool→long no store de List pinada passa a emitir
+            // I2L sobre um valor que pode ser Boolean (cmp do interpretador
+            // empacota boolean; o literal ja chega Integer 0/1). Equivalente
+            // do ICONST/I2L do bytecode — (Number) sobre Boolean CCE-garia.
+            case I2L -> v instanceof Boolean b ? (long) (b ? 1 : 0)
+                    : ((Number) v).longValue();
             case I2F -> ((Number) v).floatValue();
             case I2D -> ((Number) v).doubleValue();
             case I2C -> (char) KofInterpreter.unboxInt(v);

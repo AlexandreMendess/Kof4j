@@ -2,7 +2,7 @@
 
 # Multiplatform — Uma Linguagem, Múltiplos Mundos
 
-> **Kof 0.4.0-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/kofc — `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.5.0-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/kofc — `intention->Kof->frontend->IR->backend->runtime`**
 
 ## A visão
 
@@ -68,7 +68,7 @@ kof build main.kf --target=native
 - Distribuição simples (apenas o binário)
 - Ideal para ferramentas CLI e sistemas
 
-### KofScript (0.4.0-beta)
+### KofScript (0.5.0-beta)
 
 `kof script` / `kof repl` — `var`/`val` no topo viram `KofScriptGlobals` persistentes (NÃO existe `let`/`const` — sugar JS removido 06/09), `--watch` re-executa; targets jvm/native/js.
 

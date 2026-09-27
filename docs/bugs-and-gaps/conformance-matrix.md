@@ -37,6 +37,7 @@
 | indexOf/lastIndexOf/startsWith `from` | `-1` / `3` / `-1` / `2` / `true` / `false` | DONE | DONE (bug 102 ✅ 11/09 x86 — was ignored) | DONE | DONE (native) | `searchfrom` |
 | record in collection (contains/set/map/toString by content) | `true` / `true` / `7` / `[Point[x=1, y=2]]` | DONE | PARTIAL (was LINK_FAIL §104b-i ✅ FIXED 11/09; what BLOCKS NOW is §104b-ii — equals/hashCode by CONTENT of record in native asm storage, bugfixer lane, LARGE unit; vtable/link already ok) | DONE (bug 104a ✅ 11/09 — KofObj without override → identity) | DONE (bug 104c ✅ 11/09 — `kofValEq` content for record via synthetic `.equals`; Map/Set/List lookup by content) | `objmethods` |
 | `println(collection)` container format | `[1, 2]` / `[a, b]` / `[1.5, 2.25]` / `{k=1}` / `[1]` / `[Point[..], Point[..]]` / `[[1], [2]]` | DONE | PARTIAL (**bug 107 FIXED 12/09** — was raw pointer/vtable `-1` garbage; `kof_{list,set,map}_to_string` + compile-time tag on the 3 native targets, JVM golden byte-identical for int/string/bool/long/char scalars and Map/empty; record/nested=`?` remain HONEST until §104b-ii and FP-collection on cross now WORKS (tags 4/5 → `kof_double_to_string`/`kof_float_to_string`, FLT001 closed 15/09); `Native{,Riscv64,Aarch64}E2ETest#*CollectionPrint*`) | DONE | DONE (bug 107-JS ✅ 11/09 — `kofFormat` mirrors ArrayList/HashMap/HashSet.toString) | `collprint` |
+| `println(primitive array)` container format (§388-B, vote 21/09) | `[65, 66]` / `[[65, 66]]` / `[]` / `[x]` — same §107 grammar, oracle `ArrayList.toString`; passing a `List` to a bytes face is `SEM099` (§388-A) | DONE (was `[I@…` identity before 20/09) | DONE (same helper, via KofRuntime reflection) | DONE (was bracket-less `String()`; `kofFormat` re-routed by static type) | DONE x86 measured 21/09 (`kof_array_to_string`); riscv64/aarch64 goldens in-commit, CI/qemu-measured (before: elem[0] printed as char) | `arrayprint` |
 | non-record class: `equals`/`==` by identity | `false` / `true` / `false` / `true` | DONE | DONE (bug 104b-i ✅ 11/09 — was LINK_FAIL: inherited `Object.equals` without symbol; identity synthesis) | DONE | DONE (native JS) | `classequals` |
 | `map.get` with primitive value (unbox guard) | `true`/`true`/`8`/`9000000001`/`true`/`a`/`null` | DONE (bug 109 ✅ 11/09 — was JVM CRASH: `Boolean.intValue()Z` → `NoSuchMethodError`; `unboxMethodName` only handled ClassType; §104b-ii JVM 11/09: char stored `Integer` but unbox called nonexistent `charValue()/()C` — unbox now consistent with the box. D-NULL-INTENT #278 18/09: the last cell (Bool? of an absent key) now prints `null`, superseding §125 opt. A) | PARTIAL (D-NULL-INTENT #278 phase 2, not covered — old representation kept: still prints `false` for the last cell instead of `null`) | DONE (bug 104b-ii ✅ 11/09 — was SIGSEGV/`a`: `println(char-in-collection)`; `ExpressionPrintLowerer` mapped char→Int only for raw CHAR, never `Nullable(CHAR)`; cast `as Char` pinned `Unknown` in `mapOf` — SemExpressionTyper now mirrors the ExpressionTyper repair; D-PRINT 15/09: the char prints as the character `a`. D-NULL-INTENT #278: last cell now `null`) | DONE (`d*2`→predicate `d>1.0` to avoid colliding with floatprint §44; D-NULL-INTENT #278: last cell now `null` — `kofBoolValueOf` null-safe) | `mapgetprim` |
 | signed zero (`-0.0` literal/negated/folded) | `0.0` / `-0.0` / `-0.0` / `-0.0` / `-0.0` / `true` | DONE (bug 110 ✅ 11/09 — was `0.0`: `emitLoadDouble/Float` collapsed -0.0 into `DCONST_0` via IEEE `value == 0.0`) | DONE (raw bits guard always present) | DONE | DONE (§264 16/09 — was partial: doc §44, JS `String(-0.0)` = `0` without `.0`) | `negzero` |
@@ -96,6 +97,7 @@
 | field-store assignability gate — §368 | SEM012 at the call-site | DONE (`5cd078c1`) | DONE | DONE | DONE | `FieldAssignabilityPhantomE2ETest` 8/8; medido 20/09: `x.n = "s"`(Int) e `y.c = "x"`(Char?) -> SEM012 em check+build; `y.c = 'x'` imprime `x` nos 4 alvos |
 | constructor-arity/type at call site (implicit `Class(args)` no `new`) — §362 | `SEM023 no call-site` | DONE (`57a0d5f0`) | DONE | N/D (frontend compartilhado) | DONE | `ConstructorPhantomE2ETest` 7/7 |
 | bare `List` in declared field (`List items = listOf(1,2)`; `b.items.size`) — §373 CLOSED | `2` | DONE (`d969bc3a`) | DONE | DONE | DONE | `BareCollectionFieldE2ETest` 8/8 (RED 6/8 pre-fix); twin controls: typed collection + user shadow class intact; Q4 hunt opened §374/#553 |
+| primitive arg into `add`/`set` of a BARE builtin collection (`List xs = listOf(1)` + `xs.add(2)`; `println(xs.size)`+`println(xs.get(1))`) — §374 CLOSED | `2` / `2` | DONE (`238d1a35`) | DONE | DONE | DONE | `BareCollectionPrimitiveArgE2ETest` 7/7 (RED 4/4 pre-fix); mirrors bug-35/#382 box-by-ARG; the typed/Set/Map paths byte-identical |
 | static field `+=` | `2` / `4` / `4` | DONE | DONE (bug 41) | DONE | DONE | `staticpluseq` |
 | concat string+num (order) | `n=42` / `3x` / `x12` | DONE | DONE | DONE | DONE | `concat` |
 | boolean logic + comparison | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
@@ -106,12 +108,13 @@
 | stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero + `==true`/`==false` §93) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` / `true` / `false` | DONE | DONE | DONE | DONE | `stdmath` |
 | stdlib kof.math (S1b: sqrt — first Double; Bool comparisons, NaN in <0 = IEEE; riscv/aarch = B32 `fsqrt.d`, MATH001 closed 11/09; §94 closed 13/09 — interp now IEEE) | `true` / `true` / `true` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `stdsqrt` |
 | stdlib kof.math (S1b.1: lerp/percentage/isInteger/isDecimal — pure Double, SSE2; deterministic subset, NaN only in the compiled ones via KofMathTest; riscv/aarch = B32, MATH001 closed 11/09) | `true` ×15 | DONE | DONE | DONE | DONE | `stdmathdouble` |
-| stdlib kof.math (S1b.2: `pow` — first libm in native x86 `pow@PLT` + `-lm`; JVM/JS `Math.pow`; riscv/aarch = MATH001, static link without libc) | `true` ×10 | DONE | DONE | DONE | DONE | `stdmathpow` |
+| stdlib kof.math (S1b.2: `pow` — libm in native `pow@PLT` + `-lm` **by use**; JVM/JS `Math.pow`; riscv/aarch now on cross too — **row 10 closed 27/09** (`e69ea2bc6`): `-lm` only when the PRUNED text still calls `pow`, so a `pow`-free program stays libm-free) | `true` ×10 | DONE | DONE | DONE | DONE | `stdmathpow` |
 | stdlib kof.math (S1b.3: `roundTo(value, decimals)` — half-away-from-zero by deterministic decimal scaling, no libm (`p=10^\|d\|` by repeated multiply → byte-identical 5 targets); decimals may be negative (rounds to tens/hundreds); Bool via == bug 44; cross-arch = B32 under qemu in KofMathTest.roundToCrossArch; **arithmetic contract**: `2.675` → `2.68`) | `true` ×10 | DONE | DONE | DONE | DONE | `stdmathround` |
 | stdlib kof.math (S13a: `parseInt`/`parseLong`/`parseDouble` — namespace facade over the EXISTING runtime fns `kof_string_to_*` in the 4 backends (rule 2, zero new runtime); JDK contract with trim, invalid/overflow throws; Long > 2^53 proves real Long after §81 BigInt; Double via == Bool bug 44; cross-arch = B30/B31, byte-identical golden under qemu in KofMathTest.parseCrossArch) | `42` / `-7` / `13` / `0` / `-2147483648` / `9007199254740993` / `-9223372036854775807` / `true` ×3 / `T1`–`T5` | DONE | DONE (narrow coverage — hex-float/`d`-suffix rejected, bug 82 boundary) | DONE | DONE (narrow coverage — hex-float/`d`-suffix rejected) | `stdmathparse` |
 | stdlib kof.math (S13b: `parse*OrDefault` — briefing §43: parse failure RETURNS the default, never throws; backends = JVM try/catch, JS wrapper, x86 wrapper w/ handler in exc_chain, riscv B41 + aarch translator; Int literal in Long param proves I2L widening of KofStd; `""` line of Double outside the golden = §169; **cross riscv/aarch HANGS on the 1st `parseDoubleOrDefault` after a throwing OrDefault = §192 (2-line repro + loop PC in known-bugs; DONE below = JVM/x86/JS/Script)**) | `42` / `-1` / `7` / `15` / `3` / `9007199254740993` / `-5` / `8` / `true` ×3 | DONE | DONE | DONE | DONE | `stdmathparseord` |
 | stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count + `==true` §93) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` / `true` | DONE | DONE | DONE | DONE | `stdstrings` |
 | stdlib kof.strings (S2b: capitalize/reverse/repeat/truncate/pad — ASCII) | `Hello world` / `1abc` / `321cba` / `kayak` / `ababab` / `hello` / `abc` / `007` / `ab---` | DONE | DONE | DONE | DONE | `stdstrings2b` |
+| stdlib kof.strings reverse non-ASCII (S2b: code-point reversal — 2-byte `café`, astral surrogate pair, 3-byte `€`; D-FULL-PARITY-050 row 11) | `233/102/97/99` / `98/55357/56832/97` / empty 0 | DONE | DONE | DONE | DONE | `stdstrings2b2` |
 | stdlib kof.validation (S12/S12b: formatCpf/formatCep/formatCnpj — BR punctuation, lenient face; formatPis does NOT enter — ambiguous mask = decision) | `529.982.247-25` / `123` (no-op) / `01310-100` / `34.546.401/0001-63` | DONE | DONE | DONE | DONE | `formatBr*`/`formatCnpj*` (KofValidationTest; riscv/aarch under qemu, assert) |
 | stdlib kof.strings (S11: uncapitalize — mirror of capitalize, ASCII) | `hello World` / `hELLO` / `1abc` / `hello` | DONE | DONE | DONE | DONE | `uncapitalizeAllTargets` (KofStringsTest; riscv B7 + aarch under qemu) |
 | stdlib kof.strings (S2b.4: toCamelCase/toPascalCase/toSnakeCase/toKebabCase/slugify — word-split HTTPServer/XMLParser) | `http_server` / `xml_parser` / `helloWorld` / `HelloWorld` / `hello-world` / `hello-world-42` | DONE | DONE | DONE | DONE | `stdstrings2b4` |
@@ -206,10 +209,14 @@ CLOSED 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` run on the 5 targets —
 > Native x86, JS, **and riscv64/aarch64** (slice B25b + translator, 10/09 — `KofUuidTest.uuidV7CrossArch` under qemu). No `UUID002` code exists in the compiler (the only v7 code is `UUID001`, now unreachable since the gate was removed).
 
 > **S2b ASCII:** `capitalize` uses the SAME rule on the 4 targets (byte 0 `a-z`→`A-Z`).
-> `reverse` is byte-reverse on Native and UTF-16/UTF-8 on the others — they coincide in ASCII
-> (case `stdstrings2b`). Non-ASCII cases: **NAT-STR01** (native UTF-8 gap,
-> `plan-stdlib-expansion.md` §5; **registration section:** `known-bugs.md` §161)
-> — they do not enter the matrix until fixed (R5/R6).
+> `reverse` inverts by CODE POINT on all four targets — the Native face now walks
+> the UTF-8 code-point sequence (`RuntimeStringsConv`/`NativeRiscvAsmRtB7`,
+> D-FULL-PARITY-050 row 11, 27/09), matching JVM `StringBuilder.reverse` and JS
+> `[...v].reverse()`; ASCII case `stdstrings2b`, non-ASCII `stdstrings2b2`
+> (`café`, astral) + `NativeStringsReverseCrossTest` under qemu. Remaining
+> non-ASCII faces: `capitalize`/`toUpperCase`/`toLowerCase` = **NAT-STR01**
+> (native UTF-8 gap, `plan-stdlib-expansion.md` §5; **registration section:**
+> `known-bugs.md` §161) — they do not enter the matrix until fixed (R5/R6).
 > **NAT-STR01 extension (10/09, String sweep part 2):** the INSTANCE methods
 > `"café".toUpperCase()`/`"CAFÉ".toLowerCase()` are **ASCII-only on
 > x86_64** (`RuntimeStringOps` only does ±0x20 on `a-z`/`A-Z`; é→`É` is not touched)
@@ -233,6 +240,7 @@ CLOSED 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` run on the 5 targets —
 | throw propagating to outer catch | `got:kaboom` | DONE | DONE | DONE | DONE | `throwprop` |
 | nested try | `caught-inner:inner` / `end` | DONE | DONE | DONE | DONE (fix 07/09) | `nestedtry` |
 | re-throw inside catch | `outer:re:x` / `end` | DONE | DONE | DONE | DONE (bug 52 — collateral fix of bug 45, `c727fee`) | `catchrethrow` |
+| nested `if` whose then ends in `throw`/`return` (outer epilogue must survive) | `p:y` / `c:yb` / `c:bx` / `out:y` / `mid` / `c:in` | DONE | DONE | DONE | DONE (§380 ✅ 20/09 — parse stack of ACTIVE if false-labels: the inner else-parse returns the enclosing label, never consumes it; §147/§149/§174 guards untouched) | `nestedifthrow` |
 | null-safety narrowing (`!= null`) | `val=1` / `null-ok` | DONE | DONE | DONE | DONE | `nullnarrow` |
 | json.encode int/string/bool | `42` / `"oi"` / `true` | DONE | DONE | DONE | DONE | `jsonenc-int` |
 | json.encode list | `[1,2,3]` | DONE | DONE | DONE | DONE | `jsonenc-list` |
@@ -276,6 +284,22 @@ CLOSED 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` run on the 5 targets —
 > **Bug 51** (state leak of a reused `CompilerDriver` → broken Native
 > link) discovered during batch 3: the test uses a fresh driver per
 > case (like the CLI — 1 process/compilation).
+
+## Matrix (batch 4 — type system X5, `D-X5-SURFACE`)
+
+| Feature | Expected output | JVM | Native | Script | KofJS | Case (ConformanceMatrixTest) |
+|---|---|---|---|---|---|---|
+| `sealed` + exhaustive `switch` over sealed subject (X5.1/X5.2, `SEM080`/`SEM081`) | `circle` / `square` | DONE | DONE | DONE | DONE | `sealedswitch` |
+| declaration-site variance `out T` (X5.3, erased) | `rex` | DONE | DONE | DONE | DONE | `variance` |
+| use-site projection `List<out T>` / `List<in T>` (X5.4, erased) | `1` / `1` | DONE | DONE | DONE | DONE | `useproj` |
+| `interop.schema(R)` compile-time reflection (X6.1/X6.2, erased) | `2` / `name:String` / `age:Int` | DONE | DONE | DONE | DONE | `interopschema` |
+
+> **X5 (`D-X5-SURFACE`, 21/09):** the three cases are compile-time-only
+> features (`sealed`, variance, projection) — codegen erases them, so the cell
+> traps that the FOUR targets accept the same source and print the same output
+> (erasure parity). Negative diagnostics are certified by
+> `SealedTypeE2ETest`/`TypeVarianceE2ETest`/`UseSiteVarianceE2ETest`
+> (`SEM080`/`SEM081`/`SEM082`), not by the matrix (which is runtime output).
 
 ## Targets outside the matrix (Android / WebAssembly)
 

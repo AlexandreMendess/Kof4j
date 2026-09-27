@@ -65,6 +65,12 @@ void handleCall(MethodCtx ctx, List<Object> stack,
                 } else {
                     stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String.fromCharCode"), List.of(args.get(0))));
                 }
+            } else if (p0 instanceof Type.ArrayType) {
+                // §388-B: array cru (readBytes et al.) pega o MESMO formato de
+                // container da casa ("[65, 66]") — String() cru dava `65,66`
+                // sem colchetes (a paridade reversa medida do §388-B).
+                p.lc.registerRuntime("kofFormat");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
             } else if (p0 instanceof Type.ClassType ct && "kof".equals(ct.packageName())
                     && (ct.name().equals("List") || ct.name().equals("Map") || ct.name().equals("Set"))) {
                 p.lc.registerRuntime("kofFormat");
@@ -441,6 +447,14 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                 ctx.lc.registerRuntime("kofStringCompareTo");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareTo"),
                         List.of(receiver, args.get(0))));
+            }
+            // D-FULL-PARITY-050 row 11: String.prototype NÃO tem toCharArray →
+            // o default gerava TypeError. Helper kofToCharArray (array de code
+            // units UTF-16, igual ao JVM).
+            case "toCharArray" -> {
+                ctx.lc.registerRuntime("kofToCharArray");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofToCharArray"),
+                        List.of(receiver)));
             }
             case "split" -> {
                 // §111: JS String.prototype.split PRESERVA vazios trailing

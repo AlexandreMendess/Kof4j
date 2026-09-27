@@ -209,12 +209,10 @@ public final class RuntimeJsonDecode {
                 incq %rdx
                 jmp .Ljson_rec_len
             .Ljson_rec_go:
-                movq $1, %rax              # syscall write
                 movq $1, %rdi              # fd = stdout
-                syscall
+                call kof_plat_write
                 movq $1, %rdi              # exit code 1
-                movq $60, %rax             # syscall exit
-                syscall
+                call kof_plat_exit
             .Ljson_rec_list_msg:
                 .asciz "json.decode: List<Record> not supported on the Native target yet (JSN004)\\n"
 

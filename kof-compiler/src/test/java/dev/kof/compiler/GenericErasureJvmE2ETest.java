@@ -45,10 +45,10 @@ class GenericErasureJvmE2ETest {
                     }
                 }
                 """);
-            Process pCompile = new ProcessBuilder("javac", "-d", runnerDir.toString(), runnerSrc.toString()).start();
+            Process pCompile = new ProcessBuilder(TestJdk.javacBin(), "-d", runnerDir.toString(), runnerSrc.toString()).start();
             assertEquals(0, pCompile.waitFor());
-            Process p = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
-                    "-cp", outDir.toString() + ":" + runnerDir.toString(), "Run", "Default.Main")
+            Process p = new ProcessBuilder(TestJdk.javaBin(),
+                    "-cp", outDir.toString() + java.io.File.pathSeparator + runnerDir.toString(), "Run", "Default.Main")
                     .redirectErrorStream(true).start();
             String output = new String(p.getInputStream().readAllBytes(),
                     java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();

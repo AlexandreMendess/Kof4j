@@ -13,7 +13,7 @@ The model can invent `users.map(...)`, `Option<T>`, `async/await`,
 because they exist in other languages. Code like that **does not compile** or
 **compiles by accident** with the wrong semantics.
 
-## Real status (verified in the compiler — 0.4.0-beta, Sep 2026)
+## Real status (verified in the compiler — 0.5.0-beta, Sep 2026)
 
 | Feature | Status |
 |---|---|
@@ -66,10 +66,10 @@ var maybe = Option.of(x)
 // DOES NOT COMPILE — for without var
 for (user in users) { }
 
-// DOES NOT COMPILE — sealed/permits are NOT keywords (SG-002 removed them
-// from the lexer 12/09). `sealed` parses as a stray IDENTIFIER → PARSE010.
-// Use `record` + `enum` + `interface` (the Kotlin sealed-class habit fails here).
-sealed class Resultado permits Sucesso, Erro { }
+// DOES NOT COMPILE — the `permits` clause does NOT exist (the Kotlin habit).
+// `sealed` itself IS valid now (contextual modifier, 0.5.0-beta X5.1): the
+// closed set is "subtypes in the SAME file", not a `permits` list.
+sealed class Resultado permits Sucesso, Erro { }   // `permits` → PARSE error
 ```
 
 ## Good example — what exists today

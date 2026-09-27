@@ -2,7 +2,7 @@
 
 # Visual composition by objects
 
-**Updated:**  0.4.0-beta (Sep 2026) (02 Sep 2026)
+**Updated:**  0.5.0-beta (Sep 2026) (02 Sep 2026)
 
 > The visual is a graph of objects. No templates, XML or magic strings:
 > the interface is Kof code, typed, compiled and verified like any other.

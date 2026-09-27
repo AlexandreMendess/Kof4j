@@ -2,7 +2,7 @@
 
 # Idioms — Classes
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.4.0-beta (Sep 2026)
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.5.0-beta (Sep 2026)
 
 ## What it is
 
@@ -151,7 +151,7 @@ class Rect extends Shape {
 }
 ```
 
-## Generics Box<T> (0.4.0-beta)
+## Generics Box<T> (0.5.0-beta)
 
 ```kof
 class Box<T>(T value) {
@@ -161,7 +161,58 @@ var b: Box<Int> = Box(42)
 println(b.get())   // erasure + substituteTypeVariable — Native OK
 ```
 
-## Sobrecarga de Métodos (0.4.0-beta, §131)
+## Tipos selados e switch exaustivo (0.5.0-beta, §X5.1/§X5.2)
+
+`sealed` fecha o conjunto de subtipos diretos: todo subtipo direto precisa estar
+na **mesma unidade de compilação** do tipo selado (`SEM080`). Um `switch` sobre
+sujeito sealed precisa cobrir todos os subtipos diretos, ou ter `default`
+(`SEM081`).
+
+```kof
+sealed class Shape
+class Circle extends Shape { ... }
+class Square extends Shape { ... }
+
+String describe(Shape sh) {
+    return switch (sh) {
+        case Circle c -> "circle"
+        case Square q -> "square"
+    }
+}
+```
+
+- `sealed` é keyword **contextual** (segue identificador válido).
+- É apagado na emissão — sem custo de runtime, idêntico em todos os alvos.
+
+## Variância `out`/`in` e projeção no sítio de uso (0.5.0-beta, §X5.3/§X5.4)
+
+`out T` (covariante) / `in T` (contravariante) num type-param diz que o tipo só
+**produz** / só **consome** `T`; sem prefixo, o parâmetro é invariante (o padrão).
+
+```kof
+record Source<out T>(T value)      // componente somente-leitura = posição out
+class Sink<in T> { String consume(T v) { return "x" } }
+
+Source<Animal> up(Source<Dog> d) { return d }  // OK — covariância
+Sink<Dog> down(Sink<Animal> w) { return w }    // OK — contravariância
+```
+
+Um `out T` em posição de entrada (parâmetro/campo gravável) ou `in T` em posição
+de saída (retorno/campo/componente de record) é insólido → `SEM082`.
+
+A projeção também pode ser escrita no **sítio de uso**, em qualquer tipo — mesmo
+um invariante:
+
+```kof
+List<out Animal> up(List<Dog> xs) { return xs }   // covariante no uso
+List<in Dog> down(List<Animal> xs) { return xs }  // contravariante no uso
+List<Animal> same(List<Dog> xs) { return xs }     // SEM021 — invariante
+```
+
+- `out`/`in` seguem keywords contextuais dentro de type-arguments.
+- Variância e projeção são **só de compile-time** — apagadas na emissão.
+
+## Sobrecarga de Métodos (0.5.0-beta, §131)
 
 ```kof
 class Calc {

@@ -73,6 +73,15 @@ exactly the Store's (`get`/`set`/`subscribe`/`unsubscribe`) — decision
 `D-UI-APPSTATE`. The observable lives in KofJS; on JVM/Native the operations
 are documented no-ops (UI is KofJS).
 
+**Ownership is part of the lifecycle.** A store or subscription created
+*during* a component's lifecycle (view render / `onMount` / `effect`) belongs
+to that component and is released automatically at unmount — no `unsubscribe`
+reminder (`D-UI-AUTOUNSUB` + `D-COMPLETE-FIRST` item 4). Created outside any
+component it is app-scoped and manual by design; `AppState` is always
+app-scoped. Three probes are the leak locks — `uiNodesLive()`,
+`storesLive()`, `subscriptionsLive()` must return to 0 after mount/unmount
+cycles (locked at 10k cycles in `UiLeakLockE2ETest`).
+
 ## Windows and Widgets
 
 ```kof
@@ -186,7 +195,11 @@ Real in KofJS; documented no-op on JVM/Native/Script (like the 4-Int form).
 
 ## Canvas 2D
 
-Canvas allows free 2D drawing — graphics, visualizations, games.
+Canvas allows free 2D drawing — graphics, visualizations. A full game
+surface (frame loop, sprites, sound, video) is Kof's **own engine**, still
+plan-only — `docs/development/future/graphics-gaming-plan.md`
+(`DECISIONS.md` §D-GRAPHICS-GAMING + addenda); none of that surface compiles
+today.
 It renders into `<canvas>` in the DOM (KofJS). JVM/Native are no-ops.
 
 ```kof

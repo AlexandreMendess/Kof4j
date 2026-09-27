@@ -16,6 +16,8 @@
 #   A8  estado legado (sem gate_mode)        → shadow: comportamento antigo + registro
 #   A9  árvore suja muda o fingerprint       → despacha
 #   A10 --attach continua no comando         → nunca spawna sessão concorrente
+#   A11 AUTOLOOP_NAME: dois heartbeats coexistem (estado + cron isolados)
+#   A12 telemetria encadeada: previous_fingerprint = estado PRÉ-run (≠ pós)
 #
 # Uso: scripts/tests/auto-loop-test.sh   (exit 0 = todos passam)
 set -uo pipefail
@@ -126,5 +128,47 @@ echo "A10 — --attach obrigatório permanece"
 setup
 tick
 assert_contains "$(last_opencode_call)" "--attach" "comando usa --attach (sem sessão concorrente)"
+
+echo "A11 — AUTOLOOP_NAME: dois heartbeats coexistem (estado + cron isolados)"
+setup
+# fake crontab: arquivo em disco, para provar install/remove sem tocar o cron real
+export FAKE_CRONTAB_FILE="$TMP/crontab.txt"
+cat > "$TMP/bin/crontab" <<'EOF'
+#!/usr/bin/env bash
+f="${FAKE_CRONTAB_FILE:?}"
+if [ "${1:-}" = "-l" ]; then
+    cat "$f" 2>/dev/null || true
+else
+    tmp="$(mktemp)"; cat > "$tmp"; mv "$tmp" "$f"   # como o crontab real: lê o stdin todo, depois troca
+fi
+EOF
+chmod +x "$TMP/bin/crontab"
+# default (A) e loop nomeado (B) ativos ao mesmo tempo
+bash "$LOOP" start ses_default 2 9094 >/dev/null 2>&1
+AUTOLOOP_NAME=kof-auto-loop-b bash "$LOOP" start ses_b 2 9095 >/dev/null 2>&1
+assert_contains "$(cat "$FAKE_CRONTAB_FILE")" "env AUTOLOOP_NAME=kof-auto-loop-b" "cron do loop B carrega o env do nome"
+assert_eq 1 "$(grep -cE '# kof-auto-loop$' "$FAKE_CRONTAB_FILE")" "cron default presente"
+assert_eq 1 "$(grep -cE '# kof-auto-loop-b$' "$FAKE_CRONTAB_FILE")" "cron do loop B presente"
+# tick com o nome lê o state do loop B (não o default)
+AUTOLOOP_NAME=kof-auto-loop-b bash "$LOOP" tick >> "$TMP/tick.out" 2>&1
+assert_contains "$(last_opencode_call)" "--session ses_b" "tick nomeado usa a sessão do loop B"
+# parar B não pode apagar o cron default (marcador ancorado, não substring)
+AUTOLOOP_NAME=kof-auto-loop-b bash "$LOOP" stop >/dev/null 2>&1
+assert_eq 1 "$(grep -cE '# kof-auto-loop$' "$FAKE_CRONTAB_FILE")" "parar B preserva o cron default"
+assert_eq 0 "$(grep -cE '# kof-auto-loop-b$' "$FAKE_CRONTAB_FILE")" "parar B remove só a linha de B"
+unset FAKE_CRONTAB_FILE AUTOLOOP_NAME
+
+echo "A12 — telemetria encadeada: previous_fingerprint = estado PRÉ-run"
+setup
+productive_hook
+tick                     # dispatch 1 (first_dispatch, persiste o estado A)
+tick                     # o hook mudou o estado -> dispatch 2 (estado B)
+recs="$(grep '"decision":"dispatch"' "$(telemetry_file)")"
+fp1="$(sed -n '1p' <<<"$recs" | grep -oE '"fingerprint":"[^"]*"' | head -1 | cut -d'"' -f4)"
+fp2="$(sed -n '2p' <<<"$recs" | grep -oE '"fingerprint":"[^"]*"' | head -1 | cut -d'"' -f4)"
+pfp2="$(sed -n '2p' <<<"$recs" | grep -oE '"previous_fingerprint":"[^"]*"' | head -1 | cut -d'"' -f4)"
+[ -n "$fp1" ] && [ -n "$fp2" ] && pass "dois dispatches registrados (fp1/fp2 presentes)" || fail "faltam dispatches na telemetria"
+assert_eq "$fp1" "$pfp2" "previous_fingerprint do 2º = fingerprint do 1º (estado PRÉ-run)"
+[ "$fp2" != "$pfp2" ] && pass "2º dispatch: fingerprint ≠ previous_fingerprint (a telemetria não colapsa)" || fail "previous_fingerprint colapsou no fingerprint atual"
 
 finish

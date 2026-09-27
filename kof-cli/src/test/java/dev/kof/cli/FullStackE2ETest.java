@@ -182,6 +182,9 @@ class FullStackE2ETest {
             assertEquals(404, traversal.code, "path traversal bloqueado (R6)");
             assertFalse(traversal.body.contains("web.app()"), "fonte do app não vaza");
         } finally {
+            // §390: mata a árvore — o `kof serve` gera um JVM filho (o app
+            // servido); sem isto o filho pode sobreviver ao teardown.
+            server.descendants().forEach(ProcessHandle::destroyForcibly);
             server.destroy();
             if (!server.waitFor(5, TimeUnit.SECONDS)) server.destroyForcibly();
         }

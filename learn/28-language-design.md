@@ -2,7 +2,7 @@
 
 # 28 — Language Design
 
-> **Kof 0.4.0-beta — Sep 2026 — `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.5.0-beta — Sep 2026 — `intention->Kof->frontend->IR->backend->runtime`**
 
 ## Philosophy
 
@@ -60,7 +60,7 @@ Kof is not just a language for the JVM. It is a language that can compile to dif
 
 **The language does not change. The target changes.**
 
-This is a fundamental design decision. The same Kof source can generate (0.4.0-beta):
+This is a fundamental design decision. The same Kof source can generate (0.5.0-beta):
 - JVM bytecode for applications that need the Java ecosystem
 - Native executables x86-64 / riscv64 (`native.risc`) / aarch64 (`native.arm`) for CLI tools and systems (Target separation)
 - ES Modules for the browser/webview via KofJS (see [chapter 37](37-kofjs.md))

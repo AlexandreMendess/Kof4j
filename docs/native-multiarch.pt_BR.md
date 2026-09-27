@@ -67,7 +67,10 @@
 > o coletor (G-4) é quem de fato recupera; (2) a face cross do DB001
 > FECHADA 15/09 (SQLite; JS mantém DB001) e os helpers do CONC001
 > (selectAny/done/poll/cancel/cancelled/awaitTimeout) FECHADOS 15/09
-> — restam as recusas SECN000/JSN004 (OTP001 removido 19/09); (3) FP-coleção no cross
+> e `channel<T>` send/receive FECHADO 23/09 (fatia `RtB61`, §423) — restam as recusas SECN000/JSN004,
+> `kof.io` File/Path/Directory → **NAT006** e web-T1 `listen`/`route` →
+> **NAT007** (§427, 21/09; recusa honesta em compile-time — os runtimes x86_64
+> nunca foram portados para o cross) (OTP001 removido 19/09); (3) FP-coleção no cross
 > (FLT001 FECHADO 15/09 — fatia `RtB45`; §107 record/aninhado **FECHADO 19/09
 > NAS 3 ARCOS** — x86 descritor recursivo `.rodata` (face (3) x86) + port
 > cross (face (4)): a fatia `B39` interpreta a MESMA gramática de descritor
@@ -282,13 +285,13 @@
 > próprios marcadores `.L`-locais riscv — NÃO precisou do `kof_heap_root_end`
 > x86 da S-5); G-4 (sweep+collect) é o próximo e não depende dele.
 >
-> **Além do GC (futuro, sem degrau agendado):** a diretiva da mantenedora de
+> **Além do GC (promovido a desenvolvimento 22/09):** a diretiva da mantenedora de
 > 15/09 ("todo código nativo deve se comunicar direto com barebones — código
-> bootável para microcontroladores, legado e UEFI com Kof") está registada,
-> decomposta e mantida só-plano em
-> `docs/development/future/PLAN-BAREMETAL-BOOT.md` (faces B-0…B-5: costura HAL
-> `kof_plat_*` + perfil freestanding + UEFI/BIOS/MCU). A face MCU depende do
-> coletor (G-4/G-5) acima.
+> bootável para microcontroladores, legado e UEFI com Kof") está decomposta em
+> `docs/PLAN-BAREMETAL-BOOT.md` (faces B-0…B-6: costura HAL
+> `kof_plat_*` + perfil freestanding + UEFI/BIOS/MCU + anéis x86_64 ring0/ring1)
+> — **EM DESENVOLVIMENTO** desde 22/09 (`D-BAREMETAL-BOOT`, ordem da
+> mantenedora). A face MCU depende do coletor (G-4/G-5) acima.
 >
 > **Status:** `EM DESENVOLVIMENTO (parcial)` — **riscv64 + aarch64 com core completo (03/09)**: classes/arrays/List/strings/instanceof/switch/try-catch/FP/recursão em asm puro nos dois; paridade avançada pendente *(ver re-auditoria 12/09 acima — muito do que estava "pendente" já roda sob qemu; o que falta tem código de gap honesto)*.
 > **Versão:** 0.2.6-beta · **Data:** 2026-09-03
@@ -537,5 +540,5 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os
   emitters estão fixados a `ecall`/`syscall` Linux e a uma ABI `_start`, e não há
-  perfil de link freestanding. Só plano, sem agendamento:
-  `docs/development/future/PLAN-BAREMETAL-BOOT.md` (faces B-0…B-5).
+  perfil de link freestanding. EM DESENVOLVIMENTO desde 22/09:
+  `docs/PLAN-BAREMETAL-BOOT.md` (faces B-0…B-6).

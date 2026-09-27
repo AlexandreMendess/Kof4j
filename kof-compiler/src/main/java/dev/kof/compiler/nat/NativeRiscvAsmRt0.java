@@ -11,6 +11,124 @@ public final class NativeRiscvAsmRt0 {
             .option arch, rv64g
             .section .text
 
+            # =====================================================================
+            # B-0 (D-BAREMETAL-BOOT, 22/09): COSTURA DE PLATAFORMA (HAL).
+            # TODA operação ambiental do runtime cruza kof_plat_* — o runtime
+            # acima desta fronteira nunca emite ecall diretamente. Esta é a
+            # implementação Linux (rename dos syscalls existentes: comportamento
+            # byte-idêntico); um alvo bare-metal (UEFI/BIOS/MCU) fornece o MESMO
+            # vocabulário sem tocar no runtime. ABI = mesma dos wrappers: os
+            # argumentos já chegam em a0/a1/a2 e o retorno fica em a0.
+            # =====================================================================
+            # kof_plat_write(fd=a0, buf=a1, len=a2) -> n
+            .globl kof_plat_write
+            kof_plat_write:
+                li   a7, 64
+                ecall
+                ret
+
+            # kof_plat_writev(fd=a0, iov=a1, cnt=a2) -> n (println atômico)
+            .globl kof_plat_writev
+            kof_plat_writev:
+                li   a7, 66
+                ecall
+                ret
+
+            # kof_plat_exit(code=a0) — NÃO retorna
+            .globl kof_plat_exit
+            kof_plat_exit:
+                li   a7, 93
+                ecall
+
+            # kof_plat_exit_group(code=a0) — NÃO retorna (mata threads do scheduler)
+            .globl kof_plat_exit_group
+            kof_plat_exit_group:
+                li   a7, 94
+                ecall
+
+            # kof_plat_time(ts=a0) -> 0|-errno (CLOCK_REALTIME)
+            .globl kof_plat_time
+            kof_plat_time:
+                mv   a1, a0
+                li   a0, 0
+                li   a7, 113
+                ecall
+                ret
+
+            # kof_plat_time_mono(ts=a0) -> 0|-errno (CLOCK_MONOTONIC)
+            .globl kof_plat_time_mono
+            kof_plat_time_mono:
+                mv   a1, a0
+                li   a0, 1
+                li   a7, 113
+                ecall
+                ret
+
+            # kof_plat_sleep(req=a0, rem=a1) -> 0|-errno
+            .globl kof_plat_sleep
+            kof_plat_sleep:
+                li   a7, 101
+                ecall
+                ret
+
+            # kof_plat_random(buf=a0, len=a1) -> n lidos (getrandom flags=0)
+            .globl kof_plat_random
+            kof_plat_random:
+                li   a2, 0
+                li   a7, 278
+                ecall
+                ret
+
+            # kof_plat_thread_id() -> tid (gettid)
+            .globl kof_plat_thread_id
+            kof_plat_thread_id:
+                li   a7, 178
+                ecall
+                ret
+
+            # kof_plat_sync(uaddr=a0, op=a1, val=a2, timeout=a3) -> futex
+            .globl kof_plat_sync
+            kof_plat_sync:
+                li   a7, 98
+                ecall
+                ret
+
+            # kof_plat_thread_create(flags=a0, stack=a1, ptid=a2, tls=a3, ctid=a4)
+            # -> tid (clone 220); `call` riscv nao empilha: o filho troca o sp no caller.
+            .globl kof_plat_thread_create
+            kof_plat_thread_create:
+                li   a7, 220
+                ecall
+                ret
+
+            # kof_plat_read(fd=a0, buf=a1, len=a2) -> read
+            .globl kof_plat_read
+            kof_plat_read:
+                li   a7, 63
+                ecall
+                ret
+
+            # kof_plat_close(fd=a0) -> close
+            .globl kof_plat_close
+            kof_plat_close:
+                li   a7, 57
+                ecall
+                ret
+
+            # kof_plat_net_socket(domain=a0, type=a1, proto=a2)
+            .globl kof_plat_net_socket
+            kof_plat_net_socket:
+                li   a7, 198
+                ecall
+                ret
+
+            # kof_plat_net_connect(fd=a0, addr=a1, len=a2)
+            .globl kof_plat_net_connect
+            kof_plat_net_connect:
+                li   a7, 203
+                ecall
+                ret
+
             # kof_alloc/kof_free/kof_memstats MOVIDOS p/ B42 (G-1, 15/09): o
             # header de bloco 32B do G-0 ganhou free-list (port do x86) + lock
             # + contadores. Aqui ficou ≤500 linhas.
@@ -83,8 +201,7 @@ public final class NativeRiscvAsmRt0 {
                 lw   a2, 16(a0)
             .Lps_write:
                 li   a0, 1
-                li   a7, 64
-                ecall
+                call kof_plat_write
                 ld   ra, 8(sp)
                 addi sp, sp, 16
                 ret
@@ -114,8 +231,7 @@ public final class NativeRiscvAsmRt0 {
                 li   a0, 1
                 addi a1, sp, 0
                 li   a2, 2
-                li   a7, 66
-                ecall
+                call kof_plat_writev
                 ld   ra, 40(sp)
                 addi sp, sp, 48
                 ret
@@ -306,15 +422,13 @@ public final class NativeRiscvAsmRt0 {
                 li   a0, 1
                 mv   a1, s0
                 mv   a2, t0
-                li   a7, 64
-                ecall
-                la   a0, .Lnewline
-                li   a1, 1
-                li   a7, 64
-                ecall
+                call kof_plat_write
                 li   a0, 1
-                li   a7, 93
-                ecall
+                la   a1, .Lnewline
+                li   a2, 1
+                call kof_plat_write
+                li   a0, 1
+                call kof_plat_exit
 
             .globl kof_null_error
             kof_null_error:
@@ -326,8 +440,7 @@ public final class NativeRiscvAsmRt0 {
                 la   a0, .Lstr_bounds_err
                 call kof_panic
 
-            # kof_throw_string(str) — desempilha a chain da thread; sem handler
-            # → panic. a0=str é preservado até o handler.
+            # kof_throw_string(str) — chain; sem handler imprime a KofString e sai 1 (paridade x86).
             .globl kof_throw_string
             kof_throw_string:
                 addi sp, sp, -32
@@ -350,8 +463,9 @@ public final class NativeRiscvAsmRt0 {
                 mv   s11, t2
                 jr   t4
             .Lthrow_panic:
-                call kof_panic
-
+                call kof_println_string    # a0 = KofString (não .asciz — kof_panic leria lixo, §451 análogo)
+                li   a0, 1
+                call kof_plat_exit
             # ---- arrays (header 24: typeId@0 super@4 vtable@8 len@16 elemSize@20 data@24) ----
             .globl kof_array_alloc
             kof_array_alloc:

@@ -2,7 +2,7 @@
 
 # Kof Compiler Reference
 
-**Version:** 0.4.0-beta (Sep 2026) — 2218 tests
+**Version:** 0.5.0-beta (Sep 2026) — 3225 tests
 
 ## Compilation Pipeline
 
@@ -55,9 +55,9 @@ Kof IR (backend-agnostic) → Optimizer (constant folding, branch simplification
 | `kof new <name>` | Project skeletons by type |
 | `kof init` | Initialize a project in the current directory |
 | `kof install <dir>` | Installs this build as a distribution |
-| `kof version` | Show version (0.4.0-beta) |
+| `kof version` | Show version (0.5.0-beta) |
 
-26 commands. `kof fmt` and `kof config gen` implemented (0.4.0-beta).
+26 commands. `kof fmt` and `kof config gen` implemented (0.5.0-beta).
 
 Fixes 27/08:
 - `CompilerImports.expandKofImports` handles `import a.b.C` (file) in addition to `a.b.*` (folder) — large projects with `a/b/C.kf` now generate both `.class` files.

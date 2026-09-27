@@ -3,9 +3,9 @@
 # kof.observability — Health, Metrics e Request IDs (G5)
 
 **Última atualização:** 17 de setembro de 2026
-**Versão:** 0.4.0-beta (`VERSION` 0.4.0-beta)
+**Versão:** 0.5.0-beta (`VERSION` 0.5.0-beta)
 
-> **Status:** DONE (JVM/Native/JS) — `KofObservabilityTest` 12/12 (VERSION 0.4.0-beta, free-list Native); API confirmada em `KofObservability.java`; histogramas/spans/export Prometheus fechados como `OBS002` (16/09); **export OpenTelemetry (`exportSpans`) fechado como `OBS003` — JVM/JS ✅, gap honesto no Native**
+> **Status:** DONE (JVM/Native/JS) — `KofObservabilityTest` 12/12 (VERSION 0.5.0-beta, free-list Native); API confirmada em `KofObservability.java`; histogramas/spans/export Prometheus fechados como `OBS002` (16/09); **export OpenTelemetry (`exportSpans`) fechado como `OBS003` — JVM/JS ✅, gap honesto no Native**
 > **Módulo:** `kof.observability` — `observability.*`
 > **Targets:** JVM ✅ · Native x86_64 ✅ (free-list) · Native riscv64 ✅ · JS ✅ — G5 fechado 0.2.6-beta; OBS002 16/09; **`OBS003`: `exportSpans()` só no JVM/JS (o Native recusa em tempo de compilação — nunca stub)**
 

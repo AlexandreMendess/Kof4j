@@ -154,6 +154,8 @@ public final class RuntimeList {
                 movq (%rax,%r15,8), %rax
                 cmpl $1, %r13d
                 je .Lkof_list_contains_str
+                cmpl $2, %r13d
+                je .Lkof_list_contains_obj
                 cmpq %r12, %rax
                 je .Lkof_list_contains_yes
                 jmp .Lkof_list_contains_next
@@ -161,6 +163,15 @@ public final class RuntimeList {
                 movq %rax, %rdi
                 movq %r12, %rsi
                 call kof_string_equals
+                testl %eax, %eax
+                jnz .Lkof_list_contains_yes
+                jmp .Lkof_list_contains_next
+            .Lkof_list_contains_obj:
+                testq %rax, %rax
+                jz .Lkof_list_contains_next
+                movq %rax, %rdi
+                movq %r12, %rsi
+                call kof_obj_equals
                 testl %eax, %eax
                 jnz .Lkof_list_contains_yes
             .Lkof_list_contains_next:
@@ -187,6 +198,37 @@ public final class RuntimeList {
             .type kof_list_contains_tag, @function
             kof_list_contains_tag:
                 jmp kof_list_contains
+
+            .globl kof_obj_equals
+            .type kof_obj_equals, @function
+            # §104b-ii (24/09): igualdade por CONTEUDO de referencia Kof
+            # (record/classe). rdi=a, rsi=b -> eax 1/0. a==b (inclui null==null)
+            # -> 1; um nulo -> 0; String (type_id==1) -> kof_string_equals;
+            # senao despacha o equals virtual da classe por
+            # kof_equals_table[type_id] (0 -> 0 = sem equals).
+            kof_obj_equals:
+                cmpq %rsi, %rdi
+                je .Lkoe_yes
+                testq %rdi, %rdi
+                jz .Lkoe_no
+                testq %rsi, %rsi
+                jz .Lkoe_no
+                movl (%rdi), %eax
+                cmpl $1, %eax
+                je .Lkoe_str
+                leaq kof_equals_table(%rip), %rcx
+                movq (%rcx,%rax,8), %rax
+                testq %rax, %rax
+                jz .Lkoe_no
+                jmp *%rax
+            .Lkoe_str:
+                jmp kof_string_equals
+            .Lkoe_yes:
+                movl $1, %eax
+                ret
+            .Lkoe_no:
+                xorl %eax, %eax
+                ret
 
             .globl kof_list_is_empty
             .type kof_list_is_empty, @function
@@ -236,10 +278,28 @@ public final class RuntimeList {
                 movl 16(%rbx), %esi
                 call kof_bounds_error
 
+            # D-MEMORY-CLEAR (O-03): anula cada slot ANTES de encolher — o
+            # container nao retem mais nenhuma referencia apos clear()
             .globl kof_list_clear
             .type kof_list_clear, @function
             kof_list_clear:
-                movl $0, 16(%rdi)
+                pushq %rbx
+                pushq %r12
+                movq %rdi, %rbx
+                movl 16(%rbx), %r12d
+                movq 24(%rbx), %rdx
+                xorl %eax, %eax
+            .Lkof_list_clear_loop:
+                cmpl %r12d, %eax
+                jge .Lkof_list_clear_done
+                movslq %eax, %rcx
+                movq $0, (%rdx,%rcx,8)
+                incl %eax
+                jmp .Lkof_list_clear_loop
+            .Lkof_list_clear_done:
+                movl $0, 16(%rbx)
+                popq %r12
+                popq %rbx
                 ret
 
             .globl kof_list_map

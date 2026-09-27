@@ -14,10 +14,12 @@ import java.util.List;
  * 1º '?' até '#'; fragment após o 1º '#'; campo ausente => ""; null => null;
  * NUNCA lança. queryEncode/Decode = fachada de intenção sobre encoding.url*.
  *
- * NET001 (padrão SECN000/ENC002-histórico): byte-scan nativo — x86 portado
- * (RuntimeNet S8-B); riscv/aarch ainda gated em compile-time, nunca link
- * quebrado. queryEncode/Decode só compõem encoding
- * existente (JVM/JS) — gated junto até o port dos nativos (mesma matriz).
+ * NET001 CLOSED 09/09 (padrão SECN000/ENC002-histórico): byte-scan nativo
+ * fechado nos 3 nativos — x86 (RuntimeNet S8-B), riscv64 (slice B24) e
+ * aarch64 (mesmo asm via tradutor); `net.*` (incl. queryEncode/Decode, que
+ * compõem encoding.url* já portado) roda em todos os alvos e nenhum caminho
+ * é gated. Prova: `KofNetTest.netOnCrossArch` (17 vetores oracle, qemu) —
+ * ver `conformance-matrix.md` §net.
  */
 public final class KofNet {
 
@@ -54,12 +56,15 @@ public final class KofNet {
 
     static boolean supportedOn(@SuppressWarnings("unused") String function,
             @SuppressWarnings("unused") Target target) {
-        // NET001: byte-scan nativo pendente (port x86/riscv em unidades
-        // próprias); JVM/SCRIPT/JS já implementados.
+        // NET001 fechado 09/09: `net.*` roda nos 3 nativos (x86 + riscv B24
+        // + aarch via tradutor) — nenhum alvo é gated, por isso `true`.
         return true;
     }
 
     static String gapCode(String function) {
+        // Vestigial: NET001 fechado 09/09 (conformance-matrix §net) e
+        // `supportedOn` devolve true em todo alvo, então nenhum caminho emite
+        // este código hoje. Mantido porque KofStd.gapCode é a rota genérica.
         return "NET001";
     }
 }

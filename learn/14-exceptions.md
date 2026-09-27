@@ -2,7 +2,7 @@
 
 # 14 — Exceptions
 
-> **Status: implemented (JVM / Native / JS) — 0.4.0-beta — examples verified in the compiler**
+> **Status: implemented (JVM / Native / JS) — 0.5.0-beta — examples verified in the compiler**
 >
 > `throw`/`try`/`catch`/`finally` with real unwinding on JVM, Native and KofJS.
 > Kof throws **Strings** (`throw "mensagem"` / `catch (String e)`), not

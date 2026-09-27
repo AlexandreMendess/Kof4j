@@ -20,9 +20,15 @@ Bool=boolean1, Char=unsigned2, Void=tamanho-0/sem-encoding,
 classe/array/String = handle opaco de 8 bytes por enquanto). Codigo retirado
 dos proprios bytes do `.debug_abbrev` do GCC, nao chutado. gdb le valores
 tipados fim-a-fim: `print w` -> `5`, `ptype Box_twice` -> `Int (Opaque, Int)`.**
-DAP on native e stepping pendentes.**
-**Data:** 2 de setembro de 2026
-**Versão:** 0.4.0-beta (7 targets)
+DAP on native e stepping pousaram 20/09.**
+**X7-3/X7-4/X7-5 (20/09):** `kof debug --target native` dirige o gdb real do
+alvo sobre o DWARF Kof (breakpoints em `Main.kf:N`, nunca no mangle);
+`--break`/`--output` = sessão batch scriptável (gdb `-batch`, `break`/`run`/
+`bt`); `kof debug --dap --target native` = ponte DAP↔gdb/MI2 (o editor vê o
+`.kf`); `--attach <pid>` = gdb `-p`. Prova: `KofDebugNativeTest` 7/7,
+`KofDebugNativeDapTest` 3/3 (stub-gdb no host, gdb real na CI).
+**Data:** 20 de setembro de 2026
+**Versão:** 0.5.0-beta (7 targets)
 
 ---
 
@@ -31,7 +37,7 @@ DAP on native e stepping pendentes.**
 ```text
 Kof Debug Info (IR)
     ↓
-símbolos + line tables (DWARF futuro)
+símbolos + line tables (DWARF ✅ x86-64 + cross)
     ↓
 ELF x86-64
     ↓
@@ -53,7 +59,7 @@ Editor
 
 ## 3. Depois
 
-- DWARF completo;
+- ~~DWARF completo~~ ✅ x86-64 + cross (riscv64/aarch64) — X7-1/X7-2;
 - localizações otimizadas de variáveis;
 - inspeção de memória nativa.
 
@@ -230,3 +236,21 @@ A regra é simples:
 > ausência do toolchain não prova defeito no código gerado; uma regressão
 > deve continuar reproduzível depois que o ambiente necessário ao target
 > estiver disponível.
+## `KOF_CROSS_SYSROOT` não-canônico contamina testes cross não relacionados (26/09)
+
+O `NativeCrossLink` aceita o override `KOF_CROSS_SYSROOT` para o sysroot cross
+(`--sysroot=` no link + `-L` no qemu). Um sysroot artesanal (ex.: cópia de
+`/usr/<arch>-linux-gnu` + debs multiarch do `libsqlite3` extraídos) é
+**auto-consistente para os testes que linkam E executam pelo mesmo override**
+(ex.: a prova cross §493 do ORM), mas envenena classes não relacionadas: os
+harnesses `NativeRiscvGc*/Dtoa/DbWire` de aarch64 que linkam com o override e
+executam sob o loader do sistema dão SIGSEGV (139) no qemu, e
+`NativeCrossDynamicLinkTest.ldArgsSqliteAddsLsqlite3` trava o ramo de sysroot
+padrão (`-lsqlite3`) e falha quando o override troca para
+`-l:libsqlite3.so.0`. **Regra:** rodar a suíte reactor completa SEM
+`KOF_CROSS_SYSROOT` (o canônico é `/usr/<arch>-linux-gnu`; os testes cross que
+exigem sqlite pulam honestos pelo guard `sqliteAvailable`), e usar o override
+só em provas cross focadas onde link+exec o compartilham. Para um sysroot
+canônico com sqlite: instalar o pacote multiarch real
+(`apt install libsqlite3-0:arm64 :riscv64`) — a cópia privada é ferramenta de
+uma sessão, não o ambiente do gate de merge.

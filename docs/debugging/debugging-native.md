@@ -25,9 +25,15 @@ Float=float4, Bool=boolean1, Char=unsigned2, Void=size-0/no-encoding,
 class/array/String = opaque 8-byte handle for now). Codes taken from
 GCC's own `.debug_abbrev` bytes, not guessed. gdb end-to-end now reads
 typed values: `print w` -> `5`, `ptype Box_twice` -> `Int (Opaque, Int)`.**
-DAP on native and stepping pending.**
-**Date:** September 17, 2026
-**Version:** 0.4.0-beta (7 targets)
+DAP on native and stepping landed 20/09.**
+**X7-3/X7-4/X7-5 (20/09):** `kof debug --target native` drives the target's
+real gdb over the Kof DWARF (breakpoints on `Main.kf:N`, never the mangle);
+`--break`/`--output` = scriptable batch session (gdb `-batch`, `break`/`run`/
+`bt`); `kof debug --dap --target native` = DAP↔gdb/MI2 bridge (the editor sees
+`.kf`); `--attach <pid>` = gdb `-p`. Proof: `KofDebugNativeTest` 7/7,
+`KofDebugNativeDapTest` 3/3 (stub-gdb on the host, real gdb in CI).
+**Date:** September 20, 2026
+**Version:** 0.5.0-beta (7 targets)
 
 ---
 
@@ -36,7 +42,7 @@ DAP on native and stepping pending.**
 ```text
 Kof Debug Info (IR)
     ↓
-symbols + line tables (DWARF future)
+symbols + line tables (DWARF ✅ x86-64 + cross)
     ↓
 ELF x86-64
     ↓
@@ -58,7 +64,7 @@ Editor
 
 ## 3. Later
 
-- complete DWARF;
+- ~~complete DWARF~~ ✅ x86-64 + cross (riscv64/aarch64) — X7-1/X7-2;
 - optimized variable locations;
 - native memory inspection.
 
@@ -234,3 +240,47 @@ The rule is simple:
 > missing toolchain does not prove a defect in the generated code; a
 > regression must remain reproducible once the environment the target
 > needs is available.
+
+## 6. Cross translator register map (riscv64 → aarch64)
+
+The aarch64 target is produced by translating the pruned riscv64 assembly
+(`NativeAarch64Translator` + `NativeAarch64Helpers`). The mapping is not
+1:1 in price, and one entry is a trap:
+
+| riscv64 | aarch64 | saved across a `call`? |
+|---|---|---|
+| `s0`–`s9` | `x19`–`x28` | **yes** (callee-saved) |
+| `s10` | **`x16`** | **no — `x16` is caller-saved scratch (AAPCS64 IP0)** |
+| `s11` | `x29` | yes (callee-saved) |
+| `ra` | `x30` | yes (return address) |
+
+**Symptom of the trap:** a function that keeps live state (e.g. a loop
+counter) in `s10` across a `call` works on riscv64 but crashes on aarch64
+with a partial output and `rc=1`, because the C callee
+(`sqlite3_bind_*`, `kof_memcpy`, …) clobbers `x16`. Measured on
+`kof_orm_save` (slice E-part-2a, 23/09): the loop index was moved to a
+stack slot (`48(sp)`) and both arches matched.
+
+**Rule for new cross runtime pieces:** never keep live state in `s10`
+across a `call`; use `s0`–`s9`/`s11` or a stack slot. When a piece works on
+riscv64 but not aarch64, diff the generated `.s`
+(`KOF_KEEP_ASM=1` keeps it in the output dir) and suspect `s10` first.
+
+## Non-canonical `KOF_CROSS_SYSROOT` contaminates unrelated cross tests (26/09)
+
+`NativeCrossLink` accepts a `KOF_CROSS_SYSROOT` env override for the cross
+sysroot (link `--sysroot=` + qemu `-L`). A hand-made sysroot (e.g. a copy of
+`/usr/<arch>-linux-gnu` + extracted Debian `libsqlite3` multiarch debs) is
+**self-consistent for the tests that link AND execute through the same
+override** (e.g. the §493 ORM cross proof), but it poises unrelated classes:
+`NativeRiscvGc*/Dtoa/DbWire` aarch64 harnesses that link with the override
+yet exec under the system loader path SIGSEGV (139) under qemu, and
+`NativeCrossDynamicLinkTest.ldArgsSqliteAddsLsqlite3` asserts the default-sysroot
+branch (`-lsqlite3`) and fails when the override switches it to
+`-l:libsqlite3.so.0`. **Rule:** run the full reactor suite WITHOUT
+`KOF_CROSS_SYSROOT` (canonical `/usr/<arch>-linux-gnu`; the sqlite-dependent
+cross tests skip honestly via the `sqliteAvailable` guard), and use the
+override only in focused cross proofs where link+exec share it. To make a
+canonical sqlite-capable sysroot: install the real multiarch package
+(`apt install libsqlite3-0:arm64 :riscv64`) — the private copy is a
+one-session tool, not the merge-gate environment.

@@ -69,6 +69,13 @@ EOF
 #!/usr/bin/env bash
 # FAKE opencode — conta chamadas; hook opcional muda o estado (run "produtivo").
 D="${FAKE_GH_DIR:?}"
+# `opencode stats`: fixture opencode-stats.txt (formato real, com caixas); NÃO conta como CALL
+if [ "${1:-}" = "stats" ]; then
+    printf 'STATS: %s\n' "$*" >> "$D/stats.calls"
+    [ -n "${FAKE_STATS_FAIL:-}" ] && exit 1
+    [ -f "$D/opencode-stats.txt" ] && cat "$D/opencode-stats.txt"
+    exit 0
+fi
 printf 'CALL: %s\n' "$*" >> "$D/opencode.calls"
 [ -x "$D/opencode.hook" ] && "$D/opencode.hook"
 exit "${FAKE_OPENCODE_RC:-0}"

@@ -35,38 +35,14 @@ mainly represents:
 
 ## Current stage
 
-Kof is at the initial stage:
+Kof is on the **0.5.0 beta** line (branch `beta-0.5.0`, `D-BRANCH-0.5.0`).
+The committed version is `0.5.0-beta`; the previous published line was
+`0.4.x-beta`.
 
-```text
-0.0.x
-```
-
-Therefore:
-
-```text
-0.0.4
-0.0.5
-0.0.6
-...
-```
-
-## Alpha Convention
-
-While Kof is in Alpha, the release explicitly carries this information:
-
-```text
-0.0.5-alpha
-```
-
-Rules:
-
-- `0.0.5-alpha` identifies the artifact, the GitHub Release and the tag
-  (`kof-0.0.5-alpha`);
-- the component version (compiler/runtime/stdlib) is `0.0.4` — the
-  `-alpha` suffix belongs to the release;
-- nothing is called stable;
-- the intended evolution is Alpha → Beta → Release Candidate → Stable
-  (without a complex state machine at this moment).
+The staging ladder is **Alpha → Beta → Release Candidate → Stable** (see
+`release-naming.md`). The current phase is **Beta**; nothing is stable yet, and
+breaking changes remain possible before 1.0 (always through a recorded MINOR
+decision — see below).
 
 ## Single source of truth
 
@@ -93,18 +69,25 @@ pipeline does it) and the rest follows.
 
 ## When the version changes
 
-While in Alpha, **every commit on `main` generates the next Alpha version**
-(PATCH increment):
+Classification and cut are **distinct decisions**. The normative policy is
+**`D-VERSIONING-RELEASE`** (`docs/development/DECISIONS.md`); in summary:
 
-```text
-0.0.5-alpha → 0.0.5-alpha → 0.0.6-alpha → ...
-```
-
-Common-sense rules for the future:
-
-- PATCH: bugfix, fix, regression;
-- MINOR: significant capability evolution;
-- MAJOR: architectural change / compatibility break.
+- **Pre-1.0 PATCH:** only when the change adds or alters **no contracted public
+  surface** (bugfix, security/regression, parity fix, internal refactor,
+  CI/tooling/packaging, docs).
+- **Pre-1.0 MINOR (mandatory):** any **new or altered contracted public
+  surface** (new syntax/operator/observable semantics, public API or namespace,
+  public command/flag, public stdlib capability, package/registry/interop
+  contract, a target promoted to Supported/Stable) — with a recorded Decision
+  ID.
+- **Post-1.0:** strict SemVer — PATCH = backward-compatible fix, MINOR = new
+  backward-compatible functionality, MAJOR = incompatible contract change.
+- **Trigger ≠ cut:** `LAST_RELEASE..ACTIVE_BRANCH` crossing **100–150 commits**
+  (or a security/critical event, or an explicit maintainer decision) opens a
+  release **evaluation** — it never publishes a release by itself. The common
+  eligibility gate lives in `D-VERSIONING-RELEASE`.
+- The first `1.0.0` only exists when the `D-RELEASE-1.0` EXIT GATE is fully
+  GREEN on the same candidate and no `D-1.0-EDGES` edge is open.
 
 ## Verification
 

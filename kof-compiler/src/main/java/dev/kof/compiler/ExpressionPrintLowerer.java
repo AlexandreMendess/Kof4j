@@ -30,6 +30,12 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
     if (!driver.fpSupportedOnNative(printedType, mc.position())) {
         return localIdx;
     }
+    if (ProcessResultPrintGuard.refuseWholeResult(driver, printedType,
+            mc.position() != null ? mc.position().file() : "",
+            mc.position() != null ? mc.position().line() : 0,
+            mc.position() != null ? mc.position().column() : 0)) {
+        return localIdx;
+    }
     // §205 (Native): `println(if/switch com ramos de tipos distintos)` — o
     // join #183 dá `Object`, e o print de um `Object` não despacha no Native
     // (sem boxed-ABI polimórfico = §104b-ii). Em vez de gate (quebra a
@@ -56,7 +62,14 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
         // o JS não stringificam um objeto custom por valueOf(Object)).
         ops.add(new KofCall(argType, "toString", List.of(), BuiltinTypes.STRING,
                 KofCallKind.INSTANCE));
-    } else if (TypeMetrics.isPrimitiveType(argType)
+    } else if ((TypeMetrics.isPrimitiveType(argType)
+            // §519/#632 (JVM): handle BARE e int-apagado (UIW050) — mesma
+            // caixa do primitivo: boxa p/ Integer antes do valueOf(Object);
+            // sem isto, `println(cor)` empilhava int cru em slot de
+            // referencia (VerifyError medido no tip). Nullable(handle) (get)
+            // ja chega boxed e cai no ramo final de referencia.
+            || (driver.target == Target.JVM
+                && ExpressionBinaryPredicates.isBareHandleErasedToInt(argType)))
             && !ExpressionTyper.boxesOwnBranches(driver, mc.arguments().get(0), locals)) {
         // D-PRINT (#168, maintainer 15/09): `println(Char)` imprime o
         // CARÁTER ("A"), nunca o code point ("65"), com ou sem aspas — a
@@ -118,16 +131,34 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
                     "valueOf", List.of(Type.UnknownType.UNKNOWN),
                     BuiltinTypes.STRING, KofCallKind.STATIC));
         }
+    } else if (driver.target == Target.JVM && isPrimitiveArrayPrint(argType)) {
+        // §388-B (voto da mantenedora 21/09, família rule-6): println de um
+        // array cru usa o formato de container da casa ("[65, 66]" — §107,
+        // oracle ArrayList.toString), NUNCA a identidade Java `[I@hash` que
+        // vazava pelo String.valueOf(Object). O helper kof_array_to_string
+        // (JvmRuntimeCore) recursa em aninhados e deixa elemento não-array
+        // seguir o valueOf de sempre.
+        ops.add(new KofCall(
+                BuiltinTypes.STRING,
+                "kof_array_to_string", List.of(Type.UnknownType.UNKNOWN),
+                BuiltinTypes.STRING, KofCallKind.STATIC));
     } else {
         // o tipo REAL do arg só vai para o valueOf NATIVO/JS (para
         // despachar toString de records e formatar coleções). JVM usa
         // Object (String.valueOf(Object) chama toString; valueOf de um
         // ClassType específico não existe no JVM).
-        ops.add(new KofCall(
-                BuiltinTypes.STRING,
-                "valueOf", List.of((driver.target.isNative() || driver.target == Target.JS)
-                        && !Type.isString(argType) ? argType
-                        : Type.UnknownType.UNKNOWN),
+        Type valueOfArg = (driver.target.isNative() || driver.target == Target.JS)
+                && !Type.isString(argType) ? argType : Type.UnknownType.UNKNOWN;
+        // §374 (fechado 21/09): o receive de canal NU no nativo devolve a
+        // caixa MAGIC do §284 (o send boxeia) ou um ponteiro real — o Unknown
+        // NÃO tem ramo no valueOf nativo (não emitia nada e o valor cru caía
+        // no println_string → saída vazia/lixo). Despacha como Object:
+        // kof_box_to_string lê a caixa pelo tag e passa não-caixa cru.
+        if (driver.target.isNative() && argType instanceof Type.UnknownType
+                && isBareChannelReceive(driver, mc.arguments().get(0), locals)) {
+            valueOfArg = new Type.ClassType("java.lang", "Object", List.of());
+        }
+        ops.add(new KofCall(BuiltinTypes.STRING, "valueOf", List.of(valueOfArg),
                 BuiltinTypes.STRING, KofCallKind.STATIC));
     }
     ops.add(new KofCall(
@@ -270,5 +301,24 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
         if (TypeMetrics.isPrimitiveType(t)) return true;
         if (t instanceof Type.ClassType ct) return !"Object".equals(ct.name());
         return false;
+    }
+
+    /** §388-B: println de array cru (ou Nullable dele) — dispatch pelo INNER. */
+    private static boolean isPrimitiveArrayPrint(Type t) {
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        return t instanceof Type.ArrayType;
+    }
+
+    /** §374: `receive()` de canal BARE (elemT Unknown) no nativo — o valor é
+     *  sempre referência (caixa MAGIC do send ou ponteiro), nunca cru. */
+    private static boolean isBareChannelReceive(CompilerDriver driver, ExpressionNode arg,
+                                                List<IRLocalVariable> locals) {
+        if (!(arg instanceof MethodCallExpr mce) || !"receive".equals(mce.methodName())
+                || mce.receiver() == null) {
+            return false;
+        }
+        return BuiltinTypes.channelElement(
+                ExpressionTyper.inferExprType(driver, mce.receiver(), locals))
+                instanceof Type.UnknownType;
     }
 }

@@ -25,7 +25,7 @@ public final class KofStd {
         return KofMath.isMathNamespace(name) || KofStrings.isStringsNamespace(name)
                 || KofEncoding.isEncodingNamespace(name) || KofUuid.isUuidNamespace(name)
                 || KofNet.isNetNamespace(name) || KofRandom.isRandomNamespace(name)
-                || KofRng.isRngNamespace(name);
+                || KofRng.isRngNamespace(name) || KofBuffer.isBufferNamespace(name);
     }
 
     static StdCall staticMethod(String namespace, String name, List<Type> argTypes) {
@@ -64,6 +64,11 @@ public final class KofStd {
             return c == null ? null
                     : new StdCall("kof.rng", "Rng", c.function(), c.returnType(), c.parameterTypes());
         }
+        if (KofBuffer.isBufferNamespace(namespace)) {
+            KofBuffer.BufferCall c = KofBuffer.staticMethod(namespace, name, argTypes);
+            return c == null ? null
+                    : new StdCall("kof", "Buffer", c.function(), c.returnType(), c.parameterTypes());
+        }
         return null;
     }
 
@@ -75,10 +80,15 @@ public final class KofStd {
         if ("kof.net".equals(call.ownerPackage())) return KofNet.supportedOn(call.function(), target);
         if ("kof.random".equals(call.ownerPackage())) return KofRandom.supportedOn(call.function(), target);
         if ("kof.rng".equals(call.ownerPackage())) return KofRng.supportedOn(call.function(), target);
+        if ("kof".equals(call.ownerPackage())) return KofBuffer.supportedOn(target);
         return true;
     }
 
     static String gapCode(StdCall call) {
+        return gapCode(call, null);
+    }
+
+    static String gapCode(StdCall call, Target target) {
         if ("kof.math".equals(call.ownerPackage())) return KofMath.gapCode(call.function());
         if ("kof.strings".equals(call.ownerPackage())) return KofStrings.gapCode(call.function());
         if ("kof.encoding".equals(call.ownerPackage())) return KofEncoding.gapCode(call.function());
@@ -86,6 +96,7 @@ public final class KofStd {
         if ("kof.net".equals(call.ownerPackage())) return KofNet.gapCode(call.function());
         if ("kof.random".equals(call.ownerPackage())) return KofRandom.gapCode(call.function());
         if ("kof.rng".equals(call.ownerPackage())) return KofRng.gapCode(call.function());
+        if ("kof".equals(call.ownerPackage())) return KofBuffer.gapCode(target);
         return "STD001";
     }
 }

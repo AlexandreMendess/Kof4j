@@ -54,7 +54,7 @@ int handledStatic = ExpressionStaticCallLowerer.lower(driver, mc, ops, owner, lo
 if (handledStatic >= 0) return handledStatic;
 if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName())) {
     ExternalFunctionNode ext = driver.externSignatures.get(mc.methodName());
-    if (CompilerPipeline.isExternBound(driver, ext)) {
+    if (CompilerFfiBinding.isExternBound(driver, ext)) {
         // #431/§61 (Native): ABI escalar DIRETA — os args ficam crus na pilha de
         // operandos (mesma convenção push dos calls internos) e o backend emite o
         // marshaling SysV + `call sym@PLT` (precedente: consumidor SQLite/DB001).
@@ -65,7 +65,23 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
             // o backend escolhe o shim (x86 SysV / riscv LP64 / aarch AAPCS64
             // via tradução do texto riscv).
             List<Type> ffiParams = new java.util.ArrayList<>();
-            for (var p : ext.parameters()) ffiParams.add(FfiSignature.paramType(p.type()));
+            for (var p : ext.parameters()) {
+                Type scalar = FfiSignature.paramType(p.type());
+                if (scalar != null) {
+                    ffiParams.add(scalar);
+                } else {
+                    // 3.7: `record` por valor — o Type carrega os campos p/ o
+                    // backend montar os registradores sem precisar do driver.
+                    String fc = FfiSignature.structFieldChars(p.type(), driver);
+                    if (fc != null) {
+                        ffiParams.add(FfiStructLayout.structTypeOfChars(fc));
+                    } else {
+                        // D6-2/3.7: array escalar `T[]`→`ptr` (marker kof.ffi/array).
+                        Character ae = FfiSignature.arrayElemChar(p.type());
+                        ffiParams.add(ae != null ? FfiStructLayout.arrayPtrType(ae) : null);
+                    }
+                }
+            }
             for (int i = 0; i < mc.arguments().size(); i++) {
                 ExpressionNode arg = mc.arguments().get(i);
                 localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
@@ -73,9 +89,17 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
                 // argumento chega já convertido ao tipo declarado (regra comum).
                 ExternArgumentCoercion.coerce(driver, arg, i < ffiParams.size() ? ffiParams.get(i) : null, ops, locals);
             }
+            // 3.7 fatia 2: retorno `record` por valor — o KofCall carrega o
+            // ClassType REAL do record (resolução de `.campo()` a jusante e o
+            // backend materializa o objeto a partir do registrador/scratch).
+            Type ffiRet = FfiSignature.returnType(ext.returnType());
+            if (FfiSignature.returnChar(ext.returnType()) == null) {
+                Type st = FfiSignature.structReturnType(ext.returnType(), driver);
+                if (st != null) ffiRet = st;
+            }
             ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()),
                     ext.library() + "::" + ext.name(), ffiParams,
-                    FfiSignature.returnType(ext.returnType()), KofCallKind.FUNCTION));
+                    ffiRet, KofCallKind.FUNCTION));
             return localIdx;
         }
         // FFI (R3, generalizado): kof_ffi(lib, nome, sig, Object[] args).
@@ -85,7 +109,7 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
                 ext.library() != null ? ext.library() : ""));
         ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ext.name()));
         ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
-                FfiSignature.signature(ext)));
+                FfiSignature.signature(driver, ext)));
         int n = mc.arguments().size();
         ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, n));
         ops.add(new KofNewArray(object));
@@ -108,7 +132,7 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
                 ? "kof_ffi_void" : "kof_ffi";
         ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()), ffiHelper,
                 List.of(BuiltinTypes.STRING, BuiltinTypes.STRING, BuiltinTypes.STRING, objectArray),
-                FfiSignature.returnType(ext.returnType()), KofCallKind.FUNCTION));
+                FfiSignature.callReturnType(driver, ext), KofCallKind.FUNCTION));
         return localIdx;
     }
 }
@@ -182,14 +206,15 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     // estático, interface externa ou instância — resolve pelo
     // classpath ANTES dos namespaces builtin (Button também é
     // widget do kof.ui; o import decide). Local sombreia.
+    // §500: resolveMethod agora enxerga ACC_VARARGS e o packing é
+    // único (VarargsArrayPacker) — `Arrays.asList(1,2)` empacota
+    // Object[] e sai invokestatic com o descritor REAL, nunca mais
+    // o dono vazio `"".asList:(II)`.
     ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethod(
             extQ.internalName(), mc.methodName(), mc.arguments().size());
-    List<Type> extFormal = new ArrayList<>();
-    for (String d : extSig.parameterDescriptors()) {
-        extFormal.add(ExternalClasspath.typeFromDescriptor(d));
-    }
+    List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
     Type extRet = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
-    localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), extFormal,
+    localIdx = VarargsArrayPacker.lower(driver, mc.arguments(), extSig,
             ops, owner, localIdx, locals);
     KofCallKind extKind = extSig.isStatic() ? KofCallKind.STATIC
             : (extSig.ownerIsInterface() ? KofCallKind.INTERFACE
@@ -223,12 +248,13 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     ExternalClasspath.MethodSignature extSig = driver.externalClasspath
             .resolveMethodWithArgs(javaClass, mc.methodName(), mc.arguments().size(), actualArgTypes);
     if (extSig != null) {
-        List<Type> extFormal = new ArrayList<>();
-        for (String d : extSig.parameterDescriptors()) {
-            extFormal.add(ExternalClasspath.typeFromDescriptor(d));
-        }
+        List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
         Type extRet = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
-        localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), extFormal, ops, owner, localIdx, locals);
+        // §500: `String.join(CharSequence, CharSequence...)` etc. — os args
+        // finais empacotam no array do tipo componente (descritor REAL),
+        // não 3 strings cruas contra 2 formais (VerifyError).
+        localIdx = VarargsArrayPacker.lower(driver, mc.arguments(), extSig,
+                ops, owner, localIdx, locals);
         KofCallKind extKind = extSig.isStatic() ? KofCallKind.STATIC : KofCallKind.INSTANCE;
         ops.add(new KofCall(new Type.ClassType("java.lang", javaClass.substring(javaClass.lastIndexOf('/') + 1), List.of()),
                 mc.methodName(), extFormal, extRet, extKind));
@@ -274,6 +300,10 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
         && driver.findLocalVar(rid.name(), locals) == null
         && !shadowsFieldOfCurrentClass(driver, owner, rid.name())) {
     return ExpressionShellCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
+} else if (mc.receiver() instanceof IdentifierExpr rid && "ssh".equals(rid.name())
+        && driver.findLocalVar(rid.name(), locals) == null
+        && !shadowsFieldOfCurrentClass(driver, owner, rid.name())) {
+    return ExpressionSshCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofHttp.isHttpNamespace(rid.name())) {
     return ExpressionHttpCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
@@ -406,8 +436,8 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     if (sCall != null) {
         if (!KofStd.supportedOn(sCall, driver.target)) {
             gapError(driver, mc, rid.name() + "." + mc.methodName() + ": not available on the "
-                    + driver.target + " target yet (" + KofStd.gapCode(sCall) + ")",
-                    KofStd.gapCode(sCall));
+                    + driver.target + " target yet (" + KofStd.gapCode(sCall, driver.target) + ")",
+                    KofStd.gapCode(sCall, driver.target));
             return localIdx;
         }
         localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), sCall.parameterTypes(), ops, owner, localIdx, locals);

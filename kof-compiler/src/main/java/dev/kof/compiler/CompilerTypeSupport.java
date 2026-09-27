@@ -117,6 +117,38 @@ public final class CompilerTypeSupport {
             // JSN001: float/double[] também decodifica no Native.
             return true;
         }
+        // §516 (26/09): List/Map de record no ENCODE nativo anda pelo walker
+        // de runtime (kof_json_encode_object), que so existe se a tabela de
+        // schema do coletor existir — as regras do gate sao as do COLETOR
+        // (int/char/byte/short/long/bool/string + classe aninhada com tabela;
+        // float/double SEM tabela -> falsy "null" seria o bug R6). O gate da
+        // dobra escalar (fieldOk/nativeObjJsonFieldsOk) permanece intacto:
+        // la float/double funcionam via kof_double_to_string.
+        // Decode de List<Record> segue o caminho proprio JSN004 do lowerer.
+        Type walkerElem = null;
+        if (!isDecode && driver.target.isNative()) {
+            if (BuiltinTypes.isList(type)) walkerElem = listElementType(driver, type);
+            else if (BuiltinTypes.isMap(type)) walkerElem = BuiltinTypes.mapValue(type);
+        }
+        if (walkerElem instanceof Type.ClassType wct && !BuiltinTypes.isString(walkerElem)) {
+            if (BuiltinTypes.isList(walkerElem) || BuiltinTypes.isMap(walkerElem)
+                    || BuiltinTypes.isSet(walkerElem)) {
+                // §516 (R6): List/Map/Set de List/Map — o walker nativo e v1
+                // flat; a classe colecao nao tem tabela de schema, e sem este
+                // gate o elemento virava o "null" falso do notfound. O gate de
+                // CAMPO interno (abaixo) ja cobria record; este cobre a colecao
+                // como ELEMENTO direto. JVM/Script seguem normais.
+                driver.currentDiagnostics.error("", 0, 0, 0,
+                        "json: nested List/Map/Set element is not supported by the Native JSON walker"
+                                + " (v1 flat, §516) — use the JVM/JS target or wrap the inner"
+                                + " collection in a record with supported fields",
+                        "JSN002");
+                return false;
+            }
+            String wcn = wct.packageName().isEmpty() ? wct.name()
+                    : wct.packageName() + "." + wct.name();
+            return nativeRecordWalkerOk(driver, wcn, new java.util.HashSet<>());
+        }
         if (check instanceof Type.ClassType && driver.target.isNative() && !BuiltinTypes.isList(type)
                 && !BuiltinTypes.isString(type)) {
             // JSN002 fechado para classes cujos campos sao todos suportados
@@ -126,6 +158,41 @@ public final class CompilerTypeSupport {
                       : ct.packageName() + "." + ct.name())
                     : "";
             if (!driver.nativeObjJsonFieldsOk(cn, new java.util.HashSet<>(), null)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean nativeRecordWalkerOk(CompilerDriver driver, String className,
+                                        java.util.Set<String> visiting) {
+        if (visiting.contains(className)) return true; // ciclo: aceita no nivel externo
+        visiting.add(className);
+        for (String[] f : driver.classFieldsOrdered(className)) {
+            Type t = CompilerTypes.toType(f[1], driver.currentUnit);
+            boolean ok;
+            if (t instanceof Type.PrimitiveType pt) {
+                ok = switch (Type.canonicalPrimitiveName(pt.name())) {
+                    case "int", "char", "byte", "short", "long", "bool" -> true;
+                    default -> false; // float/double: sem tabela de schema
+                };
+            } else if (BuiltinTypes.isString(t)) {
+                ok = true;
+            } else if (t instanceof Type.ClassType ct
+                    && !BuiltinTypes.isList(t) && !BuiltinTypes.isMap(t) && !BuiltinTypes.isSet(t)) {
+                String cn2 = ct.packageName().isEmpty() ? ct.name()
+                        : ct.packageName() + "." + ct.name();
+                ok = !driver.classFieldsOrdered(cn2).isEmpty()
+                        && nativeRecordWalkerOk(driver, cn2, visiting);
+            } else {
+                ok = false; // colecoes/campo exotico: walker nao tabela
+            }
+            if (!ok) {
+                driver.currentDiagnostics.error("", 0, 0, 0,
+                        "json: class " + className + " field " + f[0]
+                                + " (type " + f[1] + ") has no Native JSON schema"
+                                + " (record lists/maps encode int/long/bool/string/nested-record;",
+                        "JSN002");
                 return false;
             }
         }

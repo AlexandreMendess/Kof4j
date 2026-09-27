@@ -77,7 +77,7 @@ final class ImplementationChecker {
                         if ((cm.accessFlags() & AccessFlags.ABSTRACT) == 0) {
                             implemented = true;
                             if (cm.parameterTypes().size() != im.parameterTypes().size()) {
-                                diagnostics.error("", 0, 0, 0,
+                                diagnostics.error(cls,
                                         "method '" + im.name() + "' of interface '" + ifaceName
                                                 + "' expects " + im.parameterTypes().size()
                                                 + " parameter(s) but implementation has "
@@ -94,7 +94,7 @@ final class ImplementationChecker {
                         }
                     }
                     if (!implemented && !clsAbstract) {
-                        diagnostics.error("", 0, 0, 0,
+                        diagnostics.error(cls,
                                 "class '" + cls.name() + "' does not implement method '" + im.name()
                                         + "' of interface '" + ifaceName + "'"
                                         + (ob.via() != null ? " inherited via '" + ob.via() + "'" : ""),
@@ -103,6 +103,146 @@ final class ImplementationChecker {
                 }
             }
         }
+    }
+
+    /**
+     * #610: uma classe CONCRETA que herda dois {@code default} com a MESMA
+     * assinatura (nome + parâmetros) de interfaces NAO-RELACIONADAS (nenhuma
+     * eh superinterface da outra) e nao declara override compila limpo e
+     * estoura no class-LOAD com {@code IncompatibleClassChangeError:
+     * Conflicting default methods} (checagem de diamante da JVM, JLS 9.4.1.3).
+     * R6: nao pode passar em silencio — erro de compile nomeando as duas
+     * interfaces e o metodo. Override explicito da classe (ou de um super)
+     * resolve (nao ha erro); se uma interface eh subtipo da outra, o default
+     * mais especifico vence e tambem nao ha conflito.
+     */
+    static void checkConflictingDefaults(SemanticAnalyzer sa,
+            ClassDeclarationNode cls, SymbolTable classScope) {
+        DiagnosticCollector diagnostics = sa.diagnostics();
+        if (diagnostics == null) return;
+        // #322: a classe ABSTRATA pode deferir a resolucao para a subclasse concreta.
+        if (cls.modifiers().contains("abstract")) return;
+        Map<String, SymbolTable.ClassSymbol> known = sa.allClasses();
+        java.util.Set<String> ifaceNames = sa.interfaceNames();
+        if (ifaceNames.contains(cls.name())) return;
+
+        // Fecho de interfaces da classe (declaradas + herdadas dos super).
+        java.util.LinkedHashMap<String, SymbolTable.ClassSymbol> ifaces = new java.util.LinkedHashMap<>();
+        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
+        java.util.Set<String> seenIface = new java.util.HashSet<>();
+        for (String s : cls.interfaces()) if (s != null && !s.isEmpty()) queue.add(s);
+        String curSuper = cls.superClass();
+        java.util.Set<String> seenClass = new java.util.HashSet<>();
+        seenClass.add(cls.name());
+        while (curSuper != null && !curSuper.isEmpty() && !"Object".equals(curSuper)) {
+            String simple = HierarchyResolver.simpleOfStored(curSuper);
+            if (simple == null || simple.isEmpty() || !seenClass.add(simple)) break;
+            SymbolTable.ClassSymbol cs = known.get(simple);
+            if (cs == null) break;
+            for (String s : cs.interfaces()) if (s != null && !s.isEmpty()) queue.add(s);
+            curSuper = cs.superClass();
+        }
+        while (!queue.isEmpty()) {
+            String simple = HierarchyResolver.simpleOfStored(queue.poll());
+            if (simple == null || simple.isEmpty() || !seenIface.add(simple)) continue;
+            SymbolTable.ClassSymbol is = known.get(simple);
+            if (is == null || !ifaceNames.contains(simple)) continue;
+            ifaces.put(simple, is);
+            for (String s : is.interfaces()) if (s != null && !s.isEmpty()) queue.add(s);
+        }
+
+        // assinatura (nome/aridade) -> interfaces que declaram um default.
+        java.util.LinkedHashMap<String, List<String>> sigToIfaces = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, SymbolTable.ClassSymbol> e : ifaces.entrySet()) {
+            for (Map.Entry<String, SymbolTable.Symbol> me
+                    : e.getValue().members().localSymbols().entrySet()) {
+                List<SymbolTable.MethodSymbol> methods = new ArrayList<>();
+                if (me.getValue() instanceof SymbolTable.MethodSymbol m) methods.add(m);
+                else if (me.getValue() instanceof SymbolTable.MethodSet ms) methods.addAll(ms.methods());
+                for (SymbolTable.MethodSymbol m : methods) {
+                    int f = m.accessFlags();
+                    if ((f & AccessFlags.ABSTRACT) != 0) continue;
+                    if ((f & (AccessFlags.STATIC | AccessFlags.PRIVATE)) != 0) continue;
+                    sigToIfaces.computeIfAbsent(m.name() + "/" + m.parameterTypes().size(),
+                            k -> new ArrayList<>()).add(e.getKey());
+                }
+            }
+        }
+
+        for (Map.Entry<String, List<String>> e : sigToIfaces.entrySet()) {
+            List<String> decl = e.getValue();
+            if (decl.size() < 2) continue;
+            // interfaces "maximais" (nao dominadas por outra): se >= 2, colidem.
+            List<String> maximal = new ArrayList<>();
+            for (String x : decl) {
+                boolean dominated = false;
+                for (String y : decl) {
+                    if (!x.equals(y) && isSubInterfaceOf(known, ifaceNames, y, x)) { dominated = true; break; }
+                }
+                if (!dominated && !maximal.contains(x)) maximal.add(x);
+            }
+            if (maximal.size() < 2) continue;
+            String name = e.getKey().substring(0, e.getKey().lastIndexOf('/'));
+            int arity = Integer.parseInt(e.getKey().substring(e.getKey().lastIndexOf('/') + 1));
+            if (declaresConcreteOverride(sa, known, cls, classScope, name, arity)) continue;
+            diagnostics.error(cls,
+                    "class '" + cls.name() + "' inherits conflicting default method '" + name
+                            + "' from unrelated interfaces '" + maximal.get(0) + "' and '"
+                            + maximal.get(1) + "' (add an explicit override in '" + cls.name() + "')",
+                    "SEM101");
+        }
+    }
+
+    /** x eh superinterface (ancestral) de y — usado para a dominancia do default. */
+    private static boolean isSubInterfaceOf(Map<String, SymbolTable.ClassSymbol> known,
+            java.util.Set<String> ifaceNames, String sub, String sup) {
+        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        queue.add(sub);
+        while (!queue.isEmpty()) {
+            String simple = HierarchyResolver.simpleOfStored(queue.poll());
+            if (simple == null || simple.isEmpty() || !seen.add(simple)) continue;
+            if (simple.equals(sup)) return true;
+            SymbolTable.ClassSymbol is = known.get(simple);
+            if (is == null || !ifaceNames.contains(simple)) continue;
+            for (String s : is.interfaces()) if (s != null && !s.isEmpty()) queue.add(s);
+        }
+        return false;
+    }
+
+    /** A classe (ou um super concreto) declara um metodo concreto com a assinatura? */
+    private static boolean declaresConcreteOverride(SemanticAnalyzer sa,
+            Map<String, SymbolTable.ClassSymbol> known, ClassDeclarationNode cls,
+            SymbolTable classScope, String name, int arity) {
+        if (classScope != null && hasConcrete(classScope, name, arity)) return true;
+        SymbolTable.ClassSymbol cur = known.get(cls.name());
+        String superName = cur == null ? null : HierarchyResolver.simpleOfStored(cur.superClass());
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (superName != null && !superName.isEmpty() && !"Object".equals(superName)
+                && seen.add(superName)) {
+            SymbolTable scope = sa.classMemberScopes().get(superName);
+            if (scope != null && hasConcrete(scope, name, arity)) return true;
+            SymbolTable.ClassSymbol cs = known.get(superName);
+            superName = cs == null ? null : HierarchyResolver.simpleOfStored(cs.superClass());
+        }
+        return false;
+    }
+
+    private static boolean hasConcrete(SymbolTable scope, String name, int arity) {
+        SymbolTable.Symbol s = scope.resolve(name);
+        if (s instanceof SymbolTable.MethodSymbol m) {
+            return (m.accessFlags() & AccessFlags.ABSTRACT) == 0
+                    && (m.accessFlags() & (AccessFlags.STATIC | AccessFlags.PRIVATE)) == 0
+                    && m.parameterTypes().size() == arity;
+        }
+        if (s instanceof SymbolTable.MethodSet ms) {
+            for (SymbolTable.MethodSymbol m : ms.methods()) {
+                if ((m.accessFlags() & AccessFlags.ABSTRACT) == 0
+                        && (m.accessFlags() & (AccessFlags.STATIC | AccessFlags.PRIVATE)) == 0
+                        && m.parameterTypes().size() == arity) return true;
+            }
+        }
+        return false;
     }
 
     /** #322: par (interfaces-declaradas, pai-abstrato-que-as-declarou). */
@@ -162,7 +302,7 @@ final class ImplementationChecker {
                         Type childRet = child.returnType();
                         if (childRet.equals(parentRet)) continue;
                         if (TypeChecker.isAssignable(sa, childRet, parentRet)) continue;
-                        diagnostics.error("", 0, 0, 0,
+                        diagnostics.error(cls,
                                 "method '" + child.name() + "' in class '" + cls.name()
                                         + "' overrides '" + simple + "' but return type " + childRet
                                         + " is not compatible with the overridden return type " + parentRet,

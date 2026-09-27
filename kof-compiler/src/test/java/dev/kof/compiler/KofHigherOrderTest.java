@@ -58,6 +58,72 @@ class KofHigherOrderTest {
     }
 
     @Test
+    void exceptionInLambdaIsCaughtJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+                main() {
+                    var nums = listOf(1, 2, 3)
+                    try {
+                        var m = nums.map((x: Int) -> { if (x == 2) { throw "map-bad" } return x })
+                        println("no map throw")
+                    } catch (String e) { println("caught: " + e) }
+                    try {
+                        var f = nums.filter((x: Int) -> { if (x == 2) { throw "filter-bad" } return true })
+                        println("no filter throw")
+                    } catch (String e) { println("caught: " + e) }
+                    try {
+                        var r = nums.reduce(0, (acc: Int, x: Int) -> { if (x == 2) { throw "reduce-bad" } return acc + x })
+                        println("no reduce throw")
+                    } catch (String e) { println("caught: " + e) }
+                    println("done")
+                }
+                """, "caught: map-bad\ncaught: filter-bad\ncaught: reduce-bad\ndone");
+    }
+
+    @Test
+    void exceptionInLambdaJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+                main() {
+                    var nums = listOf(1, 2, 3)
+                    try {
+                        var m = nums.map((x: Int) -> { if (x == 2) { throw "map-bad" } return x })
+                        println("no map throw")
+                    } catch (String e) { println("caught: " + e) }
+                    try {
+                        var f = nums.filter((x: Int) -> { if (x == 2) { throw "filter-bad" } return true })
+                        println("no filter throw")
+                    } catch (String e) { println("caught: " + e) }
+                    try {
+                        var r = nums.reduce(0, (acc: Int, x: Int) -> { if (x == 2) { throw "reduce-bad" } return acc + x })
+                        println("no reduce throw")
+                    } catch (String e) { println("caught: " + e) }
+                    println("done")
+                }
+                """, "caught: map-bad\ncaught: filter-bad\ncaught: reduce-bad\ndone");
+    }
+
+    @Test
+    void exceptionInLambdaNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+                main() {
+                    var nums = listOf(1, 2, 3)
+                    try {
+                        var m = nums.map((x: Int) -> { if (x == 2) { throw "map-bad" } return x })
+                        println("no map throw")
+                    } catch (String e) { println("caught: " + e) }
+                    try {
+                        var f = nums.filter((x: Int) -> { if (x == 2) { throw "filter-bad" } return true })
+                        println("no filter throw")
+                    } catch (String e) { println("caught: " + e) }
+                    try {
+                        var r = nums.reduce(0, (acc: Int, x: Int) -> { if (x == 2) { throw "reduce-bad" } return acc + x })
+                        println("no reduce throw")
+                    } catch (String e) { println("caught: " + e) }
+                    println("done")
+                }
+                """, "caught: map-bad\ncaught: filter-bad\ncaught: reduce-bad\ndone");
+    }
+
+    @Test
     void mapFilterJs(@TempDir Path tmp) throws Exception {
         runJs(tmp, """
                 main() {

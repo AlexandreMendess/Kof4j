@@ -3,7 +3,7 @@
 # CONCURRENCY.md — Modelo de Concorrência Kof
 
 **Status:** Implementado nos 3 targets, concorrência real nos 3 (JVM virtual threads + JS async/await/Promise + Native pthread) — 0.2.6-beta 03/09
-**Versão:** 0.4.0-beta
+**Versão:** 0.5.0-beta
 **Data:** 3 de setembro de 2026 (CONC003 fechado — JS deixa de ser sequencial)
 
 ---

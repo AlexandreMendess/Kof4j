@@ -30,9 +30,13 @@ import java.util.zip.ZipFile;
  */
 public final class ExternalClasspath {
 
-    /** Assinatura resolvida: descritores formais de params, retorno e flags. */
+    /** Assinatura resolvida: descritores formais de params, retorno e flags.
+     *  §500: {@code isVarargs} (ACC_VARARGS / reflexão) é o que autoriza o
+     *  packing dos args extras no componente do último param — sem a flag o
+     *  respositor casava só aridade fixa e `Arrays.asList(1,2)` caía no
+     *  emit de owner vazio. */
     record MethodSignature(List<String> parameterDescriptors, String returnDescriptor,
-                           boolean isStatic, boolean ownerIsInterface) {
+                           boolean isStatic, boolean ownerIsInterface, boolean isVarargs) {
     }
 
     private final Map<String, byte[]> classBytes = new HashMap<>();
@@ -280,7 +284,7 @@ public final class ExternalClasspath {
                     boolean isStatic = (access & org.objectweb.asm.Opcodes.ACC_STATIC) != 0;
                     if (isAbstract && !isStatic) {
                         out.add(new Sam(name,
-                                toSignature(descriptor, false, true)));
+                                toSignature(descriptor, false, true, false)));
                     }
                     return null;
                 }
@@ -327,49 +331,39 @@ public final class ExternalClasspath {
     }
 
     /**
-     * Campo declarado (ou herdado) numa classe externa. Retorna o
-     * descritor do tipo do campo, ou null se não existir.
+     * §393 (#568): construtor PUBLICO da classe externa com a aridade dada,
+     * ou null — recusa honesta (private/abstrata/interface NAO resolvem).
      */
-    public synchronized String resolveFieldType(String ownerInternalName, String fieldName) {
-        if (!loaded || ownerInternalName == null) return null;
-        String direct = findFieldDeclared(ownerInternalName, fieldName, 0);
-        if (direct != null) return direct;
-        String sup = declaredSuperclassOf(ownerInternalName);
-        int hops = 0;
-        while (sup != null && !sup.equals("java/lang/Object") && hops++ < 32) {
-            if (!classBytes.containsKey(sup)) {
-                loadWarnings.add("superclass '" + sup + "' of '" + ownerInternalName
-                        + "' is not on the external classpath — inherited field '"
-                        + fieldName + "' may not resolve");
-                return null;
-            }
-            String inherited = findFieldDeclared(sup, fieldName, 0);
-            if (inherited != null) return inherited;
-            sup = declaredSuperclassOf(sup);
+    public synchronized MethodSignature resolvePublicConstructor(String ownerInternalName,
+                                                                 int argumentCount) {
+        if (ownerInternalName == null) return null;
+        byte[] bytes = loaded ? classBytes.get(ownerInternalName) : null;
+        if (bytes != null) return ExternalCtors.publicConstructor(bytes, ownerInternalName,
+                argumentCount, loadWarnings);
+        if (JdkReflectionResolver.isJdkClass(ownerInternalName)
+                && !CompilerTypes.isKofBuiltinJavaLang(ownerInternalName)) {
+            return JdkReflectionResolver.resolvePublicJdkConstructor(ownerInternalName,
+                    argumentCount);
         }
         return null;
     }
 
-    private String findFieldDeclared(String internalName, String fieldName, int depth) {
-        if (depth > 64) return null;
-        byte[] bytes = classBytes.get(internalName);
-        if (bytes == null) return null;
-        final String[] hit = new String[1];
-        try {
-            new ClassReader(bytes).accept(new ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {
-                @Override
-                public org.objectweb.asm.FieldVisitor visitField(int access, String name,
-                                                                 String descriptor,
-                                                                 String signature, Object value) {
-                    if (name.equals(fieldName) && hit[0] == null) hit[0] = descriptor;
-                    return null;
-                }
-            }, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES);
-            return hit[0];
-        } catch (Exception e) {
-            loadWarnings.add("class " + internalName + " could not be parsed: " + e.getMessage());
-            return null;
-        }
+        public synchronized String resolveFieldType(String ownerInternalName, String fieldName) {
+        return ExternalFieldResolver.resolveFieldType(loaded, classBytes, loadWarnings,
+                this::declaredSuperclassOf, ownerInternalName, fieldName);
+    }
+
+    /**
+     * §500 slice B: campo PUBLIC STATIC acessível pelo NOME da classe
+     * (`Integer.MAX_VALUE`, `TimeUnit.SECONDS`). Varre os entries com filtro
+     * ACC_STATIC e cai na reflexão JDK — sem isto o typer NÃO sabia o tipo do
+     * campo e o lowering emitia `getfield "?".MAX_VALUE` → NoClassDefFoundError
+     * "?". Campo de instância NUNCA resolve por aqui (é outro acesso, já
+     * suportado pelo bloco externo de receiver-valor).
+     */
+    public synchronized String resolveStaticFieldType(String ownerInternalName, String fieldName) {
+        return ExternalFieldResolver.resolveStaticFieldType(loaded, classBytes,
+                this::declaredSuperclassOf, ownerInternalName, fieldName);
     }
 
     private MethodSignature findDeclared(String internalName, String methodName,
@@ -380,6 +374,7 @@ public final class ExternalClasspath {
         try {
             ClassReader reader = new ClassReader(bytes);
             MethodSignature[] hit = new MethodSignature[1];
+            MethodSignature[] varHit = new MethodSignature[1];
             boolean[] iface = new boolean[1];
             reader.accept(new ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {
                 @Override
@@ -391,18 +386,29 @@ public final class ExternalClasspath {
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String descriptor,
                                                  String signature, String[] exceptions) {
-                    if (name.equals(methodName)
-                            && org.objectweb.asm.Type.getMethodType(descriptor)
-                                    .getArgumentTypes().length == argumentCount
-                            && hit[0] == null) {
+                    if (!name.equals(methodName) || hit[0] != null) return null;
+                    boolean varargs =
+                            (access & org.objectweb.asm.Opcodes.ACC_VARARGS) != 0;
+                    int nargs = org.objectweb.asm.Type.getMethodType(descriptor)
+                            .getArgumentTypes().length;
+                    if (nargs == argumentCount) {
                         hit[0] = toSignature(descriptor,
                                 (access & org.objectweb.asm.Opcodes.ACC_STATIC) != 0,
-                                iface[0]);
+                                iface[0], varargs);
+                    } else if (varargs && argumentCount >= nargs - 1) {
+                        // §500: candidato VARARGS (Java prefere o fixo — só
+                        // vale quando o fixo não existe). Aridade mínima e
+                        // exata já bateram acima; aqui N >= nargs-1 empacota.
+                        if (varHit[0] == null) {
+                            varHit[0] = toSignature(descriptor,
+                                    (access & org.objectweb.asm.Opcodes.ACC_STATIC) != 0,
+                                    iface[0], varargs);
+                        }
                     }
                     return null;
                 }
             }, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES);
-            return hit[0];
+            return hit[0] != null ? hit[0] : varHit[0];
         } catch (Exception e) {
             // bytecode além do suportado pelo ASM embutido (ex.: major novo)
             // — registrado como warning, nunca falha silenciosa
@@ -431,14 +437,14 @@ public final class ExternalClasspath {
     }
 
     private static MethodSignature toSignature(String methodDescriptor, boolean isStatic,
-                                                boolean ownerIsInterface) {
+                                                boolean ownerIsInterface, boolean isVarargs) {
         org.objectweb.asm.Type[] args =
                 org.objectweb.asm.Type.getMethodType(methodDescriptor).getArgumentTypes();
         List<String> params = new ArrayList<>();
         for (org.objectweb.asm.Type t : args) params.add(t.getDescriptor());
         return new MethodSignature(params,
                 org.objectweb.asm.Type.getMethodType(methodDescriptor).getReturnType().getDescriptor(),
-                isStatic, ownerIsInterface);
+                isStatic, ownerIsInterface, isVarargs);
     }
 
     /**

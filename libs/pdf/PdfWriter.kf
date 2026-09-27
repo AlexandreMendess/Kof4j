@@ -1,0 +1,84 @@
+package pdf
+
+import pdf.PdfBuffer
+
+class PdfWriter {
+    write(String path, String contentStream) {
+        List<String> objects = listOf<String>()
+
+        objects.add("<< /Type /Catalog /Pages 2 0 R >>")
+        objects.add("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+        PdfBuffer pageObject = PdfBuffer()
+        pageObject.append("<< /Type /Page ")
+        pageObject.append("/Parent 2 0 R ")
+        pageObject.append("/MediaBox [0 0 595 842] ")
+        pageObject.append("/Resources << /Font << /F1 4 0 R >> >> ")
+        pageObject.append("/Contents 5 0 R >>")
+        objects.add(pageObject.content())
+
+        PdfBuffer fontObject = PdfBuffer()
+        fontObject.append("<< /Type /Font ")
+        fontObject.append("/Subtype /Type1 ")
+        fontObject.append("/BaseFont /Helvetica ")
+        fontObject.append("/Encoding /WinAnsiEncoding >>")
+        objects.add(fontObject.content())
+
+        PdfBuffer streamObject = PdfBuffer()
+        streamObject.append("<< /Length ")
+        streamObject.append(contentStream.length.toString())
+        streamObject.append(" >>\nstream\n")
+        streamObject.append(contentStream)
+        streamObject.append("endstream")
+        objects.add(streamObject.content())
+
+        PdfBuffer pdf = PdfBuffer()
+        pdf.append("%PDF-1.4\n")
+        List<Int> offsets = listOf<Int>()
+
+        for (var index = 0; index < objects.size; index++) {
+            offsets.add(pdf.length)
+            var objectNumber = index + 1
+            String objectContent = objects.get(index)
+            pdf.append(objectNumber.toString())
+            pdf.append(" 0 obj\n")
+            pdf.append(objectContent)
+            pdf.append("\nendobj\n")
+        }
+
+        var xrefOffset = pdf.length
+        var objectCount = objects.size + 1
+        pdf.append("xref\n0 ")
+        pdf.append(objectCount.toString())
+        pdf.append("\n")
+        pdf.append("0000000000 65535 f \n")
+
+        for (var offset in offsets) {
+            String paddedOffset = padOffset(offset)
+            pdf.append(paddedOffset)
+            pdf.append(" 00000 n \n")
+        }
+
+        pdf.append("trailer\n<< /Size ")
+        pdf.append(objectCount.toString())
+        pdf.append(" /Root 1 0 R >>\n")
+        pdf.append("startxref\n")
+        pdf.append(xrefOffset.toString())
+        pdf.append("\n%%EOF\n")
+
+        if (!File(path).writeText(pdf.content())) {
+            throw "Unable to save PDF file"
+        }
+    }
+
+    padOffset(Int offset): String {
+        String value = offset.toString()
+        PdfBuffer result = PdfBuffer()
+
+        while (result.length + value.length < 10) {
+            result.append("0")
+        }
+
+        result.append(value)
+        return result.content()
+    }
+}

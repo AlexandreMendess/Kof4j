@@ -39,8 +39,12 @@ final class DeclaredTypeChecker {
                                 "parameter '" + p.name() + "' of function '" + f.name() + "'");
                     }
                 }
-                case ClassDeclarationNode c -> checkMembers(sa, dc, c.typeParameters(), c.members());
+                case ClassDeclarationNode c -> {
+                    checkHeritage(sa, dc, c.superClass(), c.interfaces(), c.typeParameters(), c.name());
+                    checkMembers(sa, dc, c.typeParameters(), c.members());
+                }
                 case RecordDeclarationNode r -> {
+                    checkHeritage(sa, dc, r.superClass(), r.interfaces(), r.typeParameters(), r.name());
                     Set<String> tps = new HashSet<>(TypeParams.names(r.typeParameters())); // §355
                     for (RecordComponentNode comp : r.components()) {
                         report(dc, sa, comp.type(), tps,
@@ -48,7 +52,10 @@ final class DeclaredTypeChecker {
                     }
                     checkMembers(sa, dc, r.typeParameters(), r.members());
                 }
-                case InterfaceDeclarationNode i -> checkMembers(sa, dc, i.typeParameters(), i.members());
+                case InterfaceDeclarationNode i -> {
+                    checkHeritage(sa, dc, null, i.interfaces(), i.typeParameters(), i.name());
+                    checkMembers(sa, dc, i.typeParameters(), i.members());
+                }
                 case EntityDeclarationNode e -> {
                     for (EntityFieldNode f : e.fields()) {
                         report(dc, sa, f.type(), Set.of(),
@@ -96,6 +103,105 @@ final class DeclaredTypeChecker {
                             + " — declare the type or fix the name (R6: undefined declared types"
                             + " must not compile)",
                     "SEM011");
+            return;
+        }
+        reportCompositeTypeParam(dc, sa, declType, typeParams, where);
+    }
+
+    /**
+     * §288 (#396, D-RULE6-BATCH opção (b) — rejeição interina SEM085): um
+     * tipo DECLARADO cuja FUNÇÃO carrega um type-param do dono (`(T) -> T`,
+     * `(Int) -> T`, `List<(T) -> T>`…) compila hoje para uma interface
+     * sintética APOGADA (`Function1_O_O`) enquanto a lambda do call site é
+     * sintetizada contra a assinatura CONCRETA (`Function1_int_int`) — o
+     * load morre em `IncompatibleClassChangeError` (medido no tip). A via
+     * completa (lambda contextualizada na assinatura apagada + box/unbox no
+     * corpo) é o trabalho de ABI de erasure da linha 1.0; até lá a forma é
+     * rejeitada no compile (R6: nunca crash no load). As formas SEM função
+     * com type-param (`T value`, `Pipeline<T>`, `List<T>`) seguem legais —
+     * o rio da erasure as cobre (§355/§356/§357).
+     */
+    private static void reportCompositeTypeParam(DiagnosticCollector dc, SemanticAnalyzer sa,
+                                                 String declType, Set<String> typeParams,
+                                                 String where) {
+        if (typeParams == null || typeParams.isEmpty()) return;
+        String t = declType.trim();
+        if (t.isEmpty() || "var".equals(t) || "val".equals(t) || "void".equals(t)) return;
+        Type resolved = CompilerTypes.resolveWithTypeParams(
+                t, java.util.List.copyOf(typeParams), sa.unit(), sa);
+        if (fnTypeUsesOwnerTypeParam(resolved, typeParams)) {
+            dc.error("", 0, 0, 0,
+                    "function type with a type-parameter of the owner in '" + t + "' in " + where
+                            + " — generic function types are not lowered yet (erasure ABI is 1.0-line);"
+                            + " the form is rejected instead of compiling to a load crash (SEM085)",
+                    "SEM085");
+        }
+    }
+
+    /** Um type-param do dono aparece DENTRO de um tipo-função (param/retorno,
+     *  em qualquer profundidade — `List<(T) -> T>` conta)? */
+    private static boolean fnTypeUsesOwnerTypeParam(Type t, Set<String> tps) {
+        if (t == null || tps.isEmpty()) return false;
+        if (t instanceof Type.FunctionType ft) {
+            for (Type p : ft.parameterTypes()) if (containsOwnerTypeParam(p, tps)) return true;
+            return containsOwnerTypeParam(ft.returnType(), tps);
+        }
+        if (t instanceof Type.ClassType ct) {
+            for (Type a : ct.typeArguments()) if (fnTypeUsesOwnerTypeParam(a, tps)) return true;
+            return false;
+        }
+        if (t instanceof Type.ArrayType at) return fnTypeUsesOwnerTypeParam(at.componentType(), tps);
+        if (t instanceof Type.NullableType nt) return fnTypeUsesOwnerTypeParam(nt.inner(), tps);
+        if (t instanceof Type.WildcardType wt) return fnTypeUsesOwnerTypeParam(wt.bound(), tps);
+        return false;
+    }
+
+    /** Um type-param do dono (TypeVariable ou leaf cru `ClassType("","T")`)
+     *  ocorre em qualquer posição de {@code t}? */
+    private static boolean containsOwnerTypeParam(Type t, Set<String> tps) {
+        if (t == null || tps.isEmpty()) return false;
+        if (t instanceof Type.TypeVariable tv) return tps.contains(tv.name());
+        if (t instanceof Type.ClassType ct) {
+            if (ct.packageName().isEmpty() && tps.contains(ct.name())) return true;
+            for (Type a : ct.typeArguments()) if (containsOwnerTypeParam(a, tps)) return true;
+            return false;
+        }
+        if (t instanceof Type.ArrayType at) return containsOwnerTypeParam(at.componentType(), tps);
+        if (t instanceof Type.NullableType nt) return containsOwnerTypeParam(nt.inner(), tps);
+        if (t instanceof Type.FunctionType ft) {
+            for (Type p : ft.parameterTypes()) if (containsOwnerTypeParam(p, tps)) return true;
+            return containsOwnerTypeParam(ft.returnType(), tps);
+        }
+        if (t instanceof Type.WildcardType wt) return containsOwnerTypeParam(wt.bound(), tps);
+        return false;
+    }
+
+    /**
+     * §268 (D-RULE6-BATCH opção A): `extends`/`implements` por nome simples que
+     * NADA resolve (sem import, sem módulo, fora do `java.lang` — o probe
+     * cacheado cobre Thread/Runnable/… ) vira SEM087 no compile. Antes o nome
+     * cru virava super_class inválido e a classe morria no load
+     * (`NoClassDefFoundError: Zebra`/`IOException`), silenciosamente.
+     */
+    private static void checkHeritage(SemanticAnalyzer sa, DiagnosticCollector dc,
+                                      String superDecl, List<String> interfaces,
+                                      List<String> classTypeParams, String typeName) {
+        Set<String> tps = new HashSet<>(TypeParams.names(classTypeParams));
+        reportHeritage(dc, sa, superDecl, tps, "superclass of '" + typeName + "'");
+        if (interfaces == null) return;
+        for (String iface : interfaces) {
+            reportHeritage(dc, sa, iface, tps, "interface of '" + typeName + "'");
+        }
+    }
+
+    private static void reportHeritage(DiagnosticCollector dc, SemanticAnalyzer sa, String declType,
+                                       Set<String> typeParams, String where) {
+        if (declType == null) return;
+        if (MemberResolver.declaredTypeUnresolved(sa, declType, typeParams)) {
+            dc.error("", 0, 0, 0,
+                    "Undefined superclass or interface: '" + declType.trim() + "' in " + where
+                            + " — import the type or fix the name (R6: a raw super fails at load)",
+                    "SEM087");
         }
     }
 }

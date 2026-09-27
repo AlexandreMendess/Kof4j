@@ -1,0 +1,134 @@
+// dev/kof/makealive-db-host.kf — fatia de ESTADO sobre kof.db do `kof.makealive`
+// (fatia MK-1, plano §5 3.1 / D-MAKEALIVE Q3 "estado no dia 1"), injetada em
+// NÃO-Native. O host-core (makealive-host.kf) NUNCA referencia orm: o gate
+// ORM001 é estático e derrubaria o host INTEIRO no Native (mesmo mecanismo do
+// checkpoint do workflow 2.1.3, precedentes CRON001/ORM001 medidos). Esta
+// fatia injeta as faces de persistência:
+//   • mkSaveState(dbConn, design, gen, st) — grava UM LINHA por (recurso,
+//     posição no propFlat) da entidade KofMkState; gen é COLUNA (o .kf puro
+//     não tem parser de string — D0 medido 20/09: sem split/substring/
+//     indexOf; concatenação Int é o único caminho e não é usada aqui);
+//   • mkLoadState(dbConn, design) — `orm.all` (ordem de inserção é a do
+//     save, medida na sonda 3.1.1 `MakealiveDbStateE2ETest`), escolhe o MAIOR
+//     gen do design e reconstrói State com o MESMO propFlat alternado
+//     chave/valor do host. Update = NOVA geração (a entidade é imutável —
+//     re-save da mesma chave é unique violation medida), destroy do design
+//     inteiro é limpeza do CALLER (delete ainda não resolve em .kf —
+//     call-site F1/F2 da lane GAPS-DB, medido).
+// A conexão vive no closure da chamada (sem close automático — H2 mem use
+// DB_CLOSE_DELAY=-1). Native entra com o stub makealive-db-host.native.kf
+// (ORM001 em runtime, R6 — nunca silencioso).
+//
+// Injetada por CompilerMakealive no `import kof.makealive` quando o alvo NÃO
+// é Native (DD-OTP-01 opção A, espelhando CompilerWorkflow).
+
+entity KofMkState {
+    id: Long generated
+    design: String
+    gen: Int
+    res: String
+    idx: Int
+    v: String
+}
+
+Bool mkSaveState(String dbConn, String design, Int gen, State st) {
+    if (dbConn == null || dbConn == "") { throw "makealive: mkSaveState sem conexão db" }
+    if (design == null || design == "") { throw "makealive: mkSaveState sem nome de design" }
+    if (gen < 0) { throw "makealive: mkSaveState com gen negativo" }
+    if (st == null) { throw "makealive: mkSaveState com state nulo" }
+    var db = db.connect(dbConn)
+    orm.create<KofMkState>(db)
+    if (st.entries.size() == 0) {
+        // 3.8: estado VAZIO (destroy) tambem precisa de linha — sem uma MARCA
+        // de design a geracao fica invisivel e mkMaxGen/mkLoadState continuariam
+        // na geracao antiga. res "" e o marcador em nivel de design; o loop de
+        // nomes do load o ignora (best continua contando a geracao).
+        orm.save(db, KofMkState(0, design, gen, "", -1, ""))
+        return true
+    }
+    var i = 0
+    while (i < st.entries.size()) {
+        var e = st.entries.get(i)
+        // linha MARCA (idx -1): recurso SEM props tambem renasce no load
+        orm.save(db, KofMkState(0, design, gen, e.name, -1, ""))
+        var j = 0
+        while (j < e.propFlat.size()) {
+            orm.save(db, KofMkState(0, design, gen, e.name, j, e.propFlat.get(j)))
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return true
+}
+
+Int mkMaxGen(String dbConn, String design) {
+    // 3.8: o CLI `kof makealive` precisa de gen > atual p/ gravar a nova
+    // geração; o máximo já é calculado dentro de mkLoadState mas nunca
+    // foi exposto. Sem estado = -1 (o primeiro apply salva em gen 0).
+    if (dbConn == null || dbConn == "") { throw "makealive: mkMaxGen sem conexão de db" }
+    if (design == null || design == "") { throw "makealive: mkMaxGen sem nome de design" }
+    var db = db.connect(dbConn)
+    orm.create<KofMkState>(db)
+    var rows = orm.all<KofMkState>(db)
+    var best = -1
+    var i = 0
+    while (i < rows.size) {
+        var r = rows.get(i)
+        if (r.design == design) {
+            if (r.gen > best) { best = r.gen }
+        }
+        i = i + 1
+    }
+    return best
+}
+
+State mkLoadState(String dbConn, String design) {
+    if (dbConn == null || dbConn == "") { throw "makealive: mkLoadState sem conexão db" }
+    if (design == null || design == "") { throw "makealive: mkLoadState sem nome de design" }
+    var db = db.connect(dbConn)
+    orm.create<KofMkState>(db)
+    var rows = orm.all<KofMkState>(db)
+    var best = -1
+    var i = 0
+    while (i < rows.size) {
+        var r = rows.get(i)
+        if (r.design == design) {
+            if (r.gen > best) { best = r.gen }
+        }
+        i = i + 1
+    }
+    var out = State()
+    if (best < 0) { return out }
+    // nomes na ordem de aparição (mesma do save) — sem parser, só == e add
+    var names = listOf()
+    i = 0
+    while (i < rows.size) {
+        var r = rows.get(i)
+        if (r.design == design && r.gen == best && r.res != "") {
+            var seen = false
+            var k = 0
+            while (k < names.size) {
+                if (names.get(k) == r.res) { seen = true }
+                k = k + 1
+            }
+            if (!seen) { names.add(r.res) }
+        }
+        i = i + 1
+    }
+    var n = 0
+    while (n < names.size) {
+        var target = names.get(n)
+        var pf = listOf()
+        i = 0
+        while (i < rows.size) {
+            var r = rows.get(i)
+            if (r.design == design && r.gen == best && r.res == target) {
+                if (r.idx >= 0) { pf.add(r.v) }
+            }
+            i = i + 1
+        }
+        out.entries.add(StateEntry(target, pf))
+        n = n + 1
+    }
+    return out
+}

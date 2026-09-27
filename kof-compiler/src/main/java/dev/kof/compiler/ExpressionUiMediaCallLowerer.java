@@ -25,7 +25,8 @@ if (mc.receiver() instanceof IdentifierExpr && KofIo.isConstructor(((IdentifierE
 } else if (mc.receiver() instanceof IdentifierExpr && KofMedia.isStaticNamespace(((IdentifierExpr) mc.receiver()).name())) {
     KofMedia.MediaCall mediaCall = KofMedia.staticCall(((IdentifierExpr) mc.receiver()).name(), mc.methodName(), mc.arguments().size());
     if (mediaCall != null) {
-        if (driver.target != Target.JVM && driver.target != Target.ANDROID) {
+        if (driver.target != Target.JVM && driver.target != Target.ANDROID
+                && !KofMedia.mediaFaceReady(driver.target, mediaCall.function())) {
             String code = KofMedia.gapCode(mediaCall.function());
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
@@ -77,4 +78,5 @@ if (mc.receiver() instanceof IdentifierExpr && KofIo.isConstructor(((IdentifierE
     }
     return -1;
     }
+
 }

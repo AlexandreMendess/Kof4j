@@ -75,7 +75,7 @@ Navigation by swapping the root component: `Router` is a namespace (not a type).
 - Real on the JS target (KofJS); JVM/Native: no-op handles.
 - See `docs/ui/architecture.md` §2.9 and `RouterE2ETest`.
 
-## KofScript idiom (0.4.0-beta)
+## KofScript idiom (0.5.0-beta)
 
 ```kof
 var x = 5

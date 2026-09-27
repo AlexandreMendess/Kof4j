@@ -98,6 +98,12 @@ class NativeRiscvGcSweepTest {
             .globl kof_super_table
             kof_super_table:
                 .word 0
+                .globl kof_equals_table
+                kof_equals_table:
+                .quad 0
+                .globl kof_hashcode_table
+                kof_hashcode_table:
+                .quad 0
             """;
 
     /** Laço de 10000 allocs de 64B com só o último vivo na raiz estática.
@@ -130,6 +136,12 @@ class NativeRiscvGcSweepTest {
             .globl kof_super_table
             kof_super_table:
                 .word 0
+                .globl kof_equals_table
+                kof_equals_table:
+                .quad 0
+                .globl kof_hashcode_table
+                kof_hashcode_table:
+                .quad 0
             """;
 
     private String runCapture(String... cmd) throws IOException {

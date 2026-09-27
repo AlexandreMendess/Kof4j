@@ -6,12 +6,12 @@
 (promovido de `future/` por decisão da mantenedora; o portão R12 está
 **sobreposto** — ver `DECISIONS.md` §D-UNIVERSAL)
 **Data:** 2 de setembro de 2026
-**Base:** estado real **0.4.0-beta** (17/09/2026) — frontend próprio (lexer, parser, AST, symbol
+**Base:** estado real **0.5.0-beta** (20/09/2026) — frontend próprio (lexer, parser, AST, symbol
 table, semantic, type checking), Kof IR backend-agnóstica, 7 targets
 (jvm estável, native x86_64 estável, native.risc/native.arm toolchain+qemu,
 js alpha GraalJS, kofc native-only, android Fases 1–4), stdlib como **tabelas de
 dispatch em compile-time** com gaps diagnosticados, FFI real (SQLite `.so`
-direto, FFM Vulkan compute, interop Java + GraalJS), `mvn test` 2411
+direto, FFM Vulkan compute, interop Java + GraalJS), `mvn test` 3225
 (17/09/2026 — ver `AGENTS.md` §"Loop de verificação" para a contagem viva).
 
 > **Regra deste documento:** este é o **companion de visão/arquitetura** de

@@ -2,7 +2,7 @@
 
 # 38 — Editores: do `kof` instalado ao `.kof` aberto
 
-> **Kof 0.4.0-beta — `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.5.0-beta — `intention->Kof->frontend->IR->backend->runtime`**
 
 Instalar o Kof não é só ter compilador + runtime + CLI + stdlib. É abrir o
 seu editor e já ter **highlighting, diagnostics, autocomplete, hover, rename,
@@ -112,7 +112,7 @@ kof editor status
 Kof Editor Environment
 
 Kof:
-  version: 0.4.0-beta
+  version: 0.5.0-beta
   compiler: OK
   LSP: OK (kof lsp)
   formatter: OK (kof fmt)

@@ -55,11 +55,17 @@ public final class KofHttp {
     /** kof.http: JVM + JS (JS via Java HttpClient interop / fetch),
      *  Native via HTTP/1.1 puro em asm (HTTP002 parcial — http somente,
      *  https em TLS gap; DNS host≠IPv4 cai em 127.0.0.1). */
-    // §259: supportedOn currently always returns true → the HTTP002 branch in
-    // ExpressionHttpCallLowerer:19-30 is DEAD. When native http gains a real
-    // unsupported target, this guard + gapCode must be wired in.
-    static boolean supportedOn(@SuppressWarnings("unused") Target target) {
-        return true;
+    // §259: kof.http is available on every shipping target today (JVM/JS + native
+    // HTTP/1.1 http-only; the https/TLS gap lives at the scheme level, not here).
+    // The exhaustive switch reads `target` (CodeQL #776 java/unused-parameter) and
+    // stays compile-safe: a new Target forces this guard to be revisited, and the
+    // day a target genuinely drops out of the http surface, the HTTP002 branch in
+    // ExpressionHttpCallLowerer:19-30 becomes live (gapCode wired here).
+    static boolean supportedOn(Target target) {
+        return switch (target) {
+            case JVM, NATIVE, NATIVE_RISCV64, NATIVE_AARCH64, NATIVE_RISCV32, NATIVE_MCU_ARM,
+                    JS, ANDROID, SCRIPT -> true;
+        };
     }
 
     // §259: gapCode() has no callers — no HTTP gap code is emitted today.

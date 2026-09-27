@@ -16,32 +16,39 @@ import java.util.List;
 final class NativeOpHelpers {
     private NativeOpHelpers() {}
 
-    static void emitNewObject(NativeBackend nb, StringBuilder sb, KofNewObject no) {
-        ClassLayout layout = null;
-        String className = null;
-        int typeId = 0;
-        if (no.type() instanceof Type.ClassType ct) {
-            className = ct.name();
-            for (IRClass clazz : nb.allClassesMap.values()) {
-                if (clazz.name().equals(className) || clazz.name().endsWith("/" + className)
-                        || className.endsWith("/" + clazz.name()) || className.equals(nb.sanitizeName(clazz.name()))) {
-                    layout = nb.getLayout(clazz);
-                    className = clazz.name();
-                    typeId = clazz.typeId();
-                    break;
-                }
+    /** Classe concreta resolvida no mapa do backend (mesma regra de casamento do
+     *  `emitNewObject`, agora compartilhada com o retorno de struct da 3.7). */
+    record Resolved(String name, int typeId, ClassLayout layout) {}
+
+    static Resolved resolveClass(NativeBackend nb, Type type) {
+        if (!(type instanceof Type.ClassType ct)) return null;
+        String className = ct.name();
+        for (IRClass clazz : nb.allClassesMap.values()) {
+            if (clazz.name().equals(className) || clazz.name().endsWith("/" + className)
+                    || className.endsWith("/" + clazz.name()) || className.equals(nb.sanitizeName(clazz.name()))) {
+                return new Resolved(clazz.name(), clazz.typeId(), nb.getLayout(clazz));
             }
         }
-        int size = layout != null ? layout.totalSize() : ClassLayout.HEADER_SIZE + 64;
+        return null;
+    }
+
+    /** Aloca+inicializa um objeto da classe resolvida; deixa o ponteiro em %rax. */
+    static void emitAllocObject(NativeBackend nb, StringBuilder sb, Resolved r) {
+        int size = r != null ? r.layout().totalSize() : ClassLayout.HEADER_SIZE + 64;
         sb.append("    movq $").append(size).append(", %rdi\n");
         sb.append("    call kof_alloc\n");
-        if (className != null) {
-            String mangled = nb.sanitizeName(className);
+        if (r != null) {
+            String mangled = nb.sanitizeName(r.name());
             sb.append("    movq %rax, %rdi\n");
-            sb.append("    movl $").append(typeId).append(", %esi\n");
+            sb.append("    movl $").append(r.typeId()).append(", %esi\n");
             sb.append("    leaq ").append(mangled).append("_vtable(%rip), %rdx\n");
             sb.append("    call kof_init_object\n");
         }
+    }
+
+    static void emitNewObject(NativeBackend nb, StringBuilder sb, KofNewObject no) {
+        Resolved r = resolveClass(nb, no.type());
+        emitAllocObject(nb, sb, r);
         sb.append("    pushq %rax\n");
     }
 
@@ -164,8 +171,16 @@ final class NativeOpHelpers {
         sb.append("    jmp ").append(nb.resolveLabel(kc.falseLabel())).append("\n");
     }
 
-    static String resolveCalleeName(NativeBackend nb, KofCall kc) {
-        // builtins de coleção são símbolos globais do runtime — nunca
+    /** B-6.2b: {@code ring1(fn)} — empilha o endereco do simbolo da funcao
+     *  top-level (leaq <sym>(%rip),%rax; pushq %rax). */
+    static void emitFunctionAddress(NativeBackend nb, StringBuilder sb, KofFunctionAddress fa) {
+        KofCall ref = new KofCall(fa.ownerType(), fa.name(), fa.parameterTypes(),
+                Type.PrimitiveType.VOID, KofCallKind.FUNCTION);
+        sb.append("    leaq ").append(resolveCalleeName(nb, ref)).append("(%rip), %rax\n");
+        sb.append("    pushq %rax\n");
+    }
+
+    static String resolveCalleeName(NativeBackend nb, KofCall kc) {        // builtins de coleção são símbolos globais do runtime — nunca
         // mangle com o dono (Map_kof_map_put etc.)
         String mn = kc.methodName();
         if (mn.startsWith("kof_map_") || mn.startsWith("kof_set_")) {

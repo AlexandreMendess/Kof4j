@@ -6,7 +6,7 @@ Facts about the official Kof installation. Use them to answer questions
 about "how to install", "do I need Java?", "which package do I download", "how
 does distribution work".
 
-**Version:** 0.4.0-beta (Sep 2026)
+**Version:** 0.5.0-beta (Sep 2026)
 
 ## Facts
 
@@ -59,7 +59,7 @@ kof-<v>-<system>/
 ├── tooling/           consumption conventions per editor
 ├── editor/            official TextMate grammar
 ├── docs/              compact documentation
-└── VERSION            installation version (e.g.: 0.4.0-beta)
+└── VERSION            installation version (e.g.: 0.5.0-beta)
 ```
 
 ## Installation (step by step — Linux, example)
@@ -84,10 +84,10 @@ bin/kof info
 bin/kof version                 # version from VERSION
 ```
 
-## `kof info` (reference output — 0.4.0-beta)
+## `kof info` (reference output — 0.5.0-beta)
 
 ```text
-Kof 0.4.0-beta
+Kof 0.5.0-beta
 Release channel: beta
 Tooling API: 21
 OS: linux

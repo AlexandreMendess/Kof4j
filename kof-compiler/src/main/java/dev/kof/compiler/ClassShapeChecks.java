@@ -40,6 +40,11 @@ public final class ClassShapeChecks {
                             + " (declared 'final' — remove 'final' or the inheritance)",
                     "SEM070");
         }
+        // X5.1 (D-X5-SURFACE): subtipo de tipo `sealed` só na mesma unidade.
+        SealedTypeChecks.checkSubtype(sa, cls.position(), cls.name(),
+                cls.superClass(), cls.interfaces());
+        // X5.3 (D-TYPE-VARIANCE): restrição de posição de `out`/`in`.
+        VarianceChecks.checkClass(sa, cls);
     }
 
     /**
@@ -66,6 +71,11 @@ public final class ClassShapeChecks {
                             + " (declared 'final' — remove 'final' or the inheritance)",
                     "SEM070");
         }
+        // X5.1 (D-X5-SURFACE): record é subtipo de interface `sealed`?
+        SealedTypeChecks.checkSubtype(sa, rec.position(), rec.name(),
+                rec.superClass(), rec.interfaces());
+        // X5.3 (D-TYPE-VARIANCE): restrição de posição de `out`/`in`.
+        VarianceChecks.checkRecord(sa, rec);
     }
 
     /** #470: nome é record? O ClassSymbol de um record tem super "Record"

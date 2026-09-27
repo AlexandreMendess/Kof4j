@@ -1,0 +1,179 @@
+package kofmd
+
+import kofmd.KofmdTypes
+
+class KofmdInfer {
+    inferScalar(String raw, Bool quoted): String {
+        if (quoted) {
+            return "String"
+        }
+        if (raw == "true" || raw == "false") {
+            return "Bool"
+        }
+        if (isIntLexeme(raw)) {
+            return "Int"
+        }
+        if (isFloatLexeme(raw)) {
+            return "Float"
+        }
+        return "String"
+    }
+
+    inferField(KofmdField field): String {
+        if (field.items().size > 0) {
+            return "List"
+        }
+        if (field.value().length == 0) {
+            return "Absent"
+        }
+        return inferScalar(field.value(), field.quoted())
+    }
+
+    isIntLexeme(String raw): Bool {
+        if (raw.length == 0) {
+            return false
+        }
+        var start = 0
+        if (raw.startsWith("-")) {
+            if (raw.length == 1) {
+                return false
+            }
+            start = 1
+        }
+        var index = start
+        while (index < raw.length) {
+            Int code = raw.charAt(index)
+            if (code < 48 || code > 57) {
+                return false
+            }
+            index = index + 1
+        }
+        return isInt32Range(raw)
+    }
+
+    isInt32Range(String raw): Bool {
+        String digits = raw
+        Bool negative = false
+        if (raw.startsWith("-")) {
+            negative = true
+            digits = raw.substring(1, raw.length)
+        }
+        digits = stripLeadingZeros(digits)
+        if (digits.length < 10) {
+            return true
+        }
+        if (digits.length > 10) {
+            return false
+        }
+        if (negative) {
+            return digits.compareTo("2147483648") <= 0
+        }
+        return digits.compareTo("2147483647") <= 0
+    }
+
+    stripLeadingZeros(String digits): String {
+        var index = 0
+        while (index < digits.length) {
+            if (digits.charAt(index) != 48) {
+                break
+            }
+            index = index + 1
+        }
+        if (index >= digits.length) {
+            return "0"
+        }
+        return digits.substring(index, digits.length)
+    }
+
+    isFloatLexeme(String raw): Bool {
+        if (raw.length == 0) {
+            return false
+        }
+        var rest = raw
+        if (rest.startsWith("-") || rest.startsWith("+")) {
+            if (rest.length == 1) {
+                return false
+            }
+            rest = rest.substring(1, rest.length)
+        }
+        Int exp = exponentSplit(rest)
+        String mantissa = rest
+        if (exp >= 0) {
+            mantissa = rest.substring(0, exp)
+        }
+        if (exp >= 0) {
+            String tail = rest.substring(exp + 1, rest.length)
+            if (!isExpTail(tail)) {
+                return false
+            }
+        }
+        Int dot = dotIndex(mantissa)
+        if (dot < 0) {
+            return exp >= 0 && allDigits(mantissa) && mantissa.length > 0
+        }
+        String head = mantissa.substring(0, dot)
+        String frac = mantissa.substring(dot + 1, mantissa.length)
+        if (frac.length == 0) {
+            return false
+        }
+        if (!allDigits(frac)) {
+            return false
+        }
+        if (head.length == 0) {
+            return true
+        }
+        return allDigits(head)
+    }
+
+    dotIndex(String text): Int {
+        var index = 0
+        while (index < text.length) {
+            if (text.charAt(index) == 46) {
+                return index
+            }
+            index = index + 1
+        }
+        return -1
+    }
+
+    exponentSplit(String text): Int {
+        var index = 0
+        while (index < text.length) {
+            Int code = text.charAt(index)
+            if (code == 101 || code == 69) {
+                return index
+            }
+            index = index + 1
+        }
+        return -1
+    }
+
+    isExpTail(String tail): Bool {
+        if (tail.length == 0) {
+            return false
+        }
+        var digits = tail
+        if (tail.startsWith("-") || tail.startsWith("+")) {
+            if (tail.length == 1) {
+                return false
+            }
+            digits = tail.substring(1, tail.length)
+        }
+        return allDigits(digits) && digits.length > 0
+    }
+
+    allDigits(String text): Bool {
+        if (text.length == 0) {
+            return false
+        }
+        var index = 0
+        while (index < text.length) {
+            Int code = text.charAt(index)
+            if (code < 48 || code > 57) {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+}

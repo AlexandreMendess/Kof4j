@@ -197,10 +197,16 @@ public final class JvmStringSecurityRuntime {
                 }
 
                 private static String kof_sec_jwt_sign(String headerB64, String payloadB64, String secret) {
+                    return kof_sec_jwt_sign_bytes(headerB64, payloadB64,
+                            secret.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+
+                // D-SECRETS P3: variante por bytes — um KeyHandle nunca expoe a
+                // chave como String ao guest; o caminho String delega aqui.
+                private static String kof_sec_jwt_sign_bytes(String headerB64, String payloadB64, byte[] key) {
                     try {
                         javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-                        mac.init(new javax.crypto.spec.SecretKeySpec(
-                                secret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+                        mac.init(new javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"));
                         return kof_sec_b64url(mac.doFinal(
                                 (headerB64 + "." + payloadB64).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
                     } catch (Exception e) {
@@ -219,6 +225,12 @@ public final class JvmStringSecurityRuntime {
                 }
 
                 public static String kof_sec_jwt_create_ttl(String claimsJson, String secret, int ttlSeconds) {
+                    return kof_sec_jwt_create_ttl_bytes(claimsJson,
+                            secret.getBytes(java.nio.charset.StandardCharsets.UTF_8), ttlSeconds);
+                }
+
+                // D-SECRETS P3: variante por bytes (KeyHandle).
+                public static String kof_sec_jwt_create_ttl_bytes(String claimsJson, byte[] key, int ttlSeconds) {
                     Object parsed = kof_json_parse(claimsJson);
                     if (!(parsed instanceof Map<?, ?>)) throw new IllegalArgumentException("JWT claims must be a JSON object");
                     int lastBrace = claimsJson.lastIndexOf('}');
@@ -229,7 +241,7 @@ public final class JvmStringSecurityRuntime {
                     String payload = head + sep + "\\"iat\\":" + now + ",\\"exp\\":" + (now + ttlSeconds) + "}";
                     String headerB64 = kof_sec_b64url("{\\"alg\\":\\"HS256\\",\\"typ\\":\\"JWT\\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
                     String payloadB64 = kof_sec_b64url(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                    return headerB64 + "." + payloadB64 + "." + kof_sec_jwt_sign(headerB64, payloadB64, secret);
+                    return headerB64 + "." + payloadB64 + "." + kof_sec_jwt_sign_bytes(headerB64, payloadB64, key);
                 }
 
                 public static String kof_sec_jwt_verify(String token, String secret) {
@@ -237,13 +249,20 @@ public final class JvmStringSecurityRuntime {
                 }
 
                 public static String kof_sec_jwt_verify_iss_aud(String token, String secret, String issuer, String audience) {
-                    if (token == null || secret == null) throw new IllegalArgumentException("invalid token or secret");
+                    if (secret == null) throw new IllegalArgumentException("invalid token or secret");
+                    return kof_sec_jwt_verify_iss_aud_bytes(token,
+                            secret.getBytes(java.nio.charset.StandardCharsets.UTF_8), issuer, audience);
+                }
+
+                // D-SECRETS P3: variante por bytes (KeyHandle).
+                public static String kof_sec_jwt_verify_iss_aud_bytes(String token, byte[] key, String issuer, String audience) {
+                    if (token == null || key == null) throw new IllegalArgumentException("invalid token or secret");
                     String[] parts = token.split("\\\\.");
                     if (parts.length != 3) throw new IllegalArgumentException("malformed token");
                     try {
                         String headerJson = new String(kof_sec_b64urlDecode(parts[0]), java.nio.charset.StandardCharsets.UTF_8);
                         if (!headerJson.contains("\\"HS256\\"")) throw new IllegalArgumentException("algorithm not allowed");
-                        String expected = kof_sec_jwt_sign(parts[0], parts[1], secret);
+                        String expected = kof_sec_jwt_sign_bytes(parts[0], parts[1], key);
                         if (!kof_sec_constant_time_equals(expected, parts[2])) throw new IllegalArgumentException("invalid signature");
                         String payloadJson = new String(kof_sec_b64urlDecode(parts[1]), java.nio.charset.StandardCharsets.UTF_8);
                         Object parsed = kof_json_parse(payloadJson);

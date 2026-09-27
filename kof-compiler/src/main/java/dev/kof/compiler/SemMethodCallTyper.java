@@ -22,6 +22,21 @@ public final class SemMethodCallTyper {
                     "toHexString", "toBinaryString");
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        // #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(...)` — construção
+        // qualificada. O receiver é o NOME DE UM PACOTE, não um valor: NÃO o
+        // tipar como expressão (senão SEM011 "Undefined variable or type").
+        // Resolve pelo índice FQN ADITIVO, que preserva colisões de nome
+        // simples. Só dispara quando o caminho exato identifica um tipo do
+        // módulo — receivers comuns ficam intocados.
+        if (mc.receiver() instanceof IdentifierExpr pkgRecv
+                && !SemExpressionTyper.isLocalName(scope, pkgRecv.name())
+                && !sa.allClasses().containsKey(pkgRecv.name())) {
+            SymbolTable.ClassSymbol qcs = sa.findQualifiedClass(pkgRecv.name() + "." + mc.methodName());
+            if (qcs != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return qcs.type();
+            }
+        }
         // F10: métodos de instância do handle de process.spawn
         Type recv = null;
         if (mc.receiver() != null) {
@@ -83,6 +98,20 @@ public final class SemMethodCallTyper {
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
                 KofProcess.ProcessCall hm = KofProcess.handleMethod(mc.methodName(), argTypes);
                 if (hm != null) return hm.returnType();
+            }
+            // §502 (SEM025): Handle<T> do `spawn` não tem método de instância —
+            // o idioma é `await h` (ou `awaitTimeout(h, ms)`). Sem este gate,
+            // `h.bogus()` compilava limpo e o emit caía no CompletableFuture
+            // com `invokevirtual ...bogus` → NoSuchMethodError.
+            if (TypeChecker.isConcurrentHandle(recv) && sa.diagnostics() != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                SourcePosition mcPos = mc.position();
+                sa.diagnostics().error(mcPos != null ? mcPos.file() : "",
+                        mcPos != null ? mcPos.line() : 0, mcPos != null ? mcPos.column() : 0, 0,
+                        "Handle<T> has no method '" + mc.methodName()
+                                + "()'; use `await h` to get the value",
+                        "SEM025");
+                return Type.UnknownType.UNKNOWN;
             }
             // Canais tipados: c.send(v) / c.receive() -> T
             if (BuiltinTypes.isChannel(recv)) {
@@ -153,6 +182,98 @@ public final class SemMethodCallTyper {
                         List.of(valueType));
             }
         }
+        // §353: o SEM typer nao conhecia as faces de kof.io — o corpo de lambda
+        // `() -> File("x").exists()` inferia UNKNOWN e o call-site rejeitava com
+        // SEM014 ("expected 'function' but got 'function'"). Espelha o typer do
+        // emit (MethodCallTyper, ramo KofIo.isIoType) — mesma tabela, nenhum
+        // contrato novo.
+        if (KofIo.isIoType(recv)) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            KofIo.IoCall ioCall = KofIo.instanceMethod(recv, mc.methodName(), mc.arguments().size());
+            if (ioCall != null) return ioCall.returnType();
+            if (KofIo.isIdentityMethod(mc.methodName())) return recv;
+        }
+        // D-R3-BUFFER: espelha o ramo do emit (MethodCallTyper) para Buffer(U8).
+        if (KofBuffer.isBufferType(recv)) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            KofBuffer.BufferCall bufferCall =
+                    KofBuffer.instanceMethod(recv, mc.methodName(), mc.arguments().size());
+            if (bufferCall != null) return bufferCall.returnType();
+        }
+        // D-SECRETS face 1: espelha o ramo do emit para o tipo Secret.
+        if (KofSecurity.isSecretType(recv) || KofSecurity.isKeyHandleType(recv)) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            KofSecurity.SecCall secretCall =
+                    KofSecurity.instanceMethod(recv, mc.methodName(), mc.arguments().size());
+            if (secretCall != null) return secretCall.returnType();
+        }
+        // #490 (SEM102): método desconhecido em tipo builtin de kof.buffer /
+        // kof.security (Buffer/Secret/KeyHandle). Os ramos acima só devolvem os
+        // métodos da TABELA ao vivo; sem este guard o fall-through não tinha
+        // contrato — o emit devolvia o PRÓPRIO receptor (no-op silencioso:
+        // `secrets.of("x").bogus()` imprimia o Secret) ou vazava um UNKNOWN cujo
+        // nome de classe vazio abortava o load (`ClassFormatError: Illegal class
+        // name ""`: `s.bogus(1,2)`). É o mesmo mecanismo do #617 (kof.io), uma
+        // família ao lado. A mensagem nomeia o tipo e o método.
+        if ((KofBuffer.isBufferType(recv) || KofSecurity.isSecretType(recv)
+                || KofSecurity.isKeyHandleType(recv)) && sa.diagnostics() != null) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            String builtinName = KofBuffer.isBufferType(recv) ? "Buffer"
+                    : (KofSecurity.isSecretType(recv) ? "Secret" : "KeyHandle");
+            SourcePosition mcPos = mc.position();
+            sa.diagnostics().error(mcPos != null ? mcPos.file() : "",
+                    mcPos != null ? mcPos.line() : 0, mcPos != null ? mcPos.column() : 0, 0,
+                    "'" + builtinName + "' has no method '" + mc.methodName() + "()'",
+                    "SEM102");
+            return Type.UnknownType.UNKNOWN;
+        }
+        // #617 (SEM102): método desconhecido em tipo builtin de kof.io
+        // (File/Path/Directory) — mesmo guard da família SEM028 (array):
+        // aceitar em silêncio deixava o emit sem contrato (retorno UNKNOWN)
+        // e o programa "rodava" como no-op; `.toString()` no valor chegava a
+        // dar ClassFormatError "Illegal class name \"\"" no JVM. O hint
+        // aponta o idioma vivo: para criar diretório é
+        // Directory(path).createDirectories().
+        if (KofIo.isIoType(recv) && sa.diagnostics() != null) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            SourcePosition mcPos = mc.position();
+            boolean dir = KofIo.isDirectory(recv);
+            String mkdirHint = "mkdir".equals(mc.methodName())
+                    ? "; to create a directory use Directory(path).createDirectories()" : "";
+            sa.diagnostics().error(mcPos != null ? mcPos.file() : "",
+                    mcPos != null ? mcPos.line() : 0, mcPos != null ? mcPos.column() : 0, 0,
+                    "'" + (dir ? "Directory" : "File") + "' has no method '" + mc.methodName()
+                            + "()'" + mkdirHint,
+                    "SEM102");
+            return Type.UnknownType.UNKNOWN;
+        }
+        // §499 (SEM074): método estático desconhecido em nome de tipo builtin
+        // (`String.bogus()`, `Int.bogus()`, ...). O Kof expõe os estáticos REAIS
+        // do JDK nesses nomes (String.valueOf/join/format, Long.parseLong,
+        // Double.isNaN, Bool.parseBoolean, ...), resolvidos por reflexão no
+        // lowerer (`ExpressionInstanceCallLowerer` + `JdkReflectionResolver`).
+        // Quando o método não existe, sem este gate o typer deixava UNKNOWN e o
+        // lowerer emitia `invokestatic <Owner>.bogus` → NoSuchMethodError
+        // (compilava limpo). Só rejeita quando o owner JDK é conhecido E o
+        // método é ausente — sem falso-positivo em interop indisponível.
+        if (mc.receiver() instanceof IdentifierExpr typeRecv
+                && !typeRecv.name().isEmpty()
+                && Character.isUpperCase(typeRecv.name().charAt(0))
+                && sa.diagnostics() != null) {
+            String jdkOwner = jdkStaticOwner(typeRecv.name());
+            if (jdkOwner != null
+                    && JdkReflectionResolver.isJdkClass(jdkOwner)
+                    && !JdkReflectionResolver.hasJdkMethod(jdkOwner, mc.methodName(),
+                            mc.arguments().size())) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                SourcePosition mcPos = mc.position();
+                sa.diagnostics().error(mcPos != null ? mcPos.file() : "",
+                        mcPos != null ? mcPos.line() : 0, mcPos != null ? mcPos.column() : 0, 0,
+                        "'" + typeRecv.name() + "' has no static method '" + mc.methodName() + "()'",
+                        "SEM074");
+                return Type.UnknownType.UNKNOWN;
+            }
+        }
         Type builtin = BuiltinCallTyper.infer(sa, mc, scope);
         if (builtin != null) return builtin;
         if (mc.receiver() != null) {
@@ -160,5 +281,28 @@ public final class SemMethodCallTyper {
             if (member != null) return member;
         }
         return BuiltinCallTyper.inferTail(sa, mc, scope);
+    }
+
+    /**
+     * §499: nome interno JDK dos tipos builtin usados como receiver estático.
+     * Reproduz o mapa do emit em {@code ExpressionInstanceCallLowerer} para os
+     * que ele mapeia e estende Char/Byte/Short/Object — todos os nomes de tipo
+     * builtin, para que o gate valide o membro estático em qualquer um deles.
+     */
+    static String jdkStaticOwner(String name) {
+        return switch (name) {
+            case "String", "string" -> "java/lang/String";
+            case "Int", "int", "Integer" -> "java/lang/Integer";
+            case "Long", "long" -> "java/lang/Long";
+            case "Float", "float" -> "java/lang/Float";
+            case "Double", "double" -> "java/lang/Double";
+            case "Bool", "bool", "boolean", "Boolean" -> "java/lang/Boolean";
+            case "Char", "char" -> "java/lang/Character";
+            case "Byte", "byte" -> "java/lang/Byte";
+            case "Short", "short" -> "java/lang/Short";
+            case "Object" -> "java/lang/Object";
+            case "Troolean", "troolean" -> "java/lang/Boolean";
+            default -> null;
+        };
     }
 }

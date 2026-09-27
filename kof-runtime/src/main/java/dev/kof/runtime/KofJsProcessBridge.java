@@ -206,7 +206,6 @@ public final class KofJsProcessBridge {
 
     private static Map<String, Object> execute(List<String> cmd, String cwd,
                                                Map<String, String> extraEnv) {
-        Map<String, Object> result = new LinkedHashMap<>();
         try {
             ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(false);
             if (cwd != null && !cwd.isEmpty()) {
@@ -248,6 +247,9 @@ public final class KofJsProcessBridge {
     private static long spawnSeq = 0;
 
     static long spawn(Value[] args) {
+        Process p = null;
+        java.io.BufferedReader reader = null;
+        java.io.PrintWriter writer = null;
         try {
             String program = args[0].asString();
             List<String> cmd = new ArrayList<>();
@@ -255,23 +257,41 @@ public final class KofJsProcessBridge {
             if (args.length > 1 && !args[1].isNull() && args[1].hasArrayElements()) {
                 cmd.addAll(argvOf(args[1]));
             }
-            Process p = new ProcessBuilder(cmd)
+            p = new ProcessBuilder(cmd)
                     .redirectErrorStream(false)
                     .redirectInput(ProcessBuilder.Redirect.from(new java.io.File("/dev/null")))
                     .start();
+            reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(p.getInputStream(),
+                            java.nio.charset.StandardCharsets.UTF_8));
+            writer = new java.io.PrintWriter(
+                    new java.io.OutputStreamWriter(p.getOutputStream(),
+                            java.nio.charset.StandardCharsets.UTF_8), true);
             long id;
             synchronized (KofJsProcessBridge.class) {
                 id = ++spawnSeq;
             }
             SPAWNED.put(id, p);
-            SPAWN_READERS.put(id, new java.io.BufferedReader(
-                    new java.io.InputStreamReader(p.getInputStream(),
-                            java.nio.charset.StandardCharsets.UTF_8)));
-            SPAWN_WRITERS.put(id, new java.io.PrintWriter(
-                    new java.io.OutputStreamWriter(p.getOutputStream(),
-                            java.nio.charset.StandardCharsets.UTF_8), true));
+            SPAWN_READERS.put(id, reader);
+            SPAWN_WRITERS.put(id, writer);
             return id;
         } catch (Exception e) {
+            // #555 (java/input-resource-leak / java/output-resource-leak): nada
+            // escapa fechado pela metade — o handle falho devolve -1 e libera o
+            // processo + pipes ja criados.
+            if (writer != null) {
+                writer.close();
+            }
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception ignored) {
+                    // pipe ja morto — so fd hygiene
+                }
+            }
+            if (p != null) {
+                p.destroyForcibly();
+            }
             return -1;
         }
     }
@@ -318,8 +338,20 @@ public final class KofJsProcessBridge {
         if (p != null) {
             p.destroyForcibly();
             SPAWNED.remove(handle);
-            SPAWN_WRITERS.remove(handle);
-            SPAWN_READERS.remove(handle);
+            // #555: os pipes do handle morrem com ele — sem fechar, cada
+            // spawn+kill deixava um par de fds orfao no processo hospedeiro.
+            var w = SPAWN_WRITERS.remove(handle);
+            var r = SPAWN_READERS.remove(handle);
+            if (w != null) {
+                w.close();
+            }
+            if (r != null) {
+                try {
+                    r.close();
+                } catch (Exception ignored) {
+                    // pipe ja morto — so fd hygiene
+                }
+            }
         }
     }
 

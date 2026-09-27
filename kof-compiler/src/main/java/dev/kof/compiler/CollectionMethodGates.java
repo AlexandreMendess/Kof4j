@@ -58,24 +58,18 @@ public final class CollectionMethodGates {
                 + " (Kof has no Comparator/Comparable — sort the projected key list instead)";
     }
 
-    /**
-     * Float no Native (NAT001): o runtime cross não tem compare de precisão
-     * simples tradutível (sem flw no aarch64) — diagnóstico honesto no par
-     * (sort, Float, nativo), nunca ordem errada silenciosa.
-     */
-    static boolean floatSortUnsupportedOnNative(Type elemType, boolean nativeTarget) {
-        if (!nativeTarget) return false;
-        Type inner = elemType instanceof Type.NullableType nt ? nt.inner() : elemType;
-        return inner instanceof Type.PrimitiveType pt
-                && "float".equals(Type.canonicalPrimitiveName(pt.name()));
-    }
-
-    /** Tag de comparação do sort: 0=raw signed qword, 1=String, 2=Double. */
+    /** Tag de comparação do sort: 0=raw signed qword, 1=String, 2=Double,
+     *  3=Float (§352/NAT001 fechado 21/09: o slot guarda os 32 bits crus e o
+     *  runtime alarga para Double — `cvtss2sd` no x86, `fcvt.d.s` no cross —
+     *  reusando a semântica medida do Double.compare). */
     static int sortTag(Type elemType) {
         Type inner = elemType instanceof Type.NullableType nt ? nt.inner() : elemType;
         if (BuiltinTypes.isString(inner)) return 1;
-        if (inner instanceof Type.PrimitiveType pt
-                && "double".equals(Type.canonicalPrimitiveName(pt.name()))) return 2;
+        if (inner instanceof Type.PrimitiveType pt) {
+            String n = Type.canonicalPrimitiveName(pt.name());
+            if ("double".equals(n)) return 2;
+            if ("float".equals(n)) return 3;
+        }
         return 0;
     }
 
@@ -93,12 +87,13 @@ public final class CollectionMethodGates {
      * tag interno da caixa distingue e o resultado é false, como equals) —
      * 3 = false garantido (§126 safe miss: famílias ≠ — Int-arg num mapa de
      * Double nunca é equals no JVM, e no native NÃO se derefença bits crus;
-     * Unknown-value = mapa vazio, false sempre) — -1 = mapa de valor Object
-     * no nativo: a sonda de caixa lê o primeiro qword do slot, mas um slot
-     * de Double CRU (legítimo num Map&lt;_,Object&gt; — medido no JVM: put Int
-     * E Double no mesmo mapa passa) é indistinguível sem dereferência →
-     * risco de SIGSEGV. Diagnóstico honesto NAT002 no compile (precedente
-     * NAT001/Float-sort); JVM/JS/Script usam a igualdade real e funcionam.
+     * Unknown-value = mapa vazio, false sempre) — 6 = mapa de valor Object
+     * (§352 NAT002 fechado 21/09): o compile não sabe o que a expressão
+     * carrega (caixa/String/ponteiro/bit cru), então o runtime classifica
+     * arg e entradas com kof_value_kind e compara no caminho do kind) —
+     * 7 = record/classe Kof (§104b-ii nunca portado pro VALOR do map,
+     * só pra CHAVE — {@link CollectionWrites#mapKeyTag}; {@code
+     * kof_obj_equals}, o mesmo runtime content-equality de hoje).
      */
     static int valueCmpTag(Type valueType, Type argType) {
         Type vt = unwrap(valueType);
@@ -106,12 +101,13 @@ public final class CollectionMethodGates {
         boolean vStr = vt != null && BuiltinTypes.isString(vt);
         boolean aStr = at != null && BuiltinTypes.isString(at);
         if (vt == null || vt instanceof Type.UnknownType) return 3;
-        if (BuiltinTypes.isObject(vt)) return -1;
+        if (BuiltinTypes.isObject(vt)) return 6;
         if (vStr) return aStr ? 1 : 3;
         boolean vBox = CollectionCallLowerer.mapBoxablePrim(vt);
         boolean aBox = at != null && CollectionCallLowerer.mapBoxablePrim(at);
         if (vBox) return aBox ? 2 : 3;
         if (aStr || aBox) return 3;
+        if (CollectionWrites.isKofObject(vt)) return 7;
         return 0;
     }
 }

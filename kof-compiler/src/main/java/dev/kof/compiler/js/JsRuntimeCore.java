@@ -376,6 +376,17 @@ public final class JsRuntimeCore {
                 return la - lb;
             }
 
+            // String.toCharArray: espelha o JVM — array de code units UTF-16
+            // (charCodeAt por índice; array de números = Char[] no JS). NAO
+            // Array.from(s)/spread, que separa por code POINT e fundiria o par
+            // astral num elemento (o JVM devolve 2 elementos por par astral).
+            export function kofToCharArray(s) {
+                const n = s.length;
+                const a = new Array(n);
+                for (let i = 0; i < n; i++) a[i] = s.charCodeAt(i);
+                return a;
+            }
+
             let kofLogLevel = 1; // default "info": 0 debug, 1 info, 2 warn, 3 error, 4 off
             try {
                 const lv = (process.env.KOF_LOG_LEVEL || "info").trim().toLowerCase();

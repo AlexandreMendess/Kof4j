@@ -22,12 +22,12 @@ class FfiE2ETest {
         // #431/§61 (fatia 1): a ABI ESCALAR agora binda no Native por link direto
         // (`sym@PLT` na .so ligada — prova de execução em FfiNativeE2ETest, com a
         // forma InitWindow(Int,Int,String):void incluída). O gap honesto segue
-        // pinado na forma que CONTINUA não-bindável no Native: array/struct no
-        // ABI (D6 é decisão da mantenedora) e callback (upcall nativo não existe).
-        // Nunca stub silencioso (R6).
+        // pinado na forma que CONTINUA não-bindável no Native: `String[]` (array
+        // de ponteiros), struct de memória no ABI (D6) e callback (upcall nativo
+        // não existe). Nunca stub silencioso (R6).
         Path src = dir.resolve("ffi-native.kf");
         Files.writeString(src, """
-                extern "libc.so.6" sum(Int[] xs): Int
+                extern "libc.so.6" sum(String[] xs): Int
 
                 main() {
                     println("hi")
@@ -43,12 +43,14 @@ class FfiE2ETest {
     @Test
     void jsUnboundAbiEmitsFfi002(@TempDir Path dir) throws IOException {
         // R3 fatia 3.6: o target JS agora BIND a ABI escalar (runner GraalJS tem
-        // java.lang.foreign no host) — ver ffiJs* abaixo. Mas assinaturas fora do
-        // conjunto escalar (array/struct/pointer, p.ex.) seguem FFI002 honesto na
-        // compilação (D6/3.8 pendentes) — nunca stub silencioso (R6).
-        Path src = dir.resolve("ffi-js-array.kf");
+        // java.lang.foreign no host) — ver ffiJs* abaixo — e, desde 21/09, também
+        // `T[]` escalar (copy-in, D6-2) e `Buffer(U8)` INOUT (D6-3). O que ainda
+        // está fora do v1 no JS (array de ponteiros `String[]`, struct return,
+        // Handle) segue FFI002 honesto na compilação (D6/3.8 pendentes) — nunca
+        // stub silencioso (R6).
+        Path src = dir.resolve("ffi-js-strarray.kf");
         Files.writeString(src, """
-                extern "libc.so.6" sum(Int[] xs): Int
+                extern "libc.so.6" sum(String[] xs): Int
 
                 main() {
                     println("hi")
@@ -252,6 +254,40 @@ class FfiE2ETest {
 
         String output = runJvm(out);
         assertEquals("5", output, "abs(-5) must return 5 via libc");
+    }
+
+    @Test
+    void scalarHelpersRepeatStableUnderConfinedArena(@TempDir Path dir) throws IOException {
+        // D6-5 (fatia 2, 21/09): kof_ffi_i/si/dd passam a usar arena CONFINADA por
+        // chamada, fechada no finally (antes: `Arena.global()` em i/dd = handle da
+        // biblioteca vazando, e si sem close). A repetição prova que criar/fechar a
+        // arena por chamada é estável e o valor é idempotente.
+        Path src = dir.resolve("ffi-repeat.kf");
+        Files.writeString(src, """
+                extern "libc.so.6" abs(Int x): Int
+                extern "libc.so.6" atoi(String s): Int
+                extern "libm.so.6" sqrt(Double x): Double
+
+                main() {
+                    var total = 0
+                    var dtot = 0.0
+                    var i = 0
+                    while (i < 300) {
+                        total = total + abs(-5) + atoi("7")
+                        dtot = dtot + sqrt(9.0)
+                        i = i + 1
+                    }
+                    println(total)
+                    println(dtot)
+                }
+                """);
+
+        Path out = dir.resolve("out-repeat");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "scalar externs must compile: "
+                + r.diagnostics().getDiagnostics());
+        assertEquals("3600\n900.0", runJvm(out),
+                "300x (abs+atoi)=3600 e 300x sqrt(9.0)=900.0, estável sob arena confinada");
     }
 
     @Test

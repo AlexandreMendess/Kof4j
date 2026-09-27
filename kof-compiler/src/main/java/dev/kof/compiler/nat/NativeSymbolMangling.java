@@ -85,6 +85,35 @@ final class NativeSymbolMangling {
         return m;
     }
 
+    /** #613: forma COMPLETA (método do IR) — o bridge de erasure desempata do
+     *  método concreto pelo descritor quando a tag de params coincide. O caso
+     *  que expôs isso é param-less: `T get()` (bridge `Object get()`) e
+     *  `Int get()` dão a MESMA tag (`sigTag([])` == "") e o Native gerava dois
+     *  `.globl IntBox_get` (assembler: "symbol already defined") ou, sem bridge,
+     *  o slot da vtable caía no concreto cru (int lido como Object → SIGSEGV).
+     *  A identidade que faltava é a do JVM: o descritor inclui o RETORNO —
+     *  o bridge (sintético, ACC_BRIDGE) ganha o sufixo do retorno apagado. */
+    static String fnSymbol(String className, IRMethod m, Map<String, IRClass> classes) {
+        String base = sanitizeNameStatic(className) + "_" + sanitizeNameStatic(m.name());
+        if ("<init>".equals(m.name())) return base + "_" + m.parameterTypes().size();
+        if (!sigMangles(className, m.name(), classes)) return base;
+        return base + fnTag(m);
+    }
+
+    /** #613: chave do mapa de mangle na forma COMPLETA (o bridge não sobrescreve
+     *  a entrada do concreto no functionMangleMap — as tags diferem). */
+    static String fnKey(String className, IRMethod m, Map<String, IRClass> classes) {
+        return sigMangles(className, m.name(), classes) ? m.name() + "#" + fnTag(m) : m.name();
+    }
+
+    private static String fnTag(IRMethod m) {
+        String tag = sigTag(m.parameterTypes());
+        if ((m.accessFlags() & dev.kof.compiler.AccessFlags.BRIDGE) != 0) {
+            tag += "_B" + sigTag(List.of(m.returnType()));
+        }
+        return tag;
+    }
+
     static String sanitizeNameStatic(String name) {
         return name.replace("/", "_").replace(".", "_").replace("-", "_")
                 .replace("<", "").replace(">", "");

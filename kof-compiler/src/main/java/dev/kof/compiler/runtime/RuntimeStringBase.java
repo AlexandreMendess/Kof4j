@@ -197,17 +197,15 @@ public final class RuntimeStringBase {
                 jnz .Lkof_print_string_ok
                 leaq .Lkof_null_str(%rip), %rsi
                 movq $4, %rdx
-                movq $1, %rax
                 movq $1, %rdi
-                syscall
+                call kof_plat_write
                 ret
             .Lkof_print_string_ok:
                 movq %rdi, %rsi
                 addq $24, %rsi
                 movl 16(%rdi), %edx
-                movq $1, %rax
                 movq $1, %rdi
-                syscall
+                call kof_plat_write
                 ret
             """);
     }
@@ -216,6 +214,16 @@ public final class RuntimeStringBase {
             .globl kof_println_string
             .type kof_println_string, @function
             kof_println_string:
+                # §396: null -> "null" + newline (paridade JVM; mesma lingua do
+                # guard de kof_println; riscv ja fazia isso nativamente).
+                testq %rdi, %rdi
+                jne .Lkof_pls_nn
+                leaq .Lkpls_null(%rip), %rdi
+                call kof_print
+                leaq .Lnewline(%rip), %rdi
+                call kof_print
+                ret
+            .Lkof_pls_nn:
                 pushq %rbx
                 movq %rdi, %rbx
                 movq %rbx, %rdi
@@ -224,6 +232,7 @@ public final class RuntimeStringBase {
                 call kof_print
                 popq %rbx
                 ret
+            .Lkpls_null: .asciz "null"
             """);
     }
     public static void emitStringEquals(StringBuilder sb) {

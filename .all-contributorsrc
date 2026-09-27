@@ -1,0 +1,126 @@
+{
+  "files": ["README.md", "README.pt_BR.md"],
+  "imageSize": 100,
+  "contributorsPerLine": 7,
+  "contributors": [
+    {
+      "login": "melmonfre",
+      "name": "Mel Santos",
+      "avatar_url": "https://github.com/melmonfre.png",
+      "profile": "https://github.com/melmonfre",
+      "contributions": ["ideas", "code", "maintenance", "infra", "security", "review", "test"]
+    },
+    {
+      "login": "temmcode",
+      "name": "temmcode",
+      "avatar_url": "https://github.com/temmcode.png",
+      "profile": "https://github.com/temmcode",
+      "contributions": ["code", "doc", "test"]
+    },
+    {
+      "login": "kof-agent-worker[bot]",
+      "name": "kof-agent-worker[bot]",
+      "avatar_url": "https://avatars.githubusercontent.com/in/4960796?s=100&v=4",
+      "profile": "https://github.com/apps/kof-agent-worker",
+      "contributions": ["code", "test", "infra", "doc"]
+    },
+    {
+      "login": "jonasrochasilva-prog",
+      "name": "jonasrochasilva-prog",
+      "avatar_url": "https://github.com/jonasrochasilva-prog.png",
+      "profile": "https://github.com/jonasrochasilva-prog",
+      "contributions": ["code", "doc"]
+    },
+    {
+      "login": "PublioSantos",
+      "name": "PublioSantos",
+      "avatar_url": "https://github.com/PublioSantos.png",
+      "profile": "https://github.com/PublioSantos",
+      "contributions": ["code", "doc"]
+    },
+    {
+      "login": "dependabot[bot]",
+      "name": "dependabot[bot]",
+      "avatar_url": "https://avatars.githubusercontent.com/in/496992?s=100&v=4",
+      "profile": "https://github.com/apps/dependabot",
+      "contributions": ["infra", "security"]
+    },
+    {
+      "login": "ViniAguiar1",
+      "name": "ViniAguiar1",
+      "avatar_url": "https://github.com/ViniAguiar1.png",
+      "profile": "https://github.com/ViniAguiar1",
+      "contributions": ["code"]
+    },
+    {
+      "login": "lchampz",
+      "name": "lchampz",
+      "avatar_url": "https://github.com/lchampz.png",
+      "profile": "https://github.com/lchampz",
+      "contributions": ["code"]
+    },
+    {
+      "login": "nillvitor",
+      "name": "nillvitor",
+      "avatar_url": "https://github.com/nillvitor.png",
+      "profile": "https://github.com/nillvitor",
+      "contributions": ["code"]
+    },
+    {
+      "login": "FabioRocha231",
+      "name": "FabioRocha231",
+      "avatar_url": "https://github.com/FabioRocha231.png",
+      "profile": "https://github.com/FabioRocha231",
+      "contributions": ["code"]
+    },
+    {
+      "login": "ViniciusKoiti",
+      "name": "ViniciusKoiti",
+      "avatar_url": "https://github.com/ViniciusKoiti.png",
+      "profile": "https://github.com/ViniciusKoiti",
+      "contributions": ["code"]
+    },
+    {
+      "login": "filipejsales-abinbev",
+      "name": "filipejsales-abinbev",
+      "avatar_url": "https://github.com/filipejsales-abinbev.png",
+      "profile": "https://github.com/filipejsales-abinbev",
+      "contributions": ["code"]
+    },
+    {
+      "login": "Anderson-Andre-P",
+      "name": "Anderson-Andre-P",
+      "avatar_url": "https://github.com/Anderson-Andre-P.png",
+      "profile": "https://github.com/Anderson-Andre-P",
+      "contributions": ["code"]
+    },
+    {
+      "login": "jonasrochanasajon",
+      "name": "jonasrochanasajon",
+      "avatar_url": "https://github.com/jonasrochanasajon.png",
+      "profile": "https://github.com/jonasrochanasajon",
+      "contributions": ["code"]
+    },
+    {
+      "login": "matheusdgdcampos",
+      "name": "matheusdgdcampos",
+      "avatar_url": "https://github.com/matheusdgdcampos.png",
+      "profile": "https://github.com/matheusdgdcampos",
+      "contributions": ["code"]
+    },
+    {
+      "login": "lunalully",
+      "name": "lunalully",
+      "avatar_url": "https://github.com/lunalully.png",
+      "profile": "https://github.com/lunalully",
+      "contributions": ["code"]
+    },
+    {
+      "login": "ronald2329",
+      "name": "ronald2329",
+      "avatar_url": "https://github.com/ronald2329.png",
+      "profile": "https://github.com/ronald2329",
+      "contributions": ["code"]
+    }
+  ]
+}

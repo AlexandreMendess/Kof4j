@@ -23,7 +23,7 @@ public final class CompilerClassLowering {
             superName = rawSuper != null ? driver.toInternalName("", rawSuper)
                     : "java/lang/Object";
         }
-        var sup = ClassSuperResolution.resolve(driver, superName, cls.interfaces().stream().map(n -> CompilerAnnotations.externalOrLocalInternalName(driver, eraseTypeArgs(n))).toList()); superName = sup.superName(); List<String> ifaces = sup.interfaces();
+        var sup = ClassSuperResolution.resolve(driver, superName, cls.interfaces().stream().map(n -> CompilerAnnotations.externalOrLocalInternalName(driver, HeritageQualifier.qualify(driver.currentUnit, driver.semanticAnalyzer, eraseTypeArgs(n)))).toList()); superName = sup.superName(); List<String> ifaces = sup.interfaces();
         int access = driver.computeAccess(cls.modifiers());
         List<IRField> fields = new ArrayList<>();
         List<IRMethod> methods = new ArrayList<>();
@@ -79,11 +79,20 @@ public final class CompilerClassLowering {
                 && !methods.stream().anyMatch(m -> "equals".equals(m.name()))) {
             methods.add(CompilerRecordSupport.buildClassIdentityEqualsMethod(driver, internalName));
         }
-        if (driver.target == Target.JVM) {
+        if (driver.target == Target.JVM || driver.target.isNative()) {
             // §356: bridges também para as INTERFACES implementadas (a
             // chamada via interface usa o descritor apagado do pai).
-            methods.addAll(CompilerRecordSupport.generateCovariantReturnBridges(
-                    driver, internalName, superName, ifaces, methods));
+            // §483: no Native estes bridges TAMBÉM são necessários — o call site
+            // boxa o primitivo contra o param apagado da interface. O slot da
+            // vtable é resolvido por ÍNDICE a partir da interface erasure, então
+            // o bridge precisa vir ANTES do método concreto para ocupar esse slot.
+            List<IRMethod> bridges = CompilerRecordSupport.generateCovariantReturnBridges(
+                    driver, internalName, superName, ifaces, methods);
+            if (driver.target.isNative()) {
+                methods.addAll(0, bridges);
+            } else {
+                methods.addAll(bridges);
+            }
         }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
                 typeId, CompilerAnnotations.lowerAnnotations(driver, cls.annotations()));

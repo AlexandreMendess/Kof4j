@@ -2,7 +2,7 @@
 
 # Idioms — Functions
 
-**Status:** available · **Introduced:** 0.0.4-alpha (sem `fun`) · **Updated:**  0.4.0-beta (Sep 2026)
+**Status:** available · **Introduced:** 0.0.4-alpha (sem `fun`) · **Updated:**  0.5.0-beta (Sep 2026)
 
 ## What it is
 
@@ -56,7 +56,7 @@ int dobro(int x) {
 - Dados + comportamento → classe ou record.
 - `main()` é a única função sem tipo explícito e sem retorno.
 
-## Sobrecarga de função top-level (0.4.0-beta — oracle JVM)
+## Sobrecarga de função top-level (0.5.0-beta — oracle JVM)
 
 Funções top-level homônimas com **assinaturas diferentes** coexistem; a
 chamada resolve o candidato aplicável mais específico, como a JVM.

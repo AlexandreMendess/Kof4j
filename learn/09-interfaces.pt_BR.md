@@ -41,6 +41,32 @@ interface Editavel<T> extends Listavel<T> {
 }
 ```
 
+## Métodos default
+
+Um método de interface COM corpo é um método default — os implementadores
+herdam (#213; §248: JVM, Native x86_64, riscv64/aarch64 e JS):
+
+```kf
+interface Greeter {
+    String greet(String name)
+    String greetLoud(String name) { return greet(name).toUpperCase() }
+}
+
+class Pt implements Greeter {
+    String greet(String name) { return "Ola " + name }
+}
+
+println(Pt("Mel").greetLoud("Mel"))   // OLA Mel (o default chama greet)
+```
+
+- A classe também pode sobrecarregar um default herdado por ARIDADE —
+  `greetLoud(String, Int)` com assinatura diferente coexiste e o typer
+  seleciona por aridade (#610/#611).
+- Herdar a MESMA assinatura default de duas interfaces NÃO relacionadas é o
+  diamante do Java → erro de compilação **SEM101**: "inherits conflicting
+  default method ... (add an explicit override in ...)". Sobrescrever na
+  classe resolve; o default de uma subinterface comum vence legitimamente.
+
 ## Status atual
 
 ✅ Parser e análise semântica reconhecem interfaces

@@ -92,6 +92,9 @@ Kof is a programming language compiled for multiple platforms, strongly typed, o
 | 37 | [KofJS — the Web path](37-kofjs.md) |
 | 38 | [Editors — kof editor](38-editors.md) |
 | 39 | [Universal Standard Library](39-stdlib.md) |
+| 40 | [Low Level — FFI, Native Profiles and Bare Metal](40-low-level.md) |
+| 41 | [Android](41-android.md) |
+| — | [Standard Library — per namespace](stdlib/README.md) |
 | — | [Native — Multiplatform](native/README.md) |
 
 ## Recommended order
@@ -149,11 +152,11 @@ See also `training/` for a structured corpus of Kof knowledge.
 | 39 | Standard Library (math/strings/encoding/uuid/validation/time) | ✅ (4 targets; gates FLT/NAT-STR01) |
 
 Kof is in a consolidation phase. The compiler is functional with JVM,
-Native (x86-64 free-list), Native.risc, Native.arm, KofJS and KofC backends (0.4.0-beta).
+Native (x86-64 free-list), Native.risc, Native.arm, KofJS and KofC backends (0.5.0-beta).
 
 **Tests:** 805
 
-**What works today (0.4.0-beta — Sep 2026 — `jvm/native/native.risc/native.arm/js/kofc`):**
+**What works today (0.5.0-beta — Sep 2026 — `jvm/native/native.risc/native.arm/js/kofc`):**
 - Complete frontend (lexer, parser, type system, semantics) — `intention->Kof->frontend->IR->backend->runtime`
 - Six targets: JVM (ASM), Native x86-64 (free-list GC), Native.risc, Native.arm, KofJS (GraalJS) and KofC (native-only C subset)
 - Classes, records, inheritance, interfaces, virtual dispatch, generics (erasure), `a.b.C` imports fix (largeproj)

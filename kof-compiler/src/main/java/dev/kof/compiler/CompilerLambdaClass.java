@@ -78,7 +78,12 @@ public final class CompilerLambdaClass {
         // e JvmLiteralEmitter.returnOpcode emite IRETURN de forma consistente.
         // kof.process.Result segue a mesma doença: `() -> process.run(...)`
         // round-tripava p/ ClassType("", "Result") → descriptor "LResult;".
+        // §288 (#396): TypeVariable do escopo também PRESERVADO — o round-trip
+        // por string (`T` -> `toType("T")`) fabricaria `ClassType("","T")` e o
+        // descriptor do invoke sairia `LT;` (NoClassDefFoundError/
+        // NoSuchMethodError no load); a erasure central apaga TV p/ Object.
         Type returnType = (ft.returnType() instanceof Type.FunctionType
+                || ft.returnType() instanceof Type.TypeVariable
                 || KofUi.isUiType(ft.returnType()) || KofMedia.isHandleType(ft.returnType())
                 || KofProcess.isResult(ft.returnType()))
                 ? ft.returnType()

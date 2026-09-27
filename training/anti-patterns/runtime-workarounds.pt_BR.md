@@ -43,7 +43,7 @@ var l = json.decode<Int[]>("[1,2,3]")
 Não use mais workaround de JSON (não codificar objeto no Native, trocar
 Double por Int) — a feature fechou.
 
-### 3. Construtor com argumentos — RESOLVIDO (0.4.0-beta)
+### 3. Construtor com argumentos — RESOLVIDO (0.5.0-beta)
 
 ```kof
 // ✅ Primary constructor é a forma idiomática desde 0.0.5
@@ -54,7 +54,7 @@ var u = User("Mel", 30)   // sem new também OK
 
 Não use `// WORKAROUND` para construtor — é feature estável.
 
-### 4. Captura em lambdas — RESOLVIDO (0.4.0-beta)
+### 4. Captura em lambdas — RESOLVIDO (0.5.0-beta)
 
 ```kof
 var offset = 10

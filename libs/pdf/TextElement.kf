@@ -1,0 +1,54 @@
+package pdf
+
+import pdf.PdfElement
+import pdf.style.PdfColor
+import pdf.style.TextAlign
+import pdf.style.TextStyle
+
+class TextElement implements PdfElement {
+    String content
+    Int x
+    Int y
+    Int boxWidth
+    Int spacingAfter
+    Bool positioned
+    TextStyle textStyle
+
+    constructor(String content, Int x, Int y, Bool positioned, Int spacingAfter, TextStyle textStyle) {
+        this.content = content
+        this.x = x
+        this.y = y
+        this.positioned = positioned
+        this.spacingAfter = spacingAfter
+        this.textStyle = textStyle
+        this.boxWidth = 0
+    }
+
+    style(TextStyle value): TextElement {
+        textStyle = value.copy()
+        return this
+    }
+
+    fontSize(Int value): TextElement {
+        textStyle.fontSize(value)
+        return this
+    }
+
+    fontColor(PdfColor value): TextElement {
+        textStyle.fontColor(value)
+        return this
+    }
+
+    align(TextAlign value): TextElement {
+        textStyle.align(value)
+        return this
+    }
+
+    width(Int value): TextElement {
+        if (value <= 0) {
+            throw "Text width must be greater than zero"
+        }
+        boxWidth = value
+        return this
+    }
+}

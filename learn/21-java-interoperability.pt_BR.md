@@ -80,6 +80,32 @@ var hoje = LocalDate.now()          // ❌ SEM011 sem classpath
 var conn = DriverManager.getConnection(url, user, pass)   // ❌ idem
 ```
 
+## Reflexão na fronteira — `interop.schema` (X6)
+
+Quando os dados vêm de fora (schemas Arrow/Parquet/ML), você normalmente precisa
+da **estrutura** do record (nomes + tipos dos campos) para ligar colunas a
+campos. O Kof expõe isso como um **intrínseco de compile-time**, só na fronteira
+de interop — sem reflexão em runtime, sem mapper escrito à mão:
+
+```kf
+import kof.interop
+
+record Order(String id, Double amount, Long qty)
+
+main() {
+    for (var f in interop.schema(Order)) {
+        println(f.name() + ":" + f.type())   // id:String, amount:Double, qty:Long
+    }
+}
+```
+
+`interop.schema(R)` devolve uma `List<Field>` imutável, onde `Field` é um
+`record Field(String name, String type)` fornecido pelo compilador, na ordem de
+declaração. Como a dobra acontece no frontend, a saída é idêntica em
+JVM/Native/Script/JS. Uso inválido é diagnosticado (`INTEROP002` membro
+desconhecido; `INTEROP001` aridade errada / valor / classe / enum) — nunca
+silencioso.
+
 ## Regras de interoperabilidade
 
 1. **Tipos Kof → Java**: mapeados diretamente (`Int` → `int`, `String` → `String`)
@@ -87,6 +113,71 @@ var conn = DriverManager.getConnection(url, user, pass)   // ❌ idem
 3. **Annotations**: chegam ao bytecode corretamente (ver cap. 20)
 4. **Antes de usar API Java**: compile e rode — o suporte é parcial e a
    resolução de overloads ainda tem falhas (02/09)
+
+## Reflexão na fronteira — `interop.schema(R)` (X6)
+
+Quando dados externos precisam se ligar a um `record` Kof (um schema
+Arrow/Parquet/ML), você não escreve um mapper à mão. O compilador já conhece a
+estrutura do record: `interop.schema(R)` dá uma visão somente-leitura dela em
+compile-time — zero reflexão em runtime, logo a mesma saída em todo target.
+Ativado explicitamente por `import kof.interop`.
+
+```kf
+import kof.interop
+
+record Order(String id, Double amount, Long qty)
+
+main() {
+    for (var f in interop.schema(Order)) {
+        println(f.name() + ":" + f.type())   // id:String, amount:Double, qty:Long
+    }
+}
+```
+
+`interop.schema(R)` resolve para uma `List<Field>` imutável, onde `Field` é o
+`record Field(String name, String type)` fornecido pelo compilador, na ordem de
+declaração. Uso inválido é diagnóstico, nunca silêncio (`INTEROP002` para membro
+desconhecido, `INTEROP001` para aridade errada ou argumento que não é record).
+
+## Motores — `KofPy` e `KofR` (a linguagem e detalhe; a face e o contrato)
+
+O `kof.interop` traz motores prontos para o interpretador que voce escolher
+(X2, `D-COMPLETE-FIRST` — medido 26–27/09). Voce declara a FONTE; a plataforma
+monta o RPC, o JSON e as falhas nomeadas:
+
+```kof
+import kof.interop
+var py = KofPy("def greet(name):\n    return 'oi ' + name")
+println(py.callString("greet", listOf("mel")))        // oi mel
+
+var r = KofR("greet <- function(name) paste0('oi ', name)")
+println(r.callString("greet", listOf("mel")))         // oi mel — mesma face, segundo motor
+```
+
+A chamada NUNCA pendura na sua mao: o deadline corre no FILHO, na propria
+linguagem do motor, e cada parada e uma string NOMEADA (excecoes sao Strings
+— a mesma regra de sempre no Kof):
+
+```kof
+py.timeout(2000)                       // default 30000 ms; 0 = sem limite (declarado)
+try {
+    println(py.callInt("loop", listOf()))
+} catch (String e) {
+    println(e)   // INTEROP007: loop exceeded the 2000ms deadline and was stopped by the engine itself
+}
+```
+
+O `cancel()` (de uma task `spawn`, por exemplo) para a chamada viva —
+`INTEROP008` nos dois motores: o python se autopará e reporta `KOFCANCEL`; o R
+morre no SIGINT e o pai NOMEIA a morte (resposta que chegou primeiro vence).
+Records cruzam com o JSON da propria plataforma: `callJson` + `json.decode[T]`.
+Nomes no lugar do chute: `INTEROP004` interpretador ausente/morto,
+`INTEROP005` o alvo nao tem runtime de processo provado (cross §514, ANDROID,
+MCU — recusa em compile-time que mantem a face), `INTEROP006` erro remoto com
+o traceback carregado. Os motores sao `experimental` ate os encoders cross
+pousarem — JVM/x86/JS/Script certificados na CI
+(`InteropPyE2ETest`/`InteropRE2ETest`/`InteropTimeoutE2ETest`).
+Idioma completo: `training/idioms/interop.pt_BR.md` §(e).
 
 ## Próximo passo
 

@@ -25,6 +25,48 @@ O mascote da Kof é uma **civetta** — também conhecida como **gato do almisca
 
 ---
 
+## Contribuintes
+
+Obrigado a essas pessoas maravilhosas (o selo da Kof é a marca delas):
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/melmonfre"><img src="https://github.com/melmonfre.png?s=100" width="100px;" alt="Mel Santos"/><br /><sub><b>Mel Santos</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="#ideas-melmonfre" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com///commits?author=melmonfre" title="Code">💻</a> <a href="#maintenance-melmonfre" title="Maintenance">🚧</a> <a href="#infra-melmonfre" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#security-melmonfre" title="Security">🛡️</a> <a href="https://github.com///pulls?q=is%3Apr+reviewed-by%3Amelmonfre" title="Reviewed Pull Requests">👀</a> <a href="https://github.com///commits?author=melmonfre" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/temmcode"><img src="https://github.com/temmcode.png?s=100" width="100px;" alt="temmcode"/><br /><sub><b>temmcode</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=temmcode" title="Code">💻</a> <a href="https://github.com///commits?author=temmcode" title="Documentation">📖</a> <a href="https://github.com///commits?author=temmcode" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/apps/kof-agent-worker"><img src="https://avatars.githubusercontent.com/in/4960796?s=100&v=4?s=100" width="100px;" alt="kof-agent-worker[bot]"/><br /><sub><b>kof-agent-worker[bot]</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=kof-agent-worker[bot]" title="Code">💻</a> <a href="https://github.com///commits?author=kof-agent-worker[bot]" title="Tests">⚠️</a> <a href="#infra-kof-agent-worker[bot]" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="https://github.com///commits?author=kof-agent-worker[bot]" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/jonasrochasilva-prog"><img src="https://github.com/jonasrochasilva-prog.png?s=100" width="100px;" alt="jonasrochasilva-prog"/><br /><sub><b>jonasrochasilva-prog</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=jonasrochasilva-prog" title="Code">💻</a> <a href="https://github.com///commits?author=jonasrochasilva-prog" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/PublioSantos"><img src="https://github.com/PublioSantos.png?s=100" width="100px;" alt="PublioSantos"/><br /><sub><b>PublioSantos</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=PublioSantos" title="Code">💻</a> <a href="https://github.com///commits?author=PublioSantos" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/apps/dependabot"><img src="https://avatars.githubusercontent.com/in/496992?s=100&v=4?s=100" width="100px;" alt="dependabot[bot]"/><br /><sub><b>dependabot[bot]</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="#infra-dependabot[bot]" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#security-dependabot[bot]" title="Security">🛡️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ViniAguiar1"><img src="https://github.com/ViniAguiar1.png?s=100" width="100px;" alt="ViniAguiar1"/><br /><sub><b>ViniAguiar1</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=ViniAguiar1" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/lchampz"><img src="https://github.com/lchampz.png?s=100" width="100px;" alt="lchampz"/><br /><sub><b>lchampz</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=lchampz" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/nillvitor"><img src="https://github.com/nillvitor.png?s=100" width="100px;" alt="nillvitor"/><br /><sub><b>nillvitor</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=nillvitor" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/FabioRocha231"><img src="https://github.com/FabioRocha231.png?s=100" width="100px;" alt="FabioRocha231"/><br /><sub><b>FabioRocha231</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=FabioRocha231" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ViniciusKoiti"><img src="https://github.com/ViniciusKoiti.png?s=100" width="100px;" alt="ViniciusKoiti"/><br /><sub><b>ViniciusKoiti</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=ViniciusKoiti" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/filipejsales-abinbev"><img src="https://github.com/filipejsales-abinbev.png?s=100" width="100px;" alt="filipejsales-abinbev"/><br /><sub><b>filipejsales-abinbev</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=filipejsales-abinbev" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Anderson-Andre-P"><img src="https://github.com/Anderson-Andre-P.png?s=100" width="100px;" alt="Anderson-Andre-P"/><br /><sub><b>Anderson-Andre-P</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=Anderson-Andre-P" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/jonasrochanasajon"><img src="https://github.com/jonasrochanasajon.png?s=100" width="100px;" alt="jonasrochanasajon"/><br /><sub><b>jonasrochanasajon</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=jonasrochanasajon" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/matheusdgdcampos"><img src="https://github.com/matheusdgdcampos.png?s=100" width="100px;" alt="matheusdgdcampos"/><br /><sub><b>matheusdgdcampos</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=matheusdgdcampos" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/lunalully"><img src="https://github.com/lunalully.png?s=100" width="100px;" alt="lunalully"/><br /><sub><b>lunalully</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=lunalully" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ronald2329"><img src="https://github.com/ronald2329.png?s=100" width="100px;" alt="ronald2329"/><br /><sub><b>ronald2329</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=ronald2329" title="Code">💻</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+---
+
 ## Disclaimer
 
 A linguagem Kof não possui qualquer relação com o jogo The King of Fighters ou com sua franquia.
@@ -127,7 +169,7 @@ Kof não depende de Java como linguagem intermediária.
 
 # Estado Atual
 
-Kof está em desenvolvimento ativo — **0.4.0-beta**.
+Kof está em desenvolvimento ativo — **0.5.0-beta**.
 
 O compilador possui frontend próprio, type system, Kof IR e **três backends
 sobre a IR**, que produzem **seis targets**: JVM (V21 via ASM), Native x86_64
@@ -170,7 +212,7 @@ no JS (CONC003). Ver [docs/language-reference/concurrency.md](docs/language-refe
 **Null safety**: `String?`/`Int?` + `if (x != null)` narrowing nos 3 targets
 (fix JVM 02/09). `Map.get` devolve `V?` para valores de referência.
 
-**Testes**: `test "nome" { }` + `assert(cond, "msg")` + `kof test` — 2218 testes
+**Testes**: `test "nome" { }` + `assert(cond, "msg")` + `kof test` — 3225 testes
 (1907 kof-compiler + 38 kof-script + 7 kof-c-compiler + 262 kof-cli). Ver
 [learn/23-testing.md](learn/23-testing.md).
 
@@ -312,9 +354,10 @@ Kof é uma **distribuição**: instale e receba compilador, CLI, runtime,
 stdlib, tooling, editor support e um OpenJDK embutido. **Nenhuma instalação
 externa de Java é necessária** — e não precisa saber a versão para instalar.
 
-1. Baixe o pacote do **seu** sistema em
-   [GitHub Releases](https://github.com/KofLang/Kof4j/releases/latest):
-   `linux-x86_64.tar.gz` / `macos-arm64.tar.gz` / `windows-x86_64.zip`.
+1. Baixe o pacote do **seu** sistema:
+   - **Releases** (estáveis, `main`): [GitHub Releases](https://github.com/KofLang/Kof4j/releases)
+   - **Pre-releases** (beta, `beta-*`): [Pre-releases](https://github.com/KofLang/Kof4j/releases?q=prerelease%3Atrue) — ex. `kof-0.5.0-beta+2026.09.17`
+   Variantes: `linux-x86_64.tar.gz` / `macos-arm64.tar.gz` / `macos-x86_64.tar.gz` (Intel) / `windows-x86_64.zip`.
 2. Extraia e adicione o `bin` ao `PATH`:
 
 ```bash
@@ -325,6 +368,10 @@ export PATH="$PWD/$(ls -d kof-*-linux-x86_64 | head -1)/bin:$PATH"
 # macOS (Apple Silicon)
 tar -xzf kof-*-macos-arm64.tar.gz
 export PATH="$PWD/$(ls -d kof-*-macos-arm64 | head -1)/bin:$PATH"
+
+# macOS (Intel)
+tar -xzf kof-*-macos-x86_64.tar.gz
+export PATH="$PWD/$(ls -d kof-*-macos-x86_64 | head -1)/bin:$PATH"
 
 # Windows (PowerShell)
 Expand-Archive .\kof-*-windows-x86_64.zip
@@ -513,3 +560,16 @@ Para mais detalhes, consulte [docs/distribution/LICENSING.md](docs/distribution/
 *Uma linguagem. Um compilador. Vários mundos.*
 
 *Menos cerimônia. Mais intenção.*
+
+---
+
+*eu sempre fui opensource*
+*pro mundo inteiro poder me usar*
+*assim eu construo um mundo melhor*
+*e desenho com todos os meus Koffies*
+*pra me construir e me controlar*
+*o que o futuro reserva pra mim*
+*e pra comunidade que segue em frente*
+*construindo a história*
+
+*(inspirado no openSUSE)*

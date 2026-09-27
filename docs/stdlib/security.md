@@ -3,7 +3,7 @@
 # Kof Standard Library — Security + Enterprise Capability Audit
 
 **Last updated:** September 12, 2026
-**Version:** 0.4.0-beta (free-list + riscv64; `kof.http` JVM+JS + retry/circuit)
+**Version:** 0.5.0-beta (free-list + riscv64; `kof.http` JVM+JS + retry/circuit)
 
 > Permanent architectural document.
 >
@@ -200,7 +200,7 @@ resolves the runtime function and each target provides the implementation.
 | `kof.http` (serve + client) | YES | YES | PARTIAL (auth via middleware) | JVM (serve); JVM+JS (client) | YES | YES | YES |
 | `kof.web` (web.app, routes, ws/sse) | YES | YES | PARTIAL (auth under construction) | JVM | YES | YES (new) | YES |
 | `kof.rest` | NO | — | — | — | — | — | — |
-| `kof.database` (`kof.db` + `kof.orm`) | YES | YES | YES (typed bind; explicit SQL) | JVM + Native (SQLite/MySQL WIP) | YES | YES | YES |
+| `kof.database` (`kof.db` + `kof.orm`) | YES | YES | YES (typed bind; explicit SQL) | JVM + Native (SQLite; MySQL wire x86-64 real, F2d1–F2d7) | YES | YES | YES |
 | `kof.security` | YES | YES | YES | JVM/Native/JS | YES | YES | YES |
 | `kof.concurrent` (spawn/await) | YES | YES | YES | JVM/Native (pthread)/JS | YES | YES | YES |
 | `kof.messaging` (`kof.mq`) | YES | YES | PARTIAL (in-memory) | JVM+JS | YES | YES | YES |
@@ -229,9 +229,10 @@ resolves the runtime function and each target provides the implementation.
 | Secure random | NONEXISTENT (no random API) |
 | JWT | NONEXISTENT |
 | Headers/CSRF/CORS | NONEXISTENT |
-| Secrets (env) | NONEXISTENT |
+| Secrets (env) | `secrets.get(name[,fallback])` (raw `String`) + `secrets.secret(name)` → `Secret` |
 | Auth in HTTP | PARTIAL: manual `header("x-auth")` in the middleware |
-| Secrets in logs | NO PROTECTION |
+| Secrets in logs | PROTECTED on JVM via the `Secret` type (D-SECRETS, Stage 5/3.6): prints `Secret(*** )`, raw text only through `reveal()`, `json.encode(secret)` redacted at runtime (P2) and a `SECN009` warning when `reveal()` feeds `log.*`/`json.encode`. JS/Native/Script = honest gap `SECN008` (Android runs `kof.security` since §278, 23/09) |
+| Key material | `KeyHandle` (D-SECRETS P3) never exposes raw bytes: `secrets.keyFromHex/keyFromPem/keyFromKeystore(...)`, `rotate()` revokes the old handle (later use `SECN010`); JS/Native/Script = honest gap `SECN008` (Android runs `kof.security` since §278, 23/09) |
 
 ---
 
@@ -244,7 +245,8 @@ kof.security
 ├── passwords        → hash/verify/needsRehash (PBKDF2-HMAC-SHA256, secure by default)
 ├── crypto           → sha256/sha512, hmacSha256, aesGcm (encrypt/decrypt), randomHex/randomInt
 ├── jwt              → create/verify (HS256, exp/iss/aud, no algorithm confusion)
-├── secrets          → get (env), redact
+├── secrets          → get (env, raw String), redact, of/secret/fromBytes (→ Secret value type),
+│                      keyFromHex/keyFromPem/keyFromKeystore (→ KeyHandle, raw key never exposed)
 ├── security         → constantTimeEquals, randomHex, redact, csrfToken/csrfValid, corsAllowed, headers helpers,
 │                      rateLimit, sessionCreate/sessionGet/sessionDestroy, apiKeyGenerate/apiKeyValid (G9),
 │                      cookieSet/cookieGet (C11, secure defaults)
@@ -321,9 +323,9 @@ jwt:         RFC 7519 HS256 (alg fixed, never accepted from the token)
 
 ---
 
-# 7. IMPLEMENTATION STATE (0.4.0-beta, re-synced 17/09/2026 — `VERSION` 0.4.0-beta, 2218 tests, free-list + mark-sweep + riscv64)
+# 7. IMPLEMENTATION STATE (0.5.0-beta, re-synced 17/09/2026 — `VERSION` 0.5.0-beta, 2218 tests, free-list + mark-sweep + riscv64)
 
-## 7.1 Implemented (0.4.0-beta)
+## 7.1 Implemented (0.5.0-beta)
 
 | API | JVM | Native x86_64 (+ riscv64) | JS | Format |
 |-----|-----|---------------------------|----|---------|
@@ -344,6 +346,14 @@ jwt:         RFC 7519 HS256 (alg fixed, never accepted from the token)
 | `jwt.secret()` | ✅ env `KOF_JWT_SECRET` or generated | ✅ (`/proc/self/environ`) | ✅ | 32 bytes hex |
 | `secrets.get(name[, fallback])` | ✅ env | ✅ `/proc/self/environ` | ✅ platform | |
 | `secrets.redact(value)` | ✅ | ✅ (asm) | ✅ | `abcd********wxyz` |
+| `secrets.of(text)` / `secrets.secret(name)` | ✅ (→ `Secret`) | ❌ `SECN008` | ❌ `SECN008` | D-SECRETS face 1 |
+| `secrets.fromBytes(bytes)` | ✅ (→ `Secret`, per-byte Latin-1) | ❌ `SECN008` | ❌ `SECN008` | lossless for non-text bytes |
+| `Secret.reveal()` / `.redacted()` | ✅ | ❌ `SECN008` | ❌ `SECN008` | prints `Secret(*** )`; `reveal()` is the only raw export |
+| `secrets.keyFromHex/keyFromPem/keyFromKeystore(...)` | ✅ (→ `KeyHandle`) | ❌ `SECN008` | ❌ `SECN008` | P3; raw key bytes never exposed |
+| `KeyHandle.rotate()` | ✅ | ❌ `SECN008` | ❌ `SECN008` | revokes the old handle; later use fails `SECN010` |
+| `crypto.hmacSha256(KeyHandle, msg)` / `aesGcm` / `chacha20` with `KeyHandle` | ✅ | ❌ `SECN008` | ❌ `SECN008` | P3 overloads |
+| `jwt.create/verify(..., KeyHandle)` | ✅ | ❌ `SECN008` | ❌ `SECN008` | P3 overloads |
+| `json.encode(Secret)` | ✅ redacted `"Secret(*** )"` | n/a | n/a | P2: never field-dumps a secret |
 | `security.constantTimeEquals(a, b)` | ✅ `MessageDigest.isEqual` | ✅ (asm) | ✅ | |
 | `security.randomHex` / `randomInt` | ✅ | ✅ | ✅ | |
 | `security.csrfToken/csrfValid` | ✅ (session-scoped) | ❌ | ❌ | |
@@ -390,6 +400,14 @@ target gap diagnostics (SECN001/002/003). Adversarial cases included (§18).
   explicit entry in `KofSecurity.supportedOn` (Native/JS report
   `SECN004` at compile-time instead of a silent link); `auth.*`/`csrf`/`cors`/
   headers are now restricted to `Target.JVM` in `supportedOn`.
+- `SECN008` — `Secret`/`KeyHandle` are JVM-first (D-SECRETS): every other
+  target refuses at compile time, never a silent fallback (R6/R7).
+- `SECN009` — **warning** (not an error) when a `reveal()` result flows directly
+  into `log.*` or `json.encode`; the redaction is enforced at runtime, the
+  warning just surfaces the deliberate unmasking. Indirect flows
+  (assign to a variable, then log) are a declared limitation of the lint.
+- `SECN010` — using a `KeyHandle` after `rotate()` fails at runtime naming the
+  revocation (`IllegalStateException`), so a rotated key can never be reused.
 
 ## 7.6 Bug fixes discovered during the implementation
 

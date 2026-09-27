@@ -276,7 +276,7 @@ main() {
         Path out = Files.createTempDirectory("rtout");
         var r = driver.compile(source, out, Target.JVM);
         assertTrue(r.success(), "" + r.diagnostics().getDiagnostics());
-        Process p = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
+        Process p = new ProcessBuilder(TestJdk.javaBin(),
                 "-cp", out.toString(), "Default.Main").redirectErrorStream(true).start();
         String o = new String(p.getInputStream().readAllBytes()).trim();
         assertEquals(0, p.waitFor(), o);
@@ -332,7 +332,7 @@ main() {
     if (!rep.allOk()) { throw "pipeline red" }
 }
 """);
-        Process ok = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
+        Process ok = new ProcessBuilder(TestJdk.javaBin(),
                 "-cp", outOk.toString(), "Default.Main").redirectErrorStream(true).start();
         String oOk = new String(ok.getInputStream().readAllBytes()).trim();
         assertEquals(0, ok.waitFor(), oOk);
@@ -341,7 +341,7 @@ main() {
 
         Path outBad = Files.createTempDirectory("wfbad");
         runWf(outBad, WF_PIPELINE);
-        Process bad = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
+        Process bad = new ProcessBuilder(TestJdk.javaBin(),
                 "-cp", outBad.toString(), "Default.Main").redirectErrorStream(true).start();
         String oBad = new String(bad.getInputStream().readAllBytes()).trim();
         assertTrue(bad.waitFor() != 0, "pipeline vermelho PRECISA sair com exit!=0 (contrato de CI):\n" + oBad);

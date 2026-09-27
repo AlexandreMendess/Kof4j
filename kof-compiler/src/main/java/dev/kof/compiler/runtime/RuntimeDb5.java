@@ -399,6 +399,11 @@ public final class RuntimeDb5 {
                 movq %rax, %rsi               # rsi = len (make_string: rdi=src, rsi=len)
                 call kof_io_make_string
                 movq %rax, %r12
+                # §488: celula de STRING VAZIA (len 0) NAO pode cair no loop de
+                # digitos (0 >= 0 => is_num), que anexa vazio cru -> JSON invalido
+                # `{"s":,`. Rota para kof_json_encode_string -> `""` (contrato JVM).
+                cmpl $0, 16(%r12)
+                je .Ldb_mysql_is_str\\n
                 xorl %r10d, %r10d
             .Ldb_mysql_num\\n:
                 cmpl 16(%r12), %r10d
@@ -423,12 +428,22 @@ public final class RuntimeDb5 {
                 call kof_json_builder_str
                 jmp .Ldb_mysql_val\\n
             .Ldb_mysql_null\\n:
-                leaq .Ldb_mysql_nullstr(%rip), %rdi
-                xorl %esi, %esi
-                call kof_io_make_string
+                # §488: NULL -> literal `null` SEM aspas (contrato JVM
+                # kof_db_row_to_json; paridade byte a byte com a peca cross B70,
+                # NativeRiscvAsmRtB70 .L70_null). Antes anexava make_string len=0
+                # cru -> JSON invalido `{"n":,`.
                 movq %r15, %rdi
-                movq %rax, %rsi
-                call kof_json_builder_str
+                movl $110, %esi
+                call kof_json_builder_char
+                movq %r15, %rdi
+                movl $117, %esi
+                call kof_json_builder_char
+                movq %r15, %rdi
+                movl $108, %esi
+                call kof_json_builder_char
+                movq %r15, %rdi
+                movl $108, %esi
+                call kof_json_builder_char
                 movq 24(%rsp), %rsi
                 incq %rsi
             """);

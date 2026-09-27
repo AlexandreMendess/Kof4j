@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  * {@code run} executa (com {@code --job} para um subgrafo e {@code --dry-run}
  * para a ordem topológica), {@code --json} devolve a forma de máquina.
  *
- * <p>JVM primeiro (R7): os demais alvos são fatias seguintes com o gap
+ * <p>JVM+JS (R7): {@code --target js} roda o mesmo protocolo de linha marcada
  * honesto quando um corpo precisar de primitiva indisponível.
  */
 final class CmdWorkflow {
@@ -35,7 +35,7 @@ final class CmdWorkflow {
     private static final String MARK = "@@KOF_WORKFLOW@@ ";
 
     private static final String USAGE =
-            "usage: kof workflow <list|run> <file.kf> [--json] [--job <name>] [--dry-run] [--target jvm]\n"
+            "usage: kof workflow <list|run> <file.kf> [--json] [--job <name>] [--dry-run] [--target jvm|js]\n"
             + "  a pipeline file imports kof.workflow and defines pipeline(): KofWfDag (no main())\n"
             + "  list        show the jobs and their dependencies\n"
             + "  run         execute the dag (exit 0 iff every job succeeded)\n"
@@ -83,8 +83,8 @@ final class CmdWorkflow {
             System.err.println("workflow list: --job/--dry-run only apply to 'run'");
             return 1;
         }
-        if (target != Target.JVM) {
-            System.err.println("workflow: target not supported yet (R7: JVM first; js/native are follow-up slices)");
+        if (target != Target.JVM && target != Target.JS) {
+            System.err.println("workflow: target not supported yet (R7: JVM first; script/native are follow-up slices)");
             return 1;
         }
         if (!Files.exists(file)) { System.err.println("not found: " + file); return 1; }
@@ -138,17 +138,36 @@ final class CmdWorkflow {
 
         List<Path> sources = KofCliSupport.collect(temp);
         CompilerDriver driver = new CompilerDriver();
-        CompilationResult result = driver.compileSources(sources, out, Target.JVM, temp);
+        CompilationResult result = driver.compileSources(sources, out, target, temp);
         for (Diagnostic d : result.diagnostics().getDiagnostics()) System.err.println(d.format());
         if (!result.success()) { KofCliSupport.cleanup(temp); return 1; }
 
+        String output;
+        if (target == Target.JS) {
+            // mesmo contrato do caminho JVM: tudo que o guest escrever (stdout
+            // + stderr confluentes) vira `output`; a linha marcada decide. O
+            // cwd do processo do CLI vale p/ caminhos relativos (paridade com
+            // CmdRun --target js; o subprocess JVM usa o dir do arquivo).
+            java.io.ByteArrayOutputStream cap = new java.io.ByteArrayOutputStream();
+            try {
+                dev.kof.runtime.KofJsRunner.run(out.resolve("Default.mjs"), cap,
+                        new java.io.ByteArrayInputStream(new byte[0]),
+                        KofCliSupport.tee(System.err, cap),
+                        false, new String[0]);
+            } catch (IOException e) {
+                System.err.println("workflow: failed to execute: " + e.getMessage());
+                KofCliSupport.cleanup(temp);
+                return 1;
+            }
+            output = cap.toString(java.nio.charset.StandardCharsets.UTF_8);
+            KofCliSupport.cleanup(temp);
+        } else {
         String className = KofCliSupport.findMainClass(out);
         if (className == null) {
             System.err.println("workflow: no main class produced");
             KofCliSupport.cleanup(temp);
             return 1;
         }
-        String output;
         try {
             ProcessBuilder pb = new ProcessBuilder(
                     KofCliSupport.javaExecutable(), "-cp", out.toString(), className);
@@ -165,6 +184,8 @@ final class CmdWorkflow {
             return 1;
         } finally {
             KofCliSupport.cleanup(temp);
+        }
+
         }
 
         String jsonLine = null;
@@ -195,7 +216,7 @@ final class CmdWorkflow {
             return 0;
         }
         printReport(obj, json, jsonLine);
-        return Boolean.TRUE.equals(obj.get("allOk")) ? 0 : 1;
+        return KofCliSupport.truthy(obj.get("allOk")) ? 0 : 1;
     }
 
     /** main() sintetizado (texto Kof) — a única convenção nova do runner. */

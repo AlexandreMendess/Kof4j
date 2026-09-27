@@ -31,6 +31,18 @@ final class GenericReturnAdapter {
         if (effective instanceof Type.TypeVariable tv && tv.bound() != null) {
             effective = tv.bound();
         }
+        emitBound(driver, ops, effective);
+    }
+
+    /**
+     * §479 — mesma decisão primitivo/referência do {@link #emit}, mas para um
+     * tipo EFETIVO já LIGADO pelo witness explícito do call-site
+     * (`idf<Point>(...)`): a decisão independe de {@code inferExprType}, que
+     * no path de módulo/CLI não registra o tipo da chamada top-level genérica
+     * e deixava o checkcast de referência de fora (VerifyError no load).
+     */
+    static void emitBound(CompilerDriver driver, List<KofOperation> ops, Type effective) {
+        if (effective == null || effective instanceof Type.UnknownType) return;
         if (TypeMetrics.isPrimitiveType(effective)) {
             driver.emitErasureUnbox(ops, effective);
             return;
@@ -41,4 +53,34 @@ final class GenericReturnAdapter {
             ops.add(new KofCheckCast(ref));
         }
     }
+
+    /**
+     * §482 — substitui as variáveis de tipo da DECLARAÇÃO pelos argumentos
+     * EXPLÍCITOS do call-site (`idf<Point>` com `T idf<T>(T x)` → `Point`),
+     * recursivo (List<T>, T?, arrays). Dono natural: a adaptação de retorno
+     * genérico desta classe (o binding alimenta o {@link #emitBound};
+     * NÃO alimenta o descritor do KofCall, que fica apagado/erasure).
+     */
+    static Type bindTypeVariables(Type t, List<String> typeParams, List<Type> witness) {
+        if (t instanceof Type.TypeVariable tv) {
+            for (int i = 0; i < typeParams.size(); i++) {
+                if (i < witness.size() && TypeParams.name(typeParams.get(i)).equals(tv.name())) {
+                    return witness.get(i);
+                }
+            }
+            return t;
+        }
+        if (t instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
+            return new Type.ClassType(ct.packageName(), ct.name(),
+                    ct.typeArguments().stream().map(ta -> bindTypeVariables(ta, typeParams, witness)).toList());
+        }
+        if (t instanceof Type.ArrayType at) {
+            return new Type.ArrayType(bindTypeVariables(at.componentType(), typeParams, witness));
+        }
+        if (t instanceof Type.NullableType nt) {
+            return new Type.NullableType(bindTypeVariables(nt.inner(), typeParams, witness));
+        }
+        return t;
+    }
 }
+

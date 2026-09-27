@@ -29,7 +29,47 @@ public final class CompilerImports {
                                             DiagnosticCollector currentDiagnostics,
                                             java.util.Map<AstNode, String> declarationPackages,
                                             ExternalClasspath externalClasspath) {
+        return expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages,
+                externalClasspath, List.of());
+    }
+
+    static CompilationUnitNode expandKofImports(CompilationUnitNode unit,
+                                            Path moduleRoot,
+                                            DiagnosticCollector currentDiagnostics,
+                                            java.util.Map<AstNode, String> declarationPackages,
+                                            ExternalClasspath externalClasspath,
+                                            List<Path> dependencySourceRoots) {
+        return expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages,
+                externalClasspath, dependencySourceRoots, List.of());
+    }
+
+    static CompilationUnitNode expandKofImports(CompilationUnitNode unit,
+                                            Path moduleRoot,
+                                            DiagnosticCollector currentDiagnostics,
+                                            java.util.Map<AstNode, String> declarationPackages,
+                                            ExternalClasspath externalClasspath,
+                                            List<Path> dependencySourceRoots,
+                                            List<Path> compiledSources) {
         java.util.Set<String> visitedDirs = new java.util.HashSet<>();
+        // #628 (root cause): a file already compiled in `sources` must NEVER be
+        // re-parsed through an import — the import copy loses the package
+        // (a class constant `Rotulo` instead of `dominio/Rotulo` -> the JVM
+        // aborts with NoClassDefFoundError at load) and re-registers top-level
+        // functions (SEM047/SEM057). Seed the per-path dedup with them.
+        for (Path compiled : compiledSources) {
+            visitedDirs.add(compiled.toAbsolutePath().normalize().toString());
+        }
+        // Raízes de biblioteca depois do módulo local: stdlib oficial PRIMEIRO, depois as fontes
+        // de dependências (#566 opção b) — uma dependência nunca sombreia a stdlib.
+        List<Path> libraryRoots = new ArrayList<>();
+        Path officialLibraryRoot = officialLibraryRoot();
+        if (officialLibraryRoot != null) libraryRoots.add(officialLibraryRoot);
+        if (dependencySourceRoots != null) {
+            for (Path r : dependencySourceRoots) {
+                Path root = r.toAbsolutePath().normalize();
+                if (Files.isDirectory(root) && !libraryRoots.contains(root)) libraryRoots.add(root);
+            }
+        }
         // Fase 1 (PKG007): grafo import → imports do arquivo (fechado após
         // a expansão; ciclos detectados globalmente ao fim do loop).
         java.util.Map<String, java.util.Set<String>> graph = new java.util.HashMap<>();
@@ -43,9 +83,20 @@ public final class CompilerImports {
             if (wildcard) {
                 imp = imp.substring(0, imp.length() - 2);
             }
+            Path resolutionRoot = moduleRoot;
             Path pkgDir = moduleRoot != null
                     ? moduleRoot.resolve(imp.replace('.', '/'))
                     : Path.of(imp.replace('.', '/'));
+            if (!Files.isDirectory(pkgDir)) {
+                for (Path libRoot : libraryRoots) {
+                    Path libPackage = libRoot.resolve(imp.replace('.', '/'));
+                    if (Files.isDirectory(libPackage)) {
+                        pkgDir = libPackage;
+                        resolutionRoot = libRoot;
+                        break;
+                    }
+                }
+            }
             // Try directory import first (import a.b -> whole package a/b)
             if (Files.isDirectory(pkgDir)) {
                 String dirKey = pkgDir.toAbsolutePath().normalize().toString();
@@ -57,6 +108,9 @@ public final class CompilerImports {
                     for (Path kf : stream.filter(p -> p.toString().endsWith(".kf"))
                             .sorted(java.util.Comparator.comparing(p -> p.getFileName().toString()))
                             .toList()) {
+                        if (!visitedDirs.add(kf.toAbsolutePath().normalize().toString())) {
+                            continue; // #628: file already compiled or already imported
+                        }
                         String code = Files.readString(kf);
                         String fileName = kf.getFileName().toString();
                         DiagnosticCollector silent = new DiagnosticCollector();
@@ -71,8 +125,9 @@ public final class CompilerImports {
                             }
                             continue;
                         }
-                        String expectedPkg = (moduleRoot != null
-                                && dirKey.equals(moduleRoot.toAbsolutePath().normalize().toString()))
+                        String expectedPkg = (resolutionRoot != null
+                                && resolutionRoot.equals(moduleRoot)
+                                && dirKey.equals(resolutionRoot.toAbsolutePath().normalize().toString()))
                                 ? "" : imp;
                         if (!libUnit.packageName().isEmpty()
                                 && !libUnit.packageName().equals(expectedPkg)
@@ -110,6 +165,13 @@ public final class CompilerImports {
                 String filePart = imp.substring(lastDot + 1);
                 Path pkgPath = moduleRoot != null ? moduleRoot.resolve(pkgPart.replace('.', '/')) : Path.of(pkgPart.replace('.', '/'));
                 Path kfFile = pkgPath.resolve(filePart + ".kf");
+                if (!Files.isRegularFile(kfFile)) {
+                    for (Path libRoot : libraryRoots) {
+                        Path candidate = libRoot.resolve(pkgPart.replace('.', '/'))
+                                .resolve(filePart + ".kf");
+                        if (Files.isRegularFile(candidate)) { kfFile = candidate; break; }
+                    }
+                }
                 if (Files.isRegularFile(kfFile)) {
                     String pkgKey = kfFile.toAbsolutePath().normalize().toString();
                     if (!visitedDirs.add(pkgKey)) {
@@ -169,7 +231,8 @@ public final class CompilerImports {
                 currentDiagnostics.error("", 0, 0, 0,
                         "import '" + imp + "' not found in the module"
                                 + " (expected " + imp.replace('.', '/') + "/ or "
-                                + imp.replace('.', '/') + ".kf under the root)",
+                                + imp.replace('.', '/') + ".kf under the root"
+                                + " or the official libraries)",
                         "PKG006");
             }
             // import externo (android.* etc.) — ignora
@@ -204,7 +267,7 @@ public final class CompilerImports {
                 // diferentes é colisão real. A mesma declaração re-adicionada
                 // via import transitivo (fonte explícita + import) não é.
                 if (currentDiagnostics != null) {
-                    currentDiagnostics.error("", 0, 0, 0,
+                    currentDiagnostics.error(d,
                             "duplicate type name '" + n + "' in package '" + pkg + "'",
                             "PKG005");
                 }
@@ -214,6 +277,15 @@ public final class CompilerImports {
         }
         return new CompilationUnitNode(unit.position(), unit.packageName(),
                 imports, decls);
+    }
+
+    private static Path officialLibraryRoot() {
+        String installDir = System.getProperty("kof.install.dir", "").trim();
+        if (installDir.isEmpty()) return null;
+
+        Path root = Path.of(installDir).resolve("lib").resolve("kof-libs")
+                .toAbsolutePath().normalize();
+        return Files.isDirectory(root) ? root : null;
     }
 
     static String declarationName(AstNode d) {

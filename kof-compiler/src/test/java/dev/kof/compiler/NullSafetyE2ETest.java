@@ -253,6 +253,50 @@ class NullSafetyE2ETest {
             """, "2\ndone");
     }
 
+    @Test
+    void earlyReturnNarrowsLocalsJvm(@TempDir Path tmp) throws Exception {
+        // §353 revealed: the SAME SG-005 narrowing in early-return shape —
+        // `if (x == null) { return/throw }` then `x.length` is the null-false
+        // flow; must typecheck and run.
+        runJvm(tmp, """
+            String? next(Int i) {
+                if (i < 5) return "v" + i
+                return null
+            }
+            main() {
+                var s = next(0)
+                if (s == null) { return }
+                println(s.length)
+                var t = next(9)
+                if (t != null) { println("nao") }
+                if (t == null) { println("sim"); return }
+                println(t.length)
+            }
+            """, "2\nsim");
+    }
+
+    @Test
+    void earlyExitGuardRequired(@TempDir Path tmp) throws Exception {
+        // The negative twin: without a guaranteed exit the null can still
+        // fall through — SEM049 must keep firing (no false acceptance).
+        Path file = tmp.resolve("Neg.kf");
+        Files.writeString(file, """
+            String? next(Int i) {
+                if (i < 5) return "v" + i
+                return null
+            }
+            main() {
+                var s = next(0)
+                if (s == null) { println("nil") }
+                println(s.length)
+            }
+            """);
+        CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "SEM049 esperado: fluxo pode continuar com null");
+        String diags = String.valueOf(result.diagnostics().getDiagnostics());
+        assertTrue(diags.contains("SEM049"), () -> "esperado SEM049 em: " + diags);
+    }
+
     private String runJvm(Path tempDir, String source, String expected) throws java.io.IOException {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

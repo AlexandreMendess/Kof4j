@@ -234,26 +234,123 @@ public final class JvmConfigRuntime {
                         // MongoDB: o driver (mongodb-driver-sync) fica no
                         // classpath do programa — o runtime usa reflexão para
                         // não depender dele em compile-time
-                        Class<?> clients = Class.forName("com.mongodb.client.MongoClients");
-                        Object client = clients.getMethod("create", String.class).invoke(null, url);
-                        String dbName = url;
-                        int slash = url.indexOf('/', "mongodb://".length());
-                        if (slash > 0) {
-                            int q = url.indexOf('?', slash);
-                            dbName = url.substring(slash + 1, q > 0 ? q : url.length());
+                        try {
+                            Class<?> clients = Class.forName("com.mongodb.client.MongoClients");
+                            Object client = clients.getMethod("create", String.class).invoke(null, url);
+                            String dbName = url;
+                            int slash = url.indexOf('/', "mongodb://".length());
+                            if (slash > 0) {
+                                int q = url.indexOf('?', slash);
+                                dbName = url.substring(slash + 1, q > 0 ? q : url.length());
+                            }
+                            if (dbName.isEmpty()) dbName = "kof";
+                            Object database = client.getClass().getMethod("getDatabase", String.class)
+                                    .invoke(client, dbName);
+                            String id = "mongo-" + KOF_MONGO_SEQ.incrementAndGet();
+                            KOF_MONGO.put(id, database);
+                            return id;
+                        } catch (ClassNotFoundException e) {
+                            // S3/db-parity: driver ausente = DB001 NOMEADO (R6),
+                            // nunca um ClassNotFoundException cru.
+                            throw new IllegalArgumentException(
+                                    "DB001: mongodb:// needs the mongodb-driver-sync on the classpath: " + url);
                         }
-                        if (dbName.isEmpty()) dbName = "kof";
-                        Object database = client.getClass().getMethod("getDatabase", String.class)
-                                .invoke(client, dbName);
-                        String id = "mongo-" + KOF_MONGO_SEQ.incrementAndGet();
-                        KOF_MONGO.put(id, database);
-                        return id;
                     }
-                    return kof_db_register(java.sql.DriverManager.getConnection(url));
+                    try {
+                        return kof_db_register(java.sql.DriverManager.getConnection(normalizeBareScheme(url)));
+                    } catch (java.sql.SQLException e) {
+                        throw kof_db_driver_gap(url, e);
+                    }
                 }
 
                 public static String kof_db_connect2(String url, String user, String pass) throws Exception {
-                    return kof_db_register(java.sql.DriverManager.getConnection(url, user, pass));
+                    try {
+                        return kof_db_register(java.sql.DriverManager.getConnection(normalizeBareScheme(url), user, pass));
+                    } catch (java.sql.SQLException e) {
+                        throw kof_db_driver_gap(url, e);
+                    }
+                }
+
+                /** D-DB-NORMALIZE (27/09, voted by the maintainer): bare schemes
+                 *  normalize to their `jdbc:` equivalent so the SAME url works
+                 *  on JVM/JS and Native — `mysql://`→`jdbc:mariadb://` (the
+                 *  mariadb-java-client driver only accepts the `mariadb:`
+                 *  sub-scheme — measured 27/09: `jdbc:mysql:` gets
+                 *  "No suitable driver" even with the driver on cp),
+                 *  `mariadb://`→`jdbc:mariadb://`,
+                 *  `postgres://`→`jdbc:postgresql://` (userinfo becomes
+                 *  `?user=`/`&password=`, merged with an existing query without
+                 *  overriding params already there),
+                 *  `sqlite:<rest>`→`jdbc:sqlite:<rest>`. `mongodb://` never
+                 *  reaches here (own branch above); `oracle://` stays DB001
+                 *  (S4 declared); unparseable input returns unchanged so the
+                 *  downstream `No suitable driver` still becomes the named
+                 *  DB001 — never silent, never masked. */
+                private static String normalizeBareScheme(String url) {
+                    if (url == null) return null;
+                    String jdbcScheme;
+                    if (url.startsWith("mysql://")) jdbcScheme = "jdbc:mariadb://";
+                    else if (url.startsWith("mariadb://")) jdbcScheme = "jdbc:mariadb://";
+                    else if (url.startsWith("postgres://")) jdbcScheme = "jdbc:postgresql://";
+                    else if (url.startsWith("sqlite:")) return "jdbc:sqlite:" + url.substring("sqlite:".length());
+                    else return url;
+                    java.net.URI u;
+                    try {
+                        u = new java.net.URI(url);
+                    } catch (Exception e) {
+                        return url;
+                    }
+                    String host = u.getHost();
+                    if (host == null) return url;
+                    if (host.contains(":") && !host.startsWith("[")) host = "[" + host + "]";
+                    StringBuilder sb = new StringBuilder(jdbcScheme).append(host);
+                    if (u.getPort() != -1) sb.append(':').append(u.getPort());
+                    String path = u.getPath();
+                    if (path != null && !path.isEmpty()) sb.append(path);
+                    String query = u.getQuery();
+                    String user = null, pass = null;
+                    String userInfo = u.getUserInfo();
+                    if (userInfo != null) {
+                        int c = userInfo.indexOf(':');
+                        if (c < 0) user = userInfo;
+                        else {
+                            user = userInfo.substring(0, c);
+                            pass = userInfo.substring(c + 1);
+                        }
+                    }
+                    StringBuilder q = new StringBuilder(query == null ? "" : query);
+                    if (user != null && !user.isEmpty() && !hasQueryParam(query, "user")) {
+                        if (q.length() > 0) q.append('&');
+                        q.append("user=").append(user);
+                    }
+                    if (pass != null && !pass.isEmpty() && !hasQueryParam(query, "password")
+                            && !hasQueryParam(query, "pass")) {
+                        if (q.length() > 0) q.append('&');
+                        q.append("password=").append(pass);
+                    }
+                    if (q.length() > 0) sb.append('?').append(q);
+                    return sb.toString();
+                }
+
+                private static boolean hasQueryParam(String query, String name) {
+                    if (query == null) return false;
+                    for (String seg : query.split("&", -1)) {
+                        if (seg.equals(name) || seg.startsWith(name + "=")) return true;
+                    }
+                    return false;
+                }
+
+                /** DB001 (S2/db-parity): a JDBC URL sem driver no classpath dava
+                 *  um {@code SQLException: No suitable driver} cru — agora vira
+                 *  diagn\u00f3stico NOMEADO (R6), preservando as falhas reais de
+                 *  conex\u00e3o (servidor fora/credencial) intactas. */
+                private static Exception kof_db_driver_gap(String url, java.sql.SQLException e) {
+                    String m = e.getMessage() == null ? "" : e.getMessage();
+                    if (m.contains("No suitable driver")) {
+                        return new IllegalArgumentException(
+                                "DB001: no JDBC driver for this URL (add the driver to the classpath): " + url);
+                    }
+                    return e;
                 }
 
                 private static String kof_db_register(java.sql.Connection c) {

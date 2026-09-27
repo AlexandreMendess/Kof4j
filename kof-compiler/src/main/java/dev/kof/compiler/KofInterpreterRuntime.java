@@ -59,6 +59,25 @@ public final class KofInterpreterRuntime {
                 && args[0] instanceof Map<?, ?> m) {
             return encodeMap(m);
         }
+        // §516 fatia 2 (26/09): List<Record> no SCRIPT — o fallback por
+        // reflexão chama o KofRuntime GERADO, que lê fields de instância
+        // real; no interpretador o record é KofObj (mapa de campos) e saía
+        // `{}`/`null` no wire (KeyError 'x' medido no motor py). Espelha o
+        // encodeKof/encodeMap de cima — mesma superfície do JVM/nativo.
+        if (name.startsWith("kof_json_encode_")
+                && (name.equals("kof_json_encode_list") || name.equals("kof_json_encode_set"))
+                && args.length == 2 && args[1] instanceof Number n4
+                && n4.intValue() == 4 && args[0] instanceof java.util.List<?> l4) {
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < l4.size(); i++) {
+                if (i > 0) sb.append(',');
+                Object el = l4.get(i);
+                if (el instanceof KofInterpreter.KofObj ko) sb.append(encodeKof(ko));
+                else if (el instanceof Map<?, ?> mm) sb.append(encodeMap(mm));
+                else sb.append(runtimeFn("kof_json_encode", new Object[]{el}));
+            }
+            return sb.append(']').toString();
+        }
         // json.decode<KofClass>: o método gerado faz Class.forName(nome) — mas
         // no interpretador a classe Kof é KofObj (NUNCA vira classe JVM).
         // Espelha encodeKof: parse com o MESMO parser do runtime gerado e
@@ -98,6 +117,15 @@ public final class KofInterpreterRuntime {
                 }
             }
             return out;
+        }
+        // #633: decode<Map<K, coleção>> (valor aninhado) — o runtime gerado
+        // recebe a assinatura genérica JVM e faz o bind recursivo; aqui as
+        // classes Kof são KofObj, então parseamos a assinatura para Type e
+        // reusamos bindKof (mesma árvore de decisão do JVM, alvo interpretado).
+        if (name.equals("kof_json_decode_typed") && args.length == 2
+                && args[0] instanceof String json && args[1] instanceof String sig) {
+            Type t = parseJvmSignature(sig);
+            return bindKof(t, runtimeFn("kof_json_parse", new Object[]{json}));
         }
         if (name.startsWith("kof_json_decode_") && args.length == 1
                 && args[0] instanceof String json) {
@@ -186,7 +214,11 @@ public final class KofInterpreterRuntime {
     private IRClass kofClassByDecodeName(String name) {
         String suffix = name.substring("kof_json_decode_".length());
         for (IRClass c : interp.module().classes()) {
-            if (JsonDispatch.sanitize(KofInterpreterValues.simpleOf(c.name())).equals(suffix)) return c;
+            // #627: the call-site now sends the mangled FULLY-QUALIFIED name
+            // (same as the generated KofRuntime); the simple-name match stays
+            // for backward compatibility with default-package classes.
+            if (JsonDispatch.sanitize(c.name().replace('/', '.')).equals(suffix)
+                    || JsonDispatch.sanitize(KofInterpreterValues.simpleOf(c.name())).equals(suffix)) return c;
         }
         return null;
     }
@@ -221,7 +253,82 @@ public final class KofInterpreterRuntime {
                     : KofInterpreterValues.coerceFor(elem, e));
             return out;
         }
+        // #633: `Map<K,V>` com V composto (record/Map/List) — recursa nos
+        // valores pelo type-arg (espelho do kof_json_bind JVM). Sem isto um
+        // campo `Map<String,E>` ficava como mapa cru (valores LinkedHashMap).
+        if (raw instanceof java.util.Map<?, ?> m && BuiltinTypes.isMap(type)) {
+            Type vt = ((Type.ClassType) type).typeArguments().size() >= 2
+                    ? ((Type.ClassType) type).typeArguments().get(1) : Type.UnknownType.UNKNOWN;
+            java.util.Map<Object, Object> out = new java.util.LinkedHashMap<>();
+            for (java.util.Map.Entry<?, ?> e : m.entrySet())
+                out.put(e.getKey(), bindKof(vt, e.getValue()));
+            return out;
+        }
         return KofInterpreterValues.coerceFor(type, raw);
+    }
+
+    /** #633: assinatura genérica JVM (`Ljava/util/Map<...>;`) → Type Kof. */
+    private Type parseJvmSignature(String s) {
+        return parseSig(s, new int[]{0});
+    }
+
+    private Type parseSig(String s, int[] i) {
+        char c = s.charAt(i[0]);
+        switch (c) {
+            case 'Z': i[0]++; return Type.PrimitiveType.BOOL;
+            case 'B': i[0]++; return Type.PrimitiveType.BYTE;
+            case 'S': i[0]++; return Type.PrimitiveType.SHORT;
+            case 'I': i[0]++; return Type.PrimitiveType.INT;
+            case 'J': i[0]++; return Type.PrimitiveType.LONG;
+            case 'F': i[0]++; return Type.PrimitiveType.FLOAT;
+            case 'D': i[0]++; return Type.PrimitiveType.DOUBLE;
+            case 'C': i[0]++; return Type.PrimitiveType.CHAR;
+            case 'V': i[0]++; return Type.PrimitiveType.VOID;
+            case '[': i[0]++; return new Type.ArrayType(parseSig(s, i));
+            case 'L': {
+                int start = ++i[0];
+                int j = start;
+                while (s.charAt(j) != ';' && s.charAt(j) != '<') j++;
+                String internal = s.substring(start, j);
+                List<Type> typeArgs = new ArrayList<>();
+                if (s.charAt(j) == '<') {
+                    i[0] = j + 1;
+                    while (s.charAt(i[0]) != '>') typeArgs.add(parseSig(s, i));
+                    i[0]++;
+                } else {
+                    i[0] = j;
+                }
+                if (i[0] < s.length() && s.charAt(i[0]) == ';') i[0]++;
+                return kofTypeFor(internal, typeArgs);
+            }
+            default:
+                throw new IllegalArgumentException(
+                        "kof_json_decode_typed: bad signature '" + s + "'");
+        }
+    }
+
+    private Type kofTypeFor(String internal, List<Type> args) {
+        return switch (internal) {
+            // toGenericSignature apaga as coleções Kof para as classes
+            // CONCRETAS da JVM (List→ArrayList, Map→HashMap, Set→HashSet) —
+            // por isso as três formas de cada um mapeiam para o tipo Kof.
+            case "java/util/Map", "java/util/HashMap",
+                 "java/util/LinkedHashMap", "java/util/TreeMap",
+                 "java/util/SortedMap" -> new Type.ClassType("kof", "Map", args);
+            case "java/util/List", "java/util/ArrayList",
+                 "java/util/LinkedList", "java/util/AbstractList" -> new Type.ClassType("kof", "List", args);
+            case "java/util/Set", "java/util/HashSet",
+                 "java/util/LinkedHashSet", "java/util/TreeSet",
+                 "java/util/SortedSet" -> new Type.ClassType("kof", "Set", args);
+            case "java/lang/String" -> BuiltinTypes.STRING;
+            case "java/lang/Object" -> new Type.ClassType("java.lang", "Object", List.of());
+            default -> {
+                int slash = internal.lastIndexOf('/');
+                if (slash < 0) yield new Type.ClassType("", internal, args);
+                yield new Type.ClassType(internal.substring(0, slash).replace('/', '.'),
+                        internal.substring(slash + 1), args);
+            }
+        };
     }
 
     Object[] coerceArgs(Class<?>[] params, Object[] args) {

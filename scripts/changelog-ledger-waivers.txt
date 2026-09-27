@@ -1,0 +1,8 @@
+# Waivers do gate CHANGELOG×ledger (uma citação histórica por linha).
+# Formato: <id> <língua> <justificativa>. O gate pula a afirmação mas a
+# mantém registrada — waiver novo exige parágrafo no CHANGELOG EN+PT, e
+# item do ledger que FECHAR deve REMOVER a linha aqui.
+# Forma de escrever: 'item 268' e nao '§268' quando o texto so CITA a historia de um
+# id ainda vivo na MESMA linha que carrega token de fechamento — o gate pareia
+# §NNN->token por proximidade e a citação vira afirmação (21/09: ele pegou a
+# propria prosa da lane no CHANGELOG; reescrita, nao isentada).

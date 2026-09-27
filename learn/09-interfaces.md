@@ -41,6 +41,32 @@ interface Editavel<T> extends Listavel<T> {
 }
 ```
 
+## Default methods
+
+An interface method WITH a body is a default method — implementors inherit it
+(#213; §248: JVM, Native x86_64, riscv64/aarch64 and JS):
+
+```kf
+interface Greeter {
+    String greet(String name)
+    String greetLoud(String name) { return greet(name).toUpperCase() }
+}
+
+class Pt implements Greeter {
+    String greet(String name) { return "Ola " + name }
+}
+
+println(Pt("Mel").greetLoud("Mel"))   // OLA Mel (default calls greet)
+```
+
+- A class may also overload an inherited default by ARITY — `greetLoud(String, Int)`
+  with a different signature coexists and the typer selects by arity
+  (#610/#611).
+- Inheriting the SAME default signature from two UNRELATED interfaces is the
+  Java diamond → compile-time error **SEM101**: "inherits conflicting default
+  method ... (add an explicit override in ...)". Overriding in the class
+  resolves it; a common subinterface's default wins legitimately.
+
 ## Current status
 
 ✅ Parser and semantic analysis recognize interfaces

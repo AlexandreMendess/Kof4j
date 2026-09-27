@@ -39,7 +39,8 @@ import java.util.List;
  * <p>D2-A (D-POLL-19, 19/09): {@code --publish} SUBLIGE a release ao host
  * oficial GitHub Releases ({@link DeployPublish}) — sem token, falha honesta
  * (R6) depois do pacote local pronto; nunca exit 0 sem artefato. Cross
- * riscv64/aarch64 continuam {@code DEP001} (faces seguintes do plano).
+ * riscv64/aarch64 empacotam desde a fatia 6 (X9, 20/09) — toolchain ausente =
+ * falha honesta nomeando a ferramenta (R6), nao recusa preventiva.
  */
 final class CmdDeploy {
 
@@ -124,19 +125,11 @@ final class CmdDeploy {
             }
         }
         if (targets.isEmpty()) targets.add(Target.JVM);
-        // X9 fatia 3: JVM (fat jar), NATIVE x86_64 (ELF), JS (Default.mjs) e
-        // ANDROID (APK assinado, reusa o pipeline --apk do build) empacotam.
-        // Cross riscv64/aarch64 (sysroot) recusa honesto (R6) — face seguinte.
-        if (targets.size() == 1) {
-            Target only = targets.iterator().next();
-            if (only == Target.NATIVE_RISCV64 || only == Target.NATIVE_AARCH64) {
-                System.err.println("deploy: target " + TargetMatrix.name(only)
-                        + " is not packaged yet (DEP001) —"
-                        + " slices so far: --target jvm|native|js|android");
-                System.exit(1);
-                return;
-            }
-        }
+        // X9 fatia 6 (20/09): o cross (riscv64/aarch64) EMPACOTA como o NATIVE x86 —
+        // mesmo pipeline do driver (as/ld via NativeArchEmitter; toolchain ausente =
+        // ToolchainMissing nomeando a ferramenta no diagnostico, R6 — nao mais a
+        // recusa generalizada DEP001, que recusava sem nem tentar). Faces empacotaveis:
+        // JVM (fat jar), NATIVE x86_64 + cross (ELF 0755), JS (.mjs), ANDROID (APK).
         // --publish (D2-A, D-POLL-19 19/09): publica a release empacotada no
         // host oficial GitHub Releases. Sem token/endpoint = falha honesta
         // (R6) DEPOIS do pacote local existir — nunca "meia publicação" falsa.
@@ -160,7 +153,8 @@ final class CmdDeploy {
             Release r = deploy(src, out, safeName, version, targets.iterator().next(), "");
             System.out.println("deploy → " + r.releaseDir());
             System.out.println("artifact → " + r.tgz()
-                    + " (sha256 " + r.sha256().substring(0, 12) + "…)");
+                    + (r.sha256() == null ? " (library: sources only)"
+                            : " (sha256 " + r.sha256().substring(0, 12) + "…)"));
             if (publish != null) {
                 DeployPublish.publishAll(List.of(r), null, publish, safeName, version);
             }
@@ -193,7 +187,7 @@ final class CmdDeploy {
      * X9 fatia 4 / linha 8.4 (IMPLEMENTATION-UNIVERSAL-PLATFORM.md): multi-target
      * da MESMA fonte (“same source → JVM/Native/JS”). Cada alvo roda o pipeline
      * completo de release no seu subdiretório; alvo que falha (ferramenta ausente,
-     * compilação, DEP001) não derruba os demais — o resumo e o
+     * compilação, toolchain ausente) não derruba os demais — o resumo e o
      * {@code .deploy-manifest.json} registram SUCCESS/FAIL com a razão honesta
      * (R6/R7) e o exit é 1 se houve falha.
      */
@@ -203,12 +197,6 @@ final class CmdDeploy {
         boolean anyFail = false;
         for (Target t : targets) {
             String tn = TargetMatrix.name(t);
-            if (t == Target.NATIVE_RISCV64 || t == Target.NATIVE_AARCH64) {
-                results.add(new Release(tn, "FAIL", null, null, null, null,
-                        "not packaged yet (DEP001)"));
-                anyFail = true;
-                continue;
-            }
             try {
                 Release r = deploy(src, out, name, version, t, "-" + tn);
                 results.add(r);
@@ -256,6 +244,11 @@ final class CmdDeploy {
         String app001 = KofCliSupport.app001(target, layout.fullStack());
         if (app001 != null) throw new IOException(app001);
         List<Path> files = KofCliSupport.collect(backendDir);
+        // #566 (b): a release carrega as FONTES (todo o modulo, recursivo); um modulo sem fontes no
+        // topo (so arvore de pacotes) e uma BIBLIOTECA — valida compilando e publica so as fontes.
+        List<Path> tree = DeploySources.collectTree(backendDir, out, layout.fullStack() ? "web" : null);
+        boolean library = files.isEmpty();
+        if (library) files = new ArrayList<>(tree);
         if (files.isEmpty()) throw new IOException("no .kf/.kof files found in " + backendDir);
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
         Path classes = out.resolve("deploy-classes" + dirSuffix);
@@ -270,13 +263,20 @@ final class CmdDeploy {
         Path built;
         String ext;
         int tarMode;
-        switch (target) {
+        if (library) {
+            built = null;
+            ext = "";
+            tarMode = 0644;
+        } else switch (target) {
             case JVM -> {
                 built = CmdBuild.buildFatJar(classes, List.of());
                 ext = ".jar";
                 tarMode = 0644;
             }
-            case NATIVE -> {
+            case NATIVE, NATIVE_RISCV64, NATIVE_AARCH64 -> {
+                // x86_64 nativo e o cross (riscv64/aarch64) caem no MESMO ponto de
+                // saida do driver (Default/Main); so muda a ferramenta do emissor
+                // (KOF_CROSS_PREFIX pode prefixa-la p/ teste/ambiente).
                 built = classes.resolve("Default").resolve("Main");
                 if (!Files.isRegularFile(built)) {
                     throw new IOException("native binary not found: " + built);
@@ -314,13 +314,14 @@ final class CmdDeploy {
         Files.createDirectories(releaseDir);
         String artifact = name + "-" + version + ext;
         Path jarDst = releaseDir.resolve(artifact);
-        Files.copy(built, jarDst, StandardCopyOption.REPLACE_EXISTING);
+        if (!library) Files.copy(built, jarDst, StandardCopyOption.REPLACE_EXISTING);
+        List<Path> staged = DeploySources.stage(backendDir, tree, releaseDir);
         // §298: a release JS precisa ser AUTOCONTIDA — o entry importa módulos
         // relativos do build (./kof-runtime.mjs, ./kof-runtime-io.mjs, ...), que
         // vivem AO LADO dele; copiar só o entry deixava o "node <x>.mjs" do
         // RELEASE.md morrendo em ERR_MODULE_NOT_FOUND. Closure de imports.
         List<Path> jsDeps = new ArrayList<>();
-        if (target == Target.JS) {
+        if (target == Target.JS && !library) {
             for (Path dep : jsImportClosure(built)) {
                 Path depSrc = built.getParent().resolve(dep.toString());
                 Path dst = releaseDir.resolve(dep.toString());
@@ -334,41 +335,51 @@ final class CmdDeploy {
         String runCmd;
         if (target == Target.JVM) {
             runCmd = "java -jar " + artifact;
-        } else if (target == Target.NATIVE) {
-            runCmd = "./" + artifact;
+        } else if (target == Target.NATIVE || target == Target.NATIVE_RISCV64
+                || target == Target.NATIVE_AARCH64) {
+            runCmd = "./" + artifact; // cross roda no alvo (ou qemu -L sysroot)
         } else if (target == Target.JS) {
             runCmd = "node " + artifact;
         } else {
             runCmd = "adb install " + artifact;
         }
-        String mainLine = target == Target.JVM
+        String mainLine = target == Target.JVM && !library
                 ? "- main class: " + KofCliSupport.findMainClass(classes) + "\n" : "";
+        String artifactLine = library
+                ? "- kind: library (source module, no runnable artifact)\n"
+                : "- artifact: " + artifact + "\n";
         Files.writeString(releaseDir.resolve("RELEASE.md"),
                 "# Release " + name + " " + version + "\n\n"
-                        + "- artifact: " + artifact + "\n"
+                        + artifactLine
                         + "- target: " + TargetMatrix.name(target) + "\n"
                         + mainLine
+                        + "- sources: " + staged.size() + " file(s) under src/ (consumed as a source module)\n"
                         + "- compiler: " + KofVersion.version() + "\n"
                         + "- built at (UTC): " + timestamp + "\n"
-                        + "- run: " + runCmd + "\n",
+                        + (library ? "" : "- run: " + runCmd + "\n"),
                 StandardCharsets.UTF_8);
-        String sha256 = sha256Hex(jarDst);
-        StringBuilder sums = new StringBuilder(sha256 + "  " + artifact + "\n");
+        String sha256 = library ? null : sha256Hex(jarDst);
+        StringBuilder sums = new StringBuilder(library ? "" : sha256 + "  " + artifact + "\n");
         for (Path dep : jsDeps) {
             sums.append(sha256Hex(releaseDir.resolve(dep))).append("  ").append(dep).append("\n");
+        }
+        for (Path s : staged) {   // cada fonte coberta: o consumidor recusa a que nao conferir
+            sums.append(sha256Hex(releaseDir.resolve(s))).append("  ")
+                    .append(s.toString().replace('\\', '/')).append("\n");
         }
         Files.writeString(releaseDir.resolve("SHA256SUMS"), sums.toString(), StandardCharsets.UTF_8);
 
         // 5) tar.gz do conjunto (artefato de distribuição único)
         List<Path> releaseFiles = new ArrayList<>();
-        releaseFiles.add(jarDst.getFileName());
+        if (!library) releaseFiles.add(jarDst.getFileName());
         releaseFiles.addAll(jsDeps);
+        releaseFiles.addAll(staged);
         releaseFiles.add(Path.of("RELEASE.md"));
         releaseFiles.add(Path.of("SHA256SUMS"));
         Path tgz = out.resolve("deploy").resolve(name + "-" + version + dirSuffix + ".tar.gz");
         writeTarGz(tgz, releaseDir, releaseFiles, tarMode);
         return new Release(TargetMatrix.name(target), "SUCCESS", releaseDir, tgz,
-                artifact, sha256, null);
+                library ? null : artifact, sha256, null);
     }
 
     /**

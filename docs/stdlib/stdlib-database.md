@@ -3,8 +3,8 @@
 # stdlib database — Kof Native Database
 
 **Last updated:** September 18, 2026
-**Version:** 0.4.0-beta
-**Status:** implemented (Phase 5 of the Spring independence plan) — JVM (JDBC) + Native (SQLite via direct `.so` + MySQL wire protocol WIP) + `kof.orm` (JVM + MongoDB); JS untyped ✅ (16/09), typed `query<T>` ✅ (18/09, `DB002` closed), `kof.orm` ✅ on JS (18/09, `ORM001` closed; Native still `ORM001`)
+**Version:** 0.5.0-beta
+**Status:** implemented (Phase 5 of the Spring independence plan) — JVM (JDBC) + Native (SQLite via direct `.so` + MySQL wire real on x86-64, F2d1–F2d7 22/09) + `kof.orm` (JVM + MongoDB); JS untyped ✅ (16/09), typed `query<T>` ✅ (18/09, `DB002` closed), `kof.orm` ✅ on JS (18/09, `ORM001` closed); `ORM001` remains only on Native cross riscv64/aarch64
 
 ---
 
@@ -97,16 +97,16 @@ Native:
   detected at compile-time). Full handshake, query and prepared statements
   still in progress (P3).
 
-## 6. Targets (0.4.0-beta)
+## 6. Targets (0.5.0-beta)
 
 | Target | Status | Notes |
 |--------|--------|-------|
 | JVM | ✅ complete (JDBC) | `db.connect`/`execute`/`query<T>`/`transaction` (H2/MySQL/MariaDB/PostgreSQL/SQLite) + `orm.*` (entity, `saveAll`, `where` operators, `page`, filtered `count`, `deleteAll`, `migrate`, MongoDB) |
-| Native x86_64 | ✅ SQLite; MySQL WIP | `sqlite:` DSN complete; MySQL wire protocol (SHA-1 scramble + lenenc + `user:pass@`) — handshake/query/prepared pending |
+| Native x86_64 | ✅ SQLite; MySQL wire real (all 13 ORM faces 22/09) | `sqlite:` DSN complete; MySQL wire protocol (SHA-1 scramble + lenenc + `user:pass@`) — handshake/COM_QUERY/prepared complete, measured against MariaDB 12.3.2 |
 | Native riscv64 | ✅ SQLite (riscv64) | `li a7` syscalls |
 | JS | ✅ untyped (16/09); typed `query<T>` = `DB002` CLOSED 18/09 | `connect/execute/query/close/transaction` via `kof_platform.db*` on the GraalJS host; typed `orm.*` CLOSED 18/09 (`ORM001` — `KofJsOrmBridge`, same SQL as JVM, byte-parity E2E) |
 
-## 7. Tests (0.4.0-beta)
+## 7. Tests (0.5.0-beta)
 
 `KofDbE2ETest` 8 + `KofOrmE2ETest` 16 (includes MariaDB/PostgreSQL/MongoDB with conditional skip + native SQLite) — execute + JSON query,
 typed query with bind, transaction with commit, rollback on exception,
@@ -116,7 +116,7 @@ credentials; JS untyped roundtrip + transaction byte-parity with JVM (16/09, `DB
 
 - Typed query DSL `User.query { where age > 18 }` (level 3 DATABASE_VISION)
 - Connection pooling + `kof.db`/`kof.orm` outside the JVM (JS via WASM, Native ORM over SQLite)
-- Complete native MySQL/MariaDB — WIP: SHA-1 scramble auth + `lenenc` + `user:pass@`
+- ~~Complete native MySQL/MariaDB~~ — ✅ x86-64 closed 22/09 (SHA-1 scramble + `lenenc` + `user:pass@` + all ORM faces; cross riscv64/aarch64 still open)
   parse done; full handshake, query and prepared statements still missing
 - `repository<User>` / repository abstraction
 
@@ -159,5 +159,7 @@ main() {
 | `orm.migrate(db, name, sql)` | versioned migration (runs once) |
 
 Backends: SQL via JDBC (JVM) + **MongoDB** (official driver, E2E with a real
-container, conditional skip). Native reports `ORM001`; **JS CLOSED 18/09**
+container, conditional skip). Native x86-64 real (`kof_orm_*` asm over the
+native `kof_db_*`; SQLite + MySQL wire; 13 faces, F2d1–F2d7 22/09; `ORM001` only
+on cross riscv64/aarch64); **JS CLOSED 18/09**
 (`KofJsOrmBridge`, same SQL as the JVM runtime, byte-parity E2E).

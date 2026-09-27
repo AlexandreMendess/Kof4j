@@ -1,0 +1,75 @@
+package kofmd
+
+import kofmd.KofmdTypes
+import kofmd.KofmdScan
+import kofmd.KofmdInfer
+import kofmd.KofmdSchemas
+import kofmd.KofmdVocab
+import kofmd.KofmdRender
+import kofmd.KofmdFormat
+
+class KofmdTool {
+    parse(String text): KofmdDoc {
+        return KofmdScan().parse(text)
+    }
+
+    inferScalar(String raw, Bool quoted): String {
+        return KofmdInfer().inferScalar(raw, quoted)
+    }
+
+    inferField(KofmdField field): String {
+        return KofmdInfer().inferField(field)
+    }
+
+    parseSchemas(String text): List<KofmdSchema> {
+        return KofmdSchemas().parseSchemas(text)
+    }
+
+    parseSchemaLine(String trimmed): KofmdSchema {
+        return KofmdSchemas().parseSchemaLine(trimmed)
+    }
+
+    validateField(KofmdField field, KofmdSchema schema): String {
+        return KofmdSchemas().validateField(field, schema)
+    }
+
+    validateBlock(KofmdBlock block, KofmdSchema schema): List<String> {
+        return KofmdSchemas().validateBlock(block, schema)
+    }
+
+    validateDoc(KofmdDoc doc, KofmdSchema schema): List<String> {
+        return KofmdSchemas().validateDoc(doc, schema)
+    }
+
+    isKnownIntent(String name): Bool {
+        return KofmdVocab().isKnownIntent(name)
+    }
+
+    isKnownInstruction(String token): Bool {
+        return KofmdVocab().isKnownInstruction(token)
+    }
+
+    hoverFor(String text, Int line, String key): String {
+        return KofmdVocab().hoverFor(text, line, key)
+    }
+
+    keyLabel(String key): String {
+        return KofmdVocab().keyLabel(key)
+    }
+
+    isAdvisoryValue(String key, String value): Bool {
+        return KofmdVocab().isAdvisoryValue(key, value)
+    }
+
+    validateVocabulary(KofmdDoc doc): List<String> {
+        return KofmdVocab().validateVocabulary(doc)
+    }
+
+    renderMarkdown(KofmdDoc doc): String {
+        return KofmdRender().renderMarkdown(doc)
+    }
+
+    format(KofmdDoc doc): String {
+        return KofmdFormat().format(doc)
+    }
+}

@@ -50,10 +50,8 @@ public final class RuntimeObservabilitySpans {
                 movq $0, 0(%rcx)
                 movq $0, 8(%rcx)
                 movq %rcx, %r8               # r8 = buf (syscall clobbera rcx/r11)
-                movl $1, %edi                # CLOCK_MONOTONIC
-                movq %rcx, %rsi              # struct timespec*
-                movl $228, %eax              # clock_gettime
-                syscall
+                movq %rcx, %rdi              # struct timespec*
+                call kof_plat_time_mono
                 movq 0(%r8), %rax
                 imulq $1000000000, %rax
                 addq 8(%r8), %rax
@@ -70,10 +68,8 @@ public final class RuntimeObservabilitySpans {
                 movq $0, 0(%rcx)
                 movq $0, 8(%rcx)
                 movq %rcx, %r8               # r8 = buf (syscall clobbera rcx/r11)
-                xorl %edi, %edi              # CLOCK_REALTIME
-                movq %rcx, %rsi              # struct timespec*
-                movl $228, %eax              # clock_gettime
-                syscall
+                movq %rcx, %rdi              # struct timespec*
+                call kof_plat_time
                 movq 8(%r8), %rax            # nsec
                 xorq %rdx, %rdx
                 movq $1000, %rsi

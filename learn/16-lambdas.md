@@ -2,7 +2,7 @@
 
 # 16 — Lambdas
 
-> **Status: implemented (JVM / Native / JS) — 0.4.0-beta — examples verified in the compiler**
+> **Status: implemented (JVM / Native / JS) — 0.5.0-beta — examples verified in the compiler**
 >
 > Lambdas `(x: Int) -> expr` with captures work on the three targets;
 > `map/filter/reduce` on `List<T>` use lambdas.

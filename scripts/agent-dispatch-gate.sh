@@ -10,7 +10,7 @@
 #   agent-dispatch-gate.sh seed   <mode> --session S [--repo D]
 #   agent-dispatch-gate.sh note   <mode> --session S --decision skip|dispatch --reason R
 #   agent-dispatch-gate.sh events <mode> --session S      # eventos do último `decide` (watcher)
-#   agent-dispatch-gate.sh stats [--since 24h|7d]
+#   agent-dispatch-gate.sh stats [--since 24h|7d]   # ticks x chamadas evitadas + CUSTO REAL do `opencode stats` (medido, nunca estimado)
 #
 # Exit do `decide` (0 nunca significa skip):
 #   0  DISPATCH                     10 SKIP_NO_CHANGE
@@ -35,6 +35,9 @@ FP="$HERE/agent-state-fingerprint.sh"
 
 sub="${1:-}"; shift || true
 mode=""; session="default"; repo=""; dry=0; shadow=0; rc_arg=""; dur=""; decision_arg=""; reason_arg=""; since="24h"
+# fingerprint do estado ANTERIOR, capturado ANTES de qualquer persist_last
+# sobrescrever $D/last (senão a telemetria loga previous == current no dispatch).
+PREV_FP=""
 if [ "$sub" != "stats" ] && [ "$sub" != "" ]; then mode="${1:-}"; shift || true; fi
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -75,8 +78,7 @@ val() { grep -m1 "^$1=" "$2" 2>/dev/null | cut -d= -f2-; }
 # --- decisão + telemetria -------------------------------------------------------
 # say <exit> <NOME> <dispatch|skip|retry> <razão> — imprime, registra e sai
 say() {
-    local code="$1" name="$2" kind="$3" reason="$4" pfp=""
-    [ -f "$D/last" ] && pfp="$(prev_fp)"
+    local code="$1" name="$2" kind="$3" reason="$4" pfp="$PREV_FP"
     echo "decision=$name reason=$reason fingerprint=${CUR_FP:-none}"
     if [ "$dry" -eq 0 ]; then
         if [ "$shadow" -eq 1 ]; then
@@ -120,6 +122,8 @@ cmd_decide() {
     [ -n "$mode" ] || { echo "decide exige o modo" >&2; exit 2; }
     [ "$mode" = "auto-loop" ] && [ -z "$repo" ] && { echo "auto-loop exige --repo" >&2; exit 2; }
     local rc cu now
+    # captura o fingerprint PRE-run antes que persist_last sobrescreva $D/last
+    PREV_FP=""; [ -f "$D/last" ] && PREV_FP="$(prev_fp)"
     compute; rc=$?
     if [ "$rc" -ne 0 ]; then
         [ "$rc" -eq 20 ] && say 20 RETRY_TRANSIENT_SOURCE_FAILURE retry source_failure
@@ -237,6 +241,37 @@ print(f"Median run duration:   {statistics.median(durs) if durs else 0}s")
 if legacy:
     print(f"Shadow (legacy calls): {len(legacy)}, gate would skip {would_skip}")
 PY
+    opencode_cost_section
+}
+
+# Custo REAL medido pelo próprio opencode (`opencode stats --days N`): tokens e
+# dólares do provedor. NUNCA estimado: sem opencode, com falha ou com saída não
+# reconhecida, diz "indisponível" — não inventa número. É de TODAS as sessões da
+# máquina (não só as despachadas pelo gate) e a janela é em dias inteiros
+# (--since 24h -> 1 dia; 36h -> 2; 7d -> 7). AGENT_OPENCODE_PROJECT filtra por projeto.
+opencode_cost_section() {
+    local oc="${OPENCODE_BIN:-}" num unit days out rc clean k v total=""
+    [ -n "$oc" ] || oc="$(command -v opencode 2>/dev/null || true)"
+    [ -n "$oc" ] || oc="$HOME/.opencode/bin/opencode"
+    num="${since%[hd]}"; unit="${since: -1}"
+    case "$num" in ''|*[!0-9]*) num=1;; esac
+    if [ "$unit" = "d" ]; then days="$num"; else days=$(( (num + 23) / 24 )); fi
+    [ "$days" -ge 1 ] || days=1
+    echo
+    echo "Custo real (opencode stats --days $days; medido pelo provedor, sem estimativa;"
+    echo "            todas as sessões desta máquina, janela em dias inteiros):"
+    if [ ! -x "$oc" ]; then echo "  indisponível: opencode não encontrado ($oc)"; return 0; fi
+    local pflag=(); [ -n "${AGENT_OPENCODE_PROJECT+x}" ] && pflag=(--project "$AGENT_OPENCODE_PROJECT")
+    out="$(timeout 30 "$oc" stats --days "$days" ${pflag[@]+"${pflag[@]}"} 2>/dev/null)"; rc=$?
+    if [ "$rc" -ne 0 ]; then echo "  indisponível: opencode stats falhou (rc=$rc)"; return 0; fi
+    clean="$(printf '%s\n' "$out" | sed 's/\x1b\[[0-9;]*m//g')"
+    _oc_val() { printf '%s\n' "$clean" | awk -F'│' -v k="$1" '{ s=$2; if (index(s,k)==1) { sub("^" k "[ \t]+","",s); sub("[ \t]+$","",s); print s; exit } }'; }
+    total="$(_oc_val 'Total Cost')"
+    if [ -z "$total" ]; then echo "  indisponível: saída do opencode stats não reconhecida (sem 'Total Cost')"; return 0; fi
+    for k in 'Sessions' 'Messages' 'Total Cost' 'Input' 'Output' 'Cache Read' 'Cache Write'; do
+        v="$(_oc_val "$k")"
+        [ -n "$v" ] && printf '  %-14s %s\n' "$k:" "$v"
+    done
 }
 
 case "$sub" in

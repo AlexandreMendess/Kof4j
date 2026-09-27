@@ -11,16 +11,13 @@ on:
 
 permissions:
   contents: read
-  actions: write
-  security-events: write
-  pull-requests: write
-  issues: write
-  checks: write
 
 jobs:
   orchestrate:
     name: Orchestrate Bots
     runs-on: ubuntu-latest
+    permissions:
+      actions: write # createWorkflowDispatch dos três bots
     timeout-minutes: 10
     # PR de FORK: o GITHUB_TOKEN e read-only (regra da plataforma) e o
     # createWorkflowDispatch morre em 403 — o job inteiro vermelhava por
@@ -33,7 +30,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Trigger kof-quality-bot
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             await github.rest.actions.createWorkflowDispatch({
@@ -44,7 +41,7 @@ jobs:
             });
 
       - name: Trigger kof-warning-bot
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             await github.rest.actions.createWorkflowDispatch({
@@ -55,7 +52,7 @@ jobs:
             });
 
       - name: Trigger kof-security-bot
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             await github.rest.actions.createWorkflowDispatch({
@@ -68,6 +65,7 @@ jobs:
   aggregate-results:
     name: Aggregate Bot Results
     runs-on: ubuntu-latest
+    permissions: {}
     timeout-minutes: 15
     needs: orchestrate
     if: always()

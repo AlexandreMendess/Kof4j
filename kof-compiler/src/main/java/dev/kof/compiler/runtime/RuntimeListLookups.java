@@ -6,10 +6,11 @@ package dev.kof.compiler.runtime;
  * kof_list_contains §126), addAll (cópia via kof_list_add; true = mudou),
  * subList (bounds honesto via kof_bounds_error + cópia em lista nova —
  * nunca view viva), sort (seleção com kof_list_cmp: tag 0=signed qword —
- * Int/Long/Bool/Char; 1=kof_string_compare_to; 2=Double com a semântica do
- * Double.compare — NaN maior que tudo e NaN==NaN, -0.0 < 0.0, medida no
- * oráculo JDK 19/09). Slots da List são CRUS (§253/§284) — nada aqui
- * derefença bit cru.
+ * Int/Long/Bool/Char; 1=kof_string_compare_to; 2=Double e 3=Float (§352/
+ * NAT001 fechado 21/09: o slot guarda os 32 bits crus e o runtime alarga com
+ * cvtss2sd) com a semântica do Double.compare — NaN maior que tudo e
+ * NaN==NaN, -0.0 < 0.0, medida no oráculo JDK 19/09). Slots da List são CRUS
+ * (§253/§284) — nada aqui derefença bit cru.
  */
 public final class RuntimeListLookups {
 
@@ -25,31 +26,40 @@ public final class RuntimeListLookups {
                 cmpl $1, %edx
                 je .LLC_str
                 cmpl $2, %edx
-                jne .LLC_int
+                je .LLC_dbl
+                cmpl $3, %edx
+                je .LLC_flt
+                jmp .LLC_int
+            .LLC_dbl:
                 movq %rdi, %xmm0
                 movq %rsi, %xmm1
+                jmp .LLC_fp
+            .LLC_flt:
+                movd %edi, %xmm0
+                movd %esi, %xmm1
+                cvtss2sd %xmm0, %xmm0       # Float.compare == Double.compare
+                cvtss2sd %xmm1, %xmm1       # após o alargamento (incl. ±0.0/NaN)
+            .LLC_fp:
                 ucomisd %xmm1, %xmm0
                 jp .LLC_unord
                 jb .LLC_lt
                 ja .LLC_gt
-                movq %rdi, %rax
-                xorq %rsi, %rax
+                movq %xmm0, %rax
+                movq %xmm1, %rcx
+                xorq %rcx, %rax
                 jz .LLC_eq
-                movq %rdi, %rax
-                addq %rax, %rax             # sign bit p/ bit 63
+                movq %xmm0, %rax
+                testq %rax, %rax            # sinal de a (só ±0.0 chega aqui)
                 js .LLC_lt                  # -0.0 < 0.0
                 jmp .LLC_gt
             .LLC_unord:
-                movq %rdi, %xmm2
-                ucomisd %xmm2, %xmm2
+                ucomisd %xmm0, %xmm0
                 jp .LLC_aNaN
-                movq %rsi, %xmm2
-                ucomisd %xmm2, %xmm2
+                ucomisd %xmm1, %xmm1
                 jp .LLC_lt                  # b NaN -> a < b
                 jmp .LLC_eq                 # ambos NaN -> 0 (Double.compare)
             .LLC_aNaN:
-                movq %rsi, %xmm2
-                ucomisd %xmm2, %xmm2
+                ucomisd %xmm1, %xmm1
                 jp .LLC_eq
                 jmp .LLC_gt                 # a NaN > não-NaN
             .LLC_str:
@@ -163,6 +173,8 @@ public final class RuntimeListLookups {
                 movq (%rax,%rcx,8), %r15
                 cmpl $1, %r13d
                 je .Llio_str
+                cmpl $2, %r13d
+                je .Llio_obj
                 cmpq %r12, %r15
                 je .Llio_hit
                 jmp .Llio_next
@@ -170,6 +182,15 @@ public final class RuntimeListLookups {
                 movq %r15, %rdi
                 movq %r12, %rsi
                 call kof_string_equals
+                testl %eax, %eax
+                jnz .Llio_hit
+                jmp .Llio_next
+            .Llio_obj:
+                testq %r15, %r15
+                jz .Llio_next
+                movq %r15, %rdi
+                movq %r12, %rsi
+                call kof_obj_equals
                 testl %eax, %eax
                 jnz .Llio_hit
             .Llio_next:
@@ -212,6 +233,8 @@ public final class RuntimeListLookups {
                 movq (%rax,%rcx,8), %r15
                 cmpl $1, %r13d
                 je .Lllo_str
+                cmpl $2, %r13d
+                je .Lllo_obj
                 cmpq %r12, %r15
                 je .Lllo_hit
                 jmp .Lllo_next
@@ -219,6 +242,15 @@ public final class RuntimeListLookups {
                 movq %r15, %rdi
                 movq %r12, %rsi
                 call kof_string_equals
+                testl %eax, %eax
+                jnz .Lllo_hit
+                jmp .Lllo_next
+            .Lllo_obj:
+                testq %r15, %r15
+                jz .Lllo_next
+                movq %r15, %rdi
+                movq %r12, %rsi
+                call kof_obj_equals
                 testl %eax, %eax
                 jnz .Lllo_hit
             .Lllo_next:

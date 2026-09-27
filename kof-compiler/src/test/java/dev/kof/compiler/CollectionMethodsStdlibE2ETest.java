@@ -16,9 +16,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * sobrescreve), indexOf ausente -1, lastIndexOf com duplicatas, subList
  * begin==end (vazia) e out-of-range (a mensagem que o java.util lança,
  * medida com o processo morrendo exit=1), addAll true/false, sort crescente
- * e reverso, String e Double. Os gates SEM097 (ordem natural), NAT001
- * (Float no native — diagnóstico honesto, nunca ordem errada) e SEM025 de
- * aridade são compile-time compartilhados: um gate, os 4 alvos.
+ * e reverso, String, Double e Float (§352/NAT001 FECHADO 21/09: alargamento
+ * p/ Double no runtime nativo — x86 e cross). Os gates SEM097 (ordem
+ * natural) e SEM025 de aridade são compile-time compartilhados: um gate, os
+ * 4 alvos.
  */
 class CollectionMethodsStdlibE2ETest {
 
@@ -90,7 +91,7 @@ class CollectionMethodsStdlibE2ETest {
     void sevenMethodsRunOnJvm(@TempDir Path tempDir) throws Exception {
         CompilationResult r = compile(tempDir, "V", PROGRAM, Target.JVM);
         assertTrue(r.success(), "#386/#382 verbatim must compile: " + r.diagnostics().getDiagnostics());
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
+        String javaCmd = TestJdk.javaBin();
         Process p = new ProcessBuilder(javaCmd, "-cp",
                 outDirFor(tempDir, "V", Target.JVM).toString(), "Default.Main")
                 .redirectErrorStream(true).start();
@@ -163,7 +164,7 @@ class CollectionMethodsStdlibE2ETest {
         Path outDir = tempDir.resolve("outO");
         CompilationResult r = driver.compile(src, outDir, Target.JVM);
         assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
+        String javaCmd = TestJdk.javaBin();
         Process p = new ProcessBuilder(javaCmd, "-cp", outDir.toString(), "Default.Main")
                 .redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes());
@@ -195,31 +196,63 @@ class CollectionMethodsStdlibE2ETest {
         }
     }
 
+    /** §352/NAT001 FECHADO 21/09: o slot de Float guarda os 32 bits crus e o
+     *  runtime alarga p/ Double (cvtss2sd no x86; fmv.w.x+fcvt.d.s no cross),
+     *  reusando a semântica medida do Double.compare — ordena em paridade com
+     *  a JVM, incl. o desempate -0.0<0.0 e NaN por último (Q3). */
     @Test
-    void floatSortOnNativeIsHonestDiagnostic(@TempDir Path tempDir) throws Exception {
-        // NAT001 — o par (sort, Float, nativo) não tem compare de precisão
-        // simples tradutível no runtime cross; diagnóstico honesto no
-        // compile (R6), NUNCA ordem silenciosa errada. Funciona nos outros
-        // alvos (medido no golden JVM acima com Double).
-        CompilationResult rn = compile(tempDir, "F", """
+    void floatSortRunsOnNativeWithDoubleCompareSemantics(@TempDir Path tempDir) throws Exception {
+        String src = """
                 main() {
-                    val l: List<Float> = listOf(2.5f, -1.5f)
+                    val l: List<Float> = listOf(2.5f, -1.5f, 0.5f, 3.5f)
                     l.sort()
                     println(l.get(0))
+                    println(l.get(1))
+                    println(l.get(2))
+                    println(l.get(3))
+                    val z: List<Float> = listOf(0.0f, -0.0f)
+                    z.sort()
+                    println(z.get(0))
+                    println(z.get(1))
+                    val d: List<Double> = listOf(0.0, -0.0)
+                    d.sort()
+                    println(d.get(0))
+                    println(d.get(1))
+                    val n: List<Float> = listOf(1.5f, 0.0f / 0.0f, -2.5f)
+                    n.sort()
+                    println(n.get(0))
+                    println(n.get(1))
+                    println(n.get(2))
                 }
-                """, Target.NATIVE);
-        assertFalse(rn.success(), "Float sort on native must be rejected");
-        assertTrue(rn.diagnostics().getDiagnostics().stream()
-                .anyMatch(d -> d.code().equals("NAT001")),
-                "NAT001 expected: " + rn.diagnostics().getDiagnostics());
-        CompilationResult rj = compile(tempDir, "FJ", """
-                main() {
-                    val l: List<Float> = listOf(2.5f, -1.5f)
-                    l.sort()
-                    println(l.get(0))
-                }
-                """, Target.JVM);
-        assertTrue(rj.success(), "Float sort stays valid on JVM: " + rj.diagnostics().getDiagnostics());
+                """;
+        // oráculo JVM medido (bin/kof run): Float 4× + ±0.0 Float + ±0.0 Double + NaN último
+        String golden = "-1.5\n0.5\n2.5\n3.5\n-0.0\n0.0\n-0.0\n0.0\n-2.5\n1.5\nNaN";
+        CompilationResult rj = compile(tempDir, "FJ", src, Target.JVM);
+        assertTrue(rj.success(), "Float sort on JVM: " + rj.diagnostics().getDiagnostics());
+        String jvm = new String(new ProcessBuilder(TestJdk.javaBin(), "-cp",
+                outDirFor(tempDir, "FJ", Target.JVM).toString(), "Default.Main")
+                .redirectErrorStream(true).start().getInputStream().readAllBytes())
+                .replace("\r\n", "\n").trim();
+        assertEquals(golden, jvm, "JVM oracle do Float sort (medido)");
+
+        CompilationResult rn = compile(tempDir, "F", src, Target.NATIVE);
+        assertTrue(rn.success(), "Float sort no x86_64: " + rn.diagnostics().getDiagnostics());
+        Path bin = outDirFor(tempDir, "F", Target.NATIVE).resolve("Default/Main");
+        Process pn = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+        String nat = new String(pn.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
+        assertEquals(0, pn.waitFor(), "native exit, saída:\n" + nat);
+        assertEquals(golden, nat, "Float sort x86_64 = caixa crua + cvtss2sd (paridade JVM)");
+
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String arch = t.nativeArch();
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    NativeRiscv64E2ETest.hasToolchain(arch), "toolchain " + arch + " ausente");
+            CompilationResult rc = compile(tempDir, "FC" + arch, src, t);
+            assertTrue(rc.success(), t + " Float sort: " + rc.diagnostics().getDiagnostics());
+            String out = NativeRiscv64E2ETest.runQemu(arch,
+                    outDirFor(tempDir, "FC" + arch, t).resolve("Default/Main"));
+            assertEquals(golden, out, t + " Float sort = fmv.w.x+fcvt.d.s (paridade JVM)");
+        }
     }
 
     @Test
@@ -276,35 +309,82 @@ class CollectionMethodsStdlibE2ETest {
                 "SEM056 expected: " + r.diagnostics().getDiagnostics());
     }
 
+    /** §352/NAT002 FECHADO 21/09: o slot de valor Object normaliza TODO
+     *  primitivo como caixa no nativo (extensão §284: kof_box_* existe p/
+     *  Double/Float/Bool) e o scan usa o tag 6 DINÂMICO — kof_value_kind
+     *  classifica arg e entradas (caixa/String/ponteiro/bit cru) com guarda
+     *  de heap, comparando box×box, str×str, ptr×ptr. Paridade medida:
+     *  JVM (HashMap.equals) × 3 nativos, incl. o print que era vazio no
+     *  Double/Bool cru. */
     @Test
-    void containsValueOnObjectMapWorksOnJvmAndIsHonestOnNative(@TempDir Path tempDir) throws Exception {
-        // NAT002 (§349): no Map<_,Object> nativo o slot de Double cru é
-        // indistinguível de caixa MAGIC sem dereferência (medição JVM: put
-        // Int E Double no mesmo mapa é LEGÍTIMO — SEM056 não pinna tipo
-        // declarado) — rejeição honesta no native, nunca SIGSEGV. No JVM os
-        // dois lados do probe são objetos reais: hit e miss medidos.
+    void objectValuedContainsValueRunsOnNativeInParity(@TempDir Path tempDir) throws Exception {
         String src = """
                 main() {
                     val o: Map<String, Object> = mapOf()
-                    o.put("k1", 7)
+                    o.put("d", 2.5)
+                    o.put("i", 7)
+                    o.put("b", true)
                     println(o.containsValue(7))
-                    println(o.containsValue("s"))
+                    println(o.containsValue(2.5))
+                    println(o.containsValue(true))
+                    println(o.containsValue(8))
+                    println(o.containsValue(2.75))
+                    println(o.get("d"))
+                    println(o.get("b"))
+                    println(o.get("i"))
+                    val x: Object = 2.5
+                    o.put("d2", x)
+                    println(o.containsValue(2.5))
+                    val s: Object = "str"
+                    o.put("s", s)
+                    println(o.containsValue("str"))
+                    println(o.containsValue("nope"))
+                    val only: Map<String, Object> = mapOf()
+                    only.put("d", 2.5)
+                    println(only.containsValue(7))
+                    println(only.containsValue("x"))
+                    val z: Map<String, Object> = mapOf()
+                    z.put("n", -0.0)
+                    println(z.containsValue(0.0))
+                    println(z.containsValue(-0.0))
+                    println(o.getOrDefault("d", 9.5))
+                    println(o.getOrDefault("nope", 9.5))
                 }
                 """;
-        CompilationResult rj = compile(tempDir, "ONJ", src, Target.JVM);
+        // Golden medido no oráculo JVM (java.util): hits Int/Double/Bool/String,
+        // misses de família distinta, print boxed (2.5/true/7), a 2ª entrada
+        // Double do local Object, -0.0 ≠ 0.0 (Double.equals é bit-a-bit) e o
+        // getOrDefault com default Double (§432 — arg boxa pelo tipo DELE,
+        // resultado pelo V=Object do slot).
+        String golden = "true\ntrue\ntrue\nfalse\nfalse\n2.5\ntrue\n7\n"
+                + "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue\n2.5\n9.5";
+        CompilationResult rj = compile(tempDir, "OJ", src, Target.JVM);
         assertTrue(rj.success(), "Object containsValue works on JVM: " + rj.diagnostics().getDiagnostics());
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
-        Process p = new ProcessBuilder(javaCmd, "-cp",
-                outDirFor(tempDir, "ONJ", Target.JVM).toString(), "Default.Main")
+        Process p = new ProcessBuilder(TestJdk.javaBin(), "-cp",
+                outDirFor(tempDir, "OJ", Target.JVM).toString(), "Default.Main")
                 .redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), "run exit 0, got:\n" + out);
-        assertEquals("true\nfalse", out, "MEDIÇÃO JVM 19/09 (Probe2): hit 7, miss \"s\"");
-        CompilationResult rn = compile(tempDir, "ONN", src, Target.NATIVE);
-        assertFalse(rn.success(), "Object containsValue must be rejected on native");
-        assertTrue(rn.diagnostics().getDiagnostics().stream()
-                .anyMatch(d -> d.code().equals("NAT002")),
-                "NAT002 expected: " + rn.diagnostics().getDiagnostics());
+        String jvm = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "JVM exit, saída:\n" + jvm);
+        assertEquals(golden, jvm, "oráculo JVM (medido)");
+
+        CompilationResult rn = compile(tempDir, "ON", src, Target.NATIVE);
+        assertTrue(rn.success(), "Object containsValue no x86_64: " + rn.diagnostics().getDiagnostics());
+        Path bin = outDirFor(tempDir, "ON", Target.NATIVE).resolve("Default/Main");
+        Process pn = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+        String nat = new String(pn.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
+        assertEquals(0, pn.waitFor(), "native exit, saída:\n" + nat);
+        assertEquals(golden, nat, "x86_64 = caixa normalizada + kind dinâmico (paridade JVM)");
+
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String arch = t.nativeArch();
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    NativeRiscv64E2ETest.hasToolchain(arch), "toolchain " + arch + " ausente");
+            CompilationResult rc = compile(tempDir, "OC" + arch, src, t);
+            assertTrue(rc.success(), t + " Object containsValue: " + rc.diagnostics().getDiagnostics());
+            String out = NativeRiscv64E2ETest.runQemu(arch,
+                    outDirFor(tempDir, "OC" + arch, t).resolve("Default/Main"));
+            assertEquals(golden, out, t + " = kof_value_kind + arena (paridade JVM)");
+        }
     }
 
     @Test

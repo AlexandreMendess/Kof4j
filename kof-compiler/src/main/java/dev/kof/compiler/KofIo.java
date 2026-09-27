@@ -86,6 +86,12 @@ public final class KofIo {
             case "toAbsolute" -> argCount == 0 ? new IoCall("kof_io_path_to_absolute", PATH, List.of()) : null;
             case "create" -> argCount == 0 ? new IoCall("kof_io_dir_create", BOOL, List.of()) : null;
             case "createDirectories" -> argCount == 0 ? new IoCall("kof_io_dir_create_dirs", BOOL, List.of()) : null;
+            // mkdir/mkdirs: POSIX-style aliases of create/createDirectories
+            // (GitHub #617). Without them the call was an unknown member and
+            // either a silent no-op + ClassFormatError or (after the SEM102
+            // guard) a rejection; they now really create the directory.
+            case "mkdir" -> argCount == 0 ? new IoCall("kof_io_dir_create", BOOL, List.of()) : null;
+            case "mkdirs" -> argCount == 0 ? new IoCall("kof_io_dir_create_dirs", BOOL, List.of()) : null;
             case "list" -> argCount == 0 ? new IoCall("kof_io_dir_list", STRING_LIST, List.of()) : null;
             default -> null;
         };
@@ -106,6 +112,8 @@ public final class KofIo {
                         ? new IoCall("kof_io_read_range_path", INT_ARRAY, List.of(STR, LONG, INT)) : null;
                 case "writeBytes" -> argCount == 2 ? new IoCall("kof_io_write_bytes", BOOL, List.of(STR, INT_ARRAY)) : null;
                 case "delete" -> argCount == 1 ? new IoCall("kof_io_delete", BOOL, List.of(STR)) : null;
+                case "mkdir" -> argCount == 1 ? new IoCall("kof_io_dir_create", BOOL, List.of(STR)) : null;
+                case "mkdirs" -> argCount == 1 ? new IoCall("kof_io_dir_create_dirs", BOOL, List.of(STR)) : null;
                 case "size" -> argCount == 1 ? new IoCall("kof_io_file_size", LONG, List.of(STR)) : null;
                 case "name" -> argCount == 1 ? new IoCall("kof_io_file_name", STR, List.of(STR)) : null;
                 default -> null;
@@ -129,6 +137,8 @@ public final class KofIo {
                 case "exists" -> argCount == 1 ? new IoCall("kof_io_file_exists", BOOL, List.of(STR)) : null;
                 case "create" -> argCount == 1 ? new IoCall("kof_io_dir_create", BOOL, List.of(STR)) : null;
                 case "createDirectories" -> argCount == 1 ? new IoCall("kof_io_dir_create_dirs", BOOL, List.of(STR)) : null;
+                case "mkdir" -> argCount == 1 ? new IoCall("kof_io_dir_create", BOOL, List.of(STR)) : null;
+                case "mkdirs" -> argCount == 1 ? new IoCall("kof_io_dir_create_dirs", BOOL, List.of(STR)) : null;
                 case "delete" -> argCount == 1 ? new IoCall("kof_io_dir_delete", BOOL, List.of(STR)) : null;
                 case "list" -> argCount == 1 ? new IoCall("kof_io_dir_list", STRING_LIST, List.of(STR)) : null;
                 default -> null;

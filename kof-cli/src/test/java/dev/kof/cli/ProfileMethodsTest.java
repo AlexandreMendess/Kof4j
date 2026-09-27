@@ -134,12 +134,15 @@ class ProfileMethodsTest {
     }
 
     private static boolean nodeAvailable() {
-        try {
-            Process p = new ProcessBuilder("node", "--version").redirectErrorStream(true).start();
-            p.getInputStream().readAllBytes();
-            return p.waitFor() == 0;
-        } catch (Exception e) {
+        String path = System.getenv("PATH");
+        if (path == null) {
             return false;
         }
+        for (String dir : path.split(java.io.File.pathSeparator)) {
+            if (!dir.isEmpty() && Files.isExecutable(Path.of(dir, "node"))) {
+                return true;
+            }
+        }
+        return false;
     }
 }

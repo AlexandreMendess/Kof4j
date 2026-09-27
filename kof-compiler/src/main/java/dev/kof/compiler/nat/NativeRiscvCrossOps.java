@@ -1,5 +1,6 @@
 package dev.kof.compiler.nat;
 import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.CollectionWrites;
 import dev.kof.compiler.CompilerClassLowering;
 import dev.kof.compiler.KofBinary;
 import dev.kof.compiler.KofBinaryOp;
@@ -131,7 +132,7 @@ public final class NativeRiscvCrossOps {
         // (link-by-use da `library()` no ld cross; `call sym` → PLT). O
         // aarch64 herda via tradução linha-a-linha do texto riscv.
         if (NativeFfiCall.isExternCall(kc)) {
-            NativeFfiCall.emitRiscv(nb, sb, kc);
+            NativeFfiCallRiscv.emitRiscv(nb, sb, kc);
             return;
         }
         Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
@@ -250,6 +251,12 @@ public final class NativeRiscvCrossOps {
             // valueOf no NativeX86Calls (9436da12 corrigiu x86 mas esqueceu o
             // cross aqui — mesma familia, lane paridade R5).
             Type vArgType = argType instanceof Type.NullableType nt ? nt.inner() : argType;
+            if (dev.kof.compiler.KofProcess.isResult(argType)) {
+                sb.append("    pop a0\n");
+                sb.append("    call kof_process_result_to_string\n");
+                other.pushRiscv(sb, "a0");
+                return;
+            }
             if (argType instanceof Type.NullableType nnt3
                     && nnt3.inner() instanceof Type.PrimitiveType ipt3
                     && NativeBoxTags.unboxFn(ipt3.name()) != null) {
@@ -297,13 +304,26 @@ public final class NativeRiscvCrossOps {
                     sb.append("    pop a0\n    call kof_bool_to_string\n");
                     other.pushRiscv(sb, "a0");
                 }
-            } else if (BuiltinTypes.isObject(vArgType)) {
-                // §284: Object (erasure) — valor e um box; kof_box_to_string
-                // despacha por MAGIC+tag e passa nao-box cru (paridade com o
-                // ramo equivalente do x86; sem isto o box cru caia em
-                // println_string — SIGSEGV medido no espelho do B.kf).
+            } else if (BuiltinTypes.isObject(vArgType) || vArgType instanceof Type.TypeVariable) {
+                // §284 + §444-cross (#613): Object/T apagado — valor e um box;
+                // kof_box_to_string despacha por MAGIC+tag e passa nao-box cru
+                // (paridade com os ramos equivalentes do x86; sem isto o box
+                // cru caia em println_string/concat — SIGSEGV no espelho do
+                // B.kf e "Box: <lixo>" medido no describe() do record #613).
                 sb.append("    pop a0\n");
                 sb.append("    call kof_box_to_string\n");
+                other.pushRiscv(sb, "a0");
+                return;
+            } else if (vArgType instanceof Type.ArrayType vat) {
+                // §388-B-cross (voto 21/09): array cru no formato de container
+                // ([65, 66]) — kof_array_to_string espelha o x86; MESMA
+                // gramática de descritor (NativePrintDescriptors) e bloco
+                // [len@16][esz@20][data@24]. Aarch64 herda via tradutor.
+                sb.append("    pop a0\n");
+                String ld = NativePrintDescriptors.emit(sb, nb.printDescriptorCounter++,
+                        NativePrintDescriptors.node(nb, vat.componentType(), false));
+                sb.append("    la a1, ").append(ld).append("\n");
+                sb.append("    call kof_array_to_string\n");
                 other.pushRiscv(sb, "a0");
                 return;
             } else if (vArgType instanceof Type.ClassType ct && (BuiltinTypes.isList(ct)
@@ -348,11 +368,10 @@ public final class NativeRiscvCrossOps {
                 // "rec:" + lixo (medido: `rec:` vazio no qemu). Paridade x86.
                 int tosIdx = nb.findVirtualMethodIndex(ct.name(), "toString", java.util.List.of());
                 if (tosIdx >= 0) {
-                    sb.append("    pop a0\n");
-                    sb.append("    ld t0, 8(a0)\n");
-                    sb.append("    addi t0, t0, ").append(tosIdx * 8).append("\n");
-                    sb.append("    ld t0, 0(t0)\n");
-                    sb.append("    jalr t0\n");
+                    // §396-cross: guard de null no ENTRY (paridade JVM "null";
+                    // aarch herda via tradutor). Emissão no guard extraído
+                    // (check_500): NativeVtableToStringGuard.
+                    NativeVtableToStringGuard.emitRiscv(sb, nb, tosIdx);
                     other.pushRiscv(sb, "a0");
                 }
             }
@@ -391,6 +410,10 @@ public final class NativeRiscvCrossOps {
                 case "toLowerCase" -> "kof_string_to_lower";
                 case "lastIndexOf" -> "kof_string_last_index_of";
                 case "equalsIgnoreCase" -> "kof_string_equals_ignore_case";
+                // D-FULL-PARITY-050 row 11 (NativeRiscvAsmStrToCharArray): toCharArray → Char[] (code
+                // units UTF-16, paridade JVM). Sem entry caía no fallback
+                // genérico → java_lang_String_toCharArray (link-fail).
+                case "toCharArray" -> "kof_string_to_char_array";
                 // §97 cross (B36): métodos declarados no reference (equals/
                 // compareTo/hashCode). Sem entry aqui caíam no fallback
                 // genérico (pop só de a0 → receiver fica na pilha, link-fail
@@ -469,20 +492,11 @@ public final class NativeRiscvCrossOps {
             // #386: contains_value carrega a tag do VALOR como arg explícito
             // (espelho x86) — não toca no slot 40 (tag de chave do header).
             if (mn.startsWith("kof_map_") && !"kof_map_contains_value".equals(mn)) {
-                Type mkt = BuiltinTypes.mapKey(kc.ownerType());
-                Type mat = argCount >= 1 ? kc.parameterTypes().get(0) : null;
-                if (mkt instanceof Type.NullableType nt) mkt = nt.inner();
-                if (mat instanceof Type.NullableType nt) mat = nt.inner();
-                boolean ktKnown = mkt != null && !(mkt instanceof Type.UnknownType);
-                boolean atKnown = mat != null && !(mat instanceof Type.UnknownType);
-                int tag = -1;
-                if (ktKnown && atKnown) {
-                    tag = BuiltinTypes.isString(mkt) && BuiltinTypes.isString(mat) ? 1 : 0;
-                } else if (ktKnown) {
-                    tag = BuiltinTypes.isString(mkt) ? 1 : 0;
-                } else if (atKnown) {
-                    tag = BuiltinTypes.isString(mat) ? 1 : 0;
-                }
+                // §104b-ii: tag 2 = objeto Kof (conteudo via kof_obj_equals),
+                // 1 = String, 0 = raw; -1 = nenhum lado conhecido (nao escreve).
+                int tag = CollectionWrites.mapKeyTag(
+                        BuiltinTypes.mapKey(kc.ownerType()),
+                        argCount >= 1 ? kc.parameterTypes().get(0) : null);
                 if (tag >= 0) {
                     sb.append("    li t0, ").append(tag).append("\n");
                     sb.append("    sw t0, 40(a0)\n");
@@ -556,7 +570,13 @@ public final class NativeRiscvCrossOps {
             return nb.functionMangleMap.getOrDefault(key, nb.sanitizeName(mn));
         }
         if (kc.kind() == KofCallKind.CONSTRUCTOR && kc.ownerType() instanceof Type.ClassType ct) {
-            return nb.sanitizeName(ct.name()) + "_" + nb.sanitizeName("<init>") + "_" + kc.parameterTypes().size();
+            // §530: o simbolo DEFINIDO usa o nome interno COM pacote
+            // (`mini/style/GridStyle` -> `mini_style_GridStyle_init_1`); o
+            // call-site usava `ct.name()` CRU (= "GridStyle") e so casava por
+            // coincidencia quando a classe nao tinha pacote (irmao do #628).
+            // internalOwner e a forma canonica ja usada pelo ramo FUNCTION.
+            return nb.sanitizeName(NativeSymbolMangling.internalOwner(ct))
+                    + "_" + nb.sanitizeName("<init>") + "_" + kc.parameterTypes().size();
         }
         if (kc.ownerType() instanceof Type.ClassType ct) {
             String key = ct.name() + "." + mn;

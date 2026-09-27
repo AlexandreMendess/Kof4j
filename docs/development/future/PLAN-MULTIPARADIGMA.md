@@ -2,7 +2,7 @@
 
 # PLAN-MULTIPARADIGMA — Multiparadigm, Functional Pipelines and Declarative Queries
 
-**Status:** `FUTURE PLAN` · **Date:** 2026-09-16 · **Version:** 0.4.0-beta · **Tier:** 2.x (core) → 8 (data, deferred)
+**Status:** `FUTURE PLAN` · **Date:** 2026-09-16 · **Version:** 0.5.0-beta · **Tier:** 2.x (core) → 8 (data, deferred)
 **Author:** investigation at HEAD `beta-0.4.0` · **Lane:** none yet — design only, zero code in this doc
 **Depends on:** `docs/development/roadmap.md` §23 (SYSTEMS must close before Tier 6+; `DECISIONS.md` D-NULL-INTENT queue N1→N4 owned by compiler lane), `docs/architecture/compiler-architecture.md`, `docs/language-reference/*`
 
@@ -108,7 +108,7 @@ The answer is not "add 15 methods to List". It is: **keep the language surface a
 ### 2.1 Guiding principles (non-negotiable)
 
 1. **Intention over mechanism** — `spawn`, `setOf().contains()` today; `filter`/`map` tomorrow. The language already favours this (AGENTS iron rule 1).
-2. **Zero-bloat core** — the core language stays small; depth grows as stdlib dispatch, never as new targets or syntax (`../IMPLEMENTATION-UNIVERSAL-PLATFORM.md` R12: "Universal capability ≠ bloated language").
+2. **Zero-bloat core** — the core language stays small; depth grows as stdlib dispatch, never as new targets or syntax (`../../architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` R12: "Universal capability ≠ bloated language").
 3. **Additive, backward compatible** (`AGENTS.md` freeze rule 2): new collection methods are additive; existing `map/filter/reduce` semantics **do not change** (eager today stays eager unless the name or a distinct type says otherwise).
 4. **Honest multi-target** (R6): a method that only exists on one target gives a diagnosed gap `XXX00x`, never a silent fallback.
 5. **Not a copy** — no Scala collection hierarchy, no Kotlin `Sequence` transplant, no LINQ expression trees verbatim, no Rust iterator trait. The solution must read as **Kof**: `listOf`, `map`, `filter`, direct field access, `==` content where defined.
@@ -415,5 +415,5 @@ If a frontend feature seems implementable "because other languages have it" (pip
 - `docs/bugs-and-gaps/specification-gaps.md` (SG-009, SG-012, SG-002)
 - `docs/bugs-and-gaps/known-bugs.md` (bugs 19/20, §170 parity, §181 cast)
 - `docs/development/roadmap.md` §23 Tiers 0–12, `docs/development/DECISIONS.md` (D-NULL-INTENT N1→N4)
-- `docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (invariants R1–R12, interop-first)
+- `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (invariants R1–R12, interop-first)
 - `training/idioms/collections.md` (real API), `learn/16-lambdas.md`, `training/anti-patterns/fake-idioms.md`

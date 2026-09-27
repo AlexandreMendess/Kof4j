@@ -116,9 +116,7 @@ public final class RuntimeSecurity3 {
                 jz .Lsec_rand_done
                 movq %rbx, %rdi
                 movq %r12, %rsi
-                xorq %rdx, %rdx
-                movq $318, %rax
-                syscall
+                call kof_plat_random
                 testq %rax, %rax
                 js .Lsec_rand_loop
                 addq %rax, %rbx

@@ -155,6 +155,31 @@ public final class KofMedia {
         return null;
     }
 
+    /**
+     * D-FULL-PARITY-050 linha 4 — a UNICA fonte de verdade de "que face de
+     * media tem runtime em que target". Os dois gates de lowerer
+     * ({@code ExpressionUiMediaCallLowerer} estatico,
+     * {@code ExpressionBuiltinInstanceCalls} face de handle) delegam aqui;
+     * a fatia 2 (cross riscv64/aarch64) abre por ENTRADA DE TABELA, nao por
+     * reescrita de gate. JS nunca abre sem decisao de engine (regra 6).
+     */
+    static boolean mediaFaceReady(Target target, String function) {
+        if (function == null) return false;
+        if (function.startsWith("kof_media_video_")) {
+            // FATIA 2A (26/09): o Video cross (riscv64; aarch64 herda pelo
+            // tradutor) pousou em NativeRiscvAsmMedia/Mp4 — E2E byte a byte
+            // vs oraculo JVM (MediaCrossE2ETest).
+            return target == Target.NATIVE || target == Target.NATIVE_RISCV64
+                    || target == Target.NATIVE_AARCH64;
+        }
+        // FATIA 2B (26/09): Audio (WAV PCM 16-bit) cross (riscv64; aarch64
+        // herda pelo tradutor) em NativeRiscvAsmMediaWav — E2E byte a byte vs
+        // oraculo JVM (MediaCrossE2ETest).
+        return function.startsWith("kof_media_audio_")
+                && (target == Target.NATIVE || target == Target.NATIVE_RISCV64
+                        || target == Target.NATIVE_AARCH64);
+    }
+
     static String gapCode(String function) {
         // `app.serveDir` NÃO passa por aqui — é método de instância do app
         // (KofWeb.instanceMethod → kof_web_serve_dir) e o gap WEB005 é

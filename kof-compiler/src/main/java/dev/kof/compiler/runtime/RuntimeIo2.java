@@ -271,7 +271,9 @@ public final class RuntimeIo2 {
                 popq %rbx
                 ret
 
-            .Lstr_io_size_prefix: .byte 115,105,122,101,58,32,102,105,108,101,32,110,111,116,32,102,111,117,110,100,58,32
+            # §494/D-IO-SIZE-JVM-LAW (27/09): a lei e o JVM — "file not found: "
+            # (16 bytes), sem o prefixo "size: " que divergia.
+            .Lstr_io_size_msg: .byte 102,105,108,101,32,110,111,116,32,102,111,117,110,100,58,32
             .globl kof_io_file_size
             .type kof_io_file_size, @function
             kof_io_file_size:
@@ -291,9 +293,9 @@ public final class RuntimeIo2 {
                 popq %rbx
                 ret
             .Lio_size_err:
-                leaq .Lstr_io_size_prefix(%rip), %rdi
-                movl $22, %esi
-                call kof_string_from_literal   # rax = KofString "size: file not found: "
+                leaq .Lstr_io_size_msg(%rip), %rdi
+                movl $16, %esi
+                call kof_string_from_literal   # rax = KofString "file not found: "
                 movq %rax, %rdi
                 movq %rbx, %rsi                 # path (preservado em rbx)
                 call kof_string_concat          # rax = prefixo + path

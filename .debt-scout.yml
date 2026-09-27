@@ -1,4 +1,6 @@
-# .debt-scout.yml — config for scripts/debt-scout/ (Wave 1, shadow-only).
+# .debt-scout.yml — config for scripts/debt-scout/ (Wave 1+2, shadow-only).
+# rules.skipped_tests stays false on purpose: scripts/audit-stubs.sh §5/§6/§12
+# already owns @Disabled/assumeTrue/weak-green (division of labor).
 # See docs/development/technical-debt/DEBT_SCOUT_CONTRACT.md for what each
 # field means and what it authorizes. Parsed by scripts/debt-scout/config.py
 # with a minimal stdlib-only indentation parser (no PyYAML dependency —
@@ -39,7 +41,7 @@ model:
 
 rules:
   satd: true
-  partial_decisions: false
+  partial_decisions: true
   contract_drift: false
   cross_target: false
   accidental_contract: false

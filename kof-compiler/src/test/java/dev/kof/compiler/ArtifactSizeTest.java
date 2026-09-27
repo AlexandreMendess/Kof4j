@@ -51,8 +51,39 @@ class ArtifactSizeTest {
     // recursivo na x86 = codigo novo legitimo; hello 37.320 -> 39.232 re-medido
     // no host 19/09 (stash-test: byte-identico sem diff desta lane; culpa = codegen
     // do landing, nao o gate). Baseline unilateral como os anteriores.
-    private static final long HELLO_X86_BYTES = 39_232L;
-    private static final int HELLO_X86_SYMS = 84;
+    // B-0.2/PLAN-BAREMETAL-BOOT (22/09, costura HAL x86_64): o roteamento de
+    // print/panic/exit pela costura kof_plat_* acrescentou
+    // kof_plat_write/writev/exit/exit_group ao alcancavel do hello —
+    // 39.232->39.304B (+0,2%), 84->88 syms. Medido no host pos-seam.
+    // B-0.3/PLAN-BAREMETAL-BOOT (22/09, ambiente x86_64 pela costura): o
+    // gettid do _start e os sítios de time/log/random/obs/orm passaram a
+    // chamar kof_plat_thread_id/time/time_mono/sleep/random (a fatia
+    // RuntimePlat linka inteira ao ser referenciada) — 39.304->39.512B
+    // (+0,5%), 88->93 syms. Medido no host pós-seam.
+    // B-0.3b-i (22/09, futex pela costura): kof_plat_sync entra no alcançável
+    // do hello (o lock de alocação espera/acorda por futex) — 39.512->39.544B,
+    // 93->94 syms. Medido no host pós-seam.
+    // B-0.4a (22/09, net+read/close pela costura): `RuntimePlat` foi dividido
+    // por FAMÍLIA (um método = uma fatia; classe+método é a granularidade do
+    // podador) — o hello deixa de carregar as famílias que não usa (env, sync,
+    // create, io, net) e ENCOLHE: 39.544->39.432B, 94->91 syms (encolher é
+    // sempre ok). Medido no host pós-split.
+    // B-1c (23/09, PLAN-BAREMETAL-BOOT): o dtoa do host deixou de usar libc e
+    // passou a carregar o Schubfach portado do JDK — as tabelas g (617 pares
+    // g1,g0) + pow10 são ~10KB de .rodata inerentes ao algoritmo exato. O host
+    // não roda `ld --gc-sections` (o freestanding roda e poda a fatia inteira
+    // quando não há Double: hello freestanding fica sem kof_schub_*), então o
+    // hello x86 host cresceu 39.432→52.096B, 91→100 syms. Medido no host.
+    // Follow-up (otimização, não correção): podar a fatia dtoa por uso no host.
+    // §114 (face hash de record-aninhado, 24/09): a tabela densa
+    // `kof_hashcode_table` (`.quad` por type_id, ao lado de toString/equals)
+    // entra no .data do PROGRAMA — +1 símbolo no hello (106; bytes estáveis,
+    // 52.096B inalterado). O `kof_obj_hash` que a consome ficou FORA do
+    // alcançável do hello (movido da RuntimeList, que o hello puxa, para a
+    // fatia RuntimeMath on-demand) justamente para não somar mais símbolos.
+    // Baseline re-medido no host (mesmo processo do #104/B-1c).
+    private static final long HELLO_X86_BYTES = 52_096L;
+    private static final int HELLO_X86_SYMS = 106;
     // Pós-#104 (13/09): o shim globalThis.kof_platform do core JS (erro claro
     // em vez de ReferenceError fora do GraalJS) entrou no préâmbulo always —
     // o hello carrega ~827B a mais. Re-medido neste host: 6.873 → 7.700.
@@ -67,7 +98,11 @@ class ArtifactSizeTest {
     // _attrs) no préâmbulo always — 8.297 → 13.007 (+57% > tol; soma de TODOS
     // os .mjs: runtime 11.577 + io 1.143 + Default 287). Mesmo processo; a
     // causa é a lane JS (lane do shim), o gate é universal.
-    private static final long HELLO_JS_BYTES = 13_007L;
+    // 21/09: a frente FFI fechou a superfície do JS no alvo (D6): o slice
+    // `kof.buffer` (R57/R58, `JsRuntimeBuffer`) + os helpers de marshal/bridge
+    // (R55 array copy-in, R58 Buffer INOUT, R59 retorno de struct) somaram
+    // ~827B ao runtime JS — re-medido 13.834B (mesmo processo da suíte).
+    private static final long HELLO_JS_BYTES = 13_834L;
     // Hello riscv64 (cross — só medido onde há toolchain). Pós-S-5 (T1b,
     // 12/09): seções .text.<fn> por função do runtime + `ld --gc-sections`
     // derrubaram os irmãos mortos DENTRO das peças mantidas pela S-4:
@@ -84,15 +119,45 @@ class ArtifactSizeTest {
     // kof_json_encode_map (B46) entraram no alcançável do hello:
     // 133.288→136.048B, 24→41 syms. (O hello agora carrega o par
     // put/println-boxed que o contrato Map nativo exige.)
-    private static final long HELLO_RV_BYTES = 136_048L;
-    private static final int HELLO_RV_SYMS = 41;
+    // B-0/PLAN-BAREMETAL-BOOT (22/09, costura HAL): o roteamento de
+    // print/_start/random pela costura kof_plat_* acrescentou os símbolos
+    // kof_plat_write/writev/exit_group/random ao alcançável do hello —
+    // 136.048→136.824B (+0,6%), 41→45 syms (+4). Medido no host pós-seam.
+    // B-1c-3 (23/09, lane 9093, dtoa Schubfach libc-free p/ §448): a fatia
+    // schub_* (11 syms) passa a ser definida (antes: refs externas libc U,
+    // não contadas) e é puxada por box_to_string→double_to_string (§284)
+    // em TODO binário que imprime.
+    // §448/§450 (23/09, lane baremetal/gaps-db): baseline do tip MESCLADO
+    // re-medido em a148a9557 (55 syms; +10 vs 45) — o valor pré-§448 da B-1c-3
+    // (54 syms) fica superseded; a lane re-mede ao pousar o seu código.
+    // #643 (27/09, re-baseline COM CAUSA — §260 precedente, lane native):
+    // o hello cross passou 55→64 syms (+9) MESMO sem chamar pow. BISECTADO:
+    // revertendo as fontes do landing do math.pow (f66314e22/e69ea2bc6) o hello
+    // continua 64 → a causa NÃO é o pow (que é podado: `kof_math_pow` ausente do
+    // hello, libm só-por-uso). A deriva veio de `d2a41605c` (row 9, log cross —
+    // fatia 2a): o B4 (`kof_json_encode_list`) passou a `call kof_json_enc_elem`
+    // e o fecho por PEÇA (B3→B42-45 + scheduler/mapset) arrasta a família
+    // json-decode (`kof_json_decode_*`/`kof_string_to_{double,float}`) para um
+    // programa que só imprime. Bytes estáveis (136832 ≤ 136824×1.05).
+    // Follow-up (otimização, não correção): quebrar a aresta log→json para o
+    // hello não carregar o decoder. O valor abaixo é o MEDIDO no tip 27/09.
+    private static final long HELLO_RV_BYTES = 136_832L;
+    private static final int HELLO_RV_SYMS = 64;
     // Hello aarch64 (medido 12/09, mesmo caminho: poda S-4 + gc-sections S-5
     // no asm riscv ANTES do tradutor). G-4 (15/09): também 18→24 syms.
     // §284/§284-map (18/09): 133.112→201.408B, 24→41 syms — o TRADUTOR
     // aarch64 expande as fatias novas do riscv (movi/adrp-loops) muito acima
     // da média do binário; mesmo caminho de poda (regra 5), medido pós-port.
-    private static final long HELLO_AA_BYTES = 201_408L;
-    private static final int HELLO_AA_SYMS = 41;
+    // B-0 (22/09): 201.408→202.168B, 41→45 syms (mesma costura do riscv).
+    // B-1c-3 (23/09, lane 9093): o dtoa Schubfach riscv atravessa o tradutor
+    // aarch64 e entra no alcançável (aarch herda).
+    // §448/§450 (23/09): baseline do tip MESCLADO re-medido (55 syms) —
+    // superseded o valor pré-§448 da B-1c-3 (54); a lane re-mede ao pousar.
+    // #643 (27/09): mesma deriva do riscv (`d2a41605c`, B4 log→json; NÃO o pow)
+    // — re-medido no host: 64 syms, 136664B (o baseline de bytes 202168 era de
+    // 18/09, antes da melhoria do tradutor; encolher é sempre ok).
+    private static final long HELLO_AA_BYTES = 136_664L;
+    private static final int HELLO_AA_SYMS = 64;
 
     private static final double TOL = 0.05; // gate de inchaço >5%
 
@@ -126,8 +191,8 @@ class ArtifactSizeTest {
         // alcançabilidade derrubou 627→~37 símbolos. O gate agora exige o
         // número BAIXO (era o inverso, pré-poda). Se alguém re-introduzir
         // emissão incondicional, isso estoura.
-        assertTrue(e.kofSymbols() < 100,
-                "S-3 podou o hello a <100 syms; se estourou, alguém voltou a emitir runtime inteiro — symbs=" + e.kofSymbols());
+        assertTrue(e.kofSymbols() < 110,
+                "S-3 podou o hello a <110 syms; se estourou, alguém voltou a emitir runtime inteiro — symbs=" + e.kofSymbols());
         assertNoBloat(e.fileBytes(), e.kofSymbols(), HELLO_X86_BYTES, HELLO_X86_SYMS, "hello x86_64");
     }
 

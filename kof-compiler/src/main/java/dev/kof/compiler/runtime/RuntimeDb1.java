@@ -36,6 +36,18 @@ public final class RuntimeDb1 {
                 .long 8
                 .long 0
                 .asciz "rollback"
+            # §421/S0: diagnóstico honesto p/ scheme fora do contrato nativo
+            # (sqlite:/mysql://, S1: +mariadb://). Antes: handle nulo ->
+            # "unknown db connection: " anônimo tarde no .Lorm_conn (R6 violado).
+            .Ldb_unsupported_str:
+                .long 1
+                .long 0
+                .quad 0
+                .long .Ldb_unsupported_len
+                .long 0
+            .Ldb_unsupported_body:
+                .asciz "DB001: unsupported db scheme (native: sqlite:, mysql://, mariadb://)"
+                .set .Ldb_unsupported_len, . - .Ldb_unsupported_body - 1
             .section .bss
             .Ldb_slots: .zero 512
             .Ldb_types: .zero 64
@@ -64,6 +76,18 @@ public final class RuntimeDb1 {
             .Ldb_mysql_plugin: .asciz "mysql_native_password"
             .Ldb_mysql_empty: .asciz ""
             .Ldb_mysql_nullstr: .asciz "null"
+            # §523 (27/09): prefixo p/ o throw do ERR do handshake + literal
+            # KofString "mysql: connection lost" (falha TCP/greeting/response).
+            .Ldb_mysql_pfx: .ascii "mysql: "
+            .Ldb_lost_str:
+                .long 1
+                .long 0
+                .quad 0
+                .long .Ldb_lost_len
+                .long 0
+            .Ldb_lost_body:
+                .asciz "mysql: connection lost"
+                .set .Ldb_lost_len, . - .Ldb_lost_body - 1
             .section .text
 
             # ── SHA-1 (para o auth scramble do MySQL) ────────────────

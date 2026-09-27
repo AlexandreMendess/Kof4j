@@ -2,7 +2,7 @@
 
 # 07 — Classes and Objects
 
-> **Kof 0.4.0-beta — examples verified in the compiler (02/09)**
+> **Kof 0.5.0-beta — examples verified in the compiler (02/09)**
 >
 > Kof has **two** models of "data with parameters": `record`/`class X(...)`
 > (immutable, accessors) and a class with fields + `constructor(...)` (mutable,
@@ -22,8 +22,13 @@ main() {
 }
 ```
 
-The compiler generates: canonical constructor, accessors (`name()`), and on the
-JVM `toString`/`equals`/`hashCode`.
+The compiler generates: canonical constructor, accessors (`name()`), and
+`toString`/`equals`/`hashCode` on every target. Equality and hashing are BY
+CONTENT everywhere (§104b-ii/§114, 24/09): two records with the same field
+values are `==`, hash the same, dedup in `Set`, match as `Map` keys and
+`containsValue` values — on JVM, Native (x86-64, riscv64, aarch64) and JS
+alike. The synthesized `equals` recurses into nested record/class fields;
+`hashCode` is content-based for String, Double and nested records.
 
 Records can have methods:
 
@@ -176,7 +181,7 @@ class Cachorro extends Animal {
 
 Override is implicit (same method name); dispatch is virtual.
 
-## Method overloading (0.4.0-beta, §131)
+## Method overloading (0.5.0-beta, §131)
 
 Methods with the same name coexist in a class when their signatures differ:
 

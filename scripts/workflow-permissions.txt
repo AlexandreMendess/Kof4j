@@ -1,0 +1,15 @@
+# Ledger do gate check_workflow_permissions.py (least privilege dos workflows).
+#   exempt <arquivo.yml> <motivo>                       divida declarada (arquivo fora do gate)
+#   allow  <arquivo.yml> <job> <escopo> <motivo>        write de JOB justificado
+exempt release.yml faixa da lane CI — workflow-level contents:write + push direto em main morrem na reescrita attest+verify (D-ARTIFACT-TRUST fila b)
+allow codeql.yml analyze security-events upload do SARIF da analise CodeQL (code scanning)
+allow issue-spam-guard.yml guard issues fecha a issue excedente do limite de 24h e comenta o motivo
+allow kof-bots.yml orchestrate actions createWorkflowDispatch dos bots quality/warning/security
+allow kof-issues-agent.yml triage issues addLabels + addAssignees na issue recem-aberta
+allow kof-issues-agent.yml respond issues createComment de agradecimento ao autor da issue
+allow kof-issues-agent.yml stale issues actions/stale marca e fecha issues inativas
+allow kof-issues-agent.yml stale pull-requests actions/stale marca e fecha PRs inativos
+allow kof-quality-bot.yml code-quality security-events upload do SARIF filtrado (#563) da suite security-and-quality
+allow kof-quality-bot.yml security-gate pull-requests comentario do codeql-gate no PR (best-effort; 403 em fork nao falha)
+allow kof-security-bot.yml codeql-security security-events upload do SARIF filtrado (#563) da suite security-extended
+allow pr-base-guard.yml guard-main pull-requests comenta uma vez no PR que mira main sem ser codeowner

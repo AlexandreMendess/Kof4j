@@ -78,7 +78,10 @@ public final class RiscvSlices {
     /** Externos definidos pelo caminho de programa (medido 12/09: o runtime
      *  riscv referencia exatamente este; ver teste de needs órfãos). */
     public static Set<String> programSideSymbols() {
-        return Set.of("kof_super_table");
+        // row 10 (27/09): `pow` é externo LIBRESOLVIDO (libm) — o needs da peça
+        // kof_math_pow (NativeRiscvAsmMathPow) aponta p/ ele; entra por `-lm`
+        // só-por-uso. Nunca é definido pelo runtime, então é nó externo.
+        return Set.of("kof_super_table", "kof_tostring_table", "kof_equals_table", "kof_hashcode_table", "pow");
     }
 
     /** O runtime riscv NÃO referencia rótulos `.L` do programa (medido 12/09:
@@ -356,19 +359,12 @@ public final class RiscvSlices {
      *  {@code NativeRiscvAsm.java} (campos agregadores + cadeia B). Uma
      *  constante por (classe,campo) — repetições são dedupadas (não há hoje). */
     private static List<String[]> readOrderFromSource() {
-        String src;
-        try {
-            src = java.nio.file.Files.readString(java.nio.file.Path.of(
-                    "kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsm.java"));
-        } catch (Exception e) {
-            try {
-                src = java.nio.file.Files.readString(java.nio.file.Path.of(
-                        "src/main/java/dev/kof/compiler/nat/NativeRiscvAsm.java"));
-            } catch (Exception e2) {
-                throw new IllegalStateException(
-                        "NativeRiscvAsm.java not found (run from the kof-compiler module)", e2);
-            }
-        }
+        // §371: classpath primeiro (funciona do jar shipped), CWD-relativo só
+        // como fallback dev.
+        String src = RuntimeSourceLoader.read(RiscvSlices.class,
+                "/dev/kof/compiler/nat/NativeRiscvAsm.java",
+                "kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsm.java",
+                "src/main/java/dev/kof/compiler/nat/NativeRiscvAsm.java");
         List<String[]> pairs = new ArrayList<>();
         java.util.Set<String> seen = new java.util.LinkedHashSet();
         Matcher m = PIECE_REF.matcher(src);

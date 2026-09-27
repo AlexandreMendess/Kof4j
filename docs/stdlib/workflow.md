@@ -3,7 +3,7 @@
 # Workflows — `kof.workflow`
 
 **Date:** September 19, 2026
-**Status:** MVP implemented (universal plan Stage 2, row 2.1, slice 2.1.2) — `VERSION` 0.4.0-beta
+**Status:** MVP implemented (universal plan Stage 2, row 2.1, slice 2.1.2) — `VERSION` 0.5.0-beta
 
 > **MVP scope (Q2, maintainer poll 19/09):** `job` / `dag` / `after` / `run` / `Report`.
 > **2.1.3 face 1 LANDED 19/09:** `retry` (Q3 — the workflow's own additive helper;
@@ -188,4 +188,4 @@ restart (flaky child restarts, neighbor untouched — counters prove both sides 
 "one"), limit-exceeded drop + transitive skip, the face's R6 guards, and the
 double-import dedup; Native compile-pinned. The shape layer is pinned by
 `WorkflowPrimitivesE2ETest` (6/6, incl. the negative syntax pins). Plan:
-`docs/docs/workflow-plan.md` §5.
+`docs/workflow-plan.md` §5.

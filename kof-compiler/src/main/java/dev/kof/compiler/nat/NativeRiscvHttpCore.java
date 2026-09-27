@@ -46,8 +46,7 @@ public final class NativeRiscvHttpCore {
                 li   a0, 2
                 li   a1, 1
                 li   a2, 0
-                li   a7, 198
-                ecall
+                call kof_plat_net_socket
                 bltz a0, .Lhr_fail
                 mv   s5, a0
                 # §259: connect nao-bloqueante p/ deadline (medido probe rtmo.s)
@@ -70,8 +69,7 @@ public final class NativeRiscvHttpCore {
                 la   a1, .Lhttp_sock
                 mv   a0, s5
                 li   a2, 16
-                li   a7, 203
-                ecall
+                call kof_plat_net_connect
                 bgez a0, .Lhr_conn_done
                 neg  a1, a0
                 li   t1, 115               # EINPROGRESS (medido probe riscv)
@@ -231,8 +229,7 @@ public final class NativeRiscvHttpCore {
                 sub  a2, a0, t0
                 mv   a1, t0
                 mv   a0, s5
-                li   a7, 64
-                ecall
+                call kof_plat_write
                 li   s3, 0
             .Lhr_rd:
                 la   t0, .Lhttp_respbuf
@@ -240,8 +237,7 @@ public final class NativeRiscvHttpCore {
                 li   t0, 262144
                 sub  a2, t0, s3
                 mv   a0, s5
-                li   a7, 63
-                ecall
+                call kof_plat_read
                 bltz a0, .Lhr_rd_err
                 beqz a0, .Lhr_rd_done
                 add  s3, s3, a0
@@ -323,8 +319,7 @@ public final class NativeRiscvHttpCore {
                 call kof_string_from_literal
                 mv   s0, a0
                 mv   a0, s5
-                li   a7, 57
-                ecall
+                call kof_plat_close
                 mv   a0, s0
                 j    .Lhr_out
             .Lhr_bn:
@@ -337,27 +332,23 @@ public final class NativeRiscvHttpCore {
                 call kof_string_from_literal
                 mv   s0, a0
                 mv   a0, s5
-                li   a7, 57
-                ecall
+                call kof_plat_close
                 mv   a0, s0
             .Lhr_fail_cl:                  # erro c/ fd aberto -> fecha
                 mv   a0, s5
-                li   a7, 57
-                ecall
+                call kof_plat_close
                 la   a0, .Lhttp_err_conn
                 j    .Lhr_rtry
             .Lhr_tmo_cl:                   # deadline de connect (ppoll=0) ou read
                 mv   a0, s5
-                li   a7, 57
-                ecall
+                call kof_plat_close
                 la   a0, .Lhttp_err_tmo
                 j    .Lhr_rtry
             .Lhr_rtry_cl:                  # 5xx: msg salva, fecha fd, registra
                 la   t0, .Lhttp_last_err
                 sd   a0, 0(t0)
                 mv   a0, s5
-                li   a7, 57
-                ecall
+                call kof_plat_close
                 call kof_http_circuit_record_fail
                 j    .Lhr_rtry_chk
             .Lhr_rtry:                     # excecao/timeout: guarda msg + registra

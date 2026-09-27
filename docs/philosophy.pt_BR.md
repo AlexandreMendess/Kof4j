@@ -3,7 +3,7 @@
 # Filosofia do Kof
 
 **Última atualização:** 12 de setembro de 2026
-**Versão:** 0.4.0-beta (7 targets; `VERSION` 0.4.0-beta)
+**Versão:** 0.5.0-beta (7 targets; `VERSION` 0.5.0-beta)
 
 ---
 
@@ -253,7 +253,7 @@ tooling, editor support e um OpenJDK 25 embutido (Temurin 25, `release.yml`
 com 2 jobs — `test-and-bump` → `package-and-release` — por plataforma
 linux-x86_64/macos-arm64/windows-x86_64, `scripts/package.sh` PASS). A
 instalação não depende de Java externo, `JAVA_HOME` ou SDKMAN. Build
-`mvn test` 2218 (1911+38+7+262), golden 16/16, integration 9/9.
+`mvn test` 3225 (2762+50+7+406), golden 16/16, integration 9/9.
 
 O usuário que instala o Kof recebe tudo o que precisa para desenvolver,
 compilar, executar e usar o tooling da linguagem (26 comandos:

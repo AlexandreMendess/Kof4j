@@ -1,0 +1,82 @@
+package pdf
+
+import pdf.PdfBuffer
+
+class PdfEncoding {
+    escape(String value): String {
+        PdfBuffer escaped = PdfBuffer()
+
+        for (var index = 0; index < value.length; index++) {
+            Int code = value.charAt(index)
+
+            if (code == 40) {
+                escaped.append("\\(")
+            } else if (code == 41) {
+                escaped.append("\\)")
+            } else if (code == 92) {
+                escaped.append("\\\\")
+            } else if (code >= 32 && code <= 126) {
+                String character = value.substring(index, index + 1)
+                escaped.append(character)
+            } else if (code >= 160 && code <= 255) {
+                String octal = toOctalByte(code)
+                escaped.append("\\")
+                escaped.append(octal)
+            } else {
+                Int winAnsi = winAnsiByte(code)
+                if (winAnsi >= 0) {
+                    String octal = toOctalByte(winAnsi)
+                    escaped.append("\\")
+                    escaped.append(octal)
+                } else {
+                    escaped.append("?")
+                }
+            }
+        }
+
+        return escaped.content()
+    }
+
+    toOctalByte(Int value): String {
+        var first = value / 64
+        var remainder = value % 64
+        var second = remainder / 8
+        var third = remainder % 8
+        PdfBuffer result = PdfBuffer()
+        result.append(first.toString())
+        result.append(second.toString())
+        result.append(third.toString())
+        return result.content()
+    }
+
+    winAnsiByte(Int code): Int {
+        if (code == 8364) { return 128 }
+        if (code == 8218) { return 130 }
+        if (code == 402) { return 131 }
+        if (code == 8222) { return 132 }
+        if (code == 8230) { return 133 }
+        if (code == 8224) { return 134 }
+        if (code == 8225) { return 135 }
+        if (code == 710) { return 136 }
+        if (code == 8240) { return 137 }
+        if (code == 352) { return 138 }
+        if (code == 8249) { return 139 }
+        if (code == 338) { return 140 }
+        if (code == 381) { return 142 }
+        if (code == 8216) { return 145 }
+        if (code == 8217) { return 146 }
+        if (code == 8220) { return 147 }
+        if (code == 8221) { return 148 }
+        if (code == 8226) { return 149 }
+        if (code == 8211) { return 150 }
+        if (code == 8212) { return 151 }
+        if (code == 732) { return 152 }
+        if (code == 8482) { return 153 }
+        if (code == 353) { return 154 }
+        if (code == 8250) { return 155 }
+        if (code == 339) { return 156 }
+        if (code == 382) { return 158 }
+        if (code == 376) { return 159 }
+        return -1
+    }
+}

@@ -21,6 +21,9 @@ import dev.kof.compiler.Type;
  *   <li>{@code 9, <child>} — List/Set aninhada; child descreve os elementos;</li>
  *   <li>{@code 10, valOffLo, valOffHi, <key>, <val>} — Map aninhado;
  *       valOff = 3 + len(key) (distância do início do nó ao nó do valor).</li>
+ *   <li>{@code 11, esz, <child>} — array primitivo aninhado (§388-B);
+ *       esz = tamanho do elemento no bloco (mesma fonte do
+ *       {@code elementTypeSize} do alloc); child descreve o componente.</li>
  * </ul>
  *
  * <p>Profundidade/tamanho: nó que estoura o cap ({@value #MAX_BYTES} bytes)
@@ -36,6 +39,7 @@ public final class NativePrintDescriptors {
     static final int REC = 8;
     static final int NLIST = 9;
     static final int NMAP = 10;
+    static final int NARRAY = 11;
     static final int MAX_BYTES = 64;
 
     /** Nó descritor do tipo de elemento; {@code mapValuePos} replica o
@@ -60,6 +64,16 @@ public final class NativePrintDescriptors {
             }
         }
         if (BuiltinTypes.isString(e)) return new byte[]{1};
+        // §388-B: array primitivo (cru ou aninhado) — [11][esz][child].
+        if (e instanceof Type.ArrayType at) {
+            byte[] child = node0(nb, at.componentType(), false);
+            if (child.length > MAX_BYTES - 2) return new byte[]{6};
+            byte[] out = new byte[2 + child.length];
+            out[0] = NARRAY;
+            out[1] = (byte) NativeOpHelpers.elementTypeSize(nb, at.componentType());
+            System.arraycopy(child, 0, out, 2, child.length);
+            return out;
+        }
         if (e instanceof Type.ClassType ct) {
             if (BuiltinTypes.isList(ct) || BuiltinTypes.isSet(ct)) {
                 Type elem = BuiltinTypes.isList(ct)

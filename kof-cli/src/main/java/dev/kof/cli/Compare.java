@@ -95,7 +95,12 @@ public final class Compare {
                     }
                     programArgs.add(args[++i]);
                 }
-                default -> System.err.println("unknown option: " + args[i]);
+                default -> {
+                    // #431: unknown option must be fatal (was: printed, then ran & could exit 0).
+                    System.err.println("unknown option: " + args[i]);
+                    System.err.println(USAGE);
+                    return 1;
+                }
             }
         }
         try {

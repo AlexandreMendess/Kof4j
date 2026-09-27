@@ -55,8 +55,10 @@ public final class KofStrings {
         // S2b wedge: capitalize/reverse alocam String nova. capitalize é
         // Unicode no JVM/JS (Character.toUpperCase/toReversed) e ASCII-first
         // no Native (byte 0-255): a matriz stdstrings2b trava só ASCII
-        // (paridade real nos 4); casos não-ASCII ficam em KofStringsTest
-        // (JVM+JS) com o gap UTF-8 do Native registrado no plano (NAT-STR01).
+        // (paridade real nos 4) — gap NAT-STR01. reverse é por CODE POINT em
+        // todos os targets (x86 RuntimeStringsConv / riscv NativeRiscvAsmRtB7,
+        // aarch via tradutor) e trava o não-ASCII em stdstrings2b2 +
+        // NativeStringsReverseCrossTest (D-FULL-PARITY-050 linha 11).
         return switch (name) {
             case "isAlpha", "isNumeric", "isAlphaNumeric", "isAscii",
                     "isUpperCase", "isLowerCase" -> argc == 1
@@ -79,8 +81,8 @@ public final class KofStrings {
                     ? new StringsCall("kof_strings_indent", STR, List.of(STR, INT)) : null;
             // S2b.3: pad(String,Int,String) — pad é a 1ª char do 3º arg (idiom
             // Kof: escreve "*", não o código Int). null=>null; pad vazio/null ou
-            // len>=n => original. ASCII travado na matriz (mesma ressalva UTF-8
-            // de reverse — NAT-STR01).
+            // len>=n => original. ASCII travado na matriz (pad ainda byte-based
+            // no Native — gap NAT-STR01).
             case "padLeft", "padRight" -> argc == 3
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT, STR)) : null;
             default -> null;
@@ -89,11 +91,10 @@ public final class KofStrings {
 
     /**
      * S2a/S2b (predicados/count/capitalize/reverse/repeat/truncate/pad) em
-     * todos os targets. STRN001 (padrão SECN000/FLT001): os conversores de
-     * palavras (joinWords — lógica complexa de boundary) têm asm x86_64
-     * testado, mas o port riscv64/aarch64 (asm puro, sem teste de runtime
-     * com o bug 59 aberto) fica gated: diagnóstico honesto em compile-time,
-     * nunca link quebrado nem stub silencioso.
+     * todos os targets. STRN001 FECHADO 09/09: os conversores de palavras
+     * (joinWords — lógica complexa de boundary) foram portados p/ riscv64
+     * (fatia B15) e o aarch64 é o mesmo asm via tradutor — paridade
+     * byte-a-byte do golden x86 travada no qemu; nenhum caminho é gated.
      */
     private static final java.util.Set<String> WORD_FNS = java.util.Set.of(
             "kof_strings_toCamelCase", "kof_strings_toPascalCase",

@@ -159,13 +159,13 @@ offset 24: elements data
 ## Arquivos Criados/Modificados
 
 ### Criados
-- `docs/future/runtime/ARRAY_MODEL.md`
-- `docs/future/runtime/INHERITANCE_MODEL.md`
-- `docs/future/runtime/VIRTUAL_DISPATCH.md`
-- `docs/future/runtime/INTERFACES_MODEL.md`
-- `docs/future/runtime/EXCEPTIONS_MODEL.md`
-- `docs/future/runtime/MEMORY_MODEL.md`
-- `docs/future/runtime/PHASE_F_COMPLETE.md`
+- `docs/runtime/ARRAY_MODEL.md`
+- `docs/runtime/INHERITANCE_MODEL.md`
+- `docs/runtime/VIRTUAL_DISPATCH.md`
+- `docs/runtime/INTERFACES_MODEL.md`
+- `docs/runtime/EXCEPTIONS_MODEL.md`
+- `docs/runtime/MEMORY_MODEL.md`
+- `docs/runtime/PHASE_F_COMPLETE.md`
 
 ### Modificados
 - `ClassLayout.java` — HEADER_SIZE=16, buildWithSuper()

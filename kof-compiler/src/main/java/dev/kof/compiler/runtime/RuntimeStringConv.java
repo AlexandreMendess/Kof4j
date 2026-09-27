@@ -8,8 +8,9 @@ import dev.kof.compiler.NativeRuntime;
  * (refactor preserva semântica).
  *
  * <p>§180 (DECISIONS §6): {@code kof_float_to_string}/{@code kof_double_to_string}
- * saíram daqui para {@link RuntimeDtoa} (contrato JDK shortest-round-trip +
- * notação científica + Float com forma própria).
+ * saíram daqui para o dtoa (contrato JDK shortest-round-trip + notação
+ * científica + Float com forma própria); desde o B-1c (23/09) vivem no
+ * {@link RuntimeDtoaSchubfach} (Schubfach libc-free, espelho do JDK).
  */
 public final class RuntimeStringConv {
 

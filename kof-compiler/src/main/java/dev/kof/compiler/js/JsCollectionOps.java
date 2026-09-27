@@ -66,9 +66,66 @@ void handleChannelOp(MethodCtx ctx, List<Object> stack,
         stack.add(call);
     }
 
+    private JsIr.JsExpression slotStoreCoerce(KofCall kc, int valIdx,
+                                              JsIr.JsExpression value) {
+        Type elem = null;
+        if (kc.ownerType() instanceof dev.kof.compiler.Type.ClassType ct
+                && ct.typeArguments().size() == 1) {
+            elem = ct.typeArguments().get(0);
+        }
+        if (elem == null || valIdx < 0 || valIdx >= kc.parameterTypes().size()) {
+            return value;
+        }
+        Type arg = kc.parameterTypes().get(valIdx);
+        if (arg == null) return value;
+        if (elem instanceof dev.kof.compiler.Type.NullableType en) elem = en.inner();
+        if (arg instanceof dev.kof.compiler.Type.NullableType an) arg = an.inner();
+        if (!(arg instanceof dev.kof.compiler.Type.PrimitiveType ap)
+                || !(elem instanceof dev.kof.compiler.Type.PrimitiveType ep)) {
+            return value;
+        }
+        String en = dev.kof.compiler.Type.canonicalPrimitiveName(ep.name());
+        String an = dev.kof.compiler.Type.canonicalPrimitiveName(ap.name());
+        if (en.equals(an)) return value;
+        boolean argBool = an.equals("bool");
+        boolean elemBool = en.equals("bool");
+        if (argBool && (en.equals("int") || en.equals("short") || en.equals("byte"))) {
+            return numLit(value, "1", "0");
+        }
+        if (argBool && en.equals("long")) {
+            return numLit(value, "1n", "0n");
+        }
+        if (elemBool && (an.equals("int") || an.equals("short") || an.equals("byte")
+                || an.equals("char") || an.equals("long") || an.equals("float")
+                || an.equals("double"))) {
+            return new JsIr.JsConditional(value,
+                    new JsIr.JsIdentifier("true"), new JsIr.JsIdentifier("false"));
+        }
+        return value;
+    }
+
+    private static JsIr.JsExpression numLit(JsIr.JsExpression cond, String one, String zero) {
+        return new JsIr.JsConditional(cond,
+                new JsIr.JsNumber(one), new JsIr.JsNumber(zero));
+    }
+
 void handleListOp(MethodCtx ctx, List<Object> stack,
                                List<JsIr.JsExpression> preambleExprs, KofCall kc,
                                JsIr.JsExpression receiver, List<JsIr.JsExpression> args) {
+        // §383/#561 (opcao (a)): o "miss abencoado" do §126 rescreve o valor
+        // pelo tipo PINADO do slot no store (JVM Integer.valueOf sobre o padrao
+        // de bits do bool; Script/Native gravam 1/0). O JS e untyped e gravava
+        // o original -> `listOf(1).add(true)` lia `true` so no JS. Coercion no
+        // MESMO ponto dos outros alvos: o store (add arg 0, set arg 1). bool em
+        // slot long chega aqui ja convertido (I2L do lowerer -> BigInt); o
+        // caso long+bool abaixo e defensivo. Unknown (bare) e categoria String
+        // nao alcancam este gancho (pin ausente / SEM056 na frente).
+        int storeValIdx = "kof_list_add".equals(kc.methodName()) ? 0
+                : "kof_list_set".equals(kc.methodName()) ? 1 : -1;
+        if (storeValIdx >= 0 && storeValIdx < args.size()) {
+            args = new ArrayList<>(args);
+            args.set(storeValIdx, slotStoreCoerce(kc, storeValIdx, args.get(storeValIdx)));
+        }
         String fn = switch (kc.methodName()) {
             case "kof_list_new" -> "kofListNew";
             case "kof_list_add" -> "kofListAdd";

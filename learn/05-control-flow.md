@@ -2,7 +2,7 @@
 
 # 05 — Control Flow
 
-> **Status: implemented (JVM / Native / JS) — 0.4.0-beta**
+> **Status: implemented (JVM / Native / JS) — 0.5.0-beta**
 >
 > `if/else`, `while`, `for`, `for-in`, `switch`, `break/continue` work on the three targets. Pattern matching (`case String s`, `Point(x,y)`) see chapter 15.
 

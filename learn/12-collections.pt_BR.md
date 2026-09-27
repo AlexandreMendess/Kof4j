@@ -2,7 +2,7 @@
 
 # 12 — Collections
 
-> **Status: implementado (JVM / Native / JS) — 0.4.0-beta**
+> **Status: implementado (JVM / Native / JS) — 0.5.0-beta**
 >
 > `List<T>`, `Map<K,V>` e `Set<T>` são coleções nativas de Kof. `List` agora tem `map/filter/reduce` idiomáticos (0.2.0) além das operações base. O tipo dos
 > elementos é preservado pela pipeline inteira (inferência, for-in, `get`,
@@ -48,8 +48,15 @@ l.get(0)          // 1
 l.contains(3)     // true
 l.isEmpty()       // false
 l.remove(0)       // remove por índice, devolve o elemento
-l.set(0, 9)       // substitui in-place
+l.set(0, 9)       // substitui no lugar
 l.clear()         // esvazia
+
+l.add(5)          // append (void)
+l.addAll(listOf(6, 7))  // append de tudo (Bool — mudou?)
+l.indexOf(3)      // primeiro índice ou -1
+l.lastIndexOf(3)  // último índice ou -1
+l.subList(1, 3)   // nova List — mesmo tipo de elemento (faixa [1, 3))
+l.sort()          // void, ordem natural no lugar (elementos Comparable)
 ```
 
 ### map / filter / reduce (0.2.0)
@@ -116,11 +123,19 @@ estoque.put("parafuso", 500)
 assert(estoque.get("parafuso") == 500)   // comparação numérica direta
 ```
 
-> **Cuidado (02/09):** `get`/`remove`/`put` de um `Map<K, primitivo>` devolvem
-> `V` (não-nullable), mas a **ausência** da chave é `null` em runtime → NPE ao
-> desembrulhar. Para valores de referência (`Map<String, String>`) `get`
-> devolve `V?` (use `if (v != null)`). Para primitivos, cheque com
-> `contains`/`containsKey` antes.
+> **Contrato nullable (D-NULL-INTENT):** `get`, `put`, `remove` e
+> `putIfAbsent` devolvem `V?` — o valor ANTERIOR/REMOVIDO, ou `null` quando a
+> chave está ausente (contrato `Map` do Java). Estreite antes de usar:
+>
+> ```kf
+> var prev = idades.put("Ana", 28)     // Int? — 26, ou null se ausente
+> if (prev != null) { println(prev) }
+> var cur = idades.get("Ana")          // Int?
+> var d = idades.getOrDefault("Zed", 0) // Int — fallback passado pelo chamador (#386)
+> ```
+>
+> `containsValue(v)` é `Bool` (#386) e compara por conteúdo para records
+> (veja abaixo).
 
 ## Set — valores únicos
 
@@ -172,8 +187,7 @@ main() {
 | Set (todas as operações) | ✅ HashSet | ✅ asm sobre List | ✅ JS Set |
 | kof.http (JVM+JS) | ✅ | HTTP002 | ✅ |
 
-Igualdade em Map/Set usa `equals` no JVM, comparação nativa (com tag de
-tipo para strings) no Native e `===`/`Map`/`Set` no JS.
+Igualdade é POR CONTEÚDO em todo lugar para record/classe (24/09): `contains`/`indexOf` em List e Set, dedup do `set.add`, **chaves** de `Map.get`/`containsKey`/`remove` e **valores** de `containsValue` comparam campo a campo no JVM, Native (x86-64 + riscv64 + aarch64 via `kof_obj_equals`/`kof_equals_table`) e JS — `mapOf("a", Point(1, 2)).containsValue(Point(1, 2))` é `true` em todos os alvos. O `equals` sintetizado de record recursa em campos record/classe aninhados; o `hashCode` também é por conteúdo (String, Double, record aninhado). `String` compara por conteúdo, primitivos por valor, classe sem `equals` por identidade (contrato JVM).
 
 ## Próximo passo
 

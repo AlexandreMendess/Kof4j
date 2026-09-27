@@ -24,8 +24,22 @@ public class TypeParser {
         StringBuilder sb = new StringBuilder();
         int depth = 0;
         while (!ctx.atEnd()) {
+            // #620: `>>`/`>>>` fecham DOIS/TRÊS níveis de generics aninhados
+            // (`List<List<Int>>`), mas o lexer emite um único token
+            // GREATER_GREATER/GREATER_GREATER_GREATER (maximal munch) — sem
+            // separar antes de checar TokenType.GREATER, o depth nunca
+            // zerava aqui (só `parseTypeRef` já fazia isso). Mesmo split que
+            // ExpressionParser/parseTypeRef usam.
+            Parser.splitShiftRight(ctx);
             Token t = ctx.advance();
             sb.append(t.value());
+            // X5.4 (D-X5-SURFACE): `out`/`in` num type-argument (`List<out Animal>`)
+            // precisa do espaço separador — os tokens são concatenados crus.
+            if (t.type() == TokenType.IDENTIFIER && ("out".equals(t.value()) || "in".equals(t.value()))
+                    && ctx.pos < ctx.tokens.size()) {
+                TokenType nt = ctx.tokens.get(ctx.pos).type();
+                if (nt == TokenType.IDENTIFIER || nt == TokenType.LPAREN) sb.append(' ');
+            }
             if (t.type() == TokenType.LESS) depth++;
             else if (t.type() == TokenType.GREATER) {
                 depth--;
@@ -50,6 +64,7 @@ public class TypeParser {
             ctx.advance();
             while (!ctx.check(TokenType.GREATER) && !ctx.atEnd()) {
                 String name = null;
+                String variance = null;
                 StringBuilder bound = null;
                 int depth = 0;
                 while (!ctx.atEnd() && !(depth == 0
@@ -64,12 +79,25 @@ public class TypeParser {
                     if (bound != null) {
                         bound.append(t.value());
                     } else if (name == null && t.type() == TokenType.IDENTIFIER) {
-                        name = t.value();
+                        // X5.3 (D-TYPE-VARIANCE): `out`/`in` são keywords
+                        // contextuais ANTES do nome do type-param (declaration-site
+                        // variance). Sem um identificador seguinte continuam sendo
+                        // o próprio nome (compat: `class X<in>` segue válido).
+                        if (variance == null && ("out".equals(t.value()) || "in".equals(t.value()))) {
+                            variance = t.value();
+                        } else {
+                            name = t.value();
+                        }
                     }
+                }
+                if (name == null && variance != null) {
+                    name = variance;
+                    variance = null;
                 }
                 if (name != null) {
                     String boundText = bound == null ? "" : bound.toString().trim();
-                    typeParams.add(boundText.isEmpty() ? name : name + ": " + boundText);
+                    String tp = boundText.isEmpty() ? name : name + ": " + boundText;
+                    typeParams.add(variance == null ? tp : variance + " " + tp);
                 }
                 if (ctx.check(TokenType.COMMA)) ctx.advance();
             }
@@ -163,6 +191,17 @@ public class TypeParser {
             ctx.error("Expected type", "PARSE044");
             return "Object";
         }
+        // D-R3-BUFFER: `Buffer(U8)` — the nominal out-buffer type (maintainer 21/09).
+        if ("Buffer".equals(type.toString()) && ctx.check(TokenType.LPAREN)) {
+            ctx.advance();
+            String elem = parseTypeRef(ctx);
+            ctx.expect(TokenType.RPAREN, "Expected ')' in Buffer(...)", "PARSE045");
+            if (!("U8".equals(elem) || "u8".equals(elem)
+                    || "Byte".equals(elem) || "byte".equals(elem))) {
+                ctx.error("Buffer element must be U8 (Byte) — got '" + elem + "'", "SEM096");
+            }
+            return "Buffer";
+        }
         if (ctx.check(TokenType.LESS)) {
             StringBuilder args = new StringBuilder("<");
             int depth = 0;
@@ -182,7 +221,17 @@ public class TypeParser {
                         first = false;
                         continue;
                     }
-                    args.append(ctx.tokens.get(ctx.pos).value());
+                    String tv = ctx.tokens.get(ctx.pos).value();
+                    args.append(tv);
+                    // X5.4 (D-X5-SURFACE): projeção no sítio de uso — `out`/`in`
+                    // antes de um type-argument (`List<out Animal>`). O parser
+                    // concatena os valores dos tokens sem espaço; a variância
+                    // precisa sobreviver como palavra separada para o `Type.of`
+                    // (entrada `"out Animal"` → WildcardType).
+                    if (("out".equals(tv) || "in".equals(tv))
+                            && ctx.checkNext(TokenType.IDENTIFIER)) {
+                        args.append(' ');
+                    }
                 } else if (!first && isClose && depth > 0) {
                     args.append(ctx.tokens.get(ctx.pos).value());
                 }

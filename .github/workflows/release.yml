@@ -1,26 +1,29 @@
 name: Release
 
-# Every push to main is a release candidate: tests must pass, the version is
-# bumped to the next Beta, platform packages are built and published as a
-# GitHub Release with changelog and checksums.
+# A maintainer-dispatched release candidate: the SHA that runs this workflow
+# is the exact SHA that gets tested, packaged, and published — no self-bump,
+# no second commit, no push back to the repo (D-ARTIFACT-TRUST, queue (b),
+# R1). VERSION and CHANGELOG.md are prepared and committed BEFORE the
+# dispatch (docs/development/release-beta-0.5.0-prep.md); this workflow only
+# validates that prepared candidate, tests it, and ships it.
 #
-# main never points to a state that does not compile.
+# Invariant this workflow enforces: source SHA tested == source SHA
+# published. It does NOT yet prove tested artifact bytes == published
+# artifact bytes (each platform job still rebuilds) — that is a later slice.
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  test-and-bump:
-    name: Test + version bump
+  validate-candidate:
+    name: Test + validate candidate
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.bump.outputs.version }}
-      bump_sha: ${{ steps.bumpsha.outputs.sha }}
+      version: ${{ steps.candidate.outputs.version }}
+      candidate_sha: ${{ steps.candidate.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -34,72 +37,25 @@ jobs:
           java-version: '25'
 
       - name: Test + package (gate; golden/integration scripts need the CLI jar)
+        if: github.ref_name == 'main'
         run: mvn clean package
 
       - name: Golden tests (jvm + native)
+        if: github.ref_name == 'main'
         run: tests/run-golden.sh
 
       - name: Integration tests (CLI + serve + kof test)
+        if: github.ref_name == 'main'
         run: tests/run-integration.sh
 
-      - name: Compute next version
-        id: bump
-        run: |
-          CURRENT=$(cat VERSION)
-          # Última release publicada (ex.: 0.2.7-beta). Se o VERSION do repo já
-          # é MAIOR que ela, alguém abriu uma linha nova manualmente (ex.:
-          # 0.3.0-beta na branch beta-0.3.0) — publica como está, sem bump.
-          # Caso contrário (== última), incrementa patch (0.2.7 -> 0.2.8).
-          LAST_TAG=$(git tag -l 'kof-*-linux-x86_64' --sort=-v:refname | head -1)
-          LAST="${LAST_TAG#kof-}"; LAST="${LAST%-linux-x86_64}"
-          LAST="${LAST:--none}"
-          if [ "$LAST" = "-none" ]; then
-            LAST="0.0.0"
-          fi
-          HIGHER=$(printf '%s\n%s\n' "$LAST" "$CURRENT" | sort -V | tail -1)
-          if [ "$CURRENT" != "$HIGHER" ]; then
-            # CURRENT < LAST: não deve acontecer; bumpa por segurança.
-            BASE="${CURRENT%%-*}"; PATCH="${BASE##*.}"
-            NEXT="${BASE%.*}.$((PATCH + 1))-beta"
-          elif [ "$CURRENT" = "$LAST" ]; then
-            BASE="${CURRENT%%-*}"; PATCH="${BASE##*.}"
-            NEXT="${BASE%.*}.$((PATCH + 1))-beta"
-          else
-            # CURRENT > LAST: linha nova aberta manualmente — respeita.
-            NEXT="$CURRENT"
-          fi
-          echo "current=$CURRENT last=$LAST next=$NEXT"
-          scripts/bump-version.sh "$NEXT"
-          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
-
-      - name: Insert changelog section for next release
-        run: |
-          scripts/changelog.sh > /tmp/changelog-section.md
-          python3 - <<'PY'
-          text = open('CHANGELOG.md').read()
-          section = open('/tmp/changelog-section.md').read().strip()
-          marker = '<!-- NEXT-RELEASE -->'
-          assert marker in text, 'NEXT-RELEASE marker missing in CHANGELOG.md'
-          text = text.replace(marker, section + '\n\n' + marker)
-          open('CHANGELOG.md', 'w').write(text)
-          PY
-          git diff --stat CHANGELOG.md
-
-      - name: Commit version bump
-        run: |
-          git config user.name "kof-release-bot"
-          git config user.email "release@kof.dev"
-          git add VERSION pom.xml kof-compiler/src/main/resources/dev/kof/version.properties CHANGELOG.md
-          git commit -m "build: bump version to $(cat VERSION) [skip ci]"
-          git push
-
-      - name: Capture bumped commit SHA
-        id: bumpsha
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Validate release candidate
+        id: candidate
+        shell: bash
+        run: scripts/validate-release-candidate.sh "$GITHUB_SHA" | tee -a "$GITHUB_OUTPUT"
 
   package-and-release:
     name: Package + Release (${{ matrix.target }})
-    needs: test-and-bump
+    needs: validate-candidate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -107,18 +63,25 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux-x86_64
+            arch: x86_64
           - os: windows-latest
             target: windows-x86_64
+            arch: x86_64
           - os: macos-latest
             target: macos-arm64
+            arch: arm64
+          - os: macos-15
+            target: macos-x86_64
+            arch: x86_64
     steps:
-      - name: Checkout (bumped commit, não o trigger)
+      - name: Checkout (release candidate)
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          # Sem `ref` o checkout traz o commit que DISPAROU o workflow
-          # (pré-bump) e o pacote saíria com a versão anterior.
-          ref: ${{ needs.test-and-bump.outputs.bump_sha }}
+          # Sem `ref` o checkout traria o commit que DISPAROU o workflow por
+          # padrão de qualquer forma (aqui e' o próprio candidato) — fixado
+          # explicitamente para nunca depender do default implícito.
+          ref: ${{ needs.validate-candidate.outputs.candidate_sha }}
 
       - name: Set up JDK 25 (Tooling API baseline)
         uses: actions/setup-java@v6
@@ -126,20 +89,28 @@ jobs:
           distribution: temurin
           java-version: '25'
 
+      - name: Verify candidate identity
+        shell: bash
+        run: |
+          EXPECTED_SHA="${{ needs.validate-candidate.outputs.candidate_sha }}"
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          EXPECTED_VERSION="${{ needs.validate-candidate.outputs.version }}"
+          ACTUAL_VERSION="$(cat VERSION)"
+
+          [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ] || {
+            echo "::error::candidate SHA mismatch: expected $EXPECTED_SHA got $ACTUAL_SHA"
+            exit 1; }
+
+          [ "$ACTUAL_VERSION" = "$EXPECTED_VERSION" ] || {
+            echo "::error::candidate VERSION mismatch: expected $EXPECTED_VERSION got $ACTUAL_VERSION"
+            exit 1; }
+
       - name: Build
         run: mvn clean package -DskipTests
 
-      - name: Sanity check (versão do checkout == versão da release)
-        shell: bash
-        run: |
-          EXPECTED="${{ needs.test-and-bump.outputs.version }}"
-          ACTUAL=$(cat VERSION)
-          echo "release=$EXPECTED checkout=$ACTUAL"
-          [ "$ACTUAL" = "$EXPECTED" ] || {
-            echo "::error::VERSION no checkout ($ACTUAL) difere da versão da release ($EXPECTED) — o checkout não trouxe o commit de bump."
-            exit 1; }
-
       - name: Package with embedded JDK
+        env:
+          KOF_ARCH: ${{ matrix.arch }}
         shell: bash
         run: |
           scripts/package.sh --jdk || { echo "package --jdk failed, retry without JDK"; scripts/package.sh; }
@@ -173,16 +144,46 @@ jobs:
         shell: bash
         run: |
           VERSION=$(cat VERSION)
-          scripts/changelog.sh > /tmp/changelog-section.md
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            # release final: changelog desde a última release estável (sem +date), não desde a última pre-release
+            SINCE=$(git tag -l 'kof-*-linux-x86_64' --sort=-v:refname | grep -v '\+' | head -1 || true)
+            if [ -n "$SINCE" ]; then
+              scripts/changelog.sh "$SINCE" > /tmp/changelog-section.md
+            else
+              scripts/changelog.sh > /tmp/changelog-section.md
+            fi
+          else
+            scripts/changelog.sh > /tmp/changelog-section.md
+          fi
           { echo "# Kof $VERSION (${{ matrix.target }})"; echo ""; cat /tmp/changelog-section.md; } > release-notes.md
           cat release-notes.md
+
+      - name: Compute release version (pre-release gets date, VERSION file unchanged)
+        id: relver
+        shell: bash
+        run: |
+          VER=$(cat VERSION)
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            DATE=$(date +%Y.%m.%d)
+            VER="${VER}+${DATE}"
+            echo "pre-release $VER from $(cat VERSION) on ${{ github.ref_name }}"
+            for f in dist/kof-$(cat VERSION)-*.tar.gz dist/kof-$(cat VERSION)-*.zip; do
+              [ -f "$f" ] || continue
+              mv "$f" "${f/kof-$(cat VERSION)-/kof-${VER}-}"
+            done
+            (cd dist && rm -f SHA256SUMS && sha256sum kof-${VER}-* > SHA256SUMS 2>/dev/null || shasum -a 256 kof-${VER}-* > SHA256SUMS)
+            ls -lh dist/
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release (${{ matrix.target }})
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: kof-${{ needs.test-and-bump.outputs.version }}-${{ matrix.target }}
-          name: Kof ${{ needs.test-and-bump.outputs.version }} (${{ matrix.target }})
+          tag_name: kof-${{ steps.relver.outputs.version }}-${{ matrix.target }}
+          name: Kof ${{ steps.relver.outputs.version }} (${{ matrix.target }})
+          target_commitish: ${{ needs.validate-candidate.outputs.candidate_sha }}
           body_path: release-notes.md
+          prerelease: ${{ github.ref_name != 'main' }}
           files: |
             dist/*.tar.gz
             dist/*.zip

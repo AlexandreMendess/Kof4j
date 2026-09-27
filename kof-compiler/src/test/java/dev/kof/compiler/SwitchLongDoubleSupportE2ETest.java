@@ -52,7 +52,7 @@ class SwitchLongDoubleSupportE2ETest {
 
     private String runJvm(Path outDir) throws IOException {
         try {
-            ProcessBuilder pb = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
+            ProcessBuilder pb = new ProcessBuilder(TestJdk.javaBin(),
                     "-cp", outDir.toString(), "Default.Main");
             pb.redirectErrorStream(true);
             Process p = pb.start();
@@ -76,6 +76,85 @@ class SwitchLongDoubleSupportE2ETest {
     }
 
     @Test
+    void intLiteralCasesWidenToLongSubject(@TempDir Path tempDir) throws IOException {
+        // #473 face b: caso com literal Int contra subject Long (o teste
+        // original só usava literais com sufixo L). Sem o widening, o
+        // KofBinary(EQ, long) emitia LCMP sobre [long, int] e o COMPUTE_FRAMES
+        // do ASM estourava (NegativeArraySizeException).
+        String source = """
+                main() {
+                    var x: Long = 3
+                    switch (x) {
+                        case 1: println("one"); break
+                        case 3: println("three"); break
+                        default: println("other")
+                    }
+                    val d: Double = 2.5
+                    println(switch (d) {
+                        case 1 -> "one"
+                        case 2 -> "two"
+                        default -> "other"
+                    })
+                }
+                """;
+        Path src = tempDir.resolve("slw.kf");
+        Files.writeString(src, source);
+        Path out = tempDir.resolve("slw-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "compilar: " + r.diagnostics().getDiagnostics());
+        assertEquals("three\nother", runJvm(out), "literal Int promovido ao subject largo");
+    }
+
+    @Test
+    void intLiteralCasesWidenCrossTargetParity(@TempDir Path tempDir) throws IOException, InterruptedException {
+        String source = """
+                main() {
+                    var x: Long = 3
+                    switch (x) {
+                        case 1: println("one"); break
+                        case 3: println("three"); break
+                        default: println("other")
+                    }
+                    val d: Double = 2.5
+                    println(switch (d) {
+                        case 1 -> "one"
+                        case 2 -> "two"
+                        default -> "other"
+                    })
+                }
+                """;
+        Path src = tempDir.resolve("slwx.kf");
+        Files.writeString(src, source);
+        Path jvmOut = tempDir.resolve("slwx-jvm");
+        assertTrue(driver.compile(src, jvmOut, Target.JVM).success(), "JVM compile");
+        assertEquals("three\nother", runJvm(jvmOut), "JVM golden");
+        KofInterpreter.Result i = driver.interpret(java.util.List.of(src), src.getParent(), new String[0]);
+        assertEquals(0, i.exitCode(), "Script exit: " + i.stdout() + " " + i.stderr());
+        assertEquals("three\nother", i.stdout().trim(), "Script");
+        Path jsOut = tempDir.resolve("slwx-js");
+        assertTrue(driver.compile(src, jsOut, Target.JS).success(), "JS compile");
+        ProcessBuilder jb = new ProcessBuilder(TestJdk.onPath("node"), jsOut.resolve("Default.mjs").toString());
+        jb.redirectErrorStream(true);
+        Process jp = jb.start();
+        String jout = new String(jp.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+            .replace("\r\n", "\n").trim();
+        assertEquals(0, jp.waitFor(), "JS exit, output: " + jout);
+        assertEquals("three\nother", jout, "JS");
+        Path natOut = tempDir.resolve("slwx-native");
+        CompilationResult nr = driver.compile(src, natOut, Target.NATIVE);
+        assertTrue(nr.success(), "native compile: " + nr.diagnostics().getDiagnostics());
+        Path bin = natOut.resolve("Default/Main");
+        assertTrue(Files.exists(bin), "ELF produzido");
+        ProcessBuilder nb = new ProcessBuilder(bin.toString());
+        nb.redirectErrorStream(true);
+        Process np = nb.start();
+        String nout = new String(np.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+            .replace("\r\n", "\n").trim();
+        assertEquals(0, np.waitFor(), "native exit, output: " + nout);
+        assertEquals("three\nother", nout, "Native = mesmo golden");
+    }
+
+    @Test
     void switchOnLongAndDoubleSameOnScriptAndJs(@TempDir Path tempDir) throws IOException, InterruptedException {
         Path src = tempDir.resolve("sl2.kf");
         Files.writeString(src, SOURCE);
@@ -85,7 +164,7 @@ class SwitchLongDoubleSupportE2ETest {
         Path jsOut = tempDir.resolve("sl2-js");
         CompilationResult js = driver.compile(src, jsOut, Target.JS);
         assertTrue(js.success(), "JS compile: " + js.diagnostics().getDiagnostics());
-        ProcessBuilder jb = new ProcessBuilder("node", jsOut.resolve("Default.mjs").toString());
+        ProcessBuilder jb = new ProcessBuilder(TestJdk.onPath("node"), jsOut.resolve("Default.mjs").toString());
         jb.redirectErrorStream(true);
         Process jp = jb.start();
         String jout = new String(jp.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)

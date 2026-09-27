@@ -59,6 +59,8 @@ public final class TargetMatrix {
             case NATIVE -> "native";
             case NATIVE_RISCV64 -> "native.riscv64";
             case NATIVE_AARCH64 -> "native.aarch64";
+            case NATIVE_RISCV32 -> "native.riscv32";
+            case NATIVE_MCU_ARM -> "native.cortex-m";
             case JS -> "kofjs";
             case ANDROID -> "android";
             case SCRIPT -> "script";

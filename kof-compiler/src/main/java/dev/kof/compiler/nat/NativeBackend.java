@@ -88,12 +88,22 @@ public class NativeBackend implements Backend {
     Type lastPushedType = Type.UnknownType.UNKNOWN;
     IRClass currentClass = null;
     boolean usesDb = false;
+    boolean usesOrm = false;
+    /** F2b: className das entidades usadas com {@code orm.find} (para o
+     *  resolver {@code kof_orm_ctors} que constrói o record no runtime). */
+    final Set<String> ormCtorClasses = new LinkedHashSet<>();
     boolean usesHttp = false;
+
+    /** kof.process no nativo (RuntimeProcess): execvp/PATH = libc do host. */
+    boolean usesProcess = false;
     boolean usesMysql = false;
     boolean usesConcurrency = false;
+    boolean usesPow = false;
     /** #431: bibliotecas dos `extern` bound (ligadas no ld, link-by-use). */
     final Set<String> ffiLibs = new LinkedHashSet<>();
     boolean ffiUsesCstr = false;
+    /** D6-2/3.7: algum extern recebe array `T[]`→`ptr` (pede `kof_ffi_pack_array`). */
+    boolean ffiUsesArray = false;
     final Map<String, String> functionMangleMap = new HashMap<>();
     private final Map<String, ClassLayout> layoutCache = new HashMap<>();
     Map<String, IRClass> allClassesMap = new HashMap<>();
@@ -123,6 +133,27 @@ public class NativeBackend implements Backend {
 
     public NativeBackend() { this(Target.NATIVE); }
     public NativeBackend(Target target) { this.target = target; nativeMethods = new NativeMethodEmitter(this); nativeArch = new NativeArchEmitter(this); }
+
+    /** B-1: perfil de link (HOST padrão; FREESTANDING = estático, sem libc no x86_64;
+     *  B-2: UEFI = herda o link estático sem libc + entry MS x64 e PE32+). */
+    public NativeBackend profile(NativeProfile p) {
+        this.freestanding = p == NativeProfile.FREESTANDING || p == NativeProfile.UEFI
+                || p == NativeProfile.UEFI_RING || p == NativeProfile.BIOS;
+        this.uefi = p == NativeProfile.UEFI || p == NativeProfile.UEFI_RING;
+        this.rings = p == NativeProfile.UEFI_RING;
+        this.bios = p == NativeProfile.BIOS;
+        NativeProfile.active = p;
+        return this;
+    }
+
+    boolean freestanding = false;
+    /** B-2: perfil UEFI — entry {@code _start} MS x64 + corpos de costura EFI + PE32+. */
+    boolean uefi = false;
+    /** B-6.1: perfil {@code uefi-ring} — instala GDT/IDT/TSS próprios no {@code _start}. */
+    boolean rings = false;
+    /** B-3: perfil BIOS — entry {@code _start} 16-bit real-mode e imagem de setor
+     *  de boot de 512 bytes ({@code 0xAA55}). */
+    boolean bios = false;
 
     String resolveLabel(LabelId id) {
         return labelMap.computeIfAbsent(id, k -> ".Lkof_" + (labelCounter++));
@@ -187,13 +218,21 @@ public class NativeBackend implements Backend {
     @Override
     public void emit(IRModule module, Path outputDir) throws IOException {
         if (target == Target.NATIVE_RISCV64) {
-            scanExterns(module);
+            NativeFfiCall.scanExterns(this, module);
             emitRiscv(module, outputDir);
             return;
         }
         if (target == Target.NATIVE_AARCH64) {
-            scanExterns(module);
+            NativeFfiCall.scanExterns(this, module);
             emitAarch64(module, outputDir);
+            return;
+        }
+        if (target == Target.NATIVE_RISCV32) {
+            dev.kof.compiler.nat.mcu.NativeMcuRiscv32.emit(module, outputDir);
+            return;
+        }
+        if (target == Target.NATIVE_MCU_ARM) {
+            dev.kof.compiler.nat.mcu.NativeMcuArm.emit(module, outputDir);
             return;
         }
         if (module.classes().isEmpty()) return;
@@ -255,11 +294,43 @@ public class NativeBackend implements Backend {
                         if (op instanceof KofCall kc && kc.methodName().startsWith("kof_http_")) {
                             usesHttp = true;
                         }
+                        if (op instanceof KofCall kc && (kc.methodName().equals("kof_process_run")
+                                    || kc.methodName().equals("kof_process_spawn")
+                                    || kc.methodName().equals("kof_shell_runwith")
+                                    || kc.methodName().equals("kof_shell_pipeline"))) {
+                            usesProcess = true;
+                        }
+                        if (op instanceof KofCall kc && kc.methodName().equals("kof_math_pow")) {
+                            usesPow = true; // R2: unico caminho ao shim (KofMath.pow; recusado no cross)
+                        }
                         if (op instanceof KofCall kc && kc.methodName().startsWith("kof_db_")) {
                             usesDb = true;
                             if (kc.methodName().equals("kof_db_connect")
                                     || kc.methodName().equals("kof_db_connect2")) {
-                                usesMysql |= connectsToMysql(i, ops);
+                                usesMysql |= NativeLinkPolicy.connectsToMysql(i, ops);
+                            }
+                        }
+                        if (op instanceof KofCall kc && kc.methodName().startsWith("kof_orm_")) {
+                            usesOrm = true;
+                            if ((kc.methodName().equals("kof_orm_find")
+                                        && kc.parameterTypes().size() == 5)
+                                    || (kc.methodName().equals("kof_orm_all")
+                                        && kc.parameterTypes().size() == 4)
+                                    || (kc.methodName().equals("kof_orm_where")
+                                        && kc.parameterTypes().size() == 6)
+                                    || (kc.methodName().equals("kof_orm_page")
+                                        && kc.parameterTypes().size() == 6)
+                                    || (kc.methodName().equals("kof_orm_where_op")
+                                        && kc.parameterTypes().size() == 7)) {
+                                // 5º arg = className literal (KofLoadLiteral STRING
+                                // emitido logo antes do call pelo lowering ORM)
+                                for (int j = i - 1; j >= i - 2 && j >= 0; j--) {
+                                    if (ops.get(j) instanceof KofLoadLiteral lit
+                                            && lit.value() instanceof String s) {
+                                        ormCtorClasses.add(s);
+                                        break;
+                                    }
+                                }
                             }
                         }
                         if (op instanceof KofCall kc && (kc.methodName().equals("kof_spawn")
@@ -270,22 +341,14 @@ public class NativeBackend implements Backend {
                             // #431: o extern liga a `library()` declarada no ld
                             // (link-by-use, padrão DB001/sqlite) — sem ela o
                             // `call sym@PLT` não resolve.
-                            ffiLibs.add(NativeFfiCall.libOf(kc));
-                            if (NativeFfiCall.returnsCstr(kc)) ffiUsesCstr = true;
+                            NativeFfiCall.noteExtern(this, kc);
                         }
                     }
                 }
             }
         }
-        if (usesDb) {
-            RuntimeDb1.emit(sb);
-            RuntimeDb2.emit(sb);
-            RuntimeDb3.emit(sb);
-            RuntimeDb4.emit(sb);
-            RuntimeDb5.emit(sb);
-            RuntimeDb6.emit(sb);
-            NativeDbPrepared.emitMysqlPrepared(sb);
-        }
+        NativeOrmEmit.emitRuntimeSlices(this, sb);
+
         if (usesHttp) {
             NativeHttpRuntime.emitHttpFunctions(sb);
         }
@@ -297,8 +360,8 @@ public class NativeBackend implements Backend {
         for (IRClass clazz : module.classes()) {
             for (IRMethod method : clazz.methods()) {
                 if ("<clinit>".equals(method.name())) continue;
-                String mangled = NativeSymbolMangling.fnSymbol(clazz.name(), method.name(), method.parameterTypes(), allClassesMap);
-                functionMangleMap.putIfAbsent(NativeSymbolMangling.fnKey(clazz.name(), method.name(), method.parameterTypes(), allClassesMap), mangled);
+                String mangled = NativeSymbolMangling.fnSymbol(clazz.name(), method, allClassesMap);
+                functionMangleMap.putIfAbsent(NativeSymbolMangling.fnKey(clazz.name(), method, allClassesMap), mangled);
             }
         }
         for (IRClass clazz : module.classes()) {
@@ -320,12 +383,7 @@ public class NativeBackend implements Backend {
             }
             emitStart(sb, mainClass);
         }
-        if (ffiUsesCstr) {
-            // #431: copy helper char*→String p/ extern com retorno String
-            // (uma definição por programa, no texto do programa — a poda de
-            // runtime não alcança rótulos do programa; chamado via call-site).
-            NativeFfiCall.emitX86CstrHelper(sb);
-        }
+        NativeFfiCall.emitHelpers(this, sb);
         if (debugInfo && target == Target.NATIVE) {
             kofDwarf.emit(sb, sourceFile);
         }
@@ -341,9 +399,8 @@ public class NativeBackend implements Backend {
         Files.createDirectories(asmFile.getParent());
         String fullAsm = RuntimeSlices.pruneRuntime(sb, rtStart, rtEnd);
         Files.writeString(asmFile, fullAsm);
-        try { Files.writeString(java.nio.file.Path.of("/tmp/kof_asm_debug.s"), fullAsm, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING); } catch(Exception ignore){}
         System.err.println("NativeBackend: Generated " + asmFile + " (" + Files.size(asmFile) + " bytes)");
-        assemble(asmFile, binFile);
+        NativeLinkPolicy.assemble(this, asmFile, binFile);
     }
 
     void collectStrings(IRClass clazz) {
@@ -403,31 +460,10 @@ public class NativeBackend implements Backend {
 
 
 
-    /** Detecta o protocolo do URL de conexão quando é um literal em
-     *  compile-time (intenção conhecida pelo compilador): mysql/mariadb
-     *  exigem a lib do cliente no link; sqlite, não. URLs dinâmicos
-     *  linkam as duas (default conservador). */
-    private boolean connectsToMysql(int callIndex, List<KofOperation> ops) {
-        for (int j = callIndex - 1; j >= 0 && j >= callIndex - 8; j--) {
-            if (ops.get(j) instanceof KofLoadLiteral lit && lit.value() instanceof String url) {
-                String u = url.toLowerCase();
-                return !u.startsWith("sqlite:");
-            }
-        }
-        return true;
-    }
-
     void runCommand(String[] cmd, String name) throws IOException {
         NativeAssembler.runCommand(cmd, name);
     }
 
-    void assemble(Path asmFile, Path binFile) throws IOException {
-        // 7f174a6f passou `usesPow` (campo nunca declarado) + 6º arg (a
-        // assinatura de NativeAssembler.assemble é 4). A -lm é INCONDICIONAL lá
-        // (pow shim sempre presente — ver comentário do commit), então o arg é
-        // morto: chamo com os 4 reais. pow segue linkando.
-        NativeAssembler.assemble(asmFile, binFile, usesDb, usesMysql, usesConcurrency, ffiLibs);
-    }
 
     // ---------------------------------------------------------------------
     // NATIVE002 — lowering riscv64 + runtime EM ASSEMBLY PURO (sem C).
@@ -503,25 +539,6 @@ public class NativeBackend implements Backend {
     }
     private void emitStart(StringBuilder sb, IRClass clazz) {
         nativeMethods.emitStart(sb, clazz);
-    }
-
-    /** #431 fatia 2: link-by-use dos externs no cross (mesmo scan do x86 —
-     *  `library()` vira input do ld, retorno String pede o helper cstr). */
-    private void scanExterns(IRModule module) {
-        ffiLibs.clear();
-        ffiUsesCstr = false;
-        for (IRClass c : module.classes()) {
-            for (IRMethod m : c.methods()) {
-                for (IRBasicBlock b : m.basicBlocks()) {
-                    for (KofOperation op : b.operations()) {
-                        if (op instanceof KofCall kc && NativeFfiCall.isExternCall(kc)) {
-                            ffiLibs.add(NativeFfiCall.libOf(kc));
-                            if (NativeFfiCall.returnsCstr(kc)) ffiUsesCstr = true;
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private void emitRiscv(IRModule module, Path outputDir) throws IOException {

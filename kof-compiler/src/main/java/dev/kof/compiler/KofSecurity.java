@@ -41,6 +41,22 @@ public final class KofSecurity {
     private static final Type STR = BuiltinTypes.STRING;
     private static final Type BOOL = Type.PrimitiveType.BOOL;
     private static final Type INT = Type.PrimitiveType.INT;
+    private static final Type INT_ARRAY = new Type.ArrayType(INT);
+
+    /** Face 1 do D-SECRETS (Stage 5 / 3.6): tipo nominal {@code Secret}. Um
+     *  valor que NÃO se imprime/serializa sem um ato explícito ({@code reveal()}).
+     *  Obtível só por {@code secrets.of}/{@code secrets.secret} — ambos gated,
+     *  então os métodos de instância são inalcançáveis nos alvos sem suporte
+     *  (mesmo padrão do {@code Buffer}, D-R3-BUFFER). */
+    static final Type SECRET = new Type.ClassType("kof", "Secret", List.of());
+
+    static boolean isSecretType(Type t) { return SECRET.equals(t); }
+
+    /** D-SECRETS P3 (Stage 5 / 3.6): {@code KeyHandle} — chave nomeada que
+     *  nunca expoe bytes ao guest; so os algoritmos de crypto a consomem. */
+    static final Type KEY_HANDLE = new Type.ClassType("kof", "KeyHandle", List.of());
+
+    static boolean isKeyHandleType(Type t) { return KEY_HANDLE.equals(t); }
 
     static final List<String> NAMESPACES = List.of(
             "passwords", "crypto", "jwt", "secrets", "security", "auth");
@@ -58,7 +74,7 @@ public final class KofSecurity {
                 "passwords", List.of("hash", "verify", "needsRehash"),
                 "crypto", List.of("sha256", "sha512", "hmacSha256", "encryptAesGcm", "decryptAesGcm", "encryptChacha20", "decryptChacha20", "randomHex", "randomInt"),
                 "jwt", List.of("create", "verify", "secret"),
-                "secrets", List.of("get", "redact"),
+                "secrets", List.of("get", "redact", "of", "secret", "fromBytes", "keyFromHex", "keyFromPem", "keyFromKeystore"),
                 "security", List.of("constantTimeEquals", "randomHex", "redact", "randomInt", "csrfToken", "csrfValid", "corsAllowed", "cspHeader", "hstsHeader", "contentTypeOptionsHeader", "frameHeader", "referrerHeader", "rateLimit", "sessionCreate", "sessionGet", "sessionDestroy", "apiKeyGenerate", "apiKeyValid", "cookieSet", "cookieGet"),
                 "auth", List.of("secret", "token", "authenticated", "claims", "user", "hasRole", "hasPermission", "resourceServer", "resourceServerVerify"));
     }
@@ -85,15 +101,20 @@ public final class KofSecurity {
                 case "sha512" -> argc == 1
                         ? new SecCall("kof_sec_sha512", STR, List.of(STR)) : null;
                 case "hmacSha256" -> argc == 2
-                        ? new SecCall("kof_sec_hmac_sha256", STR, List.of(STR, STR)) : null;
+                        ? new SecCall(isKeyHandleType(argTypes.get(0)) ? "kof_sec_hmac_sha256_key" : "kof_sec_hmac_sha256",
+                                STR, isKeyHandleType(argTypes.get(0)) ? List.of(KEY_HANDLE, STR) : List.of(STR, STR)) : null;
                 case "encryptAesGcm" -> argc == 2
-                        ? new SecCall("kof_sec_aesgcm_encrypt", STR, List.of(STR, STR)) : null;
+                        ? new SecCall(isKeyHandleType(argTypes.get(1)) ? "kof_sec_aesgcm_encrypt_key" : "kof_sec_aesgcm_encrypt",
+                                STR, isKeyHandleType(argTypes.get(1)) ? List.of(STR, KEY_HANDLE) : List.of(STR, STR)) : null;
                 case "decryptAesGcm" -> argc == 2
-                        ? new SecCall("kof_sec_aesgcm_decrypt", STR, List.of(STR, STR)) : null;
+                        ? new SecCall(isKeyHandleType(argTypes.get(1)) ? "kof_sec_aesgcm_decrypt_key" : "kof_sec_aesgcm_decrypt",
+                                STR, isKeyHandleType(argTypes.get(1)) ? List.of(STR, KEY_HANDLE) : List.of(STR, STR)) : null;
                 case "encryptChacha20" -> argc == 2
-                        ? new SecCall("kof_sec_chacha20_encrypt", STR, List.of(STR, STR)) : null;
+                        ? new SecCall(isKeyHandleType(argTypes.get(1)) ? "kof_sec_chacha20_encrypt_key" : "kof_sec_chacha20_encrypt",
+                                STR, isKeyHandleType(argTypes.get(1)) ? List.of(STR, KEY_HANDLE) : List.of(STR, STR)) : null;
                 case "decryptChacha20" -> argc == 2
-                        ? new SecCall("kof_sec_chacha20_decrypt", STR, List.of(STR, STR)) : null;
+                        ? new SecCall(isKeyHandleType(argTypes.get(1)) ? "kof_sec_chacha20_decrypt_key" : "kof_sec_chacha20_decrypt",
+                                STR, isKeyHandleType(argTypes.get(1)) ? List.of(STR, KEY_HANDLE) : List.of(STR, STR)) : null;
                 case "randomHex" -> argc == 1
                         ? new SecCall("kof_sec_random_hex", STR, List.of(INT)) : null;
                 case "randomInt" -> argc == 1
@@ -102,14 +123,22 @@ public final class KofSecurity {
             };
             case "jwt" -> switch (name) {
                 case "create" -> argc == 2
-                        ? new SecCall("kof_sec_jwt_create", STR, List.of(STR, STR))
+                        ? (isKeyHandleType(argTypes.get(1))
+                        ? new SecCall("kof_sec_jwt_create_key", STR, List.of(STR, KEY_HANDLE))
+                        : new SecCall("kof_sec_jwt_create", STR, List.of(STR, STR)))
                         : argc == 3
-                        ? new SecCall("kof_sec_jwt_create_ttl", STR, List.of(STR, STR, INT))
+                        ? (isKeyHandleType(argTypes.get(1))
+                        ? new SecCall("kof_sec_jwt_create_ttl_key", STR, List.of(STR, KEY_HANDLE, INT))
+                        : new SecCall("kof_sec_jwt_create_ttl", STR, List.of(STR, STR, INT)))
                         : null;
                 case "verify" -> argc == 2
-                        ? new SecCall("kof_sec_jwt_verify", STR, List.of(STR, STR))
+                        ? (isKeyHandleType(argTypes.get(1))
+                        ? new SecCall("kof_sec_jwt_verify_key", STR, List.of(STR, KEY_HANDLE))
+                        : new SecCall("kof_sec_jwt_verify", STR, List.of(STR, STR)))
                         : argc == 4
-                        ? new SecCall("kof_sec_jwt_verify_iss_aud", STR, List.of(STR, STR, STR, STR))
+                        ? (isKeyHandleType(argTypes.get(1))
+                        ? new SecCall("kof_sec_jwt_verify_iss_aud_key", STR, List.of(STR, KEY_HANDLE, STR, STR))
+                        : new SecCall("kof_sec_jwt_verify_iss_aud", STR, List.of(STR, STR, STR, STR)))
                         : null;
                 case "secret" -> argc == 0
                         ? new SecCall("kof_sec_jwt_secret", STR, List.of())
@@ -125,6 +154,27 @@ public final class KofSecurity {
                 case "redact" -> argc == 1
                         ? new SecCall("kof_sec_redact", STR, List.of(STR))
                         : null;
+                // D-SECRETS face 1: valor tipado. `of` envolve um literal;
+                // `secret` lê o ambiente por nome. Ambos devolvem `Secret`
+                // (não-exportável sem reveal()) — o `get` cru continua String
+                // (compatibilidade 0.2.6, freeze).
+                case "of" -> argc == 1
+                        ? new SecCall("kof_sec_secret_of", SECRET, List.of(STR))
+                        : null;
+                case "secret" -> argc == 1
+                        ? new SecCall("kof_sec_secret", SECRET, List.of(STR))
+                        : null;
+                case "fromBytes" -> argc == 1
+                        ? new SecCall("kof_sec_secret_from_bytes", SECRET, List.of(INT_ARRAY))
+                        : null;
+                // D-SECRETS P3: fontes de KeyHandle (JVM-primeiro). O handle
+                // nunca expoe bytes; os algoritmos de crypto o consomem.
+                case "keyFromHex" -> argc == 1
+                        ? new SecCall("kof_sec_key_from_hex", KEY_HANDLE, List.of(STR)) : null;
+                case "keyFromPem" -> argc == 1
+                        ? new SecCall("kof_sec_key_from_pem", KEY_HANDLE, List.of(STR)) : null;
+                case "keyFromKeystore" -> argc == 3
+                        ? new SecCall("kof_sec_key_from_keystore", KEY_HANDLE, List.of(STR, STR, STR)) : null;
                 default -> null;
             };
             case "security" -> switch (name) {
@@ -207,12 +257,43 @@ public final class KofSecurity {
         };
     }
 
+    /** Face 1 do D-SECRETS (Stage 5/3.6): métodos de instância do tipo
+     *  {@code Secret}. Inalcançáveis onde {@code of}/{@code secret} são gated. */
+    static SecCall instanceMethod(Type receiver, String name, int argCount) {
+        if (isSecretType(receiver)) {
+            return switch (name) {
+                case "reveal" -> argCount == 0
+                        ? new SecCall("kof_sec_secret_reveal", STR, List.of(SECRET)) : null;
+                case "redacted" -> argCount == 0
+                        ? new SecCall("kof_sec_secret_redacted", STR, List.of(SECRET)) : null;
+                default -> null;
+            };
+        }
+        if (isKeyHandleType(receiver)) {
+            return switch (name) {
+                case "rotate" -> argCount == 0
+                        ? new SecCall("kof_sec_key_rotate", KEY_HANDLE, List.of(KEY_HANDLE)) : null;
+                default -> null;
+            };
+        }
+        return null;
+    }
+
+    /**
+     * Android reuses the JVM backend/runtime (`CompilerPipeline:186`), and every
+     * `kof.security` shim on JVM is JCA/`java.util` only (MessageDigest, Mac,
+     * Cipher, SecureRandom, Base64, KeyStore, `java.nio.file`) — all present on
+     * Android. So a JVM-capable function is Android-capable too (§278 port,
+     * `D-TECHDEBT-23/09` = "port the stacks"). `kof.gpu` is NOT covered here:
+     * its JVM runtime needs FFM (`java.lang.foreign`), absent on Android.
+     */
+    private static boolean jvmLike(Target t) { return t == Target.JVM || t == Target.ANDROID; }
+
     /**
      * Target support matrix. Unsupported calls produce a compile-time
      * diagnostic; never silently different behavior.
      */
-    static boolean supportedOn(@SuppressWarnings("unused") String function, @SuppressWarnings("unused") Target target) {
-        // SECN000: o runtime riscv64/aarch64 (asm puro, sem libc) não tem
+    static boolean supportedOn(@SuppressWarnings("unused") String function, @SuppressWarnings("unused") Target target) {        // SECN000: o runtime riscv64/aarch64 (asm puro, sem libc) não tem
         // NENHUMA primitiva kof_sec_* (sha/hmac/aes/random/jwt/password/
         // session/api-key). Sem gate, a chamada quebrava no link com
         // undefined-reference (R6). Diagnóstico limpo em compile-time até o
@@ -222,35 +303,48 @@ public final class KofSecurity {
         }
         return switch (function) {
             case "kof_sec_aesgcm_encrypt", "kof_sec_aesgcm_decrypt" ->
-                    target == Target.JVM || target == Target.JS || target.isNative();
+                    jvmLike(target) || target == Target.JS || target.isNative();
             // D-SEC chacha (13/09): JVM+JS nesta unidade (asm x86 de
             // ChaCha20+Poly1305 p/ NATIVE fica na fila — SECN002 com
             // diagnóstico em compile-time até o port, igual SECN000).
             case "kof_sec_chacha20_encrypt", "kof_sec_chacha20_decrypt" ->
-                    target == Target.JVM || target == Target.JS;
+                    jvmLike(target) || target == Target.JS;
             case "kof_sec_password_hash", "kof_sec_password_verify", "kof_sec_password_needs_rehash" ->
-                    target == Target.JVM || target == Target.JS || target.isNative();
-            case "kof_sec_sha512" -> target == Target.JVM || target == Target.JS || target.isNative();
+                    jvmLike(target) || target == Target.JS || target.isNative();
+            case "kof_sec_sha512" -> jvmLike(target) || target == Target.JS || target.isNative();
             case "kof_sec_jwt_create", "kof_sec_jwt_create_ttl", "kof_sec_jwt_verify",
                     "kof_sec_jwt_verify_iss_aud", "kof_sec_jwt_secret" ->
-                    target == Target.JVM || target == Target.JS || target.isNative();
+                    jvmLike(target) || target == Target.JS || target.isNative();
             case "kof_sec_csrf_token", "kof_sec_csrf_valid", "kof_sec_cors_allowed",
                     "kof_sec_csp_header", "kof_sec_hsts_header", "kof_sec_content_type_options_header",
                     "kof_sec_frame_header", "kof_sec_referrer_header",
                     "kof_sec_auth_secret", "kof_sec_auth_token", "kof_sec_auth_authenticated",
                     "kof_sec_auth_claims", "kof_sec_auth_user", "kof_sec_auth_has_role",
-                    "kof_sec_auth_has_permission" -> target == Target.JVM;
+                    "kof_sec_auth_has_permission" -> jvmLike(target);
             // D-SEC camada 16 (14/09): OAuth2 resource-server (JWKS + RSA/EC)
             // — JVM-only nesta unidade; Native/JS seguem gap honesto.
             case "kof_sec_auth_resource_server", "kof_sec_auth_resource_server_verify" ->
-                    target == Target.JVM;
+                    jvmLike(target);
             // D-SEC C11 (14/09): cookies parse/set — JVM+JS nesta unidade
             // (Native segue gap honesto em compile-time, igual SECN000/002).
             case "kof_sec_cookie_set", "kof_sec_cookie_set_opts", "kof_sec_cookie_get" ->
-                    target == Target.JVM || target == Target.JS;
+                    jvmLike(target) || target == Target.JS;
             // G9: available on all targets (JVM/Native/JS)
             case "kof_sec_rate_limit", "kof_sec_session_create", "kof_sec_session_get", "kof_sec_session_destroy",
                     "kof_sec_api_key_generate", "kof_sec_api_key_valid" -> true;
+            // D-SECRETS face 1 (Stage 5/3.6): tipo Secret — JVM + Android
+            // (paridade por backend, §278/D-TECHDEBT-23/09); JS/Native/Script
+            // seguem gap honesto SECN008.
+            case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_reveal",
+                    "kof_sec_secret_redacted", "kof_sec_secret_from_bytes" -> jvmLike(target);
+            // D-SECRETS P3 (KeyHandle): JVM + Android; os demais alvos
+            // seguem gap honesto SECN008 (nunca link-break/silencioso).
+            case "kof_sec_key_from_hex", "kof_sec_key_from_pem", "kof_sec_key_from_keystore",
+                    "kof_sec_key_rotate", "kof_sec_hmac_sha256_key",
+                    "kof_sec_aesgcm_encrypt_key", "kof_sec_aesgcm_decrypt_key",
+                    "kof_sec_chacha20_encrypt_key", "kof_sec_chacha20_decrypt_key",
+                    "kof_sec_jwt_create_key", "kof_sec_jwt_create_ttl_key",
+                    "kof_sec_jwt_verify_key", "kof_sec_jwt_verify_iss_aud_key" -> jvmLike(target);
             default -> true;
         };
     }
@@ -268,6 +362,14 @@ public final class KofSecurity {
                     "kof_sec_api_key_generate", "kof_sec_api_key_valid" -> "SECN005";
             case "kof_sec_cookie_set", "kof_sec_cookie_set_opts", "kof_sec_cookie_get" -> "SECN006";
             case "kof_sec_auth_resource_server", "kof_sec_auth_resource_server_verify" -> "SECN007";
+            case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_reveal",
+                    "kof_sec_secret_redacted", "kof_sec_secret_from_bytes",
+                    "kof_sec_key_from_hex", "kof_sec_key_from_pem", "kof_sec_key_from_keystore",
+                    "kof_sec_key_rotate", "kof_sec_hmac_sha256_key",
+                    "kof_sec_aesgcm_encrypt_key", "kof_sec_aesgcm_decrypt_key",
+                    "kof_sec_chacha20_encrypt_key", "kof_sec_chacha20_decrypt_key",
+                    "kof_sec_jwt_create_key", "kof_sec_jwt_create_ttl_key",
+                    "kof_sec_jwt_verify_key", "kof_sec_jwt_verify_iss_aud_key" -> "SECN008";
             default -> "SECN000";
         };
     }

@@ -2,7 +2,7 @@
 
 # 06 — Funções
 
-> **Status: implementado (JVM / Native / JS) — 0.4.0-beta — exemplos verificados no compilador**
+> **Status: implementado (JVM / Native / JS) — 0.5.0-beta — exemplos verificados no compilador**
 >
 > Funções de nível superior, métodos, expression bodies, default parameters,
 > recursão e funções como valores (lambdas) funcionam nos targets JVM, Native
@@ -123,7 +123,7 @@ main() {
 > **lambda** anônimo no ponto de chamada: referência nua de função nomeada não liga
 > (`training/anti-patterns/fake-idioms.md`).
 
-## Sobrecarga (0.4.0-beta)
+## Sobrecarga (0.5.0-beta)
 
 Duas funções com o MESMO nome coexistem quando as assinaturas diferem
 (aridade ou tipos dos parâmetros):

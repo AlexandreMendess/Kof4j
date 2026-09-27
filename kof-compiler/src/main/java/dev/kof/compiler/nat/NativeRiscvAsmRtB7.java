@@ -134,7 +134,12 @@ public final class NativeRiscvAsmRtB7 {
                 addi sp, sp, 48
                 ret
 
-            # kof_strings_reverse(a0=str) -> String (byte-reverso, ASCII)
+            # kof_strings_reverse(a0=str) -> String (inverso por CODE POINT)
+            # Inverte a sequência de code points UTF-8 mantendo cada sequência
+            # multi-byte intacta (paridade JVM StringBuilder.reverse, que
+            # preserva pares surrogate, e do JS [...v].reverse()). Store UTF-8:
+            # length@16 = bytes. O cursor de escrita anda de trás para frente
+            # copiando cada code point inteiro (D-FULL-PARITY-050 linha 11).
             # null/"" => retorna ponteiro original.
             .globl kof_strings_reverse
             kof_strings_reverse:
@@ -160,18 +165,39 @@ public final class NativeRiscvAsmRtB7 {
                 sd   t0, 8(s3)
                 sw   s1, 16(s3)
                 sw   t0, 20(s3)
-                li   s2, 0               # i
+                mv   t5, s1              # i = byteLen (cursor de leitura)
+                li   t6, 0               # o = 0 (cursor de escrita)
             .Lv_str_rev_loop:
-                bge  s2, s1, .Lv_str_rev_term
-                addi t2, s1, -1
-                sub  t2, t2, s2          # len-1-i
-                add  t3, s0, 24
-                add  t3, t3, t2
-                lbu  t3, 0(t3)           # s[len-1-i]
-                add  t4, s3, 24
-                add  t4, t4, s2
-                sb   t3, 0(t4)           # novo[i]
-                addi s2, s2, 1
+                blez t5, .Lv_str_rev_term
+                addi t0, t5, -1          # j = i-1
+            .Lv_str_rev_scan:
+                blez t0, .Lv_str_rev_start
+                add  t1, s0, 24
+                add  t1, t1, t0
+                lbu  t1, 0(t1)
+                andi t1, t1, 192         # 0xC0
+                li   t2, 128             # 0x80
+                bne  t1, t2, .Lv_str_rev_start
+                addi t0, t0, -1
+                j    .Lv_str_rev_scan
+            .Lv_str_rev_start:
+                sub  t3, t5, t0          # len = i - j
+                li   t4, 0               # k
+            .Lv_str_rev_copy:
+                bge  t4, t3, .Lv_str_rev_copied
+                add  t1, s0, 24
+                add  t1, t1, t0
+                add  t1, t1, t4
+                lbu  t1, 0(t1)           # in[j+k]
+                add  t2, s3, 24
+                add  t2, t2, t6
+                add  t2, t2, t4
+                sb   t1, 0(t2)           # out[o+k]
+                addi t4, t4, 1
+                j    .Lv_str_rev_copy
+            .Lv_str_rev_copied:
+                add  t6, t6, t3          # o += len
+                mv   t5, t0              # i = j
                 j    .Lv_str_rev_loop
             .Lv_str_rev_term:
                 li   t0, 0

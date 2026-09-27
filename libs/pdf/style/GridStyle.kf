@@ -1,0 +1,89 @@
+package pdf.style
+
+import pdf.style.PdfColor
+import pdf.style.Colors
+import pdf.style.TextStyle
+
+class GridStyle {
+    Int height
+    Int cellPadding
+    Int borderSize
+    PdfColor headerFill
+    PdfColor cellFill
+    PdfColor border
+    TextStyle headerText
+    TextStyle cellText
+
+    constructor() {
+        height = 24
+        cellPadding = 5
+        borderSize = 1
+        headerFill = Colors.white
+        cellFill = Colors.white
+        border = Colors.black
+        headerText = TextStyle().fontSize(10)
+        cellText = TextStyle().fontSize(10)
+    }
+
+    rowHeight(Int value): GridStyle {
+        if (value <= 0) {
+            throw "Row height must be greater than zero"
+        }
+        height = value
+        return this
+    }
+
+    padding(Int value): GridStyle {
+        if (value < 0) {
+            throw "Padding cannot be negative"
+        }
+        cellPadding = value
+        return this
+    }
+
+    borderWidth(Int value): GridStyle {
+        if (value < 0) {
+            throw "Border width cannot be negative"
+        }
+        borderSize = value
+        return this
+    }
+
+    headerBackground(PdfColor value): GridStyle {
+        headerFill = value.copy()
+        return this
+    }
+
+    cellBackground(PdfColor value): GridStyle {
+        cellFill = value.copy()
+        return this
+    }
+
+    borderColor(PdfColor value): GridStyle {
+        border = value.copy()
+        return this
+    }
+
+    headerStyle(TextStyle value): GridStyle {
+        headerText = value.copy()
+        return this
+    }
+
+    cellStyle(TextStyle value): GridStyle {
+        cellText = value.copy()
+        return this
+    }
+
+    copy(): GridStyle {
+        GridStyle result = GridStyle()
+        result.height = height
+        result.cellPadding = cellPadding
+        result.borderSize = borderSize
+        result.headerFill = headerFill.copy()
+        result.cellFill = cellFill.copy()
+        result.border = border.copy()
+        result.headerText = headerText.copy()
+        result.cellText = cellText.copy()
+        return result
+    }
+}

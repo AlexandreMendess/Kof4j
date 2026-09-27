@@ -49,7 +49,7 @@ strings.isLowerCase("abc-123")     // demais chars ignorados
 strings.count("aabaabaa", "ab")    // 2 — NÃO-sobrepostas; sub vazio => 0
 strings.capitalize("hello")        // "Hello" (ASCII; 1º byte a-z)
 strings.uncapitalize("Hello")      // "hello" — espelho exato do capitalize (S11)
-strings.reverse("abc")             // "cba" (byte-reverso no Native — ver NAT-STR01)
+strings.reverse("abc")             // "cba"; inverte por CODE POINT em todos os targets (walk UTF-8 no Native — face reverse da NAT-STR01 corrigida 27/09)
 strings.repeat("ab", 3)            // "ababab"; n<=0 => ""
 strings.truncate("hello", 3)       // "hel"; n>=len => original; n<=0 => ""
 strings.padLeft("7", 3, "0")       // "007" — pad é STRING, usa a 1ª char
@@ -320,8 +320,8 @@ if (gpu.available()) {
 PORQUE: computacao pesada e dominio de **pacote oficial** (R1) — `kof.gpu` expoe so o que a
 plataforma ja roda (kernels de forma fixa + as faces `mv*` int8/long do caminho on-device);
 frameworks de ML ficam em interop (R9). Gates honestos (medidos 19/09): JVM + Native x86 ✅;
-**JS = `GPU001`** em tempo de compilacao (nenhuma promessa de BLAS na web — R7); golden
-riscv/aarch ⏳.
+riscv64/aarch64 ✅ e JS/Script ✅ desde 26/09 (linha 6 fechada, `D-FULL-PARITY-050`) — todos
+degradam pelo fallback CPU honesto (`available=false`, dispatch `-1`), nunca `GPU001`.
 
 ## media — Image/Audio/Video/Mic sao namespaces, nao widgets de UI (8.5 fatia 3, 19/09)
 
@@ -335,8 +335,14 @@ val inputs = Mic.list()                  // dispositivos de captura disponiveis
 
 PORQUE: `Image` em `kof.ui` e um **widget de visao**; `Image.open` aqui e **I/O de midia**
 (mesmo nome, intencao diferente — nao confundir). Tudo que a plataforma decodifica fica no
-backend; o codigo do usuario nunca toca buffer nem codec. Gates honestos (medidos 19/09):
-JVM ✅; **JS e Native = `MEDIA001`** em tempo de compilacao (R6); riscv/aarch ⏳.
+backend; o codigo do usuario nunca toca buffer nem codec. Gates honestos (medidos 26/09):
+JVM ✅; Native x86-64 ✅ (`Video`+`Audio`); riscv64/aarch64 ✅ (`Video` fatia 2A + `Audio`
+fatia 2B, byte a byte sob qemu); **JS = `MEDIA001`** e `Image`/`Mic` = `MEDIA001`/`003` (R6).
+Nota de escopo: esta e a **face de dados** atual de `kof.media`. A superficie futura
+de graficos/jogos/midia e **engine propria da Kof**, com paridade TOTAL nos 4 alvos
+como criterio de aceite (`DECISIONS.md` §D-GRAPHICS-GAMING adendos 2+4; plano
+`docs/development/future/graphics-gaming-plan.md`) — `MEDIA001` e honesto para a face
+legada, nao o modelo do que sera promovido.
 
 ## Nota por target (gates honestos)
 
@@ -355,18 +361,20 @@ JVM ✅; **JS e Native = `MEDIA001`** em tempo de compilacao (R6); riscv/aarch �
 | math.pow (S1b.2 — libm `pow@PLT` + `-lm` no x86) | ✅ | ✅ | ❌ `MATH001` (cross estático sem libc) | ✅ |
 | random.randomInt/randomBoolean/randomString (face beta S10a/b) | ✅ | ✅ | ✅ (B27/B28, getrandom/lemire) | ✅ |
 | random.double/boolean/int/hex (face main S10) | ✅ | ✅ | ✅ (B27) | ✅ |
-| faces novas de `time.*` (todayIso/addDays/diffDays/hoursBetween/iso parse-format/sleep/now/interval) | ✅ JVM (medido 19/09, `StdlibIdiomsCompileTest`); interpretador: datas ✅ (paridade X8), relógio ⏳ | ✅ x86 (medido 19/09) | ⏳ golden cross não medido | ✅ (medido 19/09) |
-| `cache.*` / `config.*` / `log.*` (8.5) | ✅ JVM (medido 19/09); cache+config ✅ paridade no interpretador 19/09 (`KofScriptStdlibParityTest`); log ⏳ interpretador | ✅ x86 (medido 19/09) | ⏳ golden cross não medido | ✅ (medido 19/09) |
+| faces novas de `time.*` (todayIso/addDays/diffDays/hoursBetween/iso parse-format/sleep/now/interval) | ✅ JVM (medido 19/09, `StdlibIdiomsCompileTest`); interpretador: datas ✅ (paridade X8), relógio ⏳ | ✅ x86 (medido 19/09) | ✅ cross (B33; linha 8 fechada 25/09 — `KofTimeE2ETest` 44/44) | ✅ (medido 19/09) |
+| `cache.*` / `config.*` / `log.*` (8.5) | ✅ JVM (medido 19/09); cache+config ✅ paridade no interpretador 19/09 (`KofScriptStdlibParityTest`); log ⏳ interpretador | ✅ x86 (medido 19/09) | ✅ cross (linha 9 fechada 26/09 — `KofCacheCrossTest`/`KofConfigCrossTest`/`NativeLogCrossTest`) | ✅ (medido 19/09) |
 | `process.run`/`exit` (varargs) | ✅ | ❌ `PROC001` (tempo de compilação, travado em `DomainGapCodesTest`) | ❌ `PROC001` | ✅ |
 | `process.spawn` | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (`KofJsRunner`); node puro = diagnostico honesto |
-| `observability.*` (spans 01/09 + metrics/health 8.5 19/09) | ✅ (medido 19/09) | ✅ x86 (medido 19/09) | ⏳ golden cross não medida | ✅ (medido 19/09) |
-| `gpu.available`/`failReason`/`dispatchMatmul(Int)` | ✅ | ✅ (medido 19/09) | ⏳ golden cross não medida | ❌ `GPU001` (tempo de compilação) |
-| `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record/list` | ✅ (medido 19/09) | ❌ `MEDIA001` (tempo de compilação) | ❌ `MEDIA001` | ❌ `MEDIA001` |
+| `observability.*` (spans 01/09 + metrics/health 8.5 19/09) | ✅ (medido 19/09) | ✅ x86 (medido 19/09) | ✅ cross (linha 7 fechada 26/09 — `KofObservabilityTest` 12/12) | ✅ (medido 19/09) |
+| `gpu.available`/`failReason`/`dispatchMatmul(Int)` | ✅ | ✅ (medido 19/09) | ✅ cross (linha 6 fechada 26/09 — fallback CPU honesto) | ✅ fallback JS/Script (linha 6; `GPU001` aposentado) |
+| `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record/list` | ✅ (medido 19/09) | `Video`+`Audio` ✅ (26/09 fatia 1 — `MediaNativeE2ETest` byte-for-byte vs JVM); `Image`/`Mic` ❌ `MEDIA001` | `Video` ✅ (26/09 fatia 2A) + `Audio` ✅ (26/09 fatia 2B — `MediaCrossE2ETest` riscv64/aarch64 byte-for-byte sob qemu); `Image`/`Mic` ❌ `MEDIA001` | ❌ `MEDIA001` |
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (tempo de compilação) | ❌ `PROC001` | ✅ paridade byte |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (chain + pump, 20/09 `081a48f8`; node puro = diagnostico honesto) |
 
-`strings.reverse` em não-ASCII: byte-reverso no Native vs UTF-16 no JVM/JS —
-gap **NAT-STR01** (paridade só travada em ASCII na matriz).
+`strings.reverse` em não-ASCII: corrigido 27/09 — inverte por CODE POINT UTF-8
+no Native (x86/riscv/aarch), igual ao JVM/JS (célula `stdstrings2b2` +
+`NativeStringsReverseCrossTest`). Os demais conversores de caixa/palavra seguem
+**NAT-STR01** (paridade travada em ASCII na matriz).
 
 ## Limitações
 

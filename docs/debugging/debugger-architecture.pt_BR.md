@@ -4,7 +4,7 @@
 
 **Status:** Fases 1-3 implementadas (DebugInfo na IR, metadata JVM, `kof-debug` MVP)
 **Data:** 27 de agosto de 2026
-**Versão:** 0.4.0-beta (7 targets; free-list + pthread spawn + FP XMM)
+**Versão:** 0.5.0-beta (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 
@@ -38,8 +38,8 @@ Cada backend traduz o modelo de debug Kof para o formato da plataforma
 | CompilerDriver | **Debug Metadata** — cada op da IR sabe de onde veio |
 | IR | KofDebugInfo (source files, functions, locals, scopes, mappings) |
 | JvmBackend | LineNumberTable, LocalVariableTable, SourceFile |
-| NativeBackend | símbolos, line tables (DWARF futuramente) |
-| JsBackend | source maps Kof → JS |
+| NativeBackend | símbolos, line tables (DWARF ✅ x86-64 + cross) |
+| JsBackend | source maps Kof → JS (por função) |
 | kof-debug | Debug Adapter (DAP) |
 | Kof Editor | breakpoints, stack, variables (DAP) |
 
@@ -78,8 +78,8 @@ Não criar metadata específica para JVM — a informação de origem existe
 | Target | Formato nativo | Exposição ao usuário |
 |--------|----------------|----------------------|
 | JVM | LineNumberTable, LocalVariableTable, SourceFile + JDWP | funções e linhas Kof |
-| Native | símbolos + line tables (DWARF futuro) | funções e linhas Kof |
-| KofJS | source maps Kof → JS + Node Inspector/Chrome | funções e linhas Kof |
+| Native | símbolos + line tables (DWARF ✅ x86-64 + cross) | funções e linhas Kof |
+| KofJS | source maps Kof → JS (por função) | funções e linhas Kof |
 
 ## 5. Regras
 
@@ -99,10 +99,15 @@ Fase 3  kof-debug MVP: DAP over stdio + JDWP cru                  ✅
         (launch, breakpoints por linha Kof, stopped, stack trace
          com funções/linhas Kof, continue, disconnect)
 Fase 4  Kof Editor: breakpoints, toolbar, call stack, variables, stepping
-Fase 5  Native: DWARF
-Fase 6  JS: source maps + Node Inspector
+Fase 5  Native: DWARF + ponte DAP↔gdb/MI2 + attach                ✅ (X7-1..X7-5)
+Fase 6  JS: source maps + Node Inspector                          parcial
+        (mapa emitido mas por função; Node Inspector = gap honesto —
+         motor GraalJS embutido, ver `debugging-js.pt_BR.md`)
 Fase 7  Avançado: locals por frame, stepping, conditional/exception
-        breakpoints, avaliação, async
+        breakpoints, avaliação, async                             parcial
+        (Native e JVM: locals/scopes/stepping/evaluate/exception
+         breakpoints + pause — 20/09; resta: breakpoints condicionais,
+         async; a face JS é gap honesto)
 ```
 
 Detalhes de implementação do `kof-debug` (Fase 3): ver `debug-adapter.md`.

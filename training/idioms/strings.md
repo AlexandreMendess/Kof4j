@@ -2,7 +2,7 @@
 
 # Idioms — Strings
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.4.0-beta (Sep 2026)
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:**  0.5.0-beta (Sep 2026)
 
 ## What it is
 
@@ -26,6 +26,7 @@ s.toLowerCase()
 s.trim()
 s.equalsIgnoreCase("hello world")
 s.split(" ")                // String[]
+s.toCharArray()             // Char[] — UTF-16 code units (astral char = 2 elements)
 var a = "x"
 var b = "y"
 a == b                      // CONTENT comparison (not reference)
@@ -111,7 +112,7 @@ For strings with accents/emoji the values diverge (`"Olá".length` = 4 on Native
 `docs/backend-parity.md`): use `length` for raw size; do not assume character
 count when the target matters.
 
-## Null safety (0.4.0-beta)
+## Null safety (0.5.0-beta)
 
 ```kof
 String? s = mapOf("k", "abc").get("k")   // null reaches T? via API (= null literal is SEM048)
@@ -133,4 +134,4 @@ if (s != null) {
 
 ## Related anti-patterns
 
-- `sentinel-values.md` — use `String?` instead of `""` for "not found" (0.4.0-beta)
+- `sentinel-values.md` — use `String?` instead of `""` for "not found" (0.5.0-beta)

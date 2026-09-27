@@ -20,6 +20,7 @@ public final class ExpressionBinaryLowerer {
      * `String.valueOf(c)` (§27). Os demais primitivos mantêm o box.
      */
     static void emitOperandToString(CompilerDriver driver, List<KofOperation> ops, Type type) {
+        if (ProcessResultPrintGuard.refuseWholeResult(driver, type, "", 0, 0)) return;
         Type check = type instanceof Type.NullableType nt ? nt.inner() : type;
         boolean isChar = check instanceof Type.PrimitiveType p
                 && "char".equals(Type.canonicalPrimitiveName(p.name()));
@@ -35,6 +36,15 @@ public final class ExpressionBinaryLowerer {
         // (VerifyError JVM; NPE silenciosa no interpretador — achado em
         // `"a" + ni()` com `Int? ni() { return null }`). Native mantém o
         boolean stringified = !Type.isString(type) && (type instanceof Type.PrimitiveType pt3 && !Type.isVoid(pt3));
+        // §519/#632 (JVM): handle BARE de kof.ui/midia e int-apagado (UIW050) —
+        // mesma caixa do primitivo cru: boxa p/ Integer ANTES do valueOf(Object),
+        // senao o verifier pega int cru em slot de referencia (`println(cor)`).
+        // Nullable(handle) (get de chave ausente) chega FISICAMENTE boxed — nao
+        // reboxa (mesma armadilha documentada do `Int?` acima).
+        if (!stringified && driver.target == Target.JVM && !Type.isString(type)
+                && type instanceof Type.ClassType && (KofUi.isUiType(type) || KofMedia.isHandleType(type))) {
+            stringified = true;
+        }
         if (driver.target == Target.JS
                 && TypeMetrics.isFloatingPoint(
                         type instanceof Type.NullableType ntp ? ntp.inner() : type)) {
@@ -396,10 +406,17 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
     } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
             && ((be.right() instanceof LiteralExpr rl
                     && rl.kind() == ConcreteLiteralKind.NULL
-                    && accType instanceof Type.PrimitiveType apt && !Type.isVoid(apt))
+                    && ((accType instanceof Type.PrimitiveType apt && !Type.isVoid(apt))
+                        // §519/#632: handle BARE de kof.ui/midia (View/Color/...)
+                        // e int-apagado (UIW050) — nunca null em alvo nenhum; o
+                        // mesmo fold do primitivo cru (`==null`→false, `!=null`→
+                        // true). Nullable(handle) (ex.: get de chave ausente) NAO
+                        // entra aqui — e referencia de verdade (caminho abaixo).
+                        || (accType instanceof Type.ClassType && (KofUi.isUiType(accType) || KofMedia.isHandleType(accType)))))
                 || (be.left() instanceof LiteralExpr ll
                     && ll.kind() == ConcreteLiteralKind.NULL
-                    && rightType instanceof Type.PrimitiveType rpt && !Type.isVoid(rpt)))) {
+                    && ((rightType instanceof Type.PrimitiveType rpt && !Type.isVoid(rpt))
+                        || (rightType instanceof Type.ClassType && (KofUi.isUiType(rightType) || KofMedia.isHandleType(rightType))))))) {
         // D-NULL-INTENT: só dispara p/ primitivo NÃO-nullable de verdade
         // (`accType`/`rightType` bare PrimitiveType, sem desempacotar
         // NullableType) — um Nullable(primitivo) GENUÍNO cai no ramo
@@ -420,9 +437,20 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
     } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
             && !driver.isNullLiteral(be.left()) && !driver.isNullLiteral(be.right())
             && (ExpressionBinaryPredicates.isRecordLike(accType, driver) || ExpressionBinaryPredicates.isRecordLike(rightType, driver)
+                // D-SECRETS face 1: `Secret == Secret` é conteúdo constant-time
+                // (KofRuntime$Secret.equals) — mesmo caminho null-safe do record.
+                || KofSecurity.isSecretType(accType) || KofSecurity.isSecretType(rightType)
                 || (!driver.target.isNative()
                     && (ExpressionBinaryPredicates.isNullablePrimLike(accType) || ExpressionBinaryPredicates.isNullablePrimLike(rightType))
                     && ExpressionBinaryPredicates.isNullablePrimOrBarePrim(accType) && ExpressionBinaryPredicates.isNullablePrimOrBarePrim(rightType))
+                // §519/#632 (JVM): Nullable(handle) de slot boxed (get de map,
+                // campo) cai no MESMO caminho `.equals` null-safe do
+                // Nullable(primitivo) — a caixa fisica e Integer (UIW050);
+                // sem isto, `m.get(k) == m.get(k)` descia p/ if_icmpeq sobre
+                // referencias boxed (VerifyError medido).
+                || (driver.target == Target.JVM
+                    && (ExpressionBinaryPredicates.isNullableHandleLike(accType) || ExpressionBinaryPredicates.isNullableHandleLike(rightType))
+                    && ExpressionBinaryPredicates.isNullablePrimOrBarePrimOrHandle(accType) && ExpressionBinaryPredicates.isNullablePrimOrBarePrimOrHandle(rightType))
                 // §284-map: fase 2 D-NULL-INTENT no native SÓ para a familia
                 // com caixa fisica de slot (int/char/short/byte/long): o
                 // RecordEqualityLowerer guarda os dois lados e chama
@@ -452,7 +480,8 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         // `undefined reference` no linker, achado na CI real; ausente no
         // Windows local sem `as`/`ld`). Record continua passando por aqui
         // no Native (equals de classe usuário, já suportado antes do #278).
-        if (accType instanceof Type.PrimitiveType apt4 && !Type.isVoid(apt4)) {
+        if ((accType instanceof Type.PrimitiveType apt4 && !Type.isVoid(apt4))
+                || ExpressionBinaryPredicates.isBareHandleErasedToInt(accType)) {
             // §284-map: no native o box do lado cru entra no par Object do
             // RecordEqualityLowerer via kof_box_* (TypeEmitter e bytecode
             // JVM-only).
@@ -540,32 +569,7 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
             // VerifyError (bug 36).
             operandType = new Type.ClassType("java.lang", "Object", List.of());
         }
-        switch (be.operator()) {
-            case "+" -> ops.add(new KofBinary(KofBinaryOp.ADD, operandType));
-            case "-" -> ops.add(new KofBinary(KofBinaryOp.SUB, operandType));
-            case "*" -> ops.add(new KofBinary(KofBinaryOp.MUL, operandType));
-            case "/" -> ops.add(new KofBinary(KofBinaryOp.DIV, operandType));
-            case "%" -> ops.add(new KofBinary(KofBinaryOp.MOD, operandType));
-            case "==" -> ops.add(new KofBinary(KofBinaryOp.EQ, operandType));
-            case "!=" -> ops.add(new KofBinary(KofBinaryOp.NE, operandType));
-            case "<" -> ops.add(new KofBinary(KofBinaryOp.LT, operandType));
-            case "<=" -> ops.add(new KofBinary(KofBinaryOp.LE, operandType));
-            case ">" -> ops.add(new KofBinary(KofBinaryOp.GT, operandType));
-            case ">=" -> ops.add(new KofBinary(KofBinaryOp.GE, operandType));
-            case "&&" -> ops.add(new KofBinary(KofBinaryOp.AND, operandType));
-            case "||" -> ops.add(new KofBinary(KofBinaryOp.OR, operandType));
-            case "&" -> ops.add(new KofBinary(KofBinaryOp.AND, operandType));
-            case "|" -> ops.add(new KofBinary(KofBinaryOp.OR, operandType));
-            case "^" -> ops.add(new KofBinary(KofBinaryOp.XOR, operandType));
-            case "<<" -> ops.add(new KofBinary(KofBinaryOp.SHL, operandType));
-            case ">>" -> ops.add(new KofBinary(KofBinaryOp.SHR, operandType));
-            case ">>>" -> ops.add(new KofBinary(KofBinaryOp.USHR, operandType));
-            default -> ops.add(new KofBinary(KofBinaryOp.ADD, operandType));
-        }
-        accType = switch (be.operator()) {
-            case "==", "!=", "<", "<=", ">", ">=" -> Type.PrimitiveType.BOOL;
-            default -> accType;
-        };
+        accType = ExpressionBinaryFallbackOps.emit(ops, be.operator(), operandType, accType);
     }
 }
 return localIdx;

@@ -2,7 +2,7 @@
 
 # Idioms — Database / ORM
 
-**Status:** available · **Introduced:** 0.2.6-beta · **Updated:**  0.4.0-beta (Sep 2026) (02 Sep 2026)
+**Status:** available · **Introduced:** 0.2.6-beta · **Updated:**  0.5.0-beta (Sep 2026) (02 Sep 2026)
 
 ## What it is
 
@@ -36,7 +36,7 @@ println(adultos.get(0).name)
 O lowering é agnóstico de target (emite o mesmo `db.query<T>` no JVM e no
 Native) e o E2E roda no JVM (H2). `KofOrmE2ETest` (22).
 
-## API real (verificada no compilador — 0.4.0-beta)
+## API real (verificada no compilador — 0.5.0-beta)
 
 ```kof
 var db = db.connect("jdbc:h2:mem:app")

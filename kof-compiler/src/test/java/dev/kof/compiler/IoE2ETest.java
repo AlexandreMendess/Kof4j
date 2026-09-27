@@ -78,6 +78,20 @@ class IoE2ETest {
         return dir.replace("\\", "\\\\");
     }
 
+    // D-FULL-PARITY-050 row 13 slice 14: Directory.delete() recursivo (JVM==x86-64).
+    @Test
+    void directoryDeleteRecursive(@TempDir Path tempDir) throws IOException {
+        both(tempDir, "dirDeleteRec", """
+            var d = Directory("%s/tree")
+            d.create()
+            File("%s/tree/a.txt").writeText("x")
+            Directory("%s/tree/sub").create()
+            File("%s/tree/sub/b.txt").writeText("y")
+            println(d.delete())
+            println(File("%s/tree").exists())
+            """, "true\nfalse");
+    }
+
     // G-ORG-002 (copyTo/moveTo/modifiedTime/isSymlink) só tem implementação
     // JVM nesta PR (ver docs/stdlib/IO.md e KofIo.java) — Native fica de fora
     // deliberadamente, então estes casos não passam por both().
@@ -229,6 +243,26 @@ class IoE2ETest {
             var d = Directory("%s/a/b/c")
             println(d.isDirectory())
             """, "true\ntrue");
+    }
+
+    @Test
+    void directoryMkdirAliases(@TempDir Path tempDir) throws IOException {
+        // GitHub #617: mkdir()/mkdirs() are POSIX-style aliases of create()/
+        // createDirectories() and must really create the directory on both
+        // targets — never the old silent no-op, and `.toString()` on the Bool
+        // result must not crash class-load.
+        both(tempDir, "dirMkdir", """
+            var f = File("%s/mkdir_d")
+            println(f.exists())
+            println(f.mkdir())
+            println(f.exists())
+            println(f.isDirectory())
+            println(f.mkdir())
+            println(f.mkdir().toString())
+            var deep = File("%s/mkdirs/a/b/c")
+            println(deep.mkdirs())
+            println(Directory("%s/mkdirs/a/b/c").isDirectory())
+            """, "false\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\ntrue");
     }
 
     @Test

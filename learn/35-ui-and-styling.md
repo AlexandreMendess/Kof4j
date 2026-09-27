@@ -107,7 +107,7 @@ View homeView() {
 - **Multi-target** — the same object tree is drawn by each backend.
 - **Zero conversion** — the palette is the API; hex and ANSI are internal details.
 
-## Actual state (0.4.0-beta)
+## Actual state (0.5.0-beta)
 
 This vision is **implemented** as `kof.ui` (KofJS rendering):
 `Window`, `Label` (text/fontSize/bold/color), `Button` (action via lambda with

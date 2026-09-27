@@ -2,7 +2,7 @@
 
 # 08 — Fields and Data Access ("Properties")
 
-> **Status: implemented — direct field access, no getters/setters (0.4.0-beta, examples verified in the compiler)**
+> **Status: implemented — direct field access, no getters/setters (0.5.0-beta, examples verified in the compiler)**
 >
 > Kof does **not** have JavaBeans: there is no conventional getter/setter nor
 > framework reflection. A field is accessed directly: `u.name` (read) and

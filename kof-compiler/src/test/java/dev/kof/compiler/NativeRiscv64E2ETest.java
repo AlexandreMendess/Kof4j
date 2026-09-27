@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -55,16 +56,8 @@ class NativeRiscv64E2ETest {
         ProcessBuilder pb = qemu(arch, binFile);
         pb.redirectErrorStream(true);
         Process p = pb.start();
-        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec;
-        try {
-            ec = p.waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while running " + arch + " binary", e);
-        }
-        assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
+        String output = runBounded(p, arch + " binary");
+        assertEquals(0, p.exitValue(), "Exit code should be 0, output: '" + output + "'");
         return output;
     }
 
@@ -94,6 +87,47 @@ class NativeRiscv64E2ETest {
         return null;
     }
 
+    /** §418: qemu nunca sobrevive à rodada — espera bounded (180s), mata se
+     *  estourar e destroy no finally; só então o temp dir pode ser removido.
+     *  (O `timeout` externo SIGKILLa o grupo inteiro; aqui a rodada normal não
+     *  deixa órfão nem some com o primeiro evento do inferior.) */
+    static String runBounded(Process p, String what) throws IOException {
+        return runBounded(p, what, 180, TimeUnit.SECONDS);
+    }
+
+    static String runBounded(Process p, String what, long timeout, TimeUnit unit) throws IOException {
+        try {
+            if (!p.waitFor(timeout, unit)) {
+                p.destroyForcibly();
+                p.waitFor(10, TimeUnit.SECONDS);
+                throw new IOException(what + " não terminou em " + timeout + " " + unit
+                        + " — qemu morto (§418)");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            p.destroyForcibly();
+            throw new IOException("Interrupted while running " + what, e);
+        } finally {
+            if (p.isAlive()) p.destroyForcibly();
+        }
+        return new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+    }
+
+    /** §418 (teste do harness): um filho pendurado não sobrevive à rodada —
+     *  bound estourado ⇒ destroyForcibly, e o processo morre de verdade. */
+    @Test
+    void hangingChildIsKilledByTheBoundedWait() throws Exception {
+        Process p = new ProcessBuilder("sh", "-c", "sleep 60").start();
+        long t0 = System.nanoTime();
+        assertThrows(IOException.class,
+                () -> runBounded(p, "hanging child", 1, TimeUnit.SECONDS));
+        long ms = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(ms < 30_000, "deveria desistir dentro do bound, levou " + ms + "ms");
+        p.waitFor(10, TimeUnit.SECONDS);
+        assertFalse(p.isAlive(), "§418: o filho pendurado tem de morrer (destroyForcibly)");
+    }
+
     private String runRiscv64(Path tempDir, String source) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, source);
@@ -105,16 +139,8 @@ class NativeRiscv64E2ETest {
         ProcessBuilder pb = qemu("riscv64", binFile);
         pb.redirectErrorStream(true);
         Process p = pb.start();
-        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec;
-        try {
-            ec = p.waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while running riscv64 binary", e);
-        }
-        assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
+        String output = runBounded(p, "riscv64 binary");
+        assertEquals(0, p.exitValue(), "Exit code should be 0, output: '" + output + "'");
         return output;
     }
 
@@ -127,6 +153,61 @@ class NativeRiscv64E2ETest {
         String out = runRiscv64(tempDir, CollectionMethodsStdlibE2ETest.PROGRAM);
         assertEquals(CollectionMethodsStdlibE2ETest.GOLDEN, out,
                 "riscv64 must match the JVM oracle (regra 5)");
+    }
+
+    // §444-cross — generic class + T-ARG ctor: TypeVariable não casava ramo
+    // no dispatcher do valueOf (emitia nada; box cru → println_string = lixo).
+    // Fix: ramo TypeVariable → kof_box_to_string (§284). Paridade R5 com o
+    // x86 (NativeE2ETest.genericCtorArgPrintsLikeJvm); aarch64 herda.
+    @Test
+    void riscv64GenericCtorArgPrintsLikeJvm(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            class Box<T> {
+                T value
+                public constructor(T value) {
+                    this.value = value
+                }
+                get(): T {
+                    return this.value
+                }
+            }
+            main() {
+                var b = Box(7)
+                println(b.get())
+                println(b.value)
+                var s = Box("hi")
+                println(s.get())
+                var t = Box(true)
+                println(t.get())
+            }
+            """);
+        assertEquals("7\n7\nhi\ntrue", out, "§444: riscv64 deve casar o oráculo JVM");
+    }
+
+    // #613 — record + interface genérica + default: sem o bridge de erasure
+    // param-less (`T get()` → `Object get()`) o slot da vtable apontava para o
+    // concreto (`Int get()` lido como Object) → SIGSEGV no x86; no cross a peça
+    // compartilhada é a MESMA (NativeSymbolMangling + collectVirtualMethods),
+    // então o riscv64 tem de casar o oráculo (aarch64 herda via tradutor).
+    @Test
+    void riscv64RecordGenericInterfaceBridge(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            interface Box<T> {
+                T get()
+                default String describe() {
+                    return "Box: " + get()
+                }
+            }
+            record IntBox(Int value) implements Box<Int> {
+                Int get() { return value }
+            }
+            main() {
+                println(IntBox(42).describe())
+            }
+            """);
+        assertEquals("Box: 42", out, "#613: bridge de erasure no record (riscv64)");
     }
 
     // Arestas do port §359 (add_all riscv + kof_list_cmp→String_compareTo):
@@ -993,6 +1074,42 @@ main() {
     }
 
     @Test
+    void nativeArrayPrintMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // §388-B-cross (voto da mantenedora 21/09): println de array CRU usa o
+        // formato de container da casa ([65, 66]) — kof_array_to_string riscv
+        // espelha o x86 (bloco [len@16][esz@20][data@24], slot de 8B, mesma
+        // gramática de descritor; aninhado = tag 11). Antes: "A" (elem[0]
+        // como char) no x86 — paridade reversa medida do §388-B.
+        String out = runRiscv64(tempDir, """
+                main() {
+                    val b = new Int[2]
+                    b[0] = 65
+                    b[1] = 66
+                    println(b)
+                    val n = new Int[1][2]
+                    n[0][0] = 65
+                    n[0][1] = 66
+                    println(n)
+                    val e = new Int[0]
+                    println(e)
+                    val s = new String[1]
+                    s[0] = "x"
+                    println(s)
+                    val l = new Long[2]
+                    l[0] = 100000000000L
+                    l[1] = 2
+                    println(l)
+                    val t = new Bool[2]
+                    t[0] = true
+                    t[1] = false
+                    println(t)
+                }
+                """);
+        assertEquals("[65, 66]\n[[65, 66]]\n[]\n[x]\n[100000000000, 2]\n[true, false]", out);
+    }
+
+    @Test
     void nativeCollectionPrintRecordNestedMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
         assumeToolchain();
         // §107 record/nested (face (4), 19/09): elementos que são RECORDS,
@@ -1016,6 +1133,30 @@ main() {
                 """);
         assertEquals("[Point[x=1, y=2]]\n[[1, 2], [3]]\n{k=Point[x=7, y=8]}\n[[1]]\n"
                 + "[{a=1}]\n[[[4]]]\nrec:Point[x=5, y=6]\nPoint[x=3, y=4]", out);
+    }
+
+    @Test
+    void nativePrintNullRecordMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // §396-cross: println CRU de record NULL (T?-API) e String? deve
+        // imprimir "null" — no x86 o 8(%rax) da vtable SIGSEGVava; o guard do
+        // call-site riscv vale tambem p/ o path nao-SIGSEGV nativo do riscv.
+        // Golden = MESMO programa do pin x86 (NativeE2ETest).
+        String out = runRiscv64(tempDir, """
+                record Point(Int x, Int y)
+                Point? nope() {
+                    return null
+                }
+                String? noString() {
+                    return null
+                }
+                main() {
+                    println(nope())
+                    println(noString())
+                    println(Point(1, 2))
+                }
+                """);
+        assertEquals("null\nnull\nPoint[x=1, y=2]", out);
     }
 
     @Test
@@ -1077,8 +1218,8 @@ main() {
         ProcessBuilder pb = qemu("riscv64", binFile);
         pb.redirectErrorStream(true);
         Process p = pb.start();
-        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        int ec = p.waitFor();
+        String output = runBounded(p, "riscv64 heap-exhaustion");
+        int ec = p.exitValue();
         assertNotEquals(0, ec, "esgotar o heap deve terminar com exit != 0 (não travar/lixo), output: " + output);
         assertTrue(output.contains("out of memory"),
                 "esgotar o heap deve dar o panic honesto 'out of memory', foi: " + output);

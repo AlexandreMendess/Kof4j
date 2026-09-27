@@ -17,6 +17,8 @@
 | `complexity-audit.md` | line/class count (09/02) | **snapshot** — live gate = `scripts/check_500.sh` (CI ratchet) |
 | `PLANNING-FUTURE-AUDIT.md` | branch `planning-future` × beta (09/07–09/08) | **closed** — R2 lives in `DECISIONS.md` §D-APP/§D-PLATFORM (ratified 09/13), R5 in the migration cluster |
 | `planning-future-reconcile.md` | branch merge (09/05) | **closed** — checklist fulfilled (tiers port) |
+| `registry-live-roundtrip-2026-09-20.md` | Registry 1.5.3 live GitHub round-trip smoke (20/09) | **RED** — publish OK, pull blocked by #564; re-run phases C–E after the fix |
+| `supply-chain-trust-boundary-2026-09-20.md` | KOF supply-chain trust boundary v1 — read-only baseline (release workflow, tested×published SHA, actions/permissions, source governance, provenance) | **alive** — lab results (Onda 2) and the maintainer's answers to §5 land here |
 
 ## How to use
 

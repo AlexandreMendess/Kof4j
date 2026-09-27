@@ -16,6 +16,7 @@ import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.LabelId;
 import dev.kof.compiler.SourcePosition;
+import dev.kof.compiler.Target;
 import dev.kof.compiler.Type;
 
 import org.objectweb.asm.ClassWriter;
@@ -35,6 +36,17 @@ import static org.objectweb.asm.Opcodes.*;
 
 public class JvmBackend implements Backend {
 
+    /** Alvo de emissao: JVM (FFM real) ou ANDROID (mesmo backend, sem FFM). */
+    private final Target target;
+
+    public JvmBackend() {
+        this(Target.JVM);
+    }
+
+    public JvmBackend(Target target) {
+        this.target = target;
+    }
+
     /** Classpath externo para computar ancestrais comuns de frames (android.*). */
     private ExternalClasspath externalTypes;
 
@@ -52,6 +64,15 @@ public class JvmBackend implements Backend {
 
     private final java.util.Deque<TryRegion> tryStack = new java.util.ArrayDeque<>();
     private final List<TryCatchEntry> tryCatches = new java.util.ArrayList<>();
+
+    // §441: slot de rascunho por método para o emitter de coleções reordenar
+    // operandos largos (Map.put com chave Long/Double — `swap` em cat2 é
+    // bytecode inválido). Reservado por emitMethod acima dos locais usados.
+    private int scratchLocal = -1;
+
+    int scratchLocalIndex() {
+        return scratchLocal;
+    }
 
     Label resolveLabel(LabelId id) {
         return labelMap.computeIfAbsent(id, k -> new Label());
@@ -98,7 +119,7 @@ public class JvmBackend implements Backend {
             emitClass(clazz, outputDir);
         }
         if (usesJson || usesVk || usesExtern) {
-            JvmRuntime.ensureCompiled(outputDir, module.classes(), usesVk, usesExtern);
+            JvmRuntime.ensureCompiled(outputDir, module.classes(), usesVk, usesExtern, target);
         }
     }
 
@@ -262,6 +283,15 @@ public class JvmBackend implements Backend {
             maxLocals = Math.max(maxLocals, JvmLiteralEmitter.computeLocals(block.operations()));
             maxStack = Math.max(maxStack, JvmLiteralEmitter.computeStack(block.operations()));
         }
+        // §441: locais de parâmetro/`this` ocupam slots que computeLocals só vê
+        // quando referenciados — garante que o rascunho fique ACIMA deles.
+        int paramSlots = ((method.accessFlags() & ACC_STATIC) != 0) ? 0 : 1;
+        for (Type pt : method.parameterTypes()) {
+            paramSlots += JvmLiteralEmitter.isDoubleWidth(pt) ? 2 : 1;
+        }
+        maxLocals = Math.max(maxLocals, paramSlots);
+        scratchLocal = maxLocals;
+        maxLocals += 2;
         java.util.Map<KofOperation, SourcePosition> debugPositions =
                 method.debugInfo() != null ? method.debugInfo().positions() : java.util.Map.of();
         Label debugStart = null;
@@ -269,6 +299,10 @@ public class JvmBackend implements Backend {
             debugStart = new Label();
             mv.visitLabel(debugStart);
         }
+        // §385: mapa slot -> label DO PRIMEIRO STORE (visibilidade comeca
+        // depois do store; antes o JDWP GetValues receberia INVALID_SLOT).
+        java.util.Map<Integer, Label> firstStoreLabel = new java.util.HashMap<>();
+        java.util.List<Label> pendingStoreLabels = new java.util.ArrayList<>();
         int lastLine = -1;
         int opIndex = 0;
         // GitHub #63 / bug 73: um label de debug visitado SEM nenhuma instrução
@@ -309,7 +343,35 @@ public class JvmBackend implements Backend {
                 } else if (!isIrLabel) {
                     lastLntAtPc = false;
                 }
+                if (debugInfoEnabled && !isTerminator(op)) {
+                    for (Label pending : pendingStoreLabels) {
+                        mv.visitLabel(pending);
+                    }
+                    pendingStoreLabels.clear();
+                }
                 emitOperation(mv, className, op);
+                // §385: a visibilidade do slot comeca LOGO APOS o primeiro
+                // store (antes dele o JDWP GetValues veria INVALID_SLOT no
+                // batch — o bug original era Start=0 no metodo inteiro). O
+                // label e MATERIALIZADO ADIADO (pendingStoreLabel) antes da
+                // proxima instrucao NAO-terminadora: com COMPUTE_FRAMES, um
+                // label de debug entre um store de 2 palavras (LSTORE/DSTORE)
+                // e o RETURN final do metodo derruba o Frame.merge do ASM
+                // (NegativeArraySizeException: -1, medido em ConfigGenTest do
+                // §385 e re-produzido fora do Kof com asm-9.7.1). Se so resta
+                // terminador, o descarte no fim mantem o debugStart para esse
+                // slot (comportamento antigo, sem crash).
+                if (debugInfoEnabled && op instanceof dev.kof.compiler.KofStoreLocal sl
+                        && !firstStoreLabel.containsKey(sl.index())) {
+                    Label after = new Label();
+                    firstStoreLabel.put(sl.index(), after);
+                    pendingStoreLabels.add(after);
+                } else if (debugInfoEnabled && op instanceof dev.kof.compiler.KofCatchStart cs
+                        && !firstStoreLabel.containsKey(cs.localIndex())) {
+                    Label after = new Label();
+                    firstStoreLabel.put(cs.localIndex(), after);
+                    pendingStoreLabels.add(after);
+                }
             } catch (RuntimeException e) {
                 throw new RuntimeException(JvmFrameDiagnostics.describe(
                         ops.subList(0, opIndex + 1),
@@ -319,11 +381,20 @@ public class JvmBackend implements Backend {
             opIndex++;
         }
         if (debugInfoEnabled && debugStart != null) {
+            // §385: label que nunca teve instrucao nao-terminadora depois do
+            // store (ex.: ultimo store adjacente ao RETURN implicito) NAO e
+            // posicionado — usar esse label no table faria getOffset()=-1.
+            // Descarta p/ o fallback debugStart (comportamento antigo, honesto).
+            if (!pendingStoreLabels.isEmpty()) {
+                firstStoreLabel.values().removeIf(pendingStoreLabels::contains);
+                pendingStoreLabels.clear();
+            }
             Label debugEnd = new Label();
             mv.visitLabel(debugEnd);
             for (IRLocalVariable local : method.localVariables()) {
+                Label start = firstStoreLabel.getOrDefault(local.index(), debugStart);
                 mv.visitLocalVariable(local.name(), JvmTypeMapper.toDescriptor(local.type()), null,
-                        debugStart, debugEnd, local.index());
+                        start, debugEnd, local.index());
             }
         }
 
@@ -386,6 +457,13 @@ public class JvmBackend implements Backend {
             }
         }
         return "java/lang/" + kofType;
+    }
+
+    /** §385: terminadores nunca recebem label de debug AdIADO na frente (frame ASM). */
+    private static boolean isTerminator(KofOperation op) {
+        return op instanceof dev.kof.compiler.KofReturnVoid
+                || op instanceof dev.kof.compiler.KofReturn
+                || op instanceof dev.kof.compiler.KofThrow;
     }
 
     private void emitOperation(MethodVisitor mv, String className, KofOperation op) {

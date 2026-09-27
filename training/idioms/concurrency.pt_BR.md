@@ -2,7 +2,7 @@
 
 # Idioms — Concurrency
 
-**Status:** available (3 targets) · **Introduced:** 0.0.5-alpha · **Updated:**  0.4.0-beta (Sep 2026) (31/08: CONC001 fechado; 15/09: helpers cross do CONC001) · **JS:** event-loop (CONC003 fechado 03/09)
+**Status:** available (3 targets) · **Introduced:** 0.0.5-alpha · **Updated:**  0.5.0-beta (Sep 2026) (31/08: CONC001 fechado; 15/09: helpers cross do CONC001) · **JS:** event-loop (CONC003 fechado 03/09)
 
 ## What it is
 
@@ -21,14 +21,14 @@ main() {
     println("fim")
 }
 
-// Com resultado (0.4.0-beta)
+// Com resultado (0.5.0-beta)
 main() {
     val r = spawn trabalho()   // Handle<T> tipado
     var v = await r            // bloqueia; T com unboxing de primitivos
     println(v)
 }
 
-// Lambda literal com return + Handle (0.4.0-beta)
+// Lambda literal com return + Handle (0.5.0-beta)
 main() {
     var n = 21
     var h = spawn { return n * 2 }   // Handle<Int>
@@ -36,7 +36,7 @@ main() {
 }
 ```
 
-## Semântica real (verificada — 0.4.0-beta)
+## Semântica real (verificada — 0.5.0-beta)
 
 - a tarefa roda em paralelo: JVM virtual threads; **Native `pthread_create` + trampoline + `pthread_join` (CONC001 fechado 31/08)**; JS event-loop (statement e expressão cobrem; async real = CONC003 fechado 03/09);
 - o programa **espera as tarefas antes de sair** (join implícito: `kof_spawn_join_all` no fim do main no Native);
@@ -93,13 +93,18 @@ dentro do job para agenda recorrente).
 `spawn` expressa intenção. Thread/Runnable/Executor são mecanismos da
 plataforma — a decisão de como executar pertence ao runtime.
 
-## Limitações honestas (0.4.0-beta)
+## Limitações honestas (0.5.0-beta)
 
 - ~~Native: CONC001~~ — ✅ fechado 31/08 (pthread_create + trampoline + await/pthread_join + allocator thread-safe futex + join implícito);
 - JS: ~~execução sequencial~~ → async real de event-loop — `spawn`/`await`
   cobrem statement e expressão (CONC003 fechado 03/09); limitações conhecidas:
   `cancelled()` sempre `0` (sem thread-local da task atual) e só task-lambdas
   viram `async function` (CONC003-JS-01);
+- `time.sleep` no JS é COOPERATIVO (§132): ele cede ao pump. Um golden determinístico
+  deve ESPERAR timers com **UM `time.sleep(ms)` longo** (o padrão do teste de schedule
+  em `WorkflowE2ETest`), nunca com polling `time.sleep(10)` dentro de `while (a && b)` —
+  o polling curto compete com o pump e pode morrer em silêncio (rc=0, sem output;
+  medido 20/09 na construção do makealive 3.3).
 - filas produtor/consumidor: `kof.mq` — 3 targets (Native 01/09, MQ001 fechado; pub/sub + `mq.queue()`/`push`/`pop`);
 - self-cancel (`var id = time.interval(ms, () -> { … time.cancel(id) })`) — ler o handle dentro do
   próprio inicializador funciona em JVM/JS/Script desde 16/09 (§253 face A); **o Native rejeita em

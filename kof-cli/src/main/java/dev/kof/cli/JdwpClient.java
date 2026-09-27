@@ -40,6 +40,11 @@ final class JdwpClient {
             long typeId = reply.readReference();
             long methodId = reply.readReference();
             long codeIndex = reply.readLong();
+            // A frame with no debug info (native/JDK methods such as Thread.sleep)
+            // has no LineTable/VariableTable: Method.* returns an error (101/511,
+            // measured). That is per-frame information, never a reason to abort the
+            // whole stack — report name "?" and line -1 for it (R6: honest, never
+            // silent) and keep the Kof frames that do resolve.
             String methodName = methodName(typeId, methodId);
             int line = lineAt(typeId, methodId, codeIndex);
             frames.add(new FullFrame(frameId, threadId, typeId, methodId, codeIndex, methodName, line));
@@ -47,89 +52,14 @@ final class JdwpClient {
         return frames;
     }
 
-    /**
-     * Variveis locais reais de um frame: Method.VariableTable (6,2) filtra por
-     * visibilidade no codeIndex, StackFrame.GetValues (16,1) le os valores.
-     * Formato (codigo + tam. de valor por tag) copiado de JDWP.java/PacketStream.java
-     * da propria JDK 25 (implementacao de referencia do HotSpot).
-     */
+    /** Decodificacao de valores vive em JdwpValues (split mecanico, regra 7). */
     List<Object[]> locals(FullFrame frame) throws IOException {
-        JdwpPacket vt = new JdwpPacket();
-        vt.writeReference(frame.typeId());
-        vt.writeReference(frame.methodId());
-        JdwpPacket reply = sendCommand(6, 2, vt); // Method.VariableTable
-        // JDK 25 (codigo real do JDWP.java da propria JDK): a resposta de
-        // VariableTable = {int argCnt (CONTAGEM DE PALAVRAS dos args, long/double
-        // contam 2), int slotCount, slots[]}. NAO ha lista de argumentos aqui —
-        // ler uma lista fantasma estourava o pacote. argCnt e so consumido para
-        // posicionar o cursor do pacote (o filtro de slots usa o codeIndex).
-        reply.readInt();
-        int slotCount = reply.readInt();
-        List<long[]> slotPos = new ArrayList<>();   // {slot, start, end}
-        List<String> slotName = new ArrayList<>();
-        List<String> slotSig = new ArrayList<>();
-        for (int v = 0; v < slotCount; v++) {
-            long start = reply.readLong();          // codeIndex e LONG no JDK 25 (medido)
-            String name = reply.readString();
-            String sig = reply.readString();
-            int len = reply.readInt();
-            int slot = reply.readInt();
-            if (start <= frame.codeIndex() && frame.codeIndex() < start + len) {
-                slotPos.add(new long[]{slot, start, len});
-                slotName.add(name);
-                slotSig.add(sig);
-            }
-        }
-        if (slotPos.isEmpty()) {
-            return List.of();
-        }
-        JdwpPacket gv = new JdwpPacket();
-        gv.writeReference(frame.threadId());
-        gv.writeLong(frame.frameId());
-        gv.writeInt(slotPos.size());
-        for (int i = 0; i < slotPos.size(); i++) {
-            gv.writeInt((int) slotPos.get(i)[0]);
-            gv.writeByte(sigByte(slotSig.get(i)));
-        }
-        JdwpPacket vals = sendCommand(16, 1, gv); // StackFrame.GetValues
-        int n = vals.readInt();
-        List<Object[]> out = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            out.add(new Object[]{slotName.get(i), slotSig.get(i), readTaggedValue(vals, vals.readByte())});
-        }
-        return out;
-    }
-
-    private static int sigByte(String signature) {
-        if (signature.isEmpty()) {
-            return 'I';
-        }
-        char c = signature.charAt(0);
-        return c == 'L' ? 'l' : c;
-    }
-
-    private Object readTaggedValue(JdwpPacket p, int tag) throws IOException {
-        return switch (tag) {
-            case 'Z' -> p.readByte() != 0;                       // boolean = 1 byte
-            case 'B' -> (int) p.readByte();
-            case 'S' -> (int) p.readShort();
-            case 'C' -> (int) p.readShort();
-            case 'I', 'F' -> p.readInt();
-            case 'J', 'D' -> p.readLong();
-            case 'l', '[' -> p.readReference();
-            default -> {
-                p.readReference();
-                yield 0L;
-            }
-        };
+        return values.locals(frame);
     }
 
     /** StringReference.Value (10,1) — conteudo de um java.lang.String para exibicao. */
     String stringValue(long objectRef) throws IOException {
-        JdwpPacket req = new JdwpPacket();
-        req.writeReference(objectRef);
-        JdwpPacket reply = sendCommand(10, 1, req);
-        return reply.readString();
+        return values.stringValue(objectRef);
     }
 
     /** Type of a loaded class (1,2 era ClassesBySignature; aqui ReferenceType.Signature (2,1)). */
@@ -143,6 +73,7 @@ final class JdwpClient {
     record FrameInfo(long methodId, String methodName, int line, long codeIndex) {
     }
 
+    private final JdwpValues values = new JdwpValues(this);
     private final String host;
     private final int port;
     private Socket socket;
@@ -259,87 +190,44 @@ final class JdwpClient {
         return requestId;
     }
 
-    /**
-     * EventRequest.Set (15,1) for a line breakpoint in the given class.
-     * The class must be prepared; line maps through the Kof LineNumberTable.
-     */
+    // EventRequest.Set builders + breakpoint resolution live in JdwpEvents
+    // (regra 7); the client keeps the transport and the queries.
+    private final JdwpEvents events = new JdwpEvents(this);
+
     void setLineBreakpoint(String className, int line) throws IOException {
-        setLineBreakpoint(typeIdOfClass(className), line);
+        events.setLineBreakpoint(className, line);
     }
 
     void setLineBreakpoint(long typeId, int line) throws IOException {
-        long methodId = methodWithLine(typeId, line);
-        long[] lines = lineTable(typeId, methodId);
-        long codeIndex = -1;
-        for (int i = 0; i + 1 < lines.length; i += 2) {
-            if (lines[i + 1] == line) {
-                codeIndex = lines[i];
-                break;
-            }
-        }
-        if (codeIndex < 0) {
-            codeIndex = lines[0];
-        }
-        JdwpPacket req = new JdwpPacket();
-        req.writeByte(2);   // event kind: Breakpoint
-        req.writeByte(2);   // suspend policy: ALL
-        req.writeInt(1);    // modifier count
-        req.writeByte(7);   // LocationOnly
-        req.writeByte(1);   // location tag: ClassType
-        req.writeReference(typeId);
-        req.writeReference(methodId);
-        req.writeLong(codeIndex);
-        sendCommand(15, 1, req).skipRemaining();
+        events.setLineBreakpoint(typeId, line);
     }
 
-    /** ReferenceType.Methods (2,5): map method names to ids. */
-    private long methodWithLine(long typeId, int line) throws IOException {
-        JdwpPacket req = new JdwpPacket();
-        req.writeReference(typeId);
-        JdwpPacket reply = sendCommand(2, 5, req);
-        int count = reply.readInt();
-        for (int i = 0; i < count; i++) {
-            reply.readReference();
-            reply.readString();
-            reply.readString();
-            reply.readInt(); // modifiers
-        }
-        long bestMethod = findMethodWithLine(typeId, line);
-        if (bestMethod == 0) {
-            throw new IOException("no method contains line " + line);
-        }
-        return bestMethod;
+    void setStepRequest(long threadId, int depth) throws IOException {
+        events.setStepRequest(threadId, depth);
     }
 
-    private long findMethodWithLine(long typeId, int line) throws IOException {
+    void setExceptionRequest(boolean caught, boolean uncaught) throws IOException {
+        events.setExceptionRequest(caught, uncaught);
+    }
+
+    void suspendThread(long threadId) throws IOException {
+        events.suspendThread(threadId);
+    }
+
+    /** Suspend every user thread (skip the JDWP agent's own); return the stop thread. */
+    long suspendUserThreads() throws IOException {
+        return events.suspendUserThreads();
+    }
+
+    /** ThreadReference.Name (11,1) — skip the JDWP agent's own threads on pause. */
+    String threadName(long threadId) throws IOException {
         JdwpPacket req = new JdwpPacket();
-        req.writeReference(typeId);
-        JdwpPacket reply = sendCommand(2, 5, req);
-        int count = reply.readInt();
-        for (int i = 0; i < count; i++) {
-            long methodId = reply.readReference();
-            String name = reply.readString();
-            reply.readString();
-            reply.readInt();
-            if ("<init>".equals(name) || "<clinit>".equals(name)) continue;
-            try {
-                long[] lines = lineTable(typeId, methodId);
-                for (int li = 0; li + 1 < lines.length; li += 2) {
-                    if (lines[li + 1] == line) {
-                        return methodId;
-                    }
-                }
-            } catch (IOException e) {
-                if (System.getenv("KOF_DEBUG_TRACE") != null) {
-                    System.err.println("kof debug: lineTable(" + name + "): " + e.getMessage());
-                }
-            }
-        }
-        return 0;
+        req.writeReference(threadId);
+        return sendCommand(11, 1, req).readString();
     }
 
     /** Method.LineTable (6,1): returns flattened [line, codeIndex, ...]. */
-    private long[] lineTable(long typeId, long methodId) throws IOException {
+    long[] lineTable(long typeId, long methodId) throws IOException {
         JdwpPacket req = new JdwpPacket();
         req.writeReference(typeId);
         req.writeReference(methodId);
@@ -413,14 +301,19 @@ final class JdwpClient {
     }
 
     private String methodName(long typeId, long methodId) throws IOException {
+        // The name comes from ReferenceType.Methods (2,5). A Method.VariableTable
+        // (6,2) probe used to be issued here with its reply DISCARDED: for frames
+        // without debug info (native/JDK methods such as Thread.sleep) it fails
+        // (101/511, measured) and aborted the whole stack trace. Never issue a
+        // command whose result is not used.
         JdwpPacket req = new JdwpPacket();
         req.writeReference(typeId);
-        req.writeReference(methodId);
-        JdwpPacket reply = sendCommand(6, 2, req); // Method.VariableTable
-        reply.skipRemaining();
-        JdwpPacket req2 = new JdwpPacket();
-        req2.writeReference(typeId);
-        JdwpPacket methods = sendCommand(2, 5, req2);
+        JdwpPacket methods;
+        try {
+            methods = sendCommand(2, 5, req);
+        } catch (IOException absent) {
+            return "?"; // no method table for this frame — never abort the stack
+        }
         int count = methods.readInt();
         String name = "?";
         for (int i = 0; i < count; i++) {
@@ -437,7 +330,12 @@ final class JdwpClient {
     }
 
     private int lineAt(long typeId, long methodId, long codeIndex) throws IOException {
-        long[] lines = lineTable(typeId, methodId);
+        long[] lines;
+        try {
+            lines = lineTable(typeId, methodId);
+        } catch (IOException absent) {
+            return -1; // native/abstract frame has no LineTable — honest "unknown"
+        }
         int best = -1;
         for (int i = 0; i + 1 < lines.length; i += 2) {
             if (lines[i] <= codeIndex) {
@@ -473,12 +371,32 @@ final class JdwpClient {
                         evt.readByte();
                         long typeId = evt.readReference();
                         dispatch(handler, kind, threadId, typeId);
-                    } else if (kind == 2) { // Breakpoint: threadID, location(tag, type, method, codeIndex)
+                    } else if (kind == 2 || kind == 1) {
+                        // Breakpoint (2) / SingleStep (1): threadID + location(tag, type, method, codeIndex)
                         long threadId = evt.readReference();
                         evt.readByte();       // location tag
                         long typeId = evt.readReference();
                         evt.readReference(); // method
                         evt.readLong();      // codeIndex
+                        dispatch(handler, kind, threadId, typeId);
+                    } else if (kind == 4) {
+                        // Exception: threadID, location(tag,type,method,codeIndex),
+                        // exception(tagged value), catchLocation(tagged location).
+                        long threadId = evt.readReference();
+                        evt.readByte();                 // location tag
+                        long typeId = evt.readReference();
+                        evt.readReference();            // method
+                        evt.readLong();                 // codeIndex
+                        int excTag = evt.readByte();    // tagged exception object
+                        if (excTag != 0) {
+                            evt.readReference();
+                        }
+                        int catchTag = evt.readByte();  // 0 = not caught here
+                        if (catchTag != 0) {
+                            evt.readReference();        // catch location type
+                            evt.readReference();        // method
+                            evt.readLong();             // codeIndex
+                        }
                         dispatch(handler, kind, threadId, typeId);
                     } else if (kind == 0) { // VMStart: threadID
                         dispatch(handler, kind, evt.readReference(), 0);
@@ -508,7 +426,8 @@ final class JdwpClient {
         }
     }
 
-    private JdwpPacket sendCommand(int cmdSet, int cmd, JdwpPacket data) throws IOException {
+    /** package-private: o transporte e do cliente; JdwpValues decodifica o conteudo. */
+    JdwpPacket sendCommand(int cmdSet, int cmd, JdwpPacket data) throws IOException {
         int myId = sendRaw(cmdSet, cmd, data);
         synchronized (lock) {
             long deadline = System.currentTimeMillis() + 15000;

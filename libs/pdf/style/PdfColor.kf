@@ -1,0 +1,62 @@
+package pdf.style
+
+class PdfColor {
+    Int red
+    Int green
+    Int blue
+
+    constructor(Int red, Int green, Int blue) {
+        validate(red)
+        validate(green)
+        validate(blue)
+        this.red = red
+        this.green = green
+        this.blue = blue
+    }
+
+    constructor(String hex) {
+        var value = hex
+        if (value.startsWith("#")) {
+            value = value.substring(1, value.length)
+        }
+
+        if (value.length != 6) {
+            throw "Hex color must use the RRGGBB format"
+        }
+
+        this.red = parsePair(value, 0)
+        this.green = parsePair(value, 2)
+        this.blue = parsePair(value, 4)
+    }
+
+    validate(Int component) {
+        if (component < 0 || component > 255) {
+            throw "RGB components must be between 0 and 255"
+        }
+    }
+
+    copy(): PdfColor {
+        return PdfColor(red, green, blue)
+    }
+
+    parsePair(String value, Int index): Int {
+        Int firstCode = value.charAt(index)
+        Int secondCode = value.charAt(index + 1)
+        Int first = hexDigit(firstCode)
+        Int second = hexDigit(secondCode)
+        return first * 16 + second
+    }
+
+    hexDigit(Int code): Int {
+        if (code >= 48 && code <= 57) {
+            return code - 48
+        }
+        if (code >= 65 && code <= 70) {
+            return code - 55
+        }
+        if (code >= 97 && code <= 102) {
+            return code - 87
+        }
+        throw "Hex color contains an invalid character"
+    }
+}

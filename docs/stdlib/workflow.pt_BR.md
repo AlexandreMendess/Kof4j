@@ -3,7 +3,7 @@
 # Workflows — `kof.workflow`
 
 **Data:** 19 de setembro de 2026
-**Status:** MVP implementado (plano universal Estágio 2, linha 2.1, fatia 2.1.2) — `VERSION` 0.4.0-beta
+**Status:** MVP implementado (plano universal Estágio 2, linha 2.1, fatia 2.1.2) — `VERSION` 0.5.0-beta
 
 > **Escopo do MVP (Q2, enquete da mantenedora 19/09):** `job` / `dag` / `after` /
 > `run` / `Report`. **Face 1 do 2.1.3 ENTREGUE 19/09:** `retry` (Q3 — helper aditivo
@@ -193,4 +193,4 @@ caminho feliz supervisionado, one_for_one (o filho flaky reinicia, o vizinho nã
 as guardas R6 da face e o dedup do import duplo; compilação Native travada.
 A camada de formas é
 travada por `WorkflowPrimitivesE2ETest` (6/6, incl. os pins negativos de sintaxe).
-Plano: `docs/docs/workflow-plan.pt_BR.md` §5.
+Plano: `docs/workflow-plan.pt_BR.md` §5.

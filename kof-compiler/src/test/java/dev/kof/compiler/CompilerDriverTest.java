@@ -18,7 +18,7 @@ class CompilerDriverTest {
     void externProducesHonestGapNotSilentDrop(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("ffi.kf");
         Files.writeString(source, """
-                extern sum(Int[] xs): Int
+                extern sum(String[] xs): Int
 
                 main() {
                     println("hi")
@@ -28,6 +28,24 @@ class CompilerDriverTest {
         assertFalse(result.success(), "unsupported-signature extern must not silently drop: compilation should fail with gap");
         String diags = result.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("FFI001"), "expected FFI001 gap, got: " + diags);
+    }
+
+    @Test
+    void unsupportedExternSignaturesEmitHonestGap(@TempDir Path tempDir) throws IOException {
+        List<String> unsupported = List.of(
+                "extern f(String[] xs): Int",   // array of pointers (not a scalar array)
+                "extern f(List<Int> xs): Int",  // not bindable in v1
+                "extern f(Buffer(Int) b): Int"); // Buffer element other than U8/Byte
+        for (String signature : unsupported) {
+            Path source = tempDir.resolve("ffi_gap.kf");
+            Files.writeString(source, signature + "\n\nmain() {\n    println(\"hi\")\n}\n");
+            CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+            String diags = result.diagnostics().getDiagnostics().toString();
+            assertFalse(result.success(), signature + " must not silently compile: " + diags);
+            assertFalse(diags.contains("PARSE"), signature + " must fail with a gap, not a parse error: " + diags);
+            assertTrue(diags.contains("FFI001") || diags.contains("SEM096"),
+                    signature + " expected an honest gap (FFI001/SEM096), got: " + diags);
+        }
     }
 
     @Test
@@ -438,6 +456,59 @@ class CompilerDriverTest {
         assertFalse(result.success(), "write to record component should fail to compile");
         assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM038"),
                 "should be SEM038, was: " + result.diagnostics().getDiagnostics());
+    }
+
+    // known-bugs #469 — `record.x++`/`--` passava no `check` e só falhava em
+    // runtime (IllegalAccessError no JVM). Agora é SEM038 no frontend, igual
+    // à escrita direta/composta.
+    @Test
+    void incrementRecordComponentGivesSem038(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            record P(Int x)
+            main() {
+                var p = P(1)
+                p.x++
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "increment of record component should fail to compile");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM038"),
+                "should be SEM038, was: " + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void decrementRecordComponentViaThisGivesSem038(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            record P(Int x) {
+                bump() {
+                    this.x--
+                }
+            }
+            main() { println(P(1).x()) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "this.x-- in record method should fail to compile");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM038"),
+                "should be SEM038, was: " + result.diagnostics().getDiagnostics());
+    }
+
+    // #469 controle positivo: `++` em campo de CLASSE mutável segue legal.
+    @Test
+    void incrementMutableClassFieldStillCompiles(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            class C {
+                Int x
+                public constructor(Int x) { this.x = x }
+                bump() { this.x++ }
+            }
+            main() { var c = C(1); c.bump(); println(c.x) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "++ on mutable class field should compile: "
+                + result.diagnostics().getDiagnostics());
     }
 
     // known-bugs #42 (c) — `this.x =` em MÉTODO de record (não no construtor).
@@ -4741,9 +4812,10 @@ class CompilerDriverTest {
                 "should be SEM047, got: " + result.diagnostics().getDiagnostics());
     }
 
-    // SG-002 — tokens mortos removidos: `~`, `=>`, `|>`, `::`, `...`, `_`,
-    // `sealed`/`permits` não são mais reconhecidos pelo lexer (erro limpo
-    // LEX005 — a gramática nunca os usou).
+    // SG-002 — tokens mortos removidos: `~`, `=>`, `|>`, `::`, `...`, `_`
+    // não são mais reconhecidos pelo lexer (erro limpo LEX005 — a gramática
+    // nunca os usou). `sealed` deixou de ser identificador morto: virou
+    // keyword CONTEXTUAL (X5.1/D-X5-SURFACE, ver SealedTypeE2ETest).
     @Test
     void deadTokensGiveCleanLexerError(@TempDir Path tempDir) throws IOException {
         String[][] cases = {
@@ -4751,8 +4823,6 @@ class CompilerDriverTest {
             {"main() { val f = (x) => x }", "PARSE041"},
             {"main() { var y = xs |> f }", "PARSE041"},
             {"main() { var z = A::b }", "PARSE041"},
-            // sealed agora é IDENTIFIER comum: falha no parse como função
-            {"sealed class S { }", "PARSE010"},
         };
         for (int i = 0; i < cases.length; i++) {
             Path source = tempDir.resolve("T" + i + ".kf");

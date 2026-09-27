@@ -1,0 +1,177 @@
+// Motor Python do kof.interop (X2, D-COMPLETE-FIRST item 2 — plano
+// docs/development/interop-engine-plan.md). KOF-first (rule 10): o motor é
+// código Kof PURO sobre a plataforma já medida — `process.spawn` (F10,
+// full-duplex: write/readLine/alive/exitCode) + `json.encode`/`json.decode`
+// tipado — sem face nova de compilador (padrão do host do workflow).
+//
+// Sessão = a FONTE (modelo replay, contrato honesto): cada chamada executa
+// `source` num `python3 -u -` novo e chama `globals()[fn](*args)`. Definições
+// do `source` sobrevivem entre chamadas (são reaplicadas); mutações de
+// globals entre chamadas NÃO (sessão viva = fatia futura com superfície de
+// handle nomeada, decidida na mantenedora — regra 6).
+//
+// Protocolo de 3 linhas, SEM parser de string no lado Kof (D0 medido — o
+// `.kf` puro não tem split/substring): `KOFPID <pid>` (linha viva p/ o
+// `cancel()`), status ("KOFOK" / "KOFERR" / "KOFTIME" / "KOFCANCEL" / "") e o
+// payload JSON, decodado PELO TIPO da face (`callInt` → `json.decode<Int>`).
+// O spec da chamada viaja em `sys.argv[1]` (não no stdin, que é o script).
+// Erros nomeados (R6, nunca silêncio): INTEROP004 interpretador ausente ou
+// morto sem responder; INTEROP006 falha remota (traceback nomeado);
+// INTEROP007 deadline próprio do filho (o relógio corre no python, não no
+// pai — o handle F10 não lê com tempo e handle nomeado p/ fora é regra 6);
+// INTEROP008 cancelado via `cancel()` (SIGINT = KeyboardInterrupt no py).
+// Windows/negativo: sem SIGALRM o timer não arma (timeout fica sem efeito,
+// R7 declarado) — o cancel SIGINT continua valendo.
+class KofPy {
+    String source
+    Int timeoutMs
+    String currentPid
+    Bool inCall
+
+    public constructor(String source) {
+        this.source = source
+        this.timeoutMs = 30000
+        this.currentPid = ""
+        this.inCall = false
+    }
+
+    // Deadline em ms (0 = sem limite, declarado). Default 30000 — precedente
+    // §418: nenhuma espera é infinita por contrato.
+    void timeout(Int ms) {
+        this.timeoutMs = ms
+    }
+
+    // Interrompe a chamada EM CURSO deste motor (SIGINT no pid vivo). Fora de
+    // uma chamada = no-op honesto. §533 (ready-ping prescrito pelo ledger):
+    // sob fome de escalonador nem o pid nem a propria entrada na chamada podem
+    // ter acontecido quando o cancel chega (a task canceladora pode ser
+    // escalonada ANTES da thread principal chamar `callInt` — medido: verde
+    // fria no isolamento, vermelha quente no reactor). A espera vive TODA no
+    // lado do cancelador — laço com chamada nativa por volta (releitura
+    // garantida; o inverso, flag lida pela thread do RPC apos `readLine`, foi a
+    // armadilha de visibilidade da v1, descartada com evidencia). Janela:
+    // 2s de graca para uma chamada PRESTES a comecar, 10s de teto pelo pid;
+    // nada visto em 2s = no-op honesto (cancel antes da chamada nao a caça).
+    void cancel() {
+        if (this.currentPid != "") {
+            process.run("kill", "-2", this.currentPid)
+        } else {
+            var waited = 0
+            var idle = 0
+            var fired = false
+            while (waited < 100 && !fired) {
+                time.sleep(100)
+                waited = waited + 1
+                if (this.currentPid != "") {
+                    process.run("kill", "-2", this.currentPid)
+                    fired = true
+                } else if (this.inCall) {
+                    idle = 0
+                } else {
+                    idle = idle + 1
+                    if (idle >= 20) {
+                        waited = 100
+                    }
+                }
+            }
+        }
+    }
+
+    String kofPyPrelude() {
+        return "import json,os,signal,sys,traceback\n" +
+            "class _KofTimeout(Exception):\n" +
+            "    pass\n" +
+            "def _kof_alarm(sig,frm):\n" +
+            "    raise _KofTimeout()\n" +
+            "def _kof_rpc():\n" +
+            "    s=json.loads(sys.argv[1])\n" +
+            "    sys.stdout.write(\"KOFPID \"+str(os.getpid())+\"\\n\")\n" +
+            "    sys.stdout.flush()\n" +
+            "    armed=False\n" +
+            "    t=float(s[\"timeout_ms\"])/1000.0\n" +
+            "    if t>0:\n" +
+            "        try:\n" +
+            "            signal.signal(signal.SIGALRM,_kof_alarm)\n" +
+            "            signal.setitimer(signal.ITIMER_REAL,t)\n" +
+            "            armed=True\n" +
+            "        except Exception:\n" +
+            "            pass\n" +
+            "    try:\n" +
+            "        r=globals()[s[\"fn\"]](*s[\"args\"])\n" +
+            "        if armed:\n" +
+            "            signal.setitimer(signal.ITIMER_REAL,0)\n" +
+            "        sys.stdout.write(\"KOFOK\\n\"+json.dumps(r,default=str,separators=(\",\",\":\"))+\"\\n\")\n" +
+            "    except _KofTimeout:\n" +
+            "        sys.stdout.write(\"KOFTIME\\n\")\n" +
+            "    except KeyboardInterrupt:\n" +
+            "        sys.stdout.write(\"KOFCANCEL\\n\")\n" +
+            "    except Exception:\n" +
+            "        sys.stdout.write(\"KOFERR\\n\"+traceback.format_exc().replace(\"\\n\",\" | \")+\"\\n\")\n" +
+            "    sys.stdout.flush()\n" +
+            "_kof_rpc()\n"
+    }
+
+    String kofPyLine(String funcName, String argsJson) {
+        val spec = "{\"fn\":\"" + funcName + "\",\"args\":" + argsJson + ",\"timeout_ms\":" + this.timeoutMs + "}"
+        val code = this.source + "\n" + this.kofPyPrelude()
+        // `-c` (não stdin): medido que `python3 -` num pipe NÃO executa nada
+        // até EOF do stdin — sem closeStdin no handle F10 a sessão ao vivo é
+        // intransponível hoje; o modelo replay roda o programa inteiro no
+        // argv e lê as 3 linhas de resposta do stdout. Fonte grande > ARG_MAX
+        // cai no INTEROP004 (handle morto), nunca silêncio.
+        this.inCall = true
+        this.currentPid = ""
+        val h = process.spawn("python3", "-u", "-c", code, spec)
+        val first = h.readLine()
+        var status = first
+        if (first.startsWith("KOFPID ")) {
+            this.currentPid = first.substring(7)
+            status = h.readLine()
+        }
+        this.inCall = false
+        if (status == "") {
+            throw "INTEROP004: python3 exited without responding (interpreter missing or fatal startup error, exit " + h.exitCode() + ")"
+        }
+        if (status == "KOFTIME") {
+            this.currentPid = ""
+            throw "INTEROP007: " + funcName + " exceeded the " + this.timeoutMs + "ms deadline and was stopped by the engine itself"
+        }
+        if (status == "KOFCANCEL") {
+            this.currentPid = ""
+            throw "INTEROP008: " + funcName + " was cancelled"
+        }
+        if (status == "KOFOK") {
+            val payload = h.readLine()
+            this.currentPid = ""
+            return payload
+        }
+        val remote = h.readLine()
+        this.currentPid = ""
+        throw "INTEROP006: " + funcName + " failed: " + remote
+    }
+
+    Int callInt(String funcName, List<Int> args) {
+        return json.decode<Int>(this.kofPyLine(funcName, json.encode(args)))
+    }
+
+    Double callDouble(String funcName, List<Double> args) {
+        return json.decode<Double>(this.kofPyLine(funcName, json.encode(args)))
+    }
+
+    Bool callBool(String funcName, List<Bool> args) {
+        return json.decode<Bool>(this.kofPyLine(funcName, json.encode(args)))
+    }
+
+    String callString(String funcName, List<String> args) {
+        return json.decode<String>(this.kofPyLine(funcName, json.encode(args)))
+    }
+
+    // Fatia 2 (§516): args/resultado RECORD via JSON cru — o usuario compoe
+    // `json.encode(listOf(record))` p/ dentro e `json.decode<R>` p/ fora (a
+    // face congelada na regra 11: um metodo de passagem, zero parser no host,
+    // zero face nova de compilador). O dict/tuple python volta como JSON
+    // (json.dumps default=str) e decodifica no record tipado do usuario.
+    String callJson(String funcName, String argsJson) {
+        return this.kofPyLine(funcName, argsJson)
+    }
+}

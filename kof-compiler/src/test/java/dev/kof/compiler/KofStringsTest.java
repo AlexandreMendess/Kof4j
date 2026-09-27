@@ -247,6 +247,33 @@ class KofStringsTest {
         runNative(tmp, golden, expected);
     }
 
+    // D-FULL-PARITY-050 row 11: String.toCharArray() — array de CODE UNITS
+    // UTF-16 (não bytes UTF-8, não code points). Astral = 2 elementos
+    // (high/low surrogate); `c[i] as Int` isola a unit (um surrogate solto não
+    // é um caractere exibível). Golden = oracle JVM medido no MESMO programa.
+    @Test
+    void toCharArrayJvmJsNative(@TempDir Path tmp) throws Exception {
+        String golden = """
+            main() {
+                var a = "café".toCharArray()
+                println(a.length)
+                for (var i = 0; i < a.length; i++) {
+                    println(a[i] as Int)
+                }
+                var e = "a😀b".toCharArray()
+                println(e.length)
+                for (var i = 0; i < e.length; i++) {
+                    println(e[i] as Int)
+                }
+                println("".toCharArray().length)
+            }
+            """;
+        String expected = "4\n99\n97\n102\n233\n4\n97\n55357\n56832\n98\n0";
+        runJvm(tmp, golden, expected);
+        runJs(tmp, golden, expected);
+        runNative(tmp, golden, expected);
+    }
+
     private void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {

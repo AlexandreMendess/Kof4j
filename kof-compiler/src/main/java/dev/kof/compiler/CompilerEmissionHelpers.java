@@ -87,13 +87,31 @@ public final class CompilerEmissionHelpers {
      * zero regressão). Rejeição/narrowing ficam com o guard SEM056 do
      * §126 (não é daqui). Nullable é desempacotado (storage é o inner).
      * from = tipo do ARG empilhado, to = tipo PINADO do slot.
+     *
+     * §383/#561 (opção (a), decisão da mantenedora 20/09 — slot ganha, o
+     * valor é RESCRITO no store): o miss abençoado bool→long chegava ao
+     * box pelo tipo PINADO (`Long.valueOf(J)` sobre `ICONST_1` width-1) →
+     * COMP002 frame crash no JVM (medido 20/09; Script/Native já gravavam
+     * 1). A conversão I2L casa os 3 que já funcionavam e o JS (BigInt
+     * da lowering do I2L). Só nos SITES DE LIST (`widenBoolToLong`): os
+     * slots de Map/Set são heterogeneidade TOLERADA pelo consenso 3/4
+     * (#561, faces medidas S2/M1 20/09) — alargar mudaria faces vivas.
      */
-    static boolean coerceStoreWiden(CompilerDriver driver, List<KofOperation> ops, Type from, Type to) {
+    static boolean coerceStoreWiden(CompilerDriver driver, List<KofOperation> ops,
+                                    Type from, Type to, boolean widenBoolToLong) {
         if (from == null || to == null) return false;
         Type f = from instanceof Type.NullableType nt ? nt.inner() : from;
         Type t = to instanceof Type.NullableType nt2 ? nt2.inner() : to;
         if (!(f instanceof Type.PrimitiveType fp) || !(t instanceof Type.PrimitiveType tp)) return false;
         if (fp.equals(tp)) return false;
+        // §383: bool em slot Long — pila de int (bool é 0/1) → I2L antes do
+        // box pelo slot (mesmo valor 1/0 que Script/Native já gravam).
+        String bn = TypeMetrics.primitiveName(fp), bt = TypeMetrics.primitiveName(tp);
+        if (widenBoolToLong && ("bool".equals(bn) || "Bool".equals(bn))
+                && ("long".equals(bt) || "Long".equals(bt))) {
+            ops.add(new KofUnary(KofUnaryOp.I2L, fp));
+            return true;
+        }
         // narrowing (Long→Int) NÃO é abençoado (§126: só widening numérico
         // passa) — deixa o arg cru, nunca truncar silenciosamente (R6).
         if (TypeMetrics.primWidth(fp) > TypeMetrics.primWidth(tp)) return false;
@@ -104,16 +122,25 @@ public final class CompilerEmissionHelpers {
 
     /**
      * §121/§126 (B1): empilha os args de um add/set/put de coleção e aplica
-     * a coerção de widening no arg de VALOR (valIdx). Ao converter, ajusta
+     * a conversão no arg de VALOR (valIdx). Ao converter, ajusta
      * `argTypes` p/ o tipo PINADO — o box JVM é guiado pelos paramTypes.
+     * §383: `listSite` liga o bool→long só nas escritas de List (Map/Set
+     * guardam heterogeneidade tolerada — faces medidas S2/M1).
      */
     static int emitArgsCoercingValue(CompilerDriver driver, MethodCallExpr mc,
             List<KofOperation> ops, String owner, int localIdx, List<IRLocalVariable> locals,
             List<Type> argTypes, Type slotType, int valIdx) {
+        return emitArgsCoercingValue(driver, mc, ops, owner, localIdx, locals,
+                argTypes, slotType, valIdx, false);
+    }
+
+    static int emitArgsCoercingValue(CompilerDriver driver, MethodCallExpr mc,
+            List<KofOperation> ops, String owner, int localIdx, List<IRLocalVariable> locals,
+            List<Type> argTypes, Type slotType, int valIdx, boolean listSite) {
         for (int ai = 0; ai < mc.arguments().size(); ai++) {
             ExpressionNode arg = mc.arguments().get(ai);
             localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-            if (ai == valIdx && coerceStoreWiden(driver, ops, argTypes.get(ai), slotType)) {
+            if (ai == valIdx && coerceStoreWiden(driver, ops, argTypes.get(ai), slotType, listSite)) {
                 argTypes.set(valIdx, slotType instanceof Type.NullableType nt ? nt.inner() : slotType);
             }
             // §284 follow-up (18/09): escrita de primitivo em slot de MAP

@@ -2,7 +2,7 @@
 
 # 19 — Packages e Módulos
 
-> **Status: implementado — imports `a.b.C` corrigidos para projetos grandes (0.4.0-beta)**
+> **Status: implementado — imports `a.b.C` corrigidos para projetos grandes (0.5.0-beta)**
 >
 > `package` + `import` funcionam end-to-end. Em 27/08 o `CompilerDriver` passou a tratar `import a.b.C` como import de arquivo **mais** import de diretório `a.b`, corrigindo a perda de imports em projetos com `a/b/C.kf`.
 

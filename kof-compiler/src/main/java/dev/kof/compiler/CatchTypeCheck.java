@@ -44,7 +44,7 @@ public final class CatchTypeCheck {
         if (name.indexOf('.') >= 0 || name.indexOf('/') >= 0) return true;
         if (CompilerTypes.JAVA_LANG_THROWABLES.contains(name)) return true;
         if (KOF_PRIMITIVES.contains(name)) {
-            sa.diagnostics().error("", 0, 0, 0,
+            sa.diagnostics().error(cc,
                     "catch type '" + name + "' is a primitive — primitives are not throwable"
                             + " (Kof exceptions are Strings: use `catch (String e)`)",
                     "SEM067");
@@ -57,7 +57,7 @@ public final class CatchTypeCheck {
         }
         SymbolTable.ClassSymbol cs = sa.getClass(name);
         if (cs == null) {
-            sa.diagnostics().error("", 0, 0, 0,
+            sa.diagnostics().error(cc,
                     "Undefined variable or type: '" + name + "'",
                     "SEM011");
             return false;
@@ -69,7 +69,7 @@ public final class CatchTypeCheck {
             SymbolTable.ClassSymbol next = sa.getClass(current);
             current = next != null ? simpleName(next.superClass()) : null;
         }
-        sa.diagnostics().error("", 0, 0, 0,
+        sa.diagnostics().error(cc,
                 "catch type '" + name + "' is not a Throwable subclass — Kof exceptions"
                         + " are Strings (use `catch (String e)`) or a JDK/user throwable",
                 "SEM068");

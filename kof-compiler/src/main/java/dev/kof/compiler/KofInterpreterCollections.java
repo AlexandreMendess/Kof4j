@@ -125,7 +125,8 @@ public final class KofInterpreterCollections {
             case "kof_list_sub_list" -> new ArrayList<>(
                     l.subList(KofInterpreter.unboxInt(args[0]), KofInterpreter.unboxInt(args[1])));
             // #382 — sort: ordem natural (Comparator null = mesma escolha
-            // do JVM; o gate SEM097/NAT001 já restringeu o domínio).
+            // do JVM; o gate SEM097 já restringeu o domínio — o NAT001/Float
+            // caiu em 21/09, §352).
             case "kof_list_sort" -> {
                 l.sort(null);
                 yield null;

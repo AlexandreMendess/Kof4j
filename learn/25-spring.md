@@ -2,7 +2,7 @@
 
 # 25 — Spring
 
-> **Status: future (post 0.4.0-beta — `kof.web` + `kof_db` already cover the case without Spring)**
+> **Status: future (post 0.5.0-beta — `kof.web` + `kof_db` already cover the case without Spring)**
 >
 > Spring integration is one of Kof's long-term goals. This chapter documents the planned vision — and what works today without Spring.
 

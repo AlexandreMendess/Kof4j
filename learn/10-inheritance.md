@@ -2,7 +2,7 @@
 
 # 10 — Inheritance
 
-> **Status: implemented (JVM / JS — Native SUP001) — 0.4.0-beta — Target separation `native.risc/arm` preserves dispatch**
+> **Status: implemented (JVM / JS — Native SUP001) — 0.5.0-beta — Target separation `native.risc/arm` preserves dispatch**
 >
 > `extends`, virtual dispatch, overriding, `super(...)` constructor and
 > `super.metodo()` work on the JVM and KofJS targets; on Native, inheritance and
@@ -85,23 +85,31 @@ class Retangulo(Double largura, Double altura) extends Forma {
 }
 ```
 
-## sealed classes (postponed — not part of the grammar)
+## sealed classes (0.5.0-beta — X5.1/X5.2)
 
-`sealed` is **not** a keyword: it was removed from the lexer with SG-002
-(12/09) because the grammar never used it — today `sealed class S {}` fails
-with `PARSE010` (locked by `CompilerDriverTest.deadTokensGiveCleanLexerError`).
-The feature itself is **decided-to-postpone** (roadmap §2.5: `enum` +
-`record`/`interface` cover the case; it only opens with a version bump).
-Illustrative example of what is intended, when it lands:
+`sealed` restricts a type's direct subtypes: every direct subtype must live in
+the **same compilation unit** (file) as the sealed type — a subtype declared in
+another file fails with `SEM080`. A `switch` over a sealed subject must cover
+every direct subtype or provide `default` (`SEM081`), so the compiler verifies
+completeness:
 
-```kf
-sealed class Resultado<T> permits Sucesso<T>, Erro<T> {}
+```kof
+sealed class Shape
 
-class Sucesso<T>(T valor) extends Resultado<T> {}
-class Erro<T>(String mensagem) extends Resultado<T> {}
+class Circle extends Shape { ... }
+class Square extends Shape { ... }
+
+String describe(Shape sh) {
+    return switch (sh) {
+        case Circle c -> "circle"
+        case Square q -> "square"
+    }
+}
 ```
 
-This guarantees that `Resultado` can only be implemented by `Sucesso` and `Erro`. The compiler can verify the completeness of the `switch`.
+- `sealed` is a **contextual** keyword (still a valid identifier).
+- It is erased in codegen — no runtime cost, identical on every target.
+- There is no `permits` clause: the closed set **is** the same-file rule.
 
 ## Polymorphism
 

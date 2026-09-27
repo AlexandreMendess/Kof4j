@@ -40,9 +40,7 @@ public final class NativeRiscvAsmRtB27 {
                 # --- getrandom(sp, 8, 0) ---
                 addi a0, sp, 0
                 li   a1, 8
-                li   a2, 0
-                li   a7, 278
-                ecall
+                call kof_plat_random
                 li   t1, 8
                 bne  a0, t1, .Lrnd_d_fail
                 ld   t0, 0(sp)
@@ -64,11 +62,10 @@ public final class NativeRiscvAsmRtB27 {
             .globl kof_random_boolean
             kof_random_boolean:
                 addi sp, sp, -80
+                sd   ra, 72(sp)
                 addi a0, sp, 0
                 li   a1, 1
-                li   a2, 0
-                li   a7, 278
-                ecall
+                call kof_plat_random
                 li   t1, 1
                 bne  a0, t1, .Lrnd_b_fail
                 lbu  t0, 0(sp)
@@ -77,6 +74,7 @@ public final class NativeRiscvAsmRtB27 {
             .Lrnd_b_fail:
                 li   a0, 0
             .Lrnd_b_done:
+                ld   ra, 72(sp)
                 addi sp, sp, 80
                 ret
 
@@ -113,9 +111,7 @@ public final class NativeRiscvAsmRtB27 {
             .Lrnd_i_retry:
                 addi a0, sp, 0
                 li   a1, 8
-                li   a2, 0
-                li   a7, 278
-                ecall
+                call kof_plat_random
                 li   t1, 8
                 bne  a0, t1, .Lrnd_i_fail
                 ld   t0, 0(sp)           # 64-bit unsigned (ld — mesmo que o
@@ -151,9 +147,7 @@ public final class NativeRiscvAsmRtB27 {
                 # --- getrandom(sp, nbytes, 0) ---
                 addi a0, sp, 0
                 mv   a1, s3
-                li   a2, 0
-                li   a7, 278
-                ecall
+                call kof_plat_random
                 beq  a0, s3, .Lrnd_h_ok
                 li   a0, 0               # falha/parcial => null (R11)
                 j    .Lrnd_h_done

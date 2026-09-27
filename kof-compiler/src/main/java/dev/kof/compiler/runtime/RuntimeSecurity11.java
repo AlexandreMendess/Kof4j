@@ -39,9 +39,7 @@ public final class RuntimeSecurity11 {
                 movq %r12, %rdi
                 addq $24, %rdi
                 movq %rbx, %rsi
-                xorq %rdx, %rdx
-                movq $318, %rax
-                syscall
+                call kof_plat_random
                 testq %rax, %rax
                 js .Lsec_random_fail
                 # hex encode nbytes at 24(%r12) into 24..24+2n
@@ -103,9 +101,7 @@ public final class RuntimeSecurity11 {
             .Lsec_random_int_retry:
                 movq %rsp, %rdi
                 movq $4, %rsi
-                xorq %rdx, %rdx
-                movq $318, %rax
-                syscall
+                call kof_plat_random
                 testq %rax, %rax
                 js .Lsec_random_int_fail
                 movl (%rsp), %eax

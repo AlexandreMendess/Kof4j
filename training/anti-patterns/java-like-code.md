@@ -62,9 +62,9 @@ Direct access: `u.name`, `u.age = 30`.
 | `StringBuilder` | `+` in a loop was inefficient | No | `+` concatenates |
 | `.equals()` | `==` cannot be overloaded | No | `==` compares content |
 | DTO + mapper | Serialization requires no-arg + setters | No | Record + json.encode |
-| Optional | `null` is ubiquitous | Partial (0.4.0-beta) | `String?` + `if (x != null)` narrowing; `Option<T>` still planned |
-| `instanceof` + cast | Type narrowing | Yes (0.4.0-beta) | `instanceof` + `as` and pattern `case String s:` / `case Point(x,y)` |
-| Manual loop for map | Java without higher-order until streams | No | `list.map/filter/reduce` (0.4.0-beta) |
+| Optional | `null` is ubiquitous | Partial (0.5.0-beta) | `String?` + `if (x != null)` narrowing; `Option<T>` still planned |
+| `instanceof` + cast | Type narrowing | Yes (0.5.0-beta) | `instanceof` + `as` and pattern `case String s:` / `case Point(x,y)` |
+| Manual loop for map | Java without higher-order until streams | No | `list.map/filter/reduce` (0.5.0-beta) |
 | `import java.util.*` | Java collections | No | `listOf`/`mapOf`/`setOf` + file-specific `import a.b.C` (fix 27/08) |
 
 ## Exceptions

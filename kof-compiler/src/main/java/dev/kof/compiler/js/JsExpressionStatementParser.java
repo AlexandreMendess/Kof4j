@@ -179,7 +179,7 @@ final class JsExpressionStatementParser {
                 while (!stack.isEmpty()) {
                     condition = new JsIr.JsSequence(List.of(parser.pop(stack)), condition);
                 }
-                return List.of(parser.p.flow.parseIfBody(ctx, pos, cj, condition, stack));
+                return List.of(parser.p.flow.parseIfBody(ctx, pos, cj, condition));
             }
             if (!parser.isExpressionOp(op)) {
                 // statement boundary: wrap any leftover stack (listOf(...) chains,

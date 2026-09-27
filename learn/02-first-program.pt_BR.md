@@ -2,7 +2,7 @@
 
 # 02 — Primeiro Programa
 
-> **Kof 0.4.0-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/kofc**
+> **Kof 0.5.0-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/kofc**
 
 ## O construto mais básico
 

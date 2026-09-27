@@ -133,7 +133,7 @@ var result = "Items: " + items.length
 // WRONG (historical workaround) — manual bounds check before get
 if (i >= 0 && i < l.size) { var x = l.get(i) }
 
-// RIGHT (0.4.0-beta) — kof_list_get already does the bounds check with a clear message
+// RIGHT (0.5.0-beta) — kof_list_get already does the bounds check with a clear message
 var x = l.get(1)   // or l[1]
 var y = listOf(1,2,3).get(1) // 2
 ```
@@ -142,12 +142,12 @@ var y = listOf(1,2,3).get(1) // 2
 
 ```kof
 // WRONG — copying file C.kf to the root folder to avoid import a.b.C failing
-// RIGHT (0.4.0-beta) — CompilerImports expandKofImports file-specific
+// RIGHT (0.5.0-beta) — CompilerImports expandKofImports file-specific
 import a.b.C
 import a.b.*
 ```
 
-## 12. Ignoring null safety (0.4.0-beta)
+## 12. Ignoring null safety (0.5.0-beta)
 
 ```kof
 // WRONG — sentinel for absence
@@ -159,7 +159,7 @@ var r = find("x")
 if (r != null) { println(r) }
 ```
 
-## 13. Manual loop when higher-order exists (0.4.0-beta)
+## 13. Manual loop when higher-order exists (0.5.0-beta)
 
 ```kof
 // WRONG
@@ -221,7 +221,7 @@ if (idx.contains(sub)) {
 
 The compiler emits `intValue()` right at the assignment when the
 variable is `Int`; the `!= null` afterwards does not save it. A guard with
-`contains` is the stable form today (0.4.0-beta).
+`contains` is the stable form today (0.5.0-beta).
 
 ### 4. Sum of Int silently overflows in wide accumulators
 

@@ -222,7 +222,7 @@ class MakealivePrimitivesE2ETest {
                 var f = File("%s")
                 f.writeText("{\\"web\\":\\"on\\",\\"count\\":\\"2\\"}")
                 var back = f.readText()
-                if (back.length() > 10) {
+                if (back != null && back.length > 10) {
                     println("roundtrip")
                 } else {
                     println("short")

@@ -74,29 +74,10 @@ public final class CollectionCallLowerer {
         }
     }
     if (BuiltinTypes.isChannel(recvType)) {
-        // Canais tipados: c.send(v) enfileira; c.receive() retira.
-        // O receiver (Channel) está empilhado; o elemento vai
-        // após — o backend faz a ordem (send: chan,elem; receive: chan).
-        Type elemT = BuiltinTypes.channelElement(recvType);
-        if ("send".equals(mc.methodName()) && mc.arguments().size() == 1) {
-            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
-            ops.add(new KofCall(recvType, "kof_channel_send", List.of(elemT),
-                    Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
-            return localIdx;
-        }
-        if ("receive".equals(mc.methodName()) && mc.arguments().isEmpty()) {
-            ops.add(new KofCall(recvType, "kof_channel_receive", List.of(),
-                    elemT, KofCallKind.INSTANCE));
-            return localIdx;
-        }
-        if (driver.currentDiagnostics != null) {
-            driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                    mc.position() != null ? mc.position().line() : 0,
-                    mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + mc.methodName() + "' on type 'Channel' (valid: send, receive)",
-                    "SEM025");
-            return localIdx;
-        }
+        // send/receive lowering em ChannelWrites (regra 7; §374 residual do
+        // canal: box-by-ARG no bare — lá a lei única mora).
+        int chIdx = ChannelWrites.lower(driver, recvType, mc, ops, owner, localIdx, locals);
+        if (chIdx >= 0) return chIdx;
     }
     if (BuiltinTypes.isList(recvType)) {
         String listFn = switch (mc.methodName()) {
@@ -147,21 +128,15 @@ public final class CollectionCallLowerer {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type elemType = driver.listElementType(recvType);
-            // SEM097 (domínio natural do sort) / NAT001 (Float no native) —
-            // nunca ordem silenciosa errada (par sort×Float no cross não tem
-            // compare de precisão simples tradutível; usar Double).
+            // SEM097 (domínio natural do sort) — nunca ordem silenciosa
+            // errada. Float×native era NAT001; FECHADO 21/09 (§352): o runtime
+            // alarga os 32 bits crus do slot para Double e reusa o compare.
             if ("kof_list_sort".equals(listFn) && driver.currentDiagnostics != null
-                    && (!CollectionMethodGates.naturalOrderType(elemType)
-                        || CollectionMethodGates.floatSortUnsupportedOnNative(
-                                elemType, driver.target.isNative()))) {
-                boolean natFloat = CollectionMethodGates.naturalOrderType(elemType);
+                    && !CollectionMethodGates.naturalOrderType(elemType)) {
                 var pos = mc.position();
                 driver.currentDiagnostics.error(pos != null ? pos.file() : "",
                         pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                        natFloat ? "List.sort on Float elements is not supported on the native target yet"
-                                + " (NAT001) — sort a Double list or insert manually"
-                                : CollectionMethodGates.sortDomainError(elemType),
-                        natFloat ? "NAT001" : "SEM097");
+                        CollectionMethodGates.sortDomainError(elemType), "SEM097");
                 return localIdx;
             }
             // §122 (opção B, família SEM051/052/053/054): o índice de
@@ -209,7 +184,18 @@ public final class CollectionCallLowerer {
                 // List<Unknown> não é poluição — é a definição do tipo).
                 // set: o VALOR é o arg 1 (o índice já foi checado em SEM055).
                 int valIdx = "kof_list_set".equals(listFn) ? 1 : 0;
-                if (argTypes.size() > valIdx && CollectionWrites.pollutesPinned(elemType, argTypes.get(valIdx))
+                if (argTypes.size() > valIdx
+                        && (CollectionWrites.pollutesPinned(elemType, argTypes.get(valIdx))
+                            // §383/#561: escrita de primitivo em slot de
+                            // REFERENCIA pinado (ex.: listOf(listOf(1))
+                            // .add(true)) e seu espelho (objeto em slot
+                            // primitivo) NAO sao "miss abençoado" — quebram
+                            // de verdade nos dois alvos compilados (JVM
+                            // VerifyError no load, Native SIGSEGV — medidos
+                            // 20/09, faces F9/X3). Rejeicao universal com o
+                            // mesmo SEM056 (doutina do §126: rejeitar so o
+                            // que quebra; aqui quebra nos 4).
+                            || CollectionWrites.breaksPinnedList(elemType, argTypes.get(valIdx)))
                         && driver.currentDiagnostics != null) {
                     var pos = mc.position();
                     driver.currentDiagnostics.error(pos != null ? pos.file() : "",
@@ -252,7 +238,10 @@ public final class CollectionCallLowerer {
             int storeValIdx = "kof_list_set".equals(listFn) ? 1 : 0;
             localIdx = CompilerEmissionHelpers.emitArgsCoercingValue(driver, mc, ops, owner,
                     localIdx, locals, argTypes, elemType,
-                    ("kof_list_add".equals(listFn) || "kof_list_set".equals(listFn)) ? storeValIdx : -1);
+                    ("kof_list_add".equals(listFn) || "kof_list_set".equals(listFn)) ? storeValIdx : -1,
+                    // §383: bool→long e conversao de store SO no site de List
+                    // (Map/Set toleram heterogeneidade pelo consenso 3/4).
+                    "kof_list_add".equals(listFn) || "kof_list_set".equals(listFn));
             Type retType = switch (listFn) {
                 case "kof_list_add", "kof_list_set", "kof_list_clear", "kof_list_sort" -> Type.PrimitiveType.VOID;
                 case "kof_list_contains", "kof_list_is_empty", "kof_list_add_all" -> Type.PrimitiveType.BOOL;
@@ -435,19 +424,18 @@ public final class CollectionCallLowerer {
                     || "kof_map_put_if_absent".equals(mapFn))
                     && argTypes.size() > 1 && driver.target.isNative()
                     && driver.needsErasureBoxing() && mapSlotAcceptsBox(valueType)
-                    && mapBoxablePrim(argTypes.get(1))
+                    && (mapBoxablePrim(argTypes.get(1))
+                            || referenceSlotPrim(valueType, argTypes.get(1)))
                     && !ExpressionTyper.boxesOwnBranches(driver, mc.arguments().get(1), locals)) {
                 CompilerEmissionHelpers.emitErasureBox(driver, ops, argTypes.get(1));
             }
             // #386 — containsValue: extras de valor (box do arg + tag por
-            // valueType×arg + NAT002 p/ mapa de valor Object no nativo) —
-            // responsabilidade em CollectionValueOps; o JVM faz POP do tag,
-            // o nativo usa no scan (valorCmpTag: String/box/miss-seguro).
+            // valueType×arg; §352: mapa Object usa o tag 6 dinâmico — o
+            // runtime classifica com kof_value_kind) — responsabilidade em
+            // CollectionValueOps; o JVM faz POP do tag, o nativo usa no scan.
             if ("kof_map_contains_value".equals(mapFn)) {
-                if (CollectionValueOps.emitContainsValueExtras(driver, mc, ops, locals,
-                        argTypes, valueType)) {
-                    return localIdx;
-                }
+                CollectionValueOps.emitContainsValueExtras(driver, mc, ops, locals,
+                        argTypes, valueType);
                 argTypes = new ArrayList<>(argTypes);
                 argTypes.add(Type.PrimitiveType.INT);
             }
@@ -572,6 +560,17 @@ public final class CollectionCallLowerer {
             case "int", "char", "short", "byte", "long" -> true;
             default -> false;
         };
+    }
+
+    /** §352 NAT002 — slot de valor REFERÊNCIA (Object): TODO primitivo é
+     *  normalizado como caixa no put nativo (kof_box_* existe para
+     *  Double/Float/Bool também). O runtime classifica as caixas/Strings/
+     *  ponteiros no scan de containsValue (tag 6 dinâmico) — sem kind
+     *  estático, sem deref cega. */
+    static boolean referenceSlotPrim(Type slot, Type arg) {
+        if (!(arg instanceof Type.PrimitiveType)) return false;
+        Type s = slot instanceof Type.NullableType nt ? nt.inner() : slot;
+        return BuiltinTypes.isObject(s);
     }
 
     /** §122: tipos que NUNCA são um índice válido p/ get/set/remove de List. */

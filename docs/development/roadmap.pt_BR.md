@@ -2,14 +2,41 @@
 
 # Kof — Roadmap de Longo Prazo
 
-**Última atualização:** 15 de setembro de 2026 (§23 ganha 2.6 = fila
-D-NULL-INTENT N1→N4 [lane compiler, decisão da mantenedora 15/09]; TIER 3–5
-marcado DESPRIORIZADO pela mantenedora 15/09 — trio de volta a `future/`).
-(antes: fusão de planos: §23 = plano
-de implementação ÚNICO (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`); cluster de
+last: native-record-equality
+doing: 0.5.0-release-prep
+next: 1.0-exit-gate
+location: roadmap
+state: active
+constraint: pr619-maintainer-only
+
+**Última atualização:** 20 de setembro de 2026 (índice §0 "leia primeiro"
+adicionado; branch ativa corrigida para `beta-0.5.0`/`D-BRANCH-0.5.0`). (antes:
+15 de setembro de 2026 — §23 ganha 2.6 = fila D-NULL-INTENT N1→N4 [lane
+compiler, decisão da mantenedora 15/09]; TIER 3–5 marcado DESPRIORIZADO pela
+mantenedora 15/09 — trio de volta a `future/`). (antes: fusão de planos: §23 =
+plano de implementação ÚNICO (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`); cluster de
 migração consolidado — `LEGACY_IR`+`DIFFERENTIAL_TESTING` fundidos em
 `LEGACY_MIGRATION.md`)
-**Versão:** 0.4.0-beta (branch ativa `beta-0.4.0`)
+**Versão:** 0.5.0-beta (branch ativa `beta-0.5.0`)
+
+---
+
+## 0. Leia primeiro
+
+Este documento é a **narrativa de longo prazo + o plano ordenado**. O que está
+VIVO (agi sobre isto):
+
+- **§23 — Plano de Implementação Consolidado (Tiers 0–12)**: a fila única.
+- **§24 — KOF 1.0 EXIT GATE (EG-1..EG-10)**: a fila do gate de release
+  (autoridade: `DECISIONS.md` §D-RELEASE-1.0 / §D-1.0-EDGES; detalhe em
+  `PROPOSAL-1.0-EXIT-GATE.md`).
+- **§22 — Universal Platform** (em desenvolvimento) e **§18 — Kof escrito em Kof
+  (auto-hospedagem / NORTH STAR)**.
+
+As seções **§1–§15 são a narrativa de longo prazo** (direção de design, não
+fila); **§8/§9/§10/§11 não têm dono** e não são trabalho atual. Regra dos três
+estados: implementado/decidido → `docs/`; pendente → `docs/development/`; só
+plano → `docs/development/future/`.
 
 ---
 
@@ -89,11 +116,11 @@ Objetivos:
 - mesma aplicação podendo ser compilada para JVM ou Native.
 
 Estado atual: ✅ estável x86_64 (free-list `kof_free_head` com reuso mmap; GC
-mark-sweep pendente — auto-GC desativado após hang, memória devolvida só no
+mark-sweep implementado 03/09 + auto-collect sob exaustão ✅ 19/09 (D1-A, §260 FECHADO), memória devolvida no
 `munmap` fallback; `spawn`/`await` via `pthread_create` + trampoline +
 `pthread_join` com allocator thread-safe (futex) — 31/08; FP real em XMM —
 FLT001; JSON objetos/records + arrays FP — JSN001/002/003; SQLite nativo `.so`
-direto; MySQL wire protocol WIP) + `native.risc` (riscv64: codegen real 02/09 — asm puro + qemu, NATIVE002
+direto; MySQL wire x86-64 real (13 ORM faces, F2d1–F2d7 22/09)) + `native.risc` (riscv64: codegen real 02/09 — asm puro + qemu, NATIVE002
 parcial) + `native.arm` (aarch64: herda do riscv via tradutor — `NativeArchEmitter.emitAarch64`, 39/39 E2E sob qemu) *(sincronizado 12/09: a linha "codegen ainda placeholder" apodreceu — `NativeAarch64E2ETest` executa sob qemu onde há toolchain; guard honesto pula em host sem cross)*
 
 ### KofJS — Web
@@ -754,7 +781,7 @@ O Kof é uma plataforma distribuível, não apenas um JAR:
 
 - distribuição autocontida (compiler, CLI, runtime, stdlib, tooling, editor support, JDK 25 embutido);
 - OpenJDK embutido no pacote oficial (Temurin 25, tooling API level 21);
-- versionamento centralizado (`VERSION` 0.4.0-beta → pom/properties via `scripts/bump-version.sh`);
+- versionamento centralizado (`VERSION` 0.5.0-beta → pom/properties via `scripts/bump-version.sh`);
 - releases por 2 jobs (`release.yml`: `test-and-bump` exporta `bump_sha` → `package-and-release` checkeia o commit de bump + sanity check de versão) por push na `main`, por plataforma linux-x86_64 / macos-arm64 / windows-x86_64 (testes 819 → bump → package 3 plataformas → GitHub Release);
 - `scripts/package.sh` PASS (layout dist + tar.gz/zip + SHA256SUMS + jars), golden 16/16, integration 9/9;
 - editor support oficial: grammar TextMate + LSP (hover/completion + diagnostics reais) + `kof editor install` (VS Code/Neovim/Vim/Emacs/Geany/Nano + IntelliJ degrau-10 honesto 13/09: filetype XML + External Tools + README LSP4IJ, sem plugin — issue #1);
@@ -851,7 +878,7 @@ Visão de longo prazo — Kof como plataforma universal (uma linguagem para
 aplicações **e** sistemas, infraestrutura, automação, dados, segurança e
 ciência) **sem** destruir a simplicidade da linguagem.
 
-- Documento central: `docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
+- Documento central: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
   (arquitetura — **EM DESENVOLVIMENTO** desde 17/09/2026; promovido de
   `future/` por decisão da mantenedora, `DECISIONS.md` §D-UNIVERSAL)
 - Estágios por capacidade/maturidade: `FOUNDATION ✅` → `SYSTEMS` (em
@@ -880,7 +907,7 @@ ciência) **sem** destruir a simplicidade da linguagem.
 
 ---
 
-## 23. Plano de Implementação Consolidado (Tiers 0–12)
+## 23. Plano de Implementação Consolidado (Tiers 0–12 + linha Kofmd)
 
 > **Este é o ÚNICO plano de implementação ordenado do repo.** Funde
 > `ACTION_PLAN.md` e `IMPLEMENTATION_PLAN.md` (apagados 13/09 — ~85% do
@@ -888,6 +915,14 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > divergiam do código). Toda fase aqui move o doc correspondente de
 > `future/`→`docs/` quando ganha código. Dificuldade: `E` fácil · `M`
 > médio · `H` alto · `R` pesquisa.
+>
+> **Linha Kofmd (DECIDIDA 27/09 `D-KOFMD` — override explícito da
+> mantenedora, INDISPENSÁVEL para a 0.5.0) — LANDADA 27/09:** Markdown tipado
+> orientado a intenção (plano agora `docs/kofmd-plan.md`+PT, promovido no
+> fechamento): fatias 3.1→3.9 todas pousadas — tool → tipos escalares →
+> vocabulário de memória → round-trip Markdown → formatter canônico → CLI
+> `kof md` → hook LSP → corpus golden → migração dos docs quentes.
+> Códigos `MD001`/`MD002`.
 >
 > **Regra transversal (R12):** nenhum item de plano futuro é ação sobre o
 > estado atual; frentes novas (AUTOMATION/DATA/SCI/BIO) não abrem antes do
@@ -910,7 +945,7 @@ tiers `stable`/`experimental` (`docs/backend-parity.md`).
 | 1.3 | Query DSL tipada (`User.query {}`) | ✅ 01/09 (`KofOrmE2ETest`) |
 | 1.4 | Package manager MVP (`kofdeps`) | ✅ `kof deps` + resolução Maven Central; **transitivos ✅ 16/09** (delegação ao Maven + `kofdeps.lock`, `DepsTransitiveTest` 10/10 incl. E2E com Maven real); **registry ✅ 19/09** (D2-A publish + pull 1.5.3-S2, `DepsRegistryTest` 6/6) |
 | 1.5 | Tracing/OpenTelemetry + lifecycle `application{}` | 🟡 spans W3C + lifecycle ✅ 3 targets; **export OTel ✅ JVM/JS (`exportSpans()` → OTLP/JSON, `OBS003`); gap honesto no Native `OBS003`** |
-| 1.6 | **Native → bare-metal/bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da mantenedora 15/09 | ⚪ **só plano** — costura HAL `kof_plat_*` + perfil freestanding, faces B-0…B-5 em `docs/development/future/PLAN-BAREMETAL-BOOT.md`; sem agendamento; MCU depende de 1.2 |
+| 1.6 | **Native → bare-metal/bootável com ring0/ring1** (microcontrolador, BIOS legado, UEFI, anéis de privilégio x86_64) — diretiva da mantenedora 15/09 | 🟢 **FEITO — FECHADO 25/09 (promovido de `future/` 22/09)** (`D-BAREMETAL-BOOT`, ordem da mantenedora; R12 sobreposto só para esta frente): costura HAL `kof_plat_*` + perfil freestanding, faces B-0…B-6 em `docs/PLAN-BAREMETAL-BOOT.md`. **LANDADO: B-0..B-3 + B-6** (BIOS legado roda o `main` Kof real end-to-end sob SeaBIOS; ring0/ring1 com prova de `#GP` + sabotagem da GDT). **Restante autorizado (`D-BAREMETAL-BODIES`, 24/09): corpos de plataforma B-5** — `kof_plat_time` no BIOS/UEFI (RTC/TSC), `sleep`, `mono`, `random` **LANDADOS 24/09**. **B-4 (MCU):** o codegen 32-bit **LANDOU** (emissores RV32I + Cortex-M3/Thumb-2; hello pela UART + reset path da vector table asserido — `NativeMcuE2ETest` 7/7, `NativeMcuArmE2ETest` 6/0), **B-4 FECHADO 25/09 no riscv32** (`D-BAREMETAL-MCU-GC` "and/or"): o coletor `native-multiarch.md` **G-4/G-5 foi portado para o MCU 32-bit** (B4-GC-1..4: alocação + mark conservador + sweep + prova long-running de reciclagem sob qemu; `NativeMcuGcRiscv32`/`NativeMcuGcRiscv32Sweep`, `NativeMcuGcTest` 8/0) e os corpos de `kof_plat_time` do MCU landaram (B4-TIME: recusa NOMEADA do wall + mono pelo contador `time`; `NativeMcuTimeRiscv32`, `NativeMcuTimeTest` 2/0). O plano `docs/PLAN-BAREMETAL-BOOT.md` foi movido para `docs/` (regra dos 3 estados). **Follow-ups rastreados:** (a) **FEITO 25/09** — o coletor/tempo foi **espelhado para Cortex-M3/Thumb-2** (`NativeMcuArmGc`/`NativeMcuArmGcSweep`/`NativeMcuArmTime`; `NativeMcuArmGcTest` 8/0 + `NativeMcuArmTimeTest` 2/0 sob `qemu-system-arm -M mps2-an385`; o contador mono acumula deltas do SysTick para nunca andar para trás no wrap de 2^24; `NativeMcuArmTime` está ligado ao `NativeMcuArm.renderAsm`); (b) **LANDADO 25/09 (fatia F — "spike mínimo" da mantenedora)**: `NativeMcuRiscv32.lowerMain` roda codegen real de pilha de avaliação — `listOf(1,2,3)` via `kof_list_new`/`kof_list_add` (lista growable de header estável), `.size` via `kof_list_size`, `println` de Int runtime via `kof_string_of_int` (decimal RV32I real — divisão longa binária u32/10, sem extensão M), locais (`KofLoad/KofStoreLocal` + `.Lmcu_locals`) e `KofDup`; os vermelhos E2E do tip estavam enraizados no próprio emissor MCU (o `println` de literal contava `+1` ALEM dos bytes da rodata → lixo; o `renderAsm` nunca emitia `.rodata` nem as âncoras `.Lkof_heap_root_*` → o link falhava e era engolido como `success=true` sem artefato — agora recusa `NATIVE002` alta); `mapOf`/loops continuam recusados honestamente. Prova: `NativeMcuE2ETest` **8/0** (novo `mcuSpikeListOfPrintlnSizeAndIntOverUart` — UART byte-exata `3\n42` sob qemu virt rv32) + `NativeMcuListTest` 4/0 + suíte `NativeMcu*` 38/0; split p/ ≤500: `NativeMcuListStringRiscv32` (222 linhas). Follow-up restante: espelhar a fatia para o emissor Cortex-M3. |
 
 ### TIER 2 — Fundações de compilador (M) — **status corrigido contra o código**
 
@@ -921,17 +956,17 @@ tiers `stable`/`experimental` (`docs/backend-parity.md`).
 |---|------|--------------------|
 | 2.1.1–2.1.3 | Sintaxe `extern` + type-check + gaps `FFI001`/`FFI002` (nunca drop silencioso) | ✅ `Parser.java:192` (PARSE090), `ExternalFunctionNode`, `FfiE2ETest` |
 | 2.1.4 | Binding **JVM** (FFM `java.lang.foreign`) | ✅ **generalizado 18/09 (`.18`, R3):** qualquer assinatura escalar, aridade livre, retornos `void`/`String` — medidos `fmod`→1.5, `ldexp`→12.0, `strncmp`→-1, `puts(void)`, `getenv`→String (`syntax.md`) |
-| 2.1.5 | Binding **Native** (`dlsym`) | ❌ **gap honesto `FFI001`** — `dlopen` segfaulta no binário cru (sem init glibc); NÃO é "✅ real" |
-| 2.1.6 | Marshalling struct/array | 🟡 todas as formas ESCALARES ligam (JVM+host JS desde 18/09); struct/array/ponteiro seguem `FFI001` honesto (design D6 ⛔ mantenedora) |
+| 2.1.5 | Binding **Native** | ✅ **20/09 (#431 fatias 1–2, §369)** — o binário cru liga escalares **direto** (`call sym@PLT`, link-by-use), o que **substitui `dlopen`/`dlsym`**; §61 fechado. O segfault antigo do `dlopen` foi o motivo da troca, não um gap aberto |
+| 2.1.6 | Marshalling struct/array | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` por valor como arg/retorno + `T[]` escalar→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landado 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **restam** = bridge de struct no JS, sret no Native (3.7). D6 ✅ decidido 20/09 |
 | 2.1.7 | JS: gap `FFI002` | ✅ gap honesto + **paridade escalar FECHADA 18/09 (`d3598c2d`, fatias 3.6.F1–F3):** runner host liga via `KofJsFfiBridge`, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS; browser = runtime R7; nao-escalar mantem `FFI002` |
 | 2.2.1 | Inventário do codegen implícito (4 pontos: runtime `.source()`, `desugarTests`, `desugarApplication`, entity→record+schema) | ✅ os 4 existem (`CompilerPipeline:295-296`) |
-| 2.2.2 | **Hook formal `CodegenStep`** | ❌ **NÃO existe no HEAD** — `d1c56bad` adicionou, a pipeline voltou a chamar os `desugar*` direto; o "✅" antigo era sobre-claim da branch `planning-future` |
-| 2.2.3 | Migrar DDL/runner p/ o hook formal | ❌ bloqueado por 2.2.2 |
-| 2.2.4 | Base de `infra "prod" {}` (codegen sobre records) | ❌ não iniciado (zero parse de `infra`) |
+| 2.2.2 | **Hook formal `CodegenStep`** | ✅ **LANDADO 21/09 (R4, `D-CODEGEN-STEP`)** — `CodegenStep`/`CodegenStepPipeline` (aditivo; registry vazio = identidade, zero mudança de comportamento; `CodegenStepPipelineTest` 6/6). O "✅" antigo de `d1c56bad` era sobre-claim da branch `planning-future`; o R4 é o landing real |
+| 2.2.3 | Migrar DDL/runner p/ o hook formal | ✅ **IMPLEMENTADO 21/09 (`85779f20`, `D-DESUGAR-STEP`)** — medido 21/09 (`docs/architecture/codegen-step-2.2.3-assessment.pt_BR.md` +EN, movido pela regra dos 3 estados): **descompasso de fase** (DDL = lowering em `ExpressionOrmCallLowerer:70`; runner = desugar de AST; o hook roda na IR OTIMIZADA, `CompilerPipeline:332`). Opção B = um **registry `DesugarStep`/`DesugarStepPipeline` na fase de AST** (espelhando `CodegenStep`); os quatro desugars são registrados em `DesugarSteps.defaults()` e rodam de `CompilerPipeline:303` — livre de comportamento (regra 3; `DesugarStepPipelineTest` 7/7). O DDL do ORM permanece no lowering (não é candidato a registry). |
+| 2.2.4 | Base de `infra "prod" {}` (codegen sobre records) | ✅ **POUSOU 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: puro açúcar sobre `design()` (sem HCL; `infra` = IDENTIFICADOR, rebaixado p/ `design(): Infrastructure`) — prova `InfraSyntaxE2ETest`; o R4 ✅ era o hook |
 | 2.3.1 | Constant-folding de constantes de domínio | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
-| 2.3.2 | Detecção de ciclo no grafo `infra` em compile-time | ❌ bloqueado por 2.2.4 |
+| 2.3.2 | Detecção de ciclo no grafo `infra` em compile-time | ✅ **FECHADA 21/09 como runtime-only** (adendo a `D-MAKEALIVE-SYNTAX`, `5759b9bd`): a 2.2.4 é açúcar puro, então o compilador vê só chamadas genéricas — um grafo estático daria semântica própria ao bloco (§7/regra 11); a recusa em runtime da 3.1 nomeia os membros do ciclo |
 | 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | 🟡 só design (`future/scoped-resources-plan.md`); sintaxe `using` gated por bump |
-| 2.5 | Variance / sealed | ✅ **DECIDIDO ADIAR** — `enum`+`record`/`interface` cobrem o caso; abre só com pipeline científica (bump) |
+| 2.5 | Variance / sealed | ⏫ **SUPERSEDIDO 21/09 por §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variância abriram como as fatias **X5** (X5.1–X5.4 ✅ FEITO 21/09); o "adiar" antigo não vale mais |
 
 #### 2.6 — Nullability por INTENÇÃO EXPLÍCITA (fila N1→N4 de DECISIONS §D-NULL-INTENT, 15/09)
 
@@ -942,12 +977,12 @@ REVOGADA). Lane: **compiler** (contrato nos 4 backends — não a lane docs).
 | # | Passo | Escopo (uma linha) | Depende de |
 |---|-------|--------------------|------------|
 | 2.6.1 | **N1** — JVM+Script+JS: `Nullable(primitivo)` carrega null REAL | `T?` boxed em retorno/campo/slot nos 3 targets com tipo boxed; virar a célula `nullableprint` + as 3 paridades null-branch de `KofInterpreterParityTest` no MESMO commit do comportamento (regra 1) | — |
-| 2.6.2 | **N2** — Native: null real via ABI de box tagged §104b-ii | **`RuntimeErasureBox`** (`[MAGIC][tag][value]`, 24 B) + dispatch `kof_box_*` / `kof_unbox_*` strict+soft; x86 à mão + riscv à mão + aarch64 via tradutor. O esboço antigo de box `typeId=3` está **superseded — não criar como segundo ABI**; ver `docs/runtime/RUNTIME_ABI.md` §3.9. | §104b-ii / §205 fatia 2 dividem este ABI |
+| 2.6.2 | **N2** — Native: null real via ABI de box tagged §104b-ii — **✅ FEITO 23/09 (face Native autorizada = print de referência `Object`)** | **`RuntimeErasureBox`** (`[MAGIC][tag][value]`, 24 B) + dispatch `kof_box_*` / `kof_unbox_*` strict+soft; x86 à mão + riscv à mão + aarch64 via tradutor. O esboço antigo de box `typeId=3` está **superseded — não criar como segundo ABI**; ver `docs/runtime/RUNTIME_ABI.md` §3.9. **POUSADO 23/09:** a face Native autorizada (pela Authorization do `D-NULL-INTENT`, 23/09) é o print polimórfico de referência `Object` — o `kof_box_to_string` agora decodifica o `type_id` de 4 bytes (offset 0, o discriminador do `kof_instanceof`), `type_id==1` (`String`) passa cru e qualquer outra referência faz tail-call em `kof_tostring_table[type_id]` (`.quad` denso emitido junto das classes, reusado das vtables; `0` = passthrough antigo). Sem segundo ABI. Prova: `NativeObjectBoxPrintE2ETest` 3/3 (oráculo JVM no teste, x86+riscv64+aarch64; fecha o §205 fatia 2). | §104b-ii / §205 fatia 2 dividem este ABI |
 | 2.6.3 | **N3** — `== null` em NÃO-nullable: legal, constant-foldable, NUNCA diagnóstico | a intenção é a própria comparação; regra 2 (retrocompat): código existente que compara continua compilando | N1 |
 | 2.6.4 | **N4** — auditar as faces restantes de null silencioso | map-miss `0` (SG-008), campo não-inicializado `0`, unbox-de-null `0` — cada um ganha decisão ou diagnóstico honesto (R6) | N1–N3 |
 | 2.6.5 | **D-TROOL-1 (front-end) ✅ LANDADA 19/09** (`916b9fb7` core + `d61836eb` migracao/lei; `TrooleanLawE2ETest` 13/13, gate dirigido 8/8, goldens medidos JVM=Script=JS=Native-x86) — registrar `Troolean` (3 estados); `Nullable(Bool)` escrito pelo usuário → `SEM095` ("`Bool` tem exatamente dois valores — para true/false/desconhecido use `Troolean`"); `Troolean` não-instanciado = unknown; `!`/`&&`/`||` de Kleene + `== true/false`/`== null` + `println` + açúcar de condição `if (t)`≡`if (t == true)` — JVM+Script+JS via `runAll3`; migrar os 4 arquivos de teste com `Bool?` | DECISIONS §D-TROOL; prova `TrooleanLawE2ETest` + faces §306 migradas | — |
 | 2.6.6 | **D-TROOL-2 (Native) ✅ 19/09 (medido)** | face de três estados no backend nativo — medir primeiro o comportamento de `Nullable(Bool)` lá (o front do PR #465 é a lane boxed-`T?`); entregar trabalho ou o diagnóstico honesto `NAT-TROOL001`, nunca fallback silencioso — MEDIDO: tabelas de Kleene IDENTICAS no Native-x86-64 (slot boxado §295/§306 reusado, zero edicao de backend; NAT-TROOL001 desnecessario; cross sob guarda qemu, CI verde) | D-TROOL-1, família 2.6.2 |
-| 2.6.7 | **D-TROOL-3 (corpo+migração) ✅ 19/09** (`5f0757e8`) | `training/idioms` + `fake-idioms.md` (linha `Bool?` → Troolean), `docs/language/types.md`, nota de migração no CHANGELOG (regra 1 do freeze — a classe do precedente #401), célula em `backend-parity.md` | D-TROOL-1 |
+| 2.6.7 | **D-TROOL-3 (corpo+migração) ✅ 19/09** (`5f0757e8`) | `training/idioms` + `fake-idioms.md` (linha `Bool?` → Troolean), `docs/language-reference/types.md`, nota de migração no CHANGELOG (regra 1 do freeze — a classe do precedente #401), célula em `backend-parity.md` | D-TROOL-1 |
 
 **Estado da fila (18/09 ~13:40):** PR **#438** (fork externo, `fix/278-d-null-intent-atomic`) **MESCLADO pela mantenedora em `250f6207`** (18/09 12:53) — N1 (JVM+Script+JS) landou: `Map.get` agora retorna `V?` para valores de referencia e o repro de chave ausente com valor primitivo roda limpo (medido `9`, jars frescos). A face PRESENTE `!= null` em valores primitivos continua QUEBRADA pos-merge (Int/Long/Double/Boolean → `NoSuchMethodError Object.valueOf(boxed)`; Float → CCE `Double→Float` no sitio do mapa) — catalogada como re-procedimento 2a do §294, dona `.22` cluster erasure/boxing, NAO reabertura do #438. N2 (Native) e I4/i1 permanecem fora de escopo/fila; lanes nao devem abrir frente paralela no mesmo contrato (regra 6 / um contrato, um PR). O PR tambem declara `Map.get/put/remove` em chave ausente (I7) — engolindo a face parqueada `#376`/`#409` carimbada pela mantenedora 18/09 — NAO abra frente N4 separada para essas celulas enquanto #438 estiver em revisao.
 
@@ -967,6 +1002,25 @@ fechar; lanes não devem atacar sem nova autorização).
 | 2.7.3 | **ABI Native** | passagem por valor (struct por valor / registradores) | 2.7.1 |
 | 2.7.4 | **ABI JS** | objeto congelado comum (sem identidade) | 2.7.1 |
 | 2.7.5 | **paridade + docs** | células de conformidade `valuerecord` + matriz de paridade + `training/` + `learn/` | 2.7.1–2.7.4 |
+
+#### 2.8 — Fila aberta 21/09 (`DECISIONS.md` §D-CODEGEN-STEP/§D-R3-3.3/§D-R3-3.5/§D-TYPE-VARIANCE/§D-INTEROP-REFLECT)
+
+**Decidido pela mantenedora 21/09** (múltipla escolha). D8–D12 do
+`IMPLEMENTATION-UNIVERSAL-PLATFORM.md`. Aditivo; nada pousa sem prova. As duas
+frentes de núcleo do sistema de tipos são **spec-first** (plano revisado antes
+do código, regra 6).
+
+| # | Passo | Escopo (uma linha) | Depende de |
+|---|-------|--------------------|------------|
+| 2.8.1 | **R4 `CodegenStep`** (`D-CODEGEN-STEP` = A) — ✅ **pousou 21/09** | hook de codegen INTERNO do compilador, sem sintaxe de usuário; destrava `infra "prod" {}` (3.2) + migração DDL/runner | — |
+| 2.8.2 | **R3-3.3 handles/out-buffers** (`D-R3-3.3` = A) | `Handle` opaco nominal (não-aritmético) + `Buffer(U8, INOUT)` (== D6-3); pré-requisito dos Estágios 4–7 | R3 (2.1) |
+| 2.8.3 | **R3-3.5 variadics** (`D-R3-3.5` = A) | SEM variadics gerais — caller passa `List`/`Array`/`Buffer`; gap documentado (R6/R7) | R3 (2.1) |
+| 2.8.4 | **X5 variance + sealed** (`D-TYPE-VARIANCE` = C) | ✅ **FEITO 21–22/09** — `sealed`+`SEM080`; `switch` exaustivo+`SEM081`; variância declaration-site `out`/`in`+`SEM082`; projeção no sítio de uso `List<out T>`/`List<in T>`; X5.5 células de paridade (`sealedswitch`/`variance`/`useproj`) + docs/`training`; **plano CONCLUÍDO + movido para `docs/` 22/09** | ✅ |
+| 2.8.5 | **X6 reflexão de interop** (`D-INTEROP-REFLECT` = **A, intrínseco de compile-time**) | ✅ **FEITO 21–22/09** — superfície congelada: `interop.schema(R)` → `List<Field>` imutável, zero reflexão em runtime, todos os alvos, só na fronteira; X6.0–X6.3 (intrínseco+dobra, diagnósticos `INTEROP001`/`INTEROP002`, célula `interopschema` + E2E binding Arrow/Parquet `InteropSchemaE2ETest` 18/18); **plano CONCLUÍDO + movido para `docs/` 22/09** | ✅ |
+| 2.8.6 | **X2 motor de interop — Python/R** (`D-COMPLETE-FIRST` item 2) | ✅ **CONCLUÍDA 27/09 — fatia 4 cross POUSADA** (lane issues, ordem da mantenedora: `InteropTimeoutE2ETest` +3 timeout007/deadline-reuso/cancel-ocioso + `InteropRE2ETest` R-happy, riscv64≡aarch64≡JVM sob qemu; R com gate de Rscript; 008 JVM-only por desenho) — fatias 1–3+5 já pousadas/certificadas; estado de sessão segue corte declarado; plano promovido | X2 fechada |
+
+**Plano spec (X5 + X6):** [`type-system-extensions-plan.pt_BR.md`](../type-system-extensions-plan.pt_BR.md) — **APROVADO 21/09 (`D-TYPE-VARIANCE`/`D-INTEROP-REFLECT`)**; **CONCLUÍDO + MOVIDO para `docs/` 22/09** (todas as fatias X5.0–X5.5, X6.0–X6.3 com prova).
+
 ### TIER 3–5 — Plataforma de migração legado (Fases A–H) ✅ código+testes
 
 `kof inspect/decompile/translate/compare/migrate` no CLI (`Main.java`);
@@ -984,7 +1038,7 @@ histórico técnico detalhado vive em `future/LEGACY_MIGRATION.md` +
 `future/DECOMPILER.md` (§7) — **não duplicar aqui**; esta tabela só dá a
 ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual.**
 
-### TIER 6–12 — Plataforma universal (arquitetura **EM DESENVOLVIMENTO** 17/09 — R12 sobreposto; regidos por `docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)
+### TIER 6–12 — Plataforma universal (arquitetura **EM DESENVOLVIMENTO** 17/09 — R12 sobreposto; regidos por `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)
 
 | Tier | Estágio | Escopo (uma linha) |
 |------|---------|--------------------|
@@ -995,6 +1049,7 @@ ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual.**
 | 10 | SCIENTIFIC | BLAS/LAPACK/GPU/MPI **por FFI**; SIMD Native (pesquisa); deps 2.1, 2.4, 1.2 |
 | 11 | BIO | `kof-bio` (pacote oficial): FASTA/FASTQ/VCF + alinhamento via FFI/CLI — deps 6, 8, 10 |
 | 12 | UNIVERSAL | integração total + pkg manager maduro + LSP/debug/profiler por domínio; **teste final: o core da linguagem quase não cresceu** |
+| — | **NORTH STAR (pós-12) — BOOTSTRAPPER** | o compilador Kof escrito em Kof; plano de design rascunhado `future/PLAN-BOOTSTRAP.md` (BS-1, `DECISIONS.md` §D-BOOTSTRAP, DECIDIDO 20/09, rascunho da `.18`); execução condicionada às E1–E6 do plano e ao exit gate 1.0 — R12 governa, nenhuma etapa é pulada por ele |
 
 ### Critical path (o que bloqueia o quê)
 
@@ -1002,3 +1057,67 @@ ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual.**
 `Diff-Framework` → `Migration-Reports` · `2.1 FFI` → Tiers 8/9/10 (tudo por
 FFI) · `2.2 codegen hook` → `infra`/gRPC stubs · **TIER 1 (SYSTEMS) fecha
 antes de QUALQUER Tier 6+ (R12).**
+
+### TIER 14 — Fila do ledger de dívida técnica (ABERTA 23/09, `D-TECHDEBT-23/09`; **LEDGER MORTO 24/09** — dívida medida zerada)
+
+Fila ordenada dos vereditos de múltipla escolha da mantenedora 23/09. **24/09,
+ordem da mantenedora: o ledger `tech-debt.md` está MORTO** — todo §NNN vivo
+que ele rastreava foi re-medido ✅ no `known-bugs.md` (§205/§248/§271/§283/§423
+23/09; §278 24/09) e o gate de tamanho `check_500` está verde; o ledger, o
+contrato do scout em `technical-debt/` e a ferramenta `debt-scout` foram
+removidos. A 13.6 segue abaixo como frente própria (nunca foi dívida do
+ledger — é a spec de struct da FFI). Claim no `DOING.md` antes do código; um
+item = um dono + uma prova.
+
+| # | Item | Lane dona | Prova |
+|---|---|---|---|
+| 13.1 | §248 — default methods de interface no JS + Native (paridade) | compiler (**9092, ✅ FEITO 23/09**) | slot de vtable no Native + materialização no JS; `InterfaceDefaultMethodE2ETest` 7/7 nos 4 alvos |
+| 13.2 | §271 — bridge methods nos impls de interface genérica (ABI de erasure) | compiler (**9092, ✅ FEITO 23/09**) | face JVM ✅ (§356 `c8d55a10`); face Native ✅ (§483) — `NoSuchMethodError` fechado, suíte verde |
+| 13.3 | §278 — portar `kof.security` (`kof.security` ✅ **FEITO 23/09**, byte-parity Android=JVM; residual `kof.gpu` — FFM ausente no Android, exige decisão de design) | gaps-db | byte-parity do security provada; face gpu pendente |
+| 13.4 | §423 — portar runtime `kof_channel_*` p/ riscv64/aarch64 | nat (**✅ FEITO 23/09, baremetal 9092**) | `kof_channel_*` no slice `RtB61`, gate `NAT005` removido; paridade qemu nas 2 archs (`BareCollectionPrimitiveArgE2ETest` 12/12; ledger §423 ✅ FIXED) |
+| 13.5 | Lote de split: `NativeBackend` 603 + `CompilerPipeline` 588 + `RuntimeOrm7` 585 (behavior-preserving, precedente §442/§446) | 9092 (**✅ FEITO 23/09**) | `CompilerPipeline` ✅ 475; `RuntimeOrm7` ✅ split (`RuntimeOrm7` 34 + `RuntimeOrm7Setup` 265 + `RuntimeOrm7Fetch` 329); `NativeBackend` ✅ 547 (<600, faixa tolerada; baseline 571→547 atualizado) — `check_500.sh` rc=0, suíte verde |
+| 13.6 | D6-1=B — frente `struct` mutável by-ref (spec-first, regra 11) | FFI | design §4/§6 revisado, depois diff parser/typer + testes |
+
+## 24. KOF 1.0 EXIT GATE — estabilização dos contratos (RATIFICADO 20/09/2026, `DECISIONS.md` §D-RELEASE-1.0; arestas fechadas por `D-1.0-EDGES`)
+
+Meta de desenvolvimento até o primeiro RC: **nenhum bug embarca, nenhuma aresta
+fica aberta.** O texto normativo é `docs/PROPOSAL-1.0-EXIT-GATE.md`
+(+par PT) §§8–20; a ordem de execução é a fila da §23 dele. Feito aqui (passo da
+ratificação): itens 1–4 — branch ativa `beta-0.5.0` confirmada,
+`DECISIONS.md`/`AGENTS.md` relidos, `D-RELEASE-1.0` registrado, EN/PT
+sincronizados (doc promovido de `future/`, bloco de aprovação preenchido como
+registro da ordem da mantenedora no chat).
+
+Fila aberta (toda lane obedece; dono se declara no `DOING.md`):
+
+| # | Item (ref do doc) | Prova de aceitação |
+|---|---|---|
+| EG-1 | Definir `release-blocker` **mecanicamente** (§11; Q3) | toda issue aberta classificada em exatamente uma de BLOCKS 1.0 / OUTSIDE 1.0 SURFACE / POST-1.0 / NOT A BUG / TRACKING (`tracking/contract`) via label+ledger; script lista violações; teste RED primeiro. **FEITO** `ea5d4dfe` + complemento da 5ª categoria |
+| EG-2 | Implementar o gate mecânico (critérios §10; passos 6–7) | gate falha em fixtures de false-green/false-red plantados; veredito amarrado ao SHA analisado; análise velha não decide commit novo; uso de `CODEQL_GATE_SKIP` vira exceção com causa registrada, e morre. **FEITO 20/09** (proposta §10): `0d2a019d` fechou 6/8; a lane de estabilização fechou amarração ao SHA + vazio≠indisponível no `scripts/codeql-gate.sh`, RED-first (`scripts/tests/codeql-gate-test.sh` 10 cenários, registrado) |
+| EG-3 | Pacote real testado **fora do repo** (§12; passo 9) | artefato do layout publicado roda o corpus E2E em diretório limpo (a lição da #550, pinada). **FEITO 20/09** `67c503db` (`scripts/test-package-outside-repo.sh`, PASS medido) |
+| EG-4 | Validação ANTES/DEPOIS do gate (passo 8) | mesmo SHA medido antes/depois; nenhuma regressão nos pushes das lanes existentes. **FEITO** — evidenciado pelo EG-2 (vereditos amarrados ao SHA analisado, determinísticos; gate real medido antes/depois sem novo false-red nas lanes) |
+| EG-5 | Matriz final de alvos (§13–§14; passo 10) | JVM / x86-64 / riscv64 / aarch64 / JS / Script **/ KofC / Android** verdes na MESMA candidata + paridade byte dos goldens onde o contrato exige; KofC e Android carregam cada um o seu gate (EG-9/EG-10). **Harness FEITO 20/09**: `scripts/target-matrix.sh` (um comando; 6 alvos core com paridade byte vs oráculo JVM, cross executa sob qemu quando presente, SKIP honesto→INCOMPLETE; kofc/android = DELEGATED EG-9/EG-10), RED-first `scripts/tests/target-matrix-test.sh` registrado; PASS medido nos seis alvos core. **Guarda de artefato fresco 20/09** (`jar_stale`): sem `--dist`, um `lib/kof.jar` da árvore anterior à fonte é recusado com causa nomeada (rc=3) em vez de medir um binário fantasma — o `PARITY: 0%` falso do cross por jar velho não pode mais ser lido como divergência. A rodada do dia do RC na candidata permanece |
+| EG-6 | Fechar as ARESTAS abertas que pertencem à mantenedora (§21 Q2/Q7, candidatos §35) | **FEITO 20/09/2026 (`D-1.0-EDGES`)**: Q1 (linha 1.0 abre após o release 0.5.0 + EG-1..EG-7), Q2/Q7 (KofC + Android dentro da Stable 1.0, gates próprios), §35 (os nove reforços obrigatórios) |
+| EG-7 | Sincronizar VERSION / docs / metadados (§16, nota §13, linha do site §35) | VERSION, `revision` do pom, version.properties empacotado, CHANGELOG, cabeçalho AGENTS, docs de release, site público, matriz de suporte — uma única declaração consistente. **Lado do repo FEITO** (bump `404d8be6`; docs de release sincronizados). **Lado do site adiado — propriedade da mantenedora** (ela atualiza o `koflang.github.io` em breve; chat 20/09) |
+| EG-8 | Primeira candidata a RC 1.0 (passo 11) — SOMENTE quando EG-1…EG-7 fecharem | checklist §8 verde com evidência reproduzível no SHA da candidata + declaração explícita da Mel de que "a linha 1.0 abriu" (Q1) |
+| EG-9 | Gate do KofC (gate próprio — `D-1.0-EDGES`) | KofC verde na candidata com evidência do gate próprio. **Mecanismo FEITO 20/09**: `scripts/test-kofc-gate.sh` — preflight nomeia o toolchain ausente (`as`+`ld`/`gcc`, JDK ≥ 25), compila E executa o corpus suportado (5 casos, ELF real rodado, stdout afirmado) e rejeita entrada malformada sem emitir binário (a classe do #485, R6/Q7); veredito amarrado ao SHA (`KOFC-GATE: PASS sha=…`). RED-first offline: `scripts/tests/test-kofc-gate-test.sh` (5 cenários, registrado). PASS medido em `8fa39ff9` |
+| EG-10 | Gate do Android (gate próprio — `D-1.0-EDGES`) | Android verde na candidata com evidência do gate próprio (o CI roda o APK). **Mecanismo FEITO 20/09**: `scripts/test-android-gate.sh` — preflight honesto (JDK ≥ 25 + `jar`; `ANDROID_HOME` + build-tools COMPLETA ≥ 35 + uma plataforma `android-N/android.jar`); SDK ausente = SKIP honesto exit 3 nomeando o que falta (nunca verde falso, R6), e o CI `android.yml` roda o MESMO gate. Com SDK roda `kof build --target android --apk` (o pipeline standalone aapt2→d8→zip→zipalign→apksigner) e prova que o artefato é um zip real com `AndroidManifest.xml` + `classes.dex`; veredito amarrado ao SHA (`ANDROID-GATE: PASS sha=…`). RED-first offline: `scripts/tests/test-android-gate-test.sh` (6 cenários, registrado) |
+
+Regras que amarram todo item: o gate §8 é um E entre todos os itens — um item em falta
+trava o RC independentemente dos demais; por `D-1.0-STABILITY-100`
+(20/09) nenhum 1.0.0 embarca enquanto QUALQUER item de `docs/development/`,
+`docs/development/future/` ou `docs/bugs-and-gaps/` estiver aberto — 100%
+resolvido, com paridade cross-target provada por medição; gaps ficam só na forma do §15 (FORA da
+1.0 + honesto + documentado); o congelamento (§17) começa no primeiro RC e
+congela a superfície, não a estabilização; RC→Stable sem regressão (§19). O
+"teste final" do TIER 12 segue compatível: estabilização mexe em
+estrutura/diagnóstico, nunca na superfície do núcleo.
+
+**Gate de release 0.5.0 (`D-RELEASE-0.5.0-GATE`, 20/09/2026):** o release 0.5.0
+(pré-condição para abrir a linha 1.0, Q1) só é cortado quando as sete condições
+da mantenedora valerem, cada uma medida — paridade 100% entre alvos; nenhuma
+decisão pendente; todos os `docs/development/*.md` soltos concluídos e movidos;
+estabilidade total; 0 issues abertas de bug; todas as arestas fechadas; nada
+pendente em bugs-and-gaps. Fila + estado atual:
+`release-beta-0.5.0-prep.md` §"Gate de release". Mecanizado por
+`scripts/check_release_050_gate.sh`.

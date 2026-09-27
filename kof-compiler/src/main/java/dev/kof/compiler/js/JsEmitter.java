@@ -305,6 +305,14 @@ public final class JsEmitter {
             }
             return "kofMultiArray([" + parts + "], " + n.sizes().size() + ", " + n.baseFill() + ")";
         }
+        if (e instanceof JsIr.JsArrayLiteral al) {
+            StringBuilder parts = new StringBuilder();
+            for (JsIr.JsExpression el : al.elements()) {
+                if (!parts.isEmpty()) parts.append(", ");
+                parts.append(expr(el));
+            }
+            return "[" + parts + "]";
+        }
         if (e instanceof JsIr.JsObjectLiteral o) {
             StringBuilder parts = new StringBuilder();
             for (JsIr.JsObjectEntry entry : o.entries()) {

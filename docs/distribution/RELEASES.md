@@ -14,7 +14,7 @@ test-and-bump
    ├─ mvn clean package (gate)
    ├─ tests/run-golden.sh (jvm + native)
    ├─ tests/run-integration.sh (CLI + serve + kof test)
-   ├─ version bump (scripts/bump-version.sh) — e.g.: 0.3.22-beta → 0.4.0-beta
+   ├─ version bump (scripts/bump-version.sh) — e.g.: 0.4.7-beta → 0.5.0-beta
    ├─ changelog section → CHANGELOG.md
    └─ commit + push of the bump ([skip ci])
       ↓
@@ -50,7 +50,7 @@ Two jobs:
    - `tests/run-golden.sh` (8 cases × jvm+native) and
      `tests/run-integration.sh` (CLI + serve + kof test);
    - reads `VERSION` (e.g.: `0.3.22-beta`), computes the next one
-     (`0.4.0-beta`), runs `scripts/bump-version.sh`;
+     (`0.5.0-beta`), runs `scripts/bump-version.sh`;
    - inserts the changelog section into `CHANGELOG.md`;
    - commits and pushes the bump (`[skip ci]` so it does not re-trigger);
    - exports the **SHA of the bump commit** (`bump_sha`).
@@ -74,8 +74,8 @@ Two jobs:
 
 ## Tags and releases
 
-- One release **per platform**: `kof-0.4.0-beta-linux-x86_64`,
-  `kof-0.4.0-beta-macos-arm64`, `kof-0.4.0-beta-windows-x86_64`.
+- One release **per platform**: `kof-0.5.0-beta-linux-x86_64`,
+  `kof-0.5.0-beta-macos-arm64`, `kof-0.5.0-beta-windows-x86_64`.
 - The most recent one for each platform carries the **Latest** badge.
 - The user installs from the release for **their** system
   (see [INSTALL.md](INSTALL.md)).

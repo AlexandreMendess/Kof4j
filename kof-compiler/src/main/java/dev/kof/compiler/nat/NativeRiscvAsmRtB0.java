@@ -180,33 +180,85 @@ public final class NativeRiscvAsmRtB0 {
 
             .globl kof_list_contains
             kof_list_contains:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)
-                sd   s1, 8(sp)
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
                 mv   s0, a0
                 mv   s1, a1
-                li   t0, 0
+                mv   s2, a2            # tag: 0=raw, 1=String, 2=objeto Kof
+                li   s3, 0
             .Llc_loop:
                 lw   t1, 16(s0)
-                bge  t0, t1, .Llc_no
+                bge  s3, t1, .Llc_no
                 ld   t2, 24(s0)
-                slli t3, t0, 3
+                slli t3, s3, 3
                 add  t2, t2, t3
                 ld   t2, 0(t2)
-                bne  t2, s1, .Llc_next
+                li   t4, 1
+                beq  s2, t4, .Llc_str
+                li   t4, 2
+                beq  s2, t4, .Llc_obj
+                beq  t2, s1, .Llc_yes
+                j    .Llc_next
+            .Llc_str:
+                beqz t2, .Llc_next
+                mv   a0, t2
+                mv   a1, s1
+                call kof_string_equals
+                bnez a0, .Llc_yes
+                j    .Llc_next
+            .Llc_obj:
+                beqz t2, .Llc_next
+                mv   a0, t2
+                mv   a1, s1
+                call kof_obj_equals
+                bnez a0, .Llc_yes
+            .Llc_next:
+                addi s3, s3, 1
+                j    .Llc_loop
+            .Llc_yes:
                 li   a0, 1
                 j    .Llc_ret
-            .Llc_next:
-                addi t0, t0, 1
-                j    .Llc_loop
             .Llc_no:
                 li   a0, 0
             .Llc_ret:
-                ld   s0, 16(sp)
-                ld   s1, 8(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s2, 16(sp)
+                ld   s3, 8(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            .globl kof_obj_equals
+            # §104b-ii (24/09): igualdade por CONTEUDO de referencia Kof
+            # (record/classe). a0=a, a1=b -> a0 1/0. a==b (inclui null==null)
+            # -> 1; um nulo -> 0; String (type_id==1) -> kof_string_equals;
+            # senao despacha o equals virtual por kof_equals_table[type_id]
+            # (0 -> 0 = sem equals).
+            kof_obj_equals:
+                beq  a0, a1, .Lkoe_yes
+                beqz a0, .Lkoe_no
+                beqz a1, .Lkoe_no
+                lw   t0, 0(a0)
+                li   t1, 1
+                beq  t0, t1, .Lkoe_str
+                la   t2, kof_equals_table
+                slli t0, t0, 3
+                add  t2, t2, t0
+                ld   t3, 0(t2)
+                beqz t3, .Lkoe_no
+                jr   t3
+            .Lkoe_str:
+                j    kof_string_equals
+            .Lkoe_yes:
+                li   a0, 1
+                ret
+            .Lkoe_no:
+                li   a0, 0
                 ret
 
             .globl kof_list_is_empty
@@ -215,116 +267,24 @@ public final class NativeRiscvAsmRtB0 {
                 seqz a0, t0
                 ret
 
+            # D-MEMORY-CLEAR (O-03): anula cada slot ANTES de encolher — o
+            # container nao retem mais nenhuma referencia apos clear()
             .globl kof_list_clear
             kof_list_clear:
-                li   t0, 0
-                sw   t0, 16(a0)
+                lw   t0, 16(a0)          # size
+                ld   t1, 24(a0)          # data
+                li   t2, 0               # i
+            .LKLC_loop:
+                bge  t2, t0, .LKLC_done
+                slli t3, t2, 3
+                add  t4, t1, t3
+                sd   zero, 0(t4)
+                addi t2, t2, 1
+                j    .LKLC_loop
+            .LKLC_done:
+                sw   zero, 16(a0)
                 ret
 
-            # ---- kof.log: label [LEVEL] + msg + newline; stderr para warn/error, stdout para info/debug ----
-            .globl kof_log_debug
-            kof_log_debug:
-                li   a1, 0
-                j    kof_log_write_lvl
-            .globl kof_log_info
-            kof_log_info:
-                li   a1, 1
-                j    kof_log_write_lvl
-            .globl kof_log_warn
-            kof_log_warn:
-                li   a1, 2
-                j    kof_log_write_lvl
-            .globl kof_log_error
-            kof_log_error:
-                li   a1, 3
-                j    kof_log_write_lvl
-            # helper: a0=msg*, a1=level (0..3)
-            kof_log_write_lvl:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)      # msg
-                sd   s1, 8(sp)       # level
-                mv   s0, a0
-                mv   s1, a1
-                # fd = level >= 2 ? 2(stderr) : 1(stdout)
-                li   t0, 2
-                bge  s1, t0, .Llw_stderr
-                li   s2, 1
-                j    .Llw_write
-            .Llw_stderr:
-                li   s2, 2
-            .Llw_write:
-                # escolhe label
-                la   t0, .Llog_lbl_debug
-                li   t1, 0
-                beq  s1, t1, .Llw_have_lbl
-                la   t0, .Llog_lbl_info
-                li   t1, 1
-                beq  s1, t1, .Llw_have_lbl
-                la   t0, .Llog_lbl_warn
-                li   t1, 2
-                beq  s1, t1, .Llw_have_lbl
-                la   t0, .Llog_lbl_error
-            .Llw_have_lbl:
-                # write(fd, label, 8)
-                mv   a0, s2
-                mv   a1, t0
-                li   a2, 8
-                li   a7, 64
-                ecall
-                # write(fd, msg.data, msg.len)
-                beqz s0, .Llw_skip_msg
-                lw   a2, 16(s0)
-                addi a1, s0, 24
-                mv   a0, s2
-                li   a7, 64
-                ecall
-            .Llw_skip_msg:
-                # newline (usar .Lnewline)
-                mv   a0, s2
-                la   a1, .Lnewline
-                li   a2, 1
-                li   a7, 64
-                ecall
-                ld   s1, 8(sp)
-                ld   s0, 16(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
-                ret
-
-            # ---- kof.config (minimal — retorna default / 0 / false) ----
-            .globl kof_config_get
-            kof_config_get:
-                li   a0, 0
-                ret
-            .globl kof_config_env
-            kof_config_env:
-                li   a0, 0
-                ret
-            .globl kof_config_has
-            kof_config_has:
-                li   a0, 0
-                ret
-            .globl kof_config_str
-            kof_config_str:
-                mv   a0, a1
-                ret
-            .globl kof_config_int
-            kof_config_int:
-                mv   a0, a1
-                ret
-            .globl kof_config_long
-            kof_config_long:
-                mv   a0, a1
-                ret
-            .globl kof_config_bool
-            kof_config_bool:
-                mv   a0, a1
-                ret
-            .globl kof_config_required
-            kof_config_required:
-                beqz a0, kof_null_error
-                ret
 
             # ---- kof.time ----
             # kof_time_now() -> epoch-ms (CLOCK_REALTIME). clock_gettime=113
@@ -335,10 +295,8 @@ public final class NativeRiscvAsmRtB0 {
             kof_time_now:
                 addi sp, sp, -32
                 sd   ra, 24(sp)
-                addi a1, sp, 0              # &timespec {sec@0, nsec@8}
-                li   a0, 0                  # CLOCK_REALTIME
-                li   a7, 113
-                ecall
+                addi a0, sp, 0              # &timespec {sec@0, nsec@8}
+                call kof_plat_time
                 ld   t0, 0(sp)              # tv_sec
                 ld   t1, 8(sp)              # tv_nsec
                 li   t2, 1000
@@ -368,8 +326,7 @@ public final class NativeRiscvAsmRtB0 {
                 sd   t1, 8(sp)             # timespec.tv_nsec
                 mv   a0, sp                # &ts
                 mv   a1, zero              # rem = NULL
-                li   a7, 101
-                ecall
+                call kof_plat_sleep
                 ld   s1, 24(sp)
                 ld   s0, 32(sp)
                 ld   ra, 40(sp)

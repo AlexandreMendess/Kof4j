@@ -13,7 +13,7 @@
 animações e visualizações customizadas são impossíveis — o máximo que se faz
 são retangulos coloridos (`View`+`Style`).
 
-O futuro (`docs/development/IMPLEMENTATION-UNIVERSAL-PLATFORM.md:428`) prevê "plot básico via kof.ui"
+O futuro (`docs/development/future/IMPLEMENTATION-UNIVERSAL-PLATFORM-future.md`) prevê "plot básico via kof.ui"
 como visualização leve (SVG/`kof.ui` + FFI). O widget `Canvas` é a
 implementação concreta dessa necessidade.
 

@@ -62,7 +62,7 @@ public final class RuntimeDb3 {
                 movl 8(%rsp), %r10d
                 addq $16, %rsp
                 testq %rax, %rax
-                js .Ldb_connect_bad
+                js .Ldb_connect_lost
                 movq %rax, %rbx
                 leaq -48(%rsp), %r8
                 subq $48, %rsp
@@ -114,10 +114,9 @@ public final class RuntimeDb3 {
                 movq %rbx, %rdi
                 movq %r8, %rsi
                 movl $16, %edx
-                movq $42, %rax
-                syscall
+                call kof_plat_net_connect
                 testq %rax, %rax
-                js .Ldb_connect_bad
+                js .Ldb_connect_lost
                 addq $48, %rsp
                 # handshake: read server greeting via kof_net_read
                 leaq .Ldb_mysql_buf(%rip), %r12
@@ -126,7 +125,12 @@ public final class RuntimeDb3 {
                 movl $4096, %edx
                 call kof_net_read
                 testq %rax, %rax
-                jle .Ldb_connect_bad
+                jle .Ldb_connect_lost
+                # §523: o servidor pode responder o handshake com ERR no
+                # PRIMEIRO pacote (host bloqueado, conexoes esgotadas) — o
+                # mesmo throw do .Ldb_auth_done, nunca handle morto.
+                cmpb $0xFF, 4(%r12)
+                je .Ldb_auth_throw
                 cmpb $0x0A, 4(%r12)
                 jne .Ldb_connect_bad
                 # --- Parse greeting seed (20 bytes) into .Ldb_mysql_names ---
@@ -179,7 +183,10 @@ public final class RuntimeDb3 {
                 nop
             .Ldb_scramble_done:
                 leaq .Ldb_mysql_buf(%rip), %r8
-                movl $0x00088209, 4(%r8)   # +0x0008 CLIENT_CONNECT_WITH_DB (db no auth)
+                movl $0x0008820B, 4(%r8)   # +0x0008 CLIENT_CONNECT_WITH_DB (db no auth)
+                                           # +0x0002 CLIENT_FOUND_ROWS (paridade com o
+                                           # driver JDBC do host: UPDATE sem mudanca
+                                           # devolve found>0 — F2d4d)
                 movl $0x01000000, 8(%r8)
                 movb $0x21, 12(%r8)
                 leaq 13(%r8), %rdi
@@ -277,7 +284,7 @@ public final class RuntimeDb3 {
                 movl $4096, %edx
                 call kof_net_read
                 testq %rax, %rax
-                jle .Ldb_connect_bad
+                jle .Ldb_connect_lost
                 cmpb $0xFE, 4(%r12)
                 jne .Ldb_auth_done
                 # AuthSwitchRequest: [0xFE][plugin NUL][seed...]
@@ -345,10 +352,10 @@ public final class RuntimeDb3 {
                 movl $4096, %edx
                 call kof_net_read
                 testq %rax, %rax
-                jle .Ldb_connect_bad
+                jle .Ldb_connect_lost
             .Ldb_auth_done:
                 cmpb $0xFF, 4(%r12)
-                je .Ldb_connect_bad
+                je .Ldb_auth_throw
                 movb $4, .Ldb_mysql_seq(%rip)
                 movq %rbx, %r12
                 movl $2, %eax
@@ -419,6 +426,12 @@ public final class RuntimeDb3 {
                 ret
             .Ldb_connect_fail:
                 addq $40, %rsp
+            # S0/§421: scheme fora do contrato nativo (sqlite:/mysql://) lanca
+            # diagnostico nomeado DB001 em vez de handle nulo silencioso (R6).
+            .Ldb_connect_unsupported:
+                leaq .Ldb_unsupported_str(%rip), %rdi
+                call kof_throw_string
+                ud2
             .Ldb_connect_bad:
                 xorl %eax, %eax
                 popq %r15
@@ -429,6 +442,65 @@ public final class RuntimeDb3 {
                 movq %rbp, %rsp
                 popq %rbp
                 ret
+            # §523 (27/09, escopo votado): falha TCP (socket/connect/leitura)
+            # lanca "mysql: connection lost" em vez de handle morto (R6).
+            .Ldb_connect_lost:
+                leaq .Ldb_lost_str(%rip), %rdi
+                call kof_throw_string
+                ud2
+            # §523 (27/09): ERR do handshake (auth rejeitada, host bloqueado,
+            # 1o pacote ou pos-resposta) lanca "mysql: <msg>" — espelha o
+            # `.Lsa_ex_err` do RuntimeOrmMysqlExec. r12 = .Ldb_mysql_buf;
+            # payload em +4: ff|errno2|#|state5|msg; msg = payload+9,
+            # len = pktlen(3 bytes LE) - 9, teto 400. Nunca retorna.
+            .Ldb_auth_throw:
+                subq $64, %rsp
+                movzbl 0(%r12), %eax
+                movzbl 1(%r12), %ecx
+                shll $8, %ecx
+                orl %ecx, %eax
+                movzbl 2(%r12), %ecx
+                shll $16, %ecx
+                orl %ecx, %eax            # eax = pktlen
+                subl $9, %eax
+                jle .Ldb_auth_throw_empty
+                cmpl $400, %eax
+                jle .Ldb_auth_throw_len
+                movl $400, %eax
+                jmp .Ldb_auth_throw_len
+            .Ldb_auth_throw_empty:
+                xorl %eax, %eax
+            .Ldb_auth_throw_len:          # eax = msglen (0..400)
+                movl %eax, 0(%rsp)
+                leal 32(%rax), %edi      # 7 ("mysql: ") + 25 (header+NUL)
+                call kof_alloc           # rax = KofString*
+                movq %rax, 8(%rsp)
+                movl $1, 0(%rax)
+                movl $0, 4(%rax)
+                movq $0, 8(%rax)
+                movl 0(%rsp), %ecx
+                addl $7, %ecx
+                movl %ecx, 16(%rax)
+                movl $0, 20(%rax)
+                leaq 24(%rax), %rdi
+                leaq .Ldb_mysql_pfx(%rip), %rsi
+                movl $7, %edx
+                call kof_memcpy
+                cmpl $0, 0(%rsp)
+                je .Ldb_auth_throw_nonul2
+                movq 8(%rsp), %rax
+                leaq 31(%rax), %rdi      # 24 + 7
+                leaq 13(%r12), %rsi      # payload+9
+                movl 0(%rsp), %edx
+                call kof_memcpy
+            .Ldb_auth_throw_nonul2:
+                movq 8(%rsp), %rax
+                movl 0(%rsp), %ecx
+                addl $7, %ecx
+                movb $0, 24(%rax,%rcx)
+                movq 8(%rsp), %rdi
+                call kof_throw_string
+                ud2
 
             # kof_db_close(id: KofString) — handles both sqlite and mysql fd
             """);

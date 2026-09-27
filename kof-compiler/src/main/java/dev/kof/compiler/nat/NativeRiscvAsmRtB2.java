@@ -57,7 +57,9 @@ public final class NativeRiscvAsmRtB2 {
                 addi sp, sp, 48
                 ret
 
-            # kof_cache_ttl(key) -> segundos restantes, 0 default
+            # kof_cache_ttl(key) -> segundos restantes; -1 se ausente, sem ttl
+            # ou expirado (oráculo x86/JVM: RuntimeCache.java). Antes devolvia 0
+            # nesses três casos — divergência R6 medida pelo golden cross.
             .globl kof_cache_ttl
             kof_cache_ttl:
                 addi sp, sp, -48
@@ -83,7 +85,7 @@ public final class NativeRiscvAsmRtB2 {
                 j    .Lct_scan
             .Lct_found:
                 ld   t4, 16(s1)
-                beqz t4, .Lct_miss     # sem ttl (expira=0) → 0
+                beqz t4, .Lct_miss     # sem ttl (expira=0) → -1
                 sd   t4, 0(sp)
                 sd   s1, 8(sp)
                 call kof_time_now
@@ -95,7 +97,7 @@ public final class NativeRiscvAsmRtB2 {
                 div  a0, t4, t5
                 j    .Lct_ret
             .Lct_miss:
-                li   a0, 0
+                li   a0, -1
             .Lct_ret:
                 ld   s1, 24(sp)
                 ld   s0, 32(sp)

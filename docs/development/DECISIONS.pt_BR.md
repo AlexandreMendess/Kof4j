@@ -12,6 +12,70 @@
 
 ---
 
+## 0. Índice de decisões
+
+Auxílio de navegação, não é uma decisão por si só. Ordenado como neste arquivo.
+
+- **1.** Autoridade e regras de alteração
+- **2.** Invariantes globais
+- **D-STDLIB** — tempo e calendário
+- **D-SEC** — segurança
+- **D-APP** — modelo de aplicação
+- **D-SPRING** — independência de framework
+- **D-RELEASE** — critério de avaliação de patch
+- **D-ASM-GATE** — gate de ASM riscv/aarch
+- **D-BACKEND-SEMANTICS** — semântica de backend
+- **D-BASELINE** — baseline da toolchain
+- **D-NULL** — nullabilidade e primitivos
+- **D-NULL-INTENT** — intenção explícita de nullabilidade
+- **D-PRINT** — conversão implícita de Char
+- **D-NARROW-WHILE** — narrowing de fluxo
+- **D-ENUM207** — identidade de enum
+- **D-VALUE-RECORD** — value records / tipos de valor de primeira classe
+- **D-DEV-PRIORITY** — "Em desenvolvimento" é a prioridade absoluta
+- **D-DIAG-EN** — tooling/diagnósticos em inglês; docs EN+PT
+- **D-DECL-RETURN** — o tipo de retorno declarado é lei (#333)
+- **D-NOT-JAVA** — Kof não é Java/Kotlin
+- **D-UI-STYLE** — `style` declarativo (UI007)
+- **D-UI-TOKENS** — tokens do design system
+- **D-UI-APPSTATE** — `AppState(initial)` store-raiz
+- **D-UI-DIFF** — reuso de nó
+- **D-UI-AUTOUNSUB** — inscrições com escopo por component
+- **D-UI-CANCELLED** — `cancelled()` em ações async de UI
+- **D-UI-SCOPE** — atualizações de regra do `kof.ui`
+- **D-UNIVERSAL** — promoção do universal-platform
+- **D-TRIAGE** — a checagem de filosofia precede a issue
+- **D-POLL-19** — todas as decisões pendentes resolvidas (enquete 19/09)
+- **D-TROOL** — `Bool` nunca nullable; `Troolean`
+- **D-KOF-FIRST** — contrato interno antes da comparação externa
+- **D-SCHED-DURATION** — durações idiomáticas no `scheduler.at`
+- **D-WORKFLOW-RUN** — `kof workflow run`
+- **D-MAKEALIVE** — Kof Makealive (Estágio 3)
+- **D-MAKEALIVE-CLI** — contrato da 3.8: `kof makealive plan|apply|destroy` (20/09)
+- **D-MAKEALIVE-SYNTAX** — 3.2 `infra "prod" { }` = açúcar puro sobre `design()` (21/09)
+- **D-ARRAY-PRINT** — §388-B: `println(Int[])` é o formato de container §107 (21/09)
+- **D-KOF-AS-CLOUD** — Kof tem que SER a nuvem
+- **D-BOOTSTRAP** — o bootstrapper (Kof em Kof)
+- **D-DB-GAPS** — gaps órfãos de DB/ORM
+- **D-BRANCH-0.5.0** — trabalho move para `beta-0.5.0`
+- **D-RELEASE-1.0** — KOF 1.0 EXIT GATE
+- **D-VERSION-BUMP-0.5.0** — revisão para `0.5.0-beta`
+- **D-1.0-EDGES** — arestas abertas fechadas
+- **D-SLOT-PIN** — §383/#561 valor armazenado do "miss abençoado"
+- **D-RELEASE-0.5.0-GATE** — gate de release 0.5.0
+- **D-RELEASE-0.5.0-SCOPE** — planos em voo no allowlist; EG-8 desacoplado
+- **D-RULE6-BATCH** — triagem rule-6: seis decisões (funções como valores, SEM084-087, ABI na 1.0)
+- **D-FFI-STRUCT** — ABI de struct/array da FFI (D6)
+- **R6-SCOPE** — entrega incremental não fere o R6
+- **D-R3-BUFFER** — out-buffer = tipo nominal `Buffer(U8)`
+- **D-R3-HANDLE-LIFETIME** — memória do `Handle` é automática
+- **D-ARTIFACT-TRUST** — contrato de confiança dos artefatos 1.0
+- **D-VERSIONING-RELEASE** — política consolidada de versionamento e corte de release
+- **D-DEBT-SCOUT** — ferramenta de escoteiro de dívida técnica autorizada, só Wave 1, sem capacidade de publicar Issue
+- **D-DEBT-SCOUT-W2** — Wave 2 autorizada (qualificação de evidência, clustering, SARIF); ainda shadow, ainda sem publicar Issue
+
+---
+
 ## 1. Autoridade e regras de alteração
 
 ### 1.1 Quem decide
@@ -488,8 +552,8 @@ O modelo não muda entre essas topologias.
 * `KofBlogE2ETest`
 * `KofWebE2ETest`
 
-**Referência:** `docs/architecture/application-model.md`
-**Fila:** `CmdNew` ✅ (`new` em `Main.java:37`); integração de manifesto/dependências ✅ (`kofdeps` + lock transitivo 1.5.2 + registry pull 1.5.3-S2, 19/09); gaps de target → rastreados em `docs/backend-parity.md` (ledger, não este registro).
+**Referência:** `docs/backend-parity.md` (modelo de app `APP001–003`)
+**Fila:** `CmdNew` ✅ (`new` em `Main.java:37`); integração de manifesto/dependências ✅ (`kofdeps` + lock transitivo 1.5.2 + registry pull 1.5.3-S2, 19/09); gaps de target → rastreados em `docs/backend-parity.md` (ledger, não este registro). `APP002` ✅ FEITO 23/09 (#598, ratificado no chat): o `kof serve` repassa `[server] port` do `kof.toml` como `KOF_SERVER_PORT` quando a env var não está setada (env do usuário prevalece) — prova `ServeManifestPortE2ETest` 2/2.
 
 ---
 
@@ -599,6 +663,17 @@ O contador não congela features.
 Features e fixes concluídos com suíte verde entram no pacote.
 
 **Estado registrado em 14/09:** `main..beta = 1`.
+
+### Relação (adicionada em 22/09/2026 — `D-VERSIONING-RELEASE`)
+
+O histórico acima é preservado (§1.3). A `D-VERSIONING-RELEASE` generaliza e
+refina esta regra sem apagá-la:
+
+- a faixa de `100–150 commits` é o **gatilho ordinário de avaliação de
+  release** — um gatilho, nunca uma autorização para publicar;
+- a faixa é `LAST_RELEASE..ACTIVE_BRANCH`, não mais fixada em
+  `origin/beta-0.4.0`;
+- a classificação PATCH/MINOR/MAJOR agora segue a `D-VERSIONING-RELEASE`.
 
 ---
 
@@ -869,6 +944,21 @@ Registrado aqui pela lane antes/com a implementação, conforme a regra de
 hierarquia (diretriz posterior explícita da mantenedora supera restrição
 documentada anterior).
 
+**Autorização (23/09, mantenedora via chat, regra de hierarquia):** a
+mantenedora ABRIU o item 2 (**Native**) da fila desta decisão — a frente do
+ABI de caixa marcada (`roadmap.md` §23 TIER 2.6.2, `N2`) — para implementação
+pela lane do compilador (`9092`). A face Native restante é o **print
+polimórfico de referência `Object`**: um record/classe tipado `Object` (`as
+Object` direto ou local tipado `Object`) chega ao `kof_box_to_string`, que só
+decodifica a caixa MAGIC de primitivo e, fora disso, passa o ponteiro cru —
+então `println(o)` imprime vazio em vez do `toString` do record (medido 23/09:
+JVM `Point[x=1, y=2]` vs Native vazio — repro em `NativeObjectBoxPrintE2ETest`).
+O contrato decidido permanece: a caixa é `[MAGIC][tag][valor]` (24 B, §3.9
+`RUNTIME_ABI.md`) e nenhum segundo ABI é criado; a face de referência despacha
+`toString` pela identidade da própria classe (`type_id` no offset 0, o mesmo
+discriminador que o `kof_instanceof` já usa). Registrado aqui pela lane
+antes/com a implementação.
+
 As lanes podem atuar em:
 
 * auditoria SEM048/SEM049;
@@ -922,19 +1012,15 @@ O falso-positivo SEM012 do caso #159 deve ser eliminado.
 ## D-ENUM207 — identidade de enum
 
 **Data:** 15/09/2026
-**Estado:** `IN_PROGRESS`
+**Estado:** `IMPLEMENTED`
 
-A implementação de identidade de enum foi reatribuída à lane bugs-and-gaps.
-
-A mudança semântica:
+A implementação de identidade de enum foi reatribuída à lane bugs-and-gaps e está **completa**: enums são classes reais (`CompilerEnumLowering`), identidade `==`, `name`/`ordinal`/`values()` reais. A mudança semântica abaixo foi tratada como **decisão de contrato** (não correção local) e está resolvida — a fatia 1 tornou `enum == String` um **erro de tipo** (`SEM062`) em todos os alvos; a fatia 2 materializou enums como classes reais. Prova: `EnumIdentityE2ETest` 6/6; `known-bugs.md` §211 ✅ CLOSED 15/09; issue #207 fechada.
 
 ```kof
 Dir.N == "N"
 ```
 
-deve ser tratada como decisão de contrato, não como simples correção local.
-
-A decisão final sobre a semântica permanece registrada nesta seção antes da alteração do comportamento.
+A semântica final está registrada nesta seção; o comportamento foi alterado sob esta decisão.
 
 ---
 
@@ -1808,7 +1894,7 @@ Testes, commits, matriz ou documentação.
 
 ---
 
-## 7. Regra final
+# 7. Regra final
 
 **Decisões são permanentes até serem substituídas. Implementações são revisáveis.**
 
@@ -1834,9 +1920,9 @@ diferente de `List<String>`" (= opção A, rejeição em compile-time) · X8-A �
 | D1 (A) | re-baseline do auto-collect do GC x86 **aprovado agora** | 1.2.2/1.2.3 seguem; portão do Estágio 6 aberto — execução = lane nativa |
 | D2 (A) | registry MVP = **local + GitHub Releases como host oficial** (publish = Release com artefato + SHA256SUMS) | 1.5.3 ⛔→aberto; face `kof deploy --publish` (lane docs→plataforma); 8.2 gerenciador de pacotes |
 | D3 (A) | **plano de design do bare-metal/bootável autorizado** | 1.7: doc de plano em `docs/development/` (lane nativa rascunha, mantenedora revisa) |
-| D4 (A) | **padrão conservador**: todo namespace nasce `experimental`; promoção por-namespace com o DoD do R5 | R5; `docs/backend-parity.md` §Tiers (linha do default adicionada 19/09) |
+| D4 (A) | **padrão conservador**: todo namespace nasce `experimental`; promoção por-namespace com o DoD do R5 | R5; `docs/backend-parity.md` §Tiers (linha do default adicionada 19/09); **gate de máquina 21/09** — tier em `scripts/stdlib_boundary.txt` + `scripts/check_stdlib_boundary.sh` (recusa tier ausente/inválido e `stable` sem pin) |
 | D5 (B) | **sem sintaxe nova** — recursos escopados = `close()` + `try/finally`; `using` está FORA | 6.5 entrega padrão, não gramática; `future/scoped-resources` segue design-only |
-| D6 (A) | ABI struct/array do R3: **spec escrita primeiro, revisão, depois código** | spec `docs/development/ffi-abi-structs.md` (rascunho da lane docs→plataforma 19/09, design-only); implementação = lane compilador |
+| D6 (A) | ABI struct/array do R3: **spec escrita primeiro, revisão, depois código** | spec `docs/ffi-abi-structs.md` (rascunho da lane docs→plataforma 19/09, design-only); implementação = lane compilador |
 | D7 (A) | value records (TIER 2.7) com **front aberta agora** | fila 2.7.1+ do roadmap §23 ativa — lane compilador (coordenação com Cluster A) |
 | #401 | **bug real**: `List<Int>` atribuído como `List<String>` deve ser REJEITADO em compile-time | Cluster A §270/§271 (`.22`) executa; freeze regra 1 respeitado — o código que compila hoje FALHA no runtime, então apertar casa com o contrato documentado |
 | X8 (A) | runner `kof.test` implementado **exatamente como o roadmap §G6 especifica** | X8 fatia 3 — lane docs→plataforma |
@@ -1921,7 +2007,7 @@ silencioso (regra 6 do freeze / R6).
    sobre a leitura de 3 estados).
 2. Face Native (medir; diagnóstico-ou-funciona — nada inventado).
 3. Corpus: `training/idioms/` (errors/control-flow) + `fake-idioms.md` (linha
-   `Bool?` → Troolean), `docs/language/types.md`, nota de revisão no
+   `Bool?` → Troolean), `docs/language-reference/types.md`, nota de revisão no
    D-NULL-INTENT, entrada de migração no CHANGELOG (linha 0.4.0), célula da
    matriz em `backend-parity.md`.
 
@@ -2147,8 +2233,10 @@ nesta sessão — respostas às Q1–Q4 do §6 de `makealive-plan.md`)
 **Evidência:** enquete da mantenedora no chat 19/09–20/09 (respostas: A /
 "completo" / "kof.db desde o dia 1" / "confirmar flat + inglês"). Colisão R1
 medida 19/09 (plano §2.1). **Destrava a linha 3.1 do tracker** (dono .18):
-próximo = 3.1 core host + `MakealiveE2ETest`; 3.2/3.7 ainda ⛔ R4; 3.8
-(contrato do CLI `kof infra`) segue pergunta aberta (regra 6).
+próximo = 3.1 core host + `MakealiveE2ETest`; 3.2/3.7 eram ⛔ R4 — **R4 ✅ pousou 21/09** (3.2 segue decisão de superfície regra 6; 3.7 depende dela); 3.8
+(contrato do CLI `kof infra`) segue pergunta aberta (regra 6). **ATUALIZAÇÃO 21/09:** resolvido por
+**`D-MAKEALIVE-SYNTAX`** (abaixo) — **3.2 DECIDIDA** (açúcar puro sobre `design()`),
+que **destrava a 3.7**; **3.8 reiterada** (`kof makealive` apenas, `kof infra` não adicionado).
 
 ## D-KOF-AS-CLOUD — Kof tem que estar pronto para SER a própria nuvem
 
@@ -2220,7 +2308,12 @@ ninguém nas gaps de db. agente morto")
   (R6).
 * **DB-2 — Android recusa `kof.db` (§278, linha 1.1.10):** **implementar
   corretamente — Android É JVM**, então tem que ter o **mesmo
-  comportamento que o JVM**. A recusa `DB001` no alvo Android é levantada;
+  comportamento que o JVM**. **IMPLEMENTADO 20/09**: `supportedOn` de
+  `KofDb`/`KofOrm` inclui `ANDROID`; pinado por
+  `KofDbE2ETest.androidDbEmitsTheSameBytecodeAsJvm` (`Main.class`
+  byte-idêntico) e pelo pin virado
+  `DomainGapCodesTest.androidCompilesDbLikeJvmAndRefusesCryptoWithTheDocumentedCode`;
+  §278 agora é PARCIAL (SECN/GPU abertos). A recusa `DB001` no alvo Android é levantada;
   o pin `DomainGapCodesTest.androidRefusesDbAndCryptoWithTheDocumentedCodes`
   vira paridade na face de DB. As recusas `SECN00x`/`GPU001` seguem
   honestas até aquelas pilhas de fato rodarem no Android (outras lanes; o
@@ -2242,3 +2335,1840 @@ JVM/JS enquanto isso (esses alvos já têm `kof.db` real).
 sobre os kof_db_* existentes", DB-2 "implementa corretamente… android é
 jvm", DB-3 "B) estender MySQL p/ riscv/aarch", MK-1 "B) completo de uma
 vez".
+
+### Adendo D-DB-GAPS (21/09/2026, mantenedora) — PARIDADE TOTAL de DB em todos os alvos
+
+Enquete (chat 21/09, na triagem do §421): perguntado qual gap-code nativo usar
+para a aceitação silenciosa de schemes não suportados, a mantenedora respondeu
+**paridade total — todo alvo deve ACEITAR `mariadb`, `mysql`, `sqlite`,
+`mongodb`, … (sem endpoint de gap-code)**. Isso generaliza o DB-3: a superfície
+de DB alcança o *mesmo conjunto de schemes* em JVM/Android/JS/Native, cada
+scheme **real** (R6). Um scheme não suportado é **gap interino declarado**
+apenas enquanto a fatia pousa — nunca recusa permanente, nunca aceite silencioso.
+
+**Estado medido (21/09, esta lane — medição, não memória):**
+- **JVM/Android/JS:** JDBC via host — qualquer URL JDBC com driver no
+  classpath (h2, sqlite-jdbc, mysql, mariadb, postgres); o delegate JS É o JDBC
+  do host. MongoDB **não** é JDBC (protocolo separado).
+- **Native (x86-64/riscv64/aarch64):** `sqlite:` (libsqlite3, link-by-use) +
+  `mysql://` (wire protocol em `RuntimeDb2.java`) são reais; `mariadb://`
+  (compatível mysql-wire) e `mongodb://`/`oracle://` **não** são parseados —
+  `kof_db_connect` registra um handle tipo-0 e a falha aparece tarde no
+  `.Lorm_conn` (**§421**).
+- `kof_db_type` já reserva **1=sqlite 2=mysql 3=oracle 4=mongo** → o modelo de
+  tipo antecipa esta frente.
+
+**Fatias (fila aberta em `docs/stdlib/db-parity-plan.pt_BR.md`):** S0
+diagnóstico interino honesto (limpa o aceite silencioso do §421 enquanto os
+schemes pousam); S1 `mariadb://` = alias mysql-wire (Native, 3 arcos); S2
+paridade de schemes JDBC JVM/JS/Android (por-driver medido, diagnóstico honesto
+de driver ausente); S3 `mongodb://` interop-first (driver/wire — nunca um
+servidor caseiro, R9); S4 oracle (idem). Dono: frente DB/ORM (dono a nomear) +
+esta lane para o plano/registros. **Não é mudança de superfície congelada** —
+alarga as URLs aceitas; a API `kof.db`/`kof.orm` não muda.
+
+## D-BRANCH-0.5.0 — trabalho move para `beta-0.5.0`; `beta-0.4.0` fica para pousos em voo + preparo da release (20/09/2026, ordem da mantenedora)
+
+**Ordem (chat 20/09/2026):** "avise os outros agentes, vamos mover todo trabalho
+pra branch beta-0.5.0 e começar a preparar a nova release".
+
+**Decidido:**
+- Nova branch ativa: `beta-0.5.0`, cortada do tip de `beta-0.4.0`. Todo commit
+  novo (código e docs, todas as lanes) entra nela.
+- `beta-0.4.0` ainda recebe o que já está em voo (ex.: WIP §374/#553 da `.22`);
+  cada pouso lá é adiantado (ff) para `beta-0.5.0` pela lane docs, para as duas
+  nunca divergirem em conteúdo.
+- Bump de versão (`<revision>0.4.7-beta</revision>` do `pom.xml` → número novo),
+  corte do CHANGELOG e tag são **itens do preparo de release** — a mantenedora
+  confirma o número no corte (regra 6); ninguém bumpa unilateralmente.
+- A fila do preparo mora em `docs/development/release-beta-0.5.0-prep.pt_BR.md`
+  (+EN).
+
+**Evidência:** ordem da mantenedora 20/09/2026 (chat); linhas de branch ativa do
+`AGENTS.md`(+PT) e este registro no mesmo passo; issues abertas #550/#553/#554
+e o guarda-chuva #555 avisados por comentário; banner no `DOING.md`(+PT) para
+todas as lanes.
+
+## D-RELEASE-1.0 — KOF 1.0 EXIT GATE: estabilização dos contratos é a meta de desenvolvimento; não existe RC/release 1.0 com qualquer item em falta ou qualquer aresta aberta (20/09/2026, ratificação da mantenedora)
+
+**Ordem (chat 20/09/2026):** "decisão de `docs/development/future/PROPOSAL-1.0-EXIT-GATE.md`
+ratificada. concordo com o planejamento. setar como meta de desenvolvimento a
+estabilização dos contratos seguindo o planejamento existente nessa issue. kof
+RC 1.0.0 e kof release 1.0.0 só existem QUANDO todos os pontos estiverem
+correspondentes e não houver nenhuma aresta aberta".
+
+**Decidido:**
+- A proposta vira o contrato normativo, registrado aqui como `D-RELEASE-1.0`.
+  O documento foi promovido de `future/` para
+  `docs/PROPOSAL-1.0-EXIT-GATE.md` (+`.pt_BR.md`), o bloco de
+  aprovação da §22 foi preenchido como registro mecânico desta aprovação no
+  chat (palavras dela citadas como evidência), e o status do cabeçalho mudou
+  para RATIFICADO.
+- **O EXIT GATE (§8 + complemento D-BRANCH-0.5.0) é vinculante**: uma build só
+  pode ser declarada Kof RC 1.0.0 com TODO item obrigatório satisfeito por
+  evidência reproduzível na mesma candidata, e o RC só vira Stable 1.0.0 com o
+  gate ainda verde e sem regressão RC→Stable. Não existe corte, tag nem
+  publicação de "1.0" enquanto QUALQUER item estiver em falta ou QUALQUER
+  aresta estiver aberta — essa é a definição de "todos os pontos correspondentes
+  e nenhuma aresta aberta", e é responsabilidade de toda lane, não cerimônia do
+  dia do release.
+- **Meta de desenvolvimento (imediata)**: estabilização dos contratos pela fila
+  da §23 — definir `release-blocker` mecanicamente (classificação §11 em quatro
+  categorias para toda issue aberta), implementar o gate mecânico com REDs
+  escritos ANTES de qualquer lógica de gate (critérios de confiabilidade §10:
+  veredito do mesmo SHA, sem análise velha decidindo commit novo, sem
+  false-green conhecido, fim do `CODEQL_GATE_SKIP` de rotina), validar
+  ANTES/DEPOIS, testar o pacote real fora do repo, rodar a matriz final de
+  alvos. Só então pode existir a primeira candidata a RC. Fila aberta em
+  `docs/development/roadmap.md` §23 e claimada no `DOING.md`.
+- **Q1 (quando a linha 1.0 começa)**: como proposto — quando a Mel declarar
+  explicitamente aberta a linha/candidata 1.0 (item do complemento do gate);
+  nada antes disso.
+- **Q2/Q7 (superfície — AINDA ABERTAS, são as primeiras "arestas" a fechar)**:
+  a ratificação aprova o contrato e o planejamento; não fabrica respostas que
+  ela não deu. KofC e Android dentro da superfície Stable 1.0, e os candidatos
+  de reforço `[? MEL]` da §35, continuam decisões da mantenedora que bloqueiam
+  apenas o primeiro RC — pergunta não respondida é aresta não fechada. Enquanto
+  isso, site/README NÃO PODEM implicar decisão que não existe (o site hoje
+  marca KofC "Disponível" — sincronizar docs/site é item da fila).
+- **Q3**: mecanismo = a classificação da §11 é normativa (toda issue aberta em
+  exatamente uma de BLOCKS 1.0 / OUTSIDE 1.0 SURFACE / POST-1.0 / NOT A BUG),
+  tornada mecânica por labels + ledger + o gate mecânico — nunca pela ausência
+  de label.
+- **Q4**: congelamento como proposto — a superfície pública congela a partir do
+  primeiro RC aprovado pela Mel; estabilização, fixes, testes, docs e CI seguem
+  andando.
+- **Q5**: gaps podem permanecer apenas explicitamente FORA da superfície 1.0,
+  com alvo conhecido, diagnóstico honesto, docs atualizadas e a decisão de
+  escopo registrada.
+- **Q6**: os critérios de confiabilidade do gate (§10) são aceitação vinculante,
+  não aspiração; a solução técnica do Quality Gate segue frente própria (passos
+  5–8 da §23).
+
+**Não-objetivos deste registro:** NÃO autoriza corte de 1.0, NÃO faz bump de
+VERSION (0.4.7-beta permanece até o release-prep, por D-BRANCH-0.5.0) e NÃO
+fecha a #560 — a issue fica como fio de acompanhamento até a fila que abriu ser
+executada.
+
+**Evidência:** ratificação da mantenedora 20/09/2026 (chat, verbatim no bloco
+§22 do doc e neste registro); doc EN+PT atualizado + promovido no mesmo passo;
+fila no `roadmap.md` §23; claim no `DOING.md`; #560 cross-notificada.
+
+
+## D-VERSION-BUMP-0.5.0 — a revisão passa a `0.5.0-beta` na branch ativa (20/09/2026, ordem da mantenedora)
+
+**Decisão (mantenedora, chat 20/09/2026):** "faz o bump de versão em tudo no repo
+pra beta 0.5.0" — a versão do produto sobe `0.4.7-beta → 0.5.0-beta` na branch
+ativa `beta-0.5.0` (`D-BRANCH-0.5.0`). Isso fecha o item 3 do checklist de
+release (`docs/development/release-beta-0.5.0-prep.md`) e substitui a cláusula
+"VERSION fica em 0.4.7-beta" do `D-RELEASE-1.0` apenas no sentido de que a fase
+de preparo de release que ela reservava foi iniciada por ordem.
+
+**Mecânica:** fonte única `VERSION` → `scripts/bump-version.sh` sincroniza o
+`<revision>` do `pom.xml` e `dev/kof/version.properties` (`kof.version=0.5.0-beta`;
+compiler/runtime/stdlib `0.5.0`; tooling API 21 inalterada). Docs com stamp de
+**versão corrente** (README, `docs/status`, cabeçalho do `docs/backend-parity`,
+cabeçalho do `AGENTS.md`, saídas de distribution/install, cabeçalhos
+training/learn, stamps "Updated:" dos idiomas, exemplos de nome de artefato)
+foram bumpados EN+PT no mesmo commit. Menções **históricas** (seções do
+CHANGELOG, medições do `known-bugs.md` feitas em jars `0.4.7-beta`,
+"Introduced:", stamps de feature como `D-TROOL 19/09`) foram mantidas —
+história não se reescreve (regra 4 do freeze).
+
+**Verificação antes do bump (item 3 do prep):** nenhum teste ou script fixa a
+versão do artefato (só um comentário histórico no javadoc de
+`TrooleanLawE2ETest`).
+
+
+## D-1.0-EDGES — as arestas abertas estão fechadas: 5ª categoria, #564/#565 como `1.0-blocks`, KofC + Android dentro da superfície 1.0, os nove reforços da §35 obrigatórios, e a linha 1.0 abre após o release 0.5.0 + EG-1..EG-7 (20/09/2026, respostas da mantenedora às sete perguntas abertas)
+
+**Contexto:** a ratificação do `D-RELEASE-1.0` deixou sete arestas abertas (as
+perguntas `[? MEL]` da §35 do `PROPOSAL-1.0-EXIT-GATE.md`, a classificação de
+#560/#564/#565 e a Q1). A mantenedora respondeu todas as sete (enquete,
+20/09/2026). Este registro trava as respostas; os não-objetivos do
+`D-RELEASE-1.0` (sem corte 1.0, sem tag, #560 segue aberta) continuam valendo.
+
+**Decidido (as sete):**
+
+1. **#560 — 5ª categoria.** O guarda-chuva de acompanhamento do gate não é
+   defeito e não cabe nas quatro categorias da §11; a §11 agora tem **cinco**.
+   O label foi criado como `release-tracking` e renomeado para
+   **`tracking/contract`** ("Tracks an already-ratified contract; valid in
+   stabilization, must close before RC"); a #560 o carrega. O gate mecânico
+   (`scripts/check_release_blockers.sh`) o reconhece; uma issue nessa categoria
+   é válida durante a estabilização, mas ainda precisa fechar antes do RC.
+2. **#564 — `1.0-blocks`.** `kof deps resolve <owner>/<repo>@<ver>` sempre falha
+   com REG002 contra os GitHub Releases reais (pickTarball corta o objeto do
+   asset no "uploader" aninhado) — o contrato de pacote/deps está quebrado
+   ponta a ponta.
+3. **#565 — `1.0-blocks`.** Todo fat jar JVM construído pelo `kof deploy`
+   embute uma cópia truncada de si mesmo como entrada `kof-app.jar` (zip
+   inválido) — integridade do artefato de deploy.
+4. **Q1 — quando a linha 1.0 abre.** Depois do **release 0.5.0 cortado** e dos
+   **EG-1..EG-7 fechados**; só então ela declara e a primeira candidata a RC é
+   cortada (EG-8).
+5. **KofC — dentro da Stable 1.0, com gate próprio.** O "Disponível" do site
+   fica consistente; KofC é alvo pleno da superfície 1.0 com gate próprio, não
+   item fora/opcional.
+6. **Android — dentro da 1.0, com gate próprio** (a opção cheia, não a parcial
+   recomendada; o CI já roda o APK). Android é alvo pleno da superfície 1.0 com
+   gate próprio.
+7. **§35 — os nove candidatos viram gates obrigatórios** (não só os quatro
+   recomendados): app real com o pacote; baseline/sem regressão; política de
+   falha/flake sem false-green; snapshot da Stable Surface no RC1; identidade
+   do artefato (SHA256/provenance); manifesto de evidência por alvo; corpus de
+   compatibilidade; waiver formal (+ os demais itens do doc).
+
+**Consequência — superfície Stable 1.0 = 8 alvos:** JVM, Native x86-64,
+riscv64, aarch64, JS, Script, **KofC**, **Android**, cada um com gate próprio
+onde aplicável.
+
+**Não-objetivos:** NÃO autoriza o corte 1.0 (isso é o EG-8, condicionado a
+EG-1..EG-7 + o release 0.5.0), NÃO muda a VERSION, NÃO fecha a #560.
+
+**Evidência:** respostas da mantenedora 20/09/2026 (enquete); label
+`tracking/contract` na #560; #564/#565 rotuladas `1.0-blocks`; ledger
+`scripts/release-blockers.tsv`; gate `scripts/check_release_blockers.sh` (cinco
+categorias; `--rc-gate` RED com 4 `1.0-blocks` abertos).
+## D-SLOT-PIN — §383/#561 valor armazenado do "miss abençoado": o slot pinado vence; o JS coage no store (opção (a)) (20/09/2026, despacho da mantenedora)
+
+**Data:** 20/09/2026 · **Estado:** `DECIDIDO` (despacho da mantenedora da
+unidade #561, 20/09 — "o tipo pinado do slot vence, o valor é reescrito no
+store; o JS DEVE bater com o consenso de 3 alvos")
+
+**Decisão:** o dossiê §383 (três opções medidas) resolve-se com a
+**opção (a) — coagir o JS ao slot**. Fundamentos, todos em lei pré-existente
+(a questão está FECHADA pelo contrato, não reaberta): freeze regra 5
+(divergência JVM/Native/JS no mesmo programa é bug de paridade — nunca
+divergência silenciosa), a lei de medida "golden = oracle JVM" e o contrato do
+miss abençoado do §126 COMO IMPLEMENTADO (box-pelo-slot no store —
+`listOf(1).add(true)` guarda `1` em JVM/Script/Native). Consequências no mesmo
+commit:
+
+- **JS** (`JsCollectionOps.slotStoreCoerce`): no store pinado de List
+  add/set, slot numérico + arg Bool → `v ? 1 : 0`; slot Bool + arg
+  numérico/char → truthiness — no MESMO ponto da coerção dos outros alvos (o
+  store).
+- **JVM** (`CompilerEmissionHelpers.coerceStoreWiden`, só sites de List): o
+  miss abençoado bool→Long agora emite `I2L` antes do box do slot — a face
+  morria em `Long.valueOf(J)` sobre `ICONST_1` (frame crash COMP002, medido
+  20/09); Script/Native já gravavam `1` e permanecem byte-idênticos.
+- **Pares que cruzam a fronteira de categoria NÃO são miss abençoado**
+  (`CollectionWrites.breaksPinnedList`, sites de List add/set + literal
+  `listOf`): primitivo em slot de REFERÊNCIA (`listOf(listOf(1)).add(true)`)
+  e o espelho (objeto em slot primitivo) quebram nos DOIS alvos compilados
+  (VerifyError no load no JVM, SIGSEGV/lixo no Native) e divergem nos dois
+  tolerados — a própria doutina do §126 ("rejeitar só o que quebra de
+  verdade") os torna SEM056 nos quatro.
+- **Map/Set continuam intocados**: lá a heterogeneidade de categorias
+  vizinhas é tolerada pelo consenso 3/4 (faces S2/M1 medidas 20/09 — coagir
+  moveria o JS para o lado da minoria Native).
+
+**Evidência:** `HeterogeneousSlotPinE2ETest` 16/16
+(JVM≡Script≡JS≡Native byte-a-byte, goldens de execuções JVM 20/09); §383
+virado em `known-bugs.md` EN+PT; #561 respondida com a matriz medida.
+
+## D-RELEASE-0.5.0-GATE — o gate de release 0.5.0: sete condições, todas medidas, nenhuma aresta aberta (20/09/2026, diretiva da mantenedora)
+
+**Contexto:** o release 0.5.0 é a pré-condição que a mantenedora definiu para
+abrir a linha 1.0 (`D-1.0-EDGES` Q1: release 0.5.0 cortado + EG-1..EG-7
+fechados). Este registro trava o **gate de release do 0.5.0** — as sete
+condições que ela declarou como prioridade para "liberar o gate 0.5.0 para
+todos os agentes". Ele refina (nunca substitui) o checklist de preparação do
+release e o gate §8: as sete são a **aceitação**; a fila que as satisfaz é o
+`roadmap.md` §24 (EG) + `release-beta-0.5.0-prep.md` + as lanes de cada item.
+
+**Decidido — as sete condições (lista da mantenedora, 20/09/2026):**
+
+1. **Paridade 100% entre os alvos** — o mesmo programa produz o mesmo
+   resultado observável em todo alvo da superfície 0.5.0; divergência é bug
+   (regra 5 do freeze) ou gap diagnosticado `XXX00x`, nunca silencioso.
+2. **Nenhuma decisão pendente** — o `DECISIONS.md` não carrega pergunta aberta
+   que mude a superfície (nenhum `[? MEL]` não resolvido no PROPOSAL e nenhum
+   `Estado: OPEN`); nada espera por decisão. Um item `Estado: OPEN — spec/plano
+   primeiro` tem direção decidida mas plano pendente, então o gate reporta
+   `NEEDS-REVIEW`, nunca verde silencioso.
+3. **Todos os `.md` soltos em `docs/development/` concluídos e movidos** — a
+   regra dos três estados: `docs/development/` mantém só trabalho com
+   implementação pendente; doc concluído move para `docs/`.
+4. **Estabilidade total** — suíte completa verde (0F/0E fora das guardas
+   ambientais documentadas) + matriz de conformidade 5/5 medida na candidata.
+5. **0 issues abertas que sejam bug** — nenhuma issue OPEN do GitHub que seja
+   bug. A #566 entra como bloqueio (mantenedora 20/09/2026).
+6. **Todas as arestas fechadas** — toda aresta aberta fechada com prova: a
+   **fila EG inteira (EG-1 até EG-10)** e as issues `1.0-blocks` abertas. O
+   release 0.5.0 espera até cada dono fechar e mover o próprio trabalho
+   (confirmado pela mantenedora 20/09/2026 — o gate mede, não assume o item de
+   outra lane).
+7. **Nada pendente em bugs-and-gaps** — `docs/bugs-and-gaps/known-bugs.md` e
+   `specification-gaps.md` sem entrada live/OPEN.
+
+**Ordem de execução proposta (leitura do agente — a mantenedora pode
+reordenar):** primeiro as arestas de corretude que já são `1.0-blocks` e os
+known-bugs live (condições 1/5/6/7 — compartilham as mesmas causas-raiz e
+desbloqueiam o resto), depois a higiene de docs/decisão (2/3), com a
+estabilidade (4) medida por último na candidata congelada. O script do gate
+reporta cada condição como GREEN / RED / NEEDS-MEASURE, para a lista de
+trabalho ser exata, nunca a olho.
+
+**Não-objetivos:** NÃO corta o release 0.5.0 (isso é decisão da mantenedora no
+corte, regra 6), NÃO bumpa `VERSION`, NÃO abre a linha 1.0, NÃO autoriza RC
+1.0 (EG-8 segue gateado no corte do 0.5.0).
+
+**Evidência:** diretiva da mantenedora 20/09/2026 (chat); estado inicial
+medido (20/09/2026): `scripts/check_known_bugs_status.sh` reporta 19
+known-bugs live (EN×PT consistentes); 4 issues OPEN com label `bug`
+(#561/#563/#564/#566); `scripts/check_release_blockers.sh --rc-gate` RED com 4
+`1.0-blocks` abertos (#561/#563/#564/#566); `specification-gaps.md` 0 abertos.
+
+### Adendo (20/09/2026) — string de versão, congelamento do `main` e o modelo de consumo de pacote
+
+Três respostas da mantenedora (chat, 20/09/2026), mesmo escopo de release:
+
+1. **O release 0.5.0 sai como `0.5.0-beta`** (mantém o sufixo beta; sem
+   codename — reservado para a 1.0, `release-naming.md`). As lanes podem
+   redigir o CHANGELOG e pré-preparar a tag; o corte em si segue esperando as
+   sete condições.
+2. **O `main` fica congelado até o release 0.5.0.** Os 12 alertas CodeQL
+   pré-fix do `main` não são portados agora; o port é ação do dia do release.
+   As condições 5/6 do gate são medidas na branch ativa `beta-0.5.0`.
+3. **Um pacote publicado por `kof deploy --publish` é consumido como MÓDULO-FONTE
+   — opção (b) da #566.** O artefato publicado precisa carregar as fontes; o
+   consumo é via módulo-fonte (`import regsmoke.Greeter` resolve contra as
+   fontes instaladas), **não** via jar compilado. Consequências abertas para a
+   lane cli/deps: o `kof deploy --publish` precisa empacotar a superfície
+   pública de fontes da biblioteca (hoje empacota só classes alcançáveis do
+   `main`), e a instalação do registry (`kof deps resolve`) precisa colocar o
+   módulo-fonte onde o gate de import o encontra. Os três defeitos concretos
+   separados da #566 (#567 `--classpath` no-op silencioso — R6, #568 falso
+   SEM015, #569 `build` emite em erro) seguem defeitos e andam independente do
+   modelo.
+
+**Não-objetivos:** a decisão do modelo NÃO muda sintaxe/semântica de Kof; ela
+apenas fecha o contrato de consumo do Registry. NÃO corta o 0.5.0 nem abre a 1.0.
+
+---
+
+## D-FFI-STRUCT — ABI de struct/array da FFI: as decisões D6 (records por valor)
+
+**Data:** 2026-09-20
+
+**Estado:** DECIDIDO · **Revisão (20/09/2026):** a resposta de múltipla escolha
+da mantenedora fixou **D6-1 = A+B** (lane `.14`/`.22` havia gravado a opção A)
+e confirmou D6-2..D6-5. Este é o registro canônico; o texto antigo (opção A)
+fica preservado em *Superseded* logo abaixo. Issues **#572/#573** (3.8b) alinham
+a **B** — `D-FFI-STRUCT-B` (21/09) supersede a leitura A+B de D6-1: `record`
+fica por valor read-only; o delta é o `struct` mutável por referência
+(`Buffer(U8)` cobre o out-buffer).
+
+**Escopo:** fecha as questões `D6-1..D6-5` de
+`docs/ffi-abi-structs.md` (§4) — a spec que gateia a ABI de
+struct/array da FFI (tracker 3.8a/3.8b/3.7). O 3.8a (`AbiLayout`) já pousou
+20/09.
+
+### Contexto
+
+A FFI (R3) binda só o conjunto escalar `{Int, Long, Float, Double, Boolean,
+String}` + callbacks (`FfiSignature`); struct/array/out-buffer/opaque são os
+gaps honestos `FFI001`/`FFI002` (`CompilerPipeline.isExternBound`). A spec
+`ffi-abi-structs.md` mediu a divisão de custo: o lado JVM é quase de graça (a
+FFM classifica), o asm nativo é a metade caríssima (3.7). Cinco decisões
+gateavam qualquer código.
+
+### Decisão
+
+- **D6-1 = A+B: `record` de Kof mapeia um struct C por valor (read-only, campos
+  escalares) MAIS uma nova declaração mutável `struct` por referência** — a
+  forma que habilita buffers in/out. O keyword `struct` é superfície nova de
+  linguagem: entra só pelo gate da Simplicidade (regra 11) antes de landar.
+- **D6-2 = arrays primitivos bindam; `List<T>` não.** `new Int[n]`/
+  `new Byte[n]` (sintaxe existente) cruzam como `ptr` com **nenhum length
+  implícito** (a API C recebe o length explicitamente). `List<T>` continua
+  `FFI001` (cópia boxed por chamada é não-provada contra benchmark).
+- **D6-3 = out-buffers são um kind de ABI próprio, não `String`.** Um
+  out-buffer é `new Byte[n]` cruzando como `Buffer(U8, INOUT)` (copy-in /
+  call / copy-back), **nunca o token `S`** (`S` = `char*` UTF-8
+  NUL-terminated, read-only). O length fica argumento C explícito.
+- **D6-4 = retorno por valor > 16 B.** O `Linker` da FFM esconde o sret no
+  JVM; o backend **asm nativo** o implementa por ABI (SysV hidden pointer /
+  AAPCS64 hidden `x8` / LP64 reference) — 3.7, lane native.
+- **D6-5 = arena confinada por downcall.** `Arena.ofConfined()` aberta no
+  downcall e fechada depois; um `char*` retornado é copiado e nunca
+  possuído (`String` de Kof é imutável). A wart medida (um `Arena.global()`
+  no caminho de argumento string) é corrigida na mesma frente — nenhum vazamento
+  deixado à deriva.
+
+### Superseded (preservado — o registro antigo de opção A, lane `.14`/`.22`, 20/09)
+
+> A lane havia gravado **D6-1 = opção A** (só `record`, por valor, read-only,
+> sem `struct` novo) e tratava D6-2/3/4 como adiados com dono. A resposta da
+> mantenedora em 20/09 (A+B; os cinco decididos) a supera. Mantido para
+> rastreabilidade.
+
+**Codificação:** a gramática de tokens do `FfiSignature` ganha um token de
+struct `@<fieldchars>` (ex.: `div(Int,Int):Div` → `@ii`), reusando os chars
+escalares `i j f d b`; arrays/out-buffers ganham os tokens deles na fatia
+própria. Qualquer coisa fora do conjunto decidido continua `FFI001`/`FFI002`
+(R6), nunca silenciosa.
+
+### Invariantes
+
+- Zero regressão na FFI escalar/callback (`FfiE2ETest` /
+  `JvmFfiCallbackE2ETest` continuam verdes).
+- Native/JS mantêm `FFI001`/`FFI002` para struct até 3.7/JS pousarem — nunca
+  um binding parcial silencioso (R6).
+- Só campos escalares bindam na v1; um record com campo não-escalar é
+  `FFI001` no JVM (honesto).
+
+### Alternativas rejeitadas
+
+- **B (sintaxe nova `struct`) para v1** — rejeitada: adiciona superfície de
+  linguagem (regra 11) antes de necessidade provada; D6-3 cobre out-buffers.
+- **`S` para out-buffers** — rejeitada (medido 20/09): `String` ≠ buffer
+  mutável (mutabilidade, length, direção, tempo de vida).
+- **`Arena.global()`** — rejeitada: vaza cada argumento string num processo
+  de vida longa.
+
+### Implementação
+
+`docs/ffi-abi-structs.md` §6: 3.8a ✅ (pousado), **3.8b = binding
+JVM (esta frente)** — lane compiler; 3.7 = asm nativo (lane native); fronteira
+JS = decisão própria. Claim no `DOING.md` antes do código (este commit).
+
+### Evidência
+
+- Spec + layout medido: `docs/ffi-abi-structs.md` §1–§3;
+  `AbiLayoutTest` (14 shapes × 3 ABIs, golden GCC 13.3).
+- Prova E2E do 3.8b: `FfiStructE2ETest` (JVM: struct como arg + retorno de
+  record via `.so` C real, byte-a-byte vs o oráculo C; Native/JS pinados
+  `FFI001`/`FFI002`).
+
+### Relações
+
+- `Supersedes: nenhuma`
+- `Depends on: D-POLL-19 (spec-first), AbiLayout 3.8a`
+- `Related: R3 (FFI), R6 (nunca silencioso), R9 (interop-first), D-KOF-FIRST`
+
+## D-ARTIFACT-TRUST — contrato de confiança dos artefatos de release do 1.0: integridade + artefato-exato + provenance de build neutra, atestada pelo workflow oficial; verificação obrigatória no portão de release e no `kof deps resolve` para pacotes oficiais (20/09/2026, respostas da mantenedora ao #571)
+
+Decidido via multi-escolha da lane de issues (20/09). **(1) Propriedades obrigatórias:** integridade `SHA256SUMS` (jars soltos entram no ciclo) + a invariant artefato-exato do `§32.6` com enforcement MECÂNICO no `--rc-gate` (digest testado == digest publicado) + attestation de provenance de build verificável online e offline. **(2) Identidade/vendor:** o workflow oficial sob Actions é a identidade atestante; o contrato enuncia PROPRIEDADES NEUTRAS (nome de vendor não-normativo — `D-KOF-FIRST`/R11: crypto nunca caseira, nenhum vendor é oracle). **(3) Objeto:** para biblioteca, o artefato verificado é o tarball de FONTES (confirma #571-Q12); cada binário de alvo leva o próprio digest. **(4) Onde é obrigatório / falha:** o portão de release BLOQUEIA sem evidência válida; `kof deps resolve`/Registry BLOQUEIA DUREZAMENTE pacote OFICIAL sem evidência válida; comunidade = warning honesto (R6, nunca silêncio). **(5) Hardening (fila separada, fora do texto do contrato):** pin por SHA das 59 refs de actions, least-privilege por job (fim do `contents:write` workflow-level/push direto a main), rulesets no `main`+branch ativa; commits assinados/SBOM = pós-1.0. Fila: (a) enforcement de digest no rc-gate + jar-no-SUMS (lane tooling), (b) attest+verify no workflow de release (lane CI), (c) checagem de evidência no resolve com política oficial/comunidade (lane cli/deps).
+
+## D-1.0-STABILITY-100 — o critério de estabilidade total para fechar o 1.0.0: TODO item de `docs/development/`, `docs/development/future/` e `docs/bugs-and-gaps/` 100% resolvido, com paridade total entre alvos comprovada (20/09/2026, regra da mantenedora)
+
+Regra (ABSOLUTA, refina `D-RELEASE-1.0`): nenhum release KOF 1.0.0 enquanto QUALQUER item permanecer aberto/não entregue nos três registros — `docs/development/` (planos com implementação pendente), `docs/development/future/` (features promovidas têm de ser DESENVOLVIDAS, não adiadas para depois do 1.0), `docs/bugs-and-gaps/` (bugs, gaps de spec, matrizes de paridade) — e paridade significa a matriz multi-alvo MEDIDA (regra 5 do freeze), provada por testes/goldens, nunca por alegação. "Estável" é um ESTADO A VERIFICAR (AGENTS §Estabilidade), e o 1.0.0 é a formalização desse estado; a fila EG, o `release-blockers.tsv` e esta regra têm de concordar — fechar uma issue sem a entrega não quita o bloqueio: só a prova landed quita.
+
+---
+
+## D-R3-3.3 — handles e out-buffers da FFI (múltipla escolha, mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDIDO` · **Opção escolhida:** **A** (de A/B/C).
+
+`void*` / `T*` / out-buffers são representados por um **`Handle` opaco
+nominal** (não-aritmético, nunca um inteiro) mais **`Buffer(U8, INOUT)`** para
+buffers de bytes por referência — consistente com a **D6-3** (`Buffer(U8,
+INOUT)`, sem sintaxe nova de buffer). Sem aritmética de ponteiro.
+`Pointer`/`OpaqueHandle`/`Buffer`/`Struct` continuam tipos de ABI distintos
+mesmo quando um registrador carrega um endereço (R6: nunca silencioso).
+
+- **Destrava:** R3-3.3 → aberta; a fatia de out-buffer/buffer da R3
+  (pré-requisito dos Estágios 4–7, todos atrás da R3).
+- **Evidência:** D6-3; `docs/ffi-abi-structs.md`.
+- **Relações:** `Depends on: D-POLL-19/D6 · Related: R3, R6, R9`.
+
+---
+
+## D-R3-3.5 — variadics da FFI (múltipla escolha, mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDIDO` · **Opção escolhida:** **A**.
+
+**Sem variadics gerais em Kof.** O caller da FFI passa `List`/`Array`/`Buffer`;
+chamadas estilo `printf` são cobertas por overloads de aridade fixa. Razão: o
+`Linker` do FFM/JVM **não tem downcall variádico**, então um marcador `...`
+divergiria por alvo — mentira silenciosa (R6/R7). Uma chamada libc variádica
+sem forma fixa fica como gap documentado explícito.
+
+- **Destrava:** R3-3.5 fechada como "sem variadics" (documentado).
+- **Relações:** `Depends on: D-POLL-19/D6 · Related: R3, R6, R7`.
+
+---
+
+## D-TYPE-VARIANCE — variance + sealed types (múltipla escolha, mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `IMPLEMENTADA` (plano aprovado; X5.1–X5.5 pousadas 21/09) · **Opção escolhida:** **C** (variance + sealed).
+
+A mantenedora **abre** variance + sealed types como frente de núcleo do sistema
+de tipos (coleções científicas + `switch` exaustivo). É **mudança de núcleo
+congelado (regra 6)** e segue a disciplina **spec-first** da D6: um plano de
+design escrito é rascunhado e revisado **antes de qualquer diff** de
+parser/typer — nada pousa em silêncio. Type-classes seguem rejeitadas
+(não-objetivo permanente).
+
+- **Destrava:** X5 → pousada (spec-first: plano revisado, depois fatias com prova).
+- **Pousado:** X5.1–X5.5 (21/09) — `sealed` + `switch` exaustivo (`SEM080`/`SEM081`),
+  variância declaration-site e use-site (`SEM082`); prova `SealedTypeE2ETest`,
+  `TypeVarianceE2ETest`, `UseSiteVarianceE2ETest` (45 testes verdes).
+- **Relações:** `Related: regra 6, regra 11, R10, não-objetivos permanentes, D-KOF-FIRST`.
+
+---
+
+## D-INTEROP-REFLECT — reflexão de interop (múltipla escolha, mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `IMPLEMENTADA` (X6.0–X6.3 pousadas 22/09) · **Opção escolhida:** **A — intrínseco de compile-time**.
+
+A mantenedora autorizou começar o X6 (21/09). Superfície congelada:
+
+- **`interop.schema(R)`** — **intrínseco de compile-time** no namespace
+  `interop`, onde `R` é um tipo `record` declarado no módulo. Resolve para uma
+  **`List<Field>` imutável**, com **`record Field(String name, String type)`**
+  sendo um record fornecido pelo compilador cujas entradas são os componentes
+  do record, em ordem de declaração.
+- **Zero reflexão em runtime**: o compilador já conhece a estrutura do record,
+  então o intrínseco é dobrado em compile-time — sem `java.lang.reflect`, sem
+  metaprogramação em runtime, sem `Class.forName`.
+- **Mesma saída em todos os alvos** (JVM/Native/Script/KofJS): a dobra é no
+  frontend, então não há gap `REF001` (a postura JVM-first é satisfeita
+  trivialmente).
+- **Só na fronteira**: o namespace é `interop`; não é fundação da linguagem e
+  não deve crescer para reflexão geral (cerca documentada).
+
+A reflexão é autorizada **somente na fronteira de interop** (nunca fundação da
+linguagem). O plano incremental foi rascunhado primeiro (fatias com prova por
+fatia) — o mesmo portão spec-first da D6/X5.
+
+- **Destrava:** X6 → X6.1–X6.3 pousadas.
+- **Próxima entrega:** — (concluída; `InteropSchemaE2ETest` 18/18).
+- **Relações:** `Related: regra 6, regra 11, R9, X5, D-KOF-FIRST`.
+
+---
+
+## D-CODEGEN-STEP — hook de codegen em compile-time (múltipla escolha, mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDIDO` · **Opção escolhida:** **A**.
+
+Implementar **`CodegenStep`** como **hook interno do compilador** (sem sintaxe
+de usuário) — R4 (`🔵`). É o bloqueador declarado do Estágio 3 (desugar de
+`infra "prod" {}`, 3.2) e da migração DDL/runner. Não adiciona **superfície de
+linguagem**; qualquer forma de usuário (3.2) é decisão própria posterior
+(portão da regra 11).
+
+- **Destrava:** R4 → em curso; 3.2 destravada **atrás da R4**.
+- **Evidência:** `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` R4 + caminho crítico.
+- **Relações:** `Related: R4, R8 (mesmo frontend), 3.2, regra 11`.
+
+## D-GRAPHICS-GAMING — gráficos além de formulários: um plano future para a superfície 2D/3D/jogos é OBRIGATÓRIO (20/09/2026, pedido da mantenedora)
+
+A mantenedora pergunta como Kof lida com 2D, 3D e gráficos não-web ("como alguém desenvolve um jogo em Kof?") e dirige: abrir o plano em `docs/development/future/`. Estado real hoje: `kof.ui` é superfície de formulário/intenção (JVM=JavaFX, JS=DOM, Android=APK); o corpus NÃO tem abstração de jogo (frame loop, sprites, malhas, input-por-frame, áudio, GPU) — jogo hoje seria interop, não idioma (fronteira regra 8/11: a forma de API estrangeira não é a resposta; o plano deve definir a INTENÇÃO Kof que os backends abaixam, gaps por-alvo honestos R6/XXX001, interop-first R9 para engines/libs — nunca renderizador caseiro, e KofC/wasm são future). DOC-PLANO: `docs/development/future/graphics-gaming-plan.md` — skeleton na próxima sessão; perguntas que o plano DEVE responder: primitiva de game-loop (idioma `scene`/`frame`?), superfície 2D sprite/tilface, escopo 3D (mesh/camera/material como intenção vs. FFI para GPU nativa), áudio, modelo de input, honestidade por-alvo (JVM/Native/JS/web + KofC depois) e a guarda de non-goals (sem canvas/HTML vazando para código de usuário). Prioridade: future/ — NÃO compete com o 1.0 (R12 + D-1.0-STABILITY-100: só entra na superfície 1.0 por promoção explícita dela).
+
+### Adendo D-GRAPHICS-GAMING (20/09/2026, mantenedora, mesma sessão) — a superfície de mídia ESTÁ no escopo do plano: pipeline de som E suporte a vídeo
+
+Kof também precisa de um **pipeline de som** (reprodução, streams, volume/mix, o caso de áudio de jogo: SFX de baixa latência) e de **suporte a vídeo** (uma superfície de intenção `video`/`VideoView` no mundo `kof.ui`: reprodução de arquivo/stream, o chrome do player pertencendo à plataforma, nunca ao código do usuário). O doc do plano DEVE tratar mídia como first-class: o idioma KOF (ex.: `sound.play("x.ogg")`, componente de painel `video`) + lowering por-alvo JVM (JavaFX Media/`javax.sound` JÁ existem hoje em JVM — medir antes de prometer), JS (`<video>`/WebAudio do browser — a plataforma renderiza), Native (interop-first R9: SDL_mixer/miniaudio/OpenAL/ffmpeg — nunca codec caseiro; gaps honestos `XXX001` onde faltar, ex. áudio no cross riscv), + a guarda de non-goals (sem tags `<audio>` HTML5 vazando para código Kof; codecs são problema da plataforma). O pipeline de som (mixing/grafos) ganha SEÇÃO PRÓPRIA no plano respondendo: contrato de latência, formatos suportados por alvo, enumeração de dispositivos, e se `kof.sound` é stdlib-core ou pacote stdlib (fronteira R1).
+
+### Adendo 2 D-GRAPHICS-GAMING (20/09/2026, mantenedora) — SEM JavaFX; a superfície de mídia/imagens exige PARIDADE TOTAL
+
+"Sem JavaFX. Tem que ter paridade total." Consequências registradas: (1) o plano de gráficos/mídia NÃO PODE usar JavaFX (nem toolkit single-target) como backend da superfície KOF — o JVM tem de chegar ao mesmo idioma pela MESMA pilha portátil dos outros alvos (interop-first R9: a forma que o plano avalia é uma camada portátil classe SDL/GL rebaixada por bindings por-alvo, não chrome de plataforma); (2) PARIDADE TOTAL é o critério de aceite desta superfície — diferente do "escopo honesto por alvo" do R7, um recurso de gráficos/mídia só entra na superfície da linguagem quando TODO alvo rodar o MESMO programa com o MESMO comportamento (ou o recurso não é promovido); (3) o kof.ui-JVM atual (JavaFX) continua funcionando intacto (compatibilidade retroativa, regra 2 do freeze) mas é a face LEGADA da área, não a futura — migração/reforma é QUESTÃO DE DESIGN que o plano deve responder (regra 6), nunca decisão de agente; (4) o item de remoção do JavaFX entra no plano `docs/development/future/graphics-gaming-plan.md` §parity como seção própria (medir hoje: quais classes kof.ui ligam javafx.* no alvo JVM).
+
+### Adendo 3 D-GRAPHICS-GAMING (20/09/2026, mantenedora — CORREÇÃO ao adendo 2) — Kof nunca usou e nunca vai usar JavaFX; toda mensagem de JavaFX em Kof é erro disfarçado
+
+A mantenedora revoga o enquadramento "kof.ui-JVM é legado JavaFX que continua funcionando": **Kof NUNCA usou JavaFX e NUNCA vai usar** — coerente com a regra da casa de 12/09 (`AGENTS.md`, "regra JavaFX"): a mensagem "componentes de runtime do JavaFX não foram encontrados" NUNCA é benigna, é o launcher engolindo um `VerifyError`/`ExceptionInInitializer` real — erro disfarçado, sempre com causa raiz, nunca acomodado. Logo: (a) o item (3) do adendo 2 passa a valer: qualquer ligação `javafx.*` encontrada na árvore do Kof NÃO é face legada — é DEFEITO a remover pelo pipeline normal de bug (regra 4 do freeze: corrigir o código até o comportamento documentado, nunca documentar em volta dele); (b) `kof.ui` no JVM era, é e será servido pela pilha portátil de paridade desde o início — a seção "migração" do plano vira seção de ERRADICAÇÃO: medir toda referência `javafx` em src/docs/std-lib (`grep -rn "javafx" kof-*/src` etc.), classificar cada uma (erro-disfarçado do tipo exceção engolida vs. alegação errada de doc) e abrir como itens com repro; (c) compatibilidade retroativa NÃO protege caminho JavaFX — código Kof de usuário nunca nomeou JavaFX, removê-lo não pode quebrar nenhum programa Kof válido (a promessa de compat é aos programas Kof, não aos internos).
+## D-MAKEALIVE-CLI — contrato da 3.8: `kof makealive plan|apply|destroy` (tooling sobre o host)
+
+Decidido 20/09 por delegação do maintainer à `.18` ("propor o contrato + implementar") — a
+linha 3.8 exigia decisão de contrato de comando (regra 6). **(1) Verbo:** `kof makealive
+<plan|apply|destroy> <file.kf>` — NÃO `kof infra`: o Q1 do D-MAKEALIVE decidiu que o namespace
+É o nome (`kof.makealive`) e o literal `infra` segue HARD-DENY no ledger do stdlib (R1); o
+CLI segue o nome decidido. **(2) Convenção de programa (a postura D-WORKFLOW-RUN da 2.6):** o
+arquivo é Kof puro — `import kof.makealive`, `design(): Infrastructure`,
+`provider(): Provider`, sem `main()`; o tool síntetiza um main() sobre as faces do próprio
+host (`plan`/`apply`/`destroy`/`mkLoadState`/`mkSaveState`/`mkMaxGen`) e conversa pela linha
+marcada `@@KOF_MAKEALIVE@@ {json}`; a formatação humana/JSON mora no CLI, nunca no host.
+**(3) Estado:** arquivo h2 via `--state PATH` (default `<file>.makealive`); o contrato "quem
+traz o driver JDBC é o runner" segue intacto (KofJsDbBridge); apply/destroy SEMPRE salvam
+`gen = max+1` — e o destroy persiste uma MARCA de estado vazio (`res ""`) para que a geracao
+vazia fique visível a `mkMaxGen`/`mkLoadState` (bug achado pelo E2E desta própria decisão;
+golden `emptyGenerationIsVisibleAndLoadsEmpty`). **(4) Alvos:** JVM+JS paridade de bytes (R7);
+script/native recusa honesta (igual 2.6) — o stub Native do host mantém `ORM001` no call-site.
+**(5) rc:** a linha marcada decide (`allOk`); throw (provider recusou set/delete, guardas de
+argumento) = sem linha marcada, a saída crua É o diagnóstico, rc 1. Prova:
+`CmdMakealiveTest` 7/7 + `MakealiveMaxGenE2ETest` 4/4 + bateria Makealive 14/14.
+
+## D-MAKEALIVE-SYNTAX — 3.2: `infra "prod" { ... }` é AÇÚCAR PURO sobre `design()` (21/09/2026, mantenedora)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED` · **Decide:** `makealive-plan.md` §5 linha **3.2**
+(e destrava **3.7**; reitera **3.8**) · **Substitui:** nada.
+
+**Contexto:** as três linhas restantes do makealive (3.2/3.7/3.8) foram à enquete da
+mantenedora. A linha **3.2** ("sintaxe `infra "prod" {}`") exigia decisão regra 6 por ser
+**superfície de parse nova voltada ao usuário**; o bloqueio do hook de codegen já havia caído
+com **R4** (hook `CodegenStep`, pousado 21/09).
+
+**Decisão (regra 11 — Simplicity Law):** ADICIONAR o bloco, como **açúcar sintático puro** —
+ele desugara sobre os records/builder já decididos do host e **não ganha semântica própria**
+(plano §7, "no HCL inside Kof").
+
+- **(1) Forma:** declaração top-level `infra "prod" { <chamadas> }`. `infra` continua
+  **IDENTIFIER** (despachado igual a `test`/`application`), **não** é palavra reservada nem
+  token novo — logo `LanguageCoreSurfaceTest` (8.6) fica verde **por construção**.
+- **(2) Desugaring:** o bloco vira `design(): Infrastructure` — um local sintetizado
+  `__infra = Infrastructure("prod")`, cada statement `nome(args)` vira `__infra.nome(args)`
+  (as faces do host `resource`/`prop`/`requires`), e `return __infra`. A saída é idêntica ao
+  `design()` imperativo escrito à mão; o contrato do CLI (`D-MAKEALIVE-CLI`) não muda.
+- **(3) Sem HCL, sem aninhamento:** o corpo é Kof puro de chamadas — sem `chave = valor`, sem
+  sub-bloco `resource`, sem tipo novo, sem runtime novo.
+- **3.7** (detecção de ciclo em compile-time) — **FECHADA como runtime-only** (mantenedora
+  21/09, adendo): com o bloco como açúcar puro o compilador só vê chamadas genéricas, então
+  um grafo em compile-time daria ao `infra` **semântica própria** (contra §7 / regra 11); a
+  **recusa em runtime** pousada na 3.1 já nomeia os membros do ciclo — esse É o contrato.
+  Nenhum check estático é adicionado.
+- **3.8** — reiterada: `kof makealive plan|apply|destroy` é o **único** verbo
+  (`D-MAKEALIVE-CLI`); `kof infra` **não** é adicionado.
+
+**Prova (medida no pouso):** `InfraSyntaxE2ETest` — um arquivo `infra "prod" { ... }` e seu
+gêmeo `design()` escrito à mão produzem `plan`/`apply` byte-idênticos (JVM==JS), mais um golden
+de sintaxe (`infra` não é reservado; corpo mantido nas faces do host). Documentado em
+`docs/stdlib/makealive.md` + `learn/`.
+
+## Adendo 4 D-GRAPHICS-GAMING (20/09/2026, mantenedora) — Kof terá ENGINE GRÁFICA PRÓPRIA para jogos
+
+Ordem: Kof precisa de uma engine gráfica própria para games — a recomendação interop-first do plano (R9) está REVOGADA para este domínio (precedente tipo D-UNIVERSAL). A engine é da Kof (código Kof/platform, pilotada pela casa), exposta em idioma zero-boilerplate (regra 11: idiomatic, fácil, sem complexidade acidental); bindings FFI ficam limitados ao que não é engine (janela/GPU/device de áudio). Consequência: plano `future/graphics-gaming-plan.md` §§3–4+Q1/Q5/Q7 + README/learn/training/docs de UI-mídia precisam REESCRITA nesta direção; R9 ganha exceção nomeada no DECISIONS. Decisões de detalhe (nome da engine, primeira fatia, formatos) continuam regra 6 via Qs do plano.
+
+## D-PROPERTY — property-based testing: SEM sintaxe nova — a superfície é o idioma existente `test` + `kof.rng` + `assert` (21/09/2026, delegado pela mantenedora)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED` · **Decide:** `SG-023` (opção **C** + opção **iii**) · **Fecha:** o restante do X8 (G6 "next").
+
+**Contexto:** a frente X8 pousou `rng` (fatias 1–2), `kof test --timeout` e suítes nomeadas por diretório. As duas faces restantes — runner de property e fixtures de suíte — foram registradas como **`SG-023`** ("PEDIDO, sem decisão") porque ambas *sugeriam* superfície nova voltada ao usuário (regra 6). Questionada para decidir, a mantenedora delegou a escolha da superfície ("Decide SG-023 surface").
+
+**Decisão (regra 11, Lei da Simplicidade): SEM sintaxe nova.** O mecanismo já existe e está documentado:
+- **property** = **opção C** — um `test "name" { }` cujo corpo semeia o `rng` e faz o loop, usando `assert(cond, msg)`. **REJEITADAS** a opção A (keyword `property`/`forAll`) e a opção B (modo implícito `kof test --props`): cerimônia sobre um mecanismo que a linguagem já tem.
+- **fixtures** = **opção iii** — nada novo; o padrão `D5-B` (`close()` + `try/finally`) já expressa setup/teardown por teste. **REJEITADAS** a opção i (blocos `setup`/`teardown`) e a opção ii (arquivo de convenção `_suite.kf`).
+
+**Por quê:** "Kof tem que ser mais simples que qualquer alternativa" — `rng.seed(42)` + loop + `assert` é mais curto e declara melhor a intenção do que keyword + inferência de geradores + maquinário de shrinking; o compilador fica menor e o idioma roda em todo alvo com `rng`. Respeita o `D-KOF-FIRST` (nenhum empréstimo de QuickCheck/Hypothesis antes de um contrato Kof).
+
+**Prova:** `PropertyTestIdiomE2ETest` **7/7** (kof-compiler) — uma property semeada de 200 iterações PASSA e é reprodutível entre execuções, seu `checksum` é idêntico byte a byte **JVM==JS** e **JVM==Native-x86** (paridade do `rng`), uma property falsificável FALHA deterministicamente com a mensagem derivada da seed e exit 1 (JVM+JS), e uma property de zero iterações PASSA vacuousamente. Documentado em `training/idioms/stdlib.md` + `learn/23-testing.md`.
+
+**Não é mudança de linguagem:** nenhum parser/typer/codegen tocado; a superfície do `kof test` não muda.
+
+## D-ARRAY-PRINT — §388-B: imprimir um `Int[]` inteiro é formato de container (21/09, mantenedora)
+
+A entrada §388 registrou a paridade reversa das bytes-faces: JVM/Script
+imprimiam `[I@65629ac6` (toString cru do `int[]` Java) enquanto o KofJS imprimia
+`65,66,67` — nenhuma linha do corpus declarava como um array primitivo se
+IMPRIME (a linha de formato de container da matriz cobria só List/Map/aninhados).
+A mantenedora decidiu no chat em 21/09 (regra 6): o **formato de container
+vence** — isto é, a gramática §107 já valendo para coleções (oracle =
+`ArrayList.toString`, `[65, 66]` com colchetes e separador `, `; o JS espelha via
+`kofFormat`, os três alvos nativos via `kof_array_to_string`).
+
+Nota de calibragem: a opção do voto foi redigida "65,66,67" (a face JS da
+época), mas o que se votou contra foi a forma de IDENTIDADE; o formato de
+container da casa — declarado para coleções desde §107 e fixado em
+`conformance-matrix.pt_BR.md` — é `[65, 66]`. A implementação segue §107, não o
+texto literal da opção.
+
+Escopo: `println(new Int[n])`, `println(readBytes())`, plano/aninhado/vazio,
+records e Strings pelo toString de conteúdo do próprio elemento. Passar `List`
+numa bytes-face continua erro de compilação (`SEM099`, §388-A) — intocado por
+esta decisão. Testes: célula `arrayprint` em `ConformanceMatrixTest`
+(JVM/Script/JS/nativo), `ArrayPrintFormatE2ETest`, goldens riscv64/aarch64 em
+`Native*E2ETest` (CI/qemu).
+
+## R6-SCOPE — entrega incremental NÃO fere o R6 (mantenedora, 21/09/2026)
+
+**Estado:** `DECIDIDO` · esclarecimento ABSOLUTO do R6 (nunca silencioso).
+
+O R6 proíbe **silêncio**, não **escopo parcial**. Uma entrega que é uma **fatia
+vertical completa para o seu escopo declarado**, com os caminhos ainda não
+suportados falhando por **diagnóstico honesto** (`FFI001`/`FFI002`/`XXX00x` —
+que *é* o R6), **não** fere o R6. O R6 é violado só quando o gap é **escondido**:
+stub silencioso, fallback fraco, divergência que o usuário não enxerga.
+
+Consequência: toda capacidade ainda não entregue é construída
+**incrementalmente** (ex. JVM-first, com Native/JS como gaps *declarados e
+diagnosticados* — R7) e cada fatia pousa inteira para o seu escopo. "Não dá
+para fazer tudo de uma vez" não é motivo para adiar a fatia; "esconder a parte
+que falta" é o único movimento proibido.
+
+## D-R3-BUFFER — out-buffer é o tipo nominal `Buffer(U8)` (mantenedora, 21/09/2026)
+
+**Estado:** `DECIDIDO` · **Opção escolhida:** tipo nominal (de reusar `Byte[]` /
+nominal `Buffer(U8)` / separar).
+
+D6-3/D-R3-3.3 fixaram que out-buffers existem como tipo ABI próprio
+(`Buffer(U8, INOUT)`, copy-in / chamada / copy-back, **nunca `S`**). Esta
+decisão fixa a **grafia que o usuário escreve**: um tipo **nominal `Buffer(U8)`**
+na assinatura do `extern` — *não* um reuso de `Byte[]` (o `T[]` escalar segue o
+`ptr` read-only da fatia 3/D6-2). `Buffer` continua um tipo ABI distinto mesmo
+quando um registrador carrega um endereço (R6).
+
+**Criação/vida (respondido 21/09):** o programador obtém um buffer com
+**`buffer.alloc(Int n) : Buffer(U8)`** (stdlib) e a vida é **automática** — o
+compilador libera no fim do escopo; o programador nunca aloca nem libera.
+`Buffer(U8)` como parâmetro de `extern` é `Buffer(U8, INOUT)`: copy-in, chamada,
+copy-back; o comprimento é argumento C explícito (D6-3). Inspeciona com
+`Buffer.bytes()`. Fatia incremental: JVM primeiro; Native/JS mantêm
+`FFI001`/`FFI002` honestos (R6-SCOPE).
+
+## D-R3-HANDLE-LIFETIME — a memória do `Handle` é automática (mantenedora, 21/09/2026)
+
+**Estado:** `DECIDIDO` · **Direção escolhida:** automática (de `Handle<T>` único,
+ou adiar).
+
+D-R3-3.3 escolheu um `Handle` opaco nominal (nunca um inteiro, sem aritmética de
+ponteiro). Esta decisão fixa a sua **vida**: alocação/desalocação devem ser
+**automáticas — o programador nunca gerencia memória** (sem `malloc`/`free`
+manual). O `Handle` portanto não pousa como tipo FFI isolado agora; ele é
+entregue junto com o mecanismo de recurso/vida gerenciado pela linguagem (frente
+scoped-resources / RAII, `docs/development/future/scoped-resources-plan.md`),
+que é o dono da estratégia de alocação. Até lá, externs com `Handle` seguem
+`FFI001`/`FFI002` honestos (R6).
+
+---
+
+## D-DESUGAR-STEP — 2.2.3 resolvido: registry de desugar na fase AST (opção B) (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED` · **Opção escolhida:** **B**.
+
+A mantenedora escolheu a **opção B** do `docs/architecture/codegen-step-2.2.3-assessment.md` (+PT) — **implementada 21/09 (`85779f20`)**:
+adicionar um **registry `DesugarStep` na fase AST** espelhando
+`CodegenStep`/`CodegenStepPipeline`, e migrar os quatro desugars de fonte
+(`desugarTests`/`desugarApplication`/`desugarInfra`/`desugarNestedFunctions`,
+hoje em `CompilerDesugar`, `CompilerPipeline.java:301-304`) para steps
+registrados. **Interno ao compilador, zero superfície de linguagem** (regra 11:
+nada chega ao código do usuário). **Sem mudança de comportamento** (freeze regra
+3): mesma suíte + E2E golden por alvo, saída byte-idêntica. O DDL do ORM
+permanece no lowering (não é candidato). Fila: `roadmap.md` §23 `2.2.3` +
+tracker R4.
+
+- **Destrava:** 2.2.3 (`⛔` → aberta, fatias).
+- **Relações:** `Relacionado: D-CODEGEN-STEP, freeze regra 3, regra 6, regra 11`.
+
+## D-TYPE-VARIANCE / D-INTEROP-REFLECT — plano APROVADO, fatias autorizadas (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `IMPLEMENTADA` (plano aprovado; superfície X5+X6 pousada 22/09).
+
+O `future/type-system-extensions-plan.md` (+PT) foi revisado e **APROVADO**. X5
+(variance+sealed, opção C) e X6 (reflexão de interop) começaram em **fatias
+incrementais, cada uma com prova própria**. A superfície pousou (X5.5 + X6.3,
+22/09), então a condição 2 do gate não precisa mais de revisão. O plano é
+promovido para `docs/development/` (três estados). Fila: `roadmap.md`
+§2.8.4/§2.8.5.
+
+## D-SECRETS — Stage 5 / 3.6 promovido; face 1 autorizada (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED` · **P1+P2+P3 POUSADAS.**
+
+O `future/secrets-plan.md` (+PT) é **promovido para `docs/development/`**; a
+**face 1 (tipo `Secret`)** é autorizada como superfície votada por regra 6,
+incremental com prova; `KeyHandle`/redação seguem face a face. Último resíduo do
+`makealive-plan` (3.6). Fila: tracker 3.6.
+
+**Face 1 POUSADA 21/09 (`32285136`):** tipo valor `Secret` — construtoras
+`secrets.of(text)` / `secrets.secret(name)`, `reveal()` (único export cru),
+`redacted()`, impressão redigida (`Secret(*** )`), `==` constant-time.
+JVM-primeiro (R7); JS/Native/Script/Android = gap honesto `SECN008` (R6). Prova
+`SecretE2ETest` 4/4.
+
+**Resto da P1 + P2 + P3 AUTORIZADOS (mantenedora 21/09, ordem direta "implementa
+tudo o que falta do secrets plan … precisa fechar"):** implementar todo o
+`secrets-plan.md` e fechar o plano. Opções escolhidas (as alternativas do próprio
+plano): `secrets.get` segue o `String` cru legado (congelado 0.2.6) e
+`secrets.secret`/`secrets.of` são o caminho tipado — **não-quebrante**; a
+**P3 `KeyHandle`** é puxada **para frente do "after 1.0"** pela mesma ordem. Cada
+face segue incremental com prova e seu gap honesto por alvo. Fila: tracker 3.6 /
+`secrets-plan.md` §2.
+
+**TODAS AS FACES POUSADAS 21/09 (`04473bbe`):** resto da P1 (`secrets.fromBytes(Int[])`,
+`hashCode` de identidade); **P2** redação forçada (runtime `json.encode(Secret)` →
+`"Secret(*** )"`; compile-time lint `SECN009` quando `reveal()` alimenta
+`log.*`/`json.encode`); **P3 `KeyHandle`** (`secrets.keyFromHex/keyFromPem/
+keyFromKeystore`, `rotate()` que revoga o handle antigo → uso posterior `SECN010`,
+sobrecargas `KeyHandle` de `crypto.hmacSha256/aesgcm/chacha20` e
+`jwt.create/verify`; chave crua nunca exposta). JVM-primeiro (R7), `SECN008` nos
+demais (R6). Prova: `SecretE2ETest` 7/7 + `KeyHandleE2ETest` 5/5. O plano está
+fechado e movido para `docs/architecture/secrets-plan.md` (registro de design).
+
+## D-FFI-STRUCT-B — D6-1 opção B (`struct` mutável): aprovada spec-first (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED` · design-first (sem código ainda).
+
+A mantenedora **aprovou a D6-1 B** (nova declaração `struct` mutável, by-ref,
+para buffers in/out) **spec-first**: a superfície é desenhada/medida no
+`ffi-abi-structs.md` e revisada **antes de qualquer diff** de parser/typer (regra
+11). Records seguem by-value read-only; `Buffer(U8)` já cobre o caso out-buffer
+pousado. Fila: tracker 3.8 (`ffi-abi-structs.md` §6).
+
+## D-DB-PARITY-OWNER — dono da frente db-parity nomeado; S0/S1 autorizadas (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED`.
+
+O `db-parity-plan.md` (+PT) ganha dono (lane docs/plataforma, autora do
+`D-DB-GAPS`) e começa **S0** (diagnóstico interino honesto do §421) + **S1**
+(`mariadb://` = alias mysql-wire), cada uma com prova; S2–S4 seguem por fatia.
+Adendo ao `D-DB-GAPS`.
+
+## D-RELEASE-0.5.0-GATE condição 2 — segue `NEEDS-REVIEW` com frente de superfície em voo (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED` (confirmação).
+
+A condição 2 reporta `NEEDS-REVIEW` — **não RED** — enquanto uma frente aprovada
+`State: OPEN` não pousou; não bloqueia o corte 0.5.0 por si só. Uma entrada
+`OPEN` nunca é "nada espera".
+
+## D-X5-SURFACE — congelamento da superfície X5 (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED`.
+
+Respostas da mantenedora às perguntas a–d do plano:
+- **(a) keyword de variance = `out`/`in`** — declaration-site, 1 char (passa a regra 11).
+- **(b) `sealed` aplica-se a `class`/`record` + `interface`.**
+- **(c) projeção use-site (`List<out T>`) ESTÁ no v1** (sobrepõe o default "deferred" do plano; X5.4 vira fatia do v1).
+- **(d) diagnósticos ficam na família existente `SEM0xx`** (sem família nova).
+
+Superfície: `sealed class/record/interface`; subtipos fora do conjunto = diagnóstico;
+`switch` exaustivo sobre sujeito sealed; `out`/`in` em params genéricos com checagem
+de sonoridade de atribuição. Só compiler/frontend; sem superfície de runtime.
+Fila: `roadmap.md` §2.8.4; fatias X5.0→X5.5 (X5.4 agora no v1).
+
+- **Relações:** `Relacionado: D-TYPE-VARIANCE, regra 6, regra 11, R10`.
+
+## D-RELEASE-0.5.0-SCOPE — os planos em voo com dono ainda soltos entram no allowlist da condição 3 e o EG-8 é desacoplado da condição 6 (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED` (respostas da mantenedora no chat).
+
+Duas decisões de escopo do gate 0.5.0 (`D-RELEASE-0.5.0-GATE`), para o release
+não esperar frentes abertas de outras linhas:
+
+- **(a) Condição 3 — allowlist dos planos EM VOO com dono ainda soltos.**
+  `db-parity-plan` (dono lane gaps-db) e `ffi-abi-structs` (dono jonas) ficam
+  em `docs/development/` **sem virar RED na condição 3**: cada um tem dono, fila
+  viva e implementação pendente declarada; concluem nas próprias frentes
+  (regra dos três estados), não como pré-condição do corte 0.5.0. O ALLOWLIST
+  do gate os carrega; a fila do README segue rastreando-os. Doc sem dono/fila
+  continua RED. (`IMPLEMENTATION-UNIVERSAL-PLATFORM` estava na lista original
+  da decisão e **concluiu 21/09** — movido para `docs/architecture/`;
+  `type-system-extensions-plan` (dono compiler/X5) **concluiu 22/09** — X5+X6
+  landados com prova, movido para `docs/`; portanto nenhum dos dois é
+  solto/allowlistado.)
+- **(b) Condição 6 — EG-8 desacoplado.** EG-8 é o primeiro candidato a RC 1.0
+  mais a declaração explícita da mantenedora "a linha 1.0 está aberta", e só
+  abre depois de EG-1..EG-7 fecharem — pertence à linha 1.0, não ao gate
+  0.5.0. A condição 6 agora mede **EG-1..EG-7 + os `1.0-blocks` abertos**; um
+  EG-8 aberto nunca a torna RED.
+- **(c) Condição 7 — triagem em lote.** A mantenedora recebe os 14 bugs vivos
+  do ledger com recomendação por item (fechar / post-1.0 / não-é-bug) e
+  classifica em lote; até lá a condição segue RED (medida).
+
+**Evidência:** `scripts/check_release_050_gate.sh` (ALLOWLIST + `c_edges`,
+`--selftest` com os dois casos plantados), `release-beta-0.5.0-prep.md`
+condições 3/6, lista de pendentes da condição 3 no README.
+
+- **Relationships:** `Related: D-RELEASE-0.5.0-GATE, D-RELEASE-1.0, rule 6, rule 3`.
+
+## D-CLOSEALL-BATCH — lote dos 14 known-bugs: a mantenedora ordenou fechar tudo com evidências; os 3 forks rule-6 foram votados (mantenedora, 21/09/2026)
+
+**Date:** 2026-09-21 · **State:** `DECIDED` (mantenedora, interativo — diretiva
+"você assume bugs-and-gaps e fecha todos os bugs que existem e apresenta
+evidências para todos"; sub-votos respondidos no chat com as opções recomendadas).
+
+- **§334 (`kof_box_equals` NaN) → CLOSED:** divergência documentada e
+  INALCANÇÁVEL do código-fonte Kof (nenhum produtor de NaN hoje — divisão por
+  zero é diagnóstico de compile-time OBS-009); downgrade para informativo,
+  como a própria entrada prevê.
+- **§188 (`"2026" as Int` → VerifyError) → (A) REJEITAR no compile-time** —
+  novo SEM0xx nomeando o idiom canônico `math.parseInt`.
+- **§400 (função nomeada passada como VALOR, SEM011 falso) → (A) MANTER a
+  rejeição, novo diagnóstico nomeia a regra real e aponta o idiom lambda
+  (`probe` → `() -> probe()`, byte-paridade já medida).**
+- **§283 (native aarch64: processo nunca encerra com `time.interval` vivo)
+  → (B) WORKER COMO THREAD DAEMON — paridade com `java.util.Timer` (daemon
+  por padrão na JVM).**
+- **§418 (harness riscv debug sem destroy) + §423 (channels riscv/aarch sem
+  runtime): HANDOFF p/ lane nat/native-debug (9093, ativa no período — fechou
+  §424/425/427); assumo se ela parar (regra dead-task).**
+- O resto do lote (§302/§280/§268/§248/§278/§205) = trabalho normal da lane;
+  §271/§288 = MESMA raiz river (caminho único de resolução de tipo).
+
+**Relationships:** regra 6, river §271/§288, §334/OBS-009, DECISIONS.md (política de NaN se precisar).
+
+## D-RULE6-BATCH — revisão rule-6 da triagem: seis decisões (mantenedora 21/09/2026)
+
+**Data:** 2026-09-21 · **Estado:** `DECIDED` (respostas da mantenedora no chat, múltipla escolha).
+
+A mantenedora revisou os seis itens rule-6 da triagem dos 14 vivos e decidiu:
+
+- **§400 — (B) funções nomeadas viram VALORES — supersede o (A) do lote.**
+  A mantenedora havia votado **(A) manter a rejeição + corrigir a mensagem** no
+  `D-CLOSEALL-BATCH` e a lane do lote pousou isso (`cd04246c`, novo SEM011
+  nomeando o idiom); nesta revisão ela respondeu **(B)**: função top-level
+  nomeada em posição de argumento converte para o `FunctionType` esperado
+  (overloads incluídos). **Decisão operativa: (B)** — o diagnóstico (A)
+  pousado fica só até a conversão pousar (é estritamente melhor que a
+  mensagem antiga e desaparece com a superfície); expansão de superfície →
+  gate da regra 11 + fila na frente de tipos, nunca edição drive-by. Pendente
+  a confirmação dela da supersessão (sinalizado no chat 21/09).
+- **§188 — (A) rejeitar `String as Int` com diagnóstico (`SEM084`).** `as` é
+  conversão numérica, não parsing textual; o caminho canônico segue
+  `math.parseInt`. Mata o false-accept (check limpo → CCE em runtime).
+- **§288 — (b) `TypeVariable` no parse + rejeição interina (`SEM085`).**
+  Anotar type-params como `TypeVariable` no parse dentro do owner genérico
+  (fonte única); até o fix do pipeline pousar, rejeitar a forma composta em vez
+  de converter erro alto em crash no load.
+- **§302 — (A+B) corrigir o pin guard + diagnosticar o que sobrar (`SEM086`).**
+  Paridade `Type.of`/`toType` em locals × fields × params × records (os quatro
+  backends); tipo de coleção nu que continuar ambíguo ganha diagnóstico
+  honesto.
+- **§268 — (A) `java.lang` implícito via probe cacheado + diagnóstico honesto
+  (`SEM087`).** `Class.forName("java.lang."+n)` cacheado; nome simples não
+  resolvido em `extends`/`implements` → diagnóstico (nada de super raw);
+  `Object` → `java/lang/Object`.
+- **§271 — (B) diagnóstico honesto interino agora; a ABI COMPLETA de erasure
+  na linha 1.0.** Emissão de bridge/descriptor nos quatro backends é
+  **entrega da 1.0, não post-1.0** (mantenedora 21/09): a escada de releases
+  pode continuar por mais minors betas (até 0.9.x se precisar) antes da 1.0; o
+  que não pode shipar é o `NoSuchMethodError` silencioso. Interino: recusar o
+  dispatch de interface genérica não-suportado com código (espelhando
+  `NAT005`).
+
+**Fila:** DOING (claim da lane 9093); cada fix carrega a própria prova
+(RED→GREEN) e atualiza a seção do ledger no mesmo commit.
+
+- **Relationships:** `Related: D-RELEASE-0.5.0-SCOPE, D-RELEASE-1.0, rule 6, rule 11, R6`.
+
+## D-BAREMETAL-BOOT — frente bare-metal promovida: `PLAN-BAREMETAL-BOOT` sai de `future/`, R12 sobreposto, escopo ordenado = bare-metal com ring0/ring1 (mantenedora 22/09/2026)
+
+**Data:** 22/09/2026 · **Estado:** `DECIDED` (ordem da mantenedora no chat —
+sessão autônoma) · **Sobrepõe:** o portão R12 (SYSTEMS antes de tudo) **só para
+esta frente** — mesmo padrão do §D-UNIVERSAL.
+
+**Decisão (palavras da mantenedora):** "você vai assumir PLAN-BAREMETAL-BOOT de
+future e vai trazer pra desenvolvimento. quero que desenvolva pra baremetal com
+suporte a ring0 e ring1".
+
+1. **Promoção (três-estados):** `PLAN-BAREMETAL-BOOT.md` (+`.pt_BR`) vai de
+   `future/` para `docs/development/`, status **EM DESENVOLVIMENTO**; a
+   linha do `future/README` é reclassificada como movida; `roadmap.md` 1.6 e o
+   tracker 1.7 acompanham no mesmo commit.
+2. **Sobreposição do R12** para esta frente (ordem da mantenedora), registrada
+   aqui — a frente abre agora; a ordem do §7 do próprio plano governa
+   (B-0 → B-1 → caminho de boot → anéis B-6 → …).
+3. **Escopo ordenado:** bare-metal **com ring0/ring1** (níveis de privilégio
+   x86_64, face B-6) — boot em CPL0 + domínios ring1 com prova falseável de
+   `#GP`. A **superfície Kof** para mirar um domínio ring1 **NÃO** é decidida
+   aqui: é decisão rule 6 (valem a regra 11 / Lei da Simplicidade) e só pousa
+   com revisão da mantenedora.
+4. **Fila:** DOING (claim da lane, sessão 9092); a condição 3 do gate 0.5.0
+   mantém o plano no allowlist como frente em voo com dono (padrão
+   `D-RELEASE-0.5.0-SCOPE`) — o corte 0.5.0 não espera por ela.
+
+**Evidência:** mensagem da mantenedora 22/09/2026 (chat, esta sessão); arquivo
+do plano promovido no mesmo commit; ALLOWLIST do `check_release_050_gate.sh`
+atualizado.
+
+- **Relações:** `Related: D-POLL-19 (D3-A), D-UNIVERSAL (padrão de sobreposição do R12), D-BOOTSTRAP (norte), rule 6, rule 11, R12`.
+
+## D-VERSIONING-RELEASE — política consolidada de versionamento e corte de release: PATCH = sem diff de superfície pública contratada, MINOR obrigatório para qualquer diff de superfície pública pré-1.0, SemVer estrito pós-1.0, gatilho ≠ corte (aprovação da mantenedora 22/09/2026)
+
+**Data:** 22/09/2026 · **Estado:** `DECIDED` (aprovação da mantenedora — PR #582
+mergeado em 22/09/2026) · **Sobrepõe parcialmente:** as regras de classificação
+e de gatilho da `D-RELEASE` — a decisão histórica é preservada (§1.3); só o
+escopo dela é refinado. · **Incorpora por referência, sem relaxar:**
+`D-RELEASE-1.0`, `D-1.0-EDGES`, `D-RELEASE-0.5.0-GATE`,
+`D-RELEASE-0.5.0-SCOPE`.
+
+**Escopo:** como uma mudança é classificada (PATCH/MINOR/MAJOR) e quando um
+candidato a release é avaliado; não corta uma release por si só.
+
+**Contrato:**
+
+1. **Classificação é separada do corte.** Uma mudança ser PATCH não autoriza
+   publicar um PATCH; classificação → avaliação → candidato → gate → corte é um
+   pipeline, e um gatilho só abre a avaliação.
+2. **PATCH pré-1.0:** reservado a mudanças **sem diff de superfície pública
+   contratada** — bugfix, fix de segurança/regressão, fix de paridade para
+   satisfazer um contrato existente, performance/refactor interno,
+   CI/tooling/packaging/docs, ou melhoria de diagnóstico que não muda o
+   contrato. `PUBLIC_CONTRACT_SURFACE_DIFF = 0 → PATCH admissível`.
+3. **MINOR pré-1.0 (obrigatório):** qualquer **superfície pública contratada
+   nova ou alterada** — sintaxe/operador/semântica observável nova, API ou
+   namespace público relevante, comando/flag público, capacidade pública da
+   stdlib, contrato de pacote/registry/interop, promoção de alvo a
+   Supported/Stable, ou breaking change pré-1.0 deliberado e aprovado.
+   `PUBLIC_CONTRACT_SURFACE_DIFF > 0 → PATCH proibido, MINOR no mínimo,
+   Decision ID obrigatório`.
+4. **Breaking change pré-1.0:** MINOR + decisão registrada + nota de
+   impacto/migração + prova. Nunca escondido num patch por o projeto estar
+   abaixo de 1.0.
+5. **Pós-1.0:** SemVer estrito — PATCH = fixes retrocompatíveis, MINOR =
+   funcionalidade pública retrocompatível nova, MAJOR = mudança incompatível de
+   contrato; a compatibilidade é avaliada nas dimensões **fonte**,
+   **artefato/binário**, **comportamental** e **paridade cross-target**.
+6. **Primeiro `1.0.0`:** só quando a `D-RELEASE-1.0` (EXIT GATE) estiver
+   totalmente GREEN no mesmo candidato e nenhuma aresta da `D-1.0-EDGES`
+   estiver aberta — nunca por contagem de commits, de features, idade do
+   projeto ou alcance de `0.9.9`.
+7. **Gatilho ordinário (generalizado):** `LAST_RELEASE..ACTIVE_BRANCH` (não
+   fixado a uma branch histórica) cruzando **100–150 commits** abre uma
+   AVALIAÇÃO DE RELEASE — nunca publicação automática.
+8. **Gatilho extraordinário:** um fix de segurança relevante, uma regressão
+   crítica, um fix urgente de distribuição/pacote, ou uma decisão explícita da
+   mantenedora abrem a avaliação imediatamente.
+9. **Baseline comum de elegibilidade ao corte** (os gates por linha seguem
+   prevalecendo): SHA do candidato identificado; VERSION/pom/recurso de versão
+   consistentes; CHANGELOG/metadados de release coerentes; suíte exigida GREEN
+   no candidato; classificação PATCH/MINOR/MAJOR provada; decisões necessárias
+   registradas; bloqueadores aplicáveis resolvidos; pacote real validado quando
+   aplicável; confiança/provenance do artefato conforme `D-ARTIFACT-TRUST`;
+   docs EN/PT sincronizadas.
+10. **Gate mecânico futuro (backlog, não esta decisão):**
+    `release-surface-gate` comparando a última release com o candidato em
+    gramática, language-reference, operadores, regras de tipagem, catálogo da
+    stdlib Stable, comandos/flags contratuais da CLI, contrato de
+    pacote/registry e Stable Target Surface; `PUBLIC_SURFACE_DIFF > 0` rejeita
+    PATCH.
+
+**Texto materializado:** `docs/distribution/VERSIONING.md` (+PT) descreve o
+estado atual e aponta para cá; a `D-RELEASE` mantém o histórico com uma nota de
+relação; `D-RELEASE-0.5.0-GATE` e `D-RELEASE-1.0` ficam inalteradas.
+
+**Evidência:** `docs/distribution/PROPOSAL-VERSIONING-RELEASE.md` (+PT) — bloco
+de evidência KOF-first e ancoragem externa; aprovação da mantenedora (PR #582
+mergeado em 22/09/2026; registro de issue fechada).
+
+- **Relações:** `Related: D-RELEASE (parcialmente sobreposta), D-RELEASE-1.0, D-1.0-EDGES, D-RELEASE-0.5.0-GATE, D-RELEASE-0.5.0-SCOPE, D-ARTIFACT-TRUST, D-BRANCH-0.5.0, D-VERSION-BUMP-0.5.0, rule 6`.
+
+## D-TECHDEBT-23/09 — vereditos do ledger de dívida técnica (mantenedora 23/09/2026, múltipla escolha)
+
+**Data:** 23/09/2026 · **Estado:** `DECIDIDO` (respostas da mantenedora no chat,
+múltipla escolha — "chama no pente") · **Fonte:** `docs/development/tech-debt.pt_BR.md`
+§5 (6 perguntas abertas) → respostas: §248 = portar JS+Native · §271 = emitir
+bridges · §278 = portar as stacks · §423 = agendar o port · split = todos em
+lote · D6-1=B = abrir agora.
+
+1. **§248 — default methods de interface: PORTAR JS + NATIVE** (não só JVM).
+   Fila: lane compiler — emitir defaults no JS + Native com prova de paridade.
+2. **§271 — dispatch de interface genérica: EMITIR BRIDGES** (linha de ABI de
+   erasure decidida agora). Fila: lane compiler — bridge methods nos impls de
+   interface genérica.
+3. **§278 — Android: PORTAR AS STACKS** (`kof.security`/`kof.gpu` rodam no
+   Android; `kof.db`/`kof.orm` já corrigidos via DB-2). Fila: lane gaps-db.
+4. **§423 — channels cross: AGENDAR O PORT** (runtime `kof_channel_*`
+   riscv64/aarch64 + prova qemu). Fila: lane nat.
+5. **Ordem de split: TODOS EM LOTE** — `NativeBackend` 603 (VERMELHO) +
+   `CompilerPipeline` 588 + `RuntimeOrm7` 585 num lote só (precedente
+   §442/§446, behavior-preserving).
+6. **D6-1=B — ABRIR AGORA** (frente `struct` mutável by-ref abre sob
+   spec-first + Lei da Simplicidade, regra 11). Fila: lane FFI — design §4/§6
+   para revisão, depois diff de parser/typer.
+
+**Evidência:** respostas de múltipla escolha da mantenedora 23/09 (esta sessão);
+`docs/development/tech-debt.pt_BR.md` §5.
+
+- **Relações:** `Related: tech-debt.pt_BR.md §5, regra 6, regra 11, R6, D-FFI-STRUCT-B, D-RELEASE-0.5.0-GATE (cond. 2/7).`
+
+## D-DEBT-SCOUT — frente do KOF Technical Debt Scout abre: só Wave 1 (determinístico, somente shadow), sem capacidade de publicar Issue (dirigido pelo usuário, 23/09/2026)
+
+> **24/09/2026 — MORTA pela mantenedora:** a dívida foi medida zerada
+> (todo §NNN vivo que o ledger rastreava está ✅ no `known-bugs.md`; gate de
+> tamanho verde) e a ferramenta/workflow/testes `tech-debt`/`technical-debt`/
+> `debt-scout` foram removidos por ordem dela. Esta decisão fica como história.
+
+**Data:** 2026-09-23 · **Estado:** `DECIDED` (escopo, não detalhe de
+implementação) · **Fonte:** dois documentos de pesquisa fornecidos pelo
+usuário nesta sessão (`KOF_TECHNICAL_DEBT_SCOUT_AGENT_V1_BACKUP.md`,
+`KOF_TECHNICAL_DEBT_SCOUT_AGENT_V2.md`) — a V2 substitui a V1 conforme o
+próprio §0 dela. O contrato operacional condensado pousou em
+`docs/development/technical-debt/DEBT_SCOUT_CONTRACT.md` no mesmo commit
+deste registro.
+
+**Decisão:** abre-se uma nova frente de ferramenta — descoberta/
+documentação automatizada de dívida técnica histórica —, restrita
+estritamente à **Wave 1** do desenho V2: só detectores determinísticos
+(nenhum LLM no laço), um schema de candidato estável + dois fingerprints
+(finding/dívida), descoberta de branch/ref que nunca hardcoda uma versão,
+e um orquestrador de scan. **Nenhum script e nenhum workflow deste pouso
+pode chamar a API de escrita de Issues do GitHub, e nenhum workflow
+concede `issues: write` a este sistema.** O Scout alimenta a triagem
+humana (hoje: `docs/development/tech-debt.md`, o ledger mantido pela
+mantenedora) — nunca é um segundo escritor desse ledger, e não decide
+contrato de linguagem, não implementa correções, não fecha Issues, não
+faz merge de PR (a regra 6 se aplica a qualquer coisa que o Scout
+levante e que exija mudança de contrato).
+
+**Por que um registro de decisão para ferramenta, não só um edit:** esta
+frente pode, em waves futuras que os documentos-fonte descrevem, ganhar
+a capacidade de abrir Issues no GitHub de forma autônoma. Essa
+capacidade **não** está autorizada por este registro — avançar além da
+Wave 1 (upload de SARIF, o Debt Inbox e, principalmente, qualquer mudança
+de permissão de workflow rumo a `issues: write` para este sistema) exige
+seu próprio registro em `DECISIONS.md` com a autorização de fase da
+mantenedora (`DEBT_SCOUT_CONTRACT.md` §7, fases S1/S2/S3), do mesmo jeito
+que `D-ARTIFACT-TRUST` condicionou o caminho de escrita de
+`scripts/agent-close-issue.sh`.
+
+**Rejeitado neste pouso:** copiar qualquer um dos dois documentos-fonte
+de 104 seções verbatim para o repositório (viola a lição de "partes
+pequenas", `AGENTS.md` §"Lição aprendida (09/04)"); um framework paralelo
+de risco/evidência/despacho (a própria V2 §46 manda reusar
+`scripts/agent-*.sh`); qualquer caminho de auto-publicação antes de uma
+fase de trust-rollout ser explicitamente autorizada.
+
+**Evidência:** os dois documentos-fonte (fornecidos na sessão, 23/09/2026);
+infraestrutura de agente existente (`scripts/agent-common.sh`,
+`agent-dispatch-gate.sh`, `agent-state-fingerprint.sh`, `agent-risk.sh`,
+`agent-evidence.sh`, `agent-verify.sh`) confirmada presente e reusável;
+`docs/development/tech-debt.md` (aberto 23/09) confirmado como o ledger
+manual existente que esta ferramenta alimenta em vez de duplicar; nenhuma
+label `technical-debt` existe ainda no GitHub (`gh label list`), então
+qualquer rotulação futura fica no corpo do candidato conforme o contrato,
+não numa taxonomia inventada na hora.
+
+- **Relações:** `Related: AGENTS.md regra 6/8/9/10/11, R6,
+  D-ARTIFACT-TRUST, D-KOF-FIRST, tech-debt.md.`
+
+## D-DEBT-SCOUT-W2 — Wave 2 do Debt Scout autorizada: qualificação de evidência, clustering de causa-raiz, principal/interest/lock-in, classificador C2/C3, Debt Inbox, SARIF — ainda shadow, ainda zero publicação de Issue (dirigido pelo usuário, 23/09/2026)
+
+**Data:** 2026-09-23 · **Estado:** `DECIDED` · **Fonte:** o usuário disse
+"segue para wave2" depois de revisar o pouso da Wave 1 (contrato
+`DEBT_SCOUT_CONTRACT.md` §11, `KOF_TECHNICAL_DEBT_SCOUT_AGENT_V2.md` §94).
+
+**Decisão:** a Wave 2 do desenho V2 é autorizada: um context builder
+KOF-first determinístico, clustering de causa-raiz (por `debt_fingerprint`),
+o vetor principal/interest/lock-in (nunca um score único, contrato
+§11/§12), um classificador de confiança C2/C3 que só promove um cluster
+além de `C1` quando o checklist de evidência obrigatória (contrato §7,
+requisitos de C3) está de fato satisfeito — nunca por muitos sinais
+fracos —, um Debt Inbox para achados C2 sem localização de código, e um
+escritor SARIF para achados C0/C1/C2 que TÊM localização (contrato §37:
+"prefira SARIF/code scanning a abrir Issue" exatamente para esse caso).
+
+**O que este registro explicitamente NÃO autoriza ainda:** o publisher
+de C3, qualquer concessão de `issues: write` em lugar nenhum, qualquer
+trigger push/schedule. A Wave 2 fica `mode: shadow` de ponta a ponta —
+`issues_created` continua sendo `0` estrutural, provado do mesmo jeito
+que a Wave 1 provou (o relatório/workflow afirma isso, não só pretende).
+Avançar para a Wave 3 (§95 do spec-fonte: o publisher canary de C3)
+precisa do próprio registro em `DECISIONS.md` com a autorização de fase
+S1 da mantenedora (`DEBT_SCOUT_CONTRACT.md` §7), exatamente como
+`D-DEBT-SCOUT` já dizia.
+
+**Novo privilégio que esta wave introduz, com escopo apertado:** o job
+`scan` do workflow ganha `security-events: write` (só upload de SARIF,
+`github/codeql-action/upload-sarif`) — continua zero `issues: write` em
+qualquer lugar. É a mesma disciplina de mínimo privilégio que
+`D-ARTIFACT-TRUST` já aplica em todo outro workflow deste repositório.
+
+**Evidência:** a própria rodada real da Wave 1 (`https://github.com/
+KofLang/Kof4j/actions/runs/35839064175`) mediu que, dos 33 candidatos
+reais (32 `C0` SATD, 1 `C1` de branch-drift), **zero** se qualificou
+para Issue sob os próprios gates do contrato quando triados à mão —
+essa triagem é exatamente o que o classificador da Wave 2 agora faz de
+forma mecânica, então o resultado da próxima rodada é conferível sem
+re-triagem manual toda vez.
+
+- **Relações:** `Related: D-DEBT-SCOUT, DEBT_SCOUT_CONTRACT.md §7/§11/§37,
+  D-ARTIFACT-TRUST, regra 6.`
+
+## D-BAREMETAL-RING1-SURFACE — superfície do domínio ring1 = um marcador embutido `ring1(fn)` (sem sintaxe nova); o compilador baixa para a transição CPL0→CPL1 (mantenedora 23/09/2026)
+
+**Data:** 2026-09-23 · **Estado:** `DECIDED` (a mantenedora respondeu a múltipla
+escolha no chat, opção "Built-in marker function") · **Origem:** B-6.1 pousou
+(GDT/TSS/IDT do Kof sob OVMF); o B-6.2 (entrada CPL1) estava bloqueado nesta
+decisão rule-6 (`D-BAREMETAL-BOOT` §3 deixou a superfície Kof aberta).
+
+**Decisão:** a forma de o código Kof mirar um **domínio ring1** é uma **função
+marcadora embutida `ring1(fn)`** — uma chamada cujo nome do alvo é reservado e
+baixado pelo compilador; **sem gramática, palavra-chave, bloco, anotação ou
+modificador novos**. `ring1(fn)` roda o valor de função Kof dado em **CPL1** e
+devolve o resultado a CPL0: o runtime faz a transição `iretq` (`CS=0x18` RPL=1,
+`SS=0x20`, `rsp0` do TSS sustentando o trap de volta), chama a função, e o
+caminho de fault de instrução privilegiada retorna por um gate ring0.
+
+**Razão (Lei da Simplicidade, rule 11):** o Kof declara a **intenção**
+(`ring1(fn)`), a plataforma faz o mecanismo. Uma chamada embutida é a menor
+superfície possível — parseia como chamada comum, existe em zero produções de
+gramática e lê exatamente como um humano escreveria. Palavra-chave/bloco foi
+rejeitado como superfície maior e menos Kof.
+
+**Restrições (semântica congelada intocada):**
+1. O embutido só faz sentido no perfil bare-metal/UEFI x86_64 com anéis
+   (`NativeProfile.UEFI_RING`/seu caminho de boot). Em qualquer outro alvo/backend
+   ele deve falhar com **diagnóstico nomeado** (`NATIVE003`), nunca no-op
+   silencioso (R6) — um domínio CPL1 não existe em JVM/JS/riscv/aarch64 hoje
+   (R7, escopo honesto).
+2. **Aditivo**: código que não chama `ring1` fica intocado; sem mudança de
+   operadores, precedência, ordem de avaliação ou API existente.
+3. `ring1` recebe um **valor de função** (função/lambda Kof); não é palavra-chave
+   de statement, então compõe como expressão devolvendo o resultado da função.
+
+**Fila:** B-6.2 (`PLAN-BAREMETAL-BOOT`), lane baremetal, sessão 9092; o B-6.3
+(prova de `#GP` no domínio ring1 + sabotagem do descritor da GDT) segue quando o
+B-6.2 estiver provado. A condição 3 do gate 0.5.0 mantém o plano na allowlist
+(plano em voo, padrão `D-BAREMETAL-BOOT`) — o corte não espera por ele.
+
+**Evidência:** resposta de múltipla escolha da mantenedora no chat, 23/09/2026
+(esta sessão), opção "Built-in marker function (Recommended)"; registrado aqui
+antes de qualquer código do B-6.2 (rule 6: não se ataca frente sem decisão
+travada).
+
+- **Relacionados:** `Related: D-BAREMETAL-BOOT, D-UNIVERSAL, D-BOOTSTRAP, rule 6, rule 11, R6, R7`.
+
+## D-BAREMETAL-BODIES — corpos de plataforma B-5 autorizados (tempo no BIOS via RTC primeiro) e B-4 (MCU) autorizado com seu pré-requisito de coletor (mantenedora 24/09/2026)
+
+**Data:** 2026-09-24 · **Estado:** `DECIDED` (resposta da mantenedora no chat,
+esta sessão: "autorizo 1 e 2") · **Estende:** `D-BAREMETAL-BOOT` (o plano da
+frente `PLAN-BAREMETAL-BOOT` §B-4 / §B-5)
+
+**Decisão (palavras da mantenedora):** *"autorizo 1 e 2"* —
+
+1. **B-5 (corpos de plataforma)** pode ser implementado, começando pela face
+   **BIOS**: `kof_plat_time` preenchido pelo **RTC** CMOS (portas de E/S
+   `0x70`/`0x71`), devolvendo o tempo epoch que a ABI já espera
+   (`ts[0]=tv_sec`, `ts[1]=tv_nsec`), de modo que um `time.now()` Kof rode bare
+   sob SeaBIOS. Capacidades que ainda não têm corpo permanecem **recusas
+   NOMEADAS** (R6), nunca stub silencioso; uma recusa no BIOS deve imprimir
+   diagnóstico **ASCII legível** (não a forma UTF-16 do UEFI, que o COM1
+   renderiza como lixo com NULs intercalados).
+2. **B-4 (MCU)** é autorizado como frente; segue **bloqueado pelo seu
+   pré-requisito duro** — o coletor de GC `native-multiarch.md` **G-4/G-5**
+   (RAM em escala de KB) — que é desenvolvido **primeiro**, em fatias.
+
+**Nada relaxado:** a **superfície/semântica Kof não muda** — só os corpos da
+HAL `kof_plat_*` atrás da ABI existente (sem mudança de gramática, operador,
+modelo de tipos ou contrato congelado); todo caminho ainda ausente mantém
+**diagnóstico nomeado** (R6/R7); a semântica de anéis `#GP`/CPL do B-6 fica
+inalterada.
+
+**Fila:** `roadmap.md` §23 (frente baremetal) + claim no DOING no mesmo commit;
+**B-5 tempo no BIOS = primeira fatia** (prova: `BiosBootE2ETest` bota um
+`time.now()` Kof sob SeaBIOS); **B-4 segue o coletor G-4/G-5**.
+
+**Evidência:** mensagem da mantenedora 24/09/2026 (chat, esta sessão);
+registrado aqui **antes** de qualquer código de B-5/B-4 (rule 6: não se ataca
+frente sem decisão travada).
+
+- **Relacionados:** `Related: D-BAREMETAL-BOOT, D-UNIVERSAL, D-BOOTSTRAP, rule 6, rule 11, R6, R7, R12`.
+
+## D-BAREMETAL-MCU-GC — o B-4 NÃO fecha antes de o coletor G-4/G-5 ser portado para 32-bit; `kof_plat_time` no MCU = recusa NOMEADA do wall + mono via SysTick (mantenedora 24/09/2026)
+
+**Data:** 2026-09-24 · **Estado:** `DECIDIDO` (respostas da mantenedora no chat,
+nesta sessão, 24/09) · **Estende:** `D-BAREMETAL-BODIES` (o item 2 deixou o B-4
+bloqueado pelo coletor; este trava o critério de fechamento e a semântica de
+tempo do MCU)
+
+**Decisão (respostas da mantenedora, em ordem):**
+
+1. **O B-4 ainda NÃO fecha.** O slice mínimo print-only do MCU (hello + reset
+   path da vector table asserido nas duas arches riscv32 e Cortex-M3, o resto
+   recusado honestamente com `NATIVE002`/`CONC003`) satisfaz o aceite literal do
+   §B-4, mas **não** é o critério de fechamento: o coletor `native-multiarch.md`
+   **G-4/G-5** precisa ser **portado para o MCU 32-bit** (alocação + mark/sweep +
+   uma prova long-running que recicla sob `qemu-system-riscv32 -M virt` e/ou
+   `qemu-system-arm -M mps2-an385`) antes de o `PLAN-BAREMETAL-BOOT` sair de
+   `docs/development/`. O heap é dimensionado pelo linker script (escala de KB),
+   não pela arena fixa de 262 144 B em `.bss`.
+2. **Semântica do `kof_plat_time` no MCU** (um MCU sem RTC): o relógio **wall**
+   (`time.now()`) é **recusa NOMEADA** (R6/R7) — nunca uma epoch falsa; o
+   caminho **monotônico** (`kof_plat_time_mono`, e `time.sleep` onde couber) é
+   fornecido pelo contador **SysTick** com `boot = 0`.
+
+**Nada relaxado:** nada. A **superfície/semântica Kof não muda** — só internos do
+runtime 32-bit e os corpos da HAL `kof_plat_*` atrás da ABI existente; todo
+caminho ainda ausente mantém **diagnóstico nomeado** (R6/R7).
+
+**Fila:** `roadmap.md` §23 (frente baremetal) + claim no DOING no mesmo commit;
+**primeira fatia = o port do alocador + coletor 32-bit** (prova sob qemu), depois
+os corpos de tempo do MCU.
+
+**Evidência:** respostas da mantenedora 24/09/2026 (chat, esta sessão), às duas
+opções apresentadas após o pouso do B-4.3 sl.1; registrado aqui **antes** de
+qualquer código de coletor/tempo-MCU (regra 6).
+
+- **Relacionados:** `Related: D-BAREMETAL-BOOT, D-BAREMETAL-BODIES, D-UNIVERSAL, D-BOOTSTRAP, rule 6, rule 11, R6, R7`.
+
+## D-FULL-PARITY-050 — Paridade total da plataforma é a regra ABSOLUTA de todo plano e IMPEDITIVO da 0.5.0: a release não corta enquanto `docs/development/parity/PARITY-GAPS.pt_BR.md` tiver linha aberta (mantenedora 24/09/2026)
+
+**Data:** 2026-09-24 · **Estado:** `DECIDIDO` (mensagens da mantenedora no
+chat, nesta sessão, 24/09) · **Estende:** `D-UNIVERSAL`,
+`D-RELEASE-0.5.0-SCOPE`, invariante de plataforma R7
+
+**Decisão (palavras da mantenedora, em ordem):** *"A PLATAFORMA UNIVERSAL TA
+IMPLEMENTADA SÓ PRA JVM? ISSO É INACEITAVEL. TUDO TEM QUE TER PARIDADE TOTAL.
+DOCUMENTE ISSO COMO IMPEDITIVO PARA 0.5.0"*; *"A REGRA ABSOLUTA PRA QUALQUER
+PLANO É A PARIDADE TOTAL"*; *"APROVEITA E PESQUISA TUDO QUE TA COM PARIDADE
+PARCIAL E BOTA EM docs/development/parity PARIDADE TOTAL É INDISPENSAVEL"*.
+
+**O que foi decidido:**
+
+1. **Paridade total (JVM/Script ≡ Native x86-64 ≡ Native riscv64/aarch64 ≡
+   JS, byte/golden vs o oráculo JVM) é a regra ABSOLUTA de todo plano** — uma
+   frente nova que pousar JVM-first DEVE carregar o plano de paridade no
+   mesmo item da fila; "gap declarado" é estado de rastreio, nunca de
+   aceitação.
+2. **Condição 8 da release 0.5.0 (full_parity) é IMPEDITIVA:** o ledger
+   `docs/development/parity/PARITY-GAPS.md`(+PT) precisa ter **0 linhas
+   abertas** no corte. O ledger foi criado medido (24/09) com as 16 linhas
+   abertas (códigos de `DomainGapCodesTest`, `Kof*.java`, tabela de paridade
+   da stdlib e `known-bugs.md`): process/shell (`PROC001`), ssh (sem código
+   ainda — catalogar), media (`MEDIA001`/`MEDIA003`), mq (`MQ001`), gpu JS +
+   golden cross (`GPU001`), observability golden cross (`OBS003`), time cross
+   (`TIME002`/`TIME004`), cache/config/log golden cross + log interpretador
+   (`CONF001`), `math.pow` cross (`MATH001`), `strings.reverse` não-ASCII +
+   cinco métodos de String (`NAT-STR01`/`STR003`), web T1 native (`WEB00x`),
+   `kof.io` cross (`NAT006`/`NAT007`), security cross
+   (`SECN001/003/004/005`), `orm.*` nativo (`ORM001`), `db.*` nativo
+   query/prepared (`DB001`).
+3. **A condição 1 existente (paridade 100%) medida na MATRIZ DE CONFORMIDADE
+   permanece** — o ledger ACRESCENTA a cauda longa que a matriz nunca cobriu
+   (golden não medido conta como ABERTO, Q5: sem falso verde).
+4. **Definition of done por linha:** face compila + golden/E2E byte a byte +
+   tabelas de docs atualizadas no MESMO commit + linha removida no MESMO
+   commit.
+5. **Todo plano FUTURO herda a regra:** plano sem seção de paridade (alvos ×
+   prova) está mal classificado (regra dos três estados) — o agente adiciona
+   ou roteia o gap para este ledger.
+
+**Evidência:** mensagens da mantenedora 24/09/2026 (chat, esta sessão);
+ledger criado com o estado completo medido no mesmo commit; gate de máquina
+ligado no `scripts/check_release_050_gate.sh` (`full_parity`).
+
+- **Relacionamentos:** `Relaciona: D-UNIVERSAL, D-RELEASE-0.5.0-SCOPE,
+  D-DB-GAPS, D-GRAFICOS-GAMING, R6, R7, Q5, regra 6`.
+
+## D-MEMORY-SAFETY — Front de segurança de memória (propriedade/tempo de vida/empréstimo/aliasing/FFI) aberto em `docs/development/`, dono = lane de paridade; investigação primeiro, core intocado até a fila atual fechar (mantenedora 25/09/2026)
+
+**Data:** 25/09/2026 · **Estado:** `DECIDIDO` (mantenedora 25/09, esta sessão) · **Extende:** `D-KOF-FIRST`, `D-FULL-PARITY-050`, rule 6, rule 8, rule 11, R6, R7, SG/D-KOF-AS-CLOUD
+
+**Decisão (palavras da mantenedora, em ordem):** *"pode botar em docs/development e ja assumir essa frente"*; *"o brief (seções 1–27) — pode ir pra docs/development e ja assumir essa frente"*; *"o trabalho de código só começa DEPOIS que a fila atual estiver concluída"*; *"Kof-first investigation — no assumption that Kof works like Rust, C++, Java, Kotlin, Swift or Zig"*; *"Architecture before code — Phase 0 investigation and Phase 1 spec precede ANY compiler edit"*; *"Implementation waits for the current queue (brief, final line)"*; *"Simplicity Law (rule 11): strong guarantees without turning Kof code into an endless chain of lifetime annotations"*; *"Cross-target by construction — JVM, Native, JS and the planned WASM express the same Kof semantics; GC on JVM/JS never excuses semantic divergence; FFI must define the owner per crossing"*; *"Diagnostics and tests are part of the feature — every rule ships with valid/invalid/expected-diagnostic/regression/per-backend cases"*; *"Forbidden: copying Rust's borrow checker, inventing syntax (let, const, foreign move markers), a null-safety rewrite, big-bang compiler refactors, single-backend ownership, hiding ownership problems in the runtime"*.
+
+**O que foi decidido:**
+
+1. **Investigação antes de código** — Fase 0 produz `docs/spec/memory-safety-investigation.md` (estado atual, riscos, modelo de lifetime implícito, pontos frágeis, proposta, alternativas, impacto no backend, impacto de compatibilidade, plano incremental) ANTES de qualquer edição no compilador. Fase 1 produz a spec formal `docs/spec/memory-safety.md` (Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone, Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe Boundaries). A semântica existe ANTES da implementação.
+2. **A fase de implementação só começa depois que a fila atual fechar** (a linha final do brief: "Esse trabalho só começa depois que a fila atual estiver concluída") — até lá: investigação, drafts de spec e estudos de infraestrutura de compilador apenas, ZERO edições prematuras no core.
+3. **Complexidade acidental zero na superfície da linguagem** (regra 11): o modelo deve ser forte o suficiente para tornar classes inteiras de bugs impossíveis sem transformar Kof em uma corrente infinita de anotações de lifetime; sucesso = o compilador consegue dizer "este programa não pode produzir esta classe de erro" (use-after-free, double-free, dangling reference, invalid lifetime escape, unsafe mutable aliasing, unexpected null, accidental data race) com uma fronteira explícita onde uma prova é impossível.
+4. **Cross-target por construção** — JVM, Native, JS e o planejado WASM devem expressar a MESMA semântica Kof (GC na JVM/JS nunca justifica divergência de aliasing/mutabilidade/lifetime); fronteiras FFI devem definir owner/keeper/free-writer/guardian para cada tipo de crossing.
+5. **Diagnósticos e testes são parte da feature** — toda regra pousa com válido/inválido/diagnóstico-esperado/regressão/por-backend testes (suítes pequenas por domínio, adaptadas à árvore de testes real, nada de suíte gigante).
+6. **Proibido:** copiar o borrow checker do Rust, inventar sintaxe (`let`, `const`, marcadores de move estrangeiros), um rewrite de null-safety, refatoração big-bang do compilador, propriedade single-backend, esconder problemas de propriedade no runtime.
+
+**Plano de fases (do brief, ordem verificável por máquina):** Fase 0 doc de investigação → Fase 1 spec (`docs/spec/memory-safety.md`) → Fase 2 infraestrutura do compilador (representações ownership/lifetime/borrow/alias/mutability/escape/resource-state) → Fase 3 primeiras garantias (use-after-move, dangling refs, escapes inválidos, aliasing mutável, dupla propriedade/destruição) → Fase 4 closures/async → Fase 5 Native+FFI → Fase 6 paridade JVM/JS/WASM da semântica. Cada fase gateia a próxima; uma fase sem seus testes de prova não fecha.
+
+**Evidência:** mensagens da mantenedora 25/09/2026 (chat, esta sessão): o brief completo (seções 1–27) + "pode botar em docs/development e ja assumir essa frente"; plan doc criado no mesmo commit (`docs/development/memory-safety-plan.md` EN+PT).
+
+- **Relacionamentos:** `Relaciona: D-FULL-PARITY-050, D-UNIVERSAL, D-RELEASE-0.5.0-SCOPE, D-DECOMPILER, D-BOOTSTRAP, D-DB-GAPS, D-GRAFICOS-GAMING, D-MAKEALIVE, D-MAKEALIVE-CLI, D-KOF-AS-CLOUD, D-KOF-FIRST, D-RELEASE-0.5.0-GATE, D-BRANCH-0.5.0, D-BAREMETAL-BOOT, D-BAREMETAL-BODIES, D-BAREMETAL-MCU-GC, D-GRAFICOS-GAMING, D-UNIVERSAL, D-DB-GAPS, rule 6, rule 11, R6, R7, D-MEMORY-SAFETY`.
+
+### Atualização 26/09 — Fase 1 CLOSED, Fase 2 DESTRAVADA (mantenedora, chat)
+
+**Fase 1 FECHADA 25/09** (opção A — spec aceita; espelhos pousados em
+`8d5634216`/`0670f2312`). Em 25/09 a mantenedora escolheu a opção `J` (a
+fila espera a fila atual); em 26/09 ela destravou — palavras dela:
+**"fase 2 destravada"**. **Fase 2 (infraestrutura de compilador) = EM
+DESENVOLVIMENTO**, dona = lane paridade (claim desta lane no `DOING.md`
+EN+PT, mesmo commit). Escopo travado: representações internas do compilador
+no pacote `dev.kof.compiler.memory` — ownership/lifetime/borrowing/
+aliasing/mutability/escape/resource-state + o enum de códigos de diagnóstico
+`MEMxxx` dos §1–§10 da spec — SOMENTE estruturas e testes; **zero mudança de
+comportamento (suite byte-green)**; emissão/encaminhamento dos diagnósticos é
+da Fase 3. As proibições do brief continuam valendo (nada de copiar o
+borrow-checker, nenhuma sintaxe nova, nenhuma reescrita do null-safety).
+
+**Evidência:** mensagem da mantenedora 26/09/2026 (chat, sessão autônoma);
+viradas do plano+spec EN+PT no mesmo commit.
+
+**Ver também:** chamada (4) de `D-DECISION-BATCH-2609` — a mesma decisao da
+mantenedora registrada em lote pela lane do watcher; este bloco trava o
+escopo da implementacao, nao e uma segunda decisao.
+
+
+## D-DECISION-BATCH-2609 — lote de quatro decisões da mantenedora: §493 Native lança como a JVM; merge do #619 SEGURA; merge do #624 SAI; Fase 2 memory-safety DESTRABA (mantenedora 26/09/2026)
+
+Quatro decisões tomadas de uma vez pelo prompt multipla-escolha da sessao
+(26/09/2026, ~02:40):
+
+1. **§493 — a lei e o comportamento da JVM**: `orm.delete`/`deleteAll` sobre
+   MySQL com conexao morta/invalida deve LANCAR a string de erro em todo
+   target. O Native x86-64 e o cross (riscv64/aarch64) hoje devolvem `true`
+   — esse e o bug (caminhos de erro de RuntimeDb5/`RtB75`/`RtB54`). Coerente
+   com "excecoes sao Strings", R6 (nunca silenciar) e a Acceptance do
+   db-parity-plan (sem divergencia silenciosa). **Fila:** fechar §493 no
+   ledger com prova RED→GREEN cross-target (fixture server-down); ai a regra
+   de conclusao move `db-parity-plan` para `docs/stdlib/`. O codigo e da
+   lane gaps-db/native-runtime; esta entrada e o gate.
+2. **PR #619 (beta-0.5.0 → main) — merge SEGURADO.** A branch segue
+   recebendo trabalho; o ato de release e exclusivo da mantenedora (regra
+   10). Nenhuma acao para agentes alem de manter `beta-0.5.0` verde.
+3. **PR #624 (#623, box de tamanho estendido MP4) — merge LIBERADO.**
+   Verificado antes de pousar: commit unico `d7f0745fc` de
+   `PublioSantos/Kof4j`, APROVADO; os dois vermelhos eram artefato de base
+   antiga (branch de 25/09 10:42, anterior aos fixes §506/§507/§508). Merge
+   simulado em ramo descartavel sobre o tip `c298406e2`: `run-agent-tests.sh`
+   VERDE + bateria de media 17/0F/0E. Mergeado como merge commit
+   preservando o SHA do autor.
+4. **memory-safety Fase 2 — AUTORIZADA agora.** A trava da "opcao J" (zero
+   edits prematuros no core) foi levantada pela mantenedora: a lane parity
+   (dona da frente por `D-MEMORY-SAFETY`) segue para a Fase 2 — estruturas
+   internas do compilador de ownership/lifetime/borrow/alias/mutabilidade/
+   escape/resource-state. Os gates da Fase 1 seguem satisfeitos
+   (`docs/spec/memory-safety.md` pousado 25/09); a Fase 3+ continua gateada
+   pelos testes de prova da Fase 2.
+
+## D-QUALITY-PIPELINE-2609 — esteira de branches = pipeline de qualidade (lab → testing → prerelease → stable → release/x.y.z → tag); lab sem CI por push; gates de promoção 80%/100%/100%+CLOSEALL; migração ATÔMICA pós-0.5.0 com `release/0.5.0` de piloto (mantenedora 26/09/2026)
+
+**Evidência:** issue #626 (proposta da mantenedora, 26/09 04:52Z) +
+resposta da mantenedora 26/09 05:53Z aceitando a revisão técnica da lane
+paridade/qualidade ("desenho fechado conceitualmente como uma quality
+pipeline").
+
+(O comentário da lane irmã na #626 registrou o mesmo desenho sob o nome
+`D-QUALITY-PIPELINE`; é a MESMA decisão e esta entrada datada é o registro
+único — uma representação por afirmação. `794aa4721` havia commitado os
+marcadores de conflito do stash-pop; `e29ba47b3` mesclou os dois lados
+nesta entrada.)
+**Decisão (opção: pipeline de qualidade por estágios, não ambientes soltos):**
+
+| Estágio | Papel | CI | Quebra? | Publicável? |
+|---|---|---|---|---|
+| `lab` | experimentação | **SEM CI por push** (validação pesada vai para a promoção) | contrato pode mudar (ver ponto em aberto abaixo) | não |
+| `testing` | integração/QA | suíte completa na promoção `lab→testing` (primeiro gate formal) | idealmente não | potencialmente |
+| `prerelease` | candidato público | **≥80% verde para entrar de `testing`; 100% para avançar** | sem features | sim |
+| `stable` | contrato fechado | 100% + critérios de fechamento da versão (CLOSEALL+docs) | não | sim |
+| `release/x.y.z` | só empacotamento (temporária, de `stable`) | validações finais | não | sim |
+| tag | o contrato público | — | — | — |
+
+- **Hotfix em `stable`:** PR + backport explícito + revalidação antes de
+  voltar ao `stable` — nunca porta dos fundos para desenvolvimento.
+- **Prova de promoção é objetiva:** o checklist de
+  `release-beta-0.5.0-prep.md` (cond.7 = `check_known_bugs_status.sh`
+  live-vazio + matriz de conformidade) vira a definition-of-promotion.
+- **Timing (rígido):** a migração acontece SÓ depois que o ciclo do 0.5.0
+  fechar no modelo atual; `release/0.5.0` serve de piloto do último estágio.
+  O corte é UMA mudança atômica: branches + CI + scripts + `AGENTS.md` +
+  `DOING.md` + `DECISIONS.md` + automações (migração parcial = agente
+  empurrando no lugar errado — palavras da mantenedora).
+- **PONTO EM ABERTO (não decidido):** se o `lab` mantém o piso de
+  zero-regression (regra 8) mesmo sem CI por push — levantado na review
+  da lane ("não quebrável", precedentes `7f174a6f`); a resposta da
+  mantenedora não tocou nisso; decidir no plano de corte, não assumir.
+- **Até lá NADA muda:** `beta-0.5.0` segue a branch ativa
+  (`D-BRANCH-0.5.0` em vigor); agentes seguem empurrando para ela; #619
+  segue HELD (regra 10). Fila: roadmap §23 `TIER 14`.
+- **PONTO TECNICO ABERTO #2 (denominador do `≥80%`):** branch protection
+  mede checks como booleanos — o percentual nao e aplicavel por protection,
+  tem de viver num script de promocao sobre lista FIXA e enumeravel de checks
+  (Build+Tests, Native cross, Structural, kof.io x3, CodeQL Gate, bots), e um
+  "80% que tolera vermelho" precisa classificar QUAIS vermelhos: funcionais
+  (bloqueiam sempre — regra 8) vs ambiente/toolchain documentados (whitelist
+  nomeada). Formula proposta para o commit da migração: `testing -> prerelease`
+  = zero vermelho funcional + no maximo N vermelhos de ambiente nomeados no
+  whitelist (= o ~80% mensuravel); `prerelease -> stable` = 100% na mesma
+  enumeracao. Generalizacao natural do `check_release_050_gate.sh` (ja faz
+  esse formato para a release). Respondido na issue (comentario da lane).
+
+## D-COMPLETE-FIRST — regra de escolha para decisoes automaticas: a solucao idiomatica E COMPLETA (sem stub, sem desistir, sem assumir gap, paridade total) e A OPCAO que as lanes seguem; alternativas ralas/stub/aceitar-gap nao sao opcoes (mantenedora 26/09/2026)
+
+**Data:** 2026-09-26 · **Estado:** `DECIDIDO` (mantenedora, chat, sessao)
+
+**Decisao (palavras da mantenedora, em ordem):** "me da soluções idiomaticas,
+nada de desistir ou assumir gap" → "muito menos stub" → "percebe que depois
+das minhas reclamações vc me deu só uma opção? **é ela q vc segue**".
+
+**A regra, operacional:** quando uma frente rule-6 e triada, a **forma
+completa idiomatica** — a que seria apresentada como contrato real (passe de
+analise, nao diagnostico solto; motor completo, nao facade `eval`-devolve-
+String; runner ligado ponta a ponta, nao flag pela metade; liberacao de
+ciclo de vida deterministica, nao "espera o GC") — **e a decisao que a lane
+segue**, sem devolver a voto. O que NAO e escolha: desistir, "aceitar um gap"
+como resposta a uma necessidade legitima, stubs/facades/APIs ralas, ou uma
+fatia que finge que o resto existe. Escopo de alvo legitimo (R7: JVM-first
+com diagnostico NOMEADO no caminho impossivel-no-alvo) nao e gap — e a
+entrega completa do escopo declarado. Quando existirem duas ou mais opcoes
+genuinamente completas (contratos cheios diferentes), a mantenedora ainda
+vota entre elas; quando exatamente uma e completa, segue-se ela de imediato.
+
+**Consequencias operacionais — as quatro perguntas rule-6 abertas de 26/09
+resolvem-se como a opcao cheia de cada uma** (cada uma pousa como pacote
+completo, nunca stub, com prova por alvo antes de fechar):
+
+1. **O-02 × N-02 (memory-safety Fase 3):** resolvido **sem literal null** —
+   o passe de analise de ownership/lifetime no pipeline do compilador com
+   emissao MEM001/MEM002/MEM005 e os casos de interacao nos 4 alvos. O
+   DECISION REQUEST do plano esta FECHADO por esta regra; Fase 3 DESTRAVADA.
+2. **X2 (interop Python/R):** o pacote oficial `interop` completo —
+   marshalling bidirecional tipado (Int/Double/Bool/String/List/Map/record
+   ↔JSON), gerenciamento real de processo (spawn, stdin/stdout, timeout,
+   exit, cancelamento), estado de sessao, erros nomeados `INTEROP00x`, E2E
+   por alvo, corpus (`training/idioms/interop.md` + `learn/` + matriz de
+   paridade) sincronizado. Nasce `experimental` pela R5.
+   **Progresso 26/09 — fatia 1 POUSADA (item ainda aberto, fatias 2+ pendentes):**
+   o motor Python `KofPy` pousou como host escrito em Kof (`interop-py-host.kf`)
+   sobre `process.spawn` + `json.decode<T>` tipado — superficie `var py = KofPy(src)`
+   + `py.callInt/callDouble/callBool/callString(fn, listOf(...))`, goldens
+   JVM≡x86≡JS≡SCRIPT medidos byte-identicos, `INTEROP004`/`INTEROP006` nomeados,
+   recusa `INTEROP005` onde a face nao esta provada (cross travado pelo §514,
+   ABERTO — lane native; ANDROID/MCU/RISCV32 pela R7). O contrato replay
+   "a sessao E a fonte" substitui o `python -` de vida longa (medido impossivel
+   sem EOF); uma superficie de sessao viva exige tipo de handle nomeado =
+   regra 6, fatia futura. Os args Double do motor expuseram e CORRIGIRAM o §513
+   (colapso da tag de elemento do json) na raiz, com regressao oraculo-JVM.
+   Restante: records↔JSON + motor R (fatia 2), timeout/cancel (fatia 3),
+   re-entrada cross com o §514 (fatia 4), DoD de corpus + promocao (fatia 5).
+3. **X8 fatia 3 (suites nomeadas):** a tag opcional do primitivo `test`
+   fluindo parser→typer→IR→catalogo do runner (fonte unica), `kof test --tag`
+   com filtragem real, setup/teardown condicionais como funcoes (setup que
+   falha pula os testes do grupo, nomeados), goldens E2E no CLI, recusa
+   runner does not exist.
+   **POUSADA (26/09):** a tag = literais extras de string na declaracao
+   (`test "n", "smoke" { }`) — sintaxe nova zero (rule 11; a superficie SG-023 iii
+   mantida); o filtro e decidido no COMPILE-TIME no `TestHarnessBuilder`, entao os
+   quatro alvos executam o mesmo catalogo filtrado (rule 5 por construcao);
+   `setup`/`teardown` sao funcoes comuns sem argumentos (setup que lanca = SKIP
+   nomeado; teardown roda via `finally` ate em teste que falha). Provas:
+   `TestTagsE2ETest` 10/10 + `CmdTestTagTest` 4/4 + `StructuredTestE2ETest` legado
+   intacto + corpus (`learn/23-testing` EN+PT, `training/tooling/cli` EN+PT).
+4. **auto-unsubscribe do `kof.ui`:** liberacao deterministica no **unmount**
+   do componente (o caminho que ja anda a arvore), travas de leak
+   (`subscriptionsLive()`/`storesLive()` = 0 apos mount/unmount × N),
+   subscription fora de componente segue sem dono e manual por design,
+   JVM/Native mantem o no-op documentado da paridade UI=KofJS.
+   **POUSADO (26/09):** a metade das subscriptions ja havia pousado como
+   `D-UI-AUTOUNSUB` (A); este item completou o ciclo — um **Store criado
+   durante o ciclo de vida de um componente pertence a ele e morre no
+   unmount** (a entrada e deletada: valor + subscriptions carregadas vao
+   junto; `AppState` nunca e atribuido, app por definicao), e a trinca de
+   sondas `uiNodesLive()` / `storesLive()` / **`subscriptionsLive()`** (nova
+   — 7 pontos de wiring, face JVM honestamente 0, asm Native 0, Script herda
+   UI002) trava isso. Evidencia: `UiLeakLockE2ETest` 6/6 (store + sub do
+   componente morrem, medido `1,1→0,0`; controle app-scope sobrevive `1,1`;
+   AppState sobrevive; unsubscribe manual conta exato `2→1→0`; stress 10k
+   ciclos `0\n0\n0` em JVM/Native/JS) + bateria UI existente 83/83 intacta
+   (regra 2). Corpus: claim §279 stale corrigido + idiom de trava de leak em
+   `training/idioms/ui`(+PT), `learn/35-kof-ui`(+PT),
+   `docs/ui/architecture`(+PT) §2.6/§2.7, linha regra-6 do `KOFUI-AUDIT`(+PT)
+   fechada como entregue.
+
+**Como aplicar:** perguntas rule-6 viram escolha multipla SOMENTE quando as
+escolhas forem alternativas genuinamente completas; quando a lane conhece a
+unica forma completa idiomatica, ela a implementa sob esta regra e registra
+a evidencia aqui — nao para o loop perguntando "qual variante". A regra
+nunca substitui a rule 6 em contratos que mudam semantics congeladas:
+mudar comportamento existente ainda passa por voto explicito da mantenedora
+(este registro E a autorizacao explicita para os itens 1–4).
+
+**Evidencia:** mensagens da mantenedora 26/09/2026 (chat, sessao autonoma):
+"vamo destravar rule 6, me da as duvidas" / "multipla escolha" / "não gostei
+das opções" / "me explica MELHOR e me da soluções idiomaticas, nada de
+desistir ou assumir gap" / "muito menos stub" / "percebe que depois das
+minhas reclamações vc me deu só uma opção? é ela q vc segue" / "defina isso
+como regra de escolha pra decisões automaticas. idiomatico, de acordo com a
+filosofia kof, não assumir gap mas sempre desenvolver por completo, paridade
+total e nunca stub".
+
+- **Relacoes:** `Related: regra 6, regra 8, regra 10 (D-KOF-FIRST), regra 11
+  (Lei da Simplicidade), Q7 (sem stubs), R1/R5 (interop = pacote oficial,
+  experimental), R7 (escopo de alvo honesto ≠ gap), D-MEMORY-SAFETY (Fase 3
+  destravada aqui), D-FULL-PARITY-050`.
+
+## D-KOFMD — Kofmd (Markdown tipado, orientado a intenção) é INDISPENSÁVEL para a 0.5.0: a spec completa (37 seções + adendo de intenção) é o contrato; a implementação parte da infraestrutura real (mantenedora 27/09/2026, decisão explícita)
+
+**Evidência:** mensagens da mantenedora 27/09/2026 (chat, sessão autônoma):
+spec completa do Kofmd (37 seções: objetivo, investigação do Kof existente,
+definição, princípios, tipagem, dados/texto, semântica de blocos, IA-first,
+comunicação, respostas curtas, idiomático, schema, docs/guia-IA/regras,
+interoperabilidade, preservação, parser, AST/IR, type checking, LSP, CLI,
+formatação, forma canônica, testes de leitura/escrita por IA, machine
+readability, não-JSON, segurança, testes, goldens, corpus, estilo,
+princípios de IA, fases incrementais 1–10, critério de sucesso, regra final)
++ adendo de intenção (13 seções: intenção-antes-de-apresentação,
+não-inferência, intenção≠tipo, intenções pequenas idiomáticas,
+composabilidade, determinismo, escrever-pela-intenção, redução de
+probabilidade, prosa, Markdown normal, princípio de design, regra de ouro,
+filosofia Kof) → "kofmd vai precisar entrar agora devido ao tamanho e a
+verbosidade das documentações" → "é uma decisão explicita da mantenedora.
+kofmd indispensavel para 0.5.0".
+
+**Decisão (override explícito da mantenedora sobre o congelamento de escopo,
+só para esta frente):** o Kofmd entra na 0.5.0 como frente de primeira
+classe. A spec 37+13 acima É o contrato (orientado a intenção, tipado,
+degradável para Markdown, nunca verboso, nunca XML/YAML disfarçado, nunca
+linguagem de metadados). A regra 6 está satisfeita por este registro:
+superfície nova, voto explícito, gravado aqui.
+
+**Trava de escopo (regra 11 + D-COMPLETE-FIRST valem):**
+1. **Fase 1 primeiro — investigar a infraestrutura real** (lexer,
+   `parser/` incl. `Lexer.java`/`Parser.java`/`AnnotationParser.java`,
+   nós AST, sistema de tipos, tipos `record`, annotations
+   (`CompilerAnnotations`), módulos, stdlib, serialização `kof.json`,
+   plano futuro `kof.file`, CLI (`kof-cli`), LSP (`LspServer`), docs/
+   tooling/integração com IA existentes). Nada de arquitetura isolada — o
+   Kofmd mora onde o ecossistema já mora.
+2. **Spec antes da sintaxe** — `docs/kofmd-plan.md`(+PT)
+   registra os achados medidos + a superfície congelada; nenhuma sintaxe é
+   implementada antes do plano pousar.
+3. **Fatias incrementais pelo §35 da própria spec** (investigação → spec →
+   parser mínimo → tipos → interop Markdown → formatter/canônica →
+   schemas → CLI/LSP → tooling/corpus de IA → migração gradual da doc),
+   cada uma um corte vertical completo com prova (Q0–Q7), nunca stub.
+4. **Guarda de fake-idiom** — os exemplos conceituais da spec
+   (`intent: task`, `@decision`, `type TestResult {...}`, `kof md check`,
+   `let`) NÃO são adotados automaticamente: toda forma de superfície tem
+   que compilar contra a gramática real do Kof ou ser recusada com
+   honestidade (R6). `Option<T>`/`Result<T,E>` na lista de tipos da spec
+   não existem como tipos de superfície Kof — o plano nomeia a grafia real
+   (`T?` + narrowing, `throw "msg"`) ou registra gap regra-6.
+5. **Fila:** o roadmap §23 abre a linha Kofmd no mesmo commit (regra 6:
+   decidir sem registrar = invisível; registrar sem enfileirar = morta).
+
+**Fechamento (27/09/2026):** todas as fatias 3.1→3.9 pousadas — lib pura-Kof
+`libs/kofmd/` (8 arquivos por responsabilidade ≤500), CLI `kof md check|format`
+(`CmdMd`), hook LSP (`LspKofmd`, `MDxxx` + hover), corpus golden
+(`libs/kofmd/corpus/`, 12 arquivos) e a migração de cabeçalho de estado dos
+docs quentes (convenção em `docs/kofmd-plan.md` §5). Prova: cluster
+`Kofmd*E2ETest` 13/13 + `CmdMdTest` 5/5 + `LspServerTest`. O plano foi
+**promovido p/ fora de `docs/development/`** para `docs/kofmd-plan.md` (regra
+dos 3 estados) — a condição 3 (`loose_docs`) da 0.5.0 está satisfeita nesta
+frente.
+
+- **Relações:** `Related: regra 6, regra 11 (Lei da Simplicidade),
+  D-COMPLETE-FIRST, D-KOF-FIRST, Q7 (sem stubs), R1/R5, R6, kof-file-plan
+  (future), roadmap §23, D-RELEASE-0.5.0-GATE (nota de escopo)`.
+
+## D-KOF-FIRST-IMPL — Arquitetura de features pós-0.5.0: implementação Kof-first, biblioteca-primeiro; o core só cresce para fornecer o menor mecanismo que falta (mantenedora 27/09/2026, decisão explícita; registrada como regra 12 do AGENTS.md)
+
+**Evidência:** mensagem da mantenedora 27/09/2026 (chat): a "Kof Post-0.5.0
+Feature Architecture Guideline" (26 seções — objetivo; regra de decisão; nova
+feature ≠ novo código no compilador; biblioteca como unidade de evolução; core
+pequeno; auto-hospedagem incremental; sem rewrite do core; quando o core pode
+crescer; core como mecanismo / Kof como política; FFI não é fracasso;
+biblioteca primeiro, backend depois; evitar features backend-specific; stdlib
+como ponte; migração progressiva; teste de necessidade de core; teste de
+design; regra contra crescimento acidental; justificativa maior para sintaxe
+nova; biblioteca como parte da linguagem; métrica de auto-hospedagem;
+compilador como alvo futuro; auto-hospedagem coexiste com todos os backends;
+critério de aceite; princípio de evolução; regra resumida; princípio de longo
+prazo).
+
+**Decisão:** A partir da 0.5.0, toda nova feature é implementada **primeiro
+como biblioteca Kof** sempre que a linguagem já conseguir expressá-la: *"Se uma
+feature pode ser escrita em Kof, ela DEVE ser escrita em Kof."* Uma feature
+nova **não** é motivo para crescer o compilador/runtime/backend/IR/CLI/
+tooling. A regra 6 é satisfeita por esta entrada (direção nova, voto
+explícito, registrada aqui).
+
+**Procedimento de decisão (normativo):** `feature → o Kof consegue? → sim →
+biblioteca Kof`; não → `qual capacidade fundamental está faltando? → adicione a
+menor primitiva → implemente a feature em Kof`. O core fornece **mecanismos**;
+as bibliotecas Kof carregam **política e abstração** (`runtime: socket`;
+`biblioteca Kof: HTTP`). FFI/JVM/Native/JS/WASM são a fronteira, não fracasso.
+
+**Teste de necessidade de core (todo PR que toca o core por uma feature):**
+1. Por que isso não pode ser implementado em Kof?
+2. Qual capacidade fundamental está faltando?
+3. A menor mudança necessária no core.
+4. Essa mudança destrava outras bibliotecas Kof?
+5. Qual implementação Kof pode depois substituir parte disso?
+Sem resposta clara → a feature é reavaliada.
+
+**Teste de design (antes de aceitar implementação externa):** estamos
+adicionando uma **capacidade fundamental** ou apenas uma **feature que o Kof
+poderia implementar**? Feature → biblioteca; capacidade → core; a distinção é
+explícita.
+
+**Contra crescimento acidental:** nunca `if feature == X`, API especial de
+runtime para X, ou sintaxe nova, quando X pode ser uma biblioteca. Sintaxe nova
+exige justificativa maior — esgote `biblioteca + tipos + funções + módulos +
+stdlib` primeiro (regra 11); a linguagem cresce por **capacidade**, nunca por
+conveniência local ou caso especial de backend.
+
+**Migração:** o código de core existente pode ficar onde está; o processo é
+substituição incremental (`API → implementação Kof → testes de paridade →
+migração → remoção futura`), nunca um rewrite. Bibliotecas oficiais Kof são
+parte da linguagem, não "código externo".
+
+**Aceite:** `fonte Kof + biblioteca Kof + testes + documentação`; se código
+externo for inevitável, `fonte Kof + primitiva mínima + implementação de
+backend + biblioteca Kof + testes + documentação`.
+
+**Objetivo de longo prazo:** auto-hospedagem progressiva — o Kof implementando
+stdlib, bibliotecas, tooling e, por fim, partes do próprio compilador —
+alcançada biblioteca a biblioteca, não por um grande rewrite. Acompanhe `% da
+stdlib / bibliotecas / tooling implementados em Kof` como direção, nunca como
+meta artificial.
+
+- **Relações:** `Related: regra 6, regra 11 (Lei da Simplicidade), regra 12,
+  D-KOF-FIRST (comportamento externo), D-BOOTSTRAP, D-MAKEALIVE, D-DB-GAPS,
+  R1, R9, Q7`.
+
+## D-DECISION-BATCH-2709B — três respostas da mantenedora 27/09: #639 `pkg.Type` qualificado (BUG); JS media adiada pós-0.5.0; `math.pow` cross = linkar libm (mantenedora 27/09/2026, decisão explícita)
+
+**Evidência:** mensagens da mantenedora 27/09/2026 (chat, esta sessão),
+respondendo às três perguntas de bloqueio da lane de paridade.
+
+**1. #639 é BUG — o Kof diferencia pelo caminho do pacote.** Mesmo nome simples
+em pacotes diferentes precisa ser distinguível. A superfície do consumidor é o
+**caminho qualificado** `pkg.Type` — em expressões (`p1.Item(1)`) e em anotações
+de tipo (`var a: p1.Item`, `List<p1.Item>`); sem palavra-chave nova (regra 11).
+O contrato de recusa do `Sem010PackageQualifiedTypesE2ETest` muda nesse sentido.
+A face 1 é bug independente: dentro de `p1/Item.kf`, um `Item` nu deve ligar no
+**seu próprio** `p1.Item`, nunca no de outro pacote (`p2.Item`) — o
+last-write-wins medido.
+
+**2. JS media fica ADIADO pós-0.5.0.** `kof.media` (`Image`/`Audio`/`Video`/
+`Mic`) no alvo JS **não** é bloqueio da 0.5.0; a célula JS da linha 4 do ledger
+de paridade vira gap declarado pós-0.5.0. O absoluto de "paridade total" do
+D-GRAPHICS-GAMING segue valendo para o front do motor de mídia, cujo plano é
+`future/`; o que permanece aberto é a decisão de engine no JS (regra 6).
+
+**3. `math.pow` cross = linkar libm.** O sysroot cross linka libm para
+`kof_math_pow` (call `pow@PLT`) rodar em riscv64/aarch64 como no x86-64. Isso
+revisa a decisão 7a apenas para `pow` (o restante do runtime cross segue
+estático); a linha 10 do ledger fecha com o golden de paridade byte-a-byte vs o
+oráculo da JVM. O link é **by-use** (`usesPow`), então programas que nunca
+chamam `pow` ficam sem libm.
+
+- **Relações:** `Related: D-FULL-PARITY-050, D-KOF-FIRST (regra 10), regra 11, regra 6, D-GRAPHICS-GAMING, issue #639`.
+
+## D-DB-NORMALIZE — schemes nus normalizam para `jdbc:` no JVM/JS (mantenedora 27/09/2026, votado)
+
+A questão de design aberta do `db-parity-plan.md` ("JVM/Android/JS devem
+normalizar um scheme nu?") está DECIDIDA: **normalizar**. `mysql://`→`jdbc:mariadb://`
+(o driver mariadb-java-client só aceita o sub-scheme `mariadb:` — medido
+27/09), `mariadb://`→`jdbc:mariadb://`, `postgres://`→`jdbc:postgresql://`
+(userinfo vira `?user=`/`&password=`, mesclado com query existente sem
+sobrescrever params já presentes), `sqlite:<resto>`→`jdbc:sqlite:<resto>`.
+`mongodb://` nunca normaliza (ramo próprio); `oracle://` segue DB001 (S4
+declarado); entrada imparsável cai no DB001 nomeado. Implementado em
+`JvmConfigRuntime` + `KofJsDbBridge` (duplicado pelo precedente S2);
+`connect2` troca só o scheme (credenciais explícitas seguem autoritativas).
+Prova: `KofDbE2ETest#jvmBareMysqlNormalizesToJdbc` +
+`#jvmBareSqliteNormalizesToJdbc` + `#jvmBarePostgresNormalizesWithoutServer` +
+`#jvmBareMysqlConnect2ExplicitCreds` + `#jsBareMysqlNormalizesToJdbc` (RED-first 5/5).
+
+- **Relações:** `Related: D-DB-GAPS, db-parity-plan.md, regra 11`.
+
+## D-DB-ZERODRIVER — nunca baixar driver JDBC na mão (mantenedora 27/09/2026, votada opção C)
+
+Provocação da mantenedora: exigir biblioteca separada baixada para programar
+vai contra o Kof (regra 11 — a plataforma absorve a cerimônia). DECIDIDO, em
+duas trilhas: **(a) auto-provision no tooling** — `kof run`/`kof build`
+resolve drivers JDBC no primeiro uso via registry/cache (sem download manual;
+offline → diagnóstico honesto, nunca silêncio); **(b) wire MySQL puro-Java** no
+runtime como próxima fatia db (`mysql_native_password` primeiro — o protocolo
+já é nosso: provado em 3 alvos nativos no S5.x; wire JVM = mesma máquina de
+estados sobre `java.net.Socket`). Reimplementar engine SQLite/driver Mongo é
+nunca (drivers provisionados, R9); H2 (puro Java, minúsculo) é o candidato a
+embarcado default depois. D-DB-NORMALIZE vale como cânone da URL em toda trilha.
+
+- **Relações:** `Related: D-DB-GAPS, D-DB-NORMALIZE, D-KOF-FIRST-IMPL (regra 12), regra 11, R9`.
+
+## D-DOC-SLIM — compressão Kofmd de toda a doc: todo `.md` exceto `learn/`/`training/` migra para Kofmd terso; corpus e corpo do CHANGELOG excluídos (mantenedora 27/09/2026, ordem explícita)
+
+Amplia a fatia 3.9 do `D-KOFMD` (que migrou só os docs quentes): a mantenedora
+ordenou comprimir **todos** os Markdown para Kofmd terso e orientado a intenção
+— "até mesmo o AGENTS.md, a regra é absoluta" — exceto `learn/`/`training/`.
+O mecanismo é **migração por agente**: a ferramenta `kof md` só faz `check` e
+canonicaliza via `format` (medido byte-idêntico em prosa) e `convert` é non-goal
+declarado, então cada par EN+PT é um commit com os gates de doc verdes. Duas
+exclusões técnicas, confirmadas com a mantenedora: `libs/kofmd/corpus/*.md`
+(fixtures golden asseguradas byte a byte por `KofmdCorpusE2ETest`) e o corpo do
+`CHANGELOG` (gerado por `scripts/changelog.sh`; só o cabeçalho é editado à mão).
+Substitui o non-goal "doc-wide migration" do `kofmd-plan.md` §4/§5.
+
+- **Relações:** `Related: D-KOFMD, D-KOF-FIRST, D-KOF-FIRST-IMPL (regra 12), regra 11`.
+
+## D-IO-SIZE-JVM-LAW — §494: a JVM é a lei para a mensagem de erro do `size()` do `kof.io` (mantenedora 27/09/2026, opção A votada)
+
+O `file not found: <path>` da JVM é o contrato; o prefixo `size: ` do Native
+x86-64 e do cross é a divergência a remover. Mesma família do §493 (a JVM é a
+lei): o fix remove `.Lstr_io_size_prefix` de `RuntimeIo2.kof_io_file_size` e
+`NativeRiscvAsmIoSize`, e os pins do `NativeIoSizeCrossTest` colapsam para a
+mensagem da JVM. O caminho de sucesso (`st_size`) fica byte-idêntico. Alinha a
+String lançada à JVM; nenhuma outra semântica congelada muda.
+
+- **Relações:** `Related: §493, D-FULL-PARITY-050, D-COMPLETE-FIRST`.
+
+## D-MEMORY-CLEAR — O-03/`MEM003`: `clear()` anula cada slot antes de encolher; `MEM003` é garantia de runtime, nunca face de compile (mantenedora 27/09/2026, opção a votada)
+
+A linha O-03 da spec §3 não tinha padrão decidível de programa de usuário, então
+nenhum `MEM003` era emitido (silêncio honesto). A mantenedora escolheu o
+CONTRATO: `clear()` DEVE anular cada slot antes de encolher, então a garantia é
+provada por teste de runtime por alvo, não por diagnóstico de compile. Nenhuma
+face de compile `MEM003` é criada. Resolve o decision request em
+`docs/development/memory-safety-plan.md`; o teste entra na suíte E2E de
+memory-safety nos quatro alvos.
+
+- **Relações:** `Related: D-MEMORY-SAFETY, D-COMPLETE-FIRST`.
+
+## D-KOFMD-ON-EDIT — todo documento editado por um agente é comprimido em Kofmd no mesmo commit; a regra é absoluta (mantenedora 27/09/2026, ordem explícita)
+
+Divide o trabalho de compressão doc-wide do `D-DOC-SLIM` entre os agentes ao
+tornar a compressão uma **obrigação de qualquer edição**: a partir de agora,
+quem edita um documento também o comprime. Não é mais uma frente separada de
+uma lane — cada agente migra os documentos que toca. Regra absoluta ("a regra é
+absoluta"):
+
+- um agente que edita qualquer documento elegível DEVE levá-lo a Kofmd canônico
+  no **mesmo commit** — bloco de estado canônico, campos tipados, prosa só para
+  o que os campos não expressam, zero duplicação de campo;
+- é item de `before_commit` / Autoverificação final, não follow-up opcional;
+- as exclusões do `D-DOC-SLIM` seguem valendo: `learn/`, `training/`,
+  `libs/kofmd/corpus/*.md` e o corpo gerado do `CHANGELOG` nunca são comprimidos.
+
+Consequência: a "fila de compressão sem dono" deixa de ser fila de uma lane e
+passa a fazer parte da definição de pronto de toda mudança; um documento
+editado sem o seu passe Kofmd é unidade incompleta e não deve ser empurrado.
+
+- **Relações:** `Related: D-KOFMD, D-DOC-SLIM, regra 5, regra 6`.
+
+## D-PARITY-050-SCOPE — o ledger de paridade full da 0.5.0 cobre os SEIS alvos de release; MCU/riscv32 + quatro faces são adiados p/ 1.0 (mantenedora 27/09/2026, lote votado)
+
+Emenda `D-FULL-PARITY-050`: o ledger de release da 0.5.0 é medido sobre os SEIS
+alvos de release — JVM, Script, JS, Native x86-64, Native riscv64, Native
+aarch64. MCU/riscv32 fica FORA do ledger 0.5.0 (sem camada de processo). Votos:
+
+- rows 10 (`math.pow` cross) e 13 (`kof.io` cross) — **FECHADAS** (já provadas; só bookkeeping);
+- rows 1 (`process`) e 3 (`ssh`) — **fechadas pelos 6 alvos**; o residual MCU/riscv32 (`PROC001`) sai do ledger 0.5.0;
+- row 4 media `Image`/`Mic`, row 12 web T1 no native/cross, row 14 security cross/JS — **ADIADAS p/ 1.0** (gaps declarados `MEDIA00x`/`WEB00x`/`SECN00x`; nunca estado de aceitação, `D-COMPLETE-FIRST`);
+- row 11 strings (`NAT-STR01`/`STR003`) — **IMPLEMENTAR agora** (paridade Unicode native+JS): única row aberta 0.5.0.
+
+- **Relações:** `Related: D-FULL-PARITY-050, D-COMPLETE-FIRST, D-RELEASE-0.5.0-GATE`.
+
+## D-BUGS-050-QUARANTINE — §524 e §533 são condições de harness/ambiente, quarentenadas por isolamento determinístico (mantenedora 27/09/2026, votado)
+
+Ambos são verdes em isolamento e vermelhos só sob carga da suíte completa
+(escalonador do host); NÃO são regressões de código. §524 = os harnesses qemu
+aarch64 (`NativeRiscvGc*`/`Dtoa`/`DbWire`) SIGSEGV 139 sob carga; §533 =
+`InteropTimeout.cancelFromAnotherTask…008` (corrida de registro do `never` no
+host-python). Contrato: torná-los determinísticos por ISOLAMENTO (rodar os
+harnesses/testes fora da carga, pinados), mantendo as entradas honestas — o
+isolamento tem de ser provado, nunca falha escondida / verde falso (Q5).
+
+- **Relações:** `Related: D-RELEASE-0.5.0-GATE, zero-regressão`.
+
+## D-534-JS-DEFER — §534 (`kof run --target js` ignora drivers JDBC provisionados) adiado p/ 1.0 (mantenedora 27/09/2026, votado)
+
+O provision no run JS (TCCL `URLClassLoader` ou child re-exec) é feature real
+sem superfície 0.5.0; fica declarado e adiado, e `DB001` segue o diagnóstico
+honesto no JS.
+
+- **Relações:** `Related: D-DB-ZERODRIVER, D-FULL-PARITY-050`.
+
+## D-X2-LANDED — motor interop completo (5/5 fatias com evidência, 27/09)
+
+Item 2 (`D-COMPLETE-FIRST`) FECHA: fatia 1 (motor Py), 2 (motor R), 3
+(timeout/cancel/reuso + §527), 4 (faces cross — timeout007/deadline-reuso/
+cancel-ocioso + R-happy E2E riscv64≡aarch64≡JVM sob qemu, com gate de R; 008
+segue JVM-only por desenho), 5 (corpus/DoD). Estado de sessão segue corte
+declarado (regra 6); ANDROID/MCU/RISCV32 seguem R7; `kof.interop` segue
+`experimental` (promoção R5 por namespace é ato separado). Prova:
+`InteropTimeoutE2ETest` 7/7 + `InteropRE2ETest` cross (com gate de R) +
+vizinhos 27/0F/8skip; plano promovido `development/` → `docs/` (três estados).
+
+- **Relações:** `Related: D-COMPLETE-FIRST, D-KOF-FIRST (regra 12), regra 11, regra 6, issue #639 (intocada), PR #619 (regra 10)`.
+
+## D-STR-UNICODE — row 11 da 0.5.0 = as faces Unicode, JVM-exato por code unit UTF-16; o motor de regex fica adiado p/ 1.0 (mantenedora 27/09/2026, votado)
+
+A row 11 é dividida por capacidade, não por alvo:
+
+- **Implementar agora (native + JS), JVM-exato por code unit UTF-16:** `String.toUpperCase`/`toLowerCase` (NAT-STR01), `String.compareToIgnoreCase` e `strings.reverse` não-ASCII (semântica do `StringBuilder.reverse` do JVM — PARES substitutos permanecem juntos). O native usa uma tabela Unicode compacta embarcada; o JS amarra primitivas Unicode-corretas e prega paridade contra o oráculo JVM. Só o fold por code unit está no escopo (sem mapeamento de caixa full locale-sensitive).
+- **Adiado p/ 1.0:** os três membros de regex (`matches`/`replaceAll`/`replaceFirst`). Um motor de regex nos alvos native freestanding é DOMÍNIO PESADO e nova capacidade fundamental — pela fronteira de plataforma pertence a um pacote/biblioteca oficial, não a um splice ad-hoc de runtime; a paridade `RegExp` do JS vs `Pattern` do JVM anda junto na mesma decisão. O `STR003` continua o gate honesto exatamente para esses três até lá; `compareToIgnoreCase` sai do gate.
+
+Consequência: depois que as faces Unicode pousarem, as únicas células restantes da row 11 são as faces de regex adiadas, e o `full_parity` chega a 0 rows abertas na 0.5.0.
+
+- **Relações:** `Related: D-PARITY-050-SCOPE, D-FULL-PARITY-050, D-KOF-FIRST (regra 12), NAT-STR01, §424`.

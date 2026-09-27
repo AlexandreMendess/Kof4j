@@ -69,6 +69,8 @@ public final class RuntimeSet {
                 movq (%rax,%r14,8), %rax    # candidato
                 cmpl $1, %r13d
                 je .LKSR_str
+                cmpl $2, %r13d
+                je .LKSR_obj
                 cmpq %r12, %rax
                 je .LKSR_found
                 jmp .LKSR_next
@@ -78,6 +80,15 @@ public final class RuntimeSet {
                 movq %rax, %rdi
                 movq %r12, %rsi
                 call kof_string_equals
+                testl %eax, %eax
+                jnz .LKSR_found
+                jmp .LKSR_next
+            .LKSR_obj:
+                testq %rax, %rax
+                jz .LKSR_next
+                movq %rax, %rdi
+                movq %r12, %rsi
+                call kof_obj_equals
                 testl %eax, %eax
                 jnz .LKSR_found
             .LKSR_next:

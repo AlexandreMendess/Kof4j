@@ -2,7 +2,7 @@
 
 # Kof Target Reference
 
-**Version:** 0.4.0-beta (Sep 2026) — 2218 tests
+**Version:** 0.5.0-beta (Sep 2026) — 3225 tests
 
 ## JVM Target
 
@@ -40,6 +40,21 @@ kof c app.c            # KofC C subset → ELF x86_64
 - **JSON:** complete encode/decode of objects/records/arrays (Int/Long/Bool/String/Double) in compile-time composition (JSN001/002/003 closed 31/08).
 - **Concurrency:** `spawn`/`await` via pthread — `pthread_create` + trampoline + `pthread_join` + thread-safe allocator with futex lock (CONC001 closed 31/08).
 - SQLite via direct `.so` link; MySQL wire protocol handshake with SHA-1 auth scramble (`kof_db_mysql_scramble`) implemented 27/08 (query/prepared pending)
+
+## Native profiles (`--profile host|freestanding`)
+
+```bash
+kof build app/ --target native --profile freestanding
+```
+
+- `host` (default) — the standard x86-64 ELF with the full runtime.
+- `freestanding` — no libc: the runtime provides the `kof_plat_*` HAL seams
+  (print/exit/random/alloc) itself; real bare-metal profiles (`bios`/`mbr`,
+  `uefi`, `uefi-ring`) live in the compiler (`NativeProfile`) behind the
+  B-series front and boot a real payload through SeaBIOS under qemu — not yet
+  a shipped CLI flag.
+- The C FFI surface (`extern`) is documented in `training/idioms/interop.md`
+  and the learner path in `learn/40-low-level.md`.
 
 ## Native RISC-V / ARM (real riscv64; aarch64 pending)
 

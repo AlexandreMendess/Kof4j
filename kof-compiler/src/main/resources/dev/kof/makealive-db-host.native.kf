@@ -1,0 +1,39 @@
+// dev/kof/makealive-db-host.native.kf — fatia de ESTADO do `kof.makealive` no
+// NATIVE (fatia MK-1, plano §5 3.1). O store é kof.db/kof.orm, cujo gate
+// ORM001 é estático: uma referência a orm no host injetado rejeitaria o
+// host INTEIRO no compile (mesmo mecanismo do checkpoint do workflow,
+// CRON001/ORM001 medidos). Aqui vai um STUB que falha ALTO em runtime
+// citando ORM001 (R6 — nunca silencioso); o kof.db/kof.orm DIRETO do usuário
+// mantém o gap honesto dele. O flip disto é a fatia F1/F2 da lane GAPS-DB.
+//
+// Injetada por CompilerMakealive no lugar de makealive-db-host.kf quando
+// driver.target.isNative() (DD-OTP-01 opção A, espelhando CompilerWorkflow).
+
+Bool mkSaveState(String dbConn, String design, Int gen, State st) {
+    if (dbConn == null || dbConn == "") { throw "makealive: mkSaveState sem conexão db" }
+    if (design == null || design == "") { throw "makealive: mkSaveState sem nome de design" }
+    if (gen < 0) { throw "makealive: mkSaveState com gen negativo" }
+    if (st == null) { throw "makealive: mkSaveState com state nulo" }
+    if (true) {
+        throw "makealive: mkSaveState não disponível no NATIVE — ORM001 (store = kof.db/kof.orm; persistência exige o runtime JVM/JS)"
+    }
+    return false
+}
+
+Int mkMaxGen(String dbConn, String design) {
+    if (dbConn == null || dbConn == "") { throw "makealive: mkMaxGen sem conexão de db" }
+    if (design == null || design == "") { throw "makealive: mkMaxGen sem nome de design" }
+    if (true) {
+        throw "makealive: mkMaxGen não disponível no NATIVE — ORM001 (stub)"
+    }
+    return -1
+}
+
+State mkLoadState(String dbConn, String design) {
+    if (dbConn == null || dbConn == "") { throw "makealive: mkLoadState sem conexão db" }
+    if (design == null || design == "") { throw "makealive: mkLoadState sem nome de design" }
+    if (true) {
+        throw "makealive: mkLoadState não disponível no NATIVE — ORM001 (store = kof.db/kof.orm; persistência exige o runtime JVM/JS)"
+    }
+    return State()
+}

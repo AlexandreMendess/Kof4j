@@ -16,18 +16,20 @@ public final class ExpressionProcessCallLowerer {
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     KofProcess.ProcessCall procCall = KofProcess.entryCall(mc.methodName(), argTypes);
     if (procCall != null && "kof_process_spawn".equals(procCall.function())) {
-        if (driver.target.isNative()) {
-            // F10: process.spawn needs live stdin/stdout. Native has no
-            // fork/exec descriptors yet — honest PROC001 gap. JVM (incl.
-            // Android, which reuses JvmBackend) and JS (KofJsProcessBridge
-            // host binding, 19/09) implement the spawn + handle ops with the
-            // exact same contract (handle = seq Long, failed spawn = -1).
+        // D-FULL-PARITY-050 row 1, slices B + D: spawn + handle ops emit for
+        // real on the Native x86-64 host (RuntimeProcessSpawn, 26/09) AND on
+        // the riscv64/aarch64 cross (NativeRiscvAsmProcessSpawn, slice D,
+        // 26/09). Only the MCU (riscv32/cortex-m) keeps the honest PROC001 gap
+        // — the process model there is bare-metal (R6, never a silent fallback).
+        boolean spawnMcu = driver.target == Target.NATIVE_RISCV32
+                || driver.target == Target.NATIVE_MCU_ARM;
+        if (spawnMcu) {
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                         mc.position() != null ? mc.position().line() : 0,
                         mc.position() != null ? mc.position().column() : 0,
                         0,
-                        "process.spawn: interactive stdin/stdout is supported on the JVM and JS targets; Native is an honest PROC001 gap",
+                        "process.spawn: interactive stdin/stdout is supported on the JVM, JS and Native x86-64/riscv64/aarch64 targets; this target is an honest PROC001 gap",
                         "PROC001");
             }
             return localIdx;
@@ -50,19 +52,30 @@ public final class ExpressionProcessCallLowerer {
         return localIdx;
     }
     if (procCall != null) {
-        if (driver.target.isNative()) {
+        // D-FULL-PARITY-050 row 1: run emits for real on x86-64 (RuntimeProcess)
+        // AND on the riscv64/aarch64 cross (NativeRiscvAsmProcess, slice C).
+        // spawn (slice B) is handled above: x86-64 real, cross/MCU PROC001.
+        boolean cross = driver.target == Target.NATIVE_RISCV64
+                || driver.target == Target.NATIVE_AARCH64;
+        boolean isRun = "kof_process_run".equals(procCall.function());
+        if (driver.target.isNative() && ((cross && !isRun)
+                || "kof_process_spawn".equals(procCall.function()))) {
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                         mc.position() != null ? mc.position().line() : 0,
                         mc.position() != null ? mc.position().column() : 0,
                         0,
-                        "process.run: not supported on the Native driver.target yet (JVM supports it)",
+                        (cross ? "process.spawn on the riscv64/aarch64 native targets: "
+                                : "process.spawn: interactive stdin/stdout is supported on")
+                                + (cross ? "not landed yet (PROC001); process.run IS landed (slice C)"
+                                : " the JVM and JS targets; Native is an honest PROC001 gap (slice B)"),
                         "PROC001");
             }
             return localIdx;
         }
         // process.run(program, args...) →
-        // kof_process_run(program, List<String>)
+        // kof_process_run(program, List<String>) — TODOS os targets
+        // (Native x86-64: RuntimeProcess, linha 1 do ledger D-FULL-PARITY-050)
         localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
         Type listType = KofProcess.STRING_LIST;
         ops.add(new KofCall(listType, "kof_list_new", List.of(), listType, KofCallKind.FUNCTION));

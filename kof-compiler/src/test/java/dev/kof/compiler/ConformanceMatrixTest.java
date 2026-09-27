@@ -243,8 +243,8 @@ class ConformanceMatrixTest {
         // (0.1+0.2 = 0.30000000000000004), notação científica (|x|>=1e7 ou
         // <1e-3, spelling 1.0E7/1.0E-5) e Float com repr própria
         // (1.0f/3.0f = 0.33333334, não a expansão double 0.3333333432674408).
-        // O x86_64 agora usa `kof_dtoa` (RuntimeDtoa: loop `%.*e`+strtod p/ o
-        // shortest + reformat p/ o limiar/estilo do Java); a exclusão do Native
+        // O x86_64 agora usa `RuntimeDtoaSchubfach` (B-1c, 23/09: Schubfach
+        // libc-free, espelho do Double/Float.toString do JDK); a exclusão do Native
         // CAIU. §264 (16/09, lane .18): a exclusão do JS também CAIU —
         // `kofNumFmt` (slice num-fmt) implementa o mesmo contrato em JS
         // (round-trip curto via toExponential + threshold E/decimal do JDK).
@@ -327,6 +327,27 @@ class ConformanceMatrixTest {
         // em NativeE2ETest#execCollectionPrintMatchesJvmGolden +
         // Native{Riscv64,Aarch64}E2ETest#nativeCollectionPrintMatchesJvmGolden
         // (golden = oracle JVM medido, byte-idêntico nos 3 targets nativos).
+        // §388-B (voto da mantenedora 21/09): array CRU segue a mesma gramática
+        // §107 ([65, 66]); o golden acima cobre List/Map/Set. Bool-em-array fica
+        // fora daqui pela mesma razão da linha acima (§107 face number-truthness
+        // em JS/Script quando o host guarda 1/0); cobre-se em ArrayPrintFormatE2ETest
+        // (JVM, onde o box é Boolean real).
+        matrix("arrayprint", """
+                main() {
+                    val b = new Int[2]
+                    b[0] = 65
+                    b[1] = 66
+                    println(b)
+                    val n = new Int[1][2]
+                    n[0][0] = 65
+                    n[0][1] = 66
+                    println(n)
+                    println(new Int[0])
+                    val s = new String[1]
+                    s[0] = "x"
+                    println(s)
+                }
+                """, "[65, 66]\n[[65, 66]]\n[]\n[x]", Set.of(), tempDir);
         matrix("collprint", """
                 record Point(Int x, Int y)
                 main() {
@@ -754,10 +775,10 @@ class ConformanceMatrixTest {
                     println(math.isDecimal(4.0) == false)
                 }
                 """, "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue", Set.of(), tempDir);
-        // STDLIB S1b.2 — kof.math.pow (decisão 7a): primeiro caso libm no
-        // native x86 (`pow@PLT` + `-lm`); JVM/JS Math.pow; riscv/aarch =
-        // MATH001 (link estático sem libc — gap diagnosticado, fora das 4
-        // colunas). Subset determinístico travado nos 4 targets.
+        // STDLIB S1b.2 — kof.math.pow: primeiro caso libm no native x86
+        // (`pow@PLT` + `-lm`); JVM/JS Math.pow; riscv/aarch idem desde row 10
+        // (27/09, D-DECISION-BATCH-2709B #3: libm por uso no cross — E2E sob
+        // qemu em KofMathTest#powCrossArch). Subset determinístico nos 4 alvos.
         matrix("stdmathpow", """
                 main() {
                     println(math.pow(2.0, 10.0) == 1024.0)
@@ -863,11 +884,11 @@ class ConformanceMatrixTest {
                     println(strings.isAlpha("Hello") == true)
                 }
                 """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1\ntrue", Set.of(), tempDir);
-        // STDLIB S2b — kof.strings conversores (alocam String). ASCII-only:
-        // é onde JVM/Native/JS concordam byte a byte. capitalize é ASCII
-        // (mesma regra nos 4); reverse é byte-reverso no Native e UTF-16
-        // nos outros — em ASCII as três convenções coincidem. Gap UTF-8 do
-        // reverse nativo = NAT-STR01 (plan-stdlib-expansion §5).
+        // STDLIB S2b — kof.strings conversores (alocam String). capitalize é
+        // ASCII (mesma regra nos 4). reverse inverte por CODE POINT (JVM
+        // StringBuilder.reverse / JS [...v].reverse); o nativo passou a
+        // inverter a sequência de code points UTF-8 (D-FULL-PARITY-050 linha
+        // 11) — a célula stdstrings2b2 trava o não-ASCII.
         matrix("stdstrings2b", """
                 main() {
                     var a = strings.capitalize("hello world")
@@ -882,6 +903,23 @@ class ConformanceMatrixTest {
                     println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + g + "|" + h + "|" + i)
                 }
                 """, "Hello world|1abc|321cba|kayak|ababab|hello|abc|007|ab---", Set.of(), tempDir);
+        // STDLIB S2b — reverse não-ASCII: inversão por code point UTF-8
+        // (fecha o gap de reverse da NAT-STR01; golden = JVM). Unidades via
+        // toCharArray para não depender de encoding do stdout. "café" (C3 A9
+        // multi-byte) e "a😀b" (par surrogate astral) travam os dois casos.
+        matrix("stdstrings2b2", """
+                main() {
+                    var a = strings.reverse("café").toCharArray()
+                    for (var i = 0; i < a.length; i++) {
+                        println(a[i] as Int)
+                    }
+                    var b = strings.reverse("a😀b").toCharArray()
+                    for (var i = 0; i < b.length; i++) {
+                        println(b[i] as Int)
+                    }
+                    println(strings.reverse("").length)
+                }
+                """, "233\n102\n97\n99\n98\n55357\n56832\n97\n0", Set.of(), tempDir);
         // STDLIB S2b.4 — kof.strings conversores de palavra (split+join, ASCII).
         // A matriz roda native=x86 (tem asm); o port riscv/aarch é STRN001-gated
         // (KofStringsTest.wordConvertersGatedOnCrossArch). Em ASCII os 4 targets
@@ -1956,6 +1994,42 @@ class ConformanceMatrixTest {
                 """, "else\nafter", Set.of(), tempDir);
     }
 
+    // known-bugs §380 (20/09): `if` NESTADO cujo then termina em saída
+    // incondicional (throw/return, sem else) — o parse do else interno
+    // (JsIfThrowElse.parseElse) consumia QUALQUER label à frente, roubando o
+    // falseLabel do `if` ENVOLVENTE: o epílogo externo era absorvido no ramo e
+    // o caminho não-throw devolvia undefined (JS divergia de JVM/Native).
+    // O fix = pilha de falseLabels ativos (MethodCtx.enclosingIfFalses): label
+    // de estrutura envolvente é devolvido sem consumir. Guarda preserva
+    // §147/§149 (loop/try-check primeiro) e §174 (try-end-check primeiro).
+    @Test
+    void conformanceNestedIfThrowStealsFalseLabel(@TempDir Path tempDir) throws IOException {
+        matrix("nestedifthrow", """
+                String t2(String n, Bool b) {
+                    if (n == "x") {
+                        if (b) { throw "yb" }
+                        throw "bx"
+                    }
+                    return "p:" + n
+                }
+                String t4(String n, Bool b) {
+                    if (n == "x") {
+                        if (b) { throw "in" }
+                        return "mid"
+                    }
+                    return "out:" + n
+                }
+                main() {
+                    println(t2("y", false))
+                    try { println(t2("x", true)) } catch (String e) { println("c:" + e) }
+                    try { println(t2("x", false)) } catch (String e) { println("c:" + e) }
+                    println(t4("y", false))
+                    println(t4("x", false))
+                    try { println(t4("x", true)) } catch (String e) { println("c:" + e) }
+                }
+                """, "p:y\nc:yb\nc:bx\nout:y\nmid\nc:in", Set.of(), tempDir);
+    }
+
     @Test
     void conformanceNullSafety(@TempDir Path tempDir) throws IOException {
         matrix("nullnarrow", """
@@ -2158,5 +2232,100 @@ class ConformanceMatrixTest {
                     println(c.receive())
                 }
                 """, "1\n2", Set.of(), tempDir);
+    }
+
+    // ===== Lote X5 — sistema de tipos (D-X5-SURFACE, 21/09) =====
+
+    @Test
+    void conformanceTypeSystemX5(@TempDir Path tempDir) throws IOException {
+        // X5.1/X5.2: `sealed` + `switch` exaustivo (modificador é compile-time;
+        // a semântica de runtime é o switch sobre os subtipos diretos).
+        matrix("sealedswitch", """
+                sealed class Shape
+
+                class Circle extends Shape {
+                    Int r
+                    public constructor(Int r) { this.r = r }
+                }
+
+                class Square extends Shape {
+                    Int s
+                    public constructor(Int s) { this.s = s }
+                }
+
+                String describe(Shape sh) {
+                    return switch (sh) {
+                        case Circle c -> "circle"
+                        case Square q -> "square"
+                    }
+                }
+
+                main() {
+                    println(describe(Circle(1)))
+                    println(describe(Square(2)))
+                }
+                """, "circle\nsquare", Set.of(), tempDir);
+        // X5.3: variância declaration-site (`out` covariante) — erasure não
+        // muda a saída; o que o caso trava é compilar+rodar igual nos 4 alvos.
+        matrix("variance", """
+                record Source<out T>(T value)
+
+                class Animal {
+                    String name
+                    public constructor(String name) { this.name = name }
+                }
+
+                class Dog extends Animal {
+                    public constructor(String name) { super(name) }
+                }
+
+                Source<Animal> up(Source<Dog> d) { return d }
+
+                main() {
+                    println(up(Source(Dog("rex"))).value().name)
+                }
+                """, "rex", Set.of(), tempDir);
+        // X5.4: projeção no sítio de uso (`List<out T>`/`List<in T>`).
+        matrix("useproj", """
+                class Animal {
+                    String name
+                    public constructor(String name) { this.name = name }
+                }
+
+                class Dog extends Animal {
+                    public constructor(String name) { super(name) }
+                }
+
+                List<out Animal> up(List<Dog> xs) { return xs }
+                List<in Dog> down(List<Animal> xs) { return xs }
+
+                main() {
+                    println(up(listOf(Dog("rex"))).size)
+                    println(down(listOf(Animal("a"))).size)
+                }
+                """, "1\n1", Set.of(), tempDir);
+    }
+
+    // ===== Lote X6 — interop reflection (D-INTEROP-REFLECT, 22/09) =====
+
+    @Test
+    void conformanceInteropReflectX6(@TempDir Path tempDir) throws IOException {
+        // X6.1/X6.2: `interop.schema(R)` é um intrínseco de compile-time — a
+        // dobra é no frontend (mesmas ops do `listOf(Field(…))` equivalente),
+        // logo a saída é IDÊNTICA nos 4 alvos e não há gap `REF001`. O caso
+        // trava compilar+rodar igual em JVM/Native/Script/JS.
+        matrix("interopschema", """
+                import kof.interop
+
+                record User(String name, Int age)
+
+                main() {
+                    var fields = interop.schema(User)
+                    println(fields.size)
+                    for (var f in fields) {
+                        println(f.name() + ":" + f.type())
+                    }
+                }
+                """, "2\nname:String\nage:Int", Set.of(), tempDir);
     }
 }

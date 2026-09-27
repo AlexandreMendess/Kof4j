@@ -3,7 +3,7 @@
 # Kof vs Java — Comparação Técnica
 
 **Última atualização:** 12 de setembro de 2026
-**Versão:** 0.4.0-beta (7 targets; pattern matching + `String?` + spawn Native)
+**Versão:** 0.5.0-beta (7 targets; pattern matching + `String?` + spawn Native)
 
 ---
 
@@ -11,10 +11,10 @@
 
 | Aspecto | Java | Kof |
 |---------|------|-----|
-| Tipagem | Forte, estática | Forte, estática (0.4.0-beta) |
+| Tipagem | Forte, estática | Forte, estática (0.5.0-beta) |
 | OO | Classes, interfaces, records | Classes, interfaces, records + `enum` + pattern matching `case String s`/`Point(x,y)` |
 | Herança | Simples + interfaces | Simples + interfaces (3 níveis) |
-| GC | Automático | JVM: automático / Native: free-list `kof_free_head` (mark-sweep implementado 03/09, manual; auto-GC desativado — auto-collect sob exaustão pendente §260) |
+| GC | Automático | JVM: automático / Native: free-list `kof_free_head` (mark-sweep implementado 03/09, manual; auto-collect sob exaustão ✅ 19/09 — D1-A, §260 FECHADO) |
 | Compilação | javac → bytecode | Kof → IR → JVM/Native (x86_64 + riscv64 + aarch64) / JS (GraalJS) / KofC / KofScript / Android (Fase 1) |
 | Sintaxe | Verbosa | Concisa (`String?`, `map/filter/reduce`, `var`/`val` → `KofScriptGlobals`) |
 
@@ -165,7 +165,7 @@ Generics por erasure (classes e funções). Bounds: planejados.
 
 ---
 
-## Collections (0.4.0-beta)
+## Collections (0.5.0-beta)
 
 ### Java
 
@@ -316,9 +316,9 @@ arquivo > env > profile > default; CONF001 fechado 16/09).
 
 ---
 
-## Resumo (0.4.0-beta, re-synced 17/09/2026 — `VERSION` 0.4.0-beta, `mvn test` 2218, 7 targets)
+## Resumo (0.5.0-beta, re-synced 17/09/2026 — `VERSION` 0.5.0-beta, `mvn test` 2218, 7 targets)
 
-| Feature | Java | Kof 0.4.0-beta | Kof Futuro |
+| Feature | Java | Kof 0.5.0-beta | Kof Futuro |
 |---------|------|---------------|------------|
 | Classes / Records / Herança / Interfaces / Virtual dispatch | ✅ | ✅ (JVM/Native x86_64 + riscv64 + JS `kof.http`) | ✅ |
 | Null safety `String?` | ✅ (via `Optional`/checker) | ✅ básica `String?` (`Type?`) 27/08 | checks avançados |

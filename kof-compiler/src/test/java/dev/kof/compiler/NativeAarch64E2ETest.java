@@ -104,6 +104,35 @@ class NativeAarch64E2ETest {
                 "aarch64 must match the JVM oracle (regra 5)");
     }
 
+    // §444-cross — generic class + T-ARG ctor no aarch64 (mesmo IR riscv
+    // traduzido; o ramo TypeVariable → kof_box_to_string do §444-cross herda
+    // via tradutor). Paridade R5: oráculo JVM 7/7/hi/true.
+    @Test
+    void aarch64GenericCtorArgPrintsLikeJvm(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            class Box<T> {
+                T value
+                public constructor(T value) {
+                    this.value = value
+                }
+                get(): T {
+                    return this.value
+                }
+            }
+            main() {
+                var b = Box(7)
+                println(b.get())
+                println(b.value)
+                var s = Box("hi")
+                println(s.get())
+                var t = Box(true)
+                println(t.get())
+            }
+            """);
+        assertEquals("7\n7\nhi\ntrue", out, "§444: aarch64 deve casar o oráculo JVM");
+    }
+
     // Arestas do port §359 (add_all riscv + kof_list_cmp→String_compareTo;
     // aarch64 herda via tradutor): addAll em dst populado/crescente e o
     // compare-to do sort (prefixo "app"<"apple" + iguais "apple").
@@ -949,6 +978,64 @@ main() {
         assertEquals("[1, 2, 3]\n[1, 2]\n{k=9}\n[a, b]\n[true, false]\n"
                 + "[100000000000, 2]\n[97, 98]\n[]\n[[1], [2]]\n{a=1, b=2}\n"
                 + "[1.5, 2.0]\n[1.5, 2.5]", out);
+    }
+
+    @Test
+    void nativeArrayPrintMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // §388-B-cross (aarch64 herda do riscv via tradutor): println de array
+        // cru no formato de container da casa ([65, 66]) — golden idêntico ao
+        // riscv (kof_array_to_string; bloco [len@16][esz@20][data@24], slot
+        // 8B, descritor §107 com tag 11 de aninhado).
+        String out = runAarch64(tempDir, """
+                main() {
+                    val b = new Int[2]
+                    b[0] = 65
+                    b[1] = 66
+                    println(b)
+                    val n = new Int[1][2]
+                    n[0][0] = 65
+                    n[0][1] = 66
+                    println(n)
+                    val e = new Int[0]
+                    println(e)
+                    val s = new String[1]
+                    s[0] = "x"
+                    println(s)
+                    val l = new Long[2]
+                    l[0] = 100000000000L
+                    l[1] = 2
+                    println(l)
+                    val t = new Bool[2]
+                    t[0] = true
+                    t[1] = false
+                    println(t)
+                }
+                """);
+        assertEquals("[65, 66]\n[[65, 66]]\n[]\n[x]\n[100000000000, 2]\n[true, false]", out);
+    }
+
+    @Test
+    void nativePrintNullRecordMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // §396-cross: println CRU de record NULL (T?-API) e String? deve
+        // imprimir "null" (paridade x86/riscv — guard no call-site, herdado
+        // do riscv pelo tradutor). Golden = MESMO programa do pin x86.
+        String out = runAarch64(tempDir, """
+                record Point(Int x, Int y)
+                Point? nope() {
+                    return null
+                }
+                String? noString() {
+                    return null
+                }
+                main() {
+                    println(nope())
+                    println(noString())
+                    println(Point(1, 2))
+                }
+                """);
+        assertEquals("null\nnull\nPoint[x=1, y=2]", out);
     }
 
     @Test

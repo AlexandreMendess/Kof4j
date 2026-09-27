@@ -364,6 +364,19 @@ public final class NativeRiscvAsmRtB49 {
                 addi sp, sp, 16
                 ret
             .Lk49_bts_pass:
+                # N2 (23/09): referencia nao-caixa — String (type_id==1 no
+                # offset 0) passa; outro objeto despacha o toString da classe
+                # por kof_tostring_table[type_id] (tail-call: a0 ja e o this).
+                lw   t0, 0(a0)
+                li   t1, 1
+                beq  t0, t1, .Lk49_bts_pass_ret
+                la   t2, kof_tostring_table
+                slli t0, t0, 3
+                add  t2, t2, t0
+                ld   t3, 0(t2)
+                beqz t3, .Lk49_bts_pass_ret
+                jr   t3
+            .Lk49_bts_pass_ret:
                 ret
             .Lk49_bts_null:
                 la   a0, .Lk49_nullstr

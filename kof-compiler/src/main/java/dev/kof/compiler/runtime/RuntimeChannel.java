@@ -59,8 +59,7 @@ public final class RuntimeChannel {
                 movl $0, %esi                # op = FUTEX_WAIT
                 movl $1, %edx                # val = 1 (espera lock==1)
                 xorq %r10, %r10              # timeout = NULL
-                movq $202, %rax
-                syscall
+                call kof_plat_sync
                 leaq 20(%r13), %rsi          # restaura &lock p/ o cmpxchg
                 jmp .Lchan_send_lock
             .Lchan_send_locked:
@@ -83,11 +82,10 @@ public final class RuntimeChannel {
                 leaq 20(%r13), %rdi
                 movl $0, (%rdi)                   # unlock
                 movl $1, %esi
-                movq $202, %rax
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall
+                call kof_plat_sync
                 xorl %eax, %eax
                 addq $8, %rsp
                 popq %rbp
@@ -116,8 +114,7 @@ public final class RuntimeChannel {
                 movl $0, %esi                # op = FUTEX_WAIT
                 movl $1, %edx                # val = 1 (espera lock==1)
                 xorq %r10, %r10              # timeout = NULL
-                movq $202, %rax
-                syscall
+                call kof_plat_sync
                 leaq 20(%r13), %rsi          # restaura &lock p/ o cmpxchg
                 jmp .Lchan_recv_lock
             .Lchan_recv_locked:
@@ -127,17 +124,23 @@ public final class RuntimeChannel {
                 movq 0(%rax), %r12               # value
                 movq 8(%rax), %rbx               # next
                 movq %rbx, 0(%r13)               # head = next
+                testq %rbx, %rbx                 # §485: a fila esvaziou?
+                jne .Lchan_recv_hastail
+                movq $0, 8(%r13)                 # tail = 0 (sem isto a cauda
+                                                 #  fica apontando p/ o nó
+                                                 #  liberado e o próximo send
+                                                 #  anexa sem por head → NULL)
+            .Lchan_recv_hastail:
                 decl 16(%r13)                    # count--
                 movq %rax, %rdi
                 call kof_free                    # libera o no
                 leaq 20(%r13), %rdi
                 movl $0, (%rdi)                  # unlock
                 movl $1, %esi
-                movq $202, %rax
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall                          # clobbera rax -- resultado depois!
+                call kof_plat_sync
                 movq %r12, %rax                  # resultado (apos o syscall)
                 popq %r13
                 popq %r12
@@ -147,11 +150,10 @@ public final class RuntimeChannel {
                 leaq 20(%r13), %rdi
                 movl $0, (%rdi)                  # libera o lock antes de dormir
                 movl $1, %esi
-                movq $202, %rax
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall
+                call kof_plat_sync
                 movl $1000, %edi
                 call usleep
                 leaq 20(%r13), %rsi              # bug 50: %rsi e caller-saved;

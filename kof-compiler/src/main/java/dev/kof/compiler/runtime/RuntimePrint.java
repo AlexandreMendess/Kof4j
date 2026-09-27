@@ -24,10 +24,9 @@ public final class RuntimePrint {
                 incq %rdx
                 jmp .Lkof_print_len
             .Lkof_print_do:
-                movq $1, %rax
                 movq $1, %rdi
                 movq %rbx, %rsi
-                syscall
+                call kof_plat_write
                 popq %rbx
                 ret
             """);
@@ -38,6 +37,19 @@ public final class RuntimePrint {
             .globl kof_println
             .type kof_println, @function
             kof_println:
+                # §396: null CRU (record via T?-API, String?, objeto qualquer) ->
+                # "null" + newline, paridade JVM. O teste de MAGIC abaixo LE
+                # (%rdi) — sem este guard o binario SIGSEGVava (ec 139).
+                # Precedente do idioma: kof_println_string no riscv ja imprime
+                # "null" no mesmo caso (NativeRiscvAsmRt0 .Lpls_*).
+                testq %rdi, %rdi
+                jne .Lkof_println_nn
+                leaq .Lkpln_null(%rip), %rdi
+                call kof_print
+                leaq .Lnewline(%rip), %rdi
+                call kof_print
+                ret
+            .Lkof_println_nn:
                 # §284: dispatch de box de erasure — MAGIC em [0] e o valor e
                 # um BOX [magic][tag][value] (RuntimeErasureBox); o print segue
                 # o golden JVM por tag. Sem MAGIC (ponteiro de objeto real ou
@@ -105,6 +117,7 @@ public final class RuntimePrint {
                 call kof_print
                 popq %rbx
                 ret
+            .Lkpln_null: .asciz "null"
             """);
     }
 }

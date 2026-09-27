@@ -82,6 +82,12 @@ public final class CompilerTypes {
          if (JAVA_LANG_THROWABLES.contains(typeName)) {
              return new Type.ClassType("java.lang", typeName, List.of());
          }
+         // §268 (A): qualquer classe de `java.lang` por nome simples
+         // (`Thread`, `Runnable`, `Object`…) resolve sem import — probe cacheado.
+         String javaLang = JavaLangProbe.qualifiedOrNull(typeName);
+         if (javaLang != null) {
+             return new Type.ClassType("java.lang", typeName, List.of());
+         }
          return Type.of(typeName);
      }
 
@@ -219,6 +225,13 @@ public final class CompilerTypes {
             if (!ch) return ft;
             return new Type.FunctionType(ps, qr, ft.className());
         }
+        // X5.4: projeção no sítio de uso — qualifica o BOUND do WildcardType
+        // (`List<out NodeUI>` → bound NodeUI precisa de pacote no descritor).
+        if (t instanceof Type.WildcardType wt) {
+            if (wt.bound() == null) return wt;
+            Type qb = qualifyDeep(wt.bound(), unit, sa);
+            return qb.equals(wt.bound()) ? wt : new Type.WildcardType(qb, wt.upper());
+        }
         return t;
     }
 
@@ -247,7 +260,10 @@ public final class CompilerTypes {
             SymbolTable.ClassSymbol cs = sa.getClass(name);
             if (cs != null) return cs.packageName();
         }
-        return null;
+        // §268 (A): classe do JDK por nome simples sem import (`Thread`,
+        // `Object`, `Runnable`…) — o probe cacheado decide; o módulo já venceu
+        // acima (registro primeiro).
+        return JavaLangProbe.qualifiedOrNull(name) != null ? "java.lang" : null;
     }
 
     /**
@@ -337,17 +353,24 @@ public final class CompilerTypes {
     }
 
     static Type ownerTypeFromInternal(String internalName, SemanticAnalyzer semanticAnalyzer) {
-        if (semanticAnalyzer != null) {
-            String simpleName = internalName.substring(internalName.lastIndexOf('/') + 1);
-            SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(simpleName);
-            if (cs != null) return cs.type();
-        }
+        // #639 face 2 (D-DECISION-BATCH-2709B): o nome INTERNO carrega o pacote
+        // ("p1/Item"). Antes a busca era por nome simples (`getClass`), que
+        // colide e devolvia o last-write (p2/Item) — o `this`/receiver saía com
+        // o pacote ERRADO (VerifyError). Agora o caminho do nome interno MANDA:
+        // resolve por FQN quando há pacote; nome simples (sem '/') segue igual.
         String pkg = "";
         String name = internalName;
         int slashIdx = internalName.lastIndexOf('/');
         if (slashIdx >= 0) {
             pkg = internalName.substring(0, slashIdx).replace('/', '.');
             name = internalName.substring(slashIdx + 1);
+        }
+        if (semanticAnalyzer != null) {
+            SymbolTable.ClassSymbol cs = pkg.isEmpty()
+                    ? semanticAnalyzer.getClass(name)
+                    : semanticAnalyzer.findQualifiedClass(pkg + "." + name);
+            if (cs == null) cs = semanticAnalyzer.getClass(name);
+            if (cs != null && (pkg.isEmpty() || pkg.equals(cs.packageName()))) return cs.type();
         }
         return new Type.ClassType(pkg, name, List.of());
     }

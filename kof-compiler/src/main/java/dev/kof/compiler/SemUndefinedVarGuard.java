@@ -16,6 +16,8 @@ final class SemUndefinedVarGuard {
         return sa.diagnostics() != null
                 && !"this".equals(name) && !"super".equals(name)
                 && !"json".equals(name) && !"process".equals(name) && !"shell".equals(name)
+                && !"ssh".equals(name)
+                && !CompilerInterop.isInteropNamespace(name)
                 && !KofWeb.isWebNamespace(name)
                 && !KofConfig.isConfigNamespace(name)
                 && !KofCache.isCacheNamespace(name)
@@ -52,7 +54,51 @@ final class SemUndefinedVarGuard {
                 // chamada estática com receiver identificador nunca
                 // chegava ao lowering (só `new X()` e instância
                 // funcionavam).
-                && !isExternalImportedClass(sa, name);
+                && !isExternalImportedClass(sa, name)
+                // §500 slice B: `Integer.MAX_VALUE` sem import (o caminho de
+                // método já aceita o nome do JDK desde o §499); o campo é
+                // tipado/emitido pelo bloco estático do typer/lowerer.
+                && !StaticClassReceiver.isJdkFieldOwnerName(name);
+    }
+
+    /**
+     * §496: um identificador é um NAMESPACE builtin (math, strings, time, db,
+     * orm, log, cache, config, security, gpu, …). Diferente de {@link
+     * #reportsUndefined} (que também isenta tipos/paletas/tokens/interop),
+     * aqui interessa SÓ o namespace puro — a face FIELD de um namespace não
+     * existe (a superfície é função), então um campo desconhecido nele precisa
+     * virar diagnóstico (SEM102) em vez de `getfield "?".campo`
+     * (NoClassDefFoundError no load, compilado limpo). Interop/router/tokens
+     * ficam de fora: qualificam nomes/constantes e têm caminho próprio.
+     */
+    static boolean isBuiltinNamespace(String name) {
+        return "json".equals(name) || "process".equals(name)
+                || "shell".equals(name) || "ssh".equals(name)
+                || KofWeb.isWebNamespace(name)
+                || KofConfig.isConfigNamespace(name)
+                || KofCache.isCacheNamespace(name)
+                || KofGpu.isGpuNamespace(name)
+                || KofDb.isDbNamespace(name)
+                || KofOrm.isOrmNamespace(name)
+                || KofLog.isLogNamespace(name)
+                || KofSecurity.isSecurityNamespace(name)
+                || KofValidation.isValidationNamespace(name)
+                || KofStd.isStdNamespace(name)
+                || KofObservability.isObservabilityNamespace(name)
+                || KofHttp.isHttpNamespace(name)
+                || KofMq.isMqNamespace(name)
+                || KofTime.isTimeNamespace(name)
+                || KofScheduler.isSchedulerNamespace(name)
+                || KofTetris.isTetrisNamespace(name)
+                || KofMedia.isStaticNamespace(name)
+                || KofMath.isMathNamespace(name)
+                || KofStrings.isStringsNamespace(name)
+                || KofBuffer.isBufferNamespace(name)
+                || KofEncoding.isEncodingNamespace(name)
+                || KofNet.isNetNamespace(name)
+                || KofRandom.isRandomNamespace(name)
+                || KofRng.isRngNamespace(name)
+                || KofUuid.isUuidNamespace(name);
     }
 
     /**

@@ -92,6 +92,9 @@ Kof é uma linguagem de programação compilada para múltiplas plataformas, for
 | 37 | [KofJS — o caminho da Web](37-kofjs.md) |
 | 38 | [Editores — kof editor](38-editors.md) |
 | 39 | [Standard Library universal](39-stdlib.md) |
+| 40 | [Baixo Nível — FFI, Perfis Native e Bare Metal](40-low-level.pt_BR.md) |
+| 41 | [Android](41-android.pt_BR.md) |
+| — | [Standard Library — por namespace](stdlib/README.pt_BR.md) |
 | — | [Native — Multiplatform](native/README.md) |
 
 ## Ordem recomendada
@@ -149,11 +152,11 @@ Consulte também `training/` para corpus estruturado de conhecimento Kof.
 | 39 | Standard Library (math/strings/encoding/uuid/validation/time) | ✅ (4 targets; gates FLT/NAT-STR01) |
 
 Kof está em fase de consolidação. O compilador é funcional com backends JVM,
-Native (x86-64 free-list), Native.risc, Native.arm, KofJS e KofC (0.4.0-beta).
+Native (x86-64 free-list), Native.risc, Native.arm, KofJS e KofC (0.5.0-beta).
 
 **Testes:** 805
 
-**O que funciona hoje (0.4.0-beta — set 2026 — `jvm/native/native.risc/native.arm/js/kofc`):**
+**O que funciona hoje (0.5.0-beta — set 2026 — `jvm/native/native.risc/native.arm/js/kofc`):**
 - Frontend completo (lexer, parser, type system, semântica) — `intention->Kof->frontend->IR->backend->runtime`
 - Seis targets: JVM (ASM), Native x86-64 (free-list GC), Native.risc, Native.arm, KofJS (GraalJS) e KofC (C subset nativo-only)
 - Classes, records, herança, interfaces, virtual dispatch, generics (erasure), imports `a.b.C` fix (largeproj)
