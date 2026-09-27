@@ -139,6 +139,46 @@ main() {
 declaração. Uso inválido é diagnóstico, nunca silêncio (`INTEROP002` para membro
 desconhecido, `INTEROP001` para aridade errada ou argumento que não é record).
 
+## Motores — `KofPy` e `KofR` (a linguagem e detalhe; a face e o contrato)
+
+O `kof.interop` traz motores prontos para o interpretador que voce escolher
+(X2, `D-COMPLETE-FIRST` — medido 26–27/09). Voce declara a FONTE; a plataforma
+monta o RPC, o JSON e as falhas nomeadas:
+
+```kof
+import kof.interop
+var py = KofPy("def greet(name):\n    return 'oi ' + name")
+println(py.callString("greet", listOf("mel")))        // oi mel
+
+var r = KofR("greet <- function(name) paste0('oi ', name)")
+println(r.callString("greet", listOf("mel")))         // oi mel — mesma face, segundo motor
+```
+
+A chamada NUNCA pendura na sua mao: o deadline corre no FILHO, na propria
+linguagem do motor, e cada parada e uma string NOMEADA (excecoes sao Strings
+— a mesma regra de sempre no Kof):
+
+```kof
+py.timeout(2000)                       // default 30000 ms; 0 = sem limite (declarado)
+try {
+    println(py.callInt("loop", listOf()))
+} catch (String e) {
+    println(e)   // INTEROP007: loop exceeded the 2000ms deadline and was stopped by the engine itself
+}
+```
+
+O `cancel()` (de uma task `spawn`, por exemplo) para a chamada viva —
+`INTEROP008` nos dois motores: o python se autopará e reporta `KOFCANCEL`; o R
+morre no SIGINT e o pai NOMEIA a morte (resposta que chegou primeiro vence).
+Records cruzam com o JSON da propria plataforma: `callJson` + `json.decode[T]`.
+Nomes no lugar do chute: `INTEROP004` interpretador ausente/morto,
+`INTEROP005` o alvo nao tem runtime de processo provado (cross §514, ANDROID,
+MCU — recusa em compile-time que mantem a face), `INTEROP006` erro remoto com
+o traceback carregado. Os motores sao `experimental` ate os encoders cross
+pousarem — JVM/x86/JS/Script certificados na CI
+(`InteropPyE2ETest`/`InteropRE2ETest`/`InteropTimeoutE2ETest`).
+Idioma completo: `training/idioms/interop.pt_BR.md` §(e).
+
 ## Próximo passo
 
 [JVM →](22-jvm.md)

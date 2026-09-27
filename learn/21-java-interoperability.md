@@ -138,6 +138,46 @@ compiler-provided `record Field(String name, String type)` in declaration order.
 An invalid use is a diagnostic, never silence (`INTEROP002` for an unknown
 member, `INTEROP001` for a wrong arity or a non-record argument).
 
+## Engines — `KofPy` and `KofR` (the language is a detail; the face is the contract)
+
+`kof.interop` carries ready-made engines for the interpreter of your choice
+(X2, `D-COMPLETE-FIRST` — measured 26–27/09). You declare the SOURCE; the
+platform builds the RPC, JSON and the named failures:
+
+```kof
+import kof.interop
+var py = KofPy("def greet(name):\n    return 'oi ' + name")
+println(py.callString("greet", listOf("mel")))        // oi mel
+
+var r = KofR("greet <- function(name) paste0('oi ', name)")
+println(r.callString("greet", listOf("mel")))         // oi mel — same face, second engine
+```
+
+A call can NEVER hang on your hands: the deadline runs in the CHILD, in the
+engine's own language, and every stop is a NAMED string (exceptions are
+Strings — the same rule as everywhere in Kof):
+
+```kof
+py.timeout(2000)                       // default 30000 ms; 0 = no limit (declared)
+try {
+    println(py.callInt("loop", listOf()))
+} catch (String e) {
+    println(e)   // INTEROP007: loop exceeded the 2000ms deadline and was stopped by the engine itself
+}
+```
+
+`cancel()` (from a `spawn` task, for example) stops the live call —
+`INTEROP008` on both engines: python self-reports `KOFCANCEL`; R dies on the
+SIGINT and the parent NAMES the death (a reply that landed first wins).
+Records cross with the platform's own JSON: `callJson` + `json.decode[T]`.
+Names that replace guessing: `INTEROP004` interpreter missing/died,
+`INTEROP005` the target has no proven process runtime (cross §514, ANDROID,
+MCU — compile-time refusal that keeps the face), `INTEROP006` remote error
+with the traceback carried. Engines are `experimental` until the cross
+encoders land — JVM/x86/JS/Script are CI-certified
+(`InteropPyE2ETest`/`InteropRE2ETest`/`InteropTimeoutE2ETest`).
+Full idiom: `training/idioms/interop.md` §(e).
+
 ## Next step
 
 [JVM →](22-jvm.md)
