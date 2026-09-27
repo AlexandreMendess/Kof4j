@@ -22,6 +22,16 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     WITHOUT qemu/OVMF (one case per measured flake signature); E2E classes skip
     honestly on toolchain-less hosts (declared, not faked) — live-boot
     certification on the toolchain CI. Catalog: known-bugs.md §511 FIXED (+PT).
+  - **Fix — §531 (27/09): SEM010 printed `expected 'List<Item>' but got 'List<Item>'** —
+    the Kof-facing formatter (`Type.display`, #324) dropped the package from EVERY class,
+    so records with the same simple name in different packages collapsed to identical
+    diagnostic text (found by the INDEPENDENT verifier of #628; issue #640). `ClassType`
+    display now qualifies non-empty USER packages (recursing through generic arguments:
+    `List<p1.Item>` vs `List<p2.Item>`), while empty package and `java.`/`javax.` keep the
+    spelling the user wrote (#324 contract intact — pinned by the sibling test). Proof:
+    `QualifiedTypeDiagE2ETest` 2/2 (RED pre-fix quoting the collapsed message), cluster
+    361/0F/0E/0S, reactor 4301/0E (the 1 red = documented §511 load flake, solo 5/5).
+    Catalog: `known-bugs.md` §531 (+PT).
   - **Fix — §530 (27/09, pousou FIXED no mesmo dia): wiring de biblioteca oficial pousou com cobertura so-JVM** — medido pela mantenedora na
     #629: `import pdf.*` (libs/pdf, PR #557) roda em JVM/Script e o x86-64
     linka as classes da lib (falha so no `String_join` do contribuidor);

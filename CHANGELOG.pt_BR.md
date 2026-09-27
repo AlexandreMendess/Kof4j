@@ -24,6 +24,16 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     com honestidade em host sem toolchain (declarado, não fingido) — a
     certificação do boot vivo fica na CI com toolchain. Catálogo:
     known-bugs.md §511 FIXED (+EN).
+  - **Fix — §531 (27/09): o SEM010 imprimia `expected 'List<Item>' but got 'List<Item>'`** —
+    o formatador Kof-facing (`Type.display`, #324) descartava o package de TODA classe,
+    entao records de mesmo nome simples em packages diferentes colapsavam em texto de
+    diagnostico identico (achado pelo verifier INDEPENDENTE do #628; issue #640). O display
+    de `ClassType` agora qualifica packages de USUARIO nao-vazios (recurse pelos argumentos
+    genericos: `List<p1.Item>` vs `List<p2.Item>`), enquanto package vazio e `java.`/`javax.`
+    mantem a grafia que o usuario escreveu (contrato #324 intacto — travado pelo teste
+    irmao). Prova: `QualifiedTypeDiagE2ETest` 2/2 (RED pre-fix citando a mensagem colapsada),
+    cluster 361/0F/0E/0S, reator 4301/0E (o 1 red = flake de carga documentado do §511,
+    solo 5/5). Catalogado: `known-bugs.pt_BR.md` §531 (+EN).
   - **Fix — §530 (27/09, pousou FIXED no mesmo dia): wiring de biblioteca oficial pousou com cobertura so-JVM** — medido pela mantenedora na
     #629: `import pdf.*` (libs/pdf, PR #557) roda em JVM/Script e o x86-64
     linka as classes da lib (falha so no `String_join` do contribuidor);

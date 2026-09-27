@@ -13604,3 +13604,35 @@ aceitacao da 0.5.0 "biblioteca oficial e multi-target"; re-trigger: claim no
 DOING, ler root cause, teste RED primeiro (programa da mantenedora), consertar,
 provar.
 <!-- pt-switch --> **EN:** [§530 (known-bugs.md)](known-bugs.md#530--official-library-wiring-libspdf-pr-557-lands-with-jvm-only-coverage-cross-riscv64aarch64-leave-the-library-classes-out-of-the-link-_init_-undefined---fixed-2709-owner-lane-cross--routed-by-the-maintainers-measured-verification-on-629)
+## §531 — o SEM010 imprimia os dois lados de uma colisão de records de mesmo nome simples em packages diferentes como TEXTO IDENTICO (`Type.display` omitia o package) — ✅ FIXED 27/09 (lane interop/docs — #640)
+
+**Estado**: ✅ FIXED 27/09 (lane interop/docs) — `Type.display` agora qualifica packages
+de USUARIO; os built-ins do JVM mantem a grafia que o usuario escreveu (#324 preservado).
+Issue #640; achado pelo verifier INDEPENDENTE do #628 (sessao
+`ses_f1dc45cceffeSzu41U9YlfH3Jj`, run de evidencia `20260927T063238-9cdff235-8421`).
+
+**Sintoma (medido 27/09):** um programa com `record Item` em `package p1` E em `package p2`
+e corretamente RECUSADO pelo compilador (nada errado e emitido — a garantia do #628 segue
+de pe; provado com `javap` pelo mesmo verifier), mas a recusa dizia
+`Return type mismatch: expected 'List<Item>' but got 'List<Item>'` — TEXTO IDENTICO para
+tipos diferentes, indiagnosticavel sem re-rodar (Q3).
+
+**Causa raiz:** o `Type.display` (formatador Kof-facing do #324) imprimia `c.name()` e
+descartava `c.packageName()` para TODA classe, entao dois records de mesmo nome simples em
+packages diferentes colapsavam na mesma string em todo call-site de `display` (SEM010 hoje
+— o unico sitio de emissao).
+
+**Conserto:** o ramo `ClassType` do `Type.display` passa pelo `qualifiedUserName`: packages
+de USUARIO nao-vazios imprimem `pkg.Name` e a qualificacao RECURSE pelos argumentos
+genericos (`List<p1.Item>` vs `List<p2.Item>` distinguiveis); package vazio e `java.`/
+`javax.` mantem a grafia crua que o usuario escreveu (o contrato #324 — mensagens de
+`String`/`Int` byte-inalteradas, travadas pelo teste irmao).
+
+**Prova:** `QualifiedTypeDiagE2ETest` 2/2 — RED medido pre-fix (a mensagem colapsada esta
+citada verbatim no texto da falha) + pin da grafia de built-in no mesmo commit; cluster de
+raio de acao (semantica/interop/records/Makealive/workflow + o proprio
+`PackageRecordGenericListE2ETest` do #628) 361/0F/0E/0S; reator completo 4301/0E — o
+unico red era o flake de carga documentado do §511 (solo 5/5 verde, re-medido hoje).
+Relacionado: #628 (fechada, defeito DIFERENTE: emissao), #639 (a pergunta ORTOGONAL de
+DESIGN de desambiguacao cross-package — regra 6; esta entrada nao a responde).
+<!-- pt-switch --> **EN:** [§531](known-bugs.md#531--sem010-printed-both-sides-of-a-same-simple-name-record-collision-from-different-packages-as-identical-text-typedisplay-omitted-the-package---fixed-2709-interopdocs-lane--640)

@@ -281,7 +281,7 @@ public sealed interface Type {
     public static String display(Type type) {
         return switch (type) {
             case PrimitiveType p -> kofPrimitiveName(p.name());
-            case ClassType c -> c.name()
+            case ClassType c -> qualifiedUserName(c)
                     + (c.typeArguments().isEmpty() ? ""
                         : c.typeArguments().stream().map(Type::display)
                             .collect(java.util.stream.Collectors.joining(", ", "<", ">")));
@@ -292,6 +292,19 @@ public sealed interface Type {
             case FunctionType _ -> "function";
             case WildcardType _ -> "?";
         };
+    }
+
+    /**
+     * #640: user packages qualify in diagnostics (two records with the same
+     * simple name in different packages must not print the same text); JVM
+     * built-ins keep the spelling the user wrote (#324).
+     */
+    private static String qualifiedUserName(ClassType c) {
+        String pkg = c.packageName();
+        if (pkg == null || pkg.isEmpty() || pkg.startsWith("java.") || pkg.startsWith("javax.")) {
+            return c.name();
+        }
+        return pkg + "." + c.name();
     }
 
     static String kofPrimitiveName(String name) {
