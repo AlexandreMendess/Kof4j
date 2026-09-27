@@ -105,6 +105,41 @@ Uso inválido é diagnóstico honesto (R6), nunca silêncio: membro desconhecido
 linguagem: sem metaprogramação em runtime, sem dispatch dinâmico, sem caminho de
 escrita.
 
+
+**(e) Motores `KofPy`/`KofR` (X2 fatias 1–3 — 26–27/09, `D-COMPLETE-FIRST`)** — a linguagem do
+motor é detalhe; a face Kof é o contrato (a MESMA nos dois):
+
+```kof
+import kof.interop
+var py = KofPy("def sq(n):\n    return n*n")          // as definicoes = a sessao
+var r  = KofR("sq <- function(n) n*n")                 // mesma face, segundo motor
+println(py.callInt("sq", listOf(5)))                   // 25 (ha tambem callDouble/Bool/String/Json)
+println(r.callInt("sq", listOf(5)))                    // 25 — wire identico, o contrato e o JSON
+
+// records pela fronteira: a composicao e o JSON da propria plataforma
+var wire = py.callJson("norm", json.encode(listOf(p)))
+var back = json.decode[Point](wire)
+
+// a chamada nunca pendura (fatia 3) — o DEADLINE CORRE NO FILHO:
+py.timeout(2000)              // default 30000; 0 = sem limite (declarado, nunca silencioso)
+try {
+    println(py.callInt("loop", listOf()))
+} catch (String e) {
+    println(e)                // INTEROP007: loop exceeded the 2000ms deadline and was stopped by the engine itself
+}
+spawn matador(py)             // uma task chamando py.cancel() para a chamada VIVA: INTEROP008
+                              // (KofR: cancel() mata o filho; o PAI nomeia a morte —
+                              //  resposta que chegou primeiro vence; cancel ocioso = no-op)
+```
+
+Toda falha e NOMEADA, nunca valor silencioso nem chute de exit code: `INTEROP004` interpretador
+ausente/morto sem responder, `INTEROP005` alvo sem runtime de processo provado (cross §514,
+ANDROID/MCU/RISCV32 — recusa em compile-time que mantem a face), `INTEROP006` erro remoto
+(traceback carregado), `INTEROP007` deadline, `INTEROP008` cancelado.
+Os motores sao **experimental** ate os encoders cross pousarem (R5) — as faces JVM/x86/JS/Script
+estao certificadas na CI (`InteropPyE2ETest` 5/5, `InteropRE2ETest` 10/10 skipped-0 com R real
+no runner, `InteropTimeoutE2ETest` 4/4, `InteropTimeoutScriptE2ETest` 1/1).
+
 ## RUIM → BOM
 
 | ❌ RUIM | ✅ BOM | Por quê |
@@ -117,6 +152,9 @@ escrita.
 | reusar `Byte[]`/`String` para um out-buffer da C | declare o tipo nominal **`Buffer(U8)`** no `extern` e crie com `buffer.alloc(n)` (D-R3-BUFFER/D6-3) | um out-buffer e mutavel e bidirecional (copy-in + copy-back); `T[]` e copy-in somente-leitura e `String`/`char*` e somente-leitura — tipos ABI distintos |
 | emitir bytecode na mao para um call de struct/array/out-buffer | declare o `record`/`new T[n]`/`Buffer(U8)` no `extern`; o compilador classifica a ABI (`AbiLayout`) | complexidade e do compilador (regra de ferro 2); uma ABI na mao vira bug silencioso no proximo target |
 | escrever um mapper/schema por record a mao (nomes + tipos duplicados numa string) | derive de `interop.schema(R)` na fronteira | o compilador ja conhece a estrutura do record — zero reflexao em runtime, saida identica nos 4 alvos |
+| a chamada do motor pendura para sempre, ou uma thread-caoça escrita a mão para matar o processo | `py.timeout(2000)` + `catch (String e)` nomeando `INTEROP007`/`INTEROP008` | o deadline mora no FILHO, disparado pela propria linguagem do motor (py SIGALRM/`_KofTimeout`, R `setTimeLimit`) — sem órfão, sem chute de exit code, sem gambiarra no pai; o default 30000 ms é o precedente de bounded wait do §418 |
+| matar uma chamada viva por arqueologia de pid ou truques estilo `Thread.stop` | `spawn matador(x)` com `x.cancel()` (SIGINT no filho que o wire apresentou via `KOFPID`) | intenção, não mecanismo (regra 1); no R o pai NOMEIA a morte do filho no SIGINT (flag + EOF) porque o contexto de saida nao carrega status — os dois caminhos chegam no mesmo `INTEROP008` nomeado |
+| tratar "exit code ≠ 0" como a razao da falha | leia a string nomeada `INTEROP00x` | a interpretacao pertence a plataforma (R6 nunca-silencioso); o exit code e um mecanismo que o stdlib do motor ja leu por voce |
 | criar `process.spawn("python3","-c",...)` na mão + JSON manual por chamada | `import kof.interop` + `var py = KofPy(fonte)` + `py.callInt("sq", listOf(5))` | o motor é stdlib (fatia 1 X2 26/09): o tipo do resultado é o NOME do método, os args são uma lista Kof tipada homogênea; as linhas do RPC, o quoting do spec e o nomear de erros (`INTEROP004`/`INTEROP006`) pertencem à plataforma — a sessão é a FONTE (definições persistem; mutações de globals não), e a face recusa com `INTEROP005` onde o runtime de processo não é provado (cross §514, ANDROID/MCU) |
 | passar `record` para/desde o motor com mapeamento manual de campos | `py.callJson("norm", json.encode(listOf(p)))` + `json.decode<Point>(wire)` | fatia 2 X2 (26/09, §520): `callJson` é a face de JSON cru — a composição é o JSON da própria plataforma (`json.encode`/`json.decode<T>`, a dobra em compile-time, zero reflexão em runtime); o wire é o COMPACTO canônico do Kof; falha remota permanece nomeada `INTEROP006`; decode de `List<Record>` no x86 é `JSN004` (gap declarado, nunca silencioso) |
 
