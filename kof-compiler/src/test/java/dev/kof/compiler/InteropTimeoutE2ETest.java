@@ -4,8 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.PrintStream;
 import java.net.URLClassLoader;
+import dev.kof.compiler.Target;
+import dev.kof.runtime.KofJsRunner;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,6 +69,19 @@ class InteropTimeoutE2ETest {
         Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
         String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         return new Run(p.waitFor() == 0, o);
+    }
+
+    private Run runJs(Path src, Path out) throws Exception {
+        CompilationResult r = driver.compile(src, out, Target.JS);
+        if (!r.success()) return new Run(false, diags(r));
+        var buf = new ByteArrayOutputStream();
+        try {
+            int rc = KofJsRunner.run(out.resolve("Default.mjs"), buf,
+                    new ByteArrayInputStream(new byte[0]), buf);
+            return new Run(rc == 0, buf.toString());
+        } catch (Exception e) {
+            return new Run(false, "THROW: " + e.getMessage() + "\n" + buf);
+        }
     }
 
     private static String diags(CompilationResult r) {
@@ -130,6 +146,9 @@ class InteropTimeoutE2ETest {
         assertTrue(jvm.output().contains("INTEROP007"), "JVM 007: " + jvm.output());
         Run nat = runNative(src, tmp.resolve("out-007n"));
         assertEquals(jvm.output(), nat.output(), "INTEROP007 JVM≡x86 broken");
+        Run js = runJs(src, tmp.resolve("out-007js"));
+        assertEquals(jvm.output(), js.output(),
+                "INTEROP007 JVM≡JS broken (deadline é do filho python, o alvo só lê o status): " + js.output());
     }
 
     @Test
