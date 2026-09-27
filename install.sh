@@ -11,10 +11,9 @@ KOF_MIN="${KOF_MIN:-0.5.0}"
 
 say() { printf 'kfvm-install: %s\n' "$*"; }
 die() { printf 'kfvm-install: error: %s\n' "$*" >&2; exit 1; }
+require() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required"; }
 
-need() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required"; }
-
-detect_platform() {
+detect_os() {
     case "$(uname -s)" in
         Linux*) os=linux ;;
         Darwin*) os=macos ;;
@@ -36,11 +35,11 @@ fetch() {
     fi
 }
 
-vnum() {
+version_to_int() {
     printf '%s\n' "$1" | sed 's/^kof[- ]//; s/[-+ ].*//' | awk -F. '{ printf "1%06d%06d%06d\n", $1, $2, $3 }'
 }
 
-kof_tag() {
+resolve_kof_tag() {
     fetch "https://api.github.com/repos/$KOF_REPO/releases?per_page=100" | awk -v suffix="-$PLATFORM" -v want="$1" -v want_stable="$2" '
         /"tag_name":/ { gsub(/.*"tag_name": *"|".*/, ""); tag = $0 }
         /"prerelease":/ {
@@ -61,16 +60,16 @@ sha256_check() {
     fi
 }
 
-kof_ok() {
+kof_meets_min() {
     [ -x "$1" ] || return 1
     v="$("$1" version </dev/null 2>/dev/null | head -n 1)" || return 1
     [ -n "$v" ] || return 1
-    [ "$(vnum "$v")" -ge "$REQUIRED" ]
+    [ "$(version_to_int "$v")" -ge "$REQUIRED" ]
 }
 
-find_kof() {
+locate_kof_bin() {
     for k in "$(command -v kof 2>/dev/null || true)" "$KFVM_HOME/current/bin/kof" "$KFVM_HOME"/kof-*/bin/kof; do
-        if [ -n "$k" ] && kof_ok "$k"; then
+        if [ -n "$k" ] && kof_meets_min "$k"; then
             KOF="$k"
             return 0
         fi
@@ -80,8 +79,8 @@ find_kof() {
 
 install_kof() {
     say "no Kof >= $KOF_MIN found, installing one"
-    tag="$(kof_tag "$REQUIRED" 1)"
-    [ -n "$tag" ] || tag="$(kof_tag "$REQUIRED" 0)"
+    tag="$(resolve_kof_tag "$REQUIRED" 1)"
+    [ -n "$tag" ] || tag="$(resolve_kof_tag "$REQUIRED" 0)"
     [ -n "$tag" ] || die "no Kof release >= $KOF_MIN found for $PLATFORM"
     encoded="$(printf '%s' "$tag" | sed 's/+/%2B/g')"
     base="https://github.com/$KOF_REPO/releases/download/$encoded"
@@ -104,7 +103,7 @@ install_kof() {
     KOF="$KFVM_HOME/$tag/bin/kof"
 }
 
-get_source() {
+get_kfvm_source() {
     if [ -n "${KFVM_SOURCE:-}" ]; then
         [ -d "$KFVM_SOURCE/src" ] || die "KFVM_SOURCE has no src directory: $KFVM_SOURCE"
         SRC="$KFVM_SOURCE"
@@ -118,7 +117,7 @@ get_source() {
     [ -d "$SRC/src" ] || die "downloaded archive has no src directory"
 }
 
-native_candidate() {
+find_kof_native_bin() {
     for name in kfvm main; do
         f="$(find "$TMP/native" -type f -name "$name" -perm -u+x 2>/dev/null | head -n 1)"
         [ -n "$f" ] && { printf '%s\n' "$f"; return; }
@@ -126,10 +125,10 @@ native_candidate() {
     find "$TMP/native" -type f -perm -u+x ! -name '*.jar' ! -name '*.class' 2>/dev/null | head -n 1
 }
 
-build_native() {
+build_native_kof_bin() {
     "$KOF" build "$SRC/src" --target native --release --output "$TMP/native" </dev/null >/dev/null 2>&1 || return 1
     [ -d "$TMP/native" ] || return 1
-    f="$(native_candidate)"
+    f="$(find_kof_native_bin)"
     [ -n "$f" ] || return 1
     "$f" -v </dev/null >/dev/null 2>&1 || return 1
     mkdir -p "$BIN_DIR"
@@ -167,7 +166,7 @@ if [ -n "\${JAVA_HOME:-}" ] && [ -x "\$JAVA_HOME/bin/java" ]; then
     exec "\$JAVA_HOME/bin/java" -jar "\$JAR" "\$@"
 fi
 command -v java >/dev/null 2>&1 && exec java -jar "\$JAR" "\$@"
-echo "kfvm: error: no Java found (install a Kof version or set JAVA_HOME)" >&2
+echo "[ERR]: No Java was found (install a Kof version or set JAVA_HOME)" >&2
 exit 1
 EOF
 }
@@ -193,35 +192,19 @@ setup_path() {
     say "added $BIN_DIR to PATH in $rc (open a new terminal or run: . $rc)"
 }
 
-add_kof_into_path() {
-    command -v kof >/dev/null 2>&1 && return
-    if [ ! -e "$KFVM_HOME/current" ]; then
-        ln -sfn "$(dirname "$(dirname "$KOF")")" "$KFVM_HOME/current"
-    fi
-    mkdir -p "$BIN_DIR"
-    cat > "$BIN_DIR/kof.tmp" <<EOF
-#!/bin/sh
-exec "\${KFVM_HOME:-$KFVM_HOME}/current/bin/kof" "\$@"
-EOF
-    chmod 755 "$BIN_DIR/kof.tmp"
-    mv "$BIN_DIR/kof.tmp" "$BIN_DIR/kof"
-    say "installed kof launcher to $BIN_DIR/kof"
-}
-
 main() {
-    need curl
-    need tar
-    need uname
-    detect_platform
+    require curl
+    require tar
+    require uname
+    detect_os
     TMP="$(mktemp -d "${TMPDIR:-/tmp}/kfvm-install.XXXXXX")"
     trap 'rm -rf "$TMP"' EXIT INT TERM
-    get_source
-    REQUIRED="$(vnum "$KOF_MIN")"
-    find_kof || install_kof
-    add_kof_into_path
+    get_kfvm_source
+    REQUIRED="$(version_to_int "$KOF_MIN")"
+    locate_kof_bin || install_kof
     say "using $KOF ($("$KOF" version </dev/null | head -n 1))"
     say "building kfvm"
-    if build_native; then
+    if build_native_kof_bin; then
         say "installed native binary to $BIN_DIR/kfvm"
     else
         build_jar
