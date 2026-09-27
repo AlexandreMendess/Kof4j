@@ -1,7 +1,7 @@
 // Motor R do kof.interop (X2, D-COMPLETE-FIRST item 2 — plano
 // docs/development/interop-engine-plan.md). KOF-first (rule 10) + simetria
 // total com o KofPy (regra 11): MESMO protocolo de 3 linhas (KOFPID + status
-// + payload), MESMAS faces (incl. timeout/cancel da fatia 3), spec embutida
+// + payload), faces da fatia 3: timeout + cancel reais — o cancel nomeia a morte do filho no SIGINT pelo ESTADO do pai, nunca por adivinhaçao de exit code, spec embutida
 // na expressao -e (literal R escapado), `source` reaplicada por
 // chamada (modelo replay). O codec
 // JSON do lado R e o jsonlite do ecossistema (interop-first R9 — o motor
@@ -11,11 +11,13 @@ class KofR {
     String source
     Int timeoutMs
     String currentPid
+    Bool cancelRequested
 
     public constructor(String source) {
         this.source = source
         this.timeoutMs = 30000
         this.currentPid = ""
+        this.cancelRequested = false
     }
 
     // Deadline em ms (0 = sem limite, declarado). Default 30000 — precedente
@@ -24,10 +26,17 @@ class KofR {
         this.timeoutMs = ms
     }
 
-    // Interrompe a chamada EM CURSO (SIGINT — capturado pelo
-    // tools::signalHandler do R 4.3 do CI; fora de chamada = no-op).
+    // Interrompe a chamada EM CURSO: SIGINT no filho. Medida na CI 27/09:
+    // o Rscript nao-interativo NAO carrega um status proprio pelo pipe
+    // nesse contexto (o handler tools::signalHandler morreu na estrada) —
+    // mas o filho MORRE no SIGINT (default POSIX; EOF observado no stdout).
+    // Quem sabe que o sinal foi nosso e o PAI (flag), nunca a saida do
+    // filho: EOF com flag = INTEROP008 nomeado; EOF sem flag = INTEROP004
+    // real; resposta chegada primeiro vence (sem corrida de interpretacao).
+    // Fora de chamada = no-op.
     void cancel() {
         if (this.currentPid != "") {
+            this.cancelRequested = true
             process.run("kill", "-2", this.currentPid)
         }
     }
@@ -48,7 +57,6 @@ class KofR {
             "s <- jsonlite::fromJSON('" + this.kofREscape(spec) + "', simplifyVector=FALSE); " +
             "cat(paste0(\"KOFPID \", Sys.getpid(), \"\\n\")); " +
             "eval(parse(text=s$source)); " +
-            "if (exists(\"signalHandler\", envir=asNamespace(\"tools\"))) tools::signalHandler(\"SIGINT\", function(sig) { cat(\"KOFCANCEL\\n\"); quit(save=\"no\", status=0) }); " +
             "tm <- as.numeric(s$timeout_ms); " +
             "if (tm > 0) setTimeLimit(elapsed = tm/1000); " +
             "status <- \"KOFERR\"; " +
@@ -68,15 +76,18 @@ class KofR {
             status = h.readLine()
         }
         if (status == "") {
+            val byCancel = this.cancelRequested
+            this.currentPid = ""
+            this.cancelRequested = false
+            if (byCancel) {
+                throw "INTEROP008: " + funcName + " was cancelled (the engine stopped on the SIGINT sent by cancel())"
+            }
             throw "INTEROP004: Rscript exited without responding (interpreter missing or fatal startup error, exit " + h.exitCode() + ")"
         }
+        this.cancelRequested = false
         if (status == "KOFTIME") {
             this.currentPid = ""
             throw "INTEROP007: " + funcName + " exceeded the " + this.timeoutMs + "ms deadline and was stopped by the engine itself"
-        }
-        if (status == "KOFCANCEL") {
-            this.currentPid = ""
-            throw "INTEROP008: " + funcName + " was cancelled"
         }
         if (status == "KOFOK") {
             val payload = h.readLine()

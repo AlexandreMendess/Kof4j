@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -156,8 +157,10 @@ class InteropRE2ETest {
                 "deadline corre no FILHO (elapsed timer do R)");
         assertTrue(lines[1].contains("KOFTIME"),
                 "status KOFTIME nomeia o 007");
-        assertTrue(lines[1].contains("signalHandler(\"SIGINT\""),
-                "SIGINT capturado via tools::signalHandler (R>=4.3 do CI) -> KOFCANCEL");
+        assertFalse(lines[1].contains("signalHandler"),
+                "o cancel do R e nomeado pelo PAI (flag+EOF) — a mediado da CI 27/09 provou que o handler R ao vivo nunca entrega o status; nenhum mecanismo de handler deve voltar para a expressao");
+        assertFalse(lines[1].contains("KOFCANCEL"),
+                "status KOFCANCEL nao existe mais no wire R (a morte por SIGINT e nomeada no lado do pai)");
     }
 
     @Test
@@ -291,7 +294,7 @@ class InteropRE2ETest {
         Files.writeString(src, """
                 import kof.interop
                 void later(KofR r) {
-                    time.sleep(700)
+                    time.sleep(2000)
                     r.cancel()
                 }
                 main() {
@@ -310,7 +313,7 @@ class InteropRE2ETest {
         Run jvm = runJvm(src, tmp.resolve("out-d008"));
         assertTrue(jvm.ok(), "JVM: " + jvm.output());
         assertTrue(jvm.output().contains("INTEROP008"),
-                "SIGINT capturado pelo tools::signalHandler nomeia 008: " + jvm.output());
+                "morte do filho no SIGINT nomeada pelo pai (flag) = 008: " + jvm.output());
         assertTrue(jvm.output().contains("fim"), "task do killer completou: " + jvm.output());
     }
 
