@@ -16190,7 +16190,7 @@ never a "known noise" shrug (rule inherited from §511).
 flake until proven otherwise — re-run in isolation before blaming a commit; a clean-host
 isolation red is a new bug and gets its own §.
 
-<!-- pt-switch --> **PT:** [§533 (pt_BR)](known-bugs.pt_BR.md#533--interoptimeoute2etestcancelfromanothertaskstopstherunningcallnamed008-fica-vermelho-33-dentro-da-reactor-completa-e-verde-44-em-isolamento-a-chamada-rpc-never-retorna-keyerrorinterop006-antes-do-cancel-poder-nomear-interop008-corrida-de-setup-do-harness-sob-carga---open-dona--lane-interop)
+<!-- pt-switch --> **PT:** [§533 (pt_BR)](known-bugs.pt_BR.md#533--interoptimeoute2etestcancelfromanothertaskstopstherunningcallnamed008-fica-vermelho-33-dentro-da-reactor-completa-e-verde-44-em-isolamento-a-chamada-rpc-never-retorna-keyerrorinterop006-antes-do-cancel-poder-nomear-interop008-corrida-de-setup-do-harness-sob-carga---fixed-2709-dona--lane-interopdocs)
 
 ## §534 — `kof run --target js` ignores provisioned/declared JDBC drivers (in-process KofJsRunner) — DB001 where JVM connects — 🟡 OPEN (owner = lane js)
 **Symptom (measured 27/09):** the D-DB-ZERODRIVER auto-provision landed for

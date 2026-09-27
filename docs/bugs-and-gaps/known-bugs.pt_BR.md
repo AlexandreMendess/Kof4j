@@ -13696,7 +13696,7 @@ no DOING.md antes de escrever codigo, nao antes de pousar).
 <!-- en-switch --> **EN:** [§532 (known-bugs)](known-bugs.md#532--640531-residual-diagnostics-leaked-the-kof-prefix-into-stdlib-type-names-expected-koflistint-breaking-the-324-spelling-the-user-wrote-contract-and-the-640-example-itself---fixed-2709-lane-issues)
 
 
-## §533 — `InteropTimeoutE2ETest.cancelFromAnotherTaskStopsTheRunningCallNamed008` fica vermelho 3/3 dentro da reactor completa e verde 4/4 em isolamento: a chamada RPC `never` retorna KeyError/INTEROP006 antes do cancel poder nomear INTEROP008 (corrida de setup do harness sob carga) — 🟡 OPEN (dona = lane interop)
+## §533 — `InteropTimeoutE2ETest.cancelFromAnotherTaskStopsTheRunningCallNamed008` fica vermelho 3/3 dentro da reactor completa e verde 4/4 em isolamento: a chamada RPC `never` retorna KeyError/INTEROP006 antes do cancel poder nomear INTEROP008 (corrida de setup do harness sob carga) — ✅ FIXED (27/09, dona = lane interop/docs)
 
 **Status:** ✅ FIXED (27/09, lane interop/docs — dona da flake catalogada pela lane issues). Causa
 raiz no MECANISMO, nao no atraso do teste: sob fome de escalonador a task canceladora chega antes
