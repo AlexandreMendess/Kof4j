@@ -357,6 +357,30 @@ Golden rule: **never two agents on the same gap or on the same giant file**
 (`NativeRuntime.java`, `CompilerDriver.java`) at the same time. If it's
 unavoidable, coordinate in the chat first.
 
+### Hot working docs are Kofmd (mandatory — 27/09)
+
+The files the autonomous loop reads and writes every turn — `DOING.md`(+PT),
+`docs/status.md`(+PT), `docs/development/*-plan.md`(+PT) queue headers,
+`CHANGELOG.md`(+PT), `docs/bugs-and-gaps/known-bugs.md`(+PT) and
+`docs/development/roadmap.md`(+PT) §23 — are **Kofmd documents**
+(`docs/spec/kofmd.md`). Each carries a canonical state block immediately after
+its title (or at the very top when untitled), in canonical field order:
+
+```text
+last: <token>
+doing: <token>
+next: <token>
+location: <doc-or-module>
+state: <active|blocked|done|failed>
+```
+
+Add `constraint`/`decision` when a rule or a frozen choice governs the doc.
+Write these docs with Kofmd idiom: what can be typed is typed; prose is only
+for explanation; never duplicate a field in prose (spec §3.6). New claims,
+ledger rows and queue lines keep the block current in the same commit.
+`learn/` and `training/` are **out of scope** (teaching corpus, prose-first —
+`kofmd-plan.md` §5).
+
 **§NNN numbers are shared claims too.** Before creating a new section in
 `known-bugs.md` (or any ledger that uses `§NNN`), `git fetch` and take the next
 free number from the **remote tip**

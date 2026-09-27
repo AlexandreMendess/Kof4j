@@ -357,6 +357,30 @@ Regra de ouro: **nunca dois agentes no mesmo gap ou no mesmo arquivo gigante**
 (`NativeRuntime.java`, `CompilerDriver.java`) ao mesmo tempo. Se for
 inevitável, combine no chat antes.
 
+### Docs quentes de trabalho são Kofmd (obrigatório — 27/09)
+
+Os arquivos que o loop autônomo lê e escreve a cada turno — `DOING.md`(+PT),
+`docs/status.md`(+PT), cabeçalhos de fila dos `docs/development/*-plan.md`(+PT),
+`CHANGELOG.md`(+PT), `docs/bugs-and-gaps/known-bugs.md`(+PT) e
+`docs/development/roadmap.md`(+PT) §23 — são **documentos Kofmd**
+(`docs/spec/kofmd.md`). Cada um carrega um bloco de estado canônico logo após o
+título (ou no topo, quando não tem título), na ordem canônica de campos:
+
+```text
+last: <token>
+doing: <token>
+next: <token>
+location: <doc-ou-módulo>
+state: <active|blocked|done|failed>
+```
+
+Adicione `constraint`/`decision` quando uma regra ou uma escolha congelada
+governa o documento. Escreva esses docs com idioma Kofmd: o que dá para tipar é
+tipado; prosa só para explicação; nunca duplicar um campo em prosa (spec §3.6).
+Claims, linhas de ledger e linhas de fila novas mantêm o bloco atualizado no
+mesmo commit. `learn/` e `training/` estão **fora do escopo** (corpus de ensino,
+prosa-first — `kofmd-plan.md` §5).
+
 **Números §NNN também são claims compartilhados.** Antes de criar uma seção nova
 em `known-bugs.md` (ou qualquer ledger que use `§NNN`), `git fetch` e pegue o
 próximo número livre a partir do **tip remoto**

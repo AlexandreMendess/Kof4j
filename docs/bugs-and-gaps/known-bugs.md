@@ -2,6 +2,13 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §532
+doing: 0.5.0-release-prep
+next: close-open-rows
+location: known-bugs
+state: active
+constraint: pr619-maintainer-only
+
 > **Date:** 10/09/2026 (last mass sweep; occasional triage through 13/09) · **Version:** 0.4.0-beta (pom `revision`). This file exists so that
 > an agent (or human) can pick up the bugs without having to rediscover them. **They are not
 > features** — they are real bugs with a minimal reproduction.

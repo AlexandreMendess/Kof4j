@@ -2,6 +2,14 @@
 
 # Kof Project Status
 
+last: native-record-equality
+doing: 0.5.0-release-prep
+next: post-0-5-0-kof-libraries
+location: status
+state: active
+constraint: pr619-maintainer-only
+decision: D-KOF-FIRST-IMPL
+
 **Last updated:** September 24, 2026
 **Version:** 0.5.0-beta (pom `revision`)
 

@@ -2,6 +2,13 @@
 
 # Changelog
 
+last: 0.5.0-beta
+doing: 0.5.0-release-prep
+next: 0.5.0-cut
+location: CHANGELOG
+state: active
+constraint: pr619-maintainer-only
+
 All relevant Kof changes are recorded here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) with the project's

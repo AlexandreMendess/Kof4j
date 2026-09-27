@@ -2,6 +2,13 @@
 
 # Kof — Long-Term Roadmap
 
+last: native-record-equality
+doing: 0.5.0-release-prep
+next: 1.0-exit-gate
+location: roadmap
+state: active
+constraint: pr619-maintainer-only
+
 **Last updated:** September 20, 2026 (§0 "read first" index added; active branch
 corrected to `beta-0.5.0`/`D-BRANCH-0.5.0`). (older: September 15, 2026 — §23
 gains 2.6 = D-NULL-INTENT queue N1→N4 [compiler lane, maintainer decision 15/09];

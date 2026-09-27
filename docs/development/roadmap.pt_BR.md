@@ -2,6 +2,13 @@
 
 # Kof — Roadmap de Longo Prazo
 
+last: native-record-equality
+doing: 0.5.0-release-prep
+next: 1.0-exit-gate
+location: roadmap
+state: active
+constraint: pr619-maintainer-only
+
 **Última atualização:** 20 de setembro de 2026 (índice §0 "leia primeiro"
 adicionado; branch ativa corrigida para `beta-0.5.0`/`D-BRANCH-0.5.0`). (antes:
 15 de setembro de 2026 — §23 ganha 2.6 = fila D-NULL-INTENT N1→N4 [lane

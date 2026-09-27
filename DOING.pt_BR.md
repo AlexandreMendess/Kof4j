@@ -1,3 +1,12 @@
+# DOING — registro de coordenação multiagente
+
+last: 3.8-golden-corpus
+doing: 3.9-hot-doc-migration
+next: promote-kofmd-out-of-development
+location: DOING
+state: active
+constraint: pr619-maintainer-only
+
 > **🔄 SPLIT kofmd LANDED (27/09, lane kofmd — owner: esta sessao):** `libs/kofmd/Kofmd.kf` (864ln) virou fachada `KofmdTool` (delega) + arquivos por responsabilidade: `KofmdTypes` (records), `KofmdLists` (fabricas seed+clear), `KofmdScan` (3.1), `KofmdInfer` (3.2), `KofmdSchemas` (3.2 MD002), `KofmdVocab` (3.3), `KofmdRender` (3.4), `KofmdFormat` (3.5) — todos ≤500 (espirito da regra; nomes por responsabilidade, regra 7). 4 `Kofmd*E2ETest` aceitam AMBOS os layouts (`findLibraryRoot` aceita `Kofmd.kf` OU `KofmdTypes.kf`), cluster 10/10 + `Q2 compile` verdes. **NEXT STEP (o re-trigger le isto):** fatia 3.7 LSP (MD002 + linha + hover), depois 3.8 corpus + 3.9 promocao p/ fora de `development/` + conversao dos `.md` de trabalho agente p/ kofmd idiomatico. PR #619 INTOCAVEL (regra 10).
 
 > **🔄 CLAIM 27/09 (lane kofmd — owner: esta sessao): FATIA 3.8 — corpus dourado `libs/kofmd/corpus/*.md` (spec sec.19: 12 arquivos, uma ideia por arquivo; doc+teste+exemplo+material de avaliacao de IA) + `KofmdCorpusE2ETest` (JVM-first).** O teste embute os 12 arquivos num programa Kof e afirma por arquivo: parse nao-vazio, `format` idempotente (`fmt(fmt(x))==fmt(x)`), `validateVocabulary` sem `MD002`, schema limpo no `schema.md` (sec.22 itens 1–4) e prosa preservada byte a byte. Prova MEDIDA num snapshot limpo de HEAD (`git archive`): cluster `Kofmd*` 13/13 verde — a arvore compartilhada tinha um WIP #639 nao-commitado que quebrava o lowering (VerifyError), nao o split/3.8. **NEXT STEP:** 3.9 — migracao gradual dos hot docs (sec.5) + promocao do `kofmd-plan.md` p/ fora de `development/`. PR #619 INTOCAVEL (regra 10).

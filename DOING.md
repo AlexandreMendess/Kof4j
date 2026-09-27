@@ -1,3 +1,12 @@
+# DOING — agent coordination ledger
+
+last: 3.8-golden-corpus
+doing: 3.9-hot-doc-migration
+next: promote-kofmd-out-of-development
+location: DOING
+state: active
+constraint: pr619-maintainer-only
+
 > **CLAIM 27/09 ~11:4x (lane interop/docs — owner: esta sessao): kofmd FATIA 3.7 — gancho LSP (sec.16): diagnostico MDxxx no .md aberto + hover de chaves/tipos, SEM segundo servidor (LspServer ja tem didOpen/didChange/hover; so 2 branches de 4 linhas em arquivo novo `LspKofmd.java` para nao estourar LspServer 583/599).** Arquitetura KOF-first (rule 12): a lib vira MOTOR carregado por reflexao (compilada 1x por servidor; `kof-cli/src/main/resources/dev/kof/interop-kofmd.kf` = copia empacotada do lib, sync-guard por teste), politica continua 100% Kof puro; JS/native ficam MD001 honesto (JVM-first do plano). Sem motor (falha de empacotamento) = UM diagnostico-info nomeado, nunca silencio (R6). Passo A: `keyLabel` na lib + testes. **NEXT STEP (o re-trigger le isto):** passo B = LspKofmd (motor cacheado + diagnostics MDxxx com range na linha do construto + hover `keyLabel`+`inferScalar` via posicao) + fiação analyze()/hover() + E2E estilo LspServerTest + sync-guard do .kf copiado; reator + CI + flip do plano 3.7. NAO ROUBAR: #639 (dono paridade VIVO, D-DECISION-BATCH-2709B acabou de sair dele); PR #619 (regra 10).
 
 > **🔄 SPLIT kofmd LANDED (27/09, lane kofmd — owner: esta sessao):** `libs/kofmd/Kofmd.kf` (864ln) virou fachada `KofmdTool` (delega) + arquivos por responsabilidade: `KofmdTypes` (records), `KofmdLists` (fabricas seed+clear), `KofmdScan` (3.1), `KofmdInfer` (3.2), `KofmdSchemas` (3.2 MD002), `KofmdVocab` (3.3), `KofmdRender` (3.4), `KofmdFormat` (3.5) — todos ≤500 (espirito da regra; nomes por responsabilidade, regra 7). 4 `Kofmd*E2ETest` aceitam AMBOS os layouts (`findLibraryRoot` aceita `Kofmd.kf` OU `KofmdTypes.kf`), cluster 10/10 + `Q2 compile` verdes. **NEXT STEP (o re-trigger le isto):** fatia 3.7 LSP (MD002 + linha + hover), depois 3.8 corpus + 3.9 promocao p/ fora de `development/` + conversao dos `.md` de trabalho agente p/ kofmd idiomatico. **ATENCAO 3.7-B:** a lib agora e MULTI-ARQUIVO (8 arquivos em `libs/kofmd/`) — o empacotamento/sync-guard do `interop-kofmd.kf` deve copiar o DIRETORIO inteiro, nunca 1 arquivo. PR #619 INTOCAVEL (regra 10).

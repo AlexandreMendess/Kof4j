@@ -2,6 +2,13 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §532
+doing: 0.5.0-release-prep
+next: close-open-rows
+location: known-bugs
+state: active
+constraint: pr619-maintainer-only
+
 > **Data:** 10/09/2026 (última varredura em massa; triagens pontuais até 13/09) · **Versão:** 0.4.0-beta (pom `revision`). Este arquivo existe para que
 > um agente (ou humano) pegue os bugs sem precisar redescobri-los. **Não são
 > características** — são bugs reais com reprodução mínima.
