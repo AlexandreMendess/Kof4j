@@ -1,0 +1,73 @@
+name: kof-debt-scout
+
+# KOF Technical Debt Scout — Wave 1 (deterministic, shadow-only). See
+# docs/development/technical-debt/DEBT_SCOUT_CONTRACT.md and
+# docs/development/DECISIONS.md §D-DEBT-SCOUT.
+#
+# This workflow is DISCOVERY-ONLY: there is no publish job, top-level
+# `permissions` is `contents: read` and nothing else grants more, and no
+# step ever calls the GitHub Issues write API. `issues_opened` is a
+# structural invariant of scan.py's report (contract §7/§11), not a
+# promise this workflow keeps by convention.
+#
+# Manual trigger only in this landing (`workflow_dispatch`) — a
+# push/schedule trigger is a separate, later decision (contract
+# §"Ownership of triggers": avoid an orchestrator + an independent
+# schedule racing on the same event before this front is wired into
+# kof-bots.yml, which it is not yet).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kof-debt-scout
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: run the Wave-1 module suite
+        run: bash scripts/tests/run-agent-tests.sh debt-scout
+
+      - name: run scan.py
+        run: python3 scripts/debt-scout/scan.py --out .debt-scout/out/candidates.json
+
+      - name: write the job summary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import sys
+          sys.stdout.reconfigure(encoding="utf-8")  # never trust the runner's default stdout encoding for a written artifact
+          with open(".debt-scout/out/candidates.json", encoding="utf-8") as f:
+              d = json.load(f)
+          run = d["run"]
+          summary = d["summary"]
+          state = d["repository_state"]
+          print("# KOF Technical Debt Scout — Wave 1 (shadow)")
+          print()
+          print(f"- mode: `{run['mode']}` · model_used: `{run['model_used']}` · scanner: `{run['scanner_version']}`")
+          print(f"- default branch: `{state['default_branch']}` · declared active branch: "
+                f"`{state['declared_active_branch']}` (exists: `{state['declared_active_branch_exists']}`)")
+          print(f"- **issues_opened: {summary['issues_opened']}** (this workflow has no publish job)")
+          print(f"- total candidates: {summary['total_candidates']} — "
+                + ", ".join(f"{k}={v}" for k, v in summary["by_confidence"].items()))
+          print()
+          print("No candidate in this run is Issue-eligible or SARIF-eligible — Wave 1 has "
+                "neither a publisher nor a SARIF writer. This summary and the uploaded "
+                "artifact are for human review only.")
+          PY
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: debt-scout-candidates
+          path: .debt-scout/out/
+          retention-days: 30

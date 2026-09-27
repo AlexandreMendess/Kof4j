@@ -7368,6 +7368,10 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
   - #278 scope-3 guarda de atomicidade nullable-primitivo — 5/5 verdes, mediidas
   - #278 scope-3 guarda de atomicidade nullable-primitivo — 5/5 verdes no tip isolado
 
+## [0.4.10-beta] - 2026-09-23
+
+No changes recorded.
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
