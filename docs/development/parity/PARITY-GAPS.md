@@ -26,7 +26,7 @@
 
 | # | Surface | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Gap code | Tracker / owner lane |
 |---|---------|------------|----------------|--------------------------|----|----------|----------------------|
-| 11 | `strings.reverse` non-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | native/js lanes — **IMPLEMENT now** (`D-PARITY-050-SCOPE`) |
+| 11 | `strings.reverse` non-ASCII (UTF-16 surrogate pairs) + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01` | ❌ `NAT-STR01` | ❌ `STR003` | `NAT-STR01`/`STR003` | native/js lanes — **IMPLEMENT now** (`D-STR-UNICODE`) |
 
 > **Closed by `D-PARITY-050-SCOPE` (maintainer 27/09):** rows 1 (`process`) and
 > 3 (`ssh`) leave the 0.5.0 ledger for the SIX release targets (MCU/riscv32
@@ -34,7 +34,8 @@
 > cross) were already CLOSED (bookkeeping). **Deferred to 1.0 (declared gaps,
 > never acceptance):** row 4 media `Image`/`Mic`, row 12 web T1 on native/cross,
 > row 14 security cross/JS — see the Deferred section. The 0.5.0 ledger has ONE
-> open row: **row 11 strings**, implemented now.
+> open row: **row 11 strings** (Unicode faces), implemented now. The regex
+> members of the old row 11 were split out and deferred (`D-STR-UNICODE`).
 
 > **Rows 15 (`orm.*` native) and 16 (`db.*` native) CLOSED 24/09 by the
 > gaps-db lane (S5.5)** — the cross (riscv64/aarch64) was the last open cells;
@@ -245,3 +246,8 @@ They do not block the 0.5.0 cut; each keeps its honest gap code and its tracker.
   + JS ⏳ (bcrypt/argon2/keystore). Deferred to 1.0.
 - **MCU/riscv32 process layer** — the `PROC001` residual of rows 1/3 (no process
   layer on MCU). Outside the 0.5.0 ledger; 1.0 scope.
+- **Regex engine for `String.matches`/`replaceAll`/`replaceFirst` on native/JS**
+  — split out of row 11 by `D-STR-UNICODE` (27/09). `STR003` stays the honest gate
+  on JS + the three native targets. A freestanding regex engine is a heavy domain
+  (official package/library, rule 12) and JS `RegExp` vs JVM `Pattern` parity
+  rides the same decision. Deferred to 1.0.

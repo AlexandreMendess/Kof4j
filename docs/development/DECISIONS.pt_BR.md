@@ -4148,6 +4148,7 @@ sem superfície 0.5.0; fica declarado e adiado, e `DB001` segue o diagnóstico
 honesto no JS.
 
 - **Relações:** `Related: D-DB-ZERODRIVER, D-FULL-PARITY-050`.
+
 ## D-X2-LANDED — motor interop completo (5/5 fatias com evidência, 27/09)
 
 Item 2 (`D-COMPLETE-FIRST`) FECHA: fatia 1 (motor Py), 2 (motor R), 3
@@ -4160,3 +4161,14 @@ declarado (regra 6); ANDROID/MCU/RISCV32 seguem R7; `kof.interop` segue
 vizinhos 27/0F/8skip; plano promovido `development/` → `docs/` (três estados).
 
 - **Relações:** `Related: D-COMPLETE-FIRST, D-KOF-FIRST (regra 12), regra 11, regra 6, issue #639 (intocada), PR #619 (regra 10)`.
+
+## D-STR-UNICODE — row 11 da 0.5.0 = as faces Unicode, JVM-exato por code unit UTF-16; o motor de regex fica adiado p/ 1.0 (mantenedora 27/09/2026, votado)
+
+A row 11 é dividida por capacidade, não por alvo:
+
+- **Implementar agora (native + JS), JVM-exato por code unit UTF-16:** `String.toUpperCase`/`toLowerCase` (NAT-STR01), `String.compareToIgnoreCase` e `strings.reverse` não-ASCII (semântica do `StringBuilder.reverse` do JVM — PARES substitutos permanecem juntos). O native usa uma tabela Unicode compacta embarcada; o JS amarra primitivas Unicode-corretas e prega paridade contra o oráculo JVM. Só o fold por code unit está no escopo (sem mapeamento de caixa full locale-sensitive).
+- **Adiado p/ 1.0:** os três membros de regex (`matches`/`replaceAll`/`replaceFirst`). Um motor de regex nos alvos native freestanding é DOMÍNIO PESADO e nova capacidade fundamental — pela fronteira de plataforma pertence a um pacote/biblioteca oficial, não a um splice ad-hoc de runtime; a paridade `RegExp` do JS vs `Pattern` do JVM anda junto na mesma decisão. O `STR003` continua o gate honesto exatamente para esses três até lá; `compareToIgnoreCase` sai do gate.
+
+Consequência: depois que as faces Unicode pousarem, as únicas células restantes da row 11 são as faces de regex adiadas, e o `full_parity` chega a 0 rows abertas na 0.5.0.
+
+- **Relações:** `Related: D-PARITY-050-SCOPE, D-FULL-PARITY-050, D-KOF-FIRST (regra 12), NAT-STR01, §424`.

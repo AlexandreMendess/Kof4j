@@ -26,7 +26,7 @@
 
 | # | Superfície | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Código | Fila / lane dona |
 |---|------------|------------|----------------|--------------------------|----|--------|------------------|
-| 11 | `strings.reverse` não-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | lanes native/js — **IMPLEMENTAR agora** (`D-PARITY-050-SCOPE`) |
+| 11 | `strings.reverse` não-ASCII (pares substitutos UTF-16) + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01` | ❌ `NAT-STR01` | ❌ `STR003` | `NAT-STR01`/`STR003` | lanes native/js — **IMPLEMENTAR agora** (`D-STR-UNICODE`) |
 
 > **Fechadas por `D-PARITY-050-SCOPE` (mantenedora 27/09):** as linhas 1
 > (`process`) e 3 (`ssh`) saem do ledger 0.5.0 pelos SEIS alvos de release
@@ -34,7 +34,9 @@
 > 13 (`kof.io` cross) já estavam FECHADAS (bookkeeping). **Adiadas p/ 1.0 (gaps
 > declarados, nunca aceitação):** linha 4 media `Image`/`Mic`, linha 12 web T1
 > no native/cross, linha 14 security cross/JS — ver a seção Adiadas. O ledger
-> 0.5.0 tem UMA linha aberta: **linha 11 strings**, implementada agora.
+> 0.5.0 tem UMA linha aberta: **linha 11 strings** (faces Unicode), implementada
+> agora. Os membros de regex da antiga linha 11 foram separados e adiados
+> (`D-STR-UNICODE`).
 
 > **As linhas 15 (`orm.*` nativo) e 16 (`db.*` nativo) foram FECHADAS em 24/09
 > pela lane gaps-db (S5.5)** — o cross (riscv64/aarch64) eram as últimas células
@@ -253,3 +255,8 @@ Não bloqueiam o corte 0.5.0; cada uma mantém seu código de gap honesto e seu 
   + JS ⏳ (bcrypt/argon2/keystore). Adiada p/ 1.0.
 - **Camada de processo do MCU/riscv32** — o residual `PROC001` das linhas 1/3 (sem
   camada de processo no MCU). Fora do ledger 0.5.0; escopo 1.0.
+- **Motor de regex p/ `String.matches`/`replaceAll`/`replaceFirst` no native/JS**
+  — separado da linha 11 por `D-STR-UNICODE` (27/09). O `STR003` segue o gate
+  honesto no JS + nos três alvos native. Um motor de regex freestanding é domínio
+  pesado (pacote/biblioteca oficial, regra 12) e a paridade `RegExp` do JS vs
+  `Pattern` do JVM anda na mesma decisão. Adiado p/ 1.0.

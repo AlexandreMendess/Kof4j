@@ -4161,6 +4161,7 @@ feature with no 0.5.0 surface; it is declared and deferred, and `DB001` stays th
 honest diagnostic on JS.
 
 - **Relationships:** `Related: D-DB-ZERODRIVER, D-FULL-PARITY-050`.
+
 ## D-X2-LANDED — interop engine complete (5/5 slices with evidence, 27/09)
 
 Item 2 (`D-COMPLETE-FIRST`) CLOSES: fatia 1 (Py engine), 2 (R engine), 3
@@ -4173,3 +4174,14 @@ JVM-only by design), 5 (corpus/DoD). Session-state stays a declared cut-out
 `development/` → `docs/` (three-states).
 
 - **Relationships:** `Related: D-COMPLETE-FIRST, D-KOF-FIRST (rule 12), rule 11, rule 6, issue #639 (untouched), PR #619 (rule 10)`.
+
+## D-STR-UNICODE — row 11 for 0.5.0 = the Unicode faces, JVM-exact per UTF-16 code unit; the regex engine is deferred to 1.0 (maintainer 27/09/2026, voted)
+
+Row 11 is split by capability, not by target:
+
+- **Implement now (native + JS), JVM-exact per UTF-16 code unit:** `String.toUpperCase`/`toLowerCase` (NAT-STR01), `String.compareToIgnoreCase`, and `strings.reverse` non-ASCII (JVM `StringBuilder.reverse` semantics — surrogate PAIRS stay together). Native uses a compact embedded Unicode case table; JS binds its Unicode-correct primitives and pins parity against the JVM oracle. Only a per-code-unit fold is in scope (no locale-sensitive full case mapping).
+- **Deferred to 1.0:** the three regex members (`matches`/`replaceAll`/`replaceFirst`). A regex engine on the freestanding native targets is a HEAVY DOMAIN and a new fundamental capability — per the platform boundary it belongs to an official package/library, not an ad-hoc runtime splice; JS `RegExp` vs JVM `Pattern` parity rides the same engine decision. `STR003` stays the honest gate for exactly these three until then; `compareToIgnoreCase` leaves the gate.
+
+Consequence: after the Unicode faces land, row 11's only remaining cells are the deferred regex faces, and `full_parity` reaches 0 open rows for 0.5.0.
+
+- **Relationships:** `Related: D-PARITY-050-SCOPE, D-FULL-PARITY-050, D-KOF-FIRST (rule 12), NAT-STR01, §424`.
