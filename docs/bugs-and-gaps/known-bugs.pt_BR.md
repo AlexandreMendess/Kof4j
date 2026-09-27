@@ -12813,7 +12813,30 @@ real em todo alvo relevante) é barato e pega exatamente isso.
 
 <!-- en-switch --> **EN:** [§510 (en)](known-bugs.md#510--the-500-b-external-class-static-field-face-leaked-to-jsnative-integermax_value-compiled-clean-there-and-died-at-runtime-referenceerror-java_lang_integer--the-honest-fix-is-the-compile-time-refusal-interop003-on-non-jvm-backed-targets---fixed-2609)
 
-## §511 — `RingPrivilegeE2ETest.ring1PrivilegedInstructionAndSabotageProveEnforcement` dá flake sob carga da suíte completa: o boot OVMF congela além do limite de 120s (re-incidência ≥2 da flake anotada no fechamento do §510) — 🟡 OPEN (dona = lane baremetal)
+## §511 — `RingPrivilegeE2ETest.ring1PrivilegedInstructionAndSabotageProveEnforcement` dá flake sob carga da suíte completa: o boot OVMF congela além do limite de 120s (re-incidência ≥2 da flake anotada no fechamento do §510) — ✅ FIXED 27/09 (lane issues — dona baremetal morta, reassumido)
+
+**Fix (27/09, lane issues — dona baremetal muda desde `084cb7eb4` 23/09, sem claim IN-PROGRESS
+em lugar nenhum: regra do dono morto).** O flake e ambiental (estrelacao do escalonador do qemu
+sob carga da suite), mas o harness o AMPLIFICAVA: a janela de parede fixa, calibrada em host
+ocioso, punia o boot lento-mas-progressando (cortava no meio), premiava o congelado (queimava a
+janela inteira por bytes que nunca chegam), e cada retry RECONSTRUIA o ESP — pagando os timeouts
+fixos do mtools de novo sob a mesma carga. O que pousou (so teste, zero mudanca de produto):
+(1) `OvmfSerialWait` — espera progress-aware compartilhada pelos dois E2Es de boot: enquanto o
+serial cresce a espera continua (teto absoluto 240 s/tentativa), estagnado por 60 s aborta cedo
+— os 60 s de ocioso igualam o abort por tentativa do anel antigo, nenhum boot espera MENOS que
+antes; espera mais quando o progresso e provado; (2) ESP construido UMA vez por teste, retries
+reusam (`RingPrivilegeE2ETest` 2→3 tentativas; `NativeUefiE2ETest` 1→2 com vars/serial por
+tentativa e kill do filho com `waitFor` — licao §418, nunca suite pendurada); (3) o `run()` das
+ferramentas mtools tenta mais uma vez no timeout de parede (processo novo passa sob carga; dois
+timeouts e falha real). Prova — `OvmfSerialWaitTest` 4/4 DETERMINISTICO, roda em host SEM
+qemu/OVMF (cada assinatura medida do flake tem um caso: lento-progressando pego alem da janela
+fixa antiga; congelado aborta no idle, nao no cap; serial ausente e idle honesto; o cap ainda
+encerra trickle sem marcador — falha real nunca pendura a CI). Bateria E2E no host medidor:
+`RingPrivilegeE2ETest` 5 executados / 4 skips honestos (sem OVMF/qemu/mtools no host, sem sudo
+— declarado, NAO fingido), `NativeUefiE2ETest` 8 executados / 6 skips honestos, zero vermelhos
+novos; a certificacao do boot vivo acontece nos hosts com toolchain (CI `Native cross` + host
+com `KOF_OVMF_HOME`). A politica de leitura abaixo continua valendo: vermelho nestas classes em
+host COM toolchain, depois deste fix, e bug novo e ganha § proprio.
 
 **Sintoma (re-incidência, medido):** o teste estoura o limite de 120s com a saída serial congelada
 no primeiro byte — o mesmo modo "imprime K e estanca" do `bootOvmf` que o próprio comentário do
@@ -12855,7 +12878,7 @@ ganha § proprio.
 TESTE, não regressão de código — re-ronde em isolamento com o host quieto ANTES de acusar um
 commit; verde em isolamento NÃO fecha este §.
 
-<!-- pt-switch --> **EN:** [§511 (known-bugs)](known-bugs.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-flakes-under-full-suite-load-the-ovmf-boot-freezes-past-the-120s-bound-recurrence-2-of-the-flake-noted-when-510-closed---open-owner--lane-baremetal)
+<!-- pt-switch --> **EN:** [§511 (known-bugs)](known-bugs.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-flakes-under-full-suite-load-the-ovmf-boot-freezes-past-the-120s-bound-recurrence-2-of-the-flake-noted-when-510-closed---fixed-2709-lane-issues--baremetal-owner-dead-reassigned)
 
 ## §512 — `List<Record>` de múltiplos pacotes perdia o pacote quando o arquivo consumidor era compilado primeiro: o fixpoint de tipo da classe/registro apagava os tipos dos irmãos, fazendo o lowering emitir `checkcast Rotulo` em vez de `dominio/Rotulo` (GitHub #628) — ✅ CORRIGIDO 26/09
 

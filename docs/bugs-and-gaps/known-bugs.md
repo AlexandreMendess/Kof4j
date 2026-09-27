@@ -15264,7 +15264,31 @@ behavior on every relevant target) is cheap and catches exactly this.
 
 <!-- pt-switch --> **PT:** [§510 (pt_BR)](known-bugs.pt_BR.md#510--a-face-de-campos-estaticos-de-classe-externa-do-500-b-vazou-para-jsnative-integermax_value-compilava-limpo-e-morria-em-runtime-referenceerror-java_lang_integer--a-correcao-honesta-e-a-recusa-em-compile-time-interop003-nos-alvos-sem-jvm-por-tras---corrigido-2609)
 
-## §511 — `RingPrivilegeE2ETest.ring1PrivilegedInstructionAndSabotageProveEnforcement` flakes under full-suite load: the OVMF boot freezes past the 120s bound (recurrence ≥2 of the flake noted when §510 closed) — 🟡 OPEN (owner = lane baremetal)
+## §511 — `RingPrivilegeE2ETest.ring1PrivilegedInstructionAndSabotageProveEnforcement` flakes under full-suite load: the OVMF boot freezes past the 120s bound (recurrence ≥2 of the flake noted when §510 closed) — ✅ FIXED 27/09 (lane issues — baremetal owner dead, reassigned)
+
+**Fix (27/09, lane issues — owner baremetal silent since `084cb7eb4` 23/09, no
+IN-PROGRESS claim anywhere: dead-owner rule).** The flake is environmental (scheduler
+starvation of qemu under suite load), but the harness was amplifying it: a FIXED wall-clock
+window calibrated for an idle host punished a slow-but-progressing boot (aborted mid-boot),
+rewarded a frozen one (burned the whole window for bytes that never come), and every retry
+REBUILT the ESP — paying the mtools fixed timeouts again under the same load. What shipped
+(test-only, zero product change): (1) `OvmfSerialWait` — progress-aware wait shared by both
+boot E2Es: while the serial grows the wait continues (absolute cap 240 s/attempt), growth
+stagnant for 60 s aborts early — the 60 s idle equals the old per-attempt abort on the ring
+side, so no boot ever waits LESS than before, only more when it is provably progressing; (2)
+ESP built ONCE per test, retries reuse it (`RingPrivilegeE2ETest` 2→3 attempts,
+`NativeUefiE2ETest` 1→2 with per-attempt vars/serial and child-kill `waitFor` — lesson §418,
+never a hung suite); (3) the mtools `run()` helper retries the tool once on a wall-clock
+timeout (a fresh process passes under load; two timeouts is a real failure). Proof —
+`OvmfSerialWaitTest` 4/4 DETERMINISTIC, runs on hosts WITHOUT qemu/OVMF (each measured flake
+signature has a case: slow-but-progressing caught past the old fixed window; frozen aborts on
+idle, not on cap; absent serial is an honest idle; the cap still bounds a marker-less trickle,
+so a real fault never hangs CI). E2E battery on the measuring host: `RingPrivilegeE2ETest`
+5 run / 4 honest skips (no OVMF/qemu/mtools on host, no sudo — declared, NOT faked),
+`NativeUefiE2ETest` 8 run / 6 honest skips, zero new reds; live-boot certification happens on
+the toolchain hosts (CI `Native cross` + any host with `KOF_OVMF_HOME`). Reading policy below
+stays: a red in these classes on a host WITH toolchain, after this fix, is a new bug and gets
+its own §.
 
 **Symptom (recurrence, measured):** the test times out at the 120s bound with the serial output
 frozen at the first byte — the same `bootOvmf` "prints K and stalls" mode the test's own harness
@@ -15304,7 +15328,7 @@ gets its own §.
 code regression — re-run it in isolation on a quiet host BEFORE blaming a commit; a green
 isolation does not close this §.
 
-<!-- pt-switch --> **PT:** [§511 (pt_BR)](known-bugs.pt_BR.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-da-flake-sob-carga-da-suite-completa-o-boot-ovmf-congela-alem-do-limite-de-120s-re-incidencia-2-da-flake-anotada-no-fechamento-do-510---open-dona--lane-baremetal)
+<!-- pt-switch --> **PT:** [§511 (pt_BR)](known-bugs.pt_BR.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-da-flake-sob-carga-da-suite-completa-o-boot-ovmf-congela-alem-do-limite-de-120s-re-incidencia-2-da-flake-anotada-no-fechamento-do-510---fixed-2709-lane-issues--dona-baremetal-morta-reassumido)
 
 ## §512 — multi-package `List<Record>` lost its package when the consumer file was compiled first: the record/class type-inference fixpoint globally erased sibling expression types, making lowering emit `checkcast Rotulo` instead of `dominio/Rotulo` (GitHub #628) — ✅ FIXED 26/09
 

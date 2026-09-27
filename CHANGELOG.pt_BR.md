@@ -10,6 +10,20 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — §511 (27/09): o harness de boot OVMF dava flake sob carga da suíte
+    completa — boots lentos eram cortados no meio do progresso, congelados
+    queimavam a janela inteira** — dona baremetal muda desde 23/09, reassumido
+    pela lane issues (regra do dono morto). Só teste: espera progress-aware
+    `OvmfSerialWait` (enquanto o serial cresce a espera continua, teto
+    240 s/tentativa; estagnado 60 s aborta cedo — nunca pior que as janelas
+    fixas antigas), ESP construído UMA vez por teste (retries param de pagar os
+    timeouts fixos do mtools sob a mesma carga), tentativas do ring 2→3, boot
+    UEFI 1→2 com vars/serial por tentativa e kill do filho, `run()` do mtools
+    tenta mais uma vez. Prova: `OvmfSerialWaitTest` 4/4 determinístico SEM
+    qemu/OVMF (um caso por assinatura medida do flake); as classes E2E pulam
+    com honestidade em host sem toolchain (declarado, não fingido) — a
+    certificação do boot vivo fica na CI com toolchain. Catálogo:
+    known-bugs.md §511 FIXED (+EN).
   - **Fix — §530 (27/09, pousou FIXED no mesmo dia): wiring de biblioteca oficial pousou com cobertura so-JVM** — medido pela mantenedora na
     #629: `import pdf.*` (libs/pdf, PR #557) roda em JVM/Script e o x86-64
     linka as classes da lib (falha so no `String_join` do contribuidor);

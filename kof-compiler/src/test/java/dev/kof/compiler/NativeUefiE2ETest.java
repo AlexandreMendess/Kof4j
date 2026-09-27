@@ -1,6 +1,7 @@
 package dev.kof.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -164,13 +165,17 @@ class NativeUefiE2ETest {
 
     private void run(long timeoutMs, String... cmd)
             throws IOException, InterruptedException {
-        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
-        assertTrue(p.waitFor(timeoutMs, TimeUnit.MILLISECONDS) && p.exitValue() == 0,
-                "falhou: " + String.join(" ", cmd));
-    }
-
-    private String serialText(Path log) throws IOException {
-        return Files.readString(log, StandardCharsets.ISO_8859_1).replace("\0", "");
+        // §511: sob carga, o timeout de parede de uma ferramenta de disco (mtools)
+        // é flake ambiental — um processo novo passa; o segundo timeout é falha real.
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+            if (p.waitFor(timeoutMs, TimeUnit.MILLISECONDS) && p.exitValue() == 0) {
+                return;
+            }
+            p.destroyForcibly();
+            p.waitFor(10, TimeUnit.SECONDS);
+        }
+        fail("falhou (2 tentativas): " + String.join(" ", cmd));
     }
 
     @Test
@@ -215,7 +220,11 @@ class NativeUefiE2ETest {
 
     /** Bota o PE32+ num ESP FAT sob OVMF e devolve o serial capturado, parando
      *  assim que {@code expected} aparece (bounded — lição §418: nunca suíte
-     *  pendurada). */
+     *  pendurada). §511: ESP construída UMA vez (retry de boot não refaz o
+     *  mtools sob carga) e até 2 tentativas com espera progress-aware — boot
+     *  lento-mas-progressando é preservado (cap 240 s por tentativa), boot
+     *  estagnado aborta no idle de 60 s (nunca pior que o fixed antigo de
+     *  150 s) e tenta de novo limpo; falha real falha nas duas. */
     private String bootUnderOvmf(Path tempDir, Path bin, String expected) throws Exception {
         Path code = findOvmfCode();
         Path qemu = findQemu();
@@ -224,10 +233,26 @@ class NativeUefiE2ETest {
         assumeTrue(hasTool("mformat", "--help") || hasTool("mformat", "-V"),
                 "mtools ausente");
         Path esp = makeEsp(tempDir, bin);
+        String text = "";
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            String t = tryBootUnderOvmf(tempDir, esp, expected, code, qemu, attempt);
+            if (ready(t, expected)) return t;
+            if (t.length() > text.length()) text = t;
+        }
+        return text;
+    }
 
-        Path vars = tempDir.resolve("vars.fd");
+    private static boolean ready(String text, String expected) {
+        return expected == null
+                ? text.contains("true") || text.contains("false")
+                : text.contains(expected);
+    }
+
+    private String tryBootUnderOvmf(Path tempDir, Path esp, String expected, Path code,
+            Path qemu, int attempt) throws Exception {
+        Path vars = tempDir.resolve("vars-" + attempt + ".fd");
         Files.copy(code.resolveSibling("OVMF_VARS_4M.fd"), vars);
-        Path ser = tempDir.resolve("ser.log");
+        Path ser = tempDir.resolve("ser-" + attempt + ".log");
 
         java.util.List<String> cmd = new java.util.ArrayList<>();
         boolean prefixQemu = ovmfPrefix() != null && qemu.startsWith(ovmfPrefix());
@@ -251,19 +276,10 @@ class NativeUefiE2ETest {
 
         Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
         try {
-            long deadline = System.currentTimeMillis() + 150_000;
-            String text = "";
-            while (System.currentTimeMillis() < deadline) {
-                if (Files.exists(ser)) {
-                    text = serialText(ser);
-                    if (expected == null ? text.contains("true") || text.contains("false")
-                            : text.contains(expected)) break;
-                }
-                Thread.sleep(1_000);
-            }
-            return text;
+            return OvmfSerialWait.untilDone(ser, text -> ready(text, expected), 60_000, 240_000);
         } finally {
             p.destroyForcibly();
+            p.waitFor(10, TimeUnit.SECONDS);
         }
     }
 

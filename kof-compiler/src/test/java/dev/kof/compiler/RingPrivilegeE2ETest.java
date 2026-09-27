@@ -2,6 +2,7 @@ package dev.kof.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -116,34 +117,44 @@ class RingPrivilegeE2ETest {
     }
 
     private void run(long timeoutMs, String... cmd) throws IOException, InterruptedException {
-        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
-        assertTrue(p.waitFor(timeoutMs, TimeUnit.MILLISECONDS) && p.exitValue() == 0,
-                "falhou: " + String.join(" ", cmd));
+        // §511: sob carga, o timeout de parede de uma ferramenta de disco (mtools)
+        // é flake ambiental — um processo novo passa; o segundo timeout é falha real.
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+            if (p.waitFor(timeoutMs, TimeUnit.MILLISECONDS) && p.exitValue() == 0) {
+                return;
+            }
+            p.destroyForcibly();
+            p.waitFor(10, TimeUnit.SECONDS);
+        }
+        fail("falhou (2 tentativas): " + String.join(" ", cmd));
     }
 
-    /** Boota o PE sob OVMF e devolve o texto do serial. Faz até 2 tentativas:
-     *  o boot OVMF/qemu é estável (~7 s quando funciona), mas o host já mediu
-     *  um travamento de agendamento (imprime o 1º byte e estanca) — uma segunda
-     *  tentativa determinística elimina o flake ambiental sem mascarar fault
-     *  real (um fault real falha nas duas). Janela por tentativa: 60 s. */
+    /** Boota o PE sob OVMF e devolve o texto do serial. Até 3 tentativas com o
+     *  boot LENTO preservado (§511): a espera é progress-aware — enquanto o
+     *  serial cresce continua (teto de 240 s por tentativa), estagnado por 60 s
+     *  aborta cedo (mesmo ponto de abort da janela antiga, nunca pior) e a
+     *  tentativa seguinte começa limpa. O ESP é construído UMA vez — retry de
+     *  boot não refaz o trabalho do mtools sob carga (que era parte do flake).
+     *  Falha real falha nas três. Janela por tentativa: idle 60 s, cap 240 s. */
     private String bootOvmf(Path tempDir, Path peBinary, String expected) throws Exception {
         Path code = findOvmfCode();
         Path qemu = findQemu();
         assumeTrue(code != null, "OVMF ausente (KOF_OVMF_HOME ou ~/.local/share/kof-ovmf)");
         assumeTrue(qemu != null, "qemu-system-x86_64 ausente");
         assumeTrue(hasTool("mformat", "-V") || hasTool("mformat", "--help"), "mtools ausente");
+        Path esp = makeEsp(tempDir, peBinary);
         String text = "";
-        for (int attempt = 1; attempt <= 2; attempt++) {
-            String t = tryBoot(tempDir, peBinary, expected, code, qemu, attempt);
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            String t = tryBoot(tempDir, esp, expected, code, qemu, attempt);
             if (t.contains(expected)) return t;
             if (t.length() > text.length()) text = t;
         }
         return text;
     }
 
-    private String tryBoot(Path tempDir, Path peBinary, String expected, Path code, Path qemu,
+    private String tryBoot(Path tempDir, Path esp, String expected, Path code, Path qemu,
             int attempt) throws Exception {
-        Path esp = makeEsp(tempDir, peBinary);
         Path vars = tempDir.resolve("vars-" + attempt + ".fd");
         Files.copy(code.resolveSibling("OVMF_VARS_4M.fd"), vars);
         Path ser = tempDir.resolve("ser-" + attempt + ".log");
@@ -169,14 +180,7 @@ class RingPrivilegeE2ETest {
         Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
         String text = "";
         try {
-            long deadline = System.currentTimeMillis() + 60_000;
-            while (System.currentTimeMillis() < deadline) {
-                if (Files.exists(ser)) {
-                    text = Files.readString(ser, StandardCharsets.ISO_8859_1).replace("\0", "");
-                    if (text.contains(expected)) break;
-                }
-                Thread.sleep(1_000);
-            }
+            text = OvmfSerialWait.untilDone(ser, t -> t.contains(expected), 60_000, 240_000);
         } finally {
             p.destroyForcibly();
             p.waitFor(10, TimeUnit.SECONDS);
