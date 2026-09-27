@@ -86,10 +86,16 @@ mismatch). Both named, never silent (R6).
 
 ## 4. Non-goals for 0.5.0
 
-Full-LSP completion, `kof.file` promotion, doc-wide migration, new
-primitive types. Anything beyond the table above = honest refusal.
+Full-LSP completion, `kof.file` promotion, new primitive types. Anything
+beyond the table above = honest refusal. (`doc-wide migration` was a
+non-goal here; **superseded 27/09 by `D-DOC-SLIM`** — every `.md` except
+`learn/`/`training/` migrates, corpus + CHANGELOG body excluded.)
 
-## 5. Migration scope — maintainer order 27/09: hot working docs ONLY
+## 5. Migration scope — slice 3.9: hot working docs; ALL docs by `D-DOC-SLIM` (27/09)
+
+> **`D-DOC-SLIM` (27/09):** the scope below is slice 3.9's minimum; the
+> maintainer broadened it to every `.md` except `learn/`/`training/` (corpus +
+> CHANGELOG body excluded).
 
 Kofmd migration covers **only the hot working documents agents read and
 write every turn**: `DOING.md`(+PT), `docs/status.md`(+PT),

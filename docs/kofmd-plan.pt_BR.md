@@ -91,10 +91,16 @@ tipo/schema). Ambos nomeados, nunca silêncio (R6).
 
 ## 4. Não-metas para a 0.5.0
 
-Completion pleno no LSP, promoção do `kof.file`, migração da doc inteira,
-tipos primitivos novos. Tudo além da tabela acima = recusa honesta.
+Completion pleno no LSP, promoção do `kof.file`, tipos primitivos novos.
+Tudo além da tabela acima = recusa honesta. (`migração da doc inteira` era
+não-meta aqui; **substituída 27/09 por `D-DOC-SLIM`** — todo `.md` exceto
+`learn/`/`training/` migra, corpus + corpo do CHANGELOG excluídos.)
 
-## 5. Escopo da migração — ordem da mantenedora 27/09: docs quentes de trabalho SÓ
+## 5. Escopo da migração — fatia 3.9: docs quentes; TODA a doc por `D-DOC-SLIM` (27/09)
+
+> **`D-DOC-SLIM` (27/09):** o escopo abaixo é o mínimo da fatia 3.9; a
+> mantenedora o ampliou para todo `.md` exceto `learn/`/`training/` (corpus +
+> corpo do CHANGELOG excluídos).
 
 A migração Kofmd cobre **apenas os documentos quentes de trabalho que os
 agentes leem e escrevem a cada turno**: `DOING.md`(+PT),

@@ -4056,3 +4056,18 @@ nunca (drivers provisionados, R9); H2 (puro Java, minúsculo) é o candidato a
 embarcado default depois. D-DB-NORMALIZE vale como cânone da URL em toda trilha.
 
 - **Relações:** `Related: D-DB-GAPS, D-DB-NORMALIZE, D-KOF-FIRST-IMPL (regra 12), regra 11, R9`.
+
+## D-DOC-SLIM — compressão Kofmd de toda a doc: todo `.md` exceto `learn/`/`training/` migra para Kofmd terso; corpus e corpo do CHANGELOG excluídos (mantenedora 27/09/2026, ordem explícita)
+
+Amplia a fatia 3.9 do `D-KOFMD` (que migrou só os docs quentes): a mantenedora
+ordenou comprimir **todos** os Markdown para Kofmd terso e orientado a intenção
+— "até mesmo o AGENTS.md, a regra é absoluta" — exceto `learn/`/`training/`.
+O mecanismo é **migração por agente**: a ferramenta `kof md` só faz `check` e
+canonicaliza via `format` (medido byte-idêntico em prosa) e `convert` é non-goal
+declarado, então cada par EN+PT é um commit com os gates de doc verdes. Duas
+exclusões técnicas, confirmadas com a mantenedora: `libs/kofmd/corpus/*.md`
+(fixtures golden asseguradas byte a byte por `KofmdCorpusE2ETest`) e o corpo do
+`CHANGELOG` (gerado por `scripts/changelog.sh`; só o cabeçalho é editado à mão).
+Substitui o non-goal "doc-wide migration" do `kofmd-plan.md` §4/§5.
+
+- **Relações:** `Related: D-KOFMD, D-KOF-FIRST, D-KOF-FIRST-IMPL (regra 12), regra 11`.
