@@ -79,6 +79,92 @@ class KofmdE2ETest {
     }
 
     @Test
+    void scalarInferenceAndSchemaMismatchAreMd002() throws Exception {
+        runKof("""
+            import kofmd.Kofmd
+
+            main() {
+                var tool = KofmdTool()
+                var probe = tool.parse("stable: false\\nretries: 3\\nratio: 0.5\\nlocation: compiler/parser\\nversion: \\"3\\"\\nbig: 2147483648\\n")
+                var fields = probe.blocks().get(0).fields()
+                if (tool.inferField(fields.get(0)) != "Bool") {
+                    throw "infer stable"
+                }
+                if (tool.inferField(fields.get(1)) != "Int") {
+                    throw "infer retries"
+                }
+                if (tool.inferField(fields.get(2)) != "Float") {
+                    throw "infer ratio"
+                }
+                if (tool.inferField(fields.get(3)) != "String") {
+                    throw "infer location"
+                }
+                if (tool.inferField(fields.get(4)) != "String") {
+                    throw "quoted forces String"
+                }
+                if (tool.inferField(fields.get(5)) != "String") {
+                    throw "Int is 32-bit: overflow stays String"
+                }
+
+                var listed = tool.parse("instructions:\\n- inspect\\n")
+                if (tool.inferField(listed.blocks().get(0).fields().get(0)) != "List") {
+                    throw "list infers List"
+                }
+                var empty = tool.parse("next:\\n")
+                if (tool.inferField(empty.blocks().get(0).fields().get(0)) != "Absent") {
+                    throw "empty infers Absent"
+                }
+
+                var schemas = tool.parseSchemas("record Probe(Int retries, Float ratio, Bool stable)\\n")
+                if (schemas.size != 1) {
+                    throw "schemas: " + schemas.size.toString()
+                }
+                if (schemas.get(0).fields().size != 3) {
+                    throw "schema fields"
+                }
+                var bad = tool.parse("retries: 3\\nratio: x\\nstable: yes\\n")
+                var diags = tool.validateDoc(bad, schemas.get(0))
+                if (diags.size != 2) {
+                    throw "diags: " + diags.size.toString()
+                }
+                if (diags.get(0) != "MD002:ratio") {
+                    throw "diag0: " + diags.get(0)
+                }
+                if (diags.get(1) != "MD002:stable") {
+                    throw "diag1: " + diags.get(1)
+                }
+
+                var good = tool.parse("retries: 3\\nratio: 0.5\\nstable: true\\n")
+                if (tool.validateDoc(good, schemas.get(0)).size != 0) {
+                    throw "good doc must validate clean"
+                }
+                var coerced = tool.parse("ratio: 3\\n")
+                if (tool.validateDoc(coerced, schemas.get(0)).size != 0) {
+                    throw "Int widens to Float"
+                }
+                var widened = tool.parseSchemas("record Probe(Int retries, String version)\\n")
+                var bare = tool.parse("version: 9\\n")
+                if (tool.validateDoc(bare, widened.get(0)).size != 0) {
+                    throw "any scalar widens to String"
+                }
+                var unknown = tool.parse("other: 1\\n")
+                if (tool.validateDoc(unknown, schemas.get(0)).size != 0) {
+                    throw "unknown fields stay inert"
+                }
+                var listedDoc = tool.parse("retries:\\n- 1\\n")
+                var listDiags = tool.validateDoc(listedDoc, schemas.get(0))
+                if (listDiags.size != 1) {
+                    throw "list for scalar slot is MD002"
+                }
+                if (listDiags.get(0) != "MD002:retries") {
+                    throw "list diag: " + listDiags.get(0)
+                }
+                println("kofmd-3.2-ok")
+            }
+            """);
+    }
+
+    @Test
     void quotedScalarAndIndentedLineStayVerbatim() throws Exception {
         runKof("""
             import kofmd.Kofmd

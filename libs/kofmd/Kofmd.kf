@@ -4,6 +4,10 @@ record KofmdField(String name, String value, Bool quoted, List<String> items)
 
 record KofmdBlock(List<String> intents, List<KofmdField> fields, List<String> prose)
 
+record KofmdSchemaField(String name, String type)
+
+record KofmdSchema(String name, List<KofmdSchemaField> fields)
+
 record KofmdDoc(List<KofmdBlock> blocks)
 
 class KofmdTool {
@@ -147,6 +151,403 @@ class KofmdTool {
         var seed = listOf(KofmdField("kofmd", "seed", false, newStrList()))
         seed.clear()
         return seed
+    }
+
+    newSchemaList(): List<KofmdSchema> {
+        var seed = listOf(KofmdSchema("Kofmd", newSchemaFieldList()))
+        seed.clear()
+        return seed
+    }
+
+    newSchemaFieldList(): List<KofmdSchemaField> {
+        var seed = listOf(KofmdSchemaField("kofmd", "String"))
+        seed.clear()
+        return seed
+    }
+
+    inferScalar(String raw, Bool quoted): String {
+        if (quoted) {
+            return "String"
+        }
+        if (raw == "true" || raw == "false") {
+            return "Bool"
+        }
+        if (isIntLexeme(raw)) {
+            return "Int"
+        }
+        if (isFloatLexeme(raw)) {
+            return "Float"
+        }
+        return "String"
+    }
+
+    inferField(KofmdField field): String {
+        if (field.items().size > 0) {
+            return "List"
+        }
+        if (field.value().length == 0) {
+            return "Absent"
+        }
+        return inferScalar(field.value(), field.quoted())
+    }
+
+    isIntLexeme(String raw): Bool {
+        if (raw.length == 0) {
+            return false
+        }
+        var start = 0
+        if (raw.startsWith("-")) {
+            if (raw.length == 1) {
+                return false
+            }
+            start = 1
+        }
+        var index = start
+        while (index < raw.length) {
+            Int code = raw.charAt(index)
+            if (code < 48 || code > 57) {
+                return false
+            }
+            index = index + 1
+        }
+        return isInt32Range(raw)
+    }
+
+    isInt32Range(String raw): Bool {
+        String digits = raw
+        Bool negative = false
+        if (raw.startsWith("-")) {
+            negative = true
+            digits = raw.substring(1, raw.length)
+        }
+        digits = stripLeadingZeros(digits)
+        if (digits.length < 10) {
+            return true
+        }
+        if (digits.length > 10) {
+            return false
+        }
+        if (negative) {
+            return digits.compareTo("2147483648") <= 0
+        }
+        return digits.compareTo("2147483647") <= 0
+    }
+
+    stripLeadingZeros(String digits): String {
+        var index = 0
+        while (index < digits.length) {
+            if (digits.charAt(index) != 48) {
+                break
+            }
+            index = index + 1
+        }
+        if (index >= digits.length) {
+            return "0"
+        }
+        return digits.substring(index, digits.length)
+    }
+
+    isFloatLexeme(String raw): Bool {
+        if (raw.length == 0) {
+            return false
+        }
+        var rest = raw
+        if (rest.startsWith("-") || rest.startsWith("+")) {
+            if (rest.length == 1) {
+                return false
+            }
+            rest = rest.substring(1, rest.length)
+        }
+        Int exp = exponentSplit(rest)
+        String mantissa = rest
+        if (exp >= 0) {
+            mantissa = rest.substring(0, exp)
+        }
+        if (exp >= 0) {
+            String tail = rest.substring(exp + 1, rest.length)
+            if (!isExpTail(tail)) {
+                return false
+            }
+        }
+        Int dot = dotIndex(mantissa)
+        if (dot < 0) {
+            return exp >= 0 && allDigits(mantissa) && mantissa.length > 0
+        }
+        String head = mantissa.substring(0, dot)
+        String frac = mantissa.substring(dot + 1, mantissa.length)
+        if (frac.length == 0) {
+            return false
+        }
+        if (!allDigits(frac)) {
+            return false
+        }
+        if (head.length == 0) {
+            return true
+        }
+        return allDigits(head)
+    }
+
+    dotIndex(String text): Int {
+        var index = 0
+        while (index < text.length) {
+            if (text.charAt(index) == 46) {
+                return index
+            }
+            index = index + 1
+        }
+        return -1
+    }
+
+    exponentSplit(String text): Int {
+        var index = 0
+        while (index < text.length) {
+            Int code = text.charAt(index)
+            if (code == 101 || code == 69) {
+                return index
+            }
+            index = index + 1
+        }
+        return -1
+    }
+
+    isExpTail(String tail): Bool {
+        if (tail.length == 0) {
+            return false
+        }
+        var digits = tail
+        if (tail.startsWith("-") || tail.startsWith("+")) {
+            if (tail.length == 1) {
+                return false
+            }
+            digits = tail.substring(1, tail.length)
+        }
+        return allDigits(digits) && digits.length > 0
+    }
+
+    allDigits(String text): Bool {
+        if (text.length == 0) {
+            return false
+        }
+        var index = 0
+        while (index < text.length) {
+            Int code = text.charAt(index)
+            if (code < 48 || code > 57) {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+
+    parseSchemas(String text): List<KofmdSchema> {
+        var seed = KofmdSchema("Kofmd", newSchemaFieldList())
+        var schemas = listOf(seed)
+        schemas.clear()
+        String[] lines = text.split("\n")
+        for (var line in lines) {
+            String trimmed = line.trim()
+            if (isSchemaLine(trimmed)) {
+                var parsed = parseSchemaLine(trimmed)
+                if (parsed.name().length > 0) {
+                    schemas.add(parsed)
+                }
+            }
+        }
+        return schemas
+    }
+
+    parseSchemaLine(String trimmed): KofmdSchema {
+        var empty = KofmdSchema("", newSchemaFieldList())
+        if (!isSchemaLine(trimmed)) {
+            return empty
+        }
+        String body = trimmed.substring(7, trimmed.length).trim()
+        Int open = schemaParen(body)
+        if (open < 0) {
+            return empty
+        }
+        String name = body.substring(0, open).trim()
+        if (!isTypeName(name)) {
+            return empty
+        }
+        String inner = body.substring(open + 1, body.length - 1)
+        var seed = KofmdSchemaField("kofmd", "String")
+        var fields = listOf(seed)
+        fields.clear()
+        String[] parts = inner.split(",")
+        for (var part in parts) {
+            String entry = part.trim()
+            if (entry.length == 0) {
+                continue
+            }
+            String[] words = entry.split(" ")
+            String typeName = ""
+            String fieldName = ""
+            for (var word in words) {
+                String token = word.trim()
+                if (token.length == 0) {
+                    continue
+                }
+                if (typeName.length == 0) {
+                    typeName = token
+                    continue
+                }
+                if (fieldName.length == 0) {
+                    fieldName = token
+                }
+            }
+            if (typeName.length == 0 || fieldName.length == 0) {
+                continue
+            }
+            if (!isTypeName(typeName)) {
+                continue
+            }
+            if (!isFieldKey(fieldName)) {
+                continue
+            }
+            fields.add(KofmdSchemaField(fieldName, typeName))
+        }
+        return KofmdSchema(name, fields)
+    }
+
+    schemaParen(String body): Int {
+        var index = 0
+        while (index < body.length) {
+            if (body.charAt(index) == 40) {
+                return index
+            }
+            index = index + 1
+        }
+        return -1
+    }
+
+    isTypeName(String name): Bool {
+        if (name.length == 0) {
+            return false
+        }
+        Int first = name.charAt(0)
+        if (first < 65 || first > 90) {
+            return false
+        }
+        var index = 1
+        while (index < name.length) {
+            Int code = name.charAt(index)
+            Bool word = false
+            if (code >= 65 && code <= 90) {
+                word = true
+            }
+            if (code >= 97 && code <= 122) {
+                word = true
+            }
+            if (code >= 48 && code <= 57) {
+                word = true
+            }
+            if (code == 95) {
+                word = true
+            }
+            if (!word) {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+
+    isFieldKey(String name): Bool {
+        if (name.length == 0) {
+            return false
+        }
+        Int first = name.charAt(0)
+        if (first < 97 || first > 122) {
+            return false
+        }
+        var index = 1
+        while (index < name.length) {
+            Int code = name.charAt(index)
+            Bool word = false
+            if (code >= 97 && code <= 122) {
+                word = true
+            }
+            if (code >= 48 && code <= 57) {
+                word = true
+            }
+            if (code == 95) {
+                word = true
+            }
+            if (!word) {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+
+    validateField(KofmdField field, KofmdSchema schema): String {
+        Int slot = schemaSlot(schema, field.name())
+        if (slot < 0) {
+            return ""
+        }
+        String want = schema.fields().get(slot).type()
+        if (want.endsWith("?")) {
+            want = want.substring(0, want.length - 1)
+        }
+        if (field.items().size > 0) {
+            return "MD002"
+        }
+        if (field.value().length == 0) {
+            return ""
+        }
+        String got = inferScalar(field.value(), field.quoted())
+        if (got == want) {
+            return ""
+        }
+        if (want == "String") {
+            return ""
+        }
+        if (want == "Float" && got == "Int") {
+            return ""
+        }
+        return "MD002"
+    }
+
+    schemaSlot(KofmdSchema schema, String name): Int {
+        var index = 0
+        while (index < schema.fields().size) {
+            if (schema.fields().get(index).name() == name) {
+                return index
+            }
+            index = index + 1
+        }
+        return -1
+    }
+
+    validateBlock(KofmdBlock block, KofmdSchema schema): List<String> {
+        var diags = newStrList()
+        var index = 0
+        while (index < block.fields().size) {
+            KofmdField field = block.fields().get(index)
+            String diag = validateField(field, schema)
+            if (diag.length > 0) {
+                diags.add(diag + ":" + field.name())
+            }
+            index = index + 1
+        }
+        return diags
+    }
+
+    validateDoc(KofmdDoc doc, KofmdSchema schema): List<String> {
+        var diags = newStrList()
+        var index = 0
+        while (index < doc.blocks().size) {
+            List<String> blockDiags = validateBlock(doc.blocks().get(index), schema)
+            var inner = 0
+            while (inner < blockDiags.size) {
+                diags.add(blockDiags.get(inner))
+                inner = inner + 1
+            }
+            index = index + 1
+        }
+        return diags
     }
 
     isIntentLine(String trimmed): Bool {
