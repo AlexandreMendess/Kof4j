@@ -13530,3 +13530,42 @@ espelho que inventa diretorios). Bateria: `Lsp*Test` **66/66** verde
 (`LspProjectDiagnosticsE2ETest` 12/12).
 
 <!-- pt-switch --> **EN:** [§529 (known-bugs.md)](known-bugs.md#529--kof-lsp-didopen-of-a-root-directory-uri-file-crashed-analyze-with-a-raw-npe-the-638-gate-called-isdirectorygetparent-without-the-null-guard---fixed-2709-lane-gaps-dbnative-q4-hunt-over-528)
+
+## §530 — o wiring de biblioteca oficial (`libs/pdf`, PR #557) pousou com cobertura SO-JVM: o cross riscv64/aarch64 deixa as classes da biblioteca FORA do link (`*_init_*` indefinidos) — ABERTO 27/09 (dono: lane cross — roteado pela verificacao medida da mantenedora na #629)
+**Estado**: 🟡 ABERTO (27/09) — dono: lane cross (roteado pela mantenedora na #629). Leitura de root cause + E2E cross RED = proxima unidade da lane.
+
+**Medido na #629 (27/09, harness da mantenedora):** a biblioteca writer
+pura-Kof `libs/pdf` + wiring `officialLibraryRoot` (`CompilerImports.java:65`,
+`kof.install.dir/lib/kof-libs`) compila e EXECUTA em JVM e KofScript, mas no
+Native: o x86-64 inclui as classes da biblioteca no link (falha so em
+`String_join` — JVM-ism em `libs/pdf/PdfBuffer.kf:18`, defeito 1, devolvido
+ao contribuidor sdavivieira por instrucao da mantenedora), enquanto
+**riscv64/aarch64 NUNCA emitem/linkam as classes da biblioteca — simbolos
+`*_init_*` indefinidos no link cross** (defeito 2 = esta entrada, lane cross)
+e o JS da ICE `[COMP002] unknown JS expression: null` em `JsEmitter.java:330`
+(defeito 3, lane JS). Programa de repro (so caminho feliz): comentarios da #629.
+
+**Verificado na arvore (27/09, esta lane):** o `PdfLibraryE2ETest` chama
+`driver.compile(source, out, Target.JVM)` e NADA alem disso — zero casos
+Native/JS/Script. Eis por que o PR pousou verde: o DoD de aceitacao de uma
+biblioteca oficial (R5/R7: todo alvo, ou gap diagnosticado `XXX00x`) nunca foi
+medido. O teste de paridade ausente e parte do escopo desta entrada.
+
+**Leitura de root cause (pendente, proxima unidade da lane):** localizar onde o
+caminho x86 native puxa as fontes resolvidas dos modulos (fechamento de
+imports incl. raizes de biblioteca) para emissao/link e por que os backends
+cross (mesmo `NativeBackend`, `CompilerPipeline.java:196`) nao — hipotese: o
+fechamento cross caminha so as fontes do projeto, nunca as raizes de
+biblioteca de `CompilerImports`. O conserto deve ser de wiring/mecanismo
+(geral, sem `if pdf` — regra 12), entao o E2E cross com o programa da
+mantenedora prova GREEN em riscv64+aarch64 com paridade byte a byte contra a
+saida x86/JVM.
+
+**Nota de fila (disciplina de dono):** esta lane esta sob ordem de
+estabilizacao; §523 (db) e §524 (flake native-cross) continuam SEGURADOS pela
+mantenedora. §530 e um DEFEITO QUE ELA ROTEIOU a esta lane por nome na #629 —
+entra na fila da lane NA FRENTE do par segurado porque bloqueia o item de
+aceitacao da 0.5.0 "biblioteca oficial e multi-target"; re-trigger: claim no
+DOING, ler root cause, teste RED primeiro (programa da mantenedora), consertar,
+provar.
+<!-- pt-switch --> **EN:** [§530 (known-bugs.md)](known-bugs.md#530--official-library-wiring-libspdf-pr-557-lands-with-jvm-only-coverage-cross-riscv64aarch64-leave-the-library-classes-out-of-the-link-_init_-undefined--open-2709-owner-lane-cross--routed-by-the-maintainers-measured-verification-on-629)

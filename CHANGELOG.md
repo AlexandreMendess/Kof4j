@@ -10,6 +10,14 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Catalog — §530 (27/09, OPEN): wiring de biblioteca oficial pousou com cobertura so-JVM** — medido pela mantenedora na
+    #629: `import pdf.*` (libs/pdf, PR #557) roda em JVM/Script e o x86-64
+    linka as classes da lib (falha so no `String_join` do contribuidor);
+    riscv64/aarch64 NUNCA emitem/linkam as classes (`*_init_*` indefinidos);
+    JS da ICE COMP002 (lane JS). `PdfLibraryE2ETest` so chama `Target.JVM` —
+    o DoD multi-target da lib nunca foi medido. Dona da face cross = esta
+    lane (roteada pela mantenedora); fix = mecanismo de wiring do fechamento
+    cross, sem `if pdf` (regra 12). Catalog: known-bugs.md §530 (+PT).
   - **Fix — §529 (27/09): `didOpen` de URI-raiz (`file:///`) derrubava o `kof
     lsp` com NPE cru — cacada Q4 sobre o gate do #638/§528** — a gate
     `isDirectory(real.getParent())` landing sem a guarda de null do design

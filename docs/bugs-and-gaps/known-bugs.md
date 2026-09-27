@@ -15975,3 +15975,40 @@ mirror inventing directories). Battery: `Lsp*Test` **66/66** green
 (`LspProjectDiagnosticsE2ETest` 12/12).
 
 <!-- pt-switch --> **PT:** [§529 (pt_BR)](known-bugs.pt_BR.md#529--kof-lsp-didopen-de-uri-de-diretorio-raiz-file-derrubava-o-analyze-com-npe-cru-a-gate-do-638-chamou-isdirectorygetparent-sem-a-guarda-de-null---fixed-2709-lane-gaps-dbnative-cacada-q4-sobre-o-528)
+
+## §530 — official-library wiring (`libs/pdf`, PR #557) lands with JVM-only coverage: cross riscv64/aarch64 leave the library classes OUT of the link (`*_init_*` undefined) — OPEN 27/09 (owner: lane cross — routed by the maintainer's measured verification on #629)
+**Status**: 🟡 OPEN (27/09) — owner: lane cross (routed by the maintainer on #629). Root cause reading + RED cross E2E = next unit in lane.
+
+**Measured on #629 (27/09, maintainer's harness):** the pure-Kof writer
+library `libs/pdf` + `officialLibraryRoot` wiring (`CompilerImports.java:65`,
+`kof.install.dir/lib/kof-libs`) compiles and RUNS on JVM and KofScript, but
+on Native: x86-64 includes the library classes in the link (fails only on
+`String_join` — a JVM-ism at `libs/pdf/PdfBuffer.kf:18`, defect 1, returned
+to contributor sdavivieira per the maintainer's instruction), while
+**riscv64/aarch64 never emit/link the library classes at all — `*_init_*`
+undefined symbols at cross link** (defect 2 = this entry, cross lane) and JS
+ICEs with `[COMP002] unknown JS expression: null` at `JsEmitter.java:330`
+(defect 3, JS lane). Repro program (happy path only): #629 comments.
+
+**In-tree verified (27/09, this lane):** `PdfLibraryE2ETest` calls
+`driver.compile(source, out, Target.JVM)` and NOTHING else — zero
+Native/JS/Script cases. That is why the PR landed green: the acceptance DoD
+for an official library (R5/R7: every target, or a diagnosed gap `XXX00x`)
+was never measured. The missing parity test is part of this entry's scope.
+
+**Root-cause reading (pending, next unit in lane):** locate where the x86
+native path pulls resolved module sources (import closure incl. library
+roots) into emission/link and why the cross backends (same `NativeBackend`,
+`CompilerPipeline.java:196`) do not — hypothesis: the cross closure walks
+project sources only, never `CompilerImports` library roots. Fix must be
+wiring/general (no `if pdf` special case — rule 12: the core supplies the
+mechanism), then the cross E2E with the maintainer's program proves GREEN on
+riscv64+aarch64, byte-parity with the x86/JVM output.
+
+**Queue note (owner discipline):** this lane holds stabilization order; §523
+(db) and §524 (native-cross flake) stay HELD by the maintainer. §530 is a
+DEFECT SHE ROUTED to this lane by name on #629 — it enters the lane queue at
+the front of the HELD pair because it blocks the 0.5.0 acceptance item
+"official library is multi-target"; re-trigger: claim in DOING, read root
+cause, RED test first (maintainer's program), fix, prove.
+<!-- pt-switch --> **PT:** [§530 (pt_BR)](known-bugs.pt_BR.md#530--o-wiring-de-biblioteca-oficial-libspdf-pr-557-pousou-com-cobertura-so-jvm-o-cross-riscv64aarch64-deixa-as-classes-da-biblioteca-fora-do-link-_init_-indefinidos--aberto-2709-dono-lane-cross--roteado-pela-verificacao-medida-da-mantenedora-na-629)
