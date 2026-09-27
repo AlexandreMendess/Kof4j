@@ -101,6 +101,15 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `listOf`) ja estava boxada desde aa9442fb5 — travada como teste tambem. Prova:
     `UiListHandlesJvmE2ETest` (golden JVM 26/09, JS e Script byte a byte; RED
     antes / GREEN depois). Catalogo: known-bugs.md §519 (+PT).
+  - **Correcao — residual do #632 (26/09): handles `kof.ui` nullable agora viram
+    `Integer` boxed ao entrar em slots Object da JVM** — `List<View?>.add(view)`
+    apagava `View?` para `int` cru; `JvmOpCollections.boxedClassNameFor`/
+    `emitBoxIfPrimitive` nao desembrulhava o wrapper nullable antes do predicado
+    de UI/media. O helper agora desembrulha somente handles de UI/media,
+    preservando a semantica de primitivos nullable. Prova:
+    `UiHandleCollectionBoxingE2ETest` **6/6** (list/set/map nullable + travas
+     nao-nullable e da composicao da issue; RED antes / GREEN depois). Catalogo:
+     `known-bugs.md` §525 (+EN).
   - **Fix — §516 (26/09): `json.encode` de `List<Record>`/`Map<String,Record>`
     no x86 despejava o ponteiro cru — agora anda pela tabela de schema pelo
     typeId (`kof_json_encode_object` + `.Lsch_type_registry` com terminator

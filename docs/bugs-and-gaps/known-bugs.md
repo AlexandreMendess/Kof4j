@@ -15802,3 +15802,47 @@ hypothesis — prove with `qemu-aarch64 -strace` before touching the runtime.
 isolation, is this flake — never attribute it to an unrelated lane.
 
 <!-- pt-switch --> **PT:** [§524 (pt_BR)](known-bugs.pt_BR.md#524--harnesses-qemu-aarch64-em-nativeriscvgcdtoadbwire-sigsegam-139-sob-carga-de-cpu-enquanto-ficam-verdes-em-isolamento--deterministico-na-suite-completa-nao-e-regressao-de-codigo---open-dona--lane-native-cross)
+
+<!-- pt-switch --> **PT:** [§521 (pt_BR)](known-bugs.pt_BR.md#521--kof-mapkv-era-apagado-para-o-descritor-concreto-ljavautilhashmap-entao-um-valor-map-de-jsondecodemap-falhava-a-verificacao-de-bytecode-da-jvm-e-o-verifyerror-real-ficava-mascarado-como-javafx-runtime-components-not-found-github-634---fixed-2609-lane-paridadejson)
+
+## §525 — nullable kof.ui handles still crossed JVM Object slots without Integer boxing (List<View?>.add) — ✅ FIXED 26/09 (issues lane, #632 residual)
+
+**Symptom (measured 26/09, residual of issue #632):** a `kof.ui` handle erased
+to `int` was pushed raw into `ArrayList.add(Object)` when its slot was declared
+`View?`:
+
+```kof
+var l = listOf<View?>()
+l.add(View(Label("a")))
+```
+
+Compilation succeeded, but JVM verification failed at `add` with
+`VerifyError: Bad type on operand stack: Type integer ... is not assignable
+to 'java/lang/Object'`.
+
+**Root cause (read in code):** `JvmOpCollections.boxedClassNameFor` checked
+`KofUi.isUiType`/`KofMedia.isHandleType` only on the exact declared type. A
+`Type.NullableType` wrapper made those predicates false, so the helper returned
+no `Integer` box and `emitBoxIfPrimitive` kept the boxed descriptor. Non-
+nullable collection faces already followed `learn/35-kof-ui.md`; the nullable
+wrapper was the missing erasure case.
+
+**Fix (root cause, not mask):** the boxing helper and descriptor selection now
+unwrap a `NullableType` only when its inner type is a UI/media handle, then
+emit `Integer.valueOf(I)` exactly as the non-nullable path does. No frozen
+nullability, operator, collection, or ABI semantics changed; nullable primitive
+representation remains untouched.
+
+**Proof (RED before/GREEN after):** `UiHandleCollectionBoxingE2ETest` **6/6**
+covers `List<View?>.add/set/contains`, `Set<View?>.add/contains`, and
+`Map<String, View?>.put/containsValue`, plus locks for the non-nullable
+`List<View>` composition, the issue-style handle→local→direct-method crossing,
+and `Row(listOf<View>(...))` through a `View`-returning function. The
+reproduction loads the generated class through `URLClassLoader` reflection
+because the JVM launcher can hide `VerifyError` behind the JavaFX runtime
+message. Full clean reactor on post-rebase tip `315607f94` plus this fix:
+**4242 tests, 0 failures, 0 errors, 527 skipped** (compiler 3641 + script 54 +
+kof-c 35 + cli 512; Node v24.21.0).
+
+<!-- pt-switch --> **PT:** [§525 (pt_BR)](known-bugs.pt_BR.md#525--handles-nullable-de-kofui-ainda-cruzavam-slots-object-da-jvm-sem-boxing-integer-listviewadd---fixed-2609-lane-issues-residual-632)
+

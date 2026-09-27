@@ -99,6 +99,14 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     estava boxada desde aa9442fb5 — travada como teste tambem. Prova:
     `UiListHandlesJvmE2ETest` (golden JVM 26/09, JS e Script byte a byte; RED
     pre-fix / GREEN post). Catalog: known-bugs.md §519 (+PT).
+  - **Fix — #632 residual (26/09): nullable `kof.ui` handles are now boxed as
+    `Integer` when they enter JVM Object slots** — `List<View?>.add(view)`
+    erased `View?` to a raw `int`; `JvmOpCollections.boxedClassNameFor`/
+    `emitBoxIfPrimitive` did not unwrap the nullable wrapper before the UI/media
+    predicate. The helper now unwraps only UI/media handles, preserving nullable
+    primitive semantics. Proof: `UiHandleCollectionBoxingE2ETest` **6/6**
+    (nullable list/set/map + non-nullable and issue-style composition locks;
+    RED pre-fix, GREEN post). Catalog: `known-bugs.md` §525 (+PT).
   - **Fix — §516 (26/09): `json.encode` de `List<Record>`/`Map<String,Record>`
     no x86 despejava o ponteiro cru — agora anda pela tabela de schema pelo
     typeId (`kof_json_encode_object` + `.Lsch_type_registry` com terminator

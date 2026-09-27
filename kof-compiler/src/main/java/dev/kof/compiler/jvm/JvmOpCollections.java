@@ -374,10 +374,17 @@ public final class JvmOpCollections {
         // kof.ui handles (Color, Theme, Label, Button, Input, Column, Row,
         // View, Style, Window) are Int values on every target; on the JVM
         // they must be boxed when stored in Object slots (e.g. List<Label>).
-        if (dev.kof.compiler.KofUi.isUiType(primitive) || KofMedia.isHandleType(primitive)) {
+        // #632: the same erasure survives a nullable wrapper, so `List<View?>`
+        // still stores an int that needs `Integer.valueOf`.
+        if (isHandleType(primitive)) {
             return "java/lang/Integer";
         }
         return null;
+    }
+
+    private static boolean isHandleType(Type type) {
+        Type inner = type instanceof Type.NullableType nt ? nt.inner() : type;
+        return KofUi.isUiType(inner) || KofMedia.isHandleType(inner);
     }
 
     static void emitBoxIfPrimitive(MethodVisitor mv, Type type) {
@@ -385,7 +392,7 @@ public final class JvmOpCollections {
         if (boxed != null) {
             String desc = JvmTypeMapper.toDescriptor(type);
             if ("char".equals(typeName(type)) || "Char".equals(typeName(type))) desc = "I";
-            if (KofUi.isUiType(type) || KofMedia.isHandleType(type)) desc = "I";
+            if (isHandleType(type)) desc = "I";
             mv.visitMethodInsn(INVOKESTATIC, boxed, "valueOf", "(" + desc + ")L" + boxed + ";", false);
         }
     }
