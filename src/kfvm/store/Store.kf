@@ -1,16 +1,18 @@
 package kfvm.store
 
 import kof.io
-import kfvm.system
+import kfvm.platform
 import kfvm.versions
 
 class Store {
     String home
     String platform
+    kfvm.platform.FileSystem fs
 
-    constructor(String home, String platform) {
+    constructor(String home, String platform, kfvm.platform.FileSystem fs) {
         this.home = home
         this.platform = platform
+        this.fs = fs
     }
 
     String root() { return home }
@@ -49,23 +51,23 @@ class Store {
     }
 
     String current() {
-        if (!File(currentLink()).isSymlink()) {
+        var target = fs.linkTarget(currentLink())
+        if (target == "") {
             return ""
         }
-        var target = Shell.run("readlink", listOf(currentLink())).trim()
         return versionOf(Path(target).fileName())
     }
 
     void activate(String version) {
-        Shell.run("ln", listOf("-sfn", dirOf(version), currentLink()))
+        fs.link(dirOf(version), currentLink())
     }
 
     void deactivate() {
-        Shell.run("rm", listOf("-f", currentLink()))
+        fs.unlink(currentLink())
     }
 
     void remove(String version) {
-        Shell.run("rm", listOf("-rf", dirOf(version)))
+        fs.deleteTree(dirOf(version))
     }
 
     String versionOf(String name) {

@@ -37,10 +37,11 @@ class InstallCommand implements kfvm.cli.Command {
             installer.install(RemoteCandidates.find(version, releases))
             console.info("installed kof " + version + " at " + store.dirOf(version))
         }
-        if (store.current() == "") {
+        var current = store.current()
+        if (current == "") {
             store.activate(version)
             console.info("now using kof " + version)
-        } else if (store.current() != version) {
+        } else if (current != version) {
             console.info("run 'kfvm u " + version + "' to activate it")
         }
     }

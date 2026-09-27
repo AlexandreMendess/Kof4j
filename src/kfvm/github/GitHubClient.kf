@@ -61,11 +61,19 @@ class GitHubClient {
     RemoteRelease toRemote(Release r) {
         var tag = r.tag_name()
         var version = tag.substring(4, tag.length - platform.length - 1)
+        var archive = ""
         var size = 0L
         for (var a in r.assets()) {
-            if (a.name() == tag + ".tar.gz") { size = a.size() }
+            if (isArchive(tag, a.name())) {
+                archive = a.name()
+                size = a.size()
+            }
         }
-        return RemoteRelease(version, r.prerelease(), size, tag)
+        return RemoteRelease(version, r.prerelease(), size, tag, archive)
+    }
+
+    Bool isArchive(String tag, String file) {
+        return file == tag + ".tar.gz" || file == tag + ".zip"
     }
 
     String encode(String s) { return s.replace("+", "%2B") }

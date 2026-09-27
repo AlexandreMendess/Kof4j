@@ -1,0 +1,48 @@
+package kfvm.platform
+
+import kof.io
+import kfvm.system
+
+class WindowsFileSystem implements kfvm.platform.FileSystem {
+    void link(String target, String link) {
+        unlink(link)
+        powershell("New-Item -ItemType Junction -Path $env:KFVM_LINK -Target $env:KFVM_TARGET | Out-Null",
+            mapOf("KFVM_LINK", windowsPath(link), "KFVM_TARGET", windowsPath(target)))
+    }
+
+    String linkTarget(String link) {
+        if (!File(link).exists()) {
+            return ""
+        }
+        return powershell("$item = Get-Item -LiteralPath $env:KFVM_LINK -Force; if ($item.LinkType) { $item.Target }",
+            mapOf("KFVM_LINK", windowsPath(link))).trim()
+    }
+
+    void unlink(String link) {
+        powershell("$item = Get-Item -LiteralPath $env:KFVM_LINK -Force -ErrorAction Ignore; if ($item) { $item.Delete() }",
+            mapOf("KFVM_LINK", windowsPath(link)))
+    }
+
+    void deleteTree(String path) {
+        powershell("if (Test-Path -LiteralPath $env:KFVM_PATH) { " +
+            "$trash = $env:KFVM_PATH + '.' + [guid]::NewGuid().ToString('N'); " +
+            "Move-Item -LiteralPath $env:KFVM_PATH -Destination $trash; " +
+            "Remove-Item -LiteralPath $trash -Recurse -Force }",
+            mapOf("KFVM_PATH", windowsPath(path)))
+    }
+
+    String sha256(String file) {
+        return powershell("(Get-FileHash -LiteralPath $env:KFVM_PATH -Algorithm SHA256).Hash",
+            mapOf("KFVM_PATH", windowsPath(file))).trim().toLowerCase()
+    }
+
+    String powershell(String script, Map<String, String> env) {
+        var command = "$ErrorActionPreference = 'Stop'; try { " + script + "; exit 0 } " +
+            "catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }"
+        return Shell.run("powershell", listOf("-NoProfile", "-NonInteractive", "-Command", command), env)
+    }
+
+    String windowsPath(String path) {
+        return path.replace("/", "\\")
+    }
+}

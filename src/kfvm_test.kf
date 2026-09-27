@@ -1,4 +1,7 @@
 import kfvm.versions
+import kfvm.platform
+import kfvm.github
+import kfvm.installer
 
 List<Candidate> sample() {
     return listOf(
@@ -42,4 +45,41 @@ test "select rejects unknown and ambiguous" {
     cs.add(Candidate("0.5.0-beta", false))
     assert(Selector.select("9.9.9", cs) == "")
     assert(Selector.select("0.5.0", cs) == "")
+}
+
+test "normalize platform names" {
+    assert(Platforms.normalizeOs("Linux") == "linux")
+    assert(Platforms.normalizeOs("Darwin") == "macos")
+    assert(Platforms.normalizeArch("x86_64") == "x86_64")
+    assert(Platforms.normalizeArch("AMD64") == "x86_64")
+    assert(Platforms.normalizeArch("ARM64") == "arm64")
+    assert(Platforms.normalizeArch("aarch64") == "arm64")
+}
+
+test "windows platform" {
+    var windows = Platform("windows", "x86_64")
+    assert(windows.id() == "windows-x86_64")
+    assert(windows.isWindows())
+    assert(!Platform("linux", "x86_64").isWindows())
+}
+
+test "release archive per platform" {
+    var zip = Release("kof-0.5.0-beta-windows-x86_64", false, listOf(
+        Asset("kof-cli-0.5.0-beta.jar", 1L),
+        Asset("kof-0.5.0-beta-windows-x86_64.zip", 7L),
+        Asset("SHA256SUMS", 1L)))
+    var remote = GitHubClient("KofLang/Kof4j", "windows-x86_64", "").toRemote(zip)
+    assert(remote.version() == "0.5.0-beta")
+    assert(remote.archive() == "kof-0.5.0-beta-windows-x86_64.zip")
+    assert(remote.size() == 7L)
+    var tar = Release("kof-0.5.0-beta-linux-x86_64", false, listOf(Asset("kof-0.5.0-beta-linux-x86_64.tar.gz", 9L)))
+    assert(GitHubClient("KofLang/Kof4j", "linux-x86_64", "").toRemote(tar).archive() == "kof-0.5.0-beta-linux-x86_64.tar.gz")
+}
+
+test "checksum lookup" {
+    var sums = "09CD  *kof-a-windows-x86_64.zip\r\nab12  kof-a-linux-x86_64.tar.gz\n"
+    assert(Checksums.of(sums, "kof-a-windows-x86_64.zip") == "09cd")
+    assert(Checksums.of(sums, "kof-a-linux-x86_64.tar.gz") == "ab12")
+    assert(Checksums.of(sums, "kof-a-macos-arm64.tar.gz") == "")
+    assert(Checksums.of(null, "kof-a-windows-x86_64.zip") == "")
 }

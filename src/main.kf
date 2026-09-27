@@ -7,7 +7,7 @@ import kfvm.cli
 
 main(args: List<String>) {
     var console = Console()
-    var home = Env.getOr("KFVM_HOME", Env.get("HOME") + "/.local/share/kof")
+    var home = Env.getOr("KFVM_HOME", Env.userHome() + "/.local/share/kof")
     var first = if (args.size > 0) args.get(0) else ""
 
     if (first == "" || first == "-h" || first == "--help" || first == "help") {
@@ -21,10 +21,11 @@ main(args: List<String>) {
     }
 
     try {
-        var platform = Platforms.detect().id()
-        var github = GitHubClient("KofLang/Kof4j", platform, Env.get("GITHUB_TOKEN"))
-        var store = Store(home, platform)
-        var installer = Installer(github, store, console)
+        var platform = Platforms.detect()
+        var fs = platform.fileSystem()
+        var github = GitHubClient("KofLang/Kof4j", platform.id(), Env.get("GITHUB_TOKEN"))
+        var store = Store(home, platform.id(), fs)
+        var installer = Installer(github, store, fs, console)
         var installed = InstalledVersions(github, store)
         var commands = listOf<kfvm.cli.Command>()
         commands.add(ListCommand(github, store, console))
