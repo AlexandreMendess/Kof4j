@@ -1,0 +1,214 @@
+package kofmd
+
+import kofmd.KofmdTypes
+import kofmd.KofmdLists
+
+class KofmdScan {
+    parse(String text): KofmdDoc {
+        var lists = KofmdLists()
+        var blockSeed = KofmdBlock(lists.newStrList(), lists.newIntList(), lists.newFieldList(), lists.newStrList())
+        var blocks = listOf(blockSeed)
+        blocks.clear()
+        var fieldSeed = KofmdField("n", "v", false, lists.newStrList(), 0)
+        var intents = lists.newStrList()
+        var intentLines = lists.newIntList()
+        var currentLine = 0
+        var fields = listOf(fieldSeed)
+        fields.clear()
+        var prose = lists.newStrList()
+        var inFence = false
+        var pendingField = -1
+
+        String[] lines = text.split("\n")
+        for (var line in lines) {
+            currentLine = currentLine + 1
+            String rest = line
+            if (rest.endsWith("\r")) {
+                rest = rest.substring(0, rest.length - 1)
+            }
+            if (rest.startsWith("```")) {
+                inFence = !inFence
+                if (fields.size > 0 || prose.size > 0) {
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
+                    intents = lists.newStrList()
+                    intentLines = lists.newIntList()
+                    fields = listOf(fieldSeed)
+                    fields.clear()
+                    prose = lists.newStrList()
+                    pendingField = -1
+                }
+                prose = listOf(rest)
+                var emptyIntents = lists.newStrList()
+                var emptyIntentLines = lists.newIntList()
+                var emptyFields = listOf(fieldSeed)
+                emptyFields.clear()
+                blocks.add(KofmdBlock(emptyIntents, emptyIntentLines, emptyFields, prose))
+                prose = lists.newStrList()
+                continue
+            }
+            if (inFence) {
+                prose.add(rest)
+                continue
+            }
+            String trimmed = rest.trim()
+            if (trimmed.length == 0) {
+                if (fields.size > 0 || prose.size > 0 || intents.size > 0) {
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
+                    intents = lists.newStrList()
+                    intentLines = lists.newIntList()
+                    fields = listOf(fieldSeed)
+                    fields.clear()
+                    prose = lists.newStrList()
+                    pendingField = -1
+                }
+                continue
+            }
+            if (isIntentLine(trimmed)) {
+                intents.add(trimmed.substring(1, trimmed.length))
+                intentLines.add(currentLine)
+                pendingField = -1
+                continue
+            }
+            if (isListItem(trimmed)) {
+                if (pendingField >= 0) {
+                    String prior = fields.get(pendingField).value()
+                    if (prior.length == 0) {
+                        fields.get(pendingField).items().add(trimmed.substring(2, trimmed.length).trim())
+                        continue
+                    }
+                }
+                if (fields.size > 0 || prose.size > 0) {
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
+                    intents = lists.newStrList()
+                    intentLines = lists.newIntList()
+                    fields = listOf(fieldSeed)
+                    fields.clear()
+                    prose = lists.newStrList()
+                    pendingField = -1
+                }
+                prose.add(rest)
+                continue
+            }
+            Int colon = fieldColon(rest)
+            if (colon >= 0) {
+                if (prose.size > 0) {
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
+                    intents = lists.newStrList()
+                    intentLines = lists.newIntList()
+                    fields = listOf(fieldSeed)
+                    fields.clear()
+                    prose = lists.newStrList()
+                }
+                String name = rest.substring(0, colon).trim()
+                String rawValue = rest.substring(colon + 1, rest.length).trim()
+                Bool quoted = rawValue.startsWith("\"") && rawValue.endsWith("\"") && rawValue.length >= 2
+                String value = rawValue
+                if (quoted) {
+                    value = rawValue.substring(1, rawValue.length - 1)
+                }
+                fields.add(KofmdField(name, value, quoted, lists.newStrList(), currentLine))
+                pendingField = fields.size - 1
+                continue
+            }
+            if (isSchemaLine(trimmed)) {
+                if (fields.size > 0 || prose.size > 0) {
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
+                    intents = lists.newStrList()
+                    intentLines = lists.newIntList()
+                    fields = listOf(fieldSeed)
+                    fields.clear()
+                    prose = lists.newStrList()
+                    pendingField = -1
+                }
+                prose = listOf(rest)
+                var noFields = listOf(fieldSeed)
+                noFields.clear()
+                blocks.add(KofmdBlock(intents, intentLines, noFields, prose))
+                intents = lists.newStrList()
+                intentLines = lists.newIntList()
+                prose = lists.newStrList()
+                continue
+            }
+            if (fields.size > 0 && prose.size == 0) {
+                blocks.add(KofmdBlock(intents, intentLines, fields, prose))
+                intents = lists.newStrList()
+                intentLines = lists.newIntList()
+                fields = listOf(fieldSeed)
+                fields.clear()
+                prose = lists.newStrList()
+                pendingField = -1
+            }
+            pendingField = -1
+            prose.add(rest)
+        }
+        if (fields.size > 0 || prose.size > 0 || intents.size > 0) {
+            blocks.add(KofmdBlock(intents, intentLines, fields, prose))
+        }
+        return KofmdDoc(blocks)
+    }
+
+    isIntentLine(String trimmed): Bool {
+        if (!trimmed.startsWith("@")) {
+            return false
+        }
+        if (trimmed.length < 2) {
+            return false
+        }
+        if (trimmed.contains(" ") || trimmed.contains(":")) {
+            return false
+        }
+        return true
+    }
+
+    isListItem(String trimmed): Bool {
+        if (!trimmed.startsWith("- ")) {
+            return false
+        }
+        return trimmed.length > 2
+    }
+
+    fieldColon(String line): Int {
+        if (line.length == 0) {
+            return -1
+        }
+        Int first = line.charAt(0)
+        if (first < 97 || first > 122) {
+            return -1
+        }
+        var index = 0
+        while (index < line.length) {
+            Int code = line.charAt(index)
+            Bool keyChar = false
+            if (code >= 97 && code <= 122) {
+                keyChar = true
+            }
+            if (code >= 48 && code <= 57) {
+                keyChar = true
+            }
+            if (code == 95) {
+                keyChar = true
+            }
+            if (!keyChar) {
+                break
+            }
+            index = index + 1
+        }
+        if (index == 0 || index >= line.length) {
+            return -1
+        }
+        if (line.charAt(index) != 58) {
+            return -1
+        }
+        return index
+    }
+
+    isSchemaLine(String trimmed): Bool {
+        if (!trimmed.startsWith("record ")) {
+            return false
+        }
+        if (!trimmed.contains("(")) {
+            return false
+        }
+        return trimmed.endsWith(")")
+    }
+}

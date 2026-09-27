@@ -121,11 +121,18 @@ class KofmdFormatE2ETest {
     private static Path findLibraryRoot() {
         Path workingDirectory = Path.of("").toAbsolutePath().normalize();
         Path fromRepository = workingDirectory.resolve("libs/kofmd");
-        if (Files.isRegularFile(fromRepository.resolve("Kofmd.kf"))) return fromRepository;
+        if (isKofmdLibraryDir(fromRepository)) return fromRepository;
 
         Path fromModule = workingDirectory.resolve("../libs/kofmd").normalize();
-        if (Files.isRegularFile(fromModule.resolve("Kofmd.kf"))) return fromModule;
+        if (isKofmdLibraryDir(fromModule)) return fromModule;
 
         throw new IllegalStateException("libs/kofmd not found from " + workingDirectory);
+    }
+
+    private static boolean isKofmdLibraryDir(Path dir) {
+        // Accepts both layouts: the monolith (Kofmd.kf alone) and the split
+        // (KofmdTypes.kf + sibling responsibility files + Kofmd.kf facade).
+        return Files.isRegularFile(dir.resolve("Kofmd.kf"))
+                || Files.isRegularFile(dir.resolve("KofmdTypes.kf"));
     }
 }

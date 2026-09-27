@@ -1,0 +1,71 @@
+package kofmd
+
+import kofmd.KofmdTypes
+
+class KofmdRender {
+    renderMarkdown(KofmdDoc doc): String {
+        var out = ""
+        var insideFence = false
+        var index = 0
+        while (index < doc.blocks().size) {
+            out = out + renderBlock(doc.blocks().get(index))
+            if (isFenceMarker(doc.blocks().get(index))) {
+                insideFence = !insideFence
+            }
+            if (!insideFence && index + 1 < doc.blocks().size) {
+                out = out + "\n"
+            }
+            index = index + 1
+        }
+        return out
+    }
+
+    renderBlock(KofmdBlock block): String {
+        var out = ""
+        var index = 0
+        while (index < block.intents().size) {
+            out = out + "@" + block.intents().get(index) + "\n"
+            index = index + 1
+        }
+        index = 0
+        while (index < block.fields().size) {
+            out = out + renderField(block.fields().get(index))
+            index = index + 1
+        }
+        index = 0
+        while (index < block.prose().size) {
+            out = out + block.prose().get(index) + "\n"
+            index = index + 1
+        }
+        return out
+    }
+
+    renderField(KofmdField field): String {
+        if (field.items().size > 0) {
+            var out = field.name() + ":\n"
+            var index = 0
+            while (index < field.items().size) {
+                out = out + "  - " + field.items().get(index) + "\n"
+                index = index + 1
+            }
+            return out
+        }
+        if (field.value().length == 0) {
+            return field.name() + ":\n"
+        }
+        if (field.quoted()) {
+            return field.name() + ": \"" + field.value() + "\"\n"
+        }
+        return field.name() + ": " + field.value() + "\n"
+    }
+
+    isFenceMarker(KofmdBlock block): Bool {
+        if (block.intents().size > 0 || block.fields().size > 0) {
+            return false
+        }
+        if (block.prose().size != 1) {
+            return false
+        }
+        return block.prose().get(0).startsWith("```")
+    }
+}

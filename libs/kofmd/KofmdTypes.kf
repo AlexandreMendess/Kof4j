@@ -1,0 +1,11 @@
+package kofmd
+
+record KofmdField(String name, String value, Bool quoted, List<String> items, Int line)
+
+record KofmdBlock(List<String> intents, List<Int> intentLines, List<KofmdField> fields, List<String> prose)
+
+record KofmdSchemaField(String name, String type)
+
+record KofmdSchema(String name, List<KofmdSchemaField> fields)
+
+record KofmdDoc(List<KofmdBlock> blocks)
