@@ -26,4 +26,19 @@ class InstalledVersions {
         }
         return version
     }
+
+    Bool isInstalled(String version) {
+        return !Selector.isChannel(version) && version != "" && store.isInstalled(version)
+    }
+
+    String resolveLocal(String query) {
+        if (Selector.isChannel(query)) {
+            throw "'" + query + "' needs GitHub to be resolved (try again, or pass a version)"
+        }
+        var version = Selector.select(query, store.installedNewestFirst())
+        if (version == "") {
+            throw "version '" + query + "' not found (see: kfvm ls)"
+        }
+        return version
+    }
 }

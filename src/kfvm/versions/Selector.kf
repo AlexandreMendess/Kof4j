@@ -2,30 +2,43 @@ package kfvm.versions
 
 class Selector {
     static Bool isChannel(String query) {
-        return query == "lst" || query == "latest" || query == "nightly"
+        return isStable(query) || query == "nightly"
     }
 
-    static String select(String query, List<Candidate> newestFirst) {
+    static Bool isStable(String query) {
+        return query == "lst" || query == "lts" || query == "latest"
+    }
+
+    static String select(String query, List<Candidate> candidates) {
         var want = if (query.startsWith("v")) query.substring(1) else query
         if (isChannel(want)) {
-            return newestOfChannel(want == "nightly", newestFirst)
+            return newestOfChannel(want == "nightly", candidates)
         }
-        var match = ""
-        var count = 0
-        for (var c in newestFirst) {
+        var newest = ""
+        for (var c in candidates) {
             if (c.version() == want) { return want }
-            if (c.version().startsWith(want + "-") || c.version().startsWith(want + "+")) {
-                match = c.version()
-                count = count + 1
+            if (matchesPrefix(c.version(), want) && (newest == "" || Versions.compare(c.version(), newest) > 0)) {
+                newest = c.version()
             }
         }
-        return if (count == 1) match else ""
+        return newest
     }
 
-    static String newestOfChannel(Bool nightly, List<Candidate> newestFirst) {
-        for (var c in newestFirst) {
-            if (c.nightly() == nightly) { return c.version() }
+    static Bool matchesPrefix(String version, String prefix) {
+        if (prefix == "" || !version.startsWith(prefix) || version.length == prefix.length) {
+            return false
         }
-        return ""
+        var next = version.substring(prefix.length, prefix.length + 1)
+        return next == "." || next == "-" || next == "+"
+    }
+
+    static String newestOfChannel(Bool nightly, List<Candidate> candidates) {
+        var newest = ""
+        for (var c in candidates) {
+            if (c.nightly() == nightly && (newest == "" || Versions.compare(c.version(), newest) > 0)) {
+                newest = c.version()
+            }
+        }
+        return newest
     }
 }

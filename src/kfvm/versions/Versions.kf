@@ -10,7 +10,11 @@ class Versions {
             var y = if (i < cb.size) cb.get(i) else 0
             if (x != y) { return x - y }
         }
-        return a.substring(core(a).length).compareTo(b.substring(core(b).length))
+        var sa = a.substring(core(a).length)
+        var sb = b.substring(core(b).length)
+        if (sa == "" && sb.startsWith("-")) { return 1 }
+        if (sb == "" && sa.startsWith("-")) { return -1 }
+        return sa.compareTo(sb)
     }
 
     static List<String> sortAscending(List<String> versions) {

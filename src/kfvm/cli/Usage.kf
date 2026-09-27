@@ -9,12 +9,13 @@ class Usage {
             "Usage:\n" +
             "  kfvm ls,  list [-r, --remote]          list installed versions (or available ones)\n" +
             "  kfvm i,   install <ver|lst|nightly>    install a version\n" +
-            "  kfvm u,   use <ver|lst|nightly>        switch the active version\n" +
+            "  kfvm u,   use <ver|lst|nightly>        switch the active version (installs it if needed)\n" +
             "  kfvm uni, uninstall <ver|lst|nightly>  remove an installed version\n" +
             "\n" +
             "Versions:\n" +
-            "  <ver>      exact version, e.g. 0.4.10-beta (prefix match allowed: 0.4.10)\n" +
-            "  lst        latest stable release\n" +
+            "  <ver>      exact version, or the newest one starting with it\n" +
+            "             (0.4 -> 0.4.10-beta, 0.4.9 -> 0.4.9-beta, 0.5 -> newest 0.5.0-beta+<date>)\n" +
+            "  lst        latest stable release (aliases: lts, latest)\n" +
             "  nightly    latest pre-release (e.g. 0.5.0-beta+2026.09.25)\n" +
             "\n" +
             "Install dir: " + home
