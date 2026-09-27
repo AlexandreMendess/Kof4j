@@ -16080,3 +16080,64 @@ was the documented §511 load flake (solo 5/5 green, re-measured today). Related
 (closed, DIFFERENT defect: emission), #639 (the orthogonal cross-package disambiguation
 DESIGN question — rule 6; this entry does not answer it).
 <!-- pt-switch --> **PT:** [§531 (pt_BR)](known-bugs.pt_BR.md#531--o-sem010-imprimia-os-dois-lados-de-uma-colisao-de-records-de-mesmo-nome-simples-em-packages-diferentes-como-texto-identico-typedisplay-omitia-o-package---fixed-2709-lane-interopdocs--640)
+
+## §532 — #640/§531 residual: diagnostics leaked the `kof.` prefix into stdlib type names (`expected 'kof.List<Int>'`), breaking the #324 "spelling the user wrote" contract and the #640 example itself — ✅ FIXED 27/09 (lane issues)
+
+**Symptom (measured, tip `44e5cf91e`):** `use(1)` against `use(xs: List<Int>)` printed
+`Argument 1 of 'use': expected 'kof.List<Int>' but got 'Int'` (SEM014). §531's whitelist
+kept `java.`/`javax.`/default bare but not `kof`/`kof.*` — yet #640's OWN expected example
+(`expected List<p1.Item> but got List<p2.Item>`) shows stdlib unqualified; the source says
+`List<Int>` and #324 made diagnostics mirror the source.
+
+**Fix (one predicate):** `Type.qualifiedUserName` also prints `kof`, `kof.*` and
+`dev.kof*` (internal runtime) bare — user packages keep §531's qualification; the #640
+contract stands untouched.
+
+**Proof:** `Sem010PackageQualifiedTypesE2ETest` 5/5 lands in the same commit — 4 cases were
+already green against §531 (collision no longer self-contradictory; both-sides qualification
+`List<p1.Gadget>`/`List<p2.Widget>`; same-file `List<solo.Widget>`; default package bare) and
+the stdlib/default pin was RED on the tip; the sister's `QualifiedTypeDiagE2ETest` 2/2 and the
+message-neighbor cluster (`Sem010Position` 2/2, `VoidReturnValue` 7/7, `DiagnosticSourceLocation`
+5/5, `GenericArgAssignment` 8/8) stay green; full reactor certified in the landing commit.
+
+**Found by:** the issues lane mid-double-implementation of #640 — the two lanes converged on
+the SAME display-only design independently (sibling lesson: CLAIM in DOING.md before writing
+code, not just before landing).
+
+<!-- pt-switch --> **PT:** [§532 (pt_BR)](known-bugs.pt_BR.md#532--residual-do-640531-o-diagnostico-vazava-o-prefixo-kof-nos-tipos-da-stdlib-expected-koflistint-quebrando-o-contrato-324-de-grafia-que-o-usuario-escreve-e-o-proprio-exemplo-do-640---fixed-2709-lane-issues)
+
+
+## §533 — `InteropTimeoutE2ETest.cancelFromAnotherTaskStopsTheRunningCallNamed008` is red 3/3 inside the full reactor and green 4/4 in isolation: the `never` RPC call returns KeyError/INTEROP006 before cancel can name INTEROP008 (harness setup race under load) — 🟡 OPEN (owner = lane interop)
+
+**Symptom (measured 27/09, three controlled runs):** inside the full reactor the test fails in
+~30 s with `cancel() de outra task deve nomear INTEROP008: 1 / INTEROP006: never failed:
+KeyError: 'never'` (python host at `<string>` line 24, `globals()[s["fn"]](*s["args"])`) —
+the host does not yet know the function `never` when the call arrives, so the call ERRORS
+immediately instead of hanging for the cancel to interrupt, and the INTEROP008 path is never
+exercised. Reds: 04:4x suite (`full-suite-511.log`), 09:1x suite (`full-suite-641.log`, node
+absent — same red, independent of node), 09:4x suite (`full-suite-641b.log`, clean env, the
+ONLY red: 4251/1F/0E/529skip). Isolation 4/4 green 3x today (05:4x, ~10:0x, 10:10 on a quiet
+host, load 1.8). Not a display/§531/§532 effect: the signature predates both, and the strings
+asserted carry no printed types.
+
+**Not a code regression (posture §511, applied by analogy):** the correlation is with
+full-suite scheduling, not with any commit — the def of `never` reaches the host's globals
+after the first RPC arrives (stdin write/buffer race) when the machine is starved; a real
+interop cancel bug would fail in isolation too.
+
+**Repro:** `bash scripts/safe-suite.sh`-style full reactor with node on PATH and observe the
+single red, or hammer `-Dtest='InteropTimeoutE2ETest'` while a second reactor run is active;
+re-run alone on a quiet host → green.
+
+**Fix path (owner = lane interop, live today at X2 fatia 5):** the harness must confirm the
+host has registered `never` (a ready-ping after the def line, precedent §418/§511 bounded-wait
+posture) before issuing the long call — never sleep-vs-buffer by luck. Catalogued by the
+issues lane while landing §532 — flake found 3x with controlled evidence gets a ledger number,
+never a "known noise" shrug (rule inherited from §511).
+
+**Reading policy (all lanes + CI):** a red on this method INSIDE a full-suite run is this
+flake until proven otherwise — re-run in isolation before blaming a commit; a clean-host
+isolation red is a new bug and gets its own §.
+
+<!-- pt-switch --> **PT:** [§533 (pt_BR)](known-bugs.pt_BR.md#533--interoptimeoute2etestcancelfromanothertaskstopstherunningcallnamed008-fica-vermelho-33-dentro-da-reactor-completa-e-verde-44-em-isolamento-a-chamada-rpc-never-retorna-keyerrorinterop006-antes-do-cancel-poder-nomear-interop008-corrida-de-setup-do-harness-sob-carga---open-dona--lane-interop)
+

@@ -10,6 +10,17 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — §532 (27/09): o diagnostico vazava `kof.` nos tipos da stdlib —
+    `expected 'kof.List<Int>'` quebrava o contrato de grafia #324 e o proprio
+    exemplo do #640 (residual do §531, GitHub #641)** — a whitelist do §531
+    mantinha java./javax./default crus mas nao `kof`/`kof.*`/`dev.kof*`; um
+    predicado, a qualificacao de packages de usuario (#640) permanece intocada.
+    Prova: `Sem010PackageQualifiedTypesE2ETest` 5/5 no mesmo commit (4 verdes
+    contra o §531 + o pin stdlib, vermelho-no-tip, virou verde), a
+    `QualifiedTypeDiagE2ETest` 2/2 da irma e o cluster vizinho de mensagens
+    intactos. Achado no meio de uma dupla-implementacao do #640 pelas duas
+    lanes — claim no DOING ANTES de escrever codigo. Catalog: known-bugs.md
+    §532 FIXED (+EN).
   - **Fix — §511 (27/09): o harness de boot OVMF dava flake sob carga da suíte
     completa — boots lentos eram cortados no meio do progresso, congelados
     queimavam a janela inteira** — dona baremetal muda desde 23/09, reassumido

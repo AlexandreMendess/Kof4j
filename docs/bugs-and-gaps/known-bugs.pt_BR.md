@@ -13636,3 +13636,65 @@ unico red era o flake de carga documentado do §511 (solo 5/5 verde, re-medido h
 Relacionado: #628 (fechada, defeito DIFERENTE: emissao), #639 (a pergunta ORTOGONAL de
 DESIGN de desambiguacao cross-package — regra 6; esta entrada nao a responde).
 <!-- pt-switch --> **EN:** [§531](known-bugs.md#531--sem010-printed-both-sides-of-a-same-simple-name-record-collision-from-different-packages-as-identical-text-typedisplay-omitted-the-package---fixed-2709-interopdocs-lane--640)
+
+## §532 — residual do #640/§531: o diagnostico vazava o prefixo `kof.` nos tipos da stdlib (`expected 'kof.List<Int>'`), quebrando o contrato #324 de "grafia que o usuario escreve" e o proprio exemplo do #640 — ✅ FIXED 27/09 (lane issues)
+
+**Sintoma (medido, tip `44e5cf91e`):** `use(1)` contra `use(xs: List<Int>)` imprimia
+`Argument 1 of 'use': expected 'kof.List<Int>' but got 'Int'` (SEM014). A whitelist do §531
+mantinha `java.`/`javax.`/default crus mas nao `kof`/`kof.*` — e o PROPRIO exemplo esperado
+do #640 (`expected List<p1.Item> but got List<p2.Item>`) mostra a stdlib sem qualificador;
+o fonte diz `List<Int>` e o #324 fez o diagnostico espelhar o fonte.
+
+**Fix (um predicado):** `Type.qualifiedUserName` tambem imprime crus `kof`, `kof.*` e
+`dev.kof*` (runtime interno) — packages de usuario mantem a qualificacao do §531; o contrato
+do #640 permanece intacto.
+
+**Prova:** `Sem010PackageQualifiedTypesE2ETest` 5/5 pousa no mesmo commit — 4 casos ja
+verdes contra o §531 (colisao nao mais auto-contraditoria; qualificacao dos dois lados
+`List<p1.Gadget>`/`List<p2.Widget>`; mesmo arquivo `List<solo.Widget>`; default package
+cru) e o pin stdlib/default estava VERMELHO no tip; a `QualifiedTypeDiagE2ETest` 2/2 da irma
+e o cluster vizinho de mensagens (`Sem010Position` 2/2, `VoidReturnValue` 7/7,
+`DiagnosticSourceLocation` 5/5, `GenericArgAssignment` 8/8) seguem verdes; reactor completo
+certificado no commit de pouso.
+
+**Achado por:** a lane issues no meio de uma DUPLA implementacao do #640 — as duas lanes
+convergiriam para o MESMO design display-only de forma independente (licao hermana: CLAIM
+no DOING.md antes de escrever codigo, nao antes de pousar).
+
+<!-- en-switch --> **EN:** [§532 (known-bugs)](known-bugs.md#532--640531-residual-diagnostics-leaked-the-kof-prefix-into-stdlib-type-names-expected-koflistint-breaking-the-324-spelling-the-user-wrote-contract-and-the-640-example-itself---fixed-2709-lane-issues)
+
+
+## §533 — `InteropTimeoutE2ETest.cancelFromAnotherTaskStopsTheRunningCallNamed008` fica vermelho 3/3 dentro da reactor completa e verde 4/4 em isolamento: a chamada RPC `never` retorna KeyError/INTEROP006 antes do cancel poder nomear INTEROP008 (corrida de setup do harness sob carga) — 🟡 OPEN (dona = lane interop)
+
+**Sintoma (medido 27/09, tres corridas controladas):** dentro da reactor completa o teste
+falha em ~30 s com `cancel() de outra task deve nomear INTEROP008: 1 / INTEROP006: never
+failed: KeyError: 'never'` (host python em `<string>` linha 24,
+`globals()[s["fn"]](*s["args"])`) — o host ainda nao conhece a funcao `never` quando a chamada
+chega, entao a chamada ERRORA na hora em vez de pendurar para o cancel interromper, e o
+caminho INTEROP008 nunca e exercitado. Vermelhos: suíte 04:4x (`full-suite-511.log`), suíte
+09:1x (`full-suite-641.log`, sem node — mesmo vermelho, independente de node), suíte 09:4x
+(`full-suite-641b.log`, ambiente limpo, o UNICO vermelho: 4251/1F/0E/529skip). Isolamento
+4/4 verde 3x hoje (05:4x, ~10:0x, 10:10 em host quieto, carga 1.8). Nao e efeito de
+display/§531/§532: a assinatura e anterior aos dois, e as strings afirmadas nao imprimem tipos.
+
+**Nao e regressao de codigo (postura §511, aplicada por analogia):** a correlacao e com o
+agendamento da suíte completa, nao com commit algum — o def de `never` chega ao globals do
+host depois da primeira RPC (corrida de escrita/buffer no stdin) quando a maquina esta
+faminta; um bug real de cancel interop falharia em isolamento tambem.
+
+**Repro:** reactor completa estilo `bash scripts/safe-suite.sh` com node no PATH e observe o
+unico vermelho, ou martele `-Dtest='InteropTimeoutE2ETest'` com uma segunda corrida do
+reactor ativa; re-ronde sozinho em host quieto → verde.
+
+**Caminho do fix (dona = lane interop, viva hoje na X2 fatia 5):** o harness deve CONFIRMAR
+que o host registrou `never` (ready-ping apos a linha do def, precedente de espera bounded
+§418/§511) antes de emitir a chamada longa — nunca sorte de sleep-vs-buffer. Catalogado pela
+lane issues ao pousar o §532 — flake achada 3x com evidencia controlada ganha numero no
+ledger, nunca um ombro de "ruído conhecido" (regra herdada da §511).
+
+**Política de leitura (todas as lanes + CI):** vermelho neste metodo DENTRO de uma corrida
+completa da suíte é este flake até prova em contrario — re-ronde em isolamento antes de
+acusar um commit; um vermelho de isolamento em host limpo é bug novo e ganha § próprio.
+
+<!-- en-switch --> **EN:** [§533 (known-bugs)](known-bugs.md#533--interoptimeoute2etestcancelfromanothertaskstopstherunningcallnamed008-is-red-33-inside-the-full-reactor-and-green-44-in-isolation-the-never-rpc-call-returns-keyerrorinterop006-before-cancel-can-name-interop008-harness-setup-race-under-load---open-owner--lane-interop)
+

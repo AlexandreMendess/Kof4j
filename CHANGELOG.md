@@ -10,6 +10,16 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — §532 (27/09): diagnostics leaked `kof.` into stdlib type names —
+    `expected 'kof.List<Int>'` broke the #324 spelling contract and the #640
+    example itself (§531 residual, GitHub #641)** — §531's whitelist kept
+    java./javax./default bare but not `kof`/`kof.*`/`dev.kof*`; one predicate,
+    user-package qualification (#640) stands untouched. Proof:
+    `Sem010PackageQualifiedTypesE2ETest` 5/5 in the same commit (4 green against
+    §531 + the stdlib pin RED-on-tip flipped green), sister's
+    `QualifiedTypeDiagE2ETest` 2/2 and the message-neighbor cluster intact.
+    Found mid-double-implementation of #640 by the two lanes — claim in DOING
+    BEFORE writing code. Catalog: known-bugs.md §532 FIXED (+PT).
   - **Fix — §511 (27/09): the OVMF boot harness flaked under full-suite load —
     slow boots were cut mid-progress, frozen boots burned the whole window** —
     baremetal owner dead since 23/09, reassigned by the issues lane (dead-owner

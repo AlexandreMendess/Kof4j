@@ -298,10 +298,15 @@ public sealed interface Type {
      * #640: user packages qualify in diagnostics (two records with the same
      * simple name in different packages must not print the same text); JVM
      * built-ins keep the spelling the user wrote (#324).
+     * #641 (residual): the same "spelling the user wrote" rule covers the
+     * Kof stdlib and the internal runtime — `List<Int>` in source means
+     * `List<Int>` in the diagnostic, never `kof.List<Int>` (the expected
+     * example in #640 itself keeps stdlib bare).
      */
     private static String qualifiedUserName(ClassType c) {
         String pkg = c.packageName();
-        if (pkg == null || pkg.isEmpty() || pkg.startsWith("java.") || pkg.startsWith("javax.")) {
+        if (pkg == null || pkg.isEmpty() || pkg.startsWith("java.") || pkg.startsWith("javax.")
+                || pkg.equals("kof") || pkg.startsWith("kof.") || pkg.startsWith("dev.kof")) {
             return c.name();
         }
         return pkg + "." + c.name();
