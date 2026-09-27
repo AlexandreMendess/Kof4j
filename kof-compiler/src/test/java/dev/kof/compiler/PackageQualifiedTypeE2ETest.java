@@ -184,14 +184,46 @@ class PackageQualifiedTypeE2ETest {
         assertTrue(diags.contains("SEM011"), "recusa honesta via SEM011, veio: " + diags);
     }
 
-    // NOTA (#639 face 2 residual — ESTREITADO 27/09): o caminho de tipo
-    // DECLARADO é irregular. Reproduzido mínimo: um CAMPO com tipo qualificado
-    // (`class H { List<p1.Item> xs; constructor(List<p1.Item> xs){...};
-    // first(): String { return xs.get(0).tag() } }` em p2) COMPILA mas recusa
-    // no load (VerifyError "Bad return type") — a substituição de `E` do
-    // receiver de campo não casa com o `checkcast` emitido. Em contraste, o
-    // PARÂMETRO de método de classe com a MESMA anotação `List<p1.Item>`
-    // funciona (roda `p1:1`). Logo o gap ficou contido ao caminho de CAMPO
-    // (tipo do FieldSymbol), não a param/retorno. Registrado no DOING; a face
-    // 2 entregue cobre expressão + anotação LOCAL (topo e em genéricos).
+    @Test
+    void qualifiedTypeInDeclaredTopLevelParam(@TempDir Path tmp) throws Exception {
+        // #639 face 2 residual (corrigido): o parâmetro de FUNÇÃO top-level
+        // usava `Type.of` cru, então `List<p1.Item>` ficava com o arg
+        // `ClassType("","p1.Item")` SEM separar o pacote — o membro do elemento
+        // era resolvido no dono errado e `tag()` saía com retorno Object
+        // (`areturn` de String → VerifyError "Bad return type"). O campo e o
+        // parâmetro de MÉTODO já qualificavam; agora o param top-level também.
+        Path d1 = tmp.resolve("p1");
+        Path d2 = tmp.resolve("p2");
+        Files.createDirectories(d1);
+        Files.createDirectories(d2);
+        Files.writeString(d1.resolve("Item.kf"), P1);
+        Files.writeString(d2.resolve("Use.kf"), """
+                package p2
+
+                use(xs: List<p1.Item>): String { return xs.get(0).tag() }
+
+                class H {
+                    List<p1.Item> xs
+                    public constructor(List<p1.Item> xs) { this.xs = xs }
+                    first(): String { return xs.get(0).tag() }
+                    go(): String { return use(listOf(p1.Item(1))) }
+                }
+                """);
+        Files.writeString(tmp.resolve("Main.kf"), """
+                main() {
+                    println(p2.H(listOf(p1.Item(2))).first())
+                    println(p2.H(listOf(p1.Item(9))).go())
+                }
+                """);
+        CompilationResult r = driver.compileSources(
+                List.of(tmp.resolve("Main.kf"), d1.resolve("Item.kf"), d2.resolve("Use.kf")),
+                tmp.resolve("out"), Target.JVM, tmp);
+        assertTrue(r.success(), () -> r.diagnostics().getDiagnostics().toString());
+        assertEquals("p1:2\np1:1", runJvm(tmp.resolve("out")),
+                "campo e param de função top-level casam o elemento p1.Item (sem Object fantasma)");
+    }
+
+    // Face 2 (expressão + anotação LOCAL topo/em genéricos + declarado de
+    // campo/param de método/param de função top-level) provada acima. O
+    // contrato de display #640/#531 segue intacto (sem edição).
 }

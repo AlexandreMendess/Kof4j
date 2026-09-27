@@ -186,7 +186,13 @@ final class SemDeclarationAnalyzer {
             // como type-variable (com bound), senão o Type.of de sempre.
             Type paramType = TypeParams.variable(param.type(), func.typeParameters(),
                     sa.unit(), sa);
-            if (paramType == null) paramType = Type.of(param.type());
+            // #639 face 2 residual: parâmetro top-level usava `Type.of` cru —
+            // um caminho qualificado (`List<p1.Item>`) ficava com o arg
+            // `ClassType("","p1.Item")` SEM separar pacote, então a resolução
+            // do membro do elemento caía no dono errado e o retorno saía
+            // Object (`areturn` de String → VerifyError "Bad return type").
+            // Mesma resolução que os params de MÉTODO (MemberResolver.resolveType).
+            if (paramType == null) paramType = sa.resolveType(param.type(), funcScope);
             funcScope.define(new SymbolTable.ParameterSymbol(param.name(), paramType, idx));
             idx++;
         }
