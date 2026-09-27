@@ -4148,3 +4148,15 @@ sem superfície 0.5.0; fica declarado e adiado, e `DB001` segue o diagnóstico
 honesto no JS.
 
 - **Relações:** `Related: D-DB-ZERODRIVER, D-FULL-PARITY-050`.
+## D-X2-LANDED — motor interop completo (5/5 fatias com evidência, 27/09)
+
+Item 2 (`D-COMPLETE-FIRST`) FECHA: fatia 1 (motor Py), 2 (motor R), 3
+(timeout/cancel/reuso + §527), 4 (faces cross — timeout007/deadline-reuso/
+cancel-ocioso + R-happy E2E riscv64≡aarch64≡JVM sob qemu, com gate de R; 008
+segue JVM-only por desenho), 5 (corpus/DoD). Estado de sessão segue corte
+declarado (regra 6); ANDROID/MCU/RISCV32 seguem R7; `kof.interop` segue
+`experimental` (promoção R5 por namespace é ato separado). Prova:
+`InteropTimeoutE2ETest` 7/7 + `InteropRE2ETest` cross (com gate de R) +
+vizinhos 27/0F/8skip; plano promovido `development/` → `docs/` (três estados).
+
+- **Relações:** `Related: D-COMPLETE-FIRST, D-KOF-FIRST (regra 12), regra 11, regra 6, issue #639 (intocada), PR #619 (regra 10)`.

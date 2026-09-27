@@ -188,6 +188,31 @@ class InteropRE2ETest {
         assertEquals(jvm.output(), js.output(), "motor R JVM≡JS broken");
     }
 
+    // X2 fatia 4 (27/09): motor R no cross (riscv64+aarch64 sob qemu) — o
+    // spawn passa ao host como no Py, entao o gate e so Rscript+host
+    // (requireR), nunca o alvo. Roda com R real onde existir (CI); sem R,
+    // pula honesto como todas as faces R.
+    @Test
+    void typedCallsRoundTripOnCross() throws Exception {
+        requireR();
+        Path src = tmp.resolve("happy-cross.kf");
+        Files.writeString(src, HAPPY_R);
+        Run jvm = runJvm(src, tmp.resolve("out-jvmx"));
+        assertTrue(jvm.ok(), "JVM base: " + jvm.output());
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String arch = t == Target.NATIVE_RISCV64 ? "riscv64" : "aarch64";
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            Path out = tmp.resolve("out-rx-" + arch);
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), arch + " motor R deve compilar: " + diags(r));
+            assertEquals(jvm.output().trim(),
+                    NativeRiscv64E2ETest.runQemu(arch, out.resolve("Default/Main")).trim(),
+                    "motor R JVM≡" + arch);
+        }
+    }
+
     @Test
     void remoteErrorIsNamedInterop006() throws Exception {
         requireR();

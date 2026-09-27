@@ -4161,3 +4161,15 @@ feature with no 0.5.0 surface; it is declared and deferred, and `DB001` stays th
 honest diagnostic on JS.
 
 - **Relationships:** `Related: D-DB-ZERODRIVER, D-FULL-PARITY-050`.
+## D-X2-LANDED — interop engine complete (5/5 slices with evidence, 27/09)
+
+Item 2 (`D-COMPLETE-FIRST`) CLOSES: fatia 1 (Py engine), 2 (R engine), 3
+(timeout/cancel/reuse + §527), 4 (cross faces — timeout007/deadline-reuse/
+idle-cancel + R-happy E2E riscv64≡aarch64≡JVM under qemu, R-gated; 008 stays
+JVM-only by design), 5 (corpus/DoD). Session-state stays a declared cut-out
+(rule 6); ANDROID/MCU/RISCV32 stay R7; `kof.interop` stays `experimental`
+(R5 per-namespace promotion is a separate act). Proof: `InteropTimeoutE2ETest`
+7/7 + `InteropRE2ETest` cross (R-gated) + neighbors 27/0F/8skip; plan promoted
+`development/` → `docs/` (three-states).
+
+- **Relationships:** `Related: D-COMPLETE-FIRST, D-KOF-FIRST (rule 12), rule 11, rule 6, issue #639 (untouched), PR #619 (rule 10)`.

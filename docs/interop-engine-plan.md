@@ -1,10 +1,10 @@
 # X2 — `interop` official engine (Python/R) — implementation plan
 
-last: fatia-5-corpus
+last: fatia-4-cross
 doing: interop-engine
-next: fatia-4-cross
-location: interop-engine-plan
-state: active
+next: none-concluded
+location: docs/interop-engine-plan
+state: done
 intent: ship-complete-interop-engine
 constraint: pr619-maintainer-only
 decision: D-COMPLETE-FIRST
@@ -22,7 +22,7 @@ Typed bidirectional marshalling (`Int`/`Double`/`Bool`/`String`/`List`/`Map`/`re
 | 1 | Python engine on JVM | landed 26/09 | targets {JVM, NATIVE x86, JS, SCRIPT}; `InteropPyScriptE2ETest` golden ≡ JVM |
 | 2 | R engine `KofR` | landed 27/09 (`996777923`), CI-certified on `9ec0a4eb9` | record round-trip golden byte-identical to Python |
 | 3 | timeout / cancel / reuse | landed 27/09 (`d7328c036` + §527 `9b4fa30f5`) | `InteropTimeoutE2ETest` 4/4, `InteropTimeoutScriptE2ETest` 1/1, `InteropRE2ETest` +2 R-gated |
-| 4 | Native / JS / Script cross faces | pending (owner lane native, §514) | refusal `INTEROP005` on riscv64/aarch64 |
+| 4 | Native / JS / Script cross faces | landed 27/09 (lane issues, maintainer order "reinvindique e termine") — timeout007/deadline-reuse/idle-cancel + R-happy E2E riscv64≡aarch64≡JVM under qemu (`InteropTimeoutE2ETest` +3, `InteropRE2ETest` +1 R-gated); 008 stays JVM-only by design (object across spawn is not a Native contract); ANDROID/MCU/RISCV32 stay R7 | `INTEROP005` remains only where honestly unbacked (ANDROID/MCU/RISCV32, R-absent hosts) |
 | 5 | Corpus + promotion DoD | landed 27/09, docs-only (`8aa5883c9` matrix, `eae0ac18e`+`06319455f` idioms, `745d1ed0f` learn, `6b70bbaff` coverage) | docs gates green |
 
 ## Design (KOF-first, measured)

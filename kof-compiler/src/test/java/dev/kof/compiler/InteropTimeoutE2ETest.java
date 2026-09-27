@@ -205,4 +205,94 @@ class InteropTimeoutE2ETest {
         assertEquals("36\n", jvm.output(),
                 "cancel sem chamada em curso = no-op honesto, antes e depois (idempotência)");
     }
+
+    // X2 fatia 4 (27/09): deadline/cancel/reuso no cross (riscv64+aarch64 sob
+    // qemu) — o filho python corre em tempo REAL (o spawn passa ao host), entao
+    // os goldens JVM valem byte a byte. 008 fica JVM-only por desenho (objeto
+    // cruzando spawn nao e contrato no Native — cabecalho da classe).
+    private String runCross(Path src, Path out, Target t) throws Exception {
+        String arch = t == Target.NATIVE_RISCV64 ? "riscv64" : "aarch64";
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                NativeRiscv64E2ETest.hasToolchain(arch),
+                "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+        CompilationResult r = driver.compile(src, out, t);
+        assertTrue(r.success(), arch + " deve compilar o motor (§514): " + diags(r));
+        return NativeRiscv64E2ETest.runQemu(arch, out.resolve("Default/Main"));
+    }
+
+    @Test
+    void timeout007MatchesJvmOnCross() throws Exception {
+        requirePython3();
+        Path src = tmp.resolve("deadline-cross.kf");
+        Files.writeString(src, """
+                import kof.interop
+                main() {
+                    var py = KofPy("def loop():\\n    while True:\\n        pass")
+                    py.timeout(1000)
+                    try {
+                        println(py.callInt("loop", listOf()))
+                    } catch (String e) {
+                        println(e)
+                    }
+                }
+                """);
+        Run jvm = runJvm(src, tmp.resolve("out-007jx"));
+        assertTrue(jvm.ok(), "JVM base: " + jvm.output());
+        assertTrue(jvm.output().contains("INTEROP007"), "JVM 007: " + jvm.output());
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String cross = runCross(src, tmp.resolve("out-007x-" + t), t);
+            assertEquals(jvm.output().trim(), cross.trim(), "INTEROP007 JVM≡" + t);
+        }
+    }
+
+    @Test
+    void deadlineReuseMatchesJvmOnCross() throws Exception {
+        requirePython3();
+        Path src = tmp.resolve("deadline-reuse-cross.kf");
+        Files.writeString(src, """
+                import kof.interop
+                main() {
+                    var py = KofPy("def loop():\\n    while True:\\n        pass\\ndef sq(n):\\n    return n*n")
+                    py.timeout(1000)
+                    val t0 = time.now()
+                    try {
+                        println(py.callInt("loop", listOf()))
+                    } catch (String e) {
+                        println(e)
+                    }
+                    val dt = time.now() - t0
+                    println(dt >= 900)
+                    println(dt < 10000)
+                    println(py.callInt("sq", listOf(5)))
+                }
+                """);
+        Run jvm = runJvm(src, tmp.resolve("out-reusejx"));
+        assertTrue(jvm.ok(), "JVM: " + jvm.output());
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String cross = runCross(src, tmp.resolve("out-reusex-" + t), t);
+            assertEquals(jvm.output().trim(), cross.trim(),
+                    "deadline+reuso JVM≡" + t + " (espera limitada + motor vivo): " + cross);
+        }
+    }
+
+    @Test
+    void cancelIdleIsNoopOnCross() throws Exception {
+        requirePython3();
+        Path src = tmp.resolve("cancel-idle-cross.kf");
+        Files.writeString(src, """
+                import kof.interop
+                main() {
+                    var py = KofPy("def sq(n):\\n    return n*n")
+                    py.cancel()
+                    println(py.callInt("sq", listOf(6)))
+                    py.cancel()
+                }
+                """);
+        Run jvm = runJvm(src, tmp.resolve("out-idlejx"));
+        assertTrue(jvm.ok(), "JVM: " + jvm.output());
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String cross = runCross(src, tmp.resolve("out-idlex-" + t), t);
+            assertEquals(jvm.output().trim(), cross.trim(), "cancel ocioso JVM≡" + t);
+        }
+    }
 }

@@ -66,10 +66,9 @@ R050_SPEC_GAPS_FILE="${R050_SPEC_GAPS_FILE:-}"
 # the 6 live §NNN all ✅ in known-bugs, size gate green) — tooling removed.
 # The two ratified PROPOSALs were promoted out of development/ the same day
 # (exit-gate -> docs/, versioning record -> docs/distribution/).
-# X2 interop-engine-plan: in-flight OWNED plan (D-COMPLETE-FIRST item 2, claim
-# lane compiler 9092 26/09) — same treatment as memory-safety-plan above; the
-# 0.5.0 cut does not wait for a brand-new experimental front that just opened.
-ALLOWLIST="DECISIONS.md DECISIONS.pt_BR.md README.md README.pt_BR.md roadmap.md roadmap.pt_BR.md release-beta-0.5.0-prep.md release-beta-0.5.0-prep.pt_BR.md memory-safety-plan.md memory-safety-plan.pt_BR.md interop-engine-plan.md interop-engine-plan.pt_BR.md"
+# X2 interop-engine-plan CONCLUDED + MOVED 27/09 (fatias 1–5, D-X2-LANDED) to
+# docs/ — no longer loose, hence no longer listed here.
+ALLOWLIST="DECISIONS.md DECISIONS.pt_BR.md README.md README.pt_BR.md roadmap.md roadmap.pt_BR.md release-beta-0.5.0-prep.md release-beta-0.5.0-prep.pt_BR.md memory-safety-plan.md memory-safety-plan.pt_BR.md"
 # D-RELEASE-0.5.0-SCOPE (maintainer 21/09/2026): the in-flight OWNED plans
 # still loose are allowlisted — 0.5.0 does not wait for db to conclude;
 # each keeps its owner and stays tracked in the README queue.
@@ -363,9 +362,9 @@ EOF
   # D-RELEASE-0.5.0-SCOPE (maintainer 21/09/2026): (a) an allowlisted
   # in-flight plan is NOT loose_docs RED; (b) an open EG-8 is NOT edges RED —
   # the 1.0-line declaration is decoupled from the 0.5.0 gate.
-  # (db-parity-plan was the example until it CONCLUDED 27/09 — now
-  # interop-engine-plan, still loose + allowlisted.)
-  printf 'DECISIONS.md\ninterop-engine-plan.md\n' > "$T/loose"
+  # (db-parity-plan and interop-engine-plan were the examples until they
+  # CONCLUDED 27/09 — now memory-safety-plan, still loose + allowlisted.)
+  printf 'DECISIONS.md\nmemory-safety-plan.md\n' > "$T/loose"
   printf 'EG-1\tDONE\nEG-8\tOPEN\n' > "$T/eg"
   R050_OPEN_ISSUES_TSV="$T/issues" R050_EG_TSV="$T/eg" R050_PARITY_FILE="$T/parity" \
   R050_STABILITY_FILE="$T/stab" \
