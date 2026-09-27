@@ -3,7 +3,7 @@
 # Kofmd Specification — Typed, Intent-Oriented Markdown and Agent Memory (D-KOFMD)
 
 > **Status: Fase 2 (Specification) — NORMATIVE for 0.5.0.** Fase 2 is the frozen
-> surface decided in `docs/development/kofmd-plan.md` (+PT) and recorded in
+> surface decided in `docs/kofmd-plan.md` (+PT) and recorded in
 > `DECISIONS.md` §`D-KOFMD`. Fase 3 (parser) is unblocked by this document.
 > Based on the Fase 1 findings measured against the real tree (27/09/2026).
 >

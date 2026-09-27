@@ -3,7 +3,7 @@
 # Especificação do Kofmd — Markdown Tipado, Orientado a Intenção e Memória de Agentes (D-KOFMD)
 
 > **Estado: Fase 2 (Especificação) — NORMATIVA para a 0.5.0.** A Fase 2 é a
-> superfície congelada decidida em `docs/development/kofmd-plan.md` (+PT) e
+> superfície congelada decidida em `docs/kofmd-plan.md` (+PT) e
 > registrada em `DECISIONS.md` §`D-KOFMD`. A Fase 3 (parser) é destravada por
 > este documento. Baseada nos achados da Fase 1 medidos contra a árvore real
 > (27/09/2026).

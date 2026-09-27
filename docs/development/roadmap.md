@@ -915,10 +915,11 @@ science) **without** destroying the language's simplicity.
 > medium · `H` high · `R` research.
 >
 > **Kofmd line (DECIDED 27/09 `D-KOFMD` — explicit maintainer override,
-> INDISPENSABLE for 0.5.0):** typed intent-oriented Markdown (plan
-> `kofmd-plan.md`+PT): slices 3.1→3.9 — tool → scalar types → agent-memory
-> vocab → Markdown round-trip → canonical formatter → CLI `kof md` → LSP
-> hook → golden corpus → gradual migration. Gap codes `MD001`/`MD002`.
+> INDISPENSABLE for 0.5.0) — LANDED 27/09:** typed intent-oriented Markdown
+> (plan now `docs/kofmd-plan.md`+PT, promoted on closure): slices 3.1→3.9 all
+> landed — tool → scalar types → agent-memory vocab → Markdown round-trip →
+> canonical formatter → CLI `kof md` → LSP hook → golden corpus → hot-doc
+> migration. Gap codes `MD001`/`MD002`.
 >
 > **Cross-cutting rule (R12):** no future plan item is an action on the
 > current state; new fronts (AUTOMATION/DATA/SCI/BIO) do not open before the

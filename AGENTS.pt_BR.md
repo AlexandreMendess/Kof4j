@@ -379,7 +379,7 @@ governa o documento. Escreva esses docs com idioma Kofmd: o que dá para tipar �
 tipado; prosa só para explicação; nunca duplicar um campo em prosa (spec §3.6).
 Claims, linhas de ledger e linhas de fila novas mantêm o bloco atualizado no
 mesmo commit. `learn/` e `training/` estão **fora do escopo** (corpus de ensino,
-prosa-first — `kofmd-plan.md` §5).
+prosa-first — `docs/kofmd-plan.md` §5).
 
 **Números §NNN também são claims compartilhados.** Antes de criar uma seção nova
 em `known-bugs.md` (ou qualquer ledger que use `§NNN`), `git fetch` e pegue o

@@ -379,7 +379,7 @@ Write these docs with Kofmd idiom: what can be typed is typed; prose is only
 for explanation; never duplicate a field in prose (spec §3.6). New claims,
 ledger rows and queue lines keep the block current in the same commit.
 `learn/` and `training/` are **out of scope** (teaching corpus, prose-first —
-`kofmd-plan.md` §5).
+`docs/kofmd-plan.md` §5).
 
 **§NNN numbers are shared claims too.** Before creating a new section in
 `known-bugs.md` (or any ledger that uses `§NNN`), `git fetch` and take the next

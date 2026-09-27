@@ -3898,7 +3898,7 @@ superfície nova, voto explícito, gravado aqui.
    plano futuro `kof.file`, CLI (`kof-cli`), LSP (`LspServer`), docs/
    tooling/integração com IA existentes). Nada de arquitetura isolada — o
    Kofmd mora onde o ecossistema já mora.
-2. **Spec antes da sintaxe** — `docs/development/kofmd-plan.md`(+PT)
+2. **Spec antes da sintaxe** — `docs/kofmd-plan.md`(+PT)
    registra os achados medidos + a superfície congelada; nenhuma sintaxe é
    implementada antes do plano pousar.
 3. **Fatias incrementais pelo §35 da própria spec** (investigação → spec →
@@ -3914,6 +3914,16 @@ superfície nova, voto explícito, gravado aqui.
    (`T?` + narrowing, `throw "msg"`) ou registra gap regra-6.
 5. **Fila:** o roadmap §23 abre a linha Kofmd no mesmo commit (regra 6:
    decidir sem registrar = invisível; registrar sem enfileirar = morta).
+
+**Fechamento (27/09/2026):** todas as fatias 3.1→3.9 pousadas — lib pura-Kof
+`libs/kofmd/` (8 arquivos por responsabilidade ≤500), CLI `kof md check|format`
+(`CmdMd`), hook LSP (`LspKofmd`, `MDxxx` + hover), corpus golden
+(`libs/kofmd/corpus/`, 12 arquivos) e a migração de cabeçalho de estado dos
+docs quentes (convenção em `docs/kofmd-plan.md` §5). Prova: cluster
+`Kofmd*E2ETest` 13/13 + `CmdMdTest` 5/5 + `LspServerTest`. O plano foi
+**promovido p/ fora de `docs/development/`** para `docs/kofmd-plan.md` (regra
+dos 3 estados) — a condição 3 (`loose_docs`) da 0.5.0 está satisfeita nesta
+frente.
 
 - **Relações:** `Related: regra 6, regra 11 (Lei da Simplicidade),
   D-COMPLETE-FIRST, D-KOF-FIRST, Q7 (sem stubs), R1/R5, R6, kof-file-plan

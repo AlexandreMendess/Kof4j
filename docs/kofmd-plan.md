@@ -2,19 +2,22 @@
 
 # Kofmd implementation plan — typed, intent-oriented Markdown (D-KOFMD)
 
-last: 3.8-golden-corpus
-doing: 3.7b-lsp-hook
-next: 3.9-hot-doc-migration
+last: 3.9-hot-doc-migration
+doing: closed
+next: none
 location: kofmd-plan
-state: active
+state: done
 constraint: learn-training-not-migrated
 decision: D-KOFMD
 
-> **Fase 1 (investigation) is DONE in this doc; Fase 2 (this plan) is frozen
-> as §2; Fase 3+ execute as the slices in §3.** Explicit maintainer decision
-> 27/09/2026 (`D-KOFMD`): Kofmd is INDISPENSABLE for 0.5.0 — doc verbosity is
-> the problem it solves. Queue: roadmap §23 (opened in the same commit as
-> `D-KOFMD`).
+> **CLOSED 27/09 — all slices 3.1→3.9 landed** (`KofmdTool` scanner, scalar
+> inference/schema `MD002`, agent-memory vocabulary, round-trip, canonical
+> formatter, CLI `kof md`, LSP hook, golden corpus, hot-doc migration +
+> convention). Fase 1 (investigation) and Fase 2 (frozen surface §2) are DONE.
+> Explicit maintainer decision 27/09/2026 (`D-KOFMD`): Kofmd is INDISPENSABLE
+> for 0.5.0 — doc verbosity is the problem it solves. Queue: roadmap §23.
+> **Promoted out of `docs/development/` on closure** (three-states rule);
+> this doc is now the frozen record + the migration convention (§5).
 
 ## 0. Contract (the 37+13 spec, condensed — the full text lives in chat)
 

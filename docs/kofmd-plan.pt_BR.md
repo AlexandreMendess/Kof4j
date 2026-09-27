@@ -2,19 +2,23 @@
 
 # Plano de implementação do Kofmd — Markdown tipado, orientado a intenção (D-KOFMD)
 
-last: 3.8-golden-corpus
-doing: 3.7b-lsp-hook
-next: 3.9-hot-doc-migration
+last: 3.9-hot-doc-migration
+doing: closed
+next: none
 location: kofmd-plan
-state: active
+state: done
 constraint: learn-training-not-migrated
 decision: D-KOFMD
 
-> **A Fase 1 (investigação) está FEITA neste doc; a Fase 2 (este plano) está
-> congelada como §2; a Fase 3+ executa nas fatias do §3.** Decisão explícita
-> da mantenedora 27/09/2026 (`D-KOFMD`): o Kofmd é INDISPENSÁVEL para a
-> 0.5.0 — a verbosidade das docs é o problema que ele resolve. Fila:
-> roadmap §23 (aberta no mesmo commit do `D-KOFMD`).
+> **FECHADO 27/09 — todas as fatias 3.1→3.9 pousadas** (`KofmdTool` varredor,
+> inferência/schema escalar `MD002`, vocabulário de memória, round-trip,
+> formatter canônico, CLI `kof md`, gancho LSP, corpus golden, migração dos
+> docs quentes + convenção). Fase 1 (investigação) e Fase 2 (superfície
+> congelada §2) FEITAS. Decisão explícita da mantenedora 27/09/2026
+> (`D-KOFMD`): o Kofmd é INDISPENSÁVEL para a 0.5.0 — a verbosidade das docs é
+> o problema que ele resolve. Fila: roadmap §23. **Promovido p/ fora de
+> `docs/development/` no fechamento** (regra dos 3 estados); este doc é agora o
+> registro congelado + a convenção de migração (§5).
 
 ## 0. Contrato (a spec 37+13, condensada — o texto completo mora no chat)
 

@@ -917,10 +917,11 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > médio · `H` alto · `R` pesquisa.
 >
 > **Linha Kofmd (DECIDIDA 27/09 `D-KOFMD` — override explícito da
-> mantenedora, INDISPENSÁVEL para a 0.5.0):** Markdown tipado orientado a
-> intenção (plano `kofmd-plan.md`+PT): fatias 3.1→3.9 — tool → tipos
-> escalares → vocabulário de memória → round-trip Markdown → formatter
-> canônico → CLI `kof md` → hook LSP → corpus golden → migração gradual.
+> mantenedora, INDISPENSÁVEL para a 0.5.0) — LANDADA 27/09:** Markdown tipado
+> orientado a intenção (plano agora `docs/kofmd-plan.md`+PT, promovido no
+> fechamento): fatias 3.1→3.9 todas pousadas — tool → tipos escalares →
+> vocabulário de memória → round-trip Markdown → formatter canônico → CLI
+> `kof md` → hook LSP → corpus golden → migração dos docs quentes.
 > Códigos `MD001`/`MD002`.
 >
 > **Regra transversal (R12):** nenhum item de plano futuro é ação sobre o

@@ -3917,7 +3917,7 @@ satisfied by this entry: new surface, explicit vote, recorded here.
    `kof.file` future plan, CLI (`kof-cli`), LSP (`LspServer`), existing
    docs/tooling/AI integration). No isolated architecture — Kofmd lives
    where the ecosystem already lives.
-2. **Spec before syntax** — `docs/development/kofmd-plan.md`(+PT) records
+2. **Spec before syntax** — `docs/kofmd-plan.md`(+PT) records
    the measured findings + the frozen surface; no syntax is implemented
    before the plan lands.
 3. **Incremental slices per the spec's own §35** (investigation → spec →
@@ -3933,6 +3933,15 @@ satisfied by this entry: new surface, explicit vote, recorded here.
    rule-6 gap.
 5. **Queue:** roadmap §23 opens the Kofmd line in the same commit (rule 6:
    deciding without recording = invisible; recording without queue = dead).
+
+**Closure (27/09/2026):** all slices 3.1→3.9 landed — pure-Kof lib
+`libs/kofmd/` (8 responsibility files ≤500), CLI `kof md check|format`
+(`CmdMd`), LSP hook (`LspKofmd`, `MDxxx` + hover), golden corpus
+(`libs/kofmd/corpus/`, 12 files) and the hot-doc state-header migration
+(convention in `docs/kofmd-plan.md` §5). Proof: the `Kofmd*E2ETest` cluster
+13/13 + `CmdMdTest` 5/5 + `LspServerTest`. The plan was **promoted out of
+`docs/development/`** to `docs/kofmd-plan.md` (three-states rule) — the 0.5.0
+`loose_docs` condition 3 is satisfied for this front.
 
 - **Relationships:** `Related: rule 6, rule 11 (Simplicity Law),
   D-COMPLETE-FIRST, D-KOF-FIRST, Q7 (no stubs), R1/R5, R6, kof-file-plan
