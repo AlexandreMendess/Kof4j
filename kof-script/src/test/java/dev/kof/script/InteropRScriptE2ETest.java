@@ -18,6 +18,31 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 class InteropRScriptE2ETest {
 
+    // Fonte UNICA do programa (o bug real do CI 4b63fda19: esta copia
+    // divergiu da do InteropRE2ETest — \n cru no text block Java come a 1a
+    // camada de escape e grava newline dentro da string Kof -> PARSE043).
+    private static final String PROGRAM = """
+            import kof.interop
+            main() {
+                var r = KofR("sq <- function(n) n*n\\nhi <- function(n) paste0(\\"oi \\", n)")
+                println(r.callInt("sq", listOf(5)))
+                println(r.callString("hi", listOf("mel")))
+            }
+            """;
+
+    @Test
+    void scriptProgramParsesWithoutR() throws Exception {
+        // NAO pula: o parse do PROGRAMA (nao so do host) deve valer em
+        // qualquer host — sem R o motor falha NOMEADO (INTEROP004), nunca
+        // com PARSE; e assim que o drift de escape e pego ANTES do CI.
+        Path tmp = Files.createTempDirectory("kofrparse");
+        Path f = tmp.resolve("p.kf");
+        Files.writeString(f, PROGRAM);
+        var script = KofScript.runFile(f, dev.kof.compiler.Target.SCRIPT);
+        assertTrue(!script.stderr().contains("PARSE"),
+                "programa deve parsear mesmo sem R: " + script.stderr());
+    }
+
     @Test
     void rEngineScriptMatchesJvmGolden() throws Exception {
         boolean ready = false;
@@ -29,14 +54,7 @@ class InteropRScriptE2ETest {
         assumeTrue(ready, "Rscript/jsonlite ausentes — gate de ambiente, nao regressao");
         Path tmp = Files.createTempDirectory("kofrscript");
         Path f = tmp.resolve("p.kf");
-        Files.writeString(f, """
-                import kof.interop
-                main() {
-                    var r = KofR("sq <- function(n) n*n\nhi <- function(n) paste0(\"oi \", n)")
-                    println(r.callInt("sq", listOf(5)))
-                    println(r.callString("hi", listOf("mel")))
-                }
-                """);
+        Files.writeString(f, PROGRAM);
         var script = KofScript.runFile(f, dev.kof.compiler.Target.SCRIPT);
         assertTrue(script.success(), "SCRIPT: " + script.stderr());
         assertEquals("25\noi mel", script.stdout().replace("\r\n", "\n").trim(),
