@@ -117,10 +117,15 @@ New `kof-compiler/src/test/java/dev/kof/compiler/StdParityGapAuditTest.java`
 (**15/15 green**) turns the audited support matrix into a ratchet: for each
 gated namespace it asserts the exact `unsupported` target set and the exact gap
 code (buffer FFI001/FFI002, db DB001, log LOG001, orm ORM001, rng RNG001, gpu,
-tetris EGG001, scheduler SCHED001/CRON001, math.pow MATH001, observability
+tetris EGG001, scheduler SCHED001/CRON001, observability
 OBS003, time.tzOffsetSeconds TIME003, security.sha512 SECN003), plus the
 always-true namespaces stay gate-free. A new gate in an always-true namespace
 now breaks the test on purpose — the matrix is law and must be updated with it.
+
+> **Update 27/09:** `math.pow` left this ratchet — the cross now links libm by
+> use (`pow@PLT`, row 10 closed `e69ea2bc6`), so `KofMath.supportedOn` returns
+> `true` on every target and `MATH001` is only a reserved code.
+> `StdParityGapAuditTest` was repointed accordingly.
 
 The test **corrected a guess of mine**: `security.sha512` is gated not only on
 riscv/aarch but also on **ANDROID and SCRIPT** (`JVM || JS || isNative`), so its

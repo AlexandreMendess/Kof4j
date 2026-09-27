@@ -120,11 +120,16 @@ Novo `kof-compiler/src/test/java/dev/kof/compiler/StdParityGapAuditTest.java`
 (**15/15 verde**) transforma a matriz de suporte auditada num catraca: para
 cada namespace com gate afirma o conjunto exato de alvos `unsupported` e o gap
 code exato (buffer FFI001/FFI002, db DB001, log LOG001, orm ORM001, rng RNG001,
-gpu, tetris EGG001, scheduler SCHED001/CRON001, math.pow MATH001, observability
+gpu, tetris EGG001, scheduler SCHED001/CRON001, observability
 OBS003, time.tzOffsetSeconds TIME003, security.sha512 SECN003), além dos
 namespaces always-true permanecerem sem gate. Um gate novo num namespace
 always-true agora quebra o teste de propósito — a matriz é lei e tem de ser
 atualizada junto.
+
+> **Atualização 27/09:** `math.pow` saiu desta catraca — o cross agora liga libm
+> por uso (`pow@PLT`, row 10 fechada `e69ea2bc6`), então `KofMath.supportedOn`
+> retorna `true` em todo alvo e `MATH001` é só um código reservado.
+> `StdParityGapAuditTest` foi repontado de acordo.
 
 O teste **corrigiu um palpite meu**: `security.sha512` é gated não só em
 riscv/aarch, mas também em **ANDROID e SCRIPT** (`JVM || JS || isNative`), logo
