@@ -127,10 +127,10 @@ class KofmdE2ETest {
                 if (diags.size != 2) {
                     throw "diags: " + diags.size.toString()
                 }
-                if (diags.get(0) != "MD002:ratio") {
+                if (diags.get(0) != "MD002:2:ratio") {
                     throw "diag0: " + diags.get(0)
                 }
-                if (diags.get(1) != "MD002:stable") {
+                if (diags.get(1) != "MD002:3:stable") {
                     throw "diag1: " + diags.get(1)
                 }
 
@@ -156,7 +156,7 @@ class KofmdE2ETest {
                 if (listDiags.size != 1) {
                     throw "list for scalar slot is MD002"
                 }
-                if (listDiags.get(0) != "MD002:retries") {
+                if (listDiags.get(0) != "MD002:1:retries") {
                     throw "list diag: " + listDiags.get(0)
                 }
                 println("kofmd-3.2-ok")

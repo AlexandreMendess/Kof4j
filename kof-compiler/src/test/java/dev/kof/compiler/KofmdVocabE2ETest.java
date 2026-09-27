@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * D-KOFMD Fase 3 fatia 3.3 — agent-memory vocabulary validation against the
  * closed sets of {@code docs/spec/kofmd.md} Appendix A. Intents outside the
- * reserved set are a named diagnostic ({@code MD002:@<name>}, §6.3 "never a
- * silent extension"); free-prose {@code instructions} are {@code MD002:instructions}
+ * reserved set are a named diagnostic ({@code MD002:<line>:@<name>}, §6.3 "never a
+ * silent extension"); free-prose {@code instructions} are {@code MD002:<line>:instructions}
  * (§10 "MUST NOT be free prose"); {@code state}/{@code result} advisory sets
  * are predicates only — enforcement deferred by §9, so {@code validateVocabulary}
  * never flags them. JVM-first (other targets: honest {@code MD001}).
@@ -86,7 +86,7 @@ class KofmdVocabE2ETest {
                 if (diags.size != 2) {
                     throw "unknown-intent count: " + joinDiags(diags)
                 }
-                if (diags.get(0) != "MD002:@todo" || diags.get(1) != "MD002:@zzz") {
+                if (diags.get(0) != "MD002:2:@todo" || diags.get(1) != "MD002:3:@zzz") {
                     throw "unknown-intent goldens: " + joinDiags(diags)
                 }
 
@@ -94,11 +94,11 @@ class KofmdVocabE2ETest {
                     throw "inline single instruction flagged"
                 }
                 var inlineProse = tool.parse("instructions: read the entire file\\n")
-                if (joinDiags(tool.validateVocabulary(inlineProse)) != "MD002:instructions") {
+                if (joinDiags(tool.validateVocabulary(inlineProse)) != "MD002:1:instructions") {
                     throw "inline prose: " + joinDiags(tool.validateVocabulary(inlineProse))
                 }
                 var listProse = tool.parse("instructions:\\n- inspect\\n- read the entire file\\n")
-                if (joinDiags(tool.validateVocabulary(listProse)) != "MD002:instructions") {
+                if (joinDiags(tool.validateVocabulary(listProse)) != "MD002:1:instructions") {
                     throw "list prose: " + joinDiags(tool.validateVocabulary(listProse))
                 }
                 if (tool.validateVocabulary(tool.parse("instructions:\\n")).size != 0) {

@@ -1,8 +1,8 @@
 package kofmd
 
-record KofmdField(String name, String value, Bool quoted, List<String> items)
+record KofmdField(String name, String value, Bool quoted, List<String> items, Int line)
 
-record KofmdBlock(List<String> intents, List<KofmdField> fields, List<String> prose)
+record KofmdBlock(List<String> intents, List<Int> intentLines, List<KofmdField> fields, List<String> prose)
 
 record KofmdSchemaField(String name, String type)
 
@@ -12,11 +12,13 @@ record KofmdDoc(List<KofmdBlock> blocks)
 
 class KofmdTool {
     parse(String text): KofmdDoc {
-        var blockSeed = KofmdBlock(newStrList(), newFieldList(), newStrList())
+        var blockSeed = KofmdBlock(newStrList(), newIntList(), newFieldList(), newStrList())
         var blocks = listOf(blockSeed)
         blocks.clear()
-        var fieldSeed = KofmdField("n", "v", false, newStrList())
+        var fieldSeed = KofmdField("n", "v", false, newStrList(), 0)
         var intents = newStrList()
+        var intentLines = newIntList()
+        var currentLine = 0
         var fields = listOf(fieldSeed)
         fields.clear()
         var prose = newStrList()
@@ -25,6 +27,7 @@ class KofmdTool {
 
         String[] lines = text.split("\n")
         for (var line in lines) {
+            currentLine = currentLine + 1
             String rest = line
             if (rest.endsWith("\r")) {
                 rest = rest.substring(0, rest.length - 1)
@@ -32,8 +35,9 @@ class KofmdTool {
             if (rest.startsWith("```")) {
                 inFence = !inFence
                 if (fields.size > 0 || prose.size > 0) {
-                    blocks.add(KofmdBlock(intents, fields, prose))
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
                     intents = newStrList()
+                    intentLines = newIntList()
                     fields = listOf(fieldSeed)
                     fields.clear()
                     prose = newStrList()
@@ -41,9 +45,10 @@ class KofmdTool {
                 }
                 prose = listOf(rest)
                 var emptyIntents = newStrList()
+                var emptyIntentLines = newIntList()
                 var emptyFields = listOf(fieldSeed)
                 emptyFields.clear()
-                blocks.add(KofmdBlock(emptyIntents, emptyFields, prose))
+                blocks.add(KofmdBlock(emptyIntents, emptyIntentLines, emptyFields, prose))
                 prose = newStrList()
                 continue
             }
@@ -54,8 +59,9 @@ class KofmdTool {
             String trimmed = rest.trim()
             if (trimmed.length == 0) {
                 if (fields.size > 0 || prose.size > 0 || intents.size > 0) {
-                    blocks.add(KofmdBlock(intents, fields, prose))
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
                     intents = newStrList()
+                    intentLines = newIntList()
                     fields = listOf(fieldSeed)
                     fields.clear()
                     prose = newStrList()
@@ -65,6 +71,7 @@ class KofmdTool {
             }
             if (isIntentLine(trimmed)) {
                 intents.add(trimmed.substring(1, trimmed.length))
+                intentLines.add(currentLine)
                 pendingField = -1
                 continue
             }
@@ -77,8 +84,9 @@ class KofmdTool {
                     }
                 }
                 if (fields.size > 0 || prose.size > 0) {
-                    blocks.add(KofmdBlock(intents, fields, prose))
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
                     intents = newStrList()
+                    intentLines = newIntList()
                     fields = listOf(fieldSeed)
                     fields.clear()
                     prose = newStrList()
@@ -90,8 +98,9 @@ class KofmdTool {
             Int colon = fieldColon(rest)
             if (colon >= 0) {
                 if (prose.size > 0) {
-                    blocks.add(KofmdBlock(intents, fields, prose))
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
                     intents = newStrList()
+                    intentLines = newIntList()
                     fields = listOf(fieldSeed)
                     fields.clear()
                     prose = newStrList()
@@ -103,14 +112,15 @@ class KofmdTool {
                 if (quoted) {
                     value = rawValue.substring(1, rawValue.length - 1)
                 }
-                fields.add(KofmdField(name, value, quoted, newStrList()))
+                fields.add(KofmdField(name, value, quoted, newStrList(), currentLine))
                 pendingField = fields.size - 1
                 continue
             }
             if (isSchemaLine(trimmed)) {
                 if (fields.size > 0 || prose.size > 0) {
-                    blocks.add(KofmdBlock(intents, fields, prose))
+                    blocks.add(KofmdBlock(intents, intentLines, fields, prose))
                     intents = newStrList()
+                    intentLines = newIntList()
                     fields = listOf(fieldSeed)
                     fields.clear()
                     prose = newStrList()
@@ -119,14 +129,16 @@ class KofmdTool {
                 prose = listOf(rest)
                 var noFields = listOf(fieldSeed)
                 noFields.clear()
-                blocks.add(KofmdBlock(intents, noFields, prose))
+                blocks.add(KofmdBlock(intents, intentLines, noFields, prose))
                 intents = newStrList()
+                intentLines = newIntList()
                 prose = newStrList()
                 continue
             }
             if (fields.size > 0 && prose.size == 0) {
-                blocks.add(KofmdBlock(intents, fields, prose))
+                blocks.add(KofmdBlock(intents, intentLines, fields, prose))
                 intents = newStrList()
+                intentLines = newIntList()
                 fields = listOf(fieldSeed)
                 fields.clear()
                 prose = newStrList()
@@ -136,7 +148,7 @@ class KofmdTool {
             prose.add(rest)
         }
         if (fields.size > 0 || prose.size > 0 || intents.size > 0) {
-            blocks.add(KofmdBlock(intents, fields, prose))
+            blocks.add(KofmdBlock(intents, intentLines, fields, prose))
         }
         return KofmdDoc(blocks)
     }
@@ -147,8 +159,14 @@ class KofmdTool {
         return seed
     }
 
+    newIntList(): List<Int> {
+        var seed = listOf(0)
+        seed.clear()
+        return seed
+    }
+
     newFieldList(): List<KofmdField> {
-        var seed = listOf(KofmdField("kofmd", "seed", false, newStrList()))
+        var seed = listOf(KofmdField("kofmd", "seed", false, newStrList(), 0))
         seed.clear()
         return seed
     }
@@ -528,7 +546,7 @@ class KofmdTool {
             KofmdField field = block.fields().get(index)
             String diag = validateField(field, schema)
             if (diag.length > 0) {
-                diags.add(diag + ":" + field.name())
+                diags.add(diag + ":" + field.line().toString() + ":" + field.name())
             }
             index = index + 1
         }
@@ -585,7 +603,7 @@ class KofmdTool {
             while (intentIndex < block.intents().size) {
                 String intent = block.intents().get(intentIndex)
                 if (!isKnownIntent(intent)) {
-                    diags.add("MD002:@" + intent)
+                    diags.add("MD002:" + block.intentLines().get(intentIndex).toString() + ":@" + intent)
                 }
                 intentIndex = intentIndex + 1
             }
@@ -593,7 +611,7 @@ class KofmdTool {
             while (fieldIndex < block.fields().size) {
                 KofmdField field = block.fields().get(fieldIndex)
                 if (field.name() == "instructions" && hasProseToken(field)) {
-                    diags.add("MD002:instructions")
+                    diags.add("MD002:" + field.line().toString() + ":instructions")
                 }
                 fieldIndex = fieldIndex + 1
             }
@@ -684,7 +702,7 @@ class KofmdTool {
     }
 
     canonicalize(KofmdDoc doc): KofmdDoc {
-        var seed = KofmdBlock(newStrList(), newFieldList(), newStrList())
+        var seed = KofmdBlock(newStrList(), newIntList(), newFieldList(), newStrList())
         var blocks = listOf(seed)
         blocks.clear()
         var index = 0
@@ -696,7 +714,7 @@ class KofmdTool {
     }
 
     sortFields(KofmdBlock block): KofmdBlock {
-        var seed = KofmdField("kofmd", "seed", false, newStrList())
+        var seed = KofmdField("kofmd", "seed", false, newStrList(), 0)
         var fields = listOf(seed)
         fields.clear()
         var index = 0
@@ -718,9 +736,11 @@ class KofmdTool {
             i = i + 1
         }
         var intents = newStrList()
+        var intentLines = newIntList()
         var k = 0
         while (k < block.intents().size) {
             intents.add(block.intents().get(k))
+            intentLines.add(block.intentLines().get(k))
             k = k + 1
         }
         var prose = newStrList()
@@ -729,7 +749,7 @@ class KofmdTool {
             prose.add(block.prose().get(p))
             p = p + 1
         }
-        return KofmdBlock(intents, fields, prose)
+        return KofmdBlock(intents, intentLines, fields, prose)
     }
 
     keyLess(String a, String b): Bool {
