@@ -30,6 +30,7 @@ public final class SymbolTableBuilder {
                     cls.superClass() != null ? superQualified : "Object",
                     cls.interfaces().stream().map(n -> HeritageQualifier.qualifyInterface(sa.unit(), sa, n)).toList(), members);
             sa.putClass(cls.name(), sym);
+            sa.registerSymbol(decl, sym);
             sa.currentScope().define(sym);
         } else if (decl instanceof RecordDeclarationNode rec) {
             SymbolTable members = new SymbolTable();
@@ -38,12 +39,14 @@ public final class SymbolTableBuilder {
                     rec.superClass() != null ? superQualified : "Record",
                     rec.interfaces().stream().map(n -> HeritageQualifier.qualifyInterface(sa.unit(), sa, n)).toList(), members);
             sa.putClass(rec.name(), sym);
+            sa.registerSymbol(decl, sym);
             sa.currentScope().define(sym);
         } else if (decl instanceof EntityDeclarationNode ent) {
             SymbolTable members = new SymbolTable();
             SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(ent.name(), sa.packageOf(ent),
                     "Record", List.of(), members);
             sa.putClass(ent.name(), sym);
+            sa.registerSymbol(decl, sym);
             sa.currentScope().define(sym);
         } else if (decl instanceof EnumDeclarationNode en) {
             SymbolTable members = new SymbolTable();
@@ -69,12 +72,14 @@ public final class SymbolTableBuilder {
             SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(en.name(), sa.packageOf(en),
                     "Enum", List.of(), members);
             sa.putClass(en.name(), sym);
+            sa.registerSymbol(decl, sym);
             sa.currentScope().define(sym);
         } else if (decl instanceof InterfaceDeclarationNode iface) {
             SymbolTable members = new SymbolTable();
             SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(iface.name(), sa.packageOf(iface),
                     "Object", iface.interfaces().stream().map(n -> HeritageQualifier.qualifyInterface(sa.unit(), sa, n)).toList(), members);
             sa.putClass(iface.name(), sym);
+            sa.registerSymbol(decl, sym);
             sa.addInterface(iface.name());
             sa.currentScope().define(sym);
         }
@@ -120,8 +125,13 @@ public final class SymbolTableBuilder {
     }
 
     static void defineClassMembers(SemanticAnalyzer sa, ClassDeclarationNode cls) {
-        if (sa.classMemberScopes().containsKey(cls.name())) return;
-        SymbolTable.ClassSymbol classSym = sa.allClasses().get(cls.name());
+        // #639 face 2: guarda por DECLARAÇÃO (não por nome simples) — duas
+        // packages com o mesmo nome precisam cada uma dos SEUS membros.
+        if (sa.membersDefined(cls)) return;
+        SymbolTable.ClassSymbol classSym = sa.symbolForDecl(cls);
+        if (classSym == null) classSym = sa.allClasses().get(cls.name());
+        if (classSym == null) return;
+        sa.markMembersDefined(cls);
         SymbolTable classScope = classSym.members().enterScope();
         sa.putClassMemberScope(cls.name(), classScope);
         sa.registerTypeParameters(cls.name(), cls.typeParameters()); // X5.3
@@ -151,10 +161,10 @@ public final class SymbolTableBuilder {
         boolean hasCtor = false;
         for (AstNode member : cls.members()) {
             if (member instanceof ConstructorDeclarationNode ctor) {
-                defineConstructorSymbol(sa, ctor, cls.name(), classScope);
+                defineConstructorSymbol(sa, ctor, classSym, classScope);
                 hasCtor = true;
             } else if (member instanceof MethodDeclarationNode method) {
-                defineMethodSymbol(sa, method, cls.name(), classScope);
+                defineMethodSymbol(sa, method, classSym, classScope);
             }
         }
         if (!hasCtor) {
@@ -281,8 +291,11 @@ public final class SymbolTableBuilder {
     }
 
     static void defineRecordMembers(SemanticAnalyzer sa, RecordDeclarationNode rec) {
-        if (sa.classMemberScopes().containsKey(rec.name())) return;
-        SymbolTable.ClassSymbol classSym = sa.allClasses().get(rec.name());
+        if (sa.membersDefined(rec)) return;
+        SymbolTable.ClassSymbol classSym = sa.symbolForDecl(rec);
+        if (classSym == null) classSym = sa.allClasses().get(rec.name());
+        if (classSym == null) return;
+        sa.markMembersDefined(rec);
         SymbolTable classScope = classSym.members().enterScope();
         sa.putClassMemberScope(rec.name(), classScope);
         List<String> typeParams = rec.typeParameters() == null ? List.of() : rec.typeParameters();
@@ -323,7 +336,7 @@ public final class SymbolTableBuilder {
         }
         for (AstNode member : rec.members()) {
             if (member instanceof MethodDeclarationNode method) {
-                defineMethodSymbol(sa, method, rec.name(), classScope);
+                defineMethodSymbol(sa, method, classSym, classScope);
             }
         }
         checkMemberSignatureDupes(sa, rec.members(), rec.name(), classScope, "record");
@@ -336,13 +349,19 @@ public final class SymbolTableBuilder {
         }
         RecordDeclarationNode synthetic = new RecordDeclarationNode(ent.position(), ent.name(), ent.modifiers(),
                 null, List.of(), components, List.of());
-        // preDeclare já criou classSym para ent; reutiliza
+        // preDeclare já criou classSym para ent; reutiliza. #639 face 2: mapeia
+        // o nó SINTÉTICO para o símbolo da entity (a guarda é por declaração).
+        sa.registerSymbol(synthetic, sa.symbolForDecl(ent) != null
+                ? sa.symbolForDecl(ent) : sa.allClasses().get(ent.name()));
         defineRecordMembers(sa, synthetic);
     }
 
     static void defineInterfaceMembers(SemanticAnalyzer sa, InterfaceDeclarationNode iface) {
-        if (sa.classMemberScopes().containsKey(iface.name())) return;
-        SymbolTable.ClassSymbol classSym = sa.allClasses().get(iface.name());
+        if (sa.membersDefined(iface)) return;
+        SymbolTable.ClassSymbol classSym = sa.symbolForDecl(iface);
+        if (classSym == null) classSym = sa.allClasses().get(iface.name());
+        if (classSym == null) return;
+        sa.markMembersDefined(iface);
         SymbolTable classScope = classSym.members().enterScope();
         sa.putClassMemberScope(iface.name(), classScope);
         // #160: type-params de interface genérica entram no escopo ANTES dos
@@ -364,18 +383,19 @@ public final class SymbolTableBuilder {
                 // #213: corpo de método de interface (default) precisa de escopo
                 // próprio (params/this) para a análise semântica — antes era
                 // descartado e a chamada nua `greet(name)` virava função hoisted.
-                defineMethodSymbol(sa, method, iface.name(), classScope, true);
+                defineMethodSymbol(sa, method, classSym, classScope, true);
             }
         }
         checkMemberSignatureDupes(sa, iface.members(), iface.name(), classScope, "interface");
     }
 
     static void defineConstructorSymbol(SemanticAnalyzer sa, ConstructorDeclarationNode ctor,
-                                        String className, SymbolTable classScope) {
+                                        SymbolTable.ClassSymbol classSym, SymbolTable classScope) {
+        String className = classSym.name();
         List<Type> paramTypes = new ArrayList<>();
         SymbolTable ctorScope = classScope.enterScope();
         ctorScope.define(new SymbolTable.ParameterSymbol("this",
-                new Type.ClassType(sa.currentPackage(), className, List.of()), 0));
+                new Type.ClassType(classSym.packageName(), className, List.of()), 0));
         int idx = 1;
         for (FormalParameterNode param : ctor.parameters()) {
             Type paramType = MemberResolver.resolveType(sa, param.type(), ctorScope);
@@ -385,21 +405,23 @@ public final class SymbolTableBuilder {
         }
         SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(className, paramTypes, 1);
         classScope.define(ctorSym);
-        SymbolTable.ClassSymbol cs = sa.allClasses().get(className);
-        if (cs != null) cs.members().define(ctorSym);
+        // #639 face 2: define no símbolo da PRÓPRIA declaração (não no de nome
+        // simples, que colide quando duas packages declaram o mesmo nome).
+        classSym.members().define(ctorSym);
         sa.putCtorScope(ctor, ctorScope);
     }
 
     static void defineMethodSymbol(SemanticAnalyzer sa, MethodDeclarationNode method,
-                                   String className, SymbolTable classScope) {
-        defineMethodSymbol(sa, method, className, classScope, false);
+                                   SymbolTable.ClassSymbol classSym, SymbolTable classScope) {
+        defineMethodSymbol(sa, method, classSym, classScope, false);
     }
 
     static void defineMethodSymbol(SemanticAnalyzer sa, MethodDeclarationNode method,
-                                   String className, SymbolTable classScope, boolean isInterface) {
+                                   SymbolTable.ClassSymbol classSym, SymbolTable classScope, boolean isInterface) {
+        String className = classSym.name();
         SymbolTable methodScope = classScope.enterScope();
         methodScope.define(new SymbolTable.ParameterSymbol("this",
-                new Type.ClassType(sa.currentPackage(), className, List.of()), 0));
+                new Type.ClassType(classSym.packageName(), className, List.of()), 0));
         Type returnType = MemberResolver.resolveType(sa, method.returnType(), methodScope);
         List<Type> paramTypes = new ArrayList<>();
         int idx = 1;
@@ -430,8 +452,8 @@ public final class SymbolTableBuilder {
         SymbolTable.MethodSymbol methodSym = new SymbolTable.MethodSymbol(method.name(), className,
                 returnType, paramTypes, accessFlags, SymbolTable.DispatchKind.INSTANCE);
         classScope.define(methodSym);
-        SymbolTable.ClassSymbol cs = sa.allClasses().get(className);
-        if (cs != null) cs.members().define(methodSym);
+        // #639 face 2: no símbolo da própria declaração (ver constructor acima).
+        classSym.members().define(methodSym);
         sa.putMethodScope(method, methodScope);
         sa.putMethodSymbol(method, methodSym);
     }

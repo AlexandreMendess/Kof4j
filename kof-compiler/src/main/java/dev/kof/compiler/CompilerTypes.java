@@ -353,17 +353,24 @@ public final class CompilerTypes {
     }
 
     static Type ownerTypeFromInternal(String internalName, SemanticAnalyzer semanticAnalyzer) {
-        if (semanticAnalyzer != null) {
-            String simpleName = internalName.substring(internalName.lastIndexOf('/') + 1);
-            SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(simpleName);
-            if (cs != null) return cs.type();
-        }
+        // #639 face 2 (D-DECISION-BATCH-2709B): o nome INTERNO carrega o pacote
+        // ("p1/Item"). Antes a busca era por nome simples (`getClass`), que
+        // colide e devolvia o last-write (p2/Item) — o `this`/receiver saía com
+        // o pacote ERRADO (VerifyError). Agora o caminho do nome interno MANDA:
+        // resolve por FQN quando há pacote; nome simples (sem '/') segue igual.
         String pkg = "";
         String name = internalName;
         int slashIdx = internalName.lastIndexOf('/');
         if (slashIdx >= 0) {
             pkg = internalName.substring(0, slashIdx).replace('/', '.');
             name = internalName.substring(slashIdx + 1);
+        }
+        if (semanticAnalyzer != null) {
+            SymbolTable.ClassSymbol cs = pkg.isEmpty()
+                    ? semanticAnalyzer.getClass(name)
+                    : semanticAnalyzer.findQualifiedClass(pkg + "." + name);
+            if (cs == null) cs = semanticAnalyzer.getClass(name);
+            if (cs != null && (pkg.isEmpty() || pkg.equals(cs.packageName()))) return cs.type();
         }
         return new Type.ClassType(pkg, name, List.of());
     }

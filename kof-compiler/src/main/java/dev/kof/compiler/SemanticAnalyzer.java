@@ -37,6 +37,13 @@ public class SemanticAnalyzer {
 
 
     private final Map<String, SymbolTable.ClassSymbol> knownClasses = new HashMap<>();
+    /**
+     * #639 face 2 (D-DECISION-BATCH-2709B): índice ADITIVO por
+     * {@code pkg.Type}. {@code knownClasses} continua por nome simples
+     * (last-write-wins — a face 1, ainda aberta); este mapa preserva TODOS os
+     * tipos por caminho qualificado, sem alterar nenhuma consulta existente.
+     */
+    private final Map<String, SymbolTable.ClassSymbol> classesByFqn = new HashMap<>();
     private final java.util.Set<String> interfaceNames = new java.util.HashSet<>();
     /** SG-017 (SEM041): classes declaradas `abstract` — `new A()` vira erro compile-time. */
     private final java.util.Set<String> abstractClasses = new java.util.HashSet<>();
@@ -358,7 +365,55 @@ public class SemanticAnalyzer {
     void putCtorScope(ConstructorDeclarationNode ctor, SymbolTable scope) { ctorScopes.put(ctor, scope); }
     void putMethodScope(MethodDeclarationNode method, SymbolTable scope) { methodScopes.put(method, scope); }
     void putMethodSymbol(MethodDeclarationNode method, SymbolTable.MethodSymbol sym) { methodSymbols.put(method, sym); }
-    void putClass(String name, SymbolTable.ClassSymbol sym) { knownClasses.put(name, sym); }
+    void putClass(String name, SymbolTable.ClassSymbol sym) {
+        knownClasses.put(name, sym);
+        putClassFqn(name, sym);
+    }
+
+    /**
+     * #639 face 2: registra o índice por caminho qualificado. Aditivo —
+     * nenhuma consulta por nome simples é afetada.
+     */
+    void putClassFqn(String name, SymbolTable.ClassSymbol sym) {
+        String pkg = sym.packageName();
+        classesByFqn.put((pkg == null || pkg.isEmpty() ? "" : pkg + ".") + name, sym);
+    }
+
+    /**
+     * #639 face 2 (D-DECISION-BATCH-2709B): resolve `pkg.Type` pelo caminho
+     * completo, preservando colisões de nome simples. Retorna null quando o
+     * caminho não identifica um tipo do módulo.
+     */
+    SymbolTable.ClassSymbol findQualifiedClass(String qualified) {
+        return qualified == null ? null : classesByFqn.get(qualified);
+    }
+
+    /**
+     * #639 face 2 (D-DECISION-BATCH-2709B): símbolo do tipo por DECLARAÇÃO
+     * (identidade). {code knownClasses} é por nome simples (colide); aqui cada
+     * declaração guarda o SEU ClassSymbol, para que os membros sejam definidos
+     * no símbolo certo (sem isto a 2ª package de mesmo nome ficava sem membros).
+     */
+    private final Map<AstNode, SymbolTable.ClassSymbol> symbolByDecl =
+            new java.util.IdentityHashMap<>();
+    private final java.util.Set<AstNode> memberDeclsDefined =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    void registerSymbol(AstNode decl, SymbolTable.ClassSymbol sym) {
+        if (decl != null && sym != null) symbolByDecl.put(decl, sym);
+    }
+
+    SymbolTable.ClassSymbol symbolForDecl(AstNode decl) {
+        return decl == null ? null : symbolByDecl.get(decl);
+    }
+
+    boolean membersDefined(AstNode decl) {
+        return decl != null && memberDeclsDefined.contains(decl);
+    }
+
+    void markMembersDefined(AstNode decl) {
+        if (decl != null) memberDeclsDefined.add(decl);
+    }
     void addInterface(String name) { interfaceNames.add(name); }
     void addAbstractClass(String name) { abstractClasses.add(name); }
     void addFinalClass(String name) { finalClasses.add(name); }

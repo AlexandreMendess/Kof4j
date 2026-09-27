@@ -14,9 +14,20 @@ public final class ExpressionStaticCallLowerer {
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                       String owner, int localIdx, List<IRLocalVariable> locals) {
 // with the same name: ClassName(args) is implicit construction.
-SymbolTable.ClassSymbol userCtor = driver.semanticAnalyzer != null
-        ? driver.semanticAnalyzer.getClass(mc.methodName()) : null;
-if (mc.receiver() == null && userCtor != null) {
+// #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(args)` — construção
+// qualificada; o receiver é um PACOTE, resolvido pelo índice FQN ADITIVO
+// (preserva colisões de nome simples). Só dispara quando existe um tipo do
+// módulo com o caminho exato — nenhum receiver comum é afetado.
+SymbolTable.ClassSymbol userCtor = null;
+if (mc.receiver() == null && driver.semanticAnalyzer != null) {
+    userCtor = driver.semanticAnalyzer.getClass(mc.methodName());
+} else if (mc.receiver() instanceof IdentifierExpr qualRecv
+        && !"this".equals(qualRecv.name()) && !"super".equals(qualRecv.name())
+        && driver.semanticAnalyzer != null) {
+    userCtor = driver.semanticAnalyzer.findQualifiedClass(
+            qualRecv.name() + "." + mc.methodName());
+}
+if (userCtor != null) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     SymbolTable.ConstructorSymbol ctor = null;

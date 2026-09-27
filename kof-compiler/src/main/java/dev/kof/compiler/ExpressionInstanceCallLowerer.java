@@ -246,7 +246,20 @@ public final class ExpressionInstanceCallLowerer {
     SymbolTable.MethodSymbol resolvedMethod = driver.semanticAnalyzer != null
             ? driver.semanticAnalyzer.getResolvedMethod(mc) : null;
     if (resolvedMethod != null) {
-        recvType = CompilerTypes.ownerTypeFromInternal(resolvedMethod.ownerClass(), driver.semanticAnalyzer);
+        // #639 face 2 (D-DECISION-BATCH-2709B): o owner do método é o NOME
+        // SIMPLES; com duas packages de mesmo nome, re-derivar o pacote aqui
+        // caía no last-write (nome simples) e emitia invokevirtual do owner
+        // ERRADO (VerifyError). Quando o receiver JÁ carrega o pacote e o
+        // owner é um nome simples de mesmo nome, preserva o pacote do receiver
+        // (sem colisão o resultado é idêntico).
+        String oc = resolvedMethod.ownerClass();
+        boolean simpleOwner = oc != null && !oc.contains("/");
+        boolean recvPackagedSame = recvType instanceof Type.ClassType rct
+                && rct.packageName() != null && !rct.packageName().isEmpty()
+                && rct.name().equals(oc);
+        if (!(simpleOwner && recvPackagedSame)) {
+            recvType = CompilerTypes.ownerTypeFromInternal(oc, driver.semanticAnalyzer);
+        }
         methodReturnType = resolvedMethod.returnType();
         methodParamTypes = new ArrayList<>(resolvedMethod.parameterTypes());
     } else if (BuiltinTypes.isString(recvType)) {

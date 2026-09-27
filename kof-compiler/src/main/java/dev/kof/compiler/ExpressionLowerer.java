@@ -77,7 +77,13 @@ public final class ExpressionLowerer {
                 }
                 if (!owner.isEmpty() && driver.semanticAnalyzer != null) {
                     String className = owner.substring(owner.lastIndexOf('/') + 1);
-                    SymbolTable.ClassSymbol cs = driver.semanticAnalyzer.getClass(className);
+                    // #639 face 2 (D-DECISION-BATCH-2709B): o `owner` é o nome
+                    // INTERNO ("p1/Item") — resolve o pacote primeiro pelo índice
+                    // FQN (o `getClass(className)` simples colide e devolvia o
+                    // last-write, emitindo getfield do owner ERRADO → VerifyError).
+                    SymbolTable.ClassSymbol cs = driver.semanticAnalyzer
+                            .findQualifiedClass(owner.replace('/', '.'));
+                    if (cs == null) cs = driver.semanticAnalyzer.getClass(className);
                     if (cs == null) {
                         for (var entry : driver.semanticAnalyzer.allClasses().entrySet()) {
                             if (entry.getValue().internalName().equals(owner)) { cs = entry.getValue(); break; }

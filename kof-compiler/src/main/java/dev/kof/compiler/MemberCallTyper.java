@@ -14,6 +14,20 @@ public final class MemberCallTyper {
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
         if (mc.receiver() == null) return null;
+        // #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(...)` — construção
+        // qualificada. O receiver é um NOME DE PACOTE, não um valor: resolve
+        // pelo índice FQN ADITIVO, tipa os argumentos e devolve o tipo-alvo.
+        // Sem este branch o receiver caía no SEM011 "Undefined variable or
+        // type: 'pkg'" (a superfície qualificada não existia).
+        if (mc.receiver() instanceof IdentifierExpr pkgRecv
+                && !SemExpressionTyper.isLocalName(scope, pkgRecv.name())
+                && !sa.allClasses().containsKey(pkgRecv.name())) {
+            SymbolTable.ClassSymbol qcs = sa.findQualifiedClass(pkgRecv.name() + "." + mc.methodName());
+            if (qcs != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return qcs.type();
+            }
+        }
         if (mc.receiver() instanceof IdentifierExpr rid3 && KofUi.isConstructor(rid3.name())) {
             KofUi.UiCall uiCall = KofUi.staticMethod(rid3.name(), mc.methodName(), mc.arguments().size());
             if (uiCall != null) {
@@ -316,14 +330,19 @@ public final class MemberCallTyper {
             return ft.returnType();
         }
         if (recvType instanceof Type.ClassType ct) {
-            SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, ct.name(), mc.methodName());
+            // #639 face 2 (D-DECISION-BATCH-2709B): resolve o dono pelo CAMINHO
+            // do receiver quando ele carrega pacote (índice FQN aditivo). Sem
+            // isto `p1.Item(7).tag()` resolvia `tag` em `p2.Item` (nome simples,
+            // last-write) → invokevirtual de owner errado → VerifyError.
+            SymbolTable.ClassSymbol startCt = QualifiedTypeResolver.classOfType(sa, ct);
+            SymbolTable.Symbol m = QualifiedTypeResolver.resolveInHierarchy(sa, startCt, mc.methodName());
             // #610b: o primeiro símbolo por nome pode ter aridade de OUTRO
             // overload (defaults em interfaces irmãs) — nesse caso procura
             // o candidato certo em toda a hierarquia antes de resolver.
             if (m instanceof SymbolTable.MethodSymbol single
                     && single.parameterTypes().size() != mc.arguments().size()) {
-                SymbolTable.Symbol alt = MemberResolver.resolveMethodsInHierarchy(
-                        sa, ct.name(), mc.methodName());
+                SymbolTable.Symbol alt = QualifiedTypeResolver.resolveMethodsInHierarchy(
+                        sa, startCt, mc.methodName());
                 if (alt != null) m = alt;
             }
             // §131 (10a): MethodSet = sobrecarga por assinatura; seleciona

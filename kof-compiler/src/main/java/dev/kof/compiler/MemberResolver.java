@@ -86,7 +86,7 @@ public final class MemberResolver {
      * qualquer uma dessas formas (SEM025/SEM011 falsos em herança
      * cross-package → lowerField perdia o tipo do campo herdado).
      */
-    private static void enqueueAncestors(SymbolTable.ClassSymbol cs,
+    static void enqueueAncestors(SymbolTable.ClassSymbol cs,
                                          java.util.Set<String> visited, java.util.Queue<String> queue) {
         String sup = HierarchyResolver.simpleOfStored(cs.superClass());
         if (sup != null && !sup.isEmpty() && !"Object".equals(sup) && visited.add(sup)) {

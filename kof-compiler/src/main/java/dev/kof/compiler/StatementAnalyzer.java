@@ -115,6 +115,14 @@ public final class StatementAnalyzer {
                     Type viaImports = MemberResolver.qualifyViaImports(sa.unit(), vds.type(),
                             sa.externalTypes());
                     varType = viaImports != null ? viaImports : Type.of(vds.type());
+                    // #639 face 2 (D-DECISION-BATCH-2709B): anotação com caminho
+                    // qualificado `pkg.Type` (topo ou dentro de genéricos
+                    // `List<pkg.Type>`). qualifyDeep separa o pacote do nome
+                    // simples recursivamente; só roda quando há '.' — nomes
+                    // simples preservam o comportamento anterior.
+                    if (vds.type().contains(".")) {
+                        varType = CompilerTypes.qualifyDeep(varType, sa.unit(), sa);
+                    }
                     // §249: tipo explícito que não resolve para NENHUM tipo
                     // conhecido era aceito em silêncio (`Foo x`/`s length` viravam
                     // uma declaração-lixo invisível, R6). Diagnostica na raiz.

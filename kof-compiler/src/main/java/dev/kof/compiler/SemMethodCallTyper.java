@@ -22,6 +22,21 @@ public final class SemMethodCallTyper {
                     "toHexString", "toBinaryString");
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        // #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(...)` — construção
+        // qualificada. O receiver é o NOME DE UM PACOTE, não um valor: NÃO o
+        // tipar como expressão (senão SEM011 "Undefined variable or type").
+        // Resolve pelo índice FQN ADITIVO, que preserva colisões de nome
+        // simples. Só dispara quando o caminho exato identifica um tipo do
+        // módulo — receivers comuns ficam intocados.
+        if (mc.receiver() instanceof IdentifierExpr pkgRecv
+                && !SemExpressionTyper.isLocalName(scope, pkgRecv.name())
+                && !sa.allClasses().containsKey(pkgRecv.name())) {
+            SymbolTable.ClassSymbol qcs = sa.findQualifiedClass(pkgRecv.name() + "." + mc.methodName());
+            if (qcs != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return qcs.type();
+            }
+        }
         // F10: métodos de instância do handle de process.spawn
         Type recv = null;
         if (mc.receiver() != null) {
