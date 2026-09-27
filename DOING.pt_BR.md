@@ -1,11 +1,13 @@
 # DOING — registro de coordenação multiagente
 
-last: 3.8-golden-corpus
-doing: 3.9-hot-doc-migration
-next: promote-kofmd-out-of-development
+last: 3.9-kofmd-closed
+doing: none
+next: none
 location: DOING
 state: active
 constraint: pr619-maintainer-only
+
+> **✅ FECHADO 27/09 (lane kofmd — owner: esta sessao): FATIA 3.9 (migracao dos docs quentes) + FECHAMENTO `D-KOFMD`.** Convencao do cabecalho de estado Kofmd (spec sec.9-11) definida em `docs/kofmd-plan.md` §5 e aplicada aos docs quentes — `DOING.md`(+PT), `docs/status.md`(+PT), `CHANGELOG.md`(+PT), `docs/bugs-and-gaps/known-bugs.md`(+PT), `docs/development/roadmap.md`(+PT) e os cabecalhos dos `*-plan.md` soltos (db-parity/interop-engine/memory-safety) — prosa preservada, zero duplicacao (spec sec.3.6); secao de workflow obrigatoria em `AGENTS.md`(+PT). Com 3.1→3.9 pousadas, `kofmd-plan.md` SAIU de `development/` → `docs/kofmd-plan.md` (regra dos 3 estados, `state: done`) + nota de fechamento em `DECISIONS.md`; `loose_docs` do gate 0.5.0 VERDE. Prova: cluster `Kofmd*` 13/13 + `CmdMdTest` 5/5 + `LspServerTest` + gates doc rc0. **NEXT STEP:** nenhum da lane kofmd (frente FECHADA); PR #619 INTOCAVEL (regra 10).
 
 > **🔄 SPLIT kofmd LANDED (27/09, lane kofmd — owner: esta sessao):** `libs/kofmd/Kofmd.kf` (864ln) virou fachada `KofmdTool` (delega) + arquivos por responsabilidade: `KofmdTypes` (records), `KofmdLists` (fabricas seed+clear), `KofmdScan` (3.1), `KofmdInfer` (3.2), `KofmdSchemas` (3.2 MD002), `KofmdVocab` (3.3), `KofmdRender` (3.4), `KofmdFormat` (3.5) — todos ≤500 (espirito da regra; nomes por responsabilidade, regra 7). 4 `Kofmd*E2ETest` aceitam AMBOS os layouts (`findLibraryRoot` aceita `Kofmd.kf` OU `KofmdTypes.kf`), cluster 10/10 + `Q2 compile` verdes. **NEXT STEP (o re-trigger le isto):** fatia 3.7 LSP (MD002 + linha + hover), depois 3.8 corpus + 3.9 promocao p/ fora de `development/` + conversao dos `.md` de trabalho agente p/ kofmd idiomatico. PR #619 INTOCAVEL (regra 10).
 
