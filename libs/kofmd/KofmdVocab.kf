@@ -2,6 +2,7 @@ package kofmd
 
 import kofmd.KofmdTypes
 import kofmd.KofmdLists
+import kofmd.KofmdInfer
 
 class KofmdVocab {
     isKnownIntent(String name): Bool {
@@ -65,5 +66,65 @@ class KofmdVocab {
             index = index + 1
         }
         return field.items().size == 0 && field.value().contains(" ")
+    }
+
+    keyLabel(String key): String {
+        if (key == "last" || key == "doing" || key == "next") {
+            return "continuity"
+        }
+        if (key == "location") {
+            return "context"
+        }
+        if (key == "state") {
+            return "status"
+        }
+        if (key == "instructions") {
+            return "action"
+        }
+        if (key == "constraint") {
+            return "rule"
+        }
+        if (key == "decision") {
+            return "fact"
+        }
+        if (key == "result") {
+            return "outcome"
+        }
+        if (key == "question" || key == "answer") {
+            return "dialogue"
+        }
+        if (key == "reason" || key == "symbol") {
+            return "modifier"
+        }
+        return ""
+    }
+
+    hoverFor(String text, Int line, String key): String {
+        if (key.length == 0) {
+            return ""
+        }
+        var index = 0
+        var row = ""
+        String[] rows = text.split("\n")
+        for (var each in rows) {
+            if (index + 1 == line) {
+                row = each
+            }
+            index = index + 1
+        }
+        var trimmed = row.trim()
+        if (!trimmed.startsWith(key + ":")) {
+            return ""
+        }
+        var value = trimmed.substring(key.length + 1, trimmed.length).trim()
+        var label = keyLabel(key)
+        if (label.length == 0) {
+            label = "TypedField"
+        }
+        if (value.length == 0) {
+            return label
+        }
+        Bool quoted = value.startsWith("\"") && value.endsWith("\"") && value.length >= 2
+        return label + " | " + KofmdInfer().inferScalar(value, quoted)
     }
 }

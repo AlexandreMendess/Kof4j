@@ -19,6 +19,26 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
   - **Paridade DB — D-DB-NORMALIZE (27/09, votado): schemes nus conectam no JVM/JS** — `mysql://`→`jdbc:mariadb://` (o driver só aceita `mariadb:`, medido), `mariadb://`→`jdbc:mariadb://`, `postgres://`→`jdbc:postgresql://` (userinfo → `?user=`/`&password=`, mesclado, nunca sobrescrevendo), `sqlite:<resto>`→`jdbc:sqlite:<resto>`; `mongodb://` intocado, `oracle://` segue DB001, imparsável cai no DB001 nomeado. Implementado em `JvmConfigRuntime` + `KofJsDbBridge`; `connect2` troca só o scheme. Prova RED-first 5/5: `KofDbE2ETest#jvmBareMysqlNormalizesToJdbc` + `#jvmBareSqliteNormalizesToJdbc` + `#jvmBarePostgresNormalizesWithoutServer` + `#jvmBareMysqlConnect2ExplicitCreds` + `#jsBareMysqlNormalizesToJdbc`.
   - **Fix — §523 (27/09): `connect` MySQL/MariaDB contra servidor que rejeita auth nao lancava nada — handle morto, `query` seguinte SIGSEGV (139)** — o ERR do handshake nunca superficializava (x86 `.Ldb_auth_done`/primeiro-pacote → dead-0; cross B66 qualquer-nao-zero → -1 → B73 dead-0). Agora: ERR do handshake lanca `mysql: <msg>` (payload+9, teto 400 — precedente `.Lsa_ex_err`/B76; ERR no primeiro pacote incluido); falhas de socket/connect/greeting/response lancam `mysql: connection lost` (escopo votado); socket/connect da B73 idem. Pousado por ordem da mantenedora reaproveitando a causa raiz medida da lane db (`8fe6c94eb`). Prova RED-first: `KofDbE2ETest#nativeAuthRejectThrowsNamedMysqlError` + `#crossNativeAuthRejectThrowsNamedMysqlError` (fake server MySQL hermetico no teste; NO-THROW→caught em x86+riscv64+aarch64) + `#nativeTcpRefusedThrowsConnectionLost` + `#authRejectMatchesJvmOnEnforcingServer` (lei JVM + x86 + happy pelo 13307 com auth); `NativeRiscvDbWireTest#handshakeAgainstRealMariaDb*` com pin virado para o throw; `KofDbE2ETest` 44/0F + wire 41/0F + `KofOrmE2ETest` 82/0F/2skip.
+  - **Feat — fatias kofmd 3.3–3.7 (27/09): vocabulário fechado, round-trip,
+    formatador canônico, CLI e hook LSP pousaram** — `KofmdVocab.kf` valida os
+    14 intents reservados / 10 instruções / valores advisory do Apêndice A da
+    spec (MD002 nomeia o campo ofensor; `instructions` é lista de tokens, nunca
+    prosa); `renderMarkdown` re-emite Markdown canônico byte-idêntico para
+    entrada canônica (cola de estado de fence + preservação de tipo cotado);
+    `format`/`canonicalize` ordenam chaves deterministicamente (continuidade
+    primeiro pelo rank §11, resto ascendente em bytes) e são idempotentes
+    (`fmt(fmt(x)) == fmt(x)` provado); `kof md check|format` segue o padrão
+    `CmdCheck` com uma classe por verbo (§15) e `kof md convert` recusado (§21);
+    `LspKofmd` sobe o pacote kofmd uma vez por servidor via `KofmdLibrary`
+    (diretório `libs/kofmd` → `$kof.install.dir/lib/kof-libs/kofmd` → partes
+    empacotadas — o recurso mono-arquivo morreu no split da 3.8, regra 12) e o
+    `LspServer` existente publica diagnósticos MD002-com-linha (§14) + hover §9
+    para documentos `.md` enquanto `.kf` permanece no compilador. Prova:
+    `KofmdVocabE2ETest` 3/3, `KofmdRoundTripE2ETest` 2/2,
+    `KofmdFormatE2ETest` 2/2, `KofmdLspSupportE2ETest`, `CmdMdTest` 5/5,
+    `LspKofmdE2ETest` 4/4 (medidos na árvore facade+partes pós-split), cluster
+    `Lsp*`+`CmdMd` 79/79 e o corpus dourado 3.8 `KofmdCorpusE2ETest` 12/12
+    intacto.
   - **Fix — §532 (27/09): o diagnostico vazava `kof.` nos tipos da stdlib —
     `expected 'kof.List<Int>'` quebrava o contrato de grafia #324 e o proprio
     exemplo do #640 (residual do §531, GitHub #641)** — a whitelist do §531

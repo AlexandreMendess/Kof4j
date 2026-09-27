@@ -75,15 +75,10 @@ final class CmdMd {
             err.println("not found: " + doc);
             return 1;
         }
-        Path library = findKofmdLibrary();
-        if (library == null) {
-            err.println("md: MD001 — kofmd library not found (libs/kofmd or $kof.install.dir/lib/kof-libs)");
-            return 1;
-        }
         try {
             return switch (verb) {
-                case "check" -> execute(doc, library, CmdMdCheck::generatedMain, CmdMdCheck::report, out, err);
-                default -> execute(doc, library, CmdMdFormat::generatedMain, CmdMdFormat::report, out, err);
+                case "check" -> execute(doc, CmdMdCheck::generatedMain, CmdMdCheck::report, out, err);
+                default -> execute(doc, CmdMdFormat::generatedMain, CmdMdFormat::report, out, err);
             };
         } catch (Exception e) {
             err.println("md: " + e.getMessage());
@@ -91,29 +86,23 @@ final class CmdMd {
         }
     }
 
-    private static int execute(Path doc, Path library,
+    private static int execute(Path doc,
                                java.util.function.Function<Path, String> mainGen,
                                Report report,
                                PrintStream out, PrintStream err) throws Exception {
-        Path installRoot = Files.createTempDirectory("kof-md-install-");
-        Path sourceRoot = Files.createTempDirectory("kof-md-src-");
+        Path srcRoot = Files.createTempDirectory("kof-md-src-");
         Path outRoot = Files.createTempDirectory("kof-md-out-");
-        String previousInstallDir = System.getProperty("kof.install.dir");
         try {
-            installLibrary(library, installRoot.resolve("lib").resolve("kof-libs"));
-            Path main = sourceRoot.resolve("Main.kf");
-            Files.writeString(main, mainGen.apply(doc));
-            System.setProperty("kof.install.dir", installRoot.toString());
-            CompilationResult result = new CompilerDriver().compile(main, outRoot, Target.JVM);
-            if (!result.success()) {
-                result.diagnostics().getDiagnostics().forEach(d -> err.println(d.format()));
+            URLClassLoader loader = KofmdLibrary.compile("Main.kf", mainGen.apply(doc), srcRoot, outRoot);
+            if (loader == null) {
+                err.println("md: MD001 — kofmd library not found (libs/kofmd, $kof.install.dir/lib/kof-libs"
+                        + " or packaged resources)");
                 return 1;
             }
             ByteArrayOutputStream captured = new ByteArrayOutputStream();
             PrintStream realOut = System.out;
             System.setOut(new PrintStream(captured, true, StandardCharsets.UTF_8));
-            try (URLClassLoader loader = new URLClassLoader(
-                    new URL[]{outRoot.toUri().toURL()}, CmdMd.class.getClassLoader())) {
+            try (loader) {
                 Class.forName("Default.Main", true, loader)
                         .getMethod("main", String[].class)
                         .invoke(null, (Object) new String[0]);
@@ -122,18 +111,9 @@ final class CmdMd {
             }
             return report.report(doc, captured.toString(StandardCharsets.UTF_8), out, err);
         } finally {
-            if (previousInstallDir == null) System.clearProperty("kof.install.dir");
-            else System.setProperty("kof.install.dir", previousInstallDir);
-            KofCliSupport.cleanup(installRoot);
-            KofCliSupport.cleanup(sourceRoot);
+            KofCliSupport.cleanup(srcRoot);
             KofCliSupport.cleanup(outRoot);
         }
-    }
-
-    private static void installLibrary(Path kofmdFile, Path destinationRoot) throws IOException {
-        Path destination = destinationRoot.resolve("kofmd").resolve(kofmdFile.getFileName());
-        Files.createDirectories(destination.getParent());
-        Files.copy(kofmdFile, destination, StandardCopyOption.REPLACE_EXISTING);
     }
 
     static String literal(Path path) {
@@ -144,16 +124,4 @@ final class CmdMd {
         int report(Path doc, String output, PrintStream out, PrintStream err);
     }
 
-    private static Path findKofmdLibrary() {
-        Path fromInstall = Path.of(System.getProperty("kof.install.dir", ""),
-                "lib", "kof-libs", "kofmd", "Kofmd.kf");
-        if (Files.isRegularFile(fromInstall)) return fromInstall;
-        Path working = Path.of("").toAbsolutePath().normalize();
-        for (Path base : List.of(working, working.getParent(),
-                working.getParent() == null ? working : working.getParent().getParent())) {
-            Path candidate = base.resolve("libs").resolve("kofmd").resolve("Kofmd.kf");
-            if (Files.isRegularFile(candidate)) return candidate;
-        }
-        return null;
-    }
 }

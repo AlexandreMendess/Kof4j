@@ -74,13 +74,19 @@ class LspKofmdE2ETest {
     }
 
     @Test
-    void packagedEngineIsByteIdenticalToTheRepositoryLibrary() throws Exception {
-        byte[] packaged = LspKofmdE2ETest.class.getResourceAsStream("/dev/kof/interop-kofmd.kf").readAllBytes();
-        assertTrue(packaged.length > 0);
+    void engineResolvesTheWholePackageAndNoStaleMonoFileCopyExists() throws Exception {
+        assertNull(LspKofmdE2ETest.class.getResourceAsStream("/dev/kof/interop-kofmd.kf"),
+                "a copia mono-arquivo esta proibida: o split em facade+partes a deixaria poeira no "
+                + "primeiro commit (regra 12 — fonte de verdade unica via KofmdLibrary)");
         Path repoLib = findLibrary();
-        assumeTrue(repoLib != null, "libs/kofmd ausente (modo instalacao) — sync-guard nao aplicavel");
-        assertArrayEquals(packaged, Files.readAllBytes(repoLib),
-                "interop-kofmd.kf divergiu de libs/kofmd/Kofmd.kf — atualize a copia no MESMO commit");
+        assumeTrue(repoLib != null, "libs/kofmd ausente (modo instalacao)");
+        try (var files = java.nio.file.Files.list(repoLib.getParent())) {
+            assertTrue(files.anyMatch(f -> f.getFileName().toString().equals("KofmdVocab.kf")),
+                    "motor deve enxergar o pacote completo, nao so o facade");
+        }
+        // hoverFor percorre facade + Vocab + Infer: prova de que o compile do
+        // pacote inteiro aconteceu de fato (arquivo unico teria dado MD001).
+        assertEquals("continuity | String", LspKofmd.hoverAt("doing: parser\n", 1, "doing"));
     }
 
     @Test

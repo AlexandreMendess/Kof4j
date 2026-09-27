@@ -5,12 +5,10 @@ import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.Target;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -139,38 +137,26 @@ final class LspKofmd {
     }
 
     private static Engine boot() throws Exception {
-        Path installRoot = Files.createTempDirectory("kof-lsp-kofmd-");
         Path srcRoot = Files.createTempDirectory("kof-lsp-kofmd-src-");
+        // classesRoot vive enquanto o servidor viver: URLClassLoader carrega
+        // classes LAZY do disco — apagar o out depois do compile e o bug que
+        // so aparece no primeiro uso pos-boot (medido no desenvolvimento).
+        Path classesRoot = Files.createTempDirectory("kof-lsp-kofmd-classes-");
         try {
-            Path lib = installRoot.resolve("lib").resolve("kof-libs").resolve("kofmd").resolve("Kofmd.kf");
-            Files.createDirectories(lib.getParent());
-            try (InputStream in = LspKofmd.class.getResourceAsStream("/dev/kof/interop-kofmd.kf")) {
-                if (in == null) {
-                    throw new IllegalStateException("resource /dev/kof/interop-kofmd.kf missing");
-                }
-                Files.copy(in, lib, StandardCopyOption.REPLACE_EXISTING);
+            java.net.URLClassLoader loader = KofmdLibrary.compile(
+                    "Engine.kf", "import kofmd.Kofmd\n\nmain() { val keep = true }\n",
+                    srcRoot, classesRoot);
+            if (loader == null) {
+                deleteTree(classesRoot);
+                return null;
             }
-            Path source = srcRoot.resolve("Main.kf");
-            Files.writeString(source, "import kofmd.Kofmd\n\nmain() { val keep = true }\n");
-            String previous = System.getProperty("kof.install.dir");
-            CompilationResult result;
-            System.setProperty("kof.install.dir", installRoot.toString());
-            try {
-                result = new CompilerDriver().compile(source, srcRoot.resolve("out"), Target.JVM);
-            } finally {
-                if (previous == null) System.clearProperty("kof.install.dir");
-                else System.setProperty("kof.install.dir", previous);
-            }
-            if (!result.success()) {
-                throw new IllegalStateException("kofmd engine did not compile");
-            }
-            Path out = srcRoot.resolve("out");
-            java.net.URLClassLoader loader = new java.net.URLClassLoader(
-                    new java.net.URL[]{out.toUri().toURL()}, LspKofmd.class.getClassLoader());
             Class<?> type = Class.forName("kofmd.KofmdTool", true, loader);
             return new Engine(type, loader);
+        } catch (Exception e) {
+            deleteTree(classesRoot);
+            throw e;
         } finally {
-            deleteTree(installRoot);
+            deleteTree(srcRoot);
         }
     }
 
