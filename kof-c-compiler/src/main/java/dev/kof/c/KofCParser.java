@@ -326,7 +326,7 @@ public final class KofCParser {
             structBytes.put(s.name(), size);
         }
         for (var fn : program.funcs()) {
-            checkParamBounds(fn.name(), fn.params(), structs, structBytes);
+            checkParamBounds(fn.name(), fn.params(), structBytes);
             if (fn.retType().startsWith("struct ")) {
                 String n = fn.retType().substring("struct ".length());
                 if (structBytes.get(n) > MAX_STRUCT_RET_BYTES) {
@@ -335,7 +335,7 @@ public final class KofCParser {
                 }
             }
         }
-        for (var p : program.prototypes()) checkParamBounds("external " + p.name(), p.params(), structs, structBytes);
+        for (var p : program.prototypes()) checkParamBounds("external " + p.name(), p.params(), structBytes);
         Map<String, List<String>> calleeParams = new LinkedHashMap<>();
         for (var fn : program.funcs()) calleeParams.put(fn.name(), fn.params().stream().map(KofCAst.Param::type).toList());
         for (var p : program.prototypes()) calleeParams.putIfAbsent(p.name(), p.params().stream().map(KofCAst.Param::type).toList());
@@ -353,7 +353,7 @@ public final class KofCParser {
     }
 
     private void checkParamBounds(String where, List<KofCAst.Param> params,
-                                   Map<String, KofCAst.StructDecl> structs, Map<String, Integer> structBytes) {
+                                   Map<String, Integer> structBytes) {
         for (var p : params) {
             if (p.type().startsWith("struct ")) {
                 String n = p.type().substring("struct ".length());
@@ -409,8 +409,8 @@ public final class KofCParser {
                 }
                 if (s.value() != null) validateExpr(s.value(), types, structs, arity, calleeParams);
             }
-            case KofCAst.AsmStmt ignored -> { }
-            case KofCAst.LocalDeclStmt ignored -> { }
+            case KofCAst.AsmStmt _ -> { }
+            case KofCAst.LocalDeclStmt _ -> { }
         }
     }
 

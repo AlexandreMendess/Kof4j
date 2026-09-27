@@ -177,7 +177,6 @@ def selftest():
             return check(wf, led)[0]
 
     GOOD = "name: x\npermissions:\n  contents: read\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo\n"
-    cases = []
 
     def expect(desc, files, ledger_text, want_errors):
         errs = run(files, ledger_text)

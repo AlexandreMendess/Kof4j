@@ -94,8 +94,8 @@ abstract class KofCEmitterBase implements KofCEmitter {
             case KofCAst.AssignStmt s -> usesPrint(s.value());
             case KofCAst.FieldAssignStmt s -> usesPrint(s.value());
             case KofCAst.ReturnStmt s -> s.value() != null && usesPrint(s.value());
-            case KofCAst.AsmStmt ignored -> false;
-            case KofCAst.LocalDeclStmt ignored -> false;
+            case KofCAst.AsmStmt _ -> false;
+            case KofCAst.LocalDeclStmt _ -> false;
         };
     }
 

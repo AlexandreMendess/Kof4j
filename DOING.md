@@ -1,3 +1,6 @@
+---
+> **🔧 CLAIM 27/09 (lane issues — owner: esta sessao, POR ORDEM DIRETA DA MANTENEDORA 'assuma o merge 0.5.0, nao conclua, resolva comentarios/problemas/conflitos'):** merge-prep PR #619 (beta→main, OPEN, CONFLICTING). Recon: 5 hunks reais (.gitignore/VERSION/version.properties/pom.xml/run-agent-tests.sh — todos resolvem p/ THEIR/beta; CHANGELOG auto-merge limpo) + 30 comentarios-bot (14 achados unicos: 10 stale debt-scout morta + 4 FPs documentados + 6 mecanicos). Escopo desta unidade: os 6 fixes mecanicos com prova (KofCParser:356 param morto; ExpressionBareCallLowerer:278 null-check morto; check_workflow_permissions.py:180 var morta; 4x `ignored`→`_` JEP 456); FPs/design/stale viram resposta consolidada no PR + receita de merge p/ a mantenedora. NUNCA mergear (regra 10); main INTOCADA.
+
 # DOING — agent coordination ledger
 
 last: 639-face2-landed

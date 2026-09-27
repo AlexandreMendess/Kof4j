@@ -275,7 +275,8 @@ public final class ExpressionBareCallLowerer {
      */
     private static int tryLowerExternalCtor(CompilerDriver driver, MethodCallExpr mc,
             List<KofOperation> ops, String owner, int localIdx, List<IRLocalVariable> locals) {
-        if (driver.externalClasspath == null) return -1;
+        // `driver.externalClasspath` é final + sempre construído
+        // (CompilerDriverState:75) — o null-check era morto (CodeQL #950).
         String internal = null;
         if (driver.semanticAnalyzer != null) {
             SymbolTable.MethodSymbol m = driver.semanticAnalyzer.getResolvedMethod(mc);
