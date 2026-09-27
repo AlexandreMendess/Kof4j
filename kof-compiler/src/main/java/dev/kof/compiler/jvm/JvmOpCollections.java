@@ -54,12 +54,26 @@ public final class JvmOpCollections {
                 mv.visitLabel(end);
             } else if (("kof_await".equals(kc.methodName())
                     || "kof_await_timeout".equals(kc.methodName())
-                    || "kof_select_any".equals(kc.methodName())) && isPrimitiveType(kc.returnType())) {
+                    || "kof_select_any".equals(kc.methodName()))
+                    && isPrimitiveType(kc.returnType())) {
                 // await/awaitTimeout/selectAny com resultado primitivo: o runtime
                 // devolve Object (boxed, do CompletableFuture). §128-JVM: selectAny
                 // compartilhava o destino primitivo de await mas NÃO era roteado
                 // aqui → istore de Object → VerifyError "not assignable to integer".
                 emitUnboxIfPrimitive(mv, kc.returnType());
+            } else if (("kof_await".equals(kc.methodName())
+                    || "kof_await_timeout".equals(kc.methodName())
+                    || "kof_select_any".equals(kc.methodName()))
+                    && Type.PrimitiveType.VOID.equals(kc.returnType())) {
+                // await/awaitTimeout/selectAny de task VAZIA: o descritor do
+                // runtime devolve Object SEMPRE (null quando a task não tem
+                // valor), mas o modelo Kof da expressão é void → o discard de
+                // statement não emite POP e o Object ficava na pilha: qualquer
+                // try/catch DEPOIS do await ganhava um handler frame órfão
+                // ("Inconsistent stackmap frames at branch target", medido no
+                // pouso da fatia 3 do motor — §527). Descartar o Object aqui,
+                // no único ponto onde a pilha JVM e o modelo divergem.
+                mv.visitInsn(POP);
             } else if ("kof_list_reduce".equals(kc.methodName()) && isPrimitiveType(kc.returnType())) {
                 emitUnboxIfPrimitive(mv, kc.returnType());
             } else if ("kof_list_reduce".equals(kc.methodName())
