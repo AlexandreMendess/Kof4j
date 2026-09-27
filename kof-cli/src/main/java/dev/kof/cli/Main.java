@@ -19,6 +19,7 @@ public final class Main {
             case "run" -> CmdRun.run(args);
             case "serve" -> CmdServe.run(args);
             case "check" -> System.exit(CmdCheck.run(args));
+            case "md" -> System.exit(CmdMd.run(args));
             case "test" -> CmdTest.run(args);
             case "bench" -> System.exit(Bench.run(args));
             case "profile" -> System.exit(Profile.run(args));
@@ -61,6 +62,7 @@ public final class Main {
         System.out.println("  run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]");
         System.out.println("  serve <file.kf> [--port <port>] [--host <host>] [--backend <t>] [--frontend <t>]");
         System.out.println("  check <file.kf|dir> [--target <t>] [--json]   type-check without emitting output");
+        System.out.println("  md check|format <file.md>     Kofmd validate (non-zero exit on MDxxx) / canonical rewrite (JVM-first)");
         System.out.println("  script <file.ks|kf> [--target jvm|native|js]   direct KofScript execution (JVM/Native/JS, diagnostics with file:line)");
         System.out.println("  repl                         REPL incremental KofScript (type 'exit' to quit)");
         System.out.println("  test <file.kf|dir> [--target jvm|native|js]   run programs, PASS/FAIL by exit code");
