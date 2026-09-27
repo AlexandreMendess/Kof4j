@@ -550,6 +550,69 @@ class KofmdTool {
         return diags
     }
 
+    isKnownIntent(String name): Bool {
+        return setOf(
+            "information", "decision", "requirement", "task", "question",
+            "answer", "result", "warning", "configuration", "example", "api",
+            "message", "explanation", "release"
+        ).contains(name)
+    }
+
+    isKnownInstruction(String token): Bool {
+        return setOf(
+            "inspect", "preserve-api", "no-breaking-change", "run-tests",
+            "update-docs", "do-not-refactor", "verify-backends", "add-tests",
+            "implement", "test"
+        ).contains(token)
+    }
+
+    isAdvisoryValue(String key, String value): Bool {
+        if (key == "state") {
+            return setOf("active", "blocked", "done", "failed").contains(value)
+        }
+        if (key == "result") {
+            return setOf("pass", "fail", "blocked").contains(value)
+        }
+        return false
+    }
+
+    validateVocabulary(KofmdDoc doc): List<String> {
+        var diags = newStrList()
+        var blockIndex = 0
+        while (blockIndex < doc.blocks().size) {
+            KofmdBlock block = doc.blocks().get(blockIndex)
+            var intentIndex = 0
+            while (intentIndex < block.intents().size) {
+                String intent = block.intents().get(intentIndex)
+                if (!isKnownIntent(intent)) {
+                    diags.add("MD002:@" + intent)
+                }
+                intentIndex = intentIndex + 1
+            }
+            var fieldIndex = 0
+            while (fieldIndex < block.fields().size) {
+                KofmdField field = block.fields().get(fieldIndex)
+                if (field.name() == "instructions" && hasProseToken(field)) {
+                    diags.add("MD002:instructions")
+                }
+                fieldIndex = fieldIndex + 1
+            }
+            blockIndex = blockIndex + 1
+        }
+        return diags
+    }
+
+    hasProseToken(KofmdField field): Bool {
+        var index = 0
+        while (index < field.items().size) {
+            if (field.items().get(index).contains(" ")) {
+                return true
+            }
+            index = index + 1
+        }
+        return field.items().size == 0 && field.value().contains(" ")
+    }
+
     isIntentLine(String trimmed): Bool {
         if (!trimmed.startsWith("@")) {
             return false
