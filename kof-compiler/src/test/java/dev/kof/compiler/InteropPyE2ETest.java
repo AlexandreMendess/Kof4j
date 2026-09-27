@@ -137,6 +137,27 @@ class InteropPyE2ETest {
     }
 
     @Test
+    void crossRiscvAndAarch64MatchJvmOutput() throws Exception {
+        requirePython3();
+        Path src = tmp.resolve("happy-cross.kf");
+        Files.writeString(src, HAPPY);
+        Run jvm = runJvm(src, tmp.resolve("out-jvm-x"));
+        assertTrue(jvm.ok(), "JVM base: " + jvm.output());
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String arch = t == Target.NATIVE_RISCV64 ? "riscv64" : "aarch64";
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            Path out = tmp.resolve("out-" + arch);
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), arch + " motor Python deve compilar agora (§514): " + diags(r));
+            assertEquals(jvm.output().trim(),
+                    NativeRiscv64E2ETest.runQemu(arch, out.resolve("Default/Main")),
+                    "motor Python JVM≡" + arch + " (§514)");
+        }
+    }
+
+    @Test
     void remoteErrorIsNamedInterop006WithTraceback() throws Exception {
         requirePython3();
         Path src = tmp.resolve("err.kf");

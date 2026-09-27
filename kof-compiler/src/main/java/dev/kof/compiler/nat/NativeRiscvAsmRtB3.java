@@ -439,9 +439,44 @@ public final class NativeRiscvAsmRtB3 {
             kof_json_encode_string:
                 j    kof_json_quote
 
-            # Helper: a0 = elemento (ptr), a1 = tag (0 int / 1 str / 2 bool)
-            # -> a0 = json do elemento. (salva ra: dispatch chama funcoes
-            # que sobrescrevem o return address)
+            # §514: kof_json_encode_long(a0=valor) -> KofString*.
+            .globl kof_json_encode_long
+            kof_json_encode_long:
+                j    kof_long_to_string
+
+            # §514: kof_json_encode_double(a0=bits IEEE) -> KofString*.
+            # NaN/±Infinity -> "null" (contrato JVM do §180, JSON não tem esses
+            # valores); caso contrário o MESMO kof_double_to_string (contrato
+            # JDK) que o x86 usa.
+            .globl kof_json_encode_double
+            kof_json_encode_double:
+                srli t0, a0, 52
+                andi t0, t0, 0x7ff
+                li   t1, 0x7ff
+                beq  t0, t1, .Ljenc_d_null
+                j    kof_double_to_string
+            .Ljenc_d_null:
+                la   a0, .Lstr_null
+                li   a1, 4
+                j    kof_string_from_literal
+
+            # §514: kof_json_encode_float(a0=bits IEEE 32) -> KofString*.
+            # Mesmo contrato do x86 (NaN/±Inf -> null, senão o to_string da JDK).
+            .globl kof_json_encode_float
+            kof_json_encode_float:
+                srli t0, a0, 23
+                andi t0, t0, 0xff
+                li   t1, 0xff
+                beq  t0, t1, .Ljenc_f_null
+                j    kof_float_to_string
+            .Ljenc_f_null:
+                la   a0, .Lstr_null
+                li   a1, 4
+                j    kof_string_from_literal
+
+            # Helper: a0 = elemento, a1 = tag (0 int / 1 str / 2 bool /
+            # 3 double / 5 long) -> a0 = json do elemento. (salva ra: dispatch
+            # chama funcoes que sobrescrevem o return address)
             kof_json_enc_elem:
                 addi sp, sp, -16
                 sd   ra, 8(sp)
@@ -449,6 +484,10 @@ public final class NativeRiscvAsmRtB3 {
                 beq  a1, t0, .Lenc_el_str
                 li   t0, 2
                 beq  a1, t0, .Lenc_el_bool
+                li   t0, 3
+                beq  a1, t0, .Lenc_el_double
+                li   t0, 5
+                beq  a1, t0, .Lenc_el_long
                 call kof_json_encode_int
                 j    .Lenc_el_done
             .Lenc_el_str:
@@ -456,6 +495,12 @@ public final class NativeRiscvAsmRtB3 {
                 j    .Lenc_el_done
             .Lenc_el_bool:
                 call kof_json_encode_bool
+                j    .Lenc_el_done
+            .Lenc_el_double:
+                call kof_json_encode_double
+                j    .Lenc_el_done
+            .Lenc_el_long:
+                call kof_json_encode_long
             .Lenc_el_done:
                 ld   ra, 8(sp)
                 addi sp, sp, 16

@@ -27,15 +27,17 @@ final class CompilerInterop {
 
     static final String HOST_IMPORT = "kof.interop";
     static final String FIELD = "Field";
-    // §513 (OPEN, lane native): riscv64/aarch64 não têm kof_json_encode_double
-    // (JSN001 fechou só x86 — medido 26/09), então o motor py — que marshalla
-    // Double — é recusado neles até lá pelo mesmo host INTEROP005. SCRIPT entra
-    // por paridade de construção: o interpretador resolve `kof_*` por reflexão
-    // no MESMO `KofRuntime` gerado — `KofPy` roda de verdade lá (medido 26/09:
-    // `InteropPyScriptE2ETest`). ANDROID/MCU/RISCV32 ficam na recusa até terem
-    // a face de processo executada e provada (R7, honestidade por alvo).
+    // §514 (27/09): riscv64/aarch64 agora têm kof_json_encode_double/float/long
+    // (os encoders de elemento Double/Long e o escalar Float chegaram ao cross,
+    // provados byte-a-byte contra o oráculo JVM em JsonNativeEncodeFpE2ETest),
+    // então o motor py — que marshalla Double — entra neles. SCRIPT entra por
+    // paridade de construção: o interpretador resolve `kof_*` por reflexão no
+    // MESMO `KofRuntime` gerado — `KofPy` roda de verdade lá (medido 26/09:
+    // `InteropPyScriptE2ETest`). ANDROID/MCU/RISCV32 ficam na recusa até terem a
+    // face de processo executada e provada (R7, honestidade por alvo).
     static final java.util.Set<Target> PY_ENGINE_TARGETS = java.util.EnumSet.of(
-            Target.JVM, Target.NATIVE, Target.JS, Target.SCRIPT);
+            Target.JVM, Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
+            Target.JS, Target.SCRIPT);
 
     private CompilerInterop() {}
 

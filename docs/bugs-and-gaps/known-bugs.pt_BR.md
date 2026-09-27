@@ -12966,7 +12966,7 @@ JVM≡x86 assertado; mais `InteropPyE2ETest` 5/5 cujo motor round-tripa
 
 <!-- pt-switch --> **EN:** [§513 (EN)](known-bugs.md#513--jsonencode-element-dispatch-collapsed-raw-doublelong-slots-to-encode_int-on-x86-deterministic-garbage-and-jvm-listbool-cast-booleaninteger-classcastexception---fixed-2609-same-commit)
 
-## §514 — cross riscv64/aarch64 nunca recebeu os encoders JSON FP/long de elemento (`kof_json_encode_double` ausente do asm riscv; o loop traduzido cai em `encode_int` para as novas tags 3/5) — 🟡 OPEN (dona = lane native)
+## §514 — cross riscv64/aarch64 nunca recebeu os encoders JSON FP/long de elemento (`kof_json_encode_double` ausente do asm riscv; o loop traduzido cai em `encode_int` para as novas tags 3/5) — ✅ FIXED 27/09 (lane gaps-db/native-runtime, ordem da mantenedora)
 
 **Medido (26/09, estático):** `grep .globl kof_json_encode_double` em
 `nat/NativeRiscv*.java`/`nat/*Aarch*` não retorna nada — o
@@ -12988,7 +12988,27 @@ riscv, definir a convenção do slot cru de `Float` (4B num slot de 8B), estende
 `JsonNativeEncodeFpE2ETest` com harness estilo `ProcessSpawnCrossE2ETest` para
 riscv64/aarch64 e virar `PY_ENGINE_TARGETS`.
 
-<!-- pt-switch --> **EN:** [§514 (EN)](known-bugs.md#514--cross-riscv64aarch64-never-received-the-json-fplong-element-encoders-kof_json_encode_double-absent-from-the-riscv-asm-the-translated-loop-falls-to-encode_int-for-the-new-tags-35---open-owner--lane-native)
+**Fix (27/09, lane gaps-db/native-runtime — ordem da mantenedora "vamo fechar"):**
+novos `kof_json_encode_double`/`encode_long`/`encode_float` no asm riscv
+(`NativeRiscvAsmRtB3`; NaN/±Inf → `null`, senão o MESMO
+`kof_double_to_string`/`kof_float_to_string`/`kof_long_to_string` do x86);
+`kof_json_enc_elem` ganhou as tags 3/5; o walker de map riscv
+(`NativeRiscvAsmRtB46`) ganhou as tags 3/5; e a face decode do motor
+`kof_json_decode_double` foi portada (`NativeRiscvAsmMapset1`, espelhando a
+varredura de token do x86 + `kof_string_to_double`). aarch64 herda tudo pelo
+tradutor. `PY_ENGINE_TARGETS` passa a incluir `NATIVE_RISCV64`/`NATIVE_AARCH64`.
+
+**Prova (Q0/Q1/Q3, mesmo commit):** `JsonNativeEncodeFpE2ETest` estendido —
+encode de list/map/escalar Double+Long+Float riscv64≡aarch64≡x86≡JVM byte a byte
+(2/2); novo `InteropPyE2ETest#crossRiscvAndAarch64MatchJvmOutput` — o motor
+Python real (incl. `callDouble`) agora roda nas duas arches ≡ JVM, 0 skips.
+Bateria vizinha `Interop*`+`Json*`+`DomainGapCodesTest` 107/0F/7-skip (R-gated).
+Residual declarado: `Float` dentro de listas/maps segue tag 0 (convenção de slot
+cru de 4B, mesma dívida do §512) — o Float escalar está coberto.
+
+**Status:** ✅ FIXED 27/09.
+
+<!-- pt-switch --> **EN:** [§514 (EN)](known-bugs.md#514--cross-riscv64aarch64-never-received-the-json-fplong-element-encoders-kof_json_encode_double-absent-from-the-riscv-asm-the-translated-loop-falls-to-encode_int-for-the-new-tags-35---fixed-2709-lane-gaps-dbnative-runtime-maintainer-order)
 
 ## §515 — `json.decode<Record>` de record EM PACOTE morria em runtime com `NoSuchMethodError kof_json_decode_<NomeSimples>` (o runtime define o decoder pelo nome completo mangado) — ✅ FIXED 26/09 (lane paridade/media, #627)
 

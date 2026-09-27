@@ -327,9 +327,19 @@ public final class NativeRiscvAsmRtB46 {
                 beq  t2, t0, .Lkjr_vstr
                 li   t0, 2
                 beq  t2, t0, .Lkjr_vbool
+                li   t0, 3
+                beq  t2, t0, .Lkjr_vdouble
+                li   t0, 5
+                beq  t2, t0, .Lkjr_vlong
                 li   t0, 7
                 beq  t2, t0, .Lkjr_vbox
                 call kof_json_encode_int
+                j    .Lkjr_vapp
+            .Lkjr_vdouble:
+                call kof_json_encode_double
+                j    .Lkjr_vapp
+            .Lkjr_vlong:
+                call kof_json_encode_long
                 j    .Lkjr_vapp
             .Lkjr_vbox:
                 beqz a0, .Lkjr_vnull

@@ -13,6 +13,90 @@ public final class NativeRiscvAsmMapset1 {
             kof_json_decode_long:
                 j    kof_json_decode_int
 
+            # §514: kof_json_decode_double(json@a0) -> a0 = bits IEEE do
+            # primeiro token numerico (0.0 se ausente). Espelho do x86: varre o
+            # token, monta um KofString temporario e delega ao contrato
+            # kof_string_to_double (.Lpd, que ja aceita a convencao Kof).
+            .globl kof_json_decode_double
+            kof_json_decode_double:
+                addi sp, sp, -320
+                sd   ra, 312(sp)
+                sd   s0, 304(sp)
+                sd   s1, 296(sp)
+                sd   s2, 288(sp)
+                sd   s3, 280(sp)
+                mv   s0, a0
+                beqz s0, .Ljdd_zero
+                lw   s1, 16(s0)
+                li   s2, 0
+            .Ljdd_skip:
+                bge  s2, s1, .Ljdd_zero
+                add  t0, s0, s2
+                lbu  t1, 24(t0)
+                li   t2, 32
+                beq  t1, t2, .Ljdd_skipinc
+                li   t2, 9
+                beq  t1, t2, .Ljdd_skipinc
+                li   t2, 10
+                beq  t1, t2, .Ljdd_skipinc
+                li   t2, 13
+                beq  t1, t2, .Ljdd_skipinc
+                j    .Ljdd_scan
+            .Ljdd_skipinc:
+                addi s2, s2, 1
+                j    .Ljdd_skip
+            .Ljdd_scan:
+                li   s3, 0
+            .Ljdd_loop:
+                bge  s2, s1, .Ljdd_build
+                add  t0, s0, s2
+                lbu  t1, 24(t0)
+                li   t2, 43
+                beq  t1, t2, .Ljdd_take
+                li   t2, 45
+                beq  t1, t2, .Ljdd_take
+                li   t2, 46
+                beq  t1, t2, .Ljdd_take
+                li   t2, 101
+                beq  t1, t2, .Ljdd_take
+                li   t2, 69
+                beq  t1, t2, .Ljdd_take
+                li   t2, 48
+                blt  t1, t2, .Ljdd_build
+                li   t2, 57
+                bgt  t1, t2, .Ljdd_build
+            .Ljdd_take:
+                li   t2, 127
+                bge  s3, t2, .Ljdd_build
+                add  t0, sp, s3
+                sb   t1, 152(t0)
+                addi s3, s3, 1
+                addi s2, s2, 1
+                j    .Ljdd_loop
+            .Ljdd_build:
+                beqz s3, .Ljdd_zero
+                add  t0, sp, s3
+                sb   zero, 152(t0)
+                li   t0, 1
+                sw   t0, 128(sp)
+                sw   zero, 132(sp)
+                sd   zero, 136(sp)
+                sw   s3, 144(sp)
+                sw   zero, 148(sp)
+                addi a0, sp, 128
+                call kof_string_to_double
+                j    .Ljdd_out
+            .Ljdd_zero:
+                li   a0, 0
+            .Ljdd_out:
+                ld   ra, 312(sp)
+                ld   s0, 304(sp)
+                ld   s1, 296(sp)
+                ld   s2, 288(sp)
+                ld   s3, 280(sp)
+                addi sp, sp, 320
+                ret
+
             # kof_json_decode_bool(json) -> Bool (skip ws; "true"→1, else 0)
             .globl kof_json_decode_bool
             kof_json_decode_bool:

@@ -15418,7 +15418,7 @@ JVM≡x86 asserted; plus `InteropPyE2ETest` 5/5 whose engine round-trips
 
 <!-- pt-switch --> **PT:** [§513 (pt_BR)](known-bugs.pt_BR.md#513--dispatch-de-elemento-do-jsonencode-colapsava-slots-crus-doublelong-para-encode_int-no-x86-lixo-deterministico-e-o-listbool-do-jvm-castava-booleaninteger-classcastexception---fixed-2609-mesmo-commit)
 
-## §514 — cross riscv64/aarch64 never received the JSON FP/long element encoders (`kof_json_encode_double` absent from the riscv asm; the translated loop falls to `encode_int` for the new tags 3/5) — 🟡 OPEN (owner = lane native)
+## §514 — cross riscv64/aarch64 never received the JSON FP/long element encoders (`kof_json_encode_double` absent from the riscv asm; the translated loop falls to `encode_int` for the new tags 3/5) — ✅ FIXED 27/09 (lane gaps-db/native-runtime, maintainer order)
 
 **Measured (26/09, static):** `grep .globl kof_json_encode_double` across
 `nat/NativeRiscv*.java`/`nat/*Aarch*` returns nothing — scalar
@@ -15441,7 +15441,26 @@ define the raw-slot convention for `Float` (4B in an 8B slot), extend
 `JsonNativeEncodeFpE2ETest` + `ProcessSpawnCrossE2ETest`-style harness to
 riscv64/aarch64, and flip `PY_ENGINE_TARGETS`.
 
-<!-- pt-switch --> **PT:** [§514 (pt_BR)](known-bugs.pt_BR.md#514--cross-riscv64aarch64-nunca-recebeu-os-encoders-json-fplong-de-elemento-kof_json_encode_double-ausente-do-asm-riscv-o-loop-traduzido-cai-em-encode_int-para-as-novas-tags-35---open-dona--lane-native)
+**Fix (27/09, lane gaps-db/native-runtime — maintainer order "vamo fechar"):**
+new riscv asm `kof_json_encode_double`/`encode_long`/`encode_float` (NaN/±Inf →
+`null`, senão o MESMO `kof_double_to_string`/`kof_float_to_string`/`kof_long_to_string`
+do x86) in `NativeRiscvAsmRtB3`; `kof_json_enc_elem` gained tags 3/5; the riscv
+map walker (`NativeRiscvAsmRtB46`) gained tags 3/5; and the engine's decode face
+`kof_json_decode_double` was ported (`NativeRiscvAsmMapset1`, mirroring the x86
+token scan + `kof_string_to_double`). aarch64 inherits all via the translator.
+`PY_ENGINE_TARGETS` now includes `NATIVE_RISCV64`/`NATIVE_AARCH64`.
+
+**Proof (Q0/Q1/Q3, same commit):** `JsonNativeEncodeFpE2ETest` extended —
+list/map/scalar Double+Long+Float encode riscv64≡aarch64≡x86≡JVM byte-for-byte
+(2/2); new `InteropPyE2ETest#crossRiscvAndAarch64MatchJvmOutput` — the real
+Python engine (incl. `callDouble`) now runs on both arches ≡ JVM, 0 skips.
+Neighbour battery `Interop*`+`Json*`+`DomainGapCodesTest` 107/0F/7-skip (R-gated).
+Declared residual: `Float` inside lists/maps keeps tag 0 (the 4B raw-slot
+convention, same debt as §512) — scalar Float is covered.
+
+**Status:** ✅ FIXED 27/09.
+
+<!-- pt-switch --> **PT:** [§514 (pt_BR)](known-bugs.pt_BR.md#514--cross-riscv64aarch64-nunca-recebeu-os-encoders-json-fplong-de-elemento-kof_json_encode_double-ausente-do-asm-riscv-o-loop-traduzido-cai-em-encode_int-para-as-novas-tags-35---fixed-2709-lane-gaps-dbnative-runtime-ordem-da-mantenedora)
 
 ## §515 — `json.decode<Record>` on a PACKAGED record died at runtime with `NoSuchMethodError kof_json_decode_<SimpleName>` (the runtime defines the decoder under the mangled fully-qualified name) — ✅ FIXED 26/09 (parity/media lane, #627)
 
