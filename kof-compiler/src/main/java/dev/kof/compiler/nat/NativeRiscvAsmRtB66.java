@@ -46,7 +46,11 @@ public final class NativeRiscvAsmRtB66 {
                 addi a1, sp, 128
                 li   a2, 4096
                 call kof_plat_read
-                blez a0, .L66_fail
+                blez a0, .L66_lost
+                # §523: ERR ja no 1o pacote (host bloqueado/conexoes esgotadas)
+                lbu  t1, 132(sp)
+                li   t2, 255
+                beq  t1, t2, .L66_greet_err
                 # extrai o seed (20 bytes)
                 addi a0, sp, 128
                 li   t0, 8320
@@ -88,10 +92,76 @@ public final class NativeRiscvAsmRtB66 {
                 addi a1, sp, 128
                 li   a2, 4096
                 call kof_plat_read
-                blez a0, .L66_fail
+                blez a0, .L66_lost
                 lbu  t1, 132(sp)
                 beqz t1, .L66_ok
+                li   t2, 255
+                beq  t1, t2, .L66_resp_err
                 j    .L66_fail
+            .L66_resp_err:
+                addi a0, sp, 132
+                lbu  t0, 128(sp)
+                lbu  t1, 129(sp)
+                slli t1, t1, 8
+                or   t0, t0, t1
+                lbu  t1, 130(sp)
+                slli t1, t1, 16
+                or   a1, t0, t1
+                j    .L66_throw_err
+            .L66_greet_err:
+                addi a0, sp, 132
+                lbu  t0, 128(sp)
+                lbu  t1, 129(sp)
+                slli t1, t1, 8
+                or   t0, t0, t1
+                lbu  t1, 130(sp)
+                slli t1, t1, 16
+                or   a1, t0, t1
+                j    .L66_throw_err
+            .L66_lost:
+                la   a0, .L66_lostv
+                call kof_throw_string
+            # §523 (27/09): ERR do handshake lanca "mysql: <msg>" — espelha o
+            # `.Lsa_ex_err`/B76. a0 = payload, a1 = pktlen; msg = payload+9,
+            # len = pktlen-9, teto 400. Nunca retorna (s4-s7 como scratch).
+            .L66_throw_err:
+                addi t0, a1, -9
+                blez t0, .L66_te0
+                li   t1, 400
+                ble  t0, t1, .L66_te1
+                li   t0, 400
+                j    .L66_te1
+            .L66_te0:
+                li   t0, 0
+            .L66_te1:
+                mv   s6, t0              # msglen
+                addi t0, t0, 7
+                mv   s5, t0              # total
+                mv   s4, a0              # payload
+                addi a0, t0, 25
+                call kof_alloc
+                mv   s7, a0              # str
+                li   t0, 1
+                sw   t0, 0(s7)
+                sw   zero, 4(s7)
+                sd   zero, 8(s7)
+                sw   s5, 16(s7)
+                sw   zero, 20(s7)
+                addi a0, s7, 24
+                la   a1, .L66_pfx
+                li   a2, 7
+                call kof_memcpy
+                beqz s6, .L66_te2
+                addi a0, s7, 31
+                addi a1, s4, 9
+                mv   a2, s6
+                call kof_memcpy
+            .L66_te2:
+                add  t0, s7, s5
+                addi t0, t0, 24
+                sb   zero, 0(t0)
+                mv   a0, s7
+                call kof_throw_string
             .L66_ok:
                 li   a0, 0
                 j    .L66_ret
@@ -111,6 +181,18 @@ public final class NativeRiscvAsmRtB66 {
                 li   t6, 8368
                 add  sp, sp, t6
                 ret
+            .section .data
+            .align 3
+            .L66_pfx:
+                .ascii "mysql: "
+            .L66_lostv:
+                .long 1
+                .long 0
+                .quad 0
+                .long 22
+                .long 0
+                .ascii "mysql: connection lost"
+                .byte 0
             .section .text
             """;
 }

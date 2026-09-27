@@ -178,8 +178,7 @@ class KofDbE2ETest {
                 "Nao vazar ClassNotFoundException cru: " + output);
     }
 
-    private String runJvmExpectFailure(Path outDir, String extraJar) throws IOException {
-        try {
+    private String runJvmExpectFailure(Path outDir, String extraJar) throws IOException {        try {
             String cp = outDir.toString();
             if (extraJar != null) cp = cp + java.io.File.pathSeparator + extraJar;
             ProcessBuilder pb = new ProcessBuilder("java", "-cp", cp, "Default.Main");
@@ -1380,5 +1379,266 @@ class KofDbE2ETest {
                 + r.diagnostics().getDiagnostics());
         assertFalse(r.diagnostics().getDiagnostics().toString().contains("DB001"),
                 r.diagnostics().getDiagnostics().toString());
+    }
+
+    // §523 (27/09): `db.connect` contra servidor que REJEITA auth devolvia
+    // handle morto e o query seguinte SIGSEGVa (ec=139) em vez de lancar o
+    // ERR do handshake (lei JVM). A prova e HERMETICA: um fake server MySQL
+    // no proprio teste (greeting 0x0A no formato exato do
+    // `NativeRiscvDbWireTest#greetingHarness` + resposta ERR 1045) — roda em
+    // todo host e na CI, sem fixture. RED pre-fix: sem throw, o programa
+    // imprime NO-THROW ou morre no query (ec=139).
+    private static byte[] fakeMysqlGreeting() throws IOException {
+        java.io.ByteArrayOutputStream p = new java.io.ByteArrayOutputStream();
+        p.write(0x0A);
+        p.write("5.5.5-10.3.39-MariaDB".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        p.write(0);
+        p.write(new byte[]{0x2A, 0, 0, 0});
+        p.write("abcdefgh".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        p.write(0);
+        p.write(new byte[]{0, 0});
+        p.write(0x21);
+        p.write(new byte[]{2, 0});
+        p.write(new byte[]{0, 0});
+        p.write(21);
+        p.write(new byte[10]);
+        p.write("ABCDEFGH1234".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        p.write(0);
+        byte[] payload = p.toByteArray();
+        java.io.ByteArrayOutputStream f = new java.io.ByteArrayOutputStream();
+        f.write(payload.length & 0xFF);
+        f.write((payload.length >> 8) & 0xFF);
+        f.write((payload.length >> 16) & 0xFF);
+        f.write(0);
+        f.write(payload);
+        return f.toByteArray();
+    }
+
+    private static byte[] mysqlErrPacket(String msg) throws IOException {
+        byte[] m = msg.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        java.io.ByteArrayOutputStream p = new java.io.ByteArrayOutputStream();
+        p.write(0xFF);
+        p.write(0x15);
+        p.write(0x09);
+        p.write('#');
+        p.write("28000".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        p.write(m);
+        byte[] payload = p.toByteArray();
+        java.io.ByteArrayOutputStream f = new java.io.ByteArrayOutputStream();
+        f.write(payload.length & 0xFF);
+        f.write((payload.length >> 8) & 0xFF);
+        f.write((payload.length >> 16) & 0xFF);
+        f.write(2);
+        f.write(payload);
+        return f.toByteArray();
+    }
+
+    /** Fake server: 1 conexao (greeting, le o handshake-response, devolve ERR),
+     *  depois fecha. Devolve a porta + os bytes do request visto (prova que o
+     *  cliente tentou o auth de verdade — o fix nao pode lancar antes de enviar). */
+    private static final class FakeMysql {
+        final int port;
+        final java.util.concurrent.atomic.AtomicReference<byte[]> request = new java.util.concurrent.atomic.AtomicReference<>();
+        FakeMysql(String errMsg) throws IOException {
+            java.net.ServerSocket ss = new java.net.ServerSocket(0, 1,
+                    java.net.InetAddress.getByName("127.0.0.1"));
+            ss.setSoTimeout(30000);
+            port = ss.getLocalPort();
+            Thread th = new Thread(() -> {
+                try (java.net.Socket s = ss.accept()) {
+                    s.setSoTimeout(15000);
+                    var out = s.getOutputStream();
+                    var in = s.getInputStream();
+                    out.write(fakeMysqlGreeting());
+                    out.flush();
+                    byte[] hdr = in.readNBytes(4);
+                    int len = (hdr[0] & 0xFF) | ((hdr[1] & 0xFF) << 8) | ((hdr[2] & 0xFF) << 16);
+                    byte[] body = in.readNBytes(len);
+                    byte[] full = new byte[4 + body.length];
+                    System.arraycopy(hdr, 0, full, 0, 4);
+                    System.arraycopy(body, 0, full, 4, body.length);
+                    request.set(full);
+                    out.write(mysqlErrPacket(errMsg));
+                    out.flush();
+                    Thread.sleep(500);
+                } catch (Exception ignored) {
+                } finally {
+                    try { ss.close(); } catch (Exception ignored) { }
+                }
+            });
+            th.setDaemon(true);
+            th.start();
+        }
+    }
+
+    private static String authRejectProgram(int port) {
+        return """
+            main() {
+                try {
+                    var db = db.connect("mysql://root:wrong@127.0.0.1:%d/test")
+                    var rows = db.query(db, "select 1")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println("caught:" + e)
+                }
+            }
+            """.formatted(port);
+    }
+
+    /** Roda o binario nativo (direto no x86, sob qemu no cross) — [output, ec]. */
+    private static String[] execBin(Path binFile, String arch) throws IOException {
+        ProcessBuilder pb = arch == null
+                ? new ProcessBuilder(binFile.toString())
+                : new ProcessBuilder("qemu-" + arch, binFile.toString());
+        if (arch != null) {
+            String prefix = qemuPrefix(arch);
+            if (prefix != null) pb.environment().put("QEMU_LD_PREFIX", prefix);
+        }
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        try {
+            return new String[]{output, String.valueOf(p.waitFor())};
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted running native binary", e);
+        }
+    }
+
+    private static boolean tcpUp(int port) {
+        try (java.net.Socket s = new java.net.Socket()) {
+            s.connect(new java.net.InetSocketAddress("127.0.0.1", port), 500);
+            return s.isConnected();
+        } catch (Exception e) { return false; }
+    }
+
+    @Test
+    void nativeAuthRejectThrowsNamedMysqlError(@TempDir Path tempDir) throws Exception {
+        assumeTrue(isLinux(), "Native MySQL requires Linux");
+        String denied = "Access denied for user 'root'@'localhost' (using password: YES)";
+        FakeMysql fake = new FakeMysql(denied);
+        Path source = tempDir.resolve("M.kf");
+        Files.writeString(source, authRejectProgram(fake.port));
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.NATIVE);
+        assertTrue(result.success(), "Native compile should succeed: " + result.diagnostics().getDiagnostics());
+        String[] run = execBin(tempDir.resolve("out/Default/Main"), null);
+        assertEquals("0", run[1], "Exit code should be 0, output: '" + run[0] + "'");
+        assertEquals("caught:mysql: " + denied, run[0], "Auth reject must THROW the handshake ERR (§523)");
+        assertTrue(fake.request.get() != null && fake.request.get().length > 4,
+                "O cliente deve ter enviado o handshake-response antes do throw");
+    }
+
+    @Test
+    void crossNativeAuthRejectThrowsNamedMysqlError(@TempDir Path tempDir) throws Exception {
+        assumeTrue(isLinux(), "Native MySQL requires Linux");
+        String denied = "Access denied for user 'root'@'localhost' (using password: YES)";
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String arch = t.nativeArch();
+            String as = arch.equals("riscv64") ? "riscv64-linux-gnu-as" : "aarch64-linux-gnu-as";
+            String ld = arch.equals("riscv64") ? "riscv64-linux-gnu-ld" : "aarch64-linux-gnu-ld";
+            assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
+                    "sysroot cross " + arch + " ausente — pulando");
+            FakeMysql fake = new FakeMysql(denied);
+            Path source = tempDir.resolve("M-" + arch + ".kf");
+            Files.writeString(source, authRejectProgram(fake.port));
+            Path out = tempDir.resolve("out-" + t);
+            CompilationResult r = driver.compile(source, out, t);
+            assertTrue(r.success(), t + " deveria compilar db.*: " + r.diagnostics().getDiagnostics());
+            String[] run = execBin(out.resolve("Default/Main"), arch);
+            assertEquals("0", run[1], t + " exit code, output: '" + run[0] + "'");
+            assertEquals("caught:mysql: " + denied, run[0], t + " auth reject must THROW (§523)");
+        }
+    }
+
+    @Test
+    void nativeTcpRefusedThrowsConnectionLost(@TempDir Path tempDir) throws Exception {
+        assumeTrue(isLinux(), "Native MySQL requires Linux");
+        // Porta fechada de verdade (abre e fecha um ServerSocket) — sem fixture.
+        int port;
+        try (java.net.ServerSocket ss = new java.net.ServerSocket(0, 1,
+                java.net.InetAddress.getByName("127.0.0.1"))) {
+            port = ss.getLocalPort();
+        }
+        assumeTrue(!tcpUp(port), "A porta deveria estar fechada: " + port);
+        Path source = tempDir.resolve("M.kf");
+        Files.writeString(source, """
+            main() {
+                try {
+                    var db = db.connect("mysql://root:x@127.0.0.1:%d/test")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println("caught:" + e)
+                }
+            }
+            """.formatted(port));
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.NATIVE);
+        assertTrue(result.success(), "Native compile should succeed: " + result.diagnostics().getDiagnostics());
+        String[] run = execBin(tempDir.resolve("out/Default/Main"), null);
+        assertEquals("0", run[1], "Exit code should be 0, output: '" + run[0] + "'");
+        assertEquals("caught:mysql: connection lost", run[0], "TCP recusado deve lancar (escopo §523 votado)");
+    }
+
+    @Test
+    void authRejectMatchesJvmOnEnforcingServer(@TempDir Path tempDir) throws Exception {
+        assumeTrue(isLinux(), "Native MySQL requires Linux");
+        // Servidor que EXIGE auth (KOF_MYSQL_AUTH_PORT, default 13307 =
+        // fixture user-land ~/.local/share/kof-mariadb/auth, root/kofpass).
+        int port;
+        try { port = Integer.parseInt(System.getenv().getOrDefault("KOF_MYSQL_AUTH_PORT", "13307")); }
+        catch (NumberFormatException e) { port = 13307; }
+        assumeTrue(tcpUp(port), "Auth-enforcing MariaDB not reachable on 127.0.0.1:" + port);
+        String program = """
+            main() {
+                try {
+                    var db = db.connect("mysql://root:wrong@127.0.0.1:%d/test")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println("caught:" + e)
+                }
+            }
+            """.formatted(port);
+        Path source = tempDir.resolve("M.kf");
+        Files.writeString(source, program);
+        // Lei JVM: o connect NAO entrega handle — o erro do servidor aborta
+        // (excecao JDBC nao-capturavel por `catch (String e)`: assimetria
+        // pre-existente do modelo JVM, igual em toda chamada de runtime;
+        // muda-la seria regra 6. O observavel da lei: sem handle, com a
+        // mensagem do servidor — nunca NO-THROW/nunca SIGSEGV).
+        Path jvmSrc = tempDir.resolve("MJ.kf");
+        Files.writeString(jvmSrc, """
+            main() {
+                var db = db.connect("jdbc:mariadb://127.0.0.1:%d/test?user=root&password=wrong")
+                println("NO-THROW")
+            }
+            """.formatted(port));
+        CompilationResult jvm = driver.compile(jvmSrc, tempDir.resolve("jvm"), Target.JVM);
+        assertTrue(jvm.success(), "JVM compile should succeed: " + jvm.diagnostics().getDiagnostics());
+        String jvmOut = runJvmExpectFailure(tempDir.resolve("jvm"), findClasspathJar("mariadb"));
+        assertTrue(jvmOut.contains("Access denied"), "JVM deve abortar com Access denied, veio: " + jvmOut);
+        assertFalse(jvmOut.contains("NO-THROW"), "JVM nao pode entregar handle morto: " + jvmOut);
+        // Nativo x86: mesma lei, mensagem `mysql: ` do wire.
+        CompilationResult nat = driver.compile(source, tempDir.resolve("out"), Target.NATIVE);
+        assertTrue(nat.success(), "Native compile should succeed: " + nat.diagnostics().getDiagnostics());
+        String[] run = execBin(tempDir.resolve("out/Default/Main"), null);
+        assertEquals("0", run[1], "Exit code should be 0, output: '" + run[0] + "'");
+        assertTrue(run[0].startsWith("caught:mysql: Access denied"),
+                "Nativo deve lancar como a JVM, veio: '" + run[0] + "'");
+        // Happy path pelo servidor que exige auth (credencial certa) nao quebrou.
+        Path happy = tempDir.resolve("H.kf");
+        Files.writeString(happy, """
+            main() {
+                var db = db.connect("mysql://root:kofpass@127.0.0.1:%d/test")
+                var rows = db.query(db, "select 1")
+                for (var r in rows) { println(r) }
+                db.close(db)
+            }
+            """.formatted(port));
+        CompilationResult happyC = driver.compile(happy, tempDir.resolve("happy-out"), Target.NATIVE);
+        assertTrue(happyC.success(), "Happy compile should succeed: " + happyC.diagnostics().getDiagnostics());
+        String[] happyRun = execBin(tempDir.resolve("happy-out/Default/Main"), null);
+        assertEquals("0", happyRun[1], "happy ec, output: '" + happyRun[0] + "'");
+        assertEquals("{\"1\":1}", happyRun[0], "happy query output");
     }
 }

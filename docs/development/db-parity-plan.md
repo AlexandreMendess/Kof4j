@@ -431,6 +431,14 @@ typed roundtrip) produces the **same observable result** on all four targets, or
        (`save`/`saveAll`/`delete`/`deleteAll`/`count`/`count_where`) now run on
        the cross over the MySQL wire, byte-identical to the host — rows 15/16
        of `PARITY-GAPS` closed.
+     **§523 FIXED 27/09 (lane issues, por ordem da mantenedora; root cause da
+     lane db reaproveitado):** auth-reject `connect` threw nothing (dead
+     handle + SIGSEGV on next query) — handshake ERR now throws
+     `mysql: <msg>` on x86 (`RuntimeDb3 .Ldb_auth_done`/first-packet) and
+     cross (B66); socket/connect/read failures throw `mysql: connection lost`
+     (voted scope). RED-first hermetic + JVM-law proof in `KofDbE2ETest`;
+     `NativeRiscvDbWireTest` pin-flip. User-land fixtures
+     `~/.local/share/kof-mariadb` (13306 skip-grant, 13307 auth).
     Until each lands this stays a **declared interim gap** (never a silent
     accept), and `kof_orm_conn`'s message should name the real cause (mysql ORM
     not yet ported) instead of `unknown db connection`.

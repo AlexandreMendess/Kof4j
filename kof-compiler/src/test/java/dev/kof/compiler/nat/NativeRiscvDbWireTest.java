@@ -314,6 +314,27 @@ class NativeRiscvDbWireTest {
         return out;
     }
 
+    /** Variante que ESPERA o throw nao-capturado (ec 1 + mensagem) — §523:
+     *  o handshake contra DB inexistente/auth rejeitada lanca em vez de -1. */
+    private String buildRunExpectThrow(String arch, Path tempDir, String name, String asmText) throws IOException {
+        Path asm = tempDir.resolve(name + ".s");
+        Files.writeString(asm, asmText);
+        Path obj = tempDir.resolve(name + ".o");
+        Path bin = tempDir.resolve(name);
+        String as = arch.equals("riscv64") ? "riscv64-linux-gnu-as" : "aarch64-linux-gnu-as";
+        String ld = arch.equals("riscv64") ? "riscv64-linux-gnu-ld" : "aarch64-linux-gnu-ld";
+        if (arch.equals("riscv64")) {
+            runCapture(as, "-mno-relax", "-o", obj.toString(), asm.toString());
+        } else {
+            runCapture(as, "-o", obj.toString(), asm.toString());
+        }
+        runCapture(ld, "--no-relax", "-o", bin.toString(), obj.toString());
+        bin.toFile().setExecutable(true);
+        String[] run = runAllowFail("qemu-" + arch, bin.toString());
+        assertEquals("1", run[1], "qemu " + arch + " deveria abortar com o throw (ec 1): " + run[0]);
+        return run[0];
+    }
+
     @Test
     void sha1MatchesJvmOracleOnRiscv64(@TempDir Path tempDir) throws Exception {
         assumeRiscv();
@@ -725,8 +746,10 @@ class NativeRiscvDbWireTest {
         assumeMaria();
         String harness = mysqlHandshakeHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
-        String out = buildRun("riscv64", tempDir, "hs_rv", harness + "\n" + runtime);
-        assertEquals("0\n-1", out, "handshake riscv64: creds ok devem dar 0 e banco inexistente -1");
+        // §523: creds ok dao 0; banco inexistente LANCA `mysql: ...` (era -1).
+        String out = buildRunExpectThrow("riscv64", tempDir, "hs_rv", harness + "\n" + runtime);
+        assertEquals("0\nmysql: Unknown database 'kof_no_such_db_xyz'", out,
+                "handshake riscv64: creds ok 0, banco inexistente lanca (§523)");
     }
 
     @Test
@@ -740,8 +763,9 @@ class NativeRiscvDbWireTest {
         for (String line : riscv.split("\n", -1)) {
             for (String t : NativeAarch64Translator.translateRiscvToAarch64(line)) arm.append(t).append('\n');
         }
-        String out = buildRun("aarch64", tempDir, "hs_aa", arm.toString());
-        assertEquals("0\n-1", out, "handshake aarch64: creds ok devem dar 0 e banco inexistente -1");
+        String out = buildRunExpectThrow("aarch64", tempDir, "hs_aa", arm.toString());
+        assertEquals("0\nmysql: Unknown database 'kof_no_such_db_xyz'", out,
+                "handshake aarch64: creds ok 0, banco inexistente lanca (§523)");
     }
 
     @Test

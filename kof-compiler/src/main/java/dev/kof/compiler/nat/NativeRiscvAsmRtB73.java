@@ -257,13 +257,13 @@ public final class NativeRiscvAsmRtB73 {
                 li   a1, 1               # SOCK_STREAM
                 li   a2, 0
                 call kof_plat_net_socket
-                bltz a0, .L73_bad
+                bltz a0, .L73_lost
                 mv   s3, a0              # fd
                 mv   a0, s3
                 addi a1, sp, 96
                 li   a2, 16
                 call kof_plat_net_connect
-                bltz a0, .L73_bad
+                bltz a0, .L73_lost
                 mv   a0, s3
                 mv   a1, s4
                 mv   a2, s5
@@ -332,6 +332,10 @@ public final class NativeRiscvAsmRtB73 {
             .L73_unsupported:
                 la   a0, .L73_unsup_str
                 call kof_throw_string
+            # §523 (27/09, escopo votado): falha TCP lanca em vez de handle morto.
+            .L73_lost:
+                la   a0, .L73_lostv
+                call kof_throw_string
             .L73_bad:
                 li   a0, 0
             .L73_out:
@@ -362,6 +366,14 @@ public final class NativeRiscvAsmRtB73 {
             .L73_unsup_body:
                 .asciz "DB001: unsupported db scheme (native cross: sqlite:, mysql://, mariadb://)"
                 .set .L73_unsup_len, . - .L73_unsup_body - 1
+            .L73_lostv:
+                .long 1
+                .long 0
+                .quad 0
+                .long 22
+                .long 0
+                .ascii "mysql: connection lost"
+                .byte 0
             .section .text
             """;
 }

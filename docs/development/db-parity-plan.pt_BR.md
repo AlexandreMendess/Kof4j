@@ -371,18 +371,67 @@ por scheme é a prova.
        `mysql: connection lost`). *Prova:* `NativeRiscvDbWireTest` — harness em
        riscv64 + aarch64 sob qemu contra o MariaDB real
        (`0\n1\n1\n1\n0\n1`) mais o throw do ERR (`mysql: …`, exit 1) e a
-       sabotagem do link sem a B76. **Fatia 4b (ABERTA):** o corpo do
-       `kof_orm_save` — as 3 saídas medidas (INSERT com PK gerada + nova
-       instância com a PK patchada via `LAST_INSERT_ID`; `PK != 0` → UPDATE
-       devolvendo o mesmo ponteiro; UPDATE 0 linhas → INSERT de todas as
-       colunas), ramificando por `kof_db_type == 2` e reusando
-       `kof_orm_mysql_lit`/`RtB76`.
-    5. **`orm.find`/`all`/`where`/`where_op`/`page`** — materialização de linhas;
-       precisa de uma ABI de coluna tipada (a B70 devolve JSON, não colunas) e do
-       dialeto mysql.
-    Até cada uma pousar, fica **gap interino declarado** (nunca aceite
-    silencioso), e a mensagem do `kof_orm_conn` deve nomear a causa real (ORM
-    mysql ainda não portado) em vez de `unknown db connection`.
+       sabotagem do link sem a B76. **Fatia 4b FEITA 24/09** — o corpo do `kof_orm_save` pousou na
+       `RtB77` (`kof_orm_save_mysql`), ramificando por `kof_db_type == 2` no
+       topo do `kof_orm_save` (antes do `kof_orm_conn`, que recusa type≠1).
+       Espelha as 3 saídas medidas: (1) PK nula/0 → INSERT **sem** a coluna PK
+       + `SELECT LAST_INSERT_ID()` (`kof_db_mysql_scalar_int`/`RtB74`) e **nova
+       instância** com a PK patchada (`kof_alloc` + `kof_init_object` +
+       `kof_memcpy`); (2) PK != 0 → ``UPDATE `t` SET `f` = <lit>,… WHERE `pk` =
+       <lit>`` → mesmo ponteiro quando acha linhas; (3) UPDATE 0 linhas →
+       INSERT de todas as colunas (upsert) → mesmo ponteiro. Critério de PK =
+       x86 (int/long == 0, double/float truncado == 0 com os sentinelas
+       `INT64_MIN`/`MAX`, String null → INSERT, bool nunca). Identificadores
+       com backtick; literais de campo pelo `typeCode` do schema; exec que
+       LANÇA `kof_orm_mysql_exec` (`RtB76`). *Prova:*
+       `KofOrmE2ETest#crossNativeMariadbSaveMatchesOracles` — JVM + x86-64 +
+       riscv64 + aarch64 byte-idênticos — e
+       `#crossNativeMariadbSaveErrorMatchesX86Oracle` (tabela inexistente
+       lança em x86 == riscv64 == aarch64). **Fatia 4c FEITA 24/09** —
+       `orm.saveAll` sobre mysql veio de graça: `kof_orm_save_all` (B56) só
+       faz loop e delega ao `kof_orm_save`, que agora desvia type 2 para a
+       B77. *Prova:*
+       `KofOrmE2ETest#crossNativeMariadbSaveAllMatchesOracles` — JVM + x86-64
+       + riscv64 + aarch64 byte-idênticos.
+    5. **`orm.find`/`all`/`where`/`where_op`/`page`** — materialização de linhas.
+       **Fatia 5a (`find`) FEITA 24/09** como B78 (`kof_orm_find_mysql`): o
+       walk do resultset direto (reusando o reader B68 + lenenc B63), casa as
+       colunas por **NOME** contra o schema e converte cada célula pelo
+       **typeCode**; miss → `null`, ERR → `mysql: <msg>`, campo do schema sem
+       coluna → `mysql: no column <nome>` (R6). *Prova:*
+       `KofOrmE2ETest#crossNativeMariadbFindMatchesOracles` — JVM + x86-64 +
+       riscv64 + aarch64 byte-idênticos. **Fatia 5b (`all`) FEITA 24/09** como
+       B79 (`kof_orm_all_mysql`, dispatch na B58): mesmo walk,
+       `SELECT * FROM `t`` (sem bind), um record por linha,
+       **lista vazia** (nunca null) sem linhas; dead/ERR/`no column` → throw.
+       *Prova:* `KofOrmE2ETest#crossNativeMariadbAllMatchesOracles` —
+       byte-idênticos. **Fatia 5c (`where`/`where_op`) FEITA 24/09** como B80 +
+       `B80Helpers` (`kof_orm_where_mysql` + `kof_orm_mysql_op`, dispatch na
+       B59): ``SELECT * FROM `t` WHERE `f` <op> ?`` com whitelist do op idêntica
+       ao host (`==`→`=`, `>`/`<`/`>=`/`<=`/`!=`/`LIKE`, senão throw
+       `ORM operator not allowed: <op>`). *Prova:*
+       `KofOrmE2ETest#crossNativeMariadbWhereMatchesOracles` — byte-idênticos.
+       **Fatia 5d (`page`) FEITA 24/09** como B81 + `B81Helpers`
+       (`kof_orm_page_mysql`, dispatch na B60):
+       ``SELECT * FROM `t` LIMIT <lim> OFFSET <off>`` (lim/off boxeados →
+       `((Number)x).intValue()`), mesmo walk, página vazia = lista vazia.
+       *Prova:* `KofOrmE2ETest#crossNativeMariadbPageMatchesOracles` —
+       byte-idênticos. **S5.5 COMPLETA**: todas as faces de linha
+       (`find`/`all`/`where`/`where_op`/`page`) + as escritas
+       (`save`/`saveAll`/`delete`/`deleteAll`/`count`/`count_where`) agora rodam
+       no cross sobre o wire MySQL, byte-idênticas ao host — linhas 15/16 do
+       `PARITY-GAPS` fechadas.
+     **§523 CORRIGIDA 27/09 (lane issues, por ordem da mantenedora; causa raiz
+     da lane db reaproveitada):** connect com auth rejeitada não lançava nada
+     (handle morto + SIGSEGV no query seguinte) — o ERR do handshake agora
+     lança `mysql: <msg>` no x86 (`RuntimeDb3 .Ldb_auth_done`/primeiro-pacote)
+     e no cross (B66); falhas de socket/connect/leitura lançam
+     `mysql: connection lost` (escopo votado). Prova RED-first hermética +
+     perna lei-JVM em `KofDbE2ETest`; pin-flip no `NativeRiscvDbWireTest`.
+     Fixtures user-land `~/.local/share/kof-mariadb` (13306 skip-grant, 13307
+     auth). Até cada uma pousar, fica **gap interino declarado** (nunca aceite
+     silencioso), e a mensagem do `kof_orm_conn` deve nomear a causa real (ORM
+     mysql ainda não portado) em vez de `unknown db connection`.
 
     **Nota de design (corrigida 24/09; SUPERSEDEDA 26/09 por `D-DECISION-BATCH-2609`
     item 1 — a JVM é a lei, §493 CORRIGIDA):** o exec cross que lança

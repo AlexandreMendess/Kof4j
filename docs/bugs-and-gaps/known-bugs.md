@@ -15779,7 +15779,7 @@ targets; GREEN post-fix. Cluster green: `JsonCompleteE2ETest`,
 
 <!-- pt-switch --> **PT:** [§522 (pt_BR)](known-bugs.pt_BR.md#522--jsondecodemapk--com-colecao-aninhada-como-valor-do-map-perdia-o-tipo-do-elemento-na-jvm-o-dispatch-compile-time-so-olhava-o-type-arg-imediato-e-o-binder-nao-tinha-descida-de-map-github-633---fixed-2609-lane-paridadejson)
 
-## §523 — MySQL/MariaDB `connect` against a server that REJECTS auth returns a dead handle and the next `query`/`execute` SIGSEGVs (139) instead of throwing the handshake error — 🟡 OPEN (owner = lane db)
+## §523 — MySQL/MariaDB `connect` against a server that REJECTS auth returns a dead handle and the next `query`/`execute` SIGSEGVs (139) instead of throwing the handshake error — ✅ FIXED 27/09 (lane issues, por ordem da mantenedora)
 **Symptom (measured 26/09):** a MariaDB that ENFORCES auth on
 `127.0.0.1:13306` (e.g. `docker run mariadb:11 -e
 MARIADB_ROOT_PASSWORD=kofpass`, NOT the canonical `--skip-grant-tables`
@@ -15805,7 +15805,9 @@ resolve=0 and the subsequent COM_QUERY/result-read dereferences the dead state.
 `mvn -o -pl kof-compiler -am test -Dtest='KofDbE2ETest#nativeMariadbAliasWireProtocol'`;
 or the dispatch harness against the same server.
 
-<!-- pt-switch --> **PT:** [§523 (pt_BR)](known-bugs.pt_BR.md#523--connect-mysqlmariadb-contra-servidor-que-rejeita-auth-devolve-handle-morto-e-o-proximo-queryexecute-sigsega-139-em-vez-de-lancar-o-erro-do-handshake---open-dona--lane-db)
+**FIXED 27/09 (lane issues, por ordem da mantenedora no chat; root cause da lane db reaproveitado do `8fe6c94eb`):** the handshake ERR now throws `mysql: <msg>` (x86 `RuntimeDb3 .Ldb_auth_done`/first-packet → `.Ldb_auth_throw`; cross B66 → `.L66_throw_err`; msg = payload+9, cap 400 — the `.Lsa_ex_err`/B76 precedent); socket/connect/greeting/response read failures throw `mysql: connection lost` (voted scope); B73 socket/connect likewise. Proof RED-first: `KofDbE2ETest#nativeAuthRejectThrowsNamedMysqlError` + `#crossNativeAuthRejectThrowsNamedMysqlError` (hermetic fake MySQL server in-test: greeting 0x0A + ERR 1045; NO-THROW→caught on x86+riscv64+aarch64) + `#nativeTcpRefusedThrowsConnectionLost` (closed port) + `#authRejectMatchesJvmOnEnforcingServer` (JVM law + x86 + happy through enforcing 13307); `NativeRiscvDbWireTest#handshakeAgainstRealMariaDb*` pin-flipped (`0\n-1` → `0\nmysql: Unknown database…`, ec 1); `KofDbE2ETest` 44/0F + wire 41/0F + `KofOrmE2ETest` 82/0F/2skip. Measured JVM asymmetry (same as every JVM runtime call, not new): the JDBC exception stays uncatchable by `catch (String e)` (process dies ec 1 with the server message); Native throws the catchable Kof String — changing that is rule 6. Fixtures: user-land `~/.local/share/kof-mariadb` (13306 skip-grant, 13307 auth root/kofpass), no sudo needed.
+
+<!-- pt-switch --> **PT:** [§523 (pt_BR)](known-bugs.pt_BR.md#523--connect-mysqlmariadb-contra-servidor-que-rejeita-auth-devolve-handle-morto-e-o-proximo-queryexecute-sigsega-139-em-vez-de-lancar-o-erro-do-handshake---fixed-2709-lane-issues-por-ordem-da-mantenedora)
 
 ## §524 — qemu aarch64 harnesses in `NativeRiscvGc*/Dtoa/DbWire` SIGSEGV (139) under CPU load while green in isolation — deterministic at suite scale, NOT a code regression — 🟡 OPEN (owner = lane native-cross)
 **Symptom (measured 26/09):** under load the aarch64 execution methods of
