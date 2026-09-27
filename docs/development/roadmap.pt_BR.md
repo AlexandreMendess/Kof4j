@@ -900,7 +900,7 @@ ciência) **sem** destruir a simplicidade da linguagem.
 
 ---
 
-## 23. Plano de Implementação Consolidado (Tiers 0–12)
+## 23. Plano de Implementação Consolidado (Tiers 0–12 + linha Kofmd)
 
 > **Este é o ÚNICO plano de implementação ordenado do repo.** Funde
 > `ACTION_PLAN.md` e `IMPLEMENTATION_PLAN.md` (apagados 13/09 — ~85% do
@@ -908,6 +908,13 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > divergiam do código). Toda fase aqui move o doc correspondente de
 > `future/`→`docs/` quando ganha código. Dificuldade: `E` fácil · `M`
 > médio · `H` alto · `R` pesquisa.
+>
+> **Linha Kofmd (DECIDIDA 27/09 `D-KOFMD` — override explícito da
+> mantenedora, INDISPENSÁVEL para a 0.5.0):** Markdown tipado orientado a
+> intenção (plano `kofmd-plan.md`+PT): fatias 3.1→3.9 — tool → tipos
+> escalares → vocabulário de memória → round-trip Markdown → formatter
+> canônico → CLI `kof md` → hook LSP → corpus golden → migração gradual.
+> Códigos `MD001`/`MD002`.
 >
 > **Regra transversal (R12):** nenhum item de plano futuro é ação sobre o
 > estado atual; frentes novas (AUTOMATION/DATA/SCI/BIO) não abrem antes do
@@ -1043,7 +1050,7 @@ ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual.**
 FFI) · `2.2 codegen hook` → `infra`/gRPC stubs · **TIER 1 (SYSTEMS) fecha
 antes de QUALQUER Tier 6+ (R12).**
 
-### TIER 13 — Fila do ledger de dívida técnica (ABERTA 23/09, `D-TECHDEBT-23/09`; **LEDGER MORTO 24/09** — dívida medida zerada)
+### TIER 14 — Fila do ledger de dívida técnica (ABERTA 23/09, `D-TECHDEBT-23/09`; **LEDGER MORTO 24/09** — dívida medida zerada)
 
 Fila ordenada dos vereditos de múltipla escolha da mantenedora 23/09. **24/09,
 ordem da mantenedora: o ledger `tech-debt.md` está MORTO** — todo §NNN vivo

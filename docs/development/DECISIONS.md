@@ -3885,3 +3885,116 @@ total e nunca stub".
   (Simplicity Law), Q7 (no stubs), R1/R5 (interop = official package,
   experimental), R7 (honest target scope ≠ gap), D-MEMORY-SAFETY (Fase 3
   unblocked here), D-FULL-PARITY-050`.
+
+## D-KOFMD — Kofmd (typed, intent-oriented Markdown) is INDISPENSABLE for 0.5.0: full spec (37 sections + intent addendum) is the contract; implementation starts from the real infrastructure (maintainer 27/09/2026, explicit decision)
+
+**Evidence:** maintainer messages 27/09/2026 (chat, autonomous session):
+full Kofmd specification (37 sections: objective, existing-Kof investigation,
+definition, principles, typing, data/text, block semantics, AI-first,
+communication, short answers, idioms, schema, docs/AI-guide/rules,
+interoperability, preservation, parser, AST/IR, type checking, LSP, CLI,
+formatting, canonical form, AI read/write tests, machine readability,
+non-JSON, security, tests, goldens, corpus, style, AI principles,
+incremental phases 1–10, success criteria, final rule) + intent addendum
+(13 sections: intent-before-presentation, no-inference, intent≠type,
+small idiomatic intents, composability, determinism, write-by-intent,
+probability reduction, prose, normal Markdown, design principle, golden
+rule, Kof philosophy) → "kofmd vai precisar entrar agora devido ao tamanho
+e a verbosidade das documentações" → "é uma decisão explicita da
+mantenedora. kofmd indispensavel para 0.5.0".
+
+**Decision (explicit maintainer override of the scope-freeze for this
+front only):** Kofmd enters 0.5.0 as a first-class front. The 37+13 spec
+above IS the contract (intent-oriented, typed, Markdown-degradable, never
+verbose, never XML/YAML-disguised, never a metadata language). Rule 6 is
+satisfied by this entry: new surface, explicit vote, recorded here.
+
+**Scope lock (rule 11 + D-COMPLETE-FIRST apply):**
+1. **Fase 1 first — investigate the real infrastructure** (lexer,
+   `parser/` incl. `Lexer.java`/`Parser.java`/`AnnotationParser.java`,
+   AST nodes, type system, `record` types, annotations
+   (`CompilerAnnotations`), modules, stdlib, `kof.json` serialization,
+   `kof.file` future plan, CLI (`kof-cli`), LSP (`LspServer`), existing
+   docs/tooling/AI integration). No isolated architecture — Kofmd lives
+   where the ecosystem already lives.
+2. **Spec before syntax** — `docs/development/kofmd-plan.md`(+PT) records
+   the measured findings + the frozen surface; no syntax is implemented
+   before the plan lands.
+3. **Incremental slices per the spec's own §35** (investigation → spec →
+   minimal parser → types → Markdown interop → formatter/canonical →
+   schemas → CLI/LSP → AI tooling/corpus → gradual doc migration), each a
+   complete vertical cut with proof (Q0–Q7), never a stub.
+4. **Fake-idiom guard** — the spec's conceptual examples (`intent: task`,
+   `@decision`, `type TestResult {...}`, `kof md check`, `let`) are NOT
+   adopted automatically: every surface form must compile against the real
+   Kof grammar or be refused honestly (R6). `Option<T>`/`Result<T,E>` in
+   the spec's type list do not exist as Kof surface types — the plan names
+   the real Kof spelling (`T?` + narrowing, `throw "msg"`) or records a
+   rule-6 gap.
+5. **Queue:** roadmap §23 opens the Kofmd line in the same commit (rule 6:
+   deciding without recording = invisible; recording without queue = dead).
+
+- **Relationships:** `Related: rule 6, rule 11 (Simplicity Law),
+  D-COMPLETE-FIRST, D-KOF-FIRST, Q7 (no stubs), R1/R5, R6, kof-file-plan
+  (future), roadmap §23, D-RELEASE-0.5.0-GATE (scope note)`.
+
+## D-KOF-FIRST-IMPL — Post-0.5.0 feature architecture: Kof-first implementation, library-first; the core only grows to supply the smallest missing mechanism (maintainer 27/09/2026, explicit decision; registered as AGENTS.md rule 12)
+
+**Evidence:** maintainer message 27/09/2026 (chat): the "Kof Post-0.5.0
+Feature Architecture Guideline" (26 sections — objective; decision rule; new
+feature ≠ new compiler code; library as unit of evolution; small core;
+incremental self-hosting; no core rewrite; when the core may grow; core as
+mechanism / Kof as policy; FFI is not failure; library first, backend after;
+avoid backend-specific features; stdlib as bridge; progressive migration;
+core-necessity test; design test; anti-accidental-growth; stronger
+justification for new syntax; library as part of the language; self-hosting
+metric; compiler as future target; self-hosting coexists with all backends;
+acceptance criteria; evolution principle; summary rule; long-term principle).
+
+**Decision:** From 0.5.0 on, every new feature is implemented **as a Kof
+library first** whenever the language can already express it: *"If a feature
+can be written in Kof, it MUST be written in Kof."* A new feature is **not** a
+reason to grow the compiler/runtime/backend/IR/CLI/tooling. Rule 6 is
+satisfied by this entry (new direction, explicit vote, recorded here).
+
+**Decision procedure (normative):** `feature → can Kof do it? → yes → Kof
+library`; no → `which fundamental capability is missing? → add the smallest
+primitive → implement the feature in Kof`. The core supplies **mechanisms**;
+Kof libraries carry **policy and abstraction** (`runtime: socket`;
+`Kof library: HTTP`). FFI/JVM/Native/JS/WASM are the boundary, not a failure.
+
+**Core-necessity test (every PR that touches the core for a feature):**
+1. Why can it not be implemented in Kof?
+2. Which fundamental capability is missing?
+3. The smallest necessary core change.
+4. Does that change unlock other Kof libraries?
+5. Which Kof implementation can later replace part of it?
+No clear answer → the feature is re-evaluated.
+
+**Design test (before accepting an external implementation):** are we adding
+a **fundamental capability** or only a **feature Kof could implement**?
+Feature → library; capability → core; the distinction is explicit.
+
+**Anti-accidental-growth:** never `if feature == X`, a special runtime API for
+X, or new syntax, when X can be a library. New syntax needs a stronger
+justification — exhaust `library + types + functions + modules + stdlib`
+first (rule 11); the language grows by **capability**, never by local
+convenience or backend-specific special cases.
+
+**Migration:** existing core code may stay; the process is incremental
+substitution (`API → Kof implementation → parity tests → migration → future
+removal`), never a rewrite. Official Kof libraries are part of the language,
+not "external code".
+
+**Acceptance:** `Kof source + Kof library + tests + documentation`; if
+external code is unavoidable, `Kof source + minimal primitive + backend
+implementation + Kof library + tests + documentation`.
+
+**Long-term goal:** progressive self-hosting — Kof implementing stdlib,
+libraries, tooling and, eventually, parts of its own compiler — reached
+library by library, not by a big rewrite. Track `% stdlib / libraries /
+tooling implemented in Kof` as a direction, never as an artificial target.
+
+- **Relationships:** `Related: rule 6, rule 11 (Simplicity Law), rule 12,
+  D-KOF-FIRST (external behavior), D-BOOTSTRAP, D-MAKEALIVE, D-DB-GAPS, R1,
+  R9, Q7`.

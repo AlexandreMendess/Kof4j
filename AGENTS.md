@@ -5,7 +5,7 @@
 This is the **mandatory** guide for any AI agent (or human) who
 writes Kof code in this repository. Read it before generating any `.kf`.
 
-**Version:** 0.5.0-beta · Last update: 09/18/2026 (autonomous mode + STABILITY condition with refusal to re-trigger + **Quality gate: no bug ships** + rule 8 **Kof is not Java** as ABSOLUTE (18/09) + rule 9 **docs-first gate** for philosophy-violating issues (#449) (18/09) + **mechanical push via `scripts/sync-push.sh` + conflict policy "preserve both sides, redo yours on top" (19/09) + **autostash trap: markers can survive a successful rebase — grep + gates on the POST-REBASE tree, §NNN re-checked against the remote tip (26/09)** + R1 stdlib-boundary machine gate (17/09) + §NNN shared-claim rule for multi-agent ledgers (18/09) + rule 10 **KOF-first, external-second** (`D-KOF-FIRST`, DECIDED 19/09) + rule 11 **Simplicity Law — anything that reaches the language surface** as ABSOLUTE (20/09) + `D-MAKEALIVE`/`D-KOF-AS-CLOUD`/`D-BOOTSTRAP`/`D-DB-GAPS` (20/09); active branch = **`beta-0.5.0`** (`D-BRANCH-0.5.0`, 09/20 — `beta-0.4.0` only for in-flight landings + release prep); see rule 9)
+**Version:** 0.5.0-beta · Last update: 09/27/2026 (autonomous mode + STABILITY condition with refusal to re-trigger + **Quality gate: no bug ships** + rule 8 **Kof is not Java** as ABSOLUTE (18/09) + rule 9 **docs-first gate** for philosophy-violating issues (#449) (18/09) + **mechanical push via `scripts/sync-push.sh` + conflict policy "preserve both sides, redo yours on top" (19/09) + **autostash trap: markers can survive a successful rebase — grep + gates on the POST-REBASE tree, §NNN re-checked against the remote tip (26/09)** + R1 stdlib-boundary machine gate (17/09) + §NNN shared-claim rule for multi-agent ledgers (18/09) + rule 10 **KOF-first, external-second** (`D-KOF-FIRST`, DECIDED 19/09) + rule 11 **Simplicity Law — anything that reaches the language surface** as ABSOLUTE (20/09) + rule 12 **Post-0.5.0 Kof-first implementation — library-first, the core supplies only mechanisms** (`D-KOF-FIRST-IMPL`, 27/09) + `D-MAKEALIVE`/`D-KOF-AS-CLOUD`/`D-BOOTSTRAP`/`D-DB-GAPS` (20/09); active branch = **`beta-0.5.0`** (`D-BRANCH-0.5.0`, 09/20 — `beta-0.4.0` only for in-flight landings + release prep); see rule 9)
 
 > **PRIORITY No. 1: QUALITY.** Before any feature, read the
 > **Quality gate — "no bug ships"** (§ below), **universal for
@@ -718,6 +718,41 @@ Bool isQuery(String op) {
     (`D-MAKEALIVE`), the DB/ORM front (`D-DB-GAPS`) and, ultimately,
     `D-BOOTSTRAP` — the Kof-written compiler is the test: if the language
     cannot express its own compiler simply, the language has failed.
+12. **Post-0.5.0 — Kof-first implementation; the core only grows to supply
+    mechanisms (ABSOLUTE, maintainer 27/09, `D-KOF-FIRST-IMPL`).** From 0.5.0
+    on, every new feature MUST first be implemented as a **Kof library**
+    (`.kof`) whenever the language can already express it:
+    *"If a feature can be written in Kof, it MUST be written in Kof."*
+    A new feature is **not** a reason to patch the
+    compiler/runtime/backend/IR/CLI/tooling. The default flow is
+    `feature → can Kof do it? → yes → Kof library`; only when the answer is
+    no: `feature → which fundamental capability is missing? → add the smallest
+    primitive → implement the feature in Kof`. **The core supplies mechanisms;
+    Kof libraries carry policy and abstraction** (`runtime: socket`;
+    `Kof library: HTTP`). FFI/JVM/Native/JS/WASM primitives are not a failure —
+    they are the boundary; the abstraction above them belongs to Kof. Any PR
+    that touches the core for a feature MUST answer: (1) why can it not be
+    implemented in Kof? (2) which fundamental capability is missing? (3) the
+    smallest necessary core change; (4) does that change unlock other Kof
+    libraries? (5) which Kof implementation can later replace part of it? No
+    clear answer → the feature is re-evaluated. New syntax needs an even
+    stronger justification — exhaust `library + types + functions + modules +
+    stdlib` first (rule 11); the language grows by **capability**, never by
+    local convenience or backend-specific special cases. **Never** add
+    `if feature == X`, a special runtime API, or new syntax when X can be a
+    library. Existing core code may stay where it is: the process is
+    incremental substitution (`API → Kof implementation → parity tests →
+    migration → future removal`), never a rewrite. Acceptance for a feature:
+    `Kof source + Kof library + tests + documentation`; if external code is
+    unavoidable, `Kof source + minimal primitive + backend implementation +
+    Kof library + tests + documentation`. The long-term goal is **progressive
+    self-hosting** — Kof implementing stdlib, libraries, tooling and,
+    eventually, parts of its own compiler — reached library by library, not by
+    a big rewrite. Official Kof libraries are part of the language, not
+    "external code". Track `% stdlib / libraries / tooling implemented in Kof`
+    as a direction, never as an artificial target. Full guideline:
+    `docs/development/DECISIONS.md` §`D-KOF-FIRST-IMPL` (post-0.5.0 feature
+    architecture).
 
 ---
 

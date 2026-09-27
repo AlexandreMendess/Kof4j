@@ -898,7 +898,7 @@ science) **without** destroying the language's simplicity.
 
 ---
 
-## 23. Consolidated Implementation Plan (Tiers 0–12)
+## 23. Consolidated Implementation Plan (Tiers 0–12 + Kofmd line)
 
 > **This is the ONLY ordered implementation plan in the repo.** It merges
 > `ACTION_PLAN.md` and `IMPLEMENTATION_PLAN.md` (deleted 13/09 — ~85% of the
@@ -906,6 +906,12 @@ science) **without** destroying the language's simplicity.
 > diverged from the code). Every phase here moves the corresponding doc from
 > `future/`→`docs/` when it gains code. Difficulty: `E` easy · `M`
 > medium · `H` high · `R` research.
+>
+> **Kofmd line (DECIDED 27/09 `D-KOFMD` — explicit maintainer override,
+> INDISPENSABLE for 0.5.0):** typed intent-oriented Markdown (plan
+> `kofmd-plan.md`+PT): slices 3.1→3.9 — tool → scalar types → agent-memory
+> vocab → Markdown round-trip → canonical formatter → CLI `kof md` → LSP
+> hook → golden corpus → gradual migration. Gap codes `MD001`/`MD002`.
 >
 > **Cross-cutting rule (R12):** no future plan item is an action on the
 > current state; new fronts (AUTOMATION/DATA/SCI/BIO) do not open before the
@@ -1041,7 +1047,7 @@ the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work.**
 FFI) · `2.2 codegen hook` → `infra`/gRPC stubs · **TIER 1 (SYSTEMS) closes
 before ANY Tier 6+ (R12).**
 
-### TIER 13 — Tech-debt ledger queue (OPEN 23/09, `D-TECHDEBT-23/09`; **LEDGER KILLED 24/09** — debt measured zeroed)
+### TIER 14 — Tech-debt ledger queue (OPEN 23/09, `D-TECHDEBT-23/09`; **LEDGER KILLED 24/09** — debt measured zeroed)
 
 Ordered queue from the maintainer's multiple-choice rulings 23/09. **24/09,
 maintainer order: the `tech-debt.md` ledger is KILLED** — every live §NNN it

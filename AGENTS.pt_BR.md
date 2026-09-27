@@ -5,7 +5,7 @@
 Este é o guia **obrigatório** para qualquer agente de IA (ou humano) que
 escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 
-**Versão:** 0.5.0-beta · Última atualização: 18/09/2026 (modo autônomo + condição de ESTABILIDADE com recusa de re-disparo + **Portão de qualidade: nenhum bug sobe** + regra 8 **Kof não é Java** como ABSOLUTA (18/09) + regra 9 **portão docs-first** para issues fora da filosofia (#449) (18/09) + **push mecânico via `scripts/sync-push.sh` + política de conflito "preserve os dois lados, refaça o seu em cima" (19/09) + **armadilha do autostash: marcadores podem sobreviver a um rebase bem-sucedido — grep + gates na árvore PÓS-REBASE, §NNN reconferido contra o tip remoto (26/09)** + gate de máquina da fronteira stdlib R1 (17/09) + regra de claim compartilhada §NNN para ledgers multi-agente (18/09) + regra 10 **KOF-primeiro, externo-depois** (`D-KOF-FIRST`, DECIDED 19/09) + regra 11 **Lei da Simplicidade — tudo que chega à superfície da linguagem** como ABSOLUTO (20/09) + `D-MAKEALIVE`/`D-KOF-AS-CLOUD`/`D-BOOTSTRAP`/`D-DB-GAPS` (20/09); branch ativa = **`beta-0.5.0`** (`D-BRANCH-0.5.0`, 20/09 — `beta-0.4.0` só para pousos em voo + preparo de release); veja a regra 9)
+**Versão:** 0.5.0-beta · Última atualização: 27/09/2026 (modo autônomo + condição de ESTABILIDADE com recusa de re-disparo + **Portão de qualidade: nenhum bug sobe** + regra 8 **Kof não é Java** como ABSOLUTA (18/09) + regra 9 **portão docs-first** para issues fora da filosofia (#449) (18/09) + **push mecânico via `scripts/sync-push.sh` + política de conflito "preserve os dois lados, refaça o seu em cima" (19/09) + **armadilha do autostash: marcadores podem sobreviver a um rebase bem-sucedido — grep + gates na árvore PÓS-REBASE, §NNN reconferido contra o tip remoto (26/09)** + gate de máquina da fronteira stdlib R1 (17/09) + regra de claim compartilhada §NNN para ledgers multi-agente (18/09) + regra 10 **KOF-primeiro, externo-depois** (`D-KOF-FIRST`, DECIDED 19/09) + regra 11 **Lei da Simplicidade — tudo que chega à superfície da linguagem** como ABSOLUTO (20/09) + regra 12 **Implementação Kof-first pós-0.5.0 — biblioteca-primeiro, o core fornece só mecanismos** (`D-KOF-FIRST-IMPL`, 27/09) + `D-MAKEALIVE`/`D-KOF-AS-CLOUD`/`D-BOOTSTRAP`/`D-DB-GAPS` (20/09); branch ativa = **`beta-0.5.0`** (`D-BRANCH-0.5.0`, 20/09 — `beta-0.4.0` só para pousos em voo + preparo de release); veja a regra 9)
 
 > **PRIORIDADE Nº 1: QUALIDADE.** Antes de qualquer feature, leia o
 > **Portão de qualidade — "nenhum bug sobe"** (§ abaixo), **universal para
@@ -721,6 +721,42 @@ Bool isQuery(String op) {
     (`D-DB-GAPS`) e, por fim, o `D-BOOTSTRAP` — o compilador escrito em Kof é
     o teste: se a linguagem não consegue expressar o próprio compilador com
     simplicidade, a linguagem falhou.
+12. **Pós-0.5.0 — implementação Kof-first; o core só cresce para fornecer
+    mecanismos (ABSOLUTO, mantenedora 27/09, `D-KOF-FIRST-IMPL`).** A partir
+    da 0.5.0, toda nova funcionalidade DEVE primeiro ser implementada como
+    **biblioteca Kof** (`.kof`) sempre que a linguagem já conseguir expressá-la:
+    *"Se uma feature pode ser escrita em Kof, ela DEVE ser escrita em Kof."*
+    Uma feature nova **não** é motivo para patchar o
+    compilador/runtime/backend/IR/CLI/tooling. O fluxo padrão é
+    `feature → o Kof consegue? → sim → biblioteca Kof`; só quando a resposta
+    for não: `feature → qual capacidade fundamental está faltando? → adicione a
+    menor primitiva → implemente a feature em Kof`. **O core fornece
+    mecanismos; as bibliotecas Kof carregam política e abstração**
+    (`runtime: socket`; `biblioteca Kof: HTTP`). FFI/JVM/Native/JS/WASM não são
+    fracasso — são a fronteira; a abstração acima deles pertence ao Kof.
+    Qualquer PR que toque o core por uma feature DEVE responder: (1) por que
+    isso não pode ser implementado em Kof? (2) qual capacidade fundamental
+    está faltando? (3) a menor mudança necessária no core; (4) essa mudança
+    destrava outras bibliotecas Kof? (5) qual implementação Kof pode depois
+    substituir parte disso? Sem resposta clara → a feature é reavaliada. Nova
+    sintaxe exige justificativa ainda maior — esgote `biblioteca + tipos +
+    funções + módulos + stdlib` primeiro (regra 11); a linguagem cresce por
+    **capacidade**, nunca por conveniência local ou caso especial de backend.
+    **Nunca** adicione `if feature == X`, API especial de runtime ou sintaxe
+    nova quando X pode ser uma biblioteca. O código de core existente pode
+    ficar onde está: o processo é substituição incremental
+    (`API → implementação Kof → testes de paridade → migração → remoção
+    futura`), nunca um rewrite. Aceite de uma feature:
+    `fonte Kof + biblioteca Kof + testes + documentação`; se código externo for
+    inevitável, `fonte Kof + primitiva mínima + implementação de backend +
+    biblioteca Kof + testes + documentação`. O objetivo de longo prazo é
+    **auto-hospedagem progressiva** — o Kof implementando stdlib, bibliotecas,
+    tooling e, por fim, partes do próprio compilador — alcançada biblioteca a
+    biblioteca, não por um grande rewrite. Bibliotecas oficiais Kof são parte
+    da linguagem, não "código externo". Acompanhe `% da stdlib / bibliotecas /
+    tooling implementados em Kof` como direção, nunca como meta artificial.
+    Guideline completa: `docs/development/DECISIONS.md` §`D-KOF-FIRST-IMPL`
+    (arquitetura de features pós-0.5.0).
 
 ---
 

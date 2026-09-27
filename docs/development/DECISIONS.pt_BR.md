@@ -3864,3 +3864,123 @@ total e nunca stub".
   (Lei da Simplicidade), Q7 (sem stubs), R1/R5 (interop = pacote oficial,
   experimental), R7 (escopo de alvo honesto ≠ gap), D-MEMORY-SAFETY (Fase 3
   destravada aqui), D-FULL-PARITY-050`.
+
+## D-KOFMD — Kofmd (Markdown tipado, orientado a intenção) é INDISPENSÁVEL para a 0.5.0: a spec completa (37 seções + adendo de intenção) é o contrato; a implementação parte da infraestrutura real (mantenedora 27/09/2026, decisão explícita)
+
+**Evidência:** mensagens da mantenedora 27/09/2026 (chat, sessão autônoma):
+spec completa do Kofmd (37 seções: objetivo, investigação do Kof existente,
+definição, princípios, tipagem, dados/texto, semântica de blocos, IA-first,
+comunicação, respostas curtas, idiomático, schema, docs/guia-IA/regras,
+interoperabilidade, preservação, parser, AST/IR, type checking, LSP, CLI,
+formatação, forma canônica, testes de leitura/escrita por IA, machine
+readability, não-JSON, segurança, testes, goldens, corpus, estilo,
+princípios de IA, fases incrementais 1–10, critério de sucesso, regra final)
++ adendo de intenção (13 seções: intenção-antes-de-apresentação,
+não-inferência, intenção≠tipo, intenções pequenas idiomáticas,
+composabilidade, determinismo, escrever-pela-intenção, redução de
+probabilidade, prosa, Markdown normal, princípio de design, regra de ouro,
+filosofia Kof) → "kofmd vai precisar entrar agora devido ao tamanho e a
+verbosidade das documentações" → "é uma decisão explicita da mantenedora.
+kofmd indispensavel para 0.5.0".
+
+**Decisão (override explícito da mantenedora sobre o congelamento de escopo,
+só para esta frente):** o Kofmd entra na 0.5.0 como frente de primeira
+classe. A spec 37+13 acima É o contrato (orientado a intenção, tipado,
+degradável para Markdown, nunca verboso, nunca XML/YAML disfarçado, nunca
+linguagem de metadados). A regra 6 está satisfeita por este registro:
+superfície nova, voto explícito, gravado aqui.
+
+**Trava de escopo (regra 11 + D-COMPLETE-FIRST valem):**
+1. **Fase 1 primeiro — investigar a infraestrutura real** (lexer,
+   `parser/` incl. `Lexer.java`/`Parser.java`/`AnnotationParser.java`,
+   nós AST, sistema de tipos, tipos `record`, annotations
+   (`CompilerAnnotations`), módulos, stdlib, serialização `kof.json`,
+   plano futuro `kof.file`, CLI (`kof-cli`), LSP (`LspServer`), docs/
+   tooling/integração com IA existentes). Nada de arquitetura isolada — o
+   Kofmd mora onde o ecossistema já mora.
+2. **Spec antes da sintaxe** — `docs/development/kofmd-plan.md`(+PT)
+   registra os achados medidos + a superfície congelada; nenhuma sintaxe é
+   implementada antes do plano pousar.
+3. **Fatias incrementais pelo §35 da própria spec** (investigação → spec →
+   parser mínimo → tipos → interop Markdown → formatter/canônica →
+   schemas → CLI/LSP → tooling/corpus de IA → migração gradual da doc),
+   cada uma um corte vertical completo com prova (Q0–Q7), nunca stub.
+4. **Guarda de fake-idiom** — os exemplos conceituais da spec
+   (`intent: task`, `@decision`, `type TestResult {...}`, `kof md check`,
+   `let`) NÃO são adotados automaticamente: toda forma de superfície tem
+   que compilar contra a gramática real do Kof ou ser recusada com
+   honestidade (R6). `Option<T>`/`Result<T,E>` na lista de tipos da spec
+   não existem como tipos de superfície Kof — o plano nomeia a grafia real
+   (`T?` + narrowing, `throw "msg"`) ou registra gap regra-6.
+5. **Fila:** o roadmap §23 abre a linha Kofmd no mesmo commit (regra 6:
+   decidir sem registrar = invisível; registrar sem enfileirar = morta).
+
+- **Relações:** `Related: regra 6, regra 11 (Lei da Simplicidade),
+  D-COMPLETE-FIRST, D-KOF-FIRST, Q7 (sem stubs), R1/R5, R6, kof-file-plan
+  (future), roadmap §23, D-RELEASE-0.5.0-GATE (nota de escopo)`.
+
+## D-KOF-FIRST-IMPL — Arquitetura de features pós-0.5.0: implementação Kof-first, biblioteca-primeiro; o core só cresce para fornecer o menor mecanismo que falta (mantenedora 27/09/2026, decisão explícita; registrada como regra 12 do AGENTS.md)
+
+**Evidência:** mensagem da mantenedora 27/09/2026 (chat): a "Kof Post-0.5.0
+Feature Architecture Guideline" (26 seções — objetivo; regra de decisão; nova
+feature ≠ novo código no compilador; biblioteca como unidade de evolução; core
+pequeno; auto-hospedagem incremental; sem rewrite do core; quando o core pode
+crescer; core como mecanismo / Kof como política; FFI não é fracasso;
+biblioteca primeiro, backend depois; evitar features backend-specific; stdlib
+como ponte; migração progressiva; teste de necessidade de core; teste de
+design; regra contra crescimento acidental; justificativa maior para sintaxe
+nova; biblioteca como parte da linguagem; métrica de auto-hospedagem;
+compilador como alvo futuro; auto-hospedagem coexiste com todos os backends;
+critério de aceite; princípio de evolução; regra resumida; princípio de longo
+prazo).
+
+**Decisão:** A partir da 0.5.0, toda nova feature é implementada **primeiro
+como biblioteca Kof** sempre que a linguagem já conseguir expressá-la: *"Se uma
+feature pode ser escrita em Kof, ela DEVE ser escrita em Kof."* Uma feature
+nova **não** é motivo para crescer o compilador/runtime/backend/IR/CLI/
+tooling. A regra 6 é satisfeita por esta entrada (direção nova, voto
+explícito, registrada aqui).
+
+**Procedimento de decisão (normativo):** `feature → o Kof consegue? → sim →
+biblioteca Kof`; não → `qual capacidade fundamental está faltando? → adicione a
+menor primitiva → implemente a feature em Kof`. O core fornece **mecanismos**;
+as bibliotecas Kof carregam **política e abstração** (`runtime: socket`;
+`biblioteca Kof: HTTP`). FFI/JVM/Native/JS/WASM são a fronteira, não fracasso.
+
+**Teste de necessidade de core (todo PR que toca o core por uma feature):**
+1. Por que isso não pode ser implementado em Kof?
+2. Qual capacidade fundamental está faltando?
+3. A menor mudança necessária no core.
+4. Essa mudança destrava outras bibliotecas Kof?
+5. Qual implementação Kof pode depois substituir parte disso?
+Sem resposta clara → a feature é reavaliada.
+
+**Teste de design (antes de aceitar implementação externa):** estamos
+adicionando uma **capacidade fundamental** ou apenas uma **feature que o Kof
+poderia implementar**? Feature → biblioteca; capacidade → core; a distinção é
+explícita.
+
+**Contra crescimento acidental:** nunca `if feature == X`, API especial de
+runtime para X, ou sintaxe nova, quando X pode ser uma biblioteca. Sintaxe nova
+exige justificativa maior — esgote `biblioteca + tipos + funções + módulos +
+stdlib` primeiro (regra 11); a linguagem cresce por **capacidade**, nunca por
+conveniência local ou caso especial de backend.
+
+**Migração:** o código de core existente pode ficar onde está; o processo é
+substituição incremental (`API → implementação Kof → testes de paridade →
+migração → remoção futura`), nunca um rewrite. Bibliotecas oficiais Kof são
+parte da linguagem, não "código externo".
+
+**Aceite:** `fonte Kof + biblioteca Kof + testes + documentação`; se código
+externo for inevitável, `fonte Kof + primitiva mínima + implementação de
+backend + biblioteca Kof + testes + documentação`.
+
+**Objetivo de longo prazo:** auto-hospedagem progressiva — o Kof implementando
+stdlib, bibliotecas, tooling e, por fim, partes do próprio compilador —
+alcançada biblioteca a biblioteca, não por um grande rewrite. Acompanhe `% da
+stdlib / bibliotecas / tooling implementados em Kof` como direção, nunca como
+meta artificial.
+
+- **Relações:** `Related: regra 6, regra 11 (Lei da Simplicidade), regra 12,
+  D-KOF-FIRST (comportamento externo), D-BOOTSTRAP, D-MAKEALIVE, D-DB-GAPS,
+  R1, R9, Q7`.
