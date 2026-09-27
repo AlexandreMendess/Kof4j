@@ -184,11 +184,14 @@ class PackageQualifiedTypeE2ETest {
         assertTrue(diags.contains("SEM011"), "recusa honesta via SEM011, veio: " + diags);
     }
 
-    // NOTA (#639 face 2 residual): a superfície qualificada em anotação
-    // DECLARADA de parâmetro/campo/retorno (`use(xs: List<p1.Item>)` numa
-    // outra package) ainda não propaga o elemento genérico — `xs.get(0)`
-    // sai Object e o método recusa no load (VerifyError "Bad return type").
-    // É um gap à parte (caminho de tipo DECLARADO + extração de type-arg),
-    // registrado no DOING; a face 2 entregue cobre expressão + anotação
-    // LOCAL (topo e dentro de genéricos), provado acima.
+    // NOTA (#639 face 2 residual — ESTREITADO 27/09): o caminho de tipo
+    // DECLARADO é irregular. Reproduzido mínimo: um CAMPO com tipo qualificado
+    // (`class H { List<p1.Item> xs; constructor(List<p1.Item> xs){...};
+    // first(): String { return xs.get(0).tag() } }` em p2) COMPILA mas recusa
+    // no load (VerifyError "Bad return type") — a substituição de `E` do
+    // receiver de campo não casa com o `checkcast` emitido. Em contraste, o
+    // PARÂMETRO de método de classe com a MESMA anotação `List<p1.Item>`
+    // funciona (roda `p1:1`). Logo o gap ficou contido ao caminho de CAMPO
+    // (tipo do FieldSymbol), não a param/retorno. Registrado no DOING; a face
+    // 2 entregue cobre expressão + anotação LOCAL (topo e em genéricos).
 }
