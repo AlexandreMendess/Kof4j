@@ -884,11 +884,11 @@ class ConformanceMatrixTest {
                     println(strings.isAlpha("Hello") == true)
                 }
                 """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1\ntrue", Set.of(), tempDir);
-        // STDLIB S2b — kof.strings conversores (alocam String). ASCII-only:
-        // é onde JVM/Native/JS concordam byte a byte. capitalize é ASCII
-        // (mesma regra nos 4); reverse é byte-reverso no Native e UTF-16
-        // nos outros — em ASCII as três convenções coincidem. Gap UTF-8 do
-        // reverse nativo = NAT-STR01 (plan-stdlib-expansion §5).
+        // STDLIB S2b — kof.strings conversores (alocam String). capitalize é
+        // ASCII (mesma regra nos 4). reverse inverte por CODE POINT (JVM
+        // StringBuilder.reverse / JS [...v].reverse); o nativo passou a
+        // inverter a sequência de code points UTF-8 (D-FULL-PARITY-050 linha
+        // 11) — a célula stdstrings2b2 trava o não-ASCII.
         matrix("stdstrings2b", """
                 main() {
                     var a = strings.capitalize("hello world")
@@ -903,6 +903,23 @@ class ConformanceMatrixTest {
                     println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + g + "|" + h + "|" + i)
                 }
                 """, "Hello world|1abc|321cba|kayak|ababab|hello|abc|007|ab---", Set.of(), tempDir);
+        // STDLIB S2b — reverse não-ASCII: inversão por code point UTF-8
+        // (fecha o gap de reverse da NAT-STR01; golden = JVM). Unidades via
+        // toCharArray para não depender de encoding do stdout. "café" (C3 A9
+        // multi-byte) e "a😀b" (par surrogate astral) travam os dois casos.
+        matrix("stdstrings2b2", """
+                main() {
+                    var a = strings.reverse("café").toCharArray()
+                    for (var i = 0; i < a.length; i++) {
+                        println(a[i] as Int)
+                    }
+                    var b = strings.reverse("a😀b").toCharArray()
+                    for (var i = 0; i < b.length; i++) {
+                        println(b[i] as Int)
+                    }
+                    println(strings.reverse("").length)
+                }
+                """, "233\n102\n97\n99\n98\n55357\n56832\n97\n0", Set.of(), tempDir);
         // STDLIB S2b.4 — kof.strings conversores de palavra (split+join, ASCII).
         // A matriz roda native=x86 (tem asm); o port riscv/aarch é STRN001-gated
         // (KofStringsTest.wordConvertersGatedOnCrossArch). Em ASCII os 4 targets

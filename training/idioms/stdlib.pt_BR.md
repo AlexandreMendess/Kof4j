@@ -49,7 +49,7 @@ strings.isLowerCase("abc-123")     // demais chars ignorados
 strings.count("aabaabaa", "ab")    // 2 — NÃO-sobrepostas; sub vazio => 0
 strings.capitalize("hello")        // "Hello" (ASCII; 1º byte a-z)
 strings.uncapitalize("Hello")      // "hello" — espelho exato do capitalize (S11)
-strings.reverse("abc")             // "cba" (byte-reverso no Native — ver NAT-STR01)
+strings.reverse("abc")             // "cba"; inverte por CODE POINT em todos os targets (walk UTF-8 no Native — face reverse da NAT-STR01 corrigida 27/09)
 strings.repeat("ab", 3)            // "ababab"; n<=0 => ""
 strings.truncate("hello", 3)       // "hel"; n>=len => original; n<=0 => ""
 strings.padLeft("7", 3, "0")       // "007" — pad é STRING, usa a 1ª char
@@ -371,8 +371,10 @@ legada, nao o modelo do que sera promovido.
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (tempo de compilação) | ❌ `PROC001` | ✅ paridade byte |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (chain + pump, 20/09 `081a48f8`; node puro = diagnostico honesto) |
 
-`strings.reverse` em não-ASCII: byte-reverso no Native vs UTF-16 no JVM/JS —
-gap **NAT-STR01** (paridade só travada em ASCII na matriz).
+`strings.reverse` em não-ASCII: corrigido 27/09 — inverte por CODE POINT UTF-8
+no Native (x86/riscv/aarch), igual ao JVM/JS (célula `stdstrings2b2` +
+`NativeStringsReverseCrossTest`). Os demais conversores de caixa/palavra seguem
+**NAT-STR01** (paridade travada em ASCII na matriz).
 
 ## Limitações
 

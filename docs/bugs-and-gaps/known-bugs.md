@@ -5402,7 +5402,7 @@ to the label) is the correct predicate and **was already used** in `parseStateme
   regression with host — `KofUuidTest` 14/14, `KofRandomTest` 12/12,
   `KofSecurityTest` 28/28.
 
-### 161. NAT-STR01 — case-fold (`toUpperCase`/`toLowerCase` of an instance) and string converters are **ASCII-only in Native** (x86/riscv/aarch), Unicode (`Character.toUpperCase`, default locale) in the JVM/interpreter; JS uses `String.prototype.toUpperCase` (Unicode) — 🟢 DECIDED 13/09 (open/implement; maintainer ratification) — nat lane
+### 161. NAT-STR01 — case-fold (`toUpperCase`/`toLowerCase` of an instance) and string converters are **ASCII-only in Native** (x86/riscv/aarch), Unicode (`Character.toUpperCase`, default locale) in the JVM/interpreter; JS uses `String.prototype.toUpperCase` (Unicode) — 🟢 DECIDED 13/09 (open/implement; maintainer ratification) — nat lane. **Reverse face FIXED 27/09:** `strings.reverse` now inverts by UTF-8 CODE POINT on x86-64 + riscv64/aarch64 (`RuntimeStringsConv`/`NativeRiscvAsmRtB7`, aarch via translator), matching JVM `StringBuilder.reverse`/JS `[...v].reverse()` — proof `NativeStringsReverseCrossTest` (golden JVM≡riscv64≡aarch64 incl. `café`/astral/3-byte) + matrix `stdstrings2b2`; case-fold/`capitalize`/word-converters remain open.
 
 - **Minimal repro (measured 13/09, 4-target parity harness):**
   `main(){ println("café".toUpperCase()); println("CAFÉ".toLowerCase()) }` →
@@ -5415,12 +5415,14 @@ to the label) is the correct predicate and **was already used** in `parseStateme
   `Character.toUpperCase`) and the interpreter (`KofInterpreterCollections:68`
   `String.toUpperCase`) do Unicode case-fold. **R5 parity broken** in a
   reference method (`type-system.md:290`).
-- **Siblings of the same gap (all ASCII-only in Native):** the converters
-  `strings.*` that allocate String — `capitalize`/`uncapitalize`/`reverse`/
+- **Siblings of the same gap (still ASCII-only in Native):** the converters
+  `strings.*` that allocate String — `capitalize`/`uncapitalize`/
   `toCamelCase`/`toPascalCase`/`toSnakeCase`/`toKebabCase`/`slugify`/
   `padLeft`/`padRight` (`KofStrings.java:39-69` documents "ASCII-first in
   Native; non-ASCII cases stay in KofStringsTest (JVM+JS)"). The matrix locks
   only ASCII on purpose (`conformance-matrix.md` §"S2b ASCII"/NAT-STR01).
+  **`reverse` left this list 27/09** (D-FULL-PARITY-050 row 11): it is now
+  UTF-8 code-point correct on the three native targets.
 - **Record status (13/09):** `docs/development/README.md:91` already listed
   NAT-STR01 as "`known-bugs.md`/conformance-matrix", but the section **did not
   exist here** (only the note in the matrix) — a record gap closed in this

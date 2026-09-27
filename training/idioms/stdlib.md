@@ -48,7 +48,7 @@ strings.isLowerCase("abc-123")     // other chars ignored
 strings.count("aabaabaa", "ab")    // 2 — NON-overlapping; empty sub => 0
 strings.capitalize("hello")        // "Hello" (ASCII; 1st byte a-z)
 strings.uncapitalize("Hello")      // "hello" — exact mirror of capitalize (S11)
-strings.reverse("abc")             // "cba" (byte-reverse on Native — see NAT-STR01)
+strings.reverse("abc")             // "cba"; inverts by CODE POINT on all targets (UTF-8 walk on Native — NAT-STR01 reverse face fixed 27/09)
 strings.repeat("ab", 3)            // "ababab"; n<=0 => ""
 strings.truncate("hello", 3)       // "hel"; n>=len => original; n<=0 => ""
 strings.padLeft("7", 3, "0")       // "007" — pad is a STRING, uses the 1st char

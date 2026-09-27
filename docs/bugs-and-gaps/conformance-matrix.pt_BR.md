@@ -207,11 +207,15 @@ CLOSED 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` run on the 5 targets —
 > digit 19∈{8,9,a,b}, timestamp monotonicity and uniqueness) on JVM,
 > Native x86, JS, **e riscv64/aarch64** (fatia B25b + tradutor, 10/09 — `KofUuidTest.uuidV7CrossArch` sob qemu). Nenhum código `UUID002` existe no compilador (o único código de v7 é `UUID001`, hoje inalcançável pois o gate foi removido).
 
-> **S2b ASCII:** `capitalize` uses the SAME rule on the 4 targets (byte 0 `a-z`→`A-Z`).
-> `reverse` is byte-reverse on Native and UTF-16/UTF-8 on the others — they coincide in ASCII
-> (case `stdstrings2b`). Non-ASCII cases: **NAT-STR01** (native UTF-8 gap,
-> `plan-stdlib-expansion.md` §5; **registration section:** `known-bugs.md` §161)
-> — they do not enter the matrix until fixed (R5/R6).
+> **S2b ASCII:** `capitalize` usa a MESMA regra nos 4 targets (byte 0 `a-z`→`A-Z`).
+> `reverse` inverte por CODE POINT nos quatro targets — a face nativa agora percorre
+> a sequência de code points UTF-8 (`RuntimeStringsConv`/`NativeRiscvAsmRtB7`,
+> D-FULL-PARITY-050 linha 11, 27/09), igual ao JVM `StringBuilder.reverse` e ao JS
+> `[...v].reverse()`; ASCII na célula `stdstrings2b`, não-ASCII em `stdstrings2b2`
+> (`café`, astral) + `NativeStringsReverseCrossTest` sob qemu. Faces não-ASCII
+> restantes: `capitalize`/`toUpperCase`/`toLowerCase` = **NAT-STR01**
+> (`plan-stdlib-expansion.md` §5; **seção de registro:** `known-bugs.md` §161)
+> — não entram na matriz até serem corrigidas (R5/R6).
 > **NAT-STR01 extension (10/09, String sweep part 2):** the INSTANCE methods
 > `"café".toUpperCase()`/`"CAFÉ".toLowerCase()` are **ASCII-only on
 > x86_64** (`RuntimeStringOps` only does ±0x20 on `a-z`/`A-Z`; é→`É` is not touched)
