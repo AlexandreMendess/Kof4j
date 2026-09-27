@@ -8,6 +8,35 @@ every face that reaches the language surface).
 
 ## Landing log (measured deltas against the table — the table stays as the claim; this is what shipped)
 
+**Fatia 5 — corpus/DoD LANDED 27/09 (docs-only; matrix `4dad3b843`, idioms `300d1f774`+`589995c17`,
+learn `af334f8ab`, coverage `2ec0ac816`, flips this commit).** What the corpus work measured:
+
+1. **Matrix (EN+PT):** `KofR` row + `timeout`/`cancel`/reuse row added after the `KofPy` row —
+   mechanisms written EXACTLY as measured (R cancel parent-named; KOFPID wire; child-side
+   deadlines), §514 cross and the refusal targets stay DECLARED rows with ledger anchors.
+   **The lane's own pollution was cleaned here:** the EN file carried a duplicate `KofPy` row
+   in PT wording (autostash residue of `c87dcfa32`, incident `1041f4bb5` family) — removed
+   (rule 5 shielding; deleting it is ours because the pollution is ours).
+2. **Idioms (EN+PT):** section **(e) Engines** (same-face contract, `callJson` round-trip via
+   the platform's own JSON, the anti-hang `timeout` idiom, cancel semantics on both engines,
+   the named `INTEROP004`–`008` table) + three RUIM→BOM rows (hang/watchdog-hack → timeout;
+   pid archaeology → `spawn`+`cancel`; exit-code-as-reason → named string). The PT file's
+   header is `## RUIM → BOM`, not the EN spelling — anchor pinned by the mirror commit.
+3. **learn/21 (EN+PT):** new Engines section — until today NO learn/ file mentioned the
+   engines. Out-of-lane pollution FOUND and registered, untouched (another lane's front):
+   `learn/21-java-interoperability.md` carries a duplicated "Reflection at the boundary"
+   section (lines 83/116) introduced by `29b8af404` (X6) — review request to the X6 owner.
+4. **ecosystem-coverage (EN+PT):** `kof.interop` row added to the §2.2 real-surface table
+   (the table had no engines row at all).
+5. **Status per R5:** engines are **experimental** until §514 lands — the note is on all four
+   fronts; the promotion-to-stable DoD therefore still owes fatia 4 (native lane), and
+   session state remains a declared cut-out. CHANGELOG was already synchronized by
+   fatias 1–3 (no new entry needed for a docs-only corpus).
+
+**Proof:** per-commit gates green (`check_live_records`, `check_doc_refs` 678+182,
+`check_ledger_anchors` 0 broken, `scripts/tests/doc-refs-test.sh` walking real history);
+no code changed — battery state is the fatia-3 one (`Interop*`+`VoidAwaitStackFrameE2ETest`).
+
 **Fatia 3 — timeout / cancel / reuse LANDED 27/09 (code `d7328c036` + §527 `9b4fa30f5`, tests in the same commits; cross face still §514).** Deltas measured while building:
 1. **The deadline lives in the CHILD, not the parent.** A parent-side timeout is impossible in pure Kof (the `KofProcess` handle is an internal `Long` that never crosses the Kof surface, and `readLine` blocks) and a parent-side kill would leave the interpreter spinning as an orphan; so the engine's own language throws the stop (python `signal.setitimer` SIGALRM→`TimeoutError`, SIGINT→`KeyboardInterrupt`; R `setTimeLimit(elapsed=)`→'reached elapsed time limit') and the wire carries `KOFTIME`→`INTEROP007`. Zero exit-code guessing, zero compiler surface (rule 12).
 2. **The wire grew to 3 lines**: line 1 `KOFPID <pid>` (the child's own pid) feeds `cancel()` = `process.run("kill","-2",pid)`; statuses on line 2 `KOFOK`/`KOFERR`/`KOFTIME`/`KOFCANCEL`(py self-stop)/`""`(dead), payload on line 3. **R cancel is parent-named, not wire-named**: the CI's first real-R run (27/09) measured that the in-R `tools::signalHandler` cannot emit `KOFCANCEL` from the SIGINT exit context — the child just dies on the SIGINT (POSIX default). So `cancel()` sets a parent-side flag + sends the SIGINT, and the call site maps the resulting EOF: flag set → `INTEROP008`, a reply that landed first wins, EOF without the flag stays the honest `INTEROP004`. Feature COMPLETE on both engines, no gap (`D-COMPLETE-FIRST`), no exit-code guessing. Internal protocol — not external contract.
@@ -128,7 +157,7 @@ Frozen surface for fatia 2 (rule 11 gate — no new compiler surface):
 | 2 | **R engine** | same host machinery over `Rscript` (host lacks it → `assumeTrue` guard; CI ubuntu availability measured in-slice) | E2E + source binding via existing `interop.schema` (X6 synergy, zero new reflection) |
 | 3 | **timeout / cancel / session state** | ✅ **LANDED 27/09** (timeout/cancel/reuse; `INTEROP007`/`INTEROP008`, engine-side deadline — see landing log); session state = declared cut-out; cross face waits §514 | E2E edges landed: hang bounded, cancel named, reuse pinned |
 | 4 | **Native / JS / Script faces** | MEASURE per face: real port where the platform backs it, otherwise `INTEROP005` compile-time refusal (JVM-first is R7, and §510 proved the honest-refusal face is complete delivery for a target) | per-target goldens or refusal pins |
-| 5 | **Corpus + promotion DoD** | `training/idioms/interop.md` EN+PT, `learn/` section, parity-matrix rows, `ecosystem-coverage`, CHANGELOG discipline; R5 stability review | docs-lang/refs gates |
+| 5 | **Corpus + promotion DoD** | ✅ **LANDED 27/09** (all four fronts shipped — see landing log). Claim was: `training/idioms/interop.md` EN+PT, `learn/` section, parity-matrix rows, `ecosystem-coverage`, CHANGELOG discipline; R5 stability review | docs-lang/refs gates |
 
 ## Relation to the connector ecosystem (`future/kof-connector-ecosystem-plan.md`) — "keep an eye on it", not promotion (maintainer 26/09)
 

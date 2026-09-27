@@ -8,6 +8,35 @@ toda face que chega na superfície da linguagem).
 
 ## Landing log (deltas medidos contra a tabela — a tabela fica como o claim; isto é o que pousou)
 
+**Fatia 5 — corpus/DoD POUSADA 27/09 (so docs; matriz `4dad3b843`, idioms `300d1f774`+`589995c17`,
+learn `af334f8ab`, coverage `2ec0ac816`, flips deste commit).** O que o trabalho de corpus mediu:
+
+1. **Matriz (EN+PT):** linha `KofR` + linha `timeout`/`cancel`/reuso apos a linha `KofPy` —
+   mecanismos escritos EXATAMENTE como medidos (cancel do R nomeado pelo pai; linha KOFPID;
+   deadlines no filho); o cross §514 e as recusas seguem LINHAS DECLARADAS com ancoras do
+   ledger. **A poluicao da propria lane foi limpa aqui:** o arquivo EN carregava linha
+   `KofPy` duplicada em texto PT (residuo do autostash de `c87dcfa32`, familia do incidente
+   `1041f4bb5`) — removida (blindagem regra 5; apagar e nosso porque a poluicao e nossa).
+2. **Idioms (EN+PT):** secao **(e) Motores** (contrato de face unica, round-trip `callJson`
+   pelo JSON da propria plataforma, idioma anti-pendura `timeout`, semantica de cancel nos
+   dois motores, tabela nomeada `INTEROP004`–`008`) + tres linhas RUIM→BOM (pendura/caoça →
+   timeout; arqueologia de pid → `spawn`+`cancel`; exit-code-como-razao → string nomeada).
+   O cabecalho do arquivo PT e `## RUIM → BOM`, nao a grafia EN — ancora travada no commit irmao.
+3. **learn/21 (EN+PT):** nova secao Motores — ate hoje NENHUM arquivo learn/ citava os motores.
+   Poluicao FORA da lane achada e registrada, intacta (front de outra lane):
+   `learn/21-java-interoperability.md` carrega a secao "Reflexao na fronteira" duplicada
+   (linhas 83/116) introduzida por `29b8af404` (X6) — pedido de revisao ao dono da X6.
+4. **ecosystem-coverage (EN+PT):** linha `kof.interop` adicionada a tabela de superficie real
+   §2.2 (a tabela nao tinha linha nenhuma dos motores).
+5. **Status por R5:** motores sao **experimental** ate o §514 pousar — a nota esta nas quatro
+   frentes; o DoD de promocao a stable deve ainda a fatia 4 (lane native), e estado de sessao
+   segue corte declarado. O CHANGELOG ja estava sincronizado pelas fatias 1–3 (entrada nova
+   nao se aplica a corpus so-docs).
+
+**Prova:** gates por commit verdes (`check_live_records`, `check_doc_refs` 678+182,
+`check_ledger_anchors` 0 quebradas, `scripts/tests/doc-refs-test.sh` no historico real);
+nenhum codigo mudou — a bateria e a da fatia 3 (`Interop*`+`VoidAwaitStackFrameE2ETest`).
+
 **Fatia 3 — timeout / cancel / reuso POUSADA 27/09 (código `d7328c036` + §527 `9b4fa30f5`, testes nos mesmos commits; face cross segue no §514).** Deltas medidos ao construir:
 1. **O deadline mora no FILHO, não no pai.** Timeout no pai é impossível em Kof puro (o handle do `KofProcess` é um `Long` interno que nunca cruza a superfície Kof, e `readLine` bloqueia) e um kill do pai deixaria o interpretador órfão girando; então a própria linguagem do motor dispara a parada (python `signal.setitimer` SIGALRM→`TimeoutError`, SIGINT→`KeyboardInterrupt`; R `setTimeLimit(elapsed=)`→'reached elapsed time limit') e o wire carrega `KOFTIME`→`INTEROP007`. Zero chute de exit code, zero superfície no compiler (regra 12).
 2. **O wire cresceu para 3 linhas**: linha 1 `KOFPID <pid>` (o pid do próprio filho) alimenta o `cancel()` = `process.run("kill","-2",pid)`; status na linha 2 `KOFOK`/`KOFERR`/`KOFTIME`/`KOFCANCEL`(autoparada py)/`""`(morto), payload JSON na linha 3. **O cancel do R é nomeado pelo pai, não pelo wire**: a 1a corrida real do R na CI (27/09) mediu que o `tools::signalHandler` in-R nao consegue emitir `KOFCANCEL` no contexto de saida do SIGINT — o filho apenas morre no SIGINT (default POSIX). Entao o `cancel()` seta uma flag no pai + manda o SIGINT, e o sitio da chamada mapeia o EOF: flag armada → `INTEROP008`, uma resposta que chegou primeiro vence, EOF sem a flag continua o `INTEROP004` honesto. Face COMPLETA nos dois motores, sem gap (`D-COMPLETE-FIRST`), zero chute de exit code. Protocolo interno — nao e contrato externo.
@@ -132,7 +161,7 @@ Superficie congelada da fatia 2 (gate regra 11 — nenhuma superficie nova de co
 | 2 | **Motor R** | a mesma máquina do host sobre `Rscript` (host não tem → guarda `assumeTrue`; disponibilidade no CI ubuntu medida na fatia) | E2E + binding da fonte via `interop.schema` existente (sinergia X6, zero reflexão nova) |
 | 3 | **timeout / cancel / estado de sessão** | ✅ **POUSADA 27/09** (timeout/cancel/reuso; `INTEROP007`/`INTEROP008`, deadline no motor — ver o landing log); estado de sessão = corte declarado; face cross espera o §514 | arestas E2E pousadas: hang limitado, cancel nomeado, reuso travado |
 | 4 | **Faces Native / JS / Script** | MEDIR por face: porte real onde a plataforma dá backing, senão recusa `INTEROP005` em compile-time (JVM-first é R7, e o §510 provou que a face de recusa honesta é entrega completa do alvo) | goldens por alvo ou pinos de recusa |
-| 5 | **Corpus + DoD de promoção** | `training/idioms/interop.md` EN+PT, seção do `learn/`, linhas da matriz de paridade, `ecosystem-coverage`, CHANGELOG | revisão de par do registro docs |
+| 5 | **Corpus + DoD de promoção** | ✅ **POUSADA 27/09** (todas as quatro frentes entregues — ver log de pouso). O claim era: `training/idioms/interop.md` EN+PT, seção do `learn/`, linhas da matriz de paridade, `ecosystem-coverage`, CHANGELOG | revisão de par do registro docs |
 
 ## Relacao com o ecossistema de conectores (`future/kof-connector-ecosystem-plan.md`) — "ficar de olho", nao promocao (maintainer 26/09)
 
