@@ -245,6 +245,25 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     arestas 004/006; recusa de shape no Android), `InteropPyScriptE2ETest` 1/1
     (interpretado ≡ compilado), `JsonNativeEncodeFpE2ETest` 1/1. Linhas de matriz EN+PT;
     §513 CORRIGIDO / §514 ABERTO ([§513](docs/bugs-and-gaps/known-bugs.pt_BR.md#513--dispatch-de-elemento-do-jsonencode-colapsava-slots-crus-doublelong-para-encode_int-no-x86-lixo-deterministico-e-o-listbool-do-jvm-castava-booleaninteger-classcastexception---fixed-2609-mesmo-commit)).
+  - **Feature — X2 fatia 2b: o motor R `KofR` no `kof.interop` — mesmo contrato, segundo motor** —
+    `var r = KofR(source)` + `r.callInt/callDouble/callBool/callString/callJson(fn, listOf(args))`,
+    a superfície exata do `KofPy` sobre `Rscript --vanilla`: a spec (source + JSON da chamada) chega
+    ao motor **embutida na expressão `-e` como literal de string R escapado**, decodificada no lado
+    R pelo `jsonlite` (interop-first R9 — zero parser R feito à mão). Dois canais morreram sob
+    medição antes dessa forma (a CI com R real pegou o que o dev-host sem R não podia): o spawn JVM
+    redireciona o stdin do filho para `/dev/null` (`JvmRuntimeCore` — o truque do pipe do py é
+    no-op lá) e o `Rscript` trata argumento posicional como FICHEIRO a sourcear, nunca como dado.
+    O escape é `backslash→backslash-backslash` depois `aspas→backslash-aspas` (ordem provada), e
+    `exprGenerationIsVerifiableWithoutR` trava a construção da expressão em QUALQUER host — o ponto
+    exato que quebrou duas vezes agora prova sem R. `INTEROP004`/`INTEROP005`/`INTEROP006` mantêm os
+    significados do `KofPy`; o host de recusa também carrega o shape `KofR` (alvos sem R enfrentam
+    erro em compile-time, nunca silêncio em runtime). Prova: `InteropRE2ETest` 8/8 — JVM≡x86≡JS com
+    R real **certificado na CI** (`r-base-core r-cran-jsonlite` instalado no runner) e o golden do
+    round-trip de record byte-idêntico ao do Python (o motor é detalhe; o wire é o contrato);
+    `InteropRScriptE2ETest` interpretado ≡ compilado, com a guarda que nunca pula
+    `scriptProgramParsesWithoutR` (o parse do programa do teste vale mesmo sem R — foi ela que
+    expôs o drift do text block localmente antes do push). R ausente em dev-host é skip honesto,
+    nunca falso-verde.
   - **Feature — item 4 do D-COMPLETE-FIRST: a liberacao deterministica do
     kof.ui vira contrato de ciclo de vida com travas de leak** (26/09): um
     `Store` criado DURANTE o ciclo de vida de um componente (render da view /

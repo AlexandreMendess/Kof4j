@@ -215,6 +215,25 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     measured; JVM≡x86≡JS byte-identical; 004/006 edges; Android shape refusal),
     `InteropPyScriptE2ETest` 1/1 (interpretado ≡ compilado), `JsonNativeEncodeFpE2ETest`
     1/1. Matrix rows EN+PT; §513 FIXED / §514 OPEN ([§513](docs/bugs-and-gaps/known-bugs.md#513--jsonencode-element-dispatch-collapsed-raw-doublelong-slots-to-encode_int-on-x86-deterministic-garbage-and-jvm-listbool-cast-booleaninteger-classcastexception---fixed-2609-same-commit)).
+  - **Feature — X2 fatia 2b: the R engine `KofR` in `kof.interop` — same contract, second engine** —
+    `var r = KofR(source)` + `r.callInt/callDouble/callBool/callString/callJson(fn, listOf(args))`,
+    the exact `KofPy` surface over `Rscript --vanilla`: the spec (source + call JSON) reaches the
+    engine **embedded in the `-e` expression as an escaped R string literal**, decoded on the R side
+    by `jsonlite` (interop-first R9 — zero hand-written R parser). Two channels died under
+    measurement before this shape (CI with real R caught what the R-less dev host could not): the
+    JVM spawn redirects the child's stdin to `/dev/null` (`JvmRuntimeCore` — the py pipe trick is a
+    no-op there) and `Rscript` treats a positional argument as a FILE to source, never as data.
+    The escape is `backslash→backslash-backslash` then `quote→backslash-quote` (order proven), and
+    `exprGenerationIsVerifiableWithoutR` pins the whole expression build on ANY host — the exact
+    point that broke twice now proves without R. `INTEROP004`/`INTEROP005`/`INTEROP006` keep the
+    `KofPy` meanings; the refusal host carries the `KofR` shape too (targets without R face a
+    compile-time error, never a runtime silence). Proof: `InteropRE2ETest` 8/8 — JVM≡x86≡JS with
+    real R **certified in CI** (`r-base-core r-cran-jsonlite` installed on the runner) and the
+    record round-trip golden byte-identical to the Python one (the engine is a detail; the wire is
+    the contract); `InteropRScriptE2ETest` interpretado ≡ compilado, with the never-skipping guard
+    `scriptProgramParsesWithoutR` (the test program's escape layers must parse even where R is
+    absent — it caught the text-block drift locally before the push). R missing on a dev host is an
+    honest skip, never a fake green.
   - **Feature — D-COMPLETE-FIRST item 4: kof.ui deterministic release is a
     lifecycle contract with leak locks** (26/09): a `Store` created DURING a
     component's lifecycle (view render / `onMount` / `effect`) now belongs to
