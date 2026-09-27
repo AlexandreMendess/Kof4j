@@ -1,4 +1,9 @@
 ---
+**✅ DONE 27/09 (compressao graphics-gaming EN+PT):** 2304→194 / 2185→193 ln (par mantido); contratos/decisoes/gaps/fases/Q1-Q8/nao-objetivos/diagramas/examples de intent preservados; `kof md check` limpo nos 2 + docs-lang + doc-refs verdes. **NEXT STEP:** proximo par por tamanho (performance → vision → PROPOSAL) ou o que a mantenedora mandar.
+
+> **🔧 CLAIM-ARCHIVE 27/09 (lane issues — owner: esta sessao, POR ORDEM DIRETA DA MANTENEDORA 'pode assumir a migração, o agente ficou orfao'):** compressao D-DOC-SLIM (`/docs/**`, menos `learn/`/`training/`, corpus, CHANGELOG, raiz LLM/agente). Metodo: backlog por tamanho (narrativa pesada primeiro) + compressao semantica (extrair estado/decisao/restricao/resultado; remover redundancia; preservar contratos/SHAs/§NNN/testes) + teste de compressao (menor significativo, senao revisar) + gates verdes por commit. Dono anterior: lane docs/kofmd (sem IN PROGRESS vivo; NEXT STEP dela era #639, fechada). NAO TOCAR: `learn/`/`training/`, corpus, corpo CHANGELOG, PR #619.
+
+---
 **✅ DONE 27/09 (migracao D-DOC-SLIM):** frente medida, nada a migrar. `kof md check` em 313 arquivos (todo .md exceto `learn/`/`training/`, corpus, CHANGELOG): **0 MDxxx**; spot nos 3 maiores (DOING, known-bugs, DECISIONS) limpos. Corpus ja canonico (lane kofmd + D-KOFMD-ON-EDIT fizeram o trabalho).
 
 > **🔧 CLAIM-ARCHIVE 27/09 (lane issues — owner: esta sessao, POR ORDEM DIRETA DA MANTENEDORA 'assume o plano de migração dos documentos pra kofmd'):** migracao doc-wide D-DOC-SLIM (todo .md exceto `learn/`/`training/`, corpus e corpo do CHANGELOG). Metodo: `kof md check` como medidor objetivo da fila (nao memoria); migrar arquivo a arquivo com gates verdes por commit; D-KOFMD-ON-EDIT respeitado (cada doc que eu tocar sai canonico). Sem dono anterior (migracao virou obrigacao por-edicao, nao frente de lane). NAO TOCAR: conteudo tecnico alheio (so forma Kofmd, nunca semantica), PR #619 (regra 10).
