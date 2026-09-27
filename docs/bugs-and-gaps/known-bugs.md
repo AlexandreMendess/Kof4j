@@ -15996,14 +15996,18 @@ Native/JS/Script cases. That is why the PR landed green: the acceptance DoD
 for an official library (R5/R7: every target, or a diagnosed gap `XXX00x`)
 was never measured. The missing parity test is part of this entry's scope.
 
-**Root-cause reading (pending, next unit in lane):** locate where the x86
-native path pulls resolved module sources (import closure incl. library
-roots) into emission/link and why the cross backends (same `NativeBackend`,
-`CompilerPipeline.java:196`) do not — hypothesis: the cross closure walks
-project sources only, never `CompilerImports` library roots. Fix must be
-wiring/general (no `if pdf` special case — rule 12: the core supplies the
-mechanism), then the cross E2E with the maintainer's program proves GREEN on
-riscv64+aarch64, byte-parity with the x86/JVM output.
+**Root cause (MEASURED in-tree 27/09 ~10:4x, lane gaps-db/native):** a
+minimal clean lib (no contributor defect) — `kof-libs/mini/hello.kf`
+(function) + `kof-libs/mini/style/GridStyle.kf` (class) imported by
+`import mini.hello` + `import mini.style.GridStyle` — compiles and links on
+**JVM and x86-64 NATIVE**, and riscv64 dies at link with
+`undefined reference to 'GridStyle_init_1'` (Main.kf call site emitted; the
+CLASS-INIT of the library class was never emitted into the cross asm — the
+x86 path emits it, the cross path does not). Function imports from library
+files link fine on cross; the gap is specifically the class-init emission of
+classes living in library-root files. Fix must be wiring/general (no `if pdf`
+special case — rule 12), then the cross E2E with the maintainer's program
+proves GREEN on riscv64+aarch64, byte-parity with the x86/JVM output.
 
 **Queue note (owner discipline):** this lane holds stabilization order; §523
 (db) and §524 (native-cross flake) stay HELD by the maintainer. §530 is a

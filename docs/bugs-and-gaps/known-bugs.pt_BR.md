@@ -13551,15 +13551,19 @@ Native/JS/Script. Eis por que o PR pousou verde: o DoD de aceitacao de uma
 biblioteca oficial (R5/R7: todo alvo, ou gap diagnosticado `XXX00x`) nunca foi
 medido. O teste de paridade ausente e parte do escopo desta entrada.
 
-**Leitura de root cause (pendente, proxima unidade da lane):** localizar onde o
-caminho x86 native puxa as fontes resolvidas dos modulos (fechamento de
-imports incl. raizes de biblioteca) para emissao/link e por que os backends
-cross (mesmo `NativeBackend`, `CompilerPipeline.java:196`) nao — hipotese: o
-fechamento cross caminha so as fontes do projeto, nunca as raizes de
-biblioteca de `CompilerImports`. O conserto deve ser de wiring/mecanismo
-(geral, sem `if pdf` — regra 12), entao o E2E cross com o programa da
-mantenedora prova GREEN em riscv64+aarch64 com paridade byte a byte contra a
-saida x86/JVM.
+**Root cause (MEDIDO na arvore 27/09 ~10:4x, lane gaps-db/native):** uma lib
+minimalista limpa (sem o defeito do contribuidor) — `kof-libs/mini/hello.kf`
+(funcao) + `kof-libs/mini/style/GridStyle.kf` (classe) importadas por
+`import mini.hello` + `import mini.style.GridStyle` — compila e linka em
+**JVM e x86-64 NATIVE**, e o riscv64 morre no link com
+`undefined reference to 'GridStyle_init_1'` (o call-site de Main.kf foi
+emitido; o INIT-DE-CLASSE da classe da biblioteca nunca foi emitido no asm
+cross — o caminho x86 emite, o cross nao). Imports de FUNCOES de arquivos de
+biblioteca linkam bem no cross; o gap e especificamente a emissao de init de
+CLASSE de classes que vivem em arquivos de raiz de biblioteca. O conserto
+deve ser de wiring/mecanismo (geral, sem `if pdf` — regra 12), entao o E2E
+cross com o programa da mantenedora prova GREEN em riscv64+aarch64 com
+paridade byte a byte contra a saida x86/JVM.
 
 **Nota de fila (disciplina de dono):** esta lane esta sob ordem de
 estabilizacao; §523 (db) e §524 (flake native-cross) continuam SEGURADOS pela
