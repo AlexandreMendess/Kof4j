@@ -135,6 +135,17 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     frames do harness consertado (com 3+ saidas um publish sim, outro nao era
     lido). Zero mudanca no compilador; `LspServer` em 581 linhas (ratchet
     honrado). Catalogo: `known-bugs.md` §526 (+EN).
+  - **Correção — §527 (27/09): `await` de task VOID deixava o `Object` do runtime na pilha da
+    JVM — qualquer `try/catch` depois abortava o load da classe com `VerifyError`** — achado
+    ao pousar a fatia 3 da X2 (o E2E do cancel nunca chegava ao runtime: compilava limpo e
+    morria no LOAD com "Inconsistent stackmap frames"). `KofRuntime.kof_await`/
+    `kof_await_timeout`/`kof_select_any` sempre retornam `Object` (`null` para task sem valor),
+    mas a expressão baixada é tipada VOID e o descarte de statement só emite POP para
+    expressões que *têm* valor — o fix POPa no único ponto onde a pilha JVM e o modelo Kof
+    divergem (`JvmOpCollections.emitKofRuntimeCall`), zero mudança semântica. Prova:
+    `VoidAwaitStackFrameE2ETest` 4/4 (quatro shapes RED com VerifyError pré-fix, incluindo o
+    controle de await de primitivo que não pode regrarar §128); vizinhança
+    spawn/await/select/concorrência 245/0F/21-skip. Catálogo: `known-bugs.pt_BR.md` §527 (+EN).
   - **Fix — §516 (26/09): `json.encode` de `List<Record>`/`Map<String,Record>`
     no x86 despejava o ponteiro cru — agora anda pela tabela de schema pelo
     typeId (`kof_json_encode_object` + `.Lsch_type_registry` com terminator
@@ -289,6 +300,23 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `scriptProgramParsesWithoutR` (o parse do programa do teste vale mesmo sem R — foi ela que
     expôs o drift do text block localmente antes do push). R ausente em dev-host é skip honesto,
     nunca falso-verde.
+  - **Feature — X2 fatia 3: os motores param de pendurar — `timeout`/`cancel`/reuso em
+    `KofPy` e `KofR` (`INTEROP007`/`INTEROP008`)** — o deadline corre no FILHO, disparado pela
+    própria linguagem do motor (python `signal.setitimer` SIGALRM→`TimeoutError`,
+    SIGINT→`KeyboardInterrupt`; R `setTimeLimit(elapsed=)`, SIGINT via
+    `tools::signalHandler`) e carregado como status novos do protocolo (`KOFTIME`/
+    `KOFCANCEL`) num wire de 3 linhas (linha 1 nova `KOFPID <pid>` alimenta o `cancel()`)
+    — zero chute de exit code, zero superfície no compiler (regra 12), zero órfãos (um
+    awaitTimeout no pai deixaria o filho girando). Faces `timeout(Int ms)` (default
+    30000 — precedente §418; `0` = sem timer, declarado) e `cancel()` (SIGINT no filho
+    vivo; no-op fora de chamada); o motor é reutilizável depois de 007/008 por construção
+    (replay = filho novo) e travado em teste; o host de recusa espelha as faces novas
+    (`INTEROP005`, nunca método-desconhecido). Prova: `InteropTimeoutE2ETest` 4/4 (007 com
+    wall-clock limitado + reuso; JVM≡x86 no 007; 008 via task spawn — escopo declarado JVM),
+    `InteropTimeoutScriptE2ETest` 1/1 (SCRIPT ≡ golden JVM byte a byte), `InteropRE2ETest`
+    +2 gated-R (007/008 contra R real na CI) + geração do protocolo novo travada SEM R
+    (lição `efa8805ab` aplicada); família `InteropPy*` inteira verde sob o protocolo de 3
+    linhas. session-state/args-Map ficam declaradamente fora deste corte.
   - **Feature — item 4 do D-COMPLETE-FIRST: a liberacao deterministica do
     kof.ui vira contrato de ciclo de vida com travas de leak** (26/09): um
     `Store` criado DURANTE o ciclo de vida de um componente (render da view /

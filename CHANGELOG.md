@@ -131,6 +131,17 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     pinned); harness frame-parser fixed (with 3+ outputs every other publish was
     skipped). Zero compiler changes; `LspServer` 581 lines (ratchet holds).
     Catalog: `known-bugs.md` §526 (+PT).
+  - **Fix — §527 (27/09): awaiting a VOID task left the runtime `Object` on the JVM
+    stack — any `try/catch` after it aborted class load with `VerifyError`** — found while
+    landing X2 fatia 3 (the cancel E2E never reached runtime: compiled clean, died at
+    LOAD with "Inconsistent stackmap frames"). `KofRuntime.kof_await`/`kof_await_timeout`/
+    `kof_select_any` always return `Object` (`null` for a valueless task) but the lowered
+    expression is typed VOID, and the statement discard only emits POP for expressions
+    that *have* a value — the fix POPs at the single site where the JVM stack and the
+    Kof model diverge (`JvmOpCollections.emitKofRuntimeCall`), zero semantic change.
+    Proof: `VoidAwaitStackFrameE2ETest` 4/4 (four shapes RED with VerifyError pre-fix,
+    including the primitive-await control that must not regress §128); neighborhood
+    spawn/await/select/concurrency 245/0F/21-skip. Catalog: `known-bugs.md` §527 (+PT).
   - **Fix — §516 (26/09): `json.encode` de `List<Record>`/`Map<String,Record>`
     no x86 despejava o ponteiro cru — agora anda pela tabela de schema pelo
     typeId (`kof_json_encode_object` + `.Lsch_type_registry` com terminator
@@ -258,6 +269,24 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `scriptProgramParsesWithoutR` (the test program's escape layers must parse even where R is
     absent — it caught the text-block drift locally before the push). R missing on a dev host is an
     honest skip, never a fake green.
+  - **Feature — X2 fatia 3: the engines stop hanging — `timeout`/`cancel`/reuse on `KofPy`
+    and `KofR` (`INTEROP007`/`INTEROP008`)** — the deadline runs in the CHILD, thrown by the
+    engine's own language (python `signal.setitimer` SIGALRM→`TimeoutError`, SIGINT→
+    `KeyboardInterrupt`; R `setTimeLimit(elapsed=)`, SIGINT via `tools::signalHandler`) and
+    carried as new protocol statuses `KOFTIME`/`KOFCANCEL` on a 3-line wire (new line 1
+    `KOFPID <pid>` feeds `cancel()`) — zero exit-code guessing, zero compiler surface
+    (rule 12), zero orphan processes (a parent-side awaitTimeout would leave the child
+    spinning). Faces `timeout(Int ms)` (default 30000 — the §418 precedent; `0` = no
+    timer, declared) and `cancel()` (SIGINT to the live child; no-op outside a call);
+    the engine is reusable after 007/008 by construction (replay = new child) and pinned;
+    the refusal host mirrors the new shape (`INTEROP005`, never an unknown method).
+    Proof: `InteropTimeoutE2ETest` 4/4 (007 wall-clock bounded + reuse; JVM≡x86 on 007;
+    008 from a spawn task — JVM-declared scope; idle cancel idempotent),
+    `InteropTimeoutScriptE2ETest` 1/1 (SCRIPT ≡ JVM golden byte-identical),
+    `InteropRE2ETest` +2 R-gated (007/008 against real R in CI) + the new protocol
+    generation pinned WITHOUT R (`efa8805ab` lesson applied); the whole `InteropPy*`
+    family stays green under the 3-line protocol. session-state/Map-args stay a declared
+    cut-out of this slice.
   - **Feature — D-COMPLETE-FIRST item 4: kof.ui deterministic release is a
     lifecycle contract with leak locks** (26/09): a `Store` created DURING a
     component's lifecycle (view render / `onMount` / `effect`) now belongs to

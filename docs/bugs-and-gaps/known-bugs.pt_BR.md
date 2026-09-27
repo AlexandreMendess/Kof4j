@@ -13436,3 +13436,37 @@ compilador.
 
 <!-- pt-switch --> **EN:** [§526 (EN)](known-bugs.md#526--kof-lsp-never-fed-installed-registry-dep-sources-to-the-compiler-import-of-a-kofdeps-installed-package-still-pkg006-in-the-editor---fixed-2709-issues-lane-637--residual-of-636)
 
+
+## §527 — `await` de task VOID deixava o `Object` do runtime na pilha da JVM: qualquer `try/catch` depois abortava o load da classe com `VerifyError` — ✅ FIXED 27/09 (lane interop)
+
+**Sintoma (medido 27/09, achado ao pousar a fatia 3 da X2):** um programa
+Kof que faz await de task VOID (`spawn f()` onde `f()` nao retorna valor)
+e tem `try/catch` depois compilava limpo e morria no LOAD da classe:
+`java.lang.VerifyError: Bad <metodo>: Inconsistent stackmap frames` — o E2E
+do cancel (`spawn later(py); try { ... await t } catch ...`) nunca chegava
+ao runtime. Mesma familia de assinaturas do §524/§525 (frames na fronteira
+de handler) mas raiz diferente.
+
+**Causa raiz (lida no codigo):** `KofRuntime.kof_await`/`kof_await_timeout`/
+`kof_select_any` sempre retornam `Object` (`null` quando a task nao tem
+valor), mas a expressao baixada e tipada VOID e o descarte de statement so
+emite POP para expressoes que *tem* valor — o `Object` ficava vivo sob a
+regiao seguinte e o ASM calculava o frame do handler pelo modelo Kof (vazio).
+A divergencia pilha-JVM × modelo existe em exatamente um site de lowering.
+
+**Fix (causa raiz, nao mascara):** o ramo VOID de
+`JvmOpCollections.emitKofRuntimeCall` emite `POP` para as tres chamadas —
+zero mudanca semantica (o contrato congelado ja diz que await de void nao
+rende valor; antes, o programa simplesmente quebrava no load).
+
+**Prova (RED antes / GREEN depois):** `VoidAwaitStackFrameE2ETest` 4/4 —
+os quatro shapes mediram `VerifyError` antes do fix: (1) await void +
+atribuicao dentro de um `try` posterior, (2) dois catches sequenciais,
+(3) `awaitTimeout` de task void, (4) o controle de await de primitivo que
+NAO pode regrarar §128 (segue verde — nenhum POP extra onde um valor de
+fato chega). Vizinhanca depois: `*Spawn*`/`*Await*`/`*Concurrency*`/
+`*Select*`/`ProcessResult*`/`KofTimeE2ETest` 245/0F/21-skip (guards).
+Native/JS/Script intactos: lowering do await e outro; a corrida do reator
+da fatia 3 confirma.
+
+<!-- pt-switch --> **EN:** [§527 (EN)](known-bugs.md#527--await-of-a-void-task-left-the-runtime-object-on-the-jvm-stack-any-trycatch-after-it-aborted-class-load-with-verifyerror---fixed-2709-interop-lane)

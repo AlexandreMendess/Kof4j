@@ -15884,3 +15884,37 @@ tests + `LspServerTest` 41/41 unchanged green). `LspServer` stays at 581 lines
 
 <!-- pt-switch --> **PT:** [§526 (pt_BR)](known-bugs.pt_BR.md#526--kof-lsp-nunca-alimentava-o-compilador-com-fontes-de-deps-instaladas-do-registry-import-de-pacote-kofdeps-instalado-ainda-dava-pkg006-no-editor---fixed-2709-lane-issues-637--residual-de-636)
 
+
+## §527 — `await` of a VOID task left the runtime `Object` on the JVM stack: any `try/catch` after it aborted class load with `VerifyError` — ✅ FIXED 27/09 (interop lane)
+
+**Symptom (measured 27/09, found while landing X2 fatia 3):** a Kof program
+that awaits a VOID task (`spawn f()` where `f()` returns nothing) and has a
+`try/catch` after it compiled clean and died at class LOAD:
+`java.lang.VerifyError: Bad <method>: Inconsistent stackmap frames` — the
+cancel-test E2E (`spawn later(py); try { ... await t } catch ...`) never
+reached runtime. Same family signature as §524/§525 (frames at a handler
+boundary) but a different root.
+
+**Root cause (read in code):** `KofRuntime.kof_await`/`kof_await_timeout`/
+`kof_select_any` always return `Object` (`null` when the task has no value),
+but the lowered expression is typed VOID and the statement discard only
+emits a POP for expressions that *have* a value — the `Object` stayed alive
+under whatever region followed, and ASM computed the handler frame from the
+Kof model (empty). The divergence between the JVM operand stack and the
+model exists at exactly one lowering site.
+
+**Fix (root cause, not mask):** the VOID branch of
+`JvmOpCollections.emitKofRuntimeCall` emits `POP` for those three calls —
+zero semantic change (the frozen contract already says void-await yields
+nothing; before, the program just crashed at load).
+
+**Proof (RED before / GREEN after):** `VoidAwaitStackFrameE2ETest` 4/4 —
+the four shapes measured `VerifyError` before the fix: (1) void await +
+assignment inside a later `try`, (2) two sequential catches, (3)
+`awaitTimeout` of a void task, (4) the primitive-await control that must NOT
+regress §128 (stays green — no extra POP where a value genuinely lands).
+Neighborhood after: `*Spawn*`/`*Await*`/`*Concurrency*`/`*Select*`/
+`ProcessResult*`/`KofTimeE2ETest` 245/0F/21-skip (guards). Native/JS/Script
+unaffected: different lowering of await; the fatia-3 reactor run confirms.
+
+<!-- pt-switch --> **PT:** [§527 (pt_BR)](known-bugs.pt_BR.md#527--await-de-task-void-deixava-o-object-do-runtime-na-pilha-da-jvm-qualquer-trycatch-depois-abortava-o-load-da-classe-com-verifyerror---fixed-2709-lane-interop)
