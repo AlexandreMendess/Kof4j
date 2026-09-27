@@ -197,29 +197,27 @@ final class LspServer {
                 outText = text.contains("main()") ? text : dev.kof.script.KofScript.wrapPureKof(text);
                 name = name.replace(".ks", ".kf");
             }
-            file = tmpDir.resolve(name);
-            Files.writeString(file, outText);
+            // #636: documento que E arquivo de projeto real (kof.toml ancestral
+            // ou raiz do initialize) compila dentro do ESPELHO da arvore com o
+            // buffer por cima do disco. O arquivo unico num kof-lsp-XXXX
+            // perdia a raiz do modulo e todo import local virava o PKG006/
+            // PKG004 que o `kof check` nao da. Sem raiz = modo antigo exato.
+            Path real = LspProject.toPath(uri);
+            Path root = (real != null && Files.isRegularFile(real))
+                    ? LspProject.projectRootOf(real, workspaceRoot) : null;
+            if (root != null) {
+                file = LspProject.mirror(real, outText, root, tmpDir);
+            } else {
+                file = tmpDir.resolve(name);
+                Files.writeString(file, outText);
+            }
 
             CompilationResult result = driver.compile(file, tmpDir.resolve("out"), Target.JVM);
-            for (Diagnostic d : result.diagnostics().getDiagnostics()) {
-                Map<String, Object> diag = new LinkedHashMap<>();
-                Map<String, Object> range = new LinkedHashMap<>();
-                Map<String, Object> start = new LinkedHashMap<>();
-                Map<String, Object> end = new LinkedHashMap<>();
-                start.put("line", Math.max(0, d.line() - 1));
-                start.put("character", Math.max(0, d.column() - 1));
-                end.put("line", Math.max(0, d.line() - 1));
-                end.put("character", Math.max(0, d.column() - 1 + Math.max(0, d.length())));
-                range.put("start", start);
-                range.put("end", end);
-                diag.put("range", range);
-                diag.put("severity", d.severity() == Diagnostic.Severity.ERROR ? 1 : 2);
-                diag.put("source", "kof");
-                diag.put("code", d.code());
-                diag.put("message", d.message() + (d.code() != null && !d.code().isEmpty()
-                        ? " [" + d.code() + "]" : ""));
-                diagnostics.add(diag);
-            }
+            // modo projeto: o build ve os irmaos espelhados — so as linhas do
+            // alvo podem ser publicadas neste buffer (posicao de irmao e lixo).
+            diagnostics.addAll(root != null
+                    ? LspDiagnostics.forFile(result, file)
+                    : LspDiagnostics.all(result));
         } catch (IOException e) {
             Map<String, Object> diag = new LinkedHashMap<>();
             Map<String, Object> range = new LinkedHashMap<>();
