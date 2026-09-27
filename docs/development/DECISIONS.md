@@ -4036,3 +4036,36 @@ Linking is **by-use** (`usesPow`), so programs that never call `pow` stay
 libm-free.
 
 - **Relationships:** `Related: D-FULL-PARITY-050, D-KOF-FIRST (rule 10), rule 11, rule 6, D-GRAPHICS-GAMING, issue #639`.
+
+## D-DB-NORMALIZE — bare schemes normalize to `jdbc:` on JVM/JS (maintainer 27/09/2026, voted)
+
+The open design question of `db-parity-plan.md` ("should JVM/Android/JS
+normalize a bare scheme?") is DECIDED: **normalize**. `mysql://`→`jdbc:mariadb://`
+(the mariadb-java-client driver only accepts the `mariadb:` sub-scheme —
+measured 27/09), `mariadb://`→`jdbc:mariadb://`, `postgres://`→`jdbc:postgresql://`
+(userinfo becomes `?user=`/`&password=`, merged with an existing query without
+overriding params already there), `sqlite:<rest>`→`jdbc:sqlite:<rest>`.
+`mongodb://` never normalizes (own branch); `oracle://` stays DB001 (S4
+declared); unparseable input falls through to the named DB001. Implemented in
+`JvmConfigRuntime` + `KofJsDbBridge` (duplicated per the S2 precedent);
+`connect2` swaps the scheme only (explicit creds stay authoritative). Proof:
+`KofDbE2ETest#jvmBareMysqlNormalizesToJdbc` + `#jvmBareSqliteNormalizesToJdbc` +
+`#jvmBarePostgresNormalizesWithoutServer` + `#jvmBareMysqlConnect2ExplicitCreds` +
+`#jsBareMysqlNormalizesToJdbc` (RED-first 5/5).
+
+- **Relationships:** `Related: D-DB-GAPS, db-parity-plan.md, rule 11`.
+
+## D-DB-ZERODRIVER — no manual JDBC driver downloads, ever (maintainer 27/09/2026, voted option C)
+
+Challenge from the maintainer: requiring a separately downloaded library to
+program goes against Kof (rule 11 — the platform absorbs ceremony). DECIDED,
+two tracks: **(a) tooling auto-provision** — `kof run`/`kof build` resolve JDBC
+drivers on first use from the registry/cache (no manual download; offline →
+honest diagnostic, never silent); **(b) pure-Java MySQL wire** in the runtime as
+the next db slice (`mysql_native_password` first — the protocol is already
+owned: proven on 3 native targets in S5.x; JVM wire = same state machine over
+`java.net.Socket`). SQLite-engine/Mongo-driver reimplementation is a never
+(provisioned drivers, R9); H2 (pure Java, tiny) is the embedded-default
+candidate later. D-DB-NORMALIZE stands as the URL canon under every track.
+
+- **Relationships:** `Related: D-DB-GAPS, D-DB-NORMALIZE, D-KOF-FIRST-IMPL (rule 12), rule 11, R9`.

@@ -36,7 +36,7 @@ public final class KofJsDbBridge {
     public static String connect(String url) throws Exception {
         if (isMongo(url)) throw mongoGap(url);
         try {
-            return register(java.sql.DriverManager.getConnection(url));
+            return register(java.sql.DriverManager.getConnection(normalizeBareScheme(url)));
         } catch (java.sql.SQLException e) {
             throw dbDriverGap(url, e);
         }
@@ -45,7 +45,7 @@ public final class KofJsDbBridge {
     public static String connect2(String url, String user, String pass) throws Exception {
         if (isMongo(url)) throw mongoGap(url);
         try {
-            return register(java.sql.DriverManager.getConnection(url, user, pass));
+            return register(java.sql.DriverManager.getConnection(normalizeBareScheme(url), user, pass));
         } catch (java.sql.SQLException e) {
             throw dbDriverGap(url, e);
         }
@@ -53,6 +53,68 @@ public final class KofJsDbBridge {
 
     private static boolean isMongo(String url) {
         return url != null && url.startsWith("mongodb://");
+    }
+
+    /**
+     * D-DB-NORMALIZE (27/09, voted by the maintainer): same bare→`jdbc:`
+     * normalization as the JVM path ({@code JvmConfigRuntime}) — the JS
+     * delegate IS the host JDBC, so the same url must work. Duplicated here
+     * (instead of shared) because this class lives in kof-runtime, the host
+     * that executes — same precedent as the S2 DB001 mapping.
+     * (`mysql://`→`jdbc:mariadb://`: the driver only takes `mariadb:`.)
+     */
+    private static String normalizeBareScheme(String url) {
+        if (url == null) return null;
+        String jdbcScheme;
+        if (url.startsWith("mysql://")) jdbcScheme = "jdbc:mariadb://";
+        else if (url.startsWith("mariadb://")) jdbcScheme = "jdbc:mariadb://";
+        else if (url.startsWith("postgres://")) jdbcScheme = "jdbc:postgresql://";
+        else if (url.startsWith("sqlite:")) return "jdbc:sqlite:" + url.substring("sqlite:".length());
+        else return url;
+        java.net.URI u;
+        try {
+            u = new java.net.URI(url);
+        } catch (Exception e) {
+            return url;
+        }
+        String host = u.getHost();
+        if (host == null) return url;
+        if (host.contains(":") && !host.startsWith("[")) host = "[" + host + "]";
+        StringBuilder sb = new StringBuilder(jdbcScheme).append(host);
+        if (u.getPort() != -1) sb.append(':').append(u.getPort());
+        String path = u.getPath();
+        if (path != null && !path.isEmpty()) sb.append(path);
+        String query = u.getQuery();
+        String user = null, pass = null;
+        String userInfo = u.getUserInfo();
+        if (userInfo != null) {
+            int c = userInfo.indexOf(':');
+            if (c < 0) user = userInfo;
+            else {
+                user = userInfo.substring(0, c);
+                pass = userInfo.substring(c + 1);
+            }
+        }
+        StringBuilder q = new StringBuilder(query == null ? "" : query);
+        if (user != null && !user.isEmpty() && !hasQueryParam(query, "user")) {
+            if (q.length() > 0) q.append('&');
+            q.append("user=").append(user);
+        }
+        if (pass != null && !pass.isEmpty() && !hasQueryParam(query, "password")
+                && !hasQueryParam(query, "pass")) {
+            if (q.length() > 0) q.append('&');
+            q.append("password=").append(pass);
+        }
+        if (q.length() > 0) sb.append('?').append(q);
+        return sb.toString();
+    }
+
+    private static boolean hasQueryParam(String query, String name) {
+        if (query == null) return false;
+        for (String seg : query.split("&", -1)) {
+            if (seg.equals(name) || seg.startsWith(name + "=")) return true;
+        }
+        return false;
     }
 
     /**

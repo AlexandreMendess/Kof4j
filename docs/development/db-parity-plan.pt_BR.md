@@ -35,34 +35,40 @@ diagnóstico, nunca silêncio) — nunca recusa permanente, nunca aceite silenci
 ## Estado medido (corrigido 23/09/2026 — medição, não memória)
 
 > A tabela anterior usava nomes de scheme crus como atalho para a **URL JDBC** no
-> JVM/Android/JS. Isso era enganoso: `sqlite:`/`mysql://` são aceitos **como
-> escritos** só no **Native**. No JVM/Android/JS o mesmo scheme precisa ser URL
-> `jdbc:` (`jdbc:sqlite:`, `jdbc:mysql://`, …) — um scheme nu não-JDBC é `DB001`
-> nomeado. `mongodb://` é a exceção (JVM/Android o tratam à parte).
+> JVM/Android/JS. Desde D-DB-NORMALIZE (27/09, votado) as formas nuas abaixo
+> também conectam de verdade ali (normalizadas para `jdbc:` — userinfo vira
+> `?user=`/`&password=`); a tabela agora mostra as formas escritas aceitas.
 
 | URL como escrita | JVM | Android | JS | Native (x86/riscv/aarch) |
 |---|---|---|---|---|
 | `jdbc:sqlite:` / `jdbc:h2:` | ✅ JDBC (driver) | ✅ JVM | ✅ JDBC host | — |
-| `sqlite:` (nu) | ❌ `DB001` (use `jdbc:` no JVM/JS) | ❌ `DB001` | ❌ `DB001` | ✅ `sqlite3` link-by-use |
+| `sqlite:` (nu) | ✅ normaliza para `jdbc:sqlite:` (D-DB-NORMALIZE) | ✅ normaliza | ✅ normaliza | ✅ `sqlite3` link-by-use |
 | `jdbc:mysql:` / `jdbc:mariadb:` / `jdbc:postgresql:` | ✅ JDBC (driver no cp) | ✅ JVM | ✅ JDBC host | — |
-| `mysql://` / `mariadb://` (nu) | ❌ `DB001` (não é JDBC) | ❌ `DB001` | ❌ `DB001` | ⚠️ x86: wire `mysql://` + alias `mariadb://` (23/09); riscv/aarch `DB001` (wire não portado → R7) |
+| `mysql://` / `mariadb://` (nu) | ✅ normaliza (`mariadb-java-client` aceita `jdbc:mariadb:`; userinfo → params) | ✅ normaliza | ✅ normaliza | ⚠️ x86: wire `mysql://` + alias `mariadb://` (23/09); cross: real desde S5.4 (24/09) |
+| `postgres://` (nu) | ✅ normaliza para `jdbc:postgresql://` (driver no cp, senão DB001) | ✅ normaliza | ✅ normaliza | ❌ `DB001` nomeado (sem wire) |
 | `mongodb://` | ✅ real (driver via reflexão) | ✅ JVM | ❌ `DB001` — gap declarado (S3) | ❌ `DB001` |
 | `jdbc:oracle:` | ✅ JDBC com driver no cp, senão `DB001` | ✅ JVM | ✅ JDBC host | — |
 | qualquer outra / driver ausente | ❌ `DB001` nomeado (S2) | ❌ `DB001` nomeado | ❌ `DB001` nomeado | ❌ `DB001` nomeado (S0) |
 
-- **JVM/Android/JS** aceitam qualquer URL **`jdbc:`** com driver no classpath; o
-  delegate JS **é** o JDBC do host. Driver ausente agora é `DB001` **nomeado**
+- **JVM/Android/JS** aceitam qualquer URL **`jdbc:`** com driver no classpath,
+  mais as formas nuas `mysql://`/`mariadb://`/`postgres://`/`sqlite:`
+  (normalizadas por D-DB-NORMALIZE);
+  o delegate JS **é** o JDBC do host. Driver ausente agora é `DB001` **nomeado**
   (S2), nunca `SQLException` cru.
 - **`mongodb://`** é real no JVM/Android (driver via reflexão) e `DB001`
   declarado no JS/Native (S3). O Native não vai criar servidor Mongo caseiro (R9).
 - **Native** parseia só `sqlite:` e `mysql://`/`mariadb://`; qualquer outro scheme
   recusa com `DB001` nomeado no connect (S0). `kof_db_type` reserva
   **1=sqlite 2=mysql 3=oracle 4=mongo**.
-- **Questão de design aberta (rule 6, NÃO é edição de agente):** JVM/Android/JS
+- **Questão de design aberta (rule 6, NÃO é edição de agente):** ~~JVM/Android/JS
   devem **normalizar** um scheme nu (`mysql://`, `sqlite:`) para seu equivalente
   `jdbc:` para que a *mesma URL* funcione em todo alvo? Hoje o chamador precisa
   escrever `jdbc:` no JVM/JS e a forma nua no Native. A normalização é frágil para
-  credenciais (`mysql://user:pass@host` vs `?user=&password=`) — a mantenedora decide.
+  credenciais (`mysql://user:pass@host` vs `?user=&password=`) — a mantenedora decide.~~
+  **DECIDIDA 27/09 (`D-DB-NORMALIZE`, votado): normalizar** — userinfo vira
+  `?user=`/`&password=` (mesclado com query existente, nunca sobrescrevendo
+  params já presentes); `mysql://`→`jdbc:mariadb://` (o driver só aceita
+  `mariadb:`); entrada imparsável cai no DB001 nomeado. `oracle://` segue DB001.
 - Referência: `docs/stdlib/DATABASE_VISION.md` (Níveis 0–4, face Mongo no JVM,
   SQLite nativo real, MySQL/MariaDB nativo em andamento).
 

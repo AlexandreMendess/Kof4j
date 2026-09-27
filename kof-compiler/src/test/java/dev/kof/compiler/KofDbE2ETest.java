@@ -194,8 +194,27 @@ class KofDbE2ETest {
         }
     }
 
-    private static String findClasspathJar(String needle) {
-        String cp = System.getProperty("java.class.path");
+    /** Roda a JVM com um jar extra no classpath e afirma a saida exata. */
+    private String runJvmWithExtra(Path source, Path outDir, String extraJar, String expected) throws IOException {
+        CompilationResult result = driver.compile(source, outDir, Target.JVM);
+        assertTrue(result.success(), "JVM compile should succeed: " + result.diagnostics().getDiagnostics());
+        String cp = outDir.toString() + java.io.File.pathSeparator + extraJar;
+        try {
+            ProcessBuilder pb = new ProcessBuilder("java", "-cp", cp, "Default.Main");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+            int ec = p.waitFor();
+            assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
+            assertEquals(expected, output, "Unexpected output");
+            return output;
+        } catch (InterruptedException e) {
+            throw new IOException("Interrupted while running JVM class", e);
+        }
+    }
+
+    private static String findClasspathJar(String needle) {        String cp = System.getProperty("java.class.path");
         for (String entry : cp.split(java.io.File.pathSeparator)) {
             if (entry.toLowerCase().contains(needle) && entry.endsWith(".jar")) return entry;
         }
@@ -1640,5 +1659,146 @@ class KofDbE2ETest {
         String[] happyRun = execBin(tempDir.resolve("happy-out/Default/Main"), null);
         assertEquals("0", happyRun[1], "happy ec, output: '" + happyRun[0] + "'");
         assertEquals("{\"1\":1}", happyRun[0], "happy query output");
+    }
+
+    // D-DB-NORMALIZE (27/09, voted): bare `mysql://` works on JVM/JS as
+    // `jdbc:mysql://` (userinfo → ?user=&password=). RED pre-fix: DB001
+    // "no JDBC driver". Real MariaDB (KOF_MYSQL_PORT), driver mariadb.
+    @Test
+    void jvmBareMysqlNormalizesToJdbc(@TempDir Path tempDir) throws IOException {
+        int port;
+        try { port = Integer.parseInt(System.getenv().getOrDefault("KOF_MYSQL_PORT", "13306")); }
+        catch (NumberFormatException e) { port = 13306; }
+        assumeTrue(tcpUp(port), "MariaDB not reachable on 127.0.0.1:" + port);
+        Path source = tempDir.resolve("M.kf");
+        Files.writeString(source, """
+            main() {
+                var db = db.connect("mysql://root:kofpass@127.0.0.1:%d/test")
+                db.execute(db, "create table if not exists nrm(id int, name varchar(50))")
+                db.execute(db, "delete from nrm")
+                db.execute(db, "insert into nrm values (?, ?)", 7, "Nua")
+                var rows = db.query(db, "select id, name from nrm where id = ?", 7)
+                for (var r in rows) { println(r) }
+                db.close(db)
+                var db2 = db.connect("mysql://root:kofpass@127.0.0.1:%d/test?allowMultiQueries=true")
+                var rows2 = db.query(db2, "select id, name from nrm where id = ?", 7)
+                for (var r in rows2) { println(r) }
+                db.close(db2)
+            }
+            """.formatted(port, port));
+        runJvmWithExtra(source, tempDir.resolve("out"), findClasspathJar("mariadb"),
+                "{\"id\":7,\"name\":\"Nua\"}\n{\"id\":7,\"name\":\"Nua\"}");
+    }
+
+    // D-DB-NORMALIZE: bare `sqlite:<path>` works on JVM as `jdbc:sqlite:<path>`.
+    // Contains (not exact): the sqlite-jdbc driver prints JDK25 FFM
+    // "restricted method" WARNINGs to stdout — environmental noise, not product.
+    @Test
+    void jvmBareSqliteNormalizesToJdbc(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("M.kf");
+        Files.writeString(source, """
+            main() {
+                var db = db.connect("sqlite:%s/norm.db")
+                db.execute(db, "create table if not exists u(id int, name varchar(50))")
+                db.execute(db, "delete from u")
+                db.execute(db, "insert into u values (?, ?)", 7, "Nua")
+                var rows = db.query(db, "select id, name from u where id = ?", 7)
+                for (var r in rows) { println(r) }
+                db.close(db)
+            }
+            """.formatted(kofPath(tempDir)));
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "JVM compile should succeed: " + result.diagnostics().getDiagnostics());
+        String cp = tempDir.resolve("out") + java.io.File.pathSeparator + findClasspathJar("sqlite-jdbc");
+        try {
+            ProcessBuilder pb = new ProcessBuilder("java", "-cp", cp, "Default.Main");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+            int ec = p.waitFor();
+            assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
+            assertTrue(output.contains("{\"id\":7,\"name\":\"Nua\"}"),
+                    "Bare sqlite: deve conectar e consultar, veio: '" + output + "'");
+            assertFalse(output.contains("No suitable driver"),
+                    "O scheme nu deve normalizar, nunca cair em driver ausente: '" + output + "'");
+        } catch (InterruptedException e) {
+            throw new IOException("Interrupted while running JVM class", e);
+        }
+    }
+
+    // D-DB-NORMALIZE: bare `postgres://` normalizes to `jdbc:postgresql://`
+    // (hermetic — closed port, no server): the scheme must be RECOGNIZED
+    // (driver routed, real connection failure) — never "No suitable driver".
+    @Test
+    void jvmBarePostgresNormalizesWithoutServer(@TempDir Path tempDir) throws IOException {
+        int port;
+        try (java.net.ServerSocket ss = new java.net.ServerSocket(0, 1,
+                java.net.InetAddress.getByName("127.0.0.1"))) {
+            port = ss.getLocalPort();
+        }
+        assumeTrue(!tcpUp(port), "A porta deveria estar fechada: " + port);
+        Path source = tempDir.resolve("M.kf");
+        Files.writeString(source, """
+            main() {
+                var db = db.connect("postgres://root:pw@127.0.0.1:%d/x")
+                println("connected")
+            }
+            """.formatted(port));
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "JVM compile should succeed: " + result.diagnostics().getDiagnostics());
+        String output = runJvmExpectFailure(tempDir.resolve("out"), findClasspathJar("postgresql"));
+        assertFalse(output.contains("No suitable driver"),
+                "O scheme nu deve normalizar, nunca cair em driver ausente: " + output);
+        assertFalse(output.contains("DB001"), "Falha real nao pode virar DB001: " + output);
+    }
+
+    // D-DB-NORMALIZE: `db.connect(url, user, pass)` with a bare url —
+    // explicit creds stay authoritative (scheme swap only).
+    @Test
+    void jvmBareMysqlConnect2ExplicitCreds(@TempDir Path tempDir) throws IOException {
+        int port;
+        try { port = Integer.parseInt(System.getenv().getOrDefault("KOF_MYSQL_PORT", "13306")); }
+        catch (NumberFormatException e) { port = 13306; }
+        assumeTrue(tcpUp(port), "MariaDB not reachable on 127.0.0.1:" + port);
+        Path source = tempDir.resolve("M.kf");
+        Files.writeString(source, """
+            main() {
+                var db = db.connect("mysql://127.0.0.1:%d/test", "root", "kofpass")
+                var rows = db.query(db, "select id, name from nrm where id = ?", 7)
+                for (var r in rows) { println(r) }
+                db.close(db)
+            }
+            """.formatted(port));
+        runJvmWithExtra(source, tempDir.resolve("out"), findClasspathJar("mariadb"),
+                "{\"id\":7,\"name\":\"Nua\"}");
+    }
+
+    // D-DB-NORMALIZE (JS): the delegate IS the host JDBC — same bare url.
+    @Test
+    void jsBareMysqlNormalizesToJdbc(@TempDir Path tempDir) throws IOException {
+        int port;
+        try { port = Integer.parseInt(System.getenv().getOrDefault("KOF_MYSQL_PORT", "13306")); }
+        catch (NumberFormatException e) { port = 13306; }
+        assumeTrue(tcpUp(port), "MariaDB not reachable on 127.0.0.1:" + port);
+        Path source = tempDir.resolve("M.kf");
+        Files.writeString(source, """
+            main() {
+                var db = db.connect("mysql://root:kofpass@127.0.0.1:%d/test")
+                var rows = db.query(db, "select id, name from nrm where id = ?", 7)
+                for (var r in rows) { println(r) }
+                db.close(db)
+            }
+            """.formatted(port));
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JS);
+        assertTrue(result.success(), "JS compilation should succeed: "
+                + result.diagnostics().getDiagnostics());
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        int ec = dev.kof.runtime.KofJsRunner.run(tempDir.resolve("out/Default.mjs"), out,
+                new java.io.ByteArrayInputStream(new byte[0]), out);
+        String output = out.toString(java.nio.charset.StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertEquals(0, ec, "JS exit code should be 0, output: '" + output + "'");
+        assertEquals("{\"id\":7,\"name\":\"Nua\"}", output, "JS bare mysql:// output");
     }
 }

@@ -4023,3 +4023,36 @@ oráculo da JVM. O link é **by-use** (`usesPow`), então programas que nunca
 chamam `pow` ficam sem libm.
 
 - **Relações:** `Related: D-FULL-PARITY-050, D-KOF-FIRST (regra 10), regra 11, regra 6, D-GRAPHICS-GAMING, issue #639`.
+
+## D-DB-NORMALIZE — schemes nus normalizam para `jdbc:` no JVM/JS (mantenedora 27/09/2026, votado)
+
+A questão de design aberta do `db-parity-plan.md` ("JVM/Android/JS devem
+normalizar um scheme nu?") está DECIDIDA: **normalizar**. `mysql://`→`jdbc:mariadb://`
+(o driver mariadb-java-client só aceita o sub-scheme `mariadb:` — medido
+27/09), `mariadb://`→`jdbc:mariadb://`, `postgres://`→`jdbc:postgresql://`
+(userinfo vira `?user=`/`&password=`, mesclado com query existente sem
+sobrescrever params já presentes), `sqlite:<resto>`→`jdbc:sqlite:<resto>`.
+`mongodb://` nunca normaliza (ramo próprio); `oracle://` segue DB001 (S4
+declarado); entrada imparsável cai no DB001 nomeado. Implementado em
+`JvmConfigRuntime` + `KofJsDbBridge` (duplicado pelo precedente S2);
+`connect2` troca só o scheme (credenciais explícitas seguem autoritativas).
+Prova: `KofDbE2ETest#jvmBareMysqlNormalizesToJdbc` +
+`#jvmBareSqliteNormalizesToJdbc` + `#jvmBarePostgresNormalizesWithoutServer` +
+`#jvmBareMysqlConnect2ExplicitCreds` + `#jsBareMysqlNormalizesToJdbc` (RED-first 5/5).
+
+- **Relações:** `Related: D-DB-GAPS, db-parity-plan.md, regra 11`.
+
+## D-DB-ZERODRIVER — nunca baixar driver JDBC na mão (mantenedora 27/09/2026, votada opção C)
+
+Provocação da mantenedora: exigir biblioteca separada baixada para programar
+vai contra o Kof (regra 11 — a plataforma absorve a cerimônia). DECIDIDO, em
+duas trilhas: **(a) auto-provision no tooling** — `kof run`/`kof build`
+resolve drivers JDBC no primeiro uso via registry/cache (sem download manual;
+offline → diagnóstico honesto, nunca silêncio); **(b) wire MySQL puro-Java** no
+runtime como próxima fatia db (`mysql_native_password` primeiro — o protocolo
+já é nosso: provado em 3 alvos nativos no S5.x; wire JVM = mesma máquina de
+estados sobre `java.net.Socket`). Reimplementar engine SQLite/driver Mongo é
+nunca (drivers provisionados, R9); H2 (puro Java, minúsculo) é o candidato a
+embarcado default depois. D-DB-NORMALIZE vale como cânone da URL em toda trilha.
+
+- **Relações:** `Related: D-DB-GAPS, D-DB-NORMALIZE, D-KOF-FIRST-IMPL (regra 12), regra 11, R9`.
