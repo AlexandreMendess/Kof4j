@@ -78,7 +78,10 @@ public final class RiscvSlices {
     /** Externos definidos pelo caminho de programa (medido 12/09: o runtime
      *  riscv referencia exatamente este; ver teste de needs órfãos). */
     public static Set<String> programSideSymbols() {
-        return Set.of("kof_super_table", "kof_tostring_table", "kof_equals_table", "kof_hashcode_table");
+        // row 10 (27/09): `pow` é externo LIBRESOLVIDO (libm) — o needs da peça
+        // kof_math_pow (NativeRiscvAsmMathPow) aponta p/ ele; entra por `-lm`
+        // só-por-uso. Nunca é definido pelo runtime, então é nó externo.
+        return Set.of("kof_super_table", "kof_tostring_table", "kof_equals_table", "kof_hashcode_table", "pow");
     }
 
     /** O runtime riscv NÃO referencia rótulos `.L` do programa (medido 12/09:

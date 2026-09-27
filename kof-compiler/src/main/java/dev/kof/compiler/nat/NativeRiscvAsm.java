@@ -74,6 +74,9 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmRtB30.RISCV_RUNTIME_ASM_B_30)
                 .append(NativeRiscvAsmRtB31.RISCV_RUNTIME_ASM_B_31)
                 .append(NativeRiscvAsmRtB32.RISCV_RUNTIME_ASM_B_32)
+                // D-FULL-PARITY-050 row 10 (27/09): pow no cross — peca PROPRIA
+                // (libm) p/ a poda manter libm-free quem nao usa pow.
+                .append(NativeRiscvAsmMathPow.RISCV_ASM_MATH_POW)
                 .append(NativeRiscvAsmRtB33.RISCV_RUNTIME_ASM_B_33)
                 .append(NativeRiscvAsmRtB34.RISCV_RUNTIME_ASM_B_34)
                 .append(NativeRiscvAsmRtB35.RISCV_RUNTIME_ASM_B_35)

@@ -68,7 +68,13 @@ class NativeRiscvRuntimeSliceRegistryTest {
         Set<String> floor = Set.of("kof_panic", "kof_alloc", "kof_print", "kof_println",
                 "kof_print_string", "kof_println_string");
         Set<Integer> uni = RiscvSlices.reachableFrom(floor, Set.of());
-        assertTrue(uni.size() <= 10, "piso riscv deveria ser ~7 peças, veio " + uni.size());
+        // 27/09: o piso medido subiu de ~7 p/ 12 — o modelo é por PEÇA, e a
+        // fatia do log estruturado pôs `call kof_json_enc_elem` na peça B4
+        // (kof_exc_slot); isso arrasta B3 (encoders JSON FP/Long) → B42–B45
+        // (double/float→string) e, via kof_list_new (B0), scheduler/mapset.
+        // Não é regressão de comportamento (a poda por peça é conservadora);
+        // é drift de limite. Trava em 12 (não em ~7) p/ pegar bloat real novo.
+        assertTrue(uni.size() <= 12, "piso riscv deveria ser ~12 peças (B4 json+FP), veio " + uni.size());
     }
 
     /** R6/S5.4 (24/09): a mensagem DB001 do runtime CROSS passou a anunciar

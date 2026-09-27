@@ -29,7 +29,7 @@
 | 1 | `process.run`/`spawn`/`exit` | ✅ | ✅ x86 `run`/`exit`/`spawn` + whole-record `println(r)`/`"x"+r` 26/09 (`RuntimeProcess`/`RuntimeProcessSpawn`/`RuntimeProcessResult`; JVM §367 content with trailing CR/LF trimmed; handle: `readLine`/`write`/`exitCode`/`kill`/`alive`) | ✅ cross `run`/`spawn`+handles + whole-record print 26/09 (`NativeRiscvAsmProcess`/`NativeRiscvAsmProcessSpawn`/`NativeRiscvAsmProcessResult`; golden `ProcessResultWholePrintE2ETest` JVM≡riscv64≡aarch64) | ✅ (KofJsRunner) | `PROC001` (MCU/riscv32: `run`/`spawn`/whole-record print) | native-cross lane (run x86 ✅ 25/09, cross ✅ 26/09; spawn x86 ✅ 26/09, cross ✅ 26/09; whole-record x86+cross ✅ 26/09) |
 | 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 `cmd`/`run`/`ok` 26/09 (`RuntimeSsh` + `SshE2ETest#allSshFacesMatchJvmAcrossAllTargets`) | ✅ riscv64/aarch64 `cmd`/`run`/`ok` 26/09 (`NativeRiscvAsmSsh` + `SshCrossE2ETest` + golden JVM≡riscv64≡aarch64) | ✅ JS 26/09 (`kofSshArgv`/`kofSshRun` + golden JVM≡JS in `SshE2ETest`) | `PROC001` (MCU/riscv32: no process layer) | native-cross lane (JVM/JS/x86/cross ✅ 26/09) |
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ⚠️ x86-64 `Video`+`Audio` ✅ 26/09 (`RuntimeMedia`/`RuntimeMediaMp4`/`RuntimeMediaWav` — MP4 moov/mvhd incl. extended size, WAV PCM-16 parse+save com mkdirs recursivo; `MediaNativeE2ETest` byte-for-byte vs JVM + cap-64 honesto; `Image`/`Mic` ficam `MEDIA001` — decoder/encoder = regra 6) | ✅ riscv64/aarch64 `Video` ✅ 26/09 fatia 2A (`NativeRiscvAsmMedia`/`NativeRiscvAsmMediaMp4` — newfstatat S_IFREG + read, cap-64, MP4 be-scan c/ size=1/0, mvhd v0/v1, `bytes()` signed) + `Audio` ✅ 26/09 fatia 2B (`NativeRiscvAsmMediaWav` — WAV PCM-16 parse+save c/ mkdirs recursivo, cap-64; `MediaCrossE2ETest` byte-for-byte vs JVM nos 2 arcos sob qemu) | ❌ | `MEDIA001`/`MEDIA003` (Image/Mic all; JS) | media front (x86 fatia 1 + cross Video 2A + Audio 2B ✅ 26/09; JS/Image/Mic = `MEDIA00x`) |
-| 10 | `math.pow` cross (static, no libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | native cross lane |
+| 10 | `math.pow` cross | ✅ | ✅ (libm `-lm`) | ✅ riscv64/aarch64 27/09 (shim `kof_math_pow` → `pow@PLT`; peça PRÓPRIA + `-lm` POR USO via `NativeCrossLink.needsLibm`; golden `KofMathTest#powCrossArch` JVM≡riscv64≡aarch64 sob qemu) | ✅ | — | parity lane (closed 27/09) |
 | 11 | `strings.reverse` non-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | native/js lanes |
 | 12 | web T1 (`kof.http.server` faces) on native/cross | ✅ | ⏳ | ❌ `WEB002`–`WEB006` | ✅ | `WEB00x` | web lane |
 | 13 | `kof.io` file faces on cross | ✅ | ✅ x86 | ✅ full — stat+text+fs (`exists`/`isFile`/`isDirectory`/`readText`/`writeText`/`appendText`/`delete`/`create`/`createDirectories`/`mkdirs`/`size`/`readBytes`/`writeBytes`/`appendBytes`/`list`/`readRange`/`name`/`path_fileName`/`path_parent`/`path_extension`/`path_isAbsolute`/`path_resolve`/`path_normalize`/`path_toAbsolute`) ✅ (`NativeRiscvAsmIoStat`/`IoText`/`IoFs`/`IoMkdirs`/`IoSize`/`IoBytes`/`IoDirList`/`IoReadRange`/`IoPath`/`IoResolve`/`IoNormalize`/`IoToAbsolute`/`IoDirDelete` — recursive `delete` ✅ cross **and x86-64** 26/09; `modifiedTime`+`isSymlink` ✅ cross+x86-64 via `NativeRiscvAsmIoMeta`/`RuntimeIoMeta`; `moveTo` ✅ all native via `RuntimeIoMove`/`NativeRiscvAsmIoMove` (`renameat2`); `copyTo` ✅ all native via `RuntimeIoCopy`/`NativeRiscvAsmIoCopy` → **row 13 COMPLETE, no `NAT006` face left** (§497 FIXED); `size()` msg JVM×x86 diverge (§494) | ✅ | `NAT006`/`NAT007` | native cross lane |
@@ -51,8 +51,8 @@ proof = `ConformanceMatrixTest` std* cases + the E2E named per row:
   (§248), generic interfaces + covariant/primitive bridges (§355–357, §486),
   record equality/hashCode by content everywhere (§104b-ii/§114), SEM diagnostics.
 - **stdlib core (rows of the stdlib parity table with ✅ on 4 columns):**
-  `math` (abs/sign/clamp/min/max/is*/sqrt/lerp/percentage/roundTo/parse*) —
-  EXCEPT `pow` (row 10); `strings` (is*, count, capitalize/uncapitalize,
+  `math` (abs/sign/clamp/min/max/is*/sqrt/lerp/percentage/roundTo/pow/parse*) —
+  all four columns (row 10 closed 27/09); `strings` (is*, count, capitalize/uncapitalize,
   reverse ASCII, toCamel/Pascal/Snake/Kebab, slugify, escapeHtml/Json,
   whitespace family, dedent, repeat, truncate, indent, pad*) — EXCEPT
   non-ASCII `reverse` (row 11); `encoding` (hex, base64, base64Url, url);
@@ -74,6 +74,18 @@ runner is re-run at every release-gate execution (condition 1), so a
 regression re-opens the row (zero regression, freeze rule 1).
 
 ## Closed (proof recorded here when a row empties)
+
+- **Row 10 — `math.pow` cross (riscv64/aarch64)** — closed 27/09 (lane parity,
+  D-DECISION-BATCH-2709B #3). The cross runtime refused `pow` with `MATH001`
+  (static, asm-pure link). The maintainer decision links libm so `kof_math_pow`
+  (piece `NativeRiscvAsmMathPow` — its OWN piece) calls `pow@PLT`;
+  `NativeCrossLink.needsLibm` adds `-lm` only when the PRUNED text still
+  contains `call pow`, so a program that never calls `pow` stays libm-free (the
+  piece is pruned). `KofMath.supportedOn` no longer gates `pow`. Proof:
+  `KofMathTest#powCrossArch` (JVM≡riscv64≡aarch64 byte golden under qemu),
+  `#powJvm/#powNative/#powJs`, `StdParityGapAuditTest`,
+  `NativeRiscvRuntimeSliceRegistryTest` (needs closed: `pow` is a program-side
+  extern), `ConformanceMatrixTest` stdmathpow.
 
 - **Row 2 — `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` (all five faces, all four
   targets)** — closed 25/09 (parity lane + native-cross lane). x86-64: slice A
