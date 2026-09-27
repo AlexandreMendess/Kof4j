@@ -13748,7 +13748,7 @@ ledger, nunca um ombro de "ruído conhecido" (regra herdada da §511).
 completa da suíte é este flake até prova em contrario — re-ronde em isolamento antes de
 acusar um commit; um vermelho de isolamento em host limpo é bug novo e ganha § próprio.
 
-<!-- en-switch --> **EN:** [§533 (known-bugs)](known-bugs.md#533--interoptimeoute2etestcancelfromanothertaskstopstherunningcallnamed008-is-red-33-inside-the-full-reactor-and-green-44-in-isolation-the-never-rpc-call-returns-keyerrorinterop006-before-cancel-can-name-interop008-harness-setup-race-under-load---open-owner--lane-interop)
+<!-- en-switch --> **EN:** [§533 (known-bugs)](known-bugs.md#533--interoptimeoute2etestcancelfromanothertaskstopstherunningcallnamed008-is-red-33-inside-the-full-reactor-and-green-44-in-isolation-the-never-rpc-call-returns-keyerrorinterop006-before-cancel-can-name-interop008-harness-setup-race-under-load---fixed-2709-owner--lane-interopdocs)
 
 ## §534 — `kof run --target js` ignora drivers JDBC provisionados/declarados (KofJsRunner in-process) — DB001 onde o JVM conecta — 🟡 OPEN (dona = lane js)
 **Sintoma (medido 27/09):** o auto-provision D-DB-ZERODRIVER pousou para
