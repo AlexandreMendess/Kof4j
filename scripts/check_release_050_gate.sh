@@ -81,7 +81,9 @@ ALLOWLIST="DECISIONS.md DECISIONS.pt_BR.md README.md README.pt_BR.md roadmap.md 
 # from future/ (bare-metal + ring0/ring1 scope) and allowlisted the same way.
 # It CONCLUDED 25/09 (B-4 closed on riscv32) and moved to docs/ — no longer
 # loose, hence no longer listed here.
-ALLOWLIST="$ALLOWLIST db-parity-plan.md db-parity-plan.pt_BR.md"
+# db-parity-plan CONCLUDED + MOVED 27/09 (S0–S5, §488/§493/§523,
+# D-DB-NORMALIZE, D-DB-ZERODRIVER-a) to docs/stdlib/ — no longer loose,
+# hence no longer listed here.
 
 # state per condition: GREEN|RED|NEEDS-MEASURE|NEEDS-REVIEW|UNKNOWN
 declare -A STATE DETAIL
@@ -361,7 +363,9 @@ EOF
   # D-RELEASE-0.5.0-SCOPE (maintainer 21/09/2026): (a) an allowlisted
   # in-flight plan is NOT loose_docs RED; (b) an open EG-8 is NOT edges RED —
   # the 1.0-line declaration is decoupled from the 0.5.0 gate.
-  printf 'DECISIONS.md\ndb-parity-plan.md\n' > "$T/loose"
+  # (db-parity-plan was the example until it CONCLUDED 27/09 — now
+  # interop-engine-plan, still loose + allowlisted.)
+  printf 'DECISIONS.md\ninterop-engine-plan.md\n' > "$T/loose"
   printf 'EG-1\tDONE\nEG-8\tOPEN\n' > "$T/eg"
   R050_OPEN_ISSUES_TSV="$T/issues" R050_EG_TSV="$T/eg" R050_PARITY_FILE="$T/parity" \
   R050_STABILITY_FILE="$T/stab" \

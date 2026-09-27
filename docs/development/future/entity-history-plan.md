@@ -60,7 +60,7 @@ The relevant measured facts:
   (`learn/stdlib/json.md`); DB rows come back JSON-shaped. Schema versioning
   exists for **DDL** (`orm.migrate`, `kof_migrations`), never for rows.
 - **Docs:** `learn/stdlib/orm.md`, `training/idioms/database.md`,
-  `docs/stdlib/DATABASE_VISION.md`, `docs/development/db-parity-plan.md`,
+  `docs/stdlib/DATABASE_VISION.md`, `docs/stdlib/db-parity-plan.md`,
   `DECISIONS.md` §`D-DB-GAPS`. `docs/stdlib/observability.md:134` mentions
   "future audit logging" once, with no design.
 
@@ -835,7 +835,7 @@ document is `entity-history-plan.md`. "Revision", "audit record" and
   `interop.schema(R)` compile-time, no runtime reflection.
 - `docs/stdlib/observability.md:134` — the only "future audit logging" mention.
 - Related plans: `docs/development/pagination-plan` (windowing),
-  `docs/development/memory-safety-plan.md`, `docs/development/db-parity-plan.md`,
+  `docs/development/memory-safety-plan.md`, `docs/stdlib/db-parity-plan.md`,
   `docs/stdlib/DATABASE_VISION.md`, `DECISIONS.md` §`D-DB-GAPS`.
 
 **No implementation was performed.** This document is the entire change.

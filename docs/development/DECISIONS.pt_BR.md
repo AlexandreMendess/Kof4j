@@ -2358,7 +2358,7 @@ apenas enquanto a fatia pousa — nunca recusa permanente, nunca aceite silencio
 - `kof_db_type` já reserva **1=sqlite 2=mysql 3=oracle 4=mongo** → o modelo de
   tipo antecipa esta frente.
 
-**Fatias (fila aberta em `docs/development/db-parity-plan.pt_BR.md`):** S0
+**Fatias (fila aberta em `docs/stdlib/db-parity-plan.pt_BR.md`):** S0
 diagnóstico interino honesto (limpa o aceite silencioso do §421 enquanto os
 schemes pousam); S1 `mariadb://` = alias mysql-wire (Native, 3 arcos); S2
 paridade de schemes JDBC JVM/JS/Android (por-driver medido, diagnóstico honesto

@@ -90,7 +90,7 @@ design incremental e compatível com a arquitetura. Ele **não** implementa nada
   (JVM/JS/x86 SQLite+MySQL/riscv64+aarch64).
 - `MAX_BIND = 4` (`KofDb.java:38`) limita os binds de `where + limit`
   (`CompilerOrmSupport.java:181-189`).
-- A superfície DB é declarada **congelada** (`docs/development/db-parity-plan.md:186-192`;
+- A superfície DB é declarada **congelada** (`docs/stdlib/db-parity-plan.md:186-192`;
   `DECISIONS.md` §D-DB-GAPS addendum `:2356-2385`) → adicionar um offset ou mudar
   o tipo de retorno de `orm.page` é **regra 6**.
 

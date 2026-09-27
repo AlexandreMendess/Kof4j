@@ -2386,7 +2386,7 @@ lands — never a permanent refusal, never a silent accept.
 - `kof_db_type` already reserves **1=sqlite 2=mysql 3=oracle 4=mongo** → the
   type model anticipates this front.
 
-**Slices (queue opened in `docs/development/db-parity-plan.md`):** S0 interim
+**Slices (queue opened in `docs/stdlib/db-parity-plan.md`):** S0 interim
 honest diagnostic (clears §421's silent accept while the schemes land); S1
 `mariadb://` = mysql-wire alias (Native, 3 arches); S2 JDBC scheme parity
 JVM/JS/Android (per-driver measured, honest missing-driver diagnostic); S3

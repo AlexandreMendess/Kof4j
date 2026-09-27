@@ -90,7 +90,7 @@ incremental, architecture-compatible design. It does **not** implement anything.
   legs (JVM/JS/x86 SQLite+MySQL/riscv64+aarch64).
 - `MAX_BIND = 4` (`KofDb.java:38`) caps `where + limit` binds
   (`CompilerOrmSupport.java:181-189`).
-- The DB surface is declared **frozen** (`docs/development/db-parity-plan.md:186-192`;
+- The DB surface is declared **frozen** (`docs/stdlib/db-parity-plan.md:186-192`;
   `DECISIONS.md` §D-DB-GAPS addendum `:2356-2385`) → adding an offset or changing
   `orm.page`'s return type is **rule 6**.
 

@@ -14251,7 +14251,7 @@ p
 - **Maintainer decision (chat 21/09, recorded as the `D-DB-GAPS` addendum):**
   **total DB parity** — every target must ACCEPT `mariadb`, `mysql`, `sqlite`,
   `mongodb`, … (no gap-code endpoint; the `DB001`-vs-new-code poll was answered
-  "full parity"). Route: `docs/development/db-parity-plan.md` — **S0** ships the
+  "full parity"). Route: `docs/stdlib/db-parity-plan.md` — **S0** ships the
   interim honest diagnostic on Native that clears this red (a named code at
   connect time, without touching the probe or the host message), then **S1**
   (`mariadb://` = mysql-wire alias) and the following slices deliver the schemes
@@ -14884,7 +14884,7 @@ main() {
 
 **Root cause:** not one bug but a **contract divergence** between two implementations of the same frozen face. (a) The JVM `kof_db_execute_n` over JDBC propagates the `SQLException` as a Kof `String` (throw). (b) The x86 `RuntimeOrmMysql` `delete`/`deleteAll` call the **generic** `kof_db_execute`, whose `.Ldb_exec_bad` returns `0` (`affectedRows`) with **no** throw — so the caller's `>= 0` check yields `true`. Only the x86 `save`/`saveAll` use the throwing `RuntimeOrmMysqlExec`/`.Lorm_sa_exec`. The cross `RtB75` mirrors the x86 exactly (B72 `kof_db_mysql_execute`, no throw), so Native↔cross parity holds; the divergence is JVM↔Native and PRE-EXISTS S5.5 (it is not introduced here).
 
-**Impact / honesty (R6):** the Native face reports success (`true`) for a DELETE the server rejected — a silent failure on the wire. Whether the frozen contract wants the JVM semantics (throw) or the Native one (return `affectedRows`) is a **design decision of the maintainer (rule 6)**, not an agent edit: aligning either side changes the error contract of a frozen face. Recorded here and in `docs/development/db-parity-plan.md` so the divergence is visible and never "documented around".
+**Impact / honesty (R6):** the Native face reports success (`true`) for a DELETE the server rejected — a silent failure on the wire. Whether the frozen contract wants the JVM semantics (throw) or the Native one (return `affectedRows`) is a **design decision of the maintainer (rule 6)**, not an agent edit: aligning either side changes the error contract of a frozen face. Recorded here and in `docs/stdlib/db-parity-plan.md` so the divergence is visible and never "documented around".
 
 **Proof (measured 24/09):** `KofOrmE2ETest#crossNativeMariadbDeleteErrorMatchesX86Oracle` pinned Native x86-64 == riscv64 == aarch64 on the missing-table case (all `true`); the S5.5 fatia-3 happy-path test `crossNativeMariadbDeleteAndDeleteAllMatchesOracles` pins the success path against the JVM oracle. **Superseded 26/09 by the closure proof below** — the error test was renamed to `crossNativeMariadbDeleteErrorsThrowLikeX86Oracle` and now pins the THROW on all three targets.
 
@@ -15783,7 +15783,7 @@ targets; GREEN post-fix. Cluster green: `JsonCompleteE2ETest`,
 **Symptom (measured 26/09):** a MariaDB that ENFORCES auth on
 `127.0.0.1:13306` (e.g. `docker run mariadb:11 -e
 MARIADB_ROOT_PASSWORD=kofpass`, NOT the canonical `--skip-grant-tables`
-fixture of `docs/development/db-parity-plan.md` §"fixture") makes
+fixture of `docs/stdlib/db-parity-plan.md` §"fixture") makes
 `KofDbE2ETest.nativeMariadbAliasWireProtocol` die with ec=139 right after the
 first row prints (the host-only `mariadb://127.0.0.1:port/test` connect has no
 userinfo → handshake ERR), and `NativeRiscvDbWireTest.dispatchExecuteQuery…`

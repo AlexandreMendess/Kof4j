@@ -2,13 +2,22 @@
 
 # DB Parity Plan — every target accepts every scheme (mariadb, mysql, sqlite, mongodb, …)
 
-last: S5.4-cross-connect
+last: promotion-to-stdlib
 doing: db-parity
-next: remaining-schemes
-location: db-parity-plan
-state: active
+next: follow-ups-declared
+location: docs/stdlib/db-parity-plan
+state: done
 
-> **IN DEVELOPMENT** — opened 21/09/2026 from the maintainer's directive
+> **CONCLUDED + PROMOTED 27/09** — moved `docs/development/` → `docs/stdlib/`
+> (three-states rule): S0–S5 complete (S5.5 `orm.page` cross `00bceef4f`, 24/09;
+> PARITY-GAPS rows 15/16 closed), §488 FIXED (24/09), §493 FIXED (26/09),
+> §523 FIXED (27/09, handshake ERR throws), D-DB-NORMALIZE landed (27/09),
+> D-DB-ZERODRIVER track (a) landed (27/09, run/build auto-provision).
+> Follow-ups declared inside (non-blocking): JS-run provisioning (§534, lane
+> js), android-pom driver wiring, S6 pure-Java MySQL wire (PLANNED).
+> Original queue header preserved below for audit.
+>
+> ~~**IN DEVELOPMENT** — opened 21/09/2026 from the maintainer's directive
 > (`D-DB-GAPS` addendum, `DECISIONS.md`). The plan is the queue; each slice
 > lands with proof (Q0–Q7) and this doc is **moved to `docs/stdlib/`** only
 > when parity is complete.

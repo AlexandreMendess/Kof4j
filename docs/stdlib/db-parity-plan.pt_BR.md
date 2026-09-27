@@ -2,13 +2,23 @@
 
 # Plano de Paridade de DB — todo alvo aceita todo scheme (mariadb, mysql, sqlite, mongodb, …)
 
-last: S5.4-cross-connect
+last: promotion-to-stdlib
 doing: db-parity
-next: remaining-schemes
-location: db-parity-plan
-state: active
+next: follow-ups-declared
+location: docs/stdlib/db-parity-plan
+state: done
 
-> **EM DESENVOLVIMENTO** — aberto 21/09/2026 a partir da diretiva da mantenedora
+> **CONCLUÍDO + PROMOVIDO 27/09** — movido `docs/development/` → `docs/stdlib/`
+> (regra dos três estados): S0–S5 completas (S5.5 `orm.page` cross `00bceef4f`,
+> 24/09; linhas 15/16 do `PARITY-GAPS` fechadas), §488 CORRIGIDA (24/09), §493
+> CORRIGIDA (26/09), §523 CORRIGIDA (27/09, ERR do handshake lança),
+> D-DB-NORMALIZE pousado (27/09), D-DB-ZERODRIVER trilha (a) pousada (27/09,
+> auto-provision no run/build). Follow-ups declarados dentro (não-bloqueantes):
+> provision no run JS (§534, lane js), wiring do pom android, wire MySQL
+> puro-Java S6 (PLANEJADO). Cabeçalho original da fila preservado abaixo para
+> auditoria.
+>
+> ~~**EM DESENVOLVIMENTO** — aberto 21/09/2026 a partir da diretiva da mantenedora
 > (adendo `D-DB-GAPS`, `DECISIONS.md`). O plano é a fila; cada fatia pousa com
 > prova (Q0–Q7) e este doc só **move para `docs/stdlib/`** quando a paridade
 > estiver completa.

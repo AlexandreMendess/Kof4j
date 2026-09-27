@@ -63,7 +63,7 @@ lugar do repositório. Os fatos medidos relevantes:
   de schema existe para **DDL** (`orm.migrate`, `kof_migrations`), nunca para
   linhas.
 - **Docs:** `learn/stdlib/orm.md`, `training/idioms/database.md`,
-  `docs/stdlib/DATABASE_VISION.md`, `docs/development/db-parity-plan.md`,
+  `docs/stdlib/DATABASE_VISION.md`, `docs/stdlib/db-parity-plan.md`,
   `DECISIONS.md` §`D-DB-GAPS`. `docs/stdlib/observability.md:134` menciona
   "future audit logging" uma vez, sem design.
 
@@ -877,7 +877,7 @@ o documento é `entity-history-plan.md`. "Revisão", "registro de auditoria" e
   logging".
 - Planos relacionados: `docs/development/pagination-plan` (windowing),
   `docs/development/memory-safety-plan.md`,
-  `docs/development/db-parity-plan.md`, `docs/stdlib/DATABASE_VISION.md`,
+  `docs/stdlib/db-parity-plan.md`, `docs/stdlib/DATABASE_VISION.md`,
   `DECISIONS.md` §`D-DB-GAPS`.
 
 **Nenhuma implementação foi realizada.** Este documento é a alteração inteira.
