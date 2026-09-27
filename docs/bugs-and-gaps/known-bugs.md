@@ -15952,7 +15952,7 @@ full LSP pair (E2E + `LspServerTest` 41/41) green; full clean reactor
 
 <!-- pt-switch --> **PT:** [§528 (pt_BR)](known-bugs.pt_BR.md#528--novo-arquivo-sem-save-dentro-do-projeto-ainda-levava-pkg006-fantasma-para-imports-validos-o-gate-de-raiz-do-lsp-exigia-o-arquivo-no-disco---fixed-2709-lane-issues-638--follow-up-de-paridade-do-636-e-637)
 
-## §529 — `kof lsp`: `didOpen` of a root-directory URI (`file:///`) crashed `analyze` with a raw NPE (the #638 gate called `isDirectory(getParent())` without the null guard) — FIXED 27/09 (lane gaps-db/native, Q4 hunt over §528)
+## §529 — `kof lsp`: `didOpen` of a root-directory URI (`file:///`) crashed `analyze` with a raw NPE (the #638 gate called `isDirectory(getParent())` without the null guard) — ✅ FIXED 27/09 (lane gaps-db/native, Q4 hunt over §528)
 
 **Bug (measured RED):** adding the #638 gate `Files.isRegularFile(real) ||
 Files.isDirectory(real.getParent())` (landed in `4cbd59aaa`, §528) without a
@@ -15974,4 +15974,4 @@ guard for #638: a parent-less path still reports the honest PKG006, never a
 mirror inventing directories). Battery: `Lsp*Test` **66/66** green
 (`LspProjectDiagnosticsE2ETest` 12/12).
 
-<!-- pt-switch --> **PT:** [§529 (pt_BR)](known-bugs.pt_BR.md#529--kof-lsp-didopen-de-uri-de-diretorio-raiz-file-derrubava-o-analyze-com-npe-cru-a-gate-do-638-chamou-isdirectorygetparent-sem-a-guarda-de-null--fixed-2709-lane-gaps-dbnative-cacada-q4-sobre-o-528)
+<!-- pt-switch --> **PT:** [§529 (pt_BR)](known-bugs.pt_BR.md#529--kof-lsp-didopen-de-uri-de-diretorio-raiz-file-derrubava-o-analyze-com-npe-cru-a-gate-do-638-chamou-isdirectorygetparent-sem-a-guarda-de-null---fixed-2709-lane-gaps-dbnative-cacada-q4-sobre-o-528)

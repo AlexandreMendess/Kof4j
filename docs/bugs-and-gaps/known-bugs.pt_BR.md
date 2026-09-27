@@ -13506,7 +13506,7 @@ JVM).
 
 <!-- pt-switch --> **EN:** [§528 (EN)](known-bugs.md#528--new-unsaved-file-inside-a-project-still-got-phantom-pkg006-for-valid-imports-the-lsp-root-gate-required-the-file-to-exist-on-disk---fixed-2709-issues-lane-638--parity-follow-up-of-636-and-637)
 
-## §529 — `kof lsp`: `didOpen` de URI de diretorio-raiz (`file:///`) derrubava o `analyze` com NPE cru (a gate do #638 chamou `isDirectory(getParent())` sem a guarda de null) — FIXED 27/09 (lane gaps-db/native, cacada Q4 sobre o §528)
+## §529 — `kof lsp`: `didOpen` de URI de diretorio-raiz (`file:///`) derrubava o `analyze` com NPE cru (a gate do #638 chamou `isDirectory(getParent())` sem a guarda de null) — ✅ FIXED 27/09 (lane gaps-db/native, cacada Q4 sobre o §528)
 
 **Bug (RED medido):** a gate do #638 `Files.isRegularFile(real) ||
 Files.isDirectory(real.getParent())` (pousada em `4cbd59aaa`, §528) sem a
@@ -13529,4 +13529,4 @@ over-correction do #638: caminho sem pai segue com PKG006 honesto, nunca um
 espelho que inventa diretorios). Bateria: `Lsp*Test` **66/66** verde
 (`LspProjectDiagnosticsE2ETest` 12/12).
 
-<!-- pt-switch --> **EN:** [§529 (known-bugs.md)](known-bugs.md#529--kof-lsp-didopen-of-a-root-directory-uri-file-crashed-analyze-with-a-raw-npe-the-638-gate-called-isdirectorygetparent-without-the-null-guard--fixed-2709-lane-gaps-dbnative-q4-hunt-over-528)
+<!-- pt-switch --> **EN:** [§529 (known-bugs.md)](known-bugs.md#529--kof-lsp-didopen-of-a-root-directory-uri-file-crashed-analyze-with-a-raw-npe-the-638-gate-called-isdirectorygetparent-without-the-null-guard---fixed-2709-lane-gaps-dbnative-q4-hunt-over-528)
