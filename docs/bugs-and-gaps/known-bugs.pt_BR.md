@@ -12454,7 +12454,7 @@ main() {
 **Dono:** lane gaps-db (fila de decisão); afeta `RuntimeOrmMysql`/`RuntimeDb*` (x86), `JvmConfigRuntime.kof_db_execute_n` (JVM) e `RtB75`/`RtB72` (cross).
 <!-- en-switch --> **EN:** [§493 (en)](known-bugs.md#493--jvm-and-native-diverge-on-the-ormdeleteormdeleteall-error-path-over-mysql-the-jvm-throws-a-sqlexception-string-while-native-x86-64-and-the-cross-return-true---fixed-2609-lane-gaps-dbnative-runtime-law--d-decision-batch-2609-item-1)
 
-## §494 — JVM e Native divergem na mensagem de erro do `kof.io` `size()`: o JVM lança `file not found: <path>`, o Native x86-64 e o cross lançam `size: file not found: <path>` — 🟡 OPEN (decisão de contrato)
+## §494 — JVM e Native divergem na mensagem de erro do `kof.io` `size()`: o JVM lança `file not found: <path>`, o Native x86-64 e o cross lançam `size: file not found: <path>` — ✅ FIXED 27/09 (lane issues, D-IO-SIZE-JVM-LAW)
 
 **Sintoma (medido 24/09, lane native-cross, D-FULL-PARITY-050 linha 13 fatia 5):** `File(missing).size()` dentro de um `try/catch (String e)` imprime mensagem diferente por alvo: JVM `file not found: <path>`; Native x86-64 `size: file not found: <path>`. O cross (riscv64/aarch64) espelha o x86 — foi implementado 24/09 exatamente sobre o template do x86 (`RuntimeIo2.kof_io_file_size`), então a paridade Native↔cross vale e a divergência é JVM↔Native, PRÉ-EXISTENTE (não introduzida pela linha 13).
 
@@ -12464,10 +12464,12 @@ main() {
 
 **Prova (medido 24/09):** `NativeIoSizeCrossTest` pina a mensagem do JVM (`file not found: `) e a do x86/cross (`size: file not found: `) separadamente, então os dois contratos ficam travados; o caminho de sucesso é checado JVM==riscv64==aarch64 (6/6 verde).
 
-**Status:** 🟡 OPEN — decisão de contrato (rule 6); o cross foi construído intencionalmente com a mensagem do x86.
+**CORRIGIDA 27/09 (lane issues; ratificada `D-IO-SIZE-JVM-LAW`, votada opção A):** o prefixo `size: ` caiu — x86 `RuntimeIo2.kof_io_file_size` (`.Lstr_io_size_prefix` → `"file not found: "` de 16 bytes) e cross `NativeRiscvAsmIoSize` agora lançam exatamente a mensagem do JVM. Prova RED-first: pins de missing riscv64/aarch64/x86 do `NativeIoSizeCrossTest` virados para a mensagem JVM (mais o pin x86 novo); 7/7 com oráculo JVM + paridade de sucesso; vizinhos `IoE2ETest` 26/26 + `MediaNativeE2ETest` 3/3 intactos (missing de áudio é outro caminho).
 
-**Owner:** lane native-cross (D-FULL-PARITY-050 linha 13) + fila de semântica; afeta `JvmRuntimeIo` (JVM), `RuntimeIo2` (x86) e `NativeRiscvAsmIoSize` (cross).
-<!-- pt-switch --> **EN:** [§494 (en)](known-bugs.md#494--jvm-and-native-diverge-on-the-kofio-size-error-message-jvm-throws-file-not-found-path-native-x86-64-and-the-cross-throw-size-file-not-found-path---open-contract-decision)
+**Status:** ✅ FIXED 27/09 — D-IO-SIZE-JVM-LAW (votada opção A).
+
+**Owner:** lane issues (fix D-IO-SIZE-JVM-LAW); afeta `JvmRuntimeIo` (JVM), `RuntimeIo2` (x86) e `NativeRiscvAsmIoSize` (cross).
+<!-- pt-switch --> **EN:** [§494 (en)](known-bugs.md#494--jvm-and-native-diverge-on-the-kofio-size-error-message-jvm-throws-file-not-found-path-native-x86-64-and-the-cross-throw-size-file-not-found-path---fixed-2709-lane-issues-d-io-size-jvm-law)
 ---
 
 ## §495 — Método desconhecido no namespace `scheduler` compilava limpo e o lowerer não emitia nada → `VerifyError: Operand stack underflow` no JVM; agora é SEM025 limpo — ✅ CORRIGIDO 25/09

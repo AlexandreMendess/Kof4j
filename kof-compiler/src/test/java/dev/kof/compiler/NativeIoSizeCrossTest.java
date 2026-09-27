@@ -15,9 +15,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * D-FULL-PARITY-050 (row 13) — {@code size()} do {@code kof.io} no cross
  * riscv64/aarch64 (fatia {@link dev.kof.compiler.nat.NativeRiscvAsmIoSize}).
  * Sucesso: st_size byte-identico ao oraculo JVM medido no MESMO programa.
- * Miss: LANÇA (nao sentinela), como o x86 — a mensagem do cross espelha o x86
- * ("size: file not found: " + path); o JVM usa "file not found: " (divergencia
- * pre-existente JVM x x86, reportada, nao "corrigida" aqui — rule 6).
+ * Miss: LANÇA `file not found: ` como o JVM (D-IO-SIZE-JVM-LAW, §494 FIXED
+ * 27/09 — antes o cross espelhava o prefixo `size: ` do x86).
  */
 class NativeIoSizeCrossTest {
 
@@ -145,7 +144,7 @@ class NativeIoSizeCrossTest {
     }
 
     @Test
-    void riscv64MissingThrowsWithX86Message(@TempDir Path tempDir) throws IOException {
+    void riscv64MissingThrowsWithJvmMessage(@TempDir Path tempDir) throws IOException {
         Assumptions.assumeTrue(
                 has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
                 "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
@@ -154,13 +153,13 @@ class NativeIoSizeCrossTest {
         Files.writeString(src, missingProgram(missing));
         String out = runCross(driver, src, tempDir.resolve("out-riscv"), "qemu-riscv64",
                 Target.NATIVE_RISCV64);
-        assertTrue(out.startsWith("size: file not found: "),
-                "cross mirrors x86: 'size: file not found: ' — got: " + out);
+        assertTrue(out.startsWith("file not found: "),
+                "§494/D-IO-SIZE-JVM-LAW: cross lanca como o JVM — veio: " + out);
         assertTrue(out.endsWith(missing.toString()), "should end with path — got: " + out);
     }
 
     @Test
-    void aarch64MissingThrowsWithX86Message(@TempDir Path tempDir) throws IOException {
+    void aarch64MissingThrowsWithJvmMessage(@TempDir Path tempDir) throws IOException {
         Assumptions.assumeTrue(
                 has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
                 "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
@@ -169,8 +168,33 @@ class NativeIoSizeCrossTest {
         Files.writeString(src, missingProgram(missing));
         String out = runCross(driver, src, tempDir.resolve("out-aarch"), "qemu-aarch64",
                 Target.NATIVE_AARCH64);
-        assertTrue(out.startsWith("size: file not found: "),
-                "cross mirrors x86: 'size: file not found: ' — got: " + out);
+        assertTrue(out.startsWith("file not found: "),
+                "§494/D-IO-SIZE-JVM-LAW: cross lanca como o JVM — veio: " + out);
         assertTrue(out.endsWith(missing.toString()), "should end with path — got: " + out);
+    }
+
+    @Test
+    void x86MissingThrowsWithJvmMessage(@TempDir Path tempDir) throws IOException {
+        Assumptions.assumeTrue(has("as", "ld"), "x86 toolchain ausente — pulando");
+        Path missing = tempDir.resolve("nope-x86.txt");
+        Path src = tempDir.resolve("Main.kf");
+        Files.writeString(src, missingProgram(missing));
+        CompilationResult result = driver.compile(src, tempDir.resolve("out-x86"), Target.NATIVE);
+        assertTrue(result.success(), "x86 compile: " + result.diagnostics().getDiagnostics());
+        Path bin = tempDir.resolve("out-x86/Default/Main");
+        ProcessBuilder pb = new ProcessBuilder(bin.toString());
+        pb.redirectErrorStream(true);
+        try {
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            assertEquals(0, p.waitFor(), "exit code, output: " + out);
+            assertTrue(out.startsWith("file not found: "),
+                    "§494/D-IO-SIZE-JVM-LAW: x86 lanca como o JVM — veio: " + out);
+            assertTrue(out.endsWith(missing.toString()), "should end with path — got: " + out);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted", e);
+        }
     }
 }

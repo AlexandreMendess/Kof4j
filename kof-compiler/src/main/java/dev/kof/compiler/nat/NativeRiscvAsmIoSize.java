@@ -8,18 +8,16 @@ package dev.kof.compiler.nat;
 // st_size fica em +48 no stat do riscv64/aarch64 (igual ao x86_64).
 // Syscall newfstatat=79 (riscv64/aarch64).
 //
-// NOTA (reportar, nao editar): a mensagem do x86 e "size: file not found: " e a
-// do JVM e "file not found: " (JvmRuntimeIo). O cross espelha o x86 (familia
-// native). A divergencia JVM x x86 e pre-existente e fica para a lane de
-// semantica decidir (rule 6) — nao se muda contrato aqui.
+// §494/D-IO-SIZE-JVM-LAW (27/09): a lei e o JVM — "file not found: " (16
+// bytes), sem o prefixo "size: " que o x86 usava antes.
 public final class NativeRiscvAsmIoSize {
 
     private NativeRiscvAsmIoSize() {}
 
     static String RISCV_RUNTIME_ASM_IO_SIZE = """
             .section .rodata
-            .Lstr_io_size_prefix:
-                .byte 115,105,122,101,58,32,102,105,108,101,32,110,111,116,32,102,111,117,110,100,58,32
+            .Lstr_io_size_msg:
+                .byte 102,105,108,101,32,110,111,116,32,102,111,117,110,100,58,32
             .section .text
             .globl kof_io_file_size
             .type kof_io_file_size, @function
@@ -41,9 +39,9 @@ public final class NativeRiscvAsmIoSize {
                 addi sp, sp, 192
                 ret
             .Lkof_iofsz_err:
-                la   a0, .Lstr_io_size_prefix
-                li   a1, 22
-                call kof_string_from_literal   # a0 = "size: file not found: "
+                la   a0, .Lstr_io_size_msg
+                li   a1, 16
+                call kof_string_from_literal   # a0 = "file not found: "
                 mv   a1, s0                    # path (KofStr)
                 call kof_string_concat         # a0 = prefixo + path
                 call kof_throw_string          # longjmp p/ o try; panic se nao houver
