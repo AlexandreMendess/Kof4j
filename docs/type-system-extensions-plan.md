@@ -2,152 +2,57 @@
 
 # Type-system extensions — incremental plan (X5 variance + sealed · X6 interop reflection)
 
-> **Status: IMPLEMENTED 22/09 — all X5/X6 slices landed with proof** (exec =
-> compiler lane). The maintainer voted X5 = option C and X6 (incremental) and
-> answered the X5 surface questions (`DECISIONS.md` §D-TYPE-VARIANCE,
-> §D-INTEROP-REFLECT, §D-X5-SURFACE); the text below is kept as the measured
-> spec. Queue: `roadmap.md` §2.8.4/§2.8.5. Governing rules: rule 6 (maintainer
-> decides), rule 11 (Simplicity Law on any surface), `D-KOF-FIRST`.
+last: x6-parity-docs
+doing: closed
+next: none
+location: type-system-extensions-plan
+state: done
+decision: D-TYPE-VARIANCE
 
-## Why spec-first
+> **IMPLEMENTED 22/09 — all X5/X6 slices landed with proof** (exec = compiler lane). The maintainer voted X5 = option C and X6 incremental, answering the X5 surface questions (`DECISIONS.md` §D-TYPE-VARIANCE, §D-INTEROP-REFLECT, §D-X5-SURFACE); the text below is the measured spec. Queue: `roadmap.md` §2.8.4/§2.8.5. Rules: rule 6, rule 11, `D-KOF-FIRST`. Both fronts touch frozen core, so spec precedes code; every slice is additive with its own proof. Type-classes remain a permanent non-goal.
 
-Both fronts touch **frozen core** (the type system) or open a **new access path
-to program structure**. The intent is recorded and the slicing is proposed here;
-nothing is implemented until the maintainer reviews this document. Every slice
-below is additive and must carry its own proof (test/golden per target, rule 5
-of the freeze). Type-classes remain a **permanent non-goal**.
+## X5 — variance + sealed
 
-## X5 — variance + sealed types
+Goal: `sealed` = a class/record whose subtype set is closed and compile-time-known, so the typer proves a `switch` exhaustive (no `default`); variance = `out`/`in` on generic params so `List<Dog>` assigns to `List<Animal>` with compiler-proven safety.
+Non-goals: no type-classes/higher-kinds/effect system; variance is erased, sealed is compile-time (identical JVM/Native/JS output).
 
-### Goal
+Frozen surface (`D-X5-SURFACE`): (a) keyword `out`/`in`; (b) `sealed` on `class`/`record`/`interface`; (c) use-site projection (`List<out T>`) in v1, not deferred; (d) `SEM0xx` diagnostics.
 
-- **Sealed**: a class/record whose subtype set is **closed** and **known at
-  compile time**, so the typer can prove a `switch` is **exhaustive** (no
-  `default` needed).
-- **Variance**: declare how a generic type parameter varies (`out`/`in`) so
-  `List<Dog>` is assignable to `List<Animal>` with the compiler proving safety.
+| # | Slice | State + proof |
+|---|---|---|
+| X5.0 | spec + cells | frozen 21/09 — conformance cells `sealed`/`variance` + `training/idioms` draft |
+| X5.1 | `sealed` declaration | done 21/09 — contextual `sealed` before `class`/`record`/`interface`; `SEM080` (direct subtype outside the sealed type's compilation unit); `SealedTypeE2ETest` 6 (JVM/Script run, JS/Native compile, red-first `SEM080`, retro-compat) |
+| X5.2 | exhaustive `switch` | done 21/09 — `SEM081` (missing direct subtype, no `default`); `SealedTypeE2ETest` JVM/Script/JS + red-first `SEM081` + default control |
+| X5.3 | declaration-site variance | done 21/09 — `TypeParser` + `TypeParams.variance` per type; `TypeChecker.genericArgsCompatible` applies `out`/`in`/invariant (§270) on same-raw args; `SEM082` soundness (`VarianceChecks`); `SemExpressionTyper` aligned to emit; erasure intact. `TypeVarianceE2ETest` 9 |
+| X5.3b | variance in heritage | done 21/09 — `VarianceChecks.checkHeritage` + `SEM083` (incompatible variance passed to a supertype param); conservative v1 (simple type-param arg). `TypeVarianceE2ETest` 13 (4 new: out→in, in→out, out→invariant, matching OK) |
+| X5.4 | use-site projection | done 21/09 — `TypeParser.parseTypeRef` preserves `out`/`in` in type-args; `Type.of` → `Type.WildcardType`; `MemberResolver` validates the bound; `CompilerTypes.qualifyDeep`; projection by USE (`List<out Animal>` accepts `List<Dog>`; `List<in Dog>` accepts `List<Animal>`); erasure reuses `WildcardType`. `UseSiteVarianceE2ETest` 5 |
+| X5.5 | parity + docs | done 21/09 — conformance batch 4 (`sealedswitch`/`variance`/`useproj`, 4 targets); `backend-parity` EN+PT rows; `training/idioms/classes` + `fake-idioms` (only `permits` stays fake); `learn/10-inheritance`/`15-pattern-matching` drift fixed; `lexical-structure` SG-002; roadmap 2.5/2.8.4; docs-lang 100% |
 
-### Non-goals
-
-- No type-classes, no higher-kinded types, no full effect system.
-- No runtime representation change: variance is **erased**; sealed is a
-  **compile-time** property (must hold on JVM/Native/JS with identical output).
-
-### Proposed surface (FOR REVIEW — not decided)
-
-```kof
-sealed class Shape
-class Circle(Float r) : Shape
-class Square(Float s) : Shape
-
-String describe(Shape s) {
-    return switch (s) {
-        case Circle c -> "circle"
-        case Square q -> "square"
-    }   // no default: exhaustive because Shape is sealed
-}
-
-class Box<out T>(T value)   // declaration-site variance (single-char, no ceremony)
-```
-
-Open design questions for the maintainer: (a) exact keyword for variance
-(`out`/`in` vs none) — must pass rule 11; (b) does `sealed` apply to
-`class`/`record` only, or also to interfaces; (c) is **use-site** projection
-(`List<out T>`) in v1 or deferred; (d) diagnostic code family for
-non-exhaustive `switch` and variance violations.
-
-### Slices (each = one committable unit with proof)
-
-| # | Slice | Scope | Proof |
-|---|-------|-------|-------|
-| X5.0 | **spec + cells** | surface **frozen 21/09** (`D-X5-SURFACE` answered a–d); write conformance cells `sealed`/`variance` + `training/idioms` draft | ✅ frozen; no code |
-| X5.1 | **`sealed` declaration** | parser + typer: closed subtype set; a subtype outside it is a diagnostic | ✅ **DONE 21/09** — contextual keyword (`sealed` before `class`/`record`/`interface`) + `SEM080` (direct subtype outside the sealed type's compilation unit); `SealedTypeE2ETest` 6 tests (JVM/Script run, JS/Native compile, red-first SEM080, identifier retro-compat) |
-| X5.2 | **exhaustive `switch`** | typer proves all cases covered for a sealed subject; missing case = diagnostic | ✅ **DONE 21/09** — `SEM081` (missing direct subtype, no `default`); `SealedTypeE2ETest` green JVM/Script/JS + red-first SEM081 + default control |
-| X5.3 | **declaration-site variance** | `out`/`in` on generic params; assignment compatibility check | ✅ **DONE 21/09** — parser (`TypeParser`) + `TypeParams.variance` + registro por tipo (classe/record/interface); `TypeChecker.genericArgsCompatible` aplica `out` (covariante)/`in` (contravariante)/invariante (§270) sobre args do MESMO raw; **guard de solidez SEM082** (posição errada de `out`/`in`) em `VarianceChecks`; `SemExpressionTyper` alinhado ao emit (args do `new` em tipo genérico do módulo); erasure intacta (compile-time só). `TypeVarianceE2ETest` 9 testes (covariante JVM/Script/JS, contravariante, invariante rejeitado, SEM082 ×3, `out` como identificador) |
-| X5.3b | **variance in heritage** | `extends`/`implements` type-args with divergent variance | ✅ **DONE 21/09** — `VarianceChecks.checkHeritage` (called from class/record/interface) + **`SEM083`**: an `out`/`in` type-param passed to a supertype parameter with incompatible variance (or to an invariant one) is rejected; matching variance is allowed. Conservative v1: only a simple type-param name as argument. `TypeVarianceE2ETest` 13 tests (4 X5.3b: out→in, in→out, out→invariant, matching OK) |
-| X5.4 | **use-site projection** | **in v1** (`List<out T>`) — `D-X5-SURFACE` overrode the "deferred" default | ✅ **DONE 21/09** — parser (`TypeParser.parseTypeRef`/`consumeGenericTypeArgs`) preserva `out`/`in` como palavra num type-arg; `Type.of` → `Type.WildcardType` (out→upper/in→lower); `MemberResolver.declaredTypeUnresolved` valida o BOUND; `CompilerTypes.qualifyDeep` qualifica o bound; `TypeChecker.genericArgsCompatible` aplica a projeção por USO (`List<out Animal>` aceita `List<Dog>`; `List<in Dog>` aceita `List<Animal>`), invariante §270 preservado sem projeção; erasure reusa o `WildcardType` que os 4 alvos já apagam. `UseSiteVarianceE2ETest` 5 testes (covariante JVM/Script, contravariante, invariante rejeitado, JVM/JS/NATIVE, `<out>` como identificador) |
-| X5.5 | **parity + docs** | conformance cells, parity matrix, `training/` + `learn/` | ✅ **DONE 21/09** — conformance matrix batch 4 (`sealedswitch`/`variance`/`useproj`, 4 targets, `ConformanceMatrixDocTest` green); `backend-parity` EN+PT rows; `training/idioms/classes` + `training/anti-patterns/fake-idioms` (only `permits` stays fake) + `learn/10-inheritance`/`15-pattern-matching` drift fixed (`sealed` no longer "postponed"); `lexical-structure` SG-002 note updated; roadmap 2.5 superseded/2.8.4 updated; docs-lang 100% |
-
-### Risks / open questions
-
-- Variance soundness with mutable collections (`List<T>.add`) — the whole point
-  of `out`/`in` is to forbid the unsound assignment; the typer must reject it.
-- Exhaustiveness interacts with `when`/`else` and nullable subjects — needs
-  explicit rules before X5.2.
-- Erasure must keep the current ABI byte-identical (no accidental boxing).
+Risks: variance soundness with mutable collections (`List<T>.add`) — the typer must reject the unsound assignment; exhaustiveness × `when`/`else`/nullable subjects needs explicit rules; erasure must keep the ABI byte-identical (no accidental boxing).
 
 ## X6 — interop reflection
 
-### Goal
+Goal: a read-only view of a type's structure (field names/types) available only at the interop boundary, so external data (Arrow/Parquet/ML schemas) binds to Kof records without hand-written mappers.
+Non-goals: never a language foundation — no runtime metaprogramming, dynamic dispatch, annotations-as-framework, reflection in user control flow; no write path; no `Class.forName`-style loading.
 
-- A **read-only** view of a type's structure (field names/types) available
-  **only at the interop boundary**, so external data (Arrow/Parquet/ML schemas)
-  can bind to Kof records without hand-written mappers.
+Frozen surface (`D-INTEROP-REFLECT`): `interop.schema(R)` — a compile-time intrinsic in `interop`, `R` a `record`, resolving to an immutable `List<Field>` where `record Field(String name, String type)` is compiler-provided in component order. Zero runtime reflection → same output every target, so no `REF001` gap. Boundary-only.
 
-### Non-goals
+| # | Slice | State + proof |
+|---|---|---|
+| X6.0 | spec | done 21/09 — surface frozen in `D-INTEROP-REFLECT` |
+| X6.1 | intrinsic + fold | done 22/09 — `import kof.interop` injects host `record Field`; typer → `List<Field>`; lowerer folds to `listOf(Field("n","t"),…)` ops (no runtime reflection, no per-backend code). `InteropSchemaE2ETest` 7/7 |
+| X6.2 | diagnostics | done 22/09 — single entry `CompilerInterop.lowerNamespaceCall` from `ExpressionStaticCallLowerer` with shadowing guards; unknown member `INTEROP002`; arity≠1 `INTEROP001`; value/class/enum/interface arg `INTEROP001` (precise message); undefined name `SEM011` only; `recordComponents` covers `entity`. `InteropSchemaE2ETest` 17/17 |
+| X6.3 | parity + docs | done 22/09 — binding E2E `InteropSchemaE2ETest#bindingE2eDrivesAnArrowShapedMapper`; conformance cell `interopschema` (4 targets); `training/idioms/interop.md` + `learn/21-java-interoperability.md` + `docs/backend-parity.md`. `InteropSchemaE2ETest` 18/18 |
 
-- **Never** a language foundation: no runtime metaprogramming, no dynamic
-  dispatch, no annotations-as-framework, no reflection in user control flow.
-- No write path; no `Class.forName`-style dynamic loading in the language.
-
-### Surface (RESOLVED 21/09 — `D-INTEROP-REFLECT`)
-
-- **`interop.schema(R)`** — a **compile-time intrinsic** in the `interop`
-  namespace, `R` a `record` type. Resolves to an **immutable**
-  `List<Field>` where `record Field(String name, String type)` is
-  compiler-provided; entries follow the record's component order.
-- **Zero runtime reflection** (the compiler knows the structure) → same output
-  on every target, so **no `REF001` gap** is needed. Boundary-only, never a
-  language foundation.
-
-### Slices
-
-| # | Slice | Scope | Proof |
-|---|-------|-------|-------|
-| X6.0 | **spec** | scope, surface, target posture; confirm "interop boundary only" | ✅ **DONE 21/09** — surface frozen in `D-INTEROP-REFLECT`: `interop.schema(R)` compile-time intrinsic → `List<Field>` (`record Field(String, String)`), zero runtime reflection, all targets, boundary-only |
-| X6.1 | **intrinsic + fold** | recognize `interop.schema(R)` in the typer; fold to an immutable `List<Field>` literal at compile time (frontend, so all targets) | ✅ **DONE 22/09** — `import kof.interop` injects host `record Field`; typer → `List<Field>`; lowerer folds to the `listOf(Field("n","t"),…)` ops (no runtime reflection, no per-backend code). `InteropSchemaE2ETest` 7/7 (JVM/Script/JS order, immutable list, 1-field, generic, NATIVE compile, `INTEROP001` x2) |
-| X6.2 | **diagnostics** | every `interop.*` face is honest (R6): unknown member, wrong arity, non-record/unknown `R`; `entity` counts as a record (the fold is frontend-level → no `REF001`) | ✅ **DONE 22/09** — single namespace entry point `CompilerInterop.lowerNamespaceCall`, routed from `ExpressionStaticCallLowerer` with shadowing guards (local/field/user type named `interop` untouched); unknown member → `INTEROP002`; arity ≠ 1 → `INTEROP001` ("got N"); value/class/enum/interface arg → `INTEROP001` with a precise message (`declaredKindMessage`); undefined name → `SEM011` only (no double report); `recordComponents` now also covers `entity`. `InteropSchemaE2ETest` 17/17 (10 new) |
-| X6.3 | **parity + docs** | binding E2E (Arrow/Parquet-shaped), parity matrix, `training/`/`learn/` | ✅ **DONE 22/09** — binding E2E `InteropSchemaE2ETest#bindingE2eDrivesAnArrowShapedMapper` (Arrow/Parquet-shaped header + slot-by-name binder; JVM/Script/JS + NATIVE compile); conformance matrix cell `interopschema` (4 targets, `ConformanceMatrixTest` 1/1); `training/idioms/interop.md` + `learn/21-java-interoperability.md` (`interop.schema` section) + `docs/backend-parity.md` row; `InteropSchemaE2ETest` 18/18 |
-
-### Implementation notes (X6.1, design)
-
-- The compiler knows `R`'s components, so `interop.schema(R)` folds in the
-  **lowerer** into the exact ops the equivalent `listOf(Field("n","t"),…)`
-  would emit (`kof_list_new` + `kof_list_add`; the record ctor via the normal
-  path) — **no per-backend code**, hence same output on all targets.
-- `record Field(String name, String type)` is a classic host-injected record
-  (same mechanism as `kof.supervisor`/`kof.workflow`), so member access
-  (`f.name`/`f.type`) and codegen work unchanged; typing returns
-  `List<Field>`.
-- **Sub-choice RESOLVED (maintainer 21/09):** explicit `import kof.interop`
-  (inject on import — the established host mechanism, no fragile scanner).
-  Implemented in X6.1.
-
-### Risks / open questions
-
-- Temptation to grow into general reflection — the "interop boundary only"
-  fence must be enforced and documented.
-- Performance/ABI: reflection must not leak into hot paths or change record
-  layout.
+Implementation notes: the compiler knows `R`'s components, so `interop.schema(R)` folds in the lowerer into the exact ops `listOf(Field("n","t"),…)` emits (`kof_list_new`+`kof_list_add`; record ctor via the normal path) — no per-backend code. `record Field` is a host-injected record (like `kof.supervisor`/`kof.workflow`), so member access (`f.name`/`f.type`) and codegen unchanged. Explicit `import kof.interop` on import (maintainer 21/09).
+Risks: temptation to grow into general reflection — the boundary fence must be enforced/documented; reflection must not leak into hot paths or change record layout.
 
 ## Sequencing / dependencies
 
-`X5.0 and X6.0 (specs) → maintainer review → X5.1–X5.5 and X6.1–X6.3`.
-Both depend on nothing in the current critical path and must **not** preempt
-Stage 1 (SYSTEMS) or R3/R4 work; they are a queue, not current work.
+`X5.0 and X6.0 (specs) → maintainer review → X5.1–X5.5 and X6.1–X6.3`. Independent of the critical path; a queue, not current work.
 
 ## Evidence
 
-- Decisions: `DECISIONS.md` §D-TYPE-VARIANCE, §D-INTEROP-REFLECT (21/09/2026),
-  §D-X5-SURFACE (X5 v1 surface freeze: `out`/`in`, `sealed` class/record +
-  interface, use-site projection in v1, `SEM0xx`, 21/09/2026).
-- Queue: `roadmap.md` §2.8.4/§2.8.5; `IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
-  rows X5/X6.
+- Decisions: `DECISIONS.md` §D-TYPE-VARIANCE, §D-INTEROP-REFLECT, §D-X5-SURFACE.
+- Queue: `roadmap.md` §2.8.4/§2.8.5; `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` rows X5/X6.
 - Non-goals: `docs/philosophy.md`, `training/anti-patterns/fake-idioms.md`.
-
-## Surface decisions (RESOLVED 21/09/2026)
-
-`DECISIONS.md` §D-X5-SURFACE fixes the questions above: (a) `out`/`in`;
-(b) `class`/`record` + `interface`; (c) use-site projection **in v1** (X5.4 is no
-longer deferred); (d) `SEM0xx`. The "FOR REVIEW — not decided" heading above is
-historical; the surface is frozen.
