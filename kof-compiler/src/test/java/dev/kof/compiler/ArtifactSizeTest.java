@@ -130,8 +130,19 @@ class ArtifactSizeTest {
     // §448/§450 (23/09, lane baremetal/gaps-db): baseline do tip MESCLADO
     // re-medido em a148a9557 (55 syms; +10 vs 45) — o valor pré-§448 da B-1c-3
     // (54 syms) fica superseded; a lane re-mede ao pousar o seu código.
-    private static final long HELLO_RV_BYTES = 136_824L;
-    private static final int HELLO_RV_SYMS = 55;
+    // #643 (27/09, re-baseline COM CAUSA — §260 precedente, lane native):
+    // o hello cross passou 55→64 syms (+9) MESMO sem chamar pow. BISECTADO:
+    // revertendo as fontes do landing do math.pow (f66314e22/e69ea2bc6) o hello
+    // continua 64 → a causa NÃO é o pow (que é podado: `kof_math_pow` ausente do
+    // hello, libm só-por-uso). A deriva veio de `d2a41605c` (row 9, log cross —
+    // fatia 2a): o B4 (`kof_json_encode_list`) passou a `call kof_json_enc_elem`
+    // e o fecho por PEÇA (B3→B42-45 + scheduler/mapset) arrasta a família
+    // json-decode (`kof_json_decode_*`/`kof_string_to_{double,float}`) para um
+    // programa que só imprime. Bytes estáveis (136832 ≤ 136824×1.05).
+    // Follow-up (otimização, não correção): quebrar a aresta log→json para o
+    // hello não carregar o decoder. O valor abaixo é o MEDIDO no tip 27/09.
+    private static final long HELLO_RV_BYTES = 136_832L;
+    private static final int HELLO_RV_SYMS = 64;
     // Hello aarch64 (medido 12/09, mesmo caminho: poda S-4 + gc-sections S-5
     // no asm riscv ANTES do tradutor). G-4 (15/09): também 18→24 syms.
     // §284/§284-map (18/09): 133.112→201.408B, 24→41 syms — o TRADUTOR
@@ -142,8 +153,11 @@ class ArtifactSizeTest {
     // aarch64 e entra no alcançável (aarch herda).
     // §448/§450 (23/09): baseline do tip MESCLADO re-medido (55 syms) —
     // superseded o valor pré-§448 da B-1c-3 (54); a lane re-mede ao pousar.
-    private static final long HELLO_AA_BYTES = 202_168L;
-    private static final int HELLO_AA_SYMS = 55;
+    // #643 (27/09): mesma deriva do riscv (`d2a41605c`, B4 log→json; NÃO o pow)
+    // — re-medido no host: 64 syms, 136664B (o baseline de bytes 202168 era de
+    // 18/09, antes da melhoria do tradutor; encolher é sempre ok).
+    private static final long HELLO_AA_BYTES = 136_664L;
+    private static final int HELLO_AA_SYMS = 64;
 
     private static final double TOL = 0.05; // gate de inchaço >5%
 
