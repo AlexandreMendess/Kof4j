@@ -13505,3 +13505,28 @@ LSP completo (E2E + `LspServerTest` 41/41) verde; reator limpo completo
 JVM).
 
 <!-- pt-switch --> **EN:** [§528 (EN)](known-bugs.md#528--new-unsaved-file-inside-a-project-still-got-phantom-pkg006-for-valid-imports-the-lsp-root-gate-required-the-file-to-exist-on-disk---fixed-2709-issues-lane-638--parity-follow-up-of-636-and-637)
+
+## §529 — `kof lsp`: `didOpen` de URI de diretorio-raiz (`file:///`) derrubava o `analyze` com NPE cru (a gate do #638 chamou `isDirectory(getParent())` sem a guarda de null) — FIXED 27/09 (lane gaps-db/native, cacada Q4 sobre o §528)
+
+**Bug (RED medido):** a gate do #638 `Files.isRegularFile(real) ||
+Files.isDirectory(real.getParent())` (pousada em `4cbd59aaa`, §528) sem a
+guarda de null faz uma URI de documento `file:///` (`toPath` ->
+`Path.of("/")`, cujo `getParent()` e null) lancar `NullPointerException`
+dentro do `analyze`; o metodo so captura `IOException`, entao o NPE vaza e o
+servidor morre no meio da sessao (erro no teste, sem frame de resposta).
+Repro na arvore:
+`LspProjectDiagnosticsE2ETest#rootLevelDocumentUriDoesNotCrashTheServer` —
+medido `NPE: Cannot invoke "java.nio.file.Path.getFileSystem()" because
+"path" is null` antes do fix.
+
+**Fix (root cause, uma linha, preservando a intencao do §528):** a checagem do
+pai passa pela guarda exata que o design original do #638 especificava —
+`real.getParent() != null && Files.isDirectory(real.getParent())`. URIs
+fantasma/raiz derivam a raiz e mantem o modo arquivo-unico honesto. Zero
+mudanca no compilador. Pins companheiras entradas com o fix:
+`#unsavedFileWithoutExistingParentKeepsSingleFileMode` (guarda de
+over-correction do #638: caminho sem pai segue com PKG006 honesto, nunca um
+espelho que inventa diretorios). Bateria: `Lsp*Test` **66/66** verde
+(`LspProjectDiagnosticsE2ETest` 12/12).
+
+<!-- pt-switch --> **EN:** [§529 (known-bugs.md)](known-bugs.md#529--kof-lsp-didopen-of-a-root-directory-uri-file-crashed-analyze-with-a-raw-npe-the-638-gate-called-isdirectorygetparent-without-the-null-guard--fixed-2709-lane-gaps-dbnative-q4-hunt-over-528)

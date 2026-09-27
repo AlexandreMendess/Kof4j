@@ -10,6 +10,14 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — §529 (27/09): `didOpen` de URI-raiz (`file:///`) derrubava o `kof
+    lsp` com NPE cru — cacada Q4 sobre o gate do #638/§528** — a gate
+    `isDirectory(real.getParent())` landing sem a guarda de null do design
+    original: `Path.of("/").getParent()` e null e o `analyze` so captura
+    `IOException`. Fix: guarda `real.getParent() != null` (1 linha, intencao do
+    §528 preservada). Pins: ghost-URI mantem PKG006 honesto (over-correction
+    guard do #638) + root-URI nao mata o servidor (RED medido: NPE). `Lsp*Test`
+    66/66. Catalog: known-bugs.md §529 FECHADO (+PT).
   - **Paridade — linha 4 do ledger (26/09, fatia 2B): `kof.media` Audio (WAV
     PCM 16-bit) no cross riscv64/aarch64** — `NativeRiscvAsmMediaWav` porta o
     `RuntimeMediaWav` x86 (varredura RIFF LE, "fmt " antes de "data", pad de

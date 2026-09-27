@@ -197,6 +197,35 @@ class LspProjectDiagnosticsE2ETest {
                 "arquivo solto fora de projeto mantem o modo antigo (PKG006): " + codes);
     }
 
+    @Test
+    void unsavedFileWithoutExistingParentKeepsSingleFileMode(@TempDir Path dir) throws Exception {
+        // pin de over-correction do #638: URI cujo PAI nao existe segue sem
+        // raiz — modo arquivo-unico, PKG006 honesto, nunca um espelho que
+        // inventa diretorios.
+        Path ghost = dir.resolve("nowhere/deep/Solto.kf");
+        assertFalse(Files.exists(ghost.getParent()), "o pai nao pode existir");
+        String text = "import nao.existe\n\nmain() {\n}\n";
+        String uri = uriOf(ghost);
+        String out = run(frame(initReq(null)), frame(didOpen(ghost, text)));
+        List<String> codes = publishedDiagnostics(out, uri).stream()
+                .map(d -> String.valueOf(d.get("code"))).toList();
+        assertTrue(codes.contains("PKG006"),
+                "ghost-URI (sem pai no disco) mantem o modo antigo (PKG006): " + codes);
+    }
+
+    @Test
+    void rootLevelDocumentUriDoesNotCrashTheServer() throws Exception {
+        // Q4 hunt do pin: file:///X.kf tem getParent() == null — a gate do
+        // #638 chama isDirectory(parent) e um NPE ali NAO e capturado pelo
+        // catch (IOException) do analyze: o servidor morre no meio da sessao.
+        // Esperado: responder normal (modo arquivo-unico), nunca excecao.
+        Path dirRoot = Path.of("/"); // getParent() == null — a gate do #638 chama isDirectory(parent)
+        String uri = "file:///";
+        String out = run(frame(initReq(null)), frame(didOpen(dirRoot, "main() {\n}\n")));
+        assertTrue(out.contains("Content-Length"),
+                "URI na raiz do filesystem nao pode derrubar o analyze (NPE vazaria do catch IOException)");
+    }
+
     // ---- #636 residual (o proprio issue): as fontes de deps instaladas no
     // cache (#566 opcao b) so alcancam o compilador via
     // setDependencySourceRoots — o CLI chama sob `--deps`; o LSP nunca chamou.

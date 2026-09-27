@@ -15951,3 +15951,27 @@ full LSP pair (E2E + `LspServerTest` 41/41) green; full clean reactor
 **4252/0F/0E/527skip**; cross-target unchanged (JVM-only tooling path).
 
 <!-- pt-switch --> **PT:** [§528 (pt_BR)](known-bugs.pt_BR.md#528--novo-arquivo-sem-save-dentro-do-projeto-ainda-levava-pkg006-fantasma-para-imports-validos-o-gate-de-raiz-do-lsp-exigia-o-arquivo-no-disco---fixed-2709-lane-issues-638--follow-up-de-paridade-do-636-e-637)
+
+## §529 — `kof lsp`: `didOpen` of a root-directory URI (`file:///`) crashed `analyze` with a raw NPE (the #638 gate called `isDirectory(getParent())` without the null guard) — FIXED 27/09 (lane gaps-db/native, Q4 hunt over §528)
+
+**Bug (measured RED):** adding the #638 gate `Files.isRegularFile(real) ||
+Files.isDirectory(real.getParent())` (landed in `4cbd59aaa`, §528) without a
+null guard means a document URI of `file:///` (`toPath` -> `Path.of("/")`,
+whose `getParent()` is null) throws `NullPointerException` inside
+`analyze`; the method only catches `IOException`, so the NPE escapes and the
+server dies mid-session (test error, no response frame). Repro in-tree:
+`LspProjectDiagnosticsE2ETest#rootLevelDocumentUriDoesNotCrashTheServer` —
+measured `NPE: Cannot invoke "java.nio.file.Path.getFileSystem()" because
+"path" is null` before the fix.
+
+**Fix (root cause, one line, preserving §528's intent):** the parent check is
+guarded exactly as the original #638 design specified —
+`real.getParent() != null && Files.isDirectory(real.getParent())`. Ghost/root
+URIs derive no root and keep the honest single-file mode. Zero compiler
+changes. Companion pins added with the fix:
+`#unsavedFileWithoutExistingParentKeepsSingleFileMode` (over-correction
+guard for #638: a parent-less path still reports the honest PKG006, never a
+mirror inventing directories). Battery: `Lsp*Test` **66/66** green
+(`LspProjectDiagnosticsE2ETest` 12/12).
+
+<!-- pt-switch --> **PT:** [§529 (pt_BR)](known-bugs.pt_BR.md#529--kof-lsp-didopen-de-uri-de-diretorio-raiz-file-derrubava-o-analyze-com-npe-cru-a-gate-do-638-chamou-isdirectorygetparent-sem-a-guarda-de-null--fixed-2709-lane-gaps-dbnative-cacada-q4-sobre-o-528)

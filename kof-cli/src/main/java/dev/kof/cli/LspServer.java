@@ -200,7 +200,8 @@ final class LspServer {
             // PKG004 que o `kof check` nao da. Sem raiz = modo antigo exato;
             // #638: sem-save com pai no disco tem raiz (paridade da borda do save).
             Path real = LspProject.toPath(uri);
-            Path root = (real != null && (Files.isRegularFile(real) || Files.isDirectory(real.getParent())))
+            Path root = (real != null && (Files.isRegularFile(real)
+                    || (real.getParent() != null && Files.isDirectory(real.getParent()))))
                     ? LspProject.projectRootOf(real, workspaceRoot) : null;
             // #636 residual: fontes de deps instaladas como no `kof run --deps`; sem raiz = limpas.
             driver.setDependencySourceRoots(root != null
