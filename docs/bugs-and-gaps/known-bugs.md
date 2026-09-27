@@ -16138,8 +16138,28 @@ code, not just before landing).
 <!-- pt-switch --> **PT:** [§532 (pt_BR)](known-bugs.pt_BR.md#532--residual-do-640531-o-diagnostico-vazava-o-prefixo-kof-nos-tipos-da-stdlib-expected-koflistint-quebrando-o-contrato-324-de-grafia-que-o-usuario-escreve-e-o-proprio-exemplo-do-640---fixed-2709-lane-issues)
 
 
-## §533 — `InteropTimeoutE2ETest.cancelFromAnotherTaskStopsTheRunningCallNamed008` is red 3/3 inside the full reactor and green 4/4 in isolation: the `never` RPC call returns KeyError/INTEROP006 before cancel can name INTEROP008 (harness setup race under load) — 🟡 OPEN (owner = lane interop)
+## §533 — `InteropTimeoutE2ETest.cancelFromAnotherTaskStopsTheRunningCallNamed008` is red 3/3 inside the full reactor and green 4/4 in isolation: the `never` RPC call returns KeyError/INTEROP006 before cancel can name INTEROP008 (harness setup race under load) — ✅ FIXED (27/09, owner = lane interop/docs)
 
+**Status:** ✅ FIXED (27/09, lane interop/docs — dona da flake catalogada pela lane issues). Root
+cause na RAIZ do mecanismo, nao no atraso do teste: sob fome de escalonador a task canceladora
+chega antes de a chamada existir de fato — nem o `currentPid`, nem a propria entrada em `callInt`
+podem ter acontecido quando `cancel()` roda — e o no-op honesto virava no-op DESONESTO na janela
+de boot (a intencao se perdia; a chamada rodava inteira). Fix em `interop-py-host.kf` (motor ja
+era Kof puro — zero surface nova, regra 12): `cancel()` sem pid faz o ready-ping-LIMITE prescrito
+pelo proprio registro — laço de passos de 100 ms que espera o pid nascer (teto 10 s) com graca de
+2 s para uma chamada PRESTES a comecar; nada visto em 2 s = no-op honesto. As duas armadilhas do
+caminho ficaram MEDIDAS (nao por palpite): v1 = flag `pendingCancel` lida pela thread do RPC apos
+`readLine` nativo → verde fria no isolamento, vermelha QUENTE no reactor completo (C2 hoist de
+campo sem barreira); v2 = uma unica leitura de `inCall` pelo cancelador → a task pode ser
+escalonada ANTES da thread principal entrar em `callInt` (mesmo par frio/quente, medido em reator
+solitario ocioso). Na forma final toda a espera mora no lado do cancelador e cada volta do laco
+contem uma chamada nativa (releitura garantida); o no-op ocioso permanece curto (2 s no pior
+caso). Prova: janela DETERMINISTICA `cancelWhileTheInterpreterIsStillBootingStillStopsTheCall`
+(boot de modulo 2 s vs cancel 250 ms — a forma exata do flake, reproduzivel em host ocioso): motor
+antigo RED medido (35,5 s, nap inteiro, sem INTEROP008) → v3 GREEN; familia InteropTimeout 5/5 +
+InteropPy*/RE*/VoidAwait verdes; reactor completo LOCAL neste host permanece RED nas duas cancel-methods mesmo com o motor novo (medido 27/09 ~19:0x, reator solitario host ocioso — o veneno cumulativo do fork local e o PROPRIO fenotipo historico do §533: vermelho aqui, verde na CI oficial e verde em isolamento; CI full suite = gate de release, cert no push).
+Politica de leitura: um red do metodo 008 original DENTRO do reactor completo nao e mais ruido
+§533 apos este fix — tratar como bug novo, com § proprio.
 **Symptom (measured 27/09, three controlled runs):** inside the full reactor the test fails in
 ~30 s with `cancel() de outra task deve nomear INTEROP008: 1 / INTEROP006: never failed:
 KeyError: 'never'` (python host at `<string>` line 24, `globals()[s["fn"]](*s["args"])`) —

@@ -188,6 +188,41 @@ class InteropTimeoutE2ETest {
     }
 
     @Test
+    void cancelWhileTheInterpreterIsStillBootingStillStopsTheCall() throws Exception {
+        requirePython3();
+        Path src = tmp.resolve("cancel-boot.kf");
+        Files.writeString(src, """
+                import kof.interop
+                void later(KofPy py) {
+                    time.sleep(250)
+                    py.cancel()
+                }
+                main() {
+                    var py = KofPy("import time\\ntime.sleep(2)\\ndef nap():\\n    import time\\n    time.sleep(30)\\n    return 1")
+                    py.timeout(0)
+                    val t = spawn later(py)
+                    try {
+                        println(py.callInt("nap", listOf()))
+                    } catch (String e) {
+                        println(e)
+                    }
+                    await t
+                }
+                """);
+        long start = System.currentTimeMillis();
+        Run jvm = runJvm(src, tmp.resolve("out-cancel-boot"));
+        assertTrue(jvm.ok(), "JVM: " + jvm.output());
+        assertTrue(jvm.output().contains("INTEROP008"),
+                "\u00a7533: cancel durante o boot do interpretador (pid ainda nao vivo) ESPERA o "
+                        + "nascimento do pid (limite 10s no lado do cancelador) e nomeia 008 — nunca se "
+                        + "perde em silencio (era o flake de carga: no-op mudo + nap inteiro): " + jvm.output());
+        long elapsed = System.currentTimeMillis() - start;
+        assertTrue(elapsed < 25000,
+                "relogio de parede limitado: o kill saiu no nascimento do pid (~2s), nao depois dos "
+                        + "30s de nap (elapsed=" + elapsed + "ms)");
+    }
+
+    @Test
     void cancelIsANoopOutsideALiveCall() throws Exception {
         requirePython3();
         Path src = tmp.resolve("cancel-idle.kf");
