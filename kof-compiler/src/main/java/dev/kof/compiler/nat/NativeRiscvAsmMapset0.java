@@ -325,9 +325,24 @@ public final class NativeRiscvAsmMapset0 {
                 seqz a0, a0
                 ret
 
-            # kof_map_clear(map)
+            # kof_map_clear(map) — D-MEMORY-CLEAR (O-03): anula keys e vals
+            # ANTES de encolher (o map nao retem mais nenhuma referencia)
             .globl kof_map_clear
             kof_map_clear:
+                lw   t0, 16(a0)          # size
+                ld   t1, 24(a0)          # keys
+                ld   t2, 32(a0)          # vals
+                li   t3, 0               # i
+            .LKMC_loop:
+                bge  t3, t0, .LKMC_done
+                slli t4, t3, 3
+                add  t5, t1, t4
+                sd   zero, 0(t5)
+                add  t5, t2, t4
+                sd   zero, 0(t5)
+                addi t3, t3, 1
+                j    .LKMC_loop
+            .LKMC_done:
                 sw   zero, 16(a0)
                 ret
 

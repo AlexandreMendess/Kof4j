@@ -278,10 +278,28 @@ public final class RuntimeList {
                 movl 16(%rbx), %esi
                 call kof_bounds_error
 
+            # D-MEMORY-CLEAR (O-03): anula cada slot ANTES de encolher — o
+            # container nao retem mais nenhuma referencia apos clear()
             .globl kof_list_clear
             .type kof_list_clear, @function
             kof_list_clear:
-                movl $0, 16(%rdi)
+                pushq %rbx
+                pushq %r12
+                movq %rdi, %rbx
+                movl 16(%rbx), %r12d
+                movq 24(%rbx), %rdx
+                xorl %eax, %eax
+            .Lkof_list_clear_loop:
+                cmpl %r12d, %eax
+                jge .Lkof_list_clear_done
+                movslq %eax, %rcx
+                movq $0, (%rdx,%rcx,8)
+                incl %eax
+                jmp .Lkof_list_clear_loop
+            .Lkof_list_clear_done:
+                movl $0, 16(%rbx)
+                popq %r12
+                popq %rbx
                 ret
 
             .globl kof_list_map

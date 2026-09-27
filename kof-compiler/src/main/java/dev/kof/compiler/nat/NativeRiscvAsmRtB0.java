@@ -267,10 +267,22 @@ public final class NativeRiscvAsmRtB0 {
                 seqz a0, t0
                 ret
 
+            # D-MEMORY-CLEAR (O-03): anula cada slot ANTES de encolher — o
+            # container nao retem mais nenhuma referencia apos clear()
             .globl kof_list_clear
             kof_list_clear:
-                li   t0, 0
-                sw   t0, 16(a0)
+                lw   t0, 16(a0)          # size
+                ld   t1, 24(a0)          # data
+                li   t2, 0               # i
+            .LKLC_loop:
+                bge  t2, t0, .LKLC_done
+                slli t3, t2, 3
+                add  t4, t1, t3
+                sd   zero, 0(t4)
+                addi t2, t2, 1
+                j    .LKLC_loop
+            .LKLC_done:
+                sw   zero, 16(a0)
                 ret
 
 

@@ -45,7 +45,7 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 | 2 Flow crossing | conditional claim/read (if/while/try/switch) — branch snapshot inherited, result does NOT propagate (anti-false-positive by construction); unconditional `BlockStmt` propagates | landed 26/09 |
 | 3 Escape/dangling | L-04/`MEM013` (capture extends life) + dangling faces of spec §3 | landed 26/09 |
 | 4 Mutable aliasing | B-05/`MEM022` — size-changing mutation (`add`/`remove`/`clear`/`addAll`) of the collection being iterated in its own `for-in`; WARNING + zero-FP by construction (`for-in` is an index loop re-reading `size` each turn) | landed 26/09 |
-| 5 Containers & unclosed | O-03/`MEM003` (container release — DECISION REQUEST below) + L-05/`MEM014` db connection (web landed 3.1b; `kof.io` has no close-bearing file handle) | db `MEM014` landed 26/09; O-03 pending maintainer |
+| 5 Containers & unclosed | O-03/`MEM003` (container release — RESOLVED: `D-MEMORY-CLEAR` option a; runtime guarantee, no compile face) + L-05/`MEM014` db connection (web landed 3.1b; `kof.io` has no close-bearing file handle) | db `MEM014` landed 26/09; O-03 FIXED 27/09 (`NativeX86MemClearTest` + `NativeRiscvMemClearTest` + `MemoryClearE2ETest` 4 targets) |
 | 3.2 | MEM021 spawn mutable aliasing — `spawn` capturing a mutable object the parent also mutates, with no `await`/`join_all` between (spec B-04/C-03); ERROR on the clear race, silent elsewhere; zero false positives required | next |
 
 - MEM005 (FFI ownership) is ALREADY SATISFIED at the boundary: Native rejects record/array/out-buffer externs with `FFI001` at the decl line; JVM/JS copy-back; String returns boundary-copied. Slice 3.3 documents O-05's compile face — no duplicate diagnostic invented (rule 11).
@@ -55,7 +55,7 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 
 ## Decision requests (rule 6)
 
-- **O-03/`MEM003` container release** — the spec §3 row does not define a decidable user-program pattern: `clear()` is a legal reset and "nulling elements" is a runtime property of `kof_list_clear`. Maintainer must choose the CONTRACT: **(a)** `clear()` MUST null every slot before shrinking → `MEM003` is a runtime guarantee proven by test, never a compile face; or **(b)** name the exact user-level "container still referenced after release" shape. Until decided, **no `MEM003` diagnostic is emitted** (silence is honest; inventing a face would be a stub, Q7).
+- **O-03/`MEM003` container release** — RESOLVED 27/09 by `D-MEMORY-CLEAR` (option a): `clear()` MUST null every slot before shrinking, so the guarantee is a runtime property proven by test, never a compile face; no `MEM003` diagnostic is created. Implemented in the native runtimes (`RuntimeList`/`RuntimeMap` x86, `NativeRiscvAsmRtB0`/`NativeRiscvAsmMapset0` cross); JVM (`ArrayList`/`HashSet`/`HashMap.clear`) and JS (`length=0`/`clear()`) already drop references. Proof: `NativeX86MemClearTest` + `NativeRiscvMemClearTest` read the backing slots from memory after `clear()` (list via real `add`, map with planted key/val pairs) — RED 1/1+2/2 pre-fix, GREEN post-fix; `MemoryClearE2ETest` pins the uniform empty+reusable behavior on JVM/Script/JS/Native + riscv64/aarch64.
 - **O-02 move pattern** resolved 26/09 by `D-COMPLETE-FIRST`: `var a = b; b = null` collided with N-02/SEM048 (null literals forbidden) → re-express O-02 without a null literal, as the complete package (pass + emission + per-target proof).
 
 ## Package DoD
