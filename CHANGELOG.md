@@ -10,6 +10,24 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — §522 (26/09): `json.decode<Map<K, ...>>` cujo valor e ele mesmo uma
+    colecao perdia o tipo do elemento** (#633) — o dispatch compile-time
+    (`ExpressionJsonCallLowerer`) escolhia o decoder do valor so pelo type-arg
+    IMEDIATO e o binder de runtime (`kof_json_bind`) nao tinha descida de `Map`,
+    entao `json.decode<Map<String, Map<String, E>>>` deixava os valores internos
+    como `LinkedHashMap`/`List` crus (`ClassCastException ... cannot be cast to
+    E`) e um campo de record `Map<String, E>` idem. Fix na raiz: novo
+    `kof_json_decode_typed(json, signature)` no `JvmRuntimeJson` (binder
+    recursivo guiado pela assinatura generica; `kof_json_bind` agora desce
+    `Map`; `JvmTypeMapper.toGenericSignature` exposto) e o interpretador
+    intercepta a MESMA chamada tipada parseando a assinatura de volta para `Type`
+    Kof e reusando o `bindKof` recursivo (alvo interpretado, sem verificador).
+    Prova: `NestedMapRecordDecodeE2ETest` (4 faces — `Map<String,E>`,
+    `Map<String,Map<String,E>>` e campo de record — na JVM + interpretado; RED
+    medido = o ClassCastException exato, 2/2 alvos) + cluster JSON/collections
+    verde (`JsonCompleteE2ETest`, `JsonNativeRecordListE2ETest`,
+    `ConformanceMatrixTest` 4 alvos). Catalog: known-bugs.md §522 (+PT).
+
   - **Fix — §520 (26/09): records com campo String eram INVISIVEIS a maquina
     JSON do x86/SCRIPT — o coletor de schema pulava a tabela INTEIRA (o teste de
     campo-aninhado rodava para QUALQUER ClassType e `java.lang.String` nao e

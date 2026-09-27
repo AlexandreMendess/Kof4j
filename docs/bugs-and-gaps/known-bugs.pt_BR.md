@@ -13276,3 +13276,43 @@ Cluster verde: `JsonCompleteE2ETest`, `JsonNativeRecordListE2ETest`,
 `ConformanceMatrixTest` (4 alvos), `KofJsTest`, `ScriptTargetE2ETest`.
 
 <!-- pt-switch --> **EN:** [§520 (EN)](known-bugs.md#521--kof-mapkv-was-erased-to-the-concrete-descriptor-ljavautilhashmap-so-a-map-value-from-jsondecodemap-failed-jvm-bytecode-verification-and-the-real-verifyerror-was-masked-as-javafx-runtime-components-not-found-github-634---fixed-2609-parityjson-lane)
+
+## §522 — `json.decode<Map<K, ...>>` com coleção aninhada como VALOR do Map perdia o tipo do elemento na JVM (o dispatch compile-time só olhava o type-arg imediato) e o binder não tinha descida de `Map` (GitHub #633) — ✅ FIXED 26/09 (lane paridade/JSON)
+**Sintoma (medido 26/09, issue #633, autor externo):** `json.decode<Map<String,
+Map<String, E>>>` (e `json.decode<Map<String, List<...>>>`) devolvia um mapa cujos
+valores internos eram `LinkedHashMap`/`List` crus, então um `.get(k).get(k2).campo`
+posterior estourava `ClassCastException: class java.util.LinkedHashMap cannot be
+cast to class E` na JVM; o alvo interpretado também divergia num campo de record
+tipado `Map<String, E>`.
+
+**Causa-raiz (lida no código):** duas metades. (1) O `ExpressionJsonCallLowerer`
+escolhia o decoder do valor só pelo type-arg IMEDIATO, então um valor de Map que
+era ele mesmo um Map/List gerava o `kof_json_decode_map` simples — o tipo do
+elemento aninhado nunca era conhecido. (2) O binder de runtime `kof_json_bind`
+não tinha descida de `Map`: um campo de record tipado `Map<String, E>` deixava os
+valores como mapas crus (o `kof_json_bind` gerado só descia List/records).
+
+**Fix:** (1) O `JvmRuntimeJson` ganhou `kof_json_decode_typed(String json, String
+signature)` — um binder recursivo guiado pela assinatura genérica (`kof_json_bind`
+agora desce valores de `Map`; `parseSignature` + `SignatureType implements
+ParameterizedType`); `JvmTypeMapper.toGenericSignature` foi exposto para o
+call-site. O `ExpressionJsonCallLowerer` passa a emitir `kof_json_decode_typed`
+com a assinatura genérica quando o valor do Map é coleção aninhada. (2) O alvo
+interpretado usa a MESMA chamada tipada: o `KofInterpreterRuntime` intercepta
+`kof_json_decode_typed` parseando a assinatura genérica JVM de volta para um
+`Type` Kof (`parseJvmSignature`/`parseSig`/`kofTypeFor`) e reusa o seu `bindKof`
+recursivo — cuja descida de `Map` é o espelho do binder JVM, então a face de campo
+de record também é corrigida lá. Alvos nativos/JS mantêm o caminho anterior (sem
+verificador); o fix é JVM + interpretado por construção.
+
+**Prova (Q0/Q1/Q3):** o `NestedMapRecordDecodeE2ETest` compila as quatro faces —
+(A) `Map<String, E>`, (B) `Map<String, Map<String, E>>`, (H) um campo de record
+`Map<String, E>` — e assere o golden `A: u1 / B: u1 / H: 1 / H: u1` na JVM E no
+alvo interpretado. RED pré-fix (medido, controlado por stash) = o
+`ClassCastException ... LinkedHashMap cannot be cast to E` exato, 2/2 nos dois
+alvos; GREEN pós-fix. Cluster verde: `JsonCompleteE2ETest`,
+`JsonNativeRecordListE2ETest`, `JsonDecodePackagedRecordE2ETest`,
+`PackageRecordGenericListE2ETest`, `MapParamErasureE2ETest`,
+`ConformanceMatrixTest` (4 alvos), `KofJsTest`, `ScriptTargetE2ETest`.
+
+<!-- pt-switch --> **EN:** [§522 (EN)](known-bugs.md#522--jsondecodemapk--with-a-nested-collection-as-the-map-value-lost-the-element-type-on-the-jvm-compile-time-dispatch-picked-the-immediate-type-argument-only-and-the-binder-had-no-map-descent-github-633---fixed-2609-parityjson-lane)

@@ -129,7 +129,7 @@ public final class JvmTypeMapper {
      * records (GitHub #34 / bug 58). Retorna null quando o tipo não tem
      * type-args (assinatura == descriptor, redundante).
      */
-    static String toGenericSignature(Type type) {
+    public static String toGenericSignature(Type type) {
         // §128/§187-Native: NullableType (`List<T>?`) NÃO tinha assinatura —
         // o Signature do record component/field ficava ausente e
         // `RecordComponent.getGenericType()` devolvia `List` cru → o decoder

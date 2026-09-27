@@ -361,6 +361,18 @@ public final class JvmRuntimeJson {
                             return out;
                         }
                     }
+                    // #633: alvo `Map<K,V>` (interface desde #634) — decodifica
+                    // os VALORES pelo type-arg refletido (genérico completo),
+                    // recursivamente. Sem isto, um campo de record
+                    // `Map<String,E>` caía no ramo reflexivo abaixo e virava
+                    // mapa VAZIO (ou NoSuchMethod após #634); ver JvmRuntimeJsonMap.
+                    if (value instanceof Map<?, ?> mv && java.util.Map.class.isAssignableFrom(type)) {
+                        java.lang.reflect.Type vt = mapValueType(generic);
+                        java.util.Map<Object, Object> out = new LinkedHashMap<>();
+                        for (Map.Entry<?, ?> e : mv.entrySet())
+                            out.put(e.getKey(), vt == null ? e.getValue() : bindByType(vt, e.getValue()));
+                        return out;
+                    }
                     if (value instanceof Map<?, ?> m) {
                         if (type.isRecord()) {
                             RecordComponent[] comps = type.getRecordComponents();

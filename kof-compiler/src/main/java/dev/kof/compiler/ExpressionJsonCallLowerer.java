@@ -1,5 +1,7 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.jvm.JvmTypeMapper;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -202,6 +204,19 @@ public final class ExpressionJsonCallLowerer {
                 String vcn = vct.packageName().isEmpty()
                         ? vct.name() : vct.packageName() + "." + vct.name();
                 ops.add(new KofLoadLiteral(BuiltinTypes.STRING, vcn));
+            } else if (driver.target == Target.JVM
+                    && vt instanceof Type.ClassType vct2
+                    && (BuiltinTypes.isMap(vct2) || BuiltinTypes.isList(vct2) || BuiltinTypes.isSet(vct2))) {
+                // #633: o VALOR do Map é ele mesmo uma coleção — o decoder
+                // compile-time não conhece a forma aninhada; passa a ASSINATURA
+                // genérica e o binder recursivo resolve (Map<K, Map<K,V>>,
+                // List<T>, ...). No interpretador (target JVM + `interpreting`)
+                // o runtime intercepta `kof_json_decode_typed` e refaz o bind
+                // sobre as classes Kof (KofObj), via a mesma assinatura.
+                decodeFn = "kof_json_decode_typed";
+                decodeParams = List.of(BuiltinTypes.STRING, BuiltinTypes.STRING);
+                String sig = JvmTypeMapper.toGenericSignature(targetType);
+                ops.add(new KofLoadLiteral(BuiltinTypes.STRING, sig));
             } else {
                 decodeFn = "kof_json_decode_map";
                 decodeParams = List.of(BuiltinTypes.STRING);
