@@ -41,9 +41,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     desce `Map`; `JvmTypeMapper.toGenericSignature` exposto) e o interpretador
     intercepta a MESMA chamada tipada parseando a assinatura de volta para `Type`
     Kof e reusando o `bindKof` recursivo (alvo interpretado, sem verificador).
-    Prova: `NestedMapRecordDecodeE2ETest` (4 faces — `Map<String,E>`,
-    `Map<String,Map<String,E>>` e campo de record — na JVM + interpretado; RED
-    medido = o ClassCastException exato, 2/2 alvos) + cluster JSON/collections
+    Prova: `NestedMapRecordDecodeE2ETest` (faces `Map<String,E>`,
+    `Map<String,Map<String,E>>`, `Map<String,List<E>>` — o valor vira
+    `java/util/ArrayList` na assinatura, mapeado de volta p/ `kof.List` no
+    interpretador —, campo de record, mapa vazio/chave ausente e top-level
+    vazio; na JVM + interpretado; RED medido = o ClassCastException exato, 2/2
+    alvos) + cluster JSON/collections
     verde (`JsonCompleteE2ETest`, `JsonNativeRecordListE2ETest`,
     `ConformanceMatrixTest` 4 alvos). Catalog: known-bugs.md §522 (+PT).
 

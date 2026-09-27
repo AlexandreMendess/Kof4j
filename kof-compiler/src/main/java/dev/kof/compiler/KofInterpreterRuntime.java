@@ -309,9 +309,17 @@ public final class KofInterpreterRuntime {
 
     private Type kofTypeFor(String internal, List<Type> args) {
         return switch (internal) {
-            case "java/util/Map" -> new Type.ClassType("kof", "Map", args);
-            case "java/util/List" -> new Type.ClassType("kof", "List", args);
-            case "java/util/Set" -> new Type.ClassType("kof", "Set", args);
+            // toGenericSignature apaga as coleções Kof para as classes
+            // CONCRETAS da JVM (List→ArrayList, Map→HashMap, Set→HashSet) —
+            // por isso as três formas de cada um mapeiam para o tipo Kof.
+            case "java/util/Map", "java/util/HashMap",
+                 "java/util/LinkedHashMap", "java/util/TreeMap",
+                 "java/util/SortedMap" -> new Type.ClassType("kof", "Map", args);
+            case "java/util/List", "java/util/ArrayList",
+                 "java/util/LinkedList", "java/util/AbstractList" -> new Type.ClassType("kof", "List", args);
+            case "java/util/Set", "java/util/HashSet",
+                 "java/util/LinkedHashSet", "java/util/TreeSet",
+                 "java/util/SortedSet" -> new Type.ClassType("kof", "Set", args);
             case "java/lang/String" -> BuiltinTypes.STRING;
             case "java/lang/Object" -> new Type.ClassType("java.lang", "Object", List.of());
             default -> {

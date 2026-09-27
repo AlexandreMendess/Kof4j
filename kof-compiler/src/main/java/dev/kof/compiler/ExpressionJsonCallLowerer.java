@@ -206,7 +206,7 @@ public final class ExpressionJsonCallLowerer {
                 ops.add(new KofLoadLiteral(BuiltinTypes.STRING, vcn));
             } else if (driver.target == Target.JVM
                     && vt instanceof Type.ClassType vct2
-                    && (BuiltinTypes.isMap(vct2) || BuiltinTypes.isList(vct2) || BuiltinTypes.isSet(vct2))) {
+                    && (BuiltinTypes.isMap(vct2) || BuiltinTypes.isList(vct2))) {
                 // #633: o VALOR do Map é ele mesmo uma coleção — o decoder
                 // compile-time não conhece a forma aninhada; passa a ASSINATURA
                 // genérica e o binder recursivo resolve (Map<K, Map<K,V>>,

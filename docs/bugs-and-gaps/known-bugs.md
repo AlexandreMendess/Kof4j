@@ -15732,10 +15732,14 @@ target uses the SAME typed call: `KofInterpreterRuntime` intercepts
 record-field face is fixed there too. Non-JVM native/JS targets keep the previous
 path (no verifier); the fix is JVM + interpreted by construction.
 
-**Proof (Q0/Q1/Q3):** `NestedMapRecordDecodeE2ETest` compiles the four faces —
+**Proof (Q0/Q1/Q3/Q4):** `NestedMapRecordDecodeE2ETest` compiles the faces
 (A) `Map<String, E>`, (B) `Map<String, Map<String, E>>`, (H) a record field
-`Map<String, E>` — and asserts the golden `A: u1 / B: u1 / H: 1 / H: u1` on the
-JVM AND the interpreted target. RED pre-fix (measured, stash-controlled) = the
+`Map<String, E>`, plus the edges (C) `Map<String, List<E>>` — the signature
+erases the value to the CONCRETE `java/util/ArrayList`, so the interpreted
+target maps that concrete name back to `kof.List` —, (D) empty nested map /
+absent key and (E) empty top-level map; golden
+`A: u1 / B: u1 / H: 1 / H: u1 / C: 2 / C: b / D: true / D: true / E: true` on
+the JVM AND the interpreted target. RED pre-fix (measured, stash-controlled) = the
 exact `ClassCastException ... LinkedHashMap cannot be cast to E`, 2/2 both
 targets; GREEN post-fix. Cluster green: `JsonCompleteE2ETest`,
 `JsonNativeRecordListE2ETest`, `JsonDecodePackagedRecordE2ETest`,

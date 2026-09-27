@@ -13281,10 +13281,14 @@ recursivo — cuja descida de `Map` é o espelho do binder JVM, então a face de
 de record também é corrigida lá. Alvos nativos/JS mantêm o caminho anterior (sem
 verificador); o fix é JVM + interpretado por construção.
 
-**Prova (Q0/Q1/Q3):** o `NestedMapRecordDecodeE2ETest` compila as quatro faces —
+**Prova (Q0/Q1/Q3/Q4):** o `NestedMapRecordDecodeE2ETest` compila as faces
 (A) `Map<String, E>`, (B) `Map<String, Map<String, E>>`, (H) um campo de record
-`Map<String, E>` — e assere o golden `A: u1 / B: u1 / H: 1 / H: u1` na JVM E no
-alvo interpretado. RED pré-fix (medido, controlado por stash) = o
+`Map<String, E>`, mais as bordas (C) `Map<String, List<E>>` — a assinatura apaga
+o valor para a classe CONCRETA `java/util/ArrayList`, então o alvo interpretado
+mapeia esse nome concreto de volta para `kof.List` —, (D) mapa aninhado vazio /
+chave ausente e (E) mapa top-level vazio; golden
+`A: u1 / B: u1 / H: 1 / H: u1 / C: 2 / C: b / D: true / D: true / E: true` na JVM
+E no alvo interpretado. RED pré-fix (medido, controlado por stash) = o
 `ClassCastException ... LinkedHashMap cannot be cast to E` exato, 2/2 nos dois
 alvos; GREEN pós-fix. Cluster verde: `JsonCompleteE2ETest`,
 `JsonNativeRecordListE2ETest`, `JsonDecodePackagedRecordE2ETest`,

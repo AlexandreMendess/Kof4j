@@ -43,10 +43,19 @@ class NestedMapRecordDecodeE2ETest {
                 var h = json.decode<Holder>("{\\"m\\":{\\"ace\\":{\\"upright\\":\\"u1\\"}}}")
                 println("H: " + h.m().size)
                 println("H: " + h.m().get("ace").upright())
+                var c = json.decode<Map<String, List<E>>>("{\\"wands\\":[{\\"upright\\":\\"a\\"},{\\"upright\\":\\"b\\"}]}")
+                println("C: " + c.get("wands").size)
+                println("C: " + c.get("wands").get(1).upright())
+                var d = json.decode<Map<String, Map<String, E>>>("{\\"wands\\":{}}")
+                println("D: " + d.get("wands").isEmpty())
+                println("D: " + (d.get("nope") == null))
+                var e = json.decode<Map<String, Map<String, E>>>("{}")
+                println("E: " + e.isEmpty())
             }
             """;
 
-    private static final String GOLDEN = "A: u1\nB: u1\nH: 1\nH: u1\n";
+    private static final String GOLDEN =
+            "A: u1\nB: u1\nH: 1\nH: u1\nC: 2\nC: b\nD: true\nD: true\nE: true\n";
 
     private final CompilerDriver driver = new CompilerDriver();
 
