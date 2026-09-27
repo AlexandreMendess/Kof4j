@@ -265,3 +265,22 @@ stack slot (`48(sp)`) and both arches matched.
 across a `call`; use `s0`–`s9`/`s11` or a stack slot. When a piece works on
 riscv64 but not aarch64, diff the generated `.s`
 (`KOF_KEEP_ASM=1` keeps it in the output dir) and suspect `s10` first.
+
+## Non-canonical `KOF_CROSS_SYSROOT` contaminates unrelated cross tests (26/09)
+
+`NativeCrossLink` accepts a `KOF_CROSS_SYSROOT` env override for the cross
+sysroot (link `--sysroot=` + qemu `-L`). A hand-made sysroot (e.g. a copy of
+`/usr/<arch>-linux-gnu` + extracted Debian `libsqlite3` multiarch debs) is
+**self-consistent for the tests that link AND execute through the same
+override** (e.g. the §493 ORM cross proof), but it poises unrelated classes:
+`NativeRiscvGc*/Dtoa/DbWire` aarch64 harnesses that link with the override
+yet exec under the system loader path SIGSEGV (139) under qemu, and
+`NativeCrossDynamicLinkTest.ldArgsSqliteAddsLsqlite3` asserts the default-sysroot
+branch (`-lsqlite3`) and fails when the override switches it to
+`-l:libsqlite3.so.0`. **Rule:** run the full reactor suite WITHOUT
+`KOF_CROSS_SYSROOT` (canonical `/usr/<arch>-linux-gnu`; the sqlite-dependent
+cross tests skip honestly via the `sqliteAvailable` guard), and use the
+override only in focused cross proofs where link+exec share it. To make a
+canonical sqlite-capable sysroot: install the real multiarch package
+(`apt install libsqlite3-0:arm64 :riscv64`) — the private copy is a
+one-session tool, not the merge-gate environment.

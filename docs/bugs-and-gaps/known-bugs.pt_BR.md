@@ -10206,7 +10206,6 @@ auditoria agora é `StdParityGapAuditTest#gpuUngatedOnAllTargets`.
 
 - **FECHADO (22/09, CLOSEALL batch integrado com as fatias 1–2 do remoto — o sintoma visível `:0:0` está fechado):** o que pousou na árvore mesclada — (a) **fatia 1** (remoto): `DiagnosticCollector.error(AstNode, msg, code)` + `TypeChecker.checkArgTypes(…, argNodes)` + as 10 faces de chamada com posição de argumento; (b) **fatia 2** (remoto): `fallbackPosition` no `DiagnosticCollector` (definida por `StatementAnalyzer.analyzeStatement`/`SemExpressionTyper.inferType`/`SemanticAnalyzer.analyzeDeclaration`, save/restore) — a assinatura legada sem nó agora reporta o elemento sintático envolvente em vez de `:0:0`; (c) **este batch: 53 sítios explícitos** convertidos um a um via o mesmo helper (`node.position()`, 1 linha por sítio): StatementAnalyzer ×12, SemExpressionTyper ×8, SemNewExprTyper ×3 (refeito após o split §442 — o corpo pré-split do `NewExpr` do WIP conflitou com o `fd5119f6`, resolvido preservando a delegação do split e re-aplicando os 3 sítios no `SemNewExprTyper`), MemberCallTyper ×2, BuiltinCallTyper ×2, MemberCallNamespaces ×4, ImplementationChecker ×3, CatchTypeCheck ×3, ExpressionTyper, CompilerImports, ExternalCtorTyper, TopLevelCallTyper, MemberResolver (10 dos 53 sobrepõem as faces de chamada da fatia 1 — a árvore mesclada usa o overload de argumento da fatia 1 aí); (d) `checkCtorArgTypes` unificado na assinatura com `AstNode node` (o overload sem nó saiu; os 3 callers passam o nó de chamada) — a fatia 1 tinha deixado. **Residual re-medido (árvore mesclada): 44 sítios ainda chamam a assinatura legada sem posição — eles reportam a posição fallback da fatia 2 onde a fase de análise a definiu, não `:0:0`; a migração explícita sítio a sítio desses 44 é o residual rastreado (próxima unidade), não parte deste fechamento.** Prova: `DiagnosticSourceLocationTest` 5/5 (SEM010/SEM014/SEM037/SEM041/SEM072+SEM025 asserting line≥1+col≥1; RED 4/5 no código pré-fix) + `ArgPositionDiagnosticE2ETest` 6/6 da fatia 1 + suíte full reactor verde na árvore mesclada (este commit). **Nota do land (rastreado, não consertado aqui): 2 check_500 CRITICALs herdados do tip — `TypeChecker` 606 (fatia 1, anotado na linha C3 do DOING) + `StatementAnalyzer` 600 (fatia 2) — split = próxima unidade (precedente §442) — ✅ FEITO no §446 (`SemBinaryResultTyper` + `SemAssignmentAnalyzer`, 22/09).**
 
-
 - **Repro (re-medido hoje no tip, classes frescas):** (a) `Int f() { return "x" }` → `:0:0: error: Return type mismatch: expected 'Int' but got 'String' [SEM010]`; (b) `void show(String s) { println(s) }` + `main() { show(42) }` → `:0:0: error: Argument 1 of 'show': expected 'String' but got 'Int' [SEM014]`. As duas mensagens são o texto inglês correto do batch #324 — falta só a POSIÇÃO.
 - **Causa raiz (lida no código, não deduzida):** o typer grava a posição do Diagnostic hardcoded — `sa.diagnostics().error("", 0, 0, 0, msg, code)` em `StatementAnalyzer.java:260` (SEM010), `TypeChecker.java:193` (SEM014, args de método) e `TypeChecker.java:265` (variante de construtor). Um nó AST com linha/coluna reais está no escopo em praticamente todo sítio; ele simplesmente não é passado.
 - **Raio de alcance (medido, `grep -rn 'error("",' */src/main`):** **70 sítios** em `kof-compiler`. Top arquivos: `MemberCallTyper.java` ×12, `StatementAnalyzer.java` ×11, `SemExpressionTyper.java` ×9, `TypeChecker.java` ×8, `CompilerImports.java` ×5, `MemberCallNamespaces`/`ImplementationChecker`/`CompilerSupervisor` ×3. Códigos capturados junto ao padrão: SEM010, SEM011, SEM012, SEM014, SEM015, SEM025 (×9), SEM041, SEM046, SEM068, SEM072, SEM073, PKG003 (×5) — além de sítios cujo código vem em variável.
@@ -11052,7 +11051,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 - **Por que e bug, nao regra 6:** o corpus define impressao por conteudo para dados (linhas de registro na matriz de conformancia; `Result` documentado como um tipo de forma unica da familia process/shell); vazar FQCN+hash de uma classe `dev.kof.runtime.*` e quebra de filosofia E do golden de conteudo — nao e escolha de design em aberto.
 - **Face do fix (dona):** um printer de conteudo para os tipos `Result` do runtime (formato estavel tipo `ProcessResult[exitCode=0, stdout=..., stderr=...]`), nos dois caminhos (emissao JVM + interprete), com a matriz de paridade 4-alvos como prova; nenhum outro println muda (freeze 1).
 
-
 ## §368 — o ESCRITOR de campo NUNCA passa pelo gate de atribuição: `x.n = "s"` em `Int n`, `x.c = "x"` em `Char c`/`Char? c` — o branch `FieldAccessExpr` de `SemExpressionTyper` calcula o `targetType` mas JAMAIS chama `isAssignable` (o branch de local, `:150-155`, chama e emite SEM012) — toda store de campo com tipo errado compila "clean" e morre em `VerifyError` na carga; os locais rejeitam a MESMA forma — regra 4/5 violada pela própria árvore do typer — ✅ FIXED 20/09 (medido no tip `ade63675`+`e293c4a5`; roteado ao cluster de diagnósticos `.22` da familia #545/§362/#469/#470; a face `Char?` do adendo do §361 É esta raiz, nao a caixa do §361)
 
 - **Sintoma (matriz medida no tip com o fix `e293c4a5`, JVM reflective-`-Xverify:all` + surefire):** `class C { Char c }` + `x.c = "x"` → compila, **VerifyError**; `class C { Char? c }` + `x.c = "x"` → compila, **VerifyError** (`String` cru no slot `Character`); `class C { Int n }` + `x.n = 2.5` → compila, **VerifyError**; `x.n = "str"`/`x.b = "s"` em `Int`/`Bool` → compila (e morre na carga). Os LOCAIS das mesmas formas: `Char v = "x"` → **SEM021**; `v = "x"` (reassign) → **SEM012**; coleções: `l.add("x")` em `List<Int>` → **SEM056**. Só o campo passa sem diagnóstico — R6 + divergência cross-target (Script crasha no runtime do char-store; JS imprime `x` mudo).
@@ -11148,7 +11146,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
   (oráculos: `jdb` da própria JDK + `jdk.jdi/.../JDWP.java` do `src.zip`); prova E2E `KofDebugJvmTest` +
   `KofDebugAttachTest` (conversa completa com VM viva: bp real, `stopped`, frames reais, locals reais).
 
-
 - **Descoberta:** medição byte-a-byte com proxy de sniff no handshake + probes raw no wire do JDK 25.0.4 host (`java version "25.0.4.1"`). O `jdb` da própria JDK serviu de oráculo (funciona); o `src.zip` (`jdk.jdi/com/sun/tools/jdi/{JDWP,PacketStream}.java`) = verdade do formato de linha (regra 10: é o formato da VM, não semântica de linguagem).
 - **Root causes medidos (todos corrigidos):**
   1. **`VirtualMachine.IDSizes` responde 5 tamanhos, não 6** (argIDSize removido do JDK 25) — `connect()` lia 6 ints; o 6º `readInt` engolia 4 bytes do PRÓXIMO pacote → todo o stream dessincronizado desde o handshake (0 eventos, 0 replies válidos). Fix: lê os 4 + `refSize`, drena o resto com `remaining()`.
@@ -11160,12 +11157,10 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 - **Lições para a doc (`docs/debugging/debug-adapter.md`):** corpo COMPOSITE = `[suspendPolicy][count][ (kind byte, requestID int, corpo...) ]` — **kind ANTES do requestID** (JDWP.java:7827); erro JDWP nomeado no diagnóstico (`on cmd (SET,CMD)`); `time.sleep`-loop só tem LineTable para as linhas `2@0 3@2` — bp na 4/5 é "No code" (verificado com jdb); `NATIVE_METHOD` (511) em `VariableTable` = frame nativo → tratado com guarda, não silêncio.
 - **Related:** §377 (como isso passou verde), X7-5 (attach), Q7 (stubs encontrados no produto), `JdwpClient.java`, `KofDebugJvmSession.java`.
 
-
 ## §377 — X7-2 foi entregue com FALSO VERDE: o launch DAP do JVM nunca teve E2E (o `KofDebugJvmTest` citado no commit não existia no repositório) — FIXED 20/09 com o teste real
 - **Status:** ✅ CORRIGIDO 20/09 — os primeiros E2E do canal entraram no commit que conserta o §376
   (conversa completa contra VM viva, não só parse). Lição gravada em DOING + aqui: verde sem teste
   não é entrega.
-
 
 - **Evidência:** `git log --diff-filter=A -- kof-cli/src/test/java/dev/kof/cli/KofDebugJvmTest.java` no tip 20/09 = o arquivo só nasceu com este commit; a mensagem do X7-2 citava testes que não estavam na árvore. Suite verde + docs dizendo "JVM DAP ok" durante semanas, enquanto `--dap` JVM não entregava UM evento sequer (§376.1).
 - **Como passou:** o gate media só o build/`initialize` (respostas locais ao parser DAP), nunca uma conversa completa com a VM viva (breakpoint real → `stopped` → frames → locals). Verde sem teste = verde falso.
@@ -11195,7 +11190,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 
 ## §380 — codegen JS: um `if` ANINHADO cujo then termina em `throw` (sem else) rouba o false-label do `if` ENVOLVENTE — o epílogo externo é engolido para dentro do then e o caminho não-throw retorna `undefined` (falha no node E no Graal; JVM/Script imunes) — ✅ CORRIGIDO 20/09 (`.18`, lane KofJS)
 > **Estado:** ✅ CORRIGIDO 20/09 (`.18`, pilha de parse de labels de `if` ativos — `MethodCtx.enclosingIfFalses`). Re-medido em hygiene de docs no tip: `ConformanceMatrixTest` 12/12 (t2/t4, 4 engines) + `MakealiveE2ETest` 4/4, 0F.
-
 
 - **Medido (20/09, `MakealiveE2ETest.failedApplyKeepsStateAndNamesTheResource`):** `Bool mkSet(World w, Resource r, Bool refuse) { if (r.name()=="bad") { if (refuse) { return false } throw "boom do provider" } w.events.add("set:"+r.name()); return true }` — JVM: `mkSet(ok1)` → `true`; JS: o código do then externo cai no caminho errado e o epílogo externo (`add; return true`) é engolido para dentro do then — o programa pegou "recusou em 'ok1'" para um recurso que deveria passar. Repro minimal: `String t2(String n, Bool b) { if (n=="x") { if (b) { throw "yb" } throw "bx" } return "p:"+n }` → `t2("y",false)` = `p:y` no JVM, `undefined` no JS (nos dois motores).
 - **Causa-raiz (medida via dump de IR):** o IR de if do JS aqui é LABEL-SÓ (sem `KofJump`/`Label(end)` unconditional depois de then-throw — o §147 já notou o mesmo). O `JsIfThrowElse.parseElse` consome QUALQUER label final `isIfEndLabel` — e `isIfEndLabel` é permissivo (não-loop, não-try) — então, quando o then do if ANINHADO termina unconditional, o parseElse interno come o `falseLabel` do if ENVOLVENTE; sem a fronteira, o `parseStatements` do envolvente segue parseando o epílogo da função como parte do seu then e o else-capture §147 do if externo desvia o resto. Um vazamento irmão mora em `JsControlFlowParser.parseIfBody:188` (qualquer label final não-loop é consumido mesmo pertencendo ao pai — forma `t4`: `if(n=="x"){ if(n=="y"){throw "in"} return "mid" } return "out"`).
@@ -11232,7 +11226,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 - **Workaround (em uso):** nomes de campo de entity devem evitar a lista de palavras-reservadas — `val` → `v` (feito em `makealive-db-host.kf` antes de embarcar; o susto de "linha duplicada no JS" da mesma sessão era MEU harness reusando um nome de H2 in-mem entre engines, NÃO este bug).
 - **Fix shape (decisão da lane do parser):** no fail de expectId dentro do loop de campos, ou consome 1 token (panic recovery clássico) ou sai do loop com PARSE024 uma vez (o caminho `expect(RBRACE)` já reporta); um progress-guard no loop (iteração precisa consumir >=1 token) deixaria qualquer edição futura de entity segura.
 - **Relacionado:** família §147/§149 (riscos de loop de parse achados por sondas, não por usuários), D-KOF-FIRST (repro é um .kf).
-
 
 ## §382 — ponte kof.io no JS: `writeText/appendText/delete/writeBytes/appendBytes` devolvem o NÚMERO `0/-1` — em JS `0` é FALSY, então uma escrita BEM-SUCEDIDA reporta `false` (JVM reporta o `true` tipado) — INVERSÃO semântica entre motores
 
@@ -11337,7 +11330,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 - **Relacionado:** #555 (guarda-chuva), #563 (família src/test), §D-GATE (DECISIONS — a diretiva do portão 15/09), §149/§252 (família "portão que convida ao bypass"), Q5/Q7 (sem falso verde / sem stub: a triagem tem prova ou tem baseline datado, nunca "está bem").
 - **ADENDO 20/09 (#563, lane `q561` — mecanismo que funciona com suíte importada):** o `paths-ignore` comprovadamente não suprime queries de `- uses:` (fato medido acima), então o contrato do repo passa a ser cumprido por **pós-filtro de SARIF antes do upload** — mecanismo válido independente de versão do codeql-action/CLI: `scripts/codeql-sarif-filter.py` (só stdlib) derruba todo resultado cuja localização primária aponta `**/src/test/**` (URI com `/src/test/`, começo `src/test/` e variantes com barra invertida); `src/main` segue 100% varrido. Ligado nos **três** analisadores (`codeql.yml` analyze@v4; `kof-quality-bot` e `kof-security-bot` analyze@v3): `upload: false` + `output` → filtro (com `--selftest` embutido rodando a cada job) → `upload-sarif` com a **mesma category** (`/language:java`, `/quality`, `/security` — dedupe contínuo, nenhuma análise nova nasce). `beta-0.5.0` entrou nos branches do workflow canônico (D-BRANCH-0.5.0; os bots já pegavam via `beta-*`). **Medido localmente:** selftest 5→2 (3 faces test caem, main + no-loc ficam), rc=2 honesto sem SARIF, YAML dos 3 workflows ok em `yaml.safe_load`. **Assumido (prova pendente de CI, por isso #563 continua ABERTA):** o layout exato do `output` por versão da action (o filtro aceita arquivo E diretório recursivo; `upload-sarif` aceita os dois — mitigado, não verificado sem push) e "zero instância em src/test na próxima análise" (item 1 da issue). As duas linhas de família ficam **no baseline** até essa prova (item 2 é pós-prova, não pré); migração `TestJdk` (item 3, opcional) não feita.
 
-
 ## §387 — WorkflowE2ETest.retryFacesBothOutcomes: JS produz stdout VAZIO com rc=0 (pump cooperativo regresso do makealive 3.3)
 
 - **GitHub:** — · commits: introduzido por `9c0afc5c` (makealive-3.3, lane `.18`); verde no CI em `1ac23de9` (bisect: único commit entre o CI verde e o tip que toca o pump; vermelho reproduzido identico em `ea5d4dfe` e `9c0afc5c`, base sem nenhuma mudanca de outras lanes)
@@ -11409,7 +11401,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
   acabou: os três targets scriptáveis imprimem idêntico, e o nativo casa no x86
   com goldens CI na matriz.
 
-
 ## §389 — tip `beta-0.5.0` com test-compile VERMELHO: `BareCollectionPrimitiveArgE2ETest` cita `dev.kof.compiler.nat.NativeToolchainGate.present()` — a classe NUNCA foi commitada (`git log -S`/`git cat-file -e` no tip: só hits de teste) — o módulo de teste inteiro do kof-compiler não compila no tip limpo — ✅ FIXADO 20/09 (causa-raiz real: o `9c88d590` (#945, docs-lane) varreu por engano 17 testes WIP da lane `.22` sem o helper `NativeToolchainGate.java` — o `amend` sem `--only` durante a saga do stash. Fix landed: `de5354eb` comitou o Gate com o `static boolean present()` exato do recipe. Prova de GREEN no tip (clone ISOLADO, não a árvore compartilhada): `git ls-tree origin/beta-0.5.0` = Gate presente desde `136feea1`; `mvn -o -pl kof-compiler -am test-compile` no tip = 0 ERROR / rc=0 (medido 20/09 ~18:5x por `192.168.100.14`, lane docs, fechando o próprio rombo). LIÇÃO para todas as lanes: medir sempre contra `origin` após `git fetch` — o tip `94011544` citado na abertura da entrada é um SHA SUSPENSO (fantasma de rebase, fora de toda história); a entrada estava desatualizada no momento em que abriu)
 
 - **Medido (20/09, tips `94011754`→`136feea1`):** o teste cita
@@ -11463,7 +11454,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 
 ## §392 — o tip `beta-0.5.0` carregava `KofOrmE2ETest` VERMELHO 2/41 (`createNativeEndToEndMatchesJvm` + `countWhereNativeEndToEndMatchesJvm`) — CAUSA-RAIZ CORRIGIDA: `0793aea4` (fix do pump §387) REVERTEU o pouso F3a inteiro (`a5d87fa7`) numa resolução de rebase, então a leitura de "árvore compartilhada suja/WIP" estava ERRADA — ✅ CORRIGIDO 20/09 (lane estabilização)
 > **Estado:** ✅ CORRIGIDO — restaurado por `0f824d5c` (stabilization lane). Verificado 20/09: `KofOrmE2ETest` 41/0F (2 skip) no tip `d7dc0cf3`, medição `.18`. Causa-raiz: o rebaser do push `0793aea4` (§387) clobberou os hunks F3a de `a5d87fa7` — lição: ao resolver rebase que toca arquivos fora da própria entrada, rodar a bateria do módulo afetado ANTES do push.
-
 
 - **Causa-raiz real (medida 20/09, lane estabilização, árvore limpa):** o commit
   `0793aea4` ("fix(kofjs) §387 …") tocou 3 arquivos de ORM que não tinha por que
@@ -11599,7 +11589,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 ## §395 — job `respond` do `kof-issues-agent` quebrava em TODO comentário não-bot: expressão de workflow (`github.event`) misturada dentro do JavaScript do `actions/github-script` (lá só existem `context`/`github`) → `TypeError: Cannot read properties of undefined (reading 'action')`; e o único ramo do passo (`context.payload.action === 'opened'`) é inalcançável num evento `issue_comment` (a action do payload é `created`) — código morto; o job nunca postou a mensagem — ✅ CORRIGIDO 20/09 (#570)
 > **Renumerado §394→§395 (20/09, hygiene de docs):** colidiu com §394 (harness ServePortTest, `d0464385`, landed primeiro). Protocolo: quem chega depois renomeia (cf. saga §388).
 
-
 - **GitHub:** #570 (medido pelo autor: 21 falhas em 41 runs `issue_comment` no commit da release 0.4.9; 0 falhas nos 36 runs `issues`)
 - **Correção (raiz):** o script passou a implementar a intenção viva com guard-clauses — agradece o AUTOR do issue no PRIMEIRO comentário (`login` igual + `comments <= 1`); bot retorna cedo (como antes); corpo com numeração corrigida 1–3 e sem indentação de template. Prova (harness node sobre o script extraído do YAML): author-first → 1 `createComment`; bot / não-autor / segundo-comentário → 0 cada; a expressão antiga reproduz o crash do CI (`reading 'action'`) = RED-antes. YAML parseia (`python3 -c yaml.safe_load`).
 - **Teste de regressão + prova em GitHub real (acrescentado em 20/09, platform-cli, complemento deste fix):** `scripts/tests/kof-issues-agent-script-test.sh` extrai o script REAL do YAML e o executa com o shape do github-script (sem `github.event`): RED no workflow anterior ao fix (`Cannot read properties of undefined (reading 'action')`), GREEN no atual; registrado em `run-agent-tests.sh` (job estrutural do CI). Uma réplica num repo de smoke pessoal confirmou no GitHub real que o job ORIGINAL falha em comentário humano e o corrigido passa. O efeito em runtime ainda depende de o fix chegar à `main` (workflows de `issue_comment` rodam da branch padrão).
@@ -11656,7 +11645,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 - **Relacionado:** §394 (mesma família de vazamento — processo vs diretório),
   `KofDebugNativeDap.java`, `KofCliSupport.cleanup`.
 
-
 ## §399 — `kof debug` DAP na JVM: `step`/`continue` limpavam `stoppedThread` DEPOIS do `resume()`, então a corrida com o evento SingleStep zerava o id novo para `-1` → o `stackTrace` seguinte enviava `FrameCount(-1)` (comando JDWP 11,7) → erro 20 (`INVALID_OBJECT`) matava a sessão ("fluxo DAP fechou") — flake do `KofDebugJvmStepTest` ~1/5 das execuções de classe — ✅ CORRIGIDO 21/09 (`62206c6d`; lane estabilização)
 
 - **Sintoma (medido 21/09, host compartilhado):** o `KofDebugJvmStepTest`
@@ -11692,11 +11680,9 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 - **Workaround (o idioma):** embrulhar em lambda — `job("e", () -> always())` — byte-parity JVM/JS (medido nas formas do `WorkflowE2ETest`).
 - **Relacionado:** §353 (isto nasceu da caca de edges Q4 dele), `LambdaE2ETest.castToFunctionType` (o rio `as ()->T`, posicao diferente), os chavlocks `() -> Bool` do workflow-host.
 
-
 - **Fix (21/09, voto (A) da mantenedora em `DECISIONS.md` D-CLOSEALL-BATCH — mantém a rejeição, nomeia a regra real):** no fallback SEM011 do `SemExpressionTyper.IdentifierExpr`, nome NU que É função top-level agora recebe o diagnóstico dedicado (com posição — o antigo era `:0:0`): "<nome> is a top-level function, not a value in argument position — pass the call wrapped in a lambda: () -> <nome>()". Mesmo código SEM011, mensagem mais rica e acionável; zero mudança semântica (ambos rejeitam, freeze regra 2).
 - **Prova (RED-first):** `NamedFunctionValueDiagnosticE2ETest` 4/4 — repro mínimo `probe` em argumento + forma aninhada (VERDE), idiom lambda ainda aceitável (regressão), símbolo realmente indefinido mantém o diagnóstico antigo (regressão). Stash do patch no código antigo = RED 2/2 nos casos §400 (ciclo completo).
 <!-- en-switch --> **EN:** [§400 (en)](known-bugs.md#400--a-named-top-level-function-passed-as-a-value-eg-jobe-probe-where-bool-probe-is-rejected-with-sem011-undefined-variable-or-type--the-name-resolves-only-in-call-position-the-diagnostic-also-names-the-wrong-universe-r6---fixed-2109-lane-bugs-and-gaps--closeall-batch)
-
 
 ## §418 — o harness `kof debug` riscv64 (single-step sob qemu) trava ou perde o inferior — nenhum `destroy()`/`kill()` em `NativeRiscv64E2ETest` — ✅ FECHADO 21/09 (lane nat/native-debug 9093, handoff D-CLOSEALL-BATCH: wait bounded + destroy/kill no harness; prova hangingChildIsKilledByTheBoundedWait + 54 E2E riscv + 178 vizinhos)
 
@@ -11744,7 +11730,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
   desta lane), §419 (lição de re-pouso: todo SHA/mensagem aqui foi re-medido).
 
 <!-- en-switch --> **EN:** [§420 (en)](known-bugs.md#420--kofjsrunnerwritebytes-kept-the-last-raw-int-cast-over-a-guest-getarraysize-same-258773-family---fixed-2109)
-
 
 ## §421 — `db.connect` nativo ACEITA qualquer scheme silenciosamente (ex.: `jdbc:h2:mem:`); a recusa só aparece depois no `kof_orm_*`, como `unknown db connection: ` sem código de gap — ✅ FIXED 21/09 (S0, sessão 9092 — frente DB/db-parity) (exposto pelo F2c3 21/09; raiz pre-existente)
 
@@ -11828,7 +11813,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
   padrão `.set`/`.asciz` validado com `riscv64-linux-gnu-as` (sysroot ausente →
   E2E cross segue skip honesto).
 <!-- en-switch --> **EN:** [§421 (en)](known-bugs.md#421--native-dbconnect-accepts-any-scheme-silently-eg-jdbch2mem-the-refusal-only-surfaces-later-at-kof_orm_-as-unknown-db-connection--with-no-gap-code---fixed-2109-s0-sessao-9092--frente-dbdb-parity-exposed-by-f2c3-2109-root-pre-existing)
-
 
 ## §422 — um `extern` com assinatura NÃO-SUPORTADA agora compila LIMPO — a rejeição com gap honesto desapareceu (R6): `CompilerDriverTest.externProducesHonestGapNotSilentDrop` VERMELHO no tip — ✅ RESOLVIDO 21/09 (NÃO É BUG: teste stale — `Int[]` binda por desenho desde o D6-2; o ramo de rejeição está intacto, medido)
 
@@ -12019,7 +12003,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 
 <!-- en-switch --> **EN:** [§438 (en)](known-bugs.md#438--kof-cli-debugserve-tests-leak-suspended-jvms-jdwp-suspendy-and-tmp-scratch-dirs-that-can-exhaust-the-tmpfs-and-kill-later-suites-measured-15-kof-debug---6-kof-serve--orphans-holding-deleted-dirs-cota-da-disco-excedida-in-the-kof-compiler-suite---fixed-2109-lane-18-kofdebugjvmsession-shutdown-hook--tree-kill-teardown-red-first-clidebugprocessleaktest)
 
-
 ## §439 — switch sobre subject largo (`Long`/`Double`/`Float`) com case literal `Int` quebrava o backend JVM (`NegativeArraySizeException` no `COMPUTE_FRAMES` do ASM) — ✅ CORRIGIDO 21/09 (lane compilador: o valor do case é promovido ao tipo do subject em `SwitchStmtLowerer`/`SwitchExprLowerer`)
 
 - **Medido (21/09, tip `f26757b8`, `lib/kof.jar` recém-reconstruído):** `switch (var x: Long = 3) { case 1: ... case 3: ... }` passa no type-check mas o backend JVM estoura com `frame crash ... NegativeArraySizeException: -1` no `ASM COMPUTE_FRAMES (visitMaxs)` (o launcher JavaFX mascara a falha crua). As faces statement e expression reproduzem; um subject `Double` com case `Int` mostra a mesma forma. O `SwitchLongDoubleSupportE2ETest` existente só exercia literais com sufixo `L` (`4000000000L`, `7L`) — a face "literal `Int` contra subject largo" era ponto cego, então #473/#474 fecharam com prova incompleta (falsa confiança, Q5).
@@ -12030,7 +12013,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 
 <!-- en-switch --> **EN:** [§439 (en)](known-bugs.md#439--switch-on-a-wide-subject-longdoublefloat-with-an-int-literal-case-crashed-the-jvm-backend-asm-negativearraysizeexception-in-compute_frames---fixed-2109-compiler-lane-the-case-value-is-widened-to-the-subject-type-in-switchstmtlowererswitchexprlowerer)
 
-
 ## §440 — `record.x++`/`--` passava no `check` e só morria em runtime (`IllegalAccessError` no JVM) — ✅ CORRIGIDO 21/09 (lane compilador: `SemExpressionTyper` emite `SEM038` para incremento/decremento de componente de record, como na atribuição direta/composta)
 
 - **Medido (21/09, tip `f632ed67`, `lib/kof.jar` reconstruído):** `record P(Int x)` + `var p = P(1); p.x++` → `kof check` **sem erros**, mas `kof run` morre com `java.lang.IllegalAccessError: class Default.Main tried to access private field P.x` (o componente de record compila para campo privado final). A escrita direta `p.x = 9` e a composta `p.x += 1` já davam `SEM038` ("record is immutable") no `StatementAnalyzer`; só o caminho `++`/`--` escapava.
@@ -12040,7 +12022,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 - **Dono:** lane compilador (`Lote PublioSantos` órfã, GitHub #469).
 
 <!-- en-switch --> **EN:** [§440 (en)](known-bugs.md#440--recordx---was-accepted-by-check-and-only-died-at-runtime-illegalaccesserror-on-the-jvm---fixed-2109-compiler-lane-semexpressiontyper-emits-sem038-for-incrementdecrement-of-a-record-component-like-directcompound-assignment)
-
 
 ## §441 — `Map` com chave larga (`Long`/`Double`) em `mapOf(...)`/`put`/`putIfAbsent` gerava bytecode JVM INVÁLIDO (`swap` sobre valor de categoria 2 → `VerifyError`, mascarado pela mensagem do JavaFX) — ✅ CORRIGIDO 21/09 (emitter JVM boxeia a chave larga sem `swap`)
 
@@ -12106,7 +12087,6 @@ O teste que pinava o gap agora é `logicalValuePositionWithNullableRhsJsMatchesK
 - **Vizinho, face diferente:** o §364 (alias de label por fall-through → `--gc-sections` esvazia a seção) é o outro hazard conhecido desta transformação; este é a ligação sem relocação do GAS `-mno-relax`. Ambos agora cobertos.
 - **Dono:** lane gaps-db (achado ao montar a toolchain cross para o recon do DB-3; a lane nat mantém o §444).
 <!-- en-switch --> **EN:** [§445 (en)](known-bugs.md#445--riscv64-cross-as--mno-relax--the-s-5-per-function-section-split-bound-cross-range-j-l-to-itself-j---encodingbase64encodebase64decode-hung-forever-under-qemu---fixed-2209-lane-gaps-db-found-in-the-db-3-cross-recon)
-
 
 ## §446 — check_500 RED: ``TypeChecker` 606 + `StatementAnalyzer` 600 (the 2 inherited CRITICALs from §280 slices 1–2)` — ✅ FIXED 22/09 (lane 9093 — split: `SemBinaryResultTyper` + `SemAssignmentAnalyzer`)
 
@@ -12248,8 +12228,6 @@ Esperado `6`; atual: `VerifyError: Bad type on operand stack` no load.
 
 - **Dono:** sessão 9092 (23/09), issue #594.
 <!-- pt-switch --> **EN:** [§479 (en)](known-bugs.md#479--exception-thrown-inside-a-listmapfilterreduce-lambda-escapes-trycatch-string-e-as-invocationtargetexception-on-the-jvm---fixed-2309-session-9092-issue-594)
-
-
 
 ## §480 — exceção não capturada no cross nativo (riscv64/aarch64) imprimia só uma linha vazia — a mensagem era PERDIDA (silencioso, R6) — ✅ CORRIGIDO 23/09 (lane gaps-db, sessão 9092)
 
@@ -12396,7 +12374,6 @@ main() {
 **Dono:** sessão 9092 (lane compiler), tabela de métodos kof.io; guard SEM102 do fix da lane issues (`aed5fe7b`).
 <!-- en-switch --> **EN:** [§488 (en)](known-bugs.md#489--filemkdir-and-filemkdirs-were-a-silent-no-op-with-classformaterror-on-the-result-now-real-aliases-of-createcreatedirectories-and-unknown-io-methods-are-a-clean-sem102---fixed-2409-issue-617)
 
-
 ## §490 — Método desconhecido num valor builtin de kof.buffer / kof.security (Buffer / Secret / KeyHandle) compilava em silêncio como no-op do receptor ou ClassFormatError; agora é SEM102 limpo — ✅ CORRIGIDO 24/09
 
 **Sintoma (medido 24/09, lane compiler 9092, contra o tip `0b37c4a2`):** `Buffer`/`Secret`/`KeyHandle` têm um ramo de typer dedicado, mas um método fora da tabela ao vivo caía no fall-through sem contrato — duas faces, ambas R6. **(a) no-op silencioso:** `secrets.of("x").bogus()` compilava limpo e imprimia o Secret (`Secret(*** )`); `buffer.alloc(8).bogus()` compilava limpo e imprimia o Buffer (`Buffer[8]`). **(b) ClassFormatError:** `secrets.of("x").bogus(1, 2)` e `secrets.keyFromHex("00").bogus()` compilavam limpo e a JVM abortava no load com `ClassFormatError: Illegal class name ""`. Um método VIVO com aridade errada também passava: `s.reveal(1)` (reveal não recebe args) imprimia o Secret.
@@ -12452,22 +12429,23 @@ main() {
 **Dono:** lane gaps-db (`RuntimeOrmMysqlCountWhere`, backend VM x86); mesma família de classificador do `RuntimeOrm3`/cross `RtB53`.
 <!-- en-switch --> **EN:** [§492 (en)](known-bugs.md#492--native-x86-64-ormcount_where-over-mysql-threw-orm001-on-a-boolean-bind-the-284-box-tag-was-checked-as-1-string-instead-of-3-bool-so-tag-3-fell-into-the-unsupported-type-throw---fixed-2409)
 
-## §493 — JVM e Native divergem no caminho de erro do `orm.delete`/`orm.deleteAll` no MySQL: o JVM lança uma String de SQLException, o Native x86-64 e o cross devolvem `true` — 🟡 ABERTO (decisão de contrato)
+## §493 — JVM e Native divergem no caminho de erro do `orm.delete`/`orm.deleteAll` no MySQL: o JVM lança uma String de SQLException, o Native x86-64 e o cross devolvem `true` — ✅ CORRIGIDO 26/09 (lane gaps-db/native-runtime; a lei = `D-DECISION-BATCH-2609` item 1)
 
-> **DECIDIDA 26/09 pela mantenedora (`D-DECISION-BATCH-2609` item 1): a LEI e o comportamento da JVM** — delete/deleteAll com conexao morta deve LANCAR a string de erro em todo target; o `true` do Native x86-64/cross e o bug (caminhos de erro `RuntimeDb5`/`RtB75`/`RtB54`). Fila da lane gaps-db/native-runtime com prova RED→GREEN cross-target (fixture server-down); ao fechar, o `db-parity-plan` promove a `docs/stdlib/`. Status permanece ABERTO ate o codigo + prova.
+> **DECIDIDA 26/09 pela mantenedora (`D-DECISION-BATCH-2609` item 1): a LEI e o comportamento da JVM** — delete/deleteAll com conexao morta deve LANCAR a string de erro em todo target; o `true` do Native x86-64/cross e o bug (caminhos de erro `RuntimeDb5`/`RtB75`/`RtB54`). Fila da lane gaps-db/native-runtime com prova RED→GREEN cross-target (fixture server-down); ao fechar, o `db-parity-plan` promove a `docs/stdlib/`. Status fechado 26/09 pela lane gaps-db/native-runtime com prova (Fechamento abaixo).
 **Sintoma (medido 24/09, lane gaps-db, S5.5 fatia 3):** em uma conexão `mysql://`, `orm.delete<T>(db, k)` e `orm.deleteAll<T>(db)` contra tabela inexistente (ou qualquer erro SQL) comportam-se de forma diferente por alvo: o host JVM lança uma `String` com a mensagem do `SQLException` do JDBC; o Native x86-64 e o cross (riscv64/aarch64) devolvem `true` (`affectedRows >= 0`). O mesmo programa expõe o erro no JVM e o engole no Native. É só o caminho de erro — o caminho de sucesso é byte-idêntico nos três.
 
 **Causa-raiz:** não é um bug, e sim uma **divergência de contrato** entre duas implementações da mesma face congelada. (a) O JVM `kof_db_execute_n` no JDBC propaga o `SQLException` como `String` do Kof (throw). (b) O x86 `RuntimeOrmMysql` `delete`/`deleteAll` chamam o `kof_db_execute` **genérico**, cujo `.Ldb_exec_bad` devolve `0` (`affectedRows`) e **NÃO** lança — então o `>= 0` do chamador resulta em `true`. Só o `save`/`saveAll` x86 usa o `RuntimeOrmMysqlExec`/`.Lorm_sa_exec` que lança. O cross `RtB75` espelha o x86 exatamente (B72 `kof_db_mysql_execute`, sem throw), então a paridade Native↔cross se mantém; a divergência é JVM↔Native e PRÉ-EXISTE à S5.5 (não é introduzida aqui).
 
 **Impacto / honestidade (R6):** a face Native reporta sucesso (`true`) para um DELETE que o servidor rejeitou — falha silenciosa no wire. Se o contrato congelado quer a semântica do JVM (throw) ou a do Native (devolver `affectedRows`) é **decisão de projeto do maintainer (regra 6)**, não edição de agente: alinhar qualquer lado muda o contrato de erro de uma face congelada. Registrado aqui e em `docs/development/db-parity-plan.md` para a divergência ficar visível e nunca "documentada em volta".
 
-**Prova (medido 24/09):** `KofOrmE2ETest#crossNativeMariadbDeleteErrorMatchesX86Oracle` trava Native x86-64 == riscv64 == aarch64 no caso tabela-inexistente (todos `true`); o teste de caminho-feliz da fatia 3 `crossNativeMariadbDeleteAndDeleteAllMatchesOracles` trava o sucesso contra o oráculo JVM. Nenhum teste de erro incluindo o JVM é adicionado enquanto a semântica não é decidida.
+**Prova (medido 24/09):** `KofOrmE2ETest#crossNativeMariadbDeleteErrorMatchesX86Oracle` travava Native x86-64 == riscv64 == aarch64 no caso tabela-inexistente (todos `true`); o teste de caminho-feliz da fatia 3 `crossNativeMariadbDeleteAndDeleteAllMatchesOracles` trava o sucesso contra o oráculo JVM. **Substituída 26/09 pela prova de fechamento abaixo** — o teste de erro foi renomeado para `crossNativeMariadbDeleteErrorsThrowLikeX86Oracle` e agora trava o THROW nos três alvos.
 
-**Status:** 🟡 ABERTO — decisão de contrato (regra 6); nenhuma mudança de semântica feita pelo agente.
+**Fechamento (26/09, lane gaps-db/native-runtime, `D-DECISION-BATCH-2609` item 1 — a JVM é a lei):** o x86 `RuntimeOrmMysql` `.Lorm_da_my`/`.Lorm_del_my` agora roteia o DELETE pelo MESMO helper que lança do `save`: `.Lorm_sa_exec` (delete monta o SQL com `?`, renderiza a key via `kof_db_mysql_render` e substitui via `kof_db_mysql_replace_q`); `.Lorm_da_my` chama-o diretamente. As faces MySQL do cross `RtB75` chamam `kof_orm_mysql_exec` (B76, lança no pacote ERR / connection lost) em vez do silencioso `kof_db_mysql_execute` (B72). Sucesso continua devolvendo `true` (byte-idêntico ao antes); rejeição agora lança `mysql: <msg do servidor>` em x86-64, riscv64 e aarch64 igualmente. Prova: `KofOrmE2ETest#crossNativeMariadbDeleteErrorsThrowLikeX86Oracle` (fixture: MariaDB skip-grant + `DROP TABLE` — face de erro esperado da Q3) trava o comportamento-lei da JVM nos três alvos; paridade byte medida `mysql: Table 'test.user' doesn't exist` duas vezes + `after-throw` em x86-64, riscv64 e aarch64 (RED pré-fix: os três imprimiam `true true after-throw`). Vizinhos verdes: `deleteMysqlNativeMatchesJvm`, `deleteAllMysqlNativeMatchesJvm`, `crossNativeMariadbDeleteAndDeleteAllMatchesOracles`, `KofOrmE2ETest` completa 82/0F (2 skips honestos — mongo/postgres ausentes).
+
+**Status:** ✅ CORRIGIDO 26/09 — o Native agora lança a String de erro do servidor (lei da JVM); nenhum `true` silencioso sobrevive no caminho de erro.
 
 **Dono:** lane gaps-db (fila de decisão); afeta `RuntimeOrmMysql`/`RuntimeDb*` (x86), `JvmConfigRuntime.kof_db_execute_n` (JVM) e `RtB75`/`RtB72` (cross).
-<!-- en-switch --> **EN:** [§493 (en)](known-bugs.md#493--jvm-and-native-diverge-on-the-ormdeleteormdeleteall-error-path-over-mysql-the-jvm-throws-a-sqlexception-string-while-native-x86-64-and-the-cross-return-true---open-contract-decision)
-
+<!-- en-switch --> **EN:** [§493 (en)](known-bugs.md#493--jvm-and-native-diverge-on-the-ormdeleteormdeleteall-error-path-over-mysql-the-jvm-throws-a-sqlexception-string-while-native-x86-64-and-the-cross-return-true---fixed-2609-lane-gaps-dbnative-runtime-law--d-decision-batch-2609-item-1)
 
 ## §494 — JVM e Native divergem na mensagem de erro do `kof.io` `size()`: o JVM lança `file not found: <path>`, o Native x86-64 e o cross lançam `size: file not found: <path>` — 🟡 OPEN (decisão de contrato)
 
@@ -12864,7 +12842,10 @@ nunca um ombro de "ruído conhecido".
 vermelha no método IRMÃO `RingPrivilegeE2ETest.ringProfileBootsAndProvesOwnedIdtUnderOvmf` (o
 boot passou os self-tests dos aneis, o `main` nunca rodou — stall de OVMF sob carga; verde em
 isolamento), e a primeira re-corrida foi vermelha em `NativeUefiE2ETest.uefiMonoSpanDuration`
-(sleep de 60ms do mono lido como 206us sob carga da suíte; verde em isolamento, 4.7s). A trava
+(sleep de 60ms do mono lido como 206us sob carga da suíte; verde em isolamento, 4.7s). Outra
+ocorrência 26/09 ~18:0x (reactor completo com a fixture skip-grant do MariaDB + qemu cross no
+host): `ring1BuiltinRunsKofFunctionAtCpl1` estourou o limite de 120s com o log serial congelado
+em `KO-RING IDT OK` + primeiro byte — mesma assinatura, coberta pela trava de classe abaixo. A trava
 deste § le portanto em nivel de CLASSE: qualquer vermelho em
 `RingPrivilegeE2ETest`/`NativeUefiE2ETest` sob carga da suite completa e esta flake ate prova em
 contrario — re-ronde em isolamento com o host quieto; um vermelho em host limpo e bug novo e
@@ -13098,7 +13079,6 @@ consumidor do 1/0 antigo). Lição (Q3): os arquivos de ponte do host são uma
 superfície de paridade — todo `? 1 : 0` numa costura tipada BOOL é este bug;
 o grep é `platform.put.*(1 : 0)` em `KofJsRunner` (vazio p/ faces BOOL agora).
 
-
 <!-- pt-switch --> **EN:** [§517 (EN)](known-bugs.md#517--kofio-bool-predicates-on-the-js-host-returned-the-number-10-instead-of-bool-stringvalueof--1-listboolcontainstrue--false---fixed-2609-paritymedia-lane-630)
 
 ## §518 — Directory.list() no host JS devolvia o CAMINHO COMPLETO de cada entrada em vez do nome — o padrão natural pasta + "/" + entrada construía caminho quebrado em silêncio — ✅ FIXED 26/09 (lane paridade/media, #631)
@@ -13124,7 +13104,6 @@ cluster prova).
 entrada e `File(pasta + "/" + entrada).exists()`: oráculo JVM+Script (nomes,
 `true`) medido 26/09; JS RED pré-fix (caminho completo + `false`), GREEN
 depois. A mesma corrida cobre as faces de diretório com conteúdo conhecido.
-
 
 <!-- pt-switch --> **EN:** [§518 (EN)](known-bugs.md#518--directorylist-on-the-js-host-returned-the-full-path-of-each-entry-instead-of-the-name--the-natural-pasta----entrada-pattern-silently-built-a-broken-path---fixed-2609-paritymedia-lane-631)
 
@@ -13174,9 +13153,7 @@ type erased by UIW050 needs to pass the SAME boxes of the primitive, in EVERY
 reference boundary (valueOf, Object slot, null, equals); the grep
 `instanceof Type.PrimitiveType` in the comparison/print lowerers is the radar.
 
-
 <!-- pt-switch --> **EN:** [§519 (EN)](known-bugs.md#519--kofuimedia-values-handles-erased-to-int-uiw050-crossed-reference-boundaries-un-boxed-on-the-jvm--printlncor-mgetk--mgetk-and-a--null-brought-down-the-whole-class-with-verifyerror---fixed-2609-paritymedia-lane-632)
-
 
 ## §520 — records com campo String eram INVISIVEIS à maquina JSON do x86/SCRIPT — o coletor de schema pulava a tabela INTEIRA (o teste de campo-aninhado engolia `java.lang.String`), o `decode<Record>` nativo entregava o valor SEM aspas ao `decode_string`, o `encode_string` deixava caracteres de controle crus e o interpretador codificava `List<Record>` como `{}` — ✅ FIXADO 26/09 (lane compiler; X2 fatia 2)
 
@@ -13233,7 +13210,6 @@ classe BUILTIN?" antes do caminho de classe de usuario, e toda dobra de
 compile-time que chama um parser de runtime deve casar com o CONTRATO do parser
 (com aspas vs sem aspas), nao com o nome dele. O grep `instanceof Type.ClassType`
 em NativeJsonSchema/lowerers e o radar.
-
 
 <!-- pt-switch --> **EN:** [§520 (EN)](known-bugs.md#520--records-with-string-fields-were-invisible-to-the-x86script-json-machine--the-schema-collector-skipped-the-whole-table-the-nested-class-check-swallowed-javalangstring-native-decoderecord-handed-the-un-quoted-value-to-decode_string-encode_string-left-control-chars-raw-and-the-interpreter-encoded-listrecord-as----fixed-2609-compiler-lane-x2-fatia-2)
 
@@ -13316,3 +13292,60 @@ alvos; GREEN pós-fix. Cluster verde: `JsonCompleteE2ETest`,
 `ConformanceMatrixTest` (4 alvos), `KofJsTest`, `ScriptTargetE2ETest`.
 
 <!-- pt-switch --> **EN:** [§522 (EN)](known-bugs.md#522--jsondecodemapk--with-a-nested-collection-as-the-map-value-lost-the-element-type-on-the-jvm-compile-time-dispatch-picked-the-immediate-type-argument-only-and-the-binder-had-no-map-descent-github-633---fixed-2609-parityjson-lane)
+
+## §523 — `connect` MySQL/MariaDB contra servidor que REJEITA auth devolve handle morto e o próximo `query`/`execute` SIGSEGA (139) em vez de lançar o erro do handshake — 🟡 OPEN (dona = lane db)
+**Sintoma (medido 26/09):** um MariaDB que APLICA auth em
+`127.0.0.1:13306` (ex.: `docker run mariadb:11 -e
+MARIADB_ROOT_PASSWORD=kofpass`, NÃO a fixture canônica `--skip-grant-tables`
+de `docs/development/db-parity-plan.md` §"fixture") faz
+`KofDbE2ETest.nativeMariadbAliasWireProtocol` morrer com ec=139 logo após a
+primeira linha ser impressa (o connect host-only
+`mariadb://127.0.0.1:porta/test` não tem userinfo → ERR no handshake), e
+`NativeRiscvDbWireTest.dispatchExecuteQuery…` imprime `resolve=0`, `type=0`
+e então SIGSEGA no `query1` sobre o handle morto. As mesmas quatro provas
+ficam VERDES com a fixture skip-grant canônica no ar (elas não conseguem
+observar a rejeição).
+
+**Esperado (lei da JVM):** o próprio `db.connect` lança o erro do servidor
+(`mysql: Access denied …`/connection lost) antes de qualquer
+`query`/`execute`; o handle nunca chega ao usuário. O Native deve diagnosticar,
+nunca SIGSEGAR (R6 — sem crash silencioso onde cabe diagnóstico).
+
+**Causa raiz (observada, a confirmar na correção):** o pacote ERR do handshake
+não é superficializado por `kof_db_connect` nos caminhos de wire; o handle é
+registrado com resolve=0 e o COM_QUERY/leitura de resultado seguinte
+dereferencia o estado morto.
+
+**Repro mínimo:** subir o container com auth aplicada acima (sem
+`--skip-grant-tables`) e rodar
+`mvn -o -pl kof-compiler -am test -Dtest='KofDbE2ETest#nativeMariadbAliasWireProtocol'`;
+ou o harness dispatch contra o mesmo servidor.
+
+<!-- en-switch --> **EN:** [§523 (EN)](known-bugs.md#523--mysqlmariadb-connect-against-a-server-that-rejects-auth-returns-a-dead-handle-and-the-next-queryexecute-sigsegvs-139-instead-of-throwing-the-handshake-error---open-owner--lane-db)
+
+## §524 — harnesses qemu aarch64 em `NativeRiscvGc*/Dtoa/DbWire` SIGSEGAM (139) sob carga de CPU enquanto ficam verdes em isolamento — determinístico na suíte completa, NÃO é regressão de código — 🟡 OPEN (dona = lane native-cross)
+**Sintoma (medido 26/09):** sob carga, os métodos de execução aarch64 de
+`NativeRiscvGcSweep/GcMark/GcList/GcFreeList/NativeRiscvDtoa` e os métodos
+raw-asm `NativeRiscvDbWireTest` (`sha1/scramble/greeting/bindRender/authResponse`
+Aarch64) morrem com `qemu: uncaught target signal 11` (rc=139, saída vazia) —
+12/22 vermelhos num batch controlado, 12 vermelhos em duas suítes completas —
+enquanto OS MESMOS métodos rodam verdes em isolamento (medido duas vezes; e
+`dispatchExecuteQuery…` aarch64 + as provas cross do ORM ficaram verdes o dia
+todo). Os homólogos riscv64 nunca dispararam. Não correlacionado com o diff do
+§493 (essas classes não executam `orm.delete`/`deleteAll`; o cluster idêntico
+reproduziu-se COM e SEM `KOF_CROSS_SYSROOT`).
+
+**Evidência controlada (26/09):** host em carga ≥150 (32 spinners systemd) +
+batch `NativeRiscvGc*/Dtoa/DbWire#*Aarch64` → 12F/139; host quieto, mesmo
+comando → 22/0F. Ocorrências em suíte completa: run 2 (com override de env) e
+run 3 (canônico, sem env) — os mesmos 12. O job dedicado `Native cross` da CI
+roda-os verdes (runner dedicado).
+
+**Caminho de correção (dona = lane native-cross):** limitar+repetir o exec do
+qemu nos harnesses (precedente §418 `hangingChildIsKilledByTheBoundedWait`) ou
+manter a classe como CI-only; deref NULL no guest sob pressão do escalonador é
+a hipótese — provar com `qemu-aarch64 -strace` antes de mexer no runtime.
+**Política de leitura:** um 139 nestas classes sob carga da suíte completa,
+verde em isolamento, é esta flake — nunca atribuí-la a uma lane não relacionada.
+
+<!-- en-switch --> **EN:** [§524 (EN)](known-bugs.md#524--qemu-aarch64-harnesses-in-nativeriscvgcdtoadbwire-sigsegv-139-under-cpu-load-while-green-in-isolation--deterministic-at-suite-scale-not-a-code-regression---open-owner--lane-native-cross)

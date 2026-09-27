@@ -222,7 +222,7 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmRtB74.RISCV_RUNTIME_ASM_B_74)
                 // S5.5 fatia 3 (gaps-db lane, 24/09): escrita do ORM no wire
                 // mysql cross — literal compartilhado (kof_orm_mysql_lit) e
-                // delete/deleteAll (exec genérico B72, sem throw, como o x86).
+                // delete/deleteAll (exec B76, LANCA no ERR — §493 26/09).
                 .append(NativeRiscvAsmRtB75.RISCV_RUNTIME_ASM_B_75)
                 // S5.5 fatia 4a (gaps-db lane, 24/09): exec que LANCA no erro
                 // do servidor — pre-requisito do orm.save (port do x86

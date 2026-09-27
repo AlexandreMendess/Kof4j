@@ -10,6 +10,25 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — §493 (26/09): `orm.delete`/`orm.deleteAll` sobre MySQL no Native
+    devolviam `true` quando o servidor REJEITAVA a sentencia — a JVM lanca
+    (lei = `D-DECISION-BATCH-2609` item 1)** — o x86-64 `.Lorm_del_my`/
+    `.Lorm_da_my` agora roteia pelo MESMO exec que lanca do `save`
+    (`.Lorm_sa_exec` em `RuntimeOrmMysql`: key renderizada por
+    `kof_db_mysql_render` e substituida por `kof_db_mysql_replace_q`), e o
+    cross (`RtB75`) chama `kof_orm_mysql_exec` (B76) em vez do silencioso
+    `kof_db_mysql_execute` (B72). Sucesso continua `true` byte-identico;
+    rejeicao lanca `mysql: <msg do servidor>`. Prova:
+    `KofOrmE2ETest#crossNativeMariadbDeleteErrorsThrowLikeX86Oracle` —
+    x86-64 == riscv64 == aarch64 byte a byte em `mysql: Table 'test.user'
+    doesn't exist`; RED pre-fix: os tres imprimiam `true`. Catalog:
+    known-bugs.md §493 FECHADO (+PT). Catalogado tambem §523: wire `connect`
+    contra servidor que REJEITA auth devolve handle morto -> SIGSEGV no query
+    seguinte em vez de diagnostico (dona = lane db; a fixture canonica
+    skip-grant nao o observa). Catalogado tambem §524: harnesses qemu aarch64 (Gc/Dtoa/DbWire) SIGSEGAM 139 sob
+    carga da suite completa, verdes em isolamento (repro controlado com 32 spinners);
+    dona = lane native-cross; politica de leitura: 139 sob carga + verde isolado = esta
+    flake, nunca outra lane.
     - **Correcao — §522 (26/09): `json.decode<Map<K, ...>>` cujo valor e ele
     mesmo uma colecao perdia o tipo do elemento** (#633) — o dispatch
     compile-time (`ExpressionJsonCallLowerer`) escolhia o decoder do valor so

@@ -342,13 +342,17 @@ por scheme é a prova.
        dos slots da pilha (a 1ª tentativa leu os regs velhos do chamador →
        ORM001/segfault; isolado com scratch sob qemu `-strace`/`-d in_asm`). A
        divergência JVM↔Native no caminho de **erro** (JVM lança, Native devolve
-       `true`) é **pré-existente** e catalogada **§493** — deixada para a decisão
-       de contrato do maintainer, não mudada em silêncio.
+       `true`) é **pré-existente** e catalogada **§493** — RESOLVIDA 26/09 por
+       `D-DECISION-BATCH-2609` item 1 (a JVM é a lei): delete/deleteAll agora
+       LANÇA em todo target Native (x86 roteia `.Lorm_del_my`/`.Lorm_da_my` por
+       `.Lorm_sa_exec`; o cross `RtB75` chama `kof_orm_mysql_exec`/B76) —
+       §493 CORRIGIDA.
        *Prova:* `KofOrmE2ETest#crossNativeMariadbDeleteAndDeleteAllMatchesOracles`
        — JVM + x86-64 + riscv64 + aarch64 byte-idênticos em hit/miss/negativo/
        idempotente (`3\ntrue\n2\ntrue\n2\ntrue\n2\ntrue\ntrue\n0`) — e
-       `#crossNativeMariadbDeleteErrorMatchesX86Oracle` (Native x86 == riscv64 ==
-       aarch64 no ERR de tabela inexistente, todos `true`).
+       `#crossNativeMariadbDeleteErrorsThrowLikeX86Oracle` (26/09, §493: Native
+       x86-64 == riscv64 == aarch64 no ERR de tabela inexistente — os três lançam
+       `mysql: Table 'test.user' doesn't exist`; RED pré-fix: todos `true`).
     4. **`orm.save`** — caminho INSERT; a chave gerada precisa de
        `SELECT LAST_INSERT_ID()` (o scalar da `RtB74`) e dos literais de campo.
        Esta é a **única** face cuja referência x86 **lança** no ERR
@@ -374,13 +378,18 @@ por scheme é a prova.
     silencioso), e a mensagem do `kof_orm_conn` deve nomear a causa real (ORM
     mysql ainda não portado) em vez de `unknown db connection`.
 
-    **Nota de design (corrigida 24/09):** o exec cross que lança
-    (`kof_orm_mysql_exec`) pertence **só ao `orm.save`** — o
-    `delete`/`deleteAll` x86 **não** lançam (usam o `kof_db_execute` genérico),
-    então portar um throw ali *divergiria* do contrato x86. O
-    `orm.delete`/`deleteAll` do JVM lança (JDBC), que é justamente a
-    **divergência JVM↔Native catalogada §493** (regra 6 — decisão do
-    maintainer).
+    **Nota de design (corrigida 24/09; SUPERSEDEDA 26/09 por `D-DECISION-BATCH-2609`
+    item 1 — a JVM é a lei, §493 CORRIGIDA):** o exec cross que lança
+    (`kof_orm_mysql_exec`) pertencia **só ao `orm.save`** — o
+    `delete`/`deleteAll` x86 **não** lançava (usava o `kof_db_execute` genérico).
+    O `orm.delete`/`deleteAll` do JVM lança (JDBC), que era justamente a
+    **divergência JVM↔Native catalogada §493**. **SUPERSEDEDA 26/09** por
+    `D-DECISION-BATCH-2609` item 1 (regra 6 decidida — a JVM é a lei): o
+    x86/cross `delete`/`deleteAll` agora passa pelo MESMO exec que lança
+    (`.Lorm_sa_exec` / `kof_orm_mysql_exec`) do `save`, e a §493 está CORRIGIDA —
+    as duas faces batem com o JVM no sucesso E no erro.
+    *(Nota do cabeçalho corrigida 26/09: o bloco acima descrevia o estado
+    pré-decisão.)*
 
 ## Não-objetivos / invariantes
 

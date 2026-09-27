@@ -5,14 +5,11 @@ package dev.kof.compiler.nat;
 // aarch64 herda via tradutor.
 //
 // Semântica espelhada do x86 (a referência do contrato, D-DB-GAPS): o x86
-// `.Lorm_da_my`/`.Lorm_del_my` (RuntimeOrmMysql) executam via `kof_db_execute`
-// e devolvem `affectedRows >= 0` — true no sucesso E no ERR (o exec genérico
-// do x86 devolve 0 no erro; NÃO lança). O cross espelha isso com a B72
-// (`kof_db_mysql_execute`, affected|0). NOTA: o host JVM (`kof_db_execute_n`
-// via JDBC) LANÇA no erro — a divergência JVM↔x86 do caminho de erro é
-// PRÉ-EXISTENTE e está catalogada (§493); a fatia 3 não a introduz nem a
-// muda. (O `save`/`saveAll` x86 usa `RuntimeOrmMysqlExec`/`.Lorm_sa_exec`, que
-// LANÇA no ERR — esse exec que lança virá na fatia do save.)
+// `.Lorm_da_my`/`.Lorm_del_my` usam `.Lorm_sa_exec` (RuntimeOrmMysqlExec): OK
+// devolve affectedRows; o delete mapeia sucesso para true, mas ERR do servidor
+// LANCE `mysql: <msg>`. O cross espelha com a B76 (`kof_orm_mysql_exec`, port
+// do mesmo exec). Lei D-DECISION-BATCH-2609: o `true` silencioso do caminho de
+// erro era §493; sucesso continua idempotente e sem excecao.
 //
 // Dialeto: nomes com backtick (medido: `FROM "t"` = ERROR 1064 no MariaDB).
 // O literal do bind vem de `kof_orm_mysql_lit` (promovido da B53 para evitar
@@ -170,7 +167,7 @@ public final class NativeRiscvAsmRtB75 {
                 call kof_db_resolve
                 beqz a0, .L75_da_bad
                 mv   a1, s2
-                call kof_db_mysql_execute      # espelha o x86 (0 on ERR)
+                call kof_orm_mysql_exec          # §493: espelha o x86 .Lorm_sa_exec, LANCA no ERR
                 li   a0, 1
                 j    .L75_da_out
             .L75_da_bad:
@@ -283,7 +280,7 @@ public final class NativeRiscvAsmRtB75 {
                 call kof_db_resolve
                 beqz a0, .L75_del_bad
                 mv   a1, s4
-                call kof_db_mysql_execute      # espelha o x86 (0 on ERR)
+                call kof_orm_mysql_exec          # §493: espelha o x86 .Lorm_sa_exec, LANCA no ERR
                 li   a0, 1
                 j    .L75_del_out
             .L75_del_bad:

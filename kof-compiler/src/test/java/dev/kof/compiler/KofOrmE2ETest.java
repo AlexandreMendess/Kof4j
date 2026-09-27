@@ -2542,13 +2542,12 @@ class KofOrmE2ETest {
         }
     }
 
-    /** S5.5 fatia 3 (24/09): o ERR do servidor no `orm.deleteAll` mysql **NÃO**
-     *  lança no Native — x86 e cross devolvem `affectedRows >= 0` (true). O
-     *  host JVM lança (JDBC); essa divergência JVM↔Native é PRÉ-EXISTENTE e
-     *  está catalogada (§493) — o teste trava a paridade Native↔cross, não com
-     *  o JVM. */
+    /** §493 (26/09): o ERR do servidor no `orm.delete`/`orm.deleteAll` mysql
+     *  LANCE no Native (x86-64 e cross), como a lei D-DECISION-BATCH-2609. O
+     *  teste trava paridade Native x86-64↔riscv64↔aarch64 no throw (a mensagem
+     *  JDBC crua do host pode divergir em texto, mas nunca em silenciosidade). */
     @Test
-    void crossNativeMariadbDeleteErrorMatchesX86Oracle(@TempDir Path tempDir) throws IOException {
+    void crossNativeMariadbDeleteErrorsThrowLikeX86Oracle(@TempDir Path tempDir) throws IOException {
         assumeTrue(isLinux(), "cross ORM E2E requires Linux + qemu");
         int port;
         try { port = Integer.parseInt(System.getenv().getOrDefault("KOF_MYSQL_PORT", "13306")); }
@@ -2558,14 +2557,21 @@ class KofOrmE2ETest {
         String body = """
                     db.execute(db, "drop table if exists `user`")
                     try {
+                        println(orm.delete<User>(db, 1))
+                    } catch (String e) {
+                        println(e)
+                    }
+                    try {
                         println(orm.deleteAll<User>(db))
                     } catch (String e) {
-                        println("threw")
+                        println(e)
                     }
+                    println("after-throw")
                     db.close(db)
                 }
                 """;
-        String expected = "true";
+        String expected = "mysql: Table 'test.user' doesn't exist\n"
+                + "mysql: Table 'test.user' doesn't exist\nafter-throw";
         Path source = tempDir.resolve("OrmMysqlErr.kf");
         Files.writeString(source, ENTITY_SRC + "main() {\n"
                 + ("    var db = db.connect(\"mysql://root:kofpass@127.0.0.1:" + port + "/test\")\n")
@@ -2574,7 +2580,7 @@ class KofOrmE2ETest {
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
         assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
-        assertEquals(expected, oracle, "oráculo x86-64 (deleteAll em tabela inexistente: true, sem throw — §493)");
+        assertEquals(expected, oracle, "oráculo x86-64 (delete/deleteAll em tabela inexistente: throws 'mysql: ...' — §493)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             String arch = t.nativeArch();
             String as = arch.equals("riscv64") ? "riscv64-linux-gnu-as" : "aarch64-linux-gnu-as";
@@ -2589,7 +2595,7 @@ class KofOrmE2ETest {
             assertTrue(r.success(), t + " deveria compilar o erro mysql cross: "
                     + r.diagnostics().getDiagnostics());
             String got = runNativeBinary(out.resolve("Default/Main"), "qemu-" + arch);
-            assertEquals(oracle, got, t + " byte-parity com o oráculo x86 (ERR não lança — §493)");
+            assertEquals(oracle, got, t + " byte-parity com o oráculo x86 (ERR do delete/deleteAll lança — §493)");
         }
     }
 

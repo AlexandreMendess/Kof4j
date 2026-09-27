@@ -340,13 +340,17 @@ typed roundtrip) produces the **same observable result** on all four targets, or
        attempt read the caller's stale regs → ORM001/segfault; isolated with a
        scratch run under qemu `-strace`/`-d in_asm`). The JVM↔Native divergence
        on the **error** path (JVM throws, Native returns `true`) is
-       **pre-existing** and catalogued **§493** — left for the maintainer's
-       contract decision, not silently changed.
+       **pre-existing** and catalogued **§493** — RESOLVED 26/09 by
+       `D-DECISION-BATCH-2609` item 1 (the JVM is the law): delete/deleteAll now
+       THROWS on every Native target (x86 routes `.Lorm_del_my`/`.Lorm_da_my`
+       through `.Lorm_sa_exec`; cross `RtB75` calls `kof_orm_mysql_exec`/B76) —
+       §493 FIXED.
        *Proof:* `KofOrmE2ETest#crossNativeMariadbDeleteAndDeleteAllMatchesOracles`
        — JVM + x86-64 + riscv64 + aarch64 byte-identical on hit/miss/negative/
        idempotent (`3\ntrue\n2\ntrue\n2\ntrue\n2\ntrue\ntrue\n0`) — and
-       `#crossNativeMariadbDeleteErrorMatchesX86Oracle` (Native x86 == riscv64 ==
-       aarch64 on the missing-table ERR, all `true`).
+       `#crossNativeMariadbDeleteErrorsThrowLikeX86Oracle` (26/09, §493: Native
+       x86-64 == riscv64 == aarch64 on the missing-table ERR — all three throw
+       `mysql: Table 'test.user' doesn't exist`; RED pre-fix: all `true`).
     4. **`orm.save`** — INSERT path; the generated key needs
        `SELECT LAST_INSERT_ID()` (the `RtB74` scalar) and the field literals.
        This is the **only** face whose x86 reference **throws** on ERR
@@ -425,12 +429,17 @@ typed roundtrip) produces the **same observable result** on all four targets, or
     accept), and `kof_orm_conn`'s message should name the real cause (mysql ORM
     not yet ported) instead of `unknown db connection`.
 
-    **Design note (corrected 24/09):** the throwing cross exec
-    (`kof_orm_mysql_exec`) belongs to **`orm.save` only** — the x86
+    **Design note (corrected 24/09; SUPERSEDED 26/09 by `D-DECISION-BATCH-2609`
+    item 1 — the JVM is the law, §493 FIXED):** the throwing cross exec
+    (`kof_orm_mysql_exec`) was thought to belong to **`orm.save` only** — the x86
     `delete`/`deleteAll` do **not** throw (they use the generic `kof_db_execute`),
     so porting a throw there would *diverge* from the x86 contract. The JVM's
-    `orm.delete`/`deleteAll` do throw (JDBC), which is precisely the
-    **JVM↔Native divergence catalogued §493** (rule 6 — maintainer's decision).
+    `orm.delete`/`deleteAll` do throw (JDBC), which was the **JVM↔Native
+    divergence catalogued §493**. **SUPERSEDED 26/09** by `D-DECISION-BATCH-2609`
+    item 1 (rule 6 decided — the JVM is the law): x86/cross `delete`/`deleteAll`
+    now go through the SAME throwing exec (`.Lorm_sa_exec` / `kof_orm_mysql_exec`)
+    as `save`, and §493 is FIXED — both faces match the JVM on success AND on
+    error.
 
 ## Non-goals / invariants
 

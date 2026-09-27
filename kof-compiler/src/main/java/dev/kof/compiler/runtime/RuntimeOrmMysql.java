@@ -2,13 +2,13 @@ package dev.kof.compiler.runtime;
 
 /**
  * kof.orm no Native x86-64 — ramo MySQL do wire (D-DB-GAPS DB-3, fatias
- * F2d1/F2d2, 21/09). Extraido de RuntimeOrm1 no gate 500 com a
+ * F2d1/F2d2, 21/09; §493 26/09). Extraido de RuntimeOrm1 no gate 500 com a
  * responsabilidade: as faces ORM delegam aqui quando o id e mysql
- * (kof_db_type(id)==2); o dialect backtick espelha o host kof_orm_q e a
- * execucao usa o wire COM_QUERY do kof_db_execute (affectedRows) e os
- * readers de resultset kof_db_mysql_reset/next/lenenc. Entradas .L
- * chamadas por kof_orm_delete_all/kof_orm_count (labels resolvidos no
- * mesmo .s, slices emitidas juntas por NativeOrmEmit).
+ * (kof_db_type(id)==2); o dialect backtick espelha o host kof_orm_q; count usa
+ * os readers de resultset kof_db_mysql_reset/next/lenenc, e delete/deleteAll
+ * usam o exec que lanca no ERR do servidor, como a lei D-DECISION-BATCH-2609.
+ * Entradas .L chamadas por kof_orm_delete_all/kof_orm_count (labels resolvidos
+ * no mesmo .s, slices emitidas juntas por NativeOrmEmit).
  */
 public final class RuntimeOrmMysql {
 
@@ -51,10 +51,8 @@ public final class RuntimeOrmMysql {
                 call .Lorm_bfin
                 movq (%rsp), %rdi
                 movq 16(%rsp), %rsi
-                call kof_db_execute             # id malformado lanca como o host
-                testl %eax, %eax                # wire devolve affectedRows (>=0 no OK)
-                setge %al                       # host: kof_db_execute(...) >= 0
-                movzbl %al, %eax
+                call .Lorm_sa_exec             # §493: ERR do servidor LANCA como o host
+                movl $1, %eax                 # OK packet: affectedRows >= 0 sempre true
                 addq $24, %rsp
                 popq %r15
                 popq %r14
@@ -212,9 +210,11 @@ public final class RuntimeOrmMysql {
                 .ascii "DELETE FROM `"
 
             # .Lorm_del_my(rdi=id, rsi=key, rdx=table, rcx=schema) -> rax Bool
-            #   F2d3a: DELETE FROM `t` WHERE `pk` = ? no wire mysql via
-            #   kof_db_execute1 (prepared binario). Host: execute1(...) >= 0
-            #   (miss tambem true — affectedRows 0 >= 0). Slots: 0 id |
+            #   F2d3a/§493: DELETE FROM `t` WHERE `pk` = literal no wire mysql.
+            #   O key e renderizado/escapado por kof_db_mysql_render e trocado
+            #   no '?' por kof_db_mysql_replace_q; a execucao usa .Lorm_sa_exec
+            #   para que ERR do servidor LANCE (a lei D-DECISION-BATCH-2609).
+            #   Host: execute1(...) >= 0 (miss tambem true). Slots: 0 id |
             #   8 key | 16 table | 24 schema | 40 ftab | 56 nFields |
             #   64 pkIndex | 88 pkEntry | 96 sql
             .Lorm_del_my:
@@ -275,14 +275,17 @@ public final class RuntimeOrmMysql {
                 call .Lorm_bp
                 call .Lorm_bfin
                 movq %rbx, 96(%rsp)
-            # ---- execute1 (prepared binario) e >= 0 ----------------------
+            # ---- render do bind + exec COM_QUERY que LANCA no ERR ----------
+                movq 8(%rsp), %rdi
+                call kof_db_mysql_render
+                movq %rax, %rsi
+                movq 96(%rsp), %rdi
+                call kof_db_mysql_replace_q
+                movq %rax, 96(%rsp)
                 movq 0(%rsp), %rdi
-                movq 96(%rsp), %rsi
-                movq 8(%rsp), %rdx
-                call kof_db_execute1
-                cmpl $0, %eax
-                setge %al
-                movzbl %al, %eax
+                movq %rax, %rsi
+                call .Lorm_sa_exec
+                movl $1, %eax                 # OK packet: affectedRows >= 0 sempre true
                 addq $120, %rsp
                 popq %r15
                 popq %r14
