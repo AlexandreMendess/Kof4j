@@ -43,7 +43,7 @@ surface**).
 
 ## 0. What is live here (read first)
 
-- **Pending (the release gate's condition 3):** none — the in-flight
+- **Pending (the release gate's condition 3):** `kofmd-plan.md` (+PT) — `D-KOFMD` (maintainer 27/09): Kofmd is INDISPENSABLE for 0.5.0, so it is NOT allowlisted; Fase 1 (investigation) done in the doc, queue in roadmap §23. The in-flight
   OWNED plans still loose (`db-parity-plan`,
   `PLAN-BAREMETAL-BOOT`, and since 26/09 `interop-engine-plan` — X2, owned by
   the compiler lane per `D-COMPLETE-FIRST` item 2, same treatment as
@@ -98,6 +98,7 @@ surface**).
 | — | ~~`type-system-extensions-plan.md` (+PT)~~ → `docs/type-system-extensions-plan.md` — X5 variance+sealed / X6 interop reflection | ✅ **CONCLUDED + MOVED 22/09** — X5.0–X5.5 + X6.0–X6.3 all landed (X5.5 cells `sealedswitch`/`variance`/`useproj`; X6.3 cell `interopschema` + Arrow/Parquet binding E2E, `InteropSchemaE2ETest` 18/18); 3-state rule | — (doc in `docs/`) | — |
 | — | ~~`kof-c-cross.md` (+PT)~~ → `docs/kof-c-cross.md` — `kof-c-compiler` cross targets (C1–C4) | ✅ **CONCLUDED + MOVED 23/09** — C1+C2+C3+C4+C3-residual all landed (in-repo C subset compiler emits riscv64/aarch64 via per-ISA emitters; `kof c --target`/`-c`/`.o`; struct multi-eightbyte param ≤48 B + struct return ≤16 B); proof `KofCCrossCompilerTest`/`KofCParamsCompilerTest`/`KofCStructCompilerTest` 14/14 + `KofCObjectCompilerTest` 5/5 under qemu (x86_64 oracle) | moved to `docs/` (three-states rule) | — |
 | — | ~~`PLAN-BAREMETAL-BOOT.md` (+PT)~~ → `docs/PLAN-BAREMETAL-BOOT.md` — bare-metal/bootable with ring0/ring1 (faces B-0…B-6) | ✅ **CONCLUDED + MOVED 25/09** — **promoted from `future/` 22/09** (`D-BAREMETAL-BOOT`, maintainer order) · **B-0..B-3 + B-6 LANDED** (`kof_plat_*` seam on x86+cross; freestanding link + configurable heap/stack + `_end`; libc-free Schubfach dtoa on x86+cross (B-1c, §448); UEFI profile; **legacy BIOS boot runs the REAL Kof `main` bare** — B-3a+B-3b, `KO-BIOS OK`/`LM64 OK`/`PAYLOAD` under SeaBIOS, `BiosBootE2ETest` **5/0F**; ring0/ring1 with `#GP` + GDT-sabotage proof) | moved to `docs/` (3-state rule) | — (**B-4 MCU landed on riscv32**: 32-bit codegen + collector port B4-GC-1..4 `NativeMcuGcTest` 8/0 + MCU time B4-TIME `NativeMcuTimeTest` 2/0; closure per `D-BAREMETAL-MCU-GC` "and/or"; follow-ups tracked: Cortex-M3 mirror + emitter IR integration, q.v. `roadmap.md` §23) |
+| — | `kofmd-plan.md` (+PT) — `D-KOFMD` (maintainer 27/09) | `IN DEVELOPMENT` — typed intent-oriented Markdown; Fase 1 investigation DONE in the doc; doc verbosity is the problem it solves; **INDISPENSABLE for 0.5.0** (not allowlisted — it gates the cut) | maintainer decision 27/09, queue `roadmap.md` §23 | Fase 2+ execute as slices per the plan table; claim in `DOING.md` before code |
 | — | living records: `conformance-matrix.md`, `ecosystem-coverage.md`, `KOFUI-AUDIT.md`, `known-bugs.md` (in `docs/bugs-and-gaps/`); `roadmap.md` (here); `roadmap-audit.md`/`complexity-audit.md` (in `docs/audits/`) | `LIVE` | **they are not backlog** — matrix/audit/queue that update together with each closure | update the cell/section in the SAME commit that closes the gap |
 
 **R12 rule (AGENTS.md):** nothing from `future/` (RAII, package-compiler,
