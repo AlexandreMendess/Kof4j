@@ -2,191 +2,68 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-1-spec
+last: phase-3-slice-5
 doing: memory-safety
-next: phase-2-core
+next: mem021-spawn-aliasing
 location: memory-safety-plan
 state: active
-constraint: core-edits-wait-for-queue
+intent: compiler-provable-memory-safety
+constraint:
+  - core-edits-wait-for-queue
+  - no-foreign-borrow-checker
+decision: D-MEMORY-SAFETY
 
-> **Status: ACTIVE front, owned by the parity lane (maintainer 25/09,
-> `DECISIONS.md` §`D-MEMORY-SAFETY`).** Fase 0 (investigation) **CLOSED 25/09** —
-> `docs/spec/memory-safety-investigation.md` accepted. Fase 1 (specification)
-> **CLOSED 25/09 — maintainer chose "review and close" (option A of the
-> decision list)**: `docs/spec/memory-safety.md`(+PT) is the accepted spec.
-> Compiler/core edits (Phases 2+) wait for the current development queue to
-> close (brief's final constraint; option J — ZERO premature core edits).
+Success criterion: the compiler can prove a program cannot produce a class of error (use-after-free, double-free, dangling reference, invalid lifetime escape, unsafe mutable aliasing, unexpected null, accidental data race) — or that it lives behind an explicitly named boundary. NOT a feature named `ownership`.
 
-**Goal:** define a serious memory semantics for Kof so that entire classes of
-memory bugs are impossible — or live behind an explicit boundary the
-programmer must name. NOT a feature called `ownership`: the success criterion
-is the compiler being able to say *"this program cannot produce this class of
-error"* (use-after-free, double-free, dangling reference, invalid lifetime
-escape, unsafe mutable aliasing, unexpected null, accidental data race).
+## Hard constraints
 
-## The brief's hard constraints (locked in `D-MEMORY-SAFETY`)
+- Kof already has null safety — never reinvent/replace/duplicate it; only study nullability × ownership × lifetime × borrowing.
+- Kof-first: no assumption Kof works like Rust, C++, Java, Kotlin, Swift or Zig (rules 8/10).
+- Architecture before code; implementation waits for the current queue.
+- Simplicity Law (rule 11): strong guarantees without endless lifetime annotations.
+- Cross-target by construction (JVM/Native/JS/WASM same semantics; GC never excuses divergence; FFI defines the owner per crossing).
+- Diagnostics and tests are part of the feature (valid/invalid/expected-diagnostic/regression/per-backend).
+- Forbidden: copying Rust's borrow checker, inventing syntax (`let`/`const`/foreign move markers), a null-safety rewrite, big-bang refactors, single-backend ownership, hiding ownership in the runtime.
 
-1. **Kof already has null safety** — never reinvent/replace/duplicate it;
-   only study nullability × ownership × lifetime × borrowing.
-2. **Kof-first investigation** — no assumption that Kof works like Rust,
-   C++, Java, Kotlin, Swift or Zig (rule 10; rule 8: a foreign-language
-   feature request is not a Kof bug).
-3. **Architecture before code** — Phase 0 investigation and Phase 1 spec
-   precede ANY compiler edit.
-4. **Implementation waits for the current queue** (brief, final line).
-5. **Simplicity Law** (rule 11): strong guarantees without turning Kof code
-   into an endless chain of lifetime annotations.
-6. **Cross-target by construction** — JVM, Native, JS and the planned WASM
-   express the same Kof semantics; GC on JVM/JS never excuses semantic
-   divergence; FFI must define the owner per crossing.
-7. **Diagnostics and tests are part of the feature** — every rule ships with
-   valid/invalid/expected-diagnostic/regression/per-backend cases; small
-   suites per domain, adapted to the real test tree.
-8. **Forbidden:** copying Rust's borrow checker, inventing syntax (`let`,
-   `const`, foreign move markers), a null-safety rewrite, big-bang compiler
-   refactors, single-backend ownership, hiding ownership problems in the
-   runtime.
+## Phases
 
-## Phases (each gates the next; a phase closes only with proof)
-
-| Phase | Deliverable | Gate |
+| Phase | Deliverable | State |
 |---|---|---|
-| **0 — Investigation** ✅ | `docs/spec/memory-safety-investigation.md` (EN+PT): current state (parser/AST/semantics/types/IR/symbol resolution/mutability/closures/scope/implicit lifetime per backend: JVM/Native/JS/WASM-infrastructure/FFI/pointers/collections/async), risks found, existing related bugs (§ ledger sweep), fragile points, proposal, alternatives considered, compatibility impact, incremental plan | investigation doc accepted (maintainer review); 20 questions of §1 answered with file:line evidence — **CLOSED 25/09** |
-| **1 — Specification** 🔄 | `docs/spec/memory-safety.md` (EN+PT): Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone, Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe Boundaries — each with: allowed / forbidden / sync-required / compile-time / runtime / type-dependent | spec accepted; the safety matrix (§22 of the brief) written against REAL Kof syntax |
-| ~~**2 — Compiler infrastructure**~~ | internal representations for ownership/lifetime/borrow/alias/mutability/escape/resource-state — **✅ CLOSED 26/09** (slices 1–4: `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` in `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; `Build + Tests` success `9bcddfe90` — zero behavior change) | ALCANCADO 26/09 (structures compile; suite byte-green no runner) |
-| **3 — First guarantees** | use-after-move; dangling references; invalid escapes; mutable aliasing; double ownership/destruction | per-rule: valid case compiles, invalid case gets the NAMED diagnostic, regression test, per-backend proof |
-| **4 — Closures & async** | closure capture semantics; callbacks; async/futures; iterators/generators | same proof shape |
-| **5 — Native & FFI** | pointers/allocation/destruction/C ABI/other connectors; the Kof↔C↔Rust↔JVM↔Python ownership table | every boundary kind has an owner/free-writer/guardian decision + test |
-| **6 — JVM / JS / WASM** | the same semantics on every backend | cross-target proof matrix green |
+| 0 Investigation | `docs/spec/memory-safety-investigation.md` (EN+PT): state, risks, § ledger sweep, proposal, alternatives, compatibility, incremental plan; 20 questions answered with file:line | closed 25/09 |
+| 1 Specification | `docs/spec/memory-safety.md` (EN+PT): Ownership/Lifetime/Borrowing/Aliasing/Mutability/Move/Copy/Clone/Drop/Escape/Closure Capture/Concurrency/FFI/Unsafe Boundaries, each classified allowed/forbidden/sync-required/compile-time/runtime/type-dependent | closed 25/09 (maintainer option A) |
+| 2 Compiler infrastructure | `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` in `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; zero behavior change | closed 26/09 (`9bcddfe90`, queue exhausted) |
+| 3 First guarantees | use-after-move; dangling; invalid escapes; mutable aliasing; double ownership/destruction | in progress (slices below) |
+| 4 Closures & async | closure capture; callbacks; async/futures; iterators/generators | pending |
+| 5 Native & FFI | pointers/allocation/C ABI; Kof↔C↔Rust↔JVM↔Python ownership table | pending |
+| 6 JVM / JS / WASM | same semantics every backend | pending |
 
-## Immediate next step (this lane)
+## Phase 3 slices (emission surface = what exists in the user surface)
 
-**Fase 1 CLOSED 25/09** — `docs/spec/memory-safety.md` (EN+PT) written and
-accepted by the maintainer (option A). It formalizes
-Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone,
-Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe
-Boundaries against the real Kof surface documented in
-`docs/spec/memory-safety-investigation.md`. Each rule with
-allowed/forbidden/sync-required/compile-time/runtime/type-dependent
-classification. Safety matrix (§22 of the brief) against REAL Kof syntax.
-**No compiler edits.**
-
-**Fase 2 UNLOCKED 26/09 by the maintainer (chat: "fase 2 destravada").**
-The lane now builds the compiler-internal representations — package
-`dev.kof.compiler.memory` with ownership/lifetime/borrowing/aliasing/
-mutability/escape/resource-state models + the `MEMxxx` diagnostic-code enum
-from the spec (§1–§10). Structures + tests only; **zero behavior change**
-(suite byte-green). Emission/wiring of the diagnostics is Fase 3.
-
-**Fase 2 LANDED 26/09 (slices 1–4, tip `9bcddfe90`):** `OwnerKind` (§2.1),
-`MemRule` (as 31 regras O/L/B/M/E/C/N com diagnostico ou permissivas),
-`ManagedResource` (§9), `CaptureMode` (§6.1), `MoveDetector`+`MoveTransfer`
-(O-02, read-only, sem emissao) — `MemoryModelTest` 8/8, zero mudanca de
-comportamento. A fila de representacao esta EXAUSTA.
-
-> **DECISION REQUEST — RESOLVIDO 26/09 por D-COMPLETE-FIRST (DECISIONS.md):**
-> the move pattern `var a = b; b = null` collided with N-02/SEM048 (null
-> literals forbidden). The maintainer's rule (26/09, chat) makes the complete
-> idiomatic form the decision: **re-express O-02 without a null literal (c)** —
-> the ownership/lifetime analysis pass in the compiler pipeline, with
-> MEM001/MEM002/MEM005 emission and the interaction cases across the 4
-> targets, landed as one complete package (pass + emission + per-target proof;
-> no lone diagnostic, no stub, no gap accepted). **Fase 3 UNLOCKED.**
-
-**Fase 3 — fila de fatias (cada uma entrega completa do seu escopo declarado):**
-
-| Fatia | Face | Estado |
+| Slice | Face | State |
 |---|---|---|
-| **1** Regiao retilinea | O-01/`MEM001` dupla reivindicacao + O-02/`MEM002` use-after-claim via alias — `OwnershipPass` ligado no `StatementAnalyzer.analyzeBody` (frontend compartilhado = mesma analise nos 4 alvos), `MemorySafetyE2ETest` (invalidos nos 4, validos byte-green com golden JVM/Script) | LANDED 26/09 |
-| **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | LANDED 26/09 |
-| **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | LANDED 26/09 |
-| **4** Mutable aliasing at boundaries | B-05/`MEM022` — size-changing mutation of the collection being iterated (`add`/`remove`/`clear`/`addAll` inside its own `for-in`), WARNING + zero-FP by construction; the frontend `for-in` is an index loop re-reading `size` each turn (`StatementLowerer`), so this is a real live-alias bug | LANDED 26/09 |
-| **5** Containers & unclosed | O-03/`MEM003` (container release — **DECISION REQUEST rule 6**, below) + L-05/`MEM014` db connection (web landed 3.1b; `kof.io` has NO close-bearing file handle) | db `MEM014` **LANDED 26/09**; O-03 pending maintainer decision |
+| 1 Straight-line | O-01/`MEM001` double claim + O-02/`MEM002` use-after-claim via alias — `OwnershipPass` wired in `StatementAnalyzer.analyzeBody` (shared frontend = same analysis on 4 targets); `MemorySafetyE2ETest` | landed 26/09 (`c23dcb30d`) |
+| 2 Flow crossing | conditional claim/read (if/while/try/switch) — branch snapshot inherited, result does NOT propagate (anti-false-positive by construction); unconditional `BlockStmt` propagates | landed 26/09 |
+| 3 Escape/dangling | L-04/`MEM013` (capture extends life) + dangling faces of spec §3 | landed 26/09 |
+| 4 Mutable aliasing | B-05/`MEM022` — size-changing mutation (`add`/`remove`/`clear`/`addAll`) of the collection being iterated in its own `for-in`; WARNING + zero-FP by construction (`for-in` is an index loop re-reading `size` each turn) | landed 26/09 |
+| 5 Containers & unclosed | O-03/`MEM003` (container release — DECISION REQUEST below) + L-05/`MEM014` db connection (web landed 3.1b; `kof.io` has no close-bearing file handle) | db `MEM014` landed 26/09; O-03 pending maintainer |
+| 3.2 | MEM021 spawn mutable aliasing — `spawn` capturing a mutable object the parent also mutates, with no `await`/`join_all` between (spec B-04/C-03); ERROR on the clear race, silent elsewhere; zero false positives required | next |
 
-> **DECISION REQUEST (rule 6) — O-03/`MEM003` (container release semantics):**
-> the spec §3 row ("Container ownership | `list.add(x)` → list owns `x`;
-> `list.clear()` releases | Container holding reference after clear without
-> nulling elements | `MEM003` | Compile-time") does not, as measured 26/09,
-> define a decidable **user-program pattern**: `clear()` is a legal reset
-> (`list.clear()` then `list.add(y)` reuses the container), and the "nulling
-> elements" clause is a runtime implementation property of `kof_list_clear`,
-> not a shape an AST pass can flag. The maintainer must decide the CONTRACT:
-> **(a)** `clear()` MUST null every slot before shrinking — then `MEM003` is a
-> runtime guarantee proven by a test, never a compile face; or **(b)** there is
-> a real user-level "container still referenced after release" pattern to
-> diagnose at compile time, which must be named with its exact shape. Until
-> decided, **no `MEM003` diagnostic is emitted** — silence is honest; inventing
-> a face would be a stub (Q7 forbids it).
+- MEM005 (FFI ownership) is ALREADY SATISFIED at the boundary: Native rejects record/array/out-buffer externs with `FFI001` at the decl line; JVM/JS copy-back; String returns boundary-copied. Slice 3.3 documents O-05's compile face — no duplicate diagnostic invented (rule 11).
+- Spec-corrected: reading the CLAIMER after its own close is L-02/`MEM011` (RUNTIME, GC-free native), not MEM001 — corrected against spec §3 rows 84/87.
+- Evidence: `ResourceLeakE2ETest` 5/5 (web), `DbResourceLeakE2ETest` 4/4 (db), `MemorySafetyE2ETest` 29/29 (9 new faces). `kof.io` has no close-bearing handle (stateless by path) — absence, not a gap.
+- Reordering 26/09: slice 4 was specified as B-03/`MEM020` + B-04/`MEM021`, both moved out (named, not accepted gaps): B-03 needs the FFI borrow surface (phase 5); B-04 needs closure/async capture (phase 4).
 
-## Fase 3 — design (UNLOCKED 26/09 by `D-COMPLETE-FIRST`; package = pass + emission + per-target proof)
+## Decision requests (rule 6)
 
-The emission surface is what EXISTS in the user surface (measured 26/09,
-not assumed):
+- **O-03/`MEM003` container release** — the spec §3 row does not define a decidable user-program pattern: `clear()` is a legal reset and "nulling elements" is a runtime property of `kof_list_clear`. Maintainer must choose the CONTRACT: **(a)** `clear()` MUST null every slot before shrinking → `MEM003` is a runtime guarantee proven by test, never a compile face; or **(b)** name the exact user-level "container still referenced after release" shape. Until decided, **no `MEM003` diagnostic is emitted** (silence is honest; inventing a face would be a stub, Q7).
+- **O-02 move pattern** resolved 26/09 by `D-COMPLETE-FIRST`: `var a = b; b = null` collided with N-02/SEM048 (null literals forbidden) → re-express O-02 without a null literal, as the complete package (pass + emission + per-target proof).
 
-- **MEM005 (FFI ownership) — ALREADY SATISFIED at the boundary**: Native
-  rejects record/array/out-buffer externs with `FFI001` AT THE DECL LINE
-  (`interop.md`, measured); JVM/JS copy-back works; String returns are
-  boundary-copied everywhere. Fatia 3.3 documents this as O-05's compile
-  face — NO duplicate diagnostic will be invented for a path already honest
-  (rule 11).
-- **MEM001/MEM002 (claim/release) — fatia 3.1**: ✅ **LANDED 26/09 (`c23dcb30d`,
-  `OwnershipPass`, wired in `StatementAnalyzer.analyzeBody`)** — the spec
-  mapping is the law: O-01/MEM001 = double claim on the same resource group
-  (second `x.close()`); O-02/MEM002 = read of a non-claiming sibling after the
-  claim; reading the CLAIMER itself after its own close is L-02/MEM011
-  (RUNTIME — GC-free native, not a compile-time diagnostic; an earlier design
-  line here conflated it with MEM001 and was corrected against spec §3 rows
-  84/87 when the pass landed). Straight-line faces; cross-flow/containers are
-  the named queue rows above.
-- **MEM014 (resource lifetime, L-05) — fatia 3.1b**: ✅ **LANDED 26/09**
-  (`ResourceLeakAnalysis`, same shared-frontend hook): a `web.app()` handle
-  never closed anywhere in the body and never returned/aliased/passed gets a
-  WARNING at the creation site; any close at any depth or any escape silences
-  it (conservative, zero-FP by construction). Same diagnostic on JVM/Native/JS
-  pinned by `ResourceLeakE2ETest` 5/5; valid lifecycles stay silent and
-  byte-green. **Slice 5 (26/09) added `db.connect(...)`** (a String handle
-  closed via `db.close(handle)`): same warning at the creation site, pinned by
-  `DbResourceLeakE2ETest` 4/4. `kof.io` has NO close-bearing file handle
-  (reads/writes are stateless by path), so there is no file face to track —
-  absence, not a gap.
+## Package DoD
 
-- **MEM022 (mutation during iteration, B-05) — slice 4**: ✅ **LANDED 26/09**
-  (`OwnershipPass`, same shared-frontend hook): inside `for (var x in C)`, any
-  size-changing mutation of `C` — `add`/`remove`/`clear`/`addAll`, directly or
-  through an alias of `C`'s root — emits a `MEM022` **WARNING**. WARNING and not
-  an error by design, mirroring `ResourceLeakAnalysis`'s zero-FP posture: the
-  index-loop semantics make mutation observable, but the worklist/BFS pattern
-  (growing the queue while scanning it) is intentional and must keep compiling.
-  Mutating ANOTHER collection, a field of an element, or a deferred lambda body
-  stays silent. `MemorySafetyE2ETest` 29/29 (9 new faces: add/remove/clear/addAll,
-  alias, nested branch; silent: other collection, element field, lambda, `set`).
-
-- **Reordering (26/09):** slice 4 was specified as B-03/`MEM020` + B-04/`MEM021`.
-  Both were evaluated first and moved out (named, not accepted gaps): B-03
-  (single writable FFI buffer) needs the FFI borrow/lifetime surface (**Fase
-  5**); B-04 (`spawn` shared mutable state) needs the closure/async capture
-  context (**Fase 4**). Slice 4 landed as B-05/`MEM022`, the fully decidable
-  face, per the plan's own authorisation to reorder.
-
-- **MEM021 (spawn mutable aliasing) — fatia 3.2**: `spawn` capturing a
-  MUTABLE object that the parent also mutates after the spawn (and vice
-  versa), with no `await`/`join_all` between, is the spec's forbidden face
-  B-04/C-03; computable on the same pass; ERROR on the clear race pattern,
-  silent elsewhere — zero false positives required for landing.
-
-Package DoD: pass + wiring + `MemorySafetyE2ETest` per target (JVM/Script/
-JS/Native same sources, same diagnostics) + corpus note in
-`training/idioms/concurrency.md`+`interop.md` when emission lands; each
-fatia lands complete or does not land (`D-COMPLETE-FIRST`).
+Pass + wiring + `MemorySafetyE2ETest` per target (JVM/Script/JS/Native same sources, same diagnostics) + corpus note in `training/idioms/concurrency.md`+`interop.md` when emission lands; each slice lands complete or does not land (`D-COMPLETE-FIRST`).
 
 ## Definition of done (whole front)
 
-The 12 questions of §27 answered in the spec, the impossible-bug-classes list
-explicit, and the implementation matching the spec with the §22 safety matrix
-green per backend — "some structures named `Ownership`/`Borrow`/`Lifetime`"
-is NOT done.
+The 12 §27 questions answered in the spec, the impossible-bug-classes list explicit, and the implementation matching the spec with the §22 safety matrix green per backend — "structures named `Ownership`/`Borrow`/`Lifetime`" is NOT done.
 
-**Relationships:** `DECISIONS.md` §`D-MEMORY-SAFETY` (the decision record);
-`PARITY-GAPS.md` (the blocker this front queues behind); `rule 6` (frozen
-semantics — any ownership semantics that changes evaluation order or operator
-contracts is a maintainer decision, never an agent edit).
+Relationships: `DECISIONS.md` §`D-MEMORY-SAFETY`; `PARITY-GAPS.md` (the blocker this front queues behind); rule 6 (frozen semantics — any ownership semantics changing evaluation order or operator contracts is a maintainer decision, never an agent edit).
