@@ -679,6 +679,104 @@ class KofmdTool {
         return block.prose().get(0).startsWith("```")
     }
 
+    format(KofmdDoc doc): String {
+        return renderMarkdown(canonicalize(doc))
+    }
+
+    canonicalize(KofmdDoc doc): KofmdDoc {
+        var seed = KofmdBlock(newStrList(), newFieldList(), newStrList())
+        var blocks = listOf(seed)
+        blocks.clear()
+        var index = 0
+        while (index < doc.blocks().size) {
+            blocks.add(sortFields(doc.blocks().get(index)))
+            index = index + 1
+        }
+        return KofmdDoc(blocks)
+    }
+
+    sortFields(KofmdBlock block): KofmdBlock {
+        var seed = KofmdField("kofmd", "seed", false, newStrList())
+        var fields = listOf(seed)
+        fields.clear()
+        var index = 0
+        while (index < block.fields().size) {
+            fields.add(block.fields().get(index))
+            index = index + 1
+        }
+        var i = 0
+        while (i < fields.size) {
+            var j = i + 1
+            while (j < fields.size) {
+                if (keyLess(fields.get(j).name(), fields.get(i).name())) {
+                    var temp = fields.get(i)
+                    fields.set(i, fields.get(j))
+                    fields.set(j, temp)
+                }
+                j = j + 1
+            }
+            i = i + 1
+        }
+        var intents = newStrList()
+        var k = 0
+        while (k < block.intents().size) {
+            intents.add(block.intents().get(k))
+            k = k + 1
+        }
+        var prose = newStrList()
+        var p = 0
+        while (p < block.prose().size) {
+            prose.add(block.prose().get(p))
+            p = p + 1
+        }
+        return KofmdBlock(intents, fields, prose)
+    }
+
+    keyLess(String a, String b): Bool {
+        var rankA = continuityRank(a)
+        var rankB = continuityRank(b)
+        if (rankA != rankB) {
+            return rankA < rankB
+        }
+        return byteLess(a, b)
+    }
+
+    continuityRank(String key): Int {
+        if (key == "last") {
+            return 0
+        }
+        if (key == "doing") {
+            return 1
+        }
+        if (key == "next") {
+            return 2
+        }
+        if (key == "location") {
+            return 3
+        }
+        if (key == "state") {
+            return 4
+        }
+        return 5
+    }
+
+    byteLess(String a, String b): Bool {
+        var limit = a.length
+        if (b.length < limit) {
+            limit = b.length
+        }
+        var index = 0
+        while (index < limit) {
+            Int ca = a.charAt(index)
+            Int cb = b.charAt(index)
+            if (ca != cb) {
+                return ca < cb
+            }
+            index = index + 1
+        }
+        return a.length < b.length
+    }
+
     isIntentLine(String trimmed): Bool {
         if (!trimmed.startsWith("@")) {
             return false
