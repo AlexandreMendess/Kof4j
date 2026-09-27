@@ -123,6 +123,34 @@ class InteropRE2ETest {
     }
 
     @Test
+    void exprGenerationIsVerifiableWithoutR() throws Exception {
+        // A GERACAO da expressao R (escape de literal + montagem da -e) e
+        // verificavel no JVM sem Rscript — foi exatamente ela que quebrou no
+        // CI (efa8805ab, canal stdin=/dev/null); provar local, nao so no CI.
+        Path src = tmp.resolve("gen.kf");
+        Files.writeString(src, """
+                import kof.interop
+                main() {
+                    var r = KofR("f <- function() 1")
+                    println(r.kofREscape("a\\\\b'c"))
+                    println(r.kofRExpr("plain"))
+                }
+                """);
+        Run run = runJvm(src, tmp.resolve("out-gen"));
+        assertTrue(run.ok(), "geracao deve rodar sem R: " + run.output());
+        String[] lines = run.output().split("\n");
+        // entrada a\b'c -> saida a\\b\'c (backslash dobra, aspa escapa)
+        assertEquals("a\\\\b\\'c", lines[0],
+                "escape do literal R (Q3: backslash antes da aspa — ordem)");
+        assertTrue(lines[1].contains("requireNamespace(\"jsonlite\""),
+                "guard jsonlite nomeado deve estar na expressao");
+        assertTrue(lines[1].contains("fromJSON('plain', simplifyVector=FALSE)"),
+                "spec embutida como literal R entre aspas simples");
+        assertTrue(lines[1].contains("eval(parse(text=s$source))"),
+                "source reaplicada ANTES do dispatch (replay identico ao py)");
+    }
+
+    @Test
     void typedCallsRoundTripOnJvm() throws Exception {
         requireR();
         Path src = tmp.resolve("happy.kf");

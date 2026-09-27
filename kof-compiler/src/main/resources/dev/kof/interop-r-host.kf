@@ -1,7 +1,8 @@
 // Motor R do kof.interop (X2, D-COMPLETE-FIRST item 2 — plano
 // docs/development/interop-engine-plan.md). KOF-first (rule 10) + simetria
 // total com o KofPy (regra 11): MESMO protocolo de 2 linhas, MESMAS faces,
-// spec via stdin (1a linha), `source` reaplicada por chamada (modelo replay). O codec
+// spec embutida na expressao -e (literal R escapado), `source` reaplicada por
+// chamada (modelo replay). O codec
 // JSON do lado R e o jsonlite do ecossistema (interop-first R9 — o motor
 // nao implementa parser JSON proprio); sem jsonlite a face falha NOMEADA,
 // nunca silenciosa (R6).
@@ -12,23 +13,30 @@ class KofR {
         this.source = source
     }
 
-    String kofRPrelude() {
-        // O spec NAO via argv: medido que `Rscript -e <expr> <posicional>`
-        // trata o posicional como FICHEIRO a sourcear (nunca commandArgs).
-        // Via stdin na 1a linha (readLines n=1 — nao espera EOF, o handle
-        // F10 nao tem closeStdin) — espelha o fluxo write/readLine do py.
-        return             "if (!requireNamespace(\"jsonlite\", quietly=TRUE)) { cat(\"KOFERR\\n\"); cat(\"jsonlite package missing (install.packages jsonlite)\\n\"); quit(status=0) }\n" +
-            "s <- jsonlite::fromJSON(readLines(file(\"stdin\"), n=1, warn=FALSE), simplifyVector=FALSE)\n" +
-            "ok <- TRUE\n" +
-            "r <- tryCatch({ do.call(get(s$fn, envir=globalenv()), as.list(s$args)) }, error=function(e) { ok <<- FALSE; gsub(\"\\n\", \" | \", conditionMessage(e), fixed=TRUE) })\n" +
-            "cat(if (ok) \"KOFOK\\n\" else \"KOFERR\\n\")\n" +
-            "cat(if (ok) paste0(jsonlite::toJSON(r, auto_unbox=TRUE), \"\\n\") else paste0(r, \"\\n\"))\n"
+    String kofREscape(String s) {
+        // Embedding no literal R '...': backslash primeiro, depois a aspa
+        return s.replace("\\", "\\\\").replace("'", "\\'")
+    }
+
+    String kofRExpr(String spec) {
+        // Canais descartados por MEDIDA no CI (efa8805ab): stdin do filho e
+        // /dev/null no spawn JVM (JvmRuntimeCore redirectInput — por isso o
+        // py host nunca usou stdin) e `Rscript -e <expr> <posicional>` trata
+        // o posicional como FICHEIRO a sourcear (Rscript man). Sobra a
+        // expressao: spec vira literal R com escapamento backslash-aspa.
+        // `;` entre statements: -e aceita a expressao multi-statement inteira.
+        return "if (!requireNamespace(\"jsonlite\", quietly=TRUE)) { cat(\"KOFERR\\n\"); cat(\"jsonlite package missing (install.packages jsonlite)\\n\"); quit(status=0) }; " +
+            "s <- jsonlite::fromJSON('" + this.kofREscape(spec) + "', simplifyVector=FALSE); " +
+            "eval(parse(text=s$source)); " +
+            "ok <- TRUE; " +
+            "r <- tryCatch({ do.call(get(s$fn, envir=globalenv()), as.list(s$args)) }, error=function(e) { ok <<- FALSE; gsub(\"\\n\", \" | \", conditionMessage(e), fixed=TRUE) }); " +
+            "cat(if (ok) \"KOFOK\\n\" else \"KOFERR\\n\"); " +
+            "cat(if (ok) paste0(jsonlite::toJSON(r, auto_unbox=TRUE), \"\\n\") else paste0(r, \"\\n\"))"
     }
 
     String kofRLine(String funcName, String argsJson) {
         val spec = "{\"fn\":\"" + funcName + "\",\"args\":" + argsJson + ",\"source\":" + json.encode(this.source) + "}"
-        val h = process.spawn("Rscript", "--vanilla", "-e", this.kofRPrelude())
-        h.write(spec)
+        val h = process.spawn("Rscript", "--vanilla", "-e", this.kofRExpr(spec))
         val status = h.readLine()
         if (status == "") {
             throw "INTEROP004: Rscript exited without responding (interpreter missing or fatal startup error, exit " + h.exitCode() + ")"
