@@ -3998,3 +3998,32 @@ tooling implemented in Kof` as a direction, never as an artificial target.
 - **Relationships:** `Related: rule 6, rule 11 (Simplicity Law), rule 12,
   D-KOF-FIRST (external behavior), D-BOOTSTRAP, D-MAKEALIVE, D-DB-GAPS, R1,
   R9, Q7`.
+
+## D-DECISION-BATCH-2709B — maintainer's three answers 27/09: #639 qualified `pkg.Type` (BUG); JS media deferred post-0.5.0; `math.pow` cross = link libm (maintainer 27/09/2026, explicit decision)
+
+**Evidence:** maintainer messages 27/09/2026 (chat, this session), answering the
+parity lane's three blocking questions.
+
+**1. #639 is a BUG — Kof differentiates by package path.** Same simple name in
+different packages must be distinguishable. The consumer surface is the
+**qualified path** `pkg.Type` — in expressions (`p1.Item(1)`) and in type
+annotations (`var a: p1.Item`, `List<p1.Item>`); no new keyword (rule 11). The
+refusal contract of `Sem010PackageQualifiedTypesE2ETest` changes accordingly.
+Face 1 is an independent bug: inside `p1/Item.kf`, a bare `Item` must bind to
+**its own** `p1.Item`, never another package's (`p2.Item`) — the measured
+last-write-wins.
+
+**2. JS media is deferred POST-0.5.0.** `kof.media` (`Image`/`Audio`/`Video`/
+`Mic`) on the JS target is NOT a 0.5.0 blocker; parity ledger row 4's JS cell
+becomes a declared post-0.5.0 gap. The "full parity" absolute of
+D-GRAPHICS-GAMING stands for the media-engine front, whose plan is `future/`;
+the JS engine decision is what stays open (rule 6).
+
+**3. `math.pow` cross = link libm.** The cross sysroot links libm so
+`kof_math_pow` (call `pow@PLT`) runs on riscv64/aarch64 like x86-64. This
+revises decision 7a for `pow` only (the rest of the cross runtime stays
+static); ledger row 10 closes with the byte-parity golden vs the JVM oracle.
+Linking is **by-use** (`usesPow`), so programs that never call `pow` stay
+libm-free.
+
+- **Relationships:** `Related: D-FULL-PARITY-050, D-KOF-FIRST (rule 10), rule 11, rule 6, D-GRAPHICS-GAMING, issue #639`.

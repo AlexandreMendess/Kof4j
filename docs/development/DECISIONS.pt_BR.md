@@ -3984,3 +3984,32 @@ meta artificial.
 - **Relações:** `Related: regra 6, regra 11 (Lei da Simplicidade), regra 12,
   D-KOF-FIRST (comportamento externo), D-BOOTSTRAP, D-MAKEALIVE, D-DB-GAPS,
   R1, R9, Q7`.
+
+## D-DECISION-BATCH-2709B — três respostas da mantenedora 27/09: #639 `pkg.Type` qualificado (BUG); JS media adiada pós-0.5.0; `math.pow` cross = linkar libm (mantenedora 27/09/2026, decisão explícita)
+
+**Evidência:** mensagens da mantenedora 27/09/2026 (chat, esta sessão),
+respondendo às três perguntas de bloqueio da lane de paridade.
+
+**1. #639 é BUG — o Kof diferencia pelo caminho do pacote.** Mesmo nome simples
+em pacotes diferentes precisa ser distinguível. A superfície do consumidor é o
+**caminho qualificado** `pkg.Type` — em expressões (`p1.Item(1)`) e em anotações
+de tipo (`var a: p1.Item`, `List<p1.Item>`); sem palavra-chave nova (regra 11).
+O contrato de recusa do `Sem010PackageQualifiedTypesE2ETest` muda nesse sentido.
+A face 1 é bug independente: dentro de `p1/Item.kf`, um `Item` nu deve ligar no
+**seu próprio** `p1.Item`, nunca no de outro pacote (`p2.Item`) — o
+last-write-wins medido.
+
+**2. JS media fica ADIADO pós-0.5.0.** `kof.media` (`Image`/`Audio`/`Video`/
+`Mic`) no alvo JS **não** é bloqueio da 0.5.0; a célula JS da linha 4 do ledger
+de paridade vira gap declarado pós-0.5.0. O absoluto de "paridade total" do
+D-GRAPHICS-GAMING segue valendo para o front do motor de mídia, cujo plano é
+`future/`; o que permanece aberto é a decisão de engine no JS (regra 6).
+
+**3. `math.pow` cross = linkar libm.** O sysroot cross linka libm para
+`kof_math_pow` (call `pow@PLT`) rodar em riscv64/aarch64 como no x86-64. Isso
+revisa a decisão 7a apenas para `pow` (o restante do runtime cross segue
+estático); a linha 10 do ledger fecha com o golden de paridade byte-a-byte vs o
+oráculo da JVM. O link é **by-use** (`usesPow`), então programas que nunca
+chamam `pow` ficam sem libm.
+
+- **Relações:** `Related: D-FULL-PARITY-050, D-KOF-FIRST (regra 10), regra 11, regra 6, D-GRAPHICS-GAMING, issue #639`.
