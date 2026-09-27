@@ -11,6 +11,11 @@ record Platform(String os, String arch) {
         var fs: kfvm.platform.FileSystem = if (this.isWindows()) WindowsFileSystem() else UnixFileSystem()
         return fs
     }
+
+    kfvm.platform.UserPath userPath() {
+        var path: kfvm.platform.UserPath = if (this.isWindows()) WindowsUserPath() else UnixUserPath()
+        return path
+    }
 }
 
 class Platforms {

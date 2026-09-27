@@ -1,17 +1,12 @@
 package kfvm.cli
 
-import kfvm.system
-import kfvm.store
-
 class UseCommand implements kfvm.cli.Command {
     InstalledVersions versions
-    Store store
-    Console console
+    VersionActivator activator
 
-    constructor(InstalledVersions versions, Store store, Console console) {
+    constructor(InstalledVersions versions, VersionActivator activator) {
         this.versions = versions
-        this.store = store
-        this.console = console
+        this.activator = activator
     }
 
     List<String> names() { return listOf("u", "use") }
@@ -21,7 +16,6 @@ class UseCommand implements kfvm.cli.Command {
             throw "usage: kfvm u <ver|lst|nightly>"
         }
         var version = versions.resolve(args.get(0))
-        store.activate(version)
-        console.info("now using kof " + version)
+        activator.activate(version)
     }
 }

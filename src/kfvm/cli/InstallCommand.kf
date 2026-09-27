@@ -10,12 +10,14 @@ class InstallCommand implements kfvm.cli.Command {
     GitHubClient github
     Store store
     Installer installer
+    VersionActivator activator
     Console console
 
-    constructor(GitHubClient github, Store store, Installer installer, Console console) {
+    constructor(GitHubClient github, Store store, Installer installer, VersionActivator activator, Console console) {
         this.github = github
         this.store = store
         this.installer = installer
+        this.activator = activator
         this.console = console
     }
 
@@ -38,9 +40,8 @@ class InstallCommand implements kfvm.cli.Command {
             console.info("installed kof " + version + " at " + store.dirOf(version))
         }
         var current = store.current()
-        if (current == "") {
-            store.activate(version)
-            console.info("now using kof " + version)
+        if (current == "" || current == version) {
+            activator.activate(version)
         } else if (current != version) {
             console.info("run 'kfvm u " + version + "' to activate it")
         }

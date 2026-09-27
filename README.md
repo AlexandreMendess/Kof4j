@@ -47,7 +47,7 @@ Requires Windows 10 (1803 or newer) or Windows 11, which ship `curl.exe` and `ta
 
 `install.ps1` does the same as `install.sh`, with the same layout under `%USERPROFILE%`: Kof versions go to `%USERPROFILE%\.local\share\kof`, kfvm is installed as `%USERPROFILE%\.local\share\kfvm\kfvm.jar` plus the launcher `%USERPROFILE%\.local\bin\kfvm.cmd`, and `%USERPROFILE%\.local\bin` is added to your user `PATH`. Open a new terminal after installing.
 
-To call `kof` directly, add `%USERPROFILE%\.local\share\kof\current\bin` to your `PATH` as well.
+When kfvm activates a Kof version (`kfvm i` or `kfvm u`), it adds `%USERPROFILE%\.local\share\kof\current\bin` to your user `PATH`, so `kof` works in any new terminal.
 
 ### Install manually
 
@@ -152,7 +152,7 @@ Remove the Kof versions you no longer need with `kfvm uni`, then delete `~/.loca
 rm -rf ~/.local/share/kof
 ```
 
-On Windows, delete `%USERPROFILE%\.local\bin\kfvm.cmd` and `%USERPROFILE%\.local\share\kfvm`, and remove `%USERPROFILE%\.local\bin` from your user `PATH`. To remove every Kof version as well:
+On Windows, delete `%USERPROFILE%\.local\bin\kfvm.cmd` and `%USERPROFILE%\.local\share\kfvm`, and remove `%USERPROFILE%\.local\bin` and `%USERPROFILE%\.local\share\kof\current\bin` from your user `PATH`. To remove every Kof version as well:
 
 ```powershell
 Remove-Item -Recurse -Force "$env:USERPROFILE\.local\share\kof"

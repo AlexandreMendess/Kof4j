@@ -23,6 +23,8 @@ class Store {
 
     String currentLink() { return home + "/current" }
 
+    String currentBin() { return currentLink() + "/bin" }
+
     Bool isInstalled(String version) {
         return File(dirOf(version) + "/bin/kof").exists()
     }
