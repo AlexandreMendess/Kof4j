@@ -92,6 +92,18 @@ class KofmdLspSupportE2ETest {
                 if (diags.get(0) != "MD002:4:@todo") {
                     throw "diag line golden: " + diags.get(0)
                 }
+                if (tool.hoverFor("doing: parser\\n", 1, "doing") != "continuity | String") {
+                    throw "hover label+type: " + tool.hoverFor("doing: parser\\n", 1, "doing")
+                }
+                if (tool.hoverFor("flag: \\"42\\"\\n", 1, "flag") != "TypedField | String") {
+                    throw "hover quoted: " + tool.hoverFor("flag: \\"42\\"\\n", 1, "flag")
+                }
+                if (tool.hoverFor("plain: x\\n", 1, "retry") != "") {
+                    throw "hover wrong key must be empty"
+                }
+                if (tool.hoverFor("instructions:\\n", 1, "instructions") != "action") {
+                    throw "list header hovers label only"
+                }
                 println("kofmd-3.7-hover-ok")
             }
             """);

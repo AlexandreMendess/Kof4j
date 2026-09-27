@@ -63,7 +63,7 @@ final class CmdMdCheck {
         return 1;
     }
 
-    private static String human(String code, String subject) {
+    static String human(String code, String subject) {
         if (code.equals("MD002") && subject.startsWith("@")) {
             return "intent '" + subject.substring(1) + "' outside reserved vocabulary (spec kofmd App.A)";
         }
@@ -76,12 +76,12 @@ final class CmdMdCheck {
         return subject;
     }
 
-    private static String beforeColon(String text) {
+    static String beforeColon(String text) {
         int index = text.indexOf(':');
         return index < 0 ? text : text.substring(0, index);
     }
 
-    private static String afterFirstColon(String text) {
+    static String afterFirstColon(String text) {
         int index = text.indexOf(':');
         return index < 0 ? "" : text.substring(index + 1);
     }

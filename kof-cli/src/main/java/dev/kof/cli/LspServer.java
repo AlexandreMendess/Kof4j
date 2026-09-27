@@ -179,6 +179,11 @@ final class LspServer {
     }
 
     private List<Object> analyze(String uri, String text) {
+        if (LspKofmd.isMd(uri)) {
+            // fatia 3.7 (spec kofmd §16): .md = gancho Kofmd na URI CRUA
+            // (fileNameOf normaliza nao-.kf/.ks para LspMain.kf de proposito).
+            return LspKofmd.diagnostics(text);
+        }
         List<Object> diagnostics = new ArrayList<>();
         Path tmpDir = null;
         Path file = null;
@@ -275,6 +280,12 @@ final class LspServer {
         long line = pos.get("line") instanceof Number n ? n.longValue() : 0;
         long ch = pos.get("character") instanceof Number n ? n.longValue() : 0;
         String word = wordAt(text, offsetOf(text, line, ch));
+        if (LspKofmd.isMd(str(td.get("uri")))) {
+            String md = LspKofmd.hoverAt(text, (int) line + 1, word);
+            respond(id, md.isEmpty() ? null : Map.of("contents", Map.of("kind", "markdown",
+                    "value", "**" + word + "** \u2014 Kofmd " + md)));
+            return;
+        }
         String contents = word.isEmpty() ? null : LspHover.hoverFor(word, text, offsetOf(text, line, ch));
         if (contents == null && !word.isEmpty()) {
             // X10 fatia 7: declaração do projeto (buffer ou .kf irmão) como fallback.
