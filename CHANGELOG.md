@@ -131,6 +131,18 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     pinned); harness frame-parser fixed (with 3+ outputs every other publish was
     skipped). Zero compiler changes; `LspServer` 581 lines (ratchet holds).
     Catalog: `known-bugs.md` §526 (+PT).
+  - **Fix — #638 (27/09): `didOpen` of a NEW unsaved file inside a project no
+    longer reports phantom PKG006 for valid imports** — follow-up of #636/#637:
+    project mode was gated on `Files.isRegularFile(real)`, so a brand-new file
+    (never saved) fell to single-file mode and lost the derivable root; saving
+    the SAME bytes made `kof check` report zero. The gate now also accepts a
+    file whose PARENT directory exists (`LspProject.projectRootOf` already
+    walks from the parent; `mirror` never required the source to exist).
+    Ghost-URI pins untouched (no parent on disk = exact single-file mode).
+    Proof: `LspProjectDiagnosticsE2ETest#newUnsavedFileInsideProjectIsNot
+    PhantomPkg006` RED (verbatim PKG006) -> 10/10 GREEN + `LspServerTest` 41/41
+    + reactor 4252/0F/0E/527skip; net +1 line in `LspServer` (582 = the
+    baseline ratchet). Catalog: `known-bugs.md` §528 (+PT).
   - **Fix — §527 (27/09): awaiting a VOID task left the runtime `Object` on the JVM
     stack — any `try/catch` after it aborted class load with `VerifyError`** — found while
     landing X2 fatia 3 (the cancel E2E never reached runtime: compiled clean, died at

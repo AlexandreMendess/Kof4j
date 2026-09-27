@@ -15918,3 +15918,36 @@ Neighborhood after: `*Spawn*`/`*Await*`/`*Concurrency*`/`*Select*`/
 unaffected: different lowering of await; the fatia-3 reactor run confirms.
 
 <!-- pt-switch --> **PT:** [§527 (pt_BR)](known-bugs.pt_BR.md#527--await-de-task-void-deixava-o-object-do-runtime-na-pilha-da-jvm-qualquer-trycatch-depois-abortava-o-load-da-classe-com-verifyerror---fixed-2709-lane-interop)
+
+## §528 — new unsaved file inside a project still got phantom PKG006 for valid imports: the LSP root gate required the file to exist on disk — ✅ FIXED 27/09 (issues lane, #638 — parity follow-up of #636 and #637)
+
+**Symptom (measured RED 27/09 on tip `4fae177d2`):** `initialize` with the
+project root, then `didOpen` on `src/Extra.kf` that has NEVER been saved (the
+file does not exist on disk) with `import core.say_hi` — the editor showed
+`PKG006: import 'core.say_hi' not found in the module`. Saving the SAME bytes
+to the SAME path made `kof check` report zero diagnostics: the same program,
+same root, different answer depending on whether the buffer had touched disk.
+
+**Root cause (read in code):** #636's mirror fix gates project mode with
+`Files.isRegularFile(real)`. A brand-new file has no disk entry, so the gate
+fell to single-file mode and lost the root — even though the root was fully
+derivable: the parent directory exists and `LspProject.projectRootOf` walks the
+`kof.toml` ancestors of the PARENT, and `LspProject.mirror` already writes the
+buffer through `Files.createDirectories` (it never required the source to
+exist). The gate, not the mechanism, was the bug.
+
+**Fix (root cause, not mask):** the gate now accepts a non-existent file whose
+PARENT directory exists: `Files.isRegularFile(real) || Files.isDirectory(real.getParent())`.
+Ghost-URI pins stay exact: a path without a parent on disk still resolves no
+root and keeps the historical single-file mode
+(`looseFileOutsideProjectKeepsTheSingleFileMode`, the phantom `/kof-lsp-selftest/`
+URIs — untouched green). Net +1 line in `LspServer` (581 -> 582 = the baseline
+ratchet, honored).
+
+**Proof (RED before/GREEN after):** `LspProjectDiagnosticsE2ETest` 9/10 →
+**10/10** — `newUnsavedFileInsideProjectIsNotPhantomPkg006` measured RED
+(`expected: <[]> but was: <[{code=PKG006}]>`) before the fix, GREEN after; the
+full LSP pair (E2E + `LspServerTest` 41/41) green; full clean reactor
+**4252/0F/0E/527skip**; cross-target unchanged (JVM-only tooling path).
+
+<!-- pt-switch --> **PT:** [§528 (pt_BR)](known-bugs.pt_BR.md#528--novo-arquivo-sem-save-dentro-do-projeto-ainda-levava-pkg006-fantasma-para-imports-validos-o-gate-de-raiz-do-lsp-exigia-o-arquivo-no-disco---fixed-2709-lane-issues-638--follow-up-de-paridade-do-636-e-637)

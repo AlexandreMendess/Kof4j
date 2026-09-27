@@ -13470,3 +13470,38 @@ Native/JS/Script intactos: lowering do await e outro; a corrida do reator
 da fatia 3 confirma.
 
 <!-- pt-switch --> **EN:** [§527 (EN)](known-bugs.md#527--await-of-a-void-task-left-the-runtime-object-on-the-jvm-stack-any-trycatch-after-it-aborted-class-load-with-verifyerror---fixed-2709-interop-lane)
+
+## §528 — novo arquivo sem save dentro do projeto ainda levava PKG006 fantasma para imports validos: o gate de raiz do LSP exigia o arquivo no disco — ✅ FIXED 27/09 (lane issues, #638 — follow-up de paridade do #636 e #637)
+
+**Sintoma (RED medido 27/09 no tip `4fae177d2`):** `initialize` com a raiz do
+projeto e `didOpen` de `src/Extra.kf` JAMAIS SALVO (o arquivo nao existe no
+disco) com `import core.say_hi` — o editor mostrava
+`PKG006: import 'core.say_hi' not found in the module`. Salvar os MESMOS bytes
+no MESMO caminho fazia o `kof check` dar zero diagnosticos: o mesmo programa,
+na mesma raiz, com resposta diferente conforme o buffer ja tinha tocado o
+disco.
+
+**Causa-raiz (leida no codigo):** o fix de espelho do #636 porta o modo-projeto
+com `Files.isRegularFile(real)`. Um arquivo novo nao tem entrada no disco,
+entao o gate caia no modo arquivo-unico e perdia a raiz — mesmo com a raiz
+plenamente derivavel: o diretorio pai existe e `LspProject.projectRootOf` sobe
+pelos ancestrais `kof.toml` do PAI, e `LspProject.mirror` ja escreve o buffer
+via `Files.createDirectories` (nunca exigiu a existencia da fonte). O bug era
+o gate, nao o mecanismo.
+
+**Fix (causa-raiz, nao mascara):** o gate agora aceita arquivo inexistente cujo
+DIRETORIO PAI existe: `Files.isRegularFile(real) || Files.isDirectory(real.getParent())`.
+Os pins de URI fantasma seguem exatos: caminho sem pai no disco continua sem
+raiz e mantem o modo arquivo-unico historico
+(`looseFileOutsideProjectKeepsTheSingleFileMode`, as URIs fantasmas
+`/kof-lsp-selftest/` — intocadas, verdes). +1 linha liquida no `LspServer`
+(581 -> 582 = o ratchet do baseline, honrado).
+
+**Prova (RED antes/GREEN depois):** `LspProjectDiagnosticsE2ETest` 9/10 →
+**10/10** — `newUnsavedFileInsideProjectIsNotPhantomPkg006` medido RED
+(`expected: <[]> but was: <[{code=PKG006}]>`) antes do fix, GREEN depois; o par
+LSP completo (E2E + `LspServerTest` 41/41) verde; reator limpo completo
+**4252/0F/0E/527skip**; cross-target inalterado (caminho de tooling exclusivo
+JVM).
+
+<!-- pt-switch --> **EN:** [§528 (EN)](known-bugs.md#528--new-unsaved-file-inside-a-project-still-got-phantom-pkg006-for-valid-imports-the-lsp-root-gate-required-the-file-to-exist-on-disk---fixed-2709-issues-lane-638--parity-follow-up-of-636-and-637)

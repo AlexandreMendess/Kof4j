@@ -197,9 +197,10 @@ final class LspServer {
             // ou raiz do initialize) compila dentro do ESPELHO da arvore com o
             // buffer por cima do disco. O arquivo unico num kof-lsp-XXXX
             // perdia a raiz do modulo e todo import local virava o PKG006/
-            // PKG004 que o `kof check` nao da. Sem raiz = modo antigo exato.
+            // PKG004 que o `kof check` nao da. Sem raiz = modo antigo exato;
+            // #638: sem-save com pai no disco tem raiz (paridade da borda do save).
             Path real = LspProject.toPath(uri);
-            Path root = (real != null && Files.isRegularFile(real))
+            Path root = (real != null && (Files.isRegularFile(real) || Files.isDirectory(real.getParent())))
                     ? LspProject.projectRootOf(real, workspaceRoot) : null;
             // #636 residual: fontes de deps instaladas como no `kof run --deps`; sem raiz = limpas.
             driver.setDependencySourceRoots(root != null

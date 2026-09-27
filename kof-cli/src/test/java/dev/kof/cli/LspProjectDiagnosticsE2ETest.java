@@ -216,6 +216,23 @@ class LspProjectDiagnosticsE2ETest {
     }
 
     @Test
+    void newUnsavedFileInsideProjectIsNotPhantomPkg006(@TempDir Path dir) throws Exception {
+        // paridade do outro lado do save: um ARQUIVO NOVO (ainda nao existe no
+        // disco) criado dentro de um projeto deve receber as MESMAS
+        // diagnostiques que teria apos o save — o contrato do #636 (learn/38
+        // passo 5: o editor carrega a mesma configuracao do CLI) nao pode
+        // depender de o buffer ja ter tocado o disco.
+        Path root = project(dir);
+        Path fresh = root.resolve("src/Extra.kf");
+        String text = "import core.say_hi\n\nmain() {\n    sayHi()\n}\n";
+        String uri = uriOf(fresh);
+        assertFalse(Files.exists(fresh), "pre-condicao: o arquivo ainda NAO existe no disco");
+        String out = run(frame(initReq(root)), frame(didOpen(fresh, text)));
+        assertEquals(List.of(), publishedDiagnostics(out, uri),
+                "arquivo novo dentro do projeto: mesmo zero-diagnostico do programa salvo");
+    }
+
+    @Test
     void installedRegistryDepSourceResolvesLikeRunDeps(@TempDir Path dir, @TempDir Path cache)
             throws Exception {
         System.setProperty("kof.deps.home", cache.toString());

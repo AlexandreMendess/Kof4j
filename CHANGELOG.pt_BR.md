@@ -135,6 +135,19 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     frames do harness consertado (com 3+ saidas um publish sim, outro nao era
     lido). Zero mudanca no compilador; `LspServer` em 581 linhas (ratchet
     honrado). Catalogo: `known-bugs.md` §526 (+EN).
+  - **Correcao — #638 (27/09): `didOpen` de arquivo NOVO sem save dentro de um
+    projeto nao reporta mais PKG006 fantasma para imports validos** — follow-up
+    do #636/#637: o modo-projeto era portado por `Files.isRegularFile(real)`,
+    entao um arquivo recem-criado (jamais salvo) caia no modo arquivo-unico e
+    perdia a raiz — que era derivavel; salvar os MESMOS bytes fazia o
+    `kof check` dar zero. O gate agora aceita tambem arquivo cujo DIRETORIO PAI
+    existe (`LspProject.projectRootOf` ja sobe pelo pai; o `mirror` nunca
+    exigiu a fonte existir). Pins de URI fantasma intocados (sem pai no disco =
+    modo arquivo-unico exato). Prova:
+    `LspProjectDiagnosticsE2ETest#newUnsavedFileInsideProjectIsNotPhantomPkg006`
+    RED (PKG006 verbatim) -> 10/10 GREEN + `LspServerTest` 41/41 + reator
+    4252/0F/0E/527skip; +1 linha liquida no `LspServer` (582 = o ratchet do
+    baseline). Catalogo: `known-bugs.md` §528 (+EN).
   - **Correção — §527 (27/09): `await` de task VOID deixava o `Object` do runtime na pilha da
     JVM — qualquer `try/catch` depois abortava o load da classe com `VerifyError`** — achado
     ao pousar a fatia 3 da X2 (o E2E do cancel nunca chegava ao runtime: compilava limpo e
