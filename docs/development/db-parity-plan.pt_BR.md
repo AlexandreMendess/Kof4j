@@ -2,6 +2,12 @@
 
 # Plano de Paridade de DB — todo alvo aceita todo scheme (mariadb, mysql, sqlite, mongodb, …)
 
+last: S5.4-cross-connect
+doing: db-parity
+next: remaining-schemes
+location: db-parity-plan
+state: active
+
 > **EM DESENVOLVIMENTO** — aberto 21/09/2026 a partir da diretiva da mantenedora
 > (adendo `D-DB-GAPS`, `DECISIONS.md`). O plano é a fila; cada fatia pousa com
 > prova (Q0–Q7) e este doc só **move para `docs/stdlib/`** quando a paridade

@@ -1,5 +1,11 @@
 # X2 — `interop` official engine (Python/R) — implementation plan
 
+last: fatia-5-corpus
+doing: interop-engine
+next: fatia-4-cross
+location: interop-engine-plan
+state: active
+
 **Status:** `UNDER DEVELOPMENT` — claimed 26/09 by lane compiler 9092 (same commit
 as this doc). **Decision authority:** `D-COMPLETE-FIRST` item 2
 (`DECISIONS.md` §`D-COMPLETE-FIRST`, maintainer 26/09) — the FULL package is the

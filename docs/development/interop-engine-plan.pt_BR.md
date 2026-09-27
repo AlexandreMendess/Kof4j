@@ -1,5 +1,11 @@
 # X2 — motor oficial `interop` (Python/R) — plano de implementação
 
+last: fatia-5-corpus
+doing: interop-engine
+next: fatia-4-cross
+location: interop-engine-plan
+state: active
+
 **Status:** `EM DESENVOLVIMENTO` — claimado 26/09 pela lane compiler 9092 (no
 mesmo commit desta doc). **Autoridade da decisão:** `D-COMPLETE-FIRST` item 2
 (`DECISIONS.md` §`D-COMPLETE-FIRST`, mantenedora 26/09) — o PACOTE COMPLETO é a

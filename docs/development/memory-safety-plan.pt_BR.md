@@ -2,6 +2,13 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
+last: phase-1-spec
+doing: memory-safety
+next: phase-2-core
+location: memory-safety-plan
+state: active
+constraint: core-edits-wait-for-queue
+
 > **Status: frente ATIVA, dono = lane paridade (mantenedora 25/09,
 > `DECISIONS.md` §`D-MEMORY-SAFETY`).** Fase 0 (investigação) **CLOSED
 > 25/09** — `docs/spec/memory-safety-investigation.md` aceita. Fase 1 (spec)
