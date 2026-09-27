@@ -110,6 +110,19 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `UiHandleCollectionBoxingE2ETest` **6/6** (list/set/map nullable + travas
      nao-nullable e da composicao da issue; RED antes / GREEN depois). Catalogo:
      `known-bugs.md` §525 (+EN).
+  - **Correcao — #637 (27/09): `kof lsp` agora alimenta o compilador com as
+    fontes de deps instaladas do registry, como `kof run --deps`** — residual do
+    #636 que o proprio issue apontava ("the LSP never calls it"): projeto com
+    `kofdeps` cuja fonte de dependencia esta instalada no cache ainda levava
+    PKG006 no `didOpen`. A analise em modo-projeto chama
+    `setDependencySourceRoots(DepsSources.roots(root))` (o mesmo oraculo do CLI
+    — somente versoes instaladas, nunca rede) e o ramo sem raiz limpa as raizes
+    para que um driver vivo nunca vaze deps de um projeto para arquivo de
+    outro. Prova: `LspProjectDiagnosticsE2ETest` 6/9 → 9/9 (installed-dep RED
+    verbatim antes; bordas de leak e PKG006-honesto travadas), com o parser de
+    frames do harness consertado (com 3+ saidas um publish sim, outro nao era
+    lido). Zero mudanca no compilador; `LspServer` em 581 linhas (ratchet
+    honrado). Catalogo: `known-bugs.md` §526 (+EN).
   - **Fix — §516 (26/09): `json.encode` de `List<Record>`/`Map<String,Record>`
     no x86 despejava o ponteiro cru — agora anda pela tabela de schema pelo
     typeId (`kof_json_encode_object` + `.Lsch_type_registry` com terminator

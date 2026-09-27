@@ -13397,3 +13397,42 @@ cli 512; Node v24.21.0).
 
 <!-- pt-switch --> **EN:** [§525 (EN)](known-bugs.md#525--nullable-kofui-handles-still-crossed-jvm-object-slots-without-integer-boxing-listviewadd---fixed-2609-issues-lane-632-residual)
 
+## §526 — `kof lsp` nunca alimentava o compilador com fontes de deps instaladas do registry: `import` de pacote `kofdeps` instalado ainda dava PKG006 no editor — ✅ FIXED 27/09 (lane issues, #637 — residual de #636)
+
+**Sintoma (medido 27/09 no tip `19e340c91`):** um projeto com `kof.toml` +
+`kofdeps` declarando `acme/greet@1.0.0`, com a fonte instalada no cache em
+`<cache>/kof/acme/greet/1.0.0/src/greet/hello.kf`, recebia
+`PKG006: import 'greet.hello' not found in the module` no `didOpen` de
+`src/Main.kf` — enquanto `kof run --deps` compilava o MESMO programa com zero
+diagnostico.
+
+**Causa-raiz (leida no codigo + citada no #636):** as fontes de dependencias
+(#566 opcao b) so alcancam o compilador via `setDependencySourceRoots`, chamado
+em `CmdRun.java:145` e `CmdBuild.java:257`; o `analyze` do `LspServer` nunca
+chamava. O fix de raiz/espelho do #636 resolveu a face da raiz do modulo e
+deixou esta explicitamente ("the LSP never calls it"). O contrato do editor
+(learn/38 passo 5) e a MESMA configuracao de projeto do CLI — raiz E deps.
+
+**Fix (causa-raiz, nao mascara):** o ramo de modo-projeto do `analyze` agora
+entrega ao driver as fontes instaladas da raiz —
+`driver.setDependencySourceRoots(root != null ? LspProject.dependencySourceRoots(root) : List.of())`
+(`LspProject.dependencySourceRoots` delega a `DepsSources.roots`, o MESMO
+oraculo do `kof run --deps`: `kofdeps` da raiz, somente versoes instaladas,
+nunca rede). O ramo `else` limpa a lista: o `CompilerDriver` do LSP e vivo
+entre analises, entao raizes de deps do projeto A jamais podem sombrear um
+arquivo sem raiz na mesma sessao (lixo cruzado). Dep declarada e nao instalada
+mantem o PKG006 honesto (nunca resolve do ar).
+
+**Prova (RED antes/GREEN depois):** `LspProjectDiagnosticsE2ETest` 6/9 →
+**9/9** — `installedRegistryDepSourceResolvesLikeRunDeps` medido RED (PKG006
+verbatim) antes do fix; `depRootsNeverLeakIntoFilesOutsideTheProject` trava a
+limpeza; `notInstalledDepStaysHonestPkg006` trava a borda de erro. Ao escrever
+o teste de leak apareceu um bug do harness: `publishedDiagnostics` usava o
+header da frame SEGUINTE como janela do corpo atual, entao com 3+ mensagens de
+saida um publish sim, outro nao era lido — trocado por parser frame-a-frame
+(os 6 testes existentes + `LspServerTest` 41/41 seguem verdes). `LspServer`
+permanece em 581 linhas (ratchet do baseline 582 honrado); zero mudanca no
+compilador.
+
+<!-- pt-switch --> **EN:** [§526 (EN)](known-bugs.md#526--kof-lsp-never-fed-installed-registry-dep-sources-to-the-compiler-import-of-a-kofdeps-installed-package-still-pkg006-in-the-editor---fixed-2709-issues-lane-637--residual-of-636)
+

@@ -35,14 +35,21 @@ class LspProjectDiagnosticsE2ETest {
 
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> publishedDiagnostics(String raw, String uri) {
-        // byte-safe (mesma licao do irmao: Content-Length e em BYTES)
+        // byte-safe (mesma licao do irmao: Content-Length e em BYTES). Le cada
+        // FRAME pelo SEU header (janela header-corpo): a varredura antiga
+        // confunde o header da proxima frame com o da atual e pula metade
+        // das mensagens quando a sessao publica 3+ diagnostics.
         byte[] all = raw.getBytes(StandardCharsets.UTF_8);
         String ascii = new String(all, StandardCharsets.ISO_8859_1);
-        for (int i = ascii.indexOf("{"); i >= 0; ) {
-            int end = ascii.indexOf("\r\n\r\n", i);
-            if (end < 0) break;
-            int len = Integer.parseInt(ascii.substring(ascii.lastIndexOf("Content-Length: ", end) + 16, end).trim());
-            String body = ascii.substring(end + 4, end + 4 + len);
+        int pos = 0;
+        while (true) {
+            int h = ascii.indexOf("Content-Length: ", pos);
+            if (h < 0) break;
+            int sep = ascii.indexOf("\r\n\r\n", h);
+            if (sep < 0) break;
+            int len = Integer.parseInt(ascii.substring(h + 16, sep).trim());
+            String body = ascii.substring(sep + 4, Math.min(sep + 4 + len, ascii.length()));
+            pos = sep + 4 + len;
             if (body.contains("publishDiagnostics") && body.contains("\"" + uri + "\"")) {
                 int start = body.indexOf("\"diagnostics\":[");
                 if (start >= 0) {
@@ -58,7 +65,6 @@ class LspProjectDiagnosticsE2ETest {
                     return out;
                 }
             }
-            i = ascii.indexOf("{", end + 4 + len);
         }
         throw new AssertionError("nenhuma publishDiagnostics para " + uri + " na saida:\n" + raw);
     }
@@ -189,5 +195,81 @@ class LspProjectDiagnosticsE2ETest {
                 .map(d -> String.valueOf(d.get("code"))).toList();
         assertTrue(codes.contains("PKG006"),
                 "arquivo solto fora de projeto mantem o modo antigo (PKG006): " + codes);
+    }
+
+    // ---- #636 residual (o proprio issue): as fontes de deps instaladas no
+    // cache (#566 opcao b) so alcancam o compilador via
+    // setDependencySourceRoots — o CLI chama sob `--deps`; o LSP nunca chamou.
+
+    private static final String DEP_MAIN = "import greet.hello\n\nmain() {\n    hello()\n}\n";
+
+    private static Path depProject(Path dir, Path cache) throws Exception {
+        Path pkg = Files.createDirectories(
+                cache.resolve("kof").resolve("acme").resolve("greet").resolve("1.0.0")
+                        .resolve("src").resolve("greet"));
+        Files.writeString(pkg.resolve("hello.kf"), "package greet\nhello() {\n}\n");
+        Files.writeString(dir.resolve("kof.toml"), "[project]\nname = \"user\"\n");
+        Files.writeString(dir.resolve("kofdeps"), "acme/greet@1.0.0\n");
+        Path src = Files.createDirectories(dir.resolve("src"));
+        Files.writeString(src.resolve("Main.kf"), DEP_MAIN);
+        return dir;
+    }
+
+    @Test
+    void installedRegistryDepSourceResolvesLikeRunDeps(@TempDir Path dir, @TempDir Path cache)
+            throws Exception {
+        System.setProperty("kof.deps.home", cache.toString());
+        try {
+            Path root = depProject(dir, cache);
+            String uri = uriOf(root.resolve("src/Main.kf"));
+            String out = run(frame(initReq(root)),
+                    frame(didOpen(root.resolve("src/Main.kf"), DEP_MAIN)));
+            assertEquals(List.of(), publishedDiagnostics(out, uri),
+                    "fonte instalada no cache deve resolver no editor como no `kof run --deps`");
+        } finally {
+            System.clearProperty("kof.deps.home");
+        }
+    }
+
+    @Test
+    void depRootsNeverLeakIntoFilesOutsideTheProject(@TempDir Path dir, @TempDir Path cache,
+                                                     @TempDir Path elsewhere) throws Exception {
+        System.setProperty("kof.deps.home", cache.toString());
+        try {
+            Path root = depProject(dir, cache);
+            Path loose = elsewhere.resolve("solto.kf");
+            Files.writeString(loose, DEP_MAIN);
+            String looseUri = uriOf(loose);
+            // o driver e vivo entre analises: a analise do projeto instala a
+            // raiz de deps; a do arquivo solto DEVE limpa-la (senao deps de
+            // um projeto sombreiam o outro — lixo cruzado).
+            String out = run(frame(initReq(root)),
+                    frame(didOpen(root.resolve("src/Main.kf"), DEP_MAIN)),
+                    frame(didOpen(loose, DEP_MAIN)));
+            List<String> codes = publishedDiagnostics(out, looseUri).stream()
+                    .map(d -> String.valueOf(d.get("code"))).toList();
+            assertTrue(codes.contains("PKG006"),
+                    "raizes de deps do projeto A vazaram no arquivo solto B: " + codes);
+        } finally {
+            System.clearProperty("kof.deps.home");
+        }
+    }
+
+    @Test
+    void notInstalledDepStaysHonestPkg006(@TempDir Path dir, @TempDir Path cache) throws Exception {
+        System.setProperty("kof.deps.home", cache.toString());
+        try {
+            Path root = depProject(dir, cache);
+            Files.writeString(root.resolve("kofdeps"), "acme/greet@9.9.9\n"); // so 1.0.0 instalada
+            String uri = uriOf(root.resolve("src/Main.kf"));
+            String out = run(frame(initReq(root)),
+                    frame(didOpen(root.resolve("src/Main.kf"), DEP_MAIN)));
+            List<String> codes = publishedDiagnostics(out, uri).stream()
+                    .map(d -> String.valueOf(d.get("code"))).toList();
+            assertTrue(codes.contains("PKG006"),
+                    "dep declarada mas nao instalada: PKG006 honesto, nunca resolver do ar: " + codes);
+        } finally {
+            System.clearProperty("kof.deps.home");
+        }
     }
 }

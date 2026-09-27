@@ -107,6 +107,18 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     primitive semantics. Proof: `UiHandleCollectionBoxingE2ETest` **6/6**
     (nullable list/set/map + non-nullable and issue-style composition locks;
     RED pre-fix, GREEN post). Catalog: `known-bugs.md` §525 (+PT).
+  - **Fix — #637 (27/09): `kof lsp` now feeds the installed registry dep sources
+    to the compiler, like `kof run --deps`** — residual of #636 that the issue
+    itself flagged ("the LSP never calls it"): a `kofdeps` project whose
+    dependency source is installed in the cache still got PKG006 on `didOpen`.
+    Project-mode analysis calls `setDependencySourceRoots(DepsSources.roots(root))`
+    (same oracle as the CLI — installed versions only, never network) and the
+    no-root branch clears the roots so a long-lived driver never leaks deps of
+    one project into a file of another. Proof: `LspProjectDiagnosticsE2ETest`
+    6/9 → 9/9 (installed-dep RED verbatim before; leak + honest-PKG006 edges
+    pinned); harness frame-parser fixed (with 3+ outputs every other publish was
+    skipped). Zero compiler changes; `LspServer` 581 lines (ratchet holds).
+    Catalog: `known-bugs.md` §526 (+PT).
   - **Fix — §516 (26/09): `json.encode` de `List<Record>`/`Map<String,Record>`
     no x86 despejava o ponteiro cru — agora anda pela tabela de schema pelo
     typeId (`kof_json_encode_object` + `.Lsch_type_registry` com terminator

@@ -184,11 +184,7 @@ final class LspServer {
         Path file = null;
         try {
             tmpDir = Files.createTempDirectory("kof-lsp-");
-            String name = "LspMain.kf";
-            String path = uri.startsWith("file:") ? uri.substring("file:".length()) : uri;
-            int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-            if (slash >= 0) path = path.substring(slash + 1);
-            if (path.endsWith(".kf") || path.endsWith(".ks")) name = path;
+            String name = LspProject.fileNameOf(uri);
             // KofScript = Kof puro executado direto: sem sugar de outra
             // linguagem; o wrapper só dá modelo de script (statements ->
             // main(), var/val de topo -> globals).
@@ -205,6 +201,9 @@ final class LspServer {
             Path real = LspProject.toPath(uri);
             Path root = (real != null && Files.isRegularFile(real))
                     ? LspProject.projectRootOf(real, workspaceRoot) : null;
+            // #636 residual: fontes de deps instaladas como no `kof run --deps`; sem raiz = limpas.
+            driver.setDependencySourceRoots(root != null
+                    ? LspProject.dependencySourceRoots(root) : List.of());
             if (root != null) {
                 file = LspProject.mirror(real, outText, root, tmpDir);
             } else {

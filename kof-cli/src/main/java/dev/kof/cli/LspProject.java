@@ -24,6 +24,27 @@ final class LspProject {
     }
 
     /**
+     * Nome do documento a partir do URI (herdado do `analyze`): o basename
+     * `.kf`/`.ks` do URI, senao `LspMain.kf`.
+     */
+    static String fileNameOf(String uri) {
+        String path = uri.startsWith("file:") ? uri.substring("file:".length()) : uri;
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        if (slash >= 0) path = path.substring(slash + 1);
+        return (path.endsWith(".kf") || path.endsWith(".ks")) ? path : "LspMain.kf";
+    }
+
+    /**
+     * #636 (residual — o proprio issue: "the LSP never calls it"): as fontes
+     * de deps INSTALADAS no cache (#566 opção b) entram na analise pela mesma
+     * porta do `kof run --deps` (`DepsSources`: kofdeps da raiz; sem kofdeps
+     * = lista vazia, nunca silencio inventado).
+     */
+    static List<Path> dependencySourceRoots(Path root) throws java.io.IOException {
+        return DepsSources.roots(root);
+    }
+
+    /**
      * (#636) Raiz de projeto do arquivo: o ancestral com `kof.toml` (MESMO
      * criterio do `kof check` via ProjectLocator); sem manifesto, a raiz do
      * workspace do `initialize` que contenha o arquivo; nada disso = null e o
