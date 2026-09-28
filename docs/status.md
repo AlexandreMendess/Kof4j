@@ -2,9 +2,9 @@
 
 # Kof Project Status
 
-last: #664/#665 evidence-chain hardened + #660 D-MEM021-SCALAR landed (c65f9ba18) + kof-file streaming slice 1
+last: #666 phase-5-unit-1 pinned (FFI x spawn) + #664/#665 evidence-chain hardened + #660 D-MEM021-SCALAR landed (c65f9ba18) + kof-file streaming slice 1
 doing: memory-safety (fase 4 CLOSED; fase 5 MEDIDA no plano) / scoped-resources / test-architecture / pagination / kof-file (live lanes)
-next: phase-5-first-unit FFI×captured-buffer pin (lane paridade; borrow = decision-request antes) / kof-file streaming slice 2 (Native + JS/Script gap code)
+next: phase-5-unit-2 blocked on decisions #667/#668 (rule 6) / kof-file streaming slice 2 (Native + JS/Script gap code)
 location: status
 state: active
 constraint: pr619-maintainer-only

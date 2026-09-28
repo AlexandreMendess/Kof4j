@@ -2,9 +2,9 @@
 
 # Status do Projeto Kof
 
-last: #664/#665 cadeia-de-evidencia hardened + #660 D-MEM021-SCALAR pousado (c65f9ba18) + kof-file streaming fatia 1
+last: #666 unidade-1-fase-5 pinada (FFI x spawn) + #664/#665 cadeia-de-evidencia hardened + #660 D-MEM021-SCALAR pousado (c65f9ba18) + kof-file streaming fatia 1
 doing: memory-safety (fase 4 FECHADA; fase 5 MEDIDA no plano) / scoped-resources / test-architecture / pagination / kof-file (lanes vivas)
-next: primeira-unidade-fase-5 pino FFI×buffer-capturado (lane paridade; borrow = pedido de decisao antes) / kof-file streaming fatia 2 (Native + código de gap JS/Script)
+next: unidade-2 da fase-5 bloqueada nas decisoes #667/#668 (regra 6) / kof-file streaming fatia 2 (Native + código de gap JS/Script)
 location: status
 state: active
 constraint: pr619-maintainer-only

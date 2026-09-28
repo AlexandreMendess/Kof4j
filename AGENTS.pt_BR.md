@@ -2,9 +2,9 @@
 
 last: 0.5.0-beta
 
-doing: memory-safety-fase-4-FECHADA (#658/#659/#662) + #660-D-MEM021-SCALAR-pousado (c65f9ba18, mantenedora A/ERROR) + cadeia-de-evidencia-hardened (#664/#665)
+doing: memory-safety-fase-4-FECHADA (#658/#659/#662) + #660-D-MEM021-SCALAR-pousado (c65f9ba18, mantenedora A/ERROR) + cadeia-de-evidencia-hardened (#664/#665) + unidade-1-fase-5-pinada (#666)
 
-next: primeira-unidade-fase-5 = pino FFI×buffer-capturado (medido 28/09 no plano; borrow-em-Buffer = pedido de decisao antes) / varredura-de-promocao (lane pipeline) / 14.4-rulesets (mantenedora)
+next: unidade-2-fase-5 BLOQUEADA nas decisoes #667 (Script x extern crash bruto) e #668 (MEM020 face A/B/C) [regra 6] / varredura-de-promocao (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 
