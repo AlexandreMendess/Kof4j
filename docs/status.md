@@ -19,6 +19,8 @@ decision: D-KOF-FIRST-IMPL
 - **memory-safety phase 4.2 (#659):** spawn-capture-return matrix pinned on the 4 targets; verdicts recorded: `MEM023` no compile face, no generator surface (absence, not a gap)
 - **memory-safety phase 4.1 (#658):** B-06 mutable-capture parity pinned on the 4 targets — `LambdaE2ETest` 36/36 with golden-identical Script (`KofInterpreter`) and JS (`KofJsRunner`) faces; zero behavior change (parity was already true — measured, not assumed).
 - **`test-architecture` PROMOTED** `future/` → [`docs/development/test-architecture-plan.md`](development/test-architecture-plan.md) (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`): pure test infrastructure (no compiler change); first slice = Phase 1 profiling (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`).
+- **`pagination` PROMOTED** `future/` → [`docs/development/pagination-plan.md`](development/pagination-plan.md) (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`, `D-FUTURE-PROMOTION`): first-class windowing — `Window<T>`, in-memory `slice`/`take`/`drop` (P1) → `Window<T>` (P2) → SQL `LIMIT/OFFSET` (P3/P4) → `pageRequest` HTTP (P5); surface locked, first slice RED-first.
+- **`D-FUTURE-BATCH-2809B`:** the open design questions of the remaining `future/` plans are resolved (pagination, value-records, entity-history, multiparadigma, graphics, testing-platform, connectors, kof-file, image-vision, bootstrap, wasm D-WASM-01..09).
 - **Parity row 11 CLOSED** (`compareToIgnoreCase` on all backends) → `full_parity` GREEN.
 
 **24/09 — window 21/09→24/09 (measured vs `git log`/tips; full reactor 3818 / 0F / 0E). PR `#619` (`beta-0.5.0 → main`) is OPEN and the MAINTAINER'S to merge — AGENTS rule 10: no agent merges/approves/closes it.**

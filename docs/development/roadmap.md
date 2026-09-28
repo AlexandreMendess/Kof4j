@@ -941,9 +941,12 @@ science) **without** destroying the language's simplicity.
 > (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`) to
 > [`test-architecture-plan.md`](test-architecture-plan.md); first slice = Phase 1
 > profiling (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
-> pure test infrastructure. Eligible next, by cost: `pagination`,
-> `kof-testing-platform` (needs `D-*`). Ineligible without a decision:
-> `value-records`, `entity-history`, `kof-connector-ecosystem`.
+> pure test infrastructure. **OPEN (4th front):** `pagination` — promoted 28/09
+> (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) to
+> [`pagination-plan.md`](pagination-plan.md); first slice = in-memory
+> `slice`/`take`/`drop`. All remaining `future/` plans are authorized with their
+> design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
+> one-at-a-time (`D-FUTURE-PROMOTION`).
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 

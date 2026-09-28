@@ -4252,8 +4252,27 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **D-WASM-GO** — new wasm/wasi target authorized.
 - **D-UNIVERSAL-STAGES-GO** — stages 4–7 (DATA/SECURITY/SCIENTIFIC/BIO)
   authorized.
+- **Open design questions resolved** in `D-FUTURE-BATCH-2809B` (below).
 
 - **Relationships:** `Related: D-FUTURE-PROMOTION, D-KOF-FIRST (rule 12), rule 11, rule 6`.
+
+## D-FUTURE-BATCH-2809B — open design questions of the `future/` plans resolved (maintainer 28/09/2026, interactive batch)
+
+**State:** DECIDED (maintainer) — resolves the "Open questions / DECISION REQUIRED / TBD" left by `D-FUTURE-BATCH-2809`. Promotion remains one-at-a-time (`D-FUTURE-PROMOTION`); the plans' own recommendations were chosen except where noted.
+
+- **D-PAGINATION (surface locked):** window type `Window<T>`; introduce the new type (not signature-only); `total` via a flag on the window call; max limit = global default; the in-memory part starts now (rides `D-MULTIPARADIGMA-GO` Phase 1); keep `orm.page` alongside `orm.window` (no bump); `offset` only on the windowed method, not the typed DSL; HTTP helper `pageRequest(...)` lives in `kof.web`.
+- **D-VALUE-RECORDS-GO (resolved):** `value` applies only to `record`; collections hold them boxed; use where identity is required = compile-time error; JS representation is a frozen object.
+- **D-ENTITY-HISTORY (Q1–Q15):** `audited entity`; query entity-static (`User.history(db, id)`); return known `Revision`/`FieldChange` records; one revision per `save`; per-entity sequence; only ORM paths audited (raw SQL out of contract); `atTime` = at-or-before; relationships = FK values only; a removed entity keeps history queryable; PII reconciliation = crypto-shredding + masking (contract); fix `observability.correlationId()` to be request-bound; no core actor-override sugar in v1; snapshot-per-revision baseline (diff optional per backend); `not audited` exclusion in the core; assign the `HIST0xx` block now (+ parity matrix).
+- **D-MULTIPARADIGMA-GO (TBDs):** `take(-1)`/`drop(-1)` mirror `slice` (0/size); `zip` returns a `record Pair`.
+- **D-GRAPHICS-SPIKE:** namespace `kof.game`; scene is call-based (no new syntax); 3D only after 2D parity; golden hash contracts required; stack decided by the 3.0 spike (measured, never by familiarity); input = per-frame snapshot; WASM auto-entry; current media kept (no rebase).
+- **D-TESTING-PLATFORM:** extend the existing `test`/`assert` (no foreign syntax); `kof.test` becomes a stdlib namespace; Playwright/Cypress opt-in, not shipped with the CLI; browser E2E JVM-only first, standalone `kof test --e2e` later.
+- **D-CONNECTORS:** ownership vocabulary stays internal (no language surface); interop error is a language type; **`foreign module` enters the grammar now** (maintainer's explicit choice, against the recommended defer); ABI tiers + first stable version defined now; official second connector = C ABI.
+- **D-KOF-FILE-GO:** base stdlib keeps light I/O/streaming/text; heavy codecs (PDF/images/archives) belong to official packages (R1).
+- **D-IMAGE-VISION-GO:** official package, interop-first (imageio/PDFBox/ZXing/Tess4J/OpenCV/ONNX) — never reimplement.
+- **D-BOOTSTRAP-GO:** keep entry conditions E1–E6; does not start before the 1.0 EXIT GATE (R12).
+- **D-WASM-GO (D-WASM-01..09):** direct backend (not a transpile chain); `Int` = i64 (match JVM/Native golden); exception = thrown-string global + `br` unwinding; objects = handles + handle table; GC reuses the native design (mark-sweep); closure env explicit parameter; WASI preview1; dev runtime = wasmtime first; concurrency = cooperative/diagnostic-only in v1.
+
+- **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-PAGINATION, D-VALUE-RECORDS-GO, D-ENTITY-HISTORY, D-MULTIPARADIGMA-GO, D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-CONNECTORS, D-KOF-FILE-GO, D-IMAGE-VISION-GO, D-BOOTSTRAP-GO, D-WASM-GO, rule 6`.
 
 ## D-HTTP-POLICIES — declarative HTTP/Web policies: global (existing), per-resource prefix and per-endpoint, with declarative rejection payloads (maintainer 28/09/2026, "pode assumir")
 

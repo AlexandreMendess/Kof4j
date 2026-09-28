@@ -2,14 +2,22 @@
 
 # Paginação nativa — intenção de janela de dados de primeira classe (plano de implementação)
 
-**Status:** só plano, zero código — `docs/development/future/`
+**Status:** UNDER DEVELOPMENT — promovido 28/09/2026 de `future/` para
+`docs/development/` (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`, `D-FUTURE-PROMOTION`).
 **Solicitado por:** mantenedora (23/09/2026)
-**Gate da regra 6:** qualquer superfície nova de usuário abaixo é uma **decisão de
-design**. Antes de qualquer código, a mantenedora trava uma entrada no
-`DECISIONS.md` (`D-PAGINATION`) com a superfície escolhida aqui. Este documento é
-uma proposta, não uma autorização.
-**Snapshot:** branch `beta-0.5.0`, tip `63c7b15d8`. Todo `file:line` abaixo foi
-medido nesse tip.
+**Gate da regra 6:** RESOLVIDO — a mantenedora travou `DECISIONS.md`
+§`D-PAGINATION` (superfície abaixo em §19/§20). Este documento agora registra o
+estado real + como terminar; não é mais "só plano".
+**Superfície travada (28/09/2026):** tipo de janela `Window<T>`; introduzir o tipo
+novo; `total` por flag na chamada de janela; max default global; a parte
+in-memory começa agora (monta na fase 1 do `D-MULTIPARADIGMA-GO`); manter
+`orm.page` ao lado de `orm.window` (sem bump); `offset` só no método windowed
+(não no DSL tipado); helper HTTP `pageRequest(...)` em `kof.web`.
+**Como terminar:** seguir a ordem §20 P0→P6 (cada fatia provável de forma
+independente); P1 (`slice`/`take`/`drop` in-memory em `List`) é a primeira fatia —
+RED-first.
+**Snapshot:** branch `beta-0.5.0`, tip `63c7b15d8` (recon original). Todo
+`file:line` abaixo foi medido nesse tip; remeça antes da fatia pousar.
 
 ---
 

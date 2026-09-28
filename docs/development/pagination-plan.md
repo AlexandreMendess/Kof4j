@@ -2,13 +2,21 @@
 
 # Native pagination — first-class windowing intention (implementation plan)
 
-**Status:** plan only, zero code — `docs/development/future/`
+**Status:** UNDER DEVELOPMENT — promoted 28/09/2026 from `future/` to
+`docs/development/` (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`, `D-FUTURE-PROMOTION`).
 **Requested by:** maintainer (23/09/2026)
-**Rule 6 gate:** any new user-facing surface below is a **design decision**. Before
-any code, the maintainer locks a `DECISIONS.md` entry (`D-PAGINATION`) with the
-surface chosen here. This document is a proposal, not an authorization.
-**Snapshot:** branch `beta-0.5.0`, tip `63c7b15d8`. Every `file:line` below was
-measured on that tip.
+**Rule 6 gate:** RESOLVED — the maintainer locked `DECISIONS.md` §`D-PAGINATION`
+(surface below in §19/§20). This document now records the real state + how to
+finish; it is no longer a "plan only".
+**Surface locked (28/09/2026):** window type `Window<T>`; introduce the new type;
+`total` via a flag on the window call; global default max; the in-memory part
+starts now (rides `D-MULTIPARADIGMA-GO` Phase 1); keep `orm.page` alongside
+`orm.window` (no bump); `offset` only on the windowed method (not the typed DSL);
+HTTP helper `pageRequest(...)` in `kof.web`.
+**How to finish:** follow §20 order P0→P6 (each slice independently provable);
+P1 (in-memory `slice`/`take`/`drop` on `List`) is the first slice — RED-first.
+**Snapshot:** branch `beta-0.5.0`, tip `63c7b15d8` (original recon). Every
+`file:line` below was measured on that tip; re-measure before the slice lands.
 
 ---
 

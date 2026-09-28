@@ -4240,8 +4240,27 @@ individuais:
 - **D-WASM-GO** — alvo novo wasm/wasi autorizado.
 - **D-UNIVERSAL-STAGES-GO** — stages 4–7 (DATA/SECURITY/SCIENTIFIC/BIO)
   autorizados.
+- **Questões de design abertas resolvidas** em `D-FUTURE-BATCH-2809B` (abaixo).
 
 - **Relações:** `Related: D-FUTURE-PROMOTION, D-KOF-FIRST (regra 12), regra 11, regra 6`.
+
+## D-FUTURE-BATCH-2809B — questões de design abertas dos planos `future/` resolvidas (mantenedora 28/09/2026, lote interativo)
+
+**Estado:** DECIDIDO (mantenedora) — resolve as "Open questions / DECISION REQUIRED / TBD" deixadas por `D-FUTURE-BATCH-2809`. A promoção segue uma-por-vez (`D-FUTURE-PROMOTION`); escolheu-se a recomendação dos próprios planos, exceto onde anotado.
+
+- **D-PAGINATION (superfície travada):** tipo de janela `Window<T>`; introduzir o tipo novo (não só assinaturas); `total` por flag na chamada de janela; limite máximo = default global; a parte in-memory começa agora (monta na fase 1 do `D-MULTIPARADIGMA-GO`); manter `orm.page` ao lado de `orm.window` (sem bump); `offset` só no método windowed, não no DSL tipado; helper HTTP `pageRequest(...)` vive em `kof.web`.
+- **D-VALUE-RECORDS-GO (resolvido):** `value` só em `record`; coleções guardam boxed; uso onde identidade é exigida = erro de compilação; representação JS = objeto congelado.
+- **D-ENTITY-HISTORY (Q1–Q15):** `audited entity`; consulta entity-static (`User.history(db, id)`); retorno em records conhecidos `Revision`/`FieldChange`; uma revisão por `save`; sequência por-entidade; só caminhos ORM auditados (SQL cru fora do contrato); `atTime` = at-or-before; relacionamentos = só valores de FK; entidade removida mantém histórico consultável; reconciliação de PII = crypto-shredding + masking (contrato); corrigir `observability.correlationId()` para request-bound; sem açúcar de actor-override no core na v1; baseline snapshot-por-revisão (diff opcional por backend); exclusão `not audited` no core; atribuir o bloco `HIST0xx` agora (+ parity matrix).
+- **D-MULTIPARADIGMA-GO (TBDs):** `take(-1)`/`drop(-1)` espelham `slice` (0/size); `zip` retorna `record Pair`.
+- **D-GRAPHICS-SPIKE:** namespace `kof.game`; cena call-based (sem sintaxe nova); 3D só após paridade 2D; contratos de golden hash obrigatórios; stack decidida no spike 3.0 (medida, nunca por familiaridade); input = snapshot por frame; WASM auto-entry; mídia atual mantida (sem rebase).
+- **D-TESTING-PLATFORM:** estender o `test`/`assert` existente (sem sintaxe estrangeira); `kof.test` vira namespace stdlib; Playwright/Cypress opt-in, não ship no CLI; E2E de browser JVM-only primeiro, standalone `kof test --e2e` depois.
+- **D-CONNECTORS:** vocabulário de ownership fica interno (sem superfície de linguagem); erro de interop é tipo da linguagem; **`foreign module` entra na gramática agora** (escolha explícita da mantenedora, contra o adiamento recomendado); tiers de ABI + primeira versão estável definidos agora; segundo connector oficial = C ABI.
+- **D-KOF-FILE-GO:** stdlib base mantém I/O/streaming/texto leves; codecs pesados (PDF/imagens/arquivos) pertencem a official packages (R1).
+- **D-IMAGE-VISION-GO:** pacote oficial interop-first (imageio/PDFBox/ZXing/Tess4J/OpenCV/ONNX) — nunca reimplementar.
+- **D-BOOTSTRAP-GO:** manter condições de entrada E1–E6; não inicia antes do 1.0 EXIT GATE (R12).
+- **D-WASM-GO (D-WASM-01..09):** backend direto (não cadeia de transpile); `Int` = i64 (igualar golden JVM/Native); exceção = global de string lançada + unwinding por `br`; objetos = handles + tabela de handles; GC reusa o design native (mark-sweep); env de closure como parâmetro explícito; WASI preview1; runtime dev = wasmtime primeiro; concorrência = cooperativa/diagnóstico apenas na v1.
+
+- **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-PAGINATION, D-VALUE-RECORDS-GO, D-ENTITY-HISTORY, D-MULTIPARADIGMA-GO, D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-CONNECTORS, D-KOF-FILE-GO, D-IMAGE-VISION-GO, D-BOOTSTRAP-GO, D-WASM-GO, regra 6`.
 
 ## D-HTTP-POLICIES — políticas HTTP/Web declarativas: global (existente), por prefixo de recurso e por endpoint, com payloads de rejeição declarativos (mantenedora 28/09/2026, "pode assumir")
 

@@ -946,9 +946,12 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > `D-FUTURE-BATCH-2809`) para
 > [`test-architecture-plan.md`](test-architecture-plan.md); primeira fatia =
 > profiling da Fase 1 (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
-> infraestrutura pura de testes. Elegíveis a seguir, por custo: `pagination`,
-> `kof-testing-platform` (exige `D-*`). Inelegíveis sem decisão: `value-records`,
-> `entity-history`, `kof-connector-ecosystem`.
+> infraestrutura pura de testes. **ABERTA (4ª frente):** `pagination` — promovida
+> 28/09 (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) para
+> [`pagination-plan.md`](pagination-plan.md); primeira fatia = `slice`/`take`/`drop`
+> em memória. Todos os planos restantes de `future/` estão autorizados com suas
+> questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
+> uma-por-vez (`D-FUTURE-PROMOTION`).
 
 ### TIER 0 — Guardrails e processos (E, ≈ zero) ✅ 01/09
 
