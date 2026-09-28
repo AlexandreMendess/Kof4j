@@ -16217,3 +16217,32 @@ with `Db.kf` = `db.connect("mysql://root:kofpass@127.0.0.1:13306/test")` + query
 → DB001; `--target jvm` → row.
 
 <!-- pt-switch --> **PT:** [§534 (pt_BR)](known-bugs.pt_BR.md#534--kof-run---target-js-ignora-drivers-jdbc-provisionadosdeclarados-kofjsrunner-in-process--db001-onde-o-jvm-conecta---open-dona--lane-js)
+
+
+## §535 — Script × `extern`: compiles clean, dies raw at runtime (`KofRuntime.kof_ffi/4`, ec=1) — 🟡 OPEN (owner = maintainer decision #667; rule 6)
+
+**Symptom (measured 28/09, the #666 probe — `FfiCaptureSpawnE2ETest` session):** an
+`extern` declaration + call in the Script target (`KofInterpreter`) compiles with NO
+diagnostic and dies at runtime with `KofRuntime.kof_ffi/4`, ec=1 — with or without
+`spawn` — because the FFI runtime face exists only on the JVM (`JvmRuntimeCallDescriptors`);
+the Script face of `extern` has no gap code and no matrix row (the irregularity the #666
+escalation itself declares). **Fix path (owner = decision #667, never this record):** the
+maintainer chooses between a named compile diagnostic on Script and a real Script FFI face;
+this record only makes the current measured behavior visible so no agent can "discover" it
+as a surprise. **Related:** plan "Phase 5 slices", #666/#667, spec §7 (#670 ownership table).
+
+<!-- pt-switch --> **PT:** [§535 (pt_BR)](known-bugs.pt_BR.md#535--script--extern-compila-limpo-e-morre-cru-em-runtime-kofruntimekof_ffi4-ec1---open-dona--decisao-da-mantenedora-667-regra-6)
+
+## §536 — MEM020/B-03 declared with ZERO implementation: two concurrent `ffi` writes to the same `Buffer(U8)` compile clean — 🟡 OPEN (owner = maintainer decision #668; rule 6)
+
+**Symptom (measured 28/09, the #666 probe):** spec B-03 and `MemRule.java:36` declare
+MEM020 as COMPILE_AND_RUNTIME, yet the tree carries no scanner, no runtime borrow
+tracking and no E2E face (single token in the memory package — measured). Two `spawn`ed
+`ffi` writes into the same `Buffer(U8)` compile clean and both execute. **Fix path
+(owner = decision #668, never this record):** option A/B/C defines either the compile
+face expressible over the existing `OwnershipPass` machinery or the writable-borrow
+state on `Buffer` (a NEW core primitive — rule 6 territory); this ledger entry only
+records the declared-guarantee-vs-tree divergence. **Related:** #666/#668, spec §7/#670,
+plan "Phase 5 slices".
+
+<!-- pt-switch --> **PT:** [§536 (pt_BR)](known-bugs.pt_BR.md#536--mem020b-03-declarado-com-zero-implementacao-duas-escritas-ffi-concorrentes-no-mesmo-bufferu8-compilam-limpo---open-dona--decisao-da-mantenedora-668-regra-6)

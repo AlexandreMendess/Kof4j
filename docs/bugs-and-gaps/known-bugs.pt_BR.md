@@ -13776,3 +13776,33 @@ com `Db.kf` = `db.connect("mysql://root:kofpass@127.0.0.1:13306/test")` + query
 → DB001; `--target jvm` → linha.
 
 <!-- en-switch --> **EN:** [§534 (EN)](known-bugs.md#534--kof-run---target-js-ignores-provisioneddeclared-jdbc-drivers-in-process-kofjsrunner--db001-where-jvm-connects---open-owner--lane-js)
+
+
+## §535 — Script × `extern`: compila limpo e morre cru em runtime (`KofRuntime.kof_ffi/4`, ec=1) — 🟡 OPEN (dona = decisão da mantenedora #667; regra 6)
+
+**Sintoma (medido 28/09, sonda do #666 — sessão `FfiCaptureSpawnE2ETest`):** uma
+declaração + chamada `extern` no alvo Script (`KofInterpreter`) compila SEM diagnóstico
+e morre em runtime com `KofRuntime.kof_ffi/4`, ec=1 — com ou sem `spawn` — porque a face
+FFI de runtime só existe no JVM (`JvmRuntimeCallDescriptors`); a face Script de `extern`
+não tem gap code nem linha na matriz (irregularidade declarada pela própria escalada do
+#666). **Caminho de correção (dona = decisão #667, nunca este record):** a mantenedora
+escolhe entre diagnóstico nomeado na compilação do Script ou uma face FFI real no Script;
+este record apenas torna visível o comportamento medido hoje para nenhum agente "descobrir"
+a surpresa depois. **Relacionado:** plano "Fatias da Fase 5", #666/#667, spec §7 (tabela
+de ownership do #670).
+
+<!-- en-switch --> **EN:** [§535 (EN)](known-bugs.md#535--script--extern-compiles-clean-dies-raw-at-runtime-kofruntimekof_ffi4-ec1---open-owner--maintainer-decision-667-rule-6)
+
+## §536 — MEM020/B-03 declarado com ZERO implementação: duas escritas `ffi` concorrentes no mesmo `Buffer(U8)` compilam limpo — 🟡 OPEN (dona = decisão da mantenedora #668; regra 6)
+
+**Sintoma (medido 28/09, sonda do #666):** a spec B-03 e `MemRule.java:36` declaram
+MEM020 como COMPILE_AND_RUNTIME, mas a árvore não tem scanner, nem rastreamento de borrow
+em runtime, nem face E2E (token único no pacote memory — medido). Duas escritas `ffi` em
+`spawn` para o MESMO `Buffer(U8)` compilam limpo e as duas executam. **Caminho de
+correção (dona = decisão #668, nunca este record):** a opção A/B/C define ou a face de
+compilação expressível sobre a máquina existente do `OwnershipPass` ou o estado de
+borrow-escrevível em `Buffer` (primitiva NOVA de core — território da regra 6); esta
+entrada do ledger apenas registra a divergência garantia-declarada × árvore.
+**Relacionado:** #666/#668, spec §7/#670, plano "Fatias da Fase 5".
+
+<!-- en-switch --> **EN:** [§536 (EN)](known-bugs.md#536--mem020b-03-declared-with-zero-implementation-two-concurrent-ffi-writes-to-the-same-bufferu8-compile-clean---open-owner--maintainer-decision-668-rule-6)
