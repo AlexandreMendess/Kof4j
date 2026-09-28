@@ -274,6 +274,55 @@ class KofStringsTest {
         runNative(tmp, golden, expected);
     }
 
+    // D-STR-UNICODE (row 11): String.toUpperCase/toLowerCase fold Unicode per
+    // CODE UNIT (BMP simple case mapping), not ASCII-only. The units are read
+    // back via toCharArray (the already-proven face) so the golden does not
+    // depend on stdout encoding. Inputs avoid locale/full-mapping exceptions
+    // (ß→SS, ﬁ, İ, Deseret) that are outside the ratified per-code-unit scope:
+    // café/CAFÉ (Latin-1), Greek, Cyrillic, an astral emoji (pass-through),
+    // ß (unchanged by SIMPLE lowercase), ſ/ı (2-byte → 1-byte shrink) and the
+    // titlecase digraphs. Oracle = the JVM measured in the same program.
+    @Test
+    void toUpperCaseToLowerCaseUnicodeJvmJsNative(@TempDir Path tmp) throws Exception {
+        String golden = """
+            main() {
+                var a = "café".toUpperCase().toCharArray()
+                println(a.length)
+                for (var i = 0; i < a.length; i++) { println(a[i] as Int) }
+                var b = "CAFÉ".toLowerCase().toCharArray()
+                println(b.length)
+                for (var i = 0; i < b.length; i++) { println(b[i] as Int) }
+                var g = "άλφα".toUpperCase().toCharArray()
+                println(g.length)
+                for (var i = 0; i < g.length; i++) { println(g[i] as Int) }
+                var c = "привет".toUpperCase().toCharArray()
+                println(c.length)
+                for (var i = 0; i < c.length; i++) { println(c[i] as Int) }
+                var e = "a😀b".toUpperCase().toCharArray()
+                println(e.length)
+                for (var i = 0; i < e.length; i++) { println(e[i] as Int) }
+                var s = "straße".toLowerCase().toCharArray()
+                println(s.length)
+                for (var i = 0; i < s.length; i++) { println(s[i] as Int) }
+                var k = "Kſı".toUpperCase().toCharArray()
+                println(k.length)
+                for (var i = 0; i < k.length; i++) { println(k[i] as Int) }
+                var d = "Ǆǅǆ".toLowerCase().toCharArray()
+                println(d.length)
+                for (var i = 0; i < d.length; i++) { println(d[i] as Int) }
+                println("".toUpperCase().toCharArray().length)
+                println("".toLowerCase().toCharArray().length)
+            }
+            """;
+        String expected = "4\n67\n65\n70\n201\n4\n99\n97\n102\n233\n"
+                + "4\n902\n923\n934\n913\n6\n1055\n1056\n1048\n1042\n1045\n1058\n"
+                + "4\n65\n55357\n56832\n66\n6\n115\n116\n114\n97\n223\n101\n"
+                + "3\n75\n83\n73\n3\n454\n454\n454\n0\n0";
+        runJvm(tmp, golden, expected);
+        runJs(tmp, golden, expected);
+        runNative(tmp, golden, expected);
+    }
+
     private void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {
