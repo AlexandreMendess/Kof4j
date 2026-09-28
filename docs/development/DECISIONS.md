@@ -59,7 +59,7 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-KOF-AS-CLOUD** — Kof must BE the cloud
 - **D-BOOTSTRAP** — the bootstrapper (Kof in Kof)
 - **D-DB-GAPS** — DB/ORM orphan gaps
-- **D-BRANCH-0.5.0** — work moves to `beta-0.5.0`
+- **D-BRANCH-0.5.0** — work moves to `beta-0.5.0` *(SUPERSEDED 28/09 by D-QUALITY-PIPELINE-2609 / D-BRANCH-PIPELINE)*
 - **D-RELEASE-1.0** — KOF 1.0 EXIT GATE
 - **D-VERSION-BUMP-0.5.0** — revision to `0.5.0-beta`
 - **D-1.0-EDGES** — open edges closed
@@ -1847,6 +1847,7 @@ This section is historical. It does not define current behavior.
 | D-PLATFORM          | separate platform plan             | `CLOSED`     | D-APP + roadmap §23              |
 | D-PLAT              | separate completion plan           | `CLOSED`     | roadmap §23 + Definition of Done |
 | D-ASM-GATE previous | ASM inspection always mandatory    | `SUPERSEDED` | current D-ASM-GATE               |
+| D-BRANCH-0.5.0      | work moves to `beta-0.5.0`         | `SUPERSEDED` | D-QUALITY-PIPELINE-2609 / D-BRANCH-PIPELINE |
 
 ---
 
@@ -2396,6 +2397,8 @@ plan/records. **Not a frozen-surface change** — it widens accepted URLs; the
 `kof.db`/`kof.orm` API is unchanged.
 
 ## D-BRANCH-0.5.0 — work moves to `beta-0.5.0`; `beta-0.4.0` stays for in-flight landings + release prep (09/20/2026, maintainer order)
+
+**State:** `SUPERSEDED` (28/09/2026) by `D-QUALITY-PIPELINE-2609` / `D-BRANCH-PIPELINE` — the branch pipeline `lab → testing → prerelease → stable → release/x.y.z → tag` replaced "work moves to `beta-0.5.0`" at the 0.5.0 cutover; `beta-*` is frozen. History preserved below (never deleted, §1.3).
 
 **Order (chat 09/20/2026):** "avise os outros agentes, vamos mover todo trabalho
 pra branch beta-0.5.0 e começar a preparar a nova release".
@@ -3766,9 +3769,10 @@ stash-pop conflict markers; `e29ba47b3` merged both sides into this entry.)
   floor (rule 8) even without per-push CI — raised by the lane review
   ("no quebrável", precedents `7f174a6f`); the maintainer's reply did not
   touch it; settle it in the cutover plan, do not assume either way.
-- **Until then NOTHING changes:** `beta-0.5.0` remains the active branch
-  (`D-BRANCH-0.5.0` in force); agents keep pushing to it; #619 stays HELD
-  (rule 10). Queue: roadmap §23 `TIER 14`.
+- **Until then NOTHING changes (historical — this bullet predates the
+  cutover and is superseded by the CUTOVER EXECUTED below / `D-BRANCH-PIPELINE`):**
+  `beta-0.5.0` was the active branch (`D-BRANCH-0.5.0`, `SUPERSEDED` 28/09);
+  agents kept pushing to it; #619 stays HELD (rule 10). Queue: roadmap §23 `TIER 14`.
 - **OPEN POINT #2 (the ≥80% denominator):** branch protection measures
   checks as booleans — a percentage cannot be enforced by protection; it must
   live in a promotion script over a FIXED, enumerable list of checks
@@ -4339,3 +4343,24 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Proof to require (per issue):** a small deterministic C fixture + a Kof program observing the result via `Buffer.bytes()`, byte-for-byte JVM↔Native parity, and negative capacity/bounds cases; a benchmark may measure cost but no performance claim without measurement.
 - **Routing:** NOT implemented by the issues/tooling lane; the native/FFI lane owns execution (coordinate with the in-progress fase-5 front / pin unit #666 before touching; do not collide).
 - **Relationships:** `Related: D-R3-BUFFER, D6-3, D-KOF-FIRST, D-FULL-PARITY-050, rule 6, rule 11, rule 12`; tracker #651.
+
+## D-SCRIPT-EXTERN-REFUSE — Script × `extern` is refused at compile time with an honest gap code + a `backend-parity` FFI×Script row (maintainer 28/09/2026, voted option A)
+
+**State:** DECIDED (maintainer) — resolves the #667 decision request; **implementation belongs to the memory-safety/Script lane** (front `docs/development/memory-safety-plan.md` phase-5 unit 2), not the issues/tooling lane.
+
+- **Question (#667):** `extern "libc.so.6" abs(Int x): Int` + `main() { println(abs(-7)) }` compiles CLEAN on Script and dies at runtime with the raw JVM error `KofRuntime.kof_ffi/4` (exit 1), with or without `spawn`; no gap code and no FFI×Script row in `docs/backend-parity.md`. `kof_ffi` exists only in the JVM runtime (`JvmRuntimeCallDescriptors`), not in `KofInterpreterRuntime`.
+- **Decision:** option **A — compile-time refusal**. The Script target has no FFI runtime, so an `extern` declaration is refused at the declaration line with an honest, named gap code and the `backend-parity` FFI×Script row is added. No silent fallback, no raw runtime death (precedent #510/`INTEROP003`: static field of an external class on a non-JVM target = compile-time refusal).
+- **Gap code (locked sub-choice):** reuse **`FFI001`** — the same "extern is not bindable on this target" class Native already uses for its honest declaration-line refusal (`CompilerFfiBinding`); a new `FFI003` would multiply the code table without a distinct class. Everything outside the contract keeps `FFI001`.
+- **Not chosen:** (B) implementing the `kof_ffi` bridge in the interpreter (larger surface/contract — reopen with a new decision if a real Script FFI consumer appears); (C) other.
+- **Proof to require:** a Script RED-first E2E (the exact `abs(-7)` reproducer refused at compile with `FFI001`, zero raw runtime crash) + the `backend-parity` FFI×Script row; no Script face is pinned as correct.
+- **Relationships:** `Related: D-FFI-STRUCT, D-R3-BUFFER, D-FULL-PARITY-050, D-MEMORY-SAFETY, rule 6, rule 7`; tracker #667.
+
+## D-MEM020-COMPILE — `MEM020` (B-03) gets a COMPILE face over the existing `OwnershipPass`: two concurrent `extern` writes to the same `Buffer(U8)` across `spawn` without join are a compile-time ERROR (maintainer 28/09/2026, voted option A)
+
+**State:** DECIDED (maintainer) — resolves the #668 decision request; **implementation belongs to the memory-safety lane** (front `docs/development/memory-safety-plan.md` phase-5 unit 2), not the issues/tooling lane.
+
+- **Question (#668):** two `spawn`ed `extern` calls writing the same `Buffer(U8)` without sync compile CLEAN (diag=[]) on all targets — the B-03 line of the spec ("Passing same `Buffer` to two concurrent FFI calls without sync" → `MEM020`, `MemRule.java:36` `COMPILE_AND_RUNTIME`). The captured Buffer is by reference and FFI-write is not in `SpawnCaptureScanner.MUTATORS`, so object `MEM021` does not fire and `D-MEM021-SCALAR` does not cover object aliasing via FFI. No scanner, no runtime guard, no E2E.
+- **Decision:** option **A — compile face**. `MEM020` ERROR when a `Buffer` is written by an `extern` (INOUT param) from two `spawn`s without `await`/`join_all` between — implemented over the existing `OwnershipPass` (same shape as slices 3.2/3.2b). The spec already forbids B-03; this gives the existing rule a tooth.
+- **Not chosen:** (B) runtime writable-borrow guard on `Buffer` = a NEW core primitive → larger scope decision, deferred; (C) accept as a documented race (rejected — the spec already forbids it).
+- **Proof to require:** the exact #668 reproducer RED-first as `MEM020` ERROR on all targets with zero false positives (a single writer or an intervening `await` stays silent); `MemorySafetyE2ETest` growth.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-MEM021-SCALAR, D-R3-BUFFER, D-FFI-STRUCT, rule 6, rule 12`; tracker #668.
