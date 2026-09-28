@@ -99,6 +99,7 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 | Closer explícito + diagnóstico de closer ausente | ✅ fatia 1 (`UsingDesugarE2ETest` 7/7) |
 | Aninhamento (reverse close) + integração `db` + silêncio MEM014 | ✅ fatia 2 (`UsingDesugarE2ETest` 11/11; H2-hermético, sem fixture) |
 | Goldens Script de `db` + isolation-by-release | ✅ fatia 3 (`UsingDesugarE2ETest` 13/13; nomes mem divididos, sem `DB_CLOSE_DELAY`) |
+| Docs de usuário (seção `using` em `learn/14-exceptions.md`) | ✅ fatia 4 (sample espelha o `DB_HAPPY` verde, escopo JVM-hermético anotado) |
 | Goldens cross riscv/aarch | ⏳ adiado — sem qemu neste host (prova skip-gated não é prova) |
 | Análise de escape-pós-close | ⏳ lane memory-safety (sem ownership neste plano) |
 

@@ -98,6 +98,7 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 | Explicit closer + missing-closer diagnostic | ✅ slice 1 (`UsingDesugarE2ETest` 7/7) |
 | Nesting (reverse close) + `db` integration + MEM014-silence | ✅ slice 2 (`UsingDesugarE2ETest` 11/11; H2-hermetic, no fixture) |
 | Script-target `db` goldens + isolation-by-release | ✅ slice 3 (`UsingDesugarE2ETest` 13/13; shared mem names, no `DB_CLOSE_DELAY`) |
+| User docs (`learn/14-exceptions.md` `using` section) | ✅ slice 4 (sample mirrors green `DB_HAPPY`, JVM-hermetic scope noted) |
 | Cross riscv/aarch goldens | ⏳ deferred — no qemu on this host (skip-gated proof is not proof) |
 | Escape-after-close analysis | ⏳ memory-safety lane (no ownership in this plan) |
 
