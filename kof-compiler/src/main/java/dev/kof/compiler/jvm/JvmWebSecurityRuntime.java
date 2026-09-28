@@ -218,6 +218,14 @@ public final class JvmWebSecurityRuntime {
                  */
                 public static void kof_web_policy(String appId, String prefix,
                         java.util.Map<?, ?> opts) {
+                    // R6 (§8): prefixo desconhecido falha no build, nunca vira
+                    // no-op silencioso. `"*"`/`""` = todos; senao exige `/` inicial.
+                    if (prefix != null && !prefix.isEmpty() && !"*".equals(prefix)
+                            && !prefix.startsWith("/")) {
+                        throw new IllegalArgumentException(
+                                "policy prefix must start with '/', or be \\"*\\" / \\"\\""
+                                        + " for all: " + prefix);
+                    }
                     WebApp app = kof_web_app(appId);
                     app.securityConfigured = true;
                     app.policies.add(new ScopedPolicy(prefix, Policy.parse(opts, false)));

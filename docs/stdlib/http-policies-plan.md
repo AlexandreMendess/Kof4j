@@ -2,19 +2,18 @@
 
 # HTTP/Web declarative policies — implementation plan
 
-**Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-HTTP-POLICIES`, maintainer "pode assumir")
+**Status:** `CONCLUDED` — promoted from `future/` 28/09/2026 (`D-HTTP-POLICIES`, maintainer "pode assumir"), all slices F0–F6 landed 28/09/2026; moved `development/` → `docs/stdlib/` (3-state rule).
 **Owner:** pipeline lane (this session); JVM first, Native/JS = honest `WEB006`
 **Decision:** `D-HTTP-POLICIES` (`DECISIONS.md`) — additive; surface locked as §3.
-**Real state (measured 28/09/2026):** the global `app.security(opts)` exists and is
-frozen (`D-SEC` C18 fixed pipeline order) and now carries the declarative
-`responses` opt (F0 landed). The `Policy` value, resource scopes (`app.policy`),
-effective-policy resolution, the `merge` law and the endpoint-opt form
-(`app.get(path, opts) { }`, F3) are landed (F1–F3). Per-route rate-limit keying
-(F5) is not implemented.
-**How to finish:** implement the ordered slices of §12, one commit each, RED-first
-+ `check_500`; JVM full, Native/JS `WEB006` (R6, never a silent drop). Start with
-the first landed slice (global `responses`), then F1 (`Policy` refactor) → F2
-(`app.policy`).
+**Real state (28/09/2026):** implemented and verified. `app.security(opts)` carries
+the declarative `responses` opt (F0); `Policy` + `merge`/`appliesTo` (F1);
+resource scopes `app.policy(prefix, opts)` with longest-prefix effective-policy
+resolution (F2); endpoint opts `app.get(path, opts) { }` (F3); `responses` from the
+effective policy incl. `notFound` on both 404 paths (F4); per-route rate-limit key
+`ip + route pattern` (F5); prefix validation + `WEB006` on Native/JS + docs (F6).
+Proof: `KofHttpPoliciesE2ETest` 10/10 + web regression 65/65.
+**How to finish:** done. Reopen only as a new front (rule 6) — e.g. glob matchers
+or Native/JS policies, both explicitly out of v1 scope.
 
 ---
 
@@ -37,6 +36,9 @@ composes and executes the fixed pipeline.
 
 The web stack already has a **global** policy mechanism. Nothing per-route
 exists today.
+
+> Recon captured **before** implementation (measured tip `9d3b36980`); see the
+> header for the concluded state (F0–F6 landed).
 
 | Piece | Where | What it does today |
 |---|---|---|
@@ -235,6 +237,11 @@ v1) — a static body, which is the common WebService case.
 
 > The trailing-lambda grammar (`ExpressionParser.java:202-212`) needs **no**
 > change — confirmed by reading the parser.
+>
+> Touchpoints 6/7 (`BuiltinCallTyper` / `CompilerComparisons`) needed **no**
+> change: the route calls already lower through
+> `ExpressionBuiltinInstanceCalls`, and the 3-arg route /
+> `policy` forms are covered by green suites (F2–F6). Verified, not assumed.
 
 ---
 
@@ -256,7 +263,10 @@ they remain a documented gap until separately promoted (rule 6).
 - Unknown opt key → **ignored** (today's behavior, kept for compatibility).
   A future decision may turn this into a warning; not in v1.
 - Invalid `rateLimit` (no `/`) → `IllegalArgumentException` (existing).
-- Invalid `policy` prefix (empty/blank) → `IllegalArgumentException` at startup.
+- Invalid `policy` prefix → `IllegalArgumentException` at startup. `"*"` and `""`
+  mean "every request" (§4.2); any other prefix must start with `/`.
+  (Supersedes the earlier "empty/blank is invalid" wording, which contradicted
+  §4.2.)
 - `app.policy` with a non-Map opts → compile-time rejection (typer returns
   `null` → the existing "unsupported instance call" path), never a silent no-op.
 - On non-JVM targets → `WEB006` compile-time (no silent policy drop).
@@ -313,7 +323,8 @@ they remain a documented gap until separately promoted (rule 6).
 > Each slice: compile + test + `check_500`; commit per slice. No slice ships
 > without a green proof and updated docs.
 
-**Slice status (28/09/2026):** ✅ F0–F5 landed; ⏳ F6 pending.
+**Slice status (28/09/2026):** ✅ F0–F6 all landed — plan concluded, moved to
+`docs/stdlib/http-policies-plan.md`.
 
 - **F0 — Global `responses` payloads for `app.security(opts)` (additive).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parses a `responses` Map
@@ -359,9 +370,11 @@ they remain a documented gap until separately promoted (rule 6).
   for an unknown path). **Proof:** `KofHttpPoliciesE2ETest#perRouteRateLimitKeys`
   — `/a` (limit 1), `/b` (limit 2, different counter), `/c` (global 3) do not
   share counters; `securityRateLimitByRemoteAddress` (single route) still green.
-- **F6 — Docs + decision + gaps.** `docs/stdlib/stdlib-web.md` §3,
-  `training/idioms/web.md`, `DECISIONS.md` `D-HTTP-POLICIES`, roadmap Phase 4;
-  confirm `WEB006` on Native/JS with a test.
+- **F6 — Docs + decision + gaps.** ✅ LANDED 28/09: prefix validation (`"*"`/`""`
+  = all, else must start with `/`) with `KofHttpPoliciesE2ETest#invalidPolicyPrefixFailsAtStartup`;
+  `WEB006` on Native/JS proven (client + server call sites); `stdlib-web` §3 +
+  `training/idioms/web` (EN+PT); `D-HTTP-POLICIES` locked; roadmap Phase 4 linked.
+  Plan concluded → moved to `docs/stdlib/` (3-state rule).
 
 ---
 

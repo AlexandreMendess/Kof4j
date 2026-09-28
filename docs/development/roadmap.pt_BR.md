@@ -712,6 +712,10 @@ contratos estabilizarem.
 - sessions / policies / rate limiting;
 - security defaults / audit.
 
+> Políticas HTTP declarativas (`app.security` / `app.policy` / opts por endpoint /
+> `responses` / chave de rate-limit por rota) pousaram 28/09 — `D-HTTP-POLICIES`,
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md).
+
 > Auditoria do ecossistema: a matriz de cobertura, gaps (G1-G12),
 > prioridades e estratégia vivem em `docs/bugs-and-gaps/ecosystem-coverage.md`.
 > Ordem de implementação P0: diagnóstico de target (G7) → `kof.test`
@@ -933,11 +937,10 @@ ciência) **sem** destruir a simplicidade da linguagem.
 ### Fila de promoção (`D-FUTURE-PROMOTION`, mantenedora 28/09)
 
 > Antes de trabalho novo: migrar tudo para `lab`, então promover exatamente UM
-> plano de `future/` e implementá-lo (mais barato primeiro). **ABERTO:**
-> `http-policies` — promovido 28/09 (`D-HTTP-POLICIES`) para
-> [`http-policies-plan.md`](http-policies-plan.md); primeira fatia = `responses`
-> [`http-policies-plan.md`](http-policies-plan.md); primeira fatia = `responses`
-> global aditivo, depois F1 (`Policy`) → F2 (`app.policy`). **ABERTO:**
+> plano de `future/` e implementá-lo (mais barato primeiro). **CONCLUÍDO:**
+> `http-policies` — promovido 28/09 (`D-HTTP-POLICIES`), todas as fatias F0–F6
+> pousadas 28/09 (`KofHttpPoliciesE2ETest` 10/10), movido para
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md). **ABERTO:**
 > `scoped-resources` — promovido 28/09 (`D-SCOPED-RESOURCES-GO`, lote
 > `D-FUTURE-BATCH-2809`) para [`scoped-resources-plan.md`](scoped-resources-plan.md);
 > fatia 1 landed (`using` com closer explícito + `desugarUsing` primeiro +

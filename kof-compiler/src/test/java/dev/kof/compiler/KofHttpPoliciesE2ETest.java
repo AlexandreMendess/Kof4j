@@ -400,6 +400,33 @@ class KofHttpPoliciesE2ETest {
                 .startsWith("HTTP/1.1 200 OK"));
     }
 
+    // §8 (R6): prefixo invalido falha no build (nunca vira no-op silencioso).
+    @Test
+    void invalidPolicyPrefixFailsAtStartup(@TempDir Path tempDir) throws Exception {
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, """
+                main() {
+                    var app = web.app()
+                    app.policy("admin", mapOf("roles", "admin"))
+                    app.listen(8100)
+                }
+                """);
+        Path outDir = tempDir.resolve("classes");
+        CompilationResult result = driver.compile(source, outDir, Target.JVM);
+        assertTrue(result.success(),
+                "compilation should succeed: " + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(JAVA_BIN, "-cp", outDir.toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        if (!process.waitFor(10, TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            fail("process hung: " + out);
+        }
+        assertTrue(process.exitValue() != 0, "invalid prefix must fail: " + out);
+        assertTrue(out.contains("policy prefix must start with"), out);
+    }
+
     // F6 (gap honesto): app.policy e route-opts nao existem fora do JVM -> WEB006.
     @Test
     void policyGapOnNativeAndJs(@TempDir Path tempDir) throws IOException {

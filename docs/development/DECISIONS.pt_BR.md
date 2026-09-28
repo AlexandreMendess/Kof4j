@@ -4264,7 +4264,7 @@ individuais:
 
 ## D-HTTP-POLICIES — políticas HTTP/Web declarativas: global (existente), por prefixo de recurso e por endpoint, com payloads de rejeição declarativos (mantenedora 28/09/2026, "pode assumir")
 
-**Estado:** DECIDED (mantenedora) — frente promovida sob `D-FUTURE-PROMOTION` (`docs/development/http-policies-plan.md`); parte da autorização `D-FUTURE-BATCH-2809`.
+**Estado:** DECIDED (mantenedora) — frente promovida sob `D-FUTURE-PROMOTION` (`docs/stdlib/http-policies-plan.md`, concluída 28/09: fatias F0–F6 pousadas, `KofHttpPoliciesE2ETest` 10/10); parte da autorização `D-FUTURE-BATCH-2809`.
 
 - **Escopo:** extensão aditiva do `app.security(opts)` **global** existente (`D-SEC` C18). Sem gramática nova, sem keyword, sem tipo novo de usuário além do `Map` de opts já usado. A ordem fixa do pipeline (`D-SEC`) permanece intocada.
 - **Superfície v1 (travada, plano §3):** `app.security(opts)` (global, inalterado); `app.policy(prefix, opts)` (escopo de recurso); `app.get/post/... (path, opts) { }` (política de endpoint); nova chave opt `responses` (`Map`) para corpos 401/403/429 declarativos. Chaves escalares: escopo mais profundo vence; chaves de lista (`publicPaths`, `roles`): união (allow-lists só acumulam). Casamento só por prefixo, maior prefixo vence; sem glob/regex na v1.

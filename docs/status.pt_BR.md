@@ -2,9 +2,9 @@
 
 # Status do Projeto Kof
 
-last: 659-mem-4.2-travada + F3-pousado
-doing: memory-safety / http-policies (duas lanes vivas)
-next: fase-4.3-faces-callback (medir-antes, lane paridade) / http-policies-f6 (lane pipeline)
+last: 659-mem-4.2-travada + http-policies concluída (F0–F6)
+doing: memory-safety / scoped-resources / test-architecture / pagination (lanes vivas)
+next: fase-4.3-faces-callback (lane paridade) / varredura-de-promoção (lane pipeline)
 location: status
 state: active
 constraint: pr619-maintainer-only
@@ -14,7 +14,7 @@ decision: D-KOF-FIRST-IMPL
 
 **28/09 — frente pipeline + biblioteca (branch ativa = `lab`, `D-BRANCH-PIPELINE`).**
 - **Esteira de qualidade pousada:** cutover `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`); máquina de estados (`scripts/pipeline/pipeline_state.py` 21/21), promotion gate (`promotion_gate.py`, 100%), `promote.yml`, rulesets (`pipeline-stages`, `release-tags`); `beta-*` congeladas.
-- **`http-policies` PROMOVIDO** `future/` → [`docs/development/http-policies-plan.md`](development/http-policies-plan.md) (`D-HTTP-POLICIES`, `D-FUTURE-PROMOTION`): políticas HTTP/Web aditivas (global + `app.policy` prefixo + opts de endpoint + `responses`), JVM-first, Native/JS `WEB006`.
+- **`http-policies` CONCLUÍDO** `future/` → [`docs/stdlib/http-policies-plan.md`](stdlib/http-policies-plan.md) (`D-HTTP-POLICIES`, `D-FUTURE-PROMOTION`): políticas HTTP/Web aditivas (global + `app.policy` prefixo + opts de endpoint + `responses` + chave de rate-limit por rota), JVM-first, Native/JS `WEB006`; F0–F6 pousadas 28/09 (`KofHttpPoliciesE2ETest` 10/10).
 - **`scoped-resources` PROMOVIDO** `future/` → [`docs/development/scoped-resources-plan.md`](development/scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`, lote `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`): fatias 1–5 landed — `using (x = init, closer) { }` → `desugarUsing` primeiro em `DesugarSteps.defaults()` → `try/finally` (`UsingDesugarE2ETest` 14/14 nas fatias 1–5: reverse-close aninhado + `db`-H2 JVM/Script/JS happy/exceção com silêncio MEM014 e isolation-by-release; closer explícito porque `x.close()` é falso p/ `db`).
 - **memory-safety fase 4.2 (#659):** matriz spawn-captura travada nos 4 alvos incluindo captura MUTADA (`44`) e visibilidade filho→pai (`44/22`) — lacunas pegas pelas duas primeiras passadas do verifier independente; escopo da corrida escalar escalado a mantenedora; vereditos registrados: `MEM023` sem face de compilacao, geradores inexistentes (ausencia, nao gap)
 - **memory-safety fase 4.1 (#658):** paridade B-06 de captura mutavel de lambda travada nos 4 alvos — `LambdaE2ETest` 36/36 com faces Script (`KofInterpreter`) e JS (`KofJsRunner`) golden-identicas; zero mudanca de comportamento (a paridade ja era verdadeira — medida, nao assumida).

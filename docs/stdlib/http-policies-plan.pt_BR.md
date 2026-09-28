@@ -2,19 +2,18 @@
 
 # Políticas HTTP/Web declarativas — plano de implementação
 
-**Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-HTTP-POLICIES`, mantenedora "pode assumir")
+**Status:** `CONCLUÍDO` — promovido de `future/` 28/09/2026 (`D-HTTP-POLICIES`, mantenedora "pode assumir"), todas as fatias F0–F6 pousadas 28/09/2026; movido `development/` → `docs/stdlib/` (regra dos 3 estados).
 **Dono:** lane pipeline (esta sessão); JVM primeiro, Native/JS = `WEB006` honesto
 **Decisão:** `D-HTTP-POLICIES` (`DECISIONS.md`) — aditivo; superfície travada como §3.
-**Estado real (medido 28/09/2026):** o `app.security(opts)` global existe e é
-congelado (`D-SEC` C18, ordem fixa do pipeline) e agora carrega o opt declarativo
-`responses` (F0 pousada). O valor `Policy`, os escopos de recurso (`app.policy`), a
-resolução da política efetiva, a lei de `merge` e a forma com opts por endpoint
-(`app.get(path, opts) { }`, F3) pousaram (F1–F3). A chave de rate-limit por rota
-(F5) não está implementada.
-**Como terminar:** implementar as fatias ordenadas do §12, um commit cada,
-RED-first + `check_500`; JVM completo, Native/JS `WEB006` (R6, nunca drop
-silencioso). Começar pela primeira fatia pousada (o `responses` global), depois
-F1 (refactor `Policy`) → F2 (`app.policy`).
+**Estado real (28/09/2026):** implementado e verificado. `app.security(opts)` carrega
+o opt declarativo `responses` (F0); `Policy` + `merge`/`appliesTo` (F1); escopos de
+recurso `app.policy(prefix, opts)` com resolução da política efetiva por prefixo
+mais longo (F2); opts por endpoint `app.get(path, opts) { }` (F3); `responses` da
+política efetiva incl. `notFound` nos dois caminhos de 404 (F4); chave de
+rate-limit por rota `ip + padrão de rota` (F5); validação de prefixo + `WEB006` em
+Native/JS + docs (F6). Prova: `KofHttpPoliciesE2ETest` 10/10 + regressão web 65/65.
+**Como terminar:** feito. Reabrir apenas como frente nova (regra 6) — ex.: glob
+matchers ou políticas Native/JS, ambos explicitamente fora do escopo da v1.
 
 ---
 
@@ -35,6 +34,9 @@ executa a pipeline fixa.
 ## 2. Estado atual (código real, não suposto)
 
 A stack web já tem um mecanismo de política **global**. Nada por-rota existe hoje.
+
+> Recon capturado **antes** da implementação (tip medido `9d3b36980`); ver o
+> cabeçalho para o estado concluído (F0–F6 pousadas).
 
 | Peça | Onde | O que faz hoje |
 |---|---|---|
@@ -234,6 +236,11 @@ v1) — um corpo estático, que é o caso comum de WebService.
 
 > A gramática da lambda à direita (`ExpressionParser.java:202-212`) **não**
 > precisa de mudança — confirmado lendo o parser.
+>
+> Os touchpoints 6/7 (`BuiltinCallTyper` / `CompilerComparisons`) **não**
+> precisaram de mudança: as chamadas de rota já baixam por
+> `ExpressionBuiltinInstanceCalls`, e as formas rota-de-3-args / `policy` estão
+> cobertas por suítes verdes (F2–F6). Verificado, não assumido.
 
 ---
 
@@ -255,8 +262,10 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 - Chave de opt desconhecida → **ignorada** (comportamento de hoje, mantido por
   compatibilidade). Uma decisão futura pode virar warning; não na v1.
 - `rateLimit` inválido (sem `/`) → `IllegalArgumentException` (existente).
-- Prefixo inválido em `policy` (vazio/em branco) → `IllegalArgumentException` no
-  startup.
+- Prefixo inválido em `policy` → `IllegalArgumentException` no startup. `"*"` e
+  `""` significam "toda request" (§4.2); qualquer outro prefixo deve começar com
+  `/`. (Supera o texto anterior "vazio/em branco é inválido", que contradizia
+  §4.2.)
 - `app.policy` com opts que não é `Map` → rejeição em compile-time (o typer
   devolve `null` → caminho existente de "chamada de instância não suportada"),
   nunca um no-op silencioso.
@@ -315,7 +324,8 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 > Cada fatia: compile + teste + `check_500`; commit por fatia. Nenhuma fatia
 > entra sem prova verde e docs atualizadas.
 
-**Status das fatias (28/09/2026):** ✅ F0–F5 pousadas; ⏳ F6 pendente.
+**Status das fatias (28/09/2026):** ✅ F0–F6 todas pousadas — plano concluído,
+movido para `docs/stdlib/http-policies-plan.md`.
 
 - **F0 — Payloads `responses` globais no `app.security(opts)` (aditivo).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parseia um Map `responses`
@@ -361,9 +371,12 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
   `/a` (limite 1), `/b` (limite 2, contador próprio), `/c` (global 3) não
   compartilham contador; `securityRateLimitByRemoteAddress` (rota única) segue
   verde.
-- **F6 — Docs + decisão + gaps.** `docs/stdlib/stdlib-web.md` §3,
-  `training/idioms/web.md`, `DECISIONS.md` `D-HTTP-POLICIES`, roadmap Fase 4;
-  confirmar `WEB006` em Native/JS com teste.
+- **F6 — Docs + decisão + gaps.** ✅ POUSADA 28/09: validação de prefixo (`"*"`/`""`
+  = todos, senão deve começar com `/`) com
+  `KofHttpPoliciesE2ETest#invalidPolicyPrefixFailsAtStartup`; `WEB006` em
+  Native/JS provado (call sites client + server); `stdlib-web` §3 +
+  `training/idioms/web` (EN+PT); `D-HTTP-POLICIES` travada; roadmap Fase 4
+  linkada. Plano concluído → movido para `docs/stdlib/` (regra dos 3 estados).
 
 ---
 

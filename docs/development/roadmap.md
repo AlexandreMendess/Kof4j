@@ -711,6 +711,10 @@ contracts stabilize.
 - sessions / policies / rate limiting;
 - security defaults / audit.
 
+> Declarative HTTP policies (`app.security` / `app.policy` / endpoint opts /
+> `responses` / per-route rate-limit keying) landed 28/09 — `D-HTTP-POLICIES`,
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md).
+
 > Ecosystem audit: the coverage matrix, gaps (G1-G12),
 > priorities and strategy live in `docs/bugs-and-gaps/ecosystem-coverage.md`.
 > P0 implementation order: target diagnostics (G7) → structured `kof.test`
@@ -930,10 +934,10 @@ science) **without** destroying the language's simplicity.
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
 
 > Before new work: migrate everything to `lab`, then promote exactly ONE plan
-> from `future/` and implement it (cheapest first). **OPEN:** `http-policies`
-> — promoted 28/09 (`D-HTTP-POLICIES`) to
-> [`http-policies-plan.md`](http-policies-plan.md); first slice = additive global
-> `responses`, then F1 (`Policy`) → F2 (`app.policy`). **OPEN:** `scoped-resources`
+> from `future/` and implement it (cheapest first). **CONCLUDED:** `http-policies`
+> — promoted 28/09 (`D-HTTP-POLICIES`), all slices F0–F6 landed 28/09
+> (`KofHttpPoliciesE2ETest` 10/10), moved to
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md). **OPEN:** `scoped-resources`
 > — promoted 28/09 (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`) to
 > [`scoped-resources-plan.md`](scoped-resources-plan.md); slice 1 landed (`using`
 > with explicit closer + `desugarUsing` first + `UsingDesugarE2ETest` 7/7).

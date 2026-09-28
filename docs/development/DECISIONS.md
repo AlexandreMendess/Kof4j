@@ -4276,7 +4276,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-HTTP-POLICIES — declarative HTTP/Web policies: global (existing), per-resource prefix and per-endpoint, with declarative rejection payloads (maintainer 28/09/2026, "pode assumir")
 
-**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/development/http-policies-plan.md`); part of the `D-FUTURE-BATCH-2809` authorization.
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/stdlib/http-policies-plan.md`, concluded 28/09: slices F0–F6 landed, `KofHttpPoliciesE2ETest` 10/10); part of the `D-FUTURE-BATCH-2809` authorization.
 
 - **Scope:** additive extension of the existing **global** `app.security(opts)` (`D-SEC` C18). No new grammar, no keyword, no new user type beyond the `Map` opts already used. The fixed pipeline order (`D-SEC`) is untouched.
 - **Surface v1 (locked, plan §3):** `app.security(opts)` (global, unchanged); `app.policy(prefix, opts)` (resource scope); `app.get/post/... (path, opts) { }` (endpoint policy); new opt key `responses` (`Map`) for declarative 401/403/429 bodies. Scalar keys: deepest scope wins; list keys (`publicPaths`, `roles`): union (allow-lists only accumulate). Prefix-only matching, longest prefix wins; no globs/regex in v1.
