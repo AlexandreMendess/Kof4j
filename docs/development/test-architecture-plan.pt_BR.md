@@ -5,14 +5,16 @@
 **Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
 **Dono:** lane issues/tooling (esta sessão)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
-**Estado real (medido 28/09/2026, tip `d96459bec`):** a suíte são milhares de
-arquivos `*Test.java` sem camadas, perfis, harness ou registro de performance
-medido. Nenhum código deste plano pousou. O custo visível é a latência de
+**Estado real (atualizado 28/09/2026, pós-ratchet):** a suíte são milhares de
+arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
+Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
+Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
+(`scripts/check_test_hygiene.sh` sobre o baseline congelado
+`scripts/test-hygiene-baseline.txt`, 186 chaves). O custo visível é a latência de
 feedback, não a correção (a suíte do reator está verde).
-**Como terminar:** Fase 1 (profiling) primeiro — um profiler read-only sobre os
-relatórios do Surefire + o documento permanente `docs/testing/TEST-PERFORMANCE.md`;
-depois Fase 2 (quick wins) → 3 (modularização) → 4 (harness) → 5 (alvos) → 6
-(conformance) → 7 (`mvn verify`). **Infraestrutura de teste pura — o compilador
+**Como terminar:** Fase 1/2 descoberta feita — depois **remoções quick-win da Fase 2**
+(encolher o baseline: sleeps / duplicação / oversized) → 3 (modularização) → 4
+(harness) → 5 (alvos) → 6 (conformance) → 7 (`mvn verify`). **Infraestrutura de teste pura — o compilador
 nunca é tocado** (regra de ouro abaixo). Uma fatia por commit, RED-first + `check_500`.
 
 ## 📌 Visão Geral
@@ -362,6 +364,12 @@ Descobrir:
 
 ### Fase 2 — Quick Wins
 
+**Estado (28/09):** descoberta + guarda POUSADAS — `scripts/test-suite-audit.sh`
+mede os leads (sleeps / oversized / nomes duplicados); `scripts/check_test_hygiene.sh`
+é o ratchet sobre o baseline congelado `scripts/test-hygiene-baseline.txt`
+(`--write-baseline` só depois de melhorar). As remoções abaixo são o trabalho aberto
+(encolher o baseline, depois regravar).
+
 Remover:
 
 - repetição;
@@ -490,9 +498,12 @@ Antes de qualquer refatoração profunda, o caminho é:
 1. medir a suíte inteira (`scripts/test-suite-profile.sh`, Fase 1 — ferramenta
    POUSADA; resultados em `docs/testing/TEST-PERFORMANCE.md`);
 2. identificar os 20 testes mais lentos (o profiler os ranqueia);
-3. procurar duplicações (Fase 2 — não iniciada);
+3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
+   `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho aberto =
+   encolher `scripts/test-hygiene-baseline.txt` e regravar);
 4. propor modularização (Fase 3 — não iniciada).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); o profiling da Fase 1 é a primeira fatia.
+(`D-TEST-ARCHITECTURE-GO`); o profiling da Fase 1 + a descoberta/ratchet da Fase 2
+pousaram — o trabalho aberto são as remoções quick-win.

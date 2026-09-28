@@ -5,14 +5,16 @@
 **Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
 **Owner:** issues/tooling lane (this session)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
-**Real state (measured 28/09/2026, tip `d96459bec`):** the suite is thousands of
-`*Test.java` files with no layers, profiles, harness or measured performance
-record. No code of this plan has landed. The visible cost is feedback latency,
-not correctness (the reactor suite is green).
-**How to finish:** Phase 1 (profiling) first — a read-only profiler over the
-Surefire reports + the permanent `docs/testing/TEST-PERFORMANCE.md`; then Phase 2
-(quick wins) → 3 (modularization) → 4 (harness) → 5 (targets) → 6 (conformance)
-→ 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
+**Real state (updated 28/09/2026, post-ratchet):** the suite is thousands of
+`*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
+Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
+`docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
+(`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
+over the frozen `scripts/test-hygiene-baseline.txt`, 186 keys). The visible cost is
+feedback latency, not correctness (the reactor suite is green).
+**How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
+(shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4
+(harness) → 5 (targets) → 6 (conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
 (golden rule below). One slice per commit, RED-first + `check_500`.
 
 ## 📌 Overview
@@ -360,6 +362,12 @@ Discover:
 
 ### Phase 2 — Quick Wins
 
+**State (28/09):** discovery + guard LANDED — `scripts/test-suite-audit.sh`
+measures the leads (sleeps / oversized / duplicate names); `scripts/check_test_hygiene.sh`
+is the ratchet over the frozen `scripts/test-hygiene-baseline.txt`
+(`--write-baseline` only after improving). The removals below are the open work
+(shrink the baseline, then re-freeze).
+
 Remove:
 
 - repetition;
@@ -489,9 +497,12 @@ Before any deep refactoring, the path is:
 1. measure the whole suite (`scripts/test-suite-profile.sh`, Phase 1 — LANDED
    tooling; results in `docs/testing/TEST-PERFORMANCE.md`);
 2. identify the 20 slowest tests (the profiler ranks them);
-3. look for duplication (Phase 2 — not started);
+3. look for duplication (Phase 2 — discovery + ratchet LANDED:
+   `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; open work =
+   shrink `scripts/test-hygiene-baseline.txt` and re-freeze);
 4. propose the modularization (Phase 3 — not started).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phase 1 profiling is the first slice.
+(`D-TEST-ARCHITECTURE-GO`); Phase 1 profiling + Phase 2 discovery/ratchet have
+landed — the open work is the quick-win removals.

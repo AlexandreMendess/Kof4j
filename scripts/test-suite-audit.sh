@@ -10,19 +10,21 @@
 #
 # Uso:
 #   scripts/test-suite-audit.sh [--root DIR] [--md FILE] [--top N] [--quiet]
+#   scripts/test-suite-audit.sh [--root DIR] --keys FILE   # chaves maquina
 # rc: 0 medido · 2 uso invalido · 3 nenhuma fonte de teste.
 set -uo pipefail
 export LC_ALL=C
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-MD=""; TOP=20; QUIET=0; BIG=500
+MD=""; TOP=20; QUIET=0; BIG=500; KEYS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --root) ROOT="$2"; shift ;;
     --md) MD="$2"; shift ;;
     --top) TOP="$2"; shift ;;
+    --keys) KEYS="$2"; shift ;;
     --quiet) QUIET=1 ;;
-    *) echo "uso: $0 [--root DIR] [--md FILE] [--top N] [--quiet]" >&2; exit 2 ;;
+    *) echo "uso: $0 [--root DIR] [--md FILE] [--top N] [--keys FILE] [--quiet]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -77,6 +79,20 @@ emit_md() {
   echo "--------:|--------|-------|"
   head -n "$TOP" "$TMP/dupclus.txt" | awk -F'\t' '{printf "| %s | `%s` |%s |\n", $1, $2, $3}'
 }
+
+emit_keys() {
+  {
+    sed 's#:.*##' "$TMP/sleeps.txt" | sort -u | awk 'BEGIN{OFS="\t"}{print "sleep",$0}'
+    cut -f2 "$TMP/big.txt" | sort -u | awk 'BEGIN{OFS="\t"}{print "oversized",$0}'
+    cut -f2 "$TMP/dupclus.txt" | sort -u | awk 'BEGIN{OFS="\t"}{print "dupname",$0}'
+  } | sort -u
+}
+
+if [ -n "$KEYS" ]; then
+  emit_keys > "$KEYS"
+  [ "$QUIET" -eq 0 ] && echo "TEST-AUDIT: chaves gravadas em $KEYS"
+  exit 0
+fi
 
 if [ -n "$MD" ]; then
   emit_md > "$MD"
