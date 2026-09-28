@@ -42,31 +42,31 @@ public final class JvmRuntimeWebDispatch {
                  * segurança vão para {@code KOF_SEC_RESPONSE_HEADERS} (o
                  * dispatch limpa {@code KOF_WEB_HEADERS} antes da rota).
                  */
-                private static String kof_web_security_pipeline(WebApp app, WebRequest req) {
+                private static String kof_web_security_pipeline(WebApp app, WebRequest req, Policy p) {
                     // 1. rate-limit (janela configurável; chave por IP remoto)
-                    if (app.securityRateLimit > 0) {
+                    if (p.rateLimit > 0) {
                         String ip = req.headers.get("x-forwarded-for");
                         if (ip == null || ip.isBlank()) ip = req.remoteAddr;
                         if (ip == null || ip.isBlank()) ip = "local";
-                        if (!kof_sec_rate_limit(ip, app.securityRateLimit, app.securityRateWindow)) {
+                        if (!kof_sec_rate_limit(ip, p.rateLimit, p.rateWindow)) {
                             kof_web_sec_header("Retry-After",
-                                    String.valueOf(app.securityRateWindow));
+                                    String.valueOf(p.rateWindow));
                             return kof_web_build(429, "Too Many Requests",
-                                    kof_web_sec_response(app, "tooManyRequests",
+                                    kof_web_sec_response(p, "tooManyRequests",
                                             "{\\"error\\":\\"too many requests\\"}"));
                         }
                     }
                     // 2. cors (só age se houver Origin)
-                    if (app.securityCors != null) {
+                    if (p.cors != null) {
                         String origin = req.headers.get("origin");
                         if (origin != null && !origin.isBlank()) {
-                            if (!kof_sec_cors_allowed(origin, app.securityCors)) {
+                            if (!kof_sec_cors_allowed(origin, p.cors)) {
                                 return kof_web_build(403, "Forbidden",
-                                        kof_web_sec_response(app, "forbidden",
+                                        kof_web_sec_response(p, "forbidden",
                                                 "{\\"error\\":\\"cors origin denied\\"}"));
                             }
                             kof_web_sec_header("Access-Control-Allow-Origin",
-                                    app.securityCors.contains("*") ? "*" : origin);
+                                    p.cors.contains("*") ? "*" : origin);
                             kof_web_sec_header("Vary", "Origin");
                             if ("OPTIONS".equalsIgnoreCase(req.method)
                                     && req.headers.get("access-control-request-method") != null) {
@@ -82,7 +82,7 @@ public final class JvmRuntimeWebDispatch {
                         }
                     }
                     // 3. headers de hardening (HSTS só sob TLS)
-                    if (app.securityHeaders) {
+                    if (p.headers) {
                         kof_web_sec_header("Content-Security-Policy", kof_sec_csp_header());
                         kof_web_sec_header("X-Content-Type-Options",
                                 kof_sec_content_type_options_header());
@@ -95,15 +95,15 @@ public final class JvmRuntimeWebDispatch {
                     // 4. session: header de auth obrigatório fora dos prefixos
                     //    públicos (§5: autenticado por padrão, LEITURA incluída;
                     //    publicPaths é a allow-list). Sessão inválida nunca passa.
-                    if (app.securityAuthHeader != null) {
-                        boolean isPublic = app.securityPublicPaths.stream()
-                                .anyMatch(p -> req.path.equals(p) || req.path.startsWith(p));
+                    if (p.authHeader != null) {
+                        boolean isPublic = p.publicPaths.stream()
+                                .anyMatch(pp -> req.path.equals(pp) || req.path.startsWith(pp));
                         if (!isPublic) {
-                            String tok = req.headers.get(app.securityAuthHeader);
+                            String tok = req.headers.get(p.authHeader);
                             if (tok == null || tok.isBlank()
                                     || kof_sec_session_get(tok) == null) {
                                 return kof_web_build(401, "Unauthorized",
-                                        kof_web_sec_response(app, "unauthorized",
+                                        kof_web_sec_response(p, "unauthorized",
                                                 "{\\"error\\":\\"unauthorized\\"}"));
                             }
                         }
@@ -112,7 +112,7 @@ public final class JvmRuntimeWebDispatch {
                     //    §5 (Spring model): ON por padrão (método seguro emite
                     //    o cookie; mutação exige o double-submit). csrf:false
                     //    desliga explicitamente.
-                    if (app.securityCsrf) {
+                    if (p.csrf) {
                         boolean safe = "GET".equals(req.method)
                                 || "HEAD".equals(req.method)
                                 || "OPTIONS".equals(req.method);
@@ -133,7 +133,7 @@ public final class JvmRuntimeWebDispatch {
                                             : kof_sec_csrf_valid(headerToken));
                             if (!valid) {
                                 return kof_web_build(403, "Forbidden",
-                                        kof_web_sec_response(app, "forbidden",
+                                        kof_web_sec_response(p, "forbidden",
                                                 "{\\"error\\":\\"csrf token invalid\\"}"));
                             }
                         }
@@ -143,29 +143,29 @@ public final class JvmRuntimeWebDispatch {
                     //    há sessionHeader (modo sessão da lane .22), o passo 4
                     //    já validou o token de sessão — não reinterpretar como
                     //    JWT (senão sessão válida viraria 401).
-                    if (app.securityRequireAuth
-                            || (app.securityAuthHeader == null
+                    if (p.requireAuth
+                            || (p.authHeader == null
                                     && req.headers.get("authorization") != null)) {
                         boolean authenticated = kof_sec_auth_authenticated();
                         if (!authenticated) {
                             kof_web_sec_header("WWW-Authenticate", "Bearer");
                             return kof_web_build(401, "Unauthorized",
-                                    kof_web_sec_response(app, "unauthorized",
+                                    kof_web_sec_response(p, "unauthorized",
                                             "{\\"error\\":\\"unauthorized\\"}"));
                         }
                     }
                     // 7. RBAC: todas as roles exigidas (implica auth).
-                    if (!app.securityRoles.isEmpty()) {
+                    if (!p.roles.isEmpty()) {
                         if (!kof_sec_auth_authenticated()) {
                             kof_web_sec_header("WWW-Authenticate", "Bearer");
                             return kof_web_build(401, "Unauthorized",
-                                    kof_web_sec_response(app, "unauthorized",
+                                    kof_web_sec_response(p, "unauthorized",
                                             "{\\"error\\":\\"unauthorized\\"}"));
                         }
-                        for (String role : app.securityRoles) {
+                        for (String role : p.roles) {
                             if (!kof_sec_auth_has_role(role)) {
                                 return kof_web_build(403, "Forbidden",
-                                        kof_web_sec_response(app, "forbidden",
+                                        kof_web_sec_response(p, "forbidden",
                                                 "{\\"error\\":\\"forbidden\\"}"));
                             }
                         }
@@ -179,8 +179,8 @@ public final class JvmRuntimeWebDispatch {
 
                 /** D-HTTP-POLICIES (F0): corpo de rejeicao declarado via
                  *  app.security(opts).responses; fallback = corpo embutido. */
-                private static String kof_web_sec_response(WebApp app, String key, String fallback) {
-                    String body = app.securityResponses.get(key);
+                private static String kof_web_sec_response(Policy p, String key, String fallback) {
+                    String body = p.responses.get(key);
                     return body != null ? body : fallback;
                 }
 
@@ -221,7 +221,7 @@ public final class JvmRuntimeWebDispatch {
                         // rotas (security by default não depende de o usuário
                         // compor a ordem à mão). Falha = resposta curta
                         // (429/403/401), nunca silenciosa (R6).
-                        String securityReject = kof_web_security_pipeline(app, req);
+                        String securityReject = kof_web_security_pipeline(app, req, app.globalPolicy);
                         if (securityReject != null) {
                             KOF_WEB_STATUS.remove();
                             KOF_WEB_HEADERS.get().clear();

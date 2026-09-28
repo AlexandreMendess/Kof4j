@@ -312,7 +312,7 @@ they remain a documented gap until separately promoted (rule 6).
 > Each slice: compile + test + `check_500`; commit per slice. No slice ships
 > without a green proof and updated docs.
 
-**Slice status (28/09/2026):** ✅ F0 landed; ⏳ F1–F6 pending.
+**Slice status (28/09/2026):** ✅ F0, F1 landed; ⏳ F2–F6 pending.
 
 - **F0 — Global `responses` payloads for `app.security(opts)` (additive).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parses a `responses` Map
@@ -326,11 +326,11 @@ they remain a documented gap until separately promoted (rule 6).
   Docs: `docs/stdlib/stdlib-web.md` §3, `training/idioms/web.md`.
 
 
-- **F1 — Refactor to `Policy` (no behavior change).** Extract
-  `Policy.parse/merge/appliesTo`; `WebApp.globalPolicy` replaces the flat
-  fields; pipeline reads the policy object. **Proof:** existing
-  `KofWebHardeningTest` 6 + `KofWebE2ETest` 10 stay green (pure refactor, rule 3
-  of the freeze).
+- **F1 — Refactor to `Policy` (no behavior change).** ✅ LANDED 28/09: `Policy`
+  (`parse`) inside `JvmWebSecurityRuntime.java` + `WebApp.globalPolicy` replace the
+  flat `security*` fields; `kof_web_security_pipeline(app, req, Policy)` reads the
+  policy. **Proof:** `KofWebE2ETest` 27/27, `KofWebHardeningTest` 6/6,
+  `KofBlogE2ETest` 1/1, `KofOAuthResourceServerTest` 4/4, `DomainGapCodesTest` 27/27.
 - **F2 — `app.policy(prefix, opts)` (resource scopes).** Scope list + effective
   policy resolution + longest-prefix merge. **Proof:** new
   `KofHttpPoliciesE2ETest` cases — a `/admin` role applies under the prefix and

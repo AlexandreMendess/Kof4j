@@ -314,7 +314,7 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 > Cada fatia: compile + teste + `check_500`; commit por fatia. Nenhuma fatia
 > entra sem prova verde e docs atualizadas.
 
-**Status das fatias (28/09/2026):** ✅ F0 pousada; ⏳ F1–F6 pendentes.
+**Status das fatias (28/09/2026):** ✅ F0, F1 pousadas; ⏳ F2–F6 pendentes.
 
 - **F0 — Payloads `responses` globais no `app.security(opts)` (aditivo).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parseia um Map `responses`
@@ -327,10 +327,11 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
   `KofBlogE2ETest` 1/1, `KofOAuthResourceServerTest` 4/4, `DomainGapCodesTest` 27/27.
   Docs: `docs/stdlib/stdlib-web.md` §3, `training/idioms/web.md`.
 
-- **F1 — Refactor para `Policy` (sem mudança de comportamento).** Extrair
-  `Policy.parse/merge/appliesTo`; `WebApp.globalPolicy` substitui os campos
-  planos; a pipeline lê o objeto. **Prova:** `KofWebHardeningTest` 6 +
-  `KofWebE2ETest` 10 seguem verdes (refactor puro, regra 3 do congelamento).
+- **F1 — Refactor para `Policy` (sem mudança de comportamento).** ✅ POUSADA 28/09:
+  `Policy` (`parse`) em `JvmWebSecurityRuntime.java` + `WebApp.globalPolicy`
+  substituem os campos planos; `kof_web_security_pipeline(app, req, Policy)` lê a
+  política. **Prova:** `KofWebE2ETest` 27/27, `KofWebHardeningTest` 6/6,
+  `KofBlogE2ETest` 1/1, `KofOAuthResourceServerTest` 4/4, `DomainGapCodesTest` 27/27.
 - **F2 — `app.policy(prefix, opts)` (escopos de recurso).** Lista de escopos +
   resolução da política efetiva + merge do prefixo mais longo. **Prova:** casos
   novos em `KofHttpPoliciesE2ETest` — um role `/admin` vale sob o prefixo e não

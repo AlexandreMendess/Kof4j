@@ -391,21 +391,9 @@ public final class JvmWebCoreRuntime {
                     // (security by default não depende do usuário lembrar de
                     // compor). União das duas lanes que implementaram C18.
                     volatile boolean securityConfigured;
-                    boolean securityHeaders = true;
-                    int securityRateLimit = 0;
-                    int securityRateWindow = 60;
-                    String securityCors = null;
-                    // §5: CSRF ON só com app.security() (kof_web_security_opts).
-                    boolean securityCsrf = false;
-                    String securityAuthHeader = null;
-                    final java.util.List<String> securityPublicPaths = new java.util.ArrayList<>();
-                    boolean securityRequireAuth = false;
-                    final java.util.List<String> securityRoles = new java.util.concurrent.CopyOnWriteArrayList<>();
-                    // D-HTTP-POLICIES (F0): corpos declarativos p/ as rejeicoes
-                    // sinteticas do pipeline — chaves unauthorized/forbidden/
-                    // tooManyRequests; ausente = corpo embutido de hoje.
-                    final java.util.Map<String, String> securityResponses =
-                            new java.util.concurrent.ConcurrentHashMap<>();
+                    // D-HTTP-POLICIES (F1): politica global parseada de
+                    // app.security(opts) — substitui os campos security* flat.
+                    volatile Policy globalPolicy = new Policy();
                     final java.util.List<StaticDir> staticDirs = new java.util.ArrayList<>();
                     final java.util.List<String> healthPaths = new java.util.ArrayList<>();
                     final java.util.concurrent.atomic.AtomicInteger activeConnections =
