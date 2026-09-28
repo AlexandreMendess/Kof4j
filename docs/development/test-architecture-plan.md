@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 182 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 179 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -18,7 +18,14 @@ over the frozen `scripts/test-hygiene-baseline.txt`, 182 keys). **Quick-win slic
 (`while (attempt < 40)` + `Thread.sleep(100)`, copy-pasted in `KofWebE2ETest`,
 `KofHttpE2ETest`, `KofHttpPoliciesE2ETest`, `KofWebStreamE2ETest`) now lives once
 in `TestServerFixture.awaitListening(Process, int)` → baseline 185→182 keys (4
-class keys removed, 1 helper key added). The visible cost is
+class keys removed, 1 helper key added). **Quick-win slice 3 (28/09):** the same
+fixture absorbed the readiness loops of `KofMediaE2ETest`,
+`KofOAuthResourceServerTest`, `KofWebHardeningTest`, `KofWebSseE2ETest` and
+`KofWebWsE2ETest`; the redundant SSE reconnect settle was dropped; and the
+`maxConnections` 503 race test was freed from its fixed sleep in favour of a
+bounded poll (it was flaky: 1/3 green) → baseline 182→179 keys. **Honest
+correction:** slice 1's "redundant" settle in `KofWebHardeningTest` was part of
+that race's timing — the test now waits for the 503 instead of guessing. The visible cost is
 feedback latency, not correctness (the reactor suite is green).
 **How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
 (shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4

@@ -85,22 +85,8 @@ class KofMediaE2ETest {
                 "-cp", outDir.toString(), "Default.Main");
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        for (int attempt = 0; attempt < 40; attempt++) {
-            if (!serverProcess.isAlive()) {
-                String out = new String(serverProcess.getInputStream().readAllBytes(),
-                        StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-                throw new IOException("server exited early: " + out);
-            }
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                return port;
-            } catch (IOException e) {
-                try { Thread.sleep(100); } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt(); break;
-                }
-            }
-        }
-        throw new IOException("server did not start listening");
+        TestServerFixture.awaitListening(serverProcess, port);
+        return port;
     }
 
     private int freePort() throws IOException {

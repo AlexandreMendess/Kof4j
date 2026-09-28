@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 182 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 179 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -18,7 +18,14 @@ removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 (`while (attempt < 40)` + `Thread.sleep(100)`, copiado em `KofWebE2ETest`,
 `KofHttpE2ETest`, `KofHttpPoliciesE2ETest`, `KofWebStreamE2ETest`) vive agora uma
 única vez em `TestServerFixture.awaitListening(Process, int)` → baseline 185→182
-chaves (4 chaves de classe removidas, 1 do helper adicionada). O custo visível é a latência de
+chaves (4 chaves de classe removidas, 1 do helper adicionada). **Fatia quick-win 3
+(28/09):** o mesmo fixture absorveu os loops de readiness de `KofMediaE2ETest`,
+`KofOAuthResourceServerTest`, `KofWebHardeningTest`, `KofWebSseE2ETest` e
+`KofWebWsE2ETest`; o settle redundante de reconexão do SSE foi removido; e o teste
+de corrida 503 de `maxConnections` deixou o sleep fixo por um poll limitado (estava
+flaky: 1/3 verde) → baseline 182→179 chaves. **Correção honesta:** o settle
+"redundante" da fatia 1 no `KofWebHardeningTest` fazia parte do timing dessa corrida
+— o teste agora espera o 503 em vez de adivinhar. O custo visível é a latência de
 feedback, não a correção (a suíte do reator está verde).
 **Como terminar:** Fase 1/2 descoberta feita — depois **remoções quick-win da Fase 2**
 (encolher o baseline: sleeps / duplicação / oversized) → 3 (modularização) → 4
