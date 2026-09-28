@@ -225,6 +225,32 @@ gaps G1-G12, prioridade e estratégia) em
 [docs/bugs-and-gaps/ecosystem-coverage.md](docs/bugs-and-gaps/ecosystem-coverage.md). Plano de evolução
 para plataforma completa: [docs/development/roadmap.md](docs/development/roadmap.md).
 
+# Projetos usando Kof
+
+## KOOKIE — um caso de uso de Kof para engine de jogos
+
+[KOOKIE](https://github.com/rufl/KOOKIE) é uma engine experimental de tiro em
+3D escrita em Kof. O comportamento de CPU da engine e do jogo permanece em
+`.kf`, incluindo sessões autoritativas fixed-step, movimento, colisão/BVH,
+combate, contratos de replay/save e transporte UDP autenticado.
+
+O projeto exercita Kof como runtime real de uma engine:
+
+- **Linux x86-64 nativo:** o target native do Kof executa a engine e as
+  sondas de transporte autenticado.
+
+- **Distribuição Windows:** o mesmo código Kof executa no target JVM com JDK
+  Windows embutido e launchers `.cmd` para os papéis da sessão.
+
+- **Propriedade da fronteira:** adapters nativos pequenos ficam limitados às
+  fronteiras SDL/ABI; as regras da engine continuam pertencendo ao Kof.
+
+O KOOKIE não declara saída PE Windows nativa: o target nativo Windows do Kof
+ainda não está disponível. Linux é o target nativo atualmente verificado; o
+caminho Windows é uma distribuição JVM.
+
+Repositório: [github.com/rufl/KOOKIE](https://github.com/rufl/KOOKIE)
+
 ---
 
 # kof.ui — A plataforma de UI
@@ -355,7 +381,9 @@ stdlib, tooling, editor support e um OpenJDK embutido. **Nenhuma instalação
 externa de Java é necessária** — e não precisa saber a versão para instalar.
 
 1. Baixe o pacote do **seu** sistema:
+
    - **Releases** (estáveis, `main`): [GitHub Releases](https://github.com/KofLang/Kof4j/releases)
+
    - **Pre-releases** (beta, `beta-*`): [Pre-releases](https://github.com/KofLang/Kof4j/releases?q=prerelease%3Atrue) — ex. `kof-0.5.0-beta+2026.09.17`
    Variantes: `linux-x86_64.tar.gz` / `macos-arm64.tar.gz` / `macos-x86_64.tar.gz` (Intel) / `windows-x86_64.zip`.
 2. Extraia e adicione o `bin` ao `PATH`:

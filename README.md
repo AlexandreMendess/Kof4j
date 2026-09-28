@@ -226,6 +226,32 @@ gaps G1-G12, priority and strategy) in
 [docs/bugs-and-gaps/ecosystem-coverage.md](docs/bugs-and-gaps/ecosystem-coverage.md). Evolution plan
 toward a complete platform: [docs/development/roadmap.md](docs/development/roadmap.md).
 
+# Projects using Kof
+
+## KOOKIE — a Kof game-engine case study
+
+[KOOKIE](https://github.com/rufl/KOOKIE) is an experimental 3D shooter engine
+written in Kof. Its engine and game CPU behavior stays in `.kf`, including
+authoritative fixed-step sessions, movement, collision/BVH, combat,
+replay/save contracts and authenticated UDP transport.
+
+The project exercises Kof as a real engine runtime:
+
+- **Native Linux x86-64:** the Kof native target runs the engine and its
+  authenticated transport probes.
+
+- **Windows distribution:** the same Kof source runs on the JVM target with an
+  embedded Windows JDK and `.cmd` role launchers.
+
+- **Boundary ownership:** small native adapters are limited to SDL/ABI
+  boundaries; engine rules remain Kof-owned.
+
+KOOKIE does not claim native Windows PE output: Kof's native Windows target is
+not available yet. Linux is the currently verified native target, while the
+Windows path is a JVM distribution path.
+
+Repository: [github.com/rufl/KOOKIE](https://github.com/rufl/KOOKIE)
+
 ---
 
 # kof.ui — The UI platform
@@ -356,7 +382,9 @@ stdlib, tooling, editor support and an embedded OpenJDK. **No external
 Java installation is required** — and you don't need to know the version to install.
 
 1. Download the package for **your** system:
+
    - **Releases** (stable, `main`): [GitHub Releases](https://github.com/KofLang/Kof4j/releases)
+
    - **Pre-releases** (beta, `beta-*`): [Pre-releases](https://github.com/KofLang/Kof4j/releases?q=prerelease%3Atrue) — e.g. `kof-0.5.0-beta+2026.09.17`
    Variants: `linux-x86_64.tar.gz` / `macos-arm64.tar.gz` / `macos-x86_64.tar.gz` (Intel) / `windows-x86_64.zip`.
 2. Extract it and add `bin` to `PATH`:
@@ -419,7 +447,9 @@ kof info | lsp | install | version
 
 **Requirements:** **JDK 25** (Temurin recommended — the repo build baseline
 since D-BASELINE 14/09; `--release 25`) and Maven 3.9+. For the `native`
+
 target: `as`/`ld` (binutils). The `js` target requires nothing external
+
 (GraalJS embedded in the jar).
 
 > **Three JDK layers, do not confuse them (D-BASELINE):**
