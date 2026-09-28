@@ -2,9 +2,9 @@
 
 # Kof Project Status
 
-last: #673 living-records §535/§536 registered + #672 ledger-selftest-PT-proven + #671 stale-cells-purged (JS-FFI + WASM-scope) + #670 ownership-table landed (spec §7, 4 boundaries + Rust absence) + #669 D-vs-DECISIONS gate + #666 phase-5-unit-1 pinned (FFI x spawn) + #664/#665 evidence-chain hardened + #660 D-MEM021-SCALAR landed (c65f9ba18) + kof-file streaming slice 2 (all-target golden + JS gap IOJS001)
+last: #673 living-records §535/§536 registered + #672 ledger-selftest-PT-proven + #671 stale-cells-purged (JS-FFI + WASM-scope) + #670 ownership-table landed (spec §7, 4 boundaries + Rust absence) + #669 D-vs-DECISIONS gate + #666 phase-5-unit-1 pinned (FFI x spawn) + #664/#665 evidence-chain hardened + #660 D-MEM021-SCALAR landed (c65f9ba18) + kof-file streaming slice 2 (all-target golden + JS gap IOJS001) + slice 2.1 TextStream (UTF-8 lines, all-target BMP golden; astral Native divergence §537)
 doing: memory-safety (fase 4 CLOSED; fase 5 MEDIDA no plano) / scoped-resources / test-architecture / pagination / kof-file (live lanes)
-next: phase-5-unit-2 blocked on decisions #667/#668 (rule 6) / kof-file phase 2 (structured data: kof.json/CSV over the chunk model)
+next: phase-5-unit-2 UNBLOCKED (decisions #667 A / #668 A, implementation = memory-safety/Script lane) / kof-file phase 2.2 (CSV/TSV as a character-level state machine over TextStream)
 location: status
 state: active
 constraint: pr619-maintainer-only

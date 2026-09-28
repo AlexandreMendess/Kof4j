@@ -95,7 +95,9 @@ println(path.size())
 O `kof.io` também expõe `readRange(offset, len)` (leitura incremental). A
 biblioteca pure-Kof oficial `libs/file` constrói streaming sobre ele —
 `D-KOF-FILE-GO`; sem sintaxe nova, sem mudança no compilador. A fatia 2
-mediu a biblioteca em todos os alvos (`FileLibraryE2ETest` 7/7).
+mediu o leitor de bytes em todos os alvos, e a fatia 2.1 adicionou o
+`TextStream` (linhas UTF-8) sobre o mesmo modelo (`FileLibraryE2ETest`
+13/13).
 
 ```kof
 import file.FileStream
@@ -125,8 +127,42 @@ para `readRange` (nem `copyTo`/`moveTo`/`modifiedTime`/`isSymlink`): a
 chamada recusa em compile time com `IOJS001` (`D-KOF-FILE-GO`), nunca
 fallback silencioso de arquivo inteiro nem `SyntaxError` em runtime.
 
+### Texto streaming (`TextStream`, fatia 2.1)
+
+O `TextStream` lê um arquivo como **linhas UTF-8** sobre o mesmo modelo de
+chunks — use para logs, CSV, JSONL, datasets. Uma sequência multi-byte
+cortada entre dois chunks é remontada em Kof (nunca emitida como bytes
+quebrados); uma não terminada no EOF vira U+FFFD. `\n` e `\r\n` são ambos
+aceitos (o `\r` é removido); a memória fica limitada a um chunk mais a
+linha atual.
+
+```kof
+import file.TextStream
+
+main() {
+    var stream = TextStream("large.csv", 8192)   // tamanho do chunk
+    var line = stream.nextLine()
+    while (line != null) {
+        // processa uma linha sem carregar o arquivo inteiro
+        line = stream.nextLine()
+    }
+}
+```
+
+| Operação | Descrição |
+|----------|-----------|
+| `TextStream(path[, chunkSize])` | leitor streaming de linhas UTF-8 (default 8192) |
+| `nextLine()` | `String?` — próxima linha sem terminador, `null` no fim do arquivo |
+| `done()` | `Bool` — fim do arquivo alcançado e sem texto pendente |
+| `position()` | `Long` bytes consumidos |
+
+Exato para o BMP na JVM, Native e Script. **Texto não-BMP (astral) é
+divergência medida no Native**: o Native armazena strings como UTF-8 e não
+tem representação WTF-8 para um par surrogate (`§535`); é exato na JVM e no
+Script.
+
 ## Referência
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Testes: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `FileLibraryE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `FileLibraryE2ETest.java`

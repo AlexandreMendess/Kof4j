@@ -6,10 +6,11 @@ package file
 // `readRange(offset, len)` (JVM + Native). No new syntax: the programmer
 // drives the stream with a `while` loop over `readChunk()`.
 //
-// Targets: JVM and Native (x86-64 / riscv64 / aarch64) — the targets that
-// implement `readRange`. JS and Script lack `readRange` today; importing
-// this library there is an honest gap (D-KOF-FILE-GO), never a silent
-// whole-file fallback.
+// Targets: JVM, Native (x86-64 / riscv64 / aarch64) and Script — the targets
+// that implement `readRange` (all measured against one golden, kof-file
+// slice 2). JS has no host binding for `readRange`: importing this library
+// there is an honest compile-time gap `IOJS001` (D-KOF-FILE-GO), never a
+// silent whole-file fallback.
 
 class FileStream {
     String path

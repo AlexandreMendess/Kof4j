@@ -95,7 +95,8 @@ println(path.size())
 `kof.io` also exposes `readRange(offset, len)` (incremental read). The
 official pure-Kof library `libs/file` builds streaming on top of it —
 `D-KOF-FILE-GO`; no new syntax, no compiler change. Slice 2 measured the
-library on every target (`FileLibraryE2ETest` 7/7).
+byte reader on every target, and slice 2.1 added `TextStream` (UTF-8 lines)
+on the same model (`FileLibraryE2ETest` 13/13).
 
 ```kof
 import file.FileStream
@@ -125,8 +126,42 @@ for `readRange` (nor `copyTo`/`moveTo`/`modifiedTime`/`isSymlink`): calling
 it refuses at compile time with `IOJS001` (`D-KOF-FILE-GO`), never a silent
 whole-file fallback nor a runtime `SyntaxError`.
 
+### Text streaming (`TextStream`, slice 2.1)
+
+`TextStream` reads a file as **UTF-8 lines** over the same chunk model —
+use it for logs, CSV, JSONL, datasets. A multi-byte sequence split across
+two chunks is reassembled in Kof (never emitted as broken bytes); an
+unterminated one at EOF becomes U+FFFD. `\n` and `\r\n` are both accepted
+(`\r` is stripped); memory stays bounded by one chunk plus the current
+line.
+
+```kof
+import file.TextStream
+
+main() {
+    var stream = TextStream("large.csv", 8192)   // chunk size
+    var line = stream.nextLine()
+    while (line != null) {
+        // process one line without loading the whole file
+        line = stream.nextLine()
+    }
+}
+```
+
+| Operation | Description |
+|----------|-------------|
+| `TextStream(path[, chunkSize])` | streaming UTF-8 line reader (default 8192) |
+| `nextLine()` | `String?` — next line without terminator, `null` at end of file |
+| `done()` | `Bool` — end of file reached and no pending text |
+| `position()` | `Long` bytes consumed |
+
+Exact for the BMP on JVM, Native and Script. **Non-BMP (astral) text is a
+measured Native divergence**: Native stores strings as UTF-8 and has no
+WTF-8 representation for a surrogate pair (`§535`); it is exact on JVM and
+Script.
+
 ## Reference
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Tests: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `FileLibraryE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `FileLibraryE2ETest.java`

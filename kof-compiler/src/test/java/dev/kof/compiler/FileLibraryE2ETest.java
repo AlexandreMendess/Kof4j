@@ -35,6 +35,17 @@ class FileLibraryE2ETest {
 
     private static final String GOLDEN = "3\n10\ntrue\n10\n10\n0123456789\n0123456789";
 
+    // aé€\nb\r\n\nlast — 2-byte é and 3-byte € straddle 2-byte chunks, plus a
+    // CRLF line, an empty line and a final line without terminator.
+    private static final String TEXT_CONTENT = "a\u00e9\u20ac\nb\r\n\nlast";
+    private static final String TEXT_GOLDEN = "a\u00e9\u20ac\nb\n\nlast\ntrue";
+
+    // Non-BMP (surrogate pair) round-trips on JVM and Script. Native stores
+    // strings as UTF-8 and cannot represent a surrogate pair (§43, WTF-8
+    // storage not yet built), so astral output there is a measured divergence.
+    private static final String ASTRAL_CONTENT = "x\uD83D\uDE00y\nz";
+    private static final String ASTRAL_GOLDEN = "x\uD83D\uDE00y\nz\ntrue";
+
     @Test
     void streamsInChunksAndCopiesWithoutLoadingTheWholeFile() throws Exception {
         Path src = tmp.resolve("source.txt");
@@ -125,6 +136,64 @@ class FileLibraryE2ETest {
         assertEquals(GOLDEN, result.stdout().strip());
     }
 
+    @Test
+    void textStreamDecodesUtf8AcrossChunks() throws Exception {
+        Path src = tmp.resolve("text.txt");
+        Files.writeString(src, TEXT_CONTENT, StandardCharsets.UTF_8);
+        assertEquals(TEXT_GOLDEN, runJvm(textProbe(src)));
+    }
+
+    @Test
+    void textStreamAstralRoundTripsOnJvm() throws Exception {
+        Path src = tmp.resolve("astral.txt");
+        Files.writeString(src, ASTRAL_CONTENT, StandardCharsets.UTF_8);
+        assertEquals(ASTRAL_GOLDEN, runJvm(textProbe(src)));
+    }
+
+    @Test
+    void textStreamAstralRoundTripsOnScript() throws Exception {
+        Path root = tmp.resolve("script-astral");
+        Files.createDirectories(root);
+        Path src = root.resolve("astral.txt");
+        Files.writeString(src, ASTRAL_CONTENT, StandardCharsets.UTF_8);
+        Files.writeString(root.resolve("Main.kf"), textProbe(src));
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(ASTRAL_GOLDEN, result.stdout().strip());
+    }
+
+    @Test
+    void textStreamOnScript() throws Exception {
+        Path root = tmp.resolve("script-text");
+        Files.createDirectories(root);
+        Path src = root.resolve("text.txt");
+        Files.writeString(src, TEXT_CONTENT, StandardCharsets.UTF_8);
+        Files.writeString(root.resolve("Main.kf"), textProbe(src));
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(TEXT_GOLDEN, result.stdout().strip());
+    }
+
+    @Test
+    void textStreamOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(System.getProperty("os.name").toLowerCase().contains("linux"),
+                "Native x86-64 requires the Linux assembler/linker toolchain");
+        Path src = tmp.resolve("text-x86.txt");
+        Files.writeString(src, TEXT_CONTENT, StandardCharsets.UTF_8);
+        assertEquals(TEXT_GOLDEN, runNativeX86(textProbe(src)));
+    }
+
+    @Test
+    void textStreamOnNativeRiscv64() throws Exception {
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross riscv64 + qemu absent — skipping (NATIVE002)");
+        Path src = tmp.resolve("text-riscv.txt");
+        Files.writeString(src, TEXT_CONTENT, StandardCharsets.UTF_8);
+        assertEquals(TEXT_GOLDEN, runCrossCode("riscv64", Target.NATIVE_RISCV64, textProbe(src)));
+    }
+
     private static String probe(Path src, Path dst) {
         return """
             import file.FileStream
@@ -159,6 +228,22 @@ class FileLibraryE2ETest {
                 dst.toString().replace('\\', '/'));
     }
 
+    private static String textProbe(Path src) {
+        return """
+            import file.TextStream
+
+            main() {
+                var stream = TextStream("%s", 2)
+                var line = stream.nextLine()
+                while (line != null) {
+                    println(line)
+                    line = stream.nextLine()
+                }
+                println(stream.done())
+            }
+            """.formatted(src.toString().replace('\\', '/'));
+    }
+
     private String runJvm(String code) throws Exception {
         Path root = tmp.resolve("jvm-" + Math.abs(code.hashCode()));
         Files.createDirectories(root);
@@ -190,6 +275,42 @@ class FileLibraryE2ETest {
         Path dst = root.resolve("dest.txt");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), probe(src, dst));
+        Path out = root.resolve("out");
+        withLibrary(root, () -> {
+            CompilationResult result = compile(root.resolve("Main.kf"), out, target);
+            assertTrue(result.success(),
+                    () -> arch + " compile: " + result.diagnostics().getDiagnostics());
+            return null;
+        });
+        Path binary = out.resolve("Default/Main");
+        assertTrue(Files.isRegularFile(binary), arch + " binary must exist");
+        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, binary);
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").strip();
+        assertEquals(0, process.waitFor(), arch + " output: " + output);
+        return output;
+    }
+
+    private String runNativeX86(String code) throws Exception {
+        Path root = tmp.resolve("native-x86-" + Math.abs(code.hashCode()));
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), code);
+        Path out = root.resolve("out");
+        withLibrary(root, () -> {
+            CompilationResult result = compile(root.resolve("Main.kf"), out, Target.NATIVE);
+            assertTrue(result.success(),
+                    () -> "native compile: " + result.diagnostics().getDiagnostics());
+            return null;
+        });
+        return runBinary(out.resolve("Default/Main"));
+    }
+
+    private String runCrossCode(String arch, Target target, String code) throws Exception {
+        Path root = tmp.resolve("cross-" + arch + "-" + Math.abs(code.hashCode()));
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), code);
         Path out = root.resolve("out");
         withLibrary(root, () -> {
             CompilationResult result = compile(root.resolve("Main.kf"), out, target);
