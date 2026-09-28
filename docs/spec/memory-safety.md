@@ -128,7 +128,10 @@ borrows (`&mut`), no borrow checker, no lifetime parameters. The model:
 > forbidden shape (unboxed mutating capture escaping) is unconstructible —
 > `MEM023` has NO compile face today (precedent O-03/`D-MEMORY-CLEAR`: the
 > guarantee is proven by test, no diagnostic invented). Pinned by the 4-target
-> batteries: `LambdaE2ETest` (closure faces) + `SpawnE2ETest` (async/return face).
+> batteries: `LambdaE2ETest` (closure faces) + `SpawnE2ETest` (async/return faces,
+> including MUTATED capture — `spawn { n = n + 1; return n * 2 }` → `44`, added
+> 28/09 after the independent verifier measured that read-only capture never
+> exercises the box: JVM lowers it as `LambdaTask0.<init>(I)`, by value).
 
 ---
 
