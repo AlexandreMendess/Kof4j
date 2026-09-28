@@ -42,6 +42,8 @@ public final class CollectionMethodTyper {
         if ("indexOf".equals(mn) || "lastIndexOf".equals(mn)) return Type.PrimitiveType.INT;
         if ("addAll".equals(mn)) return Type.PrimitiveType.BOOL;
         if ("subList".equals(mn)) return recvType;
+        // pagination P1 — take/drop/slice: List<E> do mesmo tipo.
+        if ("take".equals(mn) || "drop".equals(mn) || "slice".equals(mn)) return recvType;
         if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                 || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn)) {
             return Type.PrimitiveType.VOID;

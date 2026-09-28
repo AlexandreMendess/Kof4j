@@ -53,6 +53,37 @@ class KofScriptStdlibParityTest {
             """, "1\n0\nfb");
     }
 
+    @Test
+    void paginationSliceParity() throws Exception {
+        // pagination P1 — take/drop/slice: interpretador e JVM concordam
+        // (clamping honesto + erro nomeado; o E2E cobre JVM/JS/native).
+        parity("""
+            main() {
+                val l: List<Int> = listOf(10, 20, 30, 40, 50)
+                println(l.take(2).size)
+                println(l.take(0).size)
+                println(l.take(9).size)
+                println(l.take(2).get(1))
+                println(l.drop(2).size)
+                println(l.drop(9).size)
+                println(l.drop(2).get(0))
+                val a = l.slice(1, 2)
+                println(a.size)
+                println(a.get(1))
+                println(l.slice(4, 10).size)
+                println(l.slice(9, 3).size)
+                println(l.slice(0, 0).size)
+                val t = l.take(2)
+                t.add(99)
+                println(l.size)
+                val s: List<String> = listOf("a", "b", "c")
+                println(s.take(2).get(1))
+                println(s.drop(1).get(0))
+                println(s.slice(1, 1).get(0))
+            }
+            """, "2\n0\n5\n20\n3\n0\n30\n2\n30\n1\n0\n0\n5\nb\nb\nb");
+    }
+
     // #386 slice 2 + #382: containsValue/putIfAbsent e a família de List
     // (indexOf/lastIndexOf/subList/addAll/sort) — interpretador e JVM
     // compilado concordam com o oráculo medido (java.util no dois lados).

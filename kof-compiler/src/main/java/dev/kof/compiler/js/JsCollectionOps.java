@@ -143,6 +143,10 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             case "kof_list_last_index_of" -> "kofListLastIndexOf";
             case "kof_list_add_all" -> "kofListAddAll";
             case "kof_list_sub_list" -> "kofListSubList";
+            // pagination P1 — take/drop/slice
+            case "kof_list_take" -> "kofListTake";
+            case "kof_list_drop" -> "kofListDrop";
+            case "kof_list_slice" -> "kofListSlice";
             case "kof_list_sort" -> "kofListSort";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };

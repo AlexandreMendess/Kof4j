@@ -128,6 +128,31 @@ public final class KofInterpreterCollections {
             // concreta; view do java.util não tem contrato na linguagem).
             case "kof_list_sub_list" -> new ArrayList<>(
                     l.subList(KofInterpreter.unboxInt(args[0]), KofInterpreter.unboxInt(args[1])));
+            // pagination P1 — take/drop/slice: janela materializada com
+            // clamping honesto; negativos = erro nomeado PAGINATION.
+            case "kof_list_take" -> {
+                int n = KofInterpreter.unboxInt(args[0]);
+                if (n < 0) throw new RuntimeException("PAGINATION: count must be >= 0");
+                int size = l.size();
+                yield new ArrayList<>(l.subList(0, n < size ? n : size));
+            }
+            case "kof_list_drop" -> {
+                int n = KofInterpreter.unboxInt(args[0]);
+                if (n < 0) throw new RuntimeException("PAGINATION: count must be >= 0");
+                int size = l.size();
+                yield new ArrayList<>(l.subList(n < size ? n : size, size));
+            }
+            case "kof_list_slice" -> {
+                int offset = KofInterpreter.unboxInt(args[0]);
+                int limit = KofInterpreter.unboxInt(args[1]);
+                if (offset < 0 || limit < 0) {
+                    throw new RuntimeException("PAGINATION: limit/offset must be >= 0");
+                }
+                int size = l.size();
+                int start = offset < size ? offset : size;
+                int remaining = size - start;
+                yield new ArrayList<>(l.subList(start, start + (limit < remaining ? limit : remaining)));
+            }
             // #382 — sort: ordem natural (Comparator null = mesma escolha
             // do JVM; o gate SEM097 já restringeu o domínio — o NAT001/Float
             // caiu em 21/09, §352).

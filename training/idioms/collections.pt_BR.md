@@ -67,6 +67,9 @@ var i = l.indexOf(1)          // primeira ocorrencia, -1 quando ausente
 var j = l.lastIndexOf(1)      // ultima ocorrencia, -1 quando ausente
 val mid = l.subList(1, 3)     // [inicio, fim) — copia; inicio==fim da vazia
 val all = l.subList(0, l.size)
+val head = l.take(2)          // os 2 primeiros — clampeado: take(9) = lista inteira
+val tail = l.drop(1)          // tudo apos o 1o — drop(9) = vazia
+val win = l.slice(1, 2)       // 2 itens a partir do offset 1 — clampeado; offset>size = vazia
 var grew = mid.addAll(l)      // true quando a lista mudou (false: fonte vazia)
 val ordered: List<Int> = listOf(5, 4, 3)
 ordered.sort()                // ordem NATURAL, in-place (Kof nao tem Comparator)
@@ -87,6 +90,12 @@ prev = m.putIfAbsent("z", 9)             // null quando a chave e nova
 - `subList` fora dos limites morre no bounds check (medido:
   `IndexOutOfBoundsException: toIndex = N` no JVM; `kof_bounds_error` no
   Native) — mesma familia do `get(i)`.
+- `take(n)`/`drop(n)`/`slice(offset, limit)` devolvem copia materializada
+  (nunca view viva) e clampeiam honestamente: `n`/`offset` alem do fim dao a
+  lista inteira / vazia, nunca erro. `n`/`offset`/`limit` negativo e erro
+  nomeado em runtime — `"PAGINATION: count must be >= 0"` (`take`/`drop`) ou
+  `"PAGINATION: limit/offset must be >= 0"` (`slice`). Nos 4 alvos
+  (D-PAGINATION, pagination P1).
 - `putIfAbsent` devolve `V?` (D-NULL-INTENT): estreite com `if (prev != null)`.
 - O idiom Java `Collections.sort(l, comparator)` nao existe em Kof: `sort()`
   e ordem natural, ponto. Para achar posicao, `indexOf(x)` (nao loop manual

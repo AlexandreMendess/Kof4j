@@ -15,6 +15,8 @@ public final class CollectionMethodGates {
         return switch (opFn) {
             case "kof_list_index_of", "kof_list_last_index_of", "kof_list_add_all" -> 1;
             case "kof_list_sub_list" -> 2;
+            case "kof_list_take", "kof_list_drop" -> 1;
+            case "kof_list_slice" -> 2;
             case "kof_list_sort" -> 0;
             case "kof_map_contains_value" -> 1;
             case "kof_map_put_if_absent" -> 2;
@@ -75,6 +77,28 @@ public final class CollectionMethodGates {
 
     private static Type unwrap(Type t) {
         return t instanceof Type.NullableType nt ? nt.inner() : t;
+    }
+
+    /** §122: tipos que NUNCA são um índice/count válido (Int é o contrato). */
+    static boolean isReferenceIndexType(Type t) {
+        if (t == null || Type.UnknownType.UNKNOWN.equals(t)) return false;
+        if (t instanceof Type.NullableType nt) return isReferenceIndexType(nt.inner());
+        if (TypeMetrics.isPrimitiveType(t)) return false;
+        return t instanceof Type.ClassType || t instanceof Type.ArrayType
+                || t instanceof Type.TypeVariable;
+    }
+
+    /** pagination P1 — take/drop/slice exigem Int count; null = ok. */
+    static String countDomainError(String opFn, String mn, java.util.List<Type> argTypes) {
+        if (!("kof_list_take".equals(opFn) || "kof_list_drop".equals(opFn)
+                || "kof_list_slice".equals(opFn))) return null;
+        for (int i = 0; i < argTypes.size() && i < 2; i++) {
+            if (isReferenceIndexType(argTypes.get(i))) {
+                return "List." + mn + " takes an Int count; "
+                        + CollectionWrites.typeNameFor(argTypes.get(i)) + " is not a count";
+            }
+        }
+        return null;
     }
 
     /**

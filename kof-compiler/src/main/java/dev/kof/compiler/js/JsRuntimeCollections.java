@@ -39,6 +39,23 @@ public final class JsRuntimeCollections {
                 return list.slice(from, to);
             }
 
+            export function kofListTake(list, n) {
+                if (n < 0) throw new Error("PAGINATION: count must be >= 0");
+                return list.slice(0, n < list.length ? n : list.length);
+            }
+
+            export function kofListDrop(list, n) {
+                if (n < 0) throw new Error("PAGINATION: count must be >= 0");
+                return list.slice(n < list.length ? n : list.length, list.length);
+            }
+
+            export function kofListSlice(list, offset, limit) {
+                if (offset < 0 || limit < 0) throw new Error("PAGINATION: limit/offset must be >= 0");
+                const start = offset < list.length ? offset : list.length;
+                const remaining = list.length - start;
+                return list.slice(start, start + (limit < remaining ? limit : remaining));
+            }
+
             function kofNaturalCmp(a, b) {
                 if (typeof a === "number" && typeof b === "number") {
                     return a < b ? -1 : a > b ? 1 : 0;

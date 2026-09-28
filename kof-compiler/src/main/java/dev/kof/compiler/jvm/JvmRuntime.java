@@ -50,6 +50,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 // §388-B: display de array cru no formato de container.
                 || methodName.equals("kof_array_to_string")
                 || methodName.equals("kof_list_map") || methodName.equals("kof_list_filter") || methodName.equals("kof_list_reduce")
+                || methodName.equals("kof_list_take") || methodName.equals("kof_list_drop") || methodName.equals("kof_list_slice")
                 || methodName.startsWith("kof_observability_")
                 || methodName.startsWith("kof_media_")
                 || methodName.startsWith("kof_tetris_")

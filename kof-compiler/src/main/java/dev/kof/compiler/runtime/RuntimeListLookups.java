@@ -356,6 +356,118 @@ public final class RuntimeListLookups {
             .Llsl_bidx:
                 movl 16(%rbx), %esi
                 call kof_bounds_error
+
+            # pagination P1 — kof_list_take(rdi=list, esi=n) -> nova List com
+            # os primeiros min(n,size) (clamp honesto); n<0 -> erro nomeado
+            # PAGINATION (nunca índice negativo lido).
+            .globl kof_list_take
+            .type kof_list_take, @function
+            kof_list_take:
+                pushq %rbx
+                movq %rdi, %rbx
+                testl %esi, %esi
+                js .Ltk_bad
+                movl 16(%rbx), %edx         # size
+                cmpl %edx, %esi             # n <= size?
+                jle .Ltk_ok
+                movl %edx, %esi             # n>size -> n=size (clamp)
+            .Ltk_ok:
+                movl %esi, %edx             # end = n
+                xorl %esi, %esi             # begin = 0
+                movq %rbx, %rdi
+                call kof_list_sub_list
+                popq %rbx
+                ret
+            .Ltk_bad:
+                leaq .Lpag_count_msg(%rip), %rdi
+                call kof_throw_string
+                ud2
+
+            # pagination P1 — kof_list_drop(rdi=list, esi=n) -> nova List a
+            # partir de min(n,size) (clamp honesto); n<0 -> PAGINATION.
+            .globl kof_list_drop
+            .type kof_list_drop, @function
+            kof_list_drop:
+                pushq %rbx
+                movq %rdi, %rbx
+                testl %esi, %esi
+                js .Ldp_bad
+                movl 16(%rbx), %edx         # size (= end)
+                cmpl %edx, %esi             # n <= size?
+                jle .Ldp_ok
+                movl %edx, %esi             # n>size -> begin=size (vazio)
+            .Ldp_ok:
+                movq %rbx, %rdi
+                call kof_list_sub_list
+                popq %rbx
+                ret
+            .Ldp_bad:
+                leaq .Lpag_count_msg(%rip), %rdi
+                call kof_throw_string
+                ud2
+
+            # pagination P1 — kof_list_slice(rdi=list, esi=offset, edx=limit)
+            # -> nova List [start, start+min(limit,size-start)); offset<0 ||
+            # limit<0 -> PAGINATION; offset>size -> vazia (sem erro).
+            .globl kof_list_slice
+            .type kof_list_slice, @function
+            kof_list_slice:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movq %rdi, %rbx
+                testl %esi, %esi
+                js .Lsc_bad
+                testl %edx, %edx
+                js .Lsc_bad
+                movl 16(%rbx), %r12d        # size
+                movl %esi, %r13d            # start = min(offset,size)
+                cmpl %r12d, %r13d
+                jle .Lsc_ok
+                movl %r12d, %r13d
+            .Lsc_ok:
+                movl %r12d, %eax
+                subl %r13d, %eax            # remaining = size - start
+                movl %edx, %ecx             # end = start + min(limit,remaining)
+                cmpl %eax, %ecx
+                jle .Lsc_sum
+                movl %eax, %ecx
+            .Lsc_sum:
+                addl %r13d, %ecx
+                movq %rbx, %rdi
+                movl %r13d, %esi
+                movl %ecx, %edx
+                call kof_list_sub_list
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lsc_bad:
+                leaq .Lpag_ol_msg(%rip), %rdi
+                call kof_throw_string
+                ud2
+
+            # ---------------------- literais PAGINATION --------------------
+            .Lpag_count_msg:
+                .long 1
+                .long 0
+                .quad 0
+                .long .Lpag_count_len
+                .long 0
+            .Lpag_count_body:
+                .ascii "PAGINATION: count must be >= 0"
+                .byte 0
+                .set .Lpag_count_len, . - .Lpag_count_body - 1
+            .Lpag_ol_msg:
+                .long 1
+                .long 0
+                .quad 0
+                .long .Lpag_ol_len
+                .long 0
+            .Lpag_ol_body:
+                .ascii "PAGINATION: limit/offset must be >= 0"
+                .byte 0
+                .set .Lpag_ol_len, . - .Lpag_ol_body - 1
             """);
     }
 }

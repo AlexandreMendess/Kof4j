@@ -223,6 +223,9 @@ public final class MemberCallTyper {
                 return Type.PrimitiveType.INT;
             if ("addAll".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("subList".equals(mn)) return recvType;
+            // pagination P1 — take/drop/slice devolvem List<E> do mesmo tipo
+            // (janela materializada; clamping no runtime, negativos = erro nomeado).
+            if ("take".equals(mn) || "drop".equals(mn) || "slice".equals(mn)) return recvType;
             if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                     || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn))
                 return Type.PrimitiveType.VOID;
@@ -256,7 +259,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/sort)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort)",
                             "SEM025");
                 }
             }

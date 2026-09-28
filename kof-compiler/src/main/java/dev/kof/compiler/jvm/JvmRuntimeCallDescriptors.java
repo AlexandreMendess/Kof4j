@@ -451,6 +451,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_enum_value_of" -> "(Ljava/util/List;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_enum_ordinal" -> "(Ljava/lang/String;Ljava/util/List;)I";
             case "kof_list_map", "kof_list_filter" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)Ljava/util/ArrayList;";
+            case "kof_list_take", "kof_list_drop" -> "(Ljava/util/ArrayList;I)Ljava/util/ArrayList;";
+            case "kof_list_slice" -> "(Ljava/util/ArrayList;II)Ljava/util/ArrayList;";
             case "kof_list_reduce" -> "(Ljava/util/ArrayList;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
             case "kof_spawn_result", "kof_await" -> "(Ljava/lang/Object;)Ljava/lang/Object;";
             case "kof_poll" -> "(Ljava/lang/Object;)Ljava/lang/Object;";

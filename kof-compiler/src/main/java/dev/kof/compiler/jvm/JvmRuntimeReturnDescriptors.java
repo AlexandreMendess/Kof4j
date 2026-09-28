@@ -205,6 +205,7 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_web_policy", "kof_web_route_opts" -> "V";
             case "kof_media_mic_list" -> "Ljava/util/ArrayList;";
             case "kof_list_map", "kof_list_filter" -> "Ljava/util/ArrayList;";
+            case "kof_list_take", "kof_list_drop", "kof_list_slice" -> "Ljava/util/ArrayList;";
             case "kof_list_reduce" -> "Ljava/lang/Object;";
             // ── kof.security G9 (rate limiting / sessions / API keys) ──
             case "kof_sec_session_create", "kof_sec_api_key_generate" -> "Ljava/lang/String;";

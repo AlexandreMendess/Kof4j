@@ -94,6 +94,10 @@ public final class CollectionCallLowerer {
             case "lastIndexOf" -> "kof_list_last_index_of";
             case "addAll" -> "kof_list_add_all";
             case "subList" -> "kof_list_sub_list";
+            // pagination P1 — in-memory window ops (janela materializada).
+            case "take" -> "kof_list_take";
+            case "drop" -> "kof_list_drop";
+            case "slice" -> "kof_list_slice";
             case "sort" -> "kof_list_sort";
             default -> null;
         };
@@ -106,7 +110,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/sort)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort)",
                     "SEM025");
             return localIdx;
         }
@@ -151,7 +155,7 @@ public final class CollectionCallLowerer {
                     || "kof_list_remove".equals(listFn) || "kof_list_sub_list".equals(listFn))
                     && !argTypes.isEmpty() && driver.currentDiagnostics != null) {
                 Type idxT = argTypes.get(0);
-                if (isReferenceIndexType(idxT)) {
+                if (CollectionMethodGates.isReferenceIndexType(idxT)) {
                     var pos = mc.position();
                     driver.currentDiagnostics.error(pos != null ? pos.file() : "",
                             pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
@@ -162,7 +166,7 @@ public final class CollectionCallLowerer {
                 }
                 // #382: subList tem DOIS índices — o segundo também é Int.
                 if ("kof_list_sub_list".equals(listFn) && argTypes.size() > 1
-                        && isReferenceIndexType(argTypes.get(1))) {
+                        && CollectionMethodGates.isReferenceIndexType(argTypes.get(1))) {
                     var pos = mc.position();
                     driver.currentDiagnostics.error(pos != null ? pos.file() : "",
                             pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
@@ -171,6 +175,15 @@ public final class CollectionCallLowerer {
                             "SEM055");
                     return localIdx;
                 }
+            }
+            // pagination P1 — take/drop/slice exigem Int count (SEM055).
+            String countMsg = CollectionMethodGates.countDomainError(listFn, mc.methodName(), argTypes);
+            if (countMsg != null && driver.currentDiagnostics != null) {
+                var pos = mc.position();
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        countMsg, "SEM055");
+                return localIdx;
             }
                 // listOf() with no type argument produces
             // List<Unknown>; the first add() pins the element
@@ -248,7 +261,7 @@ public final class CollectionCallLowerer {
                 // #382 — indexOf/lastIndexOf: Int (-1 ausente, oracle java.util);
                 // subList: List do mesmo tipo de elemento.
                 case "kof_list_index_of", "kof_list_last_index_of" -> Type.PrimitiveType.INT;
-                case "kof_list_sub_list" -> recvType;
+                case "kof_list_sub_list", "kof_list_take", "kof_list_drop", "kof_list_slice" -> recvType;
                 case "kof_list_remove" -> elemType;
                 default -> elemType;
             };
@@ -571,15 +584,6 @@ public final class CollectionCallLowerer {
         if (!(arg instanceof Type.PrimitiveType)) return false;
         Type s = slot instanceof Type.NullableType nt ? nt.inner() : slot;
         return BuiltinTypes.isObject(s);
-    }
-
-    /** §122: tipos que NUNCA são um índice válido p/ get/set/remove de List. */
-    private static boolean isReferenceIndexType(Type t) {
-        if (t == null || Type.UnknownType.UNKNOWN.equals(t)) return false;
-        if (t instanceof Type.NullableType nt) return isReferenceIndexType(nt.inner());
-        if (TypeMetrics.isPrimitiveType(t)) return false;
-        return t instanceof Type.ClassType || t instanceof Type.ArrayType
-                || t instanceof Type.TypeVariable;
     }
 
 }

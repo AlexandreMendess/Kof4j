@@ -399,7 +399,10 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
   `StdCatalogSignaturesTest#ormPageCatalogDocumentsLimitBeforeOffset`); travar
   `D-PAGINATION`.
 - **P1 — Janela em memória (nível de linguagem).** `slice`/`take`/`drop` no `List`
-  (três camadas + 4 shims). Prova: E2E de bordas nos 4 alvos.
+  (três camadas + 4 shims). FEITO 28/09: `kof_list_take/drop/slice` em
+  JVM/JS/interpretador + nativo x86-64/riscv64/aarch64 (clamping honesto,
+  negativo = erro nomeado `PAGINATION`); prova `PaginationSliceE2ETest` 7/7
+  (cross riscv/aarch rodou) + `KofScriptStdlibParityTest#paginationSliceParity`.
   *(_Pega carona na Fase 1 do `PLAN-MULTIPARADIGMA`; ainda sem tipo novo._)
 - **P2 — valor `Window<T>` + `List.window(limit, offset[, total])`.** Record +
   schema JSON (Native) + semântica de metadados. Prova: E2E de metadados.

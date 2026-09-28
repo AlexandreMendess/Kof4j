@@ -400,7 +400,10 @@ Each slice is independently provable; no slice ships without a test and docs.
   `StdCatalogSignaturesTest#ormPageCatalogDocumentsLimitBeforeOffset`); lock
   `D-PAGINATION`.
 - **P1 — In-memory windowing (language-level).** `slice`/`take`/`drop` on `List`
-  (three typer/lowering layers + 4 shims). Proof: edge-case E2E all targets.
+  (three typer/lowering layers + 4 shims). DONE 28/09: `kof_list_take/drop/slice`
+  on JVM/JS/interpreter + native x86-64/riscv64/aarch64 (clamping honesto,
+  negativo = erro nomeado `PAGINATION`); proof `PaginationSliceE2ETest` 7/7
+  (cross riscv/aarch ran) + `KofScriptStdlibParityTest#paginationSliceParity`.
   *(_Rides `PLAN-MULTIPARADIGMA` Phase 1; no new type yet._)
 - **P2 — `Window<T>` value + `List.window(limit, offset[, total])`.** Record +
   JSON schema (Native) + metadata semantics. Proof: metadata E2E.

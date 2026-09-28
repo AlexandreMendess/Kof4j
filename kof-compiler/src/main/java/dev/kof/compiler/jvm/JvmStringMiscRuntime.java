@@ -113,6 +113,38 @@ public final class JvmStringMiscRuntime {
                     return acc;
                 }
 
+                // ── pagination P1 — List.take/drop/slice (in-memory) ──
+                // Janela materializada; clamping honesto (nunca erro por
+                // excesso); negativo = erro nomeado PAGINATION.
+
+                public static java.util.ArrayList<Object> kof_list_take(
+                        java.util.ArrayList<?> list, int n) {
+                    if (n < 0) throw new RuntimeException("PAGINATION: count must be >= 0");
+                    int size = list.size();
+                    int end = n < size ? n : size;
+                    return new java.util.ArrayList<Object>(list.subList(0, end));
+                }
+
+                public static java.util.ArrayList<Object> kof_list_drop(
+                        java.util.ArrayList<?> list, int n) {
+                    if (n < 0) throw new RuntimeException("PAGINATION: count must be >= 0");
+                    int size = list.size();
+                    int start = n < size ? n : size;
+                    return new java.util.ArrayList<Object>(list.subList(start, size));
+                }
+
+                public static java.util.ArrayList<Object> kof_list_slice(
+                        java.util.ArrayList<?> list, int offset, int limit) {
+                    if (offset < 0 || limit < 0) {
+                        throw new RuntimeException("PAGINATION: limit/offset must be >= 0");
+                    }
+                    int size = list.size();
+                    int start = offset < size ? offset : size;
+                    int remaining = size - start;
+                    int end = start + (limit < remaining ? limit : remaining);
+                    return new java.util.ArrayList<Object>(list.subList(start, end));
+                }
+
                 // ── kof.enum (P1) ──────────────────────────────────────
 
                 public static String kof_enum_value_of(java.util.List<?> values, String name) {
