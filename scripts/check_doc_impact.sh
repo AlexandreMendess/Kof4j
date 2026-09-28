@@ -10,16 +10,21 @@
 # Saída fixture (testes):
 #   scripts/check_doc_impact.sh --corpus DIR --changed-file F --tokens-file F
 # Tokens (file: `kind<TAB>token`):
-#   status  §NNN     — linha de estado de §NNN mudou em known-bugs
+#   status  §NNN     — CLASSIFICACAO de estado de §NNN mudou (before x after via
+#                      scripts/check_known_bugs_status.sh --classify — o classificador
+#                      canonico; reescrita de heading NAO dispara, #656)
 #   decision D-NAME  — cabeçalho `## D-NAME` mudou em DECISIONS
-#   moved   <path>   — documento renomeado/movido (caminho ANTIGO)
+#   moved   <path>   — documento renomeado/movido (caminho ANTIGO; consumidores
+#                      por caminho literal OU link relativo/basename, #656)
 # Waivers (DOC_IMPACT_WAIVERS, default scripts/doc-impact-waivers.txt):
-#   `<token|*><TAB><prefixo-do-consumidor>`
-# Saída: `token -> consumidores -> PASS|FAIL` por token; exit 1 se qualquer FAIL.
+#   `<token|*><TAB><prefixo-do-consumidor>`  (linha malformada NAO waiva nada)
+# Saída: `token -> consumidores -> PASS|BLOCK` por token (contrato #648/#656); exit 1 se qualquer BLOCK.
 # História imutável (CHANGELOG/DOING/history) é waiveada por padrão — registro
 # não é consumidor vivo (regra "State, not history").
 set -uo pipefail
+GATE_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+KB_CLASS="$GATE_DIR/check_known_bugs_status.sh"
 
 BASE=""; HEADR="HEAD"; CHANGED=""; TOKENS=""; CORPUS="."
 WAIVERS="${DOC_IMPACT_WAIVERS:-scripts/doc-impact-waivers.txt}"
@@ -34,6 +39,17 @@ while [ $# -gt 0 ]; do case "$1" in
   *) echo "check_doc_impact: argumento desconhecido: $1" >&2; exit 2;;
 esac; done
 
+status_tokens_from() { # $1=caminho-relativo-do-ledger — estado BEFORE x AFTER pelo classificador canonico
+  local f="$1" b="$TMP/kb-b" a="$TMP/kb-a"
+  : > "$b"; : > "$a"
+  git show "$BASE:$f" > "$b" 2>/dev/null || true
+  git show "$HEADR:$f" > "$a" 2>/dev/null || true
+  { [ -s "$b" ] || [ -s "$a" ]; } || return 0
+  bash "$KB_CLASS" --classify "$b" 2>/dev/null | sed 's/^/§/' | sort -u > "$TMP/sb"
+  bash "$KB_CLASS" --classify "$a" 2>/dev/null | sed 's/^/§/' | sort -u > "$TMP/sa"
+  { comm -23 "$TMP/sb" "$TMP/sa"; comm -13 "$TMP/sb" "$TMP/sa"; } \
+    | sed -nE 's/^§([0-9]+) .*/status\t§\1/p'
+}
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 CH="$TMP/changed"; : > "$CH"
 
@@ -42,12 +58,13 @@ if [ -z "$TOKENS" ]; then
   [ -n "$BASE" ] || BASE="$(git merge-base HEAD origin/lab 2>/dev/null || git rev-parse HEAD~1 2>/dev/null || echo '')"
   if [ -z "$BASE" ]; then echo "PASS (sem base para diff — nada a medir)"; exit 0; fi
   git diff --name-only "$BASE".."$HEADR" > "$CH" 2>/dev/null
-  git diff -U0 "$BASE".."$HEADR" -- docs/bugs-and-gaps/known-bugs.md docs/bugs-and-gaps/known-bugs.pt_BR.md \
-    | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
-    | grep -E '§[0-9]+' | grep -iE 'FIXED|OPEN|IN PROGRESS|BLOCKED|LANDED|landed|🟡|✅|🔧|⏸|next|próxima' \
-    | grep -oE '§[0-9]+' | sort -u | awk '{printf "status\t%s\n", $0}' > "$TMP/tokens"
+  : > "$TMP/tokens"
+  for f in docs/bugs-and-gaps/known-bugs.md docs/bugs-and-gaps/known-bugs.pt_BR.md; do
+    status_tokens_from "$f"
+  done >> "$TMP/tokens"
   git diff -U0 "$BASE".."$HEADR" -- docs/development/DECISIONS.md docs/development/DECISIONS.pt_BR.md \
-    | grep -E '^[+-]## D-' | grep -oE 'D-[A-Z0-9._-]+' | sort -u | sed 's/^/decision\t/' >> "$TMP/tokens"
+    | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -E 'D-[A-Z0-9._-]+' \
+    | awk '/SUPERSEDED|SUBSTITUIDA|SUBSTITUÍDA/{while (match($0,/D-[A-Z0-9._-]+/)) {print "superseded\t" substr($0,RSTART,RLENGTH); $0=substr($0,RSTART+RLENGTH)} next} /^[+-]## D-/{if (match($0,/D-[A-Z0-9._-]+/)) print "decision\t" substr($0,RSTART,RLENGTH)}' | sort -u >> "$TMP/tokens"
   git diff --name-status -M "$BASE".."$HEADR" | grep -E '^R[0-9]*\b' | while IFS=$'\t' read -r st old new; do
     printf 'moved\t%s\n' "$old"
   done >> "$TMP/tokens"
@@ -57,6 +74,8 @@ else
 fi
 [ -n "$CHANGED" ] && [ -f "$CHANGED" ] && cat "$CHANGED" >> "$CH"
 [ -n "$TOKENS" ] && [ -f "$TOKENS" ] || TOKENS=/dev/null
+sort -u "$TOKENS" -o "$TMP/tokens.u" 2>/dev/null || true
+[ -f "$TMP/tokens.u" ] && TOKENS="$TMP/tokens.u"
 sort -u "$CH" -o "$CH"
 
 is_changed() { grep -qxF "$1" "$CH"; }
@@ -71,21 +90,22 @@ waived() { # token consumidor
 }
 
 consumers_for() { # kind token
-  local kind="$1" tok="$2"
-  local pat
-  case "$kind" in
-    moved) pat="$tok" ;;
-    *)     pat="$tok" ;;
-  esac
-  grep -rlF --include='*.md' -e "$pat" "$CORPUS" 2>/dev/null \
-    | grep -v '^\.git/' | grep -v '/target/' \
-    | sed "s|^\./||; s|^$CORPUS/||" || true
-  if [ "$kind" = "moved" ]; then
-    # consumidor também é quem cita só o basename (ex.: `plan-foo.md` cruft)
-    grep -rlF --include='*.md' -e "$(basename "$tok")" "$CORPUS" 2>/dev/null \
-      | grep -v '^\.git/' | grep -v '/target/' \
-      | sed "s|^\./||; s|^$CORPUS/||" || true
+  local kind="$1" tok="$2" base
+  if [ "$kind" = "status" ]; then
+    # §NNN casa o NUMERO INTEIRO: §12 NAO pega §123/§12.3 (lacuna 2b do #656)
+    base="$(grep -rlE --include='*.md' -e "${tok}([^0-9.]|\$)" "$CORPUS" 2>/dev/null \
+      | grep -v '^\.git/' | grep -v '/target/')"
+  else
+    base="$(grep -rlF --include='*.md' -e "$tok" "$CORPUS" 2>/dev/null \
+      | grep -v '^\.git/' | grep -v '/target/')"
   fi
+  if [ "$kind" = "moved" ]; then
+    # consumidor tambem e quem cita so o basename (link relativo `](../old.md)`, #656)
+    base="$base
+$(grep -rlF --include='*.md' -e "$(basename "$tok")" "$CORPUS" 2>/dev/null \
+      | grep -v '^\.git/' | grep -v '/target/')"
+  fi
+  printf '%s\n' "$base" | sed "s|^\./||; s|^$CORPUS/||" | grep -v '^$' || true
 }
 
 RC=0; N=0
@@ -107,7 +127,7 @@ while IFS=$'\t' read -r kind tok; do
     STALE="$STALE $f"
   done < <(consumers_for "$kind" "$tok" | sort -u)
   if [ -n "$STALE" ]; then
-    printf '%s ->%s -> FAIL (consumidor vivo nao atualizado no mesmo diff)\n' "$tok" "$STALE"
+    printf '%s ->%s -> BLOCK (consumidor vivo nao atualizado no mesmo diff)\n' "$tok" "$STALE"
     RC=1
   else
     printf '%s -> (nenhum consumidor pendente) -> PASS\n' "$tok"

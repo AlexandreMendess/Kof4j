@@ -1,4 +1,6 @@
 ---
+> **🔧 CLAIM 28/09 (lane docs — owner: esta sessao):** #656 — 4 lacunas do gate de impacto documental (#648): (a) linha SUPERSEDED em DECISIONS nao gera token; (b) §NNN dispara por reescrita de heading — deve disparar So por mudanca de ESTADO na secao (ou fila do header); (c) doc movido so casa caminho literal — consumidor que cita por link relativo deve ser pego; (d) saida deve ser `PASS|BLOCK` (nao FAIL). RED-first: casos novos no `scripts/tests/doc-impact-test.sh` (modo git real em repo-fixture separado). Nota: #652 ja esta consertado no tip `5f914cce4` (celula §494: FIXED, D-IO-SIZE-JVM-LAW) — falta so fechar com evidencia. NAO TOCAR: §524/§533/§534 (donas vivas), PR #619 (regra 10).
+
 > **✅ DONE 28/09 (lane issues — owner: esta sessao, POR ORDEM DIRETA DA MANTENEDORA):** broadcast do novo texto do heartbeat em #647 (issuecomment-5862749487): ler `D-FUTURE-PROMOTION`, se parado continuar o desenvolvimento, **uma frente por vez por owner de lane**.
 
 ---
