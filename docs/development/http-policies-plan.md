@@ -8,10 +8,9 @@
 **Real state (measured 28/09/2026):** the global `app.security(opts)` exists and is
 frozen (`D-SEC` C18 fixed pipeline order) and now carries the declarative
 `responses` opt (F0 landed). The `Policy` value, resource scopes (`app.policy`),
-effective-policy resolution and the `merge` law are landed (F1, F2). The
-endpoint-opt form (`app.get(path, opts) { }`, F3) is parseable by the grammar but
-not wired in the `KofWeb` table/typer yet; per-route rate-limit keying (F5) is not
-implemented.
+effective-policy resolution, the `merge` law and the endpoint-opt form
+(`app.get(path, opts) { }`, F3) are landed (F1–F3). Per-route rate-limit keying
+(F5) is not implemented.
 **How to finish:** implement the ordered slices of §12, one commit each, RED-first
 + `check_500`; JVM full, Native/JS `WEB006` (R6, never a silent drop). Start with
 the first landed slice (global `responses`), then F1 (`Policy` refactor) → F2
@@ -314,7 +313,7 @@ they remain a documented gap until separately promoted (rule 6).
 > Each slice: compile + test + `check_500`; commit per slice. No slice ships
 > without a green proof and updated docs.
 
-**Slice status (28/09/2026):** ✅ F0–F2 landed; ⏳ F3–F6 pending.
+**Slice status (28/09/2026):** ✅ F0–F3 landed; ⏳ F4–F6 pending.
 
 - **F0 — Global `responses` payloads for `app.security(opts)` (additive).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parses a `responses` Map
@@ -340,9 +339,13 @@ they remain a documented gap until separately promoted (rule 6).
   `KofHttpPoliciesE2ETest` 5/5 — scope under `/admin` only (401/403/200), scalar
   `headers:false` deepest-wins, `publicPaths`/`roles` union, `WEB006` on Native/JS;
   web regression 65/65.
-- **F3 — Endpoint opts (`app.get(path, opts) { }`)**, 5-arg `kof_web_route`,
-  descriptor + typer. **Proof:** endpoint policy overrides the resource scope;
-  endpoint-less route still inherits.
+- **F3 — Endpoint opts (`app.get(path, opts) { }`)**, ✅ LANDED 28/09: `KofWeb`
+  `policy`/route-3-arg case → `kof_web_route_opts`; `WebRoute.policy` + overload
+  ctor; `kof_web_route_opts` runtime; `kof_web_match_route` pre-match merges the
+  endpoint policy into the effective one before the pipeline; `WEB006` on
+  Native/JS. **Proof:** `KofHttpPoliciesE2ETest#endpointPolicyOverridesScope`
+  (endpoint `headers:true` wins the scope's `false`; endpoint-less route inherits;
+  global outside) + route-opts `WEB006`; web regression green.
 - **F4 — Declarative `responses` payloads.** Rejection bodies from the effective
   policy. **Proof:** 401/403/429 bodies match the declared payload; absent keys
   keep built-in bodies (compat case).

@@ -8,10 +8,9 @@
 **Estado real (medido 28/09/2026):** o `app.security(opts)` global existe e é
 congelado (`D-SEC` C18, ordem fixa do pipeline) e agora carrega o opt declarativo
 `responses` (F0 pousada). O valor `Policy`, os escopos de recurso (`app.policy`), a
-resolução da política efetiva e a lei de `merge` pousaram (F1, F2). A forma com
-opts por endpoint (`app.get(path, opts) { }`, F3) é parseável pela gramática mas
-ainda não está ligada na tabela `KofWeb`/typer; a chave de rate-limit por rota (F5)
-não está implementada.
+resolução da política efetiva, a lei de `merge` e a forma com opts por endpoint
+(`app.get(path, opts) { }`, F3) pousaram (F1–F3). A chave de rate-limit por rota
+(F5) não está implementada.
 **Como terminar:** implementar as fatias ordenadas do §12, um commit cada,
 RED-first + `check_500`; JVM completo, Native/JS `WEB006` (R6, nunca drop
 silencioso). Começar pela primeira fatia pousada (o `responses` global), depois
@@ -316,7 +315,7 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 > Cada fatia: compile + teste + `check_500`; commit por fatia. Nenhuma fatia
 > entra sem prova verde e docs atualizadas.
 
-**Status das fatias (28/09/2026):** ✅ F0–F2 pousadas; ⏳ F3–F6 pendentes.
+**Status das fatias (28/09/2026):** ✅ F0–F3 pousadas; ⏳ F4–F6 pendentes.
 
 - **F0 — Payloads `responses` globais no `app.security(opts)` (aditivo).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parseia um Map `responses`
@@ -341,9 +340,13 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
   descriptors. **Prova:** nova `KofHttpPoliciesE2ETest` 5/5 — escopo sob `/admin`
   apenas (401/403/200), escalar `headers:false` vence, união de
   `publicPaths`/`roles`, `WEB006` em Native/JS; regressão web 65/65.
-- **F3 — Opts de endpoint (`app.get(path, opts) { }`)**, `kof_web_route` de 5
-  args, descriptor + typer. **Prova:** a política de endpoint sobrepõe o escopo
-  de recurso; rota sem política ainda herda.
+- **F3 — Opts de endpoint (`app.get(path, opts) { }`)**, ✅ POUSADA 28/09: caso
+  `policy`/rota-de-3-args em `KofWeb` → `kof_web_route_opts`; `WebRoute.policy` +
+  ctor sobrecarregado; runtime `kof_web_route_opts`; `kof_web_match_route`
+  pré-casa e funde a política de endpoint na efetiva antes da pipeline; `WEB006`
+  em Native/JS. **Prova:** `KofHttpPoliciesE2ETest#endpointPolicyOverridesScope`
+  (endpoint `headers:true` vence o `false` do escopo; rota sem opts herda; global
+  fora) + `WEB006` das route-opts; regressão web verde.
 - **F4 — Payloads declarativos `responses`.** Corpos de rejeição da política
   efetiva. **Prova:** corpos 401/403/429 batem com o payload declarado; chaves
   ausentes mantêm os corpos embutidos (caso de compat).

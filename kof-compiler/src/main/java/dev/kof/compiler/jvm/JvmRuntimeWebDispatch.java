@@ -184,6 +184,29 @@ public final class JvmRuntimeWebDispatch {
                     return body != null ? body : fallback;
                 }
 
+                /** D-HTTP-POLICIES (F3): primeira rota que casa (sem invocar),
+                 *  para fundir a policy de endpoint na efetiva ANTES da
+                 *  pipeline. Null = nenhuma (404 segue com a policy de path). */
+                private static WebRoute kof_web_match_route(WebApp app, WebRequest req) {
+                    for (WebRoute route : app.routes) {
+                        if (route.kind == RouteKind.HTTP && !route.method.equals(req.method)) {
+                            continue;
+                        }
+                        String[] pathSegs = req.path.split("/");
+                        if (pathSegs.length != route.segments.length) continue;
+                        boolean match = true;
+                        for (int i = 0; i < pathSegs.length; i++) {
+                            if (route.params[i]) continue;
+                            if (!route.segments[i].equals(pathSegs[i])) {
+                                match = false;
+                                break;
+                            }
+                        }
+                        if (match) return route;
+                    }
+                    return null;
+                }
+
                 private static WebDispatchResult kof_web_dispatch(WebApp app, WebRequest req) {
                     KOF_WEB_REQUEST.set(req);
                     KOF_WEB_STATUS.remove();
@@ -221,8 +244,11 @@ public final class JvmRuntimeWebDispatch {
                         // rotas (security by default não depende de o usuário
                         // compor a ordem à mão). Falha = resposta curta
                         // (429/403/401), nunca silenciosa (R6).
-                        String securityReject = kof_web_security_pipeline(app, req,
-                                kof_web_effective_policy(app, req));
+                        Policy pathPolicy = kof_web_effective_policy(app, req);
+                        WebRoute matched = kof_web_match_route(app, req);
+                        Policy effective = (matched != null && matched.policy != null)
+                                ? pathPolicy.merge(matched.policy) : pathPolicy;
+                        String securityReject = kof_web_security_pipeline(app, req, effective);
                         if (securityReject != null) {
                             KOF_WEB_STATUS.remove();
                             KOF_WEB_HEADERS.get().clear();

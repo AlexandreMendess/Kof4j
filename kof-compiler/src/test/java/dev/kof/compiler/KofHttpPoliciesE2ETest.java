@@ -257,7 +257,39 @@ class KofHttpPoliciesE2ETest {
         assertTrue(other.startsWith("HTTP/1.1 200 OK"), other);
     }
 
-    // F6 (gap honesto): app.policy nao existe fora do JVM -> WEB006.
+    // §4.3/§4.4: opts por endpoint (F3) — o endpoint vence o escopo (mais
+    // profundo); rota sem opts herda o escopo; fora do escopo vale o global.
+    @Test
+    void endpointPolicyOverridesScope(@TempDir Path tempDir) throws IOException {
+        int port = startServer(tempDir, """
+                main() {
+                    var app = web.app()
+                    app.security()
+                    app.policy("/api", mapOf("headers", false))
+                    var on = mapOf("headers", true)
+                    app.get("/api/show", on) { return "show" }
+                    app.get("/api/hide") { return "hide" }
+                    app.get("/other") { return "other" }
+                    app.listen(PORT)
+                }
+                """);
+        String show = request(port, "GET /api/show HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(show.startsWith("HTTP/1.1 200 OK"), show);
+        assertNotNull(headerLine(show, "Content-Security-Policy"),
+                "endpoint headers:true vence o escopo: " + show);
+
+        String hide = request(port, "GET /api/hide HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(hide.startsWith("HTTP/1.1 200 OK"), hide);
+        assertNull(headerLine(hide, "Content-Security-Policy"),
+                "rota sem opts herda headers:false do escopo: " + hide);
+
+        String other = request(port, "GET /other HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(other.startsWith("HTTP/1.1 200 OK"), other);
+        assertNotNull(headerLine(other, "Content-Security-Policy"),
+                "fora do escopo vale o default global: " + other);
+    }
+
+    // F6 (gap honesto): app.policy e route-opts nao existem fora do JVM -> WEB006.
     @Test
     void policyGapOnNativeAndJs(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("App.kf");
@@ -265,6 +297,7 @@ class KofHttpPoliciesE2ETest {
                 main() {
                     var app = web.app()
                     app.policy("/admin", mapOf("roles", "admin"))
+                    app.get("/admin/x", mapOf("roles", "admin")) { return "x" }
                     app.listen(8100)
                 }
                 """);
@@ -272,7 +305,7 @@ class KofHttpPoliciesE2ETest {
             CompilationResult result = driver.compile(source, tempDir.resolve("out-" + target), target);
             var diagnostics = result.diagnostics().getDiagnostics();
             assertTrue(diagnostics.stream().anyMatch(d -> d.code().equals("WEB006")),
-                    "app.policy() deve dar WEB006 no " + target + ", got: " + diagnostics);
+                    "app.policy()/route-opts devem dar WEB006 no " + target + ", got: " + diagnostics);
         }
     }
 }

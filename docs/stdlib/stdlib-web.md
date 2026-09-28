@@ -183,6 +183,18 @@ app.policy("*", mapOf("publicPaths", "/health"))    // public regardless of scop
 Prefix-only in v1 (no globs/regex, no path params). Same JVM-only rule as
 `app.security`: Native/JS report `WEB006`.
 
+**Endpoint policy (F3):** a route may carry its own opts as the second argument
+(`app.get(path, opts) { … }`, same opt keys). It is the **deepest** scope, so it
+wins over the resource policy for that exact route; a route without opts inherits
+the resource/global policy. It only applies after the route matches — an unknown
+path is still protected by the path scopes/global.
+
+```kof
+app.policy("/api", mapOf("headers", false))
+app.get("/api/show", mapOf("headers", true)) { return "show" }  // hardening back on
+app.get("/api/hide") { return "hide" }                          // inherits off
+```
+
 **JVM-only** — Native/JS report `WEB006` (honest gap, same precedent
 `WEB002`/`WEB005`).
 

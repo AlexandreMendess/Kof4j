@@ -96,8 +96,16 @@ public final class JvmWebCoreRuntime {
                     final boolean[] params;
                     final Object handler;
                     final RouteKind kind;
+                    // D-HTTP-POLICIES (F3): opts por endpoint (app.get(path, opts)
+                    // { }) — null para rotas sem opts (herdam escopo/global).
+                    final Policy policy;
 
                     WebRoute(RouteKind kind, String method, String path, Object handler) {
+                        this(kind, method, path, handler, null);
+                    }
+
+                    WebRoute(RouteKind kind, String method, String path, Object handler,
+                            Policy policy) {
                         this.kind = kind;
                         this.method = method;
                         String[] raw = path.split("/");
@@ -108,6 +116,7 @@ public final class JvmWebCoreRuntime {
                             this.params[i] = raw[i].startsWith(":");
                         }
                         this.handler = handler;
+                        this.policy = policy;
                     }
                 }
 
@@ -471,6 +480,21 @@ public final class JvmWebCoreRuntime {
                                 "route method " + m + " requires kof_web_sse_route/kof_web_ws_route");
                     }
                     kof_web_app(appId).routes.add(new WebRoute(RouteKind.HTTP, m, path, handler));
+                }
+
+                /** D-HTTP-POLICIES (F3): {@code app.get(path, opts) { }} — rota
+                 *  HTTP com policy por endpoint; casa mais profundo que os
+                 *  escopos e o global (merge §4.3). csrfDefault=false (herda). */
+                public static void kof_web_route_opts(String appId, String method, String path,
+                        java.util.Map<?, ?> opts, Object handler) {
+                    if (handler == null) throw new IllegalArgumentException("route handler is null");
+                    String m = method.toUpperCase();
+                    if ("SSE".equals(m) || "WS".equals(m)) {
+                        throw new IllegalArgumentException(
+                                "route method " + m + " requires kof_web_sse_route/kof_web_ws_route");
+                    }
+                    kof_web_app(appId).routes.add(new WebRoute(RouteKind.HTTP, m, path, handler,
+                            Policy.parse(opts, false)));
                 }
 
                 public static void kof_web_sse_route(String appId, String method, String path, Object handler) {

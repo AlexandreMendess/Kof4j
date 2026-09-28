@@ -184,6 +184,18 @@ app.policy("*", mapOf("publicPaths", "/health"))    // público independente do 
 Só prefixo na v1 (sem glob/regex, sem path params). Mesma regra JVM-only do
 `app.security`: Native/JS reportam `WEB006`.
 
+**Política por endpoint (F3):** uma rota pode carregar os próprios opts como
+segundo argumento (`app.get(path, opts) { … }`, mesmas chaves). É o escopo **mais
+profundo**, então vence a política de recurso naquela rota exata; rota sem opts
+herda a política de recurso/global. Só se aplica depois que a rota casa — um path
+desconhecido continua protegido pelos escopos/global.
+
+```kof
+app.policy("/api", mapOf("headers", false))
+app.get("/api/show", mapOf("headers", true)) { return "show" }  // hardening de volta
+app.get("/api/hide") { return "hide" }                          // herda desligado
+```
+
 **JVM-only** — Native/JS reportam `WEB006` (gap honesto, mesmo precedente
 `WEB002`/`WEB005`).
 

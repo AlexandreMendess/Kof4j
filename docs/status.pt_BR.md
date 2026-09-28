@@ -2,9 +2,9 @@
 
 # Status do Projeto Kof
 
-last: 659-mem-4.2-travada + F2-pousado
+last: 659-mem-4.2-travada + F3-pousado
 doing: memory-safety / http-policies (duas lanes vivas)
-next: fase-4.3-faces-callback (medir-antes, lane paridade) / http-policies-f3 (lane pipeline)
+next: fase-4.3-faces-callback (medir-antes, lane paridade) / http-policies-f4 (lane pipeline)
 location: status
 state: active
 constraint: pr619-maintainer-only
