@@ -4352,3 +4352,14 @@ individuais:
 - **Não escolhido:** (B) guard de borrow-escrevível em runtime no `Buffer` = primitiva NOVA de core → decisão de escopo maior, adiada; (C) aceitar como corrida documentada (rejeitado — a spec já proíbe).
 - **Prova a exigir:** o reprodutor exato do #668 RED-first como `MEM020` ERROR nos alvos, com zero falso-positivo (um único escritor ou um `await` interveniente permanecem silenciosos); crescimento do `MemorySafetyE2ETest`.
 - **Relações:** `Related: D-MEMORY-SAFETY, D-MEM021-SCALAR, D-R3-BUFFER, D-FFI-STRUCT, regra 6, regra 12`; tracker #668.
+
+## D-MULTIPARADIGMA-PHASE1A — `any`/`all`/`none` em `List`: quantificadores eager com short-circuit reusando o padrão `kof_list_*` (mantenedora 28/09/2026, lote `D-MULTIPARADIGMA-GO` + `D-FUTURE-PROMOTION`)
+
+**Estado:** DECIDIDO (mantenedora) — frente promovida por `D-FUTURE-PROMOTION` (`docs/development/PLAN-MULTIPARADIGMA.md`); a linha do lote autoriza o Tier 2.x, esta entrada trava o escopo da Fase 1a.
+
+- **Escopo:** três métodos aditivos de `List`, sem mudança de gramática/keyword/tipo. Veracidade reusa a regra do `filter` (`Boolean.TRUE` ou `Integer 1`); short-circuit pela tabela §4 do plano (vácuos: `all` true, `any`/`none` false no vazio). Zero maquinaria nova além do caminho map/filter (generalização `contextualLambda` para o conjunto novo).
+- **Superfície v1 (travada, plano §4):** `List<T>.any((T)->Bool): Bool`, `all`, `none` — mesmas assinaturas em todo alvo; `take`/`drop`/`slice` são a carona P1 da lane pagination e NÃO estão nesta fatia; `find`/`forEach`/`flatMap`/`count(pred)`/resto são fatias posteriores.
+- **Retrocompatível:** só nomes de método novos (zero `.any(`/`.all(`/`.none(` no corpus, sem keywords); diagnóstico de método-desconhecido os lista (nunca silêncio).
+- **Alvos:** todos pelo padrão estabelecido (estáticos JVM + asm Native-x86 + peça cross nova + prelude JS + Script); prova da fatia é paridade E2E por op.
+- **Lei de merge / ordem das fatias:** pertence ao plano (§3: um commit por par de ops); fatia 1a = o trio quantificador + `ListQuantifiersE2ETest`.
+- **Relações:** `Related: D-MULTIPARADIGMA-GO, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, regra 6, regra 11, regra 12`.

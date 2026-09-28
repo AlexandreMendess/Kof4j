@@ -2,9 +2,12 @@
 
 # PLAN-MULTIPARADIGMA — Multiparadigm, Functional Pipelines and Declarative Queries
 
-**Status:** `FUTURE PLAN` · **Date:** 2026-09-16 · **Version:** 0.5.0-beta · **Tier:** 2.x (core) → 8 (data, deferred)
-**Author:** investigation at HEAD `beta-0.4.0` · **Lane:** none yet — design only, zero code in this doc
-**Depends on:** `docs/development/roadmap.md` §23 (SYSTEMS must close before Tier 6+; `DECISIONS.md` D-NULL-INTENT queue N1→N4 owned by compiler lane), `docs/architecture/compiler-architecture.md`, `docs/language-reference/*`
+**Status:** UNDER DEVELOPMENT (28/09, lane issues — `D-MULTIPARADIGMA-GO`, `D-FUTURE-PROMOTION`, cheapest implementable).
+**Owner:** issues lane (this session).
+**Decision:** `D-MULTIPARADIGMA-GO` (Tier 2.x) + `D-MULTIPARADIGMA-PHASE1A` (`DECISIONS.md`) — Phase-1a scope locked during implementation (the plan owns it).
+**Real state (measured 28/09):** `map`/`filter`/`reduce` exist eager on `List` (all targets); `any`/`all`/`none` do not exist anywhere (zero corpus usage, no keywords); the `kof_list_*` per-target pattern is established; Phase-1a spec (§4 table) fully defines short-circuit + vacuous semantics.
+**Slice 1a (this promotion):** `any`/`all`/`none` on `List` — eager short-circuit quantifiers reusing the `kof_list_*` pattern, zero typer/lowerer machinery beyond the map/filter path. BOUNDARY (pagination lane's ride, NOT touched): `take`/`drop`/`slice`; later: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/rest.
+**How to finish:** typer + lowerer + gates + JVM + Native-x86 + cross (new piece, Mapset files full) + JS prelude + Script + `ListQuantifiersE2ETest` parity, then docs.
 
 > **Rule of this folder:** this document is a **plan without code**. No file listed in §8 was changed by this document. When the first functional increment ships, this plan moves to `docs/development/` with a real state table (what is done vs what is missing), per the three-states rule (`docs/development/future/README.md`). The current state of Kof remains 100% intact.
 

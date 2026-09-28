@@ -2,9 +2,12 @@
 
 # PLAN-MULTIPARADIGMA — Multiparadigma, Pipelines Funcionais e Consultas Declarativas
 
-**Status:** `PLANO FUTURO` · **Data:** 2026-09-16 · **Versão:** 0.5.0-beta · **Tier:** 2.x (core) → 8 (dados, adiado)
-**Autor:** investigação no HEAD `beta-0.4.0` · **Lane:** nenhuma ainda — apenas design, zero código neste doc
-**Depende de:** `docs/development/roadmap.md` §23 (SYSTEMS fecha antes do Tier 6+; `DECISIONS.md` fila D-NULL-INTENT N1→N4 da lane compiler), `docs/architecture/compiler-architecture.md`, `docs/language-reference/*`
+**Status:** EM DESENVOLVIMENTO (28/09, lane issues — `D-MULTIPARADIGMA-GO`, `D-FUTURE-PROMOTION`, mais barato implementável).
+**Dona:** lane issues (esta sessão).
+**Decisão:** `D-MULTIPARADIGMA-GO` (Tier 2.x) + `D-MULTIPARADIGMA-PHASE1A` (`DECISIONS.md`) — escopo da Fase 1a travado durante a implementação (o plano é dono).
+**Estado real (medido 28/09):** `map`/`filter`/`reduce` existem eager em `List` (todos os alvos); `any`/`all`/`none` não existem em lugar nenhum (zero uso no corpus, sem keywords); o padrão `kof_list_*` por alvo está estabelecido; a spec da Fase 1a (tabela §4) define short-circuit + semântica de vácuos por completo.
+**Fatia 1a (esta promoção):** `any`/`all`/`none` em `List` — quantificadores eager com short-circuit reusando o padrão `kof_list_*`, zero maquinaria nova além do caminho map/filter. FRONTEIRA (carona da lane pagination, NÃO tocada): `take`/`drop`/`slice`; depois: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/resto.
+**Como terminar:** typer + lowerer + gates + JVM + Native-x86 + cross (peça nova, arquivos Mapset cheios) + prelude JS + Script + paridade `ListQuantifiersE2ETest`, depois docs.
 
 > **Regra desta pasta:** este documento é um **plano sem código**. Nenhum arquivo listado em §8 foi alterado por este documento. Quando o primeiro incremento funcional for entregue, este plano move para `docs/development/` com tabela de estado real (o que está feito vs o que falta), pela regra dos três estados (`docs/development/future/README.md`). O estado atual do Kof permanece 100% intacto.
 

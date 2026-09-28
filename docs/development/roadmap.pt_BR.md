@@ -957,6 +957,10 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > File/Path/Text/Binary já existe como `kof.io`); fatias 1–2 de streaming landed
 > (pure-Kof `libs/file/` sobre `kof.io.readRange`; fatia 2 = golden na
 > JVM/Native/Script + lacuna JS `IOJS001`, `FileLibraryE2ETest` 7/7).
+> **ABERTA (6ª frente):** `multiparadigma` — promovido 28/09
+> (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) para
+> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatia 1a = `any`/`all`/`none`
+> em `List` (fronteira: `take`/`drop`/`slice` = P1 pagination, não tocados).
 > Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).

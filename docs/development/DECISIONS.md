@@ -4364,3 +4364,14 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Not chosen:** (B) runtime writable-borrow guard on `Buffer` = a NEW core primitive → larger scope decision, deferred; (C) accept as a documented race (rejected — the spec already forbids it).
 - **Proof to require:** the exact #668 reproducer RED-first as `MEM020` ERROR on all targets with zero false positives (a single writer or an intervening `await` stays silent); `MemorySafetyE2ETest` growth.
 - **Relationships:** `Related: D-MEMORY-SAFETY, D-MEM021-SCALAR, D-R3-BUFFER, D-FFI-STRUCT, rule 6, rule 12`; tracker #668.
+
+## D-MULTIPARADIGMA-PHASE1A — `any`/`all`/`none` on `List`: eager short-circuit quantifiers reusing the `kof_list_*` pattern (maintainer 28/09/2026, batch `D-MULTIPARADIGMA-GO` + `D-FUTURE-PROMOTION`)
+
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/development/PLAN-MULTIPARADIGMA.md`); the batch one-liner authorizes Tier 2.x, this entry locks Phase-1a scope.
+
+- **Scope:** three additive `List` methods, no grammar/keyword/type change. Truthiness reuses the `filter` rule (`Boolean.TRUE` or `Integer 1`); short-circuit per the plan §4 table (vacuous: `all` true, `any`/`none` false on empty). Zero new typer/lowerer machinery beyond the map/filter path (`contextualLambda` generalization to the new set).
+- **Surface v1 (locked, plan §4):** `List<T>.any((T)->Bool): Bool`, `all`, `none` — same signatures on every target; `take`/`drop`/`slice` are the pagination lane's P1 ride and are NOT in this slice; `find`/`forEach`/`flatMap`/`count(pred)`/rest are later slices.
+- **Backward compatible:** new method names only (zero `.any(`/`.all(`/`.none(` in corpus, no keywords); unknown-method diagnostic lists them (never silent).
+- **Targets:** all by the established pattern (JVM statics + Native-x86 asm + cross new piece + JS prelude + Script); slice proof is E2E parity per op.
+- **Merge law / slice order:** owned by the plan (§3: one commit per op-pair); slice 1a = the quantifier trio + `ListQuantifiersE2ETest`.
+- **Relationships:** `Related: D-MULTIPARADIGMA-GO, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, rule 6, rule 11, rule 12`.
