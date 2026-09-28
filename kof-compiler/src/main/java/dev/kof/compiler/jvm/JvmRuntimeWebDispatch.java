@@ -42,13 +42,17 @@ public final class JvmRuntimeWebDispatch {
                  * segurança vão para {@code KOF_SEC_RESPONSE_HEADERS} (o
                  * dispatch limpa {@code KOF_WEB_HEADERS} antes da rota).
                  */
-                private static String kof_web_security_pipeline(WebApp app, WebRequest req, Policy p) {
-                    // 1. rate-limit (janela configurável; chave por IP remoto)
+                private static String kof_web_security_pipeline(WebApp app, WebRequest req,
+                        Policy p, String routePattern) {
+                    // 1. rate-limit (janela configurável; F5: chave por
+                    //    IP + padrão de rota — limites de escopos/endpoints
+                    //    distintos não compartilham contador).
                     if (p.rateLimit > 0) {
                         String ip = req.headers.get("x-forwarded-for");
                         if (ip == null || ip.isBlank()) ip = req.remoteAddr;
                         if (ip == null || ip.isBlank()) ip = "local";
-                        if (!kof_sec_rate_limit(ip, p.rateLimit, p.rateWindow)) {
+                        String rlKey = ip + "|" + (routePattern == null ? "" : routePattern);
+                        if (!kof_sec_rate_limit(rlKey, p.rateLimit, p.rateWindow)) {
                             kof_web_sec_header("Retry-After",
                                     String.valueOf(p.rateWindow));
                             return kof_web_build(429, "Too Many Requests",
@@ -248,7 +252,8 @@ public final class JvmRuntimeWebDispatch {
                         WebRoute matched = kof_web_match_route(app, req);
                         Policy effective = (matched != null && matched.policy != null)
                                 ? pathPolicy.merge(matched.policy) : pathPolicy;
-                        String securityReject = kof_web_security_pipeline(app, req, effective);
+                        String securityReject = kof_web_security_pipeline(app, req, effective,
+                                matched != null ? matched.path : "");
                         if (securityReject != null) {
                             KOF_WEB_STATUS.remove();
                             KOF_WEB_HEADERS.get().clear();

@@ -364,6 +364,42 @@ class KofHttpPoliciesE2ETest {
         assertEquals("{\"error\":\"NF\"}", bodyOf(nope));
     }
 
+    // F5 (D-HTTP-POLICIES §10 risk 3): a chave do rate-limit é IP + padrão de
+    // rota — escopos com limites distintos não compartilham contador, e o
+    // limite global segue valendo na sua própria rota.
+    @Test
+    void perRouteRateLimitKeys(@TempDir Path tempDir) throws IOException {
+        int port = startServer(tempDir, """
+                main() {
+                    var app = web.app()
+                    app.security(mapOf("rateLimit", "3/60"))
+                    app.policy("/a", mapOf("rateLimit", "1/60"))
+                    app.policy("/b", mapOf("rateLimit", "2/60"))
+                    app.get("/a/x") { return "a" }
+                    app.get("/b/x") { return "b" }
+                    app.get("/c") { return "c" }
+                    app.listen(PORT)
+                }
+                """);
+        // /a/x: limite 1 -> a 1a passa, a 2a estoura
+        assertTrue(request(port, "GET /a/x HTTP/1.1\r\nHost: x\r\n\r\n")
+                .startsWith("HTTP/1.1 200 OK"));
+        String a2 = request(port, "GET /a/x HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(a2.startsWith("HTTP/1.1 429 Too Many Requests"), a2);
+
+        // /b/x: limite 2 e contador PRÓPRIO -> 200,200,429 (não herda o 429 de /a)
+        assertTrue(request(port, "GET /b/x HTTP/1.1\r\nHost: x\r\n\r\n")
+                .startsWith("HTTP/1.1 200 OK"));
+        assertTrue(request(port, "GET /b/x HTTP/1.1\r\nHost: x\r\n\r\n")
+                .startsWith("HTTP/1.1 200 OK"));
+        String b3 = request(port, "GET /b/x HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(b3.startsWith("HTTP/1.1 429 Too Many Requests"), b3);
+
+        // /c: limite global 3 com contador próprio -> ainda passa
+        assertTrue(request(port, "GET /c HTTP/1.1\r\nHost: x\r\n\r\n")
+                .startsWith("HTTP/1.1 200 OK"));
+    }
+
     // F6 (gap honesto): app.policy e route-opts nao existem fora do JVM -> WEB006.
     @Test
     void policyGapOnNativeAndJs(@TempDir Path tempDir) throws IOException {

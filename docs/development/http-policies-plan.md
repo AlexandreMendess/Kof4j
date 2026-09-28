@@ -313,7 +313,7 @@ they remain a documented gap until separately promoted (rule 6).
 > Each slice: compile + test + `check_500`; commit per slice. No slice ships
 > without a green proof and updated docs.
 
-**Slice status (28/09/2026):** ✅ F0–F4 landed; ⏳ F5–F6 pending.
+**Slice status (28/09/2026):** ✅ F0–F5 landed; ⏳ F6 pending.
 
 - **F0 — Global `responses` payloads for `app.security(opts)` (additive).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parses a `responses` Map
@@ -353,9 +353,12 @@ they remain a documented gap until separately promoted (rule 6).
   the global `unauthorized`, overrides `forbidden`) +
   `#notFoundPayloadFromEffectivePolicy` (both 404 paths); absent keys keep the
   built-in bodies (F0 compat test).
-- **F5 — Per-route rate-limit keying** (`ip + route pattern`). **Proof:** two
-  routes with different limits do not share the counter; the global limit still
-  works.
+- **F5 — Per-route rate-limit keying** (`ip + route pattern`). ✅ LANDED 28/09:
+  `WebRoute.path` (registered pattern) + `kof_web_security_pipeline(..., String
+  routePattern)` key the counter as `ip + "|" + pattern` (`matched.path`, or `""`
+  for an unknown path). **Proof:** `KofHttpPoliciesE2ETest#perRouteRateLimitKeys`
+  — `/a` (limit 1), `/b` (limit 2, different counter), `/c` (global 3) do not
+  share counters; `securityRateLimitByRemoteAddress` (single route) still green.
 - **F6 — Docs + decision + gaps.** `docs/stdlib/stdlib-web.md` §3,
   `training/idioms/web.md`, `DECISIONS.md` `D-HTTP-POLICIES`, roadmap Phase 4;
   confirm `WEB006` on Native/JS with a test.

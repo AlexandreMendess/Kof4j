@@ -127,7 +127,7 @@ Documented opts (`Map` keys; any other is ignored):
 |-----|------|---------|--------|
 | `headers` | `Bool` | `true` | Enables/disables the headers above |
 | `cors` / `corsOrigin` | `String` | off | Allowed origin, CSV or `*`. Origin not listed → 403; `OPTIONS` preflight → 204 |
-| `rateLimit` | `String` or `Number` | off | `"limit/windowSeconds"` (e.g. `"100/60"`) or just the limit. Per remote IP; exceeded → 429 + `Retry-After` |
+| `rateLimit` | `String` or `Number` | off | `"limit/windowSeconds"` (e.g. `"100/60"`) or just the limit. Per remote IP **+ route pattern**; exceeded → 429 + `Retry-After` |
 | `csrf` | `Bool` | `true` | Double-submit cookie: emits `csrf` (SameSite=Lax) on safe methods; requires `X-CSRF-Token` matching the cookie on POST/PUT/PATCH/DELETE, otherwise 403. `csrf:false` disables |
 | `sessionHeader` | `String` | off | Session header name. Outside `publicPaths`, **every** request (GET included) requires a valid session; missing/invalid → 401 |
 | `publicPaths` / `permitAll` | `String` CSV | — | Allow-list of public matchers (e.g. `"/register,/login"`); everything else requires authentication |

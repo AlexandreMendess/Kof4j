@@ -92,6 +92,7 @@ public final class JvmWebCoreRuntime {
 
                 public static final class WebRoute {
                     final String method;
+                    final String path;
                     final String[] segments;
                     final boolean[] params;
                     final Object handler;
@@ -108,6 +109,7 @@ public final class JvmWebCoreRuntime {
                             Policy policy) {
                         this.kind = kind;
                         this.method = method;
+                        this.path = path;
                         String[] raw = path.split("/");
                         this.segments = new String[raw.length];
                         this.params = new boolean[raw.length];

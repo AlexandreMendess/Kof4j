@@ -315,7 +315,7 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 > Cada fatia: compile + teste + `check_500`; commit por fatia. Nenhuma fatia
 > entra sem prova verde e docs atualizadas.
 
-**Status das fatias (28/09/2026):** ✅ F0–F4 pousadas; ⏳ F5–F6 pendentes.
+**Status das fatias (28/09/2026):** ✅ F0–F5 pousadas; ⏳ F6 pendente.
 
 - **F0 — Payloads `responses` globais no `app.security(opts)` (aditivo).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parseia um Map `responses`
@@ -354,9 +354,13 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
   `unauthorized` global, sobrepõe o `forbidden`) +
   `#notFoundPayloadFromEffectivePolicy` (os dois 404); chaves ausentes mantêm os
   corpos embutidos (teste de compat do F0).
-- **F5 — Chave de rate-limit por rota** (`ip + padrão de rota`). **Prova:** duas
-  rotas com limites diferentes não compartilham contador; o limite global segue
-  funcionando.
+- **F5 — Chave de rate-limit por rota** (`ip + padrão de rota`). ✅ POUSADA 28/09:
+  `WebRoute.path` (padrão registrado) + `kof_web_security_pipeline(..., String
+  routePattern)` usam a chave `ip + "|" + padrão` (`matched.path`, ou `""` para
+  path desconhecido). **Prova:** `KofHttpPoliciesE2ETest#perRouteRateLimitKeys` —
+  `/a` (limite 1), `/b` (limite 2, contador próprio), `/c` (global 3) não
+  compartilham contador; `securityRateLimitByRemoteAddress` (rota única) segue
+  verde.
 - **F6 — Docs + decisão + gaps.** `docs/stdlib/stdlib-web.md` §3,
   `training/idioms/web.md`, `DECISIONS.md` `D-HTTP-POLICIES`, roadmap Fase 4;
   confirmar `WEB006` em Native/JS com teste.
