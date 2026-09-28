@@ -308,4 +308,50 @@ class SpawnE2ETest {
         assertEquals(0, p.waitFor(), "exit code, output: " + output);
         assertTrue(output.contains("42"), "await devolve o valor da lambda: " + output);
     }
+
+    // ---- fase 4.2 (#659, D-MEMORY-SAFETY): a face do §46 com CAPTURA so era
+    // travada no Native; a alegacao "interpreter/JVM/JS -> 42" vivia so na
+    // prose. Mesma fonte, mesma saida, nos outros tres alvos — paridade
+    // provada por bateria, nao por memoria de prosa.
+
+    private static final String SPAWN_RETURN_CAPTURE = """
+            main() {
+                var n = 21
+                var h = spawn { return n * 2 }
+                println(await h)
+            }
+            """;
+
+    @Test
+    void jvmSpawnExprAwaitLambdaReturn(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-jvm42.kf");
+        Files.writeString(source, SPAWN_RETURN_CAPTURE);
+        assertEquals("42", runJvm(source, tempDir.resolve("out-jvm42")));
+    }
+
+    @Test
+    void scriptSpawnExprAwaitLambdaReturn(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-script42.kf");
+        Files.writeString(source, SPAWN_RETURN_CAPTURE);
+        KofInterpreter.Result r = new CompilerDriver().interpret(List.of(source),
+                tempDir.resolve("out-script42"), new String[0]);
+        String output = r.stdout().replace("\r\n", "\n").trim();
+        assertEquals(0, r.exitCode(), "SCRIPT exit, output: '" + output + "'");
+        assertEquals("42", output, "await no interpretador devolve a captura");
+    }
+
+    @Test
+    void jsSpawnExprAwaitLambdaReturn(@TempDir Path tempDir) throws Exception {
+        Path source = tempDir.resolve("Main-js42.kf");
+        Files.writeString(source, SPAWN_RETURN_CAPTURE);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out-js42"), Target.JS);
+        assertTrue(result.success(), "JS spawn-expr lambda return: " + result.diagnostics().getDiagnostics());
+        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
+            int ec = dev.kof.runtime.KofJsRunner.run(findJsEntry(tempDir.resolve("out-js42")), buf,
+                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
+            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
+            assertEquals(0, ec, "JS exit, output: " + output);
+            assertEquals("42", output, "await no JS devolve a captura");
+        }
+    }
 }
