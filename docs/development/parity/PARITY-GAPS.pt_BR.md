@@ -26,7 +26,6 @@
 
 | # | Superfície | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Código | Fila / lane dona |
 |---|------------|------------|----------------|--------------------------|----|--------|------------------|
-| 11 | `strings.reverse` não-ASCII (pares substitutos UTF-16) + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase` | ✅ | ✅ `strings.reverse` 27/09 (`RuntimeStringsConv` inverte por CODE POINT UTF-8 — paridade JVM/JS; `KofStringsTest` + célula `stdstrings2b2`) — `toUpperCase`/`toLowerCase` Unicode por code unit 27/09 (`RuntimeStringCase` x86 / `NativeRiscvAsmCase` cross, tabela embutida; `NativeStringCaseCrossTest` + `KofStringsTest`) | ✅ `strings.reverse` 27/09 (`NativeRiscvAsmRtB7`, aarch64 via tradutor; `NativeStringsReverseCrossTest` golden JVM≡riscv64≡aarch64 incl. `café`/astral/3-byte) — `toUpperCase`/`toLowerCase` Unicode por code unit 27/09 (`RuntimeStringCase` x86 / `NativeRiscvAsmCase` cross, tabela embutida; `NativeStringCaseCrossTest` + `KofStringsTest`) | ✅ `compareToIgnoreCase` 27/09 (port JS `JsStringCaseFold`: fold duplo por code unit sobre tabela gerada do `Character` do JDK — o algoritmo do JDK, NAO os built-ins de caixa do motor; `StringUnicodeFacesMeasuredTest` trava as 10 arestas iguais ao JVM) | `STR003` (trio regex, adiado p/ 1.0) | lane native — **`compareToIgnoreCase` no native agora** (`D-STR-UNICODE`; reverse+caixa+cic-JS ✅ 27/09) |
 
 > **Fechadas por `D-PARITY-050-SCOPE` (mantenedora 27/09):** as linhas 1
 > (`process`) e 3 (`ssh`) saem do ledger 0.5.0 pelos SEIS alvos de release
@@ -34,9 +33,9 @@
 > 13 (`kof.io` cross) já estavam FECHADAS (bookkeeping). **Adiadas p/ 1.0 (gaps
 > declarados, nunca aceitação):** linha 4 media `Image`/`Mic`, linha 12 web T1
 > no native/cross, linha 14 security cross/JS — ver a seção Adiadas. O ledger
-> 0.5.0 tem UMA linha aberta: **linha 11 strings** (faces Unicode), implementada
-> agora. Os membros de regex da antiga linha 11 foram separados e adiados
-> (`D-STR-UNICODE`).
+> 0.5.0 tem ZERO linha aberta: **0** — a linha 11 (faces Unicode de `strings`) foi
+> FECHADA 27/09 (`D-STR-UNICODE`); os membros de regex (`matches`/`replaceAll`/
+> `replaceFirst`) seguem `STR003`, adiados para 1.0 nessa mesma decisão.
 
 > **As linhas 15 (`orm.*` nativo) e 16 (`db.*` nativo) foram FECHADAS em 24/09
 > pela lane gaps-db (S5.5)** — o cross (riscv64/aarch64) eram as últimas células
@@ -80,6 +79,23 @@ Uma entrada aqui só SAI quando a prova é nomeada; o runner
 do freeze).
 
 ## Fechados (prova registrada aqui quando a linha esvazia)
+
+- **Linha 11 — faces Unicode de `strings`** — fechada 27/09 (`D-STR-UNICODE`,
+  todas as faces portadas e medidas). `strings.reverse` inverte por CODE POINT
+  UTF-8 em x86/riscv/aarch (`RuntimeStringsConv`/`NativeRiscvAsmRtB7`, aarch via
+  tradutor; golden `NativeStringsReverseCrossTest` JVM≡riscv64≡aarch64 com
+  `café`/astral). `String.toUpperCase`/`toLowerCase` dobram Unicode por code unit
+  em todo target (`RuntimeStringCase` x86 / `NativeRiscvAsmCase` cross — tabela
+  embutida gerada do `Character`; golden `NativeStringCaseCrossTest` +
+  `KofStringsTest`; JS trava a battery do oráculo em
+  `StringUnicodeFacesMeasuredTest`). `String.compareToIgnoreCase` = o fold duplo
+  por code unit do JDK, portado no JS (`JsStringCaseFold`) e em asm nos nativos
+  (`RuntimeStringCaseCi` x86, `NativeRiscvAsmCaseCi` riscv/aarch): 12 arestas
+  medidas travadas iguais ao oráculo JVM — ß/S 108, İ/i 0 (toLowerCase(0x130)=
+  0x69), ǰ 390, ẛ/ẞ 7554, ﬁ 64155, par astral vs cauda BMP −1 — x86 em
+  `StringUnicodeFacesMeasuredTest`, riscv64/aarch64 sob qemu em
+  `NativeStringCaseCiCrossTest` (a CI certifica a corrida cross). O trio regex
+  segue `STR003` (adiado para 1.0, mesma decisão).
 
 - **Linha 13 — faces de arquivo do `kof.io` no cross** — fechada 27/09
   (`D-PARITY-050-SCOPE`, bookkeeping). Toda face é ✅ no x86-64 **e** no

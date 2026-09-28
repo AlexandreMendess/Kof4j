@@ -322,21 +322,21 @@ class DomainGapCodesTest {
                 "main() { println(\"a1b\".replaceFirst(\"b\", \"x\")) }"}) {
             assertGap(tmp, Target.JS, "STR003", src);
         }
-        // D-STR-UNICODE (27/09): compareToIgnoreCase SAIU do gate JS — o port
-        // kofStringCompareToIgnoreCase (JsStringCaseFold, fold duplo do JDK por
-        // code unit) compila; nos alvos nativos ainda recusa STR003 ate o fold
-        // nativo pousar (NAT-STR01).
+        // D-STR-UNICODE (27/09, fatia-5): compareToIgnoreCase SAIU do gate em
+        // TODOS os targets portados — JS (kofStringCompareToIgnoreCase,
+        // JsStringCaseFold) e os tres nativos (RuntimeStringCaseCi x86;
+        // NativeRiscvAsmCaseCi riscv/aarch via tradutor). O STR003 que sobra e
+        // so o trio regex (adiado 1.0).
         String cic = "main() { println(\"ab\".compareToIgnoreCase(\"AB\")) }";
-        for (Target t : new Target[]{Target.NATIVE, Target.NATIVE_RISCV64,
+        for (Target t : new Target[]{Target.JS, Target.NATIVE, Target.NATIVE_RISCV64,
                 Target.NATIVE_AARCH64}) {
-            assertGap(tmp, t, "STR003", cic);
+            Path okFile = tmp.resolve("Cic-" + System.nanoTime() + ".kf");
+            Files.writeString(okFile, cic);
+            CompilationResult ok = driver.compile(okFile,
+                    tmp.resolve("o-cic-" + t), t);
+            assertTrue(ok.success(), t + " deve compilar compareToIgnoreCase (portado): "
+                    + ok.diagnostics().getDiagnostics());
         }
-        Path okFile = tmp.resolve("Cic-" + System.nanoTime() + ".kf");
-        Files.writeString(okFile, cic);
-        CompilationResult ok = driver.compile(okFile,
-                tmp.resolve("o-cic-" + System.nanoTime()), Target.JS);
-        assertTrue(ok.success(),
-                "JS deve compilar compareToIgnoreCase (portado): " + ok.diagnostics().getDiagnostics());
     }
 
     @Test

@@ -46,7 +46,7 @@ class StringMethodTargetCoverageTest {
      * {@code compareToIgnoreCase} do gap JS; o NATIVE ainda recusa STR003 ate
      * a tabela Unicode pousar la (NAT-STR01).
      */
-    private static final Set<String> NATIVE_ONLY_GAP = Set.of("compareToIgnoreCase");
+    private static final Set<String> NATIVE_ONLY_GAP = Set.of();
 
     private static Set<String> registryMethods() throws Exception {
         String src = Files.readString(

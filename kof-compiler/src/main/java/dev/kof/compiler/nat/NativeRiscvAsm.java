@@ -30,6 +30,7 @@ public final class NativeRiscvAsm {
         return new StringBuilder()
                 .append(NativeRiscvAsmStrn0.RISCV_STRN002_ASM_0)
                 .append(NativeRiscvAsmCase.RISCV_STRCASE_ASM)
+.append(NativeRiscvAsmCaseCi.RISCV_STRCASECI_ASM)
                 .append(NativeRiscvAsmStrn1.RISCV_STRN002_ASM_1)
                 .toString();
     }

@@ -410,6 +410,9 @@ public final class NativeRiscvCrossOps {
                 case "toLowerCase" -> "kof_string_to_lower";
                 case "lastIndexOf" -> "kof_string_last_index_of";
                 case "equalsIgnoreCase" -> "kof_string_equals_ignore_case";
+                // D-STR-UNICODE (linha 11, fatia-5): fold duplo por code unit
+                // = algoritmo do JDK (NativeRiscvAsmCaseCi; aarch64 via tradutor).
+                case "compareToIgnoreCase" -> "kof_string_compare_to_ignore_case";
                 // D-FULL-PARITY-050 row 11 (NativeRiscvAsmStrToCharArray): toCharArray → Char[] (code
                 // units UTF-16, paridade JVM). Sem entry caía no fallback
                 // genérico → java_lang_String_toCharArray (link-fail).

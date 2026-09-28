@@ -35,21 +35,16 @@ final class StringTargetGaps {
     private static final Set<String> REGEX = Set.of(
             "matches", "replaceAll", "replaceFirst");
 
-    /**
-     * D-STR-UNICODE (27/09): {@code compareToIgnoreCase} left the JS gate — the
-     * runtime helper {@code kofStringCompareToIgnoreCase} ports the JDK fold
-     * exactly (table in {@code JsStringCaseFold}). Native keeps refusing it
-     * until the Unicode case table lands there (NAT-STR01).
-     */
-    private static final Set<String> NATIVE_ONLY = Set.of("compareToIgnoreCase");
+    // D-STR-UNICODE (27/09): {@code compareToIgnoreCase} left the gate on EVERY
+    // ported target — JS via {@code kofStringCompareToIgnoreCase}
+    // ({@code JsStringCaseFold}), x86-64 via {@code RuntimeStringCaseCi}
+    // (fatia-5), riscv64/aarch64 via {@code NativeRiscvAsmCaseCi} (aarch64
+    // through the translator). The fold is the JDK's double per-code-unit
+    // algorithm over the same {@code Character}-generated table; goldens pin
+    // JVM == JS == x86 == riscv == aarch. What remains here is the regex trio
+    // ONLY, deferred to 1.0 (engine decision rides {@code STR003}).
 
-    private static final Set<String> INCOMPLETE = combine();
-
-    private static Set<String> combine() {
-        Set<String> all = new java.util.LinkedHashSet<>(REGEX);
-        all.addAll(NATIVE_ONLY);
-        return Set.copyOf(all);
-    }
+    private static final Set<String> INCOMPLETE = REGEX;
 
     static boolean isIncompleteMethod(String method) {
         return INCOMPLETE.contains(method);
@@ -63,10 +58,7 @@ final class StringTargetGaps {
         if (!refuses(target)) {
             return false;
         }
-        if (REGEX.contains(method)) {
-            return true;
-        }
-        return target != Target.JS && NATIVE_ONLY.contains(method);
+        return REGEX.contains(method);
     }
 
     /**

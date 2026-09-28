@@ -190,6 +190,7 @@ public final class NativeRuntime {
         RuntimeStringCompare.emit(sb);
         RuntimeStringOps.emitStringTrim(sb);
         dev.kof.compiler.runtime.RuntimeStringCase.emit(sb);
+        dev.kof.compiler.runtime.RuntimeStringCaseCi.emit(sb);
         RuntimeStringEdit.emitStringReplace(sb);
         RuntimeStringOps.emitStringEqualsIgnoreCase(sb);
         RuntimeStringEdit.emitStringSplit(sb);

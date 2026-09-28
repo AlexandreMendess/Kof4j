@@ -24,8 +24,10 @@ import org.junit.jupiter.api.io.TempDir;
  * code unit</b> — escopo ratificado do {@code D-STR-UNICODE}: as 4 linhas que
  * divergem do JVM (ß, İ, ǰ, sigma final) são exatamente as exceções de
  * full-mapping/contexto fora do escopo; Latin-1/Grego/Cirilico e o reverse
- * astral coincidem. NAT-STR01 residual = {@code compareToIgnoreCase} no
- * native. Este arquivo é CARACTERIZAÇÃO: trava o oráculo, o port JS e o valor
+ * astral coincidem. {@code compareToIgnoreCase} foi portado nos quatro
+ * alvos (fatia-5) e este arquivo trava o resultado EXATO no x86; o cross
+ * (riscv/aarch sob qemu) é travado em {@code NativeStringCaseCiCrossTest}
+ * (mesmo oráculo medido). Este arquivo é CARACTERIZAÇÃO: trava o oráculo, o port JS e o valor
  * medido de cada alvo. Padrão: StringGapMeasuredTest/§424.
  */
 class StringUnicodeFacesMeasuredTest {
@@ -64,7 +66,7 @@ class StringUnicodeFacesMeasuredTest {
     // as arestas ẛ/ẞ (7554), prefixo (-1), vazias (0), ǅ/ǆ iguais no up (0)
     // e a ligatura fi vs "fi" (64155 — sem mapeamento simples, diferenca crua).
     private static final String CIC_ORACLE =
-            "108\n0\n0\n390\n0\n7554\n-1\n0\n0\n64155";
+            "108\n0\n0\n390\n0\n7554\n-1\n0\n0\n64155\n-1\n0";
 
     private static final String BATTERY = """
         String Units(String s) {
@@ -100,6 +102,8 @@ class StringUnicodeFacesMeasuredTest {
             println("".compareToIgnoreCase(""))
             println("ǅ".compareToIgnoreCase("ǆ"))
             println("ﬁ".compareToIgnoreCase("fi"))
+            println("😀x".compareToIgnoreCase("😀Y"))
+            println("ÉCOLE".compareToIgnoreCase("école"))
         }
         """;
 
@@ -119,21 +123,10 @@ class StringUnicodeFacesMeasuredTest {
     }
 
     @Test
-    @DisplayName("linha 11: native x86 = fold simples por code unit (escopo ratificado D-STR-UNICODE)")
+    @DisplayName("linha 11: native x86 = fold simples por code unit; cic == oráculo JDK (fatia-5)")
     void nativeCharacterization(@TempDir Path tmp) throws Exception {
         assertEquals(NATIVE_SIMPLE_FOLD, run(tmp, BATTERY, Target.NATIVE).trim());
-    }
-
-    @Test
-    @DisplayName("linha 11: compareToIgnoreCase — JS portado; native ainda recusa STR003 (NAT-STR01)")
-    void cicGapStaysHonest(@TempDir Path tmp) throws Exception {
-        for (Target t : new Target[]{Target.NATIVE}) {
-            Path file = tmp.resolve("C-" + System.nanoTime() + ".kf");
-            Files.writeString(file, CIC_SRC);
-            CompilationResult r = driver.compile(file, tmp.resolve("o-" + t), t);
-            assertFalse(r.success(), t + ": STR003 esperado");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("STR003"), t.name());
-        }
+        assertEquals(CIC_ORACLE, run(tmp, CIC_SRC, Target.NATIVE).trim());
     }
 
     private String run(Path tmp, String source, Target t) throws Exception {
