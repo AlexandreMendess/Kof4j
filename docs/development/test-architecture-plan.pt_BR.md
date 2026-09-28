@@ -2,9 +2,18 @@
 
 # 🧪 Plano de Refatoração — Arquitetura e Modularização de Testes do Kof
 
-> **Estado (19/09): FUTURE — plan only, zero code.** Registrado a pedido da
-> mantenedora; não é fila de execução (three-states rule + R12). Promover a
-> `docs/development/` apenas com decisão explícita dela.
+**Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
+**Dono:** lane issues/tooling (esta sessão)
+**Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
+**Estado real (medido 28/09/2026, tip `d96459bec`):** a suíte são milhares de
+arquivos `*Test.java` sem camadas, perfis, harness ou registro de performance
+medido. Nenhum código deste plano pousou. O custo visível é a latência de
+feedback, não a correção (a suíte do reator está verde).
+**Como terminar:** Fase 1 (profiling) primeiro — um profiler read-only sobre os
+relatórios do Surefire + o documento permanente `docs/testing/TEST-PERFORMANCE.md`;
+depois Fase 2 (quick wins) → 3 (modularização) → 4 (harness) → 5 (alvos) → 6
+(conformance) → 7 (`mvn verify`). **Infraestrutura de teste pura — o compilador
+nunca é tocado** (regra de ouro abaixo). Uma fatia por commit, RED-first + `check_500`.
 
 ## 📌 Visão Geral
 
@@ -476,14 +485,14 @@ registrando métricas como:
 
 ## Próximo Passo
 
-Antes de qualquer refatoração profunda, o caminho seria:
+Antes de qualquer refatoração profunda, o caminho é:
 
-1. medir a suíte inteira;
-2. identificar os 20 testes mais lentos;
-3. procurar duplicações;
-4. propor modularização.
+1. medir a suíte inteira (`scripts/test-suite-profile.sh`, Fase 1 — ferramenta
+   POUSADA; resultados em `docs/testing/TEST-PERFORMANCE.md`);
+2. identificar os 20 testes mais lentos (o profiler os ranqueia);
+3. procurar duplicações (Fase 2 — não iniciada);
+4. propor modularização (Fase 3 — não iniciada).
 
-**Importante:** essa refatoração não deve interferir em nada que já
-estamos fazendo no compilador. Ela é puramente de infraestrutura de testes —
-e por isso pertence ao futuro até uma decisão da mantenedora (R12: nenhum
-plano futuro é ação no trabalho atual).
+**Importante:** essa refatoração não deve interferir em nada no compilador. É
+puramente de infraestrutura de testes (regra de ouro). A frente está aberta
+(`D-TEST-ARCHITECTURE-GO`); o profiling da Fase 1 é a primeira fatia.

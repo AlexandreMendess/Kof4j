@@ -936,10 +936,14 @@ science) **without** destroying the language's simplicity.
 > `responses`, then F1 (`Policy`) → F2 (`app.policy`). **OPEN:** `scoped-resources`
 > — promoted 28/09 (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`) to
 > [`scoped-resources-plan.md`](scoped-resources-plan.md); slice 1 landed (`using`
-> with explicit closer + `desugarUsing` first + `UsingDesugarE2ETest` 7/7). Eligible next, by cost:
-> `test-architecture` (Phase 1 profiling), `pagination`, `kof-testing-platform`
-> (needs `D-*`). Ineligible without a decision: `value-records`,
-> `entity-history`, `kof-connector-ecosystem`.
+> with explicit closer + `desugarUsing` first + `UsingDesugarE2ETest` 7/7).
+> **OPEN (3rd front):** `test-architecture` — promoted 28/09
+> (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`) to
+> [`test-architecture-plan.md`](test-architecture-plan.md); first slice = Phase 1
+> profiling (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
+> pure test infrastructure. Eligible next, by cost: `pagination`,
+> `kof-testing-platform` (needs `D-*`). Ineligible without a decision:
+> `value-records`, `entity-history`, `kof-connector-ecosystem`.
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 

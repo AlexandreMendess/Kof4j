@@ -2,9 +2,18 @@
 
 # 🧪 Refactoring Plan — Kof Test Architecture and Modularization
 
-> **State (19/09): FUTURE — plan only, zero code.** Registered at the
-> maintainer's request; not an execution queue (three-states rule + R12).
-> Promote to `docs/development/` only with her explicit decision.
+**Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
+**Owner:** issues/tooling lane (this session)
+**Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
+**Real state (measured 28/09/2026, tip `d96459bec`):** the suite is thousands of
+`*Test.java` files with no layers, profiles, harness or measured performance
+record. No code of this plan has landed. The visible cost is feedback latency,
+not correctness (the reactor suite is green).
+**How to finish:** Phase 1 (profiling) first — a read-only profiler over the
+Surefire reports + the permanent `docs/testing/TEST-PERFORMANCE.md`; then Phase 2
+(quick wins) → 3 (modularization) → 4 (harness) → 5 (targets) → 6 (conformance)
+→ 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
+(golden rule below). One slice per commit, RED-first + `check_500`.
 
 ## 📌 Overview
 
@@ -475,14 +484,14 @@ tracking metrics such as:
 
 ## Next Step
 
-Before any deep refactoring, the path would be:
+Before any deep refactoring, the path is:
 
-1. measure the whole suite;
-2. identify the 20 slowest tests;
-3. look for duplication;
-4. propose the modularization.
+1. measure the whole suite (`scripts/test-suite-profile.sh`, Phase 1 — LANDED
+   tooling; results in `docs/testing/TEST-PERFORMANCE.md`);
+2. identify the 20 slowest tests (the profiler ranks them);
+3. look for duplication (Phase 2 — not started);
+4. propose the modularization (Phase 3 — not started).
 
-**Important:** this refactoring must not interfere with anything we are
-currently doing in the compiler. It is purely test infrastructure — and that
-is exactly why it belongs to the future until the maintainer decides (R12: no
-future plan item is an action on current work).
+**Important:** this refactoring must not interfere with anything in the
+compiler. It is purely test infrastructure (golden rule). The front is open
+(`D-TEST-ARCHITECTURE-GO`); Phase 1 profiling is the first slice.

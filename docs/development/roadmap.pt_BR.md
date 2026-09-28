@@ -936,12 +936,17 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > plano de `future/` e implementá-lo (mais barato primeiro). **ABERTO:**
 > `http-policies` — promovido 28/09 (`D-HTTP-POLICIES`) para
 > [`http-policies-plan.md`](http-policies-plan.md); primeira fatia = `responses`
+> [`http-policies-plan.md`](http-policies-plan.md); primeira fatia = `responses`
 > global aditivo, depois F1 (`Policy`) → F2 (`app.policy`). **ABERTO:**
 > `scoped-resources` — promovido 28/09 (`D-SCOPED-RESOURCES-GO`, lote
 > `D-FUTURE-BATCH-2809`) para [`scoped-resources-plan.md`](scoped-resources-plan.md);
 > fatia 1 landed (`using` com closer explícito + `desugarUsing` primeiro +
-> `UsingDesugarE2ETest` 7/7). Elegíveis a seguir,
-> por custo: `test-architecture` (Fase 1 profiling), `pagination`,
+> `UsingDesugarE2ETest` 7/7). **ABERTO (3ª frente):**
+> `test-architecture` — promovido 28/09 (`D-TEST-ARCHITECTURE-GO`,
+> `D-FUTURE-BATCH-2809`) para
+> [`test-architecture-plan.md`](test-architecture-plan.md); primeira fatia =
+> profiling da Fase 1 (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
+> infraestrutura pura de testes. Elegíveis a seguir, por custo: `pagination`,
 > `kof-testing-platform` (exige `D-*`). Inelegíveis sem decisão: `value-records`,
 > `entity-history`, `kof-connector-ecosystem`.
 
