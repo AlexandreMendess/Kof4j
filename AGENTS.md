@@ -1,8 +1,8 @@
 # AGENTS.md
 
 last: 0.5.0-beta
-doing: quality-pipeline-cutover
-next: 14.3-promotion-tooling
+doing: pipeline-tooling-landed
+next: http-policies-f1 (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 
