@@ -388,7 +388,7 @@ EOF
   R050_OPEN_ISSUES_TSV="$T/issues" R050_EG_TSV="$T/eg" R050_PARITY_FILE="$T/parity" \
   R050_STABILITY_FILE="$T/stab" \
   R050_PENDING_FILE="$T/pending" R050_LOOSE_MD_FILE="$T/loose" R050_SPEC_GAPS_FILE="$T/spec" \
-  R050_KNOWN_BUGS_CMD="cat $T/kb" R050_OPEN_BLOCKS=1 \
+  R050_KNOWN_BUGS_CMD="cat $T/kb" R050_OPEN_BLOCKS=1 R050_PARITY_GAPS_FILE="$T/pgaps2" \
     bash "$0" > "$T/out2"; rc=$?
   [ "$rc" -eq 1 ] || fail "dirty fixture should be exit 1, got $rc"
   grep -q 'parity .*RED' "$T/out2" || fail "dirty parity not RED"
