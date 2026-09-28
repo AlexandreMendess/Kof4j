@@ -539,6 +539,12 @@ Kof é uma linguagem. Um compilador. Uma IR. Vários backends.
 
 ---
 
+## Feito com Kof
+
+| Projeto | O que é | Alvos |
+|---|---|---|
+| [KOOKIE](https://github.com/rufl/KOOKIE) | Engine experimental de tiro 3D construída sobre Kof (boomer shooters / ARPG FPS). A simulação e as regras da engine moram em `.kf`; adaptadores nativos pequenos ficam apenas nas fronteiras SDL3/SDL_GPU e ABI. | Native Linux x86-64 (primeiro alvo suportado); JVM como alvo diferencial/comparação — incluindo um arquivo JVM Windows com JDK Windows embutido e launcher PE. Execução nativa em PE Windows ainda não existe no target native do Kof, e o KOOKIE fecha essa porta com honestidade. |
+
 # Licença
 
 Kof é software livre distribuído sob a licença **GNU General Public License v3.0**.
