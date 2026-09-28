@@ -405,8 +405,19 @@ Each slice is independently provable; no slice ships without a test and docs.
   negativo = erro nomeado `PAGINATION`); proof `PaginationSliceE2ETest` 7/7
   (cross riscv/aarch ran) + `KofScriptStdlibParityTest#paginationSliceParity`.
   *(_Rides `PLAN-MULTIPARADIGMA` Phase 1; no new type yet._)
-- **P2 — `Window<T>` value + `List.window(limit, offset[, total])`.** Record +
-  JSON schema (Native) + metadata semantics. Proof: metadata E2E.
+- **P2 — `Window<T>` value + `window(limit, offset[, total])`.** DONE 28/09:
+  `record Window<T>` + `window<T>(List<T>, Int, Int): Window<T>` and
+  `window<T>(List<T>, Int, Int, Bool): Window<T>` written in Kof
+  (`dev/kof/pagination.kf`, library-first per `D-KOF-FIRST-IMPL`), injected FLAT
+  on explicit `import kof.pagination` (`CompilerPagination.java`, same mechanism
+  as `kof.supervisor`/`kof.workflow`/`kof.interop` — user-defined `Window`/`window`
+  collides and skips injection). Nested type-arg inference landed alongside
+  (recursive `substituteTypeVariableIn` in `CompilerTypes` +
+  argument-driven binding in `MethodCallTyper#tloFns` — fixes `Box<Int>.items()`
+  and `window(l,2,1)` emitting `List<T>`/`Window<T>` on Native, which boxed a raw
+  `int` in `println` and SIGSEGV'd via `kof_box_to_string`). Proof:
+  `PaginationWindowE2ETest` 7/7 (JVM/JS/Script/native x86-64 + cross
+  riscv64/aarch64, 0 skips) + neighbors 150/150. P3/P4 next (not started).
 - **P3 — DB offset pushdown in the typed DSL.** parser + AST + SQL builder. Proof:
   row-correctness + SQL assertion; `ORM00x` diagnostic for unordered window.
 - **P4 — `orm.window<T>(db, limit, offset[, total])`** on all four legs, reusing

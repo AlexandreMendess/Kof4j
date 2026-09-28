@@ -404,8 +404,19 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
   negativo = erro nomeado `PAGINATION`); prova `PaginationSliceE2ETest` 7/7
   (cross riscv/aarch rodou) + `KofScriptStdlibParityTest#paginationSliceParity`.
   *(_Pega carona na Fase 1 do `PLAN-MULTIPARADIGMA`; ainda sem tipo novo._)
-- **P2 — valor `Window<T>` + `List.window(limit, offset[, total])`.** Record +
-  schema JSON (Native) + semântica de metadados. Prova: E2E de metadados.
+- **P2 — valor `Window<T>` + `window(limit, offset[, total])`.** FEITO 28/09:
+  `record Window<T>` + `window<T>(List<T>, Int, Int): Window<T>` e
+  `window<T>(List<T>, Int, Int, Bool): Window<T>` escritos EM KOF
+  (`dev/kof/pagination.kf`, library-first por `D-KOF-FIRST-IMPL`), injetados FLAT
+  no `import kof.pagination` explícito (`CompilerPagination.java`, mesmo mecanismo
+  de `kof.supervisor`/`kof.workflow`/`kof.interop` — `Window`/`window` definidos pelo
+  usuário colidem e pulam a injeção). Inferência aninhada de type-args pousou junto
+  (`substituteTypeVariableIn` recursivo em `CompilerTypes` + binding por argumentos
+  em `MethodCallTyper#tloFns` — corrige `Box<Int>.items()` e `window(l,2,1)` emitindo
+  `List<T>`/`Window<T>` no Native, que boxeava um `int` cru no `println` e dava
+  SIGSEGV via `kof_box_to_string`). Prova: `PaginationWindowE2ETest` 7/7 (JVM/JS/Script/
+  nativo x86-64 + cross riscv64/aarch64, 0 skips) + vizinhos 150/150. P3/P4
+  próximos (não iniciados).
 - **P3 — pushdown de offset na DSL tipada.** parser + AST + gerador SQL. Prova:
   corretude de linhas + assert do SQL; diagnóstico `ORM00x` para janela sem ordem.
 - **P4 — `orm.window<T>(db, limit, offset[, total])`** nas quatro pernas, reusando
