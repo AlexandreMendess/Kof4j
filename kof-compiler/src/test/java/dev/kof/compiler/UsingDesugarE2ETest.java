@@ -86,10 +86,13 @@ class UsingDesugarE2ETest {
             }
             """;
 
-    /** Flagship idiom: H2-hermetic `db` acquire → use → release. */
+    /** Flagship idiom: H2-hermetic `db` acquire → use → release.
+     * No `DB_CLOSE_DELAY`: H2 drops a mem DB when its last connection closes,
+     * so a leaked (unclosed) connection keeps `t` alive and the NEXT test's
+     * CREATE fails — isolation-by-release, not by name. */
     private static final String DB_HAPPY = """
             main() {
-                using (conn = db.connect("jdbc:h2:mem:usingdb;DB_CLOSE_DELAY=-1"), db.close(conn)) {
+                using (conn = db.connect("jdbc:h2:mem:usingdb"), db.close(conn)) {
                     db.execute(conn, "CREATE TABLE t (id INT PRIMARY KEY, v VARCHAR)")
                     db.execute(conn, "INSERT INTO t VALUES (1, 'a')")
                     var rows = db.query(conn, "select v from t where id = ?", 1)
@@ -103,7 +106,7 @@ class UsingDesugarE2ETest {
     private static final String DB_EXC = """
             main() {
                 try {
-                    using (conn = db.connect("jdbc:h2:mem:usingexc;DB_CLOSE_DELAY=-1"), db.close(conn)) {
+                    using (conn = db.connect("jdbc:h2:mem:usingexc"), db.close(conn)) {
                         db.execute(conn, "CREATE TABLE t (id INT PRIMARY KEY)")
                         throw "boom"
                     }
@@ -304,8 +307,7 @@ class UsingDesugarE2ETest {
     }
 
     @Test
-    void usingDbClosesOnExceptionJvm(@TempDir Path tmp) throws Exception {
-        Path src = tmp.resolve("UsingDbExc.kf");
+    void usingDbClosesOnExceptionJvm(@TempDir Path tmp) throws Exception {        Path src = tmp.resolve("UsingDbExc.kf");
         Files.writeString(src, DB_EXC);
         Path out = tmp.resolve("o-using-db-exc");
         CompilationResult r = driver.compile(src, out, Target.JVM);
@@ -316,5 +318,23 @@ class UsingDesugarE2ETest {
         Run run = execJvm(out);
         assertTrue(run.ok(), () -> "run: " + run.output());
         assertEquals("caught", norm(run.output()), "exception golden");
+    }
+
+    @Test
+    void usingDbHappyScript(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingDbScript.kf");
+        Files.writeString(src, DB_HAPPY);
+        Run scr = runScript(src, tmp);
+        assertTrue(scr.ok(), () -> "Script: " + scr.output());
+        assertEquals("{\"v\":\"a\"}\nclosed", norm(scr.output()), "Script output");
+    }
+
+    @Test
+    void usingDbClosesOnExceptionScript(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingDbExcScript.kf");
+        Files.writeString(src, DB_EXC);
+        Run scr = runScript(src, tmp);
+        assertTrue(scr.ok(), () -> "Script: " + scr.output());
+        assertEquals("caught", norm(scr.output()), "Script output");
     }
 }

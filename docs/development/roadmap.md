@@ -980,7 +980,7 @@ domain (`INFRA00x`/`DATA00x`/`SCI00x`/`BIO00x`/`SECPQ`) + parity matrix;
 | 2.2.4 | `infra "prod" {}` base (codegen over records) | ✅ **LANDED 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: pure sugar over `design()` (no HCL; `infra` = IDENTIFIER, lowered to `design(): Infrastructure`) — proof `InfraSyntaxE2ETest`; R4 ✅ was the hook |
 | 2.3.1 | Constant-folding of domain constants | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
 | 2.3.2 | Cycle detection in the `infra` graph at compile-time | ✅ **CLOSED 21/09 as runtime-only** (`D-MAKEALIVE-SYNTAX` addendum, `5759b9bd`): 2.2.4 is pure sugar, so the compiler sees only generic calls — a static graph would give the block its own semantics (§7/rule 11); the 3.1 runtime refusal names the cycle members |
-| 2.4.1 | Scoped resources (lightweight RAII over `try/finally`) | 🟢 slices 1–2 LANDED 28/09 (`using (x = init, closer) { }` + `desugarUsing`, nesting + H2-`db` E2E, `D-SCOPED-RESOURCES-GO`); next = cross riscv/aarch goldens |
+| 2.4.1 | Scoped resources (lightweight RAII over `try/finally`) | 🟢 slices 1–3 LANDED 28/09 (`using (x = init, closer) { }` + `desugarUsing`, nesting + H2-`db` JVM/Script E2E with isolation-by-release, `D-SCOPED-RESOURCES-GO`); cross goldens deferred (no qemu on host) |
 
 | 2.5 | Variance / sealed | ⏫ **SUPERSEDED 21/09 by §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variance opened as the **X5** slices (X5.1–X5.4 ✅ DONE 21/09); the old "postpone" is void |
 

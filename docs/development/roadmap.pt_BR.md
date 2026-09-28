@@ -985,7 +985,7 @@ tiers `stable`/`experimental` (`docs/backend-parity.md`).
 | 2.2.4 | Base de `infra "prod" {}` (codegen sobre records) | ✅ **POUSOU 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: puro açúcar sobre `design()` (sem HCL; `infra` = IDENTIFICADOR, rebaixado p/ `design(): Infrastructure`) — prova `InfraSyntaxE2ETest`; o R4 ✅ era o hook |
 | 2.3.1 | Constant-folding de constantes de domínio | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
 | 2.3.2 | Detecção de ciclo no grafo `infra` em compile-time | ✅ **FECHADA 21/09 como runtime-only** (adendo a `D-MAKEALIVE-SYNTAX`, `5759b9bd`): a 2.2.4 é açúcar puro, então o compilador vê só chamadas genéricas — um grafo estático daria semântica própria ao bloco (§7/regra 11); a recusa em runtime da 3.1 nomeia os membros do ciclo |
-| 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | 🟢 fatias 1–2 LANDED 28/09 (`using (x = init, closer) { }` + `desugarUsing`, aninhamento + E2E `db`-H2, `D-SCOPED-RESOURCES-GO`); próximo = goldens cross riscv/aarch |
+| 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | 🟢 fatias 1–3 LANDED 28/09 (`using (x = init, closer) { }` + `desugarUsing`, aninhamento + E2E `db`-H2 JVM/Script com isolation-by-release, `D-SCOPED-RESOURCES-GO`); goldens cross adiados (sem qemu no host) |
 | 2.5 | Variance / sealed | ⏫ **SUPERSEDIDO 21/09 por §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variância abriram como as fatias **X5** (X5.1–X5.4 ✅ FEITO 21/09); o "adiar" antigo não vale mais |
 
 #### 2.6 — Nullability por INTENÇÃO EXPLÍCITA (fila N1→N4 de DECISIONS §D-NULL-INTENT, 15/09)
