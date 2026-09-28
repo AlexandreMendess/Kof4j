@@ -1,0 +1,109 @@
+[English](TEST-PERFORMANCE.md) | [Português](TEST-PERFORMANCE.pt_BR.md)
+
+# Test suite performance — measured record
+
+last: phase-1-profiling-tooling
+doing: test-architecture-phase-1
+next: phase-2-quick-wins
+location: docs/testing
+state: active
+intent: measured-suite-performance
+constraint:
+  - read-only-profiler
+  - no-compiler-change
+  - measured-not-remembered
+decision: D-TEST-ARCHITECTURE-GO
+
+Phase 1 (profiling) of [`docs/development/test-architecture-plan.md`](../development/test-architecture-plan.md).
+The numbers below are **measured**, never remembered: they come from the Surefire
+reports already present in the working tree, parsed by
+`scripts/test-suite-profile.sh` (read-only — it never re-runs the suite).
+
+## How to regenerate
+
+```
+scripts/test-suite-profile.sh --top 20
+scripts/test-suite-profile.sh --top 20 --md /tmp/suite-tables.md
+```
+
+The profiler totals tests/failures/errors/skipped/time and ranks the slowest
+test cases, classes and modules. No report found = `rc 3` (it never invents a
+number).
+
+## Snapshot
+
+**Measured:** `tests=4368 failures=2 errors=0 skipped=125 time=2451.201s` over
+4 module(s) / 502 class(es) / 502 Surefire report(s).
+
+> **Honest basis:** an aggregate of the `TEST-*.xml` files present in the tree at
+> collection time (mixed run timestamps — not a single clean run). The 2 failures
+> belong to records from other lanes' in-flight runs; this front is pure
+> infrastructure and runs no suite. A clean single-run snapshot is produced
+> whenever a full suite is executed.
+
+### 20 slowest test cases
+
+| # | Time (s) | Test | Module |
+|---|---------:|------|--------|
+| 1 | 243.181 | `dev.kof.compiler.ArrayBoundsDeepStressTest#stress020_reducedSoakKofJsOnly` | `kof-compiler` |
+| 2 | 90.62 | `dev.kof.compiler.ArrayBoundsDeepStressTest#deepStress003_oneMillionMixedIndexSeveralSeeds` | `kof-compiler` |
+| 3 | 66.099 | `dev.kof.compiler.RingPrivilegeE2ETest#ring1BuiltinRunsKofFunctionAtCpl1` | `kof-compiler` |
+| 4 | 56.989 | `dev.kof.compiler.ConformanceMatrixTest#conformanceCoreArithmetic` | `kof-compiler` |
+| 5 | 23.584 | `dev.kof.cli.KofDebugJvmStepTest#stepThenImmediateStackTraceNeverLosesTheStoppedThread` | `kof-cli` |
+| 6 | 21.75 | `dev.kof.cli.CmdWorkflowTest#realCiPipelineExampleRunsEndToEnd` | `kof-cli` |
+| 7 | 17.728 | `dev.kof.cli.DepsRegistryTest#tarballSelectionKeepsExactThenJvmThenFirstTarGz` | `kof-cli` |
+| 8 | 17.34 | `dev.kof.cli.CmdMakealiveTest#jsTargetFacesJvmBytes` | `kof-cli` |
+| 9 | 17.194 | `dev.kof.cli.CmdMakealiveTest#destroyRemovesAllReverseTopoAndStateRebirthsOnNextPlan` | `kof-cli` |
+| 10 | 17.143 | `dev.kof.cli.CmdWorkflowTest#runJsDryRunAndJobFacesJvm` | `kof-cli` |
+| 11 | 15.112 | `dev.kof.compiler.ConformanceMatrixTest#conformanceJson` | `kof-compiler` |
+| 12 | 14.808 | `dev.kof.compiler.ArrayBoundsDeepStressTest#deepStress011_millionElementArrayHeavyRejectionLoop` | `kof-compiler` |
+| 13 | 13.42 | `dev.kof.compiler.InteropTimeoutE2ETest#cancelIdleIsNoopOnCross` | `kof-compiler` |
+| 14 | 12.544 | `dev.kof.cli.CmdMakealiveTest#applyPersistsGenerationAndPlanBecomesEmpty` | `kof-cli` |
+| 15 | 11.314 | `dev.kof.cli.CmdWorkflowTest#listShowsJobsAndDeps` | `kof-cli` |
+| 16 | 10.97 | `dev.kof.script.KofScriptTest#interpreterParitySweep` | `kof-script` |
+| 17 | 10.625 | `dev.kof.cli.CmdWorkflowTest#runFailureExitsOne` | `kof-cli` |
+| 18 | 10.548 | `dev.kof.cli.DepsSourceModuleTest#libraryPackageWithoutJarInstallsVerifiedSourcesAndIsIdempotent` | `kof-cli` |
+| 19 | 9.821 | `dev.kof.cli.DepsRegistryTest#pullResolvesKofReleaseClasspathSeesTheJarAndIsIdempotent` | `kof-cli` |
+| 20 | 9.616 | `dev.kof.compiler.PdfLibraryReachProbeTest#probeReach` | `kof-compiler` |
+
+### 20 slowest classes
+
+| # | Time (s) | Class | Module |
+|---|---------:|-------|--------|
+| 1 | 366.279 | `dev.kof.compiler.ArrayBoundsDeepStressTest` | `kof-compiler` |
+| 2 | 113.055 | `dev.kof.compiler.ConformanceMatrixTest` | `kof-compiler` |
+| 3 | 102.585 | `dev.kof.cli.CmdWorkflowTest` | `kof-cli` |
+| 4 | 76.124 | `dev.kof.compiler.RingPrivilegeE2ETest` | `kof-compiler` |
+| 5 | 65.871 | `dev.kof.cli.CmdMakealiveTest` | `kof-cli` |
+| 6 | 64.733 | `dev.kof.cli.DepsRegistryTest` | `kof-cli` |
+| 7 | 51.059 | `dev.kof.compiler.KofWebE2ETest` | `kof-compiler` |
+| 8 | 48.789 | `dev.kof.cli.DecompileTest` | `kof-cli` |
+| 9 | 43.956 | `dev.kof.compiler.InteropTimeoutE2ETest` | `kof-compiler` |
+| 10 | 41.824 | `dev.kof.compiler.KofSecurityTest` | `kof-compiler` |
+| 11 | 40.225 | `dev.kof.compiler.KofOrmE2ETest` | `kof-compiler` |
+| 12 | 38.348 | `dev.kof.cli.DepsSourceModuleTest` | `kof-cli` |
+| 13 | 30.869 | `dev.kof.compiler.NullablePrimitiveContractE2ETest` | `kof-compiler` |
+| 14 | 28.883 | `dev.kof.cli.KofDebugJvmStepTest` | `kof-cli` |
+| 15 | 27.271 | `dev.kof.compiler.KofTimeE2ETest` | `kof-compiler` |
+| 16 | 26.684 | `dev.kof.compiler.KofConcurrency2Test` | `kof-compiler` |
+| 17 | 26.53 | `dev.kof.compiler.IoE2ETest` | `kof-compiler` |
+| 18 | 25.504 | `dev.kof.compiler.ComponentCoreE2ETest` | `kof-compiler` |
+| 19 | 24.99 | `dev.kof.compiler.UiE2ETest` | `kof-compiler` |
+| 20 | 24.268 | `dev.kof.script.KofScriptTest` | `kof-script` |
+
+### Time by module
+
+| Time (s) | Module |
+|---------:|--------|
+| 1883.836 | `kof-compiler` |
+| 512.715 | `kof-cli` |
+| 53.301 | `kof-script` |
+| 1.349 | `kof-c-compiler` |
+
+## Reading
+
+- The slow tail is dominated by **stress tests** (`ArrayBoundsDeepStressTest`,
+  ≈366s) and **cross-process E2E** (`ConformanceMatrixTest`, `CmdWorkflowTest`,
+  `CmdMakealiveTest`, `DepsRegistryTest`) — the natural targets of Phase 2.
+- Phase 2 (quick wins: repetition/sleeps/redundant setup) and Phase 3
+  (modularization into layers) act on this measured base, never on memory.
