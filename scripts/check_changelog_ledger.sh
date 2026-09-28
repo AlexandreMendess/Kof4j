@@ -90,13 +90,17 @@ echo "PT open/partial (1): 999"
 echo "OK: statuses consistent EN×PT, no unknowns"
 EOF
     cat > "$T/CHANGELOG.md" << 'EOF'
+## [9.9.9] - unreleased
   - **§999 ✅ FIXED 21/09** — flip que o ledger NEGIGA (deve dar DRIFT)
   - **§998 ✅ FIXED 21/09** — caso honesto (deve passar)
+  - **dupulo plantada** — linha byte-identica repetida duas vezes para provar que o detector de bullet duplicada no Unreleased dispara (deve dar DUP)
+  - **dupulo plantada** — linha byte-identica repetida duas vezes para provar que o detector de bullet duplicada no Unreleased dispara (deve dar DUP)
 EOF
     cp "$T/CHANGELOG.md" "$T/CHANGELOG.pt_BR.md"
     OUT="$(bash "$T/scripts/check_changelog_ledger.sh" 2>&1)"; RC=$?
-    if [ $RC -ne 0 ] && printf '%s' "$OUT" | grep -q "DRIFT.*§999" && ! printf '%s' "$OUT" | grep -q "DRIFT.*§998"; then
-        echo "SELFTEST OK: §999 pego, §998 limpo, rc=$RC"
+    if [ $RC -ne 0 ] && printf '%s' "$OUT" | grep -q "DRIFT.*§999" && ! printf '%s' "$OUT" | grep -q "DRIFT.*§998" \
+        && printf '%s' "$OUT" | grep -q "DUP"; then
+        echo "SELFTEST OK: §999 pego, §998 limpo, duplo pega DUP, rc=$RC"
         exit 0
     fi
     echo "SELFTEST FALHOU (rc=$RC):"; printf '%s\n' "$OUT"; exit 1
@@ -123,10 +127,30 @@ for i in miss:
 sys.exit(1 if miss else 0)
 PYEOF2
 }
+check_dup() { # $1=changelog — bullet byte-idêntica repetida no Unreleased = inserção dupla
+    python3 - "$1" << 'PYEOF3'
+import sys, collections
+cl = sys.argv[1]
+text = open(cl, encoding="utf-8").read()
+i = text.find("\n## [")
+j = text.find("\n## [", i + 1) if i != -1 else -1
+top = text[: j if j != -1 else len(text)]   # só a 1ª seção: histórico tem 207 dups
+c = collections.Counter(l.strip() for l in top.splitlines()
+                        if l.strip().startswith("- ") and len(l.strip()) >= 80)
+bad = 0
+for line, n in sorted(c.items(), key=lambda x: -x[1]):
+    if n > 1:
+        print(f"DUP: bullet repetida {n}x no Unreleased de {cl} — dedupe (crash/reexec de script):")
+        print("    " + line[:110])
+        bad = 1
+sys.exit(bad)
+PYEOF3
+}
 rc=0
 for pair in "CHANGELOG.md:EN:docs/bugs-and-gaps/known-bugs.md" \
             "CHANGELOG.pt_BR.md:PT:docs/bugs-and-gaps/known-bugs.pt_BR.md"; do
     IFS=: read -r cl lang led <<< "$pair"
+    check_dup "$cl" || rc=1
     [ -f "$led" ] || continue
     check_pair "$cl" "$lang" "$(open_ids "$lang")" "$WAIVERS" || rc=1
     check_reverse "$led" "$lang" "$(open_ids "$lang")" "$cl" "$WAIVERS" || rc=1

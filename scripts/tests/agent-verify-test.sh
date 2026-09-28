@@ -232,4 +232,10 @@ OUT="$(det 2>&1)"; RC=$?
 assert_eq 1 "$RC" "manifesto ilegivel: BLOCK (exit 1), nunca PASS"
 assert_contains "$OUT" "EVIDENCE_MANIFEST_ILEGIVEL" "diagnostica a falha fechada do manifesto"
 
+echo "V19 — sid do verifier com formato falso nao prova independencia [#659 wrapper; #664]"
+high_ready; fake_verifier; export FAKE_SESSION=PENDING
+OUT="$(ind)"; RC=$?
+assert_eq 1 "$RC" "sid sem prefixo de sessao real: BLOCK"
+assert_contains "$(vjson "d['findings'][0]['reason']")" "NAO_INDEPENDENTE_FORMATO" "diagnostica o formato falso do sid"
+
 finish
