@@ -1,8 +1,8 @@
 # AGENTS.md
 
 last: 0.5.0-beta
-doing: memory-safety-phase-4-CLOSED (#658/#659/#662)
-next: phase-5-native-ffi (lane paridade, medir-antes) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
+doing: memory-safety-phase-4-CLOSED (#658/#659/#662) + #660-D-MEM021-SCALAR-landed (c65f9ba18, maintainer A/ERROR) + evidence-chain-hardened (#664/#665)
+next: phase-5-first-unit = FFI×captured-buffer pin (medido 28/09 no plano; borrow-em-Buffer = pedido de decisao antes) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 

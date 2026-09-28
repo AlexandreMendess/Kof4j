@@ -2,9 +2,9 @@
 
 last: 0.5.0-beta
 
-doing: memory-safety-fase-4-FECHADA (#658/#659/#662)
+doing: memory-safety-fase-4-FECHADA (#658/#659/#662) + #660-D-MEM021-SCALAR-pousado (c65f9ba18, mantenedora A/ERROR) + cadeia-de-evidencia-hardened (#664/#665)
 
-next: fase-5-native-ffi (lane paridade, medir-antes) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
+next: primeira-unidade-fase-5 = pino FFI×buffer-capturado (medido 28/09 no plano; borrow-em-Buffer = pedido de decisao antes) / varredura-de-promocao (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 
