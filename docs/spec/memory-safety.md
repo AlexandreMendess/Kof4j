@@ -48,7 +48,7 @@ or entity responsible for the object's lifetime end (deallocation).
 | **GC Root** | When the root becomes unreachable (conservative on Native; precise on JVM/JS) | Static fields, stack slots, GPRs |
 | **Container** | When the container is collected / cleared | `List<T>` owns its elements; `Buffer` owns its backing array |
 | **Closure** | When the closure is collected | Captured variables (boxed if mutated) |
-| **FFI** | Explicit via `kof_ffi_release` / arena close | `Arena.ofConfined()` on JVM; copied buffers on Native |
+| **FFI** | JVM/JS: confined arena closes at call end; Native: no release surface today (`FFI001` refusal, #651 route) | `Arena.ofConfined()` on JVM; host bridge per call on JS |
 
 ### 2.2 Ownership Rules
 
@@ -184,17 +184,23 @@ borrows (`&mut`), no borrow checker, no lifetime parameters. The model:
 
 ---
 
-## 7. FFI Ownership Boundaries
+## 7. FFI Ownership Boundaries (phase 5 ownership table, `D-MEMORY-SAFETY`; EN×PT in par)
 
-| Boundary | JVM | Native |
-|---|---|---|
-| **String in** | Copy to JVM `String` | Copy to Kof String |
-| **String out** | Copy from JVM String | Copy from C string (owned by Kof) |
-| **Buffer in** | `Arena.ofConfined()` copy-in | Copy-in to Kof buffer |
-| **Buffer out (INOUT)** | Copy-in + copy-back on arena close | **Discarded on native** (divergence, `MEM005`) |
-| **Array writes** | Copy-in + copy-back | **Discarded on native** (documented divergence) |
-| **Owned pointer return** | Copied before arena close | Copied to Kof String/Buffer |
-| **Ownership transfer** | Explicit `Arena.ofConfined()` lifetime | Explicit `kof_ffi_release` |
+Everything that crosses a language boundary is a VALUE COPY with a confined lifetime — Kof never transfers ownership of its heap to an external runtime, and external memory is never retained past the call unless the Kof side copies it. Cells are MEASURED against the tree and pinned by the behaviour matrix (`docs/backend-parity.md` §C-FFI row, 165), not remembered. The two-branch table this replaces carried two stale claims — "Buffer INOUT discarded on native" (the shipped face is a decl-line `FFI001` refusal, `BufferFfiE2ETest#bufferParamNativeStaysFfi001`) and "Native: explicit `kof_ffi_release`" (the symbol exists only as a model concept, `OwnerKind.java:29-30`, with no surface in the tree — measured 28/09) — corrected here per the #665 documentation-truth practice and issue #670.
+
+| Boundary | JVM | Native | JS host runner | Python (`kof.interop`) |
+|---|---|---|---|---|
+| **Scalar (Int/Long/Float/Double/Bool)** | by value across FFM (`FfiE2ETest`) | by value, direct `call sym@PLT`, link-by-use — no dlopen, no ownership (#431, §369) | by value via host bridge, byte-for-byte with JVM (`KofJsFfiBridge`, `FfiE2ETest` JVM↔JS) | fresh typed-JSON value per call (`interop-py-host.kf`, `json.decode` by face type) |
+| **String** | copy at the boundary, both directions | copy at the boundary; return = boundary copy (`kof_ffi_from_cstr`, payload off 24, NULL→NULL) | copy | JSON string value |
+| **Buffer(U8) in/INOUT** | copy-in + copy-back on confined `Arena.ofConfined()` close (`BufferFfiE2ETest` 4/4) | **decl-line refusal `FFI001` — no native buffer face today** (`BufferFfiE2ETest#bufferParamNativeStaysFfi001`); the INOUT face is AUTHORIZED to the native lane by `D-BUFFER-INOUT-NATIVE` (#651, pending implementation) | copy-in + copy-back parity (`BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`, `JsRuntimeBuffer`) | no shared buffer — values only |
+| **record / scalar array** | by value: `record` arg + return, `T[]`→ptr copy-in, out-buffer (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, 3.8b) | x86-64: struct param/return by value incl. sret (> 16 B), `T[]` copy-in with NO write-back (`FfiNativeArrayE2ETest`); memory-path struct, cross arrays, `String[]`, struct-return on cross → `FFI001` decl-line | non-scalar → `FFI002` (JS struct bridge pending, `CompilerFfiBinding`) | n/a (typed JSON face only) |
+| **Callback (upcall)** | real C function pointer, synchronous/non-escaping, confined-arena contract (R3.4, `JvmFfiCallbackE2ETest`) | `FFI001` — honest remainder of §369 | host bridge builds the same upcall, byte-for-byte (`upcallStub`, R3.4-C3) | n/a |
+| **Owned pointer returned by C / opaque handle** | copied before arena close; not retained | `FFI001` at the decl line (opaque handles out of scope, §61 remainder) | copied (host bridge) | n/a |
+| **Explicit release** | none needed — confined `Arena.ofConfined()` closes at call end | **no release surface exists**: `kof_ffi_release` is a model concept (`OwnerKind.java:29-30`) and a D6-5 proposal (`docs/ffi-abi-structs.md`), never implemented — measured 28/09, declared here instead of claimed | none — host bridge allocates per call (R3.4) | none — each call is a fresh child session; Python-side globals do not survive across calls |
+
+- **Kof↔Python is NOT shared memory.** The engine is pure Kof over `process.spawn` + typed `json.decode` (3-line protocol, `interop-py-host.kf` header): every value crosses as a fresh JSON payload, so there is nothing to own or release; failures are named `INTEROP004/006/007/008`, never silence; a live-session handle is rule-6 territory, undecided.
+- **Kof↔Rust has NO surface today — an ABSENCE, not a gap.** `kof-c-compiler` is a fixture/subset compiler (`KofCCompiler` header: "native-only C subset compiler... no JVM target"), not an exporter; Kof emits no consumable library ABI and no doc claims one. A Rust column joins this table only when a real need lands — inventing support would be a hallucinated contract.
+- The `MEM020` (B-03) borrow face on top of this table is UNSHAPELLED pending #668, and Script×`extern` refuses nothing at compile yet dies raw at runtime (`KofRuntime.kof_ffi/4`) — #667. Both decision requests are live in the plan's "Phase 5 slices".
 
 ---
 
@@ -217,7 +223,7 @@ borrows (`&mut`), no borrow checker, no lifetime parameters. The model:
 | `Web` server | Process or explicit `kof_web_close` | Yes | `MEM014` |
 | `DB` connection | Process or explicit `kof_db_close` | Yes | `MEM014` |
 | `File` handle | Per-call (whole file) | Auto per-call | — |
-| `FFI` buffer | Explicit arena / `kof_ffi_release` | Yes | `MEM005` |
+| `FFI` buffer | Confined arena (JVM/JS); Native has no buffer face yet (`FFI001`, §7) | Yes | `MEM005` |
 
 > No finalizers, no `Cleaner`, no finalizers. Leaking `close()` leaks the
 > underlying OS resource for the process lifetime.
