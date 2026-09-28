@@ -2,9 +2,9 @@
 
 last: 0.5.0-beta
 
-doing: cutover-da-esteira-de-qualidade
+doing: tooling-de-esteira-pousado
 
-next: 14.3-tooling-de-promoção
+next: http-policies-f1 (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 
