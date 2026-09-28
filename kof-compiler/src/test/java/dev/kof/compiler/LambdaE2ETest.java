@@ -6,6 +6,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -50,6 +51,30 @@ class LambdaE2ETest {
         } catch (InterruptedException e) {
             throw new IOException("Interrupted while running native binary", e);
         }
+    }
+
+    // Fase 4.1 (D-MEMORY-SAFETY, spec B-06): as faces de captura sempre foram
+    // pinadas só em JVM/Native; Script e JS ficam de fora da matriz desde
+    // 0.2.6-beta. Mesmos programas, mesma saida esperada nos 4 alvos.
+    private String runScript(Path source, String expected) throws IOException {
+        Path outDir = source.getParent().resolve("script-out-" + System.nanoTime());
+        KofInterpreter.Result r = new CompilerDriver().interpret(List.of(source), outDir, new String[0]);
+        String output = r.stdout().replace("\r\n", "\n").trim();
+        assertEquals(0, r.exitCode(), "SCRIPT exit code, output: '" + output + "'");
+        assertEquals(expected, output, "SCRIPT output");
+        return output;
+    }
+
+    private String runJs(Path source, Path outDir, String expected) throws IOException {
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "JS compilation should succeed: " + result.diagnostics().getDiagnostics());
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        int ec = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
+                (java.io.InputStream) new java.io.ByteArrayInputStream(new byte[0]), out);
+        String output = out.toString().replace("\r\n", "\n").trim();
+        assertEquals(0, ec, "JS exit code should be 0, output: '" + output + "'");
+        assertEquals(expected, output, "JS output");
+        return output;
     }
 
     private static final String LAMBDAS = """
@@ -203,6 +228,78 @@ class LambdaE2ETest {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, TRIPLE_NESTED);
         runNative(source, tempDir.resolve("out"), "18");
+    }
+
+    // ---- fase 4.1: faces acima tambem em Script e JS (paridade B-06) ----
+
+    @Test
+    void lambdasScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDAS);
+        runScript(source, "42\n7\n99\nola kof");
+    }
+
+    @Test
+    void lambdasJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDAS);
+        runJs(source, tempDir.resolve("jsout"), "42\n7\n99\nola kof");
+    }
+
+    @Test
+    void mutableCaptureOuterMutationScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, MUTABLE_OUTER);
+        runScript(source, "15\n25");
+    }
+
+    @Test
+    void mutableCaptureOuterMutationJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, MUTABLE_OUTER);
+        runJs(source, tempDir.resolve("jsout"), "15\n25");
+    }
+
+    @Test
+    void mutableCaptureLambdaWritesScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, MUTABLE_LAMBDA_WRITES);
+        runScript(source, "2");
+    }
+
+    @Test
+    void mutableCaptureLambdaWritesJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, MUTABLE_LAMBDA_WRITES);
+        runJs(source, tempDir.resolve("jsout"), "2");
+    }
+
+    @Test
+    void lambdaReturnsLambdaCaptureScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDA_RETURNS_LAMBDA_CAPTURE);
+        runScript(source, "8");
+    }
+
+    @Test
+    void lambdaReturnsLambdaCaptureJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDA_RETURNS_LAMBDA_CAPTURE);
+        runJs(source, tempDir.resolve("jsout"), "8");
+    }
+
+    @Test
+    void tripleNestedScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, TRIPLE_NESTED);
+        runScript(source, "18");
+    }
+
+    @Test
+    void tripleNestedJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, TRIPLE_NESTED);
+        runJs(source, tempDir.resolve("jsout"), "18");
     }
 
     // Inline triple-nested (make(5)(3)(10) sem variáveis intermediárias):
