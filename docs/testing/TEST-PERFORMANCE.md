@@ -100,6 +100,29 @@ number).
 | 53.301 | `kof-script` |
 | 1.349 | `kof-c-compiler` |
 
+## Phase 2 discovery (source audit)
+
+`scripts/test-suite-audit.sh` scans the test **sources** (read-only; never runs
+the suite) for the quick-win targets the plan names.
+
+**Measured:** `sleeps=56 oversized(>=500)=43 duplicate-across-classes=117` over
+502 test sources.
+
+- **`Thread.sleep`** — 56 sites (one is a prose mention in the
+  `AsyncSleepJsE2ETest` javadoc), concentrated in server/debug/boot waits
+  (`ServePortTest`, `BiosBootE2ETest`, `KofDebugJvmExceptionTest`). Leads for
+  Phase 2 (deterministic waits), not automatic removals: several guard real
+  external processes.
+- **Oversized test classes** — 43 classes ≥ 500 lines; the tail is
+  `CompilerDriverTest` (5298), `KofOrmE2ETest` (3932), `NativeRiscvDbWireTest`
+  (2871). Prime targets for Phase 3 modularization.
+- **Duplicated test-method names** — 117 names span ≥ 2 classes. This is a
+  **lead, not a defect count**: cross-target parity clusters (same face on
+  JVM/Native/JS) and shared helpers (`main`, `assumeToolchain`, `jvmOracle`) are
+  expected and intentional.
+
+The audit modifies nothing; acting on a lead is a separate, scoped unit.
+
 ## Reading
 
 - The slow tail is dominated by **stress tests** (`ArrayBoundsDeepStressTest`,

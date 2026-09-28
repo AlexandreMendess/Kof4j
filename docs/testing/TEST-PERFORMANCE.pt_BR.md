@@ -100,6 +100,30 @@ número).
 | 53.301 | `kof-script` |
 | 1.349 | `kof-c-compiler` |
 
+## Descoberta da Fase 2 (auditoria de fontes)
+
+`scripts/test-suite-audit.sh` varre as **fontes** de teste (read-only; nunca
+executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
+
+**Medido:** `sleeps=56 oversized(>=500)=43 duplicate-across-classes=117` em
+502 fontes de teste.
+
+- **`Thread.sleep`** — 56 sites (um é menção em prosa no javadoc do
+  `AsyncSleepJsE2ETest`), concentrados em esperas de servidor/debug/boot
+  (`ServePortTest`, `BiosBootE2ETest`, `KofDebugJvmExceptionTest`). Leads para a
+  Fase 2 (esperas determinísticas), não remoções automáticas: vários guardam
+  processos externos reais.
+- **Classes de teste grandes** — 43 classes ≥ 500 linhas; a cauda é
+  `CompilerDriverTest` (5298), `KofOrmE2ETest` (3932), `NativeRiscvDbWireTest`
+  (2871). Alvos primários da modularização da Fase 3.
+- **Nomes de método de teste repetidos** — 117 nomes em ≥ 2 classes. Isto é um
+  **lead, não uma contagem de defeito**: clusters de paridade cross-target (mesma
+  face em JVM/Native/JS) e helpers compartilhados (`main`, `assumeToolchain`,
+  `jvmOracle`) são esperados e intencionais.
+
+A auditoria não modifica nada; agir sobre um lead é uma unidade separada e
+escopada.
+
 ## Leitura
 
 - A cauda lenta é dominada por **stress tests** (`ArrayBoundsDeepStressTest`,
