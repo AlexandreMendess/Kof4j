@@ -142,7 +142,14 @@ VAL="$(bash "$EVID" validate --repo "$repo" --run-id "$run_id" 2>&1)"; VAL_RC=$?
 printf '%s\n' "$VAL" > "$D/validation.txt"
 
 # --- 2) gates baratos aplicáveis ao que mudou ------------------------------------------------
-changed="$(python3 -c "import json;print('\n'.join(json.load(open('$EJ'))['changed_files']))")"
+# Falha FECHADA (#655): se o manifesto nao puder ser lido (path que o python
+# nativo nao abre, arquivo ausente/corrompido), NAO tratamos como "nada mudou"
+# — isso rodaria zero gates e daria PASS falso. BLOCK imediato.
+if ! changed="$(python3 -c "import json;print('\n'.join(json.load(open('$EJ'))['changed_files']))" 2>/dev/null)"; then
+    echo "verdict=BLOCK risk=${risk_arg} sha=?"
+    echo "  BLOCK: EVIDENCE_MANIFEST_ILEGIVEL: nao foi possivel ler $EJ (path/arquivo)"
+    exit 1
+fi
 touches() { printf '%s\n' "$changed" | grep -qE "$1"; }
 GATES="$D/gates.tsv"; : > "$GATES"
 run_gate() { # nome comando-shell
