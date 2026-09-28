@@ -370,9 +370,11 @@ the legacy face, not the model for what gets promoted.
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (compile-time) | ❌ `PROC001` | ✅ byte-parity |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ Kof JS host (chain + pump, 20/09 `081a48f8`; bare node = honest diagnostic) |
 
-`strings.reverse` and `toUpperCase`/`toLowerCase` on non-ASCII: correct on all
-targets since 27/09 (`D-STR-UNICODE`, row 11) — `capitalize`/word-converters
-remain ASCII-only in Native, gap **NAT-STR01**.
+`strings.reverse`, `toUpperCase`/`toLowerCase` and `compareToIgnoreCase` on
+non-ASCII: correct on all targets since 27/09 (`D-STR-UNICODE`, row 11) —
+`compareToIgnoreCase` matches the JVM `CASE_INSENSITIVE_ORDER` (simple fold per
+code unit); `capitalize`/word-converters remain ASCII-only in Native, gap
+**NAT-STR01**.
 
 ## Limitations
 

@@ -16,15 +16,15 @@ import org.junit.jupiter.api.io.TempDir;
  * via a face {@code toCharArray} (a única face char provada — não depende de
  * encoding de stdout).
  *
- * <p>Medido: <b>JS == oráculo JVM nas 9 linhas + 5 comparações</b> (built-ins
- * Unicode-corretos, incluindo mapeamentos completos {@code ß->SS},
- * {@code İ->i+U+0307}, {@code ǰ->J+caron} e sigma final {@code Σ->ς}); reverse
- * com surrogate pair já é code-point no x86. A tabela nativa pousou
- * (D-STR-UNICODE): o native agora dobra caixa por CODE UNIT (mapeamento SIMPLES:
- * {@code é->É}, grego/cirílico mudam de caixa), mas os mapeamentos COMPLETOS/
- * locale-aware ficam fora do escopo ratificado — nessas 4 linhas o native ainda
- * difere do oráculo JVM/JS. Este arquivo é CARACTERIZAÇÃO: trava o oráculo
- * (JVM/JS) e o estado nativo medido (simple-fold). Padrão: StringGapMeasuredTest/§424.
+ * <p>Medido: <b>JS == oráculo JVM nas 9 linhas + 5 comparações</b>; o native
+ * (D-STR-UNICODE) == oráculo nas faces de caixa SIMPLES e em
+ * {@code compareToIgnoreCase} (o JVM usa {@code Character.toUpperCase/
+ * toLowerCase}, mapeamento SIMPLES por code unit — JVM/JS/native/Script
+ * concordam), divergindo apenas nas 4 linhas de mapeamento COMPLETO/locale-aware
+ * ({@code ß->SS}, {@code İ->i+U+0307}, {@code ǰ->J+caron}, sigma final
+ * {@code Σ->ς}) fora do escopo ratificado. reverse com surrogate pair já é
+ * code-point no x86. Este arquivo é CARACTERIZAÇÃO: trava o oráculo (JVM/JS) e
+ * o estado nativo medido (simple-fold + CIC == oráculo). Padrão: StringGapMeasuredTest/§424.
  */
 class StringUnicodeFacesMeasuredTest {
 
@@ -41,6 +41,10 @@ class StringUnicodeFacesMeasuredTest {
         2,74,780
         2,913,931
         5,959,32,948,965,962""";
+
+    // compareToIgnoreCase (CASE_INSENSITIVE_ORDER do JVM): fold SIMPLES por
+    // code unit — o mesmo resultado em JVM, JS e native (D-FULL-PARITY-050).
+    private static final String ORACLE_CIC = "108\n0\n0\n390\n0";
 
     // Estado medido do native x86_64 (D-STR-UNICODE landed): reverse code-point OK
     // + caixa por code unit (simple-fold). Diverge do oráculo JVM/JS nas linhas
@@ -92,7 +96,7 @@ class StringUnicodeFacesMeasuredTest {
     @DisplayName("linha 11: oráculo JVM medido (caixa/reverse Unicode + compareToIgnoreCase)")
     void jvmOracleMeasured(@TempDir Path tmp) throws Exception {
         assertEquals(ORACLE_JVM, run(tmp, BATTERY, Target.JVM).trim());
-        assertEquals("108\n0\n0\n390\n0", run(tmp, CIC_SRC, Target.JVM).trim());
+        assertEquals(ORACLE_CIC, run(tmp, CIC_SRC, Target.JVM).trim());
     }
 
     @Test
@@ -108,15 +112,16 @@ class StringUnicodeFacesMeasuredTest {
     }
 
     @Test
-    @DisplayName("linha 11: compareToIgnoreCase ainda recusa honesta STR003 em JS+native (§424)")
-    void cicGapStaysHonest(@TempDir Path tmp) throws Exception {
-        for (Target t : new Target[]{Target.JS, Target.NATIVE}) {
-            Path file = tmp.resolve("C-" + System.nanoTime() + ".kf");
-            Files.writeString(file, CIC_SRC);
-            CompilationResult r = driver.compile(file, tmp.resolve("o-" + t), t);
-            assertFalse(r.success(), t + ": STR003 esperado");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("STR003"), t.name());
-        }
+    @DisplayName("linha 11: compareToIgnoreCase == oráculo JVM em JVM/JS/native/Script")
+    void cicMatchesJvm(@TempDir Path tmp) throws Exception {
+        assertEquals(ORACLE_CIC, run(tmp, CIC_SRC, Target.JVM).trim());
+        assertEquals(ORACLE_CIC, run(tmp, CIC_SRC, Target.JS).trim());
+        assertEquals(ORACLE_CIC, run(tmp, CIC_SRC, Target.NATIVE).trim());
+        Path sfile = tmp.resolve("CIC-script-" + System.nanoTime() + ".kf");
+        Files.writeString(sfile, CIC_SRC);
+        var sr = driver.interpret(java.util.List.of(sfile), tmp, new String[0]);
+        assertEquals(0, sr.exitCode(), sr.stdout());
+        assertEquals(ORACLE_CIC, sr.stdout().replace("\r\n", "\n").trim());
     }
 
     private String run(Path tmp, String source, Target t) throws Exception {

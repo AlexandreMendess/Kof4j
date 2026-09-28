@@ -26,7 +26,6 @@
 
 | # | Superfície | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Código | Fila / lane dona |
 |---|------------|------------|----------------|--------------------------|----|--------|------------------|
-| 11 | `strings.reverse` não-ASCII (pares substitutos UTF-16) + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase` | ✅ | ✅ `strings.reverse` 27/09 (`RuntimeStringsConv` inverte por CODE POINT UTF-8 — paridade JVM/JS; `KofStringsTest` + célula `stdstrings2b2`) — `toUpperCase`/`toLowerCase` Unicode por code unit 27/09 (`RuntimeStringCase` x86 / `NativeRiscvAsmCase` cross, tabela embutida; `NativeStringCaseCrossTest` + `KofStringsTest`) | ✅ `strings.reverse` 27/09 (`NativeRiscvAsmRtB7`, aarch64 via tradutor; `NativeStringsReverseCrossTest` golden JVM≡riscv64≡aarch64 incl. `café`/astral/3-byte) — `toUpperCase`/`toLowerCase` Unicode por code unit 27/09 (`RuntimeStringCase` x86 / `NativeRiscvAsmCase` cross, tabela embutida; `NativeStringCaseCrossTest` + `KofStringsTest`) | ❌ `STR003` (`compareToIgnoreCase`; regex adiado p/ 1.0) | `STR003` | lanes native/js — **compareToIgnoreCase agora** (`D-STR-UNICODE`; faces reverse + case-fold ✅ 27/09) |
 
 > **Fechadas por `D-PARITY-050-SCOPE` (mantenedora 27/09):** as linhas 1
 > (`process`) e 3 (`ssh`) saem do ledger 0.5.0 pelos SEIS alvos de release
@@ -81,6 +80,7 @@ do freeze).
 
 ## Fechados (prova registrada aqui quando a linha esvazia)
 
+- **Linha 11 — `strings.reverse` não-ASCII + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase`** — fechada 28/09 (`D-STR-UNICODE`, `D-FULL-PARITY-050`). `strings.reverse` inverte por CODE POINT UTF-8 (`RuntimeStringsConv` x86 + `NativeRiscvAsmRtB7` riscv/aarch64); `toUpperCase`/`toLowerCase` dobram Unicode por CODE UNIT via a tabela embutida `RuntimeStringCase` (`NativeRiscvAsmCase` cross); `compareToIgnoreCase` implementa o `CASE_INSENSITIVE_ORDER` do JVM (fold SIMPLES por code unit) em JVM/Script/JS/x86/riscv64/aarch64. Prova: `KofStringsTest` 18/18, `NativeStringCaseCrossTest` 4/4 (goldens case-fold + compareToIgnoreCase JVM≡riscv64≡aarch64 sob qemu), `StringUnicodeFacesMeasuredTest` 4/4 (`cicMatchesJvm`: JVM=JS=native=Script), `ConformanceMatrixTest` 14/14. Só o trio de regex (`matches`/`replaceAll`/`replaceFirst`) segue adiado p/ 1.0 (`STR003`).
 - **Linha 13 — faces de arquivo do `kof.io` no cross** — fechada 27/09
   (`D-PARITY-050-SCOPE`, bookkeeping). Toda face é ✅ no x86-64 **e** no
   riscv64/aarch64: estat+texto+fs (família `NativeRiscvAsmIo*` — `IoStat`/

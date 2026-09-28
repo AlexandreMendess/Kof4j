@@ -56,6 +56,10 @@ public final class KofInterpreterCollections {
             case "endsWith" -> s.endsWith((String) args[0]) ? 1 : 0;
             case "equals" -> Objects.equals(s, args[0]) ? 1 : 0;
             case "equalsIgnoreCase" -> s.equalsIgnoreCase(String.valueOf(args[0])) ? 1 : 0;
+            // D-FULL-PARITY-050 row 11: faltava no SCRIPT — caía em NOT_HANDLED
+            // (→0) mesmo com o JVM implementando; agora delega ao próprio JDK
+            // (CASE_INSENSITIVE_ORDER por code unit).
+            case "compareToIgnoreCase" -> s.compareToIgnoreCase(String.valueOf(args[0]));
             case "indexOf" -> args.length == 1 ? s.indexOf((String) args[0])
                     : s.indexOf((String) args[0], KofInterpreter.unboxInt(args[1]));
             case "lastIndexOf" -> args.length == 1 ? s.lastIndexOf((String) args[0])

@@ -26,7 +26,6 @@
 
 | # | Surface | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Gap code | Tracker / owner lane |
 |---|---------|------------|----------------|--------------------------|----|----------|----------------------|
-| 11 | `strings.reverse` non-ASCII (UTF-16 surrogate pairs) + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase` | ✅ | ✅ `strings.reverse` 27/09 (`RuntimeStringsConv` inverts by UTF-8 CODE POINT — JVM/JS parity; `KofStringsTest` + matrix `stdstrings2b2`) — `toUpperCase`/`toLowerCase` Unicode per code unit 27/09 (`RuntimeStringCase` x86 / `NativeRiscvAsmCase` cross, embedded case table; `NativeStringCaseCrossTest` + `KofStringsTest`) | ✅ `strings.reverse` 27/09 (`NativeRiscvAsmRtB7`, aarch64 via translator; `NativeStringsReverseCrossTest` golden JVM≡riscv64≡aarch64 incl. `café`/astral/3-byte) — `toUpperCase`/`toLowerCase` Unicode per code unit 27/09 (`RuntimeStringCase` x86 / `NativeRiscvAsmCase` cross, embedded case table; `NativeStringCaseCrossTest` + `KofStringsTest`) | ❌ `STR003` (`compareToIgnoreCase`; regex deferred to 1.0) | `STR003` | native/js lanes — **compareToIgnoreCase now** (`D-STR-UNICODE`; reverse + case-fold faces ✅ 27/09) |
 
 > **Closed by `D-PARITY-050-SCOPE` (maintainer 27/09):** rows 1 (`process`) and
 > 3 (`ssh`) leave the 0.5.0 ledger for the SIX release targets (MCU/riscv32
@@ -77,6 +76,7 @@ regression re-opens the row (zero regression, freeze rule 1).
 
 ## Closed (proof recorded here when a row empties)
 
+- **Row 11 — `strings.reverse` non-ASCII + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase`** — closed 28/09 (`D-STR-UNICODE`, `D-FULL-PARITY-050`). `strings.reverse` inverts by UTF-8 CODE POINT (`RuntimeStringsConv` x86 + `NativeRiscvAsmRtB7` riscv/aarch64); `toUpperCase`/`toLowerCase` fold Unicode per CODE UNIT via the embedded `RuntimeStringCase` table (`NativeRiscvAsmCase` cross); `compareToIgnoreCase` implements the JVM `CASE_INSENSITIVE_ORDER` (simple fold per code unit) on JVM/Script/JS/x86/riscv64/aarch64. Proof: `KofStringsTest` 18/18, `NativeStringCaseCrossTest` 4/4 (case-fold + compareToIgnoreCase goldens JVM≡riscv64≡aarch64 under qemu), `StringUnicodeFacesMeasuredTest` 4/4 (`cicMatchesJvm`: JVM=JS=native=Script), `ConformanceMatrixTest` 14/14. Only the regex trio (`matches`/`replaceAll`/`replaceFirst`) stays deferred to 1.0 (`STR003`).
 - **Row 13 — `kof.io` file faces on cross** — closed 27/09 (`D-PARITY-050-SCOPE`
   bookkeeping). Every face is ✅ on x86-64 **and** riscv64/aarch64: stat+text+fs
   (`NativeRiscvAsmIo*` family — `IoStat`/`IoText`/`IoFs`/`IoMkdirs`/`IoSize`/

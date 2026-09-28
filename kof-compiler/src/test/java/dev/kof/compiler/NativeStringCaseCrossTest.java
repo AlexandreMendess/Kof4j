@@ -103,6 +103,24 @@ class NativeStringCaseCrossTest {
             + "4\n65\n55357\n56832\n66\n6\n115\n116\n114\n97\n223\n101\n"
             + "3\n75\n83\n73\n3\n454\n454\n454\n0\n0";
 
+    // D-FULL-PARITY-050 row 11: compareToIgnoreCase cross — CASE_INSENSITIVE_ORDER
+    // do JVM (fold SIMPLES por code unit). Golden = JVM medido (mesmos valores
+    // em x86/JS/Script, StringUnicodeFacesMeasuredTest#cicMatchesJvm).
+    private static final String CIC_PROGRAM = """
+            main() {
+                println("straße".compareToIgnoreCase("STRASSE"))
+                println("İ".compareToIgnoreCase("i"))
+                println("Hello".compareToIgnoreCase("hello"))
+                println("ǰ".compareToIgnoreCase("J̌"))
+                println("Σ".compareToIgnoreCase("σ"))
+                println("café".compareToIgnoreCase("CAFÉ"))
+                println("abc".compareToIgnoreCase("abcd"))
+                println("".compareToIgnoreCase("x"))
+            }
+            """;
+
+    private static final String CIC_GOLDEN = "108\n0\n0\n390\n0\n0\n-1\n-1";
+
     @Test
     void riscv64CaseFoldByCodeUnit(@TempDir Path tempDir) throws IOException {
         Assumptions.assumeTrue(
@@ -117,5 +135,21 @@ class NativeStringCaseCrossTest {
                 has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
                 "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
         assertEquals(GOLDEN, runCross(tempDir, PROGRAM, "qemu-aarch64", "NATIVE_AARCH64"));
+    }
+
+    @Test
+    void riscv64CompareToIgnoreCase(@TempDir Path tempDir) throws IOException {
+        Assumptions.assumeTrue(
+                has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
+        assertEquals(CIC_GOLDEN, runCross(tempDir, CIC_PROGRAM, "qemu-riscv64", "NATIVE_RISCV64"));
+    }
+
+    @Test
+    void aarch64CompareToIgnoreCase(@TempDir Path tempDir) throws IOException {
+        Assumptions.assumeTrue(
+                has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
+                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
+        assertEquals(CIC_GOLDEN, runCross(tempDir, CIC_PROGRAM, "qemu-aarch64", "NATIVE_AARCH64"));
     }
 }

@@ -420,6 +420,7 @@ public final class NativeRiscvCrossOps {
                 // String_equals). O bloco abaixo faz pop a1..aN + pop a0.
                 case "equals" -> "String_equals";
                 case "compareTo" -> "String_compareTo";
+                case "compareToIgnoreCase" -> "String_compareToIgnoreCase";
                 case "hashCode" -> "String_hashCode";
                 default -> null;
             };

@@ -305,9 +305,10 @@ class DomainGapCodesTest {
 
     @Test
     void stringIncompleteMethodsOnJsAndNativeAreStr003(@TempDir Path tmp) throws Exception {
-        // §424: matches/replaceAll/replaceFirst/compareToIgnoreCase are JVM-only;
-        // JS/Native refuse honestly instead of a TypeError/link-fail.
-        // D-FULL-PARITY-050 row 11 ported toCharArray to all targets (left the gate).
+        // §424: the regex trio (matches/replaceAll/replaceFirst) is JVM-only
+        // (deferred to 1.0); JS/Native refuse honestly instead of a
+        // TypeError/link-fail. D-FULL-PARITY-050 row 11 ported toCharArray and
+        // compareToIgnoreCase to all targets (both left the gate).
         for (Target t : new Target[]{Target.JS, Target.NATIVE,
                 Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             assertGap(tmp, t, "STR003", """
@@ -318,8 +319,7 @@ class DomainGapCodesTest {
         }
         for (String src : new String[]{
                 "main() { println(\"a1b\".replaceAll(\"b\", \"x\")) }",
-                "main() { println(\"a1b\".replaceFirst(\"b\", \"x\")) }",
-                "main() { println(\"ab\".compareToIgnoreCase(\"AB\")) }"}) {
+                "main() { println(\"a1b\".replaceFirst(\"b\", \"x\")) }"}) {
             assertGap(tmp, Target.JS, "STR003", src);
         }
     }

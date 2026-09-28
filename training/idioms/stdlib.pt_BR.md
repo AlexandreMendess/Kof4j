@@ -371,9 +371,11 @@ legada, nao o modelo do que sera promovido.
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (tempo de compilação) | ❌ `PROC001` | ✅ paridade byte |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (chain + pump, 20/09 `081a48f8`; node puro = diagnostico honesto) |
 
-`strings.reverse` e `toUpperCase`/`toLowerCase` em não-ASCII: corretos em todos
-os targets desde 27/09 (`D-STR-UNICODE`, linha 11) — `capitalize`/conversores de
-palavra seguem ASCII-only no Native, gap **NAT-STR01**.
+`strings.reverse`, `toUpperCase`/`toLowerCase` e `compareToIgnoreCase` em
+não-ASCII: corretos em todos os targets desde 27/09 (`D-STR-UNICODE`, linha 11) —
+`compareToIgnoreCase` casa com o `CASE_INSENSITIVE_ORDER` do JVM (fold SIMPLES por
+code unit); `capitalize`/conversores de palavra seguem ASCII-only no Native, gap
+**NAT-STR01**.
 
 ## Limitações
 
