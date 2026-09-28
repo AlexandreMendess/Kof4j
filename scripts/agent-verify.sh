@@ -157,6 +157,10 @@ fi
 if touches '\.md$'; then
     run_gate docs_lang "${AGENT_VERIFY_DOCSLANG:-bash scripts/docs-lang.sh check}"
 fi
+if touches '^docs/|^learn/|^training/|^CONTRIBUTING|^\.github/|\.md$'; then
+    _bi="$(python3 -c "import json;print(json.load(open('$EJ')).get('base') or '')" 2>/dev/null)"
+    run_gate doc_impact "${AGENT_VERIFY_DOCIMPACT:-bash scripts/check_doc_impact.sh ${_bi:+--base $_bi}}"
+fi
 if touches '^CHANGELOG\.|^docs/bugs-and-gaps/known-bugs|^scripts/changelog-ledger-waivers'; then
     run_gate changelog_ledger "${AGENT_VERIFY_CHGLEDGER:-bash scripts/check_changelog_ledger.sh}"
 fi

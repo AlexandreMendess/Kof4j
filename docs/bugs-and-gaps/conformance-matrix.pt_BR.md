@@ -215,7 +215,7 @@ CLOSED 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` run on the 5 targets —
 > `[...v].reverse()`; ASCII na célula `stdstrings2b`, não-ASCII em `stdstrings2b2`
 > (`café`, astral) + `NativeStringsReverseCrossTest` sob qemu. Faces não-ASCII
 > restante: `capitalize` = **NAT-STR01** (`toUpperCase`/`toLowerCase` agora Unicode por code unit, 27/09 `D-STR-UNICODE`)
-> (`plan-stdlib-expansion.md` §5; **seção de registro:** `known-bugs.md` §161)
+> (`docs/stdlib/PLAN-STDLIB-EXPANSION.pt_BR.md` §5; **seção de registro:** `known-bugs.md` §161)
 > — não entram na matriz até serem corrigidas (R5/R6).
 > **NAT-STR01 extension (10/09, String sweep part 2):** the INSTANCE methods
 > `"café".toUpperCase()`/`"CAFÉ".toLowerCase()` are **ASCII-only on

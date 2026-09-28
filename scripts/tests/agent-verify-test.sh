@@ -28,7 +28,7 @@ run_ok() { ev run --repo "$REPO" --run-id "$ID" --label "$1" ${2:+--kind "$2"} -
 setup() { # caminhos alterados...
     mk_env; mk_repo
     ( cd "$REPO" && for p in "$@"; do mkdir -p "$(dirname "$p")"; echo "$p" > "$p"; done && git add -A && git commit -q -m change )
-    export AGENT_VERIFY_CHECK500=true AGENT_VERIFY_DOCSLANG=true AGENT_VERIFY_STDLIB=true
+    export AGENT_VERIFY_CHECK500=true AGENT_VERIFY_DOCSLANG=true AGENT_VERIFY_STDLIB=true AGENT_VERIFY_DOCIMPACT=true
     ID="$(ev init --repo "$REPO" --issue 549 --classification "BUG REAL" --base HEAD~1 --session ses_w)"
     DJ="$XDG_STATE_HOME/kof-agent/verifier/$ID/deterministic.json"
 }
