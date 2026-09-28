@@ -132,6 +132,13 @@ Opts documentados (chaves do `Map`; qualquer outra é ignorada):
 | `publicPaths` / `permitAll` | `String` CSV | — | Allow-list de matchers públicos (ex.: `"/register,/login"`); todo o resto exige autenticação |
 | `auth` | `Bool` | `false` | Exige `Authorization: Bearer` JWT válido (secret via `auth.secret`); ausente/inválido → 401 + `WWW-Authenticate` |
 | `roles` | `String` CSV ou `List` | — | Exige todas as roles (claims `roles`); falta → 403 (implica auth) |
+| `responses` | `Map` | off | Corpos declarativos para as rejeições sintéticas do pipeline: `unauthorized` (401), `forbidden` (403), `tooManyRequests` (429), `notFound` (404). Valor = corpo literal (JSON auto-detectado). Chaves ausentes mantêm os corpos embutidos (retrocompatível) |
+
+**Payloads de rejeição declarativos (D-HTTP-POLICIES):** `responses` substitui o
+JSON embutido das rejeições do pipeline — ex.
+`o.put("responses", mapOf("unauthorized", "{\"error\":\"nope\"}"))` faz todo 401
+responder esse corpo. Chaves ausentes mantêm os corpos de hoje, então adicionar
+`responses` é aditivo e nunca muda um status não declarado.
 
 **Auth-if-present:** mesmo sem `auth: true`, uma request que **traz**
 `Authorization` com token inválido nunca passa (401) — evita "token ruim vira

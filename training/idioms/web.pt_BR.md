@@ -47,6 +47,28 @@ ordem de pernas (bug 53, GitHub #28 — corrigido 07/09: o type do handler agora
   diagnóstico, R6).
 - Resposta não-200/404 (ex.: 301, 401) → `status(código)` + return.
 
+## BOM — corpos de rejeição declarativos (`app.security`)
+
+```kof
+main() {
+    var app = web.app()
+    var r = mapOf()
+    r.put("unauthorized", "{\"error\":\"faça login antes\"}")
+    val rObj: Object = r
+    val o: Map<String, Object> = mapOf()
+    val h: Object = "authorization"
+    o.put("sessionHeader", h)
+    o.put("responses", rObj)
+    app.security(o)
+    app.get("/me") { return "ok" }
+    app.listen(8080)
+}
+```
+
+`responses` (`Map`) substitui o JSON embutido do pipeline para os `401`/`403`/`429`
+sintéticos (chaves `unauthorized`/`forbidden`/`tooManyRequests`). Chaves omitidas
+mantêm os corpos embutidos — aditivo.
+
 ## Notas
 
 - `app.listen` aceita SÓ Int (`app.listen(8080)` — #102.2 13/09: String

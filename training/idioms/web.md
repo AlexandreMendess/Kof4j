@@ -47,6 +47,28 @@ inferred from ALL the body's returns, not just the top).
   diagnostic, R6).
 - A non-200/404 response (e.g. 301, 401) → `status(code)` + return.
 
+## GOOD — declarative rejection bodies (`app.security`)
+
+```kof
+main() {
+    var app = web.app()
+    var r = mapOf()
+    r.put("unauthorized", "{\"error\":\"sign in first\"}")
+    val rObj: Object = r
+    val o: Map<String, Object> = mapOf()
+    val h: Object = "authorization"
+    o.put("sessionHeader", h)
+    o.put("responses", rObj)
+    app.security(o)
+    app.get("/me") { return "ok" }
+    app.listen(8080)
+}
+```
+
+`responses` (`Map`) replaces the pipeline's built-in JSON for the synthetic
+`401`/`403`/`429` (keys `unauthorized`/`forbidden`/`tooManyRequests`). Omitted
+keys keep the built-in bodies, so it is additive.
+
 ## Notes
 
 - `app.listen` accepts ONLY Int (`app.listen(8080)` — #102.2 13/09: a String

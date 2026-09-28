@@ -314,14 +314,18 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 > Cada fatia: compile + teste + `check_500`; commit por fatia. Nenhuma fatia
 > entra sem prova verde e docs atualizadas.
 
-**Status das fatias (28/09/2026):** ⏳ F1–F6 pendentes; a primeira fatia pousada é
-o `responses` global (§4.5) — aditivo e independente do `Policy`.
+**Status das fatias (28/09/2026):** ✅ F0 pousada; ⏳ F1–F6 pendentes.
 
 - **F0 — Payloads `responses` globais no `app.security(opts)` (aditivo).**
-  Parsear um Map `responses`; os 401/403/429 do pipeline fixo usam o corpo
-  declarado, chaves ausentes mantêm os corpos embutidos de hoje (compat).
-  **Prova:** `KofWebHardeningTest` — corpos 401/403/429 declarados + padrões
-  preservados.
+  `JvmWebSecurityRuntime.kof_web_security_opts` parseia um Map `responses`
+  (`unauthorized`/`forbidden`/`tooManyRequests`/`notFound`); `WebApp.securityResponses`
+  + `JvmRuntimeWebDispatch.kof_web_sec_response` alimentam os 401/403/429 do
+  pipeline fixo; chaves ausentes mantêm os corpos embutidos (compat). **Prova:**
+  `KofWebE2ETest` 27/27 — nova `securityDeclarativePayloadsForUnauthorizedAndRateLimit`
+  (401+429 custom, padrões preservados por `appSecurityPipelineE2E`) +
+  `securityDeclarativeForbiddenPayload` (403 custom); `KofWebHardeningTest` 6/6,
+  `KofBlogE2ETest` 1/1, `KofOAuthResourceServerTest` 4/4, `DomainGapCodesTest` 27/27.
+  Docs: `docs/stdlib/stdlib-web.md` §3, `training/idioms/web.md`.
 
 - **F1 — Refactor para `Policy` (sem mudança de comportamento).** Extrair
   `Policy.parse/merge/appliesTo`; `WebApp.globalPolicy` substitui os campos

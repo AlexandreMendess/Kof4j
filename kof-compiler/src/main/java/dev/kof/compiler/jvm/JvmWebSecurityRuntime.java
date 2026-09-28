@@ -23,7 +23,9 @@ public final class JvmWebSecurityRuntime {
                  * headers (Bool), cors (String CSV/`*`), corsOrigin (String),
                  * rateLimit (String "n/janelaSeg" ou Number de requests),
                  * csrf (Bool), sessionHeader (String), publicPaths (String CSV),
-                 * auth (Bool), roles (String CSV ou List).
+                 * auth (Bool), roles (String CSV ou List),
+                 * responses (Map: unauthorized/forbidden/tooManyRequests/notFound
+                 * -> corpo de rejeicao cru; ausente = corpo embutido).
                  *
                  * §5 (Spring model): `permitAll` é alias de `publicPaths`
                  * (allow-list de matchers; todo o resto exige autenticação).
@@ -85,6 +87,24 @@ public final class JvmWebSecurityRuntime {
                             if (!r.trim().isEmpty()) app.securityRoles.add(r.trim());
                         }
                     }
+                    // D-HTTP-POLICIES (F0): corpos de rejeicao declarativos.
+                    // Chaves validas: unauthorized/forbidden/tooManyRequests/
+                    // notFound; valor = corpo cru. Ausente = corpo embutido.
+                    Object responses = opts.get("responses");
+                    if (responses instanceof java.util.Map<?, ?> map) {
+                        for (java.util.Map.Entry<?, ?> e : map.entrySet()) {
+                            if (e.getKey() == null || e.getValue() == null) continue;
+                            String key = String.valueOf(e.getKey());
+                            if (kof_web_sec_response_key(key)) {
+                                app.securityResponses.put(key, String.valueOf(e.getValue()));
+                            }
+                        }
+                    }
+                }
+
+                private static boolean kof_web_sec_response_key(String key) {
+                    return "unauthorized".equals(key) || "forbidden".equals(key)
+                            || "tooManyRequests".equals(key) || "notFound".equals(key);
                 }
 
                 private static boolean kof_web_sec_bool(Object value) {

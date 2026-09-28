@@ -655,4 +655,61 @@ class KofWebE2ETest {
                 "GET /secret HTTP/1.1\r\nHost: x\r\nauthorization: invalid-token\r\n\r\n");
         assertTrue(secBadAuth.startsWith("HTTP/1.1 401 Unauthorized"), secBadAuth);
     }
+
+    // D-HTTP-POLICIES (F0): `responses` declarativos substituem os corpos
+    // embutidos das rejeições sintéticas do pipeline (401/403/429). Chaves
+    // ausentes mantêm o comportamento de hoje (retrocompatível) — coberto por
+    // `appSecurityPipelineE2E` (corpo embutido `{"error":"unauthorized"}`).
+    @Test
+    void securityDeclarativePayloadsForUnauthorizedAndRateLimit(@TempDir Path tempDir)
+            throws IOException {
+        int port = startServer(tempDir, """
+                main() {
+                    var app = web.app()
+                    var r = mapOf()
+                    r.put("unauthorized", "{\\"error\\":\\"custom-401\\"}")
+                    r.put("tooManyRequests", "{\\"error\\":\\"custom-429\\"}")
+                    val rObj: Object = r
+                    val o: Map<String, Object> = mapOf()
+                    val h: Object = "authorization"
+                    o.put("sessionHeader", h)
+                    val rl: Object = "1/60"
+                    o.put("rateLimit", rl)
+                    o.put("responses", rObj)
+                    app.security(o)
+                    app.get("/secret") { return "s" }
+                    app.listen(PORT)
+                }
+                """);
+        // 1ª request: dentro do rate-limit, sem credencial → 401 com corpo declarado.
+        String first = request(port, "GET /secret HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(first.startsWith("HTTP/1.1 401 Unauthorized"), first);
+        assertEquals("{\"error\":\"custom-401\"}", bodyOf(first));
+        // 2ª request na janela: rate-limit estourou → 429 com corpo declarado.
+        String second = request(port, "GET /secret HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(second.startsWith("HTTP/1.1 429 Too Many Requests"), second);
+        assertEquals("{\"error\":\"custom-429\"}", bodyOf(second));
+    }
+
+    @Test
+    void securityDeclarativeForbiddenPayload(@TempDir Path tempDir) throws IOException {
+        int port = startServer(tempDir, """
+                main() {
+                    var app = web.app()
+                    var r = mapOf("forbidden", "{\\"error\\":\\"custom-403\\"}")
+                    val rObj: Object = r
+                    val o: Map<String, Object> = mapOf()
+                    val c: Object = "https://good.example"
+                    o.put("cors", c)
+                    o.put("responses", rObj)
+                    app.security(o)
+                    app.get("/x") { return "ok" }
+                    app.listen(PORT)
+                }
+                """);
+        String denied = request(port,
+                "GET /x HTTP/1.1\r\nHost: x\r\nOrigin: https://evil.example\r\n\r\n");
+        assertTrue(denied.startsWith("HTTP/1.1 403 Forbidden"), denied);
+        assertEquals("{\"error\":\"custom-403\"}", bodyOf(denied));
+    }
 }

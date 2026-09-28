@@ -312,13 +312,18 @@ they remain a documented gap until separately promoted (rule 6).
 > Each slice: compile + test + `check_500`; commit per slice. No slice ships
 > without a green proof and updated docs.
 
-**Slice status (28/09/2026):** ⏳ F1–F6 pending; the first landed slice is the
-global `responses` payload (§4.5) — additive and independent of `Policy`.
+**Slice status (28/09/2026):** ✅ F0 landed; ⏳ F1–F6 pending.
 
 - **F0 — Global `responses` payloads for `app.security(opts)` (additive).**
-  Parse a `responses` Map; the fixed pipeline's 401/403/429 use the declared
-  body, absent keys keep today's built-in bodies (compat). **Proof:**
-  `KofWebHardeningTest` — declared 401/403/429 bodies + defaults preserved.
+  `JvmWebSecurityRuntime.kof_web_security_opts` parses a `responses` Map
+  (`unauthorized`/`forbidden`/`tooManyRequests`/`notFound`); `WebApp.securityResponses`
+  + `JvmRuntimeWebDispatch.kof_web_sec_response` feed the fixed pipeline's
+  401/403/429; absent keys keep today's built-in bodies (compat). **Proof:**
+  `KofWebE2ETest` 27/27 — new `securityDeclarativePayloadsForUnauthorizedAndRateLimit`
+  (custom 401+429, defaults preserved by `appSecurityPipelineE2E`) +
+  `securityDeclarativeForbiddenPayload` (custom 403); `KofWebHardeningTest` 6/6,
+  `KofBlogE2ETest` 1/1, `KofOAuthResourceServerTest` 4/4, `DomainGapCodesTest` 27/27.
+  Docs: `docs/stdlib/stdlib-web.md` §3, `training/idioms/web.md`.
 
 
 - **F1 — Refactor to `Policy` (no behavior change).** Extract

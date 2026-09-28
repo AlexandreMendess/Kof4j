@@ -52,7 +52,8 @@ public final class JvmRuntimeWebDispatch {
                             kof_web_sec_header("Retry-After",
                                     String.valueOf(app.securityRateWindow));
                             return kof_web_build(429, "Too Many Requests",
-                                    "{\\"error\\":\\"too many requests\\"}");
+                                    kof_web_sec_response(app, "tooManyRequests",
+                                            "{\\"error\\":\\"too many requests\\"}"));
                         }
                     }
                     // 2. cors (só age se houver Origin)
@@ -61,7 +62,8 @@ public final class JvmRuntimeWebDispatch {
                         if (origin != null && !origin.isBlank()) {
                             if (!kof_sec_cors_allowed(origin, app.securityCors)) {
                                 return kof_web_build(403, "Forbidden",
-                                        "{\\"error\\":\\"cors origin denied\\"}");
+                                        kof_web_sec_response(app, "forbidden",
+                                                "{\\"error\\":\\"cors origin denied\\"}"));
                             }
                             kof_web_sec_header("Access-Control-Allow-Origin",
                                     app.securityCors.contains("*") ? "*" : origin);
@@ -101,7 +103,8 @@ public final class JvmRuntimeWebDispatch {
                             if (tok == null || tok.isBlank()
                                     || kof_sec_session_get(tok) == null) {
                                 return kof_web_build(401, "Unauthorized",
-                                        "{\\"error\\":\\"unauthorized\\"}");
+                                        kof_web_sec_response(app, "unauthorized",
+                                                "{\\"error\\":\\"unauthorized\\"}"));
                             }
                         }
                     }
@@ -130,7 +133,8 @@ public final class JvmRuntimeWebDispatch {
                                             : kof_sec_csrf_valid(headerToken));
                             if (!valid) {
                                 return kof_web_build(403, "Forbidden",
-                                        "{\\"error\\":\\"csrf token invalid\\"}");
+                                        kof_web_sec_response(app, "forbidden",
+                                                "{\\"error\\":\\"csrf token invalid\\"}"));
                             }
                         }
                     }
@@ -146,7 +150,8 @@ public final class JvmRuntimeWebDispatch {
                         if (!authenticated) {
                             kof_web_sec_header("WWW-Authenticate", "Bearer");
                             return kof_web_build(401, "Unauthorized",
-                                    "{\\"error\\":\\"unauthorized\\"}");
+                                    kof_web_sec_response(app, "unauthorized",
+                                            "{\\"error\\":\\"unauthorized\\"}"));
                         }
                     }
                     // 7. RBAC: todas as roles exigidas (implica auth).
@@ -154,12 +159,14 @@ public final class JvmRuntimeWebDispatch {
                         if (!kof_sec_auth_authenticated()) {
                             kof_web_sec_header("WWW-Authenticate", "Bearer");
                             return kof_web_build(401, "Unauthorized",
-                                    "{\\"error\\":\\"unauthorized\\"}");
+                                    kof_web_sec_response(app, "unauthorized",
+                                            "{\\"error\\":\\"unauthorized\\"}"));
                         }
                         for (String role : app.securityRoles) {
                             if (!kof_sec_auth_has_role(role)) {
                                 return kof_web_build(403, "Forbidden",
-                                        "{\\"error\\":\\"forbidden\\"}");
+                                        kof_web_sec_response(app, "forbidden",
+                                                "{\\"error\\":\\"forbidden\\"}"));
                             }
                         }
                     }
@@ -168,6 +175,13 @@ public final class JvmRuntimeWebDispatch {
 
                 private static void kof_web_sec_header(String name, String value) {
                     if (value != null) KOF_SEC_RESPONSE_HEADERS.get().put(name, value);
+                }
+
+                /** D-HTTP-POLICIES (F0): corpo de rejeicao declarado via
+                 *  app.security(opts).responses; fallback = corpo embutido. */
+                private static String kof_web_sec_response(WebApp app, String key, String fallback) {
+                    String body = app.securityResponses.get(key);
+                    return body != null ? body : fallback;
                 }
 
                 private static WebDispatchResult kof_web_dispatch(WebApp app, WebRequest req) {

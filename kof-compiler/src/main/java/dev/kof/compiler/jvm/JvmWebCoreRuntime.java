@@ -401,6 +401,11 @@ public final class JvmWebCoreRuntime {
                     final java.util.List<String> securityPublicPaths = new java.util.ArrayList<>();
                     boolean securityRequireAuth = false;
                     final java.util.List<String> securityRoles = new java.util.concurrent.CopyOnWriteArrayList<>();
+                    // D-HTTP-POLICIES (F0): corpos declarativos p/ as rejeicoes
+                    // sinteticas do pipeline — chaves unauthorized/forbidden/
+                    // tooManyRequests; ausente = corpo embutido de hoje.
+                    final java.util.Map<String, String> securityResponses =
+                            new java.util.concurrent.ConcurrentHashMap<>();
                     final java.util.List<StaticDir> staticDirs = new java.util.ArrayList<>();
                     final java.util.List<String> healthPaths = new java.util.ArrayList<>();
                     final java.util.concurrent.atomic.AtomicInteger activeConnections =

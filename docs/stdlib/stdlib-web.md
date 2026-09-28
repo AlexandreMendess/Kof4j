@@ -132,6 +132,13 @@ Documented opts (`Map` keys; any other is ignored):
 | `publicPaths` / `permitAll` | `String` CSV | — | Allow-list of public matchers (e.g. `"/register,/login"`); everything else requires authentication |
 | `auth` | `Bool` | `false` | Requires a valid `Authorization: Bearer` JWT (secret via `auth.secret`); missing/invalid → 401 + `WWW-Authenticate` |
 | `roles` | `String` CSV or `List` | — | Requires all roles (claims `roles`); missing → 403 (implies auth) |
+| `responses` | `Map` | off | Declarative bodies for the pipeline's synthetic rejections: `unauthorized` (401), `forbidden` (403), `tooManyRequests` (429), `notFound` (404). Value = literal body (JSON auto-detected). Missing keys keep the built-in bodies (backward compatible) |
+
+**Declarative rejection payloads (D-HTTP-POLICIES):** `responses` overrides the
+built-in JSON of the pipeline rejections — e.g.
+`o.put("responses", mapOf("unauthorized", "{\"error\":\"nope\"}"))` makes every
+401 answer that body. Absent keys keep today's bodies, so adding `responses` is
+additive and never changes an undeclared status.
 
 **Auth-if-present:** even without `auth: true`, a request that **carries**
 `Authorization` with an invalid token never passes (401) — avoids "bad token
