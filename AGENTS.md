@@ -1,8 +1,8 @@
 # AGENTS.md
 
 last: 0.5.0-beta
-doing: memory-safety-4.2-landed (#659)
-next: phase-4.3 callbacks (lane paridade) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
+doing: memory-safety-phase-4-CLOSED (#658/#659/#662)
+next: phase-5-native-ffi (lane paridade, medir-antes) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 

@@ -3,8 +3,8 @@
 # Kof Project Status
 
 last: 659-mem-4.2-pinned + http-policies concluded (F0–F6)
-doing: memory-safety / scoped-resources / test-architecture / pagination (live lanes)
-next: phase-4.3-faces-callback (lane paridade) / promotion-sweep (lane pipeline)
+doing: memory-safety (fase 4 CLOSED) / scoped-resources / test-architecture / pagination (live lanes)
+next: phase-5-native-ffi (medir-antes, lane paridade) / promotion-sweep (lane pipeline)
 location: status
 state: active
 constraint: pr619-maintainer-only

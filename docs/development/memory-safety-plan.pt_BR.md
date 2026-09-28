@@ -2,9 +2,9 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-4-slice-4.2-pinned (spawn-capture-return 4-alvos, #659)
+last: phase-4-FECHADA (4.1/4.2/4.3 pousadas 28/09, #658/#659/#662)
 doing: memory-safety
-next: phase-4.3-faces-callback (medir antes de prometer)
+next: fase-5-native-ffi (medir-antes; B-03/MEM020 mora aqui)
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -33,7 +33,7 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 | 1 Especificação | `docs/spec/memory-safety.md` (EN+PT): Ownership/Lifetime/Borrowing/Aliasing/Mutability/Move/Copy/Clone/Drop/Escape/Closure Capture/Concurrency/FFI/Unsafe Boundaries, cada um classificado permitido/proibido/requer-sync/compile-time/runtime/dependente-de-tipo | fechada 25/09 (opção A da mantenedora) |
 | 2 Infraestrutura do compilador | `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` em `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; zero mudança de comportamento | fechada 26/09 (`9bcddfe90`, fila exausta) |
 | 3 Primeiras garantias | use-after-move; dangling; escapes inválidos; mutable aliasing; dupla ownership/destruição | em curso (fatias abaixo) |
-| 4 Closures & async | captura de closure; callbacks; async/futures; iteradores/geradores | 4.1+4.2 pousadas 28/09 (#658/#659); face callbacks pendente (4.3) |
+| 4 Closures & async | captura de closure; callbacks; async/futures; iteradores/geradores | FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores: veredito de ausencia medido (#659) |
 | 5 Native & FFI | ponteiros/alocação/C ABI; tabela de ownership Kof↔C↔Rust↔JVM↔Python | pendente |
 | 6 JVM / JS / WASM | mesma semântica em todos os backends | pendente |
 
@@ -61,7 +61,9 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 | 4.2 | paridade de captura async/futures — face do §46 `var h = spawn { return n * 2 }; await h` (COM captura) travada nos 4 alvos (`SpawnE2ETest.jvm|script|js...` + os pins Native preexistentes), golden `42` — a alegacao "interpreter/JVM/JS → 42" vivia so na prosa do §46 ate ser medida; a passada do verifier independente entao pegou que TODAS essas faces so LEEM a captura (captura read-only e rebaixada SEM caixa: JVM `LambdaTask0.<init>(I)`, por valor), entao `SpawnE2ETest.*AwaitMutatedCapture` (golden `44`, 4 alvos) entrou na matriz — e a SEGUNDA passada do verifier pegou que 44 sozinho ainda passaria num snapshot por valor (o pai nunca toca `n`), entao `*VisibleToParent` (`44/22`, 4 alvos) trava a visibilidade filho→pai da caixa via join — `SpawnE2ETest` 21/21; o probe RACE dele (pai reatribuindo escalar capturado apos o spawn, sem await entre) compila silencioso: MUTATORS de MEM021 sao de OBJETO (add/remove/clear/addAll) — escopo da corrida escalar escalado a mantenedora como #660 (regra 6), jamais decidido aqui | pousada 28/09 (#659) — mudanca de comportamento zero (a paridade ja era verdadeira); prosa historica do §46 corrigida EN/PT |
 
 - `MEM023` NAO tem face de compilacao hoje: o lowering caixa toda captura mutada por construcao (`mutatedCapturedNames` → `CapturedVarBox`, `StatementLowererLocalBoxing.java:37`), entao a forma proibida (captura mutada sem caixa escapando) e inconstruivel — garantia provada pelas baterias 4.1/4.2, precedente O-03/`D-MEMORY-CLEAR` (nenhum diagnostico inventado, regra 11). Registrado na nota da spec §3.2.
-- 4.3 (pendente, medir-antes): faces de callback (lambdas passadas a stdlib/APIs estilo `job`); "iteradores/geradores" da linha da fase recebeu seu veredito em 28/09: NAO existe superficie de gerador (nenhum token `yield` no lexer Kof — `for-in`/colecoes sao a face iteravel) → ausencia, nao gap.
+| 4.3 | faces de callback — a forma idiomatica canonica do corpus (`map`/`filter`/`reduce` recebendo lambda sobre estado CAPTURADO, inclusive captura mutavel via `CapturedVarBox`) travada nos 4 alvos (`HigherOrderCaptureE2ETest` 4/4: leitura 36, map-escrita 3/6, reduce-acc 10/10, filter-escrita 2/2) — `KofHigherOrderTest` era so JVM e SEM captura e `LambdaE2ETest` so chamada direta; a intersecao nunca foi exercitada | pousada 28/09 (#662) — as 4 faces verdes NA PRIMEIRA medicao (mudanca de comportamento zero; a paridade era verdadeira, o pin e o produto) |
+
+- 4.3 (antes pendente, agora pousada): faces de callback (lambdas passadas a stdlib/APIs estilo `job`); "iteradores/geradores" da linha da fase recebeu seu veredito em 28/09: NAO existe superficie de gerador (nenhum token `yield` no lexer Kof — `for-in`/colecoes sao a face iteravel) → ausencia, nao gap.
 
 ## Pedidos de decisão (regra 6)
 

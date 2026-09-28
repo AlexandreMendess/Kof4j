@@ -2,9 +2,9 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-4-slice-4.2-pinned (spawn-capture-return 4-target, #659)
+last: phase-4-CLOSED (4.1/4.2/4.3 landed 28/09, #658/#659/#662)
 doing: memory-safety
-next: phase-4.3-callback-faces (medir antes de prometer)
+next: phase-5-native-ffi (measure-first; B-03/MEM020 lives here; host boundary: cross-toolchain absent)
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -33,7 +33,7 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 | 1 Specification | `docs/spec/memory-safety.md` (EN+PT): Ownership/Lifetime/Borrowing/Aliasing/Mutability/Move/Copy/Clone/Drop/Escape/Closure Capture/Concurrency/FFI/Unsafe Boundaries, each classified allowed/forbidden/sync-required/compile-time/runtime/type-dependent | closed 25/09 (maintainer option A) |
 | 2 Compiler infrastructure | `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` in `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; zero behavior change | closed 26/09 (`9bcddfe90`, queue exhausted) |
 | 3 First guarantees | use-after-move; dangling; invalid escapes; mutable aliasing; double ownership/destruction | in progress (slices below) |
-| 4 Closures & async | closure capture; callbacks; async/futures; iterators/generators | 4.1+4.2 landed 28/09 (#658/#659); callbacks face pending (4.3) |
+| 4 Closures & async | closure capture; callbacks; async/futures; iterators/generators | FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores: veredito de ausencia medido (#659) |
 | 5 Native & FFI | pointers/allocation/C ABI; Kof↔C↔Rust↔JVM↔Python ownership table | pending |
 | 6 JVM / JS / WASM | same semantics every backend | pending |
 
@@ -61,7 +61,9 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 
 | 4.2 | async/futures capture parity — §46 face `var h = spawn { return n * 2 }; await h` (COM captura) pinned on the 4 targets (`SpawnE2ETest.jvm|script|js...` + the pre-existing Native pins), golden `42` — the "interpreter/JVM/JS → 42" claim lived only in §46 prose until measured; the independent-verifier pass then caught that ALL these faces only READ the capture (read-only capture lowers WITHOUT the box: JVM `LambdaTask0.<init>(I)`, by value), so `SpawnE2ETest.*AwaitMutatedCapture` (golden `44`, 4 targets) joined the matrix — and the verifier's SECOND pass caught that 44 alone still passes under a by-value snapshot (the parent never touches `n`), so `*VisibleToParent` (`44/22`, 4 targets) pins the child→parent box visibility through join — `SpawnE2ETest` 21/21; its RACE probe (parent reassigning a captured scalar after spawn, no await between) compiles silently: MEM021's MUTATORS are object-level (add/remove/clear/addAll) — scalar-race scope escalated to the maintainer as #660 (rule 6), never decided here | landed 28/09 (#659) — zero behavior change (parity was already true); §46 historical prose corrected EN/PT |
 - MEM023 has NO compile face today: lowering boxes every mutated capture by construction (`mutatedCapturedNames` → `CapturedVarBox`, `StatementLowererLocalBoxing.java:37`), so the forbidden shape (unboxed mutating capture escaping) is unconstructible — guarantee proven by the 4.1/4.2 batteries, precedent O-03/`D-MEMORY-CLEAR` (no diagnostic invented, rule 11). Recorded in spec §3.2 note.
-- 4.3 (pending, measure-first): callback faces (lambdas passed to stdlib/`job`-style APIs); "iterators/generators" from the phase row got its verdict on 28/09: NO generator surface exists (no `yield` token in the Kof lexer — `for-in`/collections are the iterable face) → absence, not a gap.
+| 4.3 | callback faces — the corpus's canonical idiom (`map`/`filter`/`reduce` taking a lambda over CAPTURED state, incl. mutated capture through `CapturedVarBox`) pinned on the 4 targets (`HigherOrderCaptureE2ETest` 4/4: read 36, map-write 3/6, reduce-acc 10/10, filter-write 2/2) — `KofHigherOrderTest` was JVM-only WITHOUT capture and `LambdaE2ETest` only direct calls; the intersection was never exercised | landed 28/09 (#662) — all four faces green on FIRST measurement (zero behavior change; parity was true, pin is the product) |
+
+- 4.3 (was pending, now landed): callback faces (lambdas passed to stdlib/`job`-style APIs); "iterators/generators" from the phase row got its verdict on 28/09: NO generator surface exists (no `yield` token in the Kof lexer — `for-in`/collections are the iterable face) → absence, not a gap.
 
 ## Decision requests (rule 6)
 

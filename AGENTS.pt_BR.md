@@ -2,9 +2,9 @@
 
 last: 0.5.0-beta
 
-doing: memory-safety-4.2-pousado (#659)
+doing: memory-safety-fase-4-FECHADA (#658/#659/#662)
 
-next: fase-4.3 callbacks (lane paridade) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
+next: fase-5-native-ffi (lane paridade, medir-antes) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 
