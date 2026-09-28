@@ -358,8 +358,11 @@ class SpawnE2ETest {
     // Face MUTADA da captura em spawn (verifier independente #659): as faces
     // acima leem a captura so — e no JVM leitura sem mutacao NAO passa por
     // CapturedVarBox (LambdaTask0.<init>(I), medido). Esta face sim: o corpo
-    // do spawn MUTA o local capturado antes do return (o pai nao muta depois
-    // do spawn, entao MEM021 fica calado por construcao).
+    // do spawn MUTA o local capturado antes do return. Escopo honesto do
+    // diagnostico: o scanner MEM021 lista MUTATORS de OBJETO (add/remove/
+    // clear/addAll); reatribuicao ESCALAR fica silenciosa em qualquer lado —
+    // corrida escalar mutacao-durante-async e ambiguidade de contrato
+    // (issue aberta; regra 6), nao escolha deste teste.
     private static final String SPAWN_MUTATED_CAPTURE = """
             main() {
                 var n = 21
@@ -413,5 +416,70 @@ class SpawnE2ETest {
         String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
         assertEquals(0, p.waitFor(), "exit, output: " + output);
         assertEquals("44", output, "mutacao da captura no corpo do spawn (Native)");
+    }
+
+    // Visibilidade FILHO->PAI da caixa (verifier independente #659, 2a
+    // passada): as faces 44 acima so observam o ponto de vista do FILHO —
+    // um lowering por SNAPSHOT tambem daria 44. Aqui o PAI le `n` depois do
+    // `await`: 44\n22 so passa se a mutacao do filho for visivel ao pai via
+    // caixa + join. Sem este pino, regressao para captura-por-valor no spawn
+    // passaria 17/17+36/36 verdes.
+
+    private static final String SPAWN_MUTATED_CAPTURE_SHARE = """
+            main() {
+                var n = 21
+                var h = spawn { n = n + 1; return n * 2 }
+                println(await h)
+                println(n)
+            }
+            """;
+
+    private static final String SHARE_GOLDEN = "44\n22";
+
+    @Test
+    void jvmSpawnMutatedCaptureVisibleToParent(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-share-jvm.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE_SHARE);
+        assertEquals(SHARE_GOLDEN, runJvm(source, tempDir.resolve("out-share-jvm")));
+    }
+
+    @Test
+    void scriptSpawnMutatedCaptureVisibleToParent(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-share-script.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE_SHARE);
+        KofInterpreter.Result r = new CompilerDriver().interpret(List.of(source),
+                tempDir.resolve("out-share-script"), new String[0]);
+        String output = r.stdout().replace("\r\n", "\n").trim();
+        assertEquals(0, r.exitCode(), "SCRIPT exit, output: '" + output + "'");
+        assertEquals(SHARE_GOLDEN, output, "visibilidade filho->pai no interpretador");
+    }
+
+    @Test
+    void jsSpawnMutatedCaptureVisibleToParent(@TempDir Path tempDir) throws Exception {
+        Path source = tempDir.resolve("Main-share-js.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE_SHARE);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out-share-js"), Target.JS);
+        assertTrue(result.success(), "JS share-face: " + result.diagnostics().getDiagnostics());
+        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
+            int ec = dev.kof.runtime.KofJsRunner.run(findJsEntry(tempDir.resolve("out-share-js")), buf,
+                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
+            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
+            assertEquals(0, ec, "JS exit, output: " + output);
+            assertEquals(SHARE_GOLDEN, output, "visibilidade filho->pai no JS");
+        }
+    }
+
+    @Test
+    void nativeSpawnMutatedCaptureVisibleToParent(@TempDir Path tempDir) throws IOException, InterruptedException {
+        Path source = tempDir.resolve("Main-share-native.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE_SHARE);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out-share-native"), Target.NATIVE);
+        assertTrue(result.success(), "Native share-face: " + result.diagnostics().getDiagnostics());
+        Path bin = tempDir.resolve("out-share-native").resolve("Default/Main");
+        ProcessBuilder pb = new ProcessBuilder(bin.toString()).redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        assertEquals(0, p.waitFor(), "exit, output: " + output);
+        assertEquals(SHARE_GOLDEN, output, "visibilidade filho->pai no Native");
     }
 }

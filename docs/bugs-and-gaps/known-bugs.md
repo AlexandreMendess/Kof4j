@@ -947,7 +947,7 @@ EXTERNAL mutation produced garbage (JVM correct) — the cause was the prologue 
 - **Parity matrix (28/09, #659, fase 4.2):** the §46 face with CAPTURE was
   pinned only on Native; the "interpreter/JVM/JS → 42" claim lived only in this
   prose. Now `SpawnE2ETest.jvm|script|jsSpawnExprAwaitLambdaReturn` pin the
-  same golden across the 4 targets (`SpawnE2ETest` 13/13).
+  same golden across the 4 targets. The independent verifier (#659, first ever HIGH pass) then caught two more truth-gaps, both fixed in the same unit: read-only capture lowers WITHOUT the box (JVM `LambdaTask0.<init>(I)`), so `...AwaitMutatedCapture` (golden `44`) joined — and since 44 alone still passes under a by-value snapshot, `...VisibleToParent` (`println(await h); println(n)` → `44/22`) pins the child→parent box visibility through join. `SpawnE2ETest` 21/21.
 - **Isolation test (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturnNoCapture`
   (`spawn { return 42 }` WITHOUT capture) — separates the cause: if this one passes and the one
   with capture fails → the CAPTURE is the cause; if both fail → the return-lambda is the
@@ -974,7 +974,7 @@ EXTERNAL mutation produced garbage (JVM correct) — the cause was the prologue 
   now unwrap `FunctionType.returnType()` (or `inferLambdaBodyType` in the Lambda)
   — `Handle<T>` carries the RETURN type, mirroring `ExpressionStaticCallLowerer`
   (bug 29). Proof: `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturn` +
-  `NativeSpawnExprAwaitLambdaReturnNoCapture` (both `42`, exit 0) — before 139.
+  `nativeSpawnExprAwaitLambdaReturnNoCapture` (both `42`, exit 0) — before 139.
 
 ### 47. `KofScript.eval` cache collided by `hashCode()+length` → wrong result (R6) — ✅ FIXED 07/09 (lane KOFSCRIPT)
 

@@ -950,7 +950,7 @@ EXTERNA produzia lixo (JVM correto) — a causa era o prólogo tratando captura 
 - **Matriz de paridade (28/09, #659, fase 4.2):** a face do §46 COM captura era
   travada só no Native; a alegação "interpreter/JVM/JS → 42" vivia só na prosa.
   Agora `SpawnE2ETest.jvm|script|jsSpawnExprAwaitLambdaReturn` travam o mesmo
-  golden nos 4 alvos (`SpawnE2ETest` 13/13).
+  golden nos 4 alvos. O verifier independente (#659, primeira passada HIGH da historia) pegou entao mais dois furos de verdade, ambos corrigidos na mesma unidade: captura read-only desce SEM caixa (JVM `LambdaTask0.<init>(I)`), entao `...AwaitMutatedCapture` (golden `44`) entrou na matriz — e como 44 sozinho passaria ate num lowering por snapshot, `...VisibleToParent` (`println(await h); println(n)` → `44/22`) trava a visibilidade filho→pai da caixa via join. `SpawnE2ETest` 21/21.
 - **Teste de isolamento (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturnNoCapture`
   (`spawn { return 42 }` SEM captura) — separa a causa: se este passa e o com
   captura falha → a CAPTURA é a causa; se ambos falham → o return-lambda é a
@@ -977,7 +977,7 @@ EXTERNA produzia lixo (JVM correto) — a causa era o prólogo tratando captura 
   agora desembrulham `FunctionType.returnType()` (ou `inferLambdaBodyType` na Lambin)
   — o `Handle<T>` carrega o tipo do RETURN, espelhando o `ExpressionStaticCallLowerer`
   (bug 29). Prova: `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturn` +
-  `NativeSpawnExprAwaitLambdaReturnNoCapture` (ambos `42`, exit 0) — antes 139.
+  `nativeSpawnExprAwaitLambdaReturnNoCapture` (ambos `42`, exit 0) — antes 139.
 
 ### 47. `KofScript.eval` cache colidia por `hashCode()+length` → resultado errado (R6) — ✅ CORRIGIDO 07/09 (lane KOFSCRIPT)
 

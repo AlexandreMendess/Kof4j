@@ -125,7 +125,7 @@ O modelo:
 > primitivas de sincronização explícitas (canais, futures). O compilador emite
 > `MEM020`/`MEM021` nas fronteiras sensíveis a aliasing (stdlib/FFI/spawn).
 
-> **Verificação B-06 (28/09, #658/#659):** o lowering caixa toda captura mutada por construcao (`mutatedCapturedNames` → `CapturedVarBox`), entao a forma proibida (captura mutada sem caixa escapando) e inconstruivel — `MEM023` NAO tem face de compilacao hoje (precedente O-03/`D-MEMORY-CLEAR`: a garantia e provada por teste, nenhum diagnostico inventado). Travado pelas baterias de 4 alvos: `LambdaE2ETest` (faces de closure) + `SpawnE2ETest` (faces async/retorno, INCLUINDO captura MUTADA — `spawn { n = n + 1; return n * 2 }` → `44`, adicionada 28/09 depois que o verifier independente mediu que captura read-only nunca exercita a caixa: o JVM rebaixa `LambdaTask0.<init>(I)`, por valor).
+> **Verificação B-06 (28/09, #658/#659):** o lowering caixa toda captura mutada por construcao (`mutatedCapturedNames` → `CapturedVarBox`), entao a forma proibida (captura mutada sem caixa escapando) e inconstruivel — `MEM023` NAO tem face de compilacao hoje (precedente O-03/`D-MEMORY-CLEAR`: a garantia e provada por teste, nenhum diagnostico inventado). Travado pelas baterias de 4 alvos: `LambdaE2ETest` (faces de closure) + `SpawnE2ETest` (faces async/retorno, INCLUINDO captura MUTADA (`spawn { n = n + 1; return n * 2 }` → `44`) e visibilidade filho→pai via join (`println(await h); println(n)` → `44/22`), adicionadas 28/09 depois que o verifier independente mediu que captura read-only nunca exercita a caixa: o JVM rebaixa `LambdaTask0.<init>(I)`, por valor; `44` sozinho passaria ate num snapshot por valor).
 
 ---
 
