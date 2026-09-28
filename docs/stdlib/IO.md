@@ -92,7 +92,40 @@ println(path.size())
   recoverable exception (`catch (String e)`) — the `-1` sentinel was removed.
 - Booleans: `true`/`false`. `size()` throws an exception when the file does not exist (without `-1`).
 
+## Streaming (`libs/file`)
+
+`kof.io` also exposes `readRange(offset, len)` (incremental read). The
+official pure-Kof library `libs/file` builds streaming on top of it —
+`D-KOF-FILE-GO` slice 1, JVM-proven; no new syntax, no compiler change.
+
+```kof
+import file.FileStream
+
+main() {
+    var stream = FileStream("large.log", 4096)   // chunk size
+    var chunk = stream.readChunk()
+    while (chunk != null) {
+        // process a fixed-size byte chunk; memory stays bounded
+        chunk = stream.readChunk()
+    }
+    println(stream.position())
+}
+```
+
+| Operation | Description |
+|----------|-------------|
+| `FileStream(path[, chunkSize])` | chunked byte reader (default 8192) |
+| `readChunk()` | `Int[]?` — next chunk, `null` at end of file |
+| `done()` | `Bool` |
+| `position()` | `Long` bytes consumed |
+| `copyStream(source, destination, chunkSize)` | `Long` bytes copied, constant memory |
+
+Targets: JVM and Native (`readRange` is cross-proven on x86-64/riscv64/aarch64).
+JS and Script lack `readRange` — an honest gap (`D-KOF-FILE-GO`), never a
+silent whole-file fallback.
+
 ## Reference
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Tests: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `FileLibraryE2ETest.java`

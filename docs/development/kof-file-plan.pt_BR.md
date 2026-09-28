@@ -2,17 +2,26 @@
 
 # Plano Estratégico — `kof.file`
 
-> **Estado (19/09): FUTURE — plano apenas, zero código.** Não é fila de
-> execução (regra dos três estados + R12). Antes de promover a
-> desenvolvimento: (a) decisão explícita da mantenedora; (b) nota de
-> estado real — `json.encode/decode` já existe em `kof.json`,
-> `kof.http`/`kof.db` já existem (as integrações §20/§21 reaproveitam,
-> não recriam); (c) boundary gate R1 — codecs pesados (PDF, imagens,
-> archives) pertencem à camada de **pacotes oficiais**, não à stdlib
-> base (`scripts/check_stdlib_boundary.sh` + `scripts/stdlib_boundary.txt`);
-> (d) interop-first R9 — ZXing/PDFBox/imageio/JCA, nunca reimplementar.
-> Os exemplos abaixo do plano usam `let` (idioma falso — ver
-> `training/anti-patterns/fake-idioms.md`); a sintaxe real é `var`/`val`.
+> **Estado (28/09): EM DESENVOLVIMENTO — promovido `future/` → `docs/development/` por `D-KOF-FILE-GO` + `D-FUTURE-PROMOTION` (mantenedora).** Re-escopado na promoção: **a Fase 1 (File/Path/Text/Binary) já existe como `kof.io`** (`docs/stdlib/IO.pt_BR.md` — `File`/`Path`/`Directory` + `readText`/`writeText`/`appendText`/`readBytes`/`writeBytes`/`readRange`/`size`/`delete`/`copyTo`/`moveTo`/`modifiedTime`/`isSymlink` + formas estáticas); a única lacuna aberta da Fase 1 é **Streaming**. **Fatia 1 LANDED 28/09:** biblioteca pure-Kof `libs/file/` (`FileStream` leitor por chunks sobre `kof.io.readRange` + `copyStream` cópia de memória constante), provada na JVM por `FileLibraryE2ETest` 2/2 — sem sintaxe nova, sem mudança no compilador (library-first, `D-KOF-FIRST-IMPL`). Gate de boundary R1 — codecs pesados (PDF, imagens, archives) pertencem à camada de **pacotes oficiais**, não à stdlib base (`scripts/check_stdlib_boundary.sh` + `scripts/stdlib_boundary.txt`); interop-first R9 — ZXing/PDFBox/imageio/JCA, nunca reimplementar. Os exemplos do plano usam `let` (idioma falso — ver `training/anti-patterns/fake-idioms.md`); a sintaxe real é `var`/`val`.
+
+## Estado real (28/09)
+
+| Face | Estado | Onde |
+|------|--------|------|
+| File / Path / Text / Binary | **JÁ EXISTE como `kof.io`** (não `kof.file`) | `docs/stdlib/IO.pt_BR.md`; `KofIo.java`; `JvmRuntimeIo.java` |
+| Streaming (leitura por chunks + cópia de memória constante) | **FATIA 1 LANDED** (provada na JVM) | `libs/file/FileStream.kf`; `FileLibraryE2ETest` 2/2 |
+| Streaming no Native | esperado (`readRange` já tem prova cross) — **ainda não medido para a biblioteca** | `NativeIoReadRangeCrossTest` |
+| Streaming no JS / Script | **lacuna honesta** — `readRange` só existe em JVM+Native | R6 `XXX00x` pendente |
+| Ponte JSON | existe como `kof.json` (`json.encode/decode`) | — |
+| CSV / XML / config / documentos / archives | não iniciado; codecs pesados = pacotes oficiais (R1) | — |
+
+## Como terminar
+
+1. Streaming fatia 2 — medir `FileStream` no Native x86-64 (e riscv/aarch via qemu); dar aos alvos JS/Script um código de gap explícito em vez de símbolo indefinido.
+2. Fase 2 — dados estruturados: ponte `kof.json`, depois CSV/TSV (quotes, streaming) reusando o modelo de chunks do `FileStream`.
+3. Fase 3+ — configuração (YAML/TOML/INI), documentos (Markdown/HTML/PDF), binários/containers — cada uma atrás da sua própria fatia promovida; codecs pesados como pacotes oficiais (R1, R9).
+4. Cada fatia: teste RED-first + docs (`docs/stdlib/IO.pt_BR.md`) + zero regressão da stdlib.
+
 
 ## Objetivo
 
