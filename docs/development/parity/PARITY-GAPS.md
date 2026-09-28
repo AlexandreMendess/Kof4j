@@ -27,13 +27,16 @@
 | # | Surface | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Gap code | Tracker / owner lane |
 |---|---------|------------|----------------|--------------------------|----|----------|----------------------|
 
+**0 open rows** — the 0.5.0 parity ledger is GREEN (last row, **11 strings**, closed 28/09; proof in the Closed section).
+
 > **Closed by `D-PARITY-050-SCOPE` (maintainer 27/09):** rows 1 (`process`) and
 > 3 (`ssh`) leave the 0.5.0 ledger for the SIX release targets (MCU/riscv32
 > `PROC001` → Deferred to 1.0); rows 10 (`math.pow` cross) and 13 (`kof.io`
 > cross) were already CLOSED (bookkeeping). **Deferred to 1.0 (declared gaps,
 > never acceptance):** row 4 media `Image`/`Mic`, row 12 web T1 on native/cross,
-> row 14 security cross/JS — see the Deferred section. The 0.5.0 ledger has ONE
-> open row: **row 11 strings** (Unicode faces), implemented now. The regex
+> row 14 security cross/JS — see the Deferred section. The 0.5.0 ledger has ZERO
+> open rows: **row 11 strings** (Unicode faces) was CLOSED 28/09 (`D-STR-UNICODE`,
+> `D-FULL-PARITY-050`; proof in the Closed section). The regex
 > members of the old row 11 were split out and deferred (`D-STR-UNICODE`).
 
 > **Rows 15 (`orm.*` native) and 16 (`db.*` native) CLOSED 24/09 by the

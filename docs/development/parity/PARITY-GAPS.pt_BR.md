@@ -27,14 +27,17 @@
 | # | Superfície | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Código | Fila / lane dona |
 |---|------------|------------|----------------|--------------------------|----|--------|------------------|
 
+**0 linhas abertas** — o ledger de paridade 0.5.0 está GREEN (última linha, **11 strings**, fechada 28/09; prova na seção Fechadas).
+
 > **Fechadas por `D-PARITY-050-SCOPE` (mantenedora 27/09):** as linhas 1
 > (`process`) e 3 (`ssh`) saem do ledger 0.5.0 pelos SEIS alvos de release
 > (`PROC001` do MCU/riscv32 → Adiado p/ 1.0); as linhas 10 (`math.pow` cross) e
 > 13 (`kof.io` cross) já estavam FECHADAS (bookkeeping). **Adiadas p/ 1.0 (gaps
 > declarados, nunca aceitação):** linha 4 media `Image`/`Mic`, linha 12 web T1
 > no native/cross, linha 14 security cross/JS — ver a seção Adiadas. O ledger
-> 0.5.0 tem UMA linha aberta: **linha 11 strings** (faces Unicode), implementada
-> agora. Os membros de regex da antiga linha 11 foram separados e adiados
+> 0.5.0 tem ZERO linhas abertas: a **linha 11 strings** (faces Unicode) foi
+> FECHADA 28/09 (`D-STR-UNICODE`, `D-FULL-PARITY-050`; prova na seção Fechadas).
+> Os membros de regex da antiga linha 11 foram separados e adiados
 > (`D-STR-UNICODE`).
 
 > **As linhas 15 (`orm.*` nativo) e 16 (`db.*` nativo) foram FECHADAS em 24/09
