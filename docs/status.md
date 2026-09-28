@@ -4,7 +4,7 @@
 
 last: 659-mem-4.2-pinned + F3-landed
 doing: memory-safety / http-policies (duas lanes vivas)
-next: phase-4.3-faces-callback (medir-antes, lane paridade) / http-policies-f4 (lane pipeline)
+next: phase-4.3-faces-callback (medir-antes, lane paridade) / http-policies-f5 (lane pipeline)
 location: status
 state: active
 constraint: pr619-maintainer-only

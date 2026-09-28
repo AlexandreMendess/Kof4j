@@ -313,7 +313,7 @@ they remain a documented gap until separately promoted (rule 6).
 > Each slice: compile + test + `check_500`; commit per slice. No slice ships
 > without a green proof and updated docs.
 
-**Slice status (28/09/2026):** ✅ F0–F3 landed; ⏳ F4–F6 pending.
+**Slice status (28/09/2026):** ✅ F0–F4 landed; ⏳ F5–F6 pending.
 
 - **F0 — Global `responses` payloads for `app.security(opts)` (additive).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parses a `responses` Map
@@ -346,9 +346,13 @@ they remain a documented gap until separately promoted (rule 6).
   Native/JS. **Proof:** `KofHttpPoliciesE2ETest#endpointPolicyOverridesScope`
   (endpoint `headers:true` wins the scope's `false`; endpoint-less route inherits;
   global outside) + route-opts `WEB006`; web regression green.
-- **F4 — Declarative `responses` payloads.** Rejection bodies from the effective
-  policy. **Proof:** 401/403/429 bodies match the declared payload; absent keys
-  keep built-in bodies (compat case).
+- **F4 — Declarative `responses` payloads.** ✅ LANDED 28/09: the pipeline already
+  reads the **effective** policy (`kof_web_sec_response(p, …)`), and the two 404
+  paths (`return null` + unknown path) now honor the `notFound` payload.
+  **Proof:** `KofHttpPoliciesE2ETest#responsesUseEffectivePolicy` (scope inherits
+  the global `unauthorized`, overrides `forbidden`) +
+  `#notFoundPayloadFromEffectivePolicy` (both 404 paths); absent keys keep the
+  built-in bodies (F0 compat test).
 - **F5 — Per-route rate-limit keying** (`ip + route pattern`). **Proof:** two
   routes with different limits do not share the counter; the global limit still
   works.

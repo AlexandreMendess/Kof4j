@@ -139,7 +139,9 @@ Documented opts (`Map` keys; any other is ignored):
 built-in JSON of the pipeline rejections — e.g.
 `o.put("responses", mapOf("unauthorized", "{\"error\":\"nope\"}"))` makes every
 401 answer that body. Absent keys keep today's bodies, so adding `responses` is
-additive and never changes an undeclared status.
+additive and never changes an undeclared status. With scopes/endpoints the
+payload comes from the **effective** policy, and `notFound` also feeds both 404
+paths (`return null` and unknown route).
 
 **Auth-if-present:** even without `auth: true`, a request that **carries**
 `Authorization` with an invalid token never passes (401) — avoids "bad token

@@ -139,7 +139,9 @@ Opts documentados (chaves do `Map`; qualquer outra é ignorada):
 JSON embutido das rejeições do pipeline — ex.
 `o.put("responses", mapOf("unauthorized", "{\"error\":\"nope\"}"))` faz todo 401
 responder esse corpo. Chaves ausentes mantêm os corpos de hoje, então adicionar
-`responses` é aditivo e nunca muda um status não declarado.
+`responses` é aditivo e nunca muda um status não declarado. Com escopos/endpoints
+o payload vem da política **efetiva**, e `notFound` também alimenta os dois
+caminhos de 404 (`return null` e rota desconhecida).
 
 **Auth-if-present:** mesmo sem `auth: true`, uma request que **traz**
 `Authorization` com token inválido nunca passa (401) — evita "token ruim vira

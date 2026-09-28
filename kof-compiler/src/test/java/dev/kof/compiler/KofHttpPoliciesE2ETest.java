@@ -289,6 +289,81 @@ class KofHttpPoliciesE2ETest {
                 "fora do escopo vale o default global: " + other);
     }
 
+    // F4 (D-HTTP-POLICIES §4.5): os corpos declarados vem da politica EFETIVA —
+    // o escopo herda a chave global que nao declara e sobrepoe a que declara.
+    @Test
+    void responsesUseEffectivePolicy(@TempDir Path tempDir) throws Exception {
+        int port = startServer(tempDir, """
+                main() {
+                    auth.secret("s3cret")
+                    var app = web.app()
+                    val g: Map<String, Object> = mapOf()
+                    val authv: Object = true
+                    g.put("auth", authv)
+                    val gresp: Object = mapOf("unauthorized", "{\\"error\\":\\"G401\\"}")
+                    g.put("responses", gresp)
+                    app.security(g)
+                    val a: Map<String, Object> = mapOf()
+                    val roles: Object = "admin"
+                    a.put("roles", roles)
+                    val aresp: Object = mapOf("forbidden", "{\\"error\\":\\"S403\\"}")
+                    a.put("responses", aresp)
+                    app.policy("/admin", a)
+                    app.get("/admin/x") { return "ax" }
+                    app.get("/me") { return "me" }
+                    app.listen(PORT)
+                }
+                """);
+        // global 401 payload
+        String me = request(port, "GET /me HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(me.startsWith("HTTP/1.1 401 Unauthorized"), me);
+        assertEquals("{\"error\":\"G401\"}", bodyOf(me));
+
+        // under /admin: the 401 inherits the global unauthorized payload
+        String anon = request(port, "GET /admin/x HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(anon.startsWith("HTTP/1.1 401 Unauthorized"), anon);
+        assertEquals("{\"error\":\"G401\"}", bodyOf(anon));
+
+        // 403 uses the scope's own forbidden payload
+        String user = hs256("{\"sub\":\"u1\",\"roles\":[\"user\"]}", "s3cret");
+        String forbidden = request(port,
+                "GET /admin/x HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer " + user + "\r\n\r\n");
+        assertTrue(forbidden.startsWith("HTTP/1.1 403 Forbidden"), forbidden);
+        assertEquals("{\"error\":\"S403\"}", bodyOf(forbidden));
+    }
+
+    // F4: `notFound` from the effective policy feeds both 404 paths
+    // (`return null` and unknown path).
+    @Test
+    void notFoundPayloadFromEffectivePolicy(@TempDir Path tempDir) throws IOException {
+        int port = startServer(tempDir, """
+                main() {
+                    var app = web.app()
+                    val g: Map<String, Object> = mapOf()
+                    val gresp: Object = mapOf("notFound", "{\\"error\\":\\"NF\\"}")
+                    g.put("responses", gresp)
+                    app.security(g)
+                    app.get("/gone/:id") {
+                        var id = param("id").toInt()
+                        if (id == 1) {
+                            return "one"
+                        }
+                        return null
+                    }
+                    app.listen(PORT)
+                }
+                """);
+        // documented absence (`return null`) -> loop 404 with the declared body
+        String gone = request(port, "GET /gone/2 HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(gone.startsWith("HTTP/1.1 404 Not Found"), gone);
+        assertEquals("{\"error\":\"NF\"}", bodyOf(gone));
+
+        // unknown path -> final 404 with the declared body
+        String nope = request(port, "GET /nope HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(nope.startsWith("HTTP/1.1 404 Not Found"), nope);
+        assertEquals("{\"error\":\"NF\"}", bodyOf(nope));
+    }
+
     // F6 (gap honesto): app.policy e route-opts nao existem fora do JVM -> WEB006.
     @Test
     void policyGapOnNativeAndJs(@TempDir Path tempDir) throws IOException {

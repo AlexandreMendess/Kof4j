@@ -280,7 +280,9 @@ public final class JvmRuntimeWebDispatch {
                                 KOF_WEB_STATUS.remove();
                                 KOF_WEB_HEADERS.get().clear();
                                 return new WebDispatchResult(RouteKind.HTTP,
-                                        kof_web_build(404, "Not Found", "{\\\"error\\\": \\\"not found\\\"}"), null);
+                                        kof_web_build(404, "Not Found",
+                                                kof_web_sec_response(effective, "notFound",
+                                                        "{\\\"error\\\": \\\"not found\\\"}")), null);
                             }
                             Integer st2 = KOF_WEB_STATUS.get();
                             int code2 = st2 != null ? st2 : 200;
@@ -344,7 +346,9 @@ public final class JvmRuntimeWebDispatch {
                             kof_web_static_done();
                         }
                         return new WebDispatchResult(RouteKind.HTTP,
-                                kof_web_build(404, "Not Found", "{\\"error\\": \\"not found\\"}"), null);
+                                kof_web_build(404, "Not Found",
+                                        kof_web_sec_response(effective, "notFound",
+                                                "{\\\"error\\\": \\\"not found\\\"}")), null);
                     } catch (Exception e) {
                         // handler lambda é invocado via reflection: a exceção
                         // real chega embrulhada em InvocationTargetException —

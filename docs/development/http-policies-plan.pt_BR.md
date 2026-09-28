@@ -315,7 +315,7 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 > Cada fatia: compile + teste + `check_500`; commit por fatia. Nenhuma fatia
 > entra sem prova verde e docs atualizadas.
 
-**Status das fatias (28/09/2026):** ✅ F0–F3 pousadas; ⏳ F4–F6 pendentes.
+**Status das fatias (28/09/2026):** ✅ F0–F4 pousadas; ⏳ F5–F6 pendentes.
 
 - **F0 — Payloads `responses` globais no `app.security(opts)` (aditivo).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parseia um Map `responses`
@@ -347,9 +347,13 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
   em Native/JS. **Prova:** `KofHttpPoliciesE2ETest#endpointPolicyOverridesScope`
   (endpoint `headers:true` vence o `false` do escopo; rota sem opts herda; global
   fora) + `WEB006` das route-opts; regressão web verde.
-- **F4 — Payloads declarativos `responses`.** Corpos de rejeição da política
-  efetiva. **Prova:** corpos 401/403/429 batem com o payload declarado; chaves
-  ausentes mantêm os corpos embutidos (caso de compat).
+- **F4 — Payloads declarativos `responses`.** ✅ POUSADA 28/09: a pipeline já lê a
+  política **efetiva** (`kof_web_sec_response(p, …)`), e os dois caminhos de 404
+  (`return null` + path desconhecido) agora honram o payload `notFound`.
+  **Prova:** `KofHttpPoliciesE2ETest#responsesUseEffectivePolicy` (escopo herda o
+  `unauthorized` global, sobrepõe o `forbidden`) +
+  `#notFoundPayloadFromEffectivePolicy` (os dois 404); chaves ausentes mantêm os
+  corpos embutidos (teste de compat do F0).
 - **F5 — Chave de rate-limit por rota** (`ip + padrão de rota`). **Prova:** duas
   rotas com limites diferentes não compartilham contador; o limite global segue
   funcionando.
