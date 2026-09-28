@@ -936,7 +936,11 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > plano de `future/` e implementá-lo (mais barato primeiro). **ABERTO:**
 > `http-policies` — promovido 28/09 (`D-HTTP-POLICIES`) para
 > [`http-policies-plan.md`](http-policies-plan.md); primeira fatia = `responses`
-> global aditivo, depois F1 (`Policy`) → F2 (`app.policy`). Elegíveis a seguir,
+> global aditivo, depois F1 (`Policy`) → F2 (`app.policy`). **ABERTO:**
+> `scoped-resources` — promovido 28/09 (`D-SCOPED-RESOURCES-GO`, lote
+> `D-FUTURE-BATCH-2809`) para [`scoped-resources-plan.md`](scoped-resources-plan.md);
+> fatia 1 landed (`using` com closer explícito + `desugarUsing` primeiro +
+> `UsingDesugarE2ETest` 7/7). Elegíveis a seguir,
 > por custo: `test-architecture` (Fase 1 profiling), `pagination`,
 > `kof-testing-platform` (exige `D-*`). Inelegíveis sem decisão: `value-records`,
 > `entity-history`, `kof-connector-ecosystem`.
@@ -976,7 +980,7 @@ tiers `stable`/`experimental` (`docs/backend-parity.md`).
 | 2.2.4 | Base de `infra "prod" {}` (codegen sobre records) | ✅ **POUSOU 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: puro açúcar sobre `design()` (sem HCL; `infra` = IDENTIFICADOR, rebaixado p/ `design(): Infrastructure`) — prova `InfraSyntaxE2ETest`; o R4 ✅ era o hook |
 | 2.3.1 | Constant-folding de constantes de domínio | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
 | 2.3.2 | Detecção de ciclo no grafo `infra` em compile-time | ✅ **FECHADA 21/09 como runtime-only** (adendo a `D-MAKEALIVE-SYNTAX`, `5759b9bd`): a 2.2.4 é açúcar puro, então o compilador vê só chamadas genéricas — um grafo estático daria semântica própria ao bloco (§7/regra 11); a recusa em runtime da 3.1 nomeia os membros do ciclo |
-| 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | 🟡 só design (`future/scoped-resources-plan.md`); sintaxe `using` gated por bump |
+| 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | 🟢 fatia 1 LANDED 28/09 (`using (x = init, closer) { }` + `desugarUsing`, `D-SCOPED-RESOURCES-GO`); próximo = idioma de aninhamento + E2E `db` + goldens cross |
 | 2.5 | Variance / sealed | ⏫ **SUPERSEDIDO 21/09 por §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variância abriram como as fatias **X5** (X5.1–X5.4 ✅ FEITO 21/09); o "adiar" antigo não vale mais |
 
 #### 2.6 — Nullability por INTENÇÃO EXPLÍCITA (fila N1→N4 de DECISIONS §D-NULL-INTENT, 15/09)

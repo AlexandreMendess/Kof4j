@@ -3017,7 +3017,7 @@ ponteiro). Esta decisão fixa a sua **vida**: alocação/desalocação devem ser
 **automáticas — o programador nunca gerencia memória** (sem `malloc`/`free`
 manual). O `Handle` portanto não pousa como tipo FFI isolado agora; ele é
 entregue junto com o mecanismo de recurso/vida gerenciado pela linguagem (frente
-scoped-resources / RAII, `docs/development/future/scoped-resources-plan.md`),
+scoped-resources / RAII, `docs/development/scoped-resources-plan.md`),
 que é o dono da estratégia de alocação. Até lá, externs com `Handle` seguem
 `FFI001`/`FFI002` honestos (R6).
 
@@ -4262,3 +4262,13 @@ individuais:
 - `scripts/check_release_050_gate.sh` e `scripts/tests/check-release-050-gate-test.sh` estão **aposentados** (removidos do `run-agent-tests.sh`); as condições específicas da 0.5.0 (partes G/H do `check_live_records.sh` + a autoridade de loose-set §0/§1 do README) deixam de rodar agora que suas entradas sumiram.
 - A promoção de release passa a ser regida por [`quality-pipeline.md`](quality-pipeline.md) (`D-QUALITY-PIPELINE-2609`): `lab → testing → prerelease → stable → release/x.y.z → tag`.
 - **Relações:** `Related: D-BRANCH-0.5.0, D-RELEASE-0.5.0-GATE, D-RELEASE-0.5.0-SCOPE, D-FULL-PARITY-050, D-QUALITY-PIPELINE-2609, D-BRANCH-PIPELINE`.
+## D-SCOPED-RESOURCES-GO — `using (x = init, closer) { body }`: RAII leve como desugar mapeado pré-lowering, sem ownership (mantenedora 28/09/2026, lote `D-FUTURE-BATCH-2809`)
+
+**Estado:** DECIDIDO (mantenedora) — frente promovida por `D-FUTURE-PROMOTION` (`docs/development/scoped-resources-plan.md`); a linha do lote é a autorização, esta entrada trava a decisão e a superfície.
+
+- **Escopo:** um statement contextual + um `DesugarStep` (`desugarUsing`, PRIMEIRO em `defaults()`), zero mudança de typer/lowerer/codegen em qualquer alvo. Sintaxe nova justificada (não library-first): só o parser introduz um vínculo com closer garantido e erro de closer-ausente em parse-time; o lowering reusa o `try/finally` existente em todo alvo.
+- **Superfície v1 (travada, plano §2/§3):** `using (x = init, closer) { body }` → `{ var x = init; try { body } finally { closer } }`. O closer é EXPLÍCITO — `x.close()` é falso p/ `db` (handle String, lei `db.close(handle)`); `conn.close()`/`sse.close()` seguem escrevíveis como closer. Closer ausente = erro de parse (R6). Vínculo escopado ao bloco (sem escape por construção); escape-pós-close fica com memory-safety.
+- **Retrocompatível:** `using` é contextual (só `using` + `(`); zero uso como identificador em `.kf`/fontes de teste medido, logo nenhum programa existente muda de sentido. Programas sem `using` devolvem a unidade intocada (regra de freeze 3).
+- **Alvos:** todos por construção (desugar pré-lowering); prova da fatia 1 é paridade JVM/Script/JS + goldens de exceção JVM/Script/Native-x86; throw-aninhado no JS segue COMP002 alto (gap pré-existente de backend, família §174, frente da lane JS).
+- **Lei de merge / ordem das fatias:** pertence ao plano (§6); fatia 1 = parser + `UsingStmt` + `desugarUsing` + `UsingDesugarE2ETest` 7/7.
+- **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-DESUGAR-STEP, regra 6, regra 11, regra 12`.

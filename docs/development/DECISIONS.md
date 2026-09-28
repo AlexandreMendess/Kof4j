@@ -3007,7 +3007,7 @@ arithmetic). This decision fixes its **lifetime**: allocation/deallocation must
 be **automatic — the programmer never manages memory** (no manual `malloc`/
 `free`). `Handle` therefore does not land as an isolated FFI type now; it is
 delivered together with the language-managed resource/lifetime mechanism
-(scoped-resources / RAII front, `docs/development/future/scoped-resources-plan.md`),
+(scoped-resources / RAII front, `docs/development/scoped-resources-plan.md`),
 which is the owner of the allocation strategy. Until then `Handle`-typed externs
 stay honest `FFI001`/`FFI002` (R6).
 
@@ -4274,3 +4274,13 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - `scripts/check_release_050_gate.sh` and `scripts/tests/check-release-050-gate-test.sh` are **retired** (removed from `run-agent-tests.sh`); the 0.5.0-specific conditions (parts G/H of `check_live_records.sh` + the README §0/§1 loose-set authority) stop running now that their inputs are gone.
 - Release promotion is governed from now on by [`quality-pipeline.md`](quality-pipeline.md) (`D-QUALITY-PIPELINE-2609`): `lab → testing → prerelease → stable → release/x.y.z → tag`.
 - **Relationships:** `Related: D-BRANCH-0.5.0, D-RELEASE-0.5.0-GATE, D-RELEASE-0.5.0-SCOPE, D-FULL-PARITY-050, D-QUALITY-PIPELINE-2609, D-BRANCH-PIPELINE`.
+## D-SCOPED-RESOURCES-GO — `using (x = init, closer) { body }`: lightweight RAII as a mapped pre-lowering desugar, no ownership (maintainer 28/09/2026, batch `D-FUTURE-BATCH-2809`)
+
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/development/scoped-resources-plan.md`); the batch one-liner is the authorization, this entry locks the decision and the surface.
+
+- **Scope:** one contextual statement + one `DesugarStep` (`desugarUsing`, FIRST in `defaults()`), zero typer/lowerer/codegen change on any target. New syntax is justified (not library-first): only the parser can introduce a binding with a guaranteed closer and a parse-time missing-closer error; the lowering reuses the existing `try/finally` on every target.
+- **Surface v1 (locked, plan §2/§3):** `using (x = init, closer) { body }` → `{ var x = init; try { body } finally { closer } }`. The closer is EXPLICIT — `x.close()` is false for `db` (String handle, `db.close(handle)` law); `conn.close()`/`sse.close()` stay writable as the closer. Missing closer = parse error (R6). Block-scoped binding (no escape by construction); escape-after-close stays with memory-safety.
+- **Backward compatible:** `using` is contextual (`using` + `(` only); zero `.kf`/test-source identifier usage measured, so no existing program changes meaning. Programs without `using` return the unit untouched (freeze rule 3).
+- **Targets:** all by construction (pre-lowering desugar); slice-1 proof is JVM/Script/JS parity + JVM/Script/Native-x86 exception goldens; JS nested-throw stays a loud COMP002 (pre-existing backend gap, §174 family, JS lane's front).
+- **Merge law / slice order:** owned by the plan (§6); slice 1 = parser + `UsingStmt` + `desugarUsing` + `UsingDesugarE2ETest` 7/7.
+- **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-DESUGAR-STEP, rule 6, rule 11, rule 12`.

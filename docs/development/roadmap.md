@@ -933,7 +933,10 @@ science) **without** destroying the language's simplicity.
 > from `future/` and implement it (cheapest first). **OPEN:** `http-policies`
 > — promoted 28/09 (`D-HTTP-POLICIES`) to
 > [`http-policies-plan.md`](http-policies-plan.md); first slice = additive global
-> `responses`, then F1 (`Policy`) → F2 (`app.policy`). Eligible next, by cost:
+> `responses`, then F1 (`Policy`) → F2 (`app.policy`). **OPEN:** `scoped-resources`
+> — promoted 28/09 (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`) to
+> [`scoped-resources-plan.md`](scoped-resources-plan.md); slice 1 landed (`using`
+> with explicit closer + `desugarUsing` first + `UsingDesugarE2ETest` 7/7). Eligible next, by cost:
 > `test-architecture` (Phase 1 profiling), `pagination`, `kof-testing-platform`
 > (needs `D-*`). Ineligible without a decision: `value-records`,
 > `entity-history`, `kof-connector-ecosystem`.
@@ -973,7 +976,7 @@ domain (`INFRA00x`/`DATA00x`/`SCI00x`/`BIO00x`/`SECPQ`) + parity matrix;
 | 2.2.4 | `infra "prod" {}` base (codegen over records) | ✅ **LANDED 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: pure sugar over `design()` (no HCL; `infra` = IDENTIFIER, lowered to `design(): Infrastructure`) — proof `InfraSyntaxE2ETest`; R4 ✅ was the hook |
 | 2.3.1 | Constant-folding of domain constants | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
 | 2.3.2 | Cycle detection in the `infra` graph at compile-time | ✅ **CLOSED 21/09 as runtime-only** (`D-MAKEALIVE-SYNTAX` addendum, `5759b9bd`): 2.2.4 is pure sugar, so the compiler sees only generic calls — a static graph would give the block its own semantics (§7/rule 11); the 3.1 runtime refusal names the cycle members |
-| 2.4.1 | Scoped resources (lightweight RAII over `try/finally`) | 🟡 design only (`future/scoped-resources-plan.md`); `using` syntax gated by bump |
+| 2.4.1 | Scoped resources (lightweight RAII over `try/finally`) | 🟢 slice 1 LANDED 28/09 (`using (x = init, closer) { }` + `desugarUsing`, `D-SCOPED-RESOURCES-GO`); next = nesting idiom + `db` E2E + cross goldens |
 
 | 2.5 | Variance / sealed | ⏫ **SUPERSEDED 21/09 by §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variance opened as the **X5** slices (X5.1–X5.4 ✅ DONE 21/09); the old "postpone" is void |
 

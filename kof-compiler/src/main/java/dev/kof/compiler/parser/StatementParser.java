@@ -50,6 +50,12 @@ public class StatementParser {
     }
 
     static StatementNode parseStatement(ParseContext ctx) {
+        // D-SCOPED-RESOURCES-GO: contextual `using (name = init, closer) { }`
+        // (only `using` + `(` takes this branch; +4 lines, ratchet intact).
+        if (ctx.check(TokenType.IDENTIFIER) && "using".equals(ctx.peek().value())
+                && ctx.checkNext(TokenType.LPAREN)) {
+            return UsingParser.parseUsingStatement(ctx);
+        }
         if (ctx.check(TokenType.LBRACE)) {
             return new BlockStmt(ctx.pos(), StatementParser.parseBlock(ctx));
         }

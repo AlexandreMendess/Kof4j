@@ -15,6 +15,7 @@ decision: D-KOF-FIRST-IMPL
 **28/09 — frente pipeline + biblioteca (branch ativa = `lab`, `D-BRANCH-PIPELINE`).**
 - **Esteira de qualidade pousada:** cutover `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`); máquina de estados (`scripts/pipeline/pipeline_state.py` 21/21), promotion gate (`promotion_gate.py`, 100%), `promote.yml`, rulesets (`pipeline-stages`, `release-tags`); `beta-*` congeladas.
 - **`http-policies` PROMOVIDO** `future/` → [`docs/development/http-policies-plan.md`](development/http-policies-plan.md) (`D-HTTP-POLICIES`, `D-FUTURE-PROMOTION`): políticas HTTP/Web aditivas (global + `app.policy` prefixo + opts de endpoint + `responses`), JVM-first, Native/JS `WEB006`.
+- **`scoped-resources` PROMOVIDO** `future/` → [`docs/development/scoped-resources-plan.md`](development/scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`, lote `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`): fatia 1 landed — `using (x = init, closer) { }` → `desugarUsing` primeiro em `DesugarSteps.defaults()` → `try/finally` (`UsingDesugarE2ETest` 7/7; closer explícito porque `x.close()` é falso p/ `db`).
 - **Parity linha 11 FECHADA** (`compareToIgnoreCase` em todos os backends) → `full_parity` GREEN.
 
 **24/09 — janela 21/09→24/09 (conferida contra `git log`/tips; reator completo 3818 / 0F / 0E). A PR `#619` (`beta-0.5.0 → main`) está ABERTA e o merge é da MANTENEDORA — regra 10 do AGENTS.md: nenhum agente mergeia/aprova/fecha sob hipótese alguma.**
