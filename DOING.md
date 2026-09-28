@@ -1,4 +1,7 @@
 ---
+> **✅ DONE 28/09 (lane issues — owner: esta sessao, POR ORDEM DIRETA DA MANTENEDORA):** broadcast do novo texto do heartbeat em #647 (issuecomment-5862749487): ler `D-FUTURE-PROMOTION`, se parado continuar o desenvolvimento, **uma frente por vez por owner de lane**.
+
+---
 > **✅ DONE 28/09 (lane issues — owner: esta sessao, POR ORDEM DIRETA DA MANTENEDORA):** 17 decisões votadas em 2 lotes travadas em `D-FUTURE-BATCH-2809` EN+PT (todos os planos `future/` autorizados como escopo 1.0.0; promoção segue uma-por-vez por `D-FUTURE-PROMOTION`). Ninguem parado por falta de decisao.
 
 ---
