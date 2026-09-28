@@ -30,9 +30,26 @@ final class StringTargetGaps {
 
     static final String CODE = "STR003";
 
-    /** Accepted by the typer, not lowered on JS/Native. */
-    private static final Set<String> INCOMPLETE = Set.of(
-            "matches", "replaceAll", "replaceFirst", "compareToIgnoreCase");
+    /** Accepted by the typer, not lowered on JS/Native (regex trio: deferred to
+     *  1.0 by D-STR-UNICODE; engine/RegExp parity rides that same decision). */
+    private static final Set<String> REGEX = Set.of(
+            "matches", "replaceAll", "replaceFirst");
+
+    /**
+     * D-STR-UNICODE (27/09): {@code compareToIgnoreCase} left the JS gate — the
+     * runtime helper {@code kofStringCompareToIgnoreCase} ports the JDK fold
+     * exactly (table in {@code JsStringCaseFold}). Native keeps refusing it
+     * until the Unicode case table lands there (NAT-STR01).
+     */
+    private static final Set<String> NATIVE_ONLY = Set.of("compareToIgnoreCase");
+
+    private static final Set<String> INCOMPLETE = combine();
+
+    private static Set<String> combine() {
+        Set<String> all = new java.util.LinkedHashSet<>(REGEX);
+        all.addAll(NATIVE_ONLY);
+        return Set.copyOf(all);
+    }
 
     static boolean isIncompleteMethod(String method) {
         return INCOMPLETE.contains(method);
@@ -42,6 +59,16 @@ final class StringTargetGaps {
         return target == Target.JS || target.isNative();
     }
 
+    static boolean refuses(Target target, String method) {
+        if (!refuses(target)) {
+            return false;
+        }
+        if (REGEX.contains(method)) {
+            return true;
+        }
+        return target != Target.JS && NATIVE_ONLY.contains(method);
+    }
+
     /**
      * Emits the honest {@code STR003} diagnostic and returns {@code true} when
      * the call must be refused (incomplete method on an unported target).
@@ -49,7 +76,7 @@ final class StringTargetGaps {
      * for the aborted compilation (same pattern as the NAT005/NAT006 gates).
      */
     static boolean refuse(CompilerDriver driver, MethodCallExpr mc) {
-        if (!isIncompleteMethod(mc.methodName()) || !refuses(driver.target)) {
+        if (!refuses(driver.target, mc.methodName())) {
             return false;
         }
         if (driver.currentDiagnostics != null) {

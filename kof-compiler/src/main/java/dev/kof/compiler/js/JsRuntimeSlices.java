@@ -37,6 +37,7 @@ final class JsRuntimeSlices {
             new Block("crypto", JsRuntimeUiCrypto.UI_CRYPTO_RUNTIME + JsRuntimeUiChacha.UI_CHACHA_RUNTIME, false),
             new Block("validation", JsRuntimeUiValidation.UI_VALIDATION_RUNTIME, false),
             new Block("stdlib", JsRuntimeUiStdlib.STDLIB_RUNTIME, false),
+            new Block("case-fold", JsStringCaseFold.CASE_FOLD_RUNTIME, false),
             new Block("random", JsRuntimeUiRandom.RANDOM_RUNTIME, false),
             new Block("rng", JsRuntimeUiRng.RNG_RUNTIME, false),
             new Block("math-double", JsRuntimeUiMathDouble.MATH_DOUBLE_RUNTIME, false),

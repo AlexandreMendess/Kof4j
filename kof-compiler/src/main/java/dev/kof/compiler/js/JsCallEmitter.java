@@ -448,6 +448,15 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareTo"),
                         List.of(receiver, args.get(0))));
             }
+            // D-STR-UNICODE (linha 11): sai do gate STR003 no JS com o helper
+            // kofStringCompareToIgnoreCase (fold duplo por code unit sobre a
+            // tabela do Character do JDK — algoritmo do JDK, NAO os built-ins
+            // de caixa do motor, que fazem full mapping e divergem).
+            case "compareToIgnoreCase" -> {
+                ctx.lc.registerRuntime("kofStringCompareToIgnoreCase");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareToIgnoreCase"),
+                        List.of(receiver, args.get(0))));
+            }
             // D-FULL-PARITY-050 row 11: String.prototype NÃO tem toCharArray →
             // o default gerava TypeError. Helper kofToCharArray (array de code
             // units UTF-16, igual ao JVM).

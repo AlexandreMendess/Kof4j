@@ -45,6 +45,6 @@ strings.truncate("abcdef", 4)       // abcd…
 ```
 ```
 
-> Paridade: `reverse` é correto por code point em todos os targets (o Native percorre os bytes UTF-8, 27/09); os cinco métodos (`matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase`) = `STR003`; `toUpperCase`/`toLowerCase` são Unicode por code unit em todos os targets (27/09, `D-STR-UNICODE`); `capitalize`/conversores de palavra seguem `NAT-STR01` — ledger linha 11.
+> Paridade: `reverse` é correto por code point em todos os targets (o Native percorre os bytes UTF-8, 27/09); o trio regex (`matches`/`replaceAll`/`replaceFirst`) = `STR003` (adiado p/ 1.0, `D-STR-UNICODE`); `compareToIgnoreCase` foi portado no JS (27/09, tabela de fold do JDK `JsStringCaseFold`) e segue `STR003` no Native ate a descida nativa; `toUpperCase`/`toLowerCase` são Unicode por code unit em todos os targets (27/09, `D-STR-UNICODE`); `capitalize`/conversores de palavra seguem `NAT-STR01` — ledger linha 11.
 
 **Veja também:** [39 — Standard Library universal](../39-stdlib.pt_BR.md) — a história completa e a tabela honesta de paridade.

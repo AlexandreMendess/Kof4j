@@ -39,7 +39,14 @@ class StringMethodTargetCoverageTest {
 
     /** §424 — aceitos no typer, SEM lowering no JS (caem no default → membro JS inexistente). */
     private static final Set<String> JS_KNOWN_GAP = Set.of(
-            "matches", "replaceAll", "replaceFirst", "compareToIgnoreCase");
+            "matches", "replaceAll", "replaceFirst");
+
+    /**
+     * D-STR-UNICODE (27/09): o fold portado ({@code JsStringCaseFold}) tirou
+     * {@code compareToIgnoreCase} do gap JS; o NATIVE ainda recusa STR003 ate
+     * a tabela Unicode pousar la (NAT-STR01).
+     */
+    private static final Set<String> NATIVE_ONLY_GAP = Set.of("compareToIgnoreCase");
 
     private static Set<String> registryMethods() throws Exception {
         String src = Files.readString(
@@ -122,8 +129,7 @@ class StringMethodTargetCoverageTest {
     @Test
     @DisplayName("o gap JS do §424 e exatamente o conjunto documentado — nao cresce nem some")
     void knownJsGapIsPinnedToTheDocumentedSet() throws Exception {
-        assertEquals(Set.of("matches", "replaceAll", "replaceFirst",
-                "compareToIgnoreCase"), JS_KNOWN_GAP);
+        assertEquals(Set.of("matches", "replaceAll", "replaceFirst"), JS_KNOWN_GAP);
     }
 
     @Test
@@ -145,6 +151,7 @@ class StringMethodTargetCoverageTest {
 
         Set<String> classified = new TreeSet<>(handled);
         classified.addAll(JS_KNOWN_GAP);
+        classified.addAll(NATIVE_ONLY_GAP);
 
         assertEquals(new TreeSet<>(registry), classified, () -> {
             var missing = new TreeSet<>(registry);
@@ -161,7 +168,7 @@ class StringMethodTargetCoverageTest {
         Set<String> cased = jsExplicitCases();
         var orphan = new LinkedHashSet<String>();
         for (String n : List.of("charAt", "length", "isEmpty", "equals", "equalsIgnoreCase",
-                "replace", "compareTo", "split")) {
+                "replace", "compareTo", "compareToIgnoreCase", "split")) {
             assertTrue(cased.contains(n), "JsCallEmitter perdeu o case de " + n);
             if (!registry.contains(n)) {
                 orphan.add(n);

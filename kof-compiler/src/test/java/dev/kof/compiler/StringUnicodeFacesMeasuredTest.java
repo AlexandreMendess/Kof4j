@@ -11,19 +11,22 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * D-STR-UNICODE (linha 11) — medição comportamental das faces Unicode
  * ({@code toUpperCase}/{@code toLowerCase}/{@code compareToIgnoreCase}/
- * {@code strings.reverse} não-ASCII) contra o oráculo JVM. Os valores são
+ * {@code strings.reverse} não-ASCII) contra o oráculo JVM — atualizado 28/09
+ * apos a tabela nativa (fatia da lane parity) pousar. Os valores são
  * MEDIDOS neste tip (27/09), não deduzidos: a bateria imprime unidades UTF-16
  * via a face {@code toCharArray} (a única face char provada — não depende de
  * encoding de stdout).
  *
- * <p>Medido: <b>JS == oráculo JVM nas 9 linhas + 5 comparações</b> (built-ins
+ * <p>Medido: <b>JS == oráculo JVM nas 9 linhas + 10 comparações</b> (built-ins
  * Unicode-corretos, incluindo expansões {@code ß->SS}, {@code İ->i+U+0307},
- * {@code ǰ->J+caron} e sigma final {@code Σ->ς}); reverse com surrogate pair
- * já é code-point no x86 (o NAT-STR01 remanescente são as faces de CAIXA do
- * native, hoje ASCII-fold: {@code é} não vira {@code É}, {@code ß} não expande,
- * {@code İ} fica, grego não muda de caixa). Este arquivo é CARACTERIZAÇÃO
- * (verde hoje, trava o oráculo e o gap exato); quando a tabela nativa pousar,
- * as asserções do native viram as do oráculo. Padrão: StringGapMeasuredTest/§424.
+ * {@code ǰ->J+caron} e sigma final {@code Σ->ς}); no native, a tabela embutida
+ * ({@code RuntimeStringCase}, fatia da lane parity) faz o fold <b>SIMPLES por
+ * code unit</b> — escopo ratificado do {@code D-STR-UNICODE}: as 4 linhas que
+ * divergem do JVM (ß, İ, ǰ, sigma final) são exatamente as exceções de
+ * full-mapping/contexto fora do escopo; Latin-1/Grego/Cirilico e o reverse
+ * astral coincidem. NAT-STR01 residual = {@code compareToIgnoreCase} no
+ * native. Este arquivo é CARACTERIZAÇÃO: trava o oráculo, o port JS e o valor
+ * medido de cada alvo. Padrão: StringGapMeasuredTest/§424.
  */
 class StringUnicodeFacesMeasuredTest {
 
@@ -41,17 +44,27 @@ class StringUnicodeFacesMeasuredTest {
         2,913,931
         5,959,32,948,965,962""";
 
-    // Estado medido do native x86_64 neste tip (NAT-STR01 = faces de caixa; reverse ok).
-    private static final String NATIVE_CURRENT = """
+    // Estado medido do native x86_64 apos a tabela embutida (D-STR-UNICODE
+    // ratificado: fold SIMPLES por code unit). As linhas que divergem do
+    // oraculo JVM (straße 6-vs-7, İ 1-vs-2, ǰ 1-vs-2, sigma final 963-vs-962)
+    // sao EXATAMENTE as excecoes de full-mapping/contexto fora do escopo
+    // ratificado — as demais (caixa Latin-1/Grec/Cirilico, reverse) coincidem.
+    private static final String NATIVE_SIMPLE_FOLD = """
         4,98,55357,56832,97
         4,55357,56832,225,8364
-        5,72,233,76,76,79
-        6,103,114,220,7838,101,110
+        5,72,201,76,76,79
+        6,103,114,252,223,101,110
         6,83,84,82,65,223,69
-        1,304
+        1,105
         1,496
         2,913,931
-        5,927,32,916,933,931""";
+        5,959,32,948,965,963""";
+
+    // compareToIgnoreCase medido no JDK (fold duplo por code unit), incluindo
+    // as arestas ẛ/ẞ (7554), prefixo (-1), vazias (0), ǅ/ǆ iguais no up (0)
+    // e a ligatura fi vs "fi" (64155 — sem mapeamento simples, diferenca crua).
+    private static final String CIC_ORACLE =
+            "108\n0\n0\n390\n0\n7554\n-1\n0\n0\n64155";
 
     private static final String BATTERY = """
         String Units(String s) {
@@ -82,6 +95,11 @@ class StringUnicodeFacesMeasuredTest {
             println("Hello".compareToIgnoreCase("hello"))
             println("ǰ".compareToIgnoreCase("J̌"))
             println("Σ".compareToIgnoreCase("σ"))
+            println("ẛ".compareToIgnoreCase("ẞ"))
+            println("abc".compareToIgnoreCase("abcd"))
+            println("".compareToIgnoreCase(""))
+            println("ǅ".compareToIgnoreCase("ǆ"))
+            println("ﬁ".compareToIgnoreCase("fi"))
         }
         """;
 
@@ -89,25 +107,27 @@ class StringUnicodeFacesMeasuredTest {
     @DisplayName("linha 11: oráculo JVM medido (caixa/reverse Unicode + compareToIgnoreCase)")
     void jvmOracleMeasured(@TempDir Path tmp) throws Exception {
         assertEquals(ORACLE_JVM, run(tmp, BATTERY, Target.JVM).trim());
-        assertEquals("108\n0\n0\n390\n0", run(tmp, CIC_SRC, Target.JVM).trim());
+        assertEquals(CIC_ORACLE, run(tmp, CIC_SRC, Target.JVM).trim());
     }
 
     @Test
-    @DisplayName("linha 11: JS == oráculo JVM (built-ins pinados — D-STR-UNICODE)")
+    @DisplayName("linha 11: JS == oráculo JVM (built-ins pinados + cic portado — D-STR-UNICODE)")
     void jsMatchesOracle(@TempDir Path tmp) throws Exception {
         assertEquals(ORACLE_JVM, run(tmp, BATTERY, Target.JS).trim());
+        // kofStringCompareToIgnoreCase: mesmo resultado do algoritmo JDK medido.
+        assertEquals(CIC_ORACLE, run(tmp, CIC_SRC, Target.JS).trim());
     }
 
     @Test
-    @DisplayName("linha 11: native x86 = reverse code-point OK; caixa ainda ASCII-fold (NAT-STR01)")
+    @DisplayName("linha 11: native x86 = fold simples por code unit (escopo ratificado D-STR-UNICODE)")
     void nativeCharacterization(@TempDir Path tmp) throws Exception {
-        assertEquals(NATIVE_CURRENT, run(tmp, BATTERY, Target.NATIVE).trim());
+        assertEquals(NATIVE_SIMPLE_FOLD, run(tmp, BATTERY, Target.NATIVE).trim());
     }
 
     @Test
-    @DisplayName("linha 11: compareToIgnoreCase ainda recusa honesta STR003 em JS+native (§424)")
+    @DisplayName("linha 11: compareToIgnoreCase — JS portado; native ainda recusa STR003 (NAT-STR01)")
     void cicGapStaysHonest(@TempDir Path tmp) throws Exception {
-        for (Target t : new Target[]{Target.JS, Target.NATIVE}) {
+        for (Target t : new Target[]{Target.NATIVE}) {
             Path file = tmp.resolve("C-" + System.nanoTime() + ".kf");
             Files.writeString(file, CIC_SRC);
             CompilationResult r = driver.compile(file, tmp.resolve("o-" + t), t);

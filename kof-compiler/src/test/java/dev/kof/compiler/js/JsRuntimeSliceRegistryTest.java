@@ -32,6 +32,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiChacha.UI_CHACHA_RUNTIME)
                 .append(JsRuntimeUiValidation.UI_VALIDATION_RUNTIME)
                 .append(JsRuntimeUiStdlib.STDLIB_RUNTIME)
+                .append(JsStringCaseFold.CASE_FOLD_RUNTIME)
                 .append(JsRuntimeUiRandom.RANDOM_RUNTIME)
                 .append(JsRuntimeUiRng.RNG_RUNTIME)
                 .append(JsRuntimeUiMathDouble.MATH_DOUBLE_RUNTIME)
