@@ -11,7 +11,6 @@
 | # | Plano | Estado | Por que nesta posição | Próximo passo concreto |
 |---|---|---|---|---|
 | 0 | ~~`http-policies-plan.md`~~ — `D-HTTP-POLICIES` 28/09 | ✅ CONCLUÍDO 28/09 — F0–F6 pousadas (`KofHttpPoliciesE2ETest` 10/10); movido para `docs/stdlib/http-policies-plan.md` (regra dos 3 estados) | frente designada por `D-FUTURE-PROMOTION` (mais barata implementável), fechada | — |
-| 0 | `scoped-resources-plan.md` — `D-SCOPED-RESOURCES-GO` 28/09, promovido por `D-FUTURE-PROMOTION` | `EM DESENVOLVIMENTO` — fatia 1 LANDED (`using` + `desugarUsing` + `UsingDesugarE2ETest` 7/7); próximo = idioma de aninhamento + E2E `db` + goldens cross | segunda frente, outra lane (issues); arquivos disjuntos de http-policies (parser/desugar vs runtime web) | doc de aninhamento multi-recurso; E2E com `db` em fixture viva; goldens riscv/aarch |
 | 0b | `test-architecture-plan.md` — `D-TEST-ARCHITECTURE-GO` 28/09, promovido por `D-FUTURE-PROMOTION` | `EM DESENVOLVIMENTO` — profiling da Fase 1 (read-only `scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`); Fase 2+ não iniciada | infraestrutura pura de testes (não toca o compilador), autorizada por `D-TEST-ARCHITECTURE-GO` + `D-FUTURE-BATCH-2809` | rodar o profiler sobre uma execução da suíte; depois quick wins da Fase 2 |
 | 0c | `kof-file-plan.md` — `D-KOF-FILE-GO` 28/09, promovido por `D-FUTURE-PROMOTION` | `EM DESENVOLVIMENTO` — re-escopado (Fase 1 = `kof.io`, já existe); **fatia 1 de streaming LANDED** (pure-Kof `libs/file/` sobre `kof.io.readRange`, `FileLibraryE2ETest` 2/2) | library-first (`D-KOF-FIRST-IMPL`), sem mudança no compilador; arquivos disjuntos (libs/file + teste) das outras frentes | medição Native do `FileStream` + código de gap explícito JS/Script; depois Fase 2 dados estruturados |
 | 1 | `stdlib/PLAN-TREE-SHAKING.md` (#97) | ✅ CONCLUÍDO 13/09 — S-1..S-6.1 (`0104f6d6`, PR #106) + S-7 (consolidado em `docs/stdlib/stdlib-loading.md`) | frente designada 11/09, fechada | — (S-5-x86 `root_end` na fila bugfix) |
@@ -29,6 +28,7 @@
 | — | ~~`ffi-abi-structs.md`~~ → `docs/ffi-abi-structs.md` (D6) | ✅ CONCLUÍDO + MOVIDO 23/09 — bateria FFI 60/60 | movido para `docs/` | — |
 | — | `memory-safety-investigation.md` — entregável da Fase 0 | `ENTREGUE 25/09 — aguardando revisão da mantenedora` — varredura de 14 pontos (file:line); família §503/§260/§292/§252; 8 pontos frágeis | lane paridade (gate da Fase 0 = revisão da mantenedora) | Fase 1: `docs/spec/memory-safety.md` |
 | — | ~~`interop-engine-plan.md`~~ → `docs/interop-engine-plan.md` — `D-COMPLETE-FIRST` item 2 | ✅ CONCLUÍDO + MOVIDO 27/09 — fatias 1–5 (Py+R+timeout+cross+corpus), D-X2-LANDED; estado de sessão corte declarado | movido p/ `docs/` | — |
+| — | ~~`scoped-resources-plan.md`~~ → `docs/scoped-resources-plan.md` — `D-SCOPED-RESOURCES-GO` 28/09 | ✅ CONCLUÍDO + MOVIDO 28/09 — fatias 1–6 (`using` + `desugarUsing` primeiro + `UsingDesugarE2ETest` 18/18: aninhamento + `db`-H2 JVM/Script/JS + cross riscv/aarch + docs de usuário); `db` cross fora explicitamente (matriz da lane db) | movido p/ `docs/` | — |
 | — | `memory-safety-plan.md` — `D-MEMORY-SAFETY` 25/09 | `EM DESENVOLVIMENTO` — Fases 0–1 correntes; edições no core esperam a fila; Kof-first, null safety intocável | **lane paridade** | Fase 1 `docs/spec/memory-safety.md`; Fases 2–6 gateadas |
 | — | ~~`kofmd-plan.md`~~ → `docs/kofmd-plan.md` — `D-KOFMD` 27/09 | ✅ CONCLUÍDO + MOVIDO 27/09 — fatias 3.1→3.9 (lib pura-Kof `libs/kofmd/`, CLI `kof md`, hook LSP, corpus golden, convenção de migração §5); spec `docs/spec/kofmd.md` | movido p/ `docs/` | — |
 | — | ~~`db-parity-plan.md`~~ → `docs/stdlib/db-parity-plan.md` — adendo `D-DB-GAPS` 21/09 | ✅ CONCLUÍDO + MOVIDO 27/09 — S0–S5 (wire cross + faces ORM, PARITY-GAPS 15/16), §488/§493/§523 CORRIGIDAS, D-DB-NORMALIZE + D-DB-ZERODRIVER trilha (a); follow-ups §534/android-pom/S6 declarados | movido p/ `docs/stdlib/` | — |
@@ -109,7 +109,7 @@ Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca u
 | Arquivo | Gatilho p/ cair p/ cá |
 |---|---|
 | `PLAN-MULTIPARADIGMA.md` (multiparadigma / pipelines funcionais; 16/09, só design) | primeiro incremento funcional (SYSTEMS fechado, R12) |
-| `scoped-resources-plan.md` (RAII TIER 2.4) | bump com `using`/`resource_scope` decidido |
+| ~~`scoped-resources-plan.md`~~ → CONCLUÍDO + movido para `docs/scoped-resources-plan.md` 28/09 | FECHADO 28/09 (`D-SCOPED-RESOURCES-GO`; `UsingDesugarE2ETest` 18/18) |
 | ~~`PLAN-BAREMETAL-BOOT.md`~~ → promovido 22/09, CONCLUÍDO + movido para `docs/PLAN-BAREMETAL-BOOT.md` 25/09 | FECHADO 25/09 (`D-BAREMETAL-BOOT`; `D-BAREMETAL-MCU-GC` fechou B-4 no riscv32) |
 | `PLAN-BOOTSTRAP.md` (o Bootstrapper: Kof em Kof — **estrela-guia**, `D-BOOTSTRAP`) | EXIT GATE 1.0 fechado + condições de entrada E1–E6 |
 | `DECOMPILER.md`, `TRANSLATOR.md`, `LEGACY_MIGRATION.md` (migração de legado) | de volta p/ cá 15/09 — DESPRIORIZADO; promoção exige decisão explícita |

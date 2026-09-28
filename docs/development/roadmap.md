@@ -937,10 +937,10 @@ science) **without** destroying the language's simplicity.
 > from `future/` and implement it (cheapest first). **CONCLUDED:** `http-policies`
 > — promoted 28/09 (`D-HTTP-POLICIES`), all slices F0–F6 landed 28/09
 > (`KofHttpPoliciesE2ETest` 10/10), moved to
-> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md). **OPEN:** `scoped-resources`
-> — promoted 28/09 (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`) to
-> [`scoped-resources-plan.md`](scoped-resources-plan.md); slice 1 landed (`using`
-> with explicit closer + `desugarUsing` first + `UsingDesugarE2ETest` 7/7).
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md). **CONCLUDED:** `scoped-resources`
+> — promoted 28/09 (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`),
+> slices 1–6 landed (`UsingDesugarE2ETest` 18/18) → moved to
+> [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md).
 > **OPEN (3rd front):** `test-architecture` — promoted 28/09
 > (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`) to
 > [`test-architecture-plan.md`](test-architecture-plan.md); first slice = Phase 1
@@ -992,7 +992,7 @@ domain (`INFRA00x`/`DATA00x`/`SCI00x`/`BIO00x`/`SECPQ`) + parity matrix;
 | 2.2.4 | `infra "prod" {}` base (codegen over records) | ✅ **LANDED 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: pure sugar over `design()` (no HCL; `infra` = IDENTIFIER, lowered to `design(): Infrastructure`) — proof `InfraSyntaxE2ETest`; R4 ✅ was the hook |
 | 2.3.1 | Constant-folding of domain constants | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
 | 2.3.2 | Cycle detection in the `infra` graph at compile-time | ✅ **CLOSED 21/09 as runtime-only** (`D-MAKEALIVE-SYNTAX` addendum, `5759b9bd`): 2.2.4 is pure sugar, so the compiler sees only generic calls — a static graph would give the block its own semantics (§7/rule 11); the 3.1 runtime refusal names the cycle members |
-| 2.4.1 | Scoped resources (lightweight RAII over `try/finally`) | 🟢 slices 1–5 LANDED 28/09 (`using (x = init, closer) { }` + `desugarUsing`, nesting + H2-`db` JVM/Script/JS E2E with isolation-by-release, user docs, `D-SCOPED-RESOURCES-GO`); cross goldens deferred (no qemu on host) |
+| 2.4.1 | Scoped resources (lightweight RAII over `try/finally`) | ✅ CONCLUDED 28/09 — slices 1–6, plan → [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`); cross-`db` explicitly out (db lane's matrix) |
 
 | 2.5 | Variance / sealed | ⏫ **SUPERSEDED 21/09 by §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variance opened as the **X5** slices (X5.1–X5.4 ✅ DONE 21/09); the old "postpone" is void |
 

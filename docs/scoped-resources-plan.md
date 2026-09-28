@@ -2,13 +2,13 @@
 
 # Scoped Resources — lightweight RAII (design plan · TIER 2.4)
 
-**Status:** UNDER DEVELOPMENT (28/09, lane issues — `D-SCOPED-RESOURCES-GO`, `D-FUTURE-PROMOTION`, cheapest implementable).
+**Status:** CONCLUDED 28/09 (lane issues — `D-SCOPED-RESOURCES-GO`, `D-FUTURE-PROMOTION`, cheapest implementable) — moved to `docs/` (three-states rule).
 **Owner:** issues lane (this session); pre-lowering desugar = all targets by construction.
-**Decision:** `D-SCOPED-RESOURCES-GO` (`DECISIONS.md`) — `using` syntax authorized (lightweight RAII, mapped desugar, no ownership); surface locked during implementation (the plan owns it).
-**Real state (measured 28/09, tip `16f5199de`):** mechanism (`try/finally` + GC) exists; hook (`DesugarSteps.defaults()`, run at `CompilerPipeline:320`) exists; `using` unimplemented; no lane owns it.
+**Decision:** `D-SCOPED-RESOURCES-GO` (`DECISIONS.md`) — `using` syntax authorized (lightweight RAII, mapped desugar, no ownership); surface locked during implementation (the plan owned it).
+**Real state (landed 28/09):** parser (`parser/UsingParser.java`, contextual `using` + `(`) + `UsingStmt` + `CompilerDesugar.desugarUsing` FIRST in `DesugarSteps.defaults()` (run at `CompilerPipeline:320`); zero typer/lowerer/codegen change on any target.
 **Surface v1 (locked):** `using (x = init, closer) { body }` → `{ var x = init; try { body } finally { closer } }`. The closer is EXPLICIT — the §2 candidate `x.close()` is FALSE for `db` (the handle is a String closed via `db.close(handle)`; `learn/stdlib/db.md`); `conn.close()` / `sse.close()` stay writable as the closer expression. Missing closer = parse error (R6, never a silent leak). The binding is block-scoped (no escape by construction); escape-after-close discipline stays with the memory-safety passes (no ownership here).
-**Slices 1–3 (landed):** slice 1 (parser (`parser/UsingParser.java`) + `UsingStmt` + `CompilerDesugar.desugarUsing` first in `defaults()` + `UsingDesugarE2ETest` 7/7) + slice 2 (nesting reverse-close on JVM/Script/JS/Native-x86; H2-hermetic `db` happy+exception on JVM with MEM014-silence asserts — no live fixture needed; no cross-lane edit: reflective `hasClose` sees the generated `finally`, `UsingDesugarE2ETest` 11/11) + slice 3 (Script-target `db` happy+exception goldens — the interpreter runs `db.connect` H2 + the desugared finally; all four `db` tests share two mem names with no `DB_CLOSE_DELAY`, so isolation holds ONLY if every closer really closes: isolation-by-release, `UsingDesugarE2ETest` 13/13). Cross riscv/aarch goldens DEFERRED with cause: no qemu on this host (skip-gated tests would fail "proven, not intended").
-**Source:** `../../architecture/UNIVERSAL-PLATFORM-VISION.md` §7 · `roadmap.md` §23 TIER 2.4.1 (former `ACTION_PLAN.md`)
+**Slices 1–6 (all landed, `UsingDesugarE2ETest` 18/18):** slice 1 (syntax + desugar + happy/exception/negative pins); slice 2 (nesting reverse-close JVM/Script/JS/Native-x86 + H2 `db` happy/exception on JVM with MEM014-silence, no cross-lane edit); slice 3 (Script `db` goldens + isolation-by-release); slice 4 (user docs `learn/14-exceptions.md`); slice 5 (JS `db` golden, byte-identical to JVM); slice 6 (cross riscv64/aarch64 happy+nest under qemu — the environmental block fell when qemu user-mode landed on the host). **Nothing pending:** cross-`db` is explicitly out (native `db` backends belong to the db lane's matrix); escape-after-close stays with memory-safety (declared, not hidden).
+**Source:** `architecture/UNIVERSAL-PLATFORM-VISION.md` §7 · `development/roadmap.md` §23 TIER 2.4.1 (former `ACTION_PLAN.md`)
 
 ## 1. Objective
 
@@ -100,7 +100,8 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 | Script-target `db` goldens + isolation-by-release | ✅ slice 3 (`UsingDesugarE2ETest` 13/13; shared mem names, no `DB_CLOSE_DELAY`) |
 | User docs (`learn/14-exceptions.md` `using` section) | ✅ slice 4 (sample mirrors green `DB_HAPPY`, JVM-hermetic scope noted) |
 | JS-target `db` golden | ✅ slice 5 (`{"v":"a"}/closed` byte-identical to JVM; own mem name `usingjs` — Graal host shares the in-JVM H2 registry; `UsingDesugarE2ETest` 14/14; JS exception-path stays pinned COMP002) |
-| Cross riscv/aarch goldens | ⏳ deferred — no qemu on this host (skip-gated proof is not proof) |
+| Cross riscv/aarch goldens | ✅ slice 6 (`UsingDesugarE2ETest` 18/18; qemu user-mode on host, sysroot as/ld + `QEMU_LD_PREFIX`) |
+| Cross-`db` | ➖ explicitly out — native `db` backends are the db lane's matrix |
 | Escape-after-close analysis | ⏳ memory-safety lane (no ownership in this plan) |
 
 > The SYSTEMS stage (Tier 1) has already closed (09/03 — DOING.md), so TIER 2 is

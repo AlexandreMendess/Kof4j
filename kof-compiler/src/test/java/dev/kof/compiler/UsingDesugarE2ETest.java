@@ -359,4 +359,46 @@ class UsingDesugarE2ETest {
         assertTrue(js.ok(), () -> "JS: " + js.output());
         assertEquals("{\"v\":\"a\"}\nclosed", norm(js.output()), "JS output");
     }
+
+    private String runCross(Path src, String base, Path tmp, Target t, String arch, String expected)
+            throws Exception {
+        assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                "cross " + arch + " toolchain + qemu ausente — pulando");
+        Path out = tmp.resolve("o-" + base + "-" + arch);
+        CompilationResult r = driver.compile(src, out, t);
+        assertTrue(r.success(), arch + " compile: " + diags(r));
+        Path bin = out.resolve("Default/Main");
+        assertTrue(Files.isRegularFile(bin), arch + " binary must exist");
+        String output = NativeRiscv64E2ETest.runQemu(arch, bin);
+        assertEquals(expected, norm(output), arch + " output");
+        return output;
+    }
+
+    @Test
+    void usingRunsOnCrossRiscv64(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingCrossRv.kf");
+        Files.writeString(src, HAPPY);
+        runCross(src, "UsingCrossRv", tmp, Target.NATIVE_RISCV64, "riscv64", "11\n1\nafter");
+    }
+
+    @Test
+    void usingRunsOnCrossAarch64(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingCrossAa.kf");
+        Files.writeString(src, HAPPY);
+        runCross(src, "UsingCrossAa", tmp, Target.NATIVE_AARCH64, "aarch64", "11\n1\nafter");
+    }
+
+    @Test
+    void usingNestsOnCrossRiscv64(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingNestRv.kf");
+        Files.writeString(src, NEST);
+        runCross(src, "UsingNestRv", tmp, Target.NATIVE_RISCV64, "riscv64", "3\n2\n1");
+    }
+
+    @Test
+    void usingNestsOnCrossAarch64(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingNestAa.kf");
+        Files.writeString(src, NEST);
+        runCross(src, "UsingNestAa", tmp, Target.NATIVE_AARCH64, "aarch64", "3\n2\n1");
+    }
 }

@@ -2,13 +2,13 @@
 
 # Scoped Resources — RAII leve (plano de design · TIER 2.4)
 
-**Status:** EM DESENVOLVIMENTO (28/09, lane issues — `D-SCOPED-RESOURCES-GO`, `D-FUTURE-PROMOTION`, mais barato implementável).
+**Status:** CONCLUÍDO 28/09 (lane issues — `D-SCOPED-RESOURCES-GO`, `D-FUTURE-PROMOTION`, mais barato implementável) — movido para `docs/` (regra dos três estados).
 **Dona:** lane issues (esta sessão); desugar pré-lowering = todos os alvos por construção.
-**Decisão:** `D-SCOPED-RESOURCES-GO` (`DECISIONS.md`) — sintaxe `using` autorizada (RAII leve, desugar mapeado, sem ownership); superfície travada durante a implementação (o plano é dono dela).
-**Estado real (medido 28/09, tip `16f5199de`):** mecanismo (`try/finally` + GC) existe; hook (`DesugarSteps.defaults()`, roda em `CompilerPipeline:320`) existe; `using` não implementado; sem dono.
+**Decisão:** `D-SCOPED-RESOURCES-GO` (`DECISIONS.md`) — sintaxe `using` autorizada (RAII leve, desugar mapeado, sem ownership); superfície travada durante a implementação (o plano foi dono dela).
+**Estado real (landed 28/09):** parser (`parser/UsingParser.java`, `using` contextual + `(`) + `UsingStmt` + `CompilerDesugar.desugarUsing` PRIMEIRO em `DesugarSteps.defaults()` (roda em `CompilerPipeline:320`); zero mudança de typer/lowerer/codegen em qualquer alvo.
 **Superfície v1 (travada):** `using (x = init, closer) { body }` → `{ var x = init; try { body } finally { closer } }`. O closer é EXPLÍCITO — o candidato `x.close()` do §2 é FALSO p/ `db` (o handle é String fechada via `db.close(handle)`; `learn/stdlib/db.md`); `conn.close()` / `sse.close()` seguem escrevíveis como closer. Closer ausente = erro de parse (R6, nunca leak silencioso). O vínculo é escopado ao bloco (sem escape por construção); disciplina de escape-pós-close fica com as passes de memory-safety (sem ownership aqui).
-**Fatias 1–3 (landed):** fatia 1 (parser (`parser/UsingParser.java`) + `UsingStmt` + `CompilerDesugar.desugarUsing` primeiro em `defaults()` + `UsingDesugarE2ETest` 7/7) + fatia 2 (reverse-close aninhado em JVM/Script/JS/Native-x86; `db` H2-hermético happy+exceção na JVM com asserts de silêncio MEM014 — sem fixture viva; sem edição cross-lane: `hasClose` reflexivo enxerga o `finally` gerado, `UsingDesugarE2ETest` 11/11) + fatia 3 (goldens Script de `db` happy+exceção — o interpretador roda `db.connect` H2 + o finally desugarado; os quatro testes `db` dividem dois nomes mem sem `DB_CLOSE_DELAY`, logo o isolamento só vale se todo closer fechar de verdade: isolation-by-release, `UsingDesugarE2ETest` 13/13). Goldens cross riscv/aarch ADIADOS com causa: sem qemu neste host (teste skip-gated não é prova).
-**Fonte:** `../../architecture/UNIVERSAL-PLATFORM-VISION.md` §7 · `roadmap.md` §23 TIER 2.4.1 (ex-`ACTION_PLAN.md`)
+**Fatias 1–6 (todas landed, `UsingDesugarE2ETest` 18/18):** fatia 1 (sintaxe + desugar + pins happy/exceção/negativos); fatia 2 (reverse-close aninhado JVM/Script/JS/Native-x86 + `db` H2 happy/exceção na JVM com silêncio MEM014, sem edição cross-lane); fatia 3 (goldens Script de `db` + isolation-by-release); fatia 4 (docs de usuário `learn/14-exceptions.md`); fatia 5 (golden JS de `db`, byte-idêntico ao JVM); fatia 6 (goldens cross riscv64/aarch64 happy+nest sob qemu — o bloqueio ambiental caiu com o qemu user-mode no host). **Nada pendente:** `db` cross fora explicitamente (backends `db` nativos são da matriz da lane db); escape-pós-close fica com memory-safety (declarado, não escondido).
+**Fonte:** `architecture/UNIVERSAL-PLATFORM-VISION.md` §7 · `development/roadmap.md` §23 TIER 2.4.1 (ex-`ACTION_PLAN.md`)
 
 ## 1. Objetivo
 
@@ -101,7 +101,8 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 | Goldens Script de `db` + isolation-by-release | ✅ fatia 3 (`UsingDesugarE2ETest` 13/13; nomes mem divididos, sem `DB_CLOSE_DELAY`) |
 | Docs de usuário (seção `using` em `learn/14-exceptions.md`) | ✅ fatia 4 (sample espelha o `DB_HAPPY` verde, escopo JVM-hermético anotado) |
 | Golden JS de `db` | ✅ fatia 5 (`{"v":"a"}/closed` byte-idêntico ao JVM; nome mem próprio `usingjs` — host Graal divide o registry H2 da JVM; `UsingDesugarE2ETest` 14/14; exceção no JS segue pinada COMP002) |
-| Goldens cross riscv/aarch | ⏳ adiado — sem qemu neste host (prova skip-gated não é prova) |
+| Goldens cross riscv/aarch | ✅ fatia 6 (`UsingDesugarE2ETest` 18/18; qemu user-mode no host, as/ld do sysroot + `QEMU_LD_PREFIX`) |
+| `db` cross | ➖ fora explicitamente — backends `db` nativos são da matriz da lane db |
 | Análise de escape-pós-close | ⏳ lane memory-safety (sem ownership neste plano) |
 
 > O estágio SYSTEMS (Tier 1) já fechou (03/09 — DOING.md), então o TIER 2 é

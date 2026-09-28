@@ -940,11 +940,10 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > plano de `future/` e implementá-lo (mais barato primeiro). **CONCLUÍDO:**
 > `http-policies` — promovido 28/09 (`D-HTTP-POLICIES`), todas as fatias F0–F6
 > pousadas 28/09 (`KofHttpPoliciesE2ETest` 10/10), movido para
-> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md). **ABERTO:**
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md). **CONCLUÍDO:**
 > `scoped-resources` — promovido 28/09 (`D-SCOPED-RESOURCES-GO`, lote
-> `D-FUTURE-BATCH-2809`) para [`scoped-resources-plan.md`](scoped-resources-plan.md);
-> fatia 1 landed (`using` com closer explícito + `desugarUsing` primeiro +
-> `UsingDesugarE2ETest` 7/7). **ABERTO (3ª frente):**
+> `D-FUTURE-BATCH-2809`), fatias 1–6 landed (`UsingDesugarE2ETest` 18/18) → movido para
+> [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md). **ABERTO (3ª frente):**
 > `test-architecture` — promovido 28/09 (`D-TEST-ARCHITECTURE-GO`,
 > `D-FUTURE-BATCH-2809`) para
 > [`test-architecture-plan.md`](test-architecture-plan.md); primeira fatia =
@@ -996,7 +995,7 @@ tiers `stable`/`experimental` (`docs/backend-parity.md`).
 | 2.2.4 | Base de `infra "prod" {}` (codegen sobre records) | ✅ **POUSOU 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: puro açúcar sobre `design()` (sem HCL; `infra` = IDENTIFICADOR, rebaixado p/ `design(): Infrastructure`) — prova `InfraSyntaxE2ETest`; o R4 ✅ era o hook |
 | 2.3.1 | Constant-folding de constantes de domínio | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
 | 2.3.2 | Detecção de ciclo no grafo `infra` em compile-time | ✅ **FECHADA 21/09 como runtime-only** (adendo a `D-MAKEALIVE-SYNTAX`, `5759b9bd`): a 2.2.4 é açúcar puro, então o compilador vê só chamadas genéricas — um grafo estático daria semântica própria ao bloco (§7/regra 11); a recusa em runtime da 3.1 nomeia os membros do ciclo |
-| 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | 🟢 fatias 1–5 LANDED 28/09 (`using (x = init, closer) { }` + `desugarUsing`, aninhamento + E2E `db`-H2 JVM/Script/JS com isolation-by-release, docs de usuário, `D-SCOPED-RESOURCES-GO`); goldens cross adiados (sem qemu no host) |
+| 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | ✅ CONCLUÍDO 28/09 — fatias 1–6, plano → [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`); `db` cross fora explicitamente (matriz da lane db) |
 | 2.5 | Variance / sealed | ⏫ **SUPERSEDIDO 21/09 por §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variância abriram como as fatias **X5** (X5.1–X5.4 ✅ FEITO 21/09); o "adiar" antigo não vale mais |
 
 #### 2.6 — Nullability por INTENÇÃO EXPLÍCITA (fila N1→N4 de DECISIONS §D-NULL-INTENT, 15/09)
