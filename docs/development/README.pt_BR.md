@@ -43,7 +43,7 @@
 
 ## 2. Bugs abertos (fila em `docs/bugs-and-gaps/known-bugs.md`)
 
-Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca um número escrito à mão. **2 itens na fila aberta.** O histórico da contagem vive no ledger + git log, não aqui. Gates que guardam este registro: `check_changelog_ledger.sh` (cada `§NNN ✅ FIXED` vs a fila viva; isenção só por linha nomeada em `scripts/changelog-ledger-waivers.txt`), `check_ledger_anchors.sh` (âncoras pt/en chegam; `--selftest` guarda), `check_live_records.sh` (esta contagem == autoridade; §0 pendentes == loose do gate).
+Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca um número escrito à mão. **2 itens na fila aberta.** O histórico da contagem vive no ledger + git log, não aqui. Gates que guardam este registro: `check_changelog_ledger.sh` (cada `§NNN ✅ FIXED` vs a fila viva; isenção só por linha nomeada em `scripts/changelog-ledger-waivers.txt`), `check_ledger_anchors.sh` (âncoras pt/en chegam; `--selftest` guarda), `check_live_records.sh` (esta contagem == autoridade; §0 pendentes == loose do gate). **Gate candidato (registrado 28/09, NÃO implementado — #665):** todo `D-*` citado em `CHANGELOG.md`/`.pt_BR.md` deveria existir em `DECISIONS.md`/`.pt_BR.md`. Medido 28/09: 70 tokens `D-*` distintos no `CHANGELOG.md`, **6 sem entrada em `DECISIONS.md`** (`D-001-STRESS`, `D-NULL-QUEUE`, `D-OTP-08`, `D-STDLIB-01`, `D-STDLIB-02`, `D-STDLIB-ULID` — casa normativa em outro lugar/histórico), então o gate exige antes uma lista de isenção com escopo (mantenedora). Motivado pela janela de false-green transitória do #660 (ver errata no DOING 28/09).
 
 ---
 

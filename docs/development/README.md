@@ -43,7 +43,7 @@
 
 ## 2. Open bugs (queue in `docs/bugs-and-gaps/known-bugs.md`)
 
-Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a hand-written number. **2 items in the open queue.** The count history lives in the ledger + git log, not here. Gates guarding this record: `check_changelog_ledger.sh` (every `§NNN ✅ FIXED` vs the live set; waivers only by named line in `scripts/changelog-ledger-waivers.txt`), `check_ledger_anchors.sh` (pt/en anchors land; `--selftest` guards), `check_live_records.sh` (this count == authority; README §0 pending == the gate's loose set).
+Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a hand-written number. **2 items in the open queue.** The count history lives in the ledger + git log, not here. Gates guarding this record: `check_changelog_ledger.sh` (every `§NNN ✅ FIXED` vs the live set; waivers only by named line in `scripts/changelog-ledger-waivers.txt`), `check_ledger_anchors.sh` (pt/en anchors land; `--selftest` guards), `check_live_records.sh` (this count == authority; README §0 pending == the gate's loose set). **Candidate gate (registered 28/09, NOT implemented — #665):** every `D-*` cited in `CHANGELOG.md`/`.pt_BR.md` should exist in `DECISIONS.md`/`.pt_BR.md`. Measured 28/09: 70 distinct `D-*` tokens in `CHANGELOG.md`, **6 without a `DECISIONS.md` entry** (`D-001-STRESS`, `D-NULL-QUEUE`, `D-OTP-08`, `D-STDLIB-01`, `D-STDLIB-02`, `D-STDLIB-ULID` — normative home elsewhere/historical), so the gate needs a scoped waiver list first (maintainer). Motivated by the transient false-green window of #660 (see DOING 28/09 errata).
 
 ---
 
