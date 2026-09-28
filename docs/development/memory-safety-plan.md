@@ -2,9 +2,9 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-4-slice-4.1-pinned (Script/JS parity, #658)
+last: phase-4-slice-4.2-pinned (spawn-capture-return 4-target, #659)
 doing: memory-safety
-next: phase-4.2-async-futures-face (medir antes de prometer)
+next: phase-4.3-callback-faces (medir antes de prometer)
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -33,7 +33,7 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 | 1 Specification | `docs/spec/memory-safety.md` (EN+PT): Ownership/Lifetime/Borrowing/Aliasing/Mutability/Move/Copy/Clone/Drop/Escape/Closure Capture/Concurrency/FFI/Unsafe Boundaries, each classified allowed/forbidden/sync-required/compile-time/runtime/type-dependent | closed 25/09 (maintainer option A) |
 | 2 Compiler infrastructure | `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` in `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; zero behavior change | closed 26/09 (`9bcddfe90`, queue exhausted) |
 | 3 First guarantees | use-after-move; dangling; invalid escapes; mutable aliasing; double ownership/destruction | in progress (slices below) |
-| 4 Closures & async | closure capture; callbacks; async/futures; iterators/generators | 4.1 landed 28/09 (#658); async/futures face pending |
+| 4 Closures & async | closure capture; callbacks; async/futures; iterators/generators | 4.1+4.2 landed 28/09 (#658/#659); callbacks face pending (4.3) |
 | 5 Native & FFI | pointers/allocation/C ABI; Kof↔C↔Rust↔JVM↔Python ownership table | pending |
 | 6 JVM / JS / WASM | same semantics every backend | pending |
 
@@ -59,7 +59,9 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 |---|---|---|
 | 4.1 | B-06 closure-capture parity — every capture face (basic, outer-mutation `15/25`, lambda-writes, lambda-returns-lambda, triple-nested) pinned on the 4 targets: JVM/Native as before + Script via `KofInterpreter` + JS via `KofJsRunner`, golden-identical (`LambdaE2ETest` 36/36; #658) | landed 28/09 — behavior change ZERO: parity was already true (measured, not assumed); the pin is the product, precedent O-03/`D-MEMORY-CLEAR` ("guarantee proven by test") |
 
-- 4.2 (pending, measure-first): async/futures capture faces (spawn/await + `Handle` return of capturing lambda; `SpawnE2ETest` pins "no capture" only — mutation-while-async is B-04/`MEM021` diagnostic territory, already landed 3.2) and iterators/generators (no generator surface measured in the corpus yet — absence, not a gap, until 4.2 proves otherwise).
+| 4.2 | async/futures capture parity — §46 face `var h = spawn { return n * 2 }; await h` (COM captura) pinned on the 4 targets (`SpawnE2ETest.jvm|script|js...` + the pre-existing Native pins), golden `42` — the "interpreter/JVM/JS → 42" claim lived only in §46 prose until measured | landed 28/09 (#659) — zero behavior change (parity was already true); §46 historical prose corrected EN/PT |
+- MEM023 has NO compile face today: lowering boxes every mutated capture by construction (`mutatedCapturedNames` → `CapturedVarBox`, `StatementLowererLocalBoxing.java:37`), so the forbidden shape (unboxed mutating capture escaping) is unconstructible — guarantee proven by the 4.1/4.2 batteries, precedent O-03/`D-MEMORY-CLEAR` (no diagnostic invented, rule 11). Recorded in spec §3.2 note.
+- 4.3 (pending, measure-first): callback faces (lambdas passed to stdlib/`job`-style APIs); "iterators/generators" from the phase row got its verdict on 28/09: NO generator surface exists (no `yield` token in the Kof lexer — `for-in`/collections are the iterable face) → absence, not a gap.
 
 ## Decision requests (rule 6)
 

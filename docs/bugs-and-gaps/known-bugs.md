@@ -941,9 +941,13 @@ EXTERNAL mutation produced garbage (JVM correct) — the cause was the prologue 
 - **Proof/repro:** probe `S29`/`S29det` (07/09), Native x86_64, 3/3 deterministic.
 - **Regression test (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturn`
   (`var n=21; var h = spawn { return n * 2 }; println(await h)` on NATIVE) —
-  **confirmed failing with SIGSEGV (exit 139)**, pre-existing (passes on the HEAD
-  without the bug-fix lane changes). Use: any fix of bug 46 must leave
-  this test green.
+  **confirmed failing with SIGSEGV (exit 139)** AT THE TIME (pre-fix historical
+  prose; post-FIX both spawn-return pins are green, re-measured 28/09 at tip
+  `255dc1106`). Use: any fix of bug 46 must leave this test green.
+- **Parity matrix (28/09, #659, fase 4.2):** the §46 face with CAPTURE was
+  pinned only on Native; the "interpreter/JVM/JS → 42" claim lived only in this
+  prose. Now `SpawnE2ETest.jvm|script|jsSpawnExprAwaitLambdaReturn` pin the
+  same golden across the 4 targets (`SpawnE2ETest` 13/13).
 - **Isolation test (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturnNoCapture`
   (`spawn { return 42 }` WITHOUT capture) — separates the cause: if this one passes and the one
   with capture fails → the CAPTURE is the cause; if both fail → the return-lambda is the

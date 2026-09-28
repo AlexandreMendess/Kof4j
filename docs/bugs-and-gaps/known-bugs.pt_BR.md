@@ -943,9 +943,14 @@ EXTERNA produzia lixo (JVM correto) — a causa era o prólogo tratando captura 
 - **Prova/repro:** probe `S29`/`S29det` (07/09), Native x86_64, 3/3 determinístico.
 - **Teste de regressão (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturn`
   (`var n=21; var h = spawn { return n * 2 }; println(await h)` no NATIVE) —
-  **confirmado falhando com SIGSEGV (exit 139)**, pré-existente (passa no HEAD
-  sem as mudanças do bug-fix lane). Uso: qualquer correção do bug 46 deve deixar
-  este teste verde.
+  **confirmado falhando com SIGSEGV (exit 139)** À ÉPOCA (prosa histórica
+  pré-fix; pós-FIX os dois pins de spawn-return estão verdes, re-medidos 28/09
+  no tip `255dc1106`). Uso: qualquer correção do bug 46 deve deixar este teste
+  verde.
+- **Matriz de paridade (28/09, #659, fase 4.2):** a face do §46 COM captura era
+  travada só no Native; a alegação "interpreter/JVM/JS → 42" vivia só na prosa.
+  Agora `SpawnE2ETest.jvm|script|jsSpawnExprAwaitLambdaReturn` travam o mesmo
+  golden nos 4 alvos (`SpawnE2ETest` 13/13).
 - **Teste de isolamento (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturnNoCapture`
   (`spawn { return 42 }` SEM captura) — separa a causa: se este passa e o com
   captura falha → a CAPTURA é a causa; se ambos falham → o return-lambda é a

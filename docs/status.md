@@ -2,9 +2,9 @@
 
 # Kof Project Status
 
-last: 658-closed-memory-safety-4.1-pinned
-doing: http-policies
-next: http-policies-f3
+last: 659-mem-4.2-pinned + F2-landed
+doing: memory-safety / http-policies (duas lanes vivas)
+next: phase-4.3-faces-callback (medir-antes, lane paridade) / http-policies-f3 (lane pipeline)
 location: status
 state: active
 constraint: pr619-maintainer-only
@@ -16,7 +16,8 @@ decision: D-KOF-FIRST-IMPL
 - **Quality pipeline landed:** cutover `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`); state machine (`scripts/pipeline/pipeline_state.py` 21/21), promotion gate (`promotion_gate.py`, 100%), `promote.yml`, rulesets (`pipeline-stages`, `release-tags`); `beta-*` frozen.
 - **`http-policies` PROMOTED** `future/` → [`docs/development/http-policies-plan.md`](development/http-policies-plan.md) (`D-HTTP-POLICIES`, `D-FUTURE-PROMOTION`): additive HTTP/Web policies (global + `app.policy` prefix + endpoint opts + `responses`), JVM-first, Native/JS `WEB006`.
 - **`scoped-resources` PROMOTED** `future/` → [`docs/development/scoped-resources-plan.md`](development/scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`): slices 1–2 landed — `using (x = init, closer) { }` → `desugarUsing` first in `DesugarSteps.defaults()` → `try/finally` (`UsingDesugarE2ETest` 11/11 over slices 1–2: nesting reverse-close + H2-`db` happy/exception with MEM014-silence; closer explicit because `x.close()` is false for `db`).
-- **memory-safety fase 4.1 (#658):** paridade B-06 de captura mutavel de lambda travada nos 4 alvos — `LambdaE2ETest` 36/36 com faces Script (`KofInterpreter`) e JS (`KofJsRunner`) golden-identicas; zero mudanca de comportamento (paridade ja era verdadeira — medida, nao assumida); proxima face 4.2 = async/futures (medir antes de prometer).
+- **memory-safety phase 4.2 (#659):** spawn-capture-return matrix pinned on the 4 targets; verdicts recorded: `MEM023` no compile face, no generator surface (absence, not a gap)
+- **memory-safety phase 4.1 (#658):** B-06 mutable-capture parity pinned on the 4 targets — `LambdaE2ETest` 36/36 with golden-identical Script (`KofInterpreter`) and JS (`KofJsRunner`) faces; zero behavior change (parity was already true — measured, not assumed).
 - **`test-architecture` PROMOTED** `future/` → [`docs/development/test-architecture-plan.md`](development/test-architecture-plan.md) (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`): pure test infrastructure (no compiler change); first slice = Phase 1 profiling (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`).
 - **Parity row 11 CLOSED** (`compareToIgnoreCase` on all backends) → `full_parity` GREEN.
 

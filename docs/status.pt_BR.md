@@ -2,9 +2,9 @@
 
 # Status do Projeto Kof
 
-last: 658-closed-memory-safety-4.1-travada
-doing: http-policies
-next: http-policies-f3
+last: 659-mem-4.2-travada + F2-pousado
+doing: memory-safety / http-policies (duas lanes vivas)
+next: fase-4.3-faces-callback (medir-antes, lane paridade) / http-policies-f3 (lane pipeline)
 location: status
 state: active
 constraint: pr619-maintainer-only
@@ -16,7 +16,8 @@ decision: D-KOF-FIRST-IMPL
 - **Esteira de qualidade pousada:** cutover `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`); máquina de estados (`scripts/pipeline/pipeline_state.py` 21/21), promotion gate (`promotion_gate.py`, 100%), `promote.yml`, rulesets (`pipeline-stages`, `release-tags`); `beta-*` congeladas.
 - **`http-policies` PROMOVIDO** `future/` → [`docs/development/http-policies-plan.md`](development/http-policies-plan.md) (`D-HTTP-POLICIES`, `D-FUTURE-PROMOTION`): políticas HTTP/Web aditivas (global + `app.policy` prefixo + opts de endpoint + `responses`), JVM-first, Native/JS `WEB006`.
 - **`scoped-resources` PROMOVIDO** `future/` → [`docs/development/scoped-resources-plan.md`](development/scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`, lote `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`): fatias 1–2 landed — `using (x = init, closer) { }` → `desugarUsing` primeiro em `DesugarSteps.defaults()` → `try/finally` (`UsingDesugarE2ETest` 11/11 nas fatias 1–2: reverse-close aninhado + `db`-H2 happy/exceção com silêncio MEM014; closer explícito porque `x.close()` é falso p/ `db`).
-- **memory-safety fase 4.1 (#658):** paridade B-06 de captura mutavel de lambda travada nos 4 alvos — `LambdaE2ETest` 36/36 com faces Script (`KofInterpreter`) e JS (`KofJsRunner`) golden-identicas; zero mudanca de comportamento (paridade ja era verdadeira — medida, nao assumida); proxima face 4.2 = async/futures (medir antes de prometer).
+- **memory-safety fase 4.2 (#659):** matriz spawn-captura-retorno travada nos 4 alvos (`SpawnE2ETest` 13/13); vereditos registrados: `MEM023` sem face de compilacao, geradores inexistentes (ausencia, nao gap)
+- **memory-safety fase 4.1 (#658):** paridade B-06 de captura mutavel de lambda travada nos 4 alvos — `LambdaE2ETest` 36/36 com faces Script (`KofInterpreter`) e JS (`KofJsRunner`) golden-identicas; zero mudanca de comportamento (a paridade ja era verdadeira — medida, nao assumida).
 - **`test-architecture` PROMOVIDO** `future/` → [`docs/development/test-architecture-plan.md`](development/test-architecture-plan.md) (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`): infraestrutura pura de testes (não toca o compilador); primeira fatia = profiling da Fase 1 (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`).
 - **Parity linha 11 FECHADA** (`compareToIgnoreCase` em todos os backends) → `full_parity` GREEN.
 

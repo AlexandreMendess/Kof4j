@@ -2,9 +2,9 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-4-slice-4.1-pinned (paridade Script/JS, #658)
+last: phase-4-slice-4.2-pinned (spawn-capture-return 4-alvos, #659)
 doing: memory-safety
-next: phase-4.2-faces-async (medir antes de prometer)
+next: phase-4.3-faces-callback (medir antes de prometer)
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -33,7 +33,7 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 | 1 Especificação | `docs/spec/memory-safety.md` (EN+PT): Ownership/Lifetime/Borrowing/Aliasing/Mutability/Move/Copy/Clone/Drop/Escape/Closure Capture/Concurrency/FFI/Unsafe Boundaries, cada um classificado permitido/proibido/requer-sync/compile-time/runtime/dependente-de-tipo | fechada 25/09 (opção A da mantenedora) |
 | 2 Infraestrutura do compilador | `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` em `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; zero mudança de comportamento | fechada 26/09 (`9bcddfe90`, fila exausta) |
 | 3 Primeiras garantias | use-after-move; dangling; escapes inválidos; mutable aliasing; dupla ownership/destruição | em curso (fatias abaixo) |
-| 4 Closures & async | captura de closure; callbacks; async/futures; iteradores/geradores | 4.1 pousada 28/09 (#658); face async/futures pendente |
+| 4 Closures & async | captura de closure; callbacks; async/futures; iteradores/geradores | 4.1+4.2 pousadas 28/09 (#658/#659); face callbacks pendente (4.3) |
 | 5 Native & FFI | ponteiros/alocação/C ABI; tabela de ownership Kof↔C↔Rust↔JVM↔Python | pendente |
 | 6 JVM / JS / WASM | mesma semântica em todos os backends | pendente |
 
@@ -52,6 +52,16 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 - Corrigido contra a spec: ler o PRÓPRIO claimer após o seu close é L-02/`MEM011` (RUNTIME, native sem GC), não MEM001 — corrigido contra a spec §3 linhas 84/87.
 - Evidência: `ResourceLeakE2ETest` 5/5 (web), `DbResourceLeakE2ETest` 4/4 (db), `MemorySafetyE2ETest` 29/29 (9 faces novas). O `kof.io` não tem handle com close (stateless por caminho) — ausência, não gap.
 - Reordenação 26/09: a fatia 4 estava especificada como B-03/`MEM020` + B-04/`MEM021`, ambas movidas (nomeadas, não gaps aceitos): B-03 exige a superfície de borrow FFI (fase 5); B-04 exige a captura closure/async (fase 4).
+
+## Fatias da Fase 4
+
+| Fatia | Face | Estado |
+|---|---|---|
+| 4.1 | paridade de captura B-06 — todas as faces de captura (basica, mutacao-externa `15/25`, lambda-escreve, lambda-que-retorna-lambda, triple-nested) travadas nos 4 alvos: JVM/Native como antes + Script via `KofInterpreter` + JS via `KofJsRunner`, golden identico (`LambdaE2ETest` 36/36; #658) | pousada 28/09 — mudanca de comportamento ZERO: a paridade ja era verdadeira (medida, nao assumida); o pin e o produto, precedente O-03/`D-MEMORY-CLEAR` ("garantia provada por teste") |
+| 4.2 | paridade de captura async/futures — face do §46 `var h = spawn { return n * 2 }; await h` (COM captura) travada nos 4 alvos (`SpawnE2ETest.jvm|script|js...` + os pins Native preexistentes), golden `42` — a alegacao "interpreter/JVM/JS → 42" vivia so na prosa do §46 ate ser medida | pousada 28/09 (#659) — mudanca de comportamento zero (a paridade ja era verdadeira); prosa historica do §46 corrigida EN/PT |
+
+- `MEM023` NAO tem face de compilacao hoje: o lowering caixa toda captura mutada por construcao (`mutatedCapturedNames` → `CapturedVarBox`, `StatementLowererLocalBoxing.java:37`), entao a forma proibida (captura mutada sem caixa escapando) e inconstruivel — garantia provada pelas baterias 4.1/4.2, precedente O-03/`D-MEMORY-CLEAR` (nenhum diagnostico inventado, regra 11). Registrado na nota da spec §3.2.
+- 4.3 (pendente, medir-antes): faces de callback (lambdas passadas a stdlib/APIs estilo `job`); "iteradores/geradores" da linha da fase recebeu seu veredito em 28/09: NAO existe superficie de gerador (nenhum token `yield` no lexer Kof — `for-in`/colecoes sao a face iteravel) → ausencia, nao gap.
 
 ## Pedidos de decisão (regra 6)
 

@@ -123,6 +123,13 @@ borrows (`&mut`), no borrow checker, no lifetime parameters. The model:
 > synchronization primitives (channels, futures). The compiler emits
 > `MEM020`/`MEM021` at aliasing-sensitive stdlib/FFI/spawn boundaries.
 
+> **B-06 verification (28/09, #658/#659):** the lowering boxes every mutated
+> capture by construction (`mutatedCapturedNames` → `CapturedVarBox`), so the
+> forbidden shape (unboxed mutating capture escaping) is unconstructible —
+> `MEM023` has NO compile face today (precedent O-03/`D-MEMORY-CLEAR`: the
+> guarantee is proven by test, no diagnostic invented). Pinned by the 4-target
+> batteries: `LambdaE2ETest` (closure faces) + `SpawnE2ETest` (async/return face).
+
 ---
 
 ## 4. Mutability
