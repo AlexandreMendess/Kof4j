@@ -395,7 +395,9 @@ The core (`Window<T>`, `List.window`) knows nothing about SQL or HTTP.
 
 Each slice is independently provable; no slice ships without a test and docs.
 
-- **P0 — Recon + decision (this document).** Fix `StdCatalog.java:235`; lock
+- **P0 — Recon + decision (this document).** Fix `StdCatalog.java:235` (DONE 28/09:
+  catalog corrected to `(entity, limit, offset)` + regression lock
+  `StdCatalogSignaturesTest#ormPageCatalogDocumentsLimitBeforeOffset`); lock
   `D-PAGINATION`.
 - **P1 — In-memory windowing (language-level).** `slice`/`take`/`drop` on `List`
   (three typer/lowering layers + 4 shims). Proof: edge-case E2E all targets.

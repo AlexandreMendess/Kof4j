@@ -394,7 +394,9 @@ paridade total do `D-DB-GAPS` com diagnósticos R6 honestos enquanto uma fatia p
 
 Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
 
-- **P0 — Recon + decisão (este documento).** Corrigir `StdCatalog.java:235`; travar
+- **P0 — Recon + decisão (este documento).** Corrigir `StdCatalog.java:235` (FEITO
+  28/09: catálogo corrigido para `(entity, limit, offset)` + trava de regressão
+  `StdCatalogSignaturesTest#ormPageCatalogDocumentsLimitBeforeOffset`); travar
   `D-PAGINATION`.
 - **P1 — Janela em memória (nível de linguagem).** `slice`/`take`/`drop` no `List`
   (três camadas + 4 shims). Prova: E2E de bordas nos 4 alvos.

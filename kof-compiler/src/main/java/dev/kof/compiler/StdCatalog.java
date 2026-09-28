@@ -232,7 +232,7 @@ public final class StdCatalog {
                     Map.entry("deleteAll", List.of("deleteAll(String entity) -> Bool")),
                     Map.entry("where", List.of("where(String entity, String cond, Object value) -> List", "where(String entity, String col, String op, Object value) -> List")),
                     Map.entry("saveAll", List.of("saveAll(String entity, List rows) -> Bool")),
-                    Map.entry("page", List.of("page(String entity, Object offset, Object limit) -> List")),
+                    Map.entry("page", List.of("page(String entity, Object limit, Object offset) -> List")),
                     Map.entry("migrate", List.of("migrate(String url, String user, String pass) -> Bool")))),
             Map.entry("config", java.util.Map.ofEntries(
                     Map.entry("get", List.of("get(String key) -> String")),
