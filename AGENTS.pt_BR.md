@@ -43,6 +43,7 @@ decision:
 * D-GRAPHICS-GAMING
 * D-KOFMD-ON-EDIT: todo documento editado por um agente é comprimido em Kofmd no mesmo commit
 * D-KOFMD-OPERATING-STANDARD: todo agente pensa, raciocina, responde, executa e documenta em Kofmd — uniforme, sem variante por agente
+* D-FUTURE-PROMOTION: antes de começar trabalho novo, migrar para `lab` com TODO o trabalho atual, então promover o plano MAIS FÁCIL de implementar de `docs/development/future/` para `docs/development/` e implementá-lo — nunca o mais interessante, nunca um plano de semântica congelada
 
 ---
 
@@ -57,6 +58,8 @@ loop:
 * ler DOING.md
 * ler docs/status.md
 * inspecionar git log e a suíte
+* garantir que a branch ativa é `lab` — migrar todo o trabalho atual para `lab` ANTES de começar; `beta-*` está congelada (`D-BRANCH-PIPELINE`)
+* se não houver tarefa viva sem dono, promover o plano de menor custo implementável de `docs/development/future/` (ver Promoção de futuro, `D-FUTURE-PROMOTION`)
 * escolher a tarefa não atribuída de maior valor
 * reivindicá-la em DOING.md
 * executar um escopo completo
@@ -309,6 +312,44 @@ kofmd:
 * `last` = estado anterior imediatamente relevante; `next` = próxima intenção, não backlog
 * prosa somente onde a estrutura não carrega a informação
 * coordenação: reivindicar antes de trabalhar; em colisão de lane esperar o dono ou parar, nunca disputar a worktree compartilhada; nunca encerrar turno com unidade não commitada; push só via `scripts/sync-push.sh`
+
+---
+
+## Promoção de futuro
+
+intent: futuro-não-é-trabalho-atual-sem-promoção
+
+rule:
+
+* antes de começar trabalho novo: migrar para `lab` com TODO o trabalho atual primeiro; nunca começar em `beta-*` ou checkout destacado (`D-BRANCH-PIPELINE`)
+* promover exatamente UM plano de `docs/development/future/` para `docs/development/` e implementá-lo
+* escolher o MAIS FÁCIL de implementar (menor custo) — nunca o mais interessante, nunca o maior
+
+mais fácil (maior vence):
+
+* nenhuma decisão `D-*` necessária: não é semântica congelada, não é primitiva central ausente
+* aditivo e library-first: Kof consegue expressá-lo sem mudar a superfície da linguagem (`D-KOF-FIRST`)
+* dependências já medidas em código (o plano nomeia arquivos/linhas reais)
+* escopo único e coeso para uma lane (uma responsabilidade)
+* existe caminho de teste agora (prova RED-first é definível)
+
+inelegível:
+
+* precisa de decisão de semântica congelada ou `D-*` da mantenedora primeiro
+* precisa de nova primitiva central ou sintaxe
+* aceita gap, entrega stub ou enfraquece asserção
+* a razão é "seria legal" em vez de "é o incremento completo mais barato"
+
+fluxo:
+
+* reescrever o plano com status `UNDER DEVELOPMENT` + estado real + como-terminar
+* movê-lo para `docs/development/<plan>.md` (+PT) no MESMO commit que o reivindica
+* enfileirá-lo em `roadmap.md` §23 e apontar `docs/status.md` para ele
+* reivindicar em DOING.md (tarefa + arquivo + prova esperada), implementar, testar, commitar, pushar
+
+fallback:
+
+* se NENHUM plano for implementável sem decisão da mantenedora, NÃO inventar um — registrar o achado e parar
 
 ---
 

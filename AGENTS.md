@@ -39,6 +39,7 @@ decision:
 * D-GRAPHICS-GAMING
 * D-KOFMD-ON-EDIT: every document an agent edits is Kofmd-compressed in the same commit
 * D-KOFMD-OPERATING-STANDARD: every agent thinks, reasons, responds, executes and documents in Kofmd — uniform, no per-agent variant
+* D-FUTURE-PROMOTION: before starting new work, migrate to `lab` with all current work, then promote the EASIEST-to-implement plan from `docs/development/future/` to `docs/development/` and implement it — never the most interesting, never a frozen-semantics plan
 
 ---
 
@@ -52,6 +53,8 @@ loop:
 * read DOING.md
 * read docs/status.md
 * inspect git log and suite
+* ensure the active branch is `lab` — migrate all current work to `lab` BEFORE starting; `beta-*` is frozen (`D-BRANCH-PIPELINE`)
+* if no live unowned task, promote the lowest-cost implementable plan from `docs/development/future/` (see Future promotion, `D-FUTURE-PROMOTION`)
 * choose highest-value unowned task
 * claim it in DOING.md
 * execute one complete scope
@@ -269,6 +272,44 @@ kofmd:
 * `last` = immediately relevant prior state; `next` = next intention, not backlog
 * prose only where structure cannot carry the information
 * coordination: claim before work; on lane collision wait for the owner or stop, never race the shared worktree; never end a turn with an uncommitted unit; push only via `scripts/sync-push.sh`
+
+---
+
+## Future promotion
+
+intent: future-is-not-current-work-without-promotion
+
+rule:
+
+* before starting new work: migrate to `lab` with ALL current work first; never start on `beta-*` or a detached checkout (`D-BRANCH-PIPELINE`)
+* promote exactly ONE plan from `docs/development/future/` to `docs/development/` and implement it
+* choose the EASIEST to implement (lowest cost) — never the most interesting, never the largest
+
+easiest (highest wins):
+
+* no `D-*` decision required: not frozen-semantics, not a missing core primitive
+* additive and library-first: Kof can express it without changing the language surface (`D-KOF-FIRST`)
+* dependencies already measured in code (the plan names real files/lines)
+* single cohesive scope for one lane (one responsibility)
+* a clear test path exists now (RED-first proof is definable)
+
+ineligible:
+
+* needs a frozen-semantics or `D-*` maintainer decision first
+* needs a new core primitive or syntax
+* accepts a gap, ships a stub, or weakens an assertion
+* rationale is "it would be nice" instead of "it is the cheapest complete increment"
+
+flow:
+
+* rewrite the plan with status `UNDER DEVELOPMENT` + real state + how-to-finish
+* move it to `docs/development/<plan>.md` (+PT) in the SAME commit that claims it
+* queue it in `roadmap.md` §23 and point `docs/status.md` at it
+* claim in DOING.md (task + file + expected proof), implement, test, commit, push
+
+fallback:
+
+* if NO plan is implementable without a maintainer decision, do NOT invent one — record the finding and stop
 
 ---
 
