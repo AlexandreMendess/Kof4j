@@ -927,6 +927,17 @@ science) **without** destroying the language's simplicity.
 > type-classes, ownership, effect system, homemade crypto, reimplementing
 > Arrow/BLAS/ML; no "Kali in Kof"; no own SQL engine.
 
+### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
+
+> Before new work: migrate everything to `lab`, then promote exactly ONE plan
+> from `future/` and implement it (cheapest first). **OPEN:** `http-policies`
+> — promoted 28/09 (`D-HTTP-POLICIES`) to
+> [`http-policies-plan.md`](http-policies-plan.md); first slice = additive global
+> `responses`, then F1 (`Policy`) → F2 (`app.policy`). Eligible next, by cost:
+> `test-architecture` (Phase 1 profiling), `pagination`, `kof-testing-platform`
+> (needs `D-*`). Ineligible without a decision: `value-records`,
+> `entity-history`, `kof-connector-ecosystem`.
+
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 
 R1/R5/R6/R7/R9–R12 as invariants (AGENTS.md + §22); gap convention per

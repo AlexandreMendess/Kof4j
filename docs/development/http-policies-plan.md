@@ -2,12 +2,18 @@
 
 # HTTP/Web declarative policies — implementation plan
 
-**Status:** plan only, zero code — `docs/development/future/`
-**Requested by:** maintainer (23/09/2026)
-**Owner when promoted:** Web lane (JVM first; Native/JS gated)
-**Rule 6 gate:** before any line of code, the maintainer locks a `DECISIONS.md`
-entry (`D-HTTP-POLICIES`) with the surface chosen here. This document is the
-**design proposal**; it is not an authorization to implement.
+**Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-HTTP-POLICIES`, maintainer "pode assumir")
+**Owner:** pipeline lane (this session); JVM first, Native/JS = honest `WEB006`
+**Decision:** `D-HTTP-POLICIES` (`DECISIONS.md`) — additive; surface locked as §3.
+**Real state (measured 28/09/2026, tip `9d3b36980`):** the global `app.security(opts)`
+exists and is frozen (`D-SEC` C18 fixed pipeline order); `Policy` scoping,
+`app.policy` and the `responses` opt do NOT exist yet. The grammar already parses
+`app.get(path, opts) { }` (`ExpressionParser.java:202-212`). No code of this plan
+has landed.
+**How to finish:** implement the ordered slices of §12, one commit each, RED-first
++ `check_500`; JVM full, Native/JS `WEB006` (R6, never a silent drop). Start with
+the first landed slice (global `responses`), then F1 (`Policy` refactor) → F2
+(`app.policy`).
 
 ---
 
@@ -305,6 +311,15 @@ they remain a documented gap until separately promoted (rule 6).
 
 > Each slice: compile + test + `check_500`; commit per slice. No slice ships
 > without a green proof and updated docs.
+
+**Slice status (28/09/2026):** ⏳ F1–F6 pending; the first landed slice is the
+global `responses` payload (§4.5) — additive and independent of `Policy`.
+
+- **F0 — Global `responses` payloads for `app.security(opts)` (additive).**
+  Parse a `responses` Map; the fixed pipeline's 401/403/429 use the declared
+  body, absent keys keep today's built-in bodies (compat). **Proof:**
+  `KofWebHardeningTest` — declared 401/403/429 bodies + defaults preserved.
+
 
 - **F1 — Refactor to `Policy` (no behavior change).** Extract
   `Policy.parse/merge/appliesTo`; `WebApp.globalPolicy` replaces the flat

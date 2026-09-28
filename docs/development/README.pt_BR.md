@@ -1,5 +1,4 @@
-- **Pendentes (condição 3 do gate de release):** nenhum — o Kofmd concluiu 27/09 (`D-KOFMD`); o plano saiu de `development/` para `docs/` (regra dos 3 estados), então não resta loose doc não-allowlistado (`loose_docs` VERDE). Os planos em voo com dono ainda soltos (`PLAN-BAREMETAL-BOOT`,
-mesmo tratamento de `memory-safety-plan`) estão no **allowlist** por `D-RELEASE-0.5.0-SCOPE` (21/09) + `D-BAREMETAL-BOOT` (22/09) + o registro de posse da `D-COMPLETE-FIRST`: mantêm dono + fila na §1 e não barram o corte 0.5.0. Autoridade: `scripts/check_release_050_gate.sh` (`loose_docs`).
+- **Pendentes (condição 3 do gate de release):** nenhum — o Kofmd concluiu 27/09 (`D-KOFMD`) e o plano saiu de `development/` para `docs/` (regra dos 3 estados). Os planos em voo com dono ainda soltos (`http-policies-plan`, `memory-safety-plan`) estão no **allowlist** por `D-RELEASE-0.5.0-SCOPE` (21/09) + `D-BAREMETAL-BOOT` (22/09) + o registro de posse da `D-COMPLETE-FIRST`: mantêm dono + fila na §1 e não barram o corte 0.5.0. Autoridade: `scripts/check_release_050_gate.sh` (`loose_docs`).
 - **Registros vivos aqui (não são backlog):** `DECISIONS.md`, `roadmap.md`, `release-beta-0.5.0-prep.md`. 24/09: os dois PROPOSALs ratificados saíram de `development/`; o ledger `tech-debt` + a ferramenta `debt-scout` foram MORTOS pela mantenedora (dívida zerada).
 - **§1 é a fila; §4.1/§4.2 são TRILHA DE AUDITORIA** (o que já saiu, com prova) — não leia como trabalho. Como agir: §6.
 
@@ -11,6 +10,7 @@ mesmo tratamento de `memory-safety-plan`) estão no **allowlist** por `D-RELEASE
 
 | # | Plano | Estado | Por que nesta posição | Próximo passo concreto |
 |---|---|---|---|---|
+| 0 | `http-policies-plan.md` — `D-HTTP-POLICIES` 28/09, promovido por `D-FUTURE-PROMOTION` | `EM DESENVOLVIMENTO` — primeira fatia = `responses` global aditivo; depois F1 (`Policy`) → F2 (`app.policy`) | frente designada por `D-FUTURE-PROMOTION` (mais barata implementável); JVM-first, Native/JS `WEB006` | compile + `KofWebHardeningTest`/`KofWebE2ETest` para a fatia; depois `app.policy` + `KofHttpPoliciesE2ETest` |
 | 1 | `stdlib/PLAN-TREE-SHAKING.md` (#97) | ✅ CONCLUÍDO 13/09 — S-1..S-6.1 (`0104f6d6`, PR #106) + S-7 (consolidado em `docs/stdlib/stdlib-loading.md`) | frente designada 11/09, fechada | — (S-5-x86 `root_end` na fila bugfix) |
 | 2 | ~~`refactoring/PLAN-SOLID-500.md`~~ → `docs/architecture/PLAN-SOLID-500.md` | ✅ FEITO + MOVIDO 13/09 — F1–F9 (F3: NativeBackend 498 ≤500) | ≤500 virou **ratchet de CI** (§140, `2652aa45`); contagem autoritativa = `wc -l scripts/check_500-baseline.txt` | — |
 | 3 | ~~`native-multiarch.md`~~ → `docs/native-multiarch.md` | ✅ CONCLUÍDO + PROMOVIDO 19/09 — faces (1)–(5) fechadas; NATIVE002 FECHADO | movido p/ `docs/` | — (recusas por domínio são códigos de gap honestos no `known-bugs.md` + `backend-parity.md`) |

@@ -17,6 +17,8 @@
 
 > **✅ DONE 28/09 (lane pipeline — owner: esta sessao): diretriz `D-FUTURE-PROMOTION` no `AGENTS.md`/`.pt_BR.md`** — antes de trabalho novo: migrar para `lab` com todo o código; promover o plano MAIS FÁCIL de implementar de `docs/development/future/` → `docs/development/` (sem decisão `D-*`, aditivo/library-first, dependências medidas em código, escopo único, prova RED-first definível); inelegível p/ semântica congelada/primitiva nova/stub; mover no mesmo commit do claim + `roadmap.md` §23 + `docs/status.md`. Reforço direto aos agentes na issue #647 (comentário). Prova: docs-lang + doc-refs; sem tocar código.
 
+> **🔧 CLAIM 28/09 (lane pipeline — owner: esta sessao, via `D-FUTURE-PROMOTION`): `http-policies-plan.md` PROMOVIDO `future/` → `docs/development/` (EN+PT) + `D-HTTP-POLICIES` travada.** Escolha = o plano MAIS FÁCIL: aditivo (estende o `app.security(opts)` global existente, `D-SEC` C18), sem gramática/keyword/tipo novo, deps medidas em código (`JvmWebSecurityRuntime`/`JvmWebCoreRuntime`/`JvmRuntimeWebDispatch`/`KofWeb`), escopo único (Web/JVM-first, `WEB006` honesto em Native/JS), prova RED-first definível (`KofWebHardeningTest`/`KofWebE2ETest`). Superfície v1 travada: global (inalterado) + `app.policy(prefix,opts)` + `app.get(path,opts){}` + opt `responses`; escalares = escopo mais profundo vence, listas = união. **Primeira fatia = F0** (`responses` global aditivo: 401/403/429 declarativos, chaves ausentes mantêm os corpos embutidos). NÃO TOCAR: as 3 src em voo da lane parity, PR #619.
+
 > **✅ DONE 28/09 (lane pipeline — owner: esta sessao): máquina de estados do pipeline implementada** (`D-QUALITY-PIPELINE-2609`). `scripts/pipeline/pipeline_state.py`: transições válidas (`lab→testing→prerelease→stable→release/x.y.z→tag`) passam; a matriz de bypass do contrato é TODA bloqueada (`lab→prerelease`, `lab→stable`, `testing→stable`, `prerelease→release`, `lab→release`, `stable→prerelease`); falha é fail-closed (branch/estado desconhecido e no-op nunca são `allowed`). Prova: selftest embutido + `scripts/tests/pipeline-state-test.sh` 21/21; suíte de agentes VERDE (`scripts/tests/run-agent-tests.sh`). **Promotion Gate:** `scripts/pipeline/promotion_gate.py` (100% dos checks obrigatórios; ≥80% dropado; janela de 7 dias + 0 issues relacionadas p/ `prerelease→stable`; tag idempotente; relatório auditável; fail-closed) — selftest + `scripts/tests/promotion-gate-test.sh` 16/16. Rulesets aplicados via API: `pipeline-stages` (main/testing/prerelease/stable/release/* = no-push-direto + PR + checks; `lab` ABERTA) e `release-tags` (tags `kof-*` imutáveis). **Enforcement:** workflow `promote.yml` (valida transição → coleta checks do tip → gate → PR de promoção auditável só quando PASS; nunca push direto; idempotente; `workflow_dispatch`-only) + `docs/development/quality-pipeline.md` EN+PT (contrato executável). Gates: workflow-pins/permissions OK, doc-refs OK, release-050-gate selftest VERDE. **NEXT STEP:** aplicar `D-FUTURE-PROMOTION` (próximo plano mais fácil de `docs/development/future/`) ou retomar a quarentena §524 / §534 / a lane `TIER 14.3` (promoção/observação automática de 7 dias).
 
 ---
@@ -67,9 +69,9 @@
 
 # DOING — agent coordination ledger
 
-last: kofmd-operating-standard
-doing: kofmd-operating-standard
-next: certify-parity-and-stability
+last: quality-pipeline-cutover
+doing: http-policies
+next: http-policies-f1
 location: DOING
 state: active
 constraint:

@@ -2,15 +2,20 @@
 
 # Status do Projeto Kof
 
-last: native-record-equality
-doing: 0.5.0-release-prep
-next: post-0-5-0-kof-libraries
+last: 0.5.0-release-prep
+doing: http-policies
+next: http-policies-f1
 location: status
 state: active
 constraint: pr619-maintainer-only
 decision: D-KOF-FIRST-IMPL
 
-**Versão:** 0.5.0-beta (pom `revision`) · **Última atualização:** 24 de setembro de 2026.
+**Versão:** 0.5.0-beta (pom `revision`) · **Última atualização:** 28 de setembro de 2026.
+
+**28/09 — frente pipeline + biblioteca (branch ativa = `lab`, `D-BRANCH-PIPELINE`).**
+- **Esteira de qualidade pousada:** cutover `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`); máquina de estados (`scripts/pipeline/pipeline_state.py` 21/21), promotion gate (`promotion_gate.py`, 100%), `promote.yml`, rulesets (`pipeline-stages`, `release-tags`); `beta-*` congeladas.
+- **`http-policies` PROMOVIDO** `future/` → [`docs/development/http-policies-plan.md`](development/http-policies-plan.md) (`D-HTTP-POLICIES`, `D-FUTURE-PROMOTION`): políticas HTTP/Web aditivas (global + `app.policy` prefixo + opts de endpoint + `responses`), JVM-first, Native/JS `WEB006`.
+- **Parity linha 11 FECHADA** (`compareToIgnoreCase` em todos os backends) → `full_parity` GREEN.
 
 **24/09 — janela 21/09→24/09 (conferida contra `git log`/tips; reator completo 3818 / 0F / 0E). A PR `#619` (`beta-0.5.0 → main`) está ABERTA e o merge é da MANTENEDORA — regra 10 do AGENTS.md: nenhum agente mergeia/aprova/fecha sob hipótese alguma.**
 - **Igualdade de record no Native COMPLETA** (família §104b/§114 fechada): `List/Set.contains` + dedup do `set.add` comparam record por CONTEÚDO (tag 2 → `kof_obj_equals` + `kof_equals_table`, `4cce594e7`); chaves de `Map` por conteúdo (`f31ac11f4`); `containsValue(record)` lado-valor tag 7 da **PR #616 do Publio Santos** (RED 3/3 → GREEN 3/3 em x86-64+riscv64+aarch64, `b7c13ba1f`, #615 fechada pela via oficial de evidência); `equals` sintetizado cobre campo record aninhado (`523dfabb5`); faces do `hashCode` String/Double/record-aninhado por conteúdo (`67acf5a77`/`e2f0629f6`/`2e90aa7c2`). Oráculos `NativeRecordCollectionEqualityE2ETest` + `NativeRecordHashCodeE2ETest` byte-idêntico JVM≡Native em 3 arquiteturas.

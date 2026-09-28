@@ -4254,3 +4254,14 @@ first; never the most interesting, never frozen-semantics). Individual locks:
   authorized.
 
 - **Relationships:** `Related: D-FUTURE-PROMOTION, D-KOF-FIRST (rule 12), rule 11, rule 6`.
+
+## D-HTTP-POLICIES — declarative HTTP/Web policies: global (existing), per-resource prefix and per-endpoint, with declarative rejection payloads (maintainer 28/09/2026, "pode assumir")
+
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/development/http-policies-plan.md`); part of the `D-FUTURE-BATCH-2809` authorization.
+
+- **Scope:** additive extension of the existing **global** `app.security(opts)` (`D-SEC` C18). No new grammar, no keyword, no new user type beyond the `Map` opts already used. The fixed pipeline order (`D-SEC`) is untouched.
+- **Surface v1 (locked, plan §3):** `app.security(opts)` (global, unchanged); `app.policy(prefix, opts)` (resource scope); `app.get/post/... (path, opts) { }` (endpoint policy); new opt key `responses` (`Map`) for declarative 401/403/429 bodies. Scalar keys: deepest scope wins; list keys (`publicPaths`, `roles`): union (allow-lists only accumulate). Prefix-only matching, longest prefix wins; no globs/regex in v1.
+- **Backward compatible:** omitted keys keep today's behavior/bodies. Errors are raised at app build (before `listen`), never a silent no-op.
+- **Targets:** JVM full; Native/JS `WEB006` at compile time (R6 — never a silent policy drop).
+- **Merge law / slice order (F0…F6):** owned by the plan (§4, §12); this entry locks the decision and the surface.
+- **Relationships:** `Related: D-SEC, D-SPRING, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, rule 6, rule 12`.

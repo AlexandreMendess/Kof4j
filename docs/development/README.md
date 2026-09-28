@@ -1,5 +1,4 @@
-- **Pending (the release gate's condition 3):** none — Kofmd concluded 27/09 (`D-KOFMD`); the plan moved out of `development/` to `docs/` (3-state rule), so no non-allowlisted loose doc remains (`loose_docs` GREEN). The in-flight OWNED plans still loose (`PLAN-BAREMETAL-BOOT`, same as
-`memory-safety-plan`) are **allowlisted** by `D-RELEASE-0.5.0-SCOPE` (21/09) + `D-BAREMETAL-BOOT` (22/09) + the `D-COMPLETE-FIRST` ownership record: they keep owner + queue in §1 and do not gate the 0.5.0 cut. Authority: `scripts/check_release_050_gate.sh` (`loose_docs`).
+- **Pending (the release gate's condition 3):** none — Kofmd concluded 27/09 (`D-KOFMD`) and its plan moved out of `development/` to `docs/` (3-state rule). The in-flight OWNED plans still loose (`http-policies-plan`, `memory-safety-plan`) are **allowlisted** by `D-RELEASE-0.5.0-SCOPE` (21/09) + `D-BAREMETAL-BOOT` (22/09) + the `D-COMPLETE-FIRST` ownership record: they keep owner + queue in §1 and do not gate the 0.5.0 cut. Authority: `scripts/check_release_050_gate.sh` (`loose_docs`).
 - **Living records here (not backlog):** `DECISIONS.md`, `roadmap.md`, `release-beta-0.5.0-prep.md`. 24/09: the two ratified PROPOSALs left `development/`; the `tech-debt` ledger + `debt-scout` tooling were KILLED by the maintainer (debt zeroed).
 - **§1 is the queue; §4.1/§4.2 are an AUDIT TRAIL** (what already left, with proof) — do not read them as work. How to act: §6.
 
@@ -11,6 +10,7 @@
 
 | # | Plan | State | Why in this position | Concrete next step |
 |---|---|---|---|---|
+| 0 | `http-policies-plan.md` — `D-HTTP-POLICIES` 28/09, promoted by `D-FUTURE-PROMOTION` | `IN DEVELOPMENT` — first slice = additive global `responses`; then F1 (`Policy`) → F2 (`app.policy`) | front designated by `D-FUTURE-PROMOTION` (cheapest implementable); JVM-first, Native/JS `WEB006` | compile + `KofWebHardeningTest`/`KofWebE2ETest` for the slice; then `app.policy` + `KofHttpPoliciesE2ETest` |
 | 1 | `stdlib/PLAN-TREE-SHAKING.md` (#97) | ✅ CONCLUDED 13/09 — S-1..S-6.1 (`0104f6d6`, PR #106) + S-7 (consolidated into `docs/stdlib/stdlib-loading.md`) | front designated 11/09, closed | — (S-5-x86 `root_end` in the bugfix queue) |
 | 2 | ~~`refactoring/PLAN-SOLID-500.md`~~ → `docs/architecture/PLAN-SOLID-500.md` | ✅ DONE + MOVED 13/09 — F1–F9 (F3: NativeBackend 498 ≤500) | ≤500 became a **CI ratchet** (§140, `2652aa45`); authoritative count = `wc -l scripts/check_500-baseline.txt` | — |
 | 3 | ~~`native-multiarch.md`~~ → `docs/native-multiarch.md` | ✅ CONCLUDED + PROMOTED 19/09 — faces (1)–(5) closed; NATIVE002 CLOSED | moved to `docs/` | — (per-domain refusals are honest gap codes in `known-bugs.md` + `backend-parity.md`) |

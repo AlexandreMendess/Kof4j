@@ -4242,3 +4242,14 @@ individuais:
   autorizados.
 
 - **Relações:** `Related: D-FUTURE-PROMOTION, D-KOF-FIRST (regra 12), regra 11, regra 6`.
+
+## D-HTTP-POLICIES — políticas HTTP/Web declarativas: global (existente), por prefixo de recurso e por endpoint, com payloads de rejeição declarativos (mantenedora 28/09/2026, "pode assumir")
+
+**Estado:** DECIDED (mantenedora) — frente promovida sob `D-FUTURE-PROMOTION` (`docs/development/http-policies-plan.md`); parte da autorização `D-FUTURE-BATCH-2809`.
+
+- **Escopo:** extensão aditiva do `app.security(opts)` **global** existente (`D-SEC` C18). Sem gramática nova, sem keyword, sem tipo novo de usuário além do `Map` de opts já usado. A ordem fixa do pipeline (`D-SEC`) permanece intocada.
+- **Superfície v1 (travada, plano §3):** `app.security(opts)` (global, inalterado); `app.policy(prefix, opts)` (escopo de recurso); `app.get/post/... (path, opts) { }` (política de endpoint); nova chave opt `responses` (`Map`) para corpos 401/403/429 declarativos. Chaves escalares: escopo mais profundo vence; chaves de lista (`publicPaths`, `roles`): união (allow-lists só acumulam). Casamento só por prefixo, maior prefixo vence; sem glob/regex na v1.
+- **Retrocompatível:** chaves omitidas mantêm o comportamento/corpos de hoje. Erros são levantados na construção do app (antes do `listen`), nunca no-op silencioso.
+- **Alvos:** JVM completo; Native/JS `WEB006` em compile time (R6 — nunca drop silencioso de política).
+- **Lei de merge / ordem das fatias (F0…F6):** pertence ao plano (§4, §12); esta entrada trava a decisão e a superfície.
+- **Relações:** `Related: D-SEC, D-SPRING, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, regra 6, regra 12`.

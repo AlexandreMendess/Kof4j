@@ -2,15 +2,20 @@
 
 # Kof Project Status
 
-last: native-record-equality
-doing: 0.5.0-release-prep
-next: post-0-5-0-kof-libraries
+last: 0.5.0-release-prep
+doing: http-policies
+next: http-policies-f1
 location: status
 state: active
 constraint: pr619-maintainer-only
 decision: D-KOF-FIRST-IMPL
 
-**Version:** 0.5.0-beta (pom `revision`) · **Last updated:** September 24, 2026.
+**Version:** 0.5.0-beta (pom `revision`) · **Last updated:** September 28, 2026.
+
+**28/09 — pipeline + library front (branch active = `lab`, `D-BRANCH-PIPELINE`).**
+- **Quality pipeline landed:** cutover `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`); state machine (`scripts/pipeline/pipeline_state.py` 21/21), promotion gate (`promotion_gate.py`, 100%), `promote.yml`, rulesets (`pipeline-stages`, `release-tags`); `beta-*` frozen.
+- **`http-policies` PROMOTED** `future/` → [`docs/development/http-policies-plan.md`](development/http-policies-plan.md) (`D-HTTP-POLICIES`, `D-FUTURE-PROMOTION`): additive HTTP/Web policies (global + `app.policy` prefix + endpoint opts + `responses`), JVM-first, Native/JS `WEB006`.
+- **Parity row 11 CLOSED** (`compareToIgnoreCase` on all backends) → `full_parity` GREEN.
 
 **24/09 — window 21/09→24/09 (measured vs `git log`/tips; full reactor 3818 / 0F / 0E). PR `#619` (`beta-0.5.0 → main`) is OPEN and the MAINTAINER'S to merge — AGENTS rule 10: no agent merges/approves/closes it.**
 - **Record equality on Native COMPLETE** (§104b/§114 closed): `List/Set.contains` + `set.add` dedup compare records by CONTENT (tag 2 → `kof_obj_equals` + `kof_equals_table`, `4cce594e7`); `Map` keys by content (`f31ac11f4`); `containsValue(record)` value-side tag 7 from **Publio Santos' PR #616** (RED 3/3 → GREEN 3/3 on x86-64+riscv64+aarch64, `b7c13ba1f`, #615 closed via the official evidence path); synthesized `equals` handles nested record fields (`523dfabb5`); `hashCode` String/Double/nested-record all by content (`67acf5a77`/`e2f0629f6`/`2e90aa7c2`). Oracles `NativeRecordCollectionEqualityE2ETest` + `NativeRecordHashCodeE2ETest` byte-identical JVM≡Native on 3 arches.

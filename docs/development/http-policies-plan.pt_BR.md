@@ -2,12 +2,18 @@
 
 # Políticas HTTP/Web declarativas — plano de implementação
 
-**Status:** só plano, zero código — `docs/development/future/`
-**Solicitado por:** mantenedora (23/09/2026)
-**Dono quando promovido:** lane Web (JVM primeiro; Native/JS com gate)
-**Gate da regra 6:** antes de qualquer linha de código, a mantenedora trava uma
-entrada no `DECISIONS.md` (`D-HTTP-POLICIES`) com a superfície escolhida aqui.
-Este documento é a **proposta de design**; não é autorização para implementar.
+**Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-HTTP-POLICIES`, mantenedora "pode assumir")
+**Dono:** lane pipeline (esta sessão); JVM primeiro, Native/JS = `WEB006` honesto
+**Decisão:** `D-HTTP-POLICIES` (`DECISIONS.md`) — aditivo; superfície travada como §3.
+**Estado real (medido 28/09/2026, tip `9d3b36980`):** o `app.security(opts)` global
+existe e é congelado (`D-SEC` C18, ordem fixa do pipeline); `Policy`, escopos,
+`app.policy` e o opt `responses` NÃO existem ainda. A gramática já parseia
+`app.get(path, opts) { }` (`ExpressionParser.java:202-212`). Nenhum código deste
+plano pousou.
+**Como terminar:** implementar as fatias ordenadas do §12, um commit cada,
+RED-first + `check_500`; JVM completo, Native/JS `WEB006` (R6, nunca drop
+silencioso). Começar pela primeira fatia pousada (o `responses` global), depois
+F1 (refactor `Policy`) → F2 (`app.policy`).
 
 ---
 
@@ -307,6 +313,15 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 
 > Cada fatia: compile + teste + `check_500`; commit por fatia. Nenhuma fatia
 > entra sem prova verde e docs atualizadas.
+
+**Status das fatias (28/09/2026):** ⏳ F1–F6 pendentes; a primeira fatia pousada é
+o `responses` global (§4.5) — aditivo e independente do `Policy`.
+
+- **F0 — Payloads `responses` globais no `app.security(opts)` (aditivo).**
+  Parsear um Map `responses`; os 401/403/429 do pipeline fixo usam o corpo
+  declarado, chaves ausentes mantêm os corpos embutidos de hoje (compat).
+  **Prova:** `KofWebHardeningTest` — corpos 401/403/429 declarados + padrões
+  preservados.
 
 - **F1 — Refactor para `Policy` (sem mudança de comportamento).** Extrair
   `Policy.parse/merge/appliesTo`; `WebApp.globalPolicy` substitui os campos
