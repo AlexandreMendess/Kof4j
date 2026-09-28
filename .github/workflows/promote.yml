@@ -47,17 +47,35 @@ jobs:
       contents: read
       pull-requests: write
       checks: read
+      issues: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.from_stage }}
           fetch-depth: 0
 
+      - name: Set up JDK 25 (Tooling API baseline)
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
       - name: validate the transition (state machine)
         run: |
           set -euo pipefail
           python3 scripts/pipeline/pipeline_state.py promote \
             "${{ inputs.from_stage }}" "${{ inputs.to_stage }}"
+
+      - name: full suite on the exact dispatched tip (14.3 — first formal gate)
+        timeout-minutes: 360
+        env:
+          SAFE_SUITE_LOG: ${{ runner.temp }}/suite.log
+        run: |
+          set -uo pipefail
+          # A suite e a MEDICAO do check `Build + Tests` — o veredito quem da e o
+          # stability-report (rc 0/1/3) consumido pelo promotion_evidence abaixo;
+          # aqui o exit do mvn NUNCA decide o gate (fail-closed vem do log).
+          bash scripts/safe-suite.sh || true
 
       - name: collect check results for the source tip
         env:
@@ -69,25 +87,35 @@ jobs:
           gh api "repos/${{ github.repository }}/commits/$sha/check-runs?per_page=100" \
             --paginate --jq '.check_runs[] | "\(.name)\t\(.conclusion)"' \
             > "$RUNNER_TEMP/check-runs.tsv" || true
-          python3 - "$RUNNER_TEMP/check-runs.tsv" "$RUNNER_TEMP/checks.json" <<'PY'
-          import json, sys
-          sys.path.insert(0, "scripts/pipeline")
-          from promotion_gate import DEFAULT_CHECKS, PASS
-          runs = []
-          try:
-              with open(sys.argv[1], encoding="utf-8") as fh:
-                  for line in fh:
-                      name, _, conclusion = line.rstrip("\n").partition("\t")
-                      if name:
-                          runs.append((name, conclusion))
-          except FileNotFoundError:
-              pass
-          checks = {}
-          for required in DEFAULT_CHECKS:
-              hit = next((c for n, c in runs if required in n), None)
-              checks[required] = PASS if hit == "success" else (hit or "NONE")
-          json.dump(checks, open(sys.argv[2], "w"), indent=2)
-          PY
+
+      - name: count blocking/related issues (measured, never assumed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROMOTED_AT: ${{ inputs.promoted_at }}
+        run: |
+          set -euo pipefail
+          blocking="$(gh issue list --repo "${{ github.repository }}" --state open \
+            --label bug --limit 1000 --json number --jq 'length')"
+          related=0
+          if [ -n "${PROMOTED_AT:-}" ]; then
+            since="$(date -u -d "${PROMOTED_AT}" +%Y-%m-%d)"
+            related="$(gh issue list --repo "${{ github.repository }}" --state open \
+              --search "updated:>=${since}" --limit 1000 --json number --jq 'length')"
+          fi
+          echo "blocking=$blocking" >> "$GITHUB_ENV"
+          echo "related=$related" >> "$GITHUB_ENV"
+
+      - name: build the evidence (suite verdict + check-runs + counts -> checks.json)
+        run: |
+          set -euo pipefail
+          python3 scripts/pipeline/promotion_evidence.py \
+            --sha "$tip" \
+            --check-runs "$RUNNER_TEMP/check-runs.tsv" \
+            --suite-log "$RUNNER_TEMP/suite.log" \
+            --blocking-issues "$blocking" \
+            --related-issues "$related" \
+            --checks-out "$RUNNER_TEMP/checks.json" \
+            --report-out "$GITHUB_STEP_SUMMARY"
 
       - name: evaluate the promotion gate
         id: gate
@@ -99,6 +127,8 @@ jobs:
             --to-stage "${{ inputs.to_stage }}" \
             --commit "$tip" \
             --checks "$RUNNER_TEMP/checks.json" \
+            --blocking-issues "$blocking" \
+            --related-issues "$related" \
             --timestamp "$(date -u +%FT%TZ)" \
             --promoted-at "${{ inputs.promoted_at }}" \
             --json > "$RUNNER_TEMP/gate.json" || rc=$?
@@ -107,6 +137,8 @@ jobs:
             --to-stage "${{ inputs.to_stage }}" \
             --commit "$tip" \
             --checks "$RUNNER_TEMP/checks.json" \
+            --blocking-issues "$blocking" \
+            --related-issues "$related" \
             --timestamp "$(date -u +%FT%TZ)" \
             --promoted-at "${{ inputs.promoted_at }}" \
             > "$RUNNER_TEMP/gate.txt" || true

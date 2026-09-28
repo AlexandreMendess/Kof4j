@@ -171,6 +171,7 @@ def render(report):
         f"version: {report['version']}",
         f"timestamp: {report['timestamp']}",
         f"blocking_issues: {report['blocking_issues']}",
+        f"related_issues: {report['related_issues']}",
     ]
     if report["reasons"]:
         lines += ["", "reason:"] + [f"  - {r}" for r in report["reasons"]]

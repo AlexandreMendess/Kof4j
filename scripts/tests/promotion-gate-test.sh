@@ -69,4 +69,34 @@ out="$(python3 "$G" --from-stage testing --to-stage prerelease --commit deadbeef
 printf '%s' "$out" | grep -q 'from: testing (TESTING)' && printf '%s' "$out" | grep -q 'status: PASS' \
   && pass "render traz from/to/status" || fail "render faltando campos"
 
+echo "== promotion_evidence (14.3 — scripted proof, nunca opinion) =="
+E="scripts/pipeline/promotion_evidence.py"
+python3 "$E" --selftest >/dev/null 2>&1 && pass "evidence selftest OK" || fail "evidence selftest falhou"
+printf 'Native cross\tsuccess\nkof.io multiplatform\tsuccess\nStructural quality gates\tsuccess\nCodeQL Gate\tsuccess\nbots\tsuccess\n' > "$T/hits.tsv"
+printf 'TOTAL: tests=1 failures=0 errors=0 skipped=0\n' > "$T/suite.log"
+printf '#!/bin/sh\nexit 0\n' > "$T/st-ok"; printf '#!/bin/sh\nexit 1\n' > "$T/st-red"; chmod +x "$T/st-ok" "$T/st-red"
+python3 "$E" --sha deadbeef --check-runs "$T/hits.tsv" --suite-log "$T/suite.log" \
+  --stability-cmd "$T/st-ok" --blocking-issues 0 --related-issues 0 \
+  --checks-out "$T/ev.json" >/dev/null 2>&1 && pass "evidence build (suite verde) OK" || fail "evidence build falhou"
+python3 "$G" --from-stage lab --to-stage testing --checks "$T/ev.json" \
+  --timestamp 2026-09-28T00:00:00Z >/dev/null 2>&1 \
+  && pass "suite verde + checks verdes = lab->testing EARNABLE (14.3)" || fail "promocao deveria ser earnable com suite verde"
+python3 "$E" --sha deadbeef --check-runs "$T/hits.tsv" --suite-log "$T/suite.log" \
+  --stability-cmd "$T/st-red" --blocking-issues 0 --related-issues 0 \
+  --checks-out "$T/ev-red.json" >/dev/null 2>&1
+python3 "$G" --from-stage lab --to-stage testing --checks "$T/ev-red.json" >/dev/null 2>&1 \
+  && fail "suite RED nao pode ser earnable" || pass "suite RED = BLOCKED (a medicao manda)"
+python3 "$E" --sha deadbeef --check-runs "$T/hits.tsv" --blocking-issues 0 --related-issues 0 \
+  --checks-out "$T/ev-none.json" >/dev/null 2>&1
+python3 "$G" --from-stage lab --to-stage testing --checks "$T/ev-none.json" >/dev/null 2>&1 \
+  && fail "suite NAO rodada nao pode ser earnable" || pass "suite nao rodada = BLOCKED (fail closed)"
+python3 "$G" --from-stage testing --to-stage prerelease --checks "$T/ev.json" \
+  --blocking-issues 2 --timestamp 2026-09-28T00:00:00Z >/dev/null 2>&1 \
+  && fail "2 issues abertas deveriam bloquear" || pass "blocking-issues medidos = BLOCKED"
+python3 "$E" --sha x --stability-cmd "$T/st-ok" >/dev/null 2>&1 \
+  && fail "omitir as contagens deveria rc=2 (opinion proibida)" || pass "contagens obrigatorias (rc 2 sem elas)"
+out="$(python3 "$G" --from-stage prerelease --to-stage stable --checks "$T/all-pass.tsv" --related-issues 0 \
+  --promoted-at 2026-09-01T00:00:00Z --timestamp 2026-09-28T00:00:00Z 2>/dev/null)"
+printf '%s' "$out" | grep -q "related_issues: 0" && pass "render traz related_issues (auditoria)" || fail "render sem related_issues"
+
 [ "$FAILED" = 0 ] && echo "== RESULTADO: todos os cenários OK ==" || { echo "== RESULTADO: FALHOU =="; exit 1; }

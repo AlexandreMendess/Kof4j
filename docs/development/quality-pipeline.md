@@ -1,8 +1,8 @@
 # Quality pipeline — executable branch policy
 
-last: pipeline-cutover
+last: 14.3-promotion-tooling (suite gate + scripted counts, #657)
 doing: automation-enforcement
-next: 14.3-promotion-tooling
+next: 14.4-rulesets+dispatch-on-main (mantenedora)
 location: docs/development
 state: active
 
@@ -63,8 +63,13 @@ version, timestamp, blocking/related issues, reasons, and the action
   deletion on `main`/`testing`/`prerelease`/`stable`/`release/*`, and requires a
   PR + status checks; `release-tags` makes `kof-*` tags immutable. `lab` is open.
 * Workflow `.github/workflows/promote.yml` (manual, idempotent): validates the
-  transition, collects the source tip's checks, runs the gate, and opens an
-  auditable promotion PR only when it PASSES. It never pushes to a stage.
+  transition, runs the FULL SUITE on the exact dispatched tip as the first formal
+  gate (`lab` has no per-push CI by design — the suite is the measurement, never a
+  stale check-run), merges that verdict with the tip's check-runs and MEASURED
+  issue counts (`promotion_evidence.py`: blocking = open `bug` issues; related =
+  issues updated since `promoted-at`), runs the gate, and opens an auditable
+  promotion PR only when it PASSES. It never pushes to a stage, and the counts
+  are never defaulted — omitting them is refused (opinion is forbidden).
 * Concurrency is grouped per target stage; duplicate runs are no-ops.
 
 ## Issue linkage

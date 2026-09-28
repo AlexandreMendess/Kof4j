@@ -1,8 +1,8 @@
 # Esteira de qualidade — política de branches executável
 
-last: pipeline-cutover
+last: 14.3-promotion-tooling (gate de suite + contagens scripted, #657)
 doing: automation-enforcement
-next: 14.3-promotion-tooling
+next: 14.4-rulesets+dispatch-on-main (mantenedora)
 location: docs/development
 state: active
 
@@ -63,8 +63,13 @@ versão, timestamp, issues bloqueantes/relacionadas, motivos e a ação
   em `main`/`testing`/`prerelease`/`stable`/`release/*`, e exige PR + status checks;
   `release-tags` torna as tags `kof-*` imutáveis. `lab` é aberta.
 * Workflow `.github/workflows/promote.yml` (manual, idempotente): valida a transição,
-  coleta os checks do tip de origem, roda o gate e abre um PR de promoção auditável
-  apenas quando PASSA. Nunca faz push em estágio.
+  roda a SUITE COMPLETA no tip exato despachado como primeiro gate formal (o `lab`
+  não tem CI por push por design — a suite é a medição, nunca um check-run velho),
+  mescla esse veredito com os check-runs do tip e as contagens MEDIDAS de issues
+  (`promotion_evidence.py`: bloqueantes = issues `bug` abertas; relacionadas =
+  issues atualizadas desde `promoted-at`), roda o gate e abre um PR de promoção
+  auditável apenas quando PASSA. Nunca faz push em estágio, e as contagens nunca
+  têm default — omiti-las é recusado (opinião é proibida).
 * Concorrência agrupada por estágio de destino; execuções duplicadas são no-op.
 
 ## Issue linkage
