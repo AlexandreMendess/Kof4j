@@ -73,6 +73,30 @@ sys.exit(drift)
 PYEOF
 }
 
+check_drefs() { # $1=changelog $2=DECISIONS — todo D-* citado no Unreleased deve existir (#665 anomalia, #669 gate)
+    python3 - "$1" "$2" << 'PYEOF4'
+import re, sys
+cl, dec_path = sys.argv[1], sys.argv[2]
+text = open(cl, encoding="utf-8").read()
+i = text.find("\n## [")
+j = text.find("\n## [", i + 1) if i != -1 else -1
+top = text[: j if j != -1 else len(text)]   # mesma janela do DUP (historico nao toca)
+try:
+    known = set(re.findall(r"D-[A-Z0-9][A-Z0-9-]*", open(dec_path, encoding="utf-8").read()))
+except OSError:
+    print(f"NO-DECISIONS: {dec_path} ilegivel — gate de D-* falha fechado (nunca false-PASS)")
+    sys.exit(1)
+cited = set(re.findall(r"D-[A-Z0-9][A-Z0-9-]*", top))
+# corpo de UMA letra (D-A, D-B...): placeholder literal do historico (medido #669);
+# ids reais de 1 corpo sao numericos (D-1) e seguem conferidos.
+ghosts = sorted(t for t in cited - known if not re.fullmatch(r"D-[A-Z]", t))
+for t in ghosts:
+    print(f"GHOST-D [{cl}]: Unreleased cita `{t}` e DECISIONS.md nao tem esse id — "
+          "a classe do #665 (bullet afirmando decisao que nao existe na arvore)")
+sys.exit(1 if ghosts else 0)
+PYEOF4
+}
+
 if [ "${1:-}" = "--selftest" ]; then
     T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
     mkdir -p "$T/scripts" "$T/docs/bugs-and-gaps"
@@ -95,12 +119,24 @@ EOF
   - **§998 ✅ FIXED 21/09** — caso honesto (deve passar)
   - **dupulo plantada** — linha byte-identica repetida duas vezes para provar que o detector de bullet duplicada no Unreleased dispara (deve dar DUP)
   - **dupulo plantada** — linha byte-identica repetida duas vezes para provar que o detector de bullet duplicada no Unreleased dispara (deve dar DUP)
+  - **citando `D-FANTASMA-GATE`** — decisao que NAO existe em DECISIONS (deve dar GHOST-D)
+  - **citando `D-REAL-OK`** — decisao que EXISTE no DECISIONS fixture (NAO deve dar GHOST-D)
+  - **placeholders `D-A / D-B`** — corpo de 1 letra, artefatos do historico (NAO devem dar GHOST-D)
 EOF
     cp "$T/CHANGELOG.md" "$T/CHANGELOG.pt_BR.md"
+    mkdir -p "$T/docs/development"
+    cat > "$T/docs/development/DECISIONS.md" << 'EOF'
+# decisoes fixture
+## D-REAL-OK — uma decisao verdadeira
+## D-1 — id numerico de 1 corpo (existe; so letra-unica e ignorada)
+EOF
     OUT="$(bash "$T/scripts/check_changelog_ledger.sh" 2>&1)"; RC=$?
     if [ $RC -ne 0 ] && printf '%s' "$OUT" | grep -q "DRIFT.*§999" && ! printf '%s' "$OUT" | grep -q "DRIFT.*§998" \
-        && printf '%s' "$OUT" | grep -q "DUP"; then
-        echo "SELFTEST OK: §999 pego, §998 limpo, duplo pega DUP, rc=$RC"
+        && printf '%s' "$OUT" | grep -q "DUP" \
+        && printf '%s' "$OUT" | grep -q "GHOST-D.*D-FANTASMA-GATE" \
+        && ! printf '%s' "$OUT" | grep -q "GHOST-D.*D-REAL-OK" \
+        && ! printf '%s' "$OUT" | grep -q "GHOST-D.*D-A\b" ; then
+        echo "SELFTEST OK: DRIFT(999/998), DUP, GHOST-D(FANTASMA pega / REAL-OK e D-A/D-B limpos), rc=$RC"
         exit 0
     fi
     echo "SELFTEST FALHOU (rc=$RC):"; printf '%s\n' "$OUT"; exit 1
@@ -151,6 +187,7 @@ for pair in "CHANGELOG.md:EN:docs/bugs-and-gaps/known-bugs.md" \
             "CHANGELOG.pt_BR.md:PT:docs/bugs-and-gaps/known-bugs.pt_BR.md"; do
     IFS=: read -r cl lang led <<< "$pair"
     check_dup "$cl" || rc=1
+    check_drefs "$cl" docs/development/DECISIONS.md || rc=1
     [ -f "$led" ] || continue
     check_pair "$cl" "$lang" "$(open_ids "$lang")" "$WAIVERS" || rc=1
     check_reverse "$led" "$lang" "$(open_ids "$lang")" "$cl" "$WAIVERS" || rc=1
