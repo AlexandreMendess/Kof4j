@@ -10,7 +10,11 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 186 chaves). O custo visível é a latência de
+`scripts/test-hygiene-baseline.txt`, 185 chaves). **Fatia quick-win 1 (28/09):**
+removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
+`AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
+`KofWebHardeningTest` (o probe de readiness de porta já garante o bind) →
+baseline 186→185 chaves. O custo visível é a latência de
 feedback, não a correção (a suíte do reator está verde).
 **Como terminar:** Fase 1/2 descoberta feita — depois **remoções quick-win da Fase 2**
 (encolher o baseline: sleeps / duplicação / oversized) → 3 (modularização) → 4

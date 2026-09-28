@@ -167,7 +167,6 @@ sleep	kof-cli/src/test/java/dev/kof/cli/FullStackE2ETest.java
 sleep	kof-cli/src/test/java/dev/kof/cli/KofDebugJvmExceptionTest.java
 sleep	kof-cli/src/test/java/dev/kof/cli/ServeManifestPortE2ETest.java
 sleep	kof-cli/src/test/java/dev/kof/cli/ServePortTest.java
-sleep	kof-compiler/src/test/java/dev/kof/compiler/AsyncSleepJsE2ETest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/BiosBootE2ETest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/KofBlogE2ETest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/KofDbE2ETest.java

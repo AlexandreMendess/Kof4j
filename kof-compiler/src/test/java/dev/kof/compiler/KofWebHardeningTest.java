@@ -337,7 +337,6 @@ class KofWebHardeningTest {
                     app.listen(PORT)
                 }
                 """);
-        Thread.sleep(100);
         try (Socket held = new Socket("127.0.0.1", port)) {
             held.setSoTimeout(2000);
             held.getOutputStream().write("GET /hello HTTP/1.1\r\nHost: x\r\n".getBytes(StandardCharsets.UTF_8));

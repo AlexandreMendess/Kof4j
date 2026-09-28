@@ -10,7 +10,11 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 186 keys). The visible cost is
+over the frozen `scripts/test-hygiene-baseline.txt`, 185 keys). **Quick-win slice 1
+(28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
+`AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
+`KofWebHardeningTest` (the port-readiness probe already guarantees the bind) →
+baseline 186→185 keys. The visible cost is
 feedback latency, not correctness (the reactor suite is green).
 **How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
 (shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4
