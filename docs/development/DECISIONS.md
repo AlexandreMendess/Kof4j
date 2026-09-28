@@ -4303,3 +4303,13 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Targets:** all by construction (pre-lowering desugar); slice-1 proof is JVM/Script/JS parity + JVM/Script/Native-x86 exception goldens; JS nested-throw stays a loud COMP002 (pre-existing backend gap, §174 family, JS lane's front).
 - **Merge law / slice order:** owned by the plan (§6); slice 1 = parser + `UsingStmt` + `desugarUsing` + `UsingDesugarE2ETest` 7/7.
 - **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-DESUGAR-STEP, rule 6, rule 11, rule 12`.
+## D-MEM021-SCALAR — `MEM021` covers the ESCALAR capture too: parent re-assignment of a captured local after `spawn` without join is a compile-time ERROR (maintainer 28/09/2026, voted option A + ERROR)
+
+**State:** DECIDED (maintainer) — resolves the #660 decision request; implementation = `OwnershipPass` + `SpawnCaptureScanner` (front `docs/development/memory-safety-plan.md` slice 3.2b).
+
+- **Question (#660):** `SpawnCaptureScanner.MUTATORS` listed only OBJECT mutators (`add`/`remove`/`clear`/`addAll`); the parent re-assigning the SAME captured SCALAR local after `spawn`, with no `await`/`join_all` between, compiled with NO diagnostic on all targets and raced (measured JVM/JS/Script `202` then `101`, exit 0). Spec B-04 spoke of a "mutable object", so the scalar case was neither forbidden nor registered.
+- **Decision:** option **A — diagnose**, severity **ERROR** (not WARNING): extend `MEM021` to the scalar path. Rationale: a worker that WRITES the captured binding forces the representation box (`CompilerCaptureScanner` → `mutatedCapturedNames` → `CapturedVarBox`), so parent and worker SHARE the slot; a parent write with no `await` between is the clear data race of B-04/C-03, same class as the existing object `MEM021` (ERROR on the clear race).
+- **Surface:** the worker write set gains re-assignment (`n = ...`) and `++`/`--` of a captured binding; the parent write set gains re-assignment and `++`/`--` of the same binding. Pure READ-only capture is NOT a race (read-only capture lowers by VALUE, no box) — stays silent.
+- **Zero false positive by construction:** `await` of any handle clears the pending set (sub-report, never over-report); names SHADOWED by worker-local declarations or lambda parameters are excluded; conditional/interprocedural spawn faces remain named (silent).
+- **Proof:** `MemorySafetyE2ETest` 46/46 (6 new: 3 RED before the fix — measured 3/3 FAIL on the old scanner — and 3 zero-FP green), JVM/Native/JS + Script diagnostic.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-MEMORY-CLEAR, D-FUTURE-BATCH-2809, rule 6, rule 11`; tracker #660.

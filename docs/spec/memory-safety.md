@@ -123,6 +123,13 @@ borrows (`&mut`), no borrow checker, no lifetime parameters. The model:
 > synchronization primitives (channels, futures). The compiler emits
 > `MEM020`/`MEM021` at aliasing-sensitive stdlib/FFI/spawn boundaries.
 
+> **B-04 scalar (28/09, #660/`D-MEM021-SCALAR`):** `MEM021` covers the ESCALAR
+> capture too — the parent re-assigning/incrementing a captured local after
+> `spawn`, with no `await`/`join_all` between, is a compile-time ERROR (the
+> worker write forces the representation box, so parent and worker share the
+> slot; measured silent race `202`/`101` before the fix). Read-only capture
+> stays silent (by-value, no box). `MemorySafetyE2ETest` 46/46.
+
 > **B-06 verification (28/09, #658/#659):** the lowering boxes every mutated
 > capture by construction (`mutatedCapturedNames` → `CapturedVarBox`), so the
 > forbidden shape (unboxed mutating capture escaping) is unconstructible —

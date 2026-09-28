@@ -4291,3 +4291,13 @@ individuais:
 - **Alvos:** todos por construção (desugar pré-lowering); prova da fatia 1 é paridade JVM/Script/JS + goldens de exceção JVM/Script/Native-x86; throw-aninhado no JS segue COMP002 alto (gap pré-existente de backend, família §174, frente da lane JS).
 - **Lei de merge / ordem das fatias:** pertence ao plano (§6); fatia 1 = parser + `UsingStmt` + `desugarUsing` + `UsingDesugarE2ETest` 7/7.
 - **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-DESUGAR-STEP, regra 6, regra 11, regra 12`.
+## D-MEM021-SCALAR — `MEM021` cobre também a captura ESCALAR: reatribuição do pai de um local capturado após `spawn` sem join é ERROR de compilação (mantenedora 28/09/2026, votou opção A + ERROR)
+
+**Estado:** DECIDIDO (mantenedora) — resolve o decision request do #660; implementação = `OwnershipPass` + `SpawnCaptureScanner` (frente `docs/development/memory-safety-plan.md` fatia 3.2b).
+
+- **Questão (#660):** `SpawnCaptureScanner.MUTATORS` listava só mutadores de OBJETO (`add`/`remove`/`clear`/`addAll`); a reatribuição do pai do MESMO escalar capturado após o `spawn`, sem `await`/`join_all` entre, compilava SEM diagnóstico em todos os alvos e corria (medido JVM/JS/Script `202` depois `101`, exit 0). A spec B-04 falava de "objeto mutável", então o caso escalar não estava nem proibido nem registrado.
+- **Decisão:** opção **A — diagnosticar**, severidade **ERROR** (não WARNING): estender `MEM021` ao caminho escalar. Razão: o worker que ESCREVE o binding capturado força o box de representação (`CompilerCaptureScanner` → `mutatedCapturedNames` → `CapturedVarBox`), então pai e worker COMPARTILHAM o slot; escrita do pai sem `await` entre é a corrida clara de B-04/C-03, mesma classe do `MEM021` de objeto (ERROR na corrida clara).
+- **Superfície:** o conjunto de escrita do worker ganha reatribuição (`n = ...`) e `++`/`--` de um binding capturado; o do pai ganha reatribuição e `++`/`--` do mesmo binding. Captura só-LEITURA NÃO é corrida (captura read-only baixa por VALOR, sem box) — segue silenciosa.
+- **Zero falso-positivo por construção:** `await` de qualquer handle limpa o conjunto pendente (sub-reporta, nunca sobre-reporta); nomes SOMBREADOS por declarações locais do worker ou parâmetros de lambda são excluídos; faces condicional/interprocedural de spawn seguem nomeadas (silenciosas).
+- **Prova:** `MemorySafetyE2ETest` 46/46 (6 novos: 3 RED antes do fix — medido 3/3 FAIL no scanner antigo — e 3 green zero-FP), diagnóstico JVM/Native/JS + Script.
+- **Relações:** `Related: D-MEMORY-SAFETY, D-MEMORY-CLEAR, D-FUTURE-BATCH-2809, regra 6, regra 11`; tracker #660.

@@ -66,7 +66,12 @@ import java.util.Map;
  *       de QUALQUER handle limpa o pending (sub-reporta, nunca sobre-reporta);
  *       spawn condicional (dentro de braco) e interprocedural
  *       ({@code spawn f()}) ficam silenciosos — faces nomeadas do plano;
- *       leitura compartilhada sem escrita nao e a corrida B-04 da spec.</li>
+ *       leitura compartilhada sem escrita nao e a corrida B-04 da spec.
+ *       Fatia 4.3/#660 (`D-MEM021-SCALAR`, decisao da mantenedora): a escrita
+ *       do worker passa a incluir a REATRIBUICAO/incremento de um binding
+ *       capturado (face ESCALAR, {@code n = ...}/{@code n++}) e a escrita da
+ *       mae inclui reatribuicao/incremento do MESMO binding — ERROR, mesma
+ *       postura zero-FP (leitura pura capturada baixa por valor, sem corrida).</li>
  * </ul>
  *
  * <p><b>Fatia 2 (26/09) — cruzamento de fluxo sem propagar, anti-falso-
@@ -404,6 +409,28 @@ public final class OwnershipPass {
             }
         }
 
+        /**
+         * B-04/C-03/MEM021 (fatia 4.3/#660) — face ESCALAR da MAE: uma ESCRITA
+         * do corpo-mae sobre um binding com spawn pendente (reatribuicao
+         * {@code n = ...} ou {@code n++}/{@code n--}), sem {@code await}
+         * retilineo entre, e a corrida clara — o worker que escreve o binding
+         * forca o box de representacao, entao mae e worker compartilham o slot
+         * (medido: {@code 202}/{@code 101}). Arde MEM021 e remove do mapa (um
+         * erro por binding, sem spam).
+         */
+        private void writeRacesSpawn(String name) {
+            String root = base(name);
+            SourcePosition sp = racy.get(root);
+            if (sp != null) {
+                diag.error(stmt, "B-04: data race — '" + root + "' is written by the parent"
+                        + " after the spawn at line " + sp.line() + " also writes it, with no"
+                        + " 'await' in between; synchronize (await the handle) before the parent"
+                        + " write (MEM021)",
+                        "MEM021");
+                racy.remove(root);
+            }
+        }
+
         private void readExpr(ExpressionNode e) {
             switch (e) {
                 case IdentifierExpr id -> readName(id.name());
@@ -447,9 +474,24 @@ public final class OwnershipPass {
                     readExpr(be.left());
                     readExpr(be.right());
                 }
-                case UnaryExpr ue -> readExpr(ue.operand());
+                case UnaryExpr ue -> {
+                    // B-04/MEM021 (fatia 4.3/#660): `n++`/`n--` da MAE sobre um
+                    // escalar com spawn pendente e escrita concorrente.
+                    if (("++".equals(ue.operator()) || "--".equals(ue.operator()))
+                            && ue.operand() instanceof IdentifierExpr t) {
+                        writeRacesSpawn(t.name());
+                    }
+                    readExpr(ue.operand());
+                }
                 case AssignmentExpr ae -> {
-                    // alvo = escrita (rebinding nao transfere posse nesta fatia)
+                    // B-04/MEM021 (fatia 4.3/#660): reatribuicao da MAE sobre um
+                    // binding com spawn pendente, sem await entre, e corrida
+                    // clara (o worker que escreve força o box; mae e worker
+                    // compartilham o slot). Alvo nao-identifier (campo/indice) e
+                    // face E- nomeada do plano. Rebinding nao transfere posse.
+                    if (ae.target() instanceof IdentifierExpr t) {
+                        writeRacesSpawn(t.name());
+                    }
                     if (ae.value() != null) {
                         readExpr(ae.value());
                     }

@@ -785,4 +785,79 @@ class MemorySafetyE2ETest {
                 }
                 """);
     }
+
+    // ---- fatia 4.3/#660 (D-MEM021-SCALAR): reatribuicao ESCALAR capturada ----
+
+    @Test
+    void spawnScalarReassignAfterSpawnFailsMem021(@TempDir Path tempDir) throws IOException {
+        // reprodutor exato do #660 (medido 202/101, corrida silenciosa nos 4 alvos)
+        assertMem021FailsOnAllTargets(tempDir, "mem021-scalar", """
+                main() {
+                    var n = 21
+                    var h = spawn { n = n + 1; return n * 2 }
+                    n = 100
+                    println(await h)
+                    println(n)
+                }
+                """);
+    }
+
+    @Test
+    void parentIncrementOfCapturedScalarFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-scalar-inc", """
+                main() {
+                    var n = 21
+                    var h = spawn { n = n + 1 }
+                    n++
+                    await h
+                }
+                """);
+    }
+
+    @Test
+    void twoSpawnsWritingSameScalarWithoutAwaitFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-scalar-workers", """
+                main() {
+                    var n = 21
+                    spawn { n = n + 1 }
+                    spawn { n = n + 2 }
+                }
+                """);
+    }
+
+    @Test
+    void parentScalarReassignAfterAwaitStaysGreen(@TempDir Path tempDir) throws IOException {
+        assertNoMem021Green(tempDir, "mem021-scalar-synced", """
+                main() {
+                    var n = 21
+                    var h = spawn { n = n + 1; return n }
+                    await h
+                    n = 100
+                }
+                """);
+    }
+
+    @Test
+    void spawnReadingScalarParentReassignStaysGreen(@TempDir Path tempDir) throws IOException {
+        // captura read-only baixa por VALOR (sem box): escrita da mae nao corre
+        assertNoMem021Green(tempDir, "mem021-scalar-read", """
+                main() {
+                    var n = 21
+                    spawn { println(n) }
+                    n = 100
+                }
+                """);
+    }
+
+    @Test
+    void workerLocalShadowDoesNotRaceParentScalarStaysGreen(@TempDir Path tempDir) throws IOException {
+        // `n` local do worker nao e a captura `n` da mae — zero falso-positivo
+        assertNoMem021Green(tempDir, "mem021-scalar-shadow", """
+                main() {
+                    var n = 1
+                    spawn { var n = 5; n = n + 1; println(n) }
+                    n = 100
+                }
+                """);
+    }
 }
