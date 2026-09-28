@@ -4,7 +4,7 @@
 
 last: phase-3-slice-5
 doing: memory-safety
-next: mem021-spawn-aliasing
+next: phase-4-closures-async
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -46,7 +46,7 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 | 3 Escape/dangling | L-04/`MEM013` (captura estende vida) + faces de dangling da spec §3 | pousada 26/09 |
 | 4 Aliasing mutável | B-05/`MEM022` — mutação mudadora de tamanho (`add`/`remove`/`clear`/`addAll`) da coleção iterada no próprio `for-in`; WARNING + zero-FP por construção (`for-in` é loop por índice que relê `size` a cada volta) | pousada 26/09 |
 | 5 Containers & não fechados | O-03/`MEM003` (release de container — RESOLVIDO: `D-MEMORY-CLEAR` opção a; garantia de runtime, sem face de compilação) + L-05/`MEM014` conexão db (web pousou 3.1b; `kof.io` não tem handle de arquivo com close) | db `MEM014` pousada 26/09; O-03 CORRIGIDO 27/09 (`NativeX86MemClearTest` + `NativeRiscvMemClearTest` + `MemoryClearE2ETest` 4 alvos) |
-| 3.2 | MEM021 aliasing mutável em spawn — `spawn` capturando objeto mutável que o pai também muta, sem `await`/`join_all` entre (spec B-04/C-03); ERRO no padrão claro de corrida, silêncio fora dele; zero falso-positivo exigido | próxima |
+| 3.2 | MEM021 aliasing mutável em spawn — `spawn` capturando objeto mutável que o pai também muta, sem `await`/`join_all` entre (spec B-04/C-03); ERRO no padrão claro de corrida, silêncio fora dele; zero falso-positivo exigido | landada 28/09 (portada para `lab`: `MemorySafetyE2ETest` 40/40 local, cert de CI pendente) |
 
 - MEM005 (ownership FFI) JÁ SATISFEITA na fronteira: o Native recusa externs record/array/out-buffer com `FFI001` na linha da declaração; JVM/JS fazem copy-back; retornos String são copiados na fronteira. A fatia 3.3 documenta a face compile de O-05 — nenhum diagnóstico duplicado inventado (regra 11).
 - Corrigido contra a spec: ler o PRÓPRIO claimer após o seu close é L-02/`MEM011` (RUNTIME, native sem GC), não MEM001 — corrigido contra a spec §3 linhas 84/87.

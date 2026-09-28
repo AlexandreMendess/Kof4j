@@ -106,6 +106,15 @@ c_parity() {
   fi
   if grep -q "PARITY: 100%" "$report" 2>/dev/null; then
     STATE[parity]=GREEN; DETAIL[parity]="per-target matrix reports 100%"
+  elif [ "$provided" -eq 0 ] && grep -q "PARITY: 0%" "$report" 2>/dev/null \
+       && ! grep -q "stdout divergente" "$report" 2>/dev/null \
+       && grep -q "toolchain de build obrigatoria" "$report" 2>/dev/null; then
+    # Auto-medicao num host SEM o toolchain cross: a matriz registra FAIL por
+    # ausencia de binutils (condicao AMBIENTAL, nao um bug Kof — AGENTS §Native).
+    # Nunca RED (diz "divergencia" quando nao ha); nunca GREEN (Q5). A certificacao
+    # dos alvos cross e do job hospedado "Native cross" (qemu), nao deste host.
+    STATE[parity]=NEEDS-MEASURE
+    DETAIL[parity]="cross build toolchain absent (environment, not a Kof bug); riscv64/aarch64 parity certified by the hosted CI Native-cross job (see $report)"
   elif [ "$provided" -eq 1 ] || grep -q "PARITY: 0%" "$report" 2>/dev/null; then
     STATE[parity]=RED; DETAIL[parity]="matrix reports a divergence — see $report"
   else
@@ -390,7 +399,7 @@ EOF
   R050_OPEN_ISSUES_TSV="$T/issues" R050_EG_TSV="$T/eg" R050_PARITY_FILE="$T/parity" \
   R050_STABILITY_FILE="$T/stab" \
   R050_PENDING_FILE="$T/pending" R050_LOOSE_MD_FILE="$T/loose" R050_SPEC_GAPS_FILE="$T/spec" \
-  R050_KNOWN_BUGS_CMD="cat $T/kb" R050_OPEN_BLOCKS=1 \
+  R050_KNOWN_BUGS_CMD="cat $T/kb" R050_OPEN_BLOCKS=1 R050_PARITY_GAPS_FILE="$T/pgaps2" \
     bash "$0" > "$T/out2"; rc=$?
   [ "$rc" -eq 1 ] || fail "dirty fixture should be exit 1, got $rc"
   grep -q 'parity .*RED' "$T/out2" || fail "dirty parity not RED"
@@ -399,6 +408,35 @@ EOF
   grep -q 'loose_docs .*RED' "$T/out2" || fail "dirty loose_docs not RED"
   grep -q 'full_parity .*RED' "$T/out2" || fail "dirty full_parity not RED"
   grep -q 'bugs_gaps .*RED' "$T/out2" || fail "dirty bugs_gaps not RED"
+
+  # parity auto-medicao: toolchain cross AUSENTE = ambiente (NEEDS-MEASURE),
+  # divergencia real = bug (RED). So vale com provided=0 (sem R050_PARITY_FILE).
+  clean_run() { # $1=matrix-cmd $2=outfile
+    R050_OPEN_ISSUES_TSV="$T/issues" R050_EG_TSV="$T/eg" R050_STABILITY_FILE="$T/stab" \
+    R050_PENDING_FILE="$T/pending" R050_LOOSE_MD_FILE="$T/loose" R050_SPEC_GAPS_FILE="$T/spec" \
+    R050_KNOWN_BUGS_CMD="cat $T/kb" R050_OPEN_BLOCKS=0 R050_PARITY_GAPS_FILE="$T/pgaps" \
+    R050_DECISIONS_MD="$T/dec_ok" R050_MATRIX_CMD="$1" bash "$0" > "$2";
+  }
+  cat > "$T/mx_env" <<'MXEOF'
+matrix: parity ok: script
+matrix: parity ok: js
+matrix: parity ok: native
+matrix: FAIL: native.riscv64: sem riscv64-linux-gnu-as (toolchain de build obrigatoria)
+matrix: FAIL: native.aarch64: sem aarch64-linux-gnu-as (toolchain de build obrigatoria)
+TARGET-MATRIX: FAIL — alvos fora do contrato:
+PARITY: 0%
+MXEOF
+  clean_run "cat $T/mx_env" "$T/out_env";
+  grep -q 'parity .*NEEDS-MEASURE' "$T/out_env" || fail "toolchain-absent parity should be NEEDS-MEASURE (not RED/GREEN)"
+  grep -q 'parity .*RED' "$T/out_env" && fail "toolchain-absent parity FALSE-RED (environment mislabeled as divergence)"
+  cat > "$T/mx_bug" <<'MXEOF'
+matrix: parity ok: script
+matrix: FAIL: native.riscv64: stdout divergente do oraculo JVM — linha 3
+TARGET-MATRIX: FAIL — alvos fora do contrato:
+PARITY: 0%
+MXEOF
+  clean_run "cat $T/mx_bug" "$T/out_bug"
+  grep -q 'parity .*RED' "$T/out_bug" || fail "real-divergence parity should be RED"
 
   # inconclusive fixture -> exit 2 (no RED, but NEEDS-*)
   printf '100\tdocumentation,post-1.0\n' > "$T/issues"

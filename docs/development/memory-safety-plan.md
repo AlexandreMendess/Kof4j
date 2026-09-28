@@ -4,7 +4,7 @@
 
 last: phase-3-slice-5
 doing: memory-safety
-next: mem021-spawn-aliasing
+next: phase-4-closures-async
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -46,7 +46,7 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 | 3 Escape/dangling | L-04/`MEM013` (capture extends life) + dangling faces of spec §3 | landed 26/09 |
 | 4 Mutable aliasing | B-05/`MEM022` — size-changing mutation (`add`/`remove`/`clear`/`addAll`) of the collection being iterated in its own `for-in`; WARNING + zero-FP by construction (`for-in` is an index loop re-reading `size` each turn) | landed 26/09 |
 | 5 Containers & unclosed | O-03/`MEM003` (container release — RESOLVED: `D-MEMORY-CLEAR` option a; runtime guarantee, no compile face) + L-05/`MEM014` db connection (web landed 3.1b; `kof.io` has no close-bearing file handle) | db `MEM014` landed 26/09; O-03 FIXED 27/09 (`NativeX86MemClearTest` + `NativeRiscvMemClearTest` + `MemoryClearE2ETest` 4 targets) |
-| 3.2 | MEM021 spawn mutable aliasing — `spawn` capturing a mutable object the parent also mutates, with no `await`/`join_all` between (spec B-04/C-03); ERROR on the clear race, silent elsewhere; zero false positives required | next |
+| 3.2 | MEM021 spawn mutable aliasing — `spawn` capturing a mutable object the parent also mutates, with no `await`/`join_all` between (spec B-04/C-03); ERROR on the clear race, silent elsewhere; zero false positives required | landed 28/09 (ported onto `lab`: `MemorySafetyE2ETest` 40/40 local, CI cert pending) |
 
 - MEM005 (FFI ownership) is ALREADY SATISFIED at the boundary: Native rejects record/array/out-buffer externs with `FFI001` at the decl line; JVM/JS copy-back; String returns boundary-copied. Slice 3.3 documents O-05's compile face — no duplicate diagnostic invented (rule 11).
 - Spec-corrected: reading the CLAIMER after its own close is L-02/`MEM011` (RUNTIME, GC-free native), not MEM001 — corrected against spec §3 rows 84/87.

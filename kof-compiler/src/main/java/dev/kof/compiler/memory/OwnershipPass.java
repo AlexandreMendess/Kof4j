@@ -22,6 +22,7 @@ import dev.kof.compiler.LambdaExpr;
 import dev.kof.compiler.MethodCallExpr;
 import dev.kof.compiler.ReturnStmt;
 import dev.kof.compiler.SourcePosition;
+import dev.kof.compiler.SpawnStmt;
 import dev.kof.compiler.StatementNode;
 import dev.kof.compiler.UnaryExpr;
 import dev.kof.compiler.VarDeclStmt;
@@ -55,6 +56,17 @@ import java.util.Map;
  *       propria colecao iterada por um {@code for-in} ({@code add}/
  *       {@code remove}/{@code clear}/{@code addAll}) — o loop por indice
  *       reavalia {@code size} a cada iteracao; WARNING de postura zero-FP.</li>
+ *   <li>{@code MEM021} (B-04/C-03, fatia 3.2): data race — o corpo de um
+ *       {@code spawn} chama MUTADOR direto ({@code add}/{@code remove}/
+ *       {@code clear}/{@code addAll} do mesmo set da B-05) sobre um binding
+ *       compartilhado E o corpo-mae (ou um segundo spawn) muta a MESMA raiz
+ *       de aliases sem nenhum {@code await} retilineo entre os dois pontos.
+ *       ERROR na mutacao-tarde (ou no segundo spawn, worker×worker) — a
+ *       corrida clara da spec. Postura zero-FP por construcao: {@code await}
+ *       de QUALQUER handle limpa o pending (sub-reporta, nunca sobre-reporta);
+ *       spawn condicional (dentro de braco) e interprocedural
+ *       ({@code spawn f()}) ficam silenciosos — faces nomeadas do plano;
+ *       leitura compartilhada sem escrita nao e a corrida B-04 da spec.</li>
  * </ul>
  *
  * <p><b>Fatia 2 (26/09) — cruzamento de fluxo sem propagar, anti-falso-
@@ -102,9 +114,8 @@ public final class OwnershipPass {
     }
 
     private static final class Region {
-        /** Mutadores de tamanho/indices da List que disparam B-05/MEM022. */
-        private static final java.util.Set<String> MUTATORS =
-                java.util.Set.of("add", "remove", "clear", "addAll");
+        /** Mutadores de tamanho/indice — MESMA fonte da B-05 (SpawnCaptureScanner). */
+        private static final java.util.Set<String> MUTATORS = SpawnCaptureScanner.MUTATORS;
 
         private final DiagnosticCollector diag;
         private final Map<String, Group> groups;
@@ -112,6 +123,13 @@ public final class OwnershipPass {
         private StatementNode stmt;
         /** B-05/MEM022: raiz da colecao de um {@code for-in} que envolve este ponto. */
         private String iteratedBase;
+        /**
+         * B-04/C-03/MEM021 (fatia 3.2): raizes de bindings com MUTADOR direto
+         * dentro de um spawn ainda nao sincronizado por {@code await} retilineo.
+         * Qualquer {@code await} no fluxo retilineo limpa o mapa (postura
+         * conservadora: sub-reporta, nunca sobre-reporta).
+         */
+        private final Map<String, SourcePosition> racy = new HashMap<>();
 
         Region(DiagnosticCollector diag) {
             this.diag = diag;
@@ -125,6 +143,7 @@ public final class OwnershipPass {
             this.groups = new HashMap<>(parent.groups);
             this.aliasOf = new HashMap<>(parent.aliasOf);
             this.iteratedBase = parent.iteratedBase;
+            this.racy.putAll(parent.racy);
         }
 
         void walkBody(List<StatementNode> body) {
@@ -200,6 +219,14 @@ public final class OwnershipPass {
                         loop.iteratedBase = base(cid.name());
                     }
                     loop.step(fi.body());
+                }
+                case SpawnStmt ss -> {
+                    // B-04/C-03/MEM021 (fatia 3.2): `spawn <expr>` na posicao
+                    // de statement — o corpo (LambdaExpr ou chamada) e uma
+                    // EXECUCO_CONCORRENTE; nao e lido como regiao de ownership
+                    // (capturas = faces E- do plano), mas o scan de mutadores
+                    // diretos registra a corrida potencial no binding-mae.
+                    registerSpawn(ss.position(), ss.expression());
                 }
                 case TryStmt tr -> {
                     // try/catch/finally partem do snapshot PRE-try (face
@@ -327,6 +354,56 @@ public final class OwnershipPass {
                     "MEM022");
         }
 
+        /**
+         * B-04/C-03/MEM021 (fatia 3.2) — varre o corpo de um {@code spawn} e
+         * marca cada binding capturado cujo MUTADOR direto (set B-05) aparece
+         * la dentro. Se o MESMO binding ja estava pendente de outro spawn nao
+         * sincronizado (worker×worker), arde MEM021 no segundo spawn; senao
+         * entra no mapa como corrida em espera (a mae pode acender depois).
+         * Corpo do lambda NAO vira regiao de ownership (capturas = faces E-).
+         */
+        private void registerSpawn(SourcePosition pos, ExpressionNode spawnBody) {
+            for (String name : SpawnCaptureScanner.captured(spawnBody)) {
+                String root = base(name);
+                SourcePosition prior = racy.get(root);
+                if (prior != null) {
+                    diag.error(stmt, "C-03: data race — '" + root + "' is mutated by two"
+                            + " unsynchronized spawns (line "
+                            + (prior.line()) + " and here); join the first (await) before"
+                            + " a second worker writes the same object (MEM021)",
+                            "MEM021");
+                    racy.remove(root);
+                } else {
+                    racy.put(root, pos);
+                }
+            }
+        }
+
+        /**
+         * M-021 face da MAE: um MUTADOR no corpo de fora sobre um binding com
+         * spawn pendente, sem {@code await} entre os dois, e a corrida clara —
+         * arde MEM021 e remove do mapa (um erro por binding, sem spam).
+         */
+        private void mutationRacesSpawn(MethodCallExpr mc) {
+            if (!MUTATORS.contains(mc.methodName())) {
+                return;
+            }
+            if (!(mc.receiver() instanceof IdentifierExpr recv)) {
+                return;
+            }
+            String root = base(recv.name());
+            SourcePosition sp = racy.get(root);
+            if (sp != null) {
+                diag.error(stmt, "B-04: data race — '" + root + "." + mc.methodName()
+                        + "(...)' mutates a shared object the spawn at line "
+                        + sp.line() + " also writes, with no 'await' in between;"
+                        + " synchronize (await the handle) before the parent write"
+                        + " (MEM021)",
+                        "MEM021");
+                racy.remove(root);
+            }
+        }
+
         private void readExpr(ExpressionNode e) {
             switch (e) {
                 case IdentifierExpr id -> readName(id.name());
@@ -337,7 +414,23 @@ public final class OwnershipPass {
                         claim(recv.name());
                         return;
                     }
+                    // B-04/C-03/MEM021 (fatia 3.2): `spawn { ... }` e `await h`
+                    // em posicao de expressao baixam para chamadas sinteticas
+                    // __kof_spawn_expr(lambda) / __kof_await(handle) — SEM
+                    // receiver. O primeiro registra mutadores capturados; o
+                    // segundo SINCRONIZA e limpa o pending conservador.
+                    if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
+                        for (ExpressionNode arg : mc.arguments()) {
+                            registerSpawn(mc.position(), arg);
+                        }
+                        return;
+                    }
+                    if (mc.receiver() == null && "__kof_await".equals(mc.methodName())) {
+                        racy.clear();
+                        return;
+                    }
                     mutationDuringIteration(mc);
+                    mutationRacesSpawn(mc);
                     if (mc.receiver() != null) {
                         readExpr(mc.receiver());
                     }

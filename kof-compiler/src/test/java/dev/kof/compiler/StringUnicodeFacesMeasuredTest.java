@@ -44,7 +44,7 @@ class StringUnicodeFacesMeasuredTest {
 
     // compareToIgnoreCase (CASE_INSENSITIVE_ORDER do JVM): fold SIMPLES por
     // code unit — o mesmo resultado em JVM, JS e native (D-FULL-PARITY-050).
-    private static final String ORACLE_CIC = "108\n0\n0\n390\n0";
+    private static final String ORACLE_CIC = "108\n0\n0\n390\n0\n7554\n-1\n0\n0\n64155\n-1\n0";
 
     // Estado medido do native x86_64 (D-STR-UNICODE landed): reverse code-point OK
     // + caixa por code unit (simple-fold). Diverge do oráculo JVM/JS nas linhas
@@ -89,6 +89,13 @@ class StringUnicodeFacesMeasuredTest {
             println("Hello".compareToIgnoreCase("hello"))
             println("ǰ".compareToIgnoreCase("J̌"))
             println("Σ".compareToIgnoreCase("σ"))
+            println("ẛ".compareToIgnoreCase("ẞ"))
+            println("abc".compareToIgnoreCase("abcd"))
+            println("".compareToIgnoreCase(""))
+            println("ǅ".compareToIgnoreCase("ǆ"))
+            println("ﬁ".compareToIgnoreCase("fi"))
+            println("😀x".compareToIgnoreCase("😀Y"))
+            println("ÉCOLE".compareToIgnoreCase("école"))
         }
         """;
 
