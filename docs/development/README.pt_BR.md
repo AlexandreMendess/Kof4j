@@ -62,6 +62,9 @@ Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca u
 | NAT-STR01 (case-map astral) | `known-bugs.md` §161 | ✅ ABERTO POR DECISÃO 13/09 — UTF-8 astral nos nativos |
 | §129 (unwind cross-thread via TLS) | `known-bugs.md` | ✅ CORRIGIDO 15/09 (chain TLS por thread; riscv/aarch `OTP001`) |
 | json §106 | `known-bugs.md` | ✅ CORRIGIDO 13/09 (chaves sorted; residual JS `ab85cfae`) |
+| #667 — Script × `extern` compila clean e morre em runtime com `KofRuntime.kof_ffi/4` bruto (medido 28/09, unidade #666); sem código de gap, sem linha FFI×Script em `backend-parity` | issue #667 | ⏳ DECISÃO A/B/C (regra 6) — (A) recusa em compile-time com código de gap (`FFI001` reusar vs novo `FFI003`) + linha na matriz; (B) implementar o bridge `kof_ffi` no interpretador; (C) outra. Nenhum agente implementa antes da decisão. |
+| #668 — face COMPILE de `MEM020`/B-03: duas escritas `extern` no MESMO `Buffer(U8)` via `spawn` sem sync compilam CLEAN (medido 28/09, unidade #666) | issue #668 + `memory-safety-plan.md` (pedido B-03, linha 72) | ⏳ DECISÃO A/B/C (regra 6) — (A) `MEM020` ERROR em compile sobre o `OwnershipPass` existente; (B) guard de borrow-escrevível em runtime no `Buffer` (primitiva nova de core); (C) aceitar como corrida documentada. Nenhum agente implementa antes da decisão. |
+| #651 — face Native de `Buffer(U8, INOUT)` (binda só no JVM/JS; Native `FFI001`), com consumidor nativo real (KOOKIE) | issue #651 + `DECISIONS.md` `D-BUFFER-INOUT-NATIVE` | ✅ DECIDIDO 28/09 — roteado para a **lane native/FFI**; recorte **x86-64 + cross riscv64/aarch64**; ainda não implementado (frente fase 5, coordenar com a unidade-pino #666). |
 
 ---
 

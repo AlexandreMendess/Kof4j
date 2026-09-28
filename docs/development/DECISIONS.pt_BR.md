@@ -4221,6 +4221,8 @@ individuais:
 - **D-VALUE-RECORDS-GO** — frente value-record aberta; ABI scope + questões
   abertas (class? generics? diagnósticos? JS?) decididos na implementação.
 - **D-KOF-FILE-GO** — promoção do `kof.file` autorizada.
+- **D-BUFFER-INOUT-NATIVE** — a face Native de `Buffer(U8, INOUT)` está autorizada
+  (x86-64 + cross riscv64/aarch64); lane native/FFI.
 - **D-TEST-ARCHITECTURE-GO** — promoção do test-architecture autorizada
   (profiling → integration).
 - **D-HTTP-POLICIES** — autorizado; superfície travada na implementação.
@@ -4313,3 +4315,14 @@ individuais:
 - **Zero falso-positivo por construção:** `await` de qualquer handle limpa o conjunto pendente (sub-reporta, nunca sobre-reporta); nomes SOMBREADOS por declarações locais do worker ou parâmetros de lambda são excluídos; faces condicional/interprocedural de spawn seguem nomeadas (silenciosas).
 - **Prova:** `MemorySafetyE2ETest` 46/46 (6 novos: 3 RED antes do fix — medido 3/3 FAIL no scanner antigo — e 3 green zero-FP), diagnóstico JVM/Native/JS + Script.
 - **Relações:** `Related: D-MEMORY-SAFETY, D-MEMORY-CLEAR, D-FUTURE-BATCH-2809, regra 6, regra 11`; tracker #660.
+
+## D-BUFFER-INOUT-NATIVE — a face Native de `Buffer(U8, INOUT)` está autorizada e roteada para a lane native/FFI, escopo cross (mantenedora 28/09/2026, direção "a lane FFI corrija" + recorte "x86-64 + cross riscv64/aarch64")
+
+**State:** DECIDED (mantenedora) — resolve o pedido de decisão de target/ordem do #651; **a execução pertence à lane native/FFI** (frente fase 5), não à lane issues/tooling.
+
+- **Questão (#651):** `Buffer(U8, INOUT)` binda no JVM/JS (token `B` em `FfiSignature`, `BufferFfiE2ETest` 4/4) mas a face Native segue `FFI001` (gap honesto por alvo, R6). A issue pediu se completar no Native e em qual ordem de alvo.
+- **Decisão:** autorizado — implementar a face Native sob o contrato já existente de handles/out-buffers `D-R3-BUFFER`/`D6-3`; **sem sintaxe nova, sem ponteiro genérico**. Recorte = **Native Linux x86-64 E cross riscv64/aarch64** (escolha da mantenedora); faces JS/não-bindáveis mantêm seu gap honesto (`FFI001`/`FFI002`).
+- **Contrato mantido:** aceitar apenas o tipo/capacidade já definidos do Buffer; acesso nativo confinado à chamada FFI; validar comprimento/capacidade/limites antes da chamada; publicar bytes conforme a semântica `INOUT` estabelecida; recusar honestamente callbacks retidos, variádicos, ponteiros genéricos e ownership fora do contrato; `FFI001` permanece para tudo fora do contrato (nunca stub, nunca fallback silencioso).
+- **Prova exigida (pela issue):** fixture C determinística pequena + programa Kof observando o resultado por `Buffer.bytes()`, paridade byte-a-byte JVM↔Native, e casos negativos de capacidade/limites; um benchmark pode medir custo, mas nenhuma alegação de desempenho sem medição.
+- **Roteamento:** NÃO implementado pela lane issues/tooling; a lane native/FFI é dona da execução (coordenar com a frente fase-5 em curso / unidade-pino #666 antes de tocar; não colidir).
+- **Relações:** `Related: D-R3-BUFFER, D6-3, D-KOF-FIRST, D-FULL-PARITY-050, regra 6, regra 11, regra 12`; tracker #651.

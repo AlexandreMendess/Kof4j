@@ -4233,6 +4233,8 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **D-VALUE-RECORDS-GO** — value-record front open; ABI scope + open questions
   (class? generics? diagnostics? JS repr?) decided during implementation.
 - **D-KOF-FILE-GO** — `kof.file` promotion authorized.
+- **D-BUFFER-INOUT-NATIVE** — the Native face of `Buffer(U8, INOUT)` is authorized
+  (x86-64 + cross riscv64/aarch64); native/FFI lane.
 - **D-TEST-ARCHITECTURE-GO** — test-architecture promotion authorized
   (profiling → integration).
 - **D-HTTP-POLICIES** — authorized; surface locked during implementation.
@@ -4325,3 +4327,14 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Zero false positive by construction:** `await` of any handle clears the pending set (sub-report, never over-report); names SHADOWED by worker-local declarations or lambda parameters are excluded; conditional/interprocedural spawn faces remain named (silent).
 - **Proof:** `MemorySafetyE2ETest` 46/46 (6 new: 3 RED before the fix — measured 3/3 FAIL on the old scanner — and 3 zero-FP green), JVM/Native/JS + Script diagnostic.
 - **Relationships:** `Related: D-MEMORY-SAFETY, D-MEMORY-CLEAR, D-FUTURE-BATCH-2809, rule 6, rule 11`; tracker #660.
+
+## D-BUFFER-INOUT-NATIVE — the Native face of `Buffer(U8, INOUT)` is authorized and routed to the native/FFI lane, cross scope (maintainer 28/09/2026, direction "a lane FFI corrija" + recorte "x86-64 + cross riscv64/aarch64")
+
+**State:** DECIDED (maintainer) — resolves the #651 target/order decision request; **execution belongs to the native/FFI lane** (fase-5 front), not the issues/tooling lane.
+
+- **Question (#651):** `Buffer(U8, INOUT)` binds on JVM/JS (`FfiSignature` token `B`, `BufferFfiE2ETest` 4/4) but the Native face stays `FFI001` (honest per-target gap, R6). The issue asked whether to complete it on Native and in which target order.
+- **Decision:** authorized — implement the Native face under the existing `D-R3-BUFFER`/`D6-3` handle/out-buffer contract; **no new syntax, no generic pointer**. Recorte = **Native Linux x86-64 AND cross riscv64/aarch64** (maintainer's scope choice); JS/non-bindable faces keep their honest gap (`FFI001`/`FFI002`).
+- **Contract kept:** accept only the already-defined Buffer type/capacity; native access confined to the FFI call; validate length/capacity/bounds before the call; publish bytes per the established `INOUT` semantics; refuse honestly retained callbacks, variadics, generic pointers and out-of-contract ownership; `FFI001` stays for everything outside the contract (never a stub, never a silent fallback).
+- **Proof to require (per issue):** a small deterministic C fixture + a Kof program observing the result via `Buffer.bytes()`, byte-for-byte JVM↔Native parity, and negative capacity/bounds cases; a benchmark may measure cost but no performance claim without measurement.
+- **Routing:** NOT implemented by the issues/tooling lane; the native/FFI lane owns execution (coordinate with the in-progress fase-5 front / pin unit #666 before touching; do not collide).
+- **Relationships:** `Related: D-R3-BUFFER, D6-3, D-KOF-FIRST, D-FULL-PARITY-050, rule 6, rule 11, rule 12`; tracker #651.
