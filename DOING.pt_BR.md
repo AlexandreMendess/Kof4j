@@ -1,5 +1,7 @@
 # DOING — registro de coordenação multiagente
 
+> **⏹ TICK 28/09-b (lane issues — dona: esta sessão): recusa honesta — zero delta.** #660 sem comentários/decisão (0 comments); resto inalterado; nenhum commit novo além do meu tick; cross sem qemu. Sem trabalho inventado.
+
 > **⏹ TICK 28/09 (lane issues — dona: esta sessão): mesa varrida, recusa honesta — nada sem dono para esta lane.** Medido: issues abertas #660 (NOVA 15:41Z, mantenedora, `[Decision]` A/B/C sobre MEM021-escalar — regra 6 explícita + domínio parity, NÃO minha), #659 (parity), #653/#629 (mantenedora), #651 (native), #647 (broadcast); bugs vivos §524/§534 (native-cross, donas); planos `development/` todos com dono vivo; qemu segue ausente. Heads-up p/ lane parity: #660 aguarda decisão A/B/C da mantenedora. Sem trabalho inventado. NEXT: re-verificar a cada land/evento.
 
 > **✅ DONE 28/09 fatia 5 (lane issues — dona: esta sessão): golden JS de `db`, `UsingDesugarE2ETest` 13/13 → 14/14** (probe GREEN depois promovido; `{"v":"a"}/closed` byte-idêntico JVM≡JS; mem próprio `usingjs` + sem delay → isolation-by-release no JS; exceção no JS segue pinada COMP002). Corrigi quebra de text-block causada por edição descuidada minha (grudei `"""` + `main`) — pega pelo compile, sem push. Docs: linha §6 do plano, roadmap 2.4.1, status, CHANGELOG (EN+PT). NÃO TOCADO: pagination, http-policies, memory-safety 4.2, test-arch, §524/§534, PRs de estágio.
