@@ -7,7 +7,7 @@
 **Decision:** `D-SCOPED-RESOURCES-GO` (`DECISIONS.md`) — `using` syntax authorized (lightweight RAII, mapped desugar, no ownership); surface locked during implementation (the plan owns it).
 **Real state (measured 28/09, tip `16f5199de`):** mechanism (`try/finally` + GC) exists; hook (`DesugarSteps.defaults()`, run at `CompilerPipeline:320`) exists; `using` unimplemented; no lane owns it.
 **Surface v1 (locked):** `using (x = init, closer) { body }` → `{ var x = init; try { body } finally { closer } }`. The closer is EXPLICIT — the §2 candidate `x.close()` is FALSE for `db` (the handle is a String closed via `db.close(handle)`; `learn/stdlib/db.md`); `conn.close()` / `sse.close()` stay writable as the closer expression. Missing closer = parse error (R6, never a silent leak). The binding is block-scoped (no escape by construction); escape-after-close discipline stays with the memory-safety passes (no ownership here).
-**Slice 1 (landed this commit):** parser (`parser/UsingParser.java`) + `UsingStmt` + `CompilerDesugar.desugarUsing` first in `defaults()` + `UsingDesugarE2ETest` 7/7 (JVM/Script/JS happy parity; JVM/Script/Native-x86 exception goldens; JS nested-throw COMP002 pinned as a pre-existing backend gap, §174 family). Next: multi-resource nesting idiom, `db`-backed E2E on a live fixture, cross riscv/aarch goldens.
+**Slices 1–2 (landed):** slice 1 (parser (`parser/UsingParser.java`) + `UsingStmt` + `CompilerDesugar.desugarUsing` first in `defaults()` + `UsingDesugarE2ETest` 7/7) + slice 2 (nesting reverse-close on JVM/Script/JS/Native-x86; H2-hermetic `db` happy+exception on JVM with MEM014-silence asserts — no live fixture needed; no cross-lane edit: reflective `hasClose` sees the generated `finally`, `UsingDesugarE2ETest` 11/11). Next: cross riscv/aarch goldens.
 **Source:** `../../architecture/UNIVERSAL-PLATFORM-VISION.md` §7 · `roadmap.md` §23 TIER 2.4.1 (former `ACTION_PLAN.md`)
 
 ## 1. Objective
@@ -96,6 +96,7 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 | Desugar hook (`DesugarStep` registry) | ✅ 2.2.3 (`DesugarSteps.defaults()`, `CompilerPipeline:320`) |
 | `using` syntax | ✅ AUTHORIZED 28/09 (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`) |
 | Explicit closer + missing-closer diagnostic | ✅ slice 1 (`UsingDesugarE2ETest` 7/7) |
+| Nesting (reverse close) + `db` integration + MEM014-silence | ✅ slice 2 (`UsingDesugarE2ETest` 11/11; H2-hermetic, no fixture) |
 | Escape-after-close analysis | ⏳ memory-safety lane (no ownership in this plan) |
 
 > The SYSTEMS stage (Tier 1) has already closed (09/03 — DOING.md), so TIER 2 is

@@ -7,7 +7,7 @@
 **Decisão:** `D-SCOPED-RESOURCES-GO` (`DECISIONS.md`) — sintaxe `using` autorizada (RAII leve, desugar mapeado, sem ownership); superfície travada durante a implementação (o plano é dono dela).
 **Estado real (medido 28/09, tip `16f5199de`):** mecanismo (`try/finally` + GC) existe; hook (`DesugarSteps.defaults()`, roda em `CompilerPipeline:320`) existe; `using` não implementado; sem dono.
 **Superfície v1 (travada):** `using (x = init, closer) { body }` → `{ var x = init; try { body } finally { closer } }`. O closer é EXPLÍCITO — o candidato `x.close()` do §2 é FALSO p/ `db` (o handle é String fechada via `db.close(handle)`; `learn/stdlib/db.md`); `conn.close()` / `sse.close()` seguem escrevíveis como closer. Closer ausente = erro de parse (R6, nunca leak silencioso). O vínculo é escopado ao bloco (sem escape por construção); disciplina de escape-pós-close fica com as passes de memory-safety (sem ownership aqui).
-**Fatia 1 (neste commit):** parser (`parser/UsingParser.java`) + `UsingStmt` + `CompilerDesugar.desugarUsing` primeiro em `defaults()` + `UsingDesugarE2ETest` 7/7 (paridade JVM/Script/JS happy; goldens JVM/Script/Native-x86 de exceção; COMP002 aninhado do JS pinado como gap pré-existente de backend, família §174). Próximo: idioma de aninhamento multi-recurso, E2E com `db` em fixture viva, goldens cross riscv/aarch.
+**Fatias 1–2 (landed):** fatia 1 (parser (`parser/UsingParser.java`) + `UsingStmt` + `CompilerDesugar.desugarUsing` primeiro em `defaults()` + `UsingDesugarE2ETest` 7/7) + fatia 2 (reverse-close aninhado em JVM/Script/JS/Native-x86; `db` H2-hermético happy+exceção na JVM com asserts de silêncio MEM014 — sem fixture viva; sem edição cross-lane: `hasClose` reflexivo enxerga o `finally` gerado, `UsingDesugarE2ETest` 11/11). Próximo: goldens cross riscv/aarch.
 **Fonte:** `../../architecture/UNIVERSAL-PLATFORM-VISION.md` §7 · `roadmap.md` §23 TIER 2.4.1 (ex-`ACTION_PLAN.md`)
 
 ## 1. Objetivo
@@ -97,6 +97,7 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 | Hook de desugar (registro `DesugarStep`) | ✅ 2.2.3 (`DesugarSteps.defaults()`, `CompilerPipeline:320`) |
 | Sintaxe `using` | ✅ AUTORIZADA 28/09 (`D-SCOPED-RESOURCES-GO`, lote `D-FUTURE-BATCH-2809`) |
 | Closer explícito + diagnóstico de closer ausente | ✅ fatia 1 (`UsingDesugarE2ETest` 7/7) |
+| Aninhamento (reverse close) + integração `db` + silêncio MEM014 | ✅ fatia 2 (`UsingDesugarE2ETest` 11/11; H2-hermético, sem fixture) |
 | Análise de escape-pós-close | ⏳ lane memory-safety (sem ownership neste plano) |
 
 > O estágio SYSTEMS (Tier 1) já fechou (03/09 — DOING.md), então o TIER 2 é

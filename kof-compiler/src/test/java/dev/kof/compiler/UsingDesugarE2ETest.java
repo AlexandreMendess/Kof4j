@@ -75,9 +75,51 @@ class UsingDesugarE2ETest {
             }
             """;
 
+    /** Nested `using` closes inside-out (reverse order by nesting). */
+    private static final String NEST = """
+            main() {
+                using (a = 1, println(a)) {
+                    using (b = 2, println(b)) {
+                        println(a + b)
+                    }
+                }
+            }
+            """;
+
+    /** Flagship idiom: H2-hermetic `db` acquire → use → release. */
+    private static final String DB_HAPPY = """
+            main() {
+                using (conn = db.connect("jdbc:h2:mem:usingdb;DB_CLOSE_DELAY=-1"), db.close(conn)) {
+                    db.execute(conn, "CREATE TABLE t (id INT PRIMARY KEY, v VARCHAR)")
+                    db.execute(conn, "INSERT INTO t VALUES (1, 'a')")
+                    var rows = db.query(conn, "select v from t where id = ?", 1)
+                    println(rows.get(0))
+                }
+                println("closed")
+            }
+            """;
+
+    /** The `db` closer runs on the exception path without breaking unwind. */
+    private static final String DB_EXC = """
+            main() {
+                try {
+                    using (conn = db.connect("jdbc:h2:mem:usingexc;DB_CLOSE_DELAY=-1"), db.close(conn)) {
+                        db.execute(conn, "CREATE TABLE t (id INT PRIMARY KEY)")
+                        throw "boom"
+                    }
+                } catch (String e) {
+                    println("caught")
+                }
+            }
+            """;
+
     private Run runJvm(Path src, Path out) throws Exception {
         CompilationResult r = driver.compile(src, out, Target.JVM);
         if (!r.success()) return new Run(false, diags(r));
+        return execJvm(out);
+    }
+
+    private Run execJvm(Path out) throws Exception {
         var oldOut = System.out;
         var buf = new ByteArrayOutputStream();
         System.setOut(new java.io.PrintStream(buf, true));
@@ -214,8 +256,7 @@ class UsingDesugarE2ETest {
     }
 
     @Test
-    void missingCloserIsACompileError(@TempDir Path tmp) throws Exception {
-        Path src = tmp.resolve("UsingNoCloser.kf");
+    void missingCloserIsACompileError(@TempDir Path tmp) throws Exception {        Path src = tmp.resolve("UsingNoCloser.kf");
         Files.writeString(src, NO_CLOSER);
         CompilationResult r = driver.compile(src, tmp.resolve("o-using-nocloser"), Target.JVM);
         assertFalse(r.success(), "using without a closer must not compile");
@@ -229,5 +270,51 @@ class UsingDesugarE2ETest {
         Files.writeString(src, LEAK);
         CompilationResult r = driver.compile(src, tmp.resolve("o-using-leak"), Target.JVM);
         assertFalse(r.success(), "use of the binding outside the block must not compile");
+    }
+
+    @Test
+    void usingNestsWithReverseClose(@TempDir Path tmp) throws Exception {
+        assertManagedTargets(tmp, "UsingNest", NEST, "3\n2\n1");
+    }
+
+    @Test
+    void usingNestsWithReverseCloseNative(@TempDir Path tmp) throws Exception {
+        assumeTrue(System.getProperty("os.name").toLowerCase().contains("linux"),
+                "Native x86-64 requires the Linux assembler/linker toolchain");
+        Path src = tmp.resolve("UsingNestNative.kf");
+        Files.writeString(src, NEST);
+        Run n = runNativeX86(src, tmp.resolve("o-using-nest-native"));
+        assertTrue(n.ok(), () -> "Native: " + n.output());
+        assertEquals("3\n2\n1", norm(n.output()), "Native output");
+    }
+
+    @Test
+    void usingDbHappyJvm(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingDb.kf");
+        Files.writeString(src, DB_HAPPY);
+        Path out = tmp.resolve("o-using-db");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        String d = diags(r);
+        assertTrue(r.success(), "db+using must compile: " + d);
+        assertFalse(d.contains("MEM014"),
+                "the desugared finally-close must silence MEM014: " + d);
+        Run run = execJvm(out);
+        assertTrue(run.ok(), () -> "run: " + run.output());
+        assertEquals("{\"v\":\"a\"}\nclosed", norm(run.output()), "db golden");
+    }
+
+    @Test
+    void usingDbClosesOnExceptionJvm(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingDbExc.kf");
+        Files.writeString(src, DB_EXC);
+        Path out = tmp.resolve("o-using-db-exc");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        String d = diags(r);
+        assertTrue(r.success(), "db+using+throw must compile: " + d);
+        assertFalse(d.contains("MEM014"),
+                "the desugared finally-close must silence MEM014: " + d);
+        Run run = execJvm(out);
+        assertTrue(run.ok(), () -> "run: " + run.output());
+        assertEquals("caught", norm(run.output()), "exception golden");
     }
 }
