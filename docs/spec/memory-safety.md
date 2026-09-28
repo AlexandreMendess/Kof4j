@@ -116,7 +116,7 @@ borrows (`&mut`), no borrow checker, no lifetime parameters. The model:
 | **B-03** FFI borrow | `kof_ffi_call(ptr)` where C may write | Passing same `Buffer` to two concurrent FFI calls without sync | `MEM020` | Compile-time + Runtime |
 | **B-04** Spawn alias | `spawn { a.add(1) }` + `a.add(2)` in main | Unsynchronized concurrent mutation without `join_all` | `MEM021` | Compile-time + Runtime |
 | **B-05** Stdlib aliasing | `list.add(x)`; `buffer.write(bytes)` | Mutation during iteration without explicit copy | `MEM022` | Compile-time + Runtime |
-| **B-06** Closure capture | By-value snapshot (immutable) or boxed (mutated) | Capturing mutable local without box when escaping | `MEM023` | Compile-time |
+| **B-06** Closure capture | By-value snapshot (immutable) or boxed (mutated) | Capturing mutable local without box when escaping | `MEM023` | Compile-time (unconstructible — see note 28/09) |
 
 > **Note**: No exclusive borrow means no data-race freedom guarantee at the
 > type level. Data races are prevented by discipline + `join_all` + explicit

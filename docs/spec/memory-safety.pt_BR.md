@@ -118,7 +118,7 @@ O modelo:
 | **B-02** Mutação através de alias | `b.add(2)` visível em `a` | — | — | — |
 | **B-03** Empréstimo FFI | `kof_ffi_call(ptr)` onde C pode escrever | Passar mesmo `Buffer` a duas chamadas FFI concorrentes sem sync | `MEM020` | Compile-time + Runtime |
 | **B-04** Alias em spawn | `spawn { a.add(1) }` + `a.add(2)` no main | Mutação concorrente não sincronizada sem `join_all` | `MEM021` | Compile-time + Runtime |
-| **B-06** Captura de closure | Por valor (snapshot imutável) ou boxed (mutado) | Capturar local mutável sem box quando escapa | `MEM023` | Compile-time |
+| **B-06** Captura de closure | Por valor (snapshot imutável) ou boxed (mutado) | Capturar local mutável sem box quando escapa | `MEM023` | Compile-time (inconstruível — ver nota 28/09) |
 
 > **Nota**: Sem empréstimo exclusivo não há garantia de ausência de data race
 > no nível de tipo. Data races são prevenidos por disciplina + `join_all` +
