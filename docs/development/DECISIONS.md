@@ -4285,6 +4285,17 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Merge law / slice order (F0…F6):** owned by the plan (§4, §12); this entry locks the decision and the surface.
 - **Relationships:** `Related: D-SEC, D-SPRING, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, rule 6, rule 12`.
 
+## D-KOF-FILE-GO — `kof.file` promoted, re-scoped to Streaming (library-first) (maintainer 28/09/2026, batch `D-FUTURE-BATCH-2809` + direction "re-escopar kof-file e implementar Streaming")
+
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/development/kof-file-plan.md`); the batch authorized the promotion, this entry locks the re-scope and the surface.
+
+- **Re-scope (measured, 28/09):** Phase 1 (File/Path/Text/Binary) is already implemented as `kof.io` (`docs/stdlib/IO.md`); the only open Phase-1 face is **Streaming**. The plan's "zero code" claim was true for the module name, not for the capability.
+- **Slice 1 (LANDED):** pure-Kof library `libs/file/` — `FileStream(path[, chunkSize])` with `readChunk() : Int[]?` (null at EOF), `done()`, `position()`, plus `copyStream(source, destination, chunkSize) : Long` (constant-memory copy). Built exclusively on the existing `kof.io.readRange`; **no new grammar, no compiler change** (`D-KOF-FIRST-IMPL`, rule 12). Proof `FileLibraryE2ETest` 2/2 (JVM).
+- **Targets:** JVM proven; Native expected (`readRange` is cross-proven); JS/Script are an honest gap (`readRange` absent) — an explicit gap code is required before claiming them, never a silent whole-file fallback.
+- **Boundary (R1):** base stdlib keeps light I/O/streaming/text; heavy codecs (PDF/images/archives) belong to official packages (R9 interop-first).
+- **Slice order (how to finish):** plan §"How to finish" (Streaming slice 2 → Native measurement + JS/Script gap code → Phase 2 structured data → Phase 3+ configuration/documents/containers).
+- **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, D-IO-SIZE-JVM-LAW, rule 6, rule 12, R1, R9`.
+
 ## D-RELEASE-0.5.0-CLOSED — the 0.5.0 cut is done; the prep tracker and its gate are retired (maintainer 28/09/2026, "a release ja aconteceu")
 
 **State:** DECIDED (maintainer) · **Evidence:** `origin/main` merged `#619` (`beta-0.5.0 → main`) and the artifacts are tagged `kof-0.5.0-beta*` (2026.09.25).

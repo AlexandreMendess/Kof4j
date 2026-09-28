@@ -952,7 +952,12 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > infraestrutura pura de testes. **ABERTA (4ª frente):** `pagination` — promovida
 > 28/09 (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) para
 > [`pagination-plan.md`](pagination-plan.md); primeira fatia = `slice`/`take`/`drop`
-> em memória. Todos os planos restantes de `future/` estão autorizados com suas
+> em memória. **ABERTA (5ª frente):** `kof-file` — promovido 28/09
+> (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) para
+> [`kof-file-plan.md`](kof-file-plan.md); re-escopado na promoção (Fase 1
+> File/Path/Text/Binary já existe como `kof.io`), fatia 1 de streaming landed
+> (pure-Kof `libs/file/` sobre `kof.io.readRange`, `FileLibraryE2ETest` 2/2).
+> Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).
 

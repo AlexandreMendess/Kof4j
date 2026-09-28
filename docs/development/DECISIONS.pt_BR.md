@@ -4273,6 +4273,17 @@ individuais:
 - **Lei de merge / ordem das fatias (F0…F6):** pertence ao plano (§4, §12); esta entrada trava a decisão e a superfície.
 - **Relações:** `Related: D-SEC, D-SPRING, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, regra 6, regra 12`.
 
+## D-KOF-FILE-GO — `kof.file` promovido, re-escopado para Streaming (library-first) (mantenedora 28/09/2026, lote `D-FUTURE-BATCH-2809` + direção "re-escopar kof-file e implementar Streaming")
+
+**Estado:** DECIDIDO (mantenedora) — frente promovida por `D-FUTURE-PROMOTION` (`docs/development/kof-file-plan.md`); o lote autorizou a promoção, esta entrada trava o re-escopo e a superfície.
+
+- **Re-escopo (medido, 28/09):** a Fase 1 (File/Path/Text/Binary) já está implementada como `kof.io` (`docs/stdlib/IO.pt_BR.md`); a única face aberta da Fase 1 é **Streaming**. A alegação "zero código" do plano era verdadeira para o nome do módulo, não para a capacidade.
+- **Fatia 1 (LANDED):** biblioteca pure-Kof `libs/file/` — `FileStream(path[, chunkSize])` com `readChunk() : Int[]?` (null no EOF), `done()`, `position()`, mais `copyStream(source, destination, chunkSize) : Long` (cópia de memória constante). Construída exclusivamente sobre o `kof.io.readRange` existente; **sem gramática nova, sem mudança no compilador** (`D-KOF-FIRST-IMPL`, regra 12). Prova `FileLibraryE2ETest` 2/2 (JVM).
+- **Alvos:** JVM provado; Native esperado (`readRange` tem prova cross); JS/Script são lacuna honesta (`readRange` ausente) — um código de gap explícito é exigido antes de reivindicá-los, nunca fallback silencioso de arquivo inteiro.
+- **Boundary (R1):** a stdlib base mantém I/O/streaming/texto leves; codecs pesados (PDF/imagens/archives) pertencem a pacotes oficiais (R9 interop-first).
+- **Ordem das fatias (como terminar):** plano §"Como terminar" (Streaming fatia 2 → medição Native + código de gap JS/Script → Fase 2 dados estruturados → Fase 3+ configuração/documentos/containers).
+- **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, D-IO-SIZE-JVM-LAW, regra 6, regra 12, R1, R9`.
+
 ## D-RELEASE-0.5.0-CLOSED — o corte 0.5.0 acabou; o prep e seu gate são aposentados (mantenedora 28/09/2026, "a release ja aconteceu")
 
 **Estado:** DECIDED (mantenedora) · **Evidência:** `origin/main` mergeou o `#619` (`beta-0.5.0 → main`) e os artefatos estão tagueados `kof-0.5.0-beta*` (2026.09.25).
