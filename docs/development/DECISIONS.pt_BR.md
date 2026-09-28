@@ -4208,3 +4208,37 @@ Coordenação (uniforme entre agentes):
 - push somente via `scripts/sync-push.sh`.
 
 - **Relações:** `Related: D-KOFMD, D-KOFMD-ON-EDIT, D-DOC-SLIM, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, regra 5, regra 6`.
+
+## D-FUTURE-BATCH-2809 — todos os planos `future/` autorizados como escopo 1.0.0 (mantenedora 28/09/2026, lote votado)
+
+Todo plano em `docs/development/future/` está autorizado — todos têm de concluir
+antes da 1.0.0. A promoção segue uma-por-vez por `D-FUTURE-PROMOTION` (o mais
+fácil primeiro; nunca o mais interessante, nunca semântica congelada). Travas
+individuais:
+
+- **D-SCOPED-RESOURCES-GO** — sintaxe `using` autorizada (RAII leve,
+  desugar mapeado, sem ownership).
+- **D-VALUE-RECORDS-GO** — frente value-record aberta; ABI scope + questões
+  abertas (class? generics? diagnósticos? JS?) decididos na implementação.
+- **D-KOF-FILE-GO** — promoção do `kof.file` autorizada.
+- **D-TEST-ARCHITECTURE-GO** — promoção do test-architecture autorizada
+  (profiling → integration).
+- **D-HTTP-POLICIES** — autorizado; superfície travada na implementação.
+- **D-PAGINATION** — autorizado; superfície travada na implementação.
+- **D-ENTITY-HISTORY** — autorizado; superfícies travadas na implementação.
+- **D-TESTING-PLATFORM** — autorizado (estende `kof test` aditivamente).
+- **D-CONNECTORS** — ecossistema de conectores autorizado.
+- **D-DEPRIORITIZED-REOPEN** — DECOMPILER, LEGACY_MIGRATION e TRANSLATOR
+  reabertos.
+- **D-GRAPHICS-SPIKE** — spike 3.0 do graphics-gaming autorizado (medição e
+  stack apenas, sem API).
+- **D-ASSEMBLY-OPT-GO** — assembly-optimization autorizado (da fase A,
+  sem mudança de semântica).
+- **D-IMAGE-VISION-GO** — image-vision autorizado.
+- **D-MULTIPARADIGMA-GO** — Tier 2.x autorizado.
+- **D-BOOTSTRAP-GO** — Kof-em-Kof autorizado.
+- **D-WASM-GO** — alvo novo wasm/wasi autorizado.
+- **D-UNIVERSAL-STAGES-GO** — stages 4–7 (DATA/SECURITY/SCIENTIFIC/BIO)
+  autorizados.
+
+- **Relações:** `Related: D-FUTURE-PROMOTION, D-KOF-FIRST (regra 12), regra 11, regra 6`.

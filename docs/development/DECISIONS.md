@@ -4221,3 +4221,36 @@ Coordination (uniform across agents):
 - push only through `scripts/sync-push.sh`.
 
 - **Relationships:** `Related: D-KOFMD, D-KOFMD-ON-EDIT, D-DOC-SLIM, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, rule 5, rule 6`.
+
+## D-FUTURE-BATCH-2809 — all `future/` plans authorized as 1.0.0 scope (maintainer 28/09/2026, voted batch)
+
+Every plan in `docs/development/future/` is authorized — all must conclude
+before 1.0.0. Promotion stays one-at-a-time per `D-FUTURE-PROMOTION` (easiest
+first; never the most interesting, never frozen-semantics). Individual locks:
+
+- **D-SCOPED-RESOURCES-GO** — `using` syntax authorized (lightweight RAII,
+  mapped desugar, no ownership).
+- **D-VALUE-RECORDS-GO** — value-record front open; ABI scope + open questions
+  (class? generics? diagnostics? JS repr?) decided during implementation.
+- **D-KOF-FILE-GO** — `kof.file` promotion authorized.
+- **D-TEST-ARCHITECTURE-GO** — test-architecture promotion authorized
+  (profiling → integration).
+- **D-HTTP-POLICIES** — authorized; surface locked during implementation.
+- **D-PAGINATION** — authorized; surface locked during implementation.
+- **D-ENTITY-HISTORY** — authorized; surfaces locked during implementation.
+- **D-TESTING-PLATFORM** — authorized (extends `kof test` additively).
+- **D-CONNECTORS** — connector ecosystem authorized.
+- **D-DEPRIORITIZED-REOPEN** — DECOMPILER, LEGACY_MIGRATION and TRANSLATOR
+  reopened.
+- **D-GRAPHICS-SPIKE** — graphics-gaming spike 3.0 authorized (measurement and
+  stack only, no API).
+- **D-ASSEMBLY-OPT-GO** — assembly-optimization authorized (from phase A,
+  no semantics change).
+- **D-IMAGE-VISION-GO** — image-vision authorized.
+- **D-MULTIPARADIGMA-GO** — Tier 2.x authorized.
+- **D-BOOTSTRAP-GO** — Kof-in-Kof authorized.
+- **D-WASM-GO** — new wasm/wasi target authorized.
+- **D-UNIVERSAL-STAGES-GO** — stages 4–7 (DATA/SECURITY/SCIENTIFIC/BIO)
+  authorized.
+
+- **Relationships:** `Related: D-FUTURE-PROMOTION, D-KOF-FIRST (rule 12), rule 11, rule 6`.
