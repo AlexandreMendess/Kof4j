@@ -2,9 +2,9 @@
 
 # Status do Projeto Kof
 
-last: #671 células-defasadas-mortas (JS-FFI + escopo-WASM) + #670 tabela-ownership pousada (spec §7, 4 fronteiras + ausencia Rust) + #669 gate D-vs-DECISIONS + #666 unidade-1-fase-5 pinada (FFI x spawn) + #664/#665 cadeia-de-evidencia hardened + #660 D-MEM021-SCALAR pousado (c65f9ba18) + kof-file streaming fatia 1
+last: #671 células-defasadas-mortas (JS-FFI + escopo-WASM) + #670 tabela-ownership pousada (spec §7, 4 fronteiras + ausencia Rust) + #669 gate D-vs-DECISIONS + #666 unidade-1-fase-5 pinada (FFI x spawn) + #664/#665 cadeia-de-evidencia hardened + #660 D-MEM021-SCALAR pousado (c65f9ba18) + kof-file streaming fatia 2 (golden em todos os alvos + lacuna JS IOJS001)
 doing: memory-safety (fase 4 FECHADA; fase 5 MEDIDA no plano) / scoped-resources / test-architecture / pagination / kof-file (lanes vivas)
-next: unidade-2 da fase-5 bloqueada nas decisoes #667/#668 (regra 6) / kof-file streaming fatia 2 (Native + código de gap JS/Script)
+next: unidade-2 da fase-5 bloqueada nas decisoes #667/#668 (regra 6) / kof-file fase 2 (dados estruturados: kof.json/CSV sobre o modelo de chunks)
 location: status
 state: active
 constraint: pr619-maintainer-only

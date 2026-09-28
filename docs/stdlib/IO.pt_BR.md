@@ -38,20 +38,18 @@ No Windows o separador é `\`; o código Kof nunca concatena separadores.
 | `size()` | Long; lança exceção se o arquivo não existe (02/09 — sem sentinela `-1`) |
 | `delete()` | Bool (arquivo ou diretório vazio) |
 | `name()` / `path()` | String |
-| `copyTo(destino)` | Bool — **somente JVM** (18/09). Copia bytes + atributos básicos. Sem sobrescrita por padrão (devolve `false`, sem alterar nenhum dos dois arquivos, se `destino` já existir); não cria o diretório pai de `destino` implicitamente — quem chama precisa garantir que ele exista |
-| `moveTo(destino)` | Bool — **somente JVM** (18/09). Primitiva de filesystem para mover/renomear, sem sobrescrita por padrão (mesmo contrato de `copyTo`). Não é uma transação segura: quem precisa de mover com verificação de hash continua fazendo copiar → validar → apagar, como já fazia antes deste método existir |
-| `modifiedTime()` | Long — **somente JVM** (18/09). Data de modificação em milissegundos desde a época; lança exceção se o arquivo não existir (mesmo contrato de `size()`, sem sentinela) |
-| `isSymlink()` | Bool — **somente JVM** (18/09). `true` quando o próprio caminho é um link simbólico (o link nunca é seguido implicitamente por essa checagem) |
+| `copyTo(destino)` | Bool — JVM + Native (x86-64/riscv64/aarch64, linha de paridade 13). Copia bytes + atributos básicos. Sem sobrescrita por padrão (devolve `false`, sem alterar nenhum dos dois arquivos, se `destino` já existir); não cria o diretório pai de `destino` implicitamente — quem chama precisa garantir que ele exista |
+| `moveTo(destino)` | Bool — JVM + Native. Primitiva de filesystem para mover/renomear, sem sobrescrita por padrão (mesmo contrato de `copyTo`). Não é uma transação segura: quem precisa de mover com verificação de hash continua fazendo copiar → validar → apagar, como já fazia antes deste método existir |
+| `modifiedTime()` | Long — JVM + Native. Data de modificação em milissegundos desde a época; lança exceção se o arquivo não existir (mesmo contrato de `size()`, sem sentinela) |
+| `isSymlink()` | Bool — JVM + Native. `true` quando o próprio caminho é um link simbólico (o link nunca é seguido implicitamente por essa checagem) |
 
-Formas estáticas: `File.exists(p)`, `File.readText(p)`,
-`File.writeText(p, s)`, `File.appendText(p, s)`, `File.delete(p)`,
-`File.size(p)`, `File.name(p)`.
-
-`copyTo`/`moveTo`/`modifiedTime`/`isSymlink` ainda não têm forma estática e
-não têm backend Native (`RuntimeIo2` ainda não tem esses casos) — usá-los
-mirando Native é um gap conhecido, não um no-op silencioso; isso não foi
-exercitado nesta mudança (somente JVM) e o modo de falha exato em Native
-ainda não foi caracterizado.
+**Não existe forma estática** para nenhuma face do `kof.io`:
+`File.exists(p)`, `File.readText(p)`, `File.readRange(p, o, n)` são rejeitados
+pelo typer com `SEM011 Undefined variable or type: 'File'` em **todos** os
+alvos (medido 28/09) — use a forma de instância `File(p).exists()`,
+`File(p).readRange(0, 4)`. (A tabela `KofIo.staticMethod` do compilador é
+inalcançável porque o typer nunca resolve o tipo como receptor estático;
+`copyTo`/`moveTo`/`modifiedTime`/`isSymlink` são só de instância.)
 
 ## Directory
 
@@ -96,8 +94,8 @@ println(path.size())
 
 O `kof.io` também expõe `readRange(offset, len)` (leitura incremental). A
 biblioteca pure-Kof oficial `libs/file` constrói streaming sobre ele —
-`D-KOF-FILE-GO` fatia 1, provada na JVM; sem sintaxe nova, sem mudança no
-compilador.
+`D-KOF-FILE-GO`; sem sintaxe nova, sem mudança no compilador. A fatia 2
+mediu a biblioteca em todos os alvos (`FileLibraryE2ETest` 7/7).
 
 ```kof
 import file.FileStream
@@ -121,9 +119,11 @@ main() {
 | `position()` | `Long` bytes consumidos |
 | `copyStream(source, destination, chunkSize)` | `Long` bytes copiados, memória constante |
 
-Alvos: JVM e Native (`readRange` tem prova cross em x86-64/riscv64/aarch64).
-JS e Script não têm `readRange` — lacuna honesta (`D-KOF-FILE-GO`), nunca
-fallback silencioso de arquivo inteiro.
+Alvos: JVM, Native (x86-64/riscv64/aarch64) e Script rodam o `readRange`
+real (todos medidos contra o mesmo golden). O JS não tem binding de host
+para `readRange` (nem `copyTo`/`moveTo`/`modifiedTime`/`isSymlink`): a
+chamada recusa em compile time com `IOJS001` (`D-KOF-FILE-GO`), nunca
+fallback silencioso de arquivo inteiro nem `SyntaxError` em runtime.
 
 ## Referência
 

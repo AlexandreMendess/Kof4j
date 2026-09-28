@@ -951,8 +951,9 @@ science) **without** destroying the language's simplicity.
 > `slice`/`take`/`drop`. **OPEN (5th front):** `kof-file` — promoted 28/09
 > (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) to
 > [`kof-file-plan.md`](kof-file-plan.md); re-scoped on promotion (Phase 1
-> File/Path/Text/Binary already exists as `kof.io`), streaming slice 1 landed
-> (pure-Kof `libs/file/` over `kof.io.readRange`, `FileLibraryE2ETest` 2/2).
+> File/Path/Text/Binary already exists as `kof.io`); streaming slices 1–2 landed
+> (pure-Kof `libs/file/` over `kof.io.readRange`; slice 2 = golden on
+> JVM/Native/Script + JS gap `IOJS001`, `FileLibraryE2ETest` 7/7).
 > All remaining `future/` plans are authorized with their
 > design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
 > one-at-a-time (`D-FUTURE-PROMOTION`).

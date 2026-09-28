@@ -264,6 +264,32 @@ class DomainGapCodesTest {
     }
 
     @Test
+    void ioReadRangeOnJsIsIojs001(@TempDir Path tmp) throws Exception {
+        // D-KOF-FILE-GO slice 2: the JS guest runtime (kof-runtime-io.mjs) has
+        // no kofIoReadRange export — emitting the call compiled and died at
+        // runtime with a SyntaxError (R6). The lowering now refuses at compile
+        // time with IOJS001; Script keeps the real interpreter semantics.
+        assertGap(tmp, Target.JS, "IOJS001", """
+            main() {
+                val f = File("/tmp/kof-io-probe")
+                println(f.readRange(0, 4).length)
+            }
+            """);
+    }
+
+    @Test
+    void ioCopyOnJsIsIojs001(@TempDir Path tmp) throws Exception {
+        // Same missing-binding face: copyTo/moveTo/modifiedTime/isSymlink have
+        // no JS host binding either.
+        assertGap(tmp, Target.JS, "IOJS001", """
+            main() {
+                val f = File("/tmp/kof-io-probe")
+                println(f.copyTo("/tmp/kof-io-probe2"))
+            }
+            """);
+    }
+
+    @Test
     void webT1OnCrossIsNat007(@TempDir Path tmp) throws Exception {
         // §427: NativeWebRuntime (listen/route) is emitted on the x86_64 path
         // only; the cross has no kof_web_* symbols.

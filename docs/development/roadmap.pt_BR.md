@@ -954,8 +954,9 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > em memória. **ABERTA (5ª frente):** `kof-file` — promovido 28/09
 > (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) para
 > [`kof-file-plan.md`](kof-file-plan.md); re-escopado na promoção (Fase 1
-> File/Path/Text/Binary já existe como `kof.io`), fatia 1 de streaming landed
-> (pure-Kof `libs/file/` sobre `kof.io.readRange`, `FileLibraryE2ETest` 2/2).
+> File/Path/Text/Binary já existe como `kof.io`); fatias 1–2 de streaming landed
+> (pure-Kof `libs/file/` sobre `kof.io.readRange`; fatia 2 = golden na
+> JVM/Native/Script + lacuna JS `IOJS001`, `FileLibraryE2ETest` 7/7).
 > Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).

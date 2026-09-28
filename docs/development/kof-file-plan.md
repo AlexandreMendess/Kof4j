@@ -2,7 +2,7 @@
 
 # Strategic plan — `kof.file`
 
-> **State (28/09): UNDER DEVELOPMENT — promoted `future/` → `docs/development/` by `D-KOF-FILE-GO` + `D-FUTURE-PROMOTION` (maintainer).** Re-scoped on promotion: **Phase 1 (File/Path/Text/Binary) already exists as `kof.io`** (`docs/stdlib/IO.md` — `File`/`Path`/`Directory` + `readText`/`writeText`/`appendText`/`readBytes`/`writeBytes`/`readRange`/`size`/`delete`/`copyTo`/`moveTo`/`modifiedTime`/`isSymlink` + static forms); the only open Phase-1 gap is **Streaming**. **Slice 1 LANDED 28/09:** pure-Kof library `libs/file/` (`FileStream` chunked reader over `kof.io.readRange` + `copyStream` constant-memory copy), JVM-proven by `FileLibraryE2ETest` 2/2 — no new syntax, no compiler change (library-first, `D-KOF-FIRST-IMPL`). R1 boundary gate — heavy codecs (PDF, images, archives) belong to the **official-packages** layer, not the base stdlib (`scripts/check_stdlib_boundary.sh` + `scripts/stdlib_boundary.txt`); interop-first R9 — ZXing/PDFBox/imageio/JCA, never reimplement. The `let` in the examples below is a fake idiom
+> **State (28/09): UNDER DEVELOPMENT — promoted `future/` → `docs/development/` by `D-KOF-FILE-GO` + `D-FUTURE-PROMOTION` (maintainer).** Re-scoped on promotion: **Phase 1 (File/Path/Text/Binary) already exists as `kof.io`** (`docs/stdlib/IO.md` — `File`/`Path`/`Directory` + `readText`/`writeText`/`appendText`/`readBytes`/`writeBytes`/`readRange`/`size`/`delete`/`copyTo`/`moveTo`/`modifiedTime`/`isSymlink`); the only open Phase-1 gap is **Streaming**. **Slice 1 LANDED 28/09:** pure-Kof library `libs/file/` (`FileStream` chunked reader over `kof.io.readRange` + `copyStream` constant-memory copy), JVM-proven by `FileLibraryE2ETest` 2/2 — no new syntax, no compiler change (library-first, `D-KOF-FIRST-IMPL`). **Slice 2 LANDED 28/09:** measured on JVM **+ Native x86-64 + riscv64/aarch64 under qemu + Script** against the same golden; **JS`readRange`/`copyTo`/`moveTo`/`modifiedTime`/`isSymlink` are an honest compile-time gap `IOJS001`** (the GraalJS runtime exports no binding — before, the program died at runtime with `SyntaxError`) — `FileLibraryE2ETest` 7/7. R1 boundary gate — heavy codecs (PDF, images, archives) belong to the **official-packages** layer, not the base stdlib (`scripts/check_stdlib_boundary.sh` + `scripts/stdlib_boundary.txt`); interop-first R9 — ZXing/PDFBox/imageio/JCA, never reimplement. The `let` in the examples below is a fake idiom
 > (`training/anti-patterns/fake-idioms.md`); real syntax is `var`/`val`.
 
 ## Real state (28/09)
@@ -11,14 +11,15 @@
 |------|-------|-------|
 | File / Path / Text / Binary | **EXISTS as `kof.io`** (not `kof.file`) | `docs/stdlib/IO.md`; `KofIo.java`; `JvmRuntimeIo.java` |
 | Streaming (chunked read + constant-memory copy) | **SLICE 1 LANDED** (JVM-proven) | `libs/file/FileStream.kf`; `FileLibraryE2ETest` 2/2 |
-| Streaming on Native | expected (`readRange` is cross-proven) — **not yet measured for the library** | `NativeIoReadRangeCrossTest` |
-| Streaming on JS / Script | **honest gap** — `readRange` is JVM+Native only | R6 `XXX00x` pending |
+| Streaming on Native | **SLICE 2 MEASURED — golden on x86-64 + riscv64/aarch64** (qemu) | `FileLibraryE2ETest.streamsOnNative*` |
+| Streaming on JS | **SLICE 2 — honest compile-time gap `IOJS001`** (no JS host binding; was a runtime `SyntaxError`) | `ExpressionBuiltinInstanceCalls.lowerIo`; `DomainGapCodesTest.ioReadRangeOnJsIsIojs001` |
+| Streaming on Script | **SLICE 2 MEASURED — golden** (interpreter has the real `readRange`) | `FileLibraryE2ETest.streamsOnScript` |
 | JSON bridge | exists as `kof.json` (`json.encode/decode`) | — |
 | CSV / XML / config / documents / archives | not started; heavy codecs = official packages (R1) | — |
 
 ## How to finish
 
-1. Streaming slice 2 — measure `FileStream` on Native x86-64 (and riscv/aarch via qemu); give JS/Script an explicit gap code instead of an undefined symbol.
+1. Streaming slice 2 — **LANDED 28/09**: `FileStream` golden on JVM + Native x86-64 + riscv64/aarch64 (qemu) + Script; JS refuses at compile time with `IOJS001` (host has no partial-read primitive — never a whole-file fallback).
 2. Phase 2 — structured data: bridge `kof.json`, then CSV/TSV (quoting, streaming) reusing the `FileStream` chunk model.
 3. Phase 3+ — configuration (YAML/TOML/INI), documents (Markdown/HTML/PDF), binaries/containers — each behind its own promoted slice; heavy codecs as official packages (R1, R9).
 4. Every slice: RED-first test + docs (`docs/stdlib/IO.md`) + zero stdlib regression.

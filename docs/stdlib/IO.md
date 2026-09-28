@@ -38,20 +38,18 @@ On Windows the separator is `\`; Kof code never concatenates separators.
 | `size()` | Long; throws an exception if the file does not exist (02/09 — no `-1` sentinel) |
 | `delete()` | Bool (file or empty directory) |
 | `name()` / `path()` | String |
-| `copyTo(destination)` | Bool — **JVM only** (18/09). Copies bytes + basic attributes. No-overwrite by default (returns `false`, does not touch either file, if `destination` already exists); does not create the parent directory of `destination` implicitly — the caller must ensure it exists |
-| `moveTo(destination)` | Bool — **JVM only** (18/09). Filesystem-primitive rename/move, no-overwrite by default (same contract as `copyTo`). Not a safe transaction: callers that need a hash-verified move should keep doing copy → verify → delete, same as before this method existed |
-| `modifiedTime()` | Long — **JVM only** (18/09). Last-modified time in epoch milliseconds; throws an exception if the file does not exist (same contract as `size()`, no sentinel) |
-| `isSymlink()` | Bool — **JVM only** (18/09). `true` when the path itself is a symbolic link (the link is never followed implicitly by this check) |
+| `copyTo(destination)` | Bool — JVM + Native (x86-64/riscv64/aarch64, parity row 13). Copies bytes + basic attributes. No-overwrite by default (returns `false`, does not touch either file, if `destination` already exists); does not create the parent directory of `destination` implicitly — the caller must ensure it exists |
+| `moveTo(destination)` | Bool — JVM + Native. Filesystem-primitive rename/move, no-overwrite by default (same contract as `copyTo`). Not a safe transaction: callers that need a hash-verified move should keep doing copy → verify → delete, same as before this method existed |
+| `modifiedTime()` | Long — JVM + Native. Last-modified time in epoch milliseconds; throws an exception if the file does not exist (same contract as `size()`, no sentinel) |
+| `isSymlink()` | Bool — JVM + Native. `true` when the path itself is a symbolic link (the link is never followed implicitly by this check) |
 
-Static forms: `File.exists(p)`, `File.readText(p)`,
-`File.writeText(p, s)`, `File.appendText(p, s)`, `File.delete(p)`,
-`File.size(p)`, `File.name(p)`.
-
-`copyTo`/`moveTo`/`modifiedTime`/`isSymlink` have no static form yet and no
-Native backend (`RuntimeIo2` has no case for them yet) — using them when
-targeting Native is a known gap, not a silent no-op; it has not been
-exercised as part of this change (JVM-only) and its exact failure mode on
-Native has not been characterized yet.
+There is **no static form** for any `kof.io` face: `File.exists(p)`,
+`File.readText(p)`, `File.readRange(p, o, n)` are rejected by the typer with
+`SEM011 Undefined variable or type: 'File'` on **every** target (measured
+28/09) — use the instance form `File(p).exists()`, `File(p).readRange(0, 4)`.
+(The compiler's `KofIo.staticMethod` table is unreachable because the typer
+never resolves the type as a static receiver; `copyTo`/`moveTo`/`modifiedTime`/
+`isSymlink` are instance-only.)
 
 ## Directory
 
@@ -96,7 +94,8 @@ println(path.size())
 
 `kof.io` also exposes `readRange(offset, len)` (incremental read). The
 official pure-Kof library `libs/file` builds streaming on top of it —
-`D-KOF-FILE-GO` slice 1, JVM-proven; no new syntax, no compiler change.
+`D-KOF-FILE-GO`; no new syntax, no compiler change. Slice 2 measured the
+library on every target (`FileLibraryE2ETest` 7/7).
 
 ```kof
 import file.FileStream
@@ -120,9 +119,11 @@ main() {
 | `position()` | `Long` bytes consumed |
 | `copyStream(source, destination, chunkSize)` | `Long` bytes copied, constant memory |
 
-Targets: JVM and Native (`readRange` is cross-proven on x86-64/riscv64/aarch64).
-JS and Script lack `readRange` — an honest gap (`D-KOF-FILE-GO`), never a
-silent whole-file fallback.
+Targets: JVM, Native (x86-64/riscv64/aarch64) and Script run the real
+`readRange` (all measured against the same golden). JS has no host binding
+for `readRange` (nor `copyTo`/`moveTo`/`modifiedTime`/`isSymlink`): calling
+it refuses at compile time with `IOJS001` (`D-KOF-FILE-GO`), never a silent
+whole-file fallback nor a runtime `SyntaxError`.
 
 ## Reference
 

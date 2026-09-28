@@ -30,6 +30,18 @@ final class ExpressionBuiltinInstanceCalls {
             "kof_io_path_parent", "kof_io_path_extension", "kof_io_path_is_absolute",
             "kof_io_path_resolve", "kof_io_path_normalize", "kof_io_path_to_absolute", "kof_io_dir_delete", "kof_io_file_modified_time", "kof_io_file_is_symlink", "kof_io_file_move_to", "kof_io_file_copy_to");
 
+    /**
+     * Faces de kof.io sem binding no runtime JS ({@code kof-runtime-io.mjs}
+     * não exporta estes símbolos). Emitir a chamada compilava e quebrava no
+     * runtime com {@code SyntaxError}: ... does not provide an export named
+     * 'kofIoReadRange' — um fallback silencioso (R6). Sem host primitivo para
+     * leitura parcial, o lowering recusa no compile time com IOJS001.
+     */
+    private static final Set<String> JS_MISSING_IO = Set.of(
+            "kof_io_read_range", "kof_io_read_range_path",
+            "kof_io_file_copy_to", "kof_io_file_move_to",
+            "kof_io_file_modified_time", "kof_io_file_is_symlink");
+
     /** Diagnóstico de gap honesto (R6) numa chamada kof.web. */
     private static void webGap(CompilerDriver driver, MethodCallExpr mc, String msg, String code) {
         if (driver.currentDiagnostics == null) return;
@@ -266,6 +278,24 @@ final class ExpressionBuiltinInstanceCalls {
                                     + "isDirectory are ported); use --target native or the"
                                     + " JVM/JS/Script drivers",
                             "NAT006");
+                }
+                return localIdx;
+            }
+            // R6: JS has no binding for these kof.io faces — the guest module
+            // import was undefined and only failed at runtime (SyntaxError).
+            // Refuse at compile time (IOJS001), never a silent runtime break.
+            if (driver.target == Target.JS && JS_MISSING_IO.contains(ioCall.function())) {
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition ioPos = mc.position();
+                    driver.currentDiagnostics.error(
+                            ioPos != null ? ioPos.file() : "",
+                            ioPos != null ? ioPos.line() : 0,
+                            ioPos != null ? ioPos.column() : 0, 0,
+                            "kof.io: '" + mc.methodName() + "' is not available on the"
+                                    + " JS target yet (IOJS001) — the JS runtime has no"
+                                    + " partial-read/host binding for it; use --target"
+                                    + " jvm/native (or the Script driver)",
+                            "IOJS001");
                 }
                 return localIdx;
             }
