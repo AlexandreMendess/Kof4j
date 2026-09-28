@@ -4,7 +4,7 @@ last: 0.5.0-beta
 
 doing: memory-safety-4.2-pousado (#659)
 
-next: http-policies-f2 (lane pipeline) / fase-4.3 callbacks (lane paridade) / 14.4-rulesets (mantenedora)
+next: fase-4.3 callbacks (lane paridade) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 

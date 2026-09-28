@@ -2,7 +2,7 @@
 
 last: 0.5.0-beta
 doing: memory-safety-4.2-landed (#659)
-next: http-policies-f2 (lane pipeline) / phase-4.3 callbacks (lane paridade) / 14.4-rulesets (mantenedora)
+next: phase-4.3 callbacks (lane paridade) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 
