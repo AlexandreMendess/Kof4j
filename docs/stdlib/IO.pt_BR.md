@@ -158,11 +158,42 @@ main() {
 
 Exato para o BMP na JVM, Native e Script. **Texto não-BMP (astral) é
 divergência medida no Native**: o Native armazena strings como UTF-8 e não
-tem representação WTF-8 para um par surrogate (`§535`); é exato na JVM e no
+tem representação WTF-8 para um par surrogate (`§537`); é exato na JVM e no
 Script.
+
+### CSV / TSV (`CsvReader`, fatia 2.2)
+
+O `CsvReader` faz streaming de **registros** sobre o `TextStream` caractere a
+caractere, então um campo entre quotes pode conter o delimitador e newlines,
+os registros quebram em `\n`/`\r\n`, e a memória fica limitada a um chunk mais
+o registro atual. TSV reusa o mesmo leitor com delimitador de tab.
+
+```kof
+import file.Csv
+
+main() {
+    var reader = CsvReader("data.csv", ',', 8192)   // delimitador, tamanho do chunk
+    var row = reader.nextRow()
+    while (row != null) {
+        // row.get(0) é o primeiro campo do registro
+        row = reader.nextRow()
+    }
+}
+```
+
+| Operação | Descrição |
+|----------|-----------|
+| `CsvReader(path[, delimiter[, chunkSize]])` | leitor streaming de registros (delimitador default `,`, chunk 8192) |
+| `nextRow()` | `List<String>?` — campos do próximo registro, `null` no fim do arquivo |
+
+Um `"` abre um campo entre quotes apenas no início de um campo; dentro dele
+`""` é uma quote literal. Uma linha em branco é um registro com um campo
+vazio; um newline final não adiciona registro. O primeiro registro não é
+especial — trate-o como header lendo-o primeiro. Alvos iguais ao `TextStream`
+(JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
 
 ## Referência
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Testes: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `FileLibraryE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`

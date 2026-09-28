@@ -4,8 +4,9 @@ package file
 //
 // Incremental UTF-8 text reading over the existing `kof.io.readRange`
 // primitive (JVM + Native + Script). The programmer drives it with a
-// `while` loop over `nextLine()`; memory stays bounded by one chunk plus the
-// current line, so multi-gigabyte logs/CSV are read without loading the file.
+// `while` loop over `nextLine()` (lines) or `nextCode()` (UTF-16 code units);
+// memory stays bounded by one chunk plus the current line, so multi-gigabyte
+// logs/CSV are read without loading the file.
 //
 // UTF-8 is decoded here, in Kof: a multi-byte sequence split across two chunks
 // is reassembled (never emitted as broken bytes), and an unterminated sequence
@@ -27,6 +28,7 @@ class TextStream {
     Long offset
     Bool finished
     String pending
+    Int pos
     Int need
     Int codepoint
 
@@ -36,6 +38,7 @@ class TextStream {
         this.offset = 0
         this.finished = false
         this.pending = ""
+        this.pos = 0
         this.need = 0
         this.codepoint = 0
     }
@@ -46,6 +49,7 @@ class TextStream {
         this.offset = 0
         this.finished = false
         this.pending = ""
+        this.pos = 0
         this.need = 0
         this.codepoint = 0
     }
@@ -53,45 +57,77 @@ class TextStream {
     // Next line without its terminator, or null at end of file. A final line
     // without a trailing newline is returned once (the empty file yields null).
     String? nextLine() {
-        var idx = indexOfNewline()
+        var idx = indexOfNewlineFrom(pos)
         while (idx < 0 && !finished) {
+            if (pos > 0) {
+                compact()
+            }
             pull()
-            idx = indexOfNewline()
+            idx = indexOfNewlineFrom(pos)
         }
         if (idx < 0) {
-            if (pending.length == 0) {
+            if (pos >= pending.length) {
                 return null
             }
-            var tail = stripCarriageReturn(pending)
-            pending = ""
-            return tail
+            var tail = slice(pos, pending.length)
+            pos = pending.length
+            return stripCarriageReturn(tail)
         }
-        var line = ""
-        var i = 0
-        while (i < idx) {
-            line = line + pending.charAt(i)
-            i = i + 1
-        }
-        var rest = ""
-        var j = idx + 1
-        while (j < pending.length) {
-            rest = rest + pending.charAt(j)
-            j = j + 1
-        }
-        pending = rest
+        var line = slice(pos, idx)
+        pos = idx + 1
         return stripCarriageReturn(line)
     }
 
+    // Next UTF-16 code unit as an Int (0..65535), or -1 at end of file. An
+    // astral code point is returned as two units (high then low surrogate).
+    // Int + -1 avoids boxing a nullable Char across backends.
+    Int nextCode() {
+        ensure()
+        if (pos >= pending.length) {
+            return -1
+        }
+        var c = pending.charAt(pos)
+        pos = pos + 1
+        return c as Int
+    }
+
+    // Next code unit without consuming it (Int, -1 at end of file).
+    Int peekCode() {
+        ensure()
+        if (pos >= pending.length) {
+            return -1
+        }
+        return pending.charAt(pos) as Int
+    }
+
     Bool done(): Bool {
-        return finished && pending.length == 0
+        return finished && pos >= pending.length
     }
 
     Long position(): Long {
         return offset
     }
 
-    Int indexOfNewline() {
-        var i = 0
+    ensure() {
+        if (pos >= pending.length && !finished) {
+            if (pos > 0) {
+                compact()
+            }
+            pull()
+        }
+    }
+
+    // Drop the already-consumed prefix so memory stays bounded.
+    compact() {
+        if (pos <= 0) {
+            return
+        }
+        pending = slice(pos, pending.length)
+        pos = 0
+    }
+
+    Int indexOfNewlineFrom(Int start) {
+        var i = start
         while (i < pending.length) {
             if (pending.charAt(i) == '\n') {
                 return i
@@ -99,6 +135,16 @@ class TextStream {
             i = i + 1
         }
         return -1
+    }
+
+    String slice(Int from, Int to) {
+        var out = ""
+        var i = from
+        while (i < to) {
+            out = out + pending.charAt(i)
+            i = i + 1
+        }
+        return out
     }
 
     String stripCarriageReturn(String s) {

@@ -157,11 +157,42 @@ main() {
 
 Exact for the BMP on JVM, Native and Script. **Non-BMP (astral) text is a
 measured Native divergence**: Native stores strings as UTF-8 and has no
-WTF-8 representation for a surrogate pair (`§535`); it is exact on JVM and
+WTF-8 representation for a surrogate pair (`§537`); it is exact on JVM and
 Script.
+
+### CSV / TSV (`CsvReader`, slice 2.2)
+
+`CsvReader` streams **records** over `TextStream` character by character, so a
+quoted field may contain the delimiter and newlines, records split on `\n`/
+`\r\n`, and memory stays bounded by one chunk plus the current record. TSV
+reuses the same reader with a tab delimiter.
+
+```kof
+import file.Csv
+
+main() {
+    var reader = CsvReader("data.csv", ',', 8192)   // delimiter, chunk size
+    var row = reader.nextRow()
+    while (row != null) {
+        // row.get(0) is the first field of the record
+        row = reader.nextRow()
+    }
+}
+```
+
+| Operation | Description |
+|----------|-------------|
+| `CsvReader(path[, delimiter[, chunkSize]])` | streaming record reader (default delimiter `,`, chunk 8192) |
+| `nextRow()` | `List<String>?` — next record's fields, `null` at end of file |
+
+A `"` opens a quoted field only at the start of a field; inside it `""` is one
+literal quote. A blank line is a record with one empty field; a trailing
+newline does not add a record. The first record is not special — treat it as a
+header by reading it first. Targets match `TextStream` (JVM, Native x86-64/
+riscv64, Script; JS `IOJS001`).
 
 ## Reference
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Tests: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `FileLibraryE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`
