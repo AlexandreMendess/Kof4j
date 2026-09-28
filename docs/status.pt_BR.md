@@ -2,7 +2,7 @@
 
 # Status do Projeto Kof
 
-last: #673 records-vivos §535/§536 registrados + #672 selftest-PT-provado + #671 células-defasadas-mortas (JS-FFI + escopo-WASM) + #670 tabela-ownership pousada (spec §7, 4 fronteiras + ausencia Rust) + #669 gate D-vs-DECISIONS + #666 unidade-1-fase-5 pinada (FFI x spawn) + #664/#665 cadeia-de-evidencia hardened + #660 D-MEM021-SCALAR pousado (c65f9ba18) + kof-file streaming fatia 2 (golden em todos os alvos + lacuna JS IOJS001) + fatia 2.1 TextStream (linhas UTF-8, golden BMP em todos os alvos; astral = divergencia Native §537) + test-architecture fatia quick-win 1 fase-2 (baseline higiene 186→185 chaves, KofWebHardeningTest 6/6)
+last: #673 records-vivos §535/§536 registrados + #672 selftest-PT-provado + #671 células-defasadas-mortas (JS-FFI + escopo-WASM) + #670 tabela-ownership pousada (spec §7, 4 fronteiras + ausencia Rust) + #669 gate D-vs-DECISIONS + #666 unidade-1-fase-5 pinada (FFI x spawn) + #664/#665 cadeia-de-evidencia hardened + #660 D-MEM021-SCALAR pousado (c65f9ba18) + kof-file streaming fatia 2 (golden em todos os alvos + lacuna JS IOJS001) + fatia 2.1 TextStream (linhas UTF-8, golden BMP em todos os alvos; astral = divergencia Native §537) + test-architecture fatia quick-win 1 fase-2 (baseline higiene 186→185 chaves, KofWebHardeningTest 6/6) + fatia 2 (fixture de readiness TestServerFixture, baseline 185→182, 4 classes web 49/49)
 doing: memory-safety (fase 4 FECHADA; fase 5 MEDIDA no plano) / scoped-resources / test-architecture / pagination / kof-file (lanes vivas)
 next: unidade-2 da fase-5 DESBLOQUEADA (decisoes #667 A / #668 A, implementacao = lane memory-safety/Script) / kof-file fase 2.2 (CSV/TSV como maquina de estados por caractere sobre o TextStream)
 location: status

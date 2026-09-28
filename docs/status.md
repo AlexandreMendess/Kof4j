@@ -2,7 +2,7 @@
 
 # Kof Project Status
 
-last: #673 living-records §535/§536 registered + #672 ledger-selftest-PT-proven + #671 stale-cells-purged (JS-FFI + WASM-scope) + #670 ownership-table landed (spec §7, 4 boundaries + Rust absence) + #669 D-vs-DECISIONS gate + #666 phase-5-unit-1 pinned (FFI x spawn) + #664/#665 evidence-chain hardened + #660 D-MEM021-SCALAR landed (c65f9ba18) + kof-file streaming slice 2 (all-target golden + JS gap IOJS001) + slice 2.1 TextStream (UTF-8 lines, all-target BMP golden; astral Native divergence §537) + test-architecture phase-2 quick-win slice 1 (hygiene baseline 186→185 keys, KofWebHardeningTest 6/6)
+last: #673 living-records §535/§536 registered + #672 ledger-selftest-PT-proven + #671 stale-cells-purged (JS-FFI + WASM-scope) + #670 ownership-table landed (spec §7, 4 boundaries + Rust absence) + #669 D-vs-DECISIONS gate + #666 phase-5-unit-1 pinned (FFI x spawn) + #664/#665 evidence-chain hardened + #660 D-MEM021-SCALAR landed (c65f9ba18) + kof-file streaming slice 2 (all-target golden + JS gap IOJS001) + slice 2.1 TextStream (UTF-8 lines, all-target BMP golden; astral Native divergence §537) + test-architecture phase-2 quick-win slice 1 (hygiene baseline 186→185 keys, KofWebHardeningTest 6/6) + slice 2 (shared readiness fixture TestServerFixture, baseline 185→182, 4 web classes 49/49)
 doing: memory-safety (fase 4 CLOSED; fase 5 MEDIDA no plano) / scoped-resources / test-architecture / pagination / kof-file (live lanes)
 next: phase-5-unit-2 UNBLOCKED (decisions #667 A / #668 A, implementation = memory-safety/Script lane) / kof-file phase 2.2 (CSV/TSV as a character-level state machine over TextStream)
 location: status
