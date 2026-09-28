@@ -85,7 +85,6 @@ class UsingDesugarE2ETest {
                 }
             }
             """;
-
     /** Flagship idiom: H2-hermetic `db` acquire → use → release.
      * No `DB_CLOSE_DELAY`: H2 drops a mem DB when its last connection closes,
      * so a leaked (unclosed) connection keeps `t` alive and the NEXT test's
@@ -113,6 +112,20 @@ class UsingDesugarE2ETest {
                 } catch (String e) {
                     println("caught")
                 }
+            }
+            """;
+
+    /** JS face: own mem name — the Graal host shares the in-JVM H2 registry
+     * with the JVM/Script tests, so `usingdb`/`usingexc` would collide. */
+    private static final String DB_JS_HAPPY = """
+            main() {
+                using (conn = db.connect("jdbc:h2:mem:usingjs"), db.close(conn)) {
+                    db.execute(conn, "CREATE TABLE t (id INT PRIMARY KEY, v VARCHAR)")
+                    db.execute(conn, "INSERT INTO t VALUES (1, 'a')")
+                    var rows = db.query(conn, "select v from t where id = ?", 1)
+                    println(rows.get(0))
+                }
+                println("closed")
             }
             """;
 
@@ -336,5 +349,14 @@ class UsingDesugarE2ETest {
         Run scr = runScript(src, tmp);
         assertTrue(scr.ok(), () -> "Script: " + scr.output());
         assertEquals("caught", norm(scr.output()), "Script output");
+    }
+
+    @Test
+    void usingDbHappyJs(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("UsingDbJs.kf");
+        Files.writeString(src, DB_JS_HAPPY);
+        Run js = runJs(src, tmp.resolve("o-using-db-js"));
+        assertTrue(js.ok(), () -> "JS: " + js.output());
+        assertEquals("{\"v\":\"a\"}\nclosed", norm(js.output()), "JS output");
     }
 }

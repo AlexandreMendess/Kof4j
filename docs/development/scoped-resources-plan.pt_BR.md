@@ -100,6 +100,7 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 | Aninhamento (reverse close) + integração `db` + silêncio MEM014 | ✅ fatia 2 (`UsingDesugarE2ETest` 11/11; H2-hermético, sem fixture) |
 | Goldens Script de `db` + isolation-by-release | ✅ fatia 3 (`UsingDesugarE2ETest` 13/13; nomes mem divididos, sem `DB_CLOSE_DELAY`) |
 | Docs de usuário (seção `using` em `learn/14-exceptions.md`) | ✅ fatia 4 (sample espelha o `DB_HAPPY` verde, escopo JVM-hermético anotado) |
+| Golden JS de `db` | ✅ fatia 5 (`{"v":"a"}/closed` byte-idêntico ao JVM; nome mem próprio `usingjs` — host Graal divide o registry H2 da JVM; `UsingDesugarE2ETest` 14/14; exceção no JS segue pinada COMP002) |
 | Goldens cross riscv/aarch | ⏳ adiado — sem qemu neste host (prova skip-gated não é prova) |
 | Análise de escape-pós-close | ⏳ lane memory-safety (sem ownership neste plano) |
 

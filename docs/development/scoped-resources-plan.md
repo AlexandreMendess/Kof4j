@@ -99,6 +99,7 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 | Nesting (reverse close) + `db` integration + MEM014-silence | ✅ slice 2 (`UsingDesugarE2ETest` 11/11; H2-hermetic, no fixture) |
 | Script-target `db` goldens + isolation-by-release | ✅ slice 3 (`UsingDesugarE2ETest` 13/13; shared mem names, no `DB_CLOSE_DELAY`) |
 | User docs (`learn/14-exceptions.md` `using` section) | ✅ slice 4 (sample mirrors green `DB_HAPPY`, JVM-hermetic scope noted) |
+| JS-target `db` golden | ✅ slice 5 (`{"v":"a"}/closed` byte-identical to JVM; own mem name `usingjs` — Graal host shares the in-JVM H2 registry; `UsingDesugarE2ETest` 14/14; JS exception-path stays pinned COMP002) |
 | Cross riscv/aarch goldens | ⏳ deferred — no qemu on this host (skip-gated proof is not proof) |
 | Escape-after-close analysis | ⏳ memory-safety lane (no ownership in this plan) |
 
