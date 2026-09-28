@@ -136,10 +136,34 @@ EOF
         && printf '%s' "$OUT" | grep -q "GHOST-D.*D-FANTASMA-GATE" \
         && ! printf '%s' "$OUT" | grep -q "GHOST-D.*D-REAL-OK" \
         && ! printf '%s' "$OUT" | grep -q "GHOST-D.*D-A\b" ; then
-        echo "SELFTEST OK: DRIFT(999/998), DUP, GHOST-D(FANTASMA pega / REAL-OK e D-A/D-B limpos), rc=$RC"
+        :
+    else
+        echo "SELFTEST FALHOU cenario-1 (rc=$RC):"; printf '%s\n' "$OUT"; exit 1
+    fi
+    # cenario-2 (#672): EN limpo x PT com flip falso — prova de que o LOOP PT confere
+    # (ate hoje o fixture PT era cp do EN: a fiação PT nunca foi assertada, e quebrar
+    # o par PT viraria verificacao silenciosa so-EN com selftest verde = classe #665).
+    T2="$(mktemp -d)"; trap 'rm -rf "$T" "$T2"' EXIT
+    cp -a "$T/." "$T2/"
+    printf '## [9.9.9] - unreleased\n  - **§998 ✅ FIXED 21/09** — caso honesto EN (deve passar)\n' > "$T2/CHANGELOG.md"
+    printf '## [9.9.9] - sem lancada\n  - **§998 ✅ CORRIGIDO 21/09** — caso honesto PT\n  - **§999 ✅ FECHADO 21/09** — flip falso SO no PT (deve dar DRIFT [PT])\n' > "$T2/CHANGELOG.pt_BR.md"
+    OUT2="$(bash "$T2/scripts/check_changelog_ledger.sh" 2>&1)"; RC2=$?
+    if [ $RC2 -ne 0 ] && printf '%s' "$OUT2" | grep -q "DRIFT \[PT\]" \
+        && ! printf '%s' "$OUT2" | grep -q "DRIFT \[EN\]" ; then
+        :
+    else
+        echo "SELFTEST FALHOU cenario-2 (rc=$RC2):"; printf '%s\n' "$OUT2"; exit 1
+    fi
+    # cenario-3 (#672): EN+PT ambos honestos — rc=0 e a mensagem FINAL declara o escopo
+    # realmente conferido por lingua (antes so dizia "EN", sobrerrelatando menos do que
+    # o loop executa; a alegacao do verificador tem de bater com o que ele roda).
+    printf '## [9.9.9] - sem lancada\n  - **§998 ✅ CORRIGIDO 21/09** — caso honesto PT\n' > "$T2/CHANGELOG.pt_BR.md"
+    OUT3="$(bash "$T2/scripts/check_changelog_ledger.sh" 2>&1)"; RC3=$?
+    if [ $RC3 -eq 0 ] && printf '%s' "$OUT3" | grep -q "EN: .*PT: " ; then
+        echo "SELFTEST OK: DRIFT(999/998), DUP, GHOST-D(FANTASMA pega / REAL-OK e D-A/D-B limpos) [c1 rc=$RC]; DRIFT-[PT]-so-com-EN-limpo [c2 rc=$RC2]; rc0+mensagem-por-lingua [c3 rc=$RC3]"
         exit 0
     fi
-    echo "SELFTEST FALHOU (rc=$RC):"; printf '%s\n' "$OUT"; exit 1
+    echo "SELFTEST FALHOU cenario-3 (rc=$RC3):"; printf '%s\n' "$OUT3"; exit 1
 fi
 
 check_reverse() { # $1=ledger $2=id lingua $3=live-ids $4=changelog $5=waivers
@@ -194,6 +218,7 @@ for pair in "CHANGELOG.md:EN:docs/bugs-and-gaps/known-bugs.md" \
 done
 if [ $rc -eq 0 ]; then
     n_en="$(grep -ciE "§[0-9]+[^§]{0,80}(✅|fixed|fechad|corrigid|closed|encerrad)" CHANGELOG.md 2>/dev/null || true)"
-    echo "OK: CHANGELOG×ledger consistent (${n_en:-0} afirmações EN conferidas)"
+    n_pt="$(grep -ciE "§[0-9]+[^§]{0,80}(✅|fixed|fechad|corrigid|closed|encerrad)" CHANGELOG.pt_BR.md 2>/dev/null || true)"
+    echo "OK: CHANGELOG×ledger consistent (afirmações conferidas EN: ${n_en:-0}, PT: ${n_pt:-0}; D-* × DECISIONS + DUP nos dois)"
 fi
 exit $rc
