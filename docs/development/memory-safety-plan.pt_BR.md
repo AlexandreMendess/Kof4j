@@ -2,9 +2,9 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-3-slice-5
+last: phase-4-slice-4.1-pinned (paridade Script/JS, #658)
 doing: memory-safety
-next: phase-4-closures-async
+next: phase-4.2-faces-async (medir antes de prometer)
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -33,7 +33,7 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 | 1 Especificação | `docs/spec/memory-safety.md` (EN+PT): Ownership/Lifetime/Borrowing/Aliasing/Mutability/Move/Copy/Clone/Drop/Escape/Closure Capture/Concurrency/FFI/Unsafe Boundaries, cada um classificado permitido/proibido/requer-sync/compile-time/runtime/dependente-de-tipo | fechada 25/09 (opção A da mantenedora) |
 | 2 Infraestrutura do compilador | `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` em `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; zero mudança de comportamento | fechada 26/09 (`9bcddfe90`, fila exausta) |
 | 3 Primeiras garantias | use-after-move; dangling; escapes inválidos; mutable aliasing; dupla ownership/destruição | em curso (fatias abaixo) |
-| 4 Closures & async | captura de closure; callbacks; async/futures; iteradores/geradores | pendente |
+| 4 Closures & async | captura de closure; callbacks; async/futures; iteradores/geradores | 4.1 pousada 28/09 (#658); face async/futures pendente |
 | 5 Native & FFI | ponteiros/alocação/C ABI; tabela de ownership Kof↔C↔Rust↔JVM↔Python | pendente |
 | 6 JVM / JS / WASM | mesma semântica em todos os backends | pendente |
 
