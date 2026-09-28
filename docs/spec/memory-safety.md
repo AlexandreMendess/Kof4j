@@ -274,7 +274,7 @@ The following matrix maps each bug class to its prevention mechanism:
 | **3** First guarantees | Use-after-move, dangling, escape, mutable aliasing | 🔓 UNLOCKED 26/09 (`D-COMPLETE-FIRST`) |
 | **4** Closures & async | Capture semantics, async boundaries | ⏳ WAITING |
 | **5** Native & FFI | Pointer/alloc/free, C ABI ownership table | ⏳ WAITING |
-| **6** Cross-target | JVM/JS/WASM parity matrix | ⏳ WAITING |
+| **6** Cross-target | JVM/JS/WASM parity matrix — no WASM backend in the tree today (absence measured 28/09, #671); scope now = JVM/Script/JS/Native×3 | ⏳ WAITING |
 
 ---
 
