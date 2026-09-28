@@ -66,6 +66,13 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 
 - 4.3 (was pending, now landed): callback faces (lambdas passed to stdlib/`job`-style APIs); "iterators/generators" from the phase row got its verdict on 28/09: NO generator surface exists (no `yield` token in the Kof lexer — `for-in`/collections are the iterable face) → absence, not a gap.
 
+## Phase 5 slices (measured 28/09, measure-first per the phase-4 verdict — no promises invented)
+
+- **FFI surface that EXISTS today (measured)**: `extern`/binding decisions in `CompilerFfiBinding` (honest per-target diagnostics FFI001/FFI002, R6 — Native rejects record/array/out-buffer externs at the decl line; JVM/JS copy-back), `JvmFfiRuntime` (FFM), `NativeFfiCall` (x86-64) + `NativeFfiCallRiscv` (riscv64/aarch64); JS has no real FFI (diagnosed, not silent). Tests already pin call/return/array/struct faces (`FfiE2ETest` family, `BufferFfiE2ETest`, cross suites).
+- **B-03/`MEM020` is declared but has ZERO implementation (measured)**: `MemRule.java:36` marks it `Class.COMPILE_AND_RUNTIME` — no scanner, no runtime borrow tracking, no E2E face anywhere in the tree (only token in the memory package). Implementing the runtime half needs a writable-borrow state on `Buffer`, a NEW core primitive → **decision request before implementation (rule 6)**; the compile half (same buffer in two concurrent `spawn`ed FFI writes) may be expressible over existing `OwnershipPass` machinery — to be measured in the next slice, not promised.
+- **#651 open** (`Buffer(U8, INOUT)` incomplete on Native) — a real surface in this phase's territory, owned by the native lane; this plan does not touch it.
+- **First cheap unit for this lane (parallel to phase 4, precedent O-03)**: pin the intersection that exists but is unpinned — FFI call/write-back × captured buffer across `spawn`/`await` — per target, measurement before any claim.
+
 ## Decision requests (rule 6)
 
 - **O-03/`MEM003` container release** — RESOLVED 27/09 by `D-MEMORY-CLEAR` (option a): `clear()` MUST null every slot before shrinking, so the guarantee is a runtime property proven by test, never a compile face; no `MEM003` diagnostic is created. Implemented in the native runtimes (`RuntimeList`/`RuntimeMap` x86, `NativeRiscvAsmRtB0`/`NativeRiscvAsmMapset0` cross); JVM (`ArrayList`/`HashSet`/`HashMap.clear`) and JS (`length=0`/`clear()`) already drop references. Proof: `NativeX86MemClearTest` + `NativeRiscvMemClearTest` read the backing slots from memory after `clear()` (list via real `add`, map with planted key/val pairs) — RED 1/1+2/2 pre-fix, GREEN post-fix; `MemoryClearE2ETest` pins the uniform empty+reusable behavior on JVM/Script/JS/Native + riscv64/aarch64.
