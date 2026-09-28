@@ -29,7 +29,7 @@ constraint:
 
 decision:
 
-* D-BRANCH-0.5.0: beta-0.5.0 is the active development branch
+* D-BRANCH-0.5.0: active branch = **`beta-0.5.0`** — the active development branch (wording is machine-parsed by `scripts/debt-scout/branch_discovery.py`)
 * D-KOF-FIRST: Kof contract precedes external language behavior
 * D-KOF-FIRST-IMPL: post-0.5.0 features are library-first
 * D-MAKEALIVE
