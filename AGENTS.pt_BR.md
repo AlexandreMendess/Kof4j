@@ -2,9 +2,9 @@
 
 last: 0.5.0-beta
 
-doing: tooling-de-esteira-pousado
+doing: memory-safety-4.1-pousado (#658)
 
-next: http-policies-f1 (lane pipeline) / 14.4-rulesets (mantenedora)
+next: http-policies-f2 (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 

@@ -1,8 +1,8 @@
 # AGENTS.md
 
 last: 0.5.0-beta
-doing: pipeline-tooling-landed
-next: http-policies-f1 (lane pipeline) / 14.4-rulesets (mantenedora)
+doing: memory-safety-4.1-landed (#658)
+next: http-policies-f2 (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 

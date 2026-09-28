@@ -2,9 +2,9 @@
 
 # Kof Project Status
 
-last: 0.5.0-release-prep
+last: 658-closed-memory-safety-4.1-pinned
 doing: http-policies
-next: http-policies-f1
+next: http-policies-f2
 location: status
 state: active
 constraint: pr619-maintainer-only
@@ -16,6 +16,7 @@ decision: D-KOF-FIRST-IMPL
 - **Quality pipeline landed:** cutover `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`); state machine (`scripts/pipeline/pipeline_state.py` 21/21), promotion gate (`promotion_gate.py`, 100%), `promote.yml`, rulesets (`pipeline-stages`, `release-tags`); `beta-*` frozen.
 - **`http-policies` PROMOTED** `future/` → [`docs/development/http-policies-plan.md`](development/http-policies-plan.md) (`D-HTTP-POLICIES`, `D-FUTURE-PROMOTION`): additive HTTP/Web policies (global + `app.policy` prefix + endpoint opts + `responses`), JVM-first, Native/JS `WEB006`.
 - **`scoped-resources` PROMOTED** `future/` → [`docs/development/scoped-resources-plan.md`](development/scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`): slice 1 landed — `using (x = init, closer) { }` → `desugarUsing` first in `DesugarSteps.defaults()` → `try/finally` (`UsingDesugarE2ETest` 7/7; closer explicit because `x.close()` is false for `db`).
+- **memory-safety fase 4.1 (#658):** paridade B-06 de captura mutavel de lambda travada nos 4 alvos — `LambdaE2ETest` 36/36 com faces Script (`KofInterpreter`) e JS (`KofJsRunner`) golden-identicas; zero mudanca de comportamento (paridade ja era verdadeira — medida, nao assumida); proxima face 4.2 = async/futures (medir antes de prometer).
 - **Parity row 11 CLOSED** (`compareToIgnoreCase` on all backends) → `full_parity` GREEN.
 
 **24/09 — window 21/09→24/09 (measured vs `git log`/tips; full reactor 3818 / 0F / 0E). PR `#619` (`beta-0.5.0 → main`) is OPEN and the MAINTAINER'S to merge — AGENTS rule 10: no agent merges/approves/closes it.**
