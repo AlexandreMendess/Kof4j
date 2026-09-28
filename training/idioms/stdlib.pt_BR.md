@@ -371,10 +371,9 @@ legada, nao o modelo do que sera promovido.
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (tempo de compilação) | ❌ `PROC001` | ✅ paridade byte |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (chain + pump, 20/09 `081a48f8`; node puro = diagnostico honesto) |
 
-`strings.reverse` em não-ASCII: corrigido 27/09 — inverte por CODE POINT UTF-8
-no Native (x86/riscv/aarch), igual ao JVM/JS (célula `stdstrings2b2` +
-`NativeStringsReverseCrossTest`). Os demais conversores de caixa/palavra seguem
-**NAT-STR01** (paridade travada em ASCII na matriz).
+`strings.reverse` e `toUpperCase`/`toLowerCase` em não-ASCII: corretos em todos
+os targets desde 27/09 (`D-STR-UNICODE`, linha 11) — `capitalize`/conversores de
+palavra seguem ASCII-only no Native, gap **NAT-STR01**.
 
 ## Limitações
 

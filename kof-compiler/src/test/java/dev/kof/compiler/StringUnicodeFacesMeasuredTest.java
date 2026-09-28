@@ -17,13 +17,14 @@ import org.junit.jupiter.api.io.TempDir;
  * encoding de stdout).
  *
  * <p>Medido: <b>JS == oráculo JVM nas 9 linhas + 5 comparações</b> (built-ins
- * Unicode-corretos, incluindo expansões {@code ß->SS}, {@code İ->i+U+0307},
- * {@code ǰ->J+caron} e sigma final {@code Σ->ς}); reverse com surrogate pair
- * já é code-point no x86 (o NAT-STR01 remanescente são as faces de CAIXA do
- * native, hoje ASCII-fold: {@code é} não vira {@code É}, {@code ß} não expande,
- * {@code İ} fica, grego não muda de caixa). Este arquivo é CARACTERIZAÇÃO
- * (verde hoje, trava o oráculo e o gap exato); quando a tabela nativa pousar,
- * as asserções do native viram as do oráculo. Padrão: StringGapMeasuredTest/§424.
+ * Unicode-corretos, incluindo mapeamentos completos {@code ß->SS},
+ * {@code İ->i+U+0307}, {@code ǰ->J+caron} e sigma final {@code Σ->ς}); reverse
+ * com surrogate pair já é code-point no x86. A tabela nativa pousou
+ * (D-STR-UNICODE): o native agora dobra caixa por CODE UNIT (mapeamento SIMPLES:
+ * {@code é->É}, grego/cirílico mudam de caixa), mas os mapeamentos COMPLETOS/
+ * locale-aware ficam fora do escopo ratificado — nessas 4 linhas o native ainda
+ * difere do oráculo JVM/JS. Este arquivo é CARACTERIZAÇÃO: trava o oráculo
+ * (JVM/JS) e o estado nativo medido (simple-fold). Padrão: StringGapMeasuredTest/§424.
  */
 class StringUnicodeFacesMeasuredTest {
 
@@ -41,17 +42,19 @@ class StringUnicodeFacesMeasuredTest {
         2,913,931
         5,959,32,948,965,962""";
 
-    // Estado medido do native x86_64 neste tip (NAT-STR01 = faces de caixa; reverse ok).
-    private static final String NATIVE_CURRENT = """
+    // Estado medido do native x86_64 (D-STR-UNICODE landed): reverse code-point OK
+    // + caixa por code unit (simple-fold). Diverge do oráculo JVM/JS nas linhas
+    // 5/6/7/9 (mapeamentos completos: ß->SS, İ->i+U+0307, ǰ->J+caron, Σ->ς).
+    private static final String NATIVE_SIMPLE_FOLD = """
         4,98,55357,56832,97
         4,55357,56832,225,8364
-        5,72,233,76,76,79
-        6,103,114,220,7838,101,110
+        5,72,201,76,76,79
+        6,103,114,252,223,101,110
         6,83,84,82,65,223,69
-        1,304
+        1,105
         1,496
         2,913,931
-        5,927,32,916,933,931""";
+        5,959,32,948,965,963""";
 
     private static final String BATTERY = """
         String Units(String s) {
@@ -99,9 +102,9 @@ class StringUnicodeFacesMeasuredTest {
     }
 
     @Test
-    @DisplayName("linha 11: native x86 = reverse code-point OK; caixa ainda ASCII-fold (NAT-STR01)")
+    @DisplayName("linha 11: native x86 = reverse + caixa por code unit (simple-fold; mapeamentos completos fora do escopo)")
     void nativeCharacterization(@TempDir Path tmp) throws Exception {
-        assertEquals(NATIVE_CURRENT, run(tmp, BATTERY, Target.NATIVE).trim());
+        assertEquals(NATIVE_SIMPLE_FOLD, run(tmp, BATTERY, Target.NATIVE).trim());
     }
 
     @Test

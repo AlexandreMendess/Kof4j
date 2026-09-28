@@ -214,7 +214,7 @@ CLOSED 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` run on the 5 targets —
 > D-FULL-PARITY-050 row 11, 27/09), matching JVM `StringBuilder.reverse` and JS
 > `[...v].reverse()`; ASCII case `stdstrings2b`, non-ASCII `stdstrings2b2`
 > (`café`, astral) + `NativeStringsReverseCrossTest` under qemu. Remaining
-> non-ASCII faces: `capitalize`/`toUpperCase`/`toLowerCase` = **NAT-STR01**
+> non-ASCII face: `capitalize` = **NAT-STR01** (`toUpperCase`/`toLowerCase` now Unicode per code unit, 27/09 `D-STR-UNICODE`)
 > (native UTF-8 gap, `plan-stdlib-expansion.md` §5; **registration section:**
 > `known-bugs.md` §161) — they do not enter the matrix until fixed (R5/R6).
 > **NAT-STR01 extension (10/09, String sweep part 2):** the INSTANCE methods
