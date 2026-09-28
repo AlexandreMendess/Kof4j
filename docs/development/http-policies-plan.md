@@ -5,11 +5,13 @@
 **Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-HTTP-POLICIES`, maintainer "pode assumir")
 **Owner:** pipeline lane (this session); JVM first, Native/JS = honest `WEB006`
 **Decision:** `D-HTTP-POLICIES` (`DECISIONS.md`) — additive; surface locked as §3.
-**Real state (measured 28/09/2026, tip `9d3b36980`):** the global `app.security(opts)`
-exists and is frozen (`D-SEC` C18 fixed pipeline order); `Policy` scoping,
-`app.policy` and the `responses` opt do NOT exist yet. The grammar already parses
-`app.get(path, opts) { }` (`ExpressionParser.java:202-212`). No code of this plan
-has landed.
+**Real state (measured 28/09/2026):** the global `app.security(opts)` exists and is
+frozen (`D-SEC` C18 fixed pipeline order) and now carries the declarative
+`responses` opt (F0 landed). The `Policy` value, resource scopes (`app.policy`),
+effective-policy resolution and the `merge` law are landed (F1, F2). The
+endpoint-opt form (`app.get(path, opts) { }`, F3) is parseable by the grammar but
+not wired in the `KofWeb` table/typer yet; per-route rate-limit keying (F5) is not
+implemented.
 **How to finish:** implement the ordered slices of §12, one commit each, RED-first
 + `check_500`; JVM full, Native/JS `WEB006` (R6, never a silent drop). Start with
 the first landed slice (global `responses`), then F1 (`Policy` refactor) → F2
@@ -312,7 +314,7 @@ they remain a documented gap until separately promoted (rule 6).
 > Each slice: compile + test + `check_500`; commit per slice. No slice ships
 > without a green proof and updated docs.
 
-**Slice status (28/09/2026):** ✅ F0, F1 landed; ⏳ F2–F6 pending.
+**Slice status (28/09/2026):** ✅ F0–F2 landed; ⏳ F3–F6 pending.
 
 - **F0 — Global `responses` payloads for `app.security(opts)` (additive).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parses a `responses` Map
@@ -331,10 +333,13 @@ they remain a documented gap until separately promoted (rule 6).
   flat `security*` fields; `kof_web_security_pipeline(app, req, Policy)` reads the
   policy. **Proof:** `KofWebE2ETest` 27/27, `KofWebHardeningTest` 6/6,
   `KofBlogE2ETest` 1/1, `KofOAuthResourceServerTest` 4/4, `DomainGapCodesTest` 27/27.
-- **F2 — `app.policy(prefix, opts)` (resource scopes).** Scope list + effective
-  policy resolution + longest-prefix merge. **Proof:** new
-  `KofHttpPoliciesE2ETest` cases — a `/admin` role applies under the prefix and
-  not outside; scalar override; global default preserved for unmatched routes.
+- **F2 — `app.policy(prefix, opts)` (resource scopes).** ✅ LANDED 28/09:
+  `ScopedPolicy` + `Policy.merge`/`copy`/markers in `JvmWebSecurityRuntime.java`;
+  `kof_web_policy` + `kof_web_effective_policy` (longest-prefix); `WebApp.policies`;
+  `KofWeb` `policy` case + `kof_web_policy`→`WEB006`; descriptors. **Proof:** new
+  `KofHttpPoliciesE2ETest` 5/5 — scope under `/admin` only (401/403/200), scalar
+  `headers:false` deepest-wins, `publicPaths`/`roles` union, `WEB006` on Native/JS;
+  web regression 65/65.
 - **F3 — Endpoint opts (`app.get(path, opts) { }`)**, 5-arg `kof_web_route`,
   descriptor + typer. **Proof:** endpoint policy overrides the resource scope;
   endpoint-less route still inherits.

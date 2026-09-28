@@ -107,6 +107,7 @@ Return `null` → continues; return `String` → immediate response (200).
 |------|-------------|
 | `app.security()` | Composite middleware with secure defaults (hardening headers) |
 | `app.security(opts)` | Same, with overrides via `Map` |
+| `app.policy(prefix, opts)` | Resource policy — same opts, applied to every route under `prefix` (D-HTTP-POLICIES, F2) |
 
 Applies the **fixed order** rate-limit → CORS → headers → cookies/session → csrf →
 auth → RBAC → route (D-SEC). Replaces the manual `app.use` chain.
@@ -161,6 +162,26 @@ main() {
 
 **Security by default:** `listen`/`listenSecure` with `KOF_ENV=production`
 without `app.security()` warns on `stderr` (never fails silently).
+
+**Resource policies (D-HTTP-POLICIES, F2):** `app.policy(prefix, opts)` scopes
+the same opts to routes under a plain path prefix (`/admin`, `/api/v1`); `"*"`
+(or `""`) means every request. The global `app.security(opts)` stays the default.
+For a request the **effective** policy is the global merged with every matching
+scope, **shortest prefix first** (longest wins) — the merge law:
+
+- **scalars** (all keys except the lists): **deepest wins** — an undeclared key
+  is inherited, never reset to its default;
+- **lists** (`publicPaths`, `roles`): **union** — allow-lists only grow, the
+  deepest scope adds, never removes.
+
+```kof
+app.security(mapOf("rateLimit", "200/60"))
+app.policy("/admin", mapOf("roles", "admin"))       // 20/60 + admin
+app.policy("*", mapOf("publicPaths", "/health"))    // public regardless of scope
+```
+
+Prefix-only in v1 (no globs/regex, no path params). Same JVM-only rule as
+`app.security`: Native/JS report `WEB006`.
 
 **JVM-only** — Native/JS report `WEB006` (honest gap, same precedent
 `WEB002`/`WEB005`).

@@ -121,6 +121,14 @@ public final class KofWeb {
                 }
                 yield null;
             }
+            // D-HTTP-POLICIES (F2): `app.policy(prefix, opts)` — policy de
+            // recurso para toda rota sob o prefixo (escalar mais profundo
+            // vence; listas somam). JVM completo; Native/JS = WEB006.
+            case "policy" -> argTypes.size() == 2 && isString(argTypes.get(0))
+                    && BuiltinTypes.isMap(argTypes.get(1))
+                    ? new WebCall("kof_web_policy", VOID,
+                            List.of(STR, STR, BuiltinTypes.MAP))
+                    : null;
             // #102.2 (13/09): `listen` aceita SÓ Int — String virava
             // VerifyError em runtime. Com o gate aqui, `listen("8100")`
             // retorna null → o typer emite SEM025 em compile-time
@@ -186,7 +194,7 @@ public final class KofWeb {
             case "kof_web_sse_route" -> "WEB003";
             case "kof_web_ws_route" -> "WEB004";
             case "kof_web_serve_dir" -> "WEB005";
-            case "kof_web_security", "kof_web_security_opts" -> "WEB006";
+            case "kof_web_security", "kof_web_security_opts", "kof_web_policy" -> "WEB006";
             case "kof_web_listen_secure", "kof_web_listen_secure_pem" -> "WEB002";
             default -> "WEB001";
         };

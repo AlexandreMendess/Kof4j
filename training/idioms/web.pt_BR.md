@@ -69,6 +69,37 @@ main() {
 sintéticos (chaves `unauthorized`/`forbidden`/`tooManyRequests`). Chaves omitidas
 mantêm os corpos embutidos — aditivo.
 
+## RUIM — re-checar o path dentro de cada handler
+
+```kof
+app.get("/admin/users") {
+    if (path() == "/admin/users" || path().startsWith("/admin")) {
+        if (!auth.hasRole("admin")) { return status(403, "nope") }
+    }
+    return users()
+}
+app.get("/admin/logs") {
+    if (path().startsWith("/admin")) {          // repetido em cada handler…
+        if (!auth.hasRole("admin")) { return status(403, "nope") }
+    }
+    return logs()
+}
+```
+
+## BOM — declarar a política de recurso uma vez (`app.policy`)
+
+```kof
+app.security(mapOf("rateLimit", "200/60"))
+app.policy("/admin", mapOf("roles", "admin"))   // toda rota sob /admin
+app.get("/admin/users") { return users() }      // herda a política
+app.get("/admin/logs") { return logs() }        // herda a política
+```
+
+`app.policy(prefix, opts)` escopa os mesmos opts do `app.security` a um prefixo
+de path. Escalares (ex.: `rateLimit`, `auth`) são "o mais profundo vence";
+listas (`publicPaths`, `roles`) acumulam. O handler nunca re-checa o que a
+política declara.
+
 ## Notas
 
 - `app.listen` aceita SÓ Int (`app.listen(8080)` — #102.2 13/09: String

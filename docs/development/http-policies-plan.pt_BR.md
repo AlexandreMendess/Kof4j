@@ -5,11 +5,13 @@
 **Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-HTTP-POLICIES`, mantenedora "pode assumir")
 **Dono:** lane pipeline (esta sessão); JVM primeiro, Native/JS = `WEB006` honesto
 **Decisão:** `D-HTTP-POLICIES` (`DECISIONS.md`) — aditivo; superfície travada como §3.
-**Estado real (medido 28/09/2026, tip `9d3b36980`):** o `app.security(opts)` global
-existe e é congelado (`D-SEC` C18, ordem fixa do pipeline); `Policy`, escopos,
-`app.policy` e o opt `responses` NÃO existem ainda. A gramática já parseia
-`app.get(path, opts) { }` (`ExpressionParser.java:202-212`). Nenhum código deste
-plano pousou.
+**Estado real (medido 28/09/2026):** o `app.security(opts)` global existe e é
+congelado (`D-SEC` C18, ordem fixa do pipeline) e agora carrega o opt declarativo
+`responses` (F0 pousada). O valor `Policy`, os escopos de recurso (`app.policy`), a
+resolução da política efetiva e a lei de `merge` pousaram (F1, F2). A forma com
+opts por endpoint (`app.get(path, opts) { }`, F3) é parseável pela gramática mas
+ainda não está ligada na tabela `KofWeb`/typer; a chave de rate-limit por rota (F5)
+não está implementada.
 **Como terminar:** implementar as fatias ordenadas do §12, um commit cada,
 RED-first + `check_500`; JVM completo, Native/JS `WEB006` (R6, nunca drop
 silencioso). Começar pela primeira fatia pousada (o `responses` global), depois
@@ -314,7 +316,7 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
 > Cada fatia: compile + teste + `check_500`; commit por fatia. Nenhuma fatia
 > entra sem prova verde e docs atualizadas.
 
-**Status das fatias (28/09/2026):** ✅ F0, F1 pousadas; ⏳ F2–F6 pendentes.
+**Status das fatias (28/09/2026):** ✅ F0–F2 pousadas; ⏳ F3–F6 pendentes.
 
 - **F0 — Payloads `responses` globais no `app.security(opts)` (aditivo).**
   `JvmWebSecurityRuntime.kof_web_security_opts` parseia um Map `responses`
@@ -332,10 +334,13 @@ Native/JS; seguem gap documentado até promoção separada (regra 6).
   substituem os campos planos; `kof_web_security_pipeline(app, req, Policy)` lê a
   política. **Prova:** `KofWebE2ETest` 27/27, `KofWebHardeningTest` 6/6,
   `KofBlogE2ETest` 1/1, `KofOAuthResourceServerTest` 4/4, `DomainGapCodesTest` 27/27.
-- **F2 — `app.policy(prefix, opts)` (escopos de recurso).** Lista de escopos +
-  resolução da política efetiva + merge do prefixo mais longo. **Prova:** casos
-  novos em `KofHttpPoliciesE2ETest` — um role `/admin` vale sob o prefixo e não
-  fora; override escalar; default global preservado nas rotas sem match.
+- **F2 — `app.policy(prefix, opts)` (escopos de recurso).** ✅ POUSADA 28/09:
+  `ScopedPolicy` + `Policy.merge`/`copy`/marcadores em `JvmWebSecurityRuntime.java`;
+  `kof_web_policy` + `kof_web_effective_policy` (prefixo mais longo);
+  `WebApp.policies`; caso `policy` em `KofWeb` + `kof_web_policy`→`WEB006`;
+  descriptors. **Prova:** nova `KofHttpPoliciesE2ETest` 5/5 — escopo sob `/admin`
+  apenas (401/403/200), escalar `headers:false` vence, união de
+  `publicPaths`/`roles`, `WEB006` em Native/JS; regressão web 65/65.
 - **F3 — Opts de endpoint (`app.get(path, opts) { }`)**, `kof_web_route` de 5
   args, descriptor + typer. **Prova:** a política de endpoint sobrepõe o escopo
   de recurso; rota sem política ainda herda.

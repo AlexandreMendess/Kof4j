@@ -69,6 +69,36 @@ main() {
 `401`/`403`/`429` (keys `unauthorized`/`forbidden`/`tooManyRequests`). Omitted
 keys keep the built-in bodies, so it is additive.
 
+## BAD — re-checking the path inside every handler
+
+```kof
+app.get("/admin/users") {
+    if (path() == "/admin/users" || path().startsWith("/admin")) {
+        if (!auth.hasRole("admin")) { return status(403, "nope") }
+    }
+    return users()
+}
+app.get("/admin/logs") {
+    if (path().startsWith("/admin")) {          // repeated in every handler…
+        if (!auth.hasRole("admin")) { return status(403, "nope") }
+    }
+    return logs()
+}
+```
+
+## GOOD — declare the resource policy once (`app.policy`)
+
+```kof
+app.security(mapOf("rateLimit", "200/60"))
+app.policy("/admin", mapOf("roles", "admin"))   // every route under /admin
+app.get("/admin/users") { return users() }      // inherits the policy
+app.get("/admin/logs") { return logs() }        // inherits the policy
+```
+
+`app.policy(prefix, opts)` scopes the same `app.security` opts to a path prefix.
+Scalars (e.g. `rateLimit`, `auth`) are deepest-wins; lists (`publicPaths`,
+`roles`) accumulate. The handler never re-checks what the policy declares.
+
 ## Notes
 
 - `app.listen` accepts ONLY Int (`app.listen(8080)` — #102.2 13/09: a String

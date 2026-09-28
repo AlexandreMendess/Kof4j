@@ -221,7 +221,8 @@ public final class JvmRuntimeWebDispatch {
                         // rotas (security by default não depende de o usuário
                         // compor a ordem à mão). Falha = resposta curta
                         // (429/403/401), nunca silenciosa (R6).
-                        String securityReject = kof_web_security_pipeline(app, req, app.globalPolicy);
+                        String securityReject = kof_web_security_pipeline(app, req,
+                                kof_web_effective_policy(app, req));
                         if (securityReject != null) {
                             KOF_WEB_STATUS.remove();
                             KOF_WEB_HEADERS.get().clear();

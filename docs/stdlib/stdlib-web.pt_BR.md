@@ -107,6 +107,7 @@ Retorno `null` → continua; retorno `String` → resposta imediata (200).
 |---------|-----------|
 | `app.security()` | Middleware composto com defaults seguros (headers de hardening) |
 | `app.security(opts)` | Idem, com overrides via `Map` |
+| `app.policy(prefix, opts)` | Política de recurso — mesmos opts, aplicada a toda rota sob `prefix` (D-HTTP-POLICIES, F2) |
 
 Aplica a **ordem fixa** rate-limit → CORS → headers → cookies/session → csrf →
 auth → RBAC → rota (D-SEC). Substitui a cadeia manual de `app.use`.
@@ -161,6 +162,27 @@ main() {
 
 **Security by default:** `listen`/`listenSecure` com `KOF_ENV=production` sem
 `app.security()` avisa em `stderr` (nunca falha silenciosamente).
+
+**Políticas de recurso (D-HTTP-POLICIES, F2):** `app.policy(prefix, opts)`
+escopa os mesmos opts às rotas sob um prefixo simples de path (`/admin`,
+`/api/v1`); `"*"` (ou `""`) significa toda request. O `app.security(opts)` global
+segue sendo o default. Para uma request a política **efetiva** é o global
+mesclado com todo escopo que casa, **do prefixo mais curto ao mais longo** (o
+mais longo vence) — a lei de merge:
+
+- **escalares** (todas as chaves exceto as listas): **o mais profundo vence** —
+  chave não declarada é herdada, nunca resetada ao default;
+- **listas** (`publicPaths`, `roles`): **união** — allow-lists só crescem, o
+  escopo mais profundo adiciona, nunca remove.
+
+```kof
+app.security(mapOf("rateLimit", "200/60"))
+app.policy("/admin", mapOf("roles", "admin"))       // 20/60 + admin
+app.policy("*", mapOf("publicPaths", "/health"))    // público independente do escopo
+```
+
+Só prefixo na v1 (sem glob/regex, sem path params). Mesma regra JVM-only do
+`app.security`: Native/JS reportam `WEB006`.
 
 **JVM-only** — Native/JS reportam `WEB006` (gap honesto, mesmo precedente
 `WEB002`/`WEB005`).

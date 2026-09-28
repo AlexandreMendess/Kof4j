@@ -394,6 +394,11 @@ public final class JvmWebCoreRuntime {
                     // D-HTTP-POLICIES (F1): politica global parseada de
                     // app.security(opts) — substitui os campos security* flat.
                     volatile Policy globalPolicy = new Policy();
+                    // D-HTTP-POLICIES (F2): policies de recurso de
+                    // app.policy(prefix, opts); resolvidas por longest-prefix
+                    // sobre o global a cada request (kof_web_effective_policy).
+                    final java.util.List<ScopedPolicy> policies =
+                            new java.util.concurrent.CopyOnWriteArrayList<>();
                     final java.util.List<StaticDir> staticDirs = new java.util.ArrayList<>();
                     final java.util.List<String> healthPaths = new java.util.ArrayList<>();
                     final java.util.concurrent.atomic.AtomicInteger activeConnections =
