@@ -3760,6 +3760,16 @@ nesta entrada.)
   whitelist (= o ~80% mensuravel); `prerelease -> stable` = 100% na mesma
   enumeracao. Generalizacao natural do `check_release_050_gate.sh` (ja faz
   esse formato para a release). Respondido na issue (comentario da lane).
+- **CUTOVER EXECUTADO (28/09/2026, mantenedora: "0.5.0 acabou de ser mergeada na
+  main, pode começar"):** `lab`/`testing`/`prerelease`/`stable` criadas a partir de
+  `origin/main` (`317d9f6b1`); `beta-*` congeladas; CI re-apontado (`codeql.yml`,
+  `kof-*-bot*.yml`, `pr-base-guard.yml`, `dependabot.yml`, `scripts/codeql-gate.sh`);
+  broadcast + instruções de migração na issue #647. Respostas da mantenedora:
+  (a) o cutover acontece AGORA (0.5.0 fechou); (b) `lab` MANTÉM o piso zero-regressão
+  (regra 8) mesmo sem CI por push — **OPEN POINT resolvido**; (c) o denominador `≥80%`
+  foi DROPADO: toda promoção é 100%. `AGENTS.md`/`.pt_BR.md` agora declaram
+  `D-BRANCH-PIPELINE: active branch = `lab``. A automação de promoção é o
+  `TIER 14.3` (roadmap).
 
 ## D-COMPLETE-FIRST — regra de escolha para decisoes automaticas: a solucao idiomatica E COMPLETA (sem stub, sem desistir, sem assumir gap, paridade total) e A OPCAO que as lanes seguem; alternativas ralas/stub/aceitar-gap nao sao opcoes (mantenedora 26/09/2026)
 

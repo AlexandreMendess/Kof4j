@@ -2,9 +2,9 @@
 
 last: 0.5.0-beta
 
-doing: desenvolvimento-autônomo
+doing: cutover-da-esteira-de-qualidade
 
-next: executar-trabalho-não-atribuído
+next: 14.3-tooling-de-promoção
 
 location: repositório
 
@@ -33,7 +33,7 @@ constraint:
 
 decision:
 
-* D-BRANCH-0.5.0: beta-0.5.0 é a branch de desenvolvimento ativa
+* D-BRANCH-PIPELINE: active branch = `lab`; a promoção é explícita e unidirecional `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`)
 * D-KOF-FIRST: o contrato do Kof precede o comportamento de linguagens externas
 * D-KOF-FIRST-IMPL: funcionalidades pós-0.5.0 são library-first
 * D-MAKEALIVE
@@ -162,7 +162,7 @@ rule:
 * IA acelera a implementação
 * IA não define arquitetura
 * IA não redefine a semântica do Kof
-* IA não faz merge de beta-0.5.0 na main
+* IA não faz merge de nenhum estágio na main
 * toda mudança exige uma issue
 * toda entrega exige prova
 
@@ -824,8 +824,8 @@ push:
 
 release:
 
-* agentes podem fazer push de beta-0.5.0
-* agentes nunca fazem merge de beta-0.5.0 → main
+* agentes podem fazer push da branch de desenvolvimento ativa (`lab`)
+* agentes nunca promovem/fazem merge de um estágio no seguinte (promoção é gate da mantenedora até `14.3`)
 * a mantenedora realiza o merge de release
 
 ---

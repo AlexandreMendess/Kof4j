@@ -1,8 +1,8 @@
 # AGENTS.md
 
 last: 0.5.0-beta
-doing: autonomous-development
-next: execute-unowned-work
+doing: quality-pipeline-cutover
+next: 14.3-promotion-tooling
 location: repository
 state: active
 
@@ -29,7 +29,7 @@ constraint:
 
 decision:
 
-* D-BRANCH-0.5.0: beta-0.5.0 is the active development branch
+* D-BRANCH-PIPELINE: active branch = `lab`; promotion is explicit and one-way `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`)
 * D-KOF-FIRST: Kof contract precedes external language behavior
 * D-KOF-FIRST-IMPL: post-0.5.0 features are library-first
 * D-MAKEALIVE
@@ -142,7 +142,7 @@ rule:
 * AI accelerates implementation
 * AI does not define architecture
 * AI does not redefine Kof semantics
-* AI does not merge beta-0.5.0 into main
+* AI does not merge any stage into main
 * every change requires an issue
 * every delivery requires proof
 
@@ -723,9 +723,9 @@ push:
 
 release:
 
-* agents may push beta-0.5.0
-* agents never merge beta-0.5.0 → main
-* maintainer performs release merge
+* agents may push the active development branch (`lab`)
+* agents never promote/merge a stage into the next (promotion is maintainer-gated until `14.3`)
+* maintainer performs the release merge
 
 ---
 

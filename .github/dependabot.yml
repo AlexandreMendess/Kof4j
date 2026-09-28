@@ -12,7 +12,7 @@
 #     de SEGURANÇA continuam sendo abertas contra a default branch — limitação
 #     do GitHub, não configurável aqui.
 #   * Ao trocar a branch ativa no futuro, atualizar `target-branch` nos dois
-#     blocos junto com a decisão (ver `D-BRANCH-0.5.0` em
+#     blocos junto com a decisão (ver `D-BRANCH-PIPELINE` em
 #     docs/development/DECISIONS.md).
 #   * Aberto para decisão de manutenção: o rótulo `dependencies` (nos dois
 #     blocos) NÃO existe no repositório — ou criar o rótulo, ou remover a
@@ -21,7 +21,7 @@ version: 2
 updates:
   - package-ecosystem: "maven"
     directory: "/"
-    target-branch: "beta-0.5.0"
+    target-branch: "lab"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -42,7 +42,7 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    target-branch: "beta-0.5.0"
+    target-branch: "lab"
     schedule:
       interval: "weekly"
       day: "monday"

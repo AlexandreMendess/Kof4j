@@ -5,9 +5,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [main, beta-0.4.0, beta-0.5.0]
+    branches: [main, lab, testing, prerelease, stable]
   pull_request:
-    branches: [main, beta-0.4.0, beta-0.5.0]
+    branches: [main, lab, testing, prerelease, stable]
   schedule:
     - cron: "0 6 * * 1"
   # Re-scan manual (Actions → CodeQL → Run workflow): atualiza os snapshots

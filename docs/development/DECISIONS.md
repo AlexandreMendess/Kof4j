@@ -3780,6 +3780,16 @@ stash-pop conflict markers; `e29ba47b3` merged both sides into this entry.)
   measurable ≈80%); `prerelease -> stable` = 100% on the same enumeration.
   Natural generalization of `check_release_050_gate.sh` (already this shape
   for the release). Answered on the issue (lane comment).
+- **CUTOVER EXECUTED (28/09/2026, maintainer: "0.5.0 acabou de ser mergeada na
+  main, pode começar"):** `lab`/`testing`/`prerelease`/`stable` created from
+  `origin/main` (`317d9f6b1`); `beta-*` frozen; CI re-pointed (`codeql.yml`,
+  `kof-*-bot*.yml`, `pr-base-guard.yml`, `dependabot.yml`, `scripts/codeql-gate.sh`);
+  broadcast + migration instructions in issue #647. Maintainer answers:
+  (a) the cutover happens NOW (0.5.0 closed); (b) `lab` KEEPS the zero-regression
+  floor (rule 8) even without per-push CI — **OPEN POINT resolved**; (c) the
+  `≥80%` denominator is DROPPED: every promotion is 100%. `AGENTS.md`/`.pt_BR.md`
+  now declare `D-BRANCH-PIPELINE: active branch = `lab``. Promotion automation is
+  `TIER 14.3` (roadmap).
 
 ## D-COMPLETE-FIRST — choice rule for automatic decisions: the solution that is idiomatic AND complete (no stub, no giving up, no accepting a gap, full parity) is THE option the lanes follow; thin/stub/gap-accept alternatives are not options (maintainer 26/09/2026)
 
