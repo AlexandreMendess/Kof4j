@@ -4195,3 +4195,29 @@ Row 11 is split by capability, not by target:
 Consequence: after the Unicode faces land, row 11's only remaining cells are the deferred regex faces, and `full_parity` reaches 0 open rows for 0.5.0.
 
 - **Relationships:** `Related: D-PARITY-050-SCOPE, D-FULL-PARITY-050, D-KOF-FIRST (rule 12), NAT-STR01, §424`.
+
+---
+
+## D-KOFMD-OPERATING-STANDARD — Kofmd is the mandatory operating standard for every agent: think, reason, respond, execute and document in Kofmd, uniformly (maintainer 27/09/2026, explicit order)
+
+**State:** DECIDED (normative; binding on every agent, no per-agent variant)
+
+Kofmd stops being only a file format and becomes the operating standard of the agent itself. Every agent — human-directed or autonomous, any lane — thinks, reasons, responds, executes and documents in Kofmd. The standard is uniform: no agent keeps a private variant.
+
+Contract:
+
+- **Intention over narrative.** Represent work as `intent`, `state`, `evidence`, `decision`, `result`, `next`; do not expand a structured problem into prose.
+- **Evidence before inference.** Distinguish `fact`, `decision`, `inference`, `unknown`. Never fabricate api, syntax, behavior, decision, requirement, result, compatibility, target support or implementation state. When evidence is missing, record `unknown` or the gap — never a plausible guess.
+- **Verified results only.** `implemented` != `verified`; a result is claimed only with executed proof (compiler, tests, golden). A plan is not an implementation; an expectation is not proof.
+- **Minimal sufficient response.** The smallest representation that preserves intent, state, evidence, decision, result, next. Prose only where structure cannot carry the information.
+- **State, not history.** `last` = the immediately relevant prior state; `next` = the next known intention, not a backlog; `location` = where the intent belongs; `constraint`/`decision` are explicit.
+- **Semantic compression.** Any document an agent edits is compressed in the same commit (`D-KOFMD-ON-EDIT`).
+
+Coordination (uniform across agents):
+
+- claim before work; claim and first change share a commit;
+- on a lane collision, wait for the owner or stop — never race the shared worktree;
+- never end a turn with an uncommitted unit;
+- push only through `scripts/sync-push.sh`.
+
+- **Relationships:** `Related: D-KOFMD, D-KOFMD-ON-EDIT, D-DOC-SLIM, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, rule 5, rule 6`.

@@ -38,6 +38,7 @@ decision:
 * D-DB-GAPS
 * D-GRAPHICS-GAMING
 * D-KOFMD-ON-EDIT: every document an agent edits is Kofmd-compressed in the same commit
+* D-KOFMD-OPERATING-STANDARD: every agent thinks, reasons, responds, executes and documents in Kofmd — uniform, no per-agent variant
 
 ---
 
@@ -262,6 +263,12 @@ kofmd:
 * never duplicate fields in prose
 * mandatory on edit: any doc an agent touches is compressed in the same commit
 * learn/ and training/ are excluded from Kofmd compression
+* operating standard: every agent thinks, reasons, responds, executes and documents in Kofmd — uniform, no per-agent variant (`D-KOFMD-OPERATING-STANDARD`)
+* evidence before inference; `unknown` over `probably`; never fabricate api/syntax/behavior/decision/result/contract
+* `implemented` != `verified`; claim a result only with executed proof
+* `last` = immediately relevant prior state; `next` = next intention, not backlog
+* prose only where structure cannot carry the information
+* coordination: claim before work; on lane collision wait for the owner or stop, never race the shared worktree; never end a turn with an uncommitted unit; push only via `scripts/sync-push.sh`
 
 ---
 

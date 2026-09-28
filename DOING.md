@@ -1,5 +1,7 @@
 > **📢 BROADCAST 28/09 (mantenedora → TODAS as lanes): branch ativa agora é `lab` — migrem TODO o trabalho para `lab` até o amanhecer.** `beta-*` saiu de cena: não empurrem mais para lá. Esteira unidirecional: `lab → testing → prerelease → stable → release/x.y.z → tag`; correção SEMPRE nasce em `lab` (nunca se corrige direto em testing/prerelease/stable/release). `lab` é aberta; os demais estágios são protegidos (rulesets). Contrato `D-QUALITY-PIPELINE-2609` + `D-BRANCH-PIPELINE`; anúncio e instruções na issue #647.
 
+> **🔧 CLAIM 28/09 (lane release/stability — owner: esta sessao, ORDEM DIRETA DA MANTENEDORA 'bota regra pra TODOS OS AGENTES FAZEREM ASSIM AGORA. TODOS DEVEM TRABALHAR IGUAL'):** uniformizar o padrao operacional de TODO agente em Kofmd. `D-KOFMD-OPERATING-STANDARD` registrado em `DECISIONS.md`(EN+PT) + regra no contrato (`AGENTS.md` EN+PT: lista `decision` + bloco `kofmd`): pensar/raciocinar/responder/executar/documentar em Kofmd; evidencia antes de inferencia (`unknown` > `probably`); `implemented != verified`; `last`/`next`; coordenacao (claim antes, colisao = esperar o dono ou parar, sem unidade nao-commitada, push so `scripts/sync-push.sh`). Sem variante por agente. NAO TOCAR: as 3 src em voo da lane parity (row 11 `compareToIgnoreCase`), PR #619.
+
 > **⤴ MIGRATION 28/09 (lane parity — owner: this session): checkout migrado para `lab` (#647 / D-BRANCH-PIPELINE).** Os 3 commits beta-only desta lane portados por cherry-pick sobre `origin/lab` (`5940a49d5`): docs(doing) medida safe-suite, test(strings) caracterização (`StringUnicodeFacesMeasuredTest`), feat(parity) row 11 case-fold. Conflito em `DOING`/`DOING.pt_BR` resolvido preservando os DOIS lados (broadcast da mantenedora + claim MEDIDA). No port corrigi a caracterização: travava o gap ASCII-fold pré-fix; agora trava o simple-fold pós-fix + as 4 divergências de mapeamento COMPLETO fora do escopo (`ß->SS`, `İ->i+U+0307`, `ǰ->J+caron`, `Σ->ς`). Q2 verde + focados 31/0F/0E. `beta-*` não recebe mais push; NEXT STEP segue (fechar `compareToIgnoreCase`) agora em `lab`.
 
 > **✅ DONE 28/09 (lane pipeline — owner: esta sessao): máquina de estados do pipeline implementada** (`D-QUALITY-PIPELINE-2609`). `scripts/pipeline/pipeline_state.py`: transições válidas (`lab→testing→prerelease→stable→release/x.y.z→tag`) passam; a matriz de bypass do contrato é TODA bloqueada (`lab→prerelease`, `lab→stable`, `testing→stable`, `prerelease→release`, `lab→release`, `stable→prerelease`); falha é fail-closed (branch/estado desconhecido e no-op nunca são `allowed`). Prova: selftest embutido + `scripts/tests/pipeline-state-test.sh` 21/21; suíte de agentes VERDE (`scripts/tests/run-agent-tests.sh`). **Promotion Gate:** `scripts/pipeline/promotion_gate.py` (100% dos checks obrigatórios; ≥80% dropado; janela de 7 dias + 0 issues relacionadas p/ `prerelease→stable`; tag idempotente; relatório auditável; fail-closed) — selftest + `scripts/tests/promotion-gate-test.sh` 16/16. Rulesets aplicados via API: `pipeline-stages` (main/testing/prerelease/stable/release/* = no-push-direto + PR + checks; `lab` ABERTA) e `release-tags` (tags `kof-*` imutáveis). **NEXT STEP:** workflow `promote.yml` (PR de promoção auditável, idempotente, usando a máquina de estados + gate) + `docs/development/quality-pipeline.md` EN+PT.
@@ -52,8 +54,8 @@
 
 # DOING — agent coordination ledger
 
-last: row11-matrix-cell-complete
-doing: release-stability
+last: kofmd-operating-standard
+doing: kofmd-operating-standard
 next: certify-parity-and-stability
 location: DOING
 state: active

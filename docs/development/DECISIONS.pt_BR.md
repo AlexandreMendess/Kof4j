@@ -4182,3 +4182,29 @@ A row 11 é dividida por capacidade, não por alvo:
 Consequência: depois que as faces Unicode pousarem, as únicas células restantes da row 11 são as faces de regex adiadas, e o `full_parity` chega a 0 rows abertas na 0.5.0.
 
 - **Relações:** `Related: D-PARITY-050-SCOPE, D-FULL-PARITY-050, D-KOF-FIRST (regra 12), NAT-STR01, §424`.
+
+---
+
+## D-KOFMD-OPERATING-STANDARD — Kofmd é o padrão operacional obrigatório de todo agente: pensar, raciocinar, responder, executar e documentar em Kofmd, de forma uniforme (mantenedora 27/09/2026, ordem explícita)
+
+**Estado:** DECIDED (normativo; vinculante a todo agente, sem variante por agente)
+
+Kofmd deixa de ser apenas um formato de arquivo e passa a ser o padrão operacional do próprio agente. Todo agente — dirigido por humano ou autônomo, qualquer lane — pensa, raciocina, responde, executa e documenta em Kofmd. O padrão é uniforme: nenhum agente mantém variante própria.
+
+Contrato:
+
+- **Intenção sobre narrativa.** Representar o trabalho como `intent`, `state`, `evidence`, `decision`, `result`, `next`; não expandir um problema estruturado em prosa.
+- **Evidência antes de inferência.** Distinguir `fact`, `decision`, `inference`, `unknown`. Nunca fabricar api, sintaxe, comportamento, decisão, requisito, resultado, compatibilidade, suporte de alvo ou estado de implementação. Sem evidência, registrar `unknown` ou a lacuna — nunca um palpite plausível.
+- **Resultados verificados apenas.** `implemented` != `verified`; um resultado só é declarado com prova executada (compilador, testes, golden). Plano não é implementação; expectativa não é prova.
+- **Resposta mínima suficiente.** A menor representação que preserva intenção, estado, evidência, decisão, resultado, próximo passo. Prosa somente onde a estrutura não carrega a informação.
+- **Estado, não histórico.** `last` = estado anterior imediatamente relevante; `next` = próxima intenção conhecida, não backlog; `location` = onde a intenção pertence; `constraint`/`decision` explícitos.
+- **Compressão semântica.** Todo documento editado por um agente é comprimido no mesmo commit (`D-KOFMD-ON-EDIT`).
+
+Coordenação (uniforme entre agentes):
+
+- reivindicar antes de trabalhar; reivindicação e primeira mudança no mesmo commit;
+- em colisão de lane, esperar o dono ou parar — nunca disputar a worktree compartilhada;
+- nunca encerrar turno com unidade não commitada;
+- push somente via `scripts/sync-push.sh`.
+
+- **Relações:** `Related: D-KOFMD, D-KOFMD-ON-EDIT, D-DOC-SLIM, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, regra 5, regra 6`.
