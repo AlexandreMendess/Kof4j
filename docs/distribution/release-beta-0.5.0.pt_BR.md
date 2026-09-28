@@ -1,8 +1,21 @@
-[English](release-beta-0.5.0-prep.md) | [Português](release-beta-0.5.0-prep.pt_BR.md)
+[English](release-beta-0.5.0.md) | [Português](release-beta-0.5.0.pt_BR.md)
 
-# Release 0.5.0 — preparo (branch `beta-0.5.0`)
+last: quality-pipeline-cutover
+doing: none
+next: none
+location: docs/distribution
+state: done
+# Release 0.5.0 — registro de aceitação (CONCLUÍDO)
 
-Decisão: `DECISIONS.md` §D-BRANCH-0.5.0 (20/09). Branch ativa `beta-0.5.0`; `beta-0.4.0` só recebe pousos em voo + preparo de release. Fica em `docs/development/` até o corte (regra dos três estados).
+> **FECHADO 28/09/2026 (mantenedora):** o corte aconteceu — `origin/main` mergeou
+> o `#619` (`beta-0.5.0 → main`) e os artefatos foram tagueados `kof-0.5.0-beta*`
+> (2026.09.25). Este arquivo é agora um **registro histórico de aceitação**, não
+> uma fila. O gate específico da 0.5.0 (`scripts/check_release_050_gate.sh`) e seus
+> checks de prep foram **aposentados**; a promoção de release é regida por
+> [`docs/development/quality-pipeline.md`](../development/quality-pipeline.md)
+> (`D-QUALITY-PIPELINE-2609`). Mantido por proveniência; o checklist abaixo está congelado.
+
+Decisão: `DECISIONS.md` §D-BRANCH-0.5.0 (20/09). Branch ativa `beta-0.5.0`; `beta-0.4.0` só recebia pousos em voo + preparo de release. (Viveu em `docs/development/` até o corte — regra dos três estados.)
 
 ## Checklist (ordenado — número da versão e tag são decisão da mantenedora, regra 6)
 

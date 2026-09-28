@@ -1,5 +1,5 @@
 - **Pendentes (condição 3 do gate de release):** nenhum — o Kofmd concluiu 27/09 (`D-KOFMD`) e o plano saiu de `development/` para `docs/` (regra dos 3 estados). Os planos em voo com dono ainda soltos (`http-policies-plan`, `memory-safety-plan`) estão no **allowlist** por `D-RELEASE-0.5.0-SCOPE` (21/09) + `D-BAREMETAL-BOOT` (22/09) + o registro de posse da `D-COMPLETE-FIRST`: mantêm dono + fila na §1 e não barram o corte 0.5.0. Autoridade: `scripts/check_release_050_gate.sh` (`loose_docs`).
-- **Registros vivos aqui (não são backlog):** `DECISIONS.md`, `roadmap.md`, `release-beta-0.5.0-prep.md`. 24/09: os dois PROPOSALs ratificados saíram de `development/`; o ledger `tech-debt` + a ferramenta `debt-scout` foram MORTOS pela mantenedora (dívida zerada).
+- **Registros vivos aqui (não são backlog):** `DECISIONS.md`, `roadmap.md`, `quality-pipeline.md`, `http-policies-plan.md`. 24/09: os dois PROPOSALs ratificados saíram de `development/`; o ledger `tech-debt` + a ferramenta `debt-scout` foram MORTOS pela mantenedora (dívida zerada). 28/09: o registro de aceitação `release-beta-0.5.0-prep` foi para `docs/distribution/release-beta-0.5.0.md` quando o corte pousou (tags `kof-0.5.0-beta*`).
 - **§1 é a fila; §4.1/§4.2 são TRILHA DE AUDITORIA** (o que já saiu, com prova) — não leia como trabalho. Como agir: §6.
 
 ---

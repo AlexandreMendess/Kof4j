@@ -1131,4 +1131,7 @@ decisão pendente; todos os `docs/development/*.md` soltos concluídos e movidos
 estabilidade total; 0 issues abertas de bug; todas as arestas fechadas; nada
 pendente em bugs-and-gaps. Fila + estado atual:
 `release-beta-0.5.0-prep.md` §"Gate de release". Mecanizado por
-`scripts/check_release_050_gate.sh`.
+`scripts/check_release_050_gate.sh`. **FECHADO 28/09 (`D-RELEASE-0.5.0-CLOSED`):**
+o corte pousou (`main` mergeou `#619`, tags `kof-0.5.0-beta*`); o registro de
+aceitação foi para `docs/distribution/release-beta-0.5.0.md` e o gate foi
+aposentado — a promoção agora é regida pelo TIER 14 (`D-QUALITY-PIPELINE-2609`).

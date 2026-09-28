@@ -1,5 +1,5 @@
 - **Pending (the release gate's condition 3):** none — Kofmd concluded 27/09 (`D-KOFMD`) and its plan moved out of `development/` to `docs/` (3-state rule). The in-flight OWNED plans still loose (`http-policies-plan`, `memory-safety-plan`) are **allowlisted** by `D-RELEASE-0.5.0-SCOPE` (21/09) + `D-BAREMETAL-BOOT` (22/09) + the `D-COMPLETE-FIRST` ownership record: they keep owner + queue in §1 and do not gate the 0.5.0 cut. Authority: `scripts/check_release_050_gate.sh` (`loose_docs`).
-- **Living records here (not backlog):** `DECISIONS.md`, `roadmap.md`, `release-beta-0.5.0-prep.md`. 24/09: the two ratified PROPOSALs left `development/`; the `tech-debt` ledger + `debt-scout` tooling were KILLED by the maintainer (debt zeroed).
+- **Living records here (not backlog):** `DECISIONS.md`, `roadmap.md`, `quality-pipeline.md`, `http-policies-plan.md`. 24/09: the two ratified PROPOSALs left `development/`; the `tech-debt` ledger + `debt-scout` tooling were KILLED by the maintainer (debt zeroed). 28/09: the `release-beta-0.5.0-prep` acceptance record moved to `docs/distribution/release-beta-0.5.0.md` once the cut landed (release tags `kof-0.5.0-beta*`).
 - **§1 is the queue; §4.1/§4.2 are an AUDIT TRAIL** (what already left, with proof) — do not read them as work. How to act: §6.
 
 ---

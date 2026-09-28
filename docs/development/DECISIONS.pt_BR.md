@@ -2381,8 +2381,8 @@ pra branch beta-0.5.0 e começar a preparar a nova release".
 - Bump de versão (`<revision>0.4.7-beta</revision>` do `pom.xml` → número novo),
   corte do CHANGELOG e tag são **itens do preparo de release** — a mantenedora
   confirma o número no corte (regra 6); ninguém bumpa unilateralmente.
-- A fila do preparo mora em `docs/development/release-beta-0.5.0-prep.pt_BR.md`
-  (+EN).
+- A fila do preparo morava em `docs/distribution/release-beta-0.5.0.pt_BR.md`
+  (+EN) — FECHADA 28/09 (saiu de `development/`).
 
 **Evidência:** ordem da mantenedora 20/09/2026 (chat); linhas de branch ativa do
 `AGENTS.md`(+PT) e este registro no mesmo passo; issues abertas #550/#553/#554
@@ -2460,7 +2460,7 @@ fila no `roadmap.md` §23; claim no `DOING.md`; #560 cross-notificada.
 **Decisão (mantenedora, chat 20/09/2026):** "faz o bump de versão em tudo no repo
 pra beta 0.5.0" — a versão do produto sobe `0.4.7-beta → 0.5.0-beta` na branch
 ativa `beta-0.5.0` (`D-BRANCH-0.5.0`). Isso fecha o item 3 do checklist de
-release (`docs/development/release-beta-0.5.0-prep.md`) e substitui a cláusula
+release (`docs/distribution/release-beta-0.5.0.md`) e substitui a cláusula
 "VERSION fica em 0.4.7-beta" do `D-RELEASE-1.0` apenas no sentido de que a fase
 de preparo de release que ela reservava foi iniciada por ordem.
 
@@ -4253,3 +4253,12 @@ individuais:
 - **Alvos:** JVM completo; Native/JS `WEB006` em compile time (R6 — nunca drop silencioso de política).
 - **Lei de merge / ordem das fatias (F0…F6):** pertence ao plano (§4, §12); esta entrada trava a decisão e a superfície.
 - **Relações:** `Related: D-SEC, D-SPRING, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, regra 6, regra 12`.
+
+## D-RELEASE-0.5.0-CLOSED — o corte 0.5.0 acabou; o prep e seu gate são aposentados (mantenedora 28/09/2026, "a release ja aconteceu")
+
+**Estado:** DECIDED (mantenedora) · **Evidência:** `origin/main` mergeou o `#619` (`beta-0.5.0 → main`) e os artefatos estão tagueados `kof-0.5.0-beta*` (2026.09.25).
+
+- O registro de aceitação `release-beta-0.5.0-prep.md`(+PT) saiu de `development/` (regra dos três estados) para [`docs/distribution/release-beta-0.5.0.md`](../distribution/release-beta-0.5.0.md) (+PT) com `state: done`; é história congelada.
+- `scripts/check_release_050_gate.sh` e `scripts/tests/check-release-050-gate-test.sh` estão **aposentados** (removidos do `run-agent-tests.sh`); as condições específicas da 0.5.0 (partes G/H do `check_live_records.sh` + a autoridade de loose-set §0/§1 do README) deixam de rodar agora que suas entradas sumiram.
+- A promoção de release passa a ser regida por [`quality-pipeline.md`](quality-pipeline.md) (`D-QUALITY-PIPELINE-2609`): `lab → testing → prerelease → stable → release/x.y.z → tag`.
+- **Relações:** `Related: D-BRANCH-0.5.0, D-RELEASE-0.5.0-GATE, D-RELEASE-0.5.0-SCOPE, D-FULL-PARITY-050, D-QUALITY-PIPELINE-2609, D-BRANCH-PIPELINE`.

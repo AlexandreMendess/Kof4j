@@ -2409,8 +2409,8 @@ pra branch beta-0.5.0 e começar a preparar a nova release".
 - Version bump (`pom.xml` `<revision>0.4.7-beta</revision>` → new release
   number), CHANGELOG cut and tag are **release-prep items** — the maintainer
   confirms the number at the cut; no unilateral bump by an agent.
-- Release-prep queue lives in
-  `docs/development/release-beta-0.5.0-prep.md` (+ `release-beta-0.5.0-prep.pt_BR.md`).
+- Release-prep queue lived in
+  `docs/distribution/release-beta-0.5.0.md` (+ `.pt_BR.md`) — CLOSED 28/09 (moved out of `development/`).
 
 **Evidence:** maintainer order 09/20/2026 (chat); `AGENTS.md`/`AGENTS.pt_BR.md`
 active-branch lines and this record land in the same pass; open issues
@@ -2479,7 +2479,7 @@ pass; `roadmap.md` §23 queue; `DOING.md` claim; #560 cross-notified.
 **Decision (maintainer, chat 09/20/2026):** "faz o bump de versão em tudo no repo
 pra beta 0.5.0" — the product version is bumped `0.4.7-beta → 0.5.0-beta` on the
 active branch `beta-0.5.0` (`D-BRANCH-0.5.0`). This satisfies release-prep
-checklist item 3 (`docs/development/release-beta-0.5.0-prep.md`) and supersedes
+checklist item 3 (`docs/distribution/release-beta-0.5.0.md`) and supersedes
 the "VERSION stays 0.4.7-beta" clause of `D-RELEASE-1.0` only in the sense the
 release-prep phase it reserved has now begun by order.
 
@@ -4265,3 +4265,12 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Targets:** JVM full; Native/JS `WEB006` at compile time (R6 — never a silent policy drop).
 - **Merge law / slice order (F0…F6):** owned by the plan (§4, §12); this entry locks the decision and the surface.
 - **Relationships:** `Related: D-SEC, D-SPRING, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, rule 6, rule 12`.
+
+## D-RELEASE-0.5.0-CLOSED — the 0.5.0 cut is done; the prep tracker and its gate are retired (maintainer 28/09/2026, "a release ja aconteceu")
+
+**State:** DECIDED (maintainer) · **Evidence:** `origin/main` merged `#619` (`beta-0.5.0 → main`) and the artifacts are tagged `kof-0.5.0-beta*` (2026.09.25).
+
+- The acceptance record `release-beta-0.5.0-prep.md`(+PT) moved out of `development/` (three-states rule) to [`docs/distribution/release-beta-0.5.0.md`](../distribution/release-beta-0.5.0.md) (+PT) with `state: done`; it is frozen history.
+- `scripts/check_release_050_gate.sh` and `scripts/tests/check-release-050-gate-test.sh` are **retired** (removed from `run-agent-tests.sh`); the 0.5.0-specific conditions (parts G/H of `check_live_records.sh` + the README §0/§1 loose-set authority) stop running now that their inputs are gone.
+- Release promotion is governed from now on by [`quality-pipeline.md`](quality-pipeline.md) (`D-QUALITY-PIPELINE-2609`): `lab → testing → prerelease → stable → release/x.y.z → tag`.
+- **Relationships:** `Related: D-BRANCH-0.5.0, D-RELEASE-0.5.0-GATE, D-RELEASE-0.5.0-SCOPE, D-FULL-PARITY-050, D-QUALITY-PIPELINE-2609, D-BRANCH-PIPELINE`.

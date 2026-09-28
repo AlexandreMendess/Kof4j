@@ -1126,7 +1126,10 @@ seven conditions hold, each measured — 100% target parity; no pending decision
 all loose `docs/development/*.md` concluded and moved out; total stability;
 0 open bug issues; all edges closed; nothing pending in bugs-and-gaps. Queue +
 current state: `release-beta-0.5.0-prep.md` §"Release gate". Mechanized by
-`scripts/check_release_050_gate.sh`.
+`scripts/check_release_050_gate.sh`. **CLOSED 28/09 (`D-RELEASE-0.5.0-CLOSED`):**
+the cut landed (`main` merged `#619`, tags `kof-0.5.0-beta*`); the acceptance
+record moved to `docs/distribution/release-beta-0.5.0.md` and the gate was
+retired — promotion is now governed by TIER 14 (`D-QUALITY-PIPELINE-2609`).
 
 ### TIER 14 — Quality-pipeline migration (DECIDED 26/09 `D-QUALITY-PIPELINE-2609`; execution gated POST-0.5.0)
 

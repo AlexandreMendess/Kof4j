@@ -173,7 +173,7 @@ CONTRACT SOURCE:
 - docs/distribution/release-naming.md;
 - docs/distribution/VERSIONING.md;
 - AGENTS.md — Quality Gate / no bug ships / zero regression / suite as gate;
-- docs/development/release-beta-0.5.0-prep.md.
+- docs/distribution/release-beta-0.5.0.md (registro de aceitação, FECHADO 28/09).
 
 CURRENT KOF IDIOM:
 Beta → RC → Stable já é a progressão oficial.
