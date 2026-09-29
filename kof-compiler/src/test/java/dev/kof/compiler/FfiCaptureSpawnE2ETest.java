@@ -223,6 +223,21 @@ class FfiCaptureSpawnE2ETest {
     }
 
     @Test
+    void ffiRefusedOnScriptEvenInsideSpawn(@TempDir Path t) throws IOException {
+        // #667 integração: a recusa vale para o MESMO fonte FFI×spawn — o Script
+        // não compila o extern e o programa nunca chega ao runtime cru. Por
+        // construção, a face MEM020 no Script é INALCANÇÁVEL (sem extern não há
+        // escrita FFI), então o pin correto é FFI001, não MEM020.
+        Path s = t.resolve("Main-script-ffi.kf");
+        Files.writeString(s, FFI_SPAWN_READ);
+        KofInterpretException ex = assertThrows(KofInterpretException.class,
+                () -> driver.interpret(List.of(s), t, new String[0]),
+                "Script deve recusar o extern mesmo dentro de spawn (#667)");
+        assertTrue(ex.errorDiagnostics().stream().anyMatch(d -> "FFI001".equals(d.code())),
+                "esperado FFI001, foi " + ex.errorDiagnostics());
+    }
+
+    @Test
     void concurrentFfiBufferWriteParentAndSpawnIsMem020(@TempDir Path t) throws IOException {
         compileExpectMem020(t, "mem020-parent", MEM020_PARENT_AND_SPAWN);
     }
