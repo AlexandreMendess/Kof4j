@@ -19,9 +19,10 @@ import image.Image
 // under the cross-native allocation cap, `known-bugs` §540) and the value must
 // fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
 // 16-bit PNM, comments in the pixel area) throws a `String` beginning with
-// `IMAGE:` — never a silent wrong decode. `cropRaster` and `resizeNearest`
-// operate on a `Raster` in pure Kof (nearest-neighbour; smooth filtering rides
-// the interop slice); their output is bounded by the same cap.
+// `IMAGE:` — never a silent wrong decode. `cropRaster`, `resizeNearest`,
+// `flipHorizontal`/`flipVertical` and `rotate90` operate on a `Raster` in pure
+// Kof (nearest-neighbour; smooth filtering rides the interop slice); their
+// output is bounded by the same cap.
 //
 // The final `Image`/`Pixel`/`Color` value surface and the imageio bindings are
 // a rule-6 decision (see the plan); this `Raster` view is provisional and
@@ -129,6 +130,67 @@ Raster resizeNearest(Raster r, Int w, Int h) {
         row = row + 1
     }
     return Raster(r.format, w, h, r.channels, out)
+}
+
+Raster flipHorizontal(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var row = 0
+    while (row < r.height) {
+        var col = 0
+        while (col < r.width) {
+            var c = 0
+            while (c < r.channels) {
+                var src = (row * r.width + (r.width - 1 - col)) * r.channels + c
+                out[(row * r.width + col) * r.channels + c] = r.samples[src]
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+Raster flipVertical(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var row = 0
+    while (row < r.height) {
+        var col = 0
+        while (col < r.width) {
+            var c = 0
+            while (c < r.channels) {
+                var src = ((r.height - 1 - row) * r.width + col) * r.channels + c
+                out[(row * r.width + col) * r.channels + c] = r.samples[src]
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+// Clockwise 90 degrees; the dimensions swap (`W'=H`, `H'=W`).
+Raster rotate90(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var y = 0
+    while (y < r.width) {
+        var x = 0
+        while (x < r.height) {
+            var c = 0
+            while (c < r.channels) {
+                var src = ((r.height - 1 - x) * r.width + y) * r.channels + c
+                out[(y * r.height + x) * r.channels + c] = r.samples[src]
+                c = c + 1
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+    return Raster(r.format, r.height, r.width, r.channels, out)
 }
 
 String buildPnmName(Bool color) {

@@ -39,7 +39,13 @@ class RasterDecodeE2ETest {
             "PPM:1x2 ch=3",
             "px=4,5,6,10,11,12",
             "PPM:4x4 ch=3",
-            "px=1,2,3,1,2,3,4,5,6,4,5,6,1,2,3,1,2,3,4,5,6,4,5,6,7,8,9,7,8,9,10,11,12,10,11,12,7,8,9,7,8,9,10,11,12,10,11,12");
+            "px=1,2,3,1,2,3,4,5,6,4,5,6,1,2,3,1,2,3,4,5,6,4,5,6,7,8,9,7,8,9,10,11,12,10,11,12,7,8,9,7,8,9,10,11,12,10,11,12",
+            "PPM:2x2 ch=3",
+            "px=4,5,6,1,2,3,10,11,12,7,8,9",
+            "PPM:2x2 ch=3",
+            "px=7,8,9,10,11,12,1,2,3,4,5,6",
+            "PPM:2x2 ch=3",
+            "px=7,8,9,1,2,3,10,11,12,4,5,6");
 
     @Test
     void decodesRasterOnJvm() throws Exception {
@@ -132,6 +138,9 @@ class RasterDecodeE2ETest {
                 var rgb = decodeRaster(base + "/rgb.ppm")
                 println(dump(cropRaster(rgb, 1, 0, 1, 2)))
                 println(dump(resizeNearest(rgb, 4, 4)))
+                println(dump(flipHorizontal(rgb)))
+                println(dump(flipVertical(rgb)))
+                println(dump(rotate90(rgb)))
             }
             """.formatted(base);
     }
