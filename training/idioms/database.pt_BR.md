@@ -52,7 +52,7 @@ var all = orm.all<User>(db)
 orm.where<User>(db, "age", ">", 25)        // + operador opcional
 orm.count<User>(db, "age", 30)
 orm.delete<User>(db, 1)
-orm.page<User>(db, 1, 20)
+orm.page<User>(db, 20, 0)        // (limit, offset) — 20 linhas do inicio
 orm.deleteAll<User>(db)
 orm.saveAll<User>(db, users)          // insert/update em lote, uma passada
 

@@ -443,6 +443,16 @@ Each slice is independently provable; no slice ships without a test and docs.
 - **Future (separate decision) — cursor/keyset** and the lazy
   `PLAN-MULTIPARADIGMA` spine.
 
+> **Decision pending (recorded 29/09 — P2 landed):** **P4** cannot be done
+> additively without a maintainer design decision. `Window<T>` is a Kof `record`
+> compiled per-program, so a per-target runtime `kof_orm_window` cannot construct
+> it (no reflection/codegen). The two additive alternatives are **(a)** make
+> `Window<T>` a core/builtin type, or **(b)** desugar `orm.window` in the ORM
+> lowerer into the existing Kof `window(...)` helper over `orm.page` (AST/IR
+> synthesis) — library-first but a compiler-architecture change. **P5**'s return
+> shape is still open at §19 Q8. Both are rule-6/design points; implementation is
+> stopped here until the maintainer decides (AGENTS "record the finding").
+
 ## 21. Acceptance criteria per phase
 
 - **P1:** `slice/take/drop` correct for `0`, exactly-size, `offset==size`,

@@ -442,6 +442,17 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
 - **Futuro (decisão separada) — cursor/keyset** e a espinha lazy do
   `PLAN-MULTIPARADIGMA`.
 
+> **Decisão pendente (registrado 29/09 — P2 landed):** **P4** não pode ser feito
+> de forma aditiva sem uma decisão de design da mantenedora. `Window<T>` é um
+> `record` Kof compilado por programa, então um `kof_orm_window` de runtime por
+> alvo não consegue construí-lo (sem reflection/codegen). As duas alternativas
+> aditivas são **(a)** tornar `Window<T>` um tipo core/builtin, ou **(b)**
+> dessugar `orm.window` no lowerer de ORM para o helper Kof `window(...)`
+> existente sobre `orm.page` (síntese de AST/IR) — library-first, mas mudança de
+> arquitetura do compilador. A forma de retorno de **P5** ainda está aberta em
+> §19 Q8. Ambos são pontos rule-6/design; a implementação para aqui até a
+> mantenedora decidir (AGENTS "record the finding").
+
 ## 21. Critérios de aceite por fase
 
 - **P1:** `slice/take/drop` corretos para `0`, exatamente-size, `offset==size`,
