@@ -27,6 +27,7 @@ time platform experimental — KofTime.java (clock/timers; TIME00x gap-gated per
 json platform experimental — receiver-dispatched surface (`"json".equals(rid.name())` in MemberCallNamespaces/MethodCallNamespaces/ExpressionJsonCallLowerer); registered in BARE_SURFACES
 db platform experimental — ExpressionStaticCallLowerer.java (essential-to-platform, optional per program)
 orm platform experimental — ExpressionOrmCallLowerer.java (rides on kof.db)
+pagination platform experimental — CompilerPagination.java (pure-Kof windowing host, composition layer; D-PAGINATION P2)
 http platform experimental — KofHttp.java (stdlib-documented, platform-essential)
 web platform experimental — KofWeb.java
 cache platform experimental — KofCache.java
