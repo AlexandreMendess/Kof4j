@@ -675,6 +675,22 @@ diagnostic). No compiler change; target-neutral.
 
 ---
 
+
+## 9.11 Promoted slice 11 (29/09/2026) — stability tiers and ABI-compatibility aspects
+
+**State:** landed. `interop.InteropCompatibility` supplies the §3.9 MECHANISM, not the policy: the
+stability tiers (`stable`/`experimental`/`internal`), whether a tier promises stability (only
+`stable`, and only once compatibility tests exist), and the aspects a compatibility test must
+validate (symbol-names/calling-convention/type-layout/alignment/struct-layout/binary-compat/
+ownership). Which interface gets which tier, and the first stable ABI version, remain rule 6 (§13).
+Honest (R6): an unknown tier/aspect throws `INTEROP: unknown stability <x>` /
+`INTEROP: unknown compatibility aspect <x>`.
+
+**Proof:** `InteropCompatibilityE2ETest` **6/6** (JVM golden + Script + JS + Native x86-64 + two
+negatives). No compiler change; target-neutral.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:

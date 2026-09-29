@@ -682,6 +682,22 @@ desconhecido). Sem mudança no compilador; neutro de alvo.
 
 ---
 
+
+## 9.11 Fatia promovida 11 (29/09/2026) — tiers de estabilidade e aspectos de compatibilidade ABI
+
+**Estado:** landada. `interop.InteropCompatibility` fornece o MECANISMO da §3.9, não a política: os
+tiers de estabilidade (`stable`/`experimental`/`internal`), se um tier promete estabilidade (só
+`stable`, e só quando existirem testes de compatibilidade) e os aspectos que um teste de
+compatibilidade deve validar (symbol-names/calling-convention/type-layout/alignment/struct-layout/
+binary-compat/ownership). Que interface recebe que tier, e a primeira versão ABI estável, seguem
+rule 6 (§13). Honesto (R6): tier/aspecto desconhecido lança `INTEROP: unknown stability <x>` /
+`INTEROP: unknown compatibility aspect <x>`.
+
+**Prova:** `InteropCompatibilityE2ETest` **6/6** (golden JVM + Script + JS + Native x86-64 + dois
+negativos). Sem mudança no compilador; neutro de alvo.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:
