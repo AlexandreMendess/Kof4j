@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 171 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 170 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -60,6 +60,17 @@ poll a deadline or block on `ProcessHandle.onExit()` instead of a fixed `Thread.
 → baseline 174→171 keys (4 test keys removed, 1 fixture key added).
 `KofDebugJvmExceptionTest` keeps its 500 ms — an intentional "let the loop run before
 pause" in the DAP flow, not a readiness settle.
+**Quick-win slice 8 (29/09):** `KofTimeE2ETest#durationSchedulerAtFiresJvm` was re-measured and
+reclassified — its two `Thread.sleep(150/80)` were NOT load-bearing boot timing but a scheduler
+poll: both became bounded `TestServerFixture.awaitTrue` polls (wait for ≥3 fires on a 20 ms
+interval; then assert no fire in the 80 ms after `cancel`), and `TickCounter.n` is now `volatile`
+(read across the scheduler thread). Baseline 171→170 keys (1 file leaves the sleep set);
+`KofTimeE2ETest` 44/44 (0 skip), focused test 4/4 runs.
+**Phase 3 cost found (29/09):** the giant-test split is NOT a cheap increment — test class names
+are cited as proof across `docs/` (e.g. `TranslateTest` in `known-bugs`, `audits/`,
+`future/TRANSLATOR`), so splitting or renaming a class requires a reference sweep and risks doc
+drift. Phase 3 needs either a citation-sweep step or a layer approach that keeps class names
+stable (recorded as the open design point; not started).
 **How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
 (shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4
 (harness) → 5 (targets) → 6 (conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**

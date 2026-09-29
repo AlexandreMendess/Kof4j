@@ -1343,12 +1343,12 @@ class KofTimeE2ETest {
             java.lang.reflect.Method cancel = rt.getMethod("kof_scheduler_cancel", String.class);
             TickCounter fn = new TickCounter();
             Object id = at.invoke(null, "20ms", fn);
-            Thread.sleep(150);
+            assertTrue(TestServerFixture.awaitTrue(200, 5, () -> fn.n >= 3),
+                    "esperava >= 3 disparos em 20ms, tivemos " + fn.n);
             cancel.invoke(null, id);
             int afterCancel = fn.n;
-            assertTrue(fn.n >= 3, "esperava >= 3 disparos em 150ms de 20ms, tivemos " + fn.n);
-            Thread.sleep(80);
-            assertEquals(afterCancel, fn.n, "cancel deve parar os disparos");
+            assertFalse(TestServerFixture.awaitTrue(16, 5, () -> fn.n != afterCancel),
+                    "cancel deve parar os disparos");
         }
     }
 
@@ -1360,7 +1360,7 @@ class KofTimeE2ETest {
      *  via getMethod("invoke") membros de classe pública — classes anônimas
      *  e lambdas Java são package-private/hidden (IllegalAccessException). */
     public static class TickCounter implements Tick {
-        public int n = 0;
+        public volatile int n = 0;
         @Override
         public void invoke() { n++; }
     }
