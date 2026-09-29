@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 162 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 161 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -98,7 +98,10 @@ extracted the qemu/serial/build helpers out of `BiosBootE2ETest` (all 10 cases a
 name stayed) → oversized 37→36, baseline 164→163. **Eighth split landed (29/09):**
 `FfiStructSupport` extracted the C shim source, the host-`.so` compiler, the toolchain lookup
 and the JVM/Native/JS runners out of `FfiStructE2ETest` (all 12 cases and the cited class name
-stayed) → oversized 36→35, baseline 163→162. The metric is a
+stayed) → oversized 36→35, baseline 163→162. **Ninth split landed (29/09):** `ShellSupport`
+extracted the JVM/JS capture harness and the parity/refusal oracles (with the inherited `@TempDir`
+field) out of `ShellE2ETest` (all 21 cases and the cited class name stayed) → oversized 35→34,
+baseline 162→161. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -599,8 +602,8 @@ Before any deep refactoring, the path is:
    out of `KofMediaE2ETest` (17/17 kept), `NullablePrimitiveContractSupport` out of
    `NullablePrimitiveContractE2ETest` (26/26 kept), `LambdaSupport` out of `LambdaE2ETest`
    (36/36 kept), `BiosBootSupport` out of `BiosBootE2ETest` (10/10 kept) and `FfiStructSupport`
-   out of `FfiStructE2ETest` (12/12 kept) → oversized 43→35, baseline 170→162; next split picks
-   by a fresh `--citations` measurement).
+   out of `FfiStructE2ETest` (12/12 kept) and `ShellSupport` out of `ShellE2ETest` (21/21 kept)
+   → oversized 43→34, baseline 170→161; next split picks by a fresh `--citations` measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
