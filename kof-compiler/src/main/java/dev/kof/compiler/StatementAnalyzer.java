@@ -16,7 +16,10 @@ public final class StatementAnalyzer {
         }
         // D-MEMORY-SAFETY Fase 3 fatia 1 (D-COMPLETE-FIRST): faces retilineas
         // O-01/MEM001 + O-02/MEM002 — analise de claim/close, conservadora.
-        dev.kof.compiler.memory.OwnershipPass.analyze(sa.diagnostics(), body);
+        // B-03/MEM020 (#668, unidade 2 fase 5): extern com parametro
+        // `Buffer(U8)` INOUT escreve o buffer — os indices desses argumentos
+        // vao para o passe, que cruza com spawn/await (corrida de escrita FFI).
+        dev.kof.compiler.memory.OwnershipPass.analyze(sa.diagnostics(), body, ffiBufferWrites(sa));
         // Fatia 3.1b: L-05/MEM014 — handle criado e nunca fechado/entregue
         // (WARNING; paridade por construcao no frontend compartilhado).
         dev.kof.compiler.memory.ResourceLeakAnalysis.analyze(sa.diagnostics(), body);
@@ -452,6 +455,37 @@ public final class StatementAnalyzer {
      * `Unknown`/`TypeVariable`/`Nullable` de coleção NÃO são flagados — podem
      * ser List/array em runtime (SG-008) ou genérico.
      */
+    /**
+     * B-03/MEM020 (#668): por nome de extern, os indices de argumento cujo
+     * parametro e {@code Buffer(U8)} INOUT — a chamada bare escreve esse
+     * binding. Derivado das declaracoes do modulo; vazio quando nao ha tais
+     * externs (o passe de ownership segue identico).
+     */
+    private static java.util.Map<String, java.util.Set<Integer>> ffiBufferWrites(SemanticAnalyzer sa) {
+        CompilationUnitNode unit = sa.unit();
+        if (unit == null || unit.declarations() == null) {
+            return java.util.Map.of();
+        }
+        java.util.Map<String, java.util.Set<Integer>> out = new java.util.HashMap<>();
+        for (AstNode d : unit.declarations()) {
+            if (!(d instanceof ExternalFunctionNode ext)) {
+                continue;
+            }
+            java.util.Set<Integer> idxs = new java.util.LinkedHashSet<>();
+            java.util.List<FormalParameterNode> params = ext.parameters();
+            for (int i = 0; i < params.size(); i++) {
+                FormalParameterNode p = params.get(i);
+                if (p != null && FfiSignature.isBufferParam(p.type())) {
+                    idxs.add(i);
+                }
+            }
+            if (!idxs.isEmpty()) {
+                out.put(ext.name(), idxs);
+            }
+        }
+        return out;
+    }
+
     static boolean isNonIterableForIn(Type t) {
         if (t instanceof Type.NullableType nt) t = nt.inner();
         if (t instanceof Type.ArrayType) return false;

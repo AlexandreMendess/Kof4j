@@ -15,6 +15,15 @@ final class CompilerFfiBinding {
 
     // ── FFI (TIER 2.1.4) — binding suportado por target ──
     static boolean isExternBound(CompilerDriver driver, ExternalFunctionNode ext) {
+        // #667 / D-SCRIPT-EXTERN-REFUSE (decisão da mantenedora, 28/09): o alvo
+        // Script não tem runtime FFI. A interpretação roda o frontend com
+        // `driver.target = JVM` + `driver.interpreting`, então um `extern` de
+        // usuário compilava LIMPO e morria cru em runtime com
+        // `KofRuntime.kof_ffi/4` (sem gap code, sem linha na matriz — R6).
+        // Recusa agora na LINHA DA DECLARAÇÃO reusando `FFI001` (§350).
+        if (driver.interpreting) {
+            return false;
+        }
         // JVM e JS (runner) compartilham a MESMA ABI escalar + callbacks (3.4-C3): o
         // KofJS roda no host GraalJS/node, que É uma JVM com java.lang.foreign (bridge
         // `KofJsFfiBridge` idêntico ao `kof_ffi` do target JVM; o browser não tem host e

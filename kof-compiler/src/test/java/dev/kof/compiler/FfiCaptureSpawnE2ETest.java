@@ -17,10 +17,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * MemorySafetyE2ETest sem extern; SpawnE2ETest sem ffi). Goldens SÃO O QUE A ÁRVORE
  * PRODUZ (sonda 28/09: JVM/JS/Native = 3.0/5; MEM021 x extern = ERROR), não promessa.
  *
- * Faces NÃO pinadas de propósito (escaladas, regra 6): Script x extern morre em
- * runtime com `KofRuntime.kof_ffi/4` sem diagnóstico (#667); duas escritas FFI no
- * MESMO Buffer via spawn sem sync compilam clean sem MEM020 (#668). Um green
- * silencioso dessas faces engessaria o gap como contrato.
+ * Faces da unidade 2 (fase 5, decididas 28/09) agora PINADAS: #667 — Script x
+ * `extern` é recusado no compile-time reusando `FFI001` na linha da declaração
+ * (`D-SCRIPT-EXTERN-REFUSE`; prova `ScriptTargetTest#externIsRefusedOnScriptFfi001`);
+ * #668 — duas escritas FFI no MESMO `Buffer(U8)` via `spawn` sem sync agora
+ * ardém `MEM020` (`D-MEM020-COMPILE`; provas abaixo).
  */
 class FfiCaptureSpawnE2ETest {
 
@@ -169,6 +170,79 @@ class FfiCaptureSpawnE2ETest {
             assertFalse(r.success(), target + ": escrita do pai pos-spawn com extern deve falhar");
             String diags = r.diagnostics().getDiagnostics().toString();
             assertTrue(diags.contains("MEM021"), target + ": esperado MEM021, obtido " + diags);
+        }
+    }
+
+    // ── #668 / D-MEM020-COMPILE: escrita FFI concorrente no MESMO Buffer ──
+    // B-03: um `extern` com parametro `Buffer(U8)` INOUT escreve o buffer no
+    // lado C. Duas escritas sem `await` entre (worker×pai ou worker×worker)
+    // são corrida real; antes compilavam LIMPO (medido no #666).
+
+    private static final String MEM020_PARENT_AND_SPAWN = """
+            extern "libc.so.6" kof_fill(Buffer(U8) b): Int
+
+            main() {
+                var b = buffer.alloc(8)
+                var h = spawn { return kof_fill(b) }
+                kof_fill(b)
+                await h
+            }
+            """;
+
+    private static final String MEM020_TWO_SPAWNS = """
+            extern "libc.so.6" kof_fill(Buffer(U8) b): Int
+
+            main() {
+                var b = buffer.alloc(8)
+                var h1 = spawn { return kof_fill(b) }
+                var h2 = spawn { return kof_fill(b) }
+                await h1
+                await h2
+            }
+            """;
+
+    private static final String FFI_SPAWN_AWAITED_OK = """
+            extern "libc.so.6" kof_fill(Buffer(U8) b): Int
+
+            main() {
+                var b = buffer.alloc(8)
+                var h = spawn { return kof_fill(b) }
+                println(await h)
+            }
+            """;
+
+    private void compileExpectMem020(Path t, String tag, String kof) throws IOException {
+        Path s = t.resolve("Main-" + tag + ".kf");
+        Files.writeString(s, kof);
+        for (Target target : List.of(Target.JVM, Target.NATIVE, Target.JS)) {
+            CompilationResult r = driver.compile(s, t.resolve("out-" + tag + "-" + target), target);
+            assertFalse(r.success(), target + ": escrita FFI concorrente no Buffer deve falhar");
+            String diags = r.diagnostics().getDiagnostics().toString();
+            assertTrue(diags.contains("MEM020"), target + ": esperado MEM020, obtido " + diags);
+        }
+    }
+
+    @Test
+    void concurrentFfiBufferWriteParentAndSpawnIsMem020(@TempDir Path t) throws IOException {
+        compileExpectMem020(t, "mem020-parent", MEM020_PARENT_AND_SPAWN);
+    }
+
+    @Test
+    void concurrentFfiBufferWriteTwoSpawnsIsMem020(@TempDir Path t) throws IOException {
+        compileExpectMem020(t, "mem020-two-spawns", MEM020_TWO_SPAWNS);
+    }
+
+    @Test
+    void singleAwaitedFfiBufferWriteIsNotMem020(@TempDir Path t) throws IOException {
+        // Controle: um único extern dentro do spawn, com `await` imediato —
+        // nenhuma corrida; o passe não pode sobre-reportar.
+        Path s = t.resolve("Main-mem020-ok.kf");
+        Files.writeString(s, FFI_SPAWN_AWAITED_OK);
+        for (Target target : List.of(Target.JVM, Target.NATIVE, Target.JS)) {
+            CompilationResult r = driver.compile(s, t.resolve("out-mem020-ok-" + target), target);
+            String diags = r.diagnostics().getDiagnostics().toString();
+            assertFalse(diags.contains("MEM020"),
+                    target + ": não deve haver MEM020 sem escrita concorrente: " + diags);
         }
     }
 }

@@ -30,6 +30,7 @@ import dev.kof.compiler.VarDeclStmt;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * D-MEMORY-SAFETY Fase 3 (fatia 1) — primeiro passe de ANALISE de ownership
@@ -100,10 +101,20 @@ public final class OwnershipPass {
 
     /** Analisa a regiao retilinea de um corpo; {@code null} diag = no-op. */
     public static void analyze(DiagnosticCollector diag, List<StatementNode> body) {
+        analyze(diag, body, Map.of());
+    }
+
+    /**
+     * @param ffiWriteArgs extern cujo nome mapeia os indices de argumento
+     *                     {@code Buffer(U8)} INOUT — a escrita FFI B-03/MEM020
+     *                     (#668). Vazio quando o modulo nao declara tais externs.
+     */
+    public static void analyze(DiagnosticCollector diag, List<StatementNode> body,
+                               Map<String, Set<Integer>> ffiWriteArgs) {
         if (diag == null || body == null || body.isEmpty()) {
             return;
         }
-        new Region(diag).walkBody(body);
+        new Region(diag, ffiWriteArgs).walkBody(body);
     }
 
     /** Grupo de posse: um recurso, seus bindings e a ultima reivindicacao. */
@@ -135,11 +146,25 @@ public final class OwnershipPass {
          * conservadora: sub-reporta, nunca sobre-reporta).
          */
         private final Map<String, SourcePosition> racy = new HashMap<>();
+        /**
+         * B-03/MEM020 (#668) — raizes de bindings {@code Buffer(U8)} escritos
+         * por um {@code extern} dentro de um spawn ainda nao sincronizado por
+         * {@code await}. Mapa separado de {@link #racy} para que a face FFI
+         * carregue o codigo {@code MEM020} (B-03) e nao o {@code MEM021}.
+         */
+        private final Map<String, SourcePosition> racyFfi = new HashMap<>();
+        /** extern → indices de argumento Buffer(U8) INOUT (B-03/MEM020). */
+        private final Map<String, Set<Integer>> ffiWriteArgs;
 
         Region(DiagnosticCollector diag) {
+            this(diag, Map.of());
+        }
+
+        Region(DiagnosticCollector diag, Map<String, Set<Integer>> ffiWriteArgs) {
             this.diag = diag;
             this.groups = new HashMap<>();
             this.aliasOf = new HashMap<>();
+            this.ffiWriteArgs = ffiWriteArgs;
         }
 
         /** Copia snapshot do estado da mae (braços/loops/try veem so o CERTO). */
@@ -149,6 +174,8 @@ public final class OwnershipPass {
             this.aliasOf = new HashMap<>(parent.aliasOf);
             this.iteratedBase = parent.iteratedBase;
             this.racy.putAll(parent.racy);
+            this.racyFfi.putAll(parent.racyFfi);
+            this.ffiWriteArgs = parent.ffiWriteArgs;
         }
 
         void walkBody(List<StatementNode> body) {
@@ -368,7 +395,9 @@ public final class OwnershipPass {
          * Corpo do lambda NAO vira regiao de ownership (capturas = faces E-).
          */
         private void registerSpawn(SourcePosition pos, ExpressionNode spawnBody) {
-            for (String name : SpawnCaptureScanner.captured(spawnBody)) {
+            SpawnCaptureScanner.Captures caps =
+                    SpawnCaptureScanner.captured(spawnBody, ffiWriteArgs);
+            for (String name : caps.mutated()) {
                 String root = base(name);
                 SourcePosition prior = racy.get(root);
                 if (prior != null) {
@@ -380,6 +409,24 @@ public final class OwnershipPass {
                     racy.remove(root);
                 } else {
                     racy.put(root, pos);
+                }
+            }
+            // B-03/MEM020 (#668): um extern com Buffer(U8) INOUT escreve o
+            // buffer capturado; dois workers que escrevem o MESMO buffer sem
+            // sincronizacao sao a corrida clara (distinta da MEM021: a escrita
+            // vem da C, nao de um mutador Kof).
+            for (String name : caps.ffiBuffers()) {
+                String root = base(name);
+                SourcePosition prior = racyFfi.get(root);
+                if (prior != null) {
+                    diag.error(stmt, "B-03: data race — '" + root + "' is written by an"
+                            + " 'extern' in two unsynchronized spawns (line "
+                            + (prior.line()) + " and here); join the first (await) before"
+                            + " a second worker writes the same buffer (MEM020)",
+                            "MEM020");
+                    racyFfi.remove(root);
+                } else {
+                    racyFfi.put(root, pos);
                 }
             }
         }
@@ -406,6 +453,39 @@ public final class OwnershipPass {
                         + " (MEM021)",
                         "MEM021");
                 racy.remove(root);
+            }
+        }
+
+        /**
+         * B-03/MEM020 (#668) — face da MAE da escrita FFI: um {@code extern}
+         * com parametro {@code Buffer(U8)} INOUT sobre um binding com spawn
+         * pendente que TAMBEM escreveu o mesmo buffer, sem {@code await} entre,
+         * e a corrida clara. Arde MEM020 e remove do mapa (um erro por binding).
+         */
+        private void ffiMutationRacesSpawn(MethodCallExpr mc) {
+            if (mc.receiver() != null) {
+                return;
+            }
+            Set<Integer> idxs = ffiWriteArgs.get(mc.methodName());
+            if (idxs == null) {
+                return;
+            }
+            for (int i : idxs) {
+                if (i >= mc.arguments().size()
+                        || !(mc.arguments().get(i) instanceof IdentifierExpr buf)) {
+                    continue;
+                }
+                String root = base(buf.name());
+                SourcePosition sp = racyFfi.get(root);
+                if (sp != null) {
+                    diag.error(stmt, "B-03: data race — the 'extern' " + mc.methodName()
+                            + "(...) writes '" + root + "' here, and the spawn at line "
+                            + sp.line() + " also writes it, with no 'await' in between;"
+                            + " synchronize (await the handle) before the parent write"
+                            + " (MEM020)",
+                            "MEM020");
+                    racyFfi.remove(root);
+                }
             }
         }
 
@@ -454,10 +534,12 @@ public final class OwnershipPass {
                     }
                     if (mc.receiver() == null && "__kof_await".equals(mc.methodName())) {
                         racy.clear();
+                        racyFfi.clear();
                         return;
                     }
                     mutationDuringIteration(mc);
                     mutationRacesSpawn(mc);
+                    ffiMutationRacesSpawn(mc);
                     if (mc.receiver() != null) {
                         readExpr(mc.receiver());
                     }

@@ -248,11 +248,15 @@ public final class CompilerPipeline {
                     if (diagnostics != null && !CompilerFfiBinding.isExternBound(driver, ext)) {
                         SourcePosition sp = ext.position();
                         String lib = ext.library() != null ? " in " + ext.library() : "";
-                        String code = driver.target == Target.JS ? "FFI002" : "FFI001";
-                        String msg = driver.target == Target.JS
+                        // #667: a interpretação (Script) roda com target=JVM, então
+                        // o rótulo/mensagem precisam nomear o alvo REAL (script).
+                        boolean jsTarget = driver.target == Target.JS && !driver.interpreting;
+                        String code = jsTarget ? "FFI002" : "FFI001";
+                        String targetName = driver.interpreting ? "script" : String.valueOf(driver.target);
+                        String msg = jsTarget
                                 ? "extern '" + ext.name() + "'" + lib + ": FFI signature not bound on the JS target yet (FFI002)"
                                 : "extern '" + ext.name() + "'" + lib + ": FFI binding not implemented on the "
-                                        + driver.target + " target yet (FFI001)";
+                                        + targetName + " target yet (FFI001)";
                         diagnostics.error(sp != null ? sp.file() : "", sp != null ? sp.line() : 0,
                                 sp != null ? sp.column() : 0, 0, msg, code);
                     }

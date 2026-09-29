@@ -24,6 +24,7 @@ import dev.kof.compiler.WhileStmt;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -33,7 +34,7 @@ import java.util.Set;
  * cruze-os com as escritas do corpo-mae (ou entre spawns) e decida a corrida
  * clara B-04/C-03/{@code MEM021}.
  *
- * <p><b>O que conta como escrita do worker (fatia 4.3/#660):</b>
+ * <p><b>O que conta como escrita do worker:</b>
  * <ul>
  *   <li>mutador de tamanho/indice ({@link #MUTATORS}) sobre um binding capturado
  *       — face objeto original; e</li>
@@ -44,6 +45,9 @@ import java.util.Set;
  *       {@code CapturedVarBox}); o worker passa a COMPARTILHAR o slot com a
  *       mae, e uma escrita da mae sem {@code await} entre e corrida real
  *       (medida: {@code 202}/{@code 101}).</li>
+ *   <li>chamada a um {@code extern} cujo parametro e um {@code Buffer(U8)} INOUT
+ *       (B-03/{@code MEM020}, #668): a C escreve o buffer, logo qualquer
+ *       argumento-binding passado naquele indice e escrita do worker.</li>
  * </ul>
  * Leitura pura do binding capturado NAO entra: a captura read-only baixa por
  * VALOR (sem box), logo uma escrita posterior da mae nao alcanca o worker.
@@ -63,14 +67,28 @@ final class SpawnCaptureScanner {
     private SpawnCaptureScanner() {
     }
 
-    /** Bindings (nome cru) ESCRITOS pelo worker na sub-arvore do spawn. */
-    static Set<String> captured(ExpressionNode spawnBody) {
-        Set<String> out = new LinkedHashSet<>();
-        expr(spawnBody, out, new LinkedHashSet<>());
-        return out;
+    /**
+     * Escritas do worker na sub-arvore do spawn: {@code mutated} = bindings
+     * mutados/reassignados (MEM021, faces B-04/C-03); {@code ffiBuffers} =
+     * bindings passados a um {@code extern} com parametro {@code Buffer(U8)}
+     * INOUT (MEM020, face B-03/#668). Os dois conjuntos saem de UMA caminhada.
+     */
+    record Captures(Set<String> mutated, Set<String> ffiBuffers) {}
+
+    /**
+     * @param ffiWriteArgs extern cujo nome mapeia os indices de argumento
+     *                     {@code Buffer(U8)} (INOUT) — derivado em
+     *                     {@code StatementAnalyzer} a partir das declaracoes.
+     */
+    static Captures captured(ExpressionNode spawnBody, Map<String, Set<Integer>> ffiWriteArgs) {
+        Set<String> mutated = new LinkedHashSet<>();
+        Set<String> ffi = new LinkedHashSet<>();
+        expr(spawnBody, mutated, ffi, ffiWriteArgs, new LinkedHashSet<>());
+        return new Captures(mutated, ffi);
     }
 
-    private static void expr(ExpressionNode e, Set<String> out, Set<String> shadowed) {
+    private static void expr(ExpressionNode e, Set<String> out, Set<String> ffi,
+                             Map<String, Set<Integer>> ffiWriteArgs, Set<String> shadowed) {
         if (e == null) {
             return;
         }
@@ -81,9 +99,23 @@ final class SpawnCaptureScanner {
                         && !shadowed.contains(recv.name())) {
                     out.add(recv.name());
                 }
-                expr(mc.receiver(), out, shadowed);
+                // B-03/MEM020 (#668): extern com Buffer(U8) INOUT escreve o
+                // binding passado no argumento NAQUELE indice (chamada bare).
+                if (mc.receiver() == null) {
+                    Set<Integer> idxs = ffiWriteArgs.get(mc.methodName());
+                    if (idxs != null) {
+                        for (int i : idxs) {
+                            if (i < mc.arguments().size()
+                                    && mc.arguments().get(i) instanceof IdentifierExpr bid
+                                    && !shadowed.contains(bid.name())) {
+                                ffi.add(bid.name());
+                            }
+                        }
+                    }
+                }
+                expr(mc.receiver(), out, ffi, ffiWriteArgs, shadowed);
                 for (ExpressionNode a : mc.arguments()) {
-                    expr(a, out, shadowed);
+                    expr(a, out, ffi, ffiWriteArgs, shadowed);
                 }
             }
             case LambdaExpr lam -> {
@@ -95,83 +127,85 @@ final class SpawnCaptureScanner {
                         }
                     }
                 }
-                stmts(lam.body(), out, inner);
+                stmts(lam.body(), out, ffi, ffiWriteArgs, inner);
             }
             case AssignmentExpr ae -> {
                 if (ae.target() instanceof IdentifierExpr t && !shadowed.contains(t.name())) {
                     out.add(t.name());
                 }
-                expr(ae.target(), out, shadowed);
-                expr(ae.value(), out, shadowed);
+                expr(ae.target(), out, ffi, ffiWriteArgs, shadowed);
+                expr(ae.value(), out, ffi, ffiWriteArgs, shadowed);
             }
             case UnaryExpr ue -> {
                 if (("++".equals(ue.operator()) || "--".equals(ue.operator()))
                         && ue.operand() instanceof IdentifierExpr t && !shadowed.contains(t.name())) {
                     out.add(t.name());
                 }
-                expr(ue.operand(), out, shadowed);
+                expr(ue.operand(), out, ffi, ffiWriteArgs, shadowed);
             }
             case BinaryExpr be -> {
-                expr(be.left(), out, shadowed);
-                expr(be.right(), out, shadowed);
+                expr(be.left(), out, ffi, ffiWriteArgs, shadowed);
+                expr(be.right(), out, ffi, ffiWriteArgs, shadowed);
             }
-            case FieldAccessExpr fa -> expr(fa.receiver(), out, shadowed);
+            case FieldAccessExpr fa -> expr(fa.receiver(), out, ffi, ffiWriteArgs, shadowed);
             case ArrayAccessExpr aa -> {
-                expr(aa.receiver(), out, shadowed);
-                expr(aa.index(), out, shadowed);
+                expr(aa.receiver(), out, ffi, ffiWriteArgs, shadowed);
+                expr(aa.index(), out, ffi, ffiWriteArgs, shadowed);
             }
             default -> {
             }
         }
     }
 
-    private static void stmts(List<StatementNode> body, Set<String> out, Set<String> shadowed) {
+    private static void stmts(List<StatementNode> body, Set<String> out, Set<String> ffi,
+                              Map<String, Set<Integer>> ffiWriteArgs, Set<String> shadowed) {
         if (body == null) {
             return;
         }
         for (StatementNode s : body) {
-            stmt(s, out, shadowed);
+            stmt(s, out, ffi, ffiWriteArgs, shadowed);
         }
     }
 
-    private static void stmt(StatementNode s, Set<String> out, Set<String> shadowed) {
+    private static void stmt(StatementNode s, Set<String> out, Set<String> ffi,
+                             Map<String, Set<Integer>> ffiWriteArgs, Set<String> shadowed) {
         if (s == null) {
             return;
         }
         switch (s) {
-            case ExpressionStmt es -> expr(es.expression(), out, shadowed);
+            case ExpressionStmt es -> expr(es.expression(), out, ffi, ffiWriteArgs, shadowed);
             case VarDeclStmt vds -> {
-                expr(vds.initializer(), out, shadowed);
+                expr(vds.initializer(), out, ffi, ffiWriteArgs, shadowed);
                 shadowed.add(vds.name());
             }
-            case ReturnStmt r -> expr(r.value(), out, shadowed);
-            case BlockStmt b -> stmts(b.statements(), out, new LinkedHashSet<>(shadowed));
+            case ReturnStmt r -> expr(r.value(), out, ffi, ffiWriteArgs, shadowed);
+            case BlockStmt b -> stmts(b.statements(), out, ffi, ffiWriteArgs, new LinkedHashSet<>(shadowed));
             case IfStmt i -> {
-                expr(i.condition(), out, shadowed);
-                stmt(i.thenBranch(), out, new LinkedHashSet<>(shadowed));
-                stmt(i.elseBranch(), out, new LinkedHashSet<>(shadowed));
+                expr(i.condition(), out, ffi, ffiWriteArgs, shadowed);
+                stmt(i.thenBranch(), out, ffi, ffiWriteArgs, new LinkedHashSet<>(shadowed));
+                stmt(i.elseBranch(), out, ffi, ffiWriteArgs, new LinkedHashSet<>(shadowed));
             }
             case WhileStmt w -> {
-                expr(w.condition(), out, shadowed);
-                stmt(w.body(), out, new LinkedHashSet<>(shadowed));
+                expr(w.condition(), out, ffi, ffiWriteArgs, shadowed);
+                stmt(w.body(), out, ffi, ffiWriteArgs, new LinkedHashSet<>(shadowed));
             }
             case DoWhileStmt dw -> {
-                stmt(dw.body(), out, new LinkedHashSet<>(shadowed));
-                expr(dw.condition(), out, shadowed);
+                stmt(dw.body(), out, ffi, ffiWriteArgs, shadowed);
+                expr(dw.condition(), out, ffi, ffiWriteArgs, shadowed);
             }
             case ForStmt fr -> {
-                stmt(fr.init(), out, shadowed);
-                expr(fr.condition(), out, shadowed);
-                stmt(fr.body(), out, new LinkedHashSet<>(shadowed));
-                expr(fr.update(), out, shadowed);
+                stmt(fr.init(), out, ffi, ffiWriteArgs, shadowed);
+                expr(fr.condition(), out, ffi, ffiWriteArgs, shadowed);
+                stmt(fr.body(), out, ffi, ffiWriteArgs, new LinkedHashSet<>(shadowed));
+                expr(fr.update(), out, ffi, ffiWriteArgs, shadowed);
             }
             case ForInStmt fi -> {
-                expr(fi.collection(), out, shadowed);
+                expr(fi.collection(), out, ffi, ffiWriteArgs, shadowed);
                 Set<String> inner = new LinkedHashSet<>(shadowed);
                 inner.add(fi.varName());
-                stmt(fi.body(), out, inner);
+                stmt(fi.body(), out, ffi, ffiWriteArgs, inner);
             }
-            case SpawnStmt ss -> expr(ss.expression(), out, shadowed);
+            case SpawnStmt ss -> expr(ss.expression(), out, ffi, ffiWriteArgs, shadowed);
             default -> {
             }
         }
