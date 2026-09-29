@@ -14,9 +14,10 @@ in-memory começa agora (monta na fase 1 do `D-MULTIPARADIGMA-GO`); manter
 `orm.page` ao lado de `orm.window` (sem bump); `offset` só no método windowed
 (não no DSL tipado); helper HTTP `pageRequest(...)` em `kof.web`.
 **Como terminar:** seguir a ordem §20 P0→P6 (cada fatia provável de forma
-independente). P1 (`slice`/`take`/`drop`) e P2 (`Window<T>` + `window(...)`)
-POUSARAM 28/09; a próxima fatia é a **P4** (`orm.window`, a face windowed com
-offset no DB). **P3 está FORA da superfície travada** — ver a correção abaixo.
+independente). P1 (`slice`/`take`/`drop`) + P2 (`Window<T>` + `window(...)`)
+POUSARAM 28/09; **P4 (`orm.window`) + P6 (docs/corpus) POUSARAM 29/09**, e a
+**P5 (`kof.web.pageRequest`) POUSOU 29/09** (`D-PAGINATION-P5-SHAPE`) — P0→P6
+todos fechados. **P3 está FORA da superfície travada** — ver a correção abaixo.
 **Correção (29/09/2026):** §7.4/§10/§15/§16/§21/§22 e a antiga P3 planejavam um
 token `offset` na DSL tipada. A superfície travada pela mantenedora
 (`D-PAGINATION`, `DECISIONS.md` §D-PAGINATION) diz o oposto: `offset` vive **só
@@ -398,7 +399,9 @@ paridade total do `D-DB-GAPS` com diagnósticos R6 honestos enquanto uma fatia p
 6. `orm.page` é superseded (bump) ou mantido ao lado de `orm.window`?
 7. `offset` vai para a DSL tipada, ou só o método com janela?
 8. Nome/forma do helper HTTP (`pageRequest(default[, max])`) e se ele pertence ao
-   `kof.web` ou a uma função de contexto `kof.pagination`.
+   `kof.web` ou a uma função de contexto `kof.pagination`. **RESOLVIDO 29/09** —
+   `D-PAGINATION-P5-SHAPE`: `kof.web.pageRequest(default[, max]): PageRequest`
+   (record core, `query` ambiente), host `kof.web` separado.
 
 ## 20. Implementação em fases/fatias
 

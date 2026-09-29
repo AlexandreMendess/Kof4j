@@ -14,9 +14,10 @@ starts now (rides `D-MULTIPARADIGMA-GO` Phase 1); keep `orm.page` alongside
 `orm.window` (no bump); `offset` only on the windowed method (not the typed DSL);
 HTTP helper `pageRequest(...)` in `kof.web`.
 **How to finish:** follow §20 order P0→P6 (each slice independently provable).
-P1 (`slice`/`take`/`drop`) and P2 (`Window<T>` + `window(...)`) LANDED 28/09; the
-next slice is **P4** (`orm.window`, the windowed DB offset face). **P3 is OUT of
-the locked surface** — see the correction below.
+P1 (`slice`/`take`/`drop`) + P2 (`Window<T>` + `window(...)`) LANDED 28/09;
+**P4 (`orm.window`) + P6 (docs/corpus) LANDED 29/09**, and **P5
+(`kof.web.pageRequest`) LANDED 29/09** (`D-PAGINATION-P5-SHAPE`) — P0→P6 all
+closed. **P3 is OUT of the locked surface** — see the correction below.
 **Correction (29/09/2026):** §7.4/§10/§15/§16/§21/§22 and the former P3 planned
 an `offset` token on the typed query DSL. The maintainer's locked surface
 (`D-PAGINATION`, `DECISIONS.md` §D-PAGINATION) rules the opposite: `offset` lives
@@ -400,7 +401,9 @@ The core (`Window<T>`, `List.window`) knows nothing about SQL or HTTP.
 6. Does `orm.page` get superseded (bump) or kept alongside `orm.window`?
 7. Is `offset` added to the typed DSL, or only the windowed method?
 8. HTTP helper name/shape (`pageRequest(default[, max])`) and whether it belongs
-   in `kof.web` or a `kof.pagination` context function.
+   in `kof.web` or a `kof.pagination` context function. **RESOLVED 29/09** —
+   `D-PAGINATION-P5-SHAPE`: `kof.web.pageRequest(default[, max]): PageRequest`
+   (core record, ambient `query`), separate `kof.web` host.
 
 ## 20. Implementation in phases/slices
 
