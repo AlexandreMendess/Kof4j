@@ -947,9 +947,9 @@ science) **without** destroying the language's simplicity.
 > profiling (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
 > pure test infrastructure. **OPEN (4th front):** `pagination` — promoted 28/09
 > (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) to
-> [`pagination-plan.md`](pagination-plan.md); P0→P6 LANDED 29/09
+> [`pagination-plan.md`](../stdlib/pagination-plan.md); P0→P6 LANDED 29/09
 > (in-memory `slice`/`take`/`drop` + `Window<T>`/`window` + `orm.window` +
-> `pageRequest` + docs sync; P3-DSL-offset out-of-scope). **OPEN (5th front):** `kof-file` — promoted 28/09
+> `pageRequest` + docs sync; P3-DSL-offset out-of-scope). — plan CONCLUDED 29/09, moved to `docs/stdlib/pagination-plan.md` (3-state rule). **OPEN (5th front):** `kof-file` — promoted 28/09
 > (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) to
 > [`kof-file-plan.md`](../stdlib/kof-file-plan.md); re-scoped on promotion (Phase 1
 > File/Path/Text/Binary already exists as `kof.io`); streaming slices 1–2.5 +

@@ -834,7 +834,7 @@ document is `entity-history-plan.md`. "Revision", "audit record" and
 - `kof-compiler/src/main/java/dev/kof/compiler/CompilerInterop.java:17-19` —
   `interop.schema(R)` compile-time, no runtime reflection.
 - `docs/stdlib/observability.md:134` — the only "future audit logging" mention.
-- Related plans: `docs/development/pagination-plan` (windowing),
+- Related plans: `docs/stdlib/pagination-plan` (windowing),
   `docs/development/memory-safety-plan.md`, `docs/stdlib/db-parity-plan.md`,
   `docs/stdlib/DATABASE_VISION.md`, `DECISIONS.md` §`D-DB-GAPS`.
 

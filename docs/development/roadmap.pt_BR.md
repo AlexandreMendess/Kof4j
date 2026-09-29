@@ -950,9 +950,9 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > profiling da Fase 1 (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
 > infraestrutura pura de testes. **ABERTA (4ª frente):** `pagination` — promovida
 > 28/09 (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) para
-> [`pagination-plan.md`](pagination-plan.md); P0→P6 LANDED 29/09
+> [`pagination-plan.md`](../stdlib/pagination-plan.md); P0→P6 LANDED 29/09
 > (`slice`/`take`/`drop` in-memory + `Window<T>`/`window` + `orm.window` +
-> `pageRequest` + sync docs; P3-DSL-offset fora de escopo). **ABERTA (5ª frente):** `kof-file` — promovido 28/09
+> `pageRequest` + sync docs; P3-DSL-offset fora de escopo). — plano CONCLUÍDO 29/09, movido para `docs/stdlib/pagination-plan.md` (regra dos 3 estados). **ABERTA (5ª frente):** `kof-file` — promovido 28/09
 > (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) para
 > [`kof-file-plan.md`](../stdlib/kof-file-plan.md); re-escopado na promoção (Fase 1
 > File/Path/Text/Binary já existe como `kof.io`); fatias 1–2.5 de streaming +

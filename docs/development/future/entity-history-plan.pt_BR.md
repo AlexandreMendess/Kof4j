@@ -875,7 +875,7 @@ o documento é `entity-history-plan.md`. "Revisão", "registro de auditoria" e
   `interop.schema(R)` em tempo de compilação, sem reflexão em runtime.
 - `docs/stdlib/observability.md:134` — a única menção a "future audit
   logging".
-- Planos relacionados: `docs/development/pagination-plan` (windowing),
+- Planos relacionados: `docs/stdlib/pagination-plan` (windowing),
   `docs/development/memory-safety-plan.md`,
   `docs/stdlib/db-parity-plan.md`, `docs/stdlib/DATABASE_VISION.md`,
   `DECISIONS.md` §`D-DB-GAPS`.

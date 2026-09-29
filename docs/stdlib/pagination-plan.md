@@ -2,8 +2,9 @@
 
 # Native pagination — first-class windowing intention (implementation plan)
 
-**Status:** UNDER DEVELOPMENT — promoted 28/09/2026 from `future/` to
-`docs/development/` (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`, `D-FUTURE-PROMOTION`).
+**Status:** CONCLUDED 29/09 — promoted 28/09/2026 from `future/` to
+`docs/development/` (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`, `D-FUTURE-PROMOTION`),
+slices P0→P6 all landed, moved to `docs/stdlib/` (3-state rule).
 **Requested by:** maintainer (23/09/2026)
 **Rule 6 gate:** RESOLVED — the maintainer locked `DECISIONS.md` §`D-PAGINATION`
 (surface below in §19/§20). This document now records the real state + how to
@@ -13,7 +14,7 @@ finish; it is no longer a "plan only".
 starts now (rides `D-MULTIPARADIGMA-GO` Phase 1); keep `orm.page` alongside
 `orm.window` (no bump); `offset` only on the windowed method (not the typed DSL);
 HTTP helper `pageRequest(...)` in `kof.web`.
-**How to finish:** follow §20 order P0→P6 (each slice independently provable).
+**How to finish:** followed §20 order P0→P6 (each slice independently proven) — COMPLETE 29/09, no further slice declared.
 P1 (`slice`/`take`/`drop`) + P2 (`Window<T>` + `window(...)`) LANDED 28/09;
 **P4 (`orm.window`) + P6 (docs/corpus) LANDED 29/09**, and **P5
 (`kof.web.pageRequest`) LANDED 29/09** (`D-PAGINATION-P5-SHAPE`) — P0→P6 all

@@ -2,8 +2,9 @@
 
 # Paginação nativa — intenção de janela de dados de primeira classe (plano de implementação)
 
-**Status:** UNDER DEVELOPMENT — promovido 28/09/2026 de `future/` para
-`docs/development/` (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`, `D-FUTURE-PROMOTION`).
+**Status:** CONCLUÍDO 29/09 — promovido 28/09/2026 de `future/` para
+`docs/development/` (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`, `D-FUTURE-PROMOTION`),
+fatias P0→P6 todas landed, movido para `docs/stdlib/` (regra dos 3 estados).
 **Solicitado por:** mantenedora (23/09/2026)
 **Gate da regra 6:** RESOLVIDO — a mantenedora travou `DECISIONS.md`
 §`D-PAGINATION` (superfície abaixo em §19/§20). Este documento agora registra o
@@ -13,8 +14,7 @@ novo; `total` por flag na chamada de janela; max default global; a parte
 in-memory começa agora (monta na fase 1 do `D-MULTIPARADIGMA-GO`); manter
 `orm.page` ao lado de `orm.window` (sem bump); `offset` só no método windowed
 (não no DSL tipado); helper HTTP `pageRequest(...)` em `kof.web`.
-**Como terminar:** seguir a ordem §20 P0→P6 (cada fatia provável de forma
-independente). P1 (`slice`/`take`/`drop`) + P2 (`Window<T>` + `window(...)`)
+**Como terminar:** seguiu a ordem §20 P0→P6 (cada fatia provada de forma independente) — COMPLETO 29/09, sem outra fatia declarada. P1 (`slice`/`take`/`drop`) + P2 (`Window<T>` + `window(...)`)
 POUSARAM 28/09; **P4 (`orm.window`) + P6 (docs/corpus) POUSARAM 29/09**, e a
 **P5 (`kof.web.pageRequest`) POUSOU 29/09** (`D-PAGINATION-P5-SHAPE`) — P0→P6
 todos fechados. **P3 está FORA da superfície travada** — ver a correção abaixo.
