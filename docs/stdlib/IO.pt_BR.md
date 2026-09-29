@@ -243,8 +243,46 @@ funciona na JVM, Native x86-64 e Script; no riscv64 `json.decode<record>` não
 tem o binding cross `kof_json_find_value` (`NATIVE002`-stdlib), então decodifique
 arrays lá. Alvos iguais ao `TextStream` (JS `IOJS001`).
 
+### XML (`XmlReader`, fatia 2.4)
+
+Um leitor XML streaming pull-style, não-validante, sobre o `TextStream`
+(memória limitada): cada `next()` devolve um evento significativo — `kind` é
+`start`, `end`, `empty` ou `text`; `name`/`text`/`attributes` carregam a carga,
+e ele devolve `null` no fim do documento. Entrada malformada lança um `String`.
+
+```kof
+import file.Xml
+
+main() {
+    var reader = XmlReader("doc.xml", 8192)
+    var ev = reader.next()
+    while (ev != null) {
+        if (ev != null && ev.kind == "start" && ev.name == "book") {
+            // ev.attributes.get("id") é o id, se presente
+        }
+        ev = reader.next()
+    }
+}
+```
+
+| Operação | Descrição |
+|----------|-----------|
+| `XmlReader(path[, chunkSize])` | leitor pull streaming (chunk default 8192) |
+| `next()` | `XmlEvent?` (`kind` `start`/`end`/`empty`/`text`, `name`, `text`, `attributes`), `null` no EOF |
+
+Subconjunto documentado: elementos/atributos/texto/elementos vazios; a
+declaração XML, instruções de processamento e comentários são pulados; um
+DOCTYPE (com subset interno opcional) é pulado mas suas entidades **não** são
+resolvidas; CDATA vira um evento de texto e **não** é decodificado; as entidades
+predefinidas e numéricas `&#D;`/`&#xH;` são resolvidas (qualquer outra entidade
+lança); texto só-espaços é pulado; a pilha de elementos é validada (end tag
+trocada ou EOF lança). Prefixos de namespace são preservados verbatim nos nomes
+— a resolução é uma fatia posterior, então isto é um subconjunto documentado,
+não um stub. Alvos iguais ao `TextStream` (JVM, Native x86-64/riscv64, Script;
+JS `IOJS001`).
+
 ## Referência
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Testes: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`
