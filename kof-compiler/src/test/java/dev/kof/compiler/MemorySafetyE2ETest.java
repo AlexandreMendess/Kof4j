@@ -486,6 +486,35 @@ class MemorySafetyE2ETest {
         assertMutationWarnsOnAllTargets(tempDir, "mem022-add", src);
     }
 
+    /**
+     * #678 (`D-SCRIPT-WARN-SURFACE`, opção A): o alvo Script engolia os
+     * WARNING do frontend — o JVM/JS/Native imprimem MEM022, mas
+     * {@code driver.interpret} devolvia {@code stderr=[]} e descartava o
+     * {@code DiagnosticCollector}. Agora o {@code Result} carrega os warnings
+     * (paridade de diagnósticos, DoD do plano). RED medido 29/09: antes,
+     * {@code warnings()} era vazio para esta mesma fonte. Usa mutação
+     * TERMINANTE (`remove(0)`) — `add` é loop runaway no interpretador.
+     */
+    @Test
+    void mutationDuringIterationWarnsMem022OnScript(@TempDir Path tempDir) throws IOException {
+        Path kf = tempDir.resolve("mem022-script-" + System.nanoTime() + ".kf");
+        Files.writeString(kf, """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    for (var x in list) {
+                        list.remove(0)
+                    }
+                    println("done")
+                }
+                """);
+        KofInterpreter.Result ir = driver.interpret(java.util.List.of(kf), tempDir, new String[0]);
+        assertEquals(0, ir.exitCode(), "programa terminante roda: " + ir.stderr());
+        String warnings = ir.warnings().stream()
+                .map(Diagnostic::format).reduce("", (a, b) -> a + b + "\n");
+        assertTrue(warnings.contains("MEM022"),
+                "SCRIPT deveria expor MEM022 como os demais alvos, veio: [" + warnings + "]");
+    }
+
     @Test
     void removeClearAndAddAllDuringIterationWarnMem022(@TempDir Path tempDir) throws IOException {
         assertMutationWarnsOnAllTargets(tempDir, "mem022-remove", """

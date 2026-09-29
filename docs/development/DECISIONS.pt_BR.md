@@ -4425,6 +4425,16 @@ individuais:
 - **Escopo:** `List<T>.groupBy((T)->K): Map<K,List<T>>` exatamente como §230 (mapa de grupos em ordem de inserção; chaves com a igualdade boxed do mapOf); eager, aditivo.
 - **Relações:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, regra 6`.
 
+## D-SCRIPT-WARN-SURFACE — o alvo Script expõe diagnósticos WARNING do frontend como JVM/JS/Native (mantenedora 29/09/2026, múltipla escolha "A" na #678)
+
+**Estado:** DECIDIDO (mantenedora) / IMPLEMENTADO 29/09 — resolve o pedido de decisão #678 (divergência de paridade de diagnósticos da fase 6, `docs/development/memory-safety-plan.md`).
+
+- **Questão (#678):** um `for-in` terminante + `list.remove(0)` emite `MEM022` em JVM/Native/JS, mas `driver.interpret` devolvia `exit=0, stderr=[]` — o `CompilerPipeline.prepareForInterpretation` criava um `DiagnosticCollector` local e o descartava (só ERRORS escapavam via `KofInterpretException`), então todo WARNING (`MEM022`, `MEM014`) era invisível no Script, contradizendo o DoD do plano ("mesmas fontes, mesmos diagnósticos").
+- **Decisão:** opção **A — expor os warnings**. O interpretador expõe os WARNING do frontend via `KofInterpreter.Result.warnings()` (componente aditivo do record com construtor compat de 3 args); o CLI/`KofScript` os imprime em stderr exatamente como o caminho de compilação. Sem mudança de semântica da linguagem — só diagnósticos.
+- **Não escolhida:** (B) deixar o Script sem warnings por escopo documentado (rejeitada: o sinal é o contrato, e `list.add` durante iteração é loop runaway onde o warning é o único sinal).
+- **Prova a exigir:** o reprodutor terminante rende `MEM022` em `Result.warnings()` no Script (RED antes, medido 29/09), sem regressão na bateria do interpretador.
+- **Relações:** `Related: D-MEMORY-SAFETY, D-SCRIPT-EXTERN-REFUSE, regra 5, regra 6, regra 7`; tracker #678.
+
 ## D-CONNECTORS-GO — o plano do Ecossistema de Connectors Kof é promovido ao trabalho corrente (mantenedora 29/09/2026, múltipla escolha "connectors" + `D-FUTURE-PROMOTION`)
 
 **Estado:** DECIDIDO (mantenedora) — `docs/development/future/kof-connector-ecosystem-plan.md` move-se para `docs/development/` com estado EM DESENVOLVIMENTO; uma frente por vez.

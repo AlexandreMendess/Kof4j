@@ -246,11 +246,11 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | Use-after-move | Nulagem explícita na transferência | `MEM002` (compile-time) | Todos |
 | Data race por aliasing mutável | Disciplina do programador + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` só compile (#668; metade runtime = opção B, não escolhida) | Todos alcançáveis (Script: `extern` recusado `FFI001` antes do `MEM020`) |
 | Null deref | Nulabilidade + estreitamento | `SEM049` (compile-time) | Todos |
-| Resource leak | Close explícito | `MEM014` (compile-time; WARNING) | Todos (exposição no Script pendente #678) |
+| Resource leak | Close explícito | `MEM014` (compile-time; WARNING) | Todos (o Script o expõe via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
 | Confusão de propriedade FFI | Arena confinada por chamada (não existe superfície de release — `kof_ffi_release` é conceito do modelo, spec §7, medido 28/09) | `MEM005` — regra do modelo, sem superfície de emissão hoje | JVM + Native |
-| Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time; WARNING) | Todos (exposição no Script pendente #678) |
+| Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time; WARNING) | Todos (o Script o expõe via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
 
-> **Diagnósticos de classe WARNING no Script:** `MEM014`/`MEM022` disparam no frontend compartilhado em todos os alvos, mas no alvo Script o `interpret()` descarta WARNINGs (só ERRORS escapam) — medido 29/09, pedido de decisão #678. A matriz lista o mecanismo de prevenção, não a exposição; a exposição no Script aguarda a decisão.
+> **Diagnósticos de classe WARNING no Script:** `MEM014`/`MEM022` disparam no frontend compartilhado em todos os alvos. No Script, o `interpret()` descartava WARNINGs (só ERRORS escapavam) — medido 29/09, pedido de decisão #678; **RESOLVIDO 29/09 (`D-SCRIPT-WARN-SURFACE`, opção A): o interpretador agora os expõe via `KofInterpreter.Result.warnings()` e o CLI/`KofScript` os imprimem em stderr como o caminho de compilação.**
 
 > **Verificação Lei da Simplicidade**: Nenhuma anotação de lifetime no código do
 > usuário. Todas as regras disparam nas fronteiras de superfície existentes

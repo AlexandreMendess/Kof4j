@@ -152,6 +152,14 @@ IRModule currentModule;
     /** FFI (TIER 2.1): declarações {@code extern} por nome (preenchido no lowering). */
     final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
 
+    /**
+     * #678 (`D-SCRIPT-WARN-SURFACE`): diagnósticos WARNING do frontend na
+     * última preparação para interpretação. O JVM/JS/Native imprimem os
+     * warnings do compile; o Script os expõe em {@code KofInterpreter.Result}
+     * para paridade. Limpo a cada {@code interpret()}.
+     */
+    List<Diagnostic> interpreterWarnings = java.util.List.of();
+
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
     final Map<String, List<IRMethod>> pendingSuperBridges = new java.util.LinkedHashMap<>();
 

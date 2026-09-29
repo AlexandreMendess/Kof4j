@@ -4435,6 +4435,16 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Scope:** `List<T>.groupBy((T)->K): Map<K,List<T>>` exactly as §230 (insertion-order map of groups; keys with the boxed map equality); eager, additive.
 - **Relationships:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, rule 6`.
 
+## D-SCRIPT-WARN-SURFACE — the Script target surfaces frontend WARNING diagnostics like JVM/JS/Native (maintainer 29/09/2026, multiple-choice "A" on #678)
+
+**State:** DECIDED (maintainer) / IMPLEMENTED 29/09 — resolves the #678 decision request (diagnostics-parity divergence of phase-6, `docs/development/memory-safety-plan.md`).
+
+- **Question (#678):** a terminating `for-in` + `list.remove(0)` emits `MEM022` on JVM/Native/JS, but `driver.interpret` returned `exit=0, stderr=[]` — `CompilerPipeline.prepareForInterpretation` built a local `DiagnosticCollector` and discarded it (only ERRORS escaped via `KofInterpretException`), so every WARNING (`MEM022`, `MEM014`) was invisible on Script, contradicting the plan DoD ("same sources, same diagnostics").
+- **Decision:** option **A — surface the warnings**. The interpreter exposes the frontend WARNINGs through `KofInterpreter.Result.warnings()` (additive record component with a compat 3-arg constructor); the CLI/`KofScript` print them to stderr exactly like the compile path. No language-semantics change — diagnostics only.
+- **Not chosen:** (B) leave Script warning-free by documented scope (rejected: the signal is the contract, and `list.add` during iteration is a runaway loop where the warning is the only signal).
+- **Proof to require:** the terminating reproducer yields `MEM022` in `Result.warnings()` on Script (RED before, measured 29/09), plus no regression on the interpreter battery.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-SCRIPT-EXTERN-REFUSE, rule 5, rule 6, rule 7`; tracker #678.
+
 ## D-CONNECTORS-GO — the Kof Connector Ecosystem plan is promoted to current work (maintainer 29/09/2026, multiple-choice "connectors" + `D-FUTURE-PROMOTION`)
 
 **State:** DECIDED (maintainer) — `docs/development/future/kof-connector-ecosystem-plan.md` moves to `docs/development/` with status UNDER DEVELOPMENT; one front at a time.

@@ -374,6 +374,7 @@ public final class CompilerPipeline {
         boolean prevInterpreting = driver.interpreting;
         driver.interpreting = true;
         driver.currentDiagnostics = diagnostics;
+        driver.interpreterWarnings = java.util.List.of();
         CompilerPipeline.flushClasspathWarnings(driver);
         driver.entitySchemas.clear();
         try {
@@ -386,6 +387,11 @@ public final class CompilerPipeline {
             if (ir == null) {
                 throw new KofInterpretException(diagnostics);
             }
+            // #678: o JVM/JS/Native imprimem os WARNING do frontend; o Script
+            // não tinha canal. Expõe-os para o chamador (paridade de diagnósticos).
+            driver.interpreterWarnings = diagnostics.getDiagnostics().stream()
+                    .filter(d -> d.severity() == Diagnostic.Severity.WARNING)
+                    .toList();
             return ir;
         } catch (IOException e) {
             diagnostics.error(sources.get(0).toString(), 0, 0, 0,
@@ -404,7 +410,9 @@ public final class CompilerPipeline {
     static KofInterpreter.Result interpret(CompilerDriver driver, java.util.List<Path> sources,
                                            Path moduleRoot, String[] args) {
         IRModule ir = prepareForInterpretation(driver, sources, moduleRoot);
-        return KofInterpreter.run(ir, args);
+        // #678: anexa os WARNING do frontend ao resultado (paridade com o
+        // compile, onde o CLI imprime os diagnósticos do Result).
+        return KofInterpreter.run(ir, args, driver.interpreterWarnings);
     }
 
     /** Parse + merge multi-arquivo + expansão de imports (extraído de compileSources). */

@@ -254,11 +254,11 @@ The following matrix maps each bug class to its prevention mechanism:
 | Use-after-move | Explicit nulling on transfer | `MEM002` (compile-time) | All |
 | Mutable aliasing data race | Programmer discipline + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` compile only (#668; runtime half = option B, not chosen) | All reachable (Script: `extern` refused `FFI001` before `MEM020`) |
 | Null deref | Nullability + narrowing | `SEM049` (compile-time) | All |
-| Resource leak | Explicit close | `MEM014` (compile-time; WARNING) | All (surfacing on Script pending #678) |
+| Resource leak | Explicit close | `MEM014` (compile-time; WARNING) | All (Script surfaces it via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
 | FFI ownership confusion | Confined arena per call (no release surface exists — `kof_ffi_release` is a model concept, spec §7, measured 28/09) | `MEM005` — model rule, no emission surface today | JVM + Native |
-| Resource leak (DB/Web) | Explicit close | `MEM014` (compile-time; WARNING) | All (surfacing on Script pending #678) |
+| Resource leak (DB/Web) | Explicit close | `MEM014` (compile-time; WARNING) | All (Script surfaces it via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
 
-> **WARNING-class diagnostics on Script:** `MEM014`/`MEM022` fire in the shared frontend on all targets, but on the Script target `interpret()` discards WARNINGs (only ERRORS escape) — measured 29/09, decision request #678. The matrix lists the prevention mechanism, not the surfacing; Script surfacing is pending the decision.
+> **WARNING-class diagnostics on Script:** `MEM014`/`MEM022` fire in the shared frontend on all targets. On Script, `interpret()` used to discard WARNINGs (only ERRORS escaped) — measured 29/09, decision request #678; **RESOLVED 29/09 (`D-SCRIPT-WARN-SURFACE`, option A): the interpreter now exposes them via `KofInterpreter.Result.warnings()` and the CLI/`KofScript` print them to stderr like the compile path.**
 
 > **Simplicity Law check**: No lifetime annotations in user code. All rules fire
 > at existing surface boundaries (FFI, spawn, stdlib mutation, resource close,

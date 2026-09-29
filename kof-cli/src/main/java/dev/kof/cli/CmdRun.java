@@ -203,6 +203,10 @@ final class CmdRun {
             try {
                 dev.kof.compiler.KofInterpreter.Result ir =
                         driver.interpret(sources, runRoot, programArgs);
+                // #678: paridade com o compile — os WARNING do frontend vão ao
+                // stderr como no alvo JVM (linha abaixo do bloco compile),
+                // nunca engolidos.
+                for (Diagnostic d : ir.warnings()) System.err.println(d.format());
                 if (!ir.stdout().isEmpty()) System.out.print(ir.stdout());
                 if (!ir.stderr().isEmpty()) System.err.print(ir.stderr());
                 KofCliSupport.cleanup(tempDir);
