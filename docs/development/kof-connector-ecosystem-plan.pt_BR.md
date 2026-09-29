@@ -573,6 +573,24 @@ neutra de alvo e roda em todos, inclusive JS (sem lacuna).
 
 ---
 
+
+## 9.4 Fatia promovida 4 (29/09/2026) — catálogo de connectors
+
+**Estado:** landada. `libs/interop/ConnectorCatalogue.kf` descobre os manifests `*.toml` de um
+diretório (`Directory(base).list()`) e expõe `count`/`names`/`find`/`has`; entradas não-`.toml` são
+ignoradas, e um manifest malformado lança seu próprio diagnóstico explícito (nunca um skip
+silencioso). Sobre o `Directory` do `kof.io`; JS herda a lacuna `IOJS001`.
+
+**Achado medido (compilador/generics — bug candidato, não desta lane):** uma coleção genérica de um
+tipo da biblioteca no MESMO pacote não tipa: `var xs = new List<ConnectorManifest>()` (e o qualificado
+`new List<interop.ConnectorManifest>()`) dá `SEM012` — o tipo do elemento degrada para pacote vazio /
+nome pontuado literal e não atribui a `List<ConnectorManifest>`. O catálogo contorna guardando os
+CAMINHOS dos manifests (`List<String>`) e construindo o manifest sob demanda no `find`. Uma API
+pública `all(): List<ConnectorManifest>` fica bloqueada até isso ser corrigido; catalogado para a
+lane compilador/generics.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

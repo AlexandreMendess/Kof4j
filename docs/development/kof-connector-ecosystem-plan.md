@@ -568,6 +568,24 @@ on every target including JS (no gap).
 
 ---
 
+
+## 9.4 Promoted slice 4 (29/09/2026) — connector catalogue
+
+**State:** landed. `libs/interop/ConnectorCatalogue.kf` discovers the `*.toml` manifests in a
+directory (`Directory(base).list()`) and exposes `count`/`names`/`find`/`has`; non-`.toml` entries are
+ignored, and a malformed manifest throws its own explicit diagnostic (never a silent skip). Built on
+`kof.io` `Directory`; JS inherits the `IOJS001` gap.
+
+**Measured finding (compiler/generics — candidate bug, not this lane):** a generic collection of a
+library type in the SAME package fails to type: `var xs = new List<ConnectorManifest>()` (and the
+qualified `new List<interop.ConnectorManifest>()`) yields `SEM012` — the value's element type
+degrades to an empty-package / literal-dotted name and cannot be assigned to `List<ConnectorManifest>`.
+The catalogue works around it by keeping manifest PATHS (`List<String>`) and constructing the
+manifest on demand in `find`. A redeclaration-style public API (`all(): List<ConnectorManifest>`) is
+blocked until that is fixed; catalogued for the compiler/generics lane.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
