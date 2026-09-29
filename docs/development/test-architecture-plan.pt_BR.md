@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 170 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 169 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -78,12 +78,18 @@ citação). Cabeça medida do mais barato ao mais caro: `ArrayBoundsStressTest` 
 `KofSetEqualityTest`/`ArrayBoundsStressTest` são contagens de classe ("`KofSetEqualityTest` inteiro
 21/21"), que sofrem drift mesmo mantendo o método citado — então a regra barata da Fase 3 é: **mover
 só testes não citados, manter métodos citados e o nome da classe no arquivo original, atualizar as
-contagens**. Essa regra + esta ordem é o todo da Fase 3 traçado; a primeira divisão é a próxima fatia.
-**Como terminar:** Fase 1/2 descoberta feita — depois **modularização da Fase 3** (do mais barato ao
-mais caro pela ordem do `--citations`) e **remoções quick-win da Fase 2** intercaladas
-(encolher o baseline: sleeps / duplicação / oversized) → 4 (harness) → 5 (alvos) → 6
-(conformance) → 7 (`mvn verify`). **Infraestrutura de teste pura — o compilador
-nunca é tocado** (regra de ouro abaixo). Uma fatia por commit, RED-first + `check_500`.
+contagens**. **Primeira divisão landada (29/09):** o suporte reutilizável de
+`KofSetEqualitySupport` (as quatro fontes Kof + os runners JVM/JS) foi extraído do
+`KofSetEqualityTest` — os 21 casos e o método citado ficaram, então **zero drift de citação** — com
+oversized 43→42 e baseline 170→169. A métrica é guia, não oráculo: nomear candidatos nesta fila
+(e no `README`) já adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher
+a próxima divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
+**Como terminar:** Fase 1/2 descoberta feita — depois **modularização da Fase 3** (re-medir
+`--citations`; extrair suporte e mover só testes não citados, mantendo métodos citados e nomes de
+classe) e **remoções quick-win da Fase 2** intercaladas (encolher o baseline: sleeps / duplicação /
+oversized) → 4 (harness) → 5 (alvos) → 6 (conformance) → 7 (`mvn verify`). **Infraestrutura de teste
+pura — o compilador nunca é tocado** (regra de ouro abaixo). Uma fatia por commit, RED-first +
+`check_500`.
 
 ## 📌 Visão Geral
 
@@ -569,9 +575,10 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho aberto =
    encolher `scripts/test-hygiene-baseline.txt` e regravar);
-4. propor modularização (Fase 3 — iniciada: `--citations` ordena as classes oversized do mais
-   barato ao mais caro e a regra de drift está fixada; primeira divisão =
-   `ArrayBoundsStressTest` / `KofSetEqualityTest`, movendo só testes não citados).
+4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
+   oversized e a regra de drift está fixada; primeira divisão landada = `KofSetEqualitySupport`
+   extraído do `KofSetEqualityTest` (21/21 mantidos, oversized 43→42, baseline 170→169); a
+   próxima divisão escolhe por um `--citations` fresco).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta

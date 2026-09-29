@@ -131,6 +131,11 @@ executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
   é prosa também: uma citação de contagem de classe ("`KofSetEqualityTest`
   inteiro 21/21") sofre drift mesmo mantendo o método citado — mova só testes
   não citados, mantenha métodos citados e o nome da classe, atualize as contagens.
+  **Primeira divisão (29/09):** `KofSetEqualitySupport` extraiu as fontes
+  compartilhadas + runners JVM/JS do `KofSetEqualityTest` (os 21 casos mantidos,
+  zero drift de citação) → oversized 43→42, baseline 170→169. Re-meça o
+  `--citations` antes da próxima escolha: nomear candidatos na própria fila
+  adiciona citações a eles.
 
 A auditoria não modifica nada; agir sobre um lead é uma unidade separada e
 escopada.

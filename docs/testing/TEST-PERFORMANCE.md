@@ -130,7 +130,11 @@ the suite) for the quick-win targets the plan names.
   `NullablePrimitiveContractE2ETest` (8) … `ConformanceMatrixTest` (42). Cost is
   prose too: a class-count citation ("whole `KofSetEqualityTest` 21/21") drifts
   even when the cited method stays — move only uncited tests, keep cited
-  methods and the class name in place, update the counts.
+  methods and the class name in place, update the counts. **First split
+  (29/09):** `KofSetEqualitySupport` extracted the shared sources + JVM/JS
+  runners out of `KofSetEqualityTest` (all 21 cases kept, zero citation drift)
+  → oversized 43→42, baseline 170→169. Re-measure `--citations` before the next
+  pick: naming candidates in the queue itself adds citations to them.
 
 The audit modifies nothing; acting on a lead is a separate, scoped unit.
 

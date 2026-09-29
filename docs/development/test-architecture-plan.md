@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 170 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 169 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -77,13 +77,18 @@ sweep). Measured cheapest-first head: `ArrayBoundsStressTest` (2), `KofSetEquali
 citations of `KofSetEqualityTest`/`ArrayBoundsStressTest` are class-level counts ("whole
 `KofSetEqualityTest` 21/21"), which drift even when the cited method stays in place — so the
 cheap Phase 3 rule is: **move only uncited tests out, keep cited methods and class name in the
-original file, update the counts**. That rule + this ordering is the traced Phase 3 todo; the
-first split is the next unit.
-**How to finish:** Phase 1/2 discovery done — then **Phase 3 modularization** (cheapest-first by
-the `--citations` order above) and remaining **Phase 2 quick-win removals** interleaved
-(shrink the baseline: sleeps / duplication / oversized) → 4 (harness) → 5 (targets) → 6
-(conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
-(golden rule below). One slice per commit, RED-first + `check_500`.
+original file, update the counts**. **First split landed (29/09):** the reusable support of
+`KofSetEqualitySupport` (the four Kof sources + the JVM/JS runners) was extracted out of
+`KofSetEqualityTest` — all 21 cases and the cited method stayed, so **zero citation drift** — with
+oversized 43→42 and baseline 170→169. The metric is a guide, not an oracle: naming candidates in
+this queue (and in `README`) itself adds citations to a class, so **re-measure `--citations` before
+choosing the next split**. That rule + ordering is the traced Phase 3 todo.
+**How to finish:** Phase 1/2 discovery done — then **Phase 3 modularization** (re-measure
+`--citations`; extract support and move only uncited tests, keeping cited methods and class names)
+and remaining **Phase 2 quick-win removals** interleaved (shrink the baseline: sleeps / duplication
+/ oversized) → 4 (harness) → 5 (targets) → 6 (conformance) → 7 (`mvn verify`). **Pure test
+infrastructure — the compiler is never touched** (golden rule below). One slice per commit,
+RED-first + `check_500`.
 
 ## 📌 Overview
 
@@ -568,9 +573,10 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; open work =
    shrink `scripts/test-hygiene-baseline.txt` and re-freeze);
-4. propose the modularization (Phase 3 — started: `--citations` orders the oversized classes
-   cheapest-first and the drift rule is fixed; first split = `ArrayBoundsStressTest` /
-   `KofSetEqualityTest`, moving only uncited tests out).
+4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
+   oversized class and the drift rule is fixed; first split landed = `KofSetEqualitySupport`
+   extracted out of `KofSetEqualityTest` (21/21 kept, oversized 43→42, baseline 170→169); next
+   split picks by a fresh `--citations` measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
