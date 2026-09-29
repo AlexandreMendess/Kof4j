@@ -333,7 +333,7 @@ Do not turn `kof.file` into a graphics library.
 The responsibility remains file and data manipulation.
 
 > **Responsibility split:** pixel decoding and processing belong to
-> `kof.image` (see `image-vision-plan.md`); `kof.file` delivers
+> `kof.image` (see [`../development/image-vision-plan.md`](../development/image-vision-plan.md)); `kof.file` delivers
 > bytes/stream/loaded `Image`.
 
 ---

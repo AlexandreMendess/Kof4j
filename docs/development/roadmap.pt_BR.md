@@ -961,6 +961,9 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > **ABERTA (6ª frente):** `multiparadigma` — promovido 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) para
 > [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatias 1a+1b+1c+1d+1e+1f LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + pins de paridade script; E2E 5/5+3/3+3/3+3/3+3/3 + `KofScriptStdlibParityTest` 22/22); resto (`sorted`/`groupBy`/`zip`) BLOQUEADO em decisões da mantenedora (regra 6).
+> **ABERTA (7ª frente):** `image-vision` — promovido 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) para
+> [`image-vision-plan.md`](image-vision-plan.md); fatia 1 = metadados pure-Kof em `libs/image/` (formato + dimensões,
+> PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 na JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).
 > Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).

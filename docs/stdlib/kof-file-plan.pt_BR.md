@@ -504,7 +504,7 @@ Não transformar `kof.file` em uma biblioteca gráfica.
 A responsabilidade continua sendo manipulação de arquivos e dados.
 
 > **Divisão de responsabilidade:** decodificação de pixels e
-> processamento pertencem a `kof.image` (ver `image-vision-plan.md`);
+> processamento pertencem a `kof.image` (ver [`../development/image-vision-plan.md`](../development/image-vision-plan.md));
 > `kof.file` entrega bytes/stream/`Image` carregada.
 
 ---

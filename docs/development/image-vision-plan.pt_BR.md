@@ -2,18 +2,10 @@
 
 # Plano Estratégico — Kof Image & Vision
 
-> **Estado (19/09): FUTURE — plano apenas, zero código.** Não é fila de
-> execução (regra dos três estados + R12). Domínio pesado: por R1
-> (boundary gate `scripts/check_stdlib_boundary.sh`) `kof.image`/
-> `kof.vision` entram como **pacotes oficiais** (nascentes =
-> `experimental`), não como stdlib base; por R9 (interop-first) codecs e
-> algoritmos vêm de bibliotecas maduras isoladas atrás da API Kof
-> (imageio/turbojpeg/OpenCV/ONNX — avaliação por licença/target).
-> Integração com `kof.file` (`docs/stdlib/kof-file-plan.md`) e `kofqrcode`
-> (`qrcode-wasm-plan.md`) documentada no §19. Regra 6: qualquer
-> operador/semântica nova desses planos é decisão da mantenedora, não
-> bugfix de agente. Os exemplos usam pseudocódigo conceitual; a sintaxe
-> real é `var`/`val` (nunca `let`/`const`).
+> **Estado (29/09): EM DESENVOLVIMENTO — promovido `future/` → `docs/development/` por `D-FUTURE-PROMOTION` + `D-IMAGE-VISION-GO` (mantenedora 29/09), library-first (`D-KOF-FIRST-IMPL`).**
+> **Fatia 1 LANDED 29/09:** `libs/image/` pure-Kof — `Image(path).format()/.width()/.height()` leem o **formato + dimensões em pixels** dos primeiros bytes (`PNG`/`GIF`/`BMP` info+core/`JPEG` SOF/`WEBP` VP8·VP8L·VP8X) sobre um prefixo limitado de 4 KiB do `kof.io.readRange`; sem codec, sem pixels, sem sintaxe nova. Golden medido na JVM + Native x86-64 + riscv64 (qemu) + Script, lacuna JS `IOJS001` — `ImageMetadataE2ETest` 7/7.
+> Pesado por R1/R9: `kof.image`/`kof.vision` são **pacotes oficiais** (nascentes `experimental`); codecs e algoritmos vêm de bibliotecas maduras isoladas atrás da API Kof (imageio/turbojpeg/OpenCV/ONNX, avaliação por licença/target). Pixels/filtros e `kof.vision` seguem fatias futuras; achado medido da lane native catalogado como `known-bugs` **§540** (nativos cross falham uma única alocação ≥64 Ki Int).
+> **Como terminar:** decode de pixels + dados `Image` → `resize`/`crop`/`rotate` (fatia interop), depois Fase 2 de processamento, Fase 3 `kof.vision`; cada fatia aditiva, com docs + golden em todos os alvos. Regra 6: qualquer operador/semântica nova é decisão da mantenedora; sintaxe real `var`/`val`.
 
 ## Objetivo
 

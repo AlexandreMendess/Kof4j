@@ -4395,3 +4395,13 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Targets:** all by the established pattern (JVM statics + Native-x86 asm + cross new piece + JS prelude + Script); slice proof is E2E parity per op.
 - **Merge law / slice order:** owned by the plan (§3: one commit per op-pair); slice 1a = the quantifier trio + `ListQuantifiersE2ETest`.
 - **Relationships:** `Related: D-MULTIPARADIGMA-GO, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, rule 6, rule 11, rule 12`.
+## D-IMAGE-VISION-GO — `kof.image`/`kof.vision` promoted as official package; first slice = pure-Kof metadata (maintainer 29/09/2026, batch `D-FUTURE-BATCH-2809` + `D-FUTURE-PROMOTION`)
+
+**State:** DECIDED (maintainer) / IN DEVELOPMENT — promoted front under `D-FUTURE-PROMOTION` (`docs/development/image-vision-plan.md`).
+
+- **Scope:** image manipulation (`kof.image`) and computer vision (`kof.vision`), delivered as an **official package** (R1; born `experimental`), interop-first per R9 (imageio/turbojpeg/OpenCV/ONNX behind the Kof API; codecs never reimplemented).
+- **Slice 1 LANDED 29/09 (library-first, `D-KOF-FIRST-IMPL`):** pure-Kof `libs/image/` reads **format + pixel dimensions** from the leading bytes (PNG/GIF/BMP info+core/JPEG SOF/WEBP VP8·VP8L·VP8X) over a bounded 4 KiB `kof.io.readRange` prefix — no codec, no pixels, no new syntax. `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64 + riscv64 (qemu) + Script; JS gap `IOJS001`.
+- **Next:** pixel decode + `Image` data, then interop `resize`/`crop`/`rotate`, Phase 2 processing, Phase 3 `kof.vision`.
+- **Measured finding (native lane):** cross natives fail a single `new Int[65536]` (256 KiB) allocation — catalogued `known-bugs` **§540**.
+
+- **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 12`.

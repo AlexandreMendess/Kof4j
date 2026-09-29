@@ -4383,3 +4383,13 @@ individuais:
 - **Alvos:** todos pelo padrão estabelecido (estáticos JVM + asm Native-x86 + peça cross nova + prelude JS + Script); prova da fatia é paridade E2E por op.
 - **Lei de merge / ordem das fatias:** pertence ao plano (§3: um commit por par de ops); fatia 1a = o trio quantificador + `ListQuantifiersE2ETest`.
 - **Relações:** `Related: D-MULTIPARADIGMA-GO, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, regra 6, regra 11, regra 12`.
+## D-IMAGE-VISION-GO — `kof.image`/`kof.vision` promovidos como pacote oficial; primeira fatia = metadados pure-Kof (mantenedora 29/09/2026, lote `D-FUTURE-BATCH-2809` + `D-FUTURE-PROMOTION`)
+
+**Estado:** DECIDIDO (mantenedora) / EM DESENVOLVIMENTO — frente promovida por `D-FUTURE-PROMOTION` (`docs/development/image-vision-plan.md`).
+
+- **Escopo:** manipulação de imagem (`kof.image`) e visão computacional (`kof.vision`), entregues como **pacote oficial** (R1; nascente `experimental`), interop-first por R9 (imageio/turbojpeg/OpenCV/ONNX atrás da API Kof; codecs nunca reimplementados).
+- **Fatia 1 LANDED 29/09 (library-first, `D-KOF-FIRST-IMPL`):** `libs/image/` pure-Kof lê **formato + dimensões em pixels** dos primeiros bytes (PNG/GIF/BMP info+core/JPEG SOF/WEBP VP8·VP8L·VP8X) sobre um prefixo limitado de 4 KiB do `kof.io.readRange` — sem codec, sem pixels, sem sintaxe nova. `ImageMetadataE2ETest` 7/7 na JVM + Native x86-64 + riscv64 (qemu) + Script; lacuna JS `IOJS001`.
+- **Próxima:** decode de pixels + dados `Image`, depois interop `resize`/`crop`/`rotate`, Fase 2 de processamento, Fase 3 `kof.vision`.
+- **Achado medido (lane native):** nativos cross falham uma única alocação `new Int[65536]` (256 KiB) — catalogado `known-bugs` **§540**.
+
+- **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 12`.
