@@ -113,6 +113,18 @@ public final class KofInterpreterConcurrency {
                 for (Object o : src) interp.invokeLambda(args[1], new Object[]{o});
                 return null;
             }
+            // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatenates each
+            // element's List in order (non-List lambda result fails loudly).
+            case "kof_list_flatmap": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                ArrayList<Object> out = new ArrayList<>();
+                for (Object o : src) {
+                    Object tmp = interp.invokeLambda(args[1], new Object[]{o});
+                    out.addAll((java.util.List<?>) tmp);
+                }
+                return out;
+            }
             case "kof_spawn_result": {
                 CompletableFuture<Object> future = new CompletableFuture<>();
                 startTask(future, () -> future.complete(interp.invokeLambda(args[0], new Object[0])));

@@ -166,6 +166,14 @@ xs.forEach((x) -> println(x * 10))   // 10, 20, 30 — effect only, no allocatio
 listOf().forEach((x) -> println(x))  // vacuous: prints nothing
 ```
 
+## `flatMap` (D-MULTIPARADIGMA-PHASE1A slice 1d, all targets)
+
+```kof
+var xs = listOf(1, 2, 3)
+var ys = xs.flatMap((x) -> listOf(x, x * 10))   // [1, 10, 2, 20, 3, 30]
+var e = listOf().flatMap((x) -> listOf(x))      // empty in, empty out
+```
+
 ## `listOf` with related subtypes infers the common ancestor (0.5.0-beta, §285)
 
 ```kof

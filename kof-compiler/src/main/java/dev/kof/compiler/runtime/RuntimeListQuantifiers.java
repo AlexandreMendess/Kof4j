@@ -284,6 +284,45 @@ public final class RuntimeListQuantifiers {
                 popq %r12
                 popq %rbx
                 ret
+
+            # kof_list_flatmap(list, fn) -> rax new List (concat of fn(elem))
+            .globl kof_list_flatmap
+            .type kof_list_flatmap, @function
+            kof_list_flatmap:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rdi, %r12
+                movq %rsi, %r13
+                call kof_list_new
+                movq %rax, %r14
+                xorl %r15d, %r15d
+            .Lkof_list_flatmap_loop:
+                movl 16(%r12), %eax
+                cmpl %eax, %r15d
+                jge .Lkof_list_flatmap_done
+                movq 24(%r12), %rax
+                movslq %r15d, %rcx
+                movq (%rax,%rcx,8), %rsi
+                movq %r13, %rdi
+                movq 8(%rdi), %rax
+                movq (%rax), %rax
+                call *%rax
+                movq %r14, %rdi
+                movq %rax, %rsi
+                call kof_list_add_all
+                incl %r15d
+                jmp .Lkof_list_flatmap_loop
+            .Lkof_list_flatmap_done:
+                movq %r14, %rax
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
             """);
     }
 }

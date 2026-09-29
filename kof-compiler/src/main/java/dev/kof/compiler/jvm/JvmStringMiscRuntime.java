@@ -170,6 +170,20 @@ public final class JvmStringMiscRuntime {
                     for (Object o : list) kof_ho_invoke(lambda, new Object[]{o});
                 }
 
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatenates
+                // each element's List in order (a non-List lambda result
+                // fails loudly on the cast, never silently).
+
+                public static java.util.ArrayList<Object> kof_list_flatmap(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    var out = new java.util.ArrayList<Object>();
+                    for (Object o : list) {
+                        Object tmp = kof_ho_invoke(lambda, new Object[]{o});
+                        out.addAll((java.util.List<?>) tmp);
+                    }
+                    return out;
+                }
+
                 public static Object kof_list_reduce(
                         java.util.ArrayList<?> list, Object initial, Object lambda) throws Exception {
                     Object acc = initial;

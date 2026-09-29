@@ -26,22 +26,26 @@ final class CollectionHigherOrderLowerer {
         if (!BuiltinTypes.isList(recvType)
                 || !("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
                     || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
-                    || "find".equals(mn) || "forEach".equals(mn) || countPred)) {
+                    || "find".equals(mn) || "forEach".equals(mn) || "flatMap".equals(mn)
+                    || countPred)) {
             return -1;
         }
-        // kof_ names are snake_case: forEach is camelCase at the surface and
-        // must map explicitly (like indexOf→kof_list_index_of in the switch
-        // below) — a verbatim "kof_list_forEach" misses every registry
-        // (hasRuntimeFn/descriptors/pieces) and breaks per-target (R6).
-        String hoFn = "forEach".equals(mc.methodName()) ? "kof_list_foreach"
-                : countPred ? "kof_list_count_pred" : "kof_list_" + mc.methodName();
+        // kof_ names are snake_case: camelCase surface names map explicitly
+        // (forEach→foreach, flatMap→flatmap — like indexOf→kof_list_index_of
+        // in the switch below). A verbatim "kof_list_flatMap" misses every
+        // registry (hasRuntimeFn/descriptors/pieces) and breaks per-target.
+        String hook = mc.methodName();
+        if ("forEach".equals(hook)) hook = "foreach";
+        else if ("flatMap".equals(hook)) hook = "flatmap";
+        String hoFn = countPred ? "kof_list_count_pred" : "kof_list_" + hook;
         // D-MULTIPARADIGMA-PHASE1A — quantifiers/find/count(pred)/forEach take
         // exactly one lambda; without it the runtime call would break
         // per-target (R6, same class as #382's indexOf gate). map/filter/reduce
         // keep theirs.
         if ("any".equals(mc.methodName()) || "all".equals(mc.methodName())
                 || "none".equals(mc.methodName()) || "find".equals(mc.methodName())
-                || "forEach".equals(mc.methodName()) || countPred) {
+                || "forEach".equals(mc.methodName()) || "flatMap".equals(mc.methodName())
+                || countPred) {
             boolean oneLambda = mc.arguments().size() == 1
                     && mc.arguments().get(0) instanceof LambdaExpr;
             if (!oneLambda && driver.currentDiagnostics != null) {
@@ -103,6 +107,15 @@ final class CollectionHigherOrderLowerer {
         // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns Void.
         else if ("forEach".equals(mc.methodName()))
             ret = Type.PrimitiveType.VOID;
+        // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap returns the lambda's
+        // List<R> itself (no re-wrap); non-List lambda result is UNKNOWN.
+        else if ("flatMap".equals(mc.methodName())) {
+            if (lambdaT instanceof Type.FunctionType ft
+                    && !(ft.returnType() instanceof Type.UnknownType)
+                    && ft.returnType() instanceof Type.ClassType ct
+                    && "List".equals(ct.name())) ret = ft.returnType();
+            else ret = Type.UnknownType.UNKNOWN;
+        }
         else if (countPred)
             ret = Type.PrimitiveType.INT;
         else if ("map".equals(mc.methodName())) {

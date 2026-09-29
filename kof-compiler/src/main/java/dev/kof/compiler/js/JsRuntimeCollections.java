@@ -113,6 +113,12 @@ public final class JsRuntimeCollections {
                 }
             }
 
+            // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatenates each
+            // element's List in order (native one-level flatten).
+            export function kofListFlatmap(list, fn) {
+                return list.flatMap(x => kofQuantCall(fn, x));
+            }
+
             function kofNaturalCmp(a, b) {
                 if (typeof a === "number" && typeof b === "number") {
                     return a < b ? -1 : a > b ? 1 : 0;

@@ -54,7 +54,7 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.equals("kof_list_any") || name.equals("kof_list_all")
                 || name.equals("kof_list_none")
                 || name.equals("kof_list_find") || name.equals("kof_list_count_pred")
-                || name.equals("kof_list_foreach")
+                || name.equals("kof_list_foreach") || name.equals("kof_list_flatmap")
                 || name.startsWith("kof_observability_")
                 || name.startsWith("kof_time_")
                 || name.startsWith("kof_scheduler_")

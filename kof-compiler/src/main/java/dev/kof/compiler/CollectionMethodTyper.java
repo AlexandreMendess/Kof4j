@@ -15,7 +15,8 @@ public final class CollectionMethodTyper {
         String mn = mc.methodName();
         if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
                 || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
-                || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn))
+                || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn)
+                || "flatMap".equals(mn))
                 && mc.arguments().stream().anyMatch(a -> a instanceof LambdaExpr)) {
             Type lambdaT = null;
             for (ExpressionNode arg : mc.arguments()) {
@@ -42,6 +43,14 @@ public final class CollectionMethodTyper {
                 // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns
                 // Void, whatever the lambda yields.
                 if ("forEach".equals(mn)) return Type.PrimitiveType.VOID;
+                // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap returns the
+                // lambda's List<R> itself (no re-wrap); non-List lambda
+                // result is UNKNOWN honest (the runtime cast fails loudly).
+                if ("flatMap".equals(mn)) {
+                    if (ft.returnType() instanceof Type.ClassType ct
+                            && "List".equals(ct.name())) return ft.returnType();
+                    return Type.UnknownType.UNKNOWN;
+                }
             }
             return Type.UnknownType.UNKNOWN;
         }

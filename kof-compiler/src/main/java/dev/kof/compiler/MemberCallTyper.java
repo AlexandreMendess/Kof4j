@@ -171,10 +171,11 @@ public final class MemberCallTyper {
             // SG-012 (inferência contextual): lambda de map/filter/reduce sem
             // anotação herda o tipo do ELEMENTO da lista — antes caía em
             // Object/Unknown e forçava `(x: Int)` mesmo com contexto óbvio.
-            // D-MULTIPARADIGMA-PHASE1A: any/all/none/find/count herdam igual.
+            // D-MULTIPARADIGMA-PHASE1A: any/all/none/find/count/forEach herdam igual.
             if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
                     || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
-                    || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn))
+                    || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn)
+                    || "flatMap".equals(mn))
                     && !(elemType instanceof Type.UnknownType)) {
                 for (int i = 0; i < mc.arguments().size(); i++) {
                     if (mc.arguments().get(i) instanceof LambdaExpr le) {
@@ -252,7 +253,8 @@ public final class MemberCallTyper {
             // UNKNOWN honesto (o emit trata igual) — nunca mentir com o
             // tipo da fonte.
             if ("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
-                    || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)) {
+                    || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
+                    || "flatMap".equals(mn)) {
                 Type lamRet = Type.UnknownType.UNKNOWN;
                 for (ExpressionNode arg : mc.arguments()) {
                     if (arg instanceof LambdaExpr || !(arg instanceof MethodCallExpr)) {
@@ -275,7 +277,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap)",
                             "SEM025");
                 }
             }

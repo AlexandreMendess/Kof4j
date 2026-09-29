@@ -271,5 +271,46 @@ public final class NativeRiscvAsmQuantifiers {
                 ld   ra, 40(sp)
                 addi sp, sp, 48
                 ret
+
+            # kof_list_flatmap(a0=list, a1=fn) -> a0 new List (concat).
+            # Counter in s3 like kof_list_filter (callee-saved: calls keep it).
+            .globl kof_list_flatmap
+            kof_list_flatmap:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                mv   s0, a0
+                mv   s1, a1
+                call kof_list_new
+                mv   s2, a0
+                li   s3, 0
+            .Llflat_loop:
+                lw   t0, 16(s0)
+                bge  s3, t0, .Llflat_done
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)
+                mv   a0, s1
+                ld   t3, 8(a0)
+                ld   t3, 0(t3)
+                jalr t3
+                mv   a1, a0
+                mv   a0, s2
+                call kof_list_add_all
+                addi s3, s3, 1
+                j    .Llflat_loop
+            .Llflat_done:
+                mv   a0, s2
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
             """;
 }
