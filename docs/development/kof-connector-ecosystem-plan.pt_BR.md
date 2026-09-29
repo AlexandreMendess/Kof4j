@@ -667,6 +667,21 @@ diagnósticos negativos). Sem mudança no compilador; neutro de alvo.
 
 ---
 
+
+## 9.10 Fatia promovida 10 (29/09/2026) — nomes de biblioteca estrangeira
+
+**Estado:** landada. `interop.InteropLibrary` cobre a face do library-loading da §3.8 expressável em
+Kof puro: um nome lógico de biblioteca mapeia para o nome concreto de arquivo por formato
+(`lib<n>.so` / `lib<n>.dylib` / `<n>.dll`, + estáticas `lib<n>.a` / `<n>.lib`) e para caminhos
+candidatos sob raízes dadas. A chave é o PRÓPRIO sufixo de formato (a lista do plano) — nenhum
+vocabulário de SO é inventado. Honesto (R6): formato desconhecido lança
+`INTEROP: unknown library kind <x>`.
+
+**Prova:** `InteropLibraryE2ETest` **5/5** (golden JVM + Script + JS + Native x86-64 + o diagnóstico
+desconhecido). Sem mudança no compilador; neutro de alvo.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

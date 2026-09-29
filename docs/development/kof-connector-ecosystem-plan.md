@@ -661,6 +661,20 @@ negative diagnostics). No compiler change; target-neutral.
 
 ---
 
+
+## 9.10 Promoted slice 10 (29/09/2026) — foreign library naming
+
+**State:** landed. `interop.InteropLibrary` covers the §3.8 library-loading face expressible in pure
+Kof: a logical library name maps to its concrete file name per format
+(`lib<n>.so` / `lib<n>.dylib` / `<n>.dll`, plus static `lib<n>.a` / `<n>.lib`) and to candidate paths
+under given roots. The key is the FORMAT SUFFIX itself (the plan's own list) — no OS vocabulary is
+invented. Honest (R6): an unknown kind throws `INTEROP: unknown library kind <x>`.
+
+**Proof:** `InteropLibraryE2ETest` **5/5** (JVM golden + Script + JS + Native x86-64 + the unknown
+diagnostic). No compiler change; target-neutral.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
