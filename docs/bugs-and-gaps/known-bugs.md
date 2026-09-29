@@ -16231,6 +16231,8 @@ maintainer chooses between a named compile diagnostic on Script and a real Scrip
 this record only makes the current measured behavior visible so no agent can "discover" it
 as a surprise. **Related:** plan "Phase 5 slices", #666/#667, spec §7 (#670 ownership table).
 
+**✅ FIXED 29/09 (`b2e2fe2dd`, lane memory-safety/Script; `D-SCRIPT-EXTERN-REFUSE`, option A):** the Script target now refuses a user `extern` at the DECLARATION line with **`FFI001`** (§350) — `CompilerFfiBinding.isExternBound` refuses when `driver.interpreting` and `CompilerPipeline` labels the message "script"; the raw `KofRuntime.kof_ffi/4` runtime death is gone, and `backend-parity` carries the FFI×Script row. Proof: `ScriptTargetTest#externIsRefusedOnScriptFfi001` (8/8, re-measured green on `lab` 29/09).
+
 <!-- pt-switch --> **PT:** [§535 (pt_BR)](known-bugs.pt_BR.md#535--script--extern-compila-limpo-e-morre-cru-em-runtime-kofruntimekof_ffi4-ec1---open-dona--decisao-da-mantenedora-667-regra-6)
 
 ## §536 — MEM020/B-03 declared with ZERO implementation: two concurrent `ffi` writes to the same `Buffer(U8)` compile clean — 🟡 OPEN (owner = maintainer decision #668; rule 6)
@@ -16244,6 +16246,8 @@ face expressible over the existing `OwnershipPass` machinery or the writable-bor
 state on `Buffer` (a NEW core primitive — rule 6 territory); this ledger entry only
 records the declared-guarantee-vs-tree divergence. **Related:** #666/#668, spec §7/#670,
 plan "Phase 5 slices".
+
+**✅ FIXED 29/09 (`b2e2fe2dd`, lane memory-safety; `D-MEM020-COMPILE`, option A):** `MEM020` now has the compile face over the existing `OwnershipPass` — `StatementAnalyzer` derives the extern→`Buffer(U8)`-arg index map and `OwnershipPass`/`SpawnCaptureScanner` cross it with spawn/await, so two unsynchronized FFI writes to the same buffer (worker×parent or worker×worker) are a compile ERROR; a single awaited write stays clean (zero false positive). The runtime borrow-guard (option B, a new core primitive) was not chosen. Proof: `FfiCaptureSpawnE2ETest` 10/10 (`concurrentFfiBufferWriteParentAndSpawnIsMem020`, `concurrentFfiBufferWriteTwoSpawnsIsMem020`, `singleAwaitedFfiBufferWriteIsNotMem020`) + `MemorySafetyE2ETest` 46/46 (re-measured green on `lab` 29/09).
 
 <!-- pt-switch --> **PT:** [§536 (pt_BR)](known-bugs.pt_BR.md#536--mem020b-03-declarado-com-zero-implementacao-duas-escritas-ffi-concorrentes-no-mesmo-bufferu8-compilam-limpo---open-dona--decisao-da-mantenedora-668-regra-6)
 ## §537 — Native `String + Char` of a surrogate pair encodes WTF-8: a supplementary character rebuilt from its UTF-16 halves is not `==` the literal and prints invalid UTF-8 on x86-64/riscv64/aarch64 — 🟡 OPEN (owner = lane native/cross); found by kof-file slice 2.1 (`libs/file/TextStream`)
