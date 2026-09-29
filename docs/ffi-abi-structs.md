@@ -209,12 +209,13 @@ Three worked examples the implementation tests must reproduce bit-exactly:
   **Landed 21/09 (D-R3-BUFFER/D-R3-HANDLE-LIFETIME):** the nominal spelling is
   **`Buffer(U8)`** (not a reuse of `Byte[]`), created with
   **`buffer.alloc(Int) : Buffer(U8)`** — the programmer never allocates/frees
-  (lifetime language-managed; `Handle` follows the same automatic rule). Slices
-  (JVM): `buffer.alloc` + `Buffer.bytes() : Byte[]` (`BufferE2ETest` 4/4) and
+  (lifetime language-managed; `Handle` follows the same automatic rule).   Slices
+  (JVM + x86-64 Native surface, #651 fatia A1): `buffer.alloc` + `Buffer.bytes() : Byte[]` (`BufferE2ETest` JVM/JS/x86 parity) and
   `Buffer(U8)` as an `extern` INOUT parameter — **copy-in / call / copy-back**
   (`BufferFfiE2ETest` 4/4 with a real C shim: writes accumulate across calls,
-  proving copy-in reads and copy-back writes). Native/JS stay `FFI001`/
-  `FFI002` (R6-SCOPE: incremental, declared gaps).
+  proving copy-in reads and copy-back writes). The Native x86-64 namespace/print
+  surface landed in #651 A1; the Native FFI `B` token remains A2 (`FFI001`) and
+  cross Native remains honest until B (R6-SCOPE: incremental, declared gaps).
 - **D6-4 · return-by-value > 16 B.** SysV hidden-pointer (sret) / AAPCS64
   hidden-x8 / LP64 reference — the *JVM* Linker hides this; the *asm*
   backend must implement sret explicitly. Flag: this is the single biggest
@@ -261,8 +262,9 @@ until decided — no silent partial binding.
     cross struct PARAM INTEGER register path (22/09, fatia 4)** —
     `FfiStructLayout` + call-site pack/materialise, golden JVM==Native.
     Remaining: cross float/HFA/> 16 B, `T[]`/`Buffer(U8)` on cross,
-    `String[]`→`char**`, `Buffer(U8)` native (all honest `FFI001`, R6 —
-    future work, not this spec).
+    `String[]`→`char**`, and the FFI `Buffer(U8)` token `B` on x86-64
+    (all honest `FFI001`, R6 — future work, not this spec; the x86-64
+    namespace/print surface landed in #651 A1).
   4. **JS**: ✅ **COMPLETE 21/09** — struct param + return, scalar array
     copy-in, `Buffer(U8)` INOUT (bridges `structParamByValueJsParity`,
     `structReturnByValueJsParity`, `arrayParamByValueJsParity`,

@@ -215,11 +215,12 @@ Três exemplos resolvidos que os testes de implementação devem reproduzir bit 
   **`buffer.alloc(Int) : Buffer(U8)`** — o programador nunca aloca/libera
   (vida gerenciada pela linguagem; `Handle` segue a mesma regra automática).
   Fatias
-  (JVM): `buffer.alloc` + `Buffer.bytes() : Byte[]` (`BufferE2ETest`
-  4/4) e `Buffer(U8)` como parâmetro INOUT de `extern` — **copy-in / chamada /
+  (JVM + superfície Native x86-64, #651 fatia A1): `buffer.alloc` + `Buffer.bytes() : Byte[]` (`BufferE2ETest` paridade JVM/JS/x86)
+  e `Buffer(U8)` como parâmetro INOUT de `extern` — **copy-in / chamada /
   copy-back** (`BufferFfiE2ETest` 4/4 com shim C real: as escritas acumulam
-  entre chamadas, provando que o copy-in lê e o copy-back escreve). Native/JS
-  seguem `FFI001`/`FFI002` (R6-SCOPE: incremental, gaps declarados).
+  entre chamadas, provando que o copy-in lê e o copy-back escreve). A superfície
+  Native x86-64 de namespace/print pousou no #651 A1; o token FFI `B` no Native
+  segue A2 (`FFI001`) e o cross Native segue honesto até B (R6-SCOPE: incremental).
 - **D6-4 · retorno by-value > 16 B.** SysV hidden-pointer (sret) /
   AAPCS64 hidden-x8 / LP64 referência — o Linker do *JVM* esconde isso; o
   backend *asm* precisa implementar sret explicitamente. Alerta: é o maior
@@ -265,7 +266,8 @@ FFI001/002 honesto até decidido — nada de binding parcial silencioso.
    JVM==Native) + fatia 3 POUSOU 22/09 (RETURN de struct INTEGER ≤ 16 B no
    cross, riscv64/aarch64, golden qemu)** + **fatia 4 POUSOU 22/09 (PARAM struct
    no cross, register path INTEGER)**; restante: float/HFA/> 16 B no cross,
-   `T[]`/`Buffer(U8)` no cross (`FFI001` honesto, R6).
+   `T[]`/`Buffer(U8)` no cross e o token FFI `Buffer(U8)` `B` no x86-64
+   (`FFI001` honesto, R6; a superfície de namespace/print x86-64 pousou no #651 A1).
 4. **JS**: ✅ **COMPLETO 21/09** — struct param + retorno, array escalar
    copy-in, `Buffer(U8)` INOUT (bridges `structParamByValueJsParity`,
    `structReturnByValueJsParity`, `arrayParamByValueJsParity`,

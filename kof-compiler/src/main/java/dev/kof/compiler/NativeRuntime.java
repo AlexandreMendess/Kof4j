@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 import dev.kof.compiler.runtime.RuntimeArray;
+import dev.kof.compiler.runtime.RuntimeBuffer;
 import dev.kof.compiler.runtime.RuntimeProcess;
 import dev.kof.compiler.runtime.RuntimeProcessResult;
 import dev.kof.compiler.runtime.RuntimeProcessSpawn;
@@ -251,6 +252,7 @@ public final class NativeRuntime {
         RuntimeEncoding.emit(sb);
         RuntimeUuid.emit(sb);
         RuntimeRandom.emit(sb);
+        RuntimeBuffer.emit(sb);
         RuntimeRng.emit(sb);
         RuntimeObservability1.emit(sb);
         RuntimeObservability2.emit(sb);

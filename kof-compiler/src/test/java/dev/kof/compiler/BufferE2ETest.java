@@ -12,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * kof.buffer / nominal {@code Buffer(U8)} (D-R3-BUFFER, maintainer 21/09).
  * Incremental slice (R6-SCOPE): {@code buffer.alloc(Int)} + {@code Buffer.bytes()}
- * on the JVM and (21/09) on the JS target; Native stays an honest gap (never a
- * silent stub).
+ * on the JVM and (21/09) on the JS target; #651 fatia A1 adds the x86-64
+ * native surface (alloc/bytes/println) with JVM byte-for-byte parity.
  */
 class BufferE2ETest {
 
@@ -51,17 +51,31 @@ class BufferE2ETest {
     }
 
     @Test
-    void allocNativeStaysFfi001(@TempDir Path dir) throws IOException {
-        Path src = dir.resolve("bufnat.kf");
-        Files.writeString(src, """
+    void allocBytesAndPrintlnNativeParity(@TempDir Path dir) throws IOException {
+        String kof = """
                 main() {
-                    println(buffer.alloc(4))
+                    val b = buffer.alloc(4)
+                    println(b)
+                    println(b.bytes())
+                    println(buffer.alloc(0))
+                    println(buffer.alloc(-3))
                 }
-                """);
-        CompilationResult r = driver.compile(src, dir.resolve("out-bufnat"), Target.NATIVE);
-        assertFalse(r.success(), "Native buffer ABI is a later slice — must stay unbound");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "expected FFI001 on Native, got: " + r.diagnostics().getDiagnostics());
+                """;
+        Path jvmSrc = dir.resolve("bufnat-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        CompilationResult rj = driver.compile(jvmSrc, dir.resolve("out-bufnat-jvm"), Target.JVM);
+        assertTrue(rj.success(), "JVM compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(dir.resolve("out-bufnat-jvm"));
+
+        Path natSrc = dir.resolve("bufnat.kf");
+        Files.writeString(natSrc, kof);
+        CompilationResult rn = driver.compile(natSrc, dir.resolve("out-bufnat"), Target.NATIVE);
+        assertTrue(rn.success(), "#651 fatia A1: buffer.alloc/bytes/println must bind on x86-64 Native: "
+                + rn.diagnostics().getDiagnostics());
+        String nativeOut = runNative(dir.resolve("out-bufnat"));
+        assertEquals(jvm, nativeOut, "JVM==Native byte-for-byte parity (kof.buffer x86-64 fatia A1)");
+        assertEquals("Buffer[4]\n[0, 0, 0, 0]\nBuffer[0]\nBuffer[0]", nativeOut,
+                "native Buffer keeps the JVM contract: zero-filled, clamp, toString, bytes copy");
     }
 
     @Test
@@ -99,6 +113,24 @@ class BufferE2ETest {
                 new java.io.ByteArrayInputStream(new byte[0]), out);
         assertEquals(0, ec, "JS exit code, output: " + out);
         return out.toString(java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+    }
+
+    private String runNative(Path outDir) throws IOException {
+        Path bin = outDir.resolve("Default/Main");
+        assertTrue(Files.exists(bin), "binary " + bin + " deve existir");
+        try {
+            Process p = new ProcessBuilder(bin.toString())
+                    .directory(outDir.getParent().toFile())
+                    .redirectErrorStream(true).start();
+            String o = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+            int ec = p.waitFor();
+            assertEquals(0, ec, () -> "NATIVE run exit code, output: " + o);
+            return o;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted", e);
+        }
     }
 
     private String runJvm(Path outDir) throws IOException {

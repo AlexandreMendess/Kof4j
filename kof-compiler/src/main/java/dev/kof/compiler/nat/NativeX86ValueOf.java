@@ -1,5 +1,6 @@
 package dev.kof.compiler.nat;
 import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.KofBuffer;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofProcess;
@@ -71,6 +72,13 @@ final class NativeX86ValueOf {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_double_to_string\n");
+                sb.append("    pushq %rax\n");
+            } else if (KofBuffer.isBufferType(dispatchType)) {
+                // #651 fatia A1: Buffer nominal é impresso pelo seu contrato
+                // de valor ("Buffer[cap]"), não como ponteiro cru nem via
+                // vtable (a classe não existe no native class-metadata).
+                sb.append("    popq %rdi\n");
+                sb.append("    call kof_buffer_to_string\n");
                 sb.append("    pushq %rax\n");
             } else if (dispatchType instanceof Type.ArrayType at) {
                 // §388-B (voto mantenedora 21/09): println de array cru no

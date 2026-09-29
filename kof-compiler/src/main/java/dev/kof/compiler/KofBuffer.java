@@ -7,11 +7,11 @@ import java.util.List;
  * (D-R3-BUFFER / D6-3, maintainer 21/09/2026).
  *
  * <p>Incremental slice (R6-SCOPE): {@code buffer.alloc(Int) : Buffer(U8)} and
- * {@code Buffer.bytes() : Byte[]} on the JVM and, since 21/09, also on the JS
- * target ({@code JsRuntimeBuffer}, same contract as {@code KofRuntime$Buffer}).
- * The programmer never allocates or frees — the lifetime is language-managed
- * (D-R3-HANDLE-LIFETIME). Native stays an honest gap; the FFI out-buffer
- * (token {@code B}) is a separate slice and still {@code FFI002} on JS.
+ * {@code Buffer.bytes() : Byte[]} on the JVM, JS, and — since the #651 fatia A1
+ * x86 surface — the {@code Target.NATIVE} x86-64 backend. The programmer never
+ * allocates or frees — the lifetime is language-managed (D-R3-HANDLE-LIFETIME).
+ * The FFI out-buffer token {@code B} remains a separate later slice (fatia A2);
+ * cross Native targets stay an honest gap.
  */
 public final class KofBuffer {
     private KofBuffer() {}
@@ -25,7 +25,7 @@ public final class KofBuffer {
     /** LSP catalogue — GUARD: StdCatalogTest locks this to the dispatch below. */
     static List<String> functions() { return List.of("alloc"); }
 
-    static boolean isBufferType(Type t) { return BUFFER.equals(t); }
+    public static boolean isBufferType(Type t) { return BUFFER.equals(t); }
 
     /** The element type accepted in `Buffer(<elem>)` — only U8 (Kof `Byte`) in v1. */
     static boolean isBufferElement(String t) {
@@ -53,13 +53,15 @@ public final class KofBuffer {
     }
 
     static boolean supportedOn(Target target) {
-        return target == Target.JVM || target == Target.JS; // Native honest gap (R6/R7)
+        // JVM/JS landed in 21/09; x86-64 native surface (alloc/bytes/println) landed in
+        // #651 fatia A1. Cross native targets and the FFI B token remain honest gaps.
+        return target == Target.JVM || target == Target.JS || target == Target.NATIVE;
     }
 
     static String gapCode(Target target) {
-        // Buffer binds on JVM AND JS (D-R3-BUFFER; the JS namespace landed on the
-        // JS target in R57/R58) — the JS-specific FFI002 gap is gone. The only
-        // remaining gap is the Native family (and other non-JVM/JS targets) → FFI001.
+        // The Buffer namespace binds on JVM, JS and x86-64 Native. Cross Native targets
+        // (and other non-JVM/JS targets) still report FFI001; the FFI `B` parameter is
+        // separately gated by the extern binding rule and is not opened by fatia A1.
         return "FFI001";
     }
 }
