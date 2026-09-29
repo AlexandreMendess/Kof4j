@@ -734,6 +734,19 @@ compatibility mechanism; the policy of WHICH tier an interface gets stays a rule
 
 ---
 
+
+## 9.15 Promoted slice 15 (29/09/2026) — connector manifest template (generator)
+
+**State:** landed. `interop.ConnectorTemplate` supplies the pure-Kof half of the §8 connector generator:
+given a connector's identity and declarations it renders a canonical `kof.toml` manifest (§4.2) —
+the existing format, never a new one. `render()` is target-neutral; the round-trip is the proof: the
+template writes the file, `ConnectorManifest` reads it back and `validate()` passes.
+
+**Proof:** `ConnectorTemplateE2ETest` **5/5** (render golden on JVM + Script + Native x86-64; a real
+round-trip write→read→validate on JVM; the JS `IOJS001` gap). No compiler change.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
@@ -759,11 +772,11 @@ golden corpus; compatibility and negative tests are gates, not extras.
 ---
 
 
-**Landed Core suite (29/09/2026).** The pure-Kof Interop Core is covered by 11 cross-target E2E
-classes, all green together (**60/60**): `ConnectorManifestE2ETest` (10), `ConnectorCatalogueE2ETest`
+**Landed Core suite (29/09/2026).** The pure-Kof Interop Core is covered by 12 cross-target E2E
+classes, all green together (**65/65**): `ConnectorManifestE2ETest` (10), `ConnectorCatalogueE2ETest`
 (4), `InteropCoreE2ETest` (4), `InteropTypeE2ETest` (5), `InteropOwnershipE2ETest` (5),
 `InteropStringE2ETest` (5), `InteropCostE2ETest` (5), `InteropLibraryE2ETest` (5),
-`InteropCompatibilityE2ETest` (6), `ConnectorSpiE2ETest` (5), `ForeignModuleE2ETest` (6) — each runs
+`InteropCompatibilityE2ETest` (6), `ConnectorSpiE2ETest` (5), `ForeignModuleE2ETest` (6), `ConnectorTemplateE2ETest` (5) — each runs
 JVM golden + Script + Native x86-64 (+ JS where the library is target-neutral; the file-IO libraries
 assert the JS `IOJS001` gap), plus the negative diagnostics.
 
