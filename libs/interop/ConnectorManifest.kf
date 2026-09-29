@@ -3,6 +3,7 @@ package interop
 import file.Toml
 import interop.InteropType
 import interop.InteropOwnership
+import interop.ConnectorSpi
 
 // kof.interop — connector manifest reader (fatia 1 of the Kof Connector
 // Ecosystem plan, `D-CONNECTORS-GO`, promoted 29/09/2026).
@@ -81,6 +82,12 @@ class ConnectorManifest {
         return optionalList("types")
     }
 
+    // The SPI adapter hooks this connector provides (plan §4.1), validated
+    // against the Core's SPI vocabulary (`ConnectorSpi`).
+    List<String> spi() {
+        return optionalList("spi")
+    }
+
     Bool hasCapability(String capability) {
         return capabilities().contains(capability)
     }
@@ -133,6 +140,18 @@ class ConnectorManifest {
                 throw "CONNECTOR: unknown type " + t
             }
             k = k + 1
+        }
+        // Declared SPI hooks must belong to the Core SPI (§4.1) — validated
+        // through `ConnectorSpi`, never accepted blindly.
+        var spiModel = ConnectorSpi()
+        var declared = spi()
+        var m = 0
+        while (m < declared.size()) {
+            var h = declared.get(m)
+            if (!spiModel.isKnownHook(h)) {
+                throw "CONNECTOR: unknown SPI hook " + h
+            }
+            m = m + 1
         }
     }
 

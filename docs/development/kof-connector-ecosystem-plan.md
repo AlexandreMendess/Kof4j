@@ -691,6 +691,21 @@ negatives). No compiler change; target-neutral.
 
 ---
 
+
+## 9.12 Promoted slice 12 (29/09/2026) — connector SPI hooks
+
+**State:** landed. `interop.ConnectorSpi` names the §4.1 adapter hooks a connector may provide
+(marshalling/lifecycle/error-mapping/callback-bridging/symbol-resolution/abi-declaration) — the stable
+service interface behind which a connector implements only what the Core does not provide. The
+connector manifest now declares them (`spi = [...]`, §4.2) and `validate()` checks each against the
+Core vocabulary, so adding a connector never changes the compiler core. Honest (R6): an unknown hook
+throws `INTEROP: unknown SPI hook <x>` (standalone) / `CONNECTOR: unknown SPI hook <x>` (manifest).
+
+**Proof:** `ConnectorSpiE2ETest` **5/5** + `ConnectorManifestE2ETest` **9/9** (JVM golden + Script +
+JS + Native x86-64 + negatives). No compiler change; target-neutral.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:

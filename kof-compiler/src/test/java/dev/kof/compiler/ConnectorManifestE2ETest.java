@@ -42,7 +42,8 @@ class ConnectorManifestE2ETest {
             + "dependencies = [\"ExternalClasspath\"]\n"
             + "capabilities = [\"callbacks\", \"threads\"]\n"
             + "ownership = [\"borrowed\", \"immutable\"]\n"
-            + "types = [\"integer\", \"string\", \"array\"]\n";
+            + "types = [\"integer\", \"string\", \"array\"]\n"
+            + "spi = [\"marshalling\", \"symbol-resolution\"]\n";
 
     private static final String GOLDEN = String.join("\n",
             "name=kof-java",
@@ -56,6 +57,7 @@ class ConnectorManifestE2ETest {
             "caps=2",
             "owners=2",
             "types=3",
+            "spi=2",
             "callbacks=true",
             "gc=false",
             "valid=ok");
@@ -160,6 +162,14 @@ class ConnectorManifestE2ETest {
         assertEquals("CONNECTOR: unknown ownership ancient", runJvm(validateProbe(src)));
     }
 
+    @Test
+    void unknownSpiHookIsAnExplicitDiagnostic() throws Exception {
+        Path src = tmp.resolve("bad-spi.toml");
+        Files.writeString(src, "name = \"x\"\nlanguage = \"x\"\nversion = \"1\"\nabi = \"c\"\n"
+                + "runtime = \"x\"\nspi = [\"marshalling\", \"telepathy\"]\n");
+        assertEquals("CONNECTOR: unknown SPI hook telepathy", runJvm(validateProbe(src)));
+    }
+
     private static String validateProbe(Path src) {
         return """
             import interop.ConnectorManifest
@@ -229,6 +239,7 @@ class ConnectorManifestE2ETest {
                 println("caps=" + m.capabilities().size())
                 println("owners=" + m.ownership().size())
                 println("types=" + m.supportedTypes().size())
+                println("spi=" + m.spi().size())
                 println("callbacks=" + flag(m.hasCapability("callbacks")))
                 println("gc=" + flag(m.hasCapability("gc")))
                 m.validate()

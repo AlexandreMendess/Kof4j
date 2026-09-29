@@ -698,6 +698,22 @@ negativos). Sem mudança no compilador; neutro de alvo.
 
 ---
 
+
+## 9.12 Fatia promovida 12 (29/09/2026) — hooks da SPI de connector
+
+**Estado:** landada. `interop.ConnectorSpi` nomeia os hooks de adapter da §4.1 que um connector pode
+fornecer (marshalling/lifecycle/error-mapping/callback-bridging/symbol-resolution/abi-declaration) —
+a interface de serviço estável atrás da qual o connector implementa só o que o Core não fornece. O
+manifesto do connector agora os declara (`spi = [...]`, §4.2) e o `validate()` checa cada um contra o
+vocabulário do Core, então adicionar um connector nunca muda o núcleo do compilador. Honesto (R6):
+hook desconhecido lança `INTEROP: unknown SPI hook <x>` (avulso) / `CONNECTOR: unknown SPI hook <x>`
+(manifesto).
+
+**Prova:** `ConnectorSpiE2ETest` **5/5** + `ConnectorManifestE2ETest` **9/9** (golden JVM + Script +
+JS + Native x86-64 + negativos). Sem mudança no compilador; neutro de alvo.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:
