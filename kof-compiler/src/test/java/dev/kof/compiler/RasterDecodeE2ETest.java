@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import javax.imageio.ImageIO;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -59,6 +61,12 @@ class RasterDecodeE2ETest {
             "QOI:1x3 ch=4",
             "px=10,20,30,255,10,20,30,255,10,20,30,255");
 
+    private static final String PNG_GOLDEN = String.join("\n",
+            "PNG:2x2 ch=3",
+            "px=10,20,30,40,50,60,70,80,90,100,110,120",
+            "PNG:2x2 ch=4",
+            "px=2,3,4,1,6,7,8,5,10,11,12,9,14,15,16,13");
+
     @Test
     void decodesRasterOnJvm() throws Exception {
         Path dir = rasterFixtures(tmp.resolve("jvm-rasters"));
@@ -67,10 +75,9 @@ class RasterDecodeE2ETest {
 
     @Test
     void rasterUnsupportedFormatThrows() throws Exception {
-        Path src = tmp.resolve("a.png");
-        Files.write(src, new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A,
-                0, 0, 0, 13, 'I', 'H', 'D', 'R', 0, 0, 0, 2, 0, 0, 0, 2, 8, 2, 0, 0, 0});
-        assertEquals("IMAGE: raster decode is not supported for PNG", runJvm(errorProbe(src)));
+        Path src = tmp.resolve("a.gif");
+        Files.write(src, new byte[]{'G','I','F','8','9','a',3,0,4,0,0,0,0});
+        assertEquals("IMAGE: raster decode is not supported for GIF", runJvm(errorProbe(src)));
     }
 
     @Test
@@ -107,6 +114,39 @@ class RasterDecodeE2ETest {
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
         Path dir = rasterFixtures(tmp.resolve("riscv-rasters"));
         assertEquals(GOLDEN, runCrossCode("riscv64", Target.NATIVE_RISCV64, rasterProbe(dir)));
+    }
+
+    @Test
+    void pngDecodesOnJvm() throws Exception {
+        Path dir = rasterFixtures(tmp.resolve("jvm-png"));
+        assertEquals(PNG_GOLDEN, runJvm(pngProbe(dir)));
+    }
+
+    @Test
+    void pngDecodesOnScript() throws Exception {
+        Path root = tmp.resolve("script-png");
+        Files.createDirectories(root);
+        Path dir = rasterFixtures(root.resolve("fixtures"));
+        Files.writeString(root.resolve("Main.kf"), pngProbe(dir));
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(PNG_GOLDEN, result.stdout().strip());
+    }
+
+    @Test
+    void pngDecodesOnNativeRiscv64() throws Exception {
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross riscv64 + qemu absent — skipping (NATIVE002)");
+        Path dir = rasterFixtures(tmp.resolve("riscv-png"));
+        assertEquals(PNG_GOLDEN, runCrossCode("riscv64", Target.NATIVE_RISCV64, pngProbe(dir)));
+    }
+
+    @Test
+    void pngOnNativeX86QuarantinedBy541() {
+        Assumptions.abort("known-bugs §541: x86-native inflate returns 0 (Huffman table corrupted "
+                + "in the inflate flow) — PNG decode quarantined on x86 until the native GC/codegen "
+                + "fix lands; JVM/riscv64/Script decode correctly");
     }
 
     @Test
@@ -163,6 +203,32 @@ class RasterDecodeE2ETest {
             """.formatted(base);
     }
 
+    private static String pngProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Raster
+
+            String dump(Raster r) {
+                var out = r.format + ":" + r.width + "x" + r.height + " ch=" + r.channels + "\\npx="
+                var i = 0
+                while (i < r.samples.length) {
+                    if (i > 0) {
+                        out = out + ","
+                    }
+                    out = out + r.samples[i]
+                    i = i + 1
+                }
+                return out
+            }
+
+            main() {
+                var base = "%s"
+                println(dump(decodeRaster(base + "/p_rgb.png")))
+                println(dump(decodeRaster(base + "/p_rgba.png")))
+            }
+            """.formatted(base);
+    }
+
     private static String errorProbe(Path src) {
         return """
             import image.Raster
@@ -187,6 +253,10 @@ class RasterDecodeE2ETest {
         Files.write(dir.resolve("blur.pgm"), rasterBlur());
         Files.write(dir.resolve("q2.qoi"), qoiRgba());
         Files.write(dir.resolve("q3.qoi"), qoiRun());
+        writePng(dir.resolve("p_rgb.png"), BufferedImage.TYPE_INT_RGB, new int[]{
+                0x0A141E, 0x28323C, 0x46505A, 0x646E78});
+        writePng(dir.resolve("p_rgba.png"), BufferedImage.TYPE_INT_ARGB, new int[]{
+                0x01020304, 0x05060708, 0x090A0B0C, 0x0D0E0F10});
         return dir;
     }
 
@@ -214,6 +284,14 @@ class RasterDecodeE2ETest {
             out.write(v & 0xFF);
         }
         return out.toByteArray();
+    }
+
+    private static void writePng(Path file, int type, int[] argb) throws Exception {
+        BufferedImage img = new BufferedImage(2, 2, type);
+        for (int i = 0; i < 4; i++) {
+            img.setRGB(i % 2, i / 2, argb[i]);
+        }
+        ImageIO.write(img, "png", file.toFile());
     }
 
     private static byte[] qoiRgba() throws Exception {

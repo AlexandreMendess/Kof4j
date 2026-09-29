@@ -1,6 +1,7 @@
 package image
 
 import image.Image
+import image.Png
 
 // kof.image — raw raster decode, first pixel slice (provisional surface).
 //
@@ -45,6 +46,9 @@ Raster decodeRaster(String path) {
     }
     if (fmt == "QOI") {
         return qoiRaster(path, img.width(), img.height())
+    }
+    if (fmt == "PNG") {
+        return pngRaster(path)
     }
     throw "IMAGE: raster decode is not supported for " + fmt
 }

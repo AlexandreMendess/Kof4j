@@ -657,7 +657,7 @@ ability genuinely does not exist on a target.
 
 **Missing — ordered by cost:**
 
-1. **PNG decode (pure Kof, parity; highest value).**
+1. **PNG decode (pure Kof) — LANDED 29/09 on JVM/riscv64/Script; x86 quarantined by `known-bugs` §541.**
    - Files: `libs/image/Png.kf` (new), `libs/image/Raster.kf` (`decodeRaster`
      dispatch `fmt == "PNG"`).
    - Work: `IHDR` parse (color type 0/2/3/4/6, bit depth 8), `IDAT`

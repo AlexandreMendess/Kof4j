@@ -1,0 +1,204 @@
+package image
+
+import image.Image
+import image.Inflate
+
+// kof.image — pure-Kof PNG decoder (part of the pixel slice).
+//
+// Bit depth 8, no interlace; color types 0 (gray), 2 (RGB), 3 (palette),
+// 4 (gray+alpha) and 6 (RGBA). IDAT is inflated with the Kof DEFLATE in
+// `Inflate.kf`; the five scanline filters (None/Sub/Up/Average/Paeth) are
+// reversed here. Palette images expand to RGB. No zlib, no interop — full
+// target parity.
+//
+//   decodeRaster("logo.png")   // PNG is routed here from Raster.kf
+//
+// Bounded by the same ≤16384-sample cap as the rest of the raster slice (the
+// whole PNG is read once, so keep the files within the bounded-read contract;
+// very large files wait for `known-bugs` §540). A malformed PNG throws
+// `IMAGE:`.
+
+Raster pngRaster(String path) {
+    var b = File(path).readBytes()
+    if (b.length < 8 || !matchesAscii(b, 1, "PNG")) {
+        throw "IMAGE: bad PNG signature"
+    }
+    var width = 0
+    var height = 0
+    var bitDepth = 0
+    var colorType = 0
+    var interlace = 0
+    var plte = new Int[768]
+    var plteLen = 0
+    var off = 8
+    var idat = new Int[b.length]
+    var idatLen = 0
+    var seenIhdr = false
+    while (off + 8 <= b.length) {
+        var len = be32(b, off)
+        if (len < 0 || off + 12 + len > b.length) {
+            throw "IMAGE: malformed PNG chunk"
+        }
+        var dataOff = off + 8
+        if (matchesAscii(b, off + 4, "IHDR")) {
+            need(b, dataOff + 13, "PNG")
+            width = be32(b, dataOff)
+            height = be32(b, dataOff + 4)
+            bitDepth = b[dataOff + 8] & 255
+            colorType = b[dataOff + 9] & 255
+            interlace = b[dataOff + 12] & 255
+            seenIhdr = true
+        } else if (matchesAscii(b, off + 4, "PLTE")) {
+            var i = 0
+            while (i < len && i < 768) {
+                plte[i] = b[dataOff + i] & 255
+                i = i + 1
+            }
+            plteLen = len
+        } else if (matchesAscii(b, off + 4, "IDAT")) {
+            var i = 0
+            while (i < len) {
+                idat[idatLen + i] = b[dataOff + i] & 255
+                i = i + 1
+            }
+            idatLen = idatLen + len
+        } else if (matchesAscii(b, off + 4, "IEND")) {
+            off = b.length
+        }
+        off = off + 12 + len
+    }
+    if (!seenIhdr || width <= 0 || height <= 0) {
+        throw "IMAGE: PNG has no IHDR"
+    }
+    if (bitDepth != 8) {
+        throw "IMAGE: unsupported PNG bit depth " + bitDepth
+    }
+    if (interlace != 0) {
+        throw "IMAGE: interlaced PNG is not supported"
+    }
+    var srcChannels = 1
+    if (colorType == 2) {
+        srcChannels = 3
+    } else if (colorType == 3) {
+        srcChannels = 1
+    } else if (colorType == 4) {
+        srcChannels = 2
+    } else if (colorType == 6) {
+        srcChannels = 4
+    } else if (colorType != 0) {
+        throw "IMAGE: unsupported PNG color type " + colorType
+    }
+    var outChannels = srcChannels
+    if (colorType == 3) {
+        outChannels = 3
+    }
+    var count = width * height * outChannels
+    guardRaster(count)
+    var rowBytes = width * srcChannels
+    var rawLen = height * (1 + rowBytes)
+    var zdata = new Int[idatLen - 2]
+    var z = 0
+    while (z < idatLen - 2) {
+        zdata[z] = idat[z + 2]
+        z = z + 1
+    }
+    var inflate = Inflate(zdata, rawLen)
+    var got = inflate.run()
+    if (got < rawLen) {
+        throw "IMAGE: truncated PNG image data (got " + got + " of " + rawLen + ")"
+    }
+    var pixels = unfilter(inflate.out, width, height, srcChannels)
+    return expand(pixels, width, height, srcChannels, outChannels, colorType, plte, plteLen)
+}
+
+Int[] unfilter(Int[] raw, Int width, Int height, Int bpp) {
+    var rowBytes = width * bpp
+    var out = new Int[height * rowBytes]
+    var y = 0
+    while (y < height) {
+        var ft = raw[y * (1 + rowBytes)] & 255
+        var src = y * (1 + rowBytes) + 1
+        var dst = y * rowBytes
+        var prev = (y - 1) * rowBytes
+        var x = 0
+        while (x < rowBytes) {
+            var a = 0
+            var b = 0
+            var c = 0
+            if (x >= bpp) {
+                a = out[dst + x - bpp]
+            }
+            if (y > 0) {
+                b = out[prev + x]
+            }
+            if (y > 0 && x >= bpp) {
+                c = out[prev + x - bpp]
+            }
+            var v = raw[src + x] & 255
+            if (ft == 0) {
+                out[dst + x] = v
+            } else if (ft == 1) {
+                out[dst + x] = (v + a) & 255
+            } else if (ft == 2) {
+                out[dst + x] = (v + b) & 255
+            } else if (ft == 3) {
+                out[dst + x] = (v + ((a + b) >> 1)) & 255
+            } else if (ft == 4) {
+                out[dst + x] = (v + paeth(a, b, c)) & 255
+            } else {
+                throw "IMAGE: bad PNG filter"
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+    return out
+}
+
+Int paeth(Int a, Int b, Int c) {
+    var p = a + b - c
+    var pa = p - a
+    if (pa < 0) {
+        pa = 0 - pa
+    }
+    var pb = p - b
+    if (pb < 0) {
+        pb = 0 - pb
+    }
+    var pc = p - c
+    if (pc < 0) {
+        pc = 0 - pc
+    }
+    if (pa <= pb && pa <= pc) {
+        return a
+    }
+    if (pb <= pc) {
+        return b
+    }
+    return c
+}
+
+Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChannels, Int colorType, Int[] plte, Int plteLen) {
+    var count = width * height * outChannels
+    var samples = new Int[count]
+    var px = 0
+    while (px < width * height) {
+        if (colorType == 3) {
+            var idx = pixels[px] & 255
+            if (idx * 3 + 2 >= plteLen) {
+                throw "IMAGE: PNG palette index out of range"
+            }
+            samples[px * 3] = plte[idx * 3]
+            samples[px * 3 + 1] = plte[idx * 3 + 1]
+            samples[px * 3 + 2] = plte[idx * 3 + 2]
+        } else {
+            var c = 0
+            while (c < outChannels) {
+                samples[px * outChannels + c] = pixels[px * srcChannels + c]
+                c = c + 1
+            }
+        }
+        px = px + 1
+    }
+    return Raster("PNG", width, height, outChannels, samples)
+}

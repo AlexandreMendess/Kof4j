@@ -799,7 +799,7 @@ capacidade realmente não existe no alvo.
 
 **Falta — em ordem de custo:**
 
-1. **Decode PNG (Kof puro, paridade; maior valor).**
+1. **Decode PNG (Kof puro) — LANDED 29/09 na JVM/riscv64/Script; x86 em quarentena pelo `known-bugs` §541.**
    - Arquivos: `libs/image/Png.kf` (novo), `libs/image/Raster.kf` (dispatch
      `fmt == "PNG"`).
    - Trabalho: parse do `IHDR` (color type 0/2/3/4/6, bit depth 8), concatenar
