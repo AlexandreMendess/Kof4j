@@ -21,9 +21,9 @@ import image.Image
 // fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
 // 16-bit PNM, comments in the pixel area) throws a `String` beginning with
 // `IMAGE:` — never a silent wrong decode. `cropRaster`, `resizeNearest`,
-// `flipHorizontal`/`flipVertical` and `rotate90` operate on a `Raster` in pure
-// Kof (nearest-neighbour; smooth filtering rides the interop slice); their
-// output is bounded by the same cap.
+// `flipHorizontal`/`flipVertical`, `rotate90`, `grayscale`, `threshold` and
+// `boxBlur` operate on a `Raster` in pure Kof (nearest-neighbour; smooth
+// filtering rides the interop slice); their output is bounded by the same cap.
 //
 // The final `Image`/`Pixel`/`Color` value surface and the imageio bindings are
 // a rule-6 decision (see the plan); this `Raster` view is provisional and
@@ -239,6 +239,94 @@ Raster rotate90(Raster r) {
         y = y + 1
     }
     return Raster(r.format, r.height, r.width, r.channels, out)
+}
+
+// Luminance grayscale (BT.601 `0.299R+0.587G+0.114B`), alpha kept; a 1-channel
+// raster is returned unchanged.
+Raster grayscale(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    if (r.channels < 3) {
+        var k = 0
+        while (k < out.length) {
+            out[k] = r.samples[k]
+            k = k + 1
+        }
+        return Raster(r.format, r.width, r.height, r.channels, out)
+    }
+    var px = 0
+    while (px < r.width * r.height) {
+        var base = px * r.channels
+        var y = (r.samples[base] * 299 + r.samples[base + 1] * 587 + r.samples[base + 2] * 114) / 1000
+        out[base] = y
+        out[base + 1] = y
+        out[base + 2] = y
+        if (r.channels == 4) {
+            out[base + 3] = r.samples[base + 3]
+        }
+        px = px + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+// Binary threshold: a colour sample becomes 255 when >= `level`, else 0; alpha
+// (4-channel) is preserved.
+Raster threshold(Raster r, Int level) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var px = 0
+    while (px < r.width * r.height) {
+        var base = px * r.channels
+        var c = 0
+        while (c < r.channels) {
+            if (r.channels == 4 && c == 3) {
+                out[base + c] = r.samples[base + c]
+            } else if (r.samples[base + c] >= level) {
+                out[base + c] = 255
+            } else {
+                out[base + c] = 0
+            }
+            c = c + 1
+        }
+        px = px + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+// 3x3 box blur, borders clamped (edge cells average fewer neighbours).
+Raster boxBlur(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var row = 0
+    while (row < r.height) {
+        var col = 0
+        while (col < r.width) {
+            var c = 0
+            while (c < r.channels) {
+                var sum = 0
+                var n = 0
+                var dy = -1
+                while (dy <= 1) {
+                    var dx = -1
+                    while (dx <= 1) {
+                        var yy = row + dy
+                        var xx = col + dx
+                        if (yy >= 0 && yy < r.height && xx >= 0 && xx < r.width) {
+                            sum = sum + r.samples[(yy * r.width + xx) * r.channels + c]
+                            n = n + 1
+                        }
+                        dx = dx + 1
+                    }
+                    dy = dy + 1
+                }
+                out[(row * r.width + col) * r.channels + c] = sum / n
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
 }
 
 String buildPnmName(Bool color) {

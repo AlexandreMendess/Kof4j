@@ -47,7 +47,13 @@ class RasterDecodeE2ETest {
             "PPM:2x2 ch=3",
             "px=7,8,9,1,2,3,10,11,12,4,5,6",
             "BMP:2x2 ch=3",
-            "px=10,20,30,40,50,60,70,80,90,100,110,120");
+            "px=10,20,30,40,50,60,70,80,90,100,110,120",
+            "PPM:2x2 ch=3",
+            "px=1,1,1,4,4,4,7,7,7,10,10,10",
+            "PPM:2x2 ch=3",
+            "px=0,0,0,0,255,255,255,255,255,255,255,255",
+            "PGM:3x3 ch=1",
+            "px=2,1,2,1,1,1,2,1,2");
 
     @Test
     void decodesRasterOnJvm() throws Exception {
@@ -144,6 +150,9 @@ class RasterDecodeE2ETest {
                 println(dump(flipVertical(rgb)))
                 println(dump(rotate90(rgb)))
                 println(dump(decodeRaster(base + "/t.bmp")))
+                println(dump(grayscale(rgb)))
+                println(dump(threshold(rgb, 5)))
+                println(dump(boxBlur(decodeRaster(base + "/blur.pgm"))))
             }
             """.formatted(base);
     }
@@ -169,6 +178,7 @@ class RasterDecodeE2ETest {
         Files.write(dir.resolve("gray.pgm"), rasterPgm());
         Files.write(dir.resolve("rgba.ff"), rasterFarbfeld());
         Files.write(dir.resolve("t.bmp"), rasterBmp24());
+        Files.write(dir.resolve("blur.pgm"), rasterBlur());
         return dir;
     }
 
@@ -195,6 +205,13 @@ class RasterDecodeE2ETest {
             out.write(v & 0xFF);
             out.write(v & 0xFF);
         }
+        return out.toByteArray();
+    }
+
+    private static byte[] rasterBlur() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("P5\n3 3\n255\n".getBytes(StandardCharsets.US_ASCII));
+        out.write(new byte[]{0, 0, 0, 0, 9, 0, 0, 0, 0});
         return out.toByteArray();
     }
 

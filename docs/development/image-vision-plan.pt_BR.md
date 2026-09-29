@@ -11,6 +11,7 @@
 > **Fatia 2b LANDED 29/09:** operações de raster pure-Kof sobre o `Raster` provisório — `cropRaster(r,x,y,w,h)` e `resizeNearest(r,w,h)` (vizinho mais próximo), saída limitada pelo mesmo teto; filtragem suave aguarda a fatia de interop. Prova: `RasterDecodeE2ETest` 7/7.
 > **Fatia 2c LANDED 29/09:** `flipHorizontal`, `flipVertical` e `rotate90` (horário, dimensões trocam) sobre o `Raster` provisório. Prova: `RasterDecodeE2ETest` 7/7.
 > **Fatia 2d LANDED 29/09:** `decodeRaster` também decodifica **BMP** 24/32-bit não comprimido (linhas BGR com padding de 4 bytes, bottom-up ou top-down, alpha descartado). Prova: `RasterDecodeE2ETest` 7/7.
+> **Fatia 2e LANDED 29/09 (overlap de processamento):** `grayscale` (BT.601), `threshold(level)` e `boxBlur` (3x3, bordas clampadas) sobre o `Raster`. Prova: `RasterDecodeE2ETest` 7/7.
 
 ## Objetivo
 
