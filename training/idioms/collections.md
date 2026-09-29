@@ -101,6 +101,22 @@ prev = m.putIfAbsent("z", 9)             // overwrite; null when the key is new
   `sort()` is natural order, period. To search a position, `indexOf(x)`
   (not a manual `get(i)` loop with `||`).
 
+## Quantifiers `any`/`all`/`none` (D-MULTIPARADIGMA-PHASE1A slice 1a, all targets)
+
+```kof
+var xs = listOf(1, 2, 3)
+var hasBig = xs.any((x) -> x > 2)     // true — stops at the first match
+var allPos = xs.all((x) -> x > 0)     // true — vacuous on empty
+var noBig = xs.none((x) -> x > 9)     // true — vacuous on empty
+```
+
+Eager short-circuit loops: the predicate runs until the answer is known, then
+stops (a `throw` past the decision point never fires). Vacuous: `all`/`none`
+are true on empty, `any` is false (`none` ≡ ¬`any`, maintainer decision 28/09).
+Predicates use the `filter` truthiness rule. Bare `(x)` params inherit the
+element type (SG-012, generalized); no-`take`/`drop`/`slice` here — those are
+pagination P1.
+
 ## `listOf` with related subtypes infers the common ancestor (0.5.0-beta, §285)
 
 ```kof

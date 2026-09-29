@@ -959,8 +959,7 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > JVM/Native/Script + lacuna JS `IOJS001`, `FileLibraryE2ETest` 7/7).
 > **ABERTA (6ª frente):** `multiparadigma` — promovido 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) para
-> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatia 1a = `any`/`all`/`none`
-> em `List` (fronteira: `take`/`drop`/`slice` = P1 pagination, não tocados).
+> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatia 1a LANDED (`any`/`all`/`none` + `ListQuantifiersE2ETest` 5/5 + paridade script).
 > Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).

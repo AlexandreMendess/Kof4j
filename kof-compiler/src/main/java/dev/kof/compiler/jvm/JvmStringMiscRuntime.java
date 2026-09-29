@@ -106,6 +106,37 @@ public final class JvmStringMiscRuntime {
                     return out;
                 }
 
+                // ── D-MULTIPARADIGMA-PHASE1A — eager short-circuit quantifiers.
+                // Truthiness reuses the filter rule (TRUE or 1); vacuous:
+                // all=true, any/none=false on empty. Lambdas throw through.
+
+                public static boolean kof_list_any(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return true;
+                    }
+                    return false;
+                }
+
+                public static boolean kof_list_all(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (!(Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r))) return false;
+                    }
+                    return true;
+                }
+
+                public static boolean kof_list_none(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return false;
+                    }
+                    return true;
+                }
+
                 public static Object kof_list_reduce(
                         java.util.ArrayList<?> list, Object initial, Object lambda) throws Exception {
                     Object acc = initial;

@@ -6,8 +6,8 @@
 **Owner:** issues lane (this session).
 **Decision:** `D-MULTIPARADIGMA-GO` (Tier 2.x) + `D-MULTIPARADIGMA-PHASE1A` (`DECISIONS.md`) — Phase-1a scope locked during implementation (the plan owns it).
 **Real state (measured 28/09):** `map`/`filter`/`reduce` exist eager on `List` (all targets); `any`/`all`/`none` do not exist anywhere (zero corpus usage, no keywords); the `kof_list_*` per-target pattern is established; Phase-1a spec (§4 table) fully defines short-circuit + vacuous semantics.
-**Slice 1a (this promotion):** `any`/`all`/`none` on `List` — eager short-circuit quantifiers reusing the `kof_list_*` pattern, zero typer/lowerer machinery beyond the map/filter path. BOUNDARY (pagination lane's ride, NOT touched): `take`/`drop`/`slice`; later: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/rest.
-**How to finish:** typer + lowerer + gates + JVM + Native-x86 + cross (new piece, Mapset files full) + JS prelude + Script + `ListQuantifiersE2ETest` parity, then docs.
+**Slice 1a (landed 28/09):** `any`/`all`/`none` on `List` — eager short-circuit quantifiers reusing the `kof_list_*` pattern, zero typer/lowerer machinery beyond the map/filter path. BOUNDARY (pagination lane's ride, NOT touched): `take`/`drop`/`slice`; later: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/rest. Proof: `ListQuantifiersE2ETest` 5/5 (JVM/Script/JS + Native-x86 + cross riscv/aarch64 run) + `KofScriptStdlibParityTest#quantifiersParity`. Vacuous `none` = true (maintainer decision 28/09, `none` ≡ ¬`any`).
+**How to finish (next slices):** `find`+`count(pred)`, then `forEach`, then `flatMap`, then `distinct` — one commit per op-pair with E2E parity; `take`/`drop`/`slice` stay with pagination; `sorted`/`groupBy`/`zip` gated (comparator/boxing decisions).
 
 > **Rule of this folder:** this document is a **plan without code**. No file listed in §8 was changed by this document. When the first functional increment ships, this plan moves to `docs/development/` with a real state table (what is done vs what is missing), per the three-states rule (`docs/development/future/README.md`). The current state of Kof remains 100% intact.
 
@@ -218,7 +218,7 @@ var big = values.filter((x: Int) -> x > 10).map((x: Int) -> x * 2)
 | `forEach` | `List<T>.forEach((T)->Void): Void` | Iteration without allocation; consumed per iteration; receiver not mutated | loop calling `invoke` per element, no `kof_list_new` |
 | `flatMap` | `List<T>.flatMap((T)->List<R>): List<R>` | `T→List<R>` per element, concatenated in order | allocate `out`, iterate src, `invoke` → `List<R>` tmp, splice tmp `size` elements via `get` loop + `add` |
 | `find` / `firstOrNull` | `List<T>.find((T)->Bool): T?` | First matching element or `null`; alias `find` for Kotlin familiarity but Kof name is `find` (not `first`) | loop `invoke` per elem, `test` → return elem, else `null` sentinel + `NullableType` return |
-| `any` / `all` / `none` | `List<T>.any((T)->Bool): Bool` etc. | Quantifiers short-circuit (vacuous: `all` true / `any`,`none` false on empty) | loop with early `return 1/0` on predicate result |
+| `any` / `all` / `none` | `List<T>.any((T)->Bool): Bool` etc. | Quantifiers short-circuit (vacuous: `all`/`none` true, `any` false on empty — `none` ≡ ¬`any`, maintainer decision 28/09) | loop with early `return 1/0` on predicate result |
 | `count` | `List<T>.count(): Int` and `count((T)->Bool): Int` | Underlying is `size` without predicate; with predicate counts matches | `size` or loop `if(pred) cnt++` |
 | `take` / `drop` | `List<T>.take(Int): List<T>`, `drop(Int): List<T>` | `take(n)` → prefix `min(n,size)`; `drop(n)` → suffix `max(0,size-n)`; `n<=0` → empty or self | `take`: allocate + copy `0..n-1`; `drop`: allocate + copy `n..size-1` |
 | `distinct` | `List<T>.distinct(): List<T>` | Dedup preserving first occurrence order; String content, rest identity/pointer (like `contains`) | `contains`-aware loop: `out.add(o)` only if `o` not already in `out` |

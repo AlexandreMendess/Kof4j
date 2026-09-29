@@ -17,6 +17,8 @@ public final class CollectionMethodGates {
             case "kof_list_sub_list" -> 2;
             case "kof_list_take", "kof_list_drop" -> 1;
             case "kof_list_slice" -> 2;
+            // D-MULTIPARADIGMA-PHASE1A — quantifiers take exactly one lambda.
+            case "kof_list_any", "kof_list_all", "kof_list_none" -> 1;
             case "kof_list_sort" -> 0;
             case "kof_map_contains_value" -> 1;
             case "kof_map_put_if_absent" -> 2;

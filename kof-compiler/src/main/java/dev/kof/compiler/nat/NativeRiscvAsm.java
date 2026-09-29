@@ -344,6 +344,7 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmMapset2.RISCV_MAPSET_ASM_2)
                 .append(NativeRiscvAsmLookups0.RISCV_LOOKUPS_ASM_0)
                 .append(NativeRiscvAsmSlices.RISCV_SLICES_ASM)
+                .append(NativeRiscvAsmQuantifiers.RISCV_QUANTIFIERS_ASM)
                 .toString();
     }
 }

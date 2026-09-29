@@ -4357,7 +4357,7 @@ individuais:
 
 **Estado:** DECIDIDO (mantenedora) — frente promovida por `D-FUTURE-PROMOTION` (`docs/development/PLAN-MULTIPARADIGMA.md`); a linha do lote autoriza o Tier 2.x, esta entrada trava o escopo da Fase 1a.
 
-- **Escopo:** três métodos aditivos de `List`, sem mudança de gramática/keyword/tipo. Veracidade reusa a regra do `filter` (`Boolean.TRUE` ou `Integer 1`); short-circuit pela tabela §4 do plano (vácuos: `all` true, `any`/`none` false no vazio). Zero maquinaria nova além do caminho map/filter (generalização `contextualLambda` para o conjunto novo).
+- **Escopo:** três métodos aditivos de `List`, sem mudança de gramática/keyword/tipo. Veracidade reusa a regra do `filter` (`Boolean.TRUE` ou `Integer 1`); short-circuit pela tabela §4 do plano (vácuos: `all`/`none` true, `any` false no vazio — `none` ≡ ¬`any`; a linha draft do plano dizia `any`/`none` false e a mantenedora corrigiu 28/09). Zero maquinaria nova além do caminho map/filter (generalização `contextualLambda` para o conjunto novo).
 - **Superfície v1 (travada, plano §4):** `List<T>.any((T)->Bool): Bool`, `all`, `none` — mesmas assinaturas em todo alvo; `take`/`drop`/`slice` são a carona P1 da lane pagination e NÃO estão nesta fatia; `find`/`forEach`/`flatMap`/`count(pred)`/resto são fatias posteriores.
 - **Retrocompatível:** só nomes de método novos (zero `.any(`/`.all(`/`.none(` no corpus, sem keywords); diagnóstico de método-desconhecido os lista (nunca silêncio).
 - **Alvos:** todos pelo padrão estabelecido (estáticos JVM + asm Native-x86 + peça cross nova + prelude JS + Script); prova da fatia é paridade E2E por op.

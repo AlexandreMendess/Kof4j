@@ -6,8 +6,8 @@
 **Dona:** lane issues (esta sessão).
 **Decisão:** `D-MULTIPARADIGMA-GO` (Tier 2.x) + `D-MULTIPARADIGMA-PHASE1A` (`DECISIONS.md`) — escopo da Fase 1a travado durante a implementação (o plano é dono).
 **Estado real (medido 28/09):** `map`/`filter`/`reduce` existem eager em `List` (todos os alvos); `any`/`all`/`none` não existem em lugar nenhum (zero uso no corpus, sem keywords); o padrão `kof_list_*` por alvo está estabelecido; a spec da Fase 1a (tabela §4) define short-circuit + semântica de vácuos por completo.
-**Fatia 1a (esta promoção):** `any`/`all`/`none` em `List` — quantificadores eager com short-circuit reusando o padrão `kof_list_*`, zero maquinaria nova além do caminho map/filter. FRONTEIRA (carona da lane pagination, NÃO tocada): `take`/`drop`/`slice`; depois: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/resto.
-**Como terminar:** typer + lowerer + gates + JVM + Native-x86 + cross (peça nova, arquivos Mapset cheios) + prelude JS + Script + paridade `ListQuantifiersE2ETest`, depois docs.
+**Fatia 1a (landed 28/09):** `any`/`all`/`none` em `List` — quantificadores eager com short-circuit reusando o padrão `kof_list_*`, zero maquinaria nova além do caminho map/filter. FRONTEIRA (carona da lane pagination, NÃO tocada): `take`/`drop`/`slice`; depois: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/resto. Prova: `ListQuantifiersE2ETest` 5/5 (JVM/Script/JS + Native-x86 + cross riscv/aarch64 rodado) + `KofScriptStdlibParityTest#quantifiersParity`. `none` vácuo = true (decisão da mantenedora 28/09, `none` ≡ ¬`any`).
+**Como terminar (próximas fatias):** `find`+`count(pred)`, depois `forEach`, depois `flatMap`, depois `distinct` — um commit por par de ops com paridade E2E; `take`/`drop`/`slice` ficam com pagination; `sorted`/`groupBy`/`zip` gated (decisões de comparador/boxing).
 
 > **Regra desta pasta:** este documento é um **plano sem código**. Nenhum arquivo listado em §8 foi alterado por este documento. Quando o primeiro incremento funcional for entregue, este plano move para `docs/development/` com tabela de estado real (o que está feito vs o que falta), pela regra dos três estados (`docs/development/future/README.md`). O estado atual do Kof permanece 100% intacto.
 
@@ -201,7 +201,7 @@ var big = values.filter((x: Int) -> x > 10).map((x: Int) -> x * 2)
 | `forEach` | `List<T>.forEach((T)->Void): Void` | Itera sem alocar; receiver não mutado | loop chamando `invoke` por elemento |
 | `flatMap` | `List<T>.flatMap((T)->List<R>): List<R>` | `T→List<R>` por elemento, concatenado em ordem | aloca `out`, itera src, `invoke` → `List<R>` tmp, splice via `get`+`add` |
 | `find` | `List<T>.find((T)->Bool): T?` | Primeiro match ou `null`; alias `firstOrNull` | loop `invoke`, `test` → return elem, senão `null` + `NullableType` |
-| `any`/`all`/`none` | `List<T>.any((T)->Bool): Bool` | Quantificadores short-circuit (vacuous: `all` true em vazio) | loop com `return` antecipado |
+| `any`/`all`/`none` | `List<T>.any((T)->Bool): Bool` | Quantificadores short-circuit (vácuos: `all`/`none` true, `any` false no vazio — `none` ≡ ¬`any`, decisão da mantenedora 28/09) | loop com `return` antecipado |
 | `count` | `List<T>.count(): Int` e `count((T)->Bool): Int` | Sem predicado = `size`; com predicado conta matches | `size` ou `if(pred) cnt++` |
 | `take`/`drop` | `List<T>.take(Int): List<T>` | `take(n)` → prefix `min(n,size)`; `drop(n)` → suffix | `copy` de fatias |
 | `distinct` | `List<T>.distinct(): List<T>` | Dedup preservando primeira ocorrência; String conteúdo | loop com `contains` check antes de `add` |

@@ -55,6 +55,36 @@ public final class KofInterpreterConcurrency {
                 for (Object o : src) acc = interp.invokeLambda(args[2], new Object[]{acc, o});
                 return acc;
             }
+            // D-MULTIPARADIGMA-PHASE1A — eager short-circuit quantifiers;
+            // truthiness reuses the filter rule; vacuous: all=true,
+            // any/none=false. Lambdas throw through (short-circuit proof).
+            case "kof_list_any": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return 1;
+                }
+                return 0;
+            }
+            case "kof_list_all": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (!(Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r))) return 0;
+                }
+                return 1;
+            }
+            case "kof_list_none": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return 0;
+                }
+                return 1;
+            }
             case "kof_spawn_result": {
                 CompletableFuture<Object> future = new CompletableFuture<>();
                 startTask(future, () -> future.complete(interp.invokeLambda(args[0], new Object[0])));

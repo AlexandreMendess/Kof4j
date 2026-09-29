@@ -13,47 +13,10 @@ public final class CollectionCallLowerer {
 
     static int lower(CompilerDriver driver, Type recvType, MethodCallExpr mc, List<KofOperation> ops,
                       String owner, int localIdx, List<IRLocalVariable> locals) {
-    if (BuiltinTypes.isList(recvType)
-            && ("map".equals(mc.methodName()) || "filter".equals(mc.methodName())
-                || "reduce".equals(mc.methodName()))) {
-        String hoFn = "kof_list_" + mc.methodName();
-        // receiver já empilhado acima (3396) — não duplicar
-        Type lambdaT = Type.UnknownType.UNKNOWN;
-        // reduce: init antes; lambda por último
-        for (ExpressionNode arg : mc.arguments()) {
-            if (!(arg instanceof LambdaExpr)) {
-                Type argT = ExpressionTyper.inferExprType(driver, arg, locals);
-                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-                // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
-                if (TypeMetrics.isPrimitiveType(argT) && driver.target == Target.JVM
-                        && !ExpressionTyper.boxesOwnBranches(driver, arg, locals)) {
-                    Type boxed = TypeMetrics.boxedTypeFor(argT);
-                    ops.add(new KofCall(boxed, "kof_box", List.of(argT), boxed, KofCallKind.FUNCTION));
-                }
-            }
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            if (arg instanceof LambdaExpr lam) {
-                lambdaT = ExpressionTyper.inferExprType(driver, lam, locals);
-                localIdx = ExpressionLowerer.emitExpression(driver, lam, ops, owner, localIdx, locals);
-            }
-        }
-        List<Type> callParams = new ArrayList<>();
-        callParams.add(new Type.ClassType("java.util", "ArrayList", List.of()));
-        if ("reduce".equals(mc.methodName())) callParams.add(new Type.ClassType("java.lang", "Object", List.of()));
-        callParams.add(new Type.ClassType("java.lang", "Object", List.of()));
-        Type ret;
-        if ("filter".equals(mc.methodName())) ret = recvType;
-        else if ("map".equals(mc.methodName())) {
-            Type elem = (lambdaT instanceof Type.FunctionType ft && !(ft.returnType() instanceof Type.UnknownType)) ? ft.returnType() : Type.UnknownType.UNKNOWN;
-            ret = new Type.ClassType("kof", "List", List.of(elem));
-        } else {
-            ret = (lambdaT instanceof Type.FunctionType ft) ? ft.returnType() : Type.UnknownType.UNKNOWN;
-        }
-        ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()), hoFn, callParams, ret,
-                KofCallKind.FUNCTION));
-        return localIdx;
-    }
+    // Higher-orders de List moram em CollectionHigherOrderLowerer (split do
+    // gate 500 — o bloco cruzou a linha com os quantificadores any/all/none).
+    int ho = CollectionHigherOrderLowerer.lowerHo(driver, recvType, mc, ops, owner, localIdx, locals);
+    if (ho >= 0) return ho;
     if (KofProcess.isHandle(recvType)) {
         // F10: h.write/readLine/exitCode/kill/alive — o handle
         // empilhado entra como 1º parâmetro do call estático
@@ -110,7 +73,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none)",
                     "SEM025");
             return localIdx;
         }

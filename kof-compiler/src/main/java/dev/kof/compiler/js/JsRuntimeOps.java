@@ -51,6 +51,8 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.equals("kof_select_any")
                 || name.equals("kof_list_map") || name.equals("kof_list_filter")
                 || name.equals("kof_list_reduce")
+                || name.equals("kof_list_any") || name.equals("kof_list_all")
+                || name.equals("kof_list_none")
                 || name.startsWith("kof_observability_")
                 || name.startsWith("kof_time_")
                 || name.startsWith("kof_scheduler_")

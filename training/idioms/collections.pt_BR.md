@@ -101,6 +101,22 @@ prev = m.putIfAbsent("z", 9)             // null quando a chave e nova
   e ordem natural, ponto. Para achar posicao, `indexOf(x)` (nao loop manual
   com `get(i)`).
 
+## Quantificadores `any`/`all`/`none` (D-MULTIPARADIGMA-PHASE1A fatia 1a, todos os alvos)
+
+```kof
+var xs = listOf(1, 2, 3)
+var hasBig = xs.any((x) -> x > 2)     // true — para no primeiro match
+var allPos = xs.all((x) -> x > 0)     // true — vácuo no vazio
+var noBig = xs.none((x) -> x > 9)     // true — vácuo no vazio
+```
+
+Loops eager com short-circuit: o predicado roda até a resposta ser conhecida e
+para (um `throw` após o ponto de decisão nunca dispara). Vácuos: `all`/`none`
+true no vazio, `any` false (`none` ≡ ¬`any`, decisão da mantenedora 28/09).
+Predicados usam a regra de veracidade do `filter`. Params nus `(x)` herdam o
+tipo do elemento (SG-012, generalizado); sem `take`/`drop`/`slice` aqui — são
+da P1 pagination.
+
 ## `listOf` com subtipos relacionados infere o ancestral comum (0.5.0-beta, §285)
 
 ```kof

@@ -56,6 +56,39 @@ public final class JsRuntimeCollections {
                 return list.slice(start, start + (limit < remaining ? limit : remaining));
             }
 
+            // D-MULTIPARADIGMA-PHASE1A — eager short-circuit quantifiers.
+            // Truthiness mirrors the JVM rule exactly (true or number 1 —
+            // notably NOT 1n: JVM rejects Long via Integer.equals, so JS
+            // rejects BigInt too); lambdas throw through (short-circuit).
+            function kofQuantCall(fn, x) {
+                return (typeof fn.invoke === 'function' ? fn.invoke(x) : fn(x));
+            }
+
+            function kofQuantTrue(v) {
+                return v === true || v === 1;
+            }
+
+            export function kofListAny(list, fn) {
+                for (let i = 0; i < list.length; i++) {
+                    if (kofQuantTrue(kofQuantCall(fn, list[i]))) return true;
+                }
+                return false;
+            }
+
+            export function kofListAll(list, fn) {
+                for (let i = 0; i < list.length; i++) {
+                    if (!kofQuantTrue(kofQuantCall(fn, list[i]))) return false;
+                }
+                return true;
+            }
+
+            export function kofListNone(list, fn) {
+                for (let i = 0; i < list.length; i++) {
+                    if (kofQuantTrue(kofQuantCall(fn, list[i]))) return false;
+                }
+                return true;
+            }
+
             function kofNaturalCmp(a, b) {
                 if (typeof a === "number" && typeof b === "number") {
                     return a < b ? -1 : a > b ? 1 : 0;

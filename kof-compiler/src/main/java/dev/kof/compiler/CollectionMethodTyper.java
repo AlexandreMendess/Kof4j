@@ -13,7 +13,8 @@ public final class CollectionMethodTyper {
                                      List<IRLocalVariable> locals) {
     if (BuiltinTypes.isList(recvType)) {
         String mn = mc.methodName();
-        if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn))
+        if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
+                || "any".equals(mn) || "all".equals(mn) || "none".equals(mn))
                 && mc.arguments().stream().anyMatch(a -> a instanceof LambdaExpr)) {
             Type lambdaT = null;
             for (ExpressionNode arg : mc.arguments()) {
@@ -30,6 +31,9 @@ public final class CollectionMethodTyper {
                 }
                 if ("filter".equals(mn)) return recvType;
                 if ("reduce".equals(mn)) return ft.returnType();
+                // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool.
+                if ("any".equals(mn) || "all".equals(mn) || "none".equals(mn))
+                    return Type.PrimitiveType.BOOL;
             }
             return Type.UnknownType.UNKNOWN;
         }

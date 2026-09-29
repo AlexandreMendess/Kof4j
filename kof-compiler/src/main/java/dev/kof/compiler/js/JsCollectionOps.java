@@ -147,6 +147,10 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             case "kof_list_take" -> "kofListTake";
             case "kof_list_drop" -> "kofListDrop";
             case "kof_list_slice" -> "kofListSlice";
+            // D-MULTIPARADIGMA-PHASE1A — any/all/none (lambda rides as arg).
+            case "kof_list_any" -> "kofListAny";
+            case "kof_list_all" -> "kofListAll";
+            case "kof_list_none" -> "kofListNone";
             case "kof_list_sort" -> "kofListSort";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };

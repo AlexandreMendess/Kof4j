@@ -84,6 +84,25 @@ class KofScriptStdlibParityTest {
             """, "2\n0\n5\n20\n3\n0\n30\n2\n30\n1\n0\n0\n5\nb\nb\nb");
     }
 
+    @Test
+    void quantifiersParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1a — any/all/none: interpretador e
+        // JVM concordam (vácuos + match; println de Bool rende igual nos dois
+        // lados, medido; o E2E cobre JVM/JS/native/cross + short-circuit).
+        parity("""
+            main() {
+                var xs = listOf(1, 2, 3)
+                var empty = listOf()
+                println(xs.any((x) -> x > 2))
+                println(xs.all((x) -> x > 0))
+                println(xs.none((x) -> x > 9))
+                println(empty.any((x) -> true))
+                println(empty.all((x) -> false))
+                println(empty.none((x) -> true))
+            }
+            """, "true\ntrue\ntrue\nfalse\ntrue\ntrue");
+    }
+
     // #386 slice 2 + #382: containsValue/putIfAbsent e a família de List
     // (indexOf/lastIndexOf/subList/addAll/sort) — interpretador e JVM
     // compilado concordam com o oráculo medido (java.util no dois lados).
