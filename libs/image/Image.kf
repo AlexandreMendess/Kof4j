@@ -18,7 +18,9 @@ package image
 //   * JPEG — first `SOF0..SOF15` frame header (baseline/progressive);
 //   * WEBP — `VP8 ` (lossy), `VP8L` (lossless) and `VP8X` (extended canvas);
 //   * TIFF — first IFD `ImageWidth`/`ImageLength` tags (`II`/`MM`, LE/BE);
-//   * ICO/CUR — first directory entry (0 means 256).
+//   * ICO/CUR — first directory entry (0 means 256);
+//   * PNM — `PBM`/`PGM`/`PPM` (P1–P6) width/height tokens (comments allowed);
+//   * QOI — `qoif` header width/height.
 // A `Bool isImage(path)` helper answers "is this a supported image?" without
 // throwing. Any other format, a truncated header or an unreadable structure
 // throws a `String` beginning with `IMAGE:`.
@@ -76,6 +78,13 @@ ImageMetadata readImageMetadata(String path) {
     }
     if (head[0] == 0 && head[1] == 0 && head[3] == 0 && (head[2] == 1 || head[2] == 2)) {
         return icoMetadata(head)
+    }
+    if (head[0] == 80 && head[1] >= 49 && head[1] <= 54) {
+        return pnmMetadata(head)
+    }
+    if (matchesAscii(head, 0, "qoif")) {
+        need(head, 12, "QOI")
+        return ImageMetadata("QOI", be32(head, 4), be32(head, 8))
     }
     throw "IMAGE: unsupported image format"
 }
@@ -250,6 +259,52 @@ ImageMetadata icoMetadata(Int[] b) {
         h = 256
     }
     return ImageMetadata("ICO", w, h)
+}
+
+ImageMetadata pnmMetadata(Int[] b) {
+    need(b, 3, "PNM")
+    var kind = "PNM"
+    if (b[1] == 49 || b[1] == 52) {
+        kind = "PBM"
+    } else if (b[1] == 50 || b[1] == 53) {
+        kind = "PGM"
+    } else if (b[1] == 51 || b[1] == 54) {
+        kind = "PPM"
+    }
+    var i = pnmSkip(b, 2)
+    var w = 0
+    while (i < b.length && b[i] >= 48 && b[i] <= 57) {
+        w = w * 10 + (b[i] - 48)
+        i = i + 1
+    }
+    i = pnmSkip(b, i)
+    var h = 0
+    while (i < b.length && b[i] >= 48 && b[i] <= 57) {
+        h = h * 10 + (b[i] - 48)
+        i = i + 1
+    }
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: invalid PNM dimensions"
+    }
+    return ImageMetadata(kind, w, h)
+}
+
+// Skip PNM whitespace and `#` comments, returning the next payload index.
+Int pnmSkip(Int[] b, Int from) {
+    var p = from
+    while (p < b.length) {
+        var c = b[p]
+        if (c == 32 || c == 9 || c == 10 || c == 13) {
+            p = p + 1
+        } else if (c == 35) {
+            while (p < b.length && b[p] != 10) {
+                p = p + 1
+            }
+        } else {
+            return p
+        }
+    }
+    return p
 }
 
 Bool matchesAscii(Int[] b, Int at, String s) {

@@ -42,6 +42,8 @@ class ImageMetadataE2ETest {
             "TIFF:12x34",
             "TIFF:12x34",
             "ICO:16x32",
+            "PPM:5x7",
+            "QOI:13x9",
             "isImage=true",
             "notImage=false");
 
@@ -138,6 +140,8 @@ class ImageMetadataE2ETest {
                 println(one(base + "/i.tif"))
                 println(one(base + "/j.tif"))
                 println(one(base + "/k.ico"))
+                println(one(base + "/l.ppm"))
+                println(one(base + "/m.qoi"))
                 println("isImage=" + flag(isImage(base + "/a.png")))
                 println("notImage=" + flag(isImage(base + "/bad.bin")))
             }
@@ -172,6 +176,8 @@ class ImageMetadataE2ETest {
         Files.write(dir.resolve("i.tif"), tiff(12, 34, true));
         Files.write(dir.resolve("j.tif"), tiff(12, 34, false));
         Files.write(dir.resolve("k.ico"), ico(16, 32));
+        Files.write(dir.resolve("l.ppm"), ppm(5, 7));
+        Files.write(dir.resolve("m.qoi"), qoi(13, 9));
         Files.write(dir.resolve("bad.bin"), new byte[]{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07});
         return dir;
     }
@@ -298,6 +304,22 @@ class ImageMetadataE2ETest {
         out.write(new byte[]{0x00, 0x00, 0x02, 0x00});
         out.write(le32(40));
         out.write(le32(22));
+        return out.toByteArray();
+    }
+
+    private static byte[] ppm(int w, int h) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(("P6\n" + w + " " + h + "\n255\n").getBytes(StandardCharsets.US_ASCII));
+        for (int i = 0; i < w * h * 3; i++) out.write(0x00);
+        return out.toByteArray();
+    }
+
+    private static byte[] qoi(int w, int h) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("qoif".getBytes(StandardCharsets.US_ASCII));
+        out.write(be32(w));
+        out.write(be32(h));
+        out.write(new byte[]{4, 0, 1, 0});
         return out.toByteArray();
     }
 
