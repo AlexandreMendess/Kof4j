@@ -682,7 +682,7 @@ diagnostic). No compiler change; target-neutral.
 stability tiers (`stable`/`experimental`/`internal`), whether a tier promises stability (only
 `stable`, and only once compatibility tests exist), and the aspects a compatibility test must
 validate (symbol-names/calling-convention/type-layout/alignment/struct-layout/binary-compat/
-ownership). Which interface gets which tier, and the first stable ABI version, remain rule 6 (§13).
+ownership). The tier assignment + first stable ABI version are **decided** by `D-CONNECTORS` (§13); the concrete table is not yet transcribed (documentation gap).
 Honest (R6): an unknown tier/aspect throws `INTEROP: unknown stability <x>` /
 `INTEROP: unknown compatibility aspect <x>`.
 
@@ -835,19 +835,30 @@ ceremony into Kof.
 
 ---
 
-# 13. Open decisions (rule 6 — the maintainer decides)
+# 13. Decisions (rule 6 — the maintainer decides)
 
-The following are **not** agent decisions; they must be locked in `DECISIONS.md` before the
-front opens:
+**Resolved by `D-CONNECTORS` (maintainer, `D-FUTURE-BATCH-2809B`, 28/09/2026)** — the front is
+authorized and its design questions are locked in `DECISIONS.md`:
 
-* **D-CONNECTORS** — opening the front and its ordered scope.
-* The **ownership vocabulary** and whether any of it reaches the language surface.
-* Whether the interop error model is a type in the language or internal to the Core.
-* Whether/when a `foreign module` declaration enters the grammar.
-* ABI stability tiers and the first stable ABI version.
-* Which connector is the official second case after Java.
-* Promotion roadmap: `future/` → `docs/development/` **DONE 29/09/2026** (`D-CONNECTORS-GO`, maintainer) — fatia 1 (connector manifest reader) is the first slice (§9.1)
-  (three-states rule + R12 unless overridden by the maintainer).
+* **D-CONNECTORS** — front authorized and ordered (Interop Core + SPI/manifest + catalogue).
+* **Ownership vocabulary** — stays **internal** (no language surface). → the Core models it in
+  pure Kof (`InteropOwnership`, §9.6); no language change needed.
+* **Interop error model** — it **is a language type** (maintainer choice). → requires a compiler
+  slice, not a library-only change.
+* **`foreign module`** — **enters the grammar now** (maintainer's explicit choice, against the
+  recommended defer). → requires a compiler slice; until then the Core models the module as a pure
+  Kof descriptor (`ForeignModule`, §9.9) with no grammar.
+* **ABI stability tiers + first stable version** — **defined** in `D-CONNECTORS`; the Core ships the
+  mechanism (`InteropCompatibility`, §9.11) and the manifest carries the declared tier
+  (`ConnectorManifest.stability`, §9.14). Honest note: `D-CONNECTORS` states they are **defined**,
+  but the concrete tier table and first stable version are **not yet transcribed** in `DECISIONS.md`
+  or here — a documentation gap to record before the ABI slice (never to be invented by an agent).
+* **Official second connector after Java** — **C ABI** (Phase 2, §5.2).
+* **Promotion roadmap** — `future/` → `docs/development/` **DONE 29/09/2026** (`D-CONNECTORS-GO`).
+
+**Still to land (compiler/language slices, rule 6 records already in place):** the interop error
+type on the language surface and the `foreign module` grammar construct — both touch the
+compiler/frontend and are separate slices, not library-only.
 
 ---
 

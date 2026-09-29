@@ -689,8 +689,8 @@ desconhecido). Sem mudança no compilador; neutro de alvo.
 tiers de estabilidade (`stable`/`experimental`/`internal`), se um tier promete estabilidade (só
 `stable`, e só quando existirem testes de compatibilidade) e os aspectos que um teste de
 compatibilidade deve validar (symbol-names/calling-convention/type-layout/alignment/struct-layout/
-binary-compat/ownership). Que interface recebe que tier, e a primeira versão ABI estável, seguem
-rule 6 (§13). Honesto (R6): tier/aspecto desconhecido lança `INTEROP: unknown stability <x>` /
+binary-compat/ownership). A atribuição de tier + a primeira versão ABI estável são **decididas** por
+`D-CONNECTORS` (§13); a tabela concreta ainda não foi transcrita (lacuna de documentação). Honesto (R6): tier/aspecto desconhecido lança `INTEROP: unknown stability <x>` /
 `INTEROP: unknown compatibility aspect <x>`.
 
 **Prova:** `InteropCompatibilityE2ETest` **6/6** (golden JVM + Script + JS + Native x86-64 + dois
@@ -843,19 +843,31 @@ não pode importar cerimônia estrangeira para dentro da Kof.
 
 ---
 
-# 13. Decisões abertas (regra 6 — a mantenedora decide)
+# 13. Decisões (regra 6 — a mantenedora decide)
 
-Os itens abaixo **não** são decisão de agente; precisam ser travados no `DECISIONS.md` antes da
-frente abrir:
+**Resolvidas por `D-CONNECTORS` (mantenedora, `D-FUTURE-BATCH-2809B`, 28/09/2026)** — a frente está
+autorizada e suas questões de design travadas no `DECISIONS.md`:
 
-* **D-CONNECTORS** — abrir a frente e seu escopo ordenado.
-* O **vocabulário de ownership** e se algo dele chega à superfície da linguagem.
-* Se o modelo de erro de interop é um tipo na linguagem ou interno ao Core.
-* Se/quando uma declaração `foreign module` entra na gramática.
-* Tiers de estabilidade de ABI e a primeira versão estável de ABI.
-* Qual connector é o segundo caso oficial depois do Java.
-* Roteiro de promoção: `future/` → `docs/development/` **FEITO 29/09/2026** (`D-CONNECTORS-GO`, mantenedora) — a fatia 1 (leitor de manifest) é a primeira fatia (§9.1); (linha original: quando a primeira fatia de connector
-  landar (regra dos três estados + R12, salvo sobreposição da mantenedora).
+* **D-CONNECTORS** — frente autorizada e ordenada (Interop Core + SPI/manifest + catálogo).
+* **Vocabulário de ownership** — fica **interno** (sem superfície de linguagem). → o Core o modela
+  em Kof puro (`InteropOwnership`, §9.6); sem mudança de linguagem.
+* **Modelo de erro de interop** — **é um tipo da linguagem** (escolha da mantenedora). → exige uma
+  fatia de compilador, não só biblioteca.
+* **`foreign module`** — **entra na gramática agora** (escolha explícita da mantenedora, contra o
+  adiamento recomendado). → exige fatia de compilador; até lá o Core modela o módulo como descritor
+  Kof puro (`ForeignModule`, §9.9), sem gramática.
+* **Tiers de estabilidade de ABI + primeira versão estável** — **definidos** no `D-CONNECTORS`; o
+  Core traz o mecanismo (`InteropCompatibility`, §9.11) e o manifest carrega o tier declarado
+  (`ConnectorManifest.stability`, §9.14). Nota honesta: o `D-CONNECTORS` diz que estão
+  **definidos**, mas a tabela concreta de tiers e a primeira versão estável **ainda não foram
+  transcritas** no `DECISIONS.md` nem aqui — lacuna de documentação a registrar antes da fatia de
+  ABI (nunca a inventar por agente).
+* **Segundo connector oficial depois do Java** — **C ABI** (Fase 2, §5.2).
+* **Roteiro de promoção** — `future/` → `docs/development/` **FEITO 29/09/2026** (`D-CONNECTORS-GO`).
+
+**Falta pousar (fatias de compilador/linguagem, registros rule 6 já existentes):** o tipo de erro de
+interop na superfície da linguagem e o construto `foreign module` na gramática — ambos tocam o
+compilador/frontend e são fatias separadas, não só biblioteca.
 
 ---
 
