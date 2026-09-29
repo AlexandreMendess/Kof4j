@@ -69,8 +69,50 @@ class ConnectorManifest {
         return optionalList("capabilities")
     }
 
+    List<String> ownership() {
+        return optionalList("ownership")
+    }
+
     Bool hasCapability(String capability) {
         return capabilities().contains(capability)
+    }
+
+    // The catalogue of capabilities every connector may declare, from the plan's
+    // cross-language test suite (plan §10): the operations the ecosystem tests.
+    List<String> knownCapabilities() {
+        return listOf("primitives", "strings", "arrays", "structs", "enums",
+                "pointers", "callbacks", "errors", "ownership", "threads",
+                "async", "opaque")
+    }
+
+    // The Core's ownership vocabulary (plan §3.2) — a connector declares which
+    // concepts it supports; it never invents its own rule.
+    List<String> knownOwnership() {
+        return listOf("owned", "borrowed", "shared", "opaque", "immutable", "mutable")
+    }
+
+    // Honest validation (R6): every declared capability and ownership concept
+    // must belong to the Core vocabulary; an unknown token throws an explicit
+    // diagnostic instead of being silently accepted.
+    void validate() {
+        var caps = capabilities()
+        var i = 0
+        while (i < caps.size()) {
+            var c = caps.get(i)
+            if (!knownCapabilities().contains(c)) {
+                throw "CONNECTOR: unknown capability " + c
+            }
+            i = i + 1
+        }
+        var owns = ownership()
+        var j = 0
+        while (j < owns.size()) {
+            var o = owns.get(j)
+            if (!knownOwnership().contains(o)) {
+                throw "CONNECTOR: unknown ownership " + o
+            }
+            j = j + 1
+        }
     }
 
     String describe() {

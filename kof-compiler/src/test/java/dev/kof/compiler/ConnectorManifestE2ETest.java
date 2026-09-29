@@ -40,7 +40,8 @@ class ConnectorManifestE2ETest {
             + "runtime = \"jvm\"\n"
             + "platforms = [\"jvm\", \"native\"]\n"
             + "dependencies = [\"ExternalClasspath\"]\n"
-            + "capabilities = [\"callbacks\", \"threads\"]\n";
+            + "capabilities = [\"callbacks\", \"threads\"]\n"
+            + "ownership = [\"borrowed\", \"immutable\"]\n";
 
     private static final String GOLDEN = String.join("\n",
             "name=kof-java",
@@ -52,8 +53,10 @@ class ConnectorManifestE2ETest {
             "platforms=2",
             "deps=1",
             "caps=2",
+            "owners=2",
             "callbacks=true",
-            "gc=false");
+            "gc=false",
+            "valid=ok");
 
     @Test
     void manifestReadsOnJvm() throws Exception {
@@ -122,6 +125,39 @@ class ConnectorManifestE2ETest {
         assertTrue(diag.contains("IOJS001"), () -> "expected IOJS001, got: " + diag);
     }
 
+
+    @Test
+    void unknownCapabilityIsAnExplicitDiagnostic() throws Exception {
+        Path src = tmp.resolve("bad-cap.toml");
+        Files.writeString(src, "name = \"x\"\nlanguage = \"x\"\nversion = \"1\"\nabi = \"c\"\n"
+                + "runtime = \"x\"\ncapabilities = [\"callbacks\", \"teleport\"]\n");
+        assertEquals("CONNECTOR: unknown capability teleport", runJvm(validateProbe(src)));
+    }
+
+    @Test
+    void unknownOwnershipIsAnExplicitDiagnostic() throws Exception {
+        Path src = tmp.resolve("bad-own.toml");
+        Files.writeString(src, "name = \"x\"\nlanguage = \"x\"\nversion = \"1\"\nabi = \"c\"\n"
+                + "runtime = \"x\"\nownership = [\"borrowed\", \"ancient\"]\n");
+        assertEquals("CONNECTOR: unknown ownership ancient", runJvm(validateProbe(src)));
+    }
+
+    private static String validateProbe(Path src) {
+        return """
+            import interop.ConnectorManifest
+
+            main() {
+                try {
+                    var m = ConnectorManifest("%s", 4)
+                    m.validate()
+                    println("no error")
+                } catch (String e) {
+                    println(e)
+                }
+            }
+            """.formatted(path(src));
+    }
+
     private static String probe(Path src) {
         return """
             import interop.ConnectorManifest
@@ -144,8 +180,11 @@ class ConnectorManifestE2ETest {
                 println("platforms=" + m.platforms().size())
                 println("deps=" + m.dependencies().size())
                 println("caps=" + m.capabilities().size())
+                println("owners=" + m.ownership().size())
                 println("callbacks=" + flag(m.hasCapability("callbacks")))
                 println("gc=" + flag(m.hasCapability("gc")))
+                m.validate()
+                println("valid=ok")
             }
             """.formatted(path(src));
     }

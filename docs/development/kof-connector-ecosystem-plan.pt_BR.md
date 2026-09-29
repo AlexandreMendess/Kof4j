@@ -547,6 +547,19 @@ costura declarativa que todo connector compartilha; o Interop Core (Fase 1) e o 
 (Fase 2) se apoiam nela.
 
 ---
+
+## 9.2 Fatia promovida 2 (29/09/2026) — validação de vocabulário do manifest
+
+**Estado:** landada. `ConnectorManifest.validate()` confere cada token declarado em `capabilities`
+contra a suíte cross-language do plano (§10: primitives/strings/arrays/structs/enums/pointers/
+callbacks/errors/ownership/threads/async/opaque) e cada token de `ownership` contra o vocabulário do
+Core (§3.2: owned/borrowed/shared/opaque/immutable/mutable). Um token desconhecido lança um
+`CONNECTOR: unknown capability <x>` / `CONNECTOR: unknown ownership <x>` explícito — um connector
+nunca declara em silêncio um conceito que o Core não define (R6). `knownCapabilities()`/`knownOwnership()`
+expõem o vocabulário. Sem mudança no compilador.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

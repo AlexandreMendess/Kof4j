@@ -542,6 +542,19 @@ declarative seam every connector shares; the Interop Core (Phase 1) and the C-AB
 (Phase 2) build on it.
 
 ---
+
+## 9.2 Promoted slice 2 (29/09/2026) — manifest vocabulary validation
+
+**State:** landed. `ConnectorManifest.validate()` checks every declared `capabilities` token against
+the plan's cross-language test suite (§10: primitives/strings/arrays/structs/enums/pointers/
+callbacks/errors/ownership/threads/async/opaque) and every `ownership` token against the Core's
+vocabulary (§3.2: owned/borrowed/shared/opaque/immutable/mutable). An unknown token throws an
+explicit `CONNECTOR: unknown capability <x>` / `CONNECTOR: unknown ownership <x>` — a connector never
+silently declares a concept the Core does not define (R6). `knownCapabilities()`/`knownOwnership()`
+expose the vocabulary. No compiler change.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
