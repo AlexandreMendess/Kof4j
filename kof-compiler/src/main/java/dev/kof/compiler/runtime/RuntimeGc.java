@@ -143,9 +143,10 @@ public final class RuntimeGc {
                 popq %rbx
                 ret
             .Ltry_bm:
-                # §542 host: O(1) pelo bitmap de inícios-de-bloco. Só marca se
-                # r12-32 for um início de bloco real (mesma semântica exata do
-                # bitmap cross).
+                # §542 host: O(1) pelo bitmap de inícios-de-bloco (mmap'd; ver
+                # _kof_bm_ptr). Só marca se r12-32 for um início de bloco real
+                # (mesma semântica exata do bitmap cross).
+                movq _kof_bm_ptr(%rip), %rdx
                 movq %r12, %rcx
                 subq %rax, %rcx          # ptr - arena_base
                 subq $32, %rcx           # offset do header
@@ -153,7 +154,6 @@ public final class RuntimeGc {
                 shrq $4, %rcx
                 movq %rcx, %rax
                 shrq $6, %rax
-                leaq _kof_block_bm(%rip), %rdx
                 movq (%rdx,%rax,8), %rdx
                 andl $63, %ecx
                 shrq %cl, %rdx
@@ -240,6 +240,7 @@ public final class RuntimeGc {
             .Lmtrans_bm:
                 # §542 host: O(1) pelo bitmap; achando o início, entra no
                 # `.Lmtrans_found` (marca + varre campos).
+                movq _kof_bm_ptr(%rip), %rdx
                 movq %r12, %rcx
                 subq %rax, %rcx
                 subq $32, %rcx
@@ -247,7 +248,6 @@ public final class RuntimeGc {
                 shrq $4, %rcx
                 movq %rcx, %rax
                 shrq $6, %rax
-                leaq _kof_block_bm(%rip), %rdx
                 movq (%rdx,%rax,8), %rdx
                 andl $63, %ecx
                 shrq %cl, %rdx

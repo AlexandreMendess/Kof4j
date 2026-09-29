@@ -39,10 +39,14 @@ public final class RuntimeMemory {
             .balign 8
             kof_arena_base: .quad 0
             kof_arena_ptr: .quad 0
-            # bitmap de inícios-de-bloco (1 bit por 16B) p/ lookup O(1) no GC host.
-            # 256 MiB / 16B / 8 = 2 MiB; .bss (NOBITS) não infla o arquivo.
+            # §542: ponteiro p/ o bitmap de inícios-de-bloco do HOST. O bitmap
+            # NÃO fica em .bss: o GC varre .data.._end como raízes a cada
+            # passada, então um bitmap grande em .bss encareceria TODA coleta.
+            # Em vez disso ele é mmap'd (fora do intervalo varrido) — pode ser
+            # grande sem custo de varredura. 0 nos perfis sem arena (o GC cai na
+            # varredura linear antiga e kof_bm_set é no-op).
             .balign 8
-            _kof_block_bm: .space 2097152
+            _kof_bm_ptr: .quad 0
             .balign 8
             kof_main_tid: .quad 0              # tid do main thread p/ o GC (conservador lê a stack)
             kof_main_stack_bottom: .quad 0     # rsp do _start: topo da pilha main; o mark varre rsp..ate_isto (G-6b)
@@ -227,12 +231,12 @@ public final class RuntimeMemory {
                 movq kof_arena_base(%rip), %rax
                 testq %rax, %rax
                 je .Lbm_done
+                movq _kof_bm_ptr(%rip), %rdx
                 movq %rdi, %rsi
                 subq %rax, %rsi          # offset do header no arena
                 shrq $4, %rsi            # indice do bit
                 movq %rsi, %rax
                 shrq $6, %rax            # indice da palavra
-                leaq _kof_block_bm(%rip), %rdx
                 leaq (%rdx,%rax,8), %rdx
                 movl %esi, %ecx
                 andl $63, %ecx           # bit na palavra
@@ -268,9 +272,10 @@ public final class RuntimeMemory {
                 movq kof_arena_base(%rip), %rax
                 testq %rax, %rax
                 jne .Lgrow_have
-                # primeiro alloc: mmap 256 MiB (MAP_NORESERVE = páginas lazy)
+                # primeiro alloc: mmap o BITMAP (4 GiB / 16B / 8 = 32 MiB) FORA
+                # de .bss, para o GC não varrê-lo como raízes. MAP_NORESERVE.
                 movq $0, %rdi
-                movq $0x10000000, %rsi       # 256 MiB
+                movabsq $0x2000000, %rsi     # 32 MiB
                 movq $3, %rdx                # PROT_READ|PROT_WRITE
                 movq $0x4022, %r10           # MAP_PRIVATE|ANONYMOUS|NORESERVE
                 movq $-1, %r8
@@ -278,6 +283,21 @@ public final class RuntimeMemory {
                 movq $9, %rax
                 syscall
                 cmpq $-4095, %rax            # erro mmap = [-4095,-1]
+                jae .Lgrow_fail
+                movq %rax, _kof_bm_ptr(%rip)
+                # mmap a ARENA (4 GiB VIRTUAIS, páginas lazy). O heap antigo
+                # (mmap por alocação) era efetivamente ilimitado; 4 GiB preserva
+                # isso sem custo de RAM. Uma arena contígua é o que permite o
+                # bitmap O(1) cobrir todos os blocos.
+                movq $0, %rdi
+                movabsq $0x100000000, %rsi   # 4 GiB
+                movq $3, %rdx
+                movq $0x4022, %r10
+                movq $-1, %r8
+                movq $0, %r9
+                movq $9, %rax
+                syscall
+                cmpq $-4095, %rax
                 jae .Lgrow_fail
                 movq %rax, kof_arena_base(%rip)
                 movq %rax, kof_arena_ptr(%rip)
@@ -288,7 +308,8 @@ public final class RuntimeMemory {
                 movq %rax, %rcx
                 addq %rbx, %rcx              # fim desta alocação
                 movq kof_arena_base(%rip), %rdx
-                addq $0x10000000, %rdx
+                movabsq $0x100000000, %rsi
+                addq %rsi, %rdx
                 cmpq %rdx, %rcx
                 ja .Lgrow_fail
                 movq %rcx, kof_arena_ptr(%rip)

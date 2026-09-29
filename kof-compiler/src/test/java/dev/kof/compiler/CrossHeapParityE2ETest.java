@@ -62,6 +62,17 @@ class CrossHeapParityE2ETest extends KofStringsSupport {
             """;
     private static final String MANY_X86_EXPECTED = "2001";
 
+    private static final String HUGE_X86 = """
+            main() {
+                var b = new Int[70000000]
+                b[0] = 11
+                b[69999999] = 22
+                println(b[0] + b[69999999])
+                println(b.length)
+            }
+            """;
+    private static final String HUGE_X86_EXPECTED = "33\n70000000";
+
     @Test
     void largeAllocationJvm(@TempDir Path t) throws Exception {
         runJvm(t, LARGE, LARGE_EXPECTED);
@@ -97,6 +108,28 @@ class CrossHeapParityE2ETest extends KofStringsSupport {
         assertTrue(done, "x86 many-live-objects timed out (GC regression, §542)");
         assertEquals(0, p.exitValue(), "x86 exit, out: " + output);
         assertEquals(MANY_X86_EXPECTED, output, "x86 output");
+    }
+
+    @Test
+    void hugeAllocationNativeX86(@TempDir Path t) throws Exception {
+        // >256 MiB: the §542 arena must not cap the heap at the old 256 MiB
+        // value (the pre-§542 x86 heap was an unbounded mmap per allocation).
+        Path file = t.resolve("Huge-x86-" + System.nanoTime() + ".kf");
+        Files.writeString(file, HUGE_X86);
+        Path outDir = t.resolve("huge-x86-" + System.nanoTime());
+        CompilationResult result = driver.compile(file, outDir, Target.NATIVE);
+        assertTrue(result.success(), "x86 compile failed: " + result.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(outDir.resolve("Default/Main").toString())
+                .redirectErrorStream(true).start();
+        boolean done = p.waitFor(60, TimeUnit.SECONDS);
+        String output = done
+                ? new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim() : "";
+        if (!done) {
+            p.destroyForcibly();
+        }
+        assertTrue(done, "x86 huge allocation timed out (§542 arena)");
+        assertEquals(0, p.exitValue(), "x86 exit, out: " + output);
+        assertEquals(HUGE_X86_EXPECTED, output, "x86 output");
     }
 
     @Test
