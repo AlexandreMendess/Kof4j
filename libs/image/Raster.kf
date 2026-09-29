@@ -1,0 +1,123 @@
+package image
+
+import image.Image
+
+// kof.image — raw raster decode, first pixel slice (provisional surface).
+//
+// `decodeRaster(path)` returns the pixel samples of an **uncompressed** image
+// (no codec, no decompression engine): the Kof-first half of the pixel slice.
+// Compressed formats (PNG/JPEG/…) stay interop-first (R9) behind a later
+// maintainer-decided `kof.image` surface.
+//
+//   var r = decodeRaster("shot.ppm")
+//   println(r.width + "x" + r.height + " ch=" + r.channels)
+//   var red = r.samples[0]                 // row-major, channels interleaved, 0..255
+//
+// Supported now: **PNM** `P5` (grayscale) / `P6` (RGB), 8-bit, and
+// **farbfeld** (16-bit RGBA downsampled to 8-bit). Documented bounds: the
+// sample count must be <= 16384 (one bounded read; keeps the single array
+// under the cross-native allocation cap, `known-bugs` §540) and the value must
+// fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
+// 16-bit PNM, comments in the pixel area) throws a `String` beginning with
+// `IMAGE:` — never a silent wrong decode.
+//
+// The final `Image`/`Pixel`/`Color` value surface and the imageio bindings are
+// a rule-6 decision (see the plan); this `Raster` view is provisional and
+// additive. Built on `kof.io.readRange`; JS inherits the `IOJS001` gap.
+
+record Raster(String format, Int width, Int height, Int channels, Int[] samples)
+
+Raster decodeRaster(String path) {
+    var img = Image(path)
+    var fmt = img.format()
+    if (fmt == "farbfeld") {
+        return farbfeldRaster(path, img.width(), img.height())
+    }
+    if (fmt == "PPM" || fmt == "PGM") {
+        return pnmRaster(path, img.width(), img.height(), fmt == "PPM")
+    }
+    throw "IMAGE: raster decode is not supported for " + fmt
+}
+
+Raster pnmRaster(String path, Int w, Int h, Bool color) {
+    var channels = 1
+    if (color) {
+        channels = 3
+    }
+    var count = w * h * channels
+    guardRaster(count)
+    var head = File(path).readRange(0, count + 64)
+    var start = rasterDataStart(head)
+    var samples = new Int[count]
+    var i = 0
+    while (i < count) {
+        samples[i] = head[start + i] & 255
+        i = i + 1
+    }
+    return Raster(buildPnmName(color), w, h, channels, samples)
+}
+
+Raster farbfeldRaster(String path, Int w, Int h) {
+    var count = w * h * 4
+    guardRaster(count)
+    var bytes = File(path).readRange(16, count * 2)
+    var samples = new Int[count]
+    var i = 0
+    while (i < count) {
+        samples[i] = bytes[i * 2] & 255
+        i = i + 1
+    }
+    return Raster("farbfeld", w, h, 4, samples)
+}
+
+guardRaster(Int count) {
+    if (count <= 0) {
+        throw "IMAGE: empty raster"
+    }
+    if (count > 16384) {
+        throw "IMAGE: raster too large for this slice (max 16384 samples)"
+    }
+}
+
+String buildPnmName(Bool color) {
+    if (color) {
+        return "PPM"
+    }
+    return "PGM"
+}
+
+// Offset of the first raster byte in a P5/P6 header (`P5/P6`, width, height,
+// maxval, one whitespace, data). Comments are not allowed inside the data.
+Int rasterDataStart(Int[] b) {
+    var i = 2
+    i = rasterSkip(b, i)
+    i = rasterDigits(b, i)
+    i = rasterSkip(b, i)
+    i = rasterDigits(b, i)
+    i = rasterSkip(b, i)
+    i = rasterDigits(b, i)
+    if (i < b.length && rasterIsSpace(b[i])) {
+        i = i + 1
+    }
+    return i
+}
+
+Int rasterSkip(Int[] b, Int from) {
+    var p = from
+    while (p < b.length && rasterIsSpace(b[p])) {
+        p = p + 1
+    }
+    return p
+}
+
+Int rasterDigits(Int[] b, Int from) {
+    var p = from
+    while (p < b.length && b[p] >= 48 && b[p] <= 57) {
+        p = p + 1
+    }
+    return p
+}
+
+Bool rasterIsSpace(Int c) {
+    return c == 32 || c == 9 || c == 10 || c == 13
+}
