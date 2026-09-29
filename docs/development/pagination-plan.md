@@ -446,7 +446,11 @@ Each slice is independently provable; no slice ships without a test and docs.
   parsing/clamping/rejection E2E.
 - **P6 — Docs/corpus** (`training/idioms/database.md`, `collections.md`,
   `docs/stdlib/stdlib-database.md`, `DATABASE_VISION.md`), synchronize the
-  `orm.page` signature everywhere.
+  `orm.page` signature everywhere. **LANDED (29/09)** — `training/idioms/
+  collections.md` + `database.md` (EN+PT) carry `Window<T>`/`window`/`orm.window`;
+  `docs/stdlib/stdlib-database.md` + `DATABASE_VISION.md` (EN+PT) document
+  `orm.window<T>(db, limit, offset[, total])`; the `orm.page` signature was
+  already `(db, limit, offset)` everywhere.
 - **Future (separate decision) — cursor/keyset** and the lazy
   `PLAN-MULTIPARADIGMA` spine.
 

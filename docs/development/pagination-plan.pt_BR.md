@@ -443,8 +443,12 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
 - **P5 — helper HTTP `pageRequest(...)`** + correção da paridade de decode de query.
   Prova: E2E de parse/clamp/rejeição.
 - **P6 — Docs/corpus** (`training/idioms/database.md`, `collections.md`,
-  `docs/stdlib/stdlib-database.md`, `DATABASE_VISION.md`), sincronizar a assinatura
-  de `orm.page` em todo lugar.
+  `docs/stdlib/stdlib-database.md`, `DATABASE_VISION.md`), sincronizar a
+  assinatura de `orm.page` em todo lugar. **LANDED (29/09)** — `training/idioms/
+  collections.md` + `database.md` (EN+PT) trazem `Window<T>`/`window`/`orm.window`;
+  `docs/stdlib/stdlib-database.md` + `DATABASE_VISION.md` (EN+PT) documentam
+  `orm.window<T>(db, limit, offset[, total])`; a assinatura de `orm.page` ja era
+  `(db, limit, offset)` em todo lugar.
 - **Futuro (decisão separada) — cursor/keyset** e a espinha lazy do
   `PLAN-MULTIPARADIGMA`.
 
