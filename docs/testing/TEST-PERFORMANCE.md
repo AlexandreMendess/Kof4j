@@ -165,8 +165,10 @@ the suite) for the quick-win targets the plan names.
   28 programs hoisted) → oversized 22→21, baseline 148; and `SemanticResolutionSupport`/
   `SemanticResolutionPrograms` out of `SemanticResolutionTest` (all 30 cases kept, 19 programs
   hoisted) → oversized 21→20, baseline 147; and `CmdDeploySupport` out of `CmdDeployTest` (all 16
-  cases kept, 16 helpers/records extracted, kof-cli module) → oversized 20→19, baseline **146**.
-  Re-measure `--citations`
+  cases kept, 16 helpers/records extracted, kof-cli module) → oversized 20→19, baseline 146.
+  **Phase 4/harness (29/09):** `MediaByteSupport` consolidated 7 duplicated media byte-layout
+  helpers from `MediaCrossE2ETest`/`MediaNativeE2ETest` → **3 fewer `dupname` keys** (baseline
+  **143**). Re-measure `--citations`
   before the next pick: naming candidates in the queue itself adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated

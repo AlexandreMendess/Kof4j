@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 146 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 143 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -524,6 +524,14 @@ stress tests
 ```
 
 ### Fase 4 — Harness
+
+**Primeira fatia landada (29/09):** os helpers de layout de bytes de mídia duplicados
+(`be32`/`type4`/`le16`/`le32`/`clipMp4`/`clipZeroSizeMp4`/`wav`) de `MediaCrossE2ETest` e
+`MediaNativeE2ETest` foram consolidados numa base compartilhada `MediaByteSupport` — eliminando 3
+chaves `dupname` do ratchet (ambas as classes seguem verdes, zero drift de citação).
+
+Nota da Fase 3 (29/09): extração pura esgotada — **43 oversized → 19** em 24 divisões, todas com
+zero drift; o restante ou pertence a lane ativa ou exige mover testes (citation sweep).
 
 Criar infraestrutura oficial.
 

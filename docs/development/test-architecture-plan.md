@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 146 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 143 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -520,7 +520,14 @@ stress tests
 
 ### Phase 4 — Harness
 
-Build the official infrastructure.
+Build the official infrastructure. **First slice landed (29/09):** the duplicated media byte-layout
+helpers (`be32`/`type4`/`le16`/`le32`/`clipMp4`/`clipZeroSizeMp4`/`wav`) of `MediaCrossE2ETest` and
+`MediaNativeE2ETest` were consolidated into a shared `MediaByteSupport` base — eliminating 3
+`dupname` ratchet keys (both E2E classes stay green, zero citation drift).
+
+Phase 3 note (29/09): pure extraction is now exhausted — **43 oversized classes down to 19** over 24
+splits, all with zero citation drift; the remaining oversized classes either belong to an active
+lane or require moving test methods (citation sweep), which is Phase 4/5 scope.
 
 ### Phase 5 — Targets
 

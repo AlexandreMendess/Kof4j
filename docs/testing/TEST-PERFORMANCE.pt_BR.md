@@ -165,7 +165,10 @@ executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
   oversized 22→21, baseline 148; e `SemanticResolutionSupport`/`SemanticResolutionPrograms` do
   `SemanticResolutionTest` (os 30 casos mantidos, 19 programas hoisted) → oversized 21→20,
   baseline 147; e `CmdDeploySupport` do `CmdDeployTest` (os 16 casos mantidos, 16 helpers/records
-  extraídos, módulo kof-cli) → oversized 20→19, baseline **146**. Re-meça o `--citations` antes da próxima escolha: nomear candidatos na própria
+  extraídos, módulo kof-cli) → oversized 20→19, baseline 146. **Fase 4/harness (29/09):**
+  `MediaByteSupport` consolidou 7 helpers de layout de bytes duplicados de
+  `MediaCrossE2ETest`/`MediaNativeE2ETest` → **3 chaves `dupname` a menos** (baseline **143**).
+  Re-meça o `--citations` antes da próxima escolha: nomear candidatos na própria
   fila adiciona citações a eles. (A terceira divisão também reparou uma regressão herdada do
   ratchet: `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` do
   `IniReaderE2ETest` duplicavam os nomes do `XmlReaderE2ETest`, então ganharam prefixo

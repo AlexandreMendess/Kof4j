@@ -58,8 +58,6 @@ dupname	invoke
 dupname	javac
 dupname	jvmOracle
 dupname	later
-dupname	le16
-dupname	le32
 dupname	main
 dupname	nativeArrayPrintMatchesJvmGolden
 dupname	nativeCollectionPrintMatchesJvmGolden
@@ -110,7 +108,6 @@ dupname	spawnMissingProgramIsHonestDeadHandle
 dupname	stepsRunInRegistrationOrder
 dupname	stop
 dupname	stopServer
-dupname	type4
 dupname	typedCallsRoundTripOnJvm
 dupname	visit
 dupname	visitMethodInsn
