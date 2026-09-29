@@ -24,7 +24,6 @@ dupname	debugLevelShowsDebug
 dupname	defaultLevelIsInfo
 dupname	emptyRegistryIsIdentity
 dupname	entityWithoutGeneratedUsesFirstFieldAsPk
-dupname	errorLevelSuppressesInfo
 dupname	execArithmetic
 dupname	execArrays
 dupname	execBreakContinue
@@ -70,7 +69,6 @@ dupname	nativeValueOfDoubleFloatMatchesJvmGolden
 dupname	noManifestKeepsLegacyBehavior
 dupname	nullRegistryIsIdentity
 dupname	nullReturnFailsLoudly
-dupname	offSuppressesEverything
 dupname	parity
 dupname	postBody
 dupname	println
@@ -107,7 +105,6 @@ dupname	stopServer
 dupname	typedCallsRoundTripOnJvm
 dupname	visit
 dupname	visitMethodInsn
-dupname	warnGoesToStderr
 dupname	write
 dupname	writeMaskedFrame
 dupname	writeOversizedFrameHeader
