@@ -51,6 +51,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.equals("kof_array_to_string")
                 || methodName.equals("kof_list_map") || methodName.equals("kof_list_filter") || methodName.equals("kof_list_reduce")
                 || methodName.equals("kof_list_any") || methodName.equals("kof_list_all") || methodName.equals("kof_list_none")
+                || methodName.equals("kof_list_find") || methodName.equals("kof_list_count_pred")
                 || methodName.equals("kof_list_take") || methodName.equals("kof_list_drop") || methodName.equals("kof_list_slice")
                 || methodName.startsWith("kof_observability_")
                 || methodName.startsWith("kof_media_")

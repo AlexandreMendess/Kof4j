@@ -145,6 +145,19 @@ Predicados usam a regra de veracidade do `filter`. Params nus `(x)` herdam o
 tipo do elemento (SG-012, generalizado); sem `take`/`drop`/`slice` aqui — são
 da P1 pagination.
 
+## `find` + `count(pred)` (D-MULTIPARADIGMA-PHASE1A fatia 1b, todos os alvos)
+
+```kof
+var xs = listOf(1, 2, 3)
+var f = xs.find((x) -> x > 1)   // 2 — primeiro match ou null (como Map.get-ausente)
+var m = xs.find((x) -> x > 9)   // null — teste com `== null` (idioma V?)
+var n = xs.count((x) -> x > 1)  // 2 — count() nu segue significando size
+```
+
+No Native, a primitiva encontrada leva box por baixo (slots crus vs
+consumidores `T?` boxed); ausência segue null/0 por alvo. Lambdas de bloco só
+produzem valor com `return` explícito (SEM033).
+
 ## `listOf` com subtipos relacionados infere o ancestral comum (0.5.0-beta, §285)
 
 ```kof

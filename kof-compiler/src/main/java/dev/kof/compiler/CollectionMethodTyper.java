@@ -14,7 +14,8 @@ public final class CollectionMethodTyper {
     if (BuiltinTypes.isList(recvType)) {
         String mn = mc.methodName();
         if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
-                || "any".equals(mn) || "all".equals(mn) || "none".equals(mn))
+                || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
+                || "find".equals(mn) || "count".equals(mn))
                 && mc.arguments().stream().anyMatch(a -> a instanceof LambdaExpr)) {
             Type lambdaT = null;
             for (ExpressionNode arg : mc.arguments()) {
@@ -34,6 +35,10 @@ public final class CollectionMethodTyper {
                 // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool.
                 if ("any".equals(mn) || "all".equals(mn) || "none".equals(mn))
                     return Type.PrimitiveType.BOOL;
+                // D-MULTIPARADIGMA-PHASE1A slice 1b — find returns the element
+                // type as nullable (missing = null per target, like Map.get).
+                if ("find".equals(mn))
+                    return new Type.NullableType(driver.listElementType(recvType));
             }
             return Type.UnknownType.UNKNOWN;
         }

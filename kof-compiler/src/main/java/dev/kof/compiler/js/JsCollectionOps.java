@@ -151,6 +151,10 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             case "kof_list_any" -> "kofListAny";
             case "kof_list_all" -> "kofListAll";
             case "kof_list_none" -> "kofListNone";
+            // D-MULTIPARADIGMA-PHASE1A slice 1b — find (null when missing,
+            // like kofMapGet) + count with predicate.
+            case "kof_list_find" -> "kofListFind";
+            case "kof_list_count_pred" -> "kofListCountPred";
             case "kof_list_sort" -> "kofListSort";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };

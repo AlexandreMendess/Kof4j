@@ -137,6 +137,31 @@ public final class JvmStringMiscRuntime {
                     return true;
                 }
 
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1b — find returns the first
+                // match or null (mirrors Map.get-missing); count(pred) counts
+                // matches with the filter truthiness rule.
+
+                public static Object kof_list_find(
+                        java.util.ArrayList<?> list, Object lambda, int tag) throws Exception {
+                    // tag is Native-only (box kind); JVM slots are already
+                    // objects, null is null — ignored here.
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return o;
+                    }
+                    return null;
+                }
+
+                public static int kof_list_count_pred(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    int n = 0;
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) n++;
+                    }
+                    return n;
+                }
+
                 public static Object kof_list_reduce(
                         java.util.ArrayList<?> list, Object initial, Object lambda) throws Exception {
                     Object acc = initial;

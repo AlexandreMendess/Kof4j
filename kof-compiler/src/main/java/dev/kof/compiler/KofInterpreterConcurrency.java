@@ -85,6 +85,27 @@ public final class KofInterpreterConcurrency {
                 }
                 return 1;
             }
+            // D-MULTIPARADIGMA-PHASE1A slice 1b — find returns the match or
+            // null (Map.get-missing contract); count(pred) counts matches.
+            case "kof_list_find": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return o;
+                }
+                return null;
+            }
+            case "kof_list_count_pred": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                int n = 0;
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) n++;
+                }
+                return n;
+            }
             case "kof_spawn_result": {
                 CompletableFuture<Object> future = new CompletableFuture<>();
                 startTask(future, () -> future.complete(interp.invokeLambda(args[0], new Object[0])));

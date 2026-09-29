@@ -19,6 +19,9 @@ public final class CollectionMethodGates {
             case "kof_list_slice" -> 2;
             // D-MULTIPARADIGMA-PHASE1A — quantifiers take exactly one lambda.
             case "kof_list_any", "kof_list_all", "kof_list_none" -> 1;
+            // D-MULTIPARADIGMA-PHASE1A slice 1b — find takes one lambda;
+            // count with a lambda counts matches (bare count keeps size).
+            case "kof_list_find", "kof_list_count_pred" -> 1;
             case "kof_list_sort" -> 0;
             case "kof_map_contains_value" -> 1;
             case "kof_map_put_if_absent" -> 2;
@@ -79,6 +82,31 @@ public final class CollectionMethodGates {
 
     private static Type unwrap(Type t) {
         return t instanceof Type.NullableType nt ? nt.inner() : t;
+    }
+
+    /**
+     * D-MULTIPARADIGMA-PHASE1A slice 1b — box tag for {@code find} on Native:
+     * Native list slots hold RAW primitives but {@code T?} consumers expect
+     * boxed values (like {@code Map.get}, whose slots are boxed) — the hit
+     * path must box. Numbering mirrors {@code NativeBoxTags} collection tags
+     * (0=int/char/short/byte, 1=String/passthrough, 2=long, 3=bool, 4=double,
+     * 5=float, 6=unknown/record/passthrough); the asm maps each to its
+     * {@code kof_box_*} (or passthrough). Unknown passes through — homogeneous
+     * lists (SEM056) never hide a raw primitive behind Unknown in practice.
+     */
+    static int findBoxTag(Type elemType) {
+        Type e = unwrap(elemType);
+        if (e instanceof Type.PrimitiveType pt) {
+            switch (Type.canonicalPrimitiveName(pt.name())) {
+                case "int", "char", "short", "byte": return 0;
+                case "long": return 2;
+                case "bool", "boolean": return 3;
+                case "double": return 4;
+                case "float": return 5;
+                default: return 6;
+            }
+        }
+        return 6;
     }
 
     /** §122: tipos que NUNCA são um índice/count válido (Int é o contrato). */

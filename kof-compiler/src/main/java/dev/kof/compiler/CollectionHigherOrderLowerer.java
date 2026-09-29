@@ -19,17 +19,23 @@ final class CollectionHigherOrderLowerer {
                        List<KofOperation> ops, String owner, int localIdx,
                        List<IRLocalVariable> locals) {
         String mn = mc.methodName();
+        // count with a lambda counts matches (same FUNCTION shape as the
+        // other higher-orders); bare count keeps the kof_list_size path.
+        boolean countPred = "count".equals(mn) && mc.arguments().stream()
+                .anyMatch(a -> a instanceof LambdaExpr);
         if (!BuiltinTypes.isList(recvType)
                 || !("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
-                    || "any".equals(mn) || "all".equals(mn) || "none".equals(mn))) {
+                    || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
+                    || "find".equals(mn) || countPred)) {
             return -1;
         }
-        String hoFn = "kof_list_" + mc.methodName();
-        // D-MULTIPARADIGMA-PHASE1A — quantifiers take exactly one lambda;
-        // without it the runtime call would break per-target (R6, same class
-        // as #382's indexOf gate). map/filter/reduce keep their historical path.
+        String hoFn = countPred ? "kof_list_count_pred" : "kof_list_" + mc.methodName();
+        // D-MULTIPARADIGMA-PHASE1A — quantifiers/find/count(pred) take exactly
+        // one lambda; without it the runtime call would break per-target (R6,
+        // same class as #382's indexOf gate). map/filter/reduce keep theirs.
         if ("any".equals(mc.methodName()) || "all".equals(mc.methodName())
-                || "none".equals(mc.methodName())) {
+                || "none".equals(mc.methodName()) || "find".equals(mc.methodName())
+                || countPred) {
             boolean oneLambda = mc.arguments().size() == 1
                     && mc.arguments().get(0) instanceof LambdaExpr;
             if (!oneLambda && driver.currentDiagnostics != null) {
@@ -66,12 +72,28 @@ final class CollectionHigherOrderLowerer {
         callParams.add(new Type.ClassType("java.util", "ArrayList", List.of()));
         if ("reduce".equals(mc.methodName())) callParams.add(new Type.ClassType("java.lang", "Object", List.of()));
         callParams.add(new Type.ClassType("java.lang", "Object", List.of()));
+        // D-MULTIPARADIGMA-PHASE1A slice 1b — find carries a static box tag
+        // (NativeBoxTags numbering via Gates.findBoxTag): Native list slots
+        // hold RAW primitives but T? consumers expect boxed values (Map slots
+        // are boxed); the hit path boxes per tag, miss stays 0. JVM pops it
+        // (static takes and ignores the int); JS/Script ignore the extra arg.
+        if ("find".equals(mc.methodName())) {
+            int tag = CollectionMethodGates.findBoxTag(driver.listElementType(recvType));
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, tag));
+            callParams.add(Type.PrimitiveType.INT);
+        }
         Type ret;
         if ("filter".equals(mc.methodName())) ret = recvType;
-        // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool.
+        // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool; find
+        // returns the element type as nullable (missing = null per target,
+        // mirroring Map.get).
         else if ("any".equals(mc.methodName()) || "all".equals(mc.methodName())
                 || "none".equals(mc.methodName()))
             ret = Type.PrimitiveType.BOOL;
+        else if ("find".equals(mc.methodName()))
+            ret = new Type.NullableType(driver.listElementType(recvType));
+        else if (countPred)
+            ret = Type.PrimitiveType.INT;
         else if ("map".equals(mc.methodName())) {
             Type elem = (lambdaT instanceof Type.FunctionType ft && !(ft.returnType() instanceof Type.UnknownType)) ? ft.returnType() : Type.UnknownType.UNKNOWN;
             ret = new Type.ClassType("kof", "List", List.of(elem));

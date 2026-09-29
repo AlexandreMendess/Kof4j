@@ -89,6 +89,23 @@ public final class JsRuntimeCollections {
                 return true;
             }
 
+            // D-MULTIPARADIGMA-PHASE1A slice 1b — find returns the match or
+            // null (like kofMapGet on missing); count(pred) counts matches.
+            export function kofListFind(list, fn) {
+                for (let i = 0; i < list.length; i++) {
+                    if (kofQuantTrue(kofQuantCall(fn, list[i]))) return list[i];
+                }
+                return null;
+            }
+
+            export function kofListCountPred(list, fn) {
+                let n = 0;
+                for (let i = 0; i < list.length; i++) {
+                    if (kofQuantTrue(kofQuantCall(fn, list[i]))) n++;
+                }
+                return n;
+            }
+
             function kofNaturalCmp(a, b) {
                 if (typeof a === "number" && typeof b === "number") {
                     return a < b ? -1 : a > b ? 1 : 0;

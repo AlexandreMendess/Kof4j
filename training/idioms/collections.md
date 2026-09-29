@@ -145,6 +145,19 @@ Predicates use the `filter` truthiness rule. Bare `(x)` params inherit the
 element type (SG-012, generalized); no-`take`/`drop`/`slice` here — those are
 pagination P1.
 
+## `find` + `count(pred)` (D-MULTIPARADIGMA-PHASE1A slice 1b, all targets)
+
+```kof
+var xs = listOf(1, 2, 3)
+var f = xs.find((x) -> x > 1)   // 2 — first match or null (like Map.get-missing)
+var m = xs.find((x) -> x > 9)   // null — test with `== null` (the V? idiom)
+var n = xs.count((x) -> x > 1)  // 2 — bare count() keeps meaning size
+```
+
+On Native, a found primitive is boxed behind the scenes (raw slots vs boxed
+`T?` consumers); miss stays null/0 per target. Block lambdas yield only via
+explicit `return` (SEM033).
+
 ## `listOf` with related subtypes infers the common ancestor (0.5.0-beta, §285)
 
 ```kof
