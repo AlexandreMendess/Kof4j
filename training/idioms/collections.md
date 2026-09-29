@@ -101,6 +101,34 @@ prev = m.putIfAbsent("z", 9)             // overwrite; null when the key is new
   `sort()` is natural order, period. To search a position, `indexOf(x)`
   (not a manual `get(i)` loop with `||`).
 
+## Windowing `Window<T>` (D-PAGINATION P2 — `import kof.pagination`)
+
+```kof
+import kof.pagination
+
+val l: List<Int> = listOf(10, 20, 30, 40, 50)
+val w = window(l, 2, 1)          // 2 items from offset 1 -> Window<Int>
+val w2 = window(l, 2, 1, true)   // same, total computed locally (opt-in)
+w.items()        // List<Int> — the materialized window (possibly empty)
+w.offset()       // Int
+w.limit()        // Int
+w.hasPrevious()  // Bool — offset > 0
+w.hasNext()      // Bool — exact with total; optimistic (items.size == limit) without it
+w.total()        // Long? — null unless requested
+```
+
+- `Window<T>` and `window(items, limit, offset[, withTotal])` are written in Kof
+  (`D-KOF-FIRST-IMPL`) and injected flat on an explicit `import kof.pagination` —
+  no per-backend runtime; on all targets (JVM/Native/JS/Script). A user-declared
+  `Window`/`window` collides and skips the injection.
+- `limit`/`offset` are `Int >= 0`; a negative value is a named error
+  (`"PAGINATION: limit/offset must be >= 0"`), never a silent clamp.
+- `offset > size` → empty window with `hasPrevious = true` (no error);
+  `limit == 0` → empty window. `hasNext` is exact when `total` is present,
+  optimistic otherwise. `total` is opt-in and never triggers a `COUNT`.
+- The core knows nothing about SQL or HTTP (`orm.window`/`pageRequest` are
+  platform faces of later slices).
+
 ## Quantifiers `any`/`all`/`none` (D-MULTIPARADIGMA-PHASE1A slice 1a, all targets)
 
 ```kof

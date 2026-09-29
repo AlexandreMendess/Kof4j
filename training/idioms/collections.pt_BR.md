@@ -101,6 +101,34 @@ prev = m.putIfAbsent("z", 9)             // null quando a chave e nova
   e ordem natural, ponto. Para achar posicao, `indexOf(x)` (nao loop manual
   com `get(i)`).
 
+## Janela `Window<T>` (D-PAGINATION P2 — `import kof.pagination`)
+
+```kof
+import kof.pagination
+
+val l: List<Int> = listOf(10, 20, 30, 40, 50)
+val w = window(l, 2, 1)          // 2 itens a partir do offset 1 -> Window<Int>
+val w2 = window(l, 2, 1, true)   // idem, total calculado localmente (opt-in)
+w.items()        // List<Int> — a janela materializada (possivelmente vazia)
+w.offset()       // Int
+w.limit()        // Int
+w.hasPrevious()  // Bool — offset > 0
+w.hasNext()      // Bool — exato com total; otimista (items.size == limit) sem ele
+w.total()        // Long? — null salvo quando pedido
+```
+
+- `Window<T>` e `window(items, limit, offset[, withTotal])` sao escritos em Kof
+  (`D-KOF-FIRST-IMPL`) e injetados flat num `import kof.pagination` explicito —
+  sem runtime por backend; nos 4 alvos (JVM/Native/JS/Script). Um
+  `Window`/`window` declarado pelo usuario colide e pula a injecao.
+- `limit`/`offset` sao `Int >= 0`; valor negativo e erro nomeado
+  (`"PAGINATION: limit/offset must be >= 0"`), nunca clamp silencioso.
+- `offset > size` → janela vazia com `hasPrevious = true` (sem erro);
+  `limit == 0` → janela vazia. `hasNext` e exato quando `total` esta presente,
+  otimista caso contrario. `total` e opt-in e nunca dispara um `COUNT`.
+- O core nao sabe de SQL nem de HTTP (`orm.window`/`pageRequest` sao faces de
+  plataforma de fatias posteriores).
+
 ## Quantificadores `any`/`all`/`none` (D-MULTIPARADIGMA-PHASE1A fatia 1a, todos os alvos)
 
 ```kof
