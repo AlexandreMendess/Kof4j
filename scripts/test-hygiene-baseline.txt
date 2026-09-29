@@ -4,7 +4,6 @@
 # Linhas com '#' e vazias sao ignoradas; a comparacao e por conjunto (sorted -u).
 dupname	aarch64MatchesEveryGolden
 dupname	append
-dupname	assertAllPrograms
 dupname	assertAllTargets
 dupname	assertBoth
 dupname	assertCompiles
@@ -81,7 +80,6 @@ dupname	readFully
 dupname	readLineAtEofIsHonestEmpty
 dupname	registeredStepRunsDuringCompile
 dupname	requirePython3
-dupname	requireTools
 dupname	restore
 dupname	riscv64MatchesEveryGolden
 dupname	run
