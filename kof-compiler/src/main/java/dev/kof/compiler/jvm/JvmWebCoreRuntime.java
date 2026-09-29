@@ -131,7 +131,6 @@ public final class JvmWebCoreRuntime {
                     final String remoteAddr;
                     final boolean secure;
                     final java.util.Map<String, String> params = new java.util.HashMap<>();
-                    final java.util.Map<String, String> queryParams = new java.util.HashMap<>();
                     final java.util.Map<String, String> headers = new java.util.HashMap<>();
 
                     WebRequest(String method, String path, String query, String rawHeaders, String body) {
@@ -147,13 +146,6 @@ public final class JvmWebCoreRuntime {
                         this.body = body;
                         this.remoteAddr = remoteAddr;
                         this.secure = secure;
-                        if (!query.isEmpty()) {
-                            for (String pair : query.split("&")) {
-                                int eq = pair.indexOf('=');
-                                if (eq < 0) queryParams.put(pair, "");
-                                else queryParams.put(pair.substring(0, eq), pair.substring(eq + 1));
-                            }
-                        }
                         String[] lines = rawHeaders.split("\\r\\n");
                         for (int i = 1; i < lines.length; i++) {
                             int colon = lines[i].indexOf(':');
@@ -168,8 +160,51 @@ public final class JvmWebCoreRuntime {
                         return params.get(name);
                     }
 
+                    // Paridade JVM x JS (§2.4/§12 do pagination-plan): o JS usa
+                    // decodeURIComponent no VALOR; a chave e comparada CRUA e
+                    // so pares com '=' (eq > 0) casam. Antes o JVM devolvia o
+                    // valor cru (`?name=a%20b` -> "a%20b") enquanto o JS devolvia
+                    // "a b" — divergencia silenciosa de cross-target.
                     String query(String name) {
-                        return queryParams.get(name);
+                        if (query == null || query.isEmpty()) return null;
+                        String key = String.valueOf(name);
+                        for (String kv : query.split("&")) {
+                            int eq = kv.indexOf('=');
+                            if (eq > 0 && kv.substring(0, eq).equals(key)) {
+                                return decodeQueryComponent(kv.substring(eq + 1));
+                            }
+                        }
+                        return null;
+                    }
+
+                    /** Espelha decodeURIComponent: `%XX` UTF-8 estrito; `+`
+                     *  permanece literal (ao contrario de form-urlencoded);
+                     *  sequencia malformada = URIError no JS -> aqui IllegalArgumentException. */
+                    static String decodeQueryComponent(String s) {
+                        if (s == null || s.indexOf('%') < 0) return s;
+                        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(s.length());
+                        for (int i = 0; i < s.length(); i++) {
+                            char c = s.charAt(i);
+                            if (c == '%') {
+                                if (i + 2 >= s.length()) throw new IllegalArgumentException("URI malformed");
+                                int hi = Character.digit(s.charAt(i + 1), 16);
+                                int lo = Character.digit(s.charAt(i + 2), 16);
+                                if (hi < 0 || lo < 0) throw new IllegalArgumentException("URI malformed");
+                                out.write((hi << 4) | lo);
+                                i += 2;
+                            } else {
+                                byte[] b = String.valueOf(c).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                                out.write(b, 0, b.length);
+                            }
+                        }
+                        try {
+                            return java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                                    .decode(java.nio.ByteBuffer.wrap(out.toByteArray())).toString();
+                        } catch (java.nio.charset.CharacterCodingException e) {
+                            throw new IllegalArgumentException("URI malformed", e);
+                        }
                     }
 
                     String header(String name) {

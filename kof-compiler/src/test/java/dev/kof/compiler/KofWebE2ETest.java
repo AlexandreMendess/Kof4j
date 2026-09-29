@@ -134,6 +134,20 @@ class KofWebE2ETest {
     }
 
     @Test
+    void queryValueIsPercentDecoded(@TempDir Path tempDir) throws IOException {
+        // Paridade JVM x JS (§2.4/§12 pagination-plan): o JS ja decodificava
+        // (decodeURIComponent); o JVM devolvia o valor cru. `%20` -> espaco,
+        // `%2B` -> `+` (e `+` literal NAO vira espaco).
+        int port = startServer(tempDir);
+        String r = request(port, "GET /users/42?name=a%20b%2Bc HTTP/1.1\r\nHost: x\r\nX-Auth: secret\r\n\r\n");
+        assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
+        assertTrue(bodyOf(r).equals("user 42 q=a b+c"), r);
+        // sequencia malformada = URIError no JS -> nunca 200 silencioso (R6).
+        String bad = request(port, "GET /users/42?name=%zz HTTP/1.1\r\nHost: x\r\nX-Auth: secret\r\n\r\n");
+        assertFalse(bad.startsWith("HTTP/1.1 200"), bad);
+    }
+
+    @Test
     void absentHeaderAndQueryAreNullable(@TempDir Path tempDir) throws IOException {
         // #102 item 4 (comentário PublioSantos): header()/query() presentes como
         // String mas null na ausência -> deref sem narrowing passava no check e

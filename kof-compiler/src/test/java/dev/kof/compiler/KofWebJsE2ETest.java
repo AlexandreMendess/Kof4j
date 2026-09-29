@@ -142,6 +142,11 @@ class KofWebJsE2ETest {
         assertTrue(param.startsWith("HTTP/1.1 200") || param.startsWith("HTTP/1.0 200"), param);
         assertEquals("user 42 q=mel", bodyOf(param).trim(), "rota :param + query: " + param);
 
+        // Paridade JVM x JS (§2.4/§12 pagination-plan): mesma decodificacao do
+        // valor no JVM (`%20` -> espaco, `%2B` -> `+`).
+        String enc = request(port, "GET /users/42?name=a%20b%2Bc HTTP/1.0\r\nHost: x\r\n\r\n");
+        assertEquals("user 42 q=a b+c", bodyOf(enc).trim(), "query decode: " + enc);
+
         String me = request(port, "GET /me HTTP/1.0\r\nHost: x\r\n\r\n");
         assertEquals("GET /me", bodyOf(me).trim(), "method()+path(): " + me);
 

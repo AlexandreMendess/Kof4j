@@ -310,8 +310,10 @@ O core (`Window<T>`, `List.window`) não sabe nada de SQL nem de HTTP.
   então JVM/JS a codificam de graça e o Native precisa do conjunto de campos
   passando nos gates de schema JSON (`JSN002`/`JSN004` — `Window<Record>` pode
   cair em `JSN004`; documentado e diagnosticado, nunca silencioso).
-- **Pré-requisito:** corrigir a divergência de decode de query JVM/JS
-  (`JvmWebCoreRuntime.java:139-145` vs `JsRuntimeUiWeb.java:238-246`).
+- **Pré-requisito: FEITO 29/09** — a divergência de decode de query JVM/JS foi
+  corrigida (`JvmWebCoreRuntime.WebRequest.query` agora espelha o
+  `decodeURIComponent`: `%XX` UTF-8 estrito, `+` literal, malformado → erro;
+  prova `KofWebE2ETest#queryValueIsPercentDecoded` + `KofWebJsE2ETest`).
 - Headers padrão de paginação (`X-Total-Count`, `Link`) **não** são obrigatórios;
   se desejados, são decisão separada de `kof.web`.
 
