@@ -2,9 +2,9 @@
 
 last: 0.5.0-beta
 
-doing: #678-D-SCRIPT-WARN-SURFACE-pousada (Script expõe WARNING do frontend) + unidade-3-fase-5-pinada (Buffer(U8) INOUT × spawn/await paridade runtime) + unidade-2-fase-5-pousada (#667 Script×extern FFI001 na linha da declaração + #668 face de compilação MEM020) + #651-A2-pousada (superfície Buffer(U8) x86 + token FFI B; B cross pendente) + memory-safety-fase-4-FECHADA (#658/#659/#662) + #660-D-MEM021-SCALAR-pousado (c65f9ba18, mantenedora A/ERROR) + cadeia-de-evidencia-hardened (#664/#665/#669) + unidade-1-fase-5-pinada (#666) + tabela-ownership-pousada (#670) + celulas-defasadas-mortas (#671) + selftest-pt-provado (#672) + records-vivos-registrados (#673)
+doing: #651-COMPLETA (superfície Buffer(U8) + token FFI B no x86-64 E no cross riscv64/aarch64; fatia B 29/09) + #678-D-SCRIPT-WARN-SURFACE-pousada (Script expõe WARNING do frontend) + unidade-3-fase-5-pinada (Buffer(U8) INOUT × spawn/await paridade runtime) + unidade-2-fase-5-pousada (#667 Script×extern FFI001 na linha da declaração + #668 face de compilação MEM020) + memory-safety-fase-4-FECHADA (#658/#659/#662) + #660-D-MEM021-SCALAR-pousado (c65f9ba18, mantenedora A/ERROR) + cadeia-de-evidencia-hardened (#664/#665/#669) + unidade-1-fase-5-pinada (#666) + tabela-ownership-pousada (#670) + celulas-defasadas-mortas (#671) + selftest-pt-provado (#672) + records-vivos-registrados (#673)
 
-next: #651 B (cross riscv64/aarch64 Buffer(U8) FFI) / unidade 4 da fase 5 (medir-antes) / varredura-de-promocao (lane pipeline) / 14.4-rulesets (mantenedora)
+next: unidade 4 da fase 5 (medir-antes) / varredura-de-promocao (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 

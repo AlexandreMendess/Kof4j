@@ -119,12 +119,12 @@ final class CompilerFfiBinding {
                 paramTypes.add(FfiStructLayout.arrayPtrType(ae));
                 continue;
             }
-            // D6-3/D-R3-BUFFER (fatia A2): `Buffer(U8)` INOUT atravessa como
-            // `unsigned char*` para o payload (obj+24) no x86-64; o buffer Kof
-            // nativo é memória contígua, então a escrita da C já é o copy-back.
-            // Cross riscv64/aarch64 segue FFI001 honesto (R6).
+            // D6-3/D-R3-BUFFER (fatias A2 + B): `Buffer(U8)` INOUT atravessa como
+            // `unsigned char*` para o payload (obj+24); o buffer Kof nativo é
+            // memória contígua, então a escrita da C já é o copy-back. Fatia A2
+            // abriu o x86-64; fatia B (29/09) abre o cross riscv64/aarch64 com o
+            // mesmo layout e o shim `NativeRiscvAsmBuffer`.
             if (FfiSignature.isBufferParam(param.type())) {
-                if (!x86) return false;
                 paramTypes.add(FfiStructLayout.bufferPtrType());
                 continue;
             }

@@ -144,21 +144,50 @@ class BufferFfiE2ETest {
     }
 
     @Test
-    void bufferParamCrossStaysFfi001(@TempDir Path dir) throws IOException {
-        // A fatia A2 abre só o x86-64; riscv64/aarch64 seguem FFI001 honesto (R6).
-        for (Target t : new Target[] {Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            Path src = dir.resolve("bufnat-" + t + ".kf");
-            Files.writeString(src, """
-                    extern "libc.so.6" f(Buffer(U8) buf, Int n): Int
+    void bufferParamCrossBindsAndMatchesJvm(@TempDir Path dir) throws IOException {
+        // #651 fatia B (29/09): o param FFI `Buffer(U8)` binda no cross
+        // riscv64/aarch64 com o ponteiro do payload (obj+24), como no x86-64.
+        // Sem fixture C: `memset` da libc escreve no buffer; o oráculo é o JVM.
+        String kof = """
+                extern "libc.so.6" memset(Buffer(U8) b, Int c, Long n)
 
-                    main() {
-                        println("hi")
-                    }
-                    """);
-            CompilationResult r = driver.compile(src, dir.resolve("out-buf-fnat-" + t), t);
-            assertFalse(r.success(), "cross buffer ABI stays unbound on " + t);
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                    "expected FFI001 on " + t + ", got: " + r.diagnostics().getDiagnostics());
+                main() {
+                    var b = buffer.alloc(4)
+                    memset(b, 7, 4)
+                    println(b.bytes())
+                }
+                """;
+        Path jvmSrc = dir.resolve("bufmemset-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        CompilationResult rj = driver.compile(jvmSrc, dir.resolve("out-bufmemset-jvm"), Target.JVM);
+        assertTrue(rj.success(), "JVM compile: " + rj.diagnostics().getDiagnostics());
+        String expected = runJvm(dir.resolve("out-bufmemset-jvm"));
+        assertEquals("[7, 7, 7, 7]", expected, "JVM oracle (memset writes the INOUT buffer)");
+
+        for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
+            String arch = a[0];
+            Target t = Target.valueOf(a[1]);
+            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            Path src = dir.resolve("bufmemset-" + arch + ".kf");
+            Files.writeString(src, kof);
+            Path out = dir.resolve("out-bufmemset-" + arch);
+            CompilationResult rc = driver.compile(src, out, t);
+            assertTrue(rc.success(), "#651 fatia B: Buffer(U8) extern must bind on " + arch + ": "
+                    + rc.diagnostics().getDiagnostics());
+            Path bin = out.resolve("Default/Main");
+            ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
+            pb.redirectErrorStream(true);
+            try {
+                Process p = pb.start();
+                String o = new String(p.getInputStream().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+                assertEquals(0, p.waitFor(), arch + " exit, output: " + o);
+                assertEquals(expected, o, "JVM==" + arch + " (Buffer(U8) INOUT via libc memset)");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted", e);
+            }
         }
     }
 

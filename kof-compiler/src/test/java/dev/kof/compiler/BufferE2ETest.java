@@ -79,6 +79,54 @@ class BufferE2ETest {
     }
 
     @Test
+    void allocBytesAndPrintlnCrossParity(@TempDir Path dir) throws IOException {
+        // #651 fatia B (29/09): a superfície Buffer(U8) (alloc/bytes/println)
+        // binda no cross riscv64/aarch64 via NativeRiscvAsmBuffer, com o MESMO
+        // contrato e layout do x86-64/JVM — oráculo JVM (regra 5).
+        String kof = """
+                main() {
+                    val b = buffer.alloc(4)
+                    println(b)
+                    println(b.bytes())
+                    println(buffer.alloc(0))
+                    println(buffer.alloc(-3))
+                }
+                """;
+        Path jvmSrc = dir.resolve("bufcross-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        CompilationResult rj = driver.compile(jvmSrc, dir.resolve("out-bufcross-jvm"), Target.JVM);
+        assertTrue(rj.success(), "JVM compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(dir.resolve("out-bufcross-jvm"));
+        assertEquals("Buffer[4]\n[0, 0, 0, 0]\nBuffer[0]\nBuffer[0]", jvm, "JVM golden");
+
+        for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
+            String arch = a[0];
+            Target t = Target.valueOf(a[1]);
+            org.junit.jupiter.api.Assumptions.assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            Path src = dir.resolve("bufcross-" + arch + ".kf");
+            Files.writeString(src, kof);
+            CompilationResult rc = driver.compile(src, dir.resolve("out-bufcross-" + arch), t);
+            assertTrue(rc.success(), "#651 fatia B: Buffer surface must bind on " + arch + ": "
+                    + rc.diagnostics().getDiagnostics());
+            Path bin = dir.resolve("out-bufcross-" + arch + "/Default/Main");
+            assertTrue(Files.exists(bin), "binary " + bin + " must exist");
+            ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
+            pb.redirectErrorStream(true);
+            try {
+                Process p = pb.start();
+                String out = new String(p.getInputStream().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+                assertEquals(0, p.waitFor(), arch + " exit, output: " + out);
+                assertEquals(jvm, out, "JVM==" + arch + " byte-for-byte (Buffer surface, fatia B)");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted", e);
+            }
+        }
+    }
+
+    @Test
     void allocAndBytesJsParity(@TempDir Path dir) throws IOException {
         // kof.buffer no JS (D-R3-BUFFER, 21/09): mesmo contrato do JVM —
         // zero-filled, clamp de tamanho, bytes() materializa Byte[].

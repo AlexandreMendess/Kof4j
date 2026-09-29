@@ -288,7 +288,7 @@ The following matrix maps each bug class to its prevention mechanism:
 | `val`/`var` mutability | Compile-time | Compile-time | Compile-time | Compile-time |
 | Nullability narrowing | Yes | Yes | Yes | Yes |
 | FFI string return | Copy (arena) | Copy (Kof-owned) | Copy (JS string) | Copy |
-| FFI Buffer INOUT | Copy-in + copy-back (`JvmFfiRuntime`) | **Binds on x86-64** (`#651` A2: the emitter passes the payload pointer `obj+24`; the C write is the copy-back) — riscv64/aarch64 stay `FFI001` until fatia B | Copy-back (host bridge) | **Refused at the declaration line `FFI001`** (`#667` — Script has no FFI runtime) |
+| FFI Buffer INOUT | Copy-in + copy-back (`JvmFfiRuntime`) | **Binds on x86-64 and riscv64/aarch64** (`#651` A2/B: the emitter passes the payload pointer `obj+24`; the C write is the copy-back — cross via `NativeFfiCallRiscv`) | Copy-back (host bridge) | **Refused at the declaration line `FFI001`** (`#667` — Script has no FFI runtime) |
 | Worker stack roots | Yes (virtual threads) | **Never** (disabled after spawn) | N/A (event loop) | Interpreter stack |
 
 ---

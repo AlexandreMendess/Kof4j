@@ -1,8 +1,8 @@
 # AGENTS.md
 
 last: 0.5.0-beta
-doing: #678-D-SCRIPT-WARN-SURFACE-landed (Script surfaces frontend WARNING diagnostics) + phase-5-unit-3-pinned (Buffer(U8) INOUT × spawn/await runtime parity) + phase-5-unit-2-landed (#667 Script×extern FFI001 at decl line + #668 MEM020 compile face) + #651-A2-landed (Buffer(U8) x86 surface + FFI token B; cross B pending) + memory-safety-phase-4-CLOSED (#658/#659/#662) + #660-D-MEM021-SCALAR-landed (c65f9ba18, maintainer A/ERROR) + evidence-chain-hardened (#664/#665/#669) + phase-5-unit-1-pinned (#666) + ownership-table-landed (#670) + stale-cells-purged (#671) + ledger-selftest-pt-proven (#672) + living-records-registered (#673)
-next: #651 B (cross riscv64/aarch64 Buffer(U8) FFI) / phase-5 unit 4 (measure-first) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
+doing: #651-COMPLETE (Buffer(U8) surface + FFI token B on x86-64 AND cross riscv64/aarch64; fatia B 29/09) + #678-D-SCRIPT-WARN-SURFACE-landed (Script surfaces frontend WARNING diagnostics) + phase-5-unit-3-pinned (Buffer(U8) INOUT × spawn/await runtime parity) + phase-5-unit-2-landed (#667 Script×extern FFI001 at decl line + #668 MEM020 compile face) + memory-safety-phase-4-CLOSED (#658/#659/#662) + #660-D-MEM021-SCALAR-landed (c65f9ba18, maintainer A/ERROR) + evidence-chain-hardened (#664/#665/#669) + phase-5-unit-1-pinned (#666) + ownership-table-landed (#670) + stale-cells-purged (#671) + ledger-selftest-pt-proven (#672) + living-records-registered (#673)
+next: phase-5 unit 4 (measure-first) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 

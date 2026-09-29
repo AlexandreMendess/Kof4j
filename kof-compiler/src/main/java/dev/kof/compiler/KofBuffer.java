@@ -7,11 +7,12 @@ import java.util.List;
  * (D-R3-BUFFER / D6-3, maintainer 21/09/2026).
  *
  * <p>Incremental slice (R6-SCOPE): {@code buffer.alloc(Int) : Buffer(U8)} and
- * {@code Buffer.bytes() : Byte[]} on the JVM, JS, and — since the #651 fatia A1
- * x86 surface — the {@code Target.NATIVE} x86-64 backend. The programmer never
- * allocates or frees — the lifetime is language-managed (D-R3-HANDLE-LIFETIME).
- * The FFI out-buffer token {@code B} remains a separate later slice (fatia A2);
- * cross Native targets stay an honest gap.
+ * {@code Buffer.bytes() : Byte[]} on the JVM, JS, x86-64 ({@code Target.NATIVE},
+ * #651 fatia A1) and the cross riscv64/aarch64 ({@code NativeRiscvAsmBuffer},
+ * fatia B). The programmer never allocates or frees — the lifetime is
+ * language-managed (D-R3-HANDLE-LIFETIME). The FFI out-buffer token {@code B}
+ * binds on the same native targets (A2 x86, B cross); Android/Script and
+ * riscv32/MCU stay honest gaps.
  */
 public final class KofBuffer {
     private KofBuffer() {}
@@ -53,15 +54,18 @@ public final class KofBuffer {
     }
 
     static boolean supportedOn(Target target) {
-        // JVM/JS landed in 21/09; x86-64 native surface (alloc/bytes/println) landed in
-        // #651 fatia A1. Cross native targets and the FFI B token remain honest gaps.
-        return target == Target.JVM || target == Target.JS || target == Target.NATIVE;
+        // JVM/JS landed 21/09; x86-64 native surface (alloc/bytes/println) landed in
+        // #651 fatia A1; the cross riscv64/aarch64 surface + FFI B token landed in
+        // fatia B (29/09, NativeRiscvAsmBuffer). riscv32/MCU stay honest FFI001.
+        return target == Target.JVM || target == Target.JS
+                || target == Target.NATIVE
+                || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64;
     }
 
     static String gapCode(Target target) {
-        // The Buffer namespace binds on JVM, JS and x86-64 Native. Cross Native targets
-        // (and other non-JVM/JS targets) still report FFI001; the FFI `B` parameter is
-        // separately gated by the extern binding rule and is not opened by fatia A1.
+        // The Buffer namespace binds on JVM, JS and Native (x86-64 + cross
+        // riscv64/aarch64). Android, Script, riscv32 and MCU still report FFI001;
+        // the FFI `B` parameter binds wherever the buffer surface does.
         return "FFI001";
     }
 }

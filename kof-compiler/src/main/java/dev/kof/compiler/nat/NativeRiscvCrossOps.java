@@ -4,6 +4,7 @@ import dev.kof.compiler.CollectionWrites;
 import dev.kof.compiler.CompilerClassLowering;
 import dev.kof.compiler.KofBinary;
 import dev.kof.compiler.KofBinaryOp;
+import dev.kof.compiler.KofBuffer;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofConditionalJump;
@@ -176,64 +177,8 @@ public final class NativeRiscvCrossOps {
             return;
         }
 
-        // println / print (PrintStream)
-        if (kc.kind() == KofCallKind.INSTANCE && ("println".equals(mn) || "print".equals(mn))) {
-            boolean nl = "println".equals(mn);
-            sb.append("    pop a0\n");
-            // T? (get de Map, SG-008/bug 87): despacho pelo INNER — sem isso
-            // Nullable(primitivo) caía no println_string sobre raw int (segv)
-            Type dispatchType = argType instanceof Type.NullableType nt ? nt.inner() : argType;
-            if (argType instanceof Type.NullableType nnt2
-                    && nnt2.inner() instanceof Type.PrimitiveType ipt2
-                    && NativeBoxTags.unboxFn(ipt2.name()) != null) {
-                // §284-map: Nullable(Int/Short/Byte/Long) = caixa fisica do
-                // slot de Map (escrita no lowerer). Despacha pela caixa; o
-                // Nullable(Char) ja chega DESEMBALADO do lowerer (ramo char,
-                // valueOf(CHAR)) e nunca passa por aqui.
-                sb.append("    call kof_box_to_string\n");
-                sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-            } else if (dispatchType instanceof Type.PrimitiveType pt) {
-                String cn = Type.canonicalPrimitiveName(pt.name());
-                switch (cn) {
-                    case "char" -> {
-                        // §333/#259: Char imprime o CARACTERE (D-PRINT/§216),
-                        // não o codepoint — paridade com JVM e x86.
-                        sb.append("    call kof_char_to_string\n");
-                        sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                    }
-                    case "int", "short", "byte" -> {
-                        sb.append(nl ? "    call kof_println_int\n" : "    call kof_print_int\n");
-                    }
-                    case "long" -> sb.append(nl ? "    call kof_println_int\n" : "    call kof_print_int\n");
-                    case "bool", "boolean" -> {
-                        sb.append("    call kof_bool_to_string\n");
-                        sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                    }
-                    case "float" -> {
-                        // FLT001 (fechado 15/09): println(double/float) direto
-                        // de System.out (não passa pelo valueOf do sugar).
-                        sb.append("    call kof_float_to_string\n");
-                        sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                    }
-                    case "double" -> {
-                        sb.append("    call kof_double_to_string\n");
-                        sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                    }
-                    default -> sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                }
-            } else {
-                // §284: pode chegar um BOX de erasure aqui (println de um
-                // Object direto, sem sugar) — kof_box_to_string normaliza
-                // box→string e passa nao-box cru (o caminho antigo roda
-                // inalterado p/ String/objeto real).
-                sb.append("    call kof_box_to_string\n");
-                sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-            }
-            // o receiver (System.out via KofGetStatic) é descartado — o
-            // runtime nativo não usa o PrintStream.
-            sb.append("    addi sp, sp, 8\n");
-            sb.append("    li a0, 0\n");
-            other.pushRiscv(sb, "a0");
+        // println / print (PrintStream) — extraído ≤600 (NativeRiscvPrintDispatch)
+        if (NativeRiscvPrintDispatch.emit(sb, kc, argType, other)) {
             return;
         }
 
@@ -254,6 +199,13 @@ public final class NativeRiscvCrossOps {
             if (dev.kof.compiler.KofProcess.isResult(argType)) {
                 sb.append("    pop a0\n");
                 sb.append("    call kof_process_result_to_string\n");
+                other.pushRiscv(sb, "a0");
+                return;
+            }
+            if (KofBuffer.isBufferType(vArgType)) {
+                // #651 fatia B: valueOf(Buffer) usa o contrato "Buffer[cap]".
+                sb.append("    pop a0\n");
+                sb.append("    call kof_buffer_to_string\n");
                 other.pushRiscv(sb, "a0");
                 return;
             }

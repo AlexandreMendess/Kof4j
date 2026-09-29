@@ -36,12 +36,18 @@ final class NativeFfiCallRiscv {
         int n = kc.parameterTypes().size();
         char[] cls = new char[n];
         boolean[] isStruct = new boolean[n];
+        boolean[] isBuf = new boolean[n];
         Type[] structTypes = new Type[n];
         for (int i = 0; i < n; i++) {
             Type pt = kc.parameterTypes().get(i);
             if (FfiStructLayout.isStructType(pt)) {
                 isStruct[i] = true;
                 structTypes[i] = pt;
+            } else if (FfiStructLayout.isBufferPtr(pt)) {
+                // #651 fatia B: Buffer(U8) → ponteiro do payload (obj+24), NULL→NULL
+                // (mesma forma do String/'S' abaixo; o buffer cross é memória
+                // contígua como no x86, então a escrita da C é o copy-back).
+                isBuf[i] = true;
             } else {
                 cls[i] = FfiSignature.charOfType(pt);
             }
@@ -87,7 +93,9 @@ final class NativeFfiCallRiscv {
             if (floatC ? ord[i] >= 8 : ord[i] >= 8) continue; // derramado: passo 3
             String dst = floatC ? "t2" : intRegs[ord[i]];
             sb.append("    ld ").append(dst).append(", ").append(8 * (n - 1 - i)).append("(t0)\n");
-            if (c == 'S') {
+            if (c == 'S' || isBuf[i]) {
+                // String→payload/char* e Buffer(U8)→ponteiro do payload: offset 24
+                // do objeto Kof; NULL→NULL (a C recebe o cstr/ptr cru).
                 String lbl = ".Lffis" + seq + "_" + i;
                 sb.append("    beqz ").append(dst).append(", ").append(lbl).append("\n");
                 sb.append("    addi ").append(dst).append(", ").append(dst).append(", 24\n");
@@ -128,7 +136,7 @@ final class NativeFfiCallRiscv {
             boolean floatC = isFloatClass(c);
             if (!(floatC ? ord[i] >= 8 : ord[i] >= 8)) continue;
             sb.append("    ld t2, ").append(8 * (n - 1 - i)).append("(t0)\n");
-            if (c == 'S') {
+            if (c == 'S' || isBuf[i]) {
                 String lbl = ".Lffis" + seq + "_" + i;
                 sb.append("    beqz t2, ").append(lbl).append("\n");
                 sb.append("    addi t2, t2, 24\n");

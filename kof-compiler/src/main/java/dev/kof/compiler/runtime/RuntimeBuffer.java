@@ -3,11 +3,12 @@ package dev.kof.compiler.runtime;
 /**
  * Fatia de runtime x86_64 — {@code kof.buffer} / tipo nominal {@code Buffer(U8)}.
  *
- * <p>Superfície da #651 fatia A1 (x86 only): {@code buffer.alloc(Int)},
+ * <p>Superfície da #651 fatia A1 (x86-64): {@code buffer.alloc(Int)},
  * {@code Buffer.bytes()} e {@code println(Buffer)} com o mesmo contrato do
  * JVM/JS — tamanho negativo vira {@code 0}, payload é zero-filled e
- * {@code bytes()} devolve uma cópia. O token FFI {@code B} continua fatia
- * separada (A2); cross native continua {@code FFI001}.
+ * {@code bytes()} devolve uma cópia. O token FFI {@code B} binda no x86-64
+ * (fatia A2); o cross riscv64/aarch64 tem o port próprio em
+ * {@code NativeRiscvAsmBuffer} (fatia B, 29/09).
  */
 public final class RuntimeBuffer {
 

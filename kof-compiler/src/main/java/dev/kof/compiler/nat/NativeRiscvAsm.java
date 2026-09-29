@@ -334,6 +334,10 @@ public final class NativeRiscvAsm {
                 // 16-bit) do kof.media no cross — port de RuntimeMediaWav
                 // (aarch64 herda via tradutor); Image/Mic seguem MEDIA001/003.
                 .append(NativeRiscvAsmMediaWav.RISCV_ASM_MEDIA_WAV)
+                // #651 fatia B (lane memory-safety/paridade, 29/09): Buffer(U8)
+                // no cross — alloc/bytes/to_string com o layout x86-64 (header
+                // 24, cap@16, payload@24); aarch64 herda via tradutor.
+                .append(NativeRiscvAsmBuffer.RISCV_ASM_BUFFER)
                 .toString();
     }
     static final String RISCV_MAPSET_ASM = runtimeMapset();

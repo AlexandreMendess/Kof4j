@@ -280,7 +280,7 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | `val`/`var` mutabilidade | Compile-time | Compile-time | Compile-time | Compile-time |
 | Nulabilidade estreitamento | Sim | Sim | Sim | Sim |
 | FFI string return | Copy (arena) | Copy (Kof-owned) | Copy (JS string) | Copy |
-| FFI Buffer INOUT | Copy-in + copy-back (`JvmFfiRuntime`) | **Binda no x86-64** (`#651` A2: o emissor passa o ponteiro do payload `obj+24`; a escrita do C é o copy-back) — riscv64/aarch64 seguem `FFI001` até a fatia B | Copy-back (bridge do host) | **Recusado na linha da declaração `FFI001`** (`#667` — Script não tem runtime FFI) |
+| FFI Buffer INOUT | Copy-in + copy-back (`JvmFfiRuntime`) | **Binda no x86-64 e no riscv64/aarch64** (`#651` A2/B: o emissor passa o ponteiro do payload `obj+24`; a escrita do C é o copy-back — cross via `NativeFfiCallRiscv`) | Copy-back (bridge do host) | **Recusado na linha da declaração `FFI001`** (`#667` — Script não tem runtime FFI) |
 | Worker stack roots | Sim (virtual threads) | **Nunca** (desabilitado após spawn) | N/A (event loop) | Pilha do interpretador |
 
 ---

@@ -50,10 +50,10 @@ public final class FfiStructLayout {
                 && PKG.equals(ct.packageName()) && "array".equals(ct.name());
     }
 
-    /** D6-3 / D-R3-BUFFER (fatia A2): `Buffer(U8)` INOUT crosses as a C
+    /** D6-3 / D-R3-BUFFER (fatias A2 + B): `Buffer(U8)` INOUT crosses as a C
      *  `unsigned char*` pointing at the buffer payload (object offset 24). The
-     *  marker carries no element (U8 only) and is x86-64 only for now (cross
-     *  stays {@code FFI001}). */
+     *  marker carries no element (U8 only). Binds on the native targets — x86-64
+     *  (A2) and cross riscv64/aarch64 (B, 29/09); Android/Script stay {@code FFI001}. */
     public static Type bufferPtrType() {
         return new Type.ClassType(PKG, "bufferptr", List.of());
     }
@@ -191,6 +191,13 @@ public final class FfiStructLayout {
     public static boolean crossBindable(List<Type> paramTypes) {
         int nInt = 0, nFlt = 0;
         for (Type t : paramTypes) {
+            if (isBufferPtr(t)) {
+                // #651 fatia B: Buffer(U8)→ptr é um ponteiro INTEGER (um ordinal),
+                // como o array-ptr do x86 — LP64/AAPCS64.
+                if (nInt >= 8) return false;
+                nInt++;
+                continue;
+            }
             if (isStructType(t)) {
                 AbiLayout.Layout l = layout(AbiLayout.Abi.RISCV64, t);
                 if (l.byMemory() || l.size() > 16 || l.classes().isEmpty()) return false;
