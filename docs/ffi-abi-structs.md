@@ -55,7 +55,17 @@ instance through the canonical constructor (coercing `Long`→`BigInt` etc.;
 parity with the reflective `kof_ffi_read_struct`). Proof:
 `structReturnByValueJsParity` (`Point`/`Big`/`Mix`/`ParamMix` — register and
 sret paths, plus a `Long` field) byte-for-byte JVM==JS. **The whole JS param +
-return surface is done**; the only remaining D6 gap is Native (3.7).
+return surface is done.**
+**Landed 29/09 (#651 fatia A2 · D6-3 · native `Buffer(U8)` INOUT x86-64):** the
+native x86-64 extern now binds `Buffer(U8)` as an INOUT parameter. Unlike the
+JVM/JS arena copy-in/copy-back, the native Kof Buffer is already contiguous
+memory, so the emitter passes the payload address (`obj+24`) straight to the C —
+the C write **is** the copy-back (one INTEGER register, like a `char*`). Proof:
+`BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity` with a real `.so`
+(`20/[10, 10]/40/[20, 20]`, the +10 accumulating across calls) byte-for-byte
+JVM==Native; `InteropIdiomsCompileTest#nativeShapeExamplesBindOnX86` proves the
+documented shapes no longer emit `FFI001`. Cross riscv64/aarch64 stays `FFI001`
+(fatia B).
 **Landed 21/09 (3.7 fatia 1 · native struct param, register path):** the
 x86-64 SysV backend now binds a `record` scalar-fields struct **by value as an
 argument** — `FfiStructLayout` classifies via `AbiLayout` and the call-site
@@ -132,7 +142,7 @@ the nested token `(<ret><params>)`. Anything the map does not cover is a
 | String = `char*` | ✅ in + out | ✅ in (payload off 24) + out (boundary copy) | ✅ |
 | **struct (record, scalar fields)** | ✅ **by value in + out** (`@` token, 3.8b fatias 1–2, 20–21/09) | ◐ **by value param + return, register path *and* sret x86-64** (3.7 fatias 1–2b, 21/09); cross **return** INTEGER ≤ 16 B binds (fatia 3, 22/09); struct param/float/HFA/array/`Buffer` on riscv64/aarch64 → `FFI001` (3.7) | ✅ **by value IN + OUT** (IN: `@<n><chars>` + `__kof_ffi_fields`; OUT: `@<n><chars>` return + `__kof_ffi_from`; bridges 21/09) |
 | **scalar array `T[]`→`ptr`** | ✅ **copy-in per call** (`p<elem>` token, 3.8b fatia 3, 21/09; no write-back) | ◐ **copy-in x86-64** for `Long[]`/`Double[]`/`Int[]`/`Float[]`/`Bool[]` (`FfiNativeArrayE2ETest`, 3.7 steps 1–2, 22/09); `String[]` and cross → `FFI001` | ✅ **copy-in per call** (`packArray` bridge, 21/09; no write-back) |
-| **out-buffer `Buffer(U8)` INOUT** | ✅ **copy-in / call / copy-back** (`B` token + `buffer.alloc`/`Buffer.bytes()`, D6-3, 21/09) | ❌ FFI001 | ✅ **copy-in / call / copy-back** (`B` token + `packBuffer`/copy-back after the downcall, bridge 21/09) |
+| **out-buffer `Buffer(U8)` INOUT** | ✅ **copy-in / call / copy-back** (`B` token + `buffer.alloc`/`Buffer.bytes()`, D6-3, 21/09) | ✅ **payload pointer `obj+24` (the C write is the copy-back)** on x86-64 (#651 fatia A2, 29/09); cross riscv64/aarch64 → `FFI001` | ✅ **copy-in / call / copy-back** (`B` token + `packBuffer`/copy-back after the downcall, bridge 21/09) |
 | non-scalar array / opaque (e.g. `String[]`/`List<T>`/`Handle`) | ❌ FFI001 | ❌ FFI001 | ❌ FFI002 |
 
 JVM scalar→FFM mapping (measured): `i→JAVA_INT, j→JAVA_LONG, f→JAVA_FLOAT,
@@ -214,8 +224,11 @@ Three worked examples the implementation tests must reproduce bit-exactly:
   `Buffer(U8)` as an `extern` INOUT parameter — **copy-in / call / copy-back**
   (`BufferFfiE2ETest` 4/4 with a real C shim: writes accumulate across calls,
   proving copy-in reads and copy-back writes). The Native x86-64 namespace/print
-  surface landed in #651 A1; the Native FFI `B` token remains A2 (`FFI001`) and
-  cross Native remains honest until B (R6-SCOPE: incremental, declared gaps).
+  surface landed in #651 fatia A1 (28/09) and the Native FFI `B` token landed in
+  #651 fatia A2 (29/09) — the emitter passes `obj+24` (payload) directly on
+  x86-64, proven by `BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity`;
+  cross riscv64/aarch64 remains honest until fatia B (R6-SCOPE: incremental,
+  declared gaps).
 - **D6-4 · return-by-value > 16 B.** SysV hidden-pointer (sret) / AAPCS64
   hidden-x8 / LP64 reference — the *JVM* Linker hides this; the *asm*
   backend must implement sret explicitly. Flag: this is the single biggest
@@ -253,8 +266,9 @@ until decided — no silent partial binding.
    landed 21/09 for struct **param** (D6-5 host pack), scalar array
    **`T[]`→`ptr` copy-in** (D6-2, `packArray`), `Buffer(U8)` INOUT (D6-3,
    `packBuffer` + copy-back) and struct **return** (`__kof_ffi_from`). The JS
-   FFI surface (param + return) is complete; the only D6 work left is Native
-   (3.7: struct/array/sret).
+   FFI surface (param + return) is complete; the remaining D6 work is the Native
+   cross faces (3.7 fatia B) — the x86-64 struct/array/`Buffer(U8)` faces landed
+   (3.7 D6-2 + #651 fatia A2).
   3. **3.7** native asm: classification by hand per target. **✅ ALL SLICES
     LANDED — x86-64 struct param + return (register path *and* sret > 16 B,
     21/09) + x86-64 scalar `T[]`→`ptr` copy-in (22/09, steps 1–2) +
@@ -262,9 +276,10 @@ until decided — no silent partial binding.
     cross struct PARAM INTEGER register path (22/09, fatia 4)** —
     `FfiStructLayout` + call-site pack/materialise, golden JVM==Native.
     Remaining: cross float/HFA/> 16 B, `T[]`/`Buffer(U8)` on cross,
-    `String[]`→`char**`, and the FFI `Buffer(U8)` token `B` on x86-64
-    (all honest `FFI001`, R6 — future work, not this spec; the x86-64
-    namespace/print surface landed in #651 A1).
+    `String[]`→`char**` (all honest `FFI001`, R6 — future work, not this spec).
+    The x86-64 `Buffer(U8)` FFI token `B` **landed in #651 fatia A2 (29/09)** —
+    the payload pointer (`obj+24`) is passed directly and the C write is the
+    copy-back (`BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity`).
   4. **JS**: ✅ **COMPLETE 21/09** — struct param + return, scalar array
     copy-in, `Buffer(U8)` INOUT (bridges `structParamByValueJsParity`,
     `structReturnByValueJsParity`, `arrayParamByValueJsParity`,
@@ -272,8 +287,9 @@ until decided — no silent partial binding.
   5. **DoD (R5) ✅ 23/09**: per-target golden E2E matrix measured
     (`FfiStructE2ETest` 12/12, `FfiNativeCrossE2ETest` 10/10,
     `FfiCrossStructParamE2ETest` 5/5, `FfiNativeArrayE2ETest` 2/2,
-    `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 4/4, `FfiStructLayoutTest` 5/5,
-    `FfiE2ETest` 17/17 — **60/60 green 23/09**); FFI00x unchanged for
+    `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 5/5 (x86-64 Buffer INOUT, A2 29/09),
+    `FfiStructLayoutTest` 5/5,
+    `FfiE2ETest` 17/17 — **61/61 green 29/09**); FFI00x unchanged for
     everything not covered; `training/idioms/interop.md` carries the D6
     shapes (record by value, `T[]`→`ptr`, `Buffer(U8)` INOUT). **This doc
     is CONCLUDED — promote to `docs/` per the three-states rule.**

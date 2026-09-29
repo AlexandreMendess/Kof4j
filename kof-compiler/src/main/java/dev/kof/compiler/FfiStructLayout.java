@@ -50,6 +50,19 @@ public final class FfiStructLayout {
                 && PKG.equals(ct.packageName()) && "array".equals(ct.name());
     }
 
+    /** D6-3 / D-R3-BUFFER (fatia A2): `Buffer(U8)` INOUT crosses as a C
+     *  `unsigned char*` pointing at the buffer payload (object offset 24). The
+     *  marker carries no element (U8 only) and is x86-64 only for now (cross
+     *  stays {@code FFI001}). */
+    public static Type bufferPtrType() {
+        return new Type.ClassType(PKG, "bufferptr", List.of());
+    }
+
+    public static boolean isBufferPtr(Type t) {
+        return t instanceof Type.ClassType ct
+                && PKG.equals(ct.packageName()) && "bufferptr".equals(ct.name());
+    }
+
     /** Element char of an array-ptr marker, or null when {@code t} is not one. */
     public static Character arrayPtrElem(Type t) {
         if (!isArrayPtr(t)) return null;
@@ -210,6 +223,12 @@ public final class FfiStructLayout {
             if (isArrayPtr(t)) {
                 // 3.7 D6-2: array→ptr é um ponteiro INTEGER (um ordinal).
                 if (nInt >= 6) return false;
+                nInt++;
+                continue;
+            }
+            if (isBufferPtr(t)) {
+                // D6-3/A2: Buffer(U8)→ptr é um ponteiro INTEGER (como um escalar,
+                // pode derramar para a pilha quando passam de 6 ordinais).
                 nInt++;
                 continue;
             }

@@ -110,6 +110,15 @@ final class CompilerFfiBinding {
                 paramTypes.add(FfiStructLayout.arrayPtrType(ae));
                 continue;
             }
+            // D6-3/D-R3-BUFFER (fatia A2): `Buffer(U8)` INOUT atravessa como
+            // `unsigned char*` para o payload (obj+24) no x86-64; o buffer Kof
+            // nativo é memória contígua, então a escrita da C já é o copy-back.
+            // Cross riscv64/aarch64 segue FFI001 honesto (R6).
+            if (FfiSignature.isBufferParam(param.type())) {
+                if (!x86) return false;
+                paramTypes.add(FfiStructLayout.bufferPtrType());
+                continue;
+            }
             // D6-1(A)/3.7: `record` de campos escalares por valor (register path) — x86-64.
             String fc = FfiSignature.structFieldChars(param.type(), driver);
             if (fc == null) return false;

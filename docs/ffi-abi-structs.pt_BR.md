@@ -58,7 +58,17 @@ construtor canônico (coagindo `Long`→`BigInt` etc.; paridade com o
 `kof_ffi_read_struct` reflexivo). Prova: `structReturnByValueJsParity`
 (`Point`/`Big`/`Mix`/`ParamMix` — caminhos registrador e sret, mais um campo
 `Long`) byte-a-byte JVM==JS. **Toda a superfície de param + retorno do JS está
-pronta**; o único gap D6 restante é o Native (3.7).
+pronta.**
+**Pousou 29/09 (#651 fatia A2 · D6-3 · `Buffer(U8)` INOUT nativo x86-64):** o
+extern nativo x86-64 agora binda `Buffer(U8)` como parâmetro INOUT. Diferente da
+arena copy-in/copy-back do JVM/JS, o Buffer Kof nativo já é memória contígua,
+então o emissor passa o endereço do payload (`obj+24`) direto para o C — a
+escrita do C **é** o copy-back (um registrador INTEGER, como um `char*`). Prova:
+`BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity` com `.so` real
+(`20/[10, 10]/40/[20, 20]`, acumulando +10 a cada chamada) byte-a-byte
+JVM==Native; `InteropIdiomsCompileTest#nativeShapeExamplesBindOnX86` prova que as
+formas documentadas deixam de emitir `FFI001`. Cross riscv64/aarch64 segue
+`FFI001` (fatia B).
 **Pousou 21/09 (3.7 fatia 1 · struct param nativo, caminho de registradores):** o
 backend x86-64 SysV agora binda um struct `record` de campos escalares **por
 valor como argumento** — o `FfiStructLayout` classifica via `AbiLayout` e o
@@ -134,7 +144,7 @@ tempo de compilação**: `FFI001` (JVM/Native não bindável) / `FFI002` (JS) �
 | String = `char*` | ✅ entrada + saída | ✅ entrada (payload off 24) + saída (cópia na fronteira) | ✅ |
 | **struct (record, campos escalares)** | ✅ **por valor entrada + retorno** (token `@`, 3.8b fatias 1–2, 20–21/09) | ◐ **por valor param + retorno, caminho de registradores *e* sret x86-64** (3.7 fatias 1–2b, 21/09); **retorno** INTEGER ≤ 16 B no cross binda (fatia 3, 22/09); param struct/float/HFA/array/`Buffer` em riscv64/aarch64 → `FFI001` (3.7) | ✅ **por valor ENTRADA + RETORNO** (IN: `@<n><chars>` + `__kof_ffi_fields`; OUT: retorno `@<n><chars>` + `__kof_ffi_from`, bridges 21/09) |
 | **array escalar `T[]`→`ptr`** | ✅ **copy-in por chamada** (token `p<elem>`, 3.8b fatia 3, 21/09; sem write-back) | ◐ **copy-in x86-64** para `Long[]`/`Double[]`/`Int[]`/`Float[]`/`Bool[]` (`FfiNativeArrayE2ETest`, 3.7 passos 1–2, 22/09); `String[]` e cross → `FFI001` | ✅ **copy-in por chamada** (`packArray` bridge, 21/09; sem write-back) |
-| **out-buffer `Buffer(U8)` INOUT** | ✅ **copy-in / chamada / copy-back** (token `B` + `buffer.alloc`/`Buffer.bytes()`, D6-3, 21/09) | ❌ FFI001 | ✅ **copy-in / chamada / copy-back** (token `B` + `packBuffer`/copy-back após o downcall, bridge 21/09) |
+| **out-buffer `Buffer(U8)` INOUT** | ✅ **copy-in / chamada / copy-back** (token `B` + `buffer.alloc`/`Buffer.bytes()`, D6-3, 21/09) | ✅ **ponteiro do payload `obj+24` (a escrita do C é o copy-back)** no x86-64 (#651 fatia A2, 29/09); cross riscv64/aarch64 → `FFI001` | ✅ **copy-in / chamada / copy-back** (token `B` + `packBuffer`/copy-back após o downcall, bridge 21/09) |
 | array não-escalar / opaco (ex. `String[]`/`List<T>`/`Handle`) | ❌ FFI001 | ❌ FFI001 | ❌ FFI002 |
 
 Mapeamento escalar JVM→FFM (medido): `i→JAVA_INT, j→JAVA_LONG, f→JAVA_FLOAT,
@@ -219,8 +229,11 @@ Três exemplos resolvidos que os testes de implementação devem reproduzir bit 
   e `Buffer(U8)` como parâmetro INOUT de `extern` — **copy-in / chamada /
   copy-back** (`BufferFfiE2ETest` 4/4 com shim C real: as escritas acumulam
   entre chamadas, provando que o copy-in lê e o copy-back escreve). A superfície
-  Native x86-64 de namespace/print pousou no #651 A1; o token FFI `B` no Native
-  segue A2 (`FFI001`) e o cross Native segue honesto até B (R6-SCOPE: incremental).
+  Native x86-64 de namespace/print pousou no #651 fatia A1 (28/09) e o token FFI
+  `B` no Native pousou na fatia A2 (29/09) — o emissor passa `obj+24` (payload)
+  direto no x86-64, provado por
+  `BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity`; o cross
+  riscv64/aarch64 segue honesto até a fatia B (R6-SCOPE: incremental).
 - **D6-4 · retorno by-value > 16 B.** SysV hidden-pointer (sret) /
   AAPCS64 hidden-x8 / LP64 referência — o Linker do *JVM* esconde isso; o
   backend *asm* precisa implementar sret explicitamente. Alerta: é o maior
@@ -259,15 +272,18 @@ FFI001/002 honesto até decidido — nada de binding parcial silencioso.
    array escalar **`T[]`→`ptr` copy-in** (D6-2, `packArray`), `Buffer(U8)`
    INOUT (D6-3, `packBuffer` + copy-back) e o **retorno** de struct
    (`__kof_ffi_from`). A superfície de FFI do JS (param + retorno) está completa;
-   o único trabalho D6 restante é o Native (3.7: struct/array/sret).
+   o trabalho D6 restante é o Native cross (3.7 fatia B) — as faces x86-64 de
+   struct/array/`Buffer(U8)` pousaram (3.7 D6-2 + #651 fatia A2).
 3. **3.7** asm native: classificação manual por target. **✅ fatias 1–2b
    POUSARAM 21/09 (struct param + retorno x86-64, caminho de registradores *e*
    sret > 16 B — `FfiStructLayout` + pack/materialização no call-site, golden
    JVM==Native) + fatia 3 POUSOU 22/09 (RETURN de struct INTEGER ≤ 16 B no
    cross, riscv64/aarch64, golden qemu)** + **fatia 4 POUSOU 22/09 (PARAM struct
    no cross, register path INTEGER)**; restante: float/HFA/> 16 B no cross,
-   `T[]`/`Buffer(U8)` no cross e o token FFI `Buffer(U8)` `B` no x86-64
-   (`FFI001` honesto, R6; a superfície de namespace/print x86-64 pousou no #651 A1).
+   `T[]`/`Buffer(U8)` no cross (`FFI001` honesto, R6). O token FFI `Buffer(U8)`
+   `B` no x86-64 **pousou no #651 fatia A2 (29/09)** — ponteiro do payload
+   (`obj+24`) direto, a escrita do C é o copy-back
+   (`BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity`).
 4. **JS**: ✅ **COMPLETO 21/09** — struct param + retorno, array escalar
    copy-in, `Buffer(U8)` INOUT (bridges `structParamByValueJsParity`,
    `structReturnByValueJsParity`, `arrayParamByValueJsParity`,
@@ -275,8 +291,9 @@ FFI001/002 honesto até decidido — nada de binding parcial silencioso.
 5. **DoD (R5) ✅ 23/09**: matriz E2E golden por target medida
    (`FfiStructE2ETest` 12/12, `FfiNativeCrossE2ETest` 10/10,
    `FfiCrossStructParamE2ETest` 5/5, `FfiNativeArrayE2ETest` 2/2,
-   `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 4/4, `FfiStructLayoutTest` 5/5,
-   `FfiE2ETest` 17/17 — **60/60 verde 23/09**); FFI00x inalterado para
+   `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 5/5 (Buffer INOUT x86-64, A2 29/09),
+   `FfiStructLayoutTest` 5/5,
+   `FfiE2ETest` 17/17 — **61/61 verde 29/09**); FFI00x inalterado para
    tudo que não for coberto; `training/idioms/interop.md` carrega as formas
    D6 (record por valor, `T[]`→`ptr`, `Buffer(U8)` INOUT). **Este doc está
    CONCLUÍDO — promover para `docs/` pela regra dos três estados.**

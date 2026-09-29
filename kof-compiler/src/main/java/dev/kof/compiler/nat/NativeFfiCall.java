@@ -111,11 +111,14 @@ final class NativeFfiCall {
         Type[] structTypes = new Type[n];
         boolean[] isArray = new boolean[n];
         char[] arrayElem = new char[n];
+        boolean[] isBufPtr = new boolean[n];
         for (int i = 0; i < n; i++) {
             Type pt = kc.parameterTypes().get(i);
             if (FfiStructLayout.isArrayPtr(pt)) {
                 isArray[i] = true;
                 arrayElem[i] = FfiStructLayout.arrayPtrElem(pt);
+            } else if (FfiStructLayout.isBufferPtr(pt)) {
+                isBufPtr[i] = true;
             } else if (FfiStructLayout.isStructType(pt)) {
                 isStruct[i] = true;
                 structTypes[i] = pt;
@@ -160,6 +163,8 @@ final class NativeFfiCall {
                 }
             } else if (isArray[i]) {
                 ord[i] = nInt++;   // T[]→ptr: um ponteiro INTEGER (D6-2)
+            } else if (isBufPtr[i]) {
+                ord[i] = nInt++;   // Buffer(U8)→ptr: um ponteiro INTEGER (A2)
             } else if (isFloatClass(cls[i])) {
                 ord[i] = nFlt++;
             } else {
@@ -192,6 +197,23 @@ final class NativeFfiCall {
                 if (ord[i] < 6) {
                     sb.append("    movq -").append(256 + i * 8).append("(%rbp), ")
                       .append(intRegs[ord[i]]).append("\n");
+                }
+                continue;
+            }
+            if (isBufPtr[i]) {
+                // D6-3/A2: objeto Kof Buffer → ponteiro do payload (obj+24). O
+                // Buffer é não-nulo; o guard mantém um null honesto (0), nunca
+                // obj+24 sobre ponteiro nulo.
+                sb.append("    popq %r10\n");
+                String lbl = ".Lffi_b" + seq + "_" + i;
+                sb.append("    testq %r10, %r10\n");
+                sb.append("    je ").append(lbl).append("\n");
+                sb.append("    leaq 24(%r10), %r10\n");
+                sb.append(lbl).append(":\n");
+                if (ord[i] < 6) {
+                    sb.append("    movq %r10, ").append(intRegs[ord[i]]).append("\n");
+                } else {
+                    sb.append("    movq %r10, -").append(256 + i * 8).append("(%rbp)\n");
                 }
                 continue;
             }

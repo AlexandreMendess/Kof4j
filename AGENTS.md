@@ -1,8 +1,8 @@
 # AGENTS.md
 
 last: 0.5.0-beta
-doing: #651-A1-landed (Buffer(U8) x86 surface; A2/B pending) + memory-safety-phase-4-CLOSED (#658/#659/#662) + #660-D-MEM021-SCALAR-landed (c65f9ba18, maintainer A/ERROR) + evidence-chain-hardened (#664/#665/#669) + phase-5-unit-1-pinned (#666) + ownership-table-landed (#670) + stale-cells-purged (#671) + ledger-selftest-pt-proven (#672) + living-records-registered (#673)
-next: #651 A2 (FFI Buffer(U8) token B x86) then B (cross riscv64/aarch64) / phase-5-unit-2 UNBLOCKED (decisions #667 A D-SCRIPT-EXTERN-REFUSE / #668 A D-MEM020-COMPILE; implementation = memory-safety/Script lane) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
+doing: #651-A2-landed (Buffer(U8) x86 surface + FFI token B; cross B pending) + memory-safety-phase-4-CLOSED (#658/#659/#662) + #660-D-MEM021-SCALAR-landed (c65f9ba18, maintainer A/ERROR) + evidence-chain-hardened (#664/#665/#669) + phase-5-unit-1-pinned (#666) + ownership-table-landed (#670) + stale-cells-purged (#671) + ledger-selftest-pt-proven (#672) + living-records-registered (#673)
+next: #651 B (cross riscv64/aarch64 Buffer(U8) FFI) / phase-5-unit-2 UNBLOCKED (decisions #667 A D-SCRIPT-EXTERN-REFUSE / #668 A D-MEM020-COMPILE; implementation = memory-safety/Script lane) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 

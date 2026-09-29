@@ -78,7 +78,15 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
                     } else {
                         // D6-2/3.7: array escalar `T[]`→`ptr` (marker kof.ffi/array).
                         Character ae = FfiSignature.arrayElemChar(p.type());
-                        ffiParams.add(ae != null ? FfiStructLayout.arrayPtrType(ae) : null);
+                        if (ae != null) {
+                            ffiParams.add(FfiStructLayout.arrayPtrType(ae));
+                        } else if (FfiSignature.isBufferParam(p.type())) {
+                            // D6-3/D-R3-BUFFER (fatia A2): Buffer(U8) INOUT — o
+                            // backend x86-64 passa o payload (obj+24) direto.
+                            ffiParams.add(FfiStructLayout.bufferPtrType());
+                        } else {
+                            ffiParams.add(null);
+                        }
                     }
                 }
             }
