@@ -714,6 +714,20 @@ JS + Native x86-64 + negativos). Sem mudança no compilador; neutro de alvo.
 
 ---
 
+
+## 9.13 Fatia promovida 13 (29/09/2026) — fachada do Interop Core + audit
+
+**Estado:** landada. `interop.InteropCore` compõe a "camada unificadora" da §2: dado um diretório de
+manifests de connector, enumera-os (`ConnectorCatalogue`), valida cada um (`ConnectorManifest` cobre
+capabilities/ownership/types/SPI) e produz um audit determinístico (nomes ordenados, uma linha por
+connector) — o que um `kof connector` de listagem imprimiria. Honesto (R6): connector inválido sai
+como `INVALID: <diagnóstico>`, nunca escondido; manifest malformado lança do leitor.
+
+**Prova:** `InteropCoreE2ETest` **4/4** (golden JVM + Script + Native x86-64 + a lacuna JS `IOJS001`).
+Sem mudança no compilador.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

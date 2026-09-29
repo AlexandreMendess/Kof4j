@@ -706,6 +706,21 @@ JS + Native x86-64 + negatives). No compiler change; target-neutral.
 
 ---
 
+
+## 9.13 Promoted slice 13 (29/09/2026) — Interop Core facade + audit
+
+**State:** landed. `interop.InteropCore` composes the §2 "unifying layer": given a directory of
+connector manifests it enumerates them (`ConnectorCatalogue`), validates each (`ConnectorManifest`
+covers capabilities/ownership/types/SPI) and produces a deterministic audit (sorted names, one line
+per connector) — what a `kof connector` listing would print. Honest (R6): an invalid connector is
+reported as `INVALID: <diagnostic>`, never hidden; a malformed manifest throws from the manifest
+reader.
+
+**Proof:** `InteropCoreE2ETest` **4/4** (JVM golden + Script + Native x86-64 + the JS `IOJS001` gap).
+No compiler change.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
