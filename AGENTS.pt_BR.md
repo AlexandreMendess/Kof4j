@@ -4,7 +4,7 @@ last: 0.5.0-beta
 
 doing: #651-A1-pousada (superfície Buffer(U8) x86; A2/B pendentes) + memory-safety-fase-4-FECHADA (#658/#659/#662) + #660-D-MEM021-SCALAR-pousado (c65f9ba18, mantenedora A/ERROR) + cadeia-de-evidencia-hardened (#664/#665/#669) + unidade-1-fase-5-pinada (#666) + tabela-ownership-pousada (#670) + celulas-defasadas-mortas (#671) + selftest-pt-provado (#672) + records-vivos-registrados (#673)
 
-next: #651 A2 (FFI Buffer(U8) token B no x86) e depois B (cross riscv64/aarch64) / unidade-2-fase-5 BLOQUEADA nas decisoes #667 (Script x extern crash bruto) e #668 (MEM020 face A/B/C) [regra 6] / varredura-de-promocao (lane pipeline) / 14.4-rulesets (mantenedora)
+next: #651 A2 (FFI Buffer(U8) token B no x86) e depois B (cross riscv64/aarch64) / unidade-2-fase-5 DESBLOQUEADA (decisoes #667 A D-SCRIPT-EXTERN-REFUSE / #668 A D-MEM020-COMPILE; implementacao = lane memory-safety/Script) / varredura-de-promocao (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 
