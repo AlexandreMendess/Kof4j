@@ -13,9 +13,9 @@ import image.Image
 //   println(r.width + "x" + r.height + " ch=" + r.channels)
 //   var red = r.samples[0]                 // row-major, channels interleaved, 0..255
 //
-// Supported now: **PNM** `P5` (grayscale) / `P6` (RGB), 8-bit, **farbfeld**
-// (16-bit RGBA downsampled to 8-bit) and **BMP** 24/32-bit uncompressed (BGR
-// rows padded to 4 bytes; alpha dropped). Documented bounds: the
+// Supported now (pure Kof, all targets): **PNM** `P5`/`P6` 8-bit, **farbfeld**
+// (16-bit RGBA downsampled to 8-bit), **BMP** 24/32-bit uncompressed (BGR rows
+// padded to 4 bytes; alpha dropped) and **QOI** (all chunks decoded in Kof). Documented bounds: the
 // sample count must be <= 16384 (one bounded read; keeps the single array
 // under the cross-native allocation cap, `known-bugs` §540) and the value must
 // fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
@@ -43,7 +43,91 @@ Raster decodeRaster(String path) {
     if (fmt == "BMP") {
         return bmpRaster(path)
     }
+    if (fmt == "QOI") {
+        return qoiRaster(path, img.width(), img.height())
+    }
     throw "IMAGE: raster decode is not supported for " + fmt
+}
+
+// QOI ("Quite OK Image") — pure Kof, all targets: the chunks are decoded here
+// (RGB/RGBA/diff/luma/run/index), so there is no codec dependency.
+Raster qoiRaster(String path, Int w, Int h) {
+    var header = File(path).readRange(0, 14)
+    if (header.length < 14 || !matchesAscii(header, 0, "qoif")) {
+        throw "IMAGE: bad QOI header"
+    }
+    var channels = header[12] & 255
+    if (channels != 3 && channels != 4) {
+        throw "IMAGE: unsupported QOI channel count " + channels
+    }
+    var count = w * h * channels
+    guardRaster(count)
+    var pixelCount = w * h
+    var data = File(path).readRange(14, pixelCount * 5 + 8)
+    var samples = new Int[count]
+    var idxR = new Int[64]
+    var idxG = new Int[64]
+    var idxB = new Int[64]
+    var idxA = new Int[64]
+    var r = 0
+    var g = 0
+    var b = 0
+    var a = 255
+    var run = 0
+    var p = 0
+    var px = 0
+    while (px < pixelCount) {
+        if (run > 0) {
+            run = run - 1
+        } else {
+            var b1 = data[p] & 255
+            p = p + 1
+            if (b1 == 254) {
+                r = data[p] & 255
+                g = data[p + 1] & 255
+                b = data[p + 2] & 255
+                p = p + 3
+            } else if (b1 == 255) {
+                r = data[p] & 255
+                g = data[p + 1] & 255
+                b = data[p + 2] & 255
+                a = data[p + 3] & 255
+                p = p + 4
+            } else if ((b1 & 192) == 0) {
+                r = idxR[b1]
+                g = idxG[b1]
+                b = idxB[b1]
+                a = idxA[b1]
+            } else if ((b1 & 192) == 64) {
+                r = r + (((b1 >> 4) & 3) - 2)
+                g = g + (((b1 >> 2) & 3) - 2)
+                b = b + ((b1 & 3) - 2)
+            } else if ((b1 & 192) == 128) {
+                var b2 = data[p] & 255
+                p = p + 1
+                var dg = (b1 & 63) - 32
+                r = r + (((b2 >> 4) & 15) - 8 + dg)
+                g = g + dg
+                b = b + ((b2 & 15) - 8 + dg)
+            } else {
+                run = b1 & 63
+            }
+            var slot = (r * 3 + g * 5 + b * 7 + a * 11) % 64
+            idxR[slot] = r
+            idxG[slot] = g
+            idxB[slot] = b
+            idxA[slot] = a
+        }
+        var base = px * channels
+        samples[base] = r & 255
+        samples[base + 1] = g & 255
+        samples[base + 2] = b & 255
+        if (channels == 4) {
+            samples[base + 3] = a & 255
+        }
+        px = px + 1
+    }
+    return Raster("QOI", w, h, channels, samples)
 }
 
 Raster pnmRaster(String path, Int w, Int h, Bool color) {

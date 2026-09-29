@@ -4441,3 +4441,13 @@ individuais:
 
 - **Escopo:** Interop Core + SPI/manifest de Connectors + catálogo, construindo sobre o substrato FFI/ABI existente (sem duplicá-lo, regra 54); controle de escopo regra 55 (provar com poucos connectors primeiro — Java primeiro, sem cascata de 30 runtimes); camadas official-packages (R1) e interop-first (R9) valem.
 - **Relações:** `Related: D-FUTURE-PROMOTION, D-FUTURE-BATCH-2809B, regra 6, regra 54, regra 55, R1, R9`.
+## D-IMAGE-SURFACE — a superfície de valor do `kof.image` reusa `Raster`; codecs são Kof puro quando viável, imageio JVM só onde inviável (mantenedora 29/09/2026, decisão de chat)
+
+**Estado:** DECIDIDO (mantenedora) — fecha o decision request de regra 6 aberto com a promoção da image-vision.
+
+- **Superfície:** sem novos tipos `Image`/`Pixel`/`Color`; o valor é o `Raster(format, width, height, channels, samples)` existente. `decode(path): Raster` cobre todo formato suportado.
+- **Codecs:** implementar em **Kof puro** sempre que viável — paridade total entre alvos, sem gap (`PNM`, `farbfeld`, `BMP`, `QOI` hoje). Usar interop **imageio** no JVM só onde um decoder Kof puro é tecnicamente inviável (JPEG e GIF/WebP/AVIF se não priorizados), com gap honesto em compile-time nos demais alvos — nunca fallback silencioso, e nunca um gap "só por adicionar".
+- **Plano:** `docs/development/image-vision-plan.pt_BR.md` §34 (TODO) lista os decoders que faltam, por custo (PNG Kof puro via inflate zlib = maior valor; JPEG = imageio).
+- **Progresso:** fatia 2f LANDED — decode QOI Kof puro em todos os alvos; `RasterDecodeE2ETest` 7/7 (JVM + Native x86-64/riscv64 + Script).
+
+- **Relações:** `Related: D-IMAGE-VISION-GO, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`.

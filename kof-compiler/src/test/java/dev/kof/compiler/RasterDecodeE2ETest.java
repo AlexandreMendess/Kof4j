@@ -53,7 +53,11 @@ class RasterDecodeE2ETest {
             "PPM:2x2 ch=3",
             "px=0,0,0,0,255,255,255,255,255,255,255,255",
             "PGM:3x3 ch=1",
-            "px=2,1,2,1,1,1,2,1,2");
+            "px=2,1,2,1,1,1,2,1,2",
+            "QOI:2x2 ch=4",
+            "px=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16",
+            "QOI:1x3 ch=4",
+            "px=10,20,30,255,10,20,30,255,10,20,30,255");
 
     @Test
     void decodesRasterOnJvm() throws Exception {
@@ -153,6 +157,8 @@ class RasterDecodeE2ETest {
                 println(dump(grayscale(rgb)))
                 println(dump(threshold(rgb, 5)))
                 println(dump(boxBlur(decodeRaster(base + "/blur.pgm"))))
+                println(dump(decodeRaster(base + "/q2.qoi")))
+                println(dump(decodeRaster(base + "/q3.qoi")))
             }
             """.formatted(base);
     }
@@ -179,6 +185,8 @@ class RasterDecodeE2ETest {
         Files.write(dir.resolve("rgba.ff"), rasterFarbfeld());
         Files.write(dir.resolve("t.bmp"), rasterBmp24());
         Files.write(dir.resolve("blur.pgm"), rasterBlur());
+        Files.write(dir.resolve("q2.qoi"), qoiRgba());
+        Files.write(dir.resolve("q3.qoi"), qoiRun());
         return dir;
     }
 
@@ -205,6 +213,32 @@ class RasterDecodeE2ETest {
             out.write(v & 0xFF);
             out.write(v & 0xFF);
         }
+        return out.toByteArray();
+    }
+
+    private static byte[] qoiRgba() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("qoif".getBytes(StandardCharsets.US_ASCII));
+        out.write(be32(2));
+        out.write(be32(2));
+        out.write(new byte[]{4, 0});
+        out.write(new byte[]{(byte) 0xFF, 1, 2, 3, 4});
+        out.write(new byte[]{(byte) 0xFF, 5, 6, 7, 8});
+        out.write(new byte[]{(byte) 0xFF, 9, 10, 11, 12});
+        out.write(new byte[]{(byte) 0xFF, 13, 14, 15, 16});
+        out.write(new byte[8]);
+        return out.toByteArray();
+    }
+
+    private static byte[] qoiRun() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("qoif".getBytes(StandardCharsets.US_ASCII));
+        out.write(be32(1));
+        out.write(be32(3));
+        out.write(new byte[]{4, 0});
+        out.write(new byte[]{(byte) 0xFF, 10, 20, 30, (byte) 255});
+        out.write(new byte[]{(byte) 0xC2});
+        out.write(new byte[8]);
         return out.toByteArray();
     }
 
@@ -238,6 +272,11 @@ class RasterDecodeE2ETest {
         // row1 = top (A=(10,20,30), B=(40,50,60))
         out.write(new byte[]{30, 20, 10, 60, 50, 40, 0, 0});
         return out.toByteArray();
+    }
+
+    private static byte[] be32(int v) {
+        return new byte[]{(byte) ((v >> 24) & 0xFF), (byte) ((v >> 16) & 0xFF),
+                (byte) ((v >> 8) & 0xFF), (byte) (v & 0xFF)};
     }
 
     private static byte[] le32(int v) {

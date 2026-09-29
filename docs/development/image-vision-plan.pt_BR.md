@@ -9,6 +9,7 @@
 > **Pedido de decisão (regra 6):** a fatia de decode de pixels precisa da superfície de valor `kof.image` (`Image`/`Pixel`/`Color` + bindings de interop `ImageIO` e quais codecs via imageio no JVM com lacunas honestas nos demais) — reservada à mantenedora; até lá só incrementos header-level.
 > **Fatia 2a LANDED 29/09 (metade Kof-first da fatia de pixels):** `decodeRaster(path)` devolve um `Raster(format, width, height, channels, samples)` provisório para formatos **não comprimidos** — PNM `P5`/`P6` e farbfeld — limitado a ≤16384 amostras (uma leitura, sob o teto cross-native §540); formatos comprimidos seguem interop-first atrás da decisão. Prova: `RasterDecodeE2ETest` 7/7 (golden PNM/farbfeld + não-suportado/grande; JVM + Native x86-64/riscv64 + Script; JS `IOJS001`).
 > **Fatia 2b LANDED 29/09:** operações de raster pure-Kof sobre o `Raster` provisório — `cropRaster(r,x,y,w,h)` e `resizeNearest(r,w,h)` (vizinho mais próximo), saída limitada pelo mesmo teto; filtragem suave aguarda a fatia de interop. Prova: `RasterDecodeE2ETest` 7/7.
+> **Fatia 2f LANDED 29/09 (Kof puro, paridade — sem gap):** `decodeRaster` decodifica **QOI** (todos os chunks: RGB/RGBA/diff/luma/run/index) em Kof, então um decode de formato comprimido entrega em todos os alvos. Decisão `D-IMAGE-SURFACE` (reusar `Raster`; Kof puro quando viável, imageio JVM só onde inviável) + TODO §34 registrados. Prova: `RasterDecodeE2ETest` 7/7 (golden QOI incl. chunk RUN; JVM + Native x86-64 + riscv64 + Script).
 > **Fatia 2c LANDED 29/09:** `flipHorizontal`, `flipVertical` e `rotate90` (horário, dimensões trocam) sobre o `Raster` provisório. Prova: `RasterDecodeE2ETest` 7/7.
 > **Fatia 2d LANDED 29/09:** `decodeRaster` também decodifica **BMP** 24/32-bit não comprimido (linhas BGR com padding de 4 bytes, bottom-up ou top-down, alpha descartado). Prova: `RasterDecodeE2ETest` 7/7.
 > **Fatia 2e LANDED 29/09 (overlap de processamento):** `grayscale` (BT.601), `threshold(level)` e `boxBlur` (3x3, bordas clampadas) sobre o `Raster`. Prova: `RasterDecodeE2ETest` 7/7.
@@ -778,6 +779,55 @@ Não transformar `kof.image` em:
 Runtimes externos devem permanecer detalhes de implementação.
 
 ---
+
+---
+
+# 34. TODO — o que falta (plano de implementação, 29/09)
+
+Decisão **`D-IMAGE-SURFACE`** (mantenedora 29/09): a superfície de valor
+**reusa `Raster`** (sem novos tipos `Image`/`Pixel`/`Color`); os codecs são
+**Kof puro sempre que viável** (paridade total, zero gaps) e só caem para o
+interop **imageio** no JVM onde um decoder Kof puro é tecnicamente inviável.
+Nenhum gap é adicionado "só por adicionar" — ele existe apenas onde a
+capacidade realmente não existe no alvo.
+
+**Feito (Kof puro, todos os alvos):**
+- metadados de 17 formatos (`Image.kf`);
+- decode cru: PNM `P5`/`P6`, farbfeld, BMP 24/32-bit, **QOI** (todos os chunks);
+- ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
+  `rotate90`, `grayscale`, `threshold`, `boxBlur`.
+
+**Falta — em ordem de custo:**
+
+1. **Decode PNG (Kof puro, paridade; maior valor).**
+   - Arquivos: `libs/image/Png.kf` (novo), `libs/image/Raster.kf` (dispatch
+     `fmt == "PNG"`).
+   - Trabalho: parse do `IHDR` (color type 0/2/3/4/6, bit depth 8), concatenar
+     `IDAT`, **inflate zlib** (DEFLATE: stored/fixed/dynamic Huffman) em Kof
+     puro, filtros de scanline 0–4 (None/Sub/Up/Average/Paeth), de-paleta
+     (`PLTE`) e expansão para os canais do `Raster`.
+   - Prova: `PngDecodeE2ETest` (bytes PNG conhecidos → golden de amostras) na
+     JVM + Native x86-64 + riscv64 + Script; JS `IOJS001` (a biblioteca ainda
+     usa `readRange`). Sem gap novo: o decoder é independente de alvo.
+   - Risco: correção do inflate; mitigar com golden de bloco fixo/dinâmico e a
+     checagem Adler-32 do zlib (ignorar o rabo, não pode crashar).
+2. **Decode JPEG (inviável em Kof puro → interop imageio no JVM).**
+   - Trabalho: builtin de plataforma `kof.image` `decode(path): Int[]` (layout
+     `[w,h,channels,samples…]`) com runtime JVM via `javax.imageio.ImageIO`; o
+     `Raster.decodeRaster` o envolve. Outros alvos: gap honesto **`IMG001`** em
+     compile-time (sem imageio), nunca fallback silencioso.
+   - Precisa: `KofImage.java` + runtime JVM + descriptor + linha no ledger +
+     gap code + linha em `backend-parity`; unidade coordenada.
+3. **Decode GIF/WebP/AVIF** — mesma forma do JPEG (interop/gap) ou um GIF Kof
+   puro futuro (LZW) se priorizado.
+4. **Encode/write** (`encodeRaster` para PNM/BMP/farbfeld/QOI) — Kof puro,
+   paridade; adiado até haver pedido de superfície de escrita.
+5. **Rasters maiores** — bloqueado por `known-bugs` **§540** (arena cross-native
+   estática de 256 KiB + cap de block-lookup do GC), dona = lane native/GC; o
+   decoder mantém o teto de leitura limitada até isso pousar.
+
+## EN
+[English](image-vision-plan.md)
 
 # 33. Regra final
 
