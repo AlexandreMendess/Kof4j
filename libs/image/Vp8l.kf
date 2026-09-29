@@ -1,0 +1,169 @@
+package image
+
+import image.Image
+
+// kof.image — VP8L (WebP lossless) decoder, slice A: core.
+//
+// This slice decodes the **no-transform, no-color-cache, single-Huffman-group,
+// literal** subset of VP8L entirely in Kof (bit reader + simple Huffman codes),
+// which proves the core. The richer machinery that real libwebp output uses —
+// predictor/color/indexing transforms, the color cache, meta-Huffman groups and
+// LZ77 back-references — is **not** decoded yet and is refused with an explicit
+// `IMAGE:` diagnostic (never a silent wrong image):
+//
+//   decodeRaster("shot.webp")   // lossless VP8L is routed here from Raster.kf
+//
+// Only `VP8L` (lossless) is handled here; `VP8 ` (lossy) and `VP8X` are handled
+// by the metadata slice but not decoded. Full parity across targets (pure Kof).
+
+class Vp8lBits {
+    Int[] data
+    Int pos
+    Int buf
+    Int cnt
+
+    constructor(Int[] data) {
+        this.data = data
+        this.pos = 0
+        this.buf = 0
+        this.cnt = 0
+    }
+
+    Int bit() {
+        if (this.cnt == 0) {
+            if (this.pos >= this.data.length) {
+                throw "IMAGE: truncated WebP bitstream"
+            }
+            this.buf = this.data[this.pos] & 255
+            this.pos = this.pos + 1
+            this.cnt = 8
+        }
+        var v = this.buf & 1
+        this.buf = this.buf >> 1
+        this.cnt = this.cnt - 1
+        return v
+    }
+
+    Int bits(Int n) {
+        var v = 0
+        var i = 0
+        while (i < n) {
+            v = v | (bit() << i)
+            i = i + 1
+        }
+        return v
+    }
+}
+
+// A VP8L "simple code": one or two symbols. A single symbol consumes 0 bits.
+class Vp8lSimple {
+    Int sym0
+    Int sym1
+    Int count
+
+    constructor(Int sym0, Int sym1, Int count) {
+        this.sym0 = sym0
+        this.sym1 = sym1
+        this.count = count
+    }
+
+    Int decode(Vp8lBits r) {
+        if (this.count == 1) {
+            return this.sym0
+        }
+        var b = r.bit()
+        if (b == 0) {
+            return this.sym0
+        }
+        return this.sym1
+    }
+}
+
+Vp8lSimple vp8lReadSimple(Vp8lBits r, String plane) {
+    var simple = r.bit()
+    if (simple != 1) {
+        throw "IMAGE: WebP normal Huffman codes are not supported yet (" + plane + ")"
+    }
+    var count = r.bit() + 1
+    var wide = r.bit()
+    var sym0 = 0
+    if (wide == 1) {
+        sym0 = r.bits(8)
+    } else {
+        sym0 = r.bit()
+    }
+    var sym1 = 0
+    if (count == 2) {
+        sym1 = r.bits(8)
+    }
+    return Vp8lSimple(sym0, sym1, count)
+}
+
+Raster vp8lRaster(String path) {
+    var b = File(path).readBytes()
+    if (b.length < 21 || !matchesAscii(b, 0, "RIFF") || !matchesAscii(b, 8, "WEBP")) {
+        throw "IMAGE: bad WebP container"
+    }
+    if (!matchesAscii(b, 12, "VP8L")) {
+        throw "IMAGE: WebP is not lossless (VP8L)"
+    }
+    var size = le32(b, 16)
+    var payload = new Int[size]
+    var i = 0
+    while (i < size && 20 + i < b.length) {
+        payload[i] = b[20 + i] & 255
+        i = i + 1
+    }
+    var r = Vp8lBits(payload)
+    var sig = r.bits(8)
+    if (sig != 47) {
+        throw "IMAGE: bad VP8L signature"
+    }
+    var width = r.bits(14) + 1
+    var height = r.bits(14) + 1
+    var alphaUsed = r.bit()
+    var version = r.bits(3)
+    if (version != 0) {
+        throw "IMAGE: unsupported VP8L version"
+    }
+    if (r.bit() == 1) {
+        throw "IMAGE: WebP transforms are not supported yet"
+    }
+    if (r.bit() == 1) {
+        throw "IMAGE: WebP color cache is not supported yet"
+    }
+    if (r.bit() == 1) {
+        throw "IMAGE: WebP meta-Huffman groups are not supported yet"
+    }
+    var green = vp8lReadSimple(r, "green")
+    var red = vp8lReadSimple(r, "red")
+    var blue = vp8lReadSimple(r, "blue")
+    var alpha = vp8lReadSimple(r, "alpha")
+    var dist = vp8lReadSimple(r, "distance")
+    var channels = 3
+    if (alphaUsed == 1) {
+        channels = 4
+    }
+    var count = width * height * channels
+    guardRaster(count)
+    var samples = new Int[count]
+    var px = 0
+    while (px < width * height) {
+        var g = green.decode(r)
+        if (g >= 256) {
+            throw "IMAGE: WebP LZ77 back-references are not supported yet"
+        }
+        var rr = red.decode(r)
+        var bb = blue.decode(r)
+        var aa = alpha.decode(r)
+        var base = px * channels
+        samples[base] = rr & 255
+        samples[base + 1] = g & 255
+        samples[base + 2] = bb & 255
+        if (channels == 4) {
+            samples[base + 3] = aa & 255
+        }
+        px = px + 1
+    }
+    return Raster("WEBP", width, height, channels, samples)
+}

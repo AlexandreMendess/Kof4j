@@ -125,6 +125,38 @@ final class RasterDecodeFixtures {
         return p.toString().replace('\\', '/');
     }
 
+    static byte[] decodeHex(String hex) {
+        byte[] out = new byte[hex.length() / 2];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        }
+        return out;
+    }
+
+    static String vp8lProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Raster
+
+            String dump(Raster r) {
+                var out = r.format + ":" + r.width + "x" + r.height + " ch=" + r.channels + "\\npx="
+                var i = 0
+                while (i < r.samples.length) {
+                    if (i > 0) {
+                        out = out + ","
+                    }
+                    out = out + r.samples[i]
+                    i = i + 1
+                }
+                return out
+            }
+
+            main() {
+                println(dump(decodeRaster("%s/v.webp")))
+            }
+            """.formatted(base);
+    }
+
     static Path rasterFixtures(Path dir) throws Exception {
         Files.createDirectories(dir);
         Files.write(dir.resolve("rgb.ppm"), rasterPpm());
@@ -142,6 +174,8 @@ final class RasterDecodeFixtures {
                 0x0A141E, 0x28323C, 0x46505A, 0x646E78});
         writeImage(dir.resolve("u.jpg"), "jpg", BufferedImage.TYPE_INT_RGB, new int[]{
                 0x0A141E, 0x28323C, 0x46505A, 0x646E78});
+        Files.write(dir.resolve("v.webp"), decodeHex(
+                "5249464619000000574542505650384c0d0000002f01400000284515ead1ff0200"));
         return dir;
     }
 

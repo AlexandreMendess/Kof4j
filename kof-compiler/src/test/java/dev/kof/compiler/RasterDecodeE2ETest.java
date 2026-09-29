@@ -69,6 +69,9 @@ class RasterDecodeE2ETest {
     private static final String GIF_GOLDEN = String.join("\n",
             "GIF:2x2 ch=3",
             "px=10,20,30,40,50,60,70,80,90,100,110,120");
+    private static final String WEBP_GOLDEN = String.join("\n",
+            "WEBP:2x2 ch=3",
+            "px=10,20,30,10,20,30,10,20,30,10,20,30");
 
     @Test
     void decodesRasterOnJvm() throws Exception {
@@ -185,6 +188,40 @@ class RasterDecodeE2ETest {
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
         Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("riscv-gif"));
         assertEquals(GIF_GOLDEN, runCrossCode("riscv64", Target.NATIVE_RISCV64, RasterDecodeFixtures.gifProbe(dir)));
+    }
+
+    @Test
+    void webpVp8lDecodesOnJvm() throws Exception {
+        Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("jvm-webp"));
+        assertEquals(WEBP_GOLDEN, runJvm(RasterDecodeFixtures.vp8lProbe(dir)));
+    }
+
+    @Test
+    void webpVp8lDecodesOnScript() throws Exception {
+        Path root = tmp.resolve("script-webp");
+        Files.createDirectories(root);
+        Path dir = RasterDecodeFixtures.rasterFixtures(root.resolve("fixtures"));
+        Files.writeString(root.resolve("Main.kf"), RasterDecodeFixtures.vp8lProbe(dir));
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(WEBP_GOLDEN, result.stdout().strip());
+    }
+
+    @Test
+    void webpVp8lDecodesOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(System.getProperty("os.name").toLowerCase().contains("linux"),
+                "Native x86-64 requires the Linux assembler/linker toolchain");
+        Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("x86-webp"));
+        assertEquals(WEBP_GOLDEN, runNativeX86(RasterDecodeFixtures.vp8lProbe(dir)));
+    }
+
+    @Test
+    void webpVp8lDecodesOnNativeRiscv64() throws Exception {
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross riscv64 + qemu absent — skipping (NATIVE002)");
+        Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("riscv-webp"));
+        assertEquals(WEBP_GOLDEN, runCrossCode("riscv64", Target.NATIVE_RISCV64, RasterDecodeFixtures.vp8lProbe(dir)));
     }
 
     @Test

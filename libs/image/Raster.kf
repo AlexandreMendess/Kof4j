@@ -3,6 +3,7 @@ package image
 import image.Image
 import image.Png
 import image.Gif
+import image.Vp8l
 
 // kof.image — raw raster decode, first pixel slice (provisional surface).
 //
@@ -53,6 +54,9 @@ Raster decodeRaster(String path) {
     }
     if (fmt == "GIF") {
         return gifRaster(path, img.width(), img.height())
+    }
+    if (fmt == "WEBP") {
+        return vp8lRaster(path)
     }
     throw "IMAGE: raster decode is not supported for " + fmt
 }
