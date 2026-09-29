@@ -13,8 +13,9 @@ import image.Image
 //   println(r.width + "x" + r.height + " ch=" + r.channels)
 //   var red = r.samples[0]                 // row-major, channels interleaved, 0..255
 //
-// Supported now: **PNM** `P5` (grayscale) / `P6` (RGB), 8-bit, and
-// **farbfeld** (16-bit RGBA downsampled to 8-bit). Documented bounds: the
+// Supported now: **PNM** `P5` (grayscale) / `P6` (RGB), 8-bit, **farbfeld**
+// (16-bit RGBA downsampled to 8-bit) and **BMP** 24/32-bit uncompressed (BGR
+// rows padded to 4 bytes; alpha dropped). Documented bounds: the
 // sample count must be <= 16384 (one bounded read; keeps the single array
 // under the cross-native allocation cap, `known-bugs` §540) and the value must
 // fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
@@ -39,6 +40,9 @@ Raster decodeRaster(String path) {
     if (fmt == "PPM" || fmt == "PGM") {
         return pnmRaster(path, img.width(), img.height(), fmt == "PPM")
     }
+    if (fmt == "BMP") {
+        return bmpRaster(path)
+    }
     throw "IMAGE: raster decode is not supported for " + fmt
 }
 
@@ -58,6 +62,50 @@ Raster pnmRaster(String path, Int w, Int h, Bool color) {
         i = i + 1
     }
     return Raster(buildPnmName(color), w, h, channels, samples)
+}
+
+// Uncompressed BMP (24/32-bit, no palette): rows padded to 4 bytes, stored
+// bottom-up unless the height is negative (top-down); BGR(A) -> RGB.
+Raster bmpRaster(String path) {
+    var head = File(path).readRange(0, 64)
+    var offset = le32(head, 10)
+    var w = le32(head, 18)
+    var h = le32(head, 22)
+    var topDown = false
+    if (h < 0) {
+        h = 0 - h
+        topDown = true
+    }
+    var bpp = le16(head, 28)
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: invalid BMP dimensions"
+    }
+    if (bpp != 24 && bpp != 32) {
+        throw "IMAGE: unsupported BMP bit depth " + bpp
+    }
+    var channels = 3
+    var count = w * h * channels
+    guardRaster(count)
+    var rowBytes = ((w * bpp / 8 + 3) / 4) * 4
+    var data = File(path).readRange(offset, rowBytes * h)
+    var samples = new Int[count]
+    var row = 0
+    while (row < h) {
+        var srcRow = row
+        if (!topDown) {
+            srcRow = h - 1 - row
+        }
+        var col = 0
+        while (col < w) {
+            var p = srcRow * rowBytes + col * (bpp / 8)
+            samples[(row * w + col) * channels] = data[p + 2] & 255
+            samples[(row * w + col) * channels + 1] = data[p + 1] & 255
+            samples[(row * w + col) * channels + 2] = data[p] & 255
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster("BMP", w, h, channels, samples)
 }
 
 Raster farbfeldRaster(String path, Int w, Int h) {

@@ -45,7 +45,9 @@ class RasterDecodeE2ETest {
             "PPM:2x2 ch=3",
             "px=7,8,9,10,11,12,1,2,3,4,5,6",
             "PPM:2x2 ch=3",
-            "px=7,8,9,1,2,3,10,11,12,4,5,6");
+            "px=7,8,9,1,2,3,10,11,12,4,5,6",
+            "BMP:2x2 ch=3",
+            "px=10,20,30,40,50,60,70,80,90,100,110,120");
 
     @Test
     void decodesRasterOnJvm() throws Exception {
@@ -141,6 +143,7 @@ class RasterDecodeE2ETest {
                 println(dump(flipHorizontal(rgb)))
                 println(dump(flipVertical(rgb)))
                 println(dump(rotate90(rgb)))
+                println(dump(decodeRaster(base + "/t.bmp")))
             }
             """.formatted(base);
     }
@@ -165,6 +168,7 @@ class RasterDecodeE2ETest {
         Files.write(dir.resolve("rgb.ppm"), rasterPpm());
         Files.write(dir.resolve("gray.pgm"), rasterPgm());
         Files.write(dir.resolve("rgba.ff"), rasterFarbfeld());
+        Files.write(dir.resolve("t.bmp"), rasterBmp24());
         return dir;
     }
 
@@ -192,6 +196,36 @@ class RasterDecodeE2ETest {
             out.write(v & 0xFF);
         }
         return out.toByteArray();
+    }
+
+    private static byte[] rasterBmp24() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        // BITMAPFILEHEADER (14) + BITMAPINFOHEADER (40) = 54-byte header.
+        out.write("BM".getBytes(StandardCharsets.US_ASCII));
+        out.write(le32(70));
+        out.write(le32(0));
+        out.write(le32(54));
+        out.write(le32(40));
+        out.write(le32(2));
+        out.write(le32(2));
+        out.write(new byte[]{1, 0});
+        out.write(new byte[]{24, 0});
+        out.write(le32(0));
+        out.write(le32(16));
+        out.write(le32(0));
+        out.write(le32(0));
+        out.write(le32(0));
+        out.write(le32(0));
+        // bottom-up: row0 = bottom (C=(70,80,90), D=(100,110,120)) stored BGR
+        out.write(new byte[]{(byte) 90, (byte) 80, (byte) 70, (byte) 120, (byte) 110, (byte) 100, 0, 0});
+        // row1 = top (A=(10,20,30), B=(40,50,60))
+        out.write(new byte[]{30, 20, 10, 60, 50, 40, 0, 0});
+        return out.toByteArray();
+    }
+
+    private static byte[] le32(int v) {
+        return new byte[]{(byte) (v & 0xFF), (byte) ((v >> 8) & 0xFF),
+                (byte) ((v >> 16) & 0xFF), (byte) ((v >> 24) & 0xFF)};
     }
 
     private static String path(Path p) {
