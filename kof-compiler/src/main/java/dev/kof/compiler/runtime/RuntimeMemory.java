@@ -34,6 +34,15 @@ public final class RuntimeMemory {
             kof_heap_low: .quad 0
             .balign 8
             kof_heap_high: .quad 0
+            # §542: arena contígua do HOST (mmap única; bump). 0 nos demais
+            # perfis (freestanding/BIOS/UEFI) -> o GC cai na varredura antiga.
+            .balign 8
+            kof_arena_base: .quad 0
+            kof_arena_ptr: .quad 0
+            # bitmap de inícios-de-bloco (1 bit por 16B) p/ lookup O(1) no GC host.
+            # 256 MiB / 16B / 8 = 2 MiB; .bss (NOBITS) não infla o arquivo.
+            .balign 8
+            _kof_block_bm: .space 2097152
             .balign 8
             kof_main_tid: .quad 0              # tid do main thread p/ o GC (conservador lê a stack)
             kof_main_stack_bottom: .quad 0     # rsp do _start: topo da pilha main; o mark varre rsp..ate_isto (G-6b)
@@ -93,6 +102,8 @@ public final class RuntimeMemory {
                 movq %rax, kof_free_head(%rip)
             .Lkof_alloc_found:
                 movb $0, 24(%r13)
+                movq %r13, %rdi                  # §542: registra início-de-bloco
+                call kof_bm_set                  #        no bitmap O(1) do GC
                 movq %r13, %rax
                 addq $32, %rax
                 incq .Lkof_alloc_count(%rip)
@@ -173,6 +184,9 @@ public final class RuntimeMemory {
                 jae .Lheap_high_ok
                 movq %rdx, kof_heap_high(%rip)
             .Lheap_high_ok:
+                movq %rax, %rdi                  # §542: registra início-de-bloco
+                call kof_bm_set                  #        no bitmap O(1) do GC
+                movq %rdi, %rax                  # (kof_bm_set preserva rdi)
                 addq $32, %rax
                 incq .Lkof_alloc_count(%rip)
                 addq %r12, .Lkof_alloc_bytes(%rip)
@@ -201,6 +215,33 @@ public final class RuntimeMemory {
                 leaq .Lstr_alloc_fail(%rip), %rdi
                 call kof_panic
             """);
+        // §542: kof_bm_set(header@rdi) — seta o bit de início-de-bloco no
+        // bitmap global (1 bit por 16B) p/ o GC host achar um bloco em O(1).
+        // PRESERVA rdi. No-op quando kof_arena_base==0 (freestanding/BIOS/UEFI
+        // usam a varredura antiga). Clobbers rax/rcx/rdx/rsi/r8-r11.
+        sb.append("""
+            .section .text
+            .globl kof_bm_set
+            .type kof_bm_set, @function
+            kof_bm_set:
+                movq kof_arena_base(%rip), %rax
+                testq %rax, %rax
+                je .Lbm_done
+                movq %rdi, %rsi
+                subq %rax, %rsi          # offset do header no arena
+                shrq $4, %rsi            # indice do bit
+                movq %rsi, %rax
+                shrq $6, %rax            # indice da palavra
+                leaq _kof_block_bm(%rip), %rdx
+                leaq (%rdx,%rax,8), %rdx
+                movl %esi, %ecx
+                andl $63, %ecx           # bit na palavra
+                movq $1, %rax
+                shlq %cl, %rax
+                orq %rax, (%rdx)
+            .Lbm_done:
+                ret
+            """);
         // B-0/B-2: corpo da costura kof_plat_heap_grow POR PERFIL —
         // host/freestanding = mmap syscall (semântica idêntica ao que estava
         // inline); UEFI = AllocatePool via RuntimeUefi. O alocador fica
@@ -220,15 +261,42 @@ public final class RuntimeMemory {
             .globl kof_plat_heap_grow
             .type kof_plat_heap_grow, @function
             kof_plat_heap_grow:
-                # rdi=tamanho -> rax=ptr | -1 (semântica mmap)
-                movq %rdi, %rsi           # mmap(len)
-                movq $0, %rdi             # addr = NULL
-                movq $3, %rdx             # PROT_READ|PROT_WRITE
-                movq $0x22, %r10          # MAP_PRIVATE|MAP_ANONYMOUS
-                movq $-1, %r8             # fd
-                movq $0, %r9              # offset
-                movq $9, %rax             # SYS_mmap
+                # §542: arena CONTÍGUA única (bump) p/ o GC usar bitmap O(1).
+                # rdi=tamanho -> rax=ptr | -1 (mesma semântica: ptr válido ou -1).
+                pushq %rbx
+                movq %rdi, %rbx              # salva o tamanho (rdi é clobberado)
+                movq kof_arena_base(%rip), %rax
+                testq %rax, %rax
+                jne .Lgrow_have
+                # primeiro alloc: mmap 256 MiB (MAP_NORESERVE = páginas lazy)
+                movq $0, %rdi
+                movq $0x10000000, %rsi       # 256 MiB
+                movq $3, %rdx                # PROT_READ|PROT_WRITE
+                movq $0x4022, %r10           # MAP_PRIVATE|ANONYMOUS|NORESERVE
+                movq $-1, %r8
+                movq $0, %r9
+                movq $9, %rax
                 syscall
+                cmpq $-4095, %rax            # erro mmap = [-4095,-1]
+                jae .Lgrow_fail
+                movq %rax, kof_arena_base(%rip)
+                movq %rax, kof_arena_ptr(%rip)
+            .Lgrow_have:
+                movq kof_arena_ptr(%rip), %rax
+                addq $15, %rax
+                andq $-16, %rax              # 16-align (bit exato no bitmap)
+                movq %rax, %rcx
+                addq %rbx, %rcx              # fim desta alocação
+                movq kof_arena_base(%rip), %rdx
+                addq $0x10000000, %rdx
+                cmpq %rdx, %rcx
+                ja .Lgrow_fail
+                movq %rcx, kof_arena_ptr(%rip)
+                popq %rbx
+                ret
+            .Lgrow_fail:
+                movq $-1, %rax
+                popq %rbx
                 ret
             """);
         }

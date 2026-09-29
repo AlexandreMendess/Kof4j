@@ -20,9 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * block (linear scan capped at 10 000) and freed live memory (SIGSEGV). The
  * fixed cross uses a 16 MiB arena plus an O(1) block-start bitmap in the GC.
  *
- * <p>NOTE: the x86-64 native is a SEPARATE heap (dynamic mmap) and is NOT part
- * of this fix; a distinct x86 many-live-objects regression is catalogued
- * separately (its own §NNN).
+ * <p>§542 — the x86-64 native had a SEPARATE heap problem: it looked blocks up
+ * by a LINEAR scan of the gc list, so marking was O(N) per candidate and the
+ * whole program went cubic (1 000 live strings ≈ 17 s, 2 000 ≈ 136 s). §542
+ * gives x86 a contiguous mmap arena + the same O(1) block-start bitmap, so the
+ * x86 many-live-objects case now completes in seconds; it is asserted here.
  */
 class CrossHeapParityE2ETest extends KofStringsSupport {
 
@@ -50,6 +52,16 @@ class CrossHeapParityE2ETest extends KofStringsSupport {
             """;
     private static final String MANY_EXPECTED = "15001";
 
+    private static final String MANY_LIVE_STRINGS_X86 = """
+            main() {
+                val l = listOf("")
+                var i = 0
+                while (i < 2000) { l.add("padding " + i + " aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); i = i + 1 }
+                println(l.size)
+            }
+            """;
+    private static final String MANY_X86_EXPECTED = "2001";
+
     @Test
     void largeAllocationJvm(@TempDir Path t) throws Exception {
         runJvm(t, LARGE, LARGE_EXPECTED);
@@ -65,6 +77,26 @@ class CrossHeapParityE2ETest extends KofStringsSupport {
         assumeToolchain("qemu-riscv64", "qemu-aarch64");
         runQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", LARGE, LARGE_EXPECTED);
         runQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", LARGE, LARGE_EXPECTED);
+    }
+
+    @Test
+    void manyLiveObjectsNativeX86(@TempDir Path t) throws Exception {
+        Path file = t.resolve("Main-x86-" + System.nanoTime() + ".kf");
+        Files.writeString(file, MANY_LIVE_STRINGS_X86);
+        Path outDir = t.resolve("out-x86-" + System.nanoTime());
+        CompilationResult result = driver.compile(file, outDir, Target.NATIVE);
+        assertTrue(result.success(), "x86 compile failed: " + result.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(outDir.resolve("Default/Main").toString())
+                .redirectErrorStream(true).start();
+        boolean done = p.waitFor(30, TimeUnit.SECONDS);
+        String output = done
+                ? new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim() : "";
+        if (!done) {
+            p.destroyForcibly();
+        }
+        assertTrue(done, "x86 many-live-objects timed out (GC regression, §542)");
+        assertEquals(0, p.exitValue(), "x86 exit, out: " + output);
+        assertEquals(MANY_X86_EXPECTED, output, "x86 output");
     }
 
     @Test
