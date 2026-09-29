@@ -634,6 +634,19 @@ diagnostic). Pure Kof, target-neutral, no compiler change.
 
 ---
 
+
+## 9.8 Promoted slice 8 (29/09/2026) — interop string views
+
+**State:** landed. `interop.InteropString` maps the §3.3 string views: Kof's own canonical string is
+UTF-8 + NUL-terminated (`docs/runtime/STRING_MODEL.md`), UTF-16 hosts (JVM/JS/C#/ObjC) require a
+conversion (a visible copy, §3.10) and UTF-8 hosts (C/Rust/Go) do not. `viewFor`/`conversionRequired`
+are honest: an unknown host throws `INTEROP: unknown string host <x>` (R6).
+
+**Proof:** `InteropStringE2ETest` **5/5** (JVM golden + Script + JS + Native x86-64 + the unknown
+diagnostic). Pure Kof, target-neutral, no compiler change.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:

@@ -640,6 +640,19 @@ desconhecido). Kof puro, neutro de alvo, sem mudança no compilador.
 
 ---
 
+
+## 9.8 Fatia promovida 8 (29/09/2026) — views de string de interop
+
+**Estado:** landada. `interop.InteropString` mapeia as views de string da §3.3: a string canônica do
+Kof é UTF-8 + NUL (`docs/runtime/STRING_MODEL.md`), hosts UTF-16 (JVM/JS/C#/ObjC) exigem uma
+conversão (cópia visível, §3.10) e hosts UTF-8 (C/Rust/Go) não. `viewFor`/`conversionRequired` são
+honestos: host desconhecido lança `INTEROP: unknown string host <x>` (R6).
+
+**Prova:** `InteropStringE2ETest` **5/5** (golden JVM + Script + JS + Native x86-64 + o diagnóstico
+desconhecido). Kof puro, neutro de alvo, sem mudança no compilador.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:
