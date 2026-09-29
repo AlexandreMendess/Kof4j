@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * matrix"). The ledger is derived from this file's own {@code assertGap}
  * calls, so a new pin cannot be added without documenting it.
  */
-class DomainGapCodesTest {
+class DomainGapCodesTest extends DomainGapPrograms {
     private final CompilerDriver driver = new CompilerDriver();
 
     private static final Pattern GAP_CODE = Pattern.compile("\"([A-Z]{2,6}[0-9]{3})\"");
@@ -39,12 +39,7 @@ class DomainGapCodesTest {
         // paridade JVM=NATIVE x86-64; spawn (fatia B, RuntimeProcessSpawn)
         // também no x86-64 — cross/MCU seguem PROC001.
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, """
-            main() {
-                val r = process.run("echo", "hi")
-                println(r.stdout)
-            }
-            """);
+        Files.writeString(file, SRC_PROCESS_RUN_ON_NATIVE_COMPILES);
         CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.NATIVE);
         assertTrue(result.success(), "NATIVE process.run must compile: "
                 + result.diagnostics().getDiagnostics());
@@ -57,12 +52,7 @@ class DomainGapCodesTest {
         // ProcessSpawnNativeE2ETest). Cross (fatia D) compila sem gap; só o
         // MCU continua PROC001.
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, """
-            main() {
-                val h = process.spawn("echo", "hi")
-                println(if (h.alive()) "alive" else "dead")
-            }
-            """);
+        Files.writeString(file, SRC_PROCESS_SPAWN_ON_NATIVE_COMPILES);
         CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.NATIVE);
         assertTrue(result.success(), "NATIVE x86-64 process.spawn must compile: "
                 + result.diagnostics().getDiagnostics());
@@ -74,12 +64,7 @@ class DomainGapCodesTest {
         // spawn + handle ops agora emitem de verdade no cross riscv64/aarch64
         // (golden em ProcessSpawnCrossE2ETest). Só o MCU/riscv32 segue PROC001.
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, """
-            main() {
-                val h = process.spawn("echo", "hi")
-                println(if (h.alive()) "alive" else "dead")
-            }
-            """);
+        Files.writeString(file, SRC_PROCESS_SPAWN_ON_CROSS_HAS_NO_GAP);
         CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.NATIVE_RISCV64);
         assertTrue(result.success(), "riscv64 process.spawn must compile: "
                 + result.diagnostics().getDiagnostics());
@@ -92,12 +77,7 @@ class DomainGapCodesTest {
         // ProcessSpawnE2ETest. Native x86-64 landed 26/09 (slice B); cross/MCU
         // keep the PROC001 pin above.
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, """
-            main() {
-                val h = process.spawn("echo", "hi")
-                println(if (h.alive()) "alive" else "dead")
-            }
-            """);
+        Files.writeString(file, SRC_PROCESS_SPAWN_ON_JS_HAS_NO_GAP);
         CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.JS);
         assertTrue(result.success(), "JS process.spawn must compile: "
                 + result.diagnostics().getDiagnostics());
@@ -106,12 +86,7 @@ class DomainGapCodesTest {
     @Test
     void processSpawnOnJvmHasNoGap(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, """
-            main() {
-                val h = process.spawn("echo", "hi")
-                println(if (h.alive()) "alive" else "dead")
-            }
-            """);
+        Files.writeString(file, SRC_PROCESS_SPAWN_ON_JVM_HAS_NO_GAP);
         CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.JVM);
         assertTrue(result.success(), "JVM process.spawn must compile: "
                 + result.diagnostics().getDiagnostics());
@@ -227,12 +202,7 @@ class DomainGapCodesTest {
         // NativeIoCopyCrossTest); here we pin that the compiler emits no gap.
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             Path f = tmp.resolve("Main-" + t + "-" + System.nanoTime() + ".kf");
-            Files.writeString(f, """
-                main() {
-                    val f = File("/tmp/kof-io-probe")
-                    println(f.copyTo("/tmp/kof-io-probe2"))
-                }
-                """);
+            Files.writeString(f, SRC_IO_COPY_ON_CROSS_HAS_NO_GAP);
             CompilationResult r = driver.compile(f, tmp.resolve("out-" + t + "-" + System.nanoTime()), t);
             assertTrue(r.success(), t + " copyTo must compile on cross: "
                     + r.diagnostics().getDiagnostics());
@@ -246,17 +216,7 @@ class DomainGapCodesTest {
         // NativeIoStatCrossTest); here we pin that the compiler emits no gap.
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             Path f = tmp.resolve("Main-" + t + "-" + System.nanoTime() + ".kf");
-            Files.writeString(f, """
-                main() {
-                    val f = File("/tmp/kof-io-probe")
-                    println(f.exists())
-                    println(f.isFile())
-                    println(f.isDirectory())
-                    println(f.writeText("x"))
-                    println(f.readText())
-                    println(f.appendText("y"))
-                }
-                """);
+            Files.writeString(f, SRC_IO_STAT_ON_CROSS_HAS_NO_GAP);
             CompilationResult r = driver.compile(f, tmp.resolve("out-" + t + "-" + System.nanoTime()), t);
             assertTrue(r.success(), t + " io stat faces must compile on cross: "
                     + r.diagnostics().getDiagnostics());
@@ -269,12 +229,7 @@ class DomainGapCodesTest {
         // no kofIoReadRange export — emitting the call compiled and died at
         // runtime with a SyntaxError (R6). The lowering now refuses at compile
         // time with IOJS001; Script keeps the real interpreter semantics.
-        assertGap(tmp, Target.JS, "IOJS001", """
-            main() {
-                val f = File("/tmp/kof-io-probe")
-                println(f.readRange(0, 4).length)
-            }
-            """);
+        assertGap(tmp, Target.JS, "IOJS001", SRC_IO_READ_RANGE_ON_JS_IS_IOJS001);
     }
 
     @Test
@@ -306,14 +261,7 @@ class DomainGapCodesTest {
     @Test
     void ioAndWebT1OnX86AndJsHaveNoGap(@TempDir Path tmp) throws Exception {
         Path x86 = tmp.resolve("Main-x86-" + System.nanoTime() + ".kf");
-        Files.writeString(x86, """
-            main() {
-                val f = File("/tmp/kof-io-probe")
-                println(f.exists())
-                val app = web.app()
-                app.listen(8080)
-            }
-            """);
+        Files.writeString(x86, SRC_IO_AND_WEB_T1_ON_X86_AND_JS_HAVE_NO_GAP);
         CompilationResult nat = driver.compile(x86, tmp.resolve("out-x86"), Target.NATIVE);
         assertTrue(nat.success(), "Native x86_64 io + web T1 must compile: "
                 + nat.diagnostics().getDiagnostics());
@@ -353,13 +301,7 @@ class DomainGapCodesTest {
     @Test
     void stringIncompleteOnJvmHasNoGap(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, """
-            main() {
-                println("abc".matches("a.*"))
-                println("a1b".replaceAll("b", "x"))
-                println("ab".compareToIgnoreCase("AB"))
-            }
-            """);
+        Files.writeString(file, SRC_STRING_INCOMPLETE_ON_JVM_HAS_NO_GAP);
         CompilationResult r = driver.compile(file, tmp.resolve("out-jvm"), Target.JVM);
         assertTrue(r.success(), "JVM implements all five String methods: "
                 + r.diagnostics().getDiagnostics());

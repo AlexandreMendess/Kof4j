@@ -3,9 +3,10 @@
 # Plano Estratégico — Kof Image & Vision
 
 > **Estado (29/09): EM DESENVOLVIMENTO — promovido `future/` → `docs/development/` por `D-FUTURE-PROMOTION` + `D-IMAGE-VISION-GO` (mantenedora 29/09), library-first (`D-KOF-FIRST-IMPL`).**
-> **Fatia 1 LANDED 29/09:** `libs/image/` pure-Kof — `Image(path).format()/.width()/.height()` leem o **formato + dimensões em pixels** dos primeiros bytes (`PNG`/`GIF`/`BMP` info+core/`JPEG` SOF/`WEBP` VP8·VP8L·VP8X) sobre um prefixo limitado de 4 KiB do `kof.io.readRange`; sem codec, sem pixels, sem sintaxe nova. Golden medido na JVM + Native x86-64 + riscv64 (qemu) + Script, lacuna JS `IOJS001` — `ImageMetadataE2ETest` 7/7.
+> **Fatia 1 LANDED 29/09:** `libs/image/` pure-Kof — `Image(path).format()/.width()/.height()` leem o **formato + dimensões em pixels** dos primeiros bytes (`PNG`/`GIF`/`BMP` info+core/`JPEG` SOF/`WEBP` VP8·VP8L·VP8X + `TIFF` + `ICO`/`CUR` + `PNM` P1–P6 + `QOI`) e o helper `Bool isImage(path)`, sobre um prefixo limitado de 4 KiB do `kof.io.readRange`; sem codec, sem pixels, sem sintaxe nova. Golden medido na JVM + Native x86-64 + riscv64 (qemu) + Script, lacuna JS `IOJS001` — `ImageMetadataE2ETest` 7/7.
 > Pesado por R1/R9: `kof.image`/`kof.vision` são **pacotes oficiais** (nascentes `experimental`); codecs e algoritmos vêm de bibliotecas maduras isoladas atrás da API Kof (imageio/turbojpeg/OpenCV/ONNX, avaliação por licença/target). Pixels/filtros e `kof.vision` seguem fatias futuras; achado medido da lane native catalogado como `known-bugs` **§540** (nativos cross falham uma única alocação ≥64 Ki Int).
 > **Como terminar:** decode de pixels + dados `Image` → `resize`/`crop`/`rotate` (fatia interop), depois Fase 2 de processamento, Fase 3 `kof.vision`; cada fatia aditiva, com docs + golden em todos os alvos. Regra 6: qualquer operador/semântica nova é decisão da mantenedora; sintaxe real `var`/`val`.
+> **Pedido de decisão (regra 6):** a fatia de decode de pixels precisa da superfície de valor `kof.image` (`Image`/`Pixel`/`Color` + bindings de interop `ImageIO` e quais codecs via imageio no JVM com lacunas honestas nos demais) — reservada à mantenedora; até lá só incrementos header-level.
 
 ## Objetivo
 

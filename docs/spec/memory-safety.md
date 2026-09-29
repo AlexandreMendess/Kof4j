@@ -252,11 +252,13 @@ The following matrix maps each bug class to its prevention mechanism:
 | Dangling reference | GC (conservative) | `MEM010` (runtime) | All |
 | Invalid lifetime escape | Escape analysis at boundaries | `MEM013` (compile-time) | All |
 | Use-after-move | Explicit nulling on transfer | `MEM002` (compile-time) | All |
-| Mutable aliasing data race | Programmer discipline + `MEM020/021` | `MEM020/021` (compile + runtime) | All |
+| Mutable aliasing data race | Programmer discipline + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` compile only (#668; runtime half = option B, not chosen) | All reachable (Script: `extern` refused `FFI001` before `MEM020`) |
 | Null deref | Nullability + narrowing | `SEM049` (compile-time) | All |
-| Resource leak | Explicit close | `MEM014` (compile-time) | All |
-| FFI ownership confusion | Explicit arena/release | `MEM005` (compile + runtime) | JVM + Native |
-| Resource leak (DB/Web) | Explicit close | `MEM014` (compile-time) | All |
+| Resource leak | Explicit close | `MEM014` (compile-time; WARNING) | All (surfacing on Script pending #678) |
+| FFI ownership confusion | Confined arena per call (no release surface exists — `kof_ffi_release` is a model concept, spec §7, measured 28/09) | `MEM005` — model rule, no emission surface today | JVM + Native |
+| Resource leak (DB/Web) | Explicit close | `MEM014` (compile-time; WARNING) | All (surfacing on Script pending #678) |
+
+> **WARNING-class diagnostics on Script:** `MEM014`/`MEM022` fire in the shared frontend on all targets, but on the Script target `interpret()` discards WARNINGs (only ERRORS escape) — measured 29/09, decision request #678. The matrix lists the prevention mechanism, not the surfacing; Script surfacing is pending the decision.
 
 > **Simplicity Law check**: No lifetime annotations in user code. All rules fire
 > at existing surface boundaries (FFI, spawn, stdlib mutation, resource close,
@@ -271,9 +273,9 @@ The following matrix maps each bug class to its prevention mechanism:
 | **0** Investigation | `docs/spec/memory-safety-investigation.md` | ✅ CLOSED 25/09 |
 | **1** Specification | `docs/spec/memory-safety.md` (this doc) | ✅ CLOSED 25/09 (accepted, option A) |
 | **2** Compiler infrastructure | Ownership/Lifetime/Borrow/Escape internal representations (`dev.kof.compiler.memory`) | ✅ CLOSED 26/09 (slices 1–4; BT success `9bcddfe90`; emission = Fase 3, unlocked) |
-| **3** First guarantees | Use-after-move, dangling, escape, mutable aliasing | 🔓 UNLOCKED 26/09 (`D-COMPLETE-FIRST`) |
-| **4** Closures & async | Capture semantics, async boundaries | ⏳ WAITING |
-| **5** Native & FFI | Pointer/alloc/free, C ABI ownership table | ⏳ WAITING |
+| **3** First guarantees | Use-after-move, dangling, escape, mutable aliasing | ✅ CLOSED — slices 3.1→4 landed (MEM001/002/013/014/021/022); see `memory-safety-plan.md` |
+| **4** Closures & async | Capture semantics, async boundaries | ✅ CLOSED 28/09 — 4.1 capture (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iterators/generators = measured absence |
+| **5** Native & FFI | Pointer/alloc/free, C ABI ownership table | 🔓 IN PROGRESS — ownership table landed (#670); unit 1 pinned (#666); unit 2 landed (#667/#668); unit 3 pinned (`Buffer(U8)` INOUT × spawn/await); `#651` B cross pending |
 | **6** Cross-target | JVM/JS/WASM parity matrix — no WASM backend in the tree today (absence measured 28/09, #671); scope now = JVM/Script/JS/Native×3 | ⏳ WAITING |
 
 ---
@@ -286,7 +288,7 @@ The following matrix maps each bug class to its prevention mechanism:
 | `val`/`var` mutability | Compile-time | Compile-time | Compile-time | Compile-time |
 | Nullability narrowing | Yes | Yes | Yes | Yes |
 | FFI string return | Copy (arena) | Copy (Kof-owned) | Copy (JS string) | Copy |
-| FFI Buffer INOUT | Copy-in + copy-back | **Discarded** (divergence) | Copy-back | Copy-back |
+| FFI Buffer INOUT | Copy-in + copy-back (`JvmFfiRuntime`) | **Binds on x86-64** (`#651` A2: the emitter passes the payload pointer `obj+24`; the C write is the copy-back) — riscv64/aarch64 stay `FFI001` until fatia B | Copy-back (host bridge) | **Refused at the declaration line `FFI001`** (`#667` — Script has no FFI runtime) |
 | Worker stack roots | Yes (virtual threads) | **Never** (disabled after spawn) | N/A (event loop) | Interpreter stack |
 
 ---

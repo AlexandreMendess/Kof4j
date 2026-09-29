@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 152 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 149 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -123,7 +123,13 @@ and the cited class name stayed) → oversized 28→27, baseline 155→154. **Se
 (19 inline Kof programs + the shared `WEB_APP`, hoisted) out of `KofWebE2ETest` (all 28 cases and
 the cited class name stayed) → oversized 27→26, baseline 154→153. **Eighteenth split landed (29/09):** `KofScriptPrograms`
 (8 inline Kof programs, hoisted) out of `KofScriptTest` (all 25 cases and the cited class name
-stayed) → oversized 26→25, baseline 153→152. The metric is a
+stayed) → oversized 26→25, baseline 153→152. **Nineteenth split landed (29/09):** `WorkflowPrograms`
+(7 inline Kof programs, hoisted) out of `WorkflowE2ETest` (all 24 cases and the cited class name
+stayed) → oversized 25→24, baseline 152→151. **Twentieth split landed (29/09):** `DomainGapPrograms`
+(10 inline Kof programs, hoisted) out of `DomainGapCodesTest` (all 29 cases and the cited class
+name stayed) → oversized 24→23, baseline 151→150. **Twenty-first split landed (29/09):**
+`BackendParityPrograms` (5 inline Kof programs, hoisted) out of `BackendParityTest` (all 19 cases
+and the cited class name stayed) → oversized 23→22, baseline 150→149. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -632,8 +638,10 @@ Before any deep refactoring, the path is:
    out of `JvmE2ETest` (35/35 kept) and `KofValidationSupport`/`...Programs` out of
    `KofValidationTest` (34/34 kept) and `KofJsSupport`/`KofJsPrograms` out of `KofJsE2ETest` (40/40
    kept) and `KofWebPrograms` out of `KofWebE2ETest` (28/28 kept) and `KofScriptPrograms` out of
-   `KofScriptTest` (25/25 kept) → oversized 43→25, baseline 170→152; next split picks by a fresh
-   `--citations` measurement).
+   `KofScriptTest` (25/25 kept) and `WorkflowPrograms` out of `WorkflowE2ETest` (24/24 kept) and `DomainGapPrograms` out of
+   `DomainGapCodesTest` (29/29 kept) and `BackendParityPrograms` out of `BackendParityTest` (19/19
+   kept) → oversized 43→22, baseline 170→149; next split picks by a fresh `--citations`
+   measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
