@@ -4278,6 +4278,16 @@ individuais:
 - **Suporte:** segue os conjuntos de suporte de `orm.page`/`orm.count` (JVM/Android/JS + Native x86-64 + riscv64/aarch64 cross), `ORM001` honesto onde a face de base falta.
 - **Relacionamentos:** `Related: D-PAGINATION, D-KOF-FIRST, D-KOF-FIRST-IMPL, D-DB-GAPS, rule 6, rule 12`.
 
+## D-PAGINATION-P5-SHAPE — `kof.web.pageRequest` lê o request ambiente e devolve um `PageRequest` do core (mantenedora 29/09/2026, opção "`PageRequest` explícito")
+
+**Estado:** DECIDED (mantenedora) — destrava a P5 sob `D-PAGINATION`.
+
+- **Problema:** a P5 precisa ler `?page/limit/offset` do request HTTP corrente e entregar ao handler um valor de paginação, sem vazar um tipo HTTP para o core (plano §12). O `kof.web` expõe o request apenas por accessors de contexto ambientes (`query(name): String?`), nunca um valor `Request`; o §19 Q8 perguntava nome/forma/casa.
+- **Escolhido:** `pageRequest(defaultLimit: Int[, maxLimit: Int]): PageRequest` num host virtual **`kof.web`** (injetado no `import kof.web`), devolvendo o record CORE `PageRequest(Int page, Int limit, Int offset)` e lendo o request pelo `query("page"/"limit"/"offset")` já existente. "Explícito" = valor de retorno core explícito (sem `Window` escondido, sem tipo HTTP); um parâmetro `Request` literal não é representável porque `kof.web` não tem tipo `Request` — criar um seria uma decisão de primitiva core separada (não tomada).
+- **Semântica:** `page` é 1-based, default 1 (`offset = (page-1)*limit`); `limit` default `defaultLimit`, clampado para baixo em `maxLimit` quando `maxLimit > 0`; um `?offset=` explícito vence o cálculo por página; valores não-inteiros, `page < 1`, `limit < 1`, `offset < 0` e overflow Int de `(page-1)*limit` lançam o erro nomeado `PAGINATION:`. O handler mapeia para `400` com `catch (String e) { return status(400, e) }` — sem mudança de runtime erro→status.
+- **Razão da casa:** host SEPARADO do `kof.pagination` para que programas Native que só `import kof.pagination` nunca paguem o gap web: `pageRequest` precisa de `query(...)`, ausente no Native (`WEB001`, plano §13). O namespace `web` já está no ledger R1.
+- **Relacionados:** `Related: D-PAGINATION, D-PAGINATION-P4-LOWERING, D-KOF-FIRST, rule 6, rule 12`.
+
 ## D-HTTP-POLICIES — políticas HTTP/Web declarativas: global (existente), por prefixo de recurso e por endpoint, com payloads de rejeição declarativos (mantenedora 28/09/2026, "pode assumir")
 
 **Estado:** DECIDED (mantenedora) — frente promovida sob `D-FUTURE-PROMOTION` (`docs/stdlib/http-policies-plan.md`, concluída 28/09: fatias F0–F6 pousadas, `KofHttpPoliciesE2ETest` 10/10); parte da autorização `D-FUTURE-BATCH-2809`.

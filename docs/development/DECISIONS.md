@@ -4290,6 +4290,16 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Support:** rides the `orm.page`/`orm.count` support sets (JVM/Android/JS + Native x86-64 + riscv64/aarch64 cross), honest `ORM001` wherever the underlying face is absent.
 - **Relationships:** `Related: D-PAGINATION, D-KOF-FIRST, D-KOF-FIRST-IMPL, D-DB-GAPS, rule 6, rule 12`.
 
+## D-PAGINATION-P5-SHAPE — `kof.web.pageRequest` reads the ambient request and returns a core `PageRequest` (maintainer 29/09/2026, option "explicit `PageRequest`")
+
+**State:** DECIDED (maintainer) — unblocks P5 under `D-PAGINATION`.
+
+- **Problem:** P5 must read `?page/limit/offset` from the current HTTP request and hand the handler a pagination value, without leaking an HTTP type into the core (plan §12). `kof.web` exposes the request only through ambient context accessors (`query(name): String?`), never a `Request` value; §19 Q8 asked the name/shape/home.
+- **Chosen:** `pageRequest(defaultLimit: Int[, maxLimit: Int]): PageRequest` in a virtual host **`kof.web`** (injected on `import kof.web`), returning the CORE record `PageRequest(Int page, Int limit, Int offset)` and reading the request via the existing ambient `query("page"/"limit"/"offset")`. "Explicit" = an explicit core return value (no hidden `Window`, no HTTP type); a literal `Request` parameter is not representable because `kof.web` has no `Request` type — adding one would be a separate core-primitive decision (not taken).
+- **Semantics:** `page` is 1-based, default 1 (`offset = (page-1)*limit`); `limit` defaults to `defaultLimit` and is clamped down to `maxLimit` when `maxLimit > 0`; an explicit `?offset=` wins over the page calculation; non-integer values, `page < 1`, `limit < 1`, `offset < 0`, and Int overflow of `(page-1)*limit` throw the named `PAGINATION:` error. The handler maps it to `400` with `catch (String e) { return status(400, e) }` — no runtime error→status change.
+- **Home rationale:** a SEPARATE host from `kof.pagination` so Native programs that only `import kof.pagination` never pay the web gap: `pageRequest` needs `query(...)`, absent on Native (`WEB001`, plan §13). The `web` namespace is already registered in the R1 ledger.
+- **Related:** `Related: D-PAGINATION, D-PAGINATION-P4-LOWERING, D-KOF-FIRST, rule 6, rule 12`.
+
 ## D-HTTP-POLICIES — declarative HTTP/Web policies: global (existing), per-resource prefix and per-endpoint, with declarative rejection payloads (maintainer 28/09/2026, "pode assumir")
 
 **State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/stdlib/http-policies-plan.md`, concluded 28/09: slices F0–F6 landed, `KofHttpPoliciesE2ETest` 10/10); part of the `D-FUTURE-BATCH-2809` authorization.

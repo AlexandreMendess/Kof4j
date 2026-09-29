@@ -442,8 +442,15 @@ Each slice is independently provable; no slice ships without a test and docs.
   the 4-argument form's `orm.count` is lazy/opt-in). Proof: `PaginationOrmWindowE2ETest`
   5/5 — JVM(H2) + Native x86(sqlite) + JS parity + negative named error + import
   required.
-- **P5 — HTTP helper `pageRequest(...)`** + query-decode parity fix. Proof:
-  parsing/clamping/rejection E2E.
+- **P5 — HTTP helper `pageRequest(...)`** + query-decode parity fix. **LANDED
+  (29/09)** per `D-PAGINATION-P5-SHAPE`: the pure-Kof virtual host `kof.web`
+  (injected on `import kof.web`) provides `pageRequest(defaultLimit[, maxLimit]):
+  PageRequest`, returning the core `PageRequest(Int page, Int limit, Int offset)`
+  and reading the ambient `query("page"/"limit"/"offset")`; 1-based page, clamp
+  to `maxLimit`, explicit `?offset=` wins, named `PAGINATION:` error on bad input
+  (handler maps to 400 via `status(400, e)`). Proof: `PaginationPageRequestE2ETest`
+  8/8 (page/limit→offset, defaults, clamp, explicit offset, page=0, non-integer,
+  negative offset, import required) + `KofWebE2ETest` 28/28 (no regression).
 - **P6 — Docs/corpus** (`training/idioms/database.md`, `collections.md`,
   `docs/stdlib/stdlib-database.md`, `DATABASE_VISION.md`), synchronize the
   `orm.page` signature everywhere. **LANDED (29/09)** — `training/idioms/
@@ -456,9 +463,13 @@ Each slice is independently provable; no slice ships without a test and docs.
 
 > **Decision resolved (29/09 — `D-PAGINATION-P4-LOWERING`):** the maintainer
 > chose **(b)** — the ORM lowerer desugars `orm.window` into the injected Kof
-> `window(...)` helper over `orm.page`/`orm.count`, so no per-target runtime
-> constructs the `Window<T>` record. **P5**'s return shape remains open at §19
-> Q8 (the `kof.web`-owned `pageRequest`); it is the next design point after P4.
+> `windowPage(...)` helper over `orm.page`/`orm.count`, so no per-target runtime
+> constructs the `Window<T>` record.
+>
+> **Decision resolved (29/09 — `D-PAGINATION-P5-SHAPE`):** the maintainer chose
+> the explicit-core-return shape — the `kof.web`-owned `pageRequest(default[, max]):
+> PageRequest` reads the ambient `query(...)` and returns the core `PageRequest`
+> record; §19 Q8 is CLOSED, so P5 has no open design point.
 
 ## 21. Acceptance criteria per phase
 

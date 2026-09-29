@@ -354,6 +354,32 @@ concurrent without shared state. `status(code, body)` and
 `headerSet(name, value)` allow rich responses (custom status + headers) —
 previously handlers only produced automatic 200/404.
 
+### Pagination helper (`import kof.web`)
+
+`pageRequest(defaultLimit[, maxLimit]): PageRequest` (`D-PAGINATION` P5) reads
+`?page/limit/offset` from the current request and returns the core record
+`PageRequest(page, limit, offset)` — no HTTP type leaks into the handler. `page`
+is 1-based (`offset = (page-1)*limit`); `limit` defaults to `defaultLimit` and is
+clamped to `maxLimit` when `maxLimit > 0`; an explicit `?offset=` wins. Bad input
+(non-integer, `page < 1`, `limit < 1`, `offset < 0`) throws a named
+`PAGINATION:` error — map it to 400 in the handler:
+
+```kof
+import kof.web
+
+app.get("/users") {
+    try {
+        val p = pageRequest(20, 100)
+        return json.encode(orm.window<User>(db, p.limit(), p.offset()))
+    } catch (String e) {
+        return status(400, e)
+    }
+}
+```
+
+Native targets have no web context, so a `pageRequest` call there is a `WEB001`
+gap (declared, never silent).
+
 ## 4. Concurrency
 
 Each connection is handled on a virtual thread (JVM). The programmer writes

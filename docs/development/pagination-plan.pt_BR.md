@@ -441,7 +441,15 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
   lazy/opt-in). Prova: `PaginationOrmWindowE2ETest` 5/5 — paridade JVM(H2) +
   Native x86(sqlite) + JS + erro nomeado negativo + import obrigatório.
 - **P5 — helper HTTP `pageRequest(...)`** + correção da paridade de decode de query.
-  Prova: E2E de parse/clamp/rejeição.
+  **LANDED (29/09)** por `D-PAGINATION-P5-SHAPE`: o host virtual Kof `kof.web`
+  (injetado no `import kof.web`) fornece `pageRequest(defaultLimit[, maxLimit]):
+  PageRequest`, devolvendo o core `PageRequest(Int page, Int limit, Int offset)` e
+  lendo o `query("page"/"limit"/"offset")` ambiente; page 1-based, clamp em
+  `maxLimit`, `?offset=` explícito vence, erro nomeado `PAGINATION:` em entrada
+  ruim (handler mapeia para 400 via `status(400, e)`). Prova:
+  `PaginationPageRequestE2ETest` 8/8 (page/limit→offset, defaults, clamp, offset
+  explícito, page=0, não-inteiro, offset negativo, import obrigatório) +
+  `KofWebE2ETest` 28/28 (zero regressão).
 - **P6 — Docs/corpus** (`training/idioms/database.md`, `collections.md`,
   `docs/stdlib/stdlib-database.md`, `DATABASE_VISION.md`), sincronizar a
   assinatura de `orm.page` em todo lugar. **LANDED (29/09)** — `training/idioms/
@@ -454,9 +462,13 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
 
 > **Decisão resolvida (29/09 — `D-PAGINATION-P4-LOWERING`):** a mantenedora
 > escolheu **(b)** — o lowerer de ORM dessuga `orm.window` no helper Kof
-> `window(...)` injetado sobre `orm.page`/`orm.count`, então nenhum runtime por
-> alvo constrói o record `Window<T>`. A forma de retorno de **P5** segue aberta
-> em §19 Q8 (o `pageRequest`, de `kof.web`); é o próximo ponto de design após P4.
+> `windowPage(...)` sobre `orm.page`/`orm.count`, então nenhum runtime por
+> alvo constrói o record `Window<T>`.
+>
+> **Decisão resolvida (29/09 — `D-PAGINATION-P5-SHAPE`):** a mantenedora escolheu
+> a forma de retorno core explícita — o `pageRequest(default[, max]): PageRequest`
+> de `kof.web` lê o `query(...)` ambiente e devolve o record core `PageRequest`;
+> o §19 Q8 está FECHADO, então a P5 não tem ponto de design aberto.
 
 ## 21. Critérios de aceite por fase
 

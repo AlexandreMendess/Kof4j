@@ -99,6 +99,25 @@ app.get("/admin/logs") { return logs() }        // inherits the policy
 Scalars (e.g. `rateLimit`, `auth`) are deepest-wins; lists (`publicPaths`,
 `roles`) accumulate. The handler never re-checks what the policy declares.
 
+## GOOD — read pagination from the request (`pageRequest`)
+
+```kof
+import kof.web
+
+app.get("/users") {
+    try {
+        val p = pageRequest(20, 100)   // ?page/limit/offset; default 20, cap 100
+        return json.encode(orm.window<User>(db, p.limit(), p.offset()))
+    } catch (String e) {
+        return status(400, e)          // named PAGINATION: error → 400
+    }
+}
+```
+
+`pageRequest` returns a core `PageRequest(page, limit, offset)` — no HTTP type
+leaks out. `page` is 1-based, `limit` is clamped to the cap, `?offset=` wins.
+Native has no web context, so this is a `WEB001` gap there.
+
 ## Notes
 
 - `app.listen` accepts ONLY Int (`app.listen(8080)` — #102.2 13/09: a String

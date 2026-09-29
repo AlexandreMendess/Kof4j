@@ -100,6 +100,25 @@ de path. Escalares (ex.: `rateLimit`, `auth`) são "o mais profundo vence";
 listas (`publicPaths`, `roles`) acumulam. O handler nunca re-checa o que a
 política declara.
 
+## BOM — ler paginação do request (`pageRequest`)
+
+```kof
+import kof.web
+
+app.get("/users") {
+    try {
+        val p = pageRequest(20, 100)   // ?page/limit/offset; default 20, teto 100
+        return json.encode(orm.window<User>(db, p.limit(), p.offset()))
+    } catch (String e) {
+        return status(400, e)          // erro nomeado PAGINATION: → 400
+    }
+}
+```
+
+`pageRequest` devolve um core `PageRequest(page, limit, offset)` — nenhum tipo
+HTTP vaza. `page` é 1-based, `limit` é clampado no teto, `?offset=` vence. O
+Native não tem contexto web, então isso é um gap `WEB001` lá.
+
 ## Notas
 
 - `app.listen` aceita SÓ Int (`app.listen(8080)` — #102.2 13/09: String
