@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 148 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 147 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -132,7 +132,10 @@ name stayed) → oversized 24→23, baseline 151→150. **Twenty-first split lan
 and the cited class name stayed) → oversized 23→22, baseline 150→149. **Twenty-second split landed (29/09):**
 `ComponentCoreSupport` (runners) + `ComponentCorePrograms` (28 hoisted programs) out of
 `ComponentCoreE2ETest` (all 29 cases and the cited class name stayed) → oversized 22→21,
-baseline 149→148. The metric is a
+baseline 149→148. **Twenty-third split landed (29/09):** `SemanticResolutionSupport` (driver +
+SEM025/SEM050 oracles) + `SemanticResolutionPrograms` (19 hoisted programs) out of
+`SemanticResolutionTest` (all 30 cases and the cited class name stayed) → oversized 21→20,
+baseline 148→147. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -644,7 +647,8 @@ Before any deep refactoring, the path is:
    `KofScriptTest` (25/25 kept) and `WorkflowPrograms` out of `WorkflowE2ETest` (24/24 kept) and `DomainGapPrograms` out of
    `DomainGapCodesTest` (29/29 kept) and `BackendParityPrograms` out of `BackendParityTest` (19/19
    kept) and `ComponentCoreSupport`/`ComponentCorePrograms` out of `ComponentCoreE2ETest` (29/29
-   kept) → oversized 43→21, baseline 170→148; next split picks by a fresh `--citations`
+   kept) and `SemanticResolutionSupport`/`SemanticResolutionPrograms` out of `SemanticResolutionTest`
+   (30/30 kept) → oversized 43→20, baseline 170→147; next split picks by a fresh `--citations`
    measurement).
 
 **Important:** this refactoring must not interfere with anything in the

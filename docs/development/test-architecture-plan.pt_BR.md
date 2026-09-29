@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 148 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 147 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -134,7 +134,10 @@ divisão landada (29/09):** `BackendParityPrograms` (5 programas Kof inline, hoi
 `BackendParityTest` (os 19 casos e o nome de classe citado ficaram) → oversized 23→22, baseline
 150→149. **Vigésima segunda divisão landada (29/09):** `ComponentCoreSupport` (runners) +
 `ComponentCorePrograms` (28 programas hoisted) saídos do `ComponentCoreE2ETest` (os 29 casos e o
-nome de classe citado ficaram) → oversized 22→21, baseline 149→148. A métrica é guia, não oráculo:
+nome de classe citado ficaram) → oversized 22→21, baseline 149→148. **Vigésima terceira divisão
+landada (29/09):** `SemanticResolutionSupport` (driver + oráculos SEM025/SEM050) +
+`SemanticResolutionPrograms` (19 programas hoisted) saídos do `SemanticResolutionTest` (os 30 casos
+e o nome de classe citado ficaram) → oversized 21→20, baseline 148→147. A métrica é guia, não oráculo:
 nomear candidatos nesta fila (e no `README`) já
 adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher a próxima
 divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
@@ -646,8 +649,9 @@ Antes de qualquer refatoração profunda, o caminho é:
    (25/25 mantidos) `WorkflowPrograms` do `WorkflowE2ETest` (24/24 mantidos) e `DomainGapPrograms` do
    `DomainGapCodesTest` (29/29 mantidos) e `BackendParityPrograms` do `BackendParityTest` (19/19
    mantidos) e `ComponentCoreSupport`/`ComponentCorePrograms` do `ComponentCoreE2ETest` (29/29
-   mantidos) → oversized 43→21, baseline 170→148; a próxima divisão escolhe por um `--citations`
-   fresco).
+   mantidos) e `SemanticResolutionSupport`/`SemanticResolutionPrograms` do `SemanticResolutionTest`
+   (30/30 mantidos) → oversized 43→20, baseline 170→147; a próxima divisão escolhe por um
+   `--citations` fresco).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
