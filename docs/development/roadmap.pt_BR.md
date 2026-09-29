@@ -950,16 +950,17 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > profiling da Fase 1 (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
 > infraestrutura pura de testes. **ABERTA (4ª frente):** `pagination` — promovida
 > 28/09 (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) para
-> [`pagination-plan.md`](pagination-plan.md); primeira fatia = `slice`/`take`/`drop`
-> em memória. **ABERTA (5ª frente):** `kof-file` — promovido 28/09
+> [`pagination-plan.md`](pagination-plan.md); P0→P6 LANDED 29/09
+> (`slice`/`take`/`drop` in-memory + `Window<T>`/`window` + `orm.window` +
+> `pageRequest` + sync docs; P3-DSL-offset fora de escopo). **ABERTA (5ª frente):** `kof-file` — promovido 28/09
 > (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) para
 > [`kof-file-plan.md`](kof-file-plan.md); re-escopado na promoção (Fase 1
-> File/Path/Text/Binary já existe como `kof.io`); fatias 1–2 de streaming landed
-> (pure-Kof `libs/file/` sobre `kof.io.readRange`; fatia 2 = golden na
-> JVM/Native/Script + lacuna JS `IOJS001`, `FileLibraryE2ETest` 7/7).
+> File/Path/Text/Binary já existe como `kof.io`); fatias 1–2.5 de streaming +
+> fatias 3.1–3.3 de config landed (configuração da Fase 3 COMPLETA: Ini/Toml/Yaml;
+> goldens JVM/Native/Script + lacuna JS `IOJS001`).
 > **ABERTA (6ª frente):** `multiparadigma` — promovido 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) para
-> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatias 1a+1b+1c+1d+1e LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct`; E2E 5/5+3/3+3/3+3/3+3/3 + paridade script).
+> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatias 1a+1b+1c+1d+1e+1f LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + pins de paridade script; E2E 5/5+3/3+3/3+3/3+3/3 + `KofScriptStdlibParityTest` 22/22); resto (`sorted`/`groupBy`/`zip`) BLOQUEADO em decisões da mantenedora (regra 6).
 > Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).
