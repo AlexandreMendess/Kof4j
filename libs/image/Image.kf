@@ -16,9 +16,12 @@ package image
 //   * BMP  — `BITMAPCOREHEADER` (12) and `BITMAPINFOHEADER`+ (width/height,
 //     top-down negative height normalized to positive);
 //   * JPEG — first `SOF0..SOF15` frame header (baseline/progressive);
-//   * WEBP — `VP8 ` (lossy), `VP8L` (lossless) and `VP8X` (extended canvas).
-// Any other format, a truncated header or an unreadable structure throws a
-// `String` beginning with `IMAGE:`.
+//   * WEBP — `VP8 ` (lossy), `VP8L` (lossless) and `VP8X` (extended canvas);
+//   * TIFF — first IFD `ImageWidth`/`ImageLength` tags (`II`/`MM`, LE/BE);
+//   * ICO/CUR — first directory entry (0 means 256).
+// A `Bool isImage(path)` helper answers "is this a supported image?" without
+// throwing. Any other format, a truncated header or an unreadable structure
+// throws a `String` beginning with `IMAGE:`.
 //
 // Built on the existing `kof.io` `File(path).readRange(...)`: the reader
 // fetches one bounded 4 KiB prefix (all supported headers live in the first
@@ -68,7 +71,23 @@ ImageMetadata readImageMetadata(String path) {
     if (matchesAscii(head, 0, "RIFF") && matchesAscii(head, 8, "WEBP")) {
         return webpMetadata(head)
     }
+    if ((head[0] == 73 && head[1] == 73) || (head[0] == 77 && head[1] == 77)) {
+        return tiffMetadata(head)
+    }
+    if (head[0] == 0 && head[1] == 0 && head[3] == 0 && (head[2] == 1 || head[2] == 2)) {
+        return icoMetadata(head)
+    }
     throw "IMAGE: unsupported image format"
+}
+
+// True when the file is a supported image; never throws.
+Bool isImage(String path): Bool {
+    try {
+        var m = readImageMetadata(path)
+        return true
+    } catch (String e) {
+        return false
+    }
 }
 
 ImageMetadata pngMetadata(Int[] b) {
@@ -149,6 +168,88 @@ ImageMetadata webpMetadata(Int[] b) {
         return ImageMetadata("WEBP", w, h)
     }
     throw "IMAGE: unsupported WEBP variant"
+}
+
+ImageMetadata tiffMetadata(Int[] b) {
+    var le = b[0] == 73 && b[1] == 73
+    var be = b[0] == 77 && b[1] == 77
+    if (!le && !be) {
+        throw "IMAGE: bad TIFF byte order"
+    }
+    var magic = 0
+    if (le) {
+        magic = le16(b, 2)
+    } else {
+        magic = be16(b, 2)
+    }
+    if (magic != 42) {
+        throw "IMAGE: bad TIFF magic"
+    }
+    var off = 0
+    if (le) {
+        off = le32(b, 4)
+    } else {
+        off = be32(b, 4)
+    }
+    need(b, off + 2, "TIFF")
+    var count = 0
+    if (le) {
+        count = le16(b, off)
+    } else {
+        count = be16(b, off)
+    }
+    var w = 0
+    var h = 0
+    var i = 0
+    while (i < count) {
+        var p = off + 2 + i * 12
+        need(b, p + 12, "TIFF")
+        var tag = 0
+        var typ = 0
+        var raw = 0
+        if (le) {
+            tag = le16(b, p)
+            typ = le16(b, p + 2)
+            raw = le32(b, p + 8)
+        } else {
+            tag = be16(b, p)
+            typ = be16(b, p + 2)
+            raw = be32(b, p + 8)
+        }
+        if (tag == 256) {
+            w = tiffValue(typ, raw, le)
+        } else if (tag == 257) {
+            h = tiffValue(typ, raw, le)
+        }
+        i = i + 1
+    }
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: TIFF dimensions not found"
+    }
+    return ImageMetadata("TIFF", w, h)
+}
+
+Int tiffValue(Int typ, Int raw, Bool le) {
+    if (typ == 3) {
+        if (le) {
+            return raw & 65535
+        }
+        return (raw >> 16) & 65535
+    }
+    return raw
+}
+
+ImageMetadata icoMetadata(Int[] b) {
+    need(b, 8, "ICO")
+    var w = b[6]
+    var h = b[7]
+    if (w == 0) {
+        w = 256
+    }
+    if (h == 0) {
+        h = 256
+    }
+    return ImageMetadata("ICO", w, h)
 }
 
 Bool matchesAscii(Int[] b, Int at, String s) {

@@ -38,7 +38,12 @@ class ImageMetadataE2ETest {
             "JPEG:20x10",
             "WEBP:6x8",
             "WEBP:13x9",
-            "WEBP:100x50");
+            "WEBP:100x50",
+            "TIFF:12x34",
+            "TIFF:12x34",
+            "ICO:16x32",
+            "isImage=true",
+            "notImage=false");
 
     @Test
     void readsMetadataOnJvm() throws Exception {
@@ -113,6 +118,13 @@ class ImageMetadataE2ETest {
                 return img.format() + ":" + img.width() + "x" + img.height()
             }
 
+            String flag(Bool b) {
+                if (b) {
+                    return "true"
+                }
+                return "false"
+            }
+
             main() {
                 var base = "%s"
                 println(one(base + "/a.png"))
@@ -123,6 +135,11 @@ class ImageMetadataE2ETest {
                 println(one(base + "/f.webp"))
                 println(one(base + "/g.webp"))
                 println(one(base + "/h.webp"))
+                println(one(base + "/i.tif"))
+                println(one(base + "/j.tif"))
+                println(one(base + "/k.ico"))
+                println("isImage=" + flag(isImage(base + "/a.png")))
+                println("notImage=" + flag(isImage(base + "/bad.bin")))
             }
             """.formatted(base);
     }
@@ -152,6 +169,10 @@ class ImageMetadataE2ETest {
         Files.write(dir.resolve("f.webp"), webpVp8(6, 8));
         Files.write(dir.resolve("g.webp"), webpVp8l(13, 9));
         Files.write(dir.resolve("h.webp"), webpVp8x(100, 50));
+        Files.write(dir.resolve("i.tif"), tiff(12, 34, true));
+        Files.write(dir.resolve("j.tif"), tiff(12, 34, false));
+        Files.write(dir.resolve("k.ico"), ico(16, 32));
+        Files.write(dir.resolve("bad.bin"), new byte[]{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07});
         return dir;
     }
 
@@ -246,6 +267,37 @@ class ImageMetadataE2ETest {
         out.write(new byte[]{0, 0, 0, 0});
         out.write(le24(w - 1));
         out.write(le24(h - 1));
+        return out.toByteArray();
+    }
+
+    private static byte[] tiff(int w, int h, boolean little) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        if (little) {
+            out.write(new byte[]{'I', 'I', 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00});
+            out.write(new byte[]{0x02, 0x00});
+            out.write(new byte[]{0x00, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00});
+            out.write(le32(w));
+            out.write(new byte[]{0x01, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00});
+            out.write(le32(h));
+        } else {
+            out.write(new byte[]{'M', 'M', 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08});
+            out.write(new byte[]{0x00, 0x02});
+            out.write(new byte[]{0x01, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01});
+            out.write(new byte[]{0x00, (byte) w, 0x00, 0x00});
+            out.write(new byte[]{0x01, 0x01, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01});
+            out.write(new byte[]{0x00, (byte) h, 0x00, 0x00});
+        }
+        out.write(new byte[]{0x00, 0x00, 0x00, 0x00});
+        return out.toByteArray();
+    }
+
+    private static byte[] ico(int w, int h) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(new byte[]{0x00, 0x00, 0x01, 0x00, 0x01, 0x00});
+        out.write(new byte[]{(byte) (w & 0xFF), (byte) (h & 0xFF)});
+        out.write(new byte[]{0x00, 0x00, 0x02, 0x00});
+        out.write(le32(40));
+        out.write(le32(22));
         return out.toByteArray();
     }
 
