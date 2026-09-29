@@ -9,9 +9,7 @@ class UnixFileSystem implements kfvm.platform.FileSystem {
     }
 
     String linkTarget(String link) {
-        if (!File(link).isSymlink()) {
-            return ""
-        }
+        if (!File(link).isSymlink()) return ""
         return Shell.run("readlink", listOf(link)).trim()
     }
 

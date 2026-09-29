@@ -26,6 +26,7 @@ class RemoteVersions {
         if (version == "") {
             throw "version '" + query + "' not found for " + github.platform + " (see: kfvm ls -r)"
         }
+
         return version
     }
 
@@ -34,6 +35,7 @@ class RemoteVersions {
             console.info("kof " + version + " already installed")
             return
         }
+
         installer.install(RemoteCandidates.find(version, releases))
         console.info("installed kof " + version + " at " + store.dirOf(version))
     }

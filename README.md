@@ -4,8 +4,8 @@ Install, switch between and remove versions of the [Kof](https://github.com/KofL
 
 ```console
 $ kfvm i lst        # install the latest stable release
-$ kfvm i 0.4.10     # install a specific version
-$ kfvm u 0.4.10     # make it the active one, or install if its not yet
+$ kfvm i 0.4        # install the newest 0.4.x (0.4.10-beta)
+$ kfvm u 0.4.8      # make it the active one, installing it first if needed
 $ kof version
 ```
 
@@ -74,7 +74,7 @@ kfvm -h
 ```
 kfvm ls,  list [-r, --remote]          list installed versions (or available ones)
 kfvm i,   install <ver|lst|nightly>    install a version
-kfvm u,   use <ver|lst|nightly>        switch the active version or install it
+kfvm u,   use <ver|lst|nightly>        switch the active version (installs it if needed)
 kfvm uni, uninstall <ver|lst|nightly>  remove an installed version
 ```
 
@@ -90,8 +90,9 @@ kfvm ls -r        # versions available on GitHub Releases
 ### Installing
 
 ```bash
-kfvm i lst        # latest stable release
+kfvm i lst        # latest stable release (same as lts or latest)
 kfvm i nightly    # latest pre-release
+kfvm i 0.4        # newest 0.4.x release
 kfvm i 0.4.10     # a specific version
 ```
 
@@ -101,6 +102,8 @@ kfvm i 0.4.10     # a specific version
 kfvm u 0.4.10
 kof version
 ```
+
+If the version is not installed yet, `kfvm u` downloads and installs it first. If GitHub cannot be reached (offline, or rate-limited without a `GITHUB_TOKEN`), it falls back to the versions already installed.
 
 ### Removing
 
@@ -112,11 +115,35 @@ On Windows, kfvm runs on the JDK of the active Kof version and files in use cann
 
 ## Version specifiers
 
-| Specifier | Meaning | Example |
+`kfvm i`, `kfvm u` and `kfvm uni` accept the same specifiers. `kfvm i` and `kfvm u` look them up in the releases published on GitHub (`kfvm u` skips the lookup when you pass the full name of an installed version, and falls back to the installed versions when GitHub cannot be reached). `kfvm uni` only looks at the versions installed on this machine and never downloads anything.
+
+| Specifier | Meaning |
+|---|---|
+| `lst`, `lts`, `latest` | The newest stable release. |
+| `nightly` | The newest pre-release. |
+| `<ver>` | A full or partial version, resolved as described below. A leading `v` is ignored (`v0.4` is `0.4`). |
+
+A version that matches a release exactly selects that release. Otherwise it selects the newest release that starts with it, where the match has to end at a `.`, `-` or `+`, so `0.4.1` never matches `0.4.10`. You can leave out the minor or patch number, the `-beta` suffix and the `+date` build. When a final release and its pre-releases match, the final release wins (`0.4.9` is newer than `0.4.9-beta`).
+
+With these releases published:
+
+```
+0.5.0-beta+2026.09.26
+0.5.0-beta+2026.09.25
+0.4.10-beta
+0.4.9-beta
+...
+```
+
+| You type | kfvm picks | Why |
 |---|---|---|
-| `<ver>` | An exact version. A prefix is enough when it is unambiguous. | `0.4.10-beta`, or just `0.4.10` |
-| `lst` | The latest stable release. | |
-| `nightly` | The latest pre-release. | `0.5.0-beta+2026.09.25` |
+| `lst` | `0.4.10-beta` | the newest stable release (the 0.5.0 builds are pre-releases) |
+| `nightly` | `0.5.0-beta+2026.09.26` | the newest pre-release |
+| `0.4` | `0.4.10-beta` | the newest 0.4.x; there is no 0.4 release without `-beta` |
+| `0.4.9` | `0.4.9-beta` | the only 0.4.9 release |
+| `0.4.9` | `0.4.9` | if a final `0.4.9` is published, it matches exactly |
+| `0.5` | `0.5.0-beta+2026.09.26` | the newest 0.5.x build |
+| `0.5.0-beta+2026.09.25` | `0.5.0-beta+2026.09.25` | an exact match, even though a newer build exists |
 
 ## How it works
 

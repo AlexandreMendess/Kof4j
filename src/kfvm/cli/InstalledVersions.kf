@@ -18,12 +18,12 @@ class InstalledVersions {
             Selector.select(query, RemoteCandidates.of(github.releases()))
         else
             Selector.select(query, store.installedNewestFirst())
-        if (version == "") {
+
+        if (version == "") 
             throw "version '" + query + "' not found (see: kfvm ls)"
-        }
-        if (!store.isInstalled(version)) {
+        if (!store.isInstalled(version))
             throw "kof " + version + " is not installed (run: kfvm i " + query + ")"
-        }
+
         return version
     }
 
@@ -32,13 +32,13 @@ class InstalledVersions {
     }
 
     String resolveLocal(String query) {
-        if (Selector.isChannel(query)) {
+        if (Selector.isChannel(query))
             throw "'" + query + "' needs GitHub to be resolved (try again, or pass a version)"
-        }
+
         var version = Selector.select(query, store.installedNewestFirst())
-        if (version == "") {
+        if (version == "")
             throw "version '" + query + "' not found (see: kfvm ls)"
-        }
+
         return version
     }
 }

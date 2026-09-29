@@ -5,13 +5,14 @@ class Checksums {
         if (sums == null) {
             return ""
         }
+
         for (var line in sums.split("\n")) {
             var entry = line.trim()
             var space = entry.indexOf(" ")
-            if (space > 0 && nameOf(entry.substring(space)) == file) {
+            if (space > 0 && nameOf(entry.substring(space)) == file) 
                 return entry.substring(0, space).toLowerCase()
-            }
         }
+
         return ""
     }
 

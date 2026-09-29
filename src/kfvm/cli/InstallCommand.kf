@@ -19,17 +19,18 @@ class InstallCommand implements kfvm.cli.Command {
     List<String> names() { return listOf("i", "install") }
 
     void run(List<String> args) {
-        if (args.size == 0) {
-            throw "usage: kfvm i <ver|lst|nightly>"
-        }
+        if (args.size == 0) throw "usage: kfvm i <ver|lst|nightly>"
         var releases = remote.releases()
         var version = remote.resolve(args.get(0), releases)
+        var current;
+
         remote.ensureInstalled(version, releases)
-        var current = store.current()
-        if (current == "" || current == version) {
+        current = store.current()
+
+        if (current == "" || current == version)
             activator.activate(version)
-        } else {
+        else 
             console.info("run 'kfvm u " + version + "' to activate it")
-        }
+        
     }
 }

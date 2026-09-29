@@ -20,6 +20,7 @@ class GitHubClient {
         var page = 1
         var pageSize = 100
         var more = true
+
         while (more && page <= 10) {
             var releases = fetchPage(page, pageSize)
             for (var r in releases) {
@@ -27,9 +28,11 @@ class GitHubClient {
                     out.add(toRemote(r))
                 }
             }
+
             more = releases.size == pageSize
             page = page + 1
         }
+
         return out
     }
 
@@ -44,13 +47,12 @@ class GitHubClient {
         if (!body.startsWith("[")) {
             throw "GitHub API: " + body + " (rate limit? set GITHUB_TOKEN)"
         }
+
         return json.decode<List<kfvm.github.Release>>(body)
     }
 
     String get(String url) {
-        if (token == "") {
-            return http.get(url)
-        }
+        if (token == "") return http.get(url)
         return Shell.run("curl", listOf("-fsSL", "-H", "Authorization: Bearer " + token, url))
     }
 
@@ -63,12 +65,14 @@ class GitHubClient {
         var version = tag.substring(4, tag.length - platform.length - 1)
         var archive = ""
         var size = 0L
+
         for (var a in r.assets()) {
             if (isArchive(tag, a.name())) {
                 archive = a.name()
                 size = a.size()
             }
         }
+
         return RemoteRelease(version, r.prerelease(), size, tag, archive)
     }
 

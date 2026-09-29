@@ -20,9 +20,8 @@ record Platform(String os, String arch) {
 
 class Platforms {
     static Platform detect() {
-        if (Env.get("OS") == "Windows_NT") {
+        if (Env.get("OS") == "Windows_NT")
             return Platform("windows", normalizeArch(Env.get("PROCESSOR_ARCHITECTURE")))
-        }
         var os = normalizeOs(Shell.run("uname", listOf("-s")).trim())
         var arch = normalizeArch(Shell.run("uname", listOf("-m")).trim())
         return Platform(os, arch)

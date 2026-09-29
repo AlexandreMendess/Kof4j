@@ -6,28 +6,27 @@ class Selector {
     }
 
     static Bool isStable(String query) {
-        return query == "lst" || query == "lts" || query == "latest"
+        return query == "lts" || query == "latest"
     }
 
     static String select(String query, List<Candidate> candidates) {
         var want = if (query.startsWith("v")) query.substring(1) else query
-        if (isChannel(want)) {
+        if (isChannel(want))
             return newestOfChannel(want == "nightly", candidates)
-        }
+
         var newest = ""
         for (var c in candidates) {
-            if (c.version() == want) { return want }
-            if (matchesPrefix(c.version(), want) && (newest == "" || Versions.compare(c.version(), newest) > 0)) {
+            if (c.version() == want) return want;
+            if (matchesPrefix(c.version(), want) && (newest == "" || Versions.compare(c.version(), newest) > 0))
                 newest = c.version()
-            }
         }
+
         return newest
     }
 
     static Bool matchesPrefix(String version, String prefix) {
-        if (prefix == "" || !version.startsWith(prefix) || version.length == prefix.length) {
+        if (prefix == "" || !version.startsWith(prefix) || version.length == prefix.length)
             return false
-        }
         var next = version.substring(prefix.length, prefix.length + 1)
         return next == "." || next == "-" || next == "+"
     }
@@ -35,9 +34,8 @@ class Selector {
     static String newestOfChannel(Bool nightly, List<Candidate> candidates) {
         var newest = ""
         for (var c in candidates) {
-            if (c.nightly() == nightly && (newest == "" || Versions.compare(c.version(), newest) > 0)) {
+            if (c.nightly() == nightly && (newest == "" || Versions.compare(c.version(), newest) > 0))
                 newest = c.version()
-            }
         }
         return newest
     }

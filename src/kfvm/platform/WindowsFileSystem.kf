@@ -10,9 +10,7 @@ class WindowsFileSystem implements kfvm.platform.FileSystem {
     }
 
     String linkTarget(String link) {
-        if (!File(link).exists()) {
-            return ""
-        }
+        if (!File(link).exists()) return ""
         return PowerShell.run("$item = Get-Item -LiteralPath $env:KFVM_LINK -Force; if ($item.LinkType) { $item.Target }",
             mapOf("KFVM_LINK", PowerShell.windowsPath(link))).trim()
     }

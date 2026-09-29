@@ -9,9 +9,8 @@ class Shell {
 
     static String run(String program, List<String> args, Map<String, String> env) {
         var r = shell.runWith(shell.cmd(program, args), "", env)
-        if (!shell.ok(r)) {
+        if (!shell.ok(r))
             throw program + " failed: " + r.stderr.trim()
-        }
         return r.stdout
     }
 

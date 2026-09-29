@@ -22,10 +22,11 @@ class ListCommand implements kfvm.cli.Command {
             listInstalled()
             return
         }
+
         var option = args.get(0)
-        if (option != "-r" && option != "--remote") {
+        if (option != "-r" && option != "--remote")
             throw "unknown option for ls: " + option
-        }
+
         listRemote()
     }
 
@@ -35,6 +36,7 @@ class ListCommand implements kfvm.cli.Command {
             console.info("no versions installed (try: kfvm i lst)")
             return
         }
+
         var current = store.current()
         for (var v in installed) {
             console.out(if (v == current) "* " + v + " (current)" else "  " + v)
@@ -44,6 +46,7 @@ class ListCommand implements kfvm.cli.Command {
     void listRemote() {
         var current = store.current()
         var installed = store.installed()
+
         for (var r in github.releases()) {
             var marker = if (r.version() == current) "* " else "  "
             var channel = if (r.nightly()) "nightly" else "stable"

@@ -31,15 +31,15 @@ class Store {
 
     List<String> installed() {
         var found: List<String> = listOf()
-        if (!Directory(home).exists()) {
-            return found
-        }
+        if (!Directory(home).exists()) return found
+
         for (var name in Directory(home).list()) {
             var version = versionOf(name)
             if (version != "" && isInstalled(version)) {
                 found.add(version)
             }
         }
+
         return Versions.sortAscending(found)
     }
 
@@ -49,14 +49,13 @@ class Store {
         for (var i = versions.size - 1; i >= 0; i--) {
             out.add(Candidate(versions.get(i), false))
         }
+
         return out
     }
 
     String current() {
         var target = fs.linkTarget(currentLink())
-        if (target == "") {
-            return ""
-        }
+        if (target == "") return ""
         return versionOf(Path(target).fileName())
     }
 
@@ -74,9 +73,7 @@ class Store {
 
     String versionOf(String name) {
         var suffix = "-" + platform
-        if (!name.startsWith("kof-") || !name.endsWith(suffix)) {
-            return ""
-        }
+        if (!name.startsWith("kof-") || !name.endsWith(suffix)) return ""
         return name.substring(4, name.length - suffix.length)
     }
 }

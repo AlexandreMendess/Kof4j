@@ -9,6 +9,7 @@ class RemoteCandidates {
         for (var r in releases) {
             out.add(Candidate(r.version(), r.nightly()))
         }
+
         return out
     }
 
@@ -16,6 +17,7 @@ class RemoteCandidates {
         for (var r in releases) {
             if (r.version() == version) { return r }
         }
+
         throw "version " + version + " not found"
     }
 }
