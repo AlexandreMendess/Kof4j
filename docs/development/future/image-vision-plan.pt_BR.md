@@ -9,7 +9,7 @@
 > `experimental`), não como stdlib base; por R9 (interop-first) codecs e
 > algoritmos vêm de bibliotecas maduras isoladas atrás da API Kof
 > (imageio/turbojpeg/OpenCV/ONNX — avaliação por licença/target).
-> Integração com `kof.file` (`kof-file-plan.md`) e `kofqrcode`
+> Integração com `kof.file` (`docs/stdlib/kof-file-plan.md`) e `kofqrcode`
 > (`qrcode-wasm-plan.md`) documentada no §19. Regra 6: qualquer
 > operador/semântica nova desses planos é decisão da mantenedora, não
 > bugfix de agente. Os exemplos usam pseudocódigo conceitual; a sintaxe

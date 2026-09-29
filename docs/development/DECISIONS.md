@@ -4313,7 +4313,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-KOF-FILE-GO — `kof.file` promoted, re-scoped to Streaming (library-first) (maintainer 28/09/2026, batch `D-FUTURE-BATCH-2809` + direction "re-escopar kof-file e implementar Streaming")
 
-**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/development/kof-file-plan.md`); the batch authorized the promotion, this entry locks the re-scope and the surface.
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/stdlib/kof-file-plan.md`); the batch authorized the promotion, this entry locks the re-scope and the surface.
 
 - **Re-scope (measured, 28/09):** Phase 1 (File/Path/Text/Binary) is already implemented as `kof.io` (`docs/stdlib/IO.md`); the only open Phase-1 face is **Streaming**. The plan's "zero code" claim was true for the module name, not for the capability.
 - **Slice 1 (LANDED):** pure-Kof library `libs/file/` — `FileStream(path[, chunkSize])` with `readChunk() : Int[]?` (null at EOF), `done()`, `position()`, plus `copyStream(source, destination, chunkSize) : Long` (constant-memory copy). Built exclusively on the existing `kof.io.readRange`; **no new grammar, no compiler change** (`D-KOF-FIRST-IMPL`, rule 12). Proof `FileLibraryE2ETest` 2/2 (JVM).

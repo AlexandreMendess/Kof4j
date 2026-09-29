@@ -9,7 +9,7 @@
 > R9 (interop-first) codecs and algorithms come from mature libraries
 > isolated behind the Kof API (imageio/turbojpeg/OpenCV/ONNX —
 > evaluated per license/target). Integration with `kof.file`
-> (`kof-file-plan.md`) and `kofqrcode` (`qrcode-wasm-plan.md`) is
+> (`docs/stdlib/kof-file-plan.md`) and `kofqrcode` (`qrcode-wasm-plan.md`) is
 > documented in §19. Rule 6: any new operator/semantics from these
 > plans is a maintainer decision, not an agent bugfix. The examples are
 > conceptual pseudocode; real syntax is `var`/`val` (never

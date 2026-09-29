@@ -954,10 +954,10 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > (`slice`/`take`/`drop` in-memory + `Window<T>`/`window` + `orm.window` +
 > `pageRequest` + sync docs; P3-DSL-offset fora de escopo). **ABERTA (5ª frente):** `kof-file` — promovido 28/09
 > (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) para
-> [`kof-file-plan.md`](kof-file-plan.md); re-escopado na promoção (Fase 1
+> [`kof-file-plan.md`](../stdlib/kof-file-plan.md); re-escopado na promoção (Fase 1
 > File/Path/Text/Binary já existe como `kof.io`); fatias 1–2.5 de streaming +
 > fatias 3.1–3.3 de config landed (configuração da Fase 3 COMPLETA: Ini/Toml/Yaml;
-> goldens JVM/Native/Script + lacuna JS `IOJS001`).
+> goldens JVM/Native/Script + lacuna JS `IOJS001`). — plano CONCLUÍDO 28/09, movido para `docs/stdlib/kof-file-plan.md` (regra dos 3 estados; documentos/archives adiados).
 > **ABERTA (6ª frente):** `multiparadigma` — promovido 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) para
 > [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatias 1a+1b+1c+1d+1e+1f LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + pins de paridade script; E2E 5/5+3/3+3/3+3/3+3/3 + `KofScriptStdlibParityTest` 22/22); resto (`sorted`/`groupBy`/`zip`) BLOQUEADO em decisões da mantenedora (regra 6).

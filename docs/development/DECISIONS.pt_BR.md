@@ -4301,7 +4301,7 @@ individuais:
 
 ## D-KOF-FILE-GO — `kof.file` promovido, re-escopado para Streaming (library-first) (mantenedora 28/09/2026, lote `D-FUTURE-BATCH-2809` + direção "re-escopar kof-file e implementar Streaming")
 
-**Estado:** DECIDIDO (mantenedora) — frente promovida por `D-FUTURE-PROMOTION` (`docs/development/kof-file-plan.md`); o lote autorizou a promoção, esta entrada trava o re-escopo e a superfície.
+**Estado:** DECIDIDO (mantenedora) — frente promovida por `D-FUTURE-PROMOTION` (`docs/stdlib/kof-file-plan.md`); o lote autorizou a promoção, esta entrada trava o re-escopo e a superfície.
 
 - **Re-escopo (medido, 28/09):** a Fase 1 (File/Path/Text/Binary) já está implementada como `kof.io` (`docs/stdlib/IO.pt_BR.md`); a única face aberta da Fase 1 é **Streaming**. A alegação "zero código" do plano era verdadeira para o nome do módulo, não para a capacidade.
 - **Fatia 1 (LANDED):** biblioteca pure-Kof `libs/file/` — `FileStream(path[, chunkSize])` com `readChunk() : Int[]?` (null no EOF), `done()`, `position()`, mais `copyStream(source, destination, chunkSize) : Long` (cópia de memória constante). Construída exclusivamente sobre o `kof.io.readRange` existente; **sem gramática nova, sem mudança no compilador** (`D-KOF-FIRST-IMPL`, regra 12). Prova `FileLibraryE2ETest` 2/2 (JVM).
