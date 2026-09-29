@@ -653,6 +653,20 @@ desconhecido). Kof puro, neutro de alvo, sem mudança no compilador.
 
 ---
 
+
+## 9.9 Fatia promovida 9 (29/09/2026) — descritor de módulo estrangeiro
+
+**Estado:** landada. `interop.ForeignModule` modela a abstração da §3.5 que o Core consome e os
+connectors populam: identidade do módulo (nome, library, ABI) + símbolos declarados (nome Kof → nome
+estrangeiro + assinatura) + o conceito de posse do módulo, validado por `InteropOwnership` (§3.2). É
+Kof puro — sem gramática de `foreign module` (rule 6, §13). Honesto (R6): posse desconhecida lança
+via `InteropOwnership`; símbolo não declarado lança `FOREIGN: unknown symbol <x>`.
+
+**Prova:** `ForeignModuleE2ETest` **6/6** (golden JVM + Script + JS + Native x86-64 + os dois
+diagnósticos negativos). Sem mudança no compilador; neutro de alvo.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

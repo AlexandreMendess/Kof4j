@@ -647,6 +647,20 @@ diagnostic). Pure Kof, target-neutral, no compiler change.
 
 ---
 
+
+## 9.9 Promoted slice 9 (29/09/2026) — foreign module descriptor
+
+**State:** landed. `interop.ForeignModule` models the §3.5 abstraction the Core consumes and
+connectors populate: module identity (name, library, ABI) + declared symbols (Kof name → foreign name
++ signature) + the module ownership concept, validated by `InteropOwnership` (§3.2). It is pure Kof —
+no `foreign module` grammar (rule 6, §13). Honest (R6): unknown ownership throws through
+`InteropOwnership`; an undeclared symbol throws `FOREIGN: unknown symbol <x>`.
+
+**Proof:** `ForeignModuleE2ETest` **6/6** (JVM golden + Script + JS + Native x86-64 + the two
+negative diagnostics). No compiler change; target-neutral.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
