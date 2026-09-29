@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -312,13 +313,14 @@ class KofWebWsE2ETest {
     @Test
     void handshake_keeps_socket_open(@TempDir Path tempDir) throws Exception {
         int port = startServer(tempDir, wsApp());
-        try (WsResponse response = handshake(port, VALID_HEADERS)) {
-            assertEquals("HTTP/1.1 101 Switching Protocols", response.status);
-            Thread.sleep(300);
-            assertTrue(serverProcess.isAlive());
-            assertFalse(response.socket.isClosed());
-            assertEquals(0, response.socket.getInputStream().available());
-        }
+          try (WsResponse response = handshake(port, VALID_HEADERS)) {
+              assertEquals("HTTP/1.1 101 Switching Protocols", response.status);
+              response.socket.setSoTimeout(300);
+              assertThrows(java.net.SocketTimeoutException.class,
+                      () -> response.socket.getInputStream().read());
+              assertTrue(serverProcess.isAlive());
+              assertFalse(response.socket.isClosed());
+          }
     }
 
     /**

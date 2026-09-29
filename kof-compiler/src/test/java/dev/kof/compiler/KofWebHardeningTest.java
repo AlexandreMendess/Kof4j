@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * PR6 hardening E2E: connection cap, mutable limits, counters and SSE timeout.
@@ -108,19 +109,11 @@ class KofWebHardeningTest {
     }
 
     private void awaitStats(int port, String expected, long timeoutMs) throws Exception {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        String current = "";
-        while (System.currentTimeMillis() < deadline) {
-            try {
-                current = stats(port);
-                if (expected.equals(current)) {
-                    return;
-                }
-            } catch (IOException ignored) {
-            }
-            Thread.sleep(20);
+        boolean matched = TestServerFixture.awaitTrue((int) (timeoutMs / 20), 20,
+                () -> expected.equals(stats(port)));
+        if (!matched) {
+            assertEquals(expected, stats(port));
         }
-        assertEquals(expected, current);
     }
 
     private static final class SseClient implements AutoCloseable {
@@ -321,14 +314,12 @@ class KofWebHardeningTest {
             held.setSoTimeout(2000);
             held.getOutputStream().write("GET /hello HTTP/1.1\r\nHost: x\r\n".getBytes(StandardCharsets.UTF_8));
             held.getOutputStream().flush();
-            String second = request(port, "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n");
-            long deadline = System.currentTimeMillis() + 3000;
-            while (!second.startsWith("HTTP/1.1 503 Service Unavailable")
-                    && System.currentTimeMillis() < deadline) {
-                Thread.sleep(50);
-                second = request(port, "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n");
+            String probe = "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n";
+            boolean unavailable = TestServerFixture.awaitTrue(60, 50,
+                    () -> request(port, probe).startsWith("HTTP/1.1 503 Service Unavailable"));
+            if (!unavailable) {
+                fail("expected 503, got: " + request(port, probe));
             }
-            assertTrue(second.startsWith("HTTP/1.1 503 Service Unavailable"), second);
         }
     }
 
@@ -352,12 +343,11 @@ class KofWebHardeningTest {
             assertEquals("data: connected", client.readEvent());
             assertEquals("1", stats(port));
         }
-        Thread.sleep(1600);
-        assertEquals("0", stats(port));
-    }
+          awaitStats(port, "0", 3000);
+      }
 
-    @Test
-    void ws_connection_counter_increments_and_decrements(@TempDir Path tempDir) throws Exception {
+      @Test
+      void ws_connection_counter_increments_and_decrements(@TempDir Path tempDir) throws Exception {
         int port = startServer(tempDir, """
                 main() {
                     var app = web.app()
@@ -372,12 +362,11 @@ class KofWebHardeningTest {
             assertEquals("HTTP/1.1 101 Switching Protocols", ws.status);
             assertEquals("1", stats(port));
         }
-        Thread.sleep(100);
-        assertEquals("0", stats(port));
-    }
+          awaitStats(port, "0", 3000);
+      }
 
-    @Test
-    void sse_events_sent_counter_tracks_calls(@TempDir Path tempDir) throws Exception {
+      @Test
+      void sse_events_sent_counter_tracks_calls(@TempDir Path tempDir) throws Exception {
         int port = startServer(tempDir, """
                 main() {
                     var app = web.app()

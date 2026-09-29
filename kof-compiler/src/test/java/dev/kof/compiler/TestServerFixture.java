@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Callable;
 
 /**
  * Shared readiness probe for the web E2E fixtures: the server is started as a
@@ -59,6 +60,26 @@ final class TestServerFixture {
             } catch (IOException e) {
                 sleepQuietly(intervalMillis);
             }
+        }
+        return false;
+    }
+
+    /**
+     * Bounded poll for an arbitrary condition (stat counters, response codes).
+     * The condition may throw (e.g. a probe request); a throwing attempt is
+     * treated as "not ready yet" and retried. Returns true as soon as it holds,
+     * false when the budget expires; never throws for a failing condition.
+     */
+    static boolean awaitTrue(int attempts, long intervalMillis, Callable<Boolean> condition) {
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            try {
+                if (Boolean.TRUE.equals(condition.call())) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // not ready yet; retry
+            }
+            sleepQuietly(intervalMillis);
         }
         return false;
     }

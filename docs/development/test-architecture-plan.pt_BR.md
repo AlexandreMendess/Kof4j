@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 176 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 174 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -32,6 +32,14 @@ interval)` (só TCP) e `awaitListening(process, port, attempts, interval)` com o
 explícito; os loops de readiness puros restantes em `KofWebNativeE2ETest` (4),
 `KofWebJsE2ETest` (3) e `KofBlogE2ETest` (1) agora os chamam em vez de probes manuais →
 baseline 179→176 chaves. O fail-fast na morte do filho e o kill-no-timeout ficam dentro do fixture.
+**Fatia quick-win 5 (29/09):** o `TestServerFixture` ganhou `awaitTrue(attempts,
+interval, condition)` — um poll limitado para contadores/códigos de resposta que
+trata um probe que lança como "ainda não pronto". O `KofWebHardeningTest` trocou
+seus quatro settles fixos (`awaitStats` 20 ms, o poll de 503 50 ms, e os decrementos
+de contador SSE/WS 1600/100 ms) por polls limitados; o `KofWebWsE2ETest` trocou o
+settle "socket segue aberto" de 300 ms por um read com `setSoTimeout(300)` que deve
+expirar → baseline 176→174 chaves. Ambos de-flake: os settles antigos adivinhavam a
+margem do `time.sleep(1500)` do app.
 **Como terminar:** Fase 1/2 descoberta feita — depois **remoções quick-win da Fase 2**
 (encolher o baseline: sleeps / duplicação / oversized) → 3 (modularização) → 4
 (harness) → 5 (alvos) → 6 (conformance) → 7 (`mvn verify`). **Infraestrutura de teste pura — o compilador

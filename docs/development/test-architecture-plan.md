@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 176 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 174 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -33,6 +33,14 @@ feedback latency, not correctness (the reactor suite is green).
 loops in `KofWebNativeE2ETest` (4), `KofWebJsE2ETest` (3) and `KofBlogE2ETest` (1)
 now call them instead of hand-rolled probes → baseline 179→176 keys. Fail-fast on
 child death and kill-on-timeout stay inside the fixture.
+**Quick-win slice 5 (29/09):** `TestServerFixture` gained
+`awaitTrue(attempts, interval, condition)` — a bounded poll for counters/response
+codes that treats a throwing probe as "not ready yet". `KofWebHardeningTest`
+replaced its four fixed settles (`awaitStats` 20 ms, the 503 poll 50 ms, and the
+SSE/WS counter decrements 1600/100 ms) with bounded polls; `KofWebWsE2ETest`
+replaced its 300 ms "socket stays open" settle with a `setSoTimeout(300)` read
+that must time out → baseline 176→174 keys. Both de-flake: the old settles were
+guessing the app's `time.sleep(1500)` margin.
 **How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
 (shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4
 (harness) → 5 (targets) → 6 (conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
