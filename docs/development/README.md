@@ -45,7 +45,7 @@
 
 ## 2. Open bugs (queue in `docs/bugs-and-gaps/known-bugs.md`)
 
-Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a hand-written number. **5 items in the open queue.** The count history lives in the ledger + git log, not here. Gates guarding this record: `check_changelog_ledger.sh` (every `§NNN ✅ FIXED` vs the live set; waivers only by named line in `scripts/changelog-ledger-waivers.txt`), `check_ledger_anchors.sh` (pt/en anchors land; `--selftest` guards), `check_live_records.sh` (this count == authority; README §0 pending == the gate's loose set). **Candidate gate (registered 28/09, NOT implemented — #665):** every `D-*` cited in `CHANGELOG.md`/`.pt_BR.md` should exist in `DECISIONS.md`/`.pt_BR.md`. Measured 28/09: 70 distinct `D-*` tokens in `CHANGELOG.md`, **6 without a `DECISIONS.md` entry** (`D-001-STRESS`, `D-NULL-QUEUE`, `D-OTP-08`, `D-STDLIB-01`, `D-STDLIB-02`, `D-STDLIB-ULID` — normative home elsewhere/historical), so the gate needs a scoped waiver list first (maintainer). Motivated by the transient false-green window of #660 (see DOING 28/09 errata).
+Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a hand-written number. **6 items in the open queue.** The count history lives in the ledger + git log, not here. Gates guarding this record: `check_changelog_ledger.sh` (every `§NNN ✅ FIXED` vs the live set; waivers only by named line in `scripts/changelog-ledger-waivers.txt`), `check_ledger_anchors.sh` (pt/en anchors land; `--selftest` guards), `check_live_records.sh` (this count == authority; README §0 pending == the gate's loose set). **Candidate gate (registered 28/09, NOT implemented — #665):** every `D-*` cited in `CHANGELOG.md`/`.pt_BR.md` should exist in `DECISIONS.md`/`.pt_BR.md`. Measured 28/09: 70 distinct `D-*` tokens in `CHANGELOG.md`, **6 without a `DECISIONS.md` entry** (`D-001-STRESS`, `D-NULL-QUEUE`, `D-OTP-08`, `D-STDLIB-01`, `D-STDLIB-02`, `D-STDLIB-ULID` — normative home elsewhere/historical), so the gate needs a scoped waiver list first (maintainer). Motivated by the transient false-green window of #660 (see DOING 28/09 errata).
 
 ---
 
@@ -102,7 +102,7 @@ Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a ha
 | `roadmap.md` | §§8–11 ❌ (frontend same-project, monolith→micro) | long term |
 | ~~`roadmap-audit.md`~~ → `docs/audits/roadmap-audit.md` | matrix 06/09 + queue P0→P5 | re-audit on closure |
 | ~~`KOFUI-AUDIT.md`~~ → `docs/bugs-and-gaps/` | UI001-Native (silent no-op) OPEN | UI lane |
-| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **5 live** (authority = `scripts/check_known_bugs_status.sh`) | live queue |
+| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **6 live** (authority = `scripts/check_known_bugs_status.sh`) | live queue |
 | ~~`refactoring/PLAN-SOLID-500.md`~~ → `docs/architecture/PLAN-SOLID-500.md` | ✅ DONE + MOVED 13/09 (F1–F9) | ratchet `check_500-baseline.txt` in CI |
 | `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (→ `docs/architecture/`, **CONCLUDED** — Stages 1–3 + R + Stage 8; future stages in `development/future/`) | promoted 17/09 (`D-UNIVERSAL`, R12 overridden) | architecture for Tiers 6–12 |
 | `docs/PROPOSAL-1.0-EXIT-GATE.md` (+PT; left `development/` 24/09) | **KOF 1.0 EXIT GATE — RATIFIED 20/09** (`DECISIONS.md` §D-RELEASE-1.0`) | order = the PROPOSAL's §23, tracked in `roadmap.md` §24 (EG-1..EG-10); all `[? MEL]` edges CLOSED 20/09 (`D-1.0-EDGES`); only EG-8 (RC opening) remains |

@@ -200,8 +200,49 @@ newline does not add a record. The first record is not special — treat it as a
 header by reading it first. Targets match `TextStream` (JVM, Native x86-64/
 riscv64, Script; JS `IOJS001`).
 
+### JSON Lines / NDJSON (`JsonLinesReader` / `JsonLinesWriter`, slice 2.3)
+
+The seam between `kof.json` and the streaming model: each non-blank line is one
+JSON document, read through `TextStream` (memory bounded by one chunk plus the
+current line). `json.encode` never emits a raw newline, so line framing is
+exact. The reader is deliberately **untyped** — the caller decodes each
+document with `json.decode<T>` at a concrete `T`; decoding with an open type
+parameter is the compiler defect `§538`.
+
+```kof
+import file.JsonLines
+
+record Pt(Int x, Int y)
+
+main() {
+    var reader = JsonLinesReader("events.jsonl", 8192)
+    var doc = reader.nextJson()
+    while (doc != null) {
+        if (doc != null) {
+            var p = json.decode<Pt>(doc)
+        }
+        doc = reader.nextJson()
+    }
+
+    var writer = JsonLinesWriter("out.jsonl")
+    writer.writeJson(json.encode(Pt(1, 2)))   // one document per line
+}
+```
+
+| Operation | Description |
+|----------|-------------|
+| `JsonLinesReader(path[, chunkSize])` | streaming reader of non-blank lines (default chunk 8192) |
+| `nextJson()` | `String?` — next non-blank JSON document text, `null` at end of file |
+| `JsonLinesWriter(path)` | streaming writer (the first write truncates, the rest append) |
+| `writeJson(json)` | append one already-encoded JSON document as a line |
+
+Blank (empty or whitespace-only) lines are skipped. Typed record decode is
+supported on JVM, Native x86-64 and Script; on riscv64 `json.decode<record>`
+lacks the cross `kof_json_find_value` binding (`NATIVE002`-stdlib), so decode
+arrays there. Targets match `TextStream` (JS `IOJS001`).
+
 ## Reference
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Tests: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`

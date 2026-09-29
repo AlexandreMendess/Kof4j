@@ -45,7 +45,7 @@
 
 ## 2. Bugs abertos (fila em `docs/bugs-and-gaps/known-bugs.md`)
 
-Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca um número escrito à mão. **5 itens na fila aberta.** O histórico da contagem vive no ledger + git log, não aqui. Gates que guardam este registro: `check_changelog_ledger.sh` (cada `§NNN ✅ FIXED` vs a fila viva; isenção só por linha nomeada em `scripts/changelog-ledger-waivers.txt`), `check_ledger_anchors.sh` (âncoras pt/en chegam; `--selftest` guarda), `check_live_records.sh` (esta contagem == autoridade; §0 pendentes == loose do gate). **Gate candidato (registrado 28/09, NÃO implementado — #665):** todo `D-*` citado em `CHANGELOG.md`/`.pt_BR.md` deveria existir em `DECISIONS.md`/`.pt_BR.md`. Medido 28/09: 70 tokens `D-*` distintos no `CHANGELOG.md`, **6 sem entrada em `DECISIONS.md`** (`D-001-STRESS`, `D-NULL-QUEUE`, `D-OTP-08`, `D-STDLIB-01`, `D-STDLIB-02`, `D-STDLIB-ULID` — casa normativa em outro lugar/histórico), então o gate exige antes uma lista de isenção com escopo (mantenedora). Motivado pela janela de false-green transitória do #660 (ver errata no DOING 28/09).
+Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca um número escrito à mão. **6 itens na fila aberta.** O histórico da contagem vive no ledger + git log, não aqui. Gates que guardam este registro: `check_changelog_ledger.sh` (cada `§NNN ✅ FIXED` vs a fila viva; isenção só por linha nomeada em `scripts/changelog-ledger-waivers.txt`), `check_ledger_anchors.sh` (âncoras pt/en chegam; `--selftest` guarda), `check_live_records.sh` (esta contagem == autoridade; §0 pendentes == loose do gate). **Gate candidato (registrado 28/09, NÃO implementado — #665):** todo `D-*` citado em `CHANGELOG.md`/`.pt_BR.md` deveria existir em `DECISIONS.md`/`.pt_BR.md`. Medido 28/09: 70 tokens `D-*` distintos no `CHANGELOG.md`, **6 sem entrada em `DECISIONS.md`** (`D-001-STRESS`, `D-NULL-QUEUE`, `D-OTP-08`, `D-STDLIB-01`, `D-STDLIB-02`, `D-STDLIB-ULID` — casa normativa em outro lugar/histórico), então o gate exige antes uma lista de isenção com escopo (mantenedora). Motivado pela janela de false-green transitória do #660 (ver errata no DOING 28/09).
 
 ---
 
@@ -102,7 +102,7 @@ Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca u
 | `roadmap.md` | §§8–11 ❌ (frontend same-project, monólito→micro) | longo prazo |
 | ~~`roadmap-audit.md`~~ → `docs/audits/roadmap-audit.md` | matriz 06/09 + fila P0→P5 | re-audit a cada fechamento |
 | ~~`KOFUI-AUDIT.md`~~ → `docs/bugs-and-gaps/` | UI001-Native (no-op silencioso) ABERTO | lane UI |
-| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **5 vivos** (autoridade = `scripts/check_known_bugs_status.sh`) | fila viva |
+| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **6 vivos** (autoridade = `scripts/check_known_bugs_status.sh`) | fila viva |
 | ~~`refactoring/PLAN-SOLID-500.md`~~ → `docs/architecture/PLAN-SOLID-500.md` | ✅ FEITO + MOVIDO 13/09 (F1–F9) | ratchet `check_500-baseline.txt` no CI |
 | `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (→ `docs/architecture/`, **CONCLUÍDO** — Estágios 1–3 + R + Estágio 8; fases futuras em `development/future/`) | promovido 17/09 (`D-UNIVERSAL`, R12 sobreposto) | arquitetura dos Tiers 6–12 |
 | `docs/PROPOSAL-1.0-EXIT-GATE.md` (+PT; saiu de `development/` 24/09) | **KOF 1.0 EXIT GATE — RATIFICADO 20/09** (`DECISIONS.md` §D-RELEASE-1.0`) | ordem = o §23 do próprio PROPOSAL, rastreado no `roadmap.md` §24 (EG-1..EG-10); todas as arestas `[? MEL]` FECHADAS 20/09 (`D-1.0-EDGES`); resta só EG-8 (abertura do RC) |
