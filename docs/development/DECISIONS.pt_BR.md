@@ -73,6 +73,7 @@ Auxílio de navegação, não é uma decisão por si só. Ordenado como neste ar
 - **D-VERSIONING-RELEASE** — política consolidada de versionamento e corte de release
 - **D-DEBT-SCOUT** — ferramenta de escoteiro de dívida técnica autorizada, só Wave 1, sem capacidade de publicar Issue
 - **D-DEBT-SCOUT-W2** — Wave 2 autorizada (qualificação de evidência, clustering, SARIF); ainda shadow, ainda sem publicar Issue
+- **D-KOF-IS-KOF** — código Kof nunca embute HTML/CSS/JS (regra absoluta)
 
 ---
 
@@ -4451,3 +4452,13 @@ individuais:
 - **Progresso:** fatia 2f LANDED — decode QOI Kof puro em todos os alvos; `RasterDecodeE2ETest` 7/7 (JVM + Native x86-64/riscv64 + Script).
 
 - **Relações:** `Related: D-IMAGE-VISION-GO, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`.
+
+## D-KOF-IS-KOF — código Kof nunca embute HTML, CSS ou JavaScript (diretiva da mantenedora 29/09/2026: "NÃO ENFIAR HTML NEM JS DENTRO DE CÓDIGO KOF. KOF É KOF")
+
+**Estado:** DECIDIDO (mantenedora) — regra absoluta.
+
+- **Regra:** um programa Kof expressa intenção só com primitivas e idiomas Kof. Tags HTML, CSS (classes/estilos inline) e JavaScript nunca podem ser colados em código Kof — inclusive como payloads de string/text block que montam UI, ligam comportamento ou injetam script (ex.: `"""<div onclick=...>"""`).
+- **Por quê:** Kof não é markup disfarçado (`docs/philosophy.md` §"It is not markup in disguise"); importar a sintaxe de uma stack estrangeira para `.kf` quebra a superfície da linguagem (`AGENTS.md` regra 11), a separação de domínio (regra 3) e a honestidade cross-target (regra 5). `kof.ui`/`kof.web` declaram intenção e cada backend de alvo renderiza; concerns web pesados são responsabilidade da plataforma/pacotes oficiais (regra de fronteira).
+- **O que fazer no lugar:** se Kof não consegue expressar a intenção, o que falta é uma abstração Kof (library-first, `D-KOF-FIRST`) ou uma decisão da mantenedora — nunca sintaxe estrangeira ou payload de código estrangeiro. Interop, quando realmente necessário, passa pelo caminho sancionado de FFI/pacotes oficiais, não por markup/script embutido.
+- **Escopo:** todos os alvos e bibliotecas oficiais do Kof; vale para fonte, fixtures de teste e exemplos de documentação igualmente.
+- **Relações:** `Related: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-GRAPHICS-GAMING, AGENTS.md regras 3/5/11, docs/philosophy.md`; anti-pattern: `training/anti-patterns/embedded-html-js.md`.

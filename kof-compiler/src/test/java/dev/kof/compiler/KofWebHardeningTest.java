@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * PR6 hardening E2E: connection cap, mutable limits, counters and SSE timeout.
  */
-class KofWebHardeningTest {
+class KofWebHardeningTest extends WsFrameSupport {
 
     private static final String JAVA_BIN = Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
@@ -36,7 +36,6 @@ class KofWebHardeningTest {
             + "Sec-WebSocket-Version: 13\r\n"
             + "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n";
 
-    private static final byte[] MASK = {0x12, 0x34, 0x56, 0x78};
 
     private Process serverProcess;
 
@@ -201,36 +200,6 @@ class KofWebHardeningTest {
         return new WsResponse(socket, status, headers, in);
     }
 
-    private static void writeMaskedFrame(OutputStream out, int opcode, byte[] payload) throws IOException {
-        int len = payload.length;
-        byte[] frame;
-        int headerLen;
-        if (len <= 125) {
-            frame = new byte[2 + 4 + len];
-            frame[1] = (byte) (0x80 | len);
-            headerLen = 2;
-        } else if (len <= 0xFFFF) {
-            frame = new byte[4 + 4 + len];
-            frame[1] = (byte) (0x80 | 126);
-            frame[2] = (byte) ((len >> 8) & 0xFF);
-            frame[3] = (byte) (len & 0xFF);
-            headerLen = 4;
-        } else {
-            frame = new byte[10 + 4 + len];
-            frame[1] = (byte) (0x80 | 127);
-            for (int i = 0; i < 8; i++) {
-                frame[2 + i] = (byte) ((len >> (56 - i * 8)) & 0xFF);
-            }
-            headerLen = 10;
-        }
-        frame[0] = (byte) (0x80 | opcode);
-        System.arraycopy(MASK, 0, frame, headerLen, 4);
-        for (int i = 0; i < len; i++) {
-            frame[headerLen + 4 + i] = (byte) (payload[i] ^ MASK[i % 4]);
-        }
-        out.write(frame);
-        out.flush();
-    }
 
     private static void writeOversizedFrameHeader(OutputStream out, long len) throws IOException {
         byte[] frame = new byte[14];
@@ -291,14 +260,6 @@ class KofWebHardeningTest {
         return ((payload[0] & 0xFF) << 8) | (payload[1] & 0xFF);
     }
 
-    private static void readFully(java.io.InputStream in, byte[] buf, int off, int len) throws IOException {
-        while (len > 0) {
-            int n = in.read(buf, off, len);
-            if (n < 0) throw new IOException("EOF reading frame");
-            off += n;
-            len -= n;
-        }
-    }
 
     @Test
     void connection_cap_returns_503_when_exceeded(@TempDir Path tempDir) throws Exception {

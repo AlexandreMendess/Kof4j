@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 135 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 133 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -540,7 +540,10 @@ fatia da Fase 4 (29/09):** os 3 `@Test` do laço de golden compartilhados por
 log idênticos (`errorLevelSuppressesInfo`/`offSuppressesEverything`/`warnGoesToStderr`)
 compartilhados por `KofLogE2ETest`/`NativeLogE2ETest` foram para uma base `LogLevelSupport` (cada
 subclasse fornece o seu `run`); mais 3 chaves `dupname` removidas, contagens preservadas (11/7).
-Harness 146→**135** (11 chaves eliminadas nas quatro fatias).
+Harness 146→**135** (11 chaves eliminadas nas quatro fatias). **Quinta fatia da Fase 4 (29/09):**
+os helpers de frame WebSocket idênticos (`writeMaskedFrame`/`readFully`, com `MASK`) compartilhados
+por `KofWebHardeningTest`/`KofWebWsE2ETest` foram para uma base `WsFrameSupport`; mais 2 chaves
+`dupname` removidas. Harness 146→**133** (13 chaves eliminadas nas cinco fatias).
 
 Nota da Fase 3 (29/09): extração pura esgotada — **43 oversized → 19** em 24 divisões, todas com
 zero drift; o restante ou pertence a lane ativa ou exige mover testes (citation sweep).

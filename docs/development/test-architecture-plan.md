@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 135 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 133 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -536,7 +536,10 @@ keys removed; both classes keep 7/9 tests green. Harness baseline 146→**138**
 identical log-level `@Test` methods (`errorLevelSuppressesInfo`/`offSuppressesEverything`/
 `warnGoesToStderr`) shared by `KofLogE2ETest`/`NativeLogE2ETest` moved to a `LogLevelSupport` base
 (each subclass supplies its `run`); 3 more `dupname` keys removed, counts preserved (11/7). Harness
-baseline 146→**135** (11 keys eliminated across the four slices).
+baseline 146→**135** (11 keys eliminated across the four slices). **Fifth Phase 4 slice (29/09):**
+the identical WebSocket frame helpers (`writeMaskedFrame`/`readFully`, with `MASK`) shared by
+`KofWebHardeningTest`/`KofWebWsE2ETest` moved to a `WsFrameSupport` base; 2 more `dupname` keys
+removed. Harness baseline 146→**133** (13 keys eliminated across the five slices).
 
 Phase 3 note (29/09): pure extraction is now exhausted — **43 oversized classes down to 19** over 24
 splits, all with zero citation drift; the remaining oversized classes either belong to an active

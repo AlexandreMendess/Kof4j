@@ -73,7 +73,6 @@ dupname	parity
 dupname	postBody
 dupname	println
 dupname	probe
-dupname	readFully
 dupname	readLineAtEofIsHonestEmpty
 dupname	registeredStepRunsDuringCompile
 dupname	requirePython3
@@ -106,7 +105,6 @@ dupname	typedCallsRoundTripOnJvm
 dupname	visit
 dupname	visitMethodInsn
 dupname	write
-dupname	writeMaskedFrame
 dupname	writeOversizedFrameHeader
 dupname	wrongArityRejectedOnAllArtifactTargets
 dupname	x86AndJsMatchJvmOutput

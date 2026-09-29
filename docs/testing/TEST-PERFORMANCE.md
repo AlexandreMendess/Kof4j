@@ -169,7 +169,7 @@ the suite) for the quick-win targets the plan names.
   **Phase 4/harness (29/09):** `MediaByteSupport` consolidated 7 duplicated media byte-layout
   helpers from `MediaCrossE2ETest`/`MediaNativeE2ETest` → **3 fewer `dupname` keys**; and
   `KofCSupport` consolidated the C-compiler harness across 4 `KofC*CompilerTest` → **2 more**
-  (baseline **135**, 11 total across the four slices). Re-measure `--citations`
+  (baseline **133**, 13 total across the five slices). Re-measure `--citations`
   before the next pick: naming candidates in the queue itself adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated

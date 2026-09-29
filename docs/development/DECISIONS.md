@@ -75,6 +75,7 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-VERSIONING-RELEASE** — consolidated versioning and release-cut policy
 - **D-DEBT-SCOUT** — technical-debt scout tooling authorized, Wave 1 only, no Issue-publish capability
 - **D-DEBT-SCOUT-W2** — Wave 2 authorized (evidence qualification, clustering, SARIF); still shadow, still no Issue-publish
+- **D-KOF-IS-KOF** — Kof source never embeds HTML/CSS/JS (absolute rule)
 
 ---
 
@@ -4461,3 +4462,13 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Progress:** slice 2f LANDED — pure-Kof QOI decode on all targets; `RasterDecodeE2ETest` 7/7 (JVM + Native x86-64/riscv64 + Script).
 
 - **Relationships:** `Related: D-IMAGE-VISION-GO, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`.
+
+## D-KOF-IS-KOF — Kof source never embeds HTML, CSS or JavaScript (maintainer directive 29/09/2026: "NÃO ENFIAR HTML NEM JS DENTRO DE CÓDIGO KOF. KOF É KOF")
+
+**State:** DECIDED (maintainer) — absolute rule.
+
+- **Rule:** a Kof program expresses intent with Kof primitives and idioms only. HTML tags, CSS (classes/inline styles) and JavaScript must never be pasted into Kof source — including as string/text-block payloads that build a UI, wire behavior or inject script (e.g. `"""<div onclick=...>"""`).
+- **Why:** Kof is not markup in disguise (`docs/philosophy.md` §"It is not markup in disguise"); importing a foreign stack's syntax into `.kf` breaks the language surface (`AGENTS.md` rule 11), the domain separation (rule 3) and cross-target honesty (rule 5). `kof.ui`/`kof.web` declare intent and each target's backend renders it; heavy web concerns are platform/official-package responsibility (boundary rule).
+- **What to do instead:** if Kof cannot express the intent, the missing piece is a Kof abstraction (library-first, `D-KOF-FIRST`) or a maintainer decision — never foreign syntax or a foreign-code payload. Interop, when truly needed, goes through the sanctioned FFI/official-package path, not embedded markup/script.
+- **Scope:** all Kof targets and all official libraries; applies to source, test fixtures and documentation examples alike.
+- **Relationships:** `Related: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-GRAPHICS-GAMING, AGENTS.md rules 3/5/11, docs/philosophy.md`; anti-pattern: `training/anti-patterns/embedded-html-js.md`.
