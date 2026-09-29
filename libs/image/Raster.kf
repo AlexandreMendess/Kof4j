@@ -2,6 +2,7 @@ package image
 
 import image.Image
 import image.Png
+import image.Gif
 
 // kof.image — raw raster decode, first pixel slice (provisional surface).
 //
@@ -49,6 +50,9 @@ Raster decodeRaster(String path) {
     }
     if (fmt == "PNG") {
         return pngRaster(path)
+    }
+    if (fmt == "GIF") {
+        return gifRaster(path, img.width(), img.height())
     }
     throw "IMAGE: raster decode is not supported for " + fmt
 }

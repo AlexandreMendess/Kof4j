@@ -1,0 +1,250 @@
+package dev.kof.compiler;
+
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import javax.imageio.ImageIO;
+
+/**
+ * Fixtures (hand-built bytes + ImageIO-generated PNG/GIF/JPEG) and Kof probes
+ * for {@link RasterDecodeE2ETest}; extracted to keep the test class under the
+ * oversized threshold.
+ */
+final class RasterDecodeFixtures {
+
+    private RasterDecodeFixtures() {
+    }
+
+    static String rasterProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Raster
+
+            String dump(Raster r) {
+                var out = r.format + ":" + r.width + "x" + r.height + " ch=" + r.channels + "\\npx="
+                var i = 0
+                while (i < r.samples.length) {
+                    if (i > 0) {
+                        out = out + ","
+                    }
+                    out = out + r.samples[i]
+                    i = i + 1
+                }
+                return out
+            }
+
+            main() {
+                var base = "%s"
+                println(dump(decodeRaster(base + "/rgb.ppm")))
+                println(dump(decodeRaster(base + "/gray.pgm")))
+                println(dump(decodeRaster(base + "/rgba.ff")))
+                var rgb = decodeRaster(base + "/rgb.ppm")
+                println(dump(cropRaster(rgb, 1, 0, 1, 2)))
+                println(dump(resizeNearest(rgb, 4, 4)))
+                println(dump(flipHorizontal(rgb)))
+                println(dump(flipVertical(rgb)))
+                println(dump(rotate90(rgb)))
+                println(dump(decodeRaster(base + "/t.bmp")))
+                println(dump(grayscale(rgb)))
+                println(dump(threshold(rgb, 5)))
+                println(dump(boxBlur(decodeRaster(base + "/blur.pgm"))))
+                println(dump(decodeRaster(base + "/q2.qoi")))
+                println(dump(decodeRaster(base + "/q3.qoi")))
+            }
+            """.formatted(base);
+    }
+
+    static String pngProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Raster
+
+            String dump(Raster r) {
+                var out = r.format + ":" + r.width + "x" + r.height + " ch=" + r.channels + "\\npx="
+                var i = 0
+                while (i < r.samples.length) {
+                    if (i > 0) {
+                        out = out + ","
+                    }
+                    out = out + r.samples[i]
+                    i = i + 1
+                }
+                return out
+            }
+
+            main() {
+                var base = "%s"
+                println(dump(decodeRaster(base + "/p_rgb.png")))
+                println(dump(decodeRaster(base + "/p_rgba.png")))
+            }
+            """.formatted(base);
+    }
+
+    static String gifProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Raster
+
+            String dump(Raster r) {
+                var out = r.format + ":" + r.width + "x" + r.height + " ch=" + r.channels + "\\npx="
+                var i = 0
+                while (i < r.samples.length) {
+                    if (i > 0) {
+                        out = out + ","
+                    }
+                    out = out + r.samples[i]
+                    i = i + 1
+                }
+                return out
+            }
+
+            main() {
+                println(dump(decodeRaster("%s/p.gif")))
+            }
+            """.formatted(base);
+    }
+
+    static String errorProbe(Path src) {
+        return """
+            import image.Raster
+
+            main() {
+                try {
+                    var r = decodeRaster("%s")
+                    println(r.format)
+                } catch (String e) {
+                    println(e)
+                }
+            }
+            """.formatted(path(src));
+    }
+
+    static String path(Path p) {
+        return p.toString().replace('\\', '/');
+    }
+
+    static Path rasterFixtures(Path dir) throws Exception {
+        Files.createDirectories(dir);
+        Files.write(dir.resolve("rgb.ppm"), rasterPpm());
+        Files.write(dir.resolve("gray.pgm"), rasterPgm());
+        Files.write(dir.resolve("rgba.ff"), rasterFarbfeld());
+        Files.write(dir.resolve("t.bmp"), rasterBmp24());
+        Files.write(dir.resolve("blur.pgm"), rasterBlur());
+        Files.write(dir.resolve("q2.qoi"), qoiRgba());
+        Files.write(dir.resolve("q3.qoi"), qoiRun());
+        writeImage(dir.resolve("p_rgb.png"), "png", BufferedImage.TYPE_INT_RGB, new int[]{
+                0x0A141E, 0x28323C, 0x46505A, 0x646E78});
+        writeImage(dir.resolve("p_rgba.png"), "png", BufferedImage.TYPE_INT_ARGB, new int[]{
+                0x01020304, 0x05060708, 0x090A0B0C, 0x0D0E0F10});
+        writeImage(dir.resolve("p.gif"), "gif", BufferedImage.TYPE_INT_RGB, new int[]{
+                0x0A141E, 0x28323C, 0x46505A, 0x646E78});
+        writeImage(dir.resolve("u.jpg"), "jpg", BufferedImage.TYPE_INT_RGB, new int[]{
+                0x0A141E, 0x28323C, 0x46505A, 0x646E78});
+        return dir;
+    }
+
+    static byte[] rasterPpm() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("P6\n2 2\n255\n".getBytes(StandardCharsets.US_ASCII));
+        out.write(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12});
+        return out.toByteArray();
+    }
+
+    static byte[] rasterPgm() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("P5\n3 1\n255\n".getBytes(StandardCharsets.US_ASCII));
+        out.write(new byte[]{10, 20, 30});
+        return out.toByteArray();
+    }
+
+    static byte[] rasterFarbfeld() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("farbfeld".getBytes(StandardCharsets.US_ASCII));
+        out.write(new byte[]{0, 0, 0, 2, 0, 0, 0, 2});
+        int[] vals = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160};
+        for (int v : vals) {
+            out.write(v & 0xFF);
+            out.write(v & 0xFF);
+        }
+        return out.toByteArray();
+    }
+
+    static byte[] rasterBlur() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("P5\n3 3\n255\n".getBytes(StandardCharsets.US_ASCII));
+        out.write(new byte[]{0, 0, 0, 0, 9, 0, 0, 0, 0});
+        return out.toByteArray();
+    }
+
+    static byte[] rasterBmp24() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        // BITMAPFILEHEADER (14) + BITMAPINFOHEADER (40) = 54-byte header.
+        out.write("BM".getBytes(StandardCharsets.US_ASCII));
+        out.write(le32(70));
+        out.write(le32(0));
+        out.write(le32(54));
+        out.write(le32(40));
+        out.write(le32(2));
+        out.write(le32(2));
+        out.write(new byte[]{1, 0});
+        out.write(new byte[]{24, 0});
+        out.write(le32(0));
+        out.write(le32(16));
+        out.write(le32(0));
+        out.write(le32(0));
+        out.write(le32(0));
+        out.write(le32(0));
+        // bottom-up: row0 = bottom (C=(70,80,90), D=(100,110,120)) stored BGR
+        out.write(new byte[]{(byte) 90, (byte) 80, (byte) 70, (byte) 120, (byte) 110, (byte) 100, 0, 0});
+        // row1 = top (A=(10,20,30), B=(40,50,60))
+        out.write(new byte[]{30, 20, 10, 60, 50, 40, 0, 0});
+        return out.toByteArray();
+    }
+
+    static byte[] qoiRgba() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("qoif".getBytes(StandardCharsets.US_ASCII));
+        out.write(be32(2));
+        out.write(be32(2));
+        out.write(new byte[]{4, 0});
+        out.write(new byte[]{(byte) 0xFF, 1, 2, 3, 4});
+        out.write(new byte[]{(byte) 0xFF, 5, 6, 7, 8});
+        out.write(new byte[]{(byte) 0xFF, 9, 10, 11, 12});
+        out.write(new byte[]{(byte) 0xFF, 13, 14, 15, 16});
+        out.write(new byte[8]);
+        return out.toByteArray();
+    }
+
+    static byte[] qoiRun() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("qoif".getBytes(StandardCharsets.US_ASCII));
+        out.write(be32(1));
+        out.write(be32(3));
+        out.write(new byte[]{4, 0});
+        out.write(new byte[]{(byte) 0xFF, 10, 20, 30, (byte) 255});
+        out.write(new byte[]{(byte) 0xC2});
+        out.write(new byte[8]);
+        return out.toByteArray();
+    }
+
+    static void writeImage(Path file, String format, int type, int[] argb) throws Exception {
+        BufferedImage img = new BufferedImage(2, 2, type);
+        for (int i = 0; i < 4; i++) {
+            img.setRGB(i % 2, i / 2, argb[i]);
+        }
+        ImageIO.write(img, format, file.toFile());
+    }
+
+    static byte[] be32(int v) {
+        return new byte[]{(byte) ((v >> 24) & 0xFF), (byte) ((v >> 16) & 0xFF),
+                (byte) ((v >> 8) & 0xFF), (byte) (v & 0xFF)};
+    }
+
+    static byte[] le32(int v) {
+        return new byte[]{(byte) (v & 0xFF), (byte) ((v >> 8) & 0xFF),
+                (byte) ((v >> 16) & 0xFF), (byte) ((v >> 24) & 0xFF)};
+    }
+
+}
