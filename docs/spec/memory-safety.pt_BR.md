@@ -244,11 +244,13 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | Dangling reference | GC (conservativo) | `MEM010` (runtime) | Todos |
 | Escape de tempo de vida inválido | Análise de escape nas fronteiras | `MEM013` (compile-time) | Todos |
 | Use-after-move | Nulagem explícita na transferência | `MEM002` (compile-time) | Todos |
-| Data race por aliasing mutável | Disciplina do programador + `MEM020/021` | `MEM020/021` (compile + runtime) | Todos |
+| Data race por aliasing mutável | Disciplina do programador + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` só compile (#668; metade runtime = opção B, não escolhida) | Todos alcançáveis (Script: `extern` recusado `FFI001` antes do `MEM020`) |
 | Null deref | Nulabilidade + estreitamento | `SEM049` (compile-time) | Todos |
-| Resource leak | Close explícito | `MEM014` (compile-time) | Todos |
-| Confusão de propriedade FFI | Arena/release explícito | `MEM005` (compile + runtime) | JVM + Native |
-| Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time) | Todos |
+| Resource leak | Close explícito | `MEM014` (compile-time; WARNING) | Todos (exposição no Script pendente #678) |
+| Confusão de propriedade FFI | Arena confinada por chamada (não existe superfície de release — `kof_ffi_release` é conceito do modelo, spec §7, medido 28/09) | `MEM005` — regra do modelo, sem superfície de emissão hoje | JVM + Native |
+| Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time; WARNING) | Todos (exposição no Script pendente #678) |
+
+> **Diagnósticos de classe WARNING no Script:** `MEM014`/`MEM022` disparam no frontend compartilhado em todos os alvos, mas no alvo Script o `interpret()` descarta WARNINGs (só ERRORS escapam) — medido 29/09, pedido de decisão #678. A matriz lista o mecanismo de prevenção, não a exposição; a exposição no Script aguarda a decisão.
 
 > **Verificação Lei da Simplicidade**: Nenhuma anotação de lifetime no código do
 > usuário. Todas as regras disparam nas fronteiras de superfície existentes
@@ -263,9 +265,9 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | **0** Investigação | `docs/spec/memory-safety-investigation.md` | ✅ FECHADA 25/09 |
 | **1** Especificação | `docs/spec/memory-safety.md` (este doc) | ✅ FECHADA 25/09 (aceita, opção A) |
 | **2** Infraestrutura do compilador | Representações internas de Ownership/Lifetime/Borrow/Escape (`dev.kof.compiler.memory`) | ✅ FECHADA 26/09 (fatias 1–4; BT success `9bcddfe90`; emissão = Fase 3, destravada) |
-| **3** Primeiras garantias | Use-after-move, dangling, escape, aliasing mutável | 🔓 DESTRAVADA 26/09 (`D-COMPLETE-FIRST`) |
-| **4** Closures & async | Semântica de captura, fronteiras async | ⏳ AGUARDANDO |
-| **5** Native & FFI | Ponteiro/alloc/free, tabela de propriedade C ABI | ⏳ AGUARDANDO |
+| **3** Primeiras garantias | Use-after-move, dangling, escape, aliasing mutável | ✅ FECHADA — fatias 3.1→4 pousadas (MEM001/002/013/014/021/022); ver `memory-safety-plan.md` |
+| **4** Closures & async | Semântica de captura, fronteiras async | ✅ FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores = ausência medida |
+| **5** Native & FFI | Ponteiro/alloc/free, tabela de propriedade C ABI | 🔓 EM PROGRESSO — tabela de ownership pousada (#670); unidade 1 pinada (#666); unidade 2 pousada (#667/#668); unidade 3 pinada (`Buffer(U8)` INOUT × spawn/await); `#651` B cross pendente |
 | **6** Cross-target | Matriz de paridade JVM/JS/WASM — sem backend WASM na árvore hoje (ausência medida 28/09, #671); escopo atual = JVM/Script/JS/Native×3 | ⏳ AGUARDANDO |
 
 ---
@@ -278,7 +280,7 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | `val`/`var` mutabilidade | Compile-time | Compile-time | Compile-time | Compile-time |
 | Nulabilidade estreitamento | Sim | Sim | Sim | Sim |
 | FFI string return | Copy (arena) | Copy (Kof-owned) | Copy (JS string) | Copy |
-| FFI Buffer INOUT | Copy-in + copy-back | **Descartado** (divergência) | Copy-back | Copy-back |
+| FFI Buffer INOUT | Copy-in + copy-back (`JvmFfiRuntime`) | **Binda no x86-64** (`#651` A2: o emissor passa o ponteiro do payload `obj+24`; a escrita do C é o copy-back) — riscv64/aarch64 seguem `FFI001` até a fatia B | Copy-back (bridge do host) | **Recusado na linha da declaração `FFI001`** (`#667` — Script não tem runtime FFI) |
 | Worker stack roots | Sim (virtual threads) | **Nunca** (desabilitado após spawn) | N/A (event loop) | Pilha do interpretador |
 
 ---
