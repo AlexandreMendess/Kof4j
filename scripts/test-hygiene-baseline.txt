@@ -148,7 +148,6 @@ oversized	kof-compiler/src/test/java/dev/kof/compiler/NativeAarch64E2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/NativeE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/NativeRiscv64E2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/SemanticResolutionTest.java
-oversized	kof-compiler/src/test/java/dev/kof/compiler/UiE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/WorkflowE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/nat/NativeRiscvDbWireTest.java
 oversized	kof-script/src/test/java/dev/kof/script/KofScriptTest.java
