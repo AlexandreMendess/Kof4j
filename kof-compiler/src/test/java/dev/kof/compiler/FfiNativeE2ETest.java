@@ -267,6 +267,48 @@ class FfiNativeE2ETest {
         assertEquals(nat, runJvmOracle(dir, "fp", kof).trim(), "JVM↔Native parity fp");
     }
 
+    // ── matriz adversarial ffi-abi: limites numéricos + FP especiais ─────
+    @Test
+    void numericLimitsIntEdges(@TempDir Path dir) throws Exception {
+        // 0, negativo, positivo e os LIMITES de Int (widening Int->Long exato,
+        // inclusive MIN que não cabe em Int positivo).
+        String kof = """
+                extern "libc.so.6" labs(Long x): Long
+
+                main() {
+                    println(labs(0))
+                    println(labs(-5))
+                    println(labs(5))
+                    println(labs(-2147483648))
+                    println(labs(2147483647))
+                }
+                """;
+        String nat = runNative(dir, "lim", kof).trim();
+        assertEquals("0\n5\n5\n2147483648\n2147483647", nat, "NATIVE golden: Int MIN/MAX via widening");
+        assertEquals(nat, runJvmOracle(dir, "lim", kof).trim(), "JVM↔Native parity numeric limits");
+    }
+
+    @Test
+    void fpSpecialsNanInfNegativeZero(@TempDir Path dir) throws Exception {
+        // NaN, +Inf, -Inf e -0.0 têm de imprimir byte a byte como o JDK.
+        String kof = """
+                extern "libm.so.6" sqrt(Double x): Double
+                extern "libm.so.6" log(Double x): Double
+                extern "libm.so.6" exp(Double x): Double
+                extern "libm.so.6" copysign(Double x, Double y): Double
+
+                main() {
+                    println(sqrt(-1.0))
+                    println(log(0.0))
+                    println(exp(1000.0))
+                    println(copysign(0.0, -1.0))
+                }
+                """;
+        String nat = runNative(dir, "fps", kof).trim();
+        assertEquals("NaN\n-Infinity\nInfinity\n-0.0", nat, "NATIVE golden: FP specials");
+        assertEquals(nat, runJvmOracle(dir, "fps", kof).trim(), "JVM↔Native parity FP specials");
+    }
+
     // ── String nas duas pontas ────────────────────────────────────────────
     @Test
     void stringInAsCstringContent(@TempDir Path dir) throws Exception {
