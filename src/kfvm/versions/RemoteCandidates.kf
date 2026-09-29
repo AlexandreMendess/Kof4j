@@ -1,7 +1,6 @@
-package kfvm.cli
+package kfvm.versions
 
 import kfvm.github
-import kfvm.versions
 
 class RemoteCandidates {
     static List<Candidate> of(List<RemoteRelease> releases) {
