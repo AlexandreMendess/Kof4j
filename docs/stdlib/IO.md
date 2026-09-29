@@ -313,8 +313,46 @@ comments are data); a duplicate `section`+`key` keeps the **last** value; a
 malformed header or a line without a separator throws a `String`. Targets match
 `TextStream` (JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
 
+### TOML (`Toml`, slice 3.2)
+
+A streaming TOML configuration reader over `TextStream`. Tables and dotted keys
+are flattened into a canonical dotted key — no nested maps — and typed
+accessors parse on demand.
+
+```kof
+import file.Toml
+
+main() {
+    var t = Toml("app.toml")
+    var name = t.getString("service.name")    // String?, null when absent
+    var port = t.getInt("service.port", 8080) // Int, fallback when absent
+    var tags = t.getArray("service.tags")     // List<String>?, null when absent
+}
+```
+
+| Operation | Description |
+|----------|-------------|
+| `Toml(path[, chunkSize])` | parse a TOML file (default chunk 8192) |
+| `has(key)` | `Bool` |
+| `kindOf(key)` | `String?` — `string`/`integer`/`float`/`boolean`/`array` |
+| `getString(key)` | `String?` — decoded string value |
+| `getArray(key)` | `List<String>?` — array elements |
+| `getRaw(key)` | `String?` — canonical scalar text |
+| `getInt(key, fallback)` / `getDouble(key, fallback)` / `getBool(key, fallback)` | typed value or `fallback` |
+| `keys()` | `List<String>` — declared keys in first-appearance order |
+
+Documented subset: comments `#` (outside strings) and blank lines; `key = value`
+with bare or quoted keys and dotted keys; `[table]`/`[a.b]` headers set the
+prefix for following keys; values are basic `"..."` (escapes
+`\b \t \n \f \r \" \\ \uXXXX \UXXXXXXXX`), literal `'...'`, boolean, integer
+(sign, `_` separators), float (`.`/`e`) and single-line arrays of scalars. A
+duplicate key or a malformed line throws a `String`. Not supported, with an
+explicit diagnostic: `[[array of tables]]`, multi-line arrays, nested
+arrays/inline tables and date/time values. Targets match `TextStream` (JVM,
+Native x86-64/riscv64, Script; JS `IOJS001`).
+
 ## Reference
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Tests: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`

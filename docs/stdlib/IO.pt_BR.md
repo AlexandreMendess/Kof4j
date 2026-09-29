@@ -317,8 +317,46 @@ mantém o ÚLTIMO valor; um header malformado ou uma linha sem separador lança 
 `String`. Alvos iguais ao `TextStream` (JVM, Native x86-64/riscv64, Script; JS
 `IOJS001`).
 
+### TOML (`Toml`, fatia 3.2)
+
+Um leitor de configuração TOML streaming sobre o `TextStream`. Tabelas e chaves
+pontuadas são achatadas numa chave pontuada canônica — sem mapas aninhados — e
+acessores tipados parseiam sob demanda.
+
+```kof
+import file.Toml
+
+main() {
+    var t = Toml("app.toml")
+    var name = t.getString("service.name")    // String?, null quando ausente
+    var port = t.getInt("service.port", 8080) // Int, fallback quando ausente
+    var tags = t.getArray("service.tags")     // List<String>?, null quando ausente
+}
+```
+
+| Operação | Descrição |
+|----------|-----------|
+| `Toml(path[, chunkSize])` | parseia um arquivo TOML (chunk default 8192) |
+| `has(key)` | `Bool` |
+| `kindOf(key)` | `String?` — `string`/`integer`/`float`/`boolean`/`array` |
+| `getString(key)` | `String?` — valor string decodificado |
+| `getArray(key)` | `List<String>?` — elementos do array |
+| `getRaw(key)` | `String?` — texto escalar canônico |
+| `getInt(key, fallback)` / `getDouble(key, fallback)` / `getBool(key, fallback)` | valor tipado ou `fallback` |
+| `keys()` | `List<String>` — chaves declaradas em ordem de primeira aparição |
+
+Subconjunto documentado: comentários `#` (fora de strings) e linhas em branco;
+`key = value` com chaves bare ou entre quotes e chaves pontuadas; headers
+`[table]`/`[a.b]` definem o prefixo das chaves seguintes; valores são basic
+`"..."` (escapes `\b \t \n \f \r \" \\ \uXXXX \UXXXXXXXX`), literal
+`'...'`, boolean, inteiro (sinal, separador `_`), float (`.`/`e`) e arrays de
+escalares de uma linha. Uma chave duplicada ou uma linha malformada lança um
+`String`. Não suportado, com diagnóstico explícito: `[[array of tables]]`,
+arrays multi-linha, arrays/inline tables aninhados e valores de data/hora.
+Alvos iguais ao `TextStream` (JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
+
 ## Referência
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Testes: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`
