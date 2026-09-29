@@ -183,6 +183,15 @@ var d = xs.distinct()   // [3, 1, 2] — first occurrences in order
 Equality is the `contains` rule per target (String content, rest like
 `contains`); empty in, empty out.
 
+## `sorted` (D-MULTIPARADIGMA-PHASE1A slice 1g, all targets)
+
+```kof
+var xs = listOf(3, 1, 2)
+var s = xs.sorted()   // [1, 2, 3] — fresh copy, xs unchanged
+var d = xs.sorted((a: Int, b: Int) -> b - a)   // [3, 2, 1] — comparator: negative/zero/positive
+```
+Natural order needs a natural domain (Int/Long/Double/Float/Bool/Char/String — SEM097 otherwise); with a comparator the lambda defines the order (records welcome). Stable for pure comparators; empty/single in, same out.
+
 ## `listOf` with related subtypes infers the common ancestor (0.5.0-beta, §285)
 
 ```kof

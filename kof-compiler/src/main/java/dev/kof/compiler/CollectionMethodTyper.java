@@ -67,6 +67,8 @@ public final class CollectionMethodTyper {
         if ("take".equals(mn) || "drop".equals(mn) || "slice".equals(mn)) return recvType;
         // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct returns List<E> (copy).
         if ("distinct".equals(mn)) return recvType;
+        // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted/sorted_cmp: List<E>.
+        if ("sorted".equals(mn)) return recvType;
         if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                 || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn)) {
             return Type.PrimitiveType.VOID;

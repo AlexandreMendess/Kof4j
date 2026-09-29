@@ -28,6 +28,11 @@ public final class CollectionMethodGates {
             // Slice 1e — distinct takes no arguments.
             case "kof_list_distinct" -> 0;
             case "kof_list_sort" -> 0;
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted: natural takes no
+            // arguments; with comparator it takes exactly one lambda
+            // (D-MULTIPARADIGMA-SORTED).
+            case "kof_list_sorted" -> 0;
+            case "kof_list_sorted_cmp" -> 1;
             case "kof_map_contains_value" -> 1;
             case "kof_map_put_if_absent" -> 2;
             default -> -1;
@@ -40,7 +45,7 @@ public final class CollectionMethodGates {
         if (want < 0 || got == want) return null;
         return kind + "." + mn + " takes exactly " + want + " argument(s)"
                 + ("kof_list_sort".equals(opFn)
-                        ? " — sort() uses the natural order (Kof has no Comparator yet)" : "");
+                        ? " — sort() uses the natural order (for a custom order use sorted((a, b) -> Int))" : "");
     }
 
     /**
@@ -65,9 +70,9 @@ public final class CollectionMethodGates {
 
     static String sortDomainError(Type elemType) {
         Type inner = elemType instanceof Type.NullableType nt ? nt.inner() : elemType;
-        return "List.sort needs elements with a natural order (Int/Long/Double/Float/Bool/Char/String);"
+        return "List.sort/sorted needs elements with a natural order (Int/Long/Double/Float/Bool/Char/String);"
                 + " '" + CollectionWrites.typeNameFor(inner) + "' has none"
-                + " (Kof has no Comparator/Comparable — sort the projected key list instead)";
+                + " — use sorted((a, b) -> Int) with an explicit comparator instead";
     }
 
     /** Tag de comparação do sort: 0=raw signed qword, 1=String, 2=Double,

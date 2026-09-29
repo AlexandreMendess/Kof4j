@@ -957,7 +957,7 @@ science) **without** destroying the language's simplicity.
 > goldens JVM/Native/Script + JS gap `IOJS001`). — plan CONCLUDED 28/09, moved to `docs/stdlib/kof-file-plan.md` (3-state rule; documents/archives deferred).
 > **OPEN (6th front):** `multiparadigma` — promoted 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) to
-> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); slices 1a+1b+1c+1d+1e+1f LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins; E2E 5/5+3/3+3/3+3/3+3/3 + `KofScriptStdlibParityTest` 22/22); remainder (`sorted`/`groupBy`/`zip`) BLOCKED on maintainer decisions (rule 6).
+> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); slices 1a+1b+1c+1d+1e+1f+1g LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins + `sorted`/`sorted(cmp)`; E2E + `KofScriptStdlibParityTest` 22/22); remainder (`groupBy`/`zip`) DECIDED 29/09 (`D-MULTIPARADIGMA-GROUPBY`, `D-MULTIPARADIGMA-ZIP`) — implementing.
 > **OPEN (7th front):** `image-vision` — promoted 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) to
 > [`image-vision-plan.md`](image-vision-plan.md); slice 1 = pure-Kof `libs/image/` metadata (format + dimensions,
 > PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).

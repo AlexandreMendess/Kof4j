@@ -211,6 +211,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_list_foreach" -> "V";
             case "kof_list_flatmap" -> "Ljava/util/ArrayList;";
             case "kof_list_distinct" -> "Ljava/util/ArrayList;";
+            case "kof_list_sorted", "kof_list_sorted_cmp" -> "Ljava/util/ArrayList;";
             case "kof_list_take", "kof_list_drop", "kof_list_slice" -> "Ljava/util/ArrayList;";
             case "kof_list_reduce" -> "Ljava/lang/Object;";
             // ── kof.security G9 (rate limiting / sessions / API keys) ──

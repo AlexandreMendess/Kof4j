@@ -164,11 +164,18 @@ public final class KofInterpreterCollections {
                 yield out;
             }
             // #382 — sort: ordem natural (Comparator null = mesma escolha
-            // do JVM; o gate SEM097 já restringeu o domínio — o NAT001/Float
+            // do JVM; o gate SEM097 já restringiu o domínio — o NAT001/Float
             // caiu em 21/09, §352).
             case "kof_list_sort" -> {
                 l.sort(null);
                 yield null;
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted devolve cópia
+            // ordenada (nunca muta o receiver); o tag é Native-only.
+            case "kof_list_sorted" -> {
+                var out = new ArrayList<>(l);
+                out.sort(null);
+                yield out;
             }
             default -> NOT_HANDLED;
         };

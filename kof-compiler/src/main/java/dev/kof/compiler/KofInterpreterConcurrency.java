@@ -113,6 +113,27 @@ public final class KofInterpreterConcurrency {
                 for (Object o : src) interp.invokeLambda(args[1], new Object[]{o});
                 return null;
             }
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted(cmp): cópia ordenada
+            // pelo comparador (negativo/zero/positivo); insertion sort estável
+            // para comparadores puros. Chamada INSTANCE: receiver é a lista,
+            // args[0] é a lambda (forma diferente dos FUNCTION acima).
+            case "kof_list_sorted_cmp": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) recv;
+                ArrayList<Object> out = new ArrayList<>(src);
+                Object cmp = args[0];
+                for (int i = 1; i < out.size(); i++) {
+                    Object key = out.get(i);
+                    int j = i - 1;
+                    while (j >= 0 && ((Number) interp.invokeLambda(cmp,
+                            new Object[]{out.get(j), key})).intValue() > 0) {
+                        out.set(j + 1, out.get(j));
+                        j--;
+                    }
+                    out.set(j + 1, key);
+                }
+                return out;
+            }
             // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatenates each
             // element's List in order (non-List lambda result fails loudly).
             case "kof_list_flatmap": {

@@ -64,6 +64,12 @@ public final class JsRuntimeCollections {
                 return (typeof fn.invoke === 'function' ? fn.invoke(x) : fn(x));
             }
 
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — two-argument version for
+            // the sorted comparator (SAM object or plain closure, same rule).
+            function kofQuantCall2(fn, a, b) {
+                return (typeof fn.invoke === 'function' ? fn.invoke(a, b) : fn(a, b));
+            }
+
             function kofQuantTrue(v) {
                 return v === true || v === 1;
             }
@@ -152,6 +158,34 @@ public final class JsRuntimeCollections {
 
             export function kofListSort(list) {
                 list.sort(kofNaturalCmp);
+            }
+
+            export function kofListSorted(list, tag) {
+                const out = list.slice();
+                for (let i = 1; i < out.length; i++) {
+                    const key = out[i];
+                    let j = i - 1;
+                    while (j >= 0 && kofNaturalCmp(out[j], key) > 0) {
+                        out[j + 1] = out[j];
+                        j--;
+                    }
+                    out[j + 1] = key;
+                }
+                return out;
+            }
+
+            export function kofListSortedCmp(list, cmp) {
+                const out = list.slice();
+                for (let i = 1; i < out.length; i++) {
+                    const key = out[i];
+                    let j = i - 1;
+                    while (j >= 0 && kofQuantCall2(cmp, out[j], key) > 0) {
+                        out[j + 1] = out[j];
+                        j--;
+                    }
+                    out[j + 1] = key;
+                }
+                return out;
             }
 
             export function kofMapContainsValue(map, value) {

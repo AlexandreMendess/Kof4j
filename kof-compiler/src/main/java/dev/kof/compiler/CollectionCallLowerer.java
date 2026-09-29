@@ -62,6 +62,11 @@ public final class CollectionCallLowerer {
             case "drop" -> "kof_list_drop";
             case "slice" -> "kof_list_slice";
             case "sort" -> "kof_list_sort";
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted (non-mutating copy):
+            // arity 0 = natural order, arity 1 = explicit comparator lambda
+            // (D-MULTIPARADIGMA-SORTED); other arities fall into the shared
+            // arity gate below via the chosen fn.
+            case "sorted" -> mc.arguments().size() == 1 ? "kof_list_sorted_cmp" : "kof_list_sorted";
             // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct (dedup copy).
             case "distinct" -> "kof_list_distinct";
             default -> null;
@@ -75,7 +80,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted)",
                     "SEM025");
             return localIdx;
         }
@@ -97,16 +102,35 @@ public final class CollectionCallLowerer {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type elemType = driver.listElementType(recvType);
-            // SEM097 (domínio natural do sort) — nunca ordem silenciosa
+            // SEM097 (domínio natural do sort/sorted) — nunca ordem silenciosa
             // errada. Float×native era NAT001; FECHADO 21/09 (§352): o runtime
             // alarga os 32 bits crus do slot para Double e reusa o compare.
-            if ("kof_list_sort".equals(listFn) && driver.currentDiagnostics != null
+            // Só a forma natural (aridade 0): com comparador, a ordem vem da
+            // lambda (D-MULTIPARADIGMA-SORTED) — sem gate de domínio.
+            if (("kof_list_sort".equals(listFn) || "kof_list_sorted".equals(listFn))
+                    && driver.currentDiagnostics != null
                     && !CollectionMethodGates.naturalOrderType(elemType)) {
                 var pos = mc.position();
                 driver.currentDiagnostics.error(pos != null ? pos.file() : "",
                         pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
                         CollectionMethodGates.sortDomainError(elemType), "SEM097");
                 return localIdx;
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted(cmp) takes exactly
+            // one lambda (R6, mesma classe do gate higher-order: sem ela o
+            // call quebraria diferente em cada backend). A aridade (1) já
+            // passou no gate compartilhado; aqui vale a FORMA do argumento.
+            if ("kof_list_sorted_cmp".equals(listFn)) {
+                boolean oneLambda = mc.arguments().size() == 1
+                        && mc.arguments().get(0) instanceof LambdaExpr;
+                if (!oneLambda && driver.currentDiagnostics != null) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "List.sorted takes exactly one lambda argument",
+                            "SEM025");
+                    return localIdx;
+                }
             }
             // §122 (opção B, família SEM051/052/053/054): o índice de
             // get/set/remove é Int (learn/12: remove(0) devolve o elemento);
@@ -228,7 +252,8 @@ public final class CollectionCallLowerer {
                 case "kof_list_index_of", "kof_list_last_index_of" -> Type.PrimitiveType.INT;
                 case "kof_list_sub_list", "kof_list_take", "kof_list_drop", "kof_list_slice" -> recvType;
                 // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct returns List<E> (copy).
-                case "kof_list_distinct" -> recvType;
+                // Slice 1g — sorted/sorted_cmp return List<E> (fresh copy).
+                case "kof_list_distinct", "kof_list_sorted", "kof_list_sorted_cmp" -> recvType;
                 case "kof_list_remove" -> elemType;
                 default -> elemType;
             };
@@ -256,7 +281,10 @@ public final class CollectionCallLowerer {
             // #382 — sort: tag derivada só do elemType (sem arg):
             // 0=raw signed qword (Int/Long/Bool/Char/Unknown-vazio),
             // 1=String (kof_string_compare_to), 2=Double (ucomisd/fld+flt.d).
-            if ("kof_list_sort".equals(listFn)) {
+            // Slice 1g — a forma natural de sorted() carrega o mesmo tag
+            // (reusa kof_list_cmp); a forma com comparador não precisa de
+            // tag (a ordem vem da lambda — slots crus como em map/filter).
+            if ("kof_list_sort".equals(listFn) || "kof_list_sorted".equals(listFn)) {
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
                         CollectionMethodGates.sortTag(elemType)));
                 argTypes = new ArrayList<>(argTypes);

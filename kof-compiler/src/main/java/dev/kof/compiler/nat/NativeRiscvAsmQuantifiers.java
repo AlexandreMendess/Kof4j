@@ -201,6 +201,167 @@ public final class NativeRiscvAsmQuantifiers {
                 addi sp, sp, 48
                 ret
 
+            # kof_list_sorted(a0=list, a1=tag) -> a0 new List, insertion
+            # order via kof_list_cmp (stable; the receiver is never mutated).
+            # Slice 1g (D-MULTIPARADIGMA-SORTED). Lives here (not in
+            # Lookups0) so that file stays under the 500 gate.
+            .globl kof_list_sorted
+            kof_list_sorted:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)          # src
+                sd   s1, 40(sp)          # tag
+                sd   s2, 32(sp)          # out
+                sd   s3, 24(sp)          # i
+                sd   s4, 16(sp)          # key
+                sd   s5, 8(sp)           # n
+                sd   s6, 0(sp)           # j
+                mv   s0, a0
+                mv   s1, a1
+                lw   s5, 16(s0)
+                call kof_list_new
+                mv   s2, a0
+                li   s3, 0
+            .Llso_copy:
+                bge  s3, s5, .Llso_isort
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)
+                mv   a0, s2
+                call kof_list_add
+                addi s3, s3, 1
+                j    .Llso_copy
+            .Llso_isort:
+                li   s3, 1
+            .Llso_outer:
+                bge  s3, s5, .Llso_done
+                mv   a0, s2
+                mv   a1, s3
+                call kof_list_get
+                mv   s4, a0              # key
+                addi s6, s3, -1          # j = i - 1
+            .Llso_inner:
+                bltz s6, .Llso_insert
+                mv   a0, s2
+                mv   a1, s6
+                call kof_list_get        # a0 = b = get(j)
+                mv   a1, a0              # arg1 = b
+                mv   a0, s4              # arg0 = key
+                mv   a2, s1
+                call kof_list_cmp        # a0 = cmp(key, b)
+                bgez a0, .Llso_insert    # key >= b: stop (stable)
+                mv   a0, s2
+                mv   a1, s6
+                call kof_list_get        # a0 = v = get(j)
+                mv   a2, a0
+                mv   a0, s2
+                addi a1, s6, 1
+                call kof_list_set        # set(j+1, v)
+                addi s6, s6, -1          # j--
+                j    .Llso_inner
+            .Llso_insert:
+                mv   a0, s2
+                addi a1, s6, 1
+                mv   a2, s4
+                call kof_list_set        # set(j+1, key)
+                addi s3, s3, 1
+                j    .Llso_outer
+            .Llso_done:
+                mv   a0, s2
+                ld   s6, 0(sp)
+                ld   s5, 8(sp)
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+
+            # kof_list_sorted_cmp(a0=list, a1=cmp) -> a0 new List ordered by
+            # the comparator (negative/zero/positive Int); insertion sort
+            # (stable for pure comparators); the receiver is never mutated.
+            # Lambda call mirrors x86 (a0=lambda, a1, a2 through the vtable
+            # slot); raw slots like map/filter. Slice 1g.
+            .globl kof_list_sorted_cmp
+            kof_list_sorted_cmp:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)          # src
+                sd   s1, 40(sp)          # cmp lambda
+                sd   s2, 32(sp)          # out
+                sd   s3, 24(sp)          # i
+                sd   s4, 16(sp)          # key
+                sd   s5, 8(sp)           # n
+                sd   s6, 0(sp)           # j
+                mv   s0, a0
+                mv   s1, a1
+                lw   s5, 16(s0)
+                call kof_list_new
+                mv   s2, a0
+                li   s3, 0
+            .Llsc_copy:
+                bge  s3, s5, .Llsc_isort
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)
+                mv   a0, s2
+                call kof_list_add
+                addi s3, s3, 1
+                j    .Llsc_copy
+            .Llsc_isort:
+                li   s3, 1
+            .Llsc_outer:
+                bge  s3, s5, .Llsc_done
+                mv   a0, s2
+                mv   a1, s3
+                call kof_list_get
+                mv   s4, a0              # key
+                addi s6, s3, -1          # j = i - 1
+            .Llsc_inner:
+                bltz s6, .Llsc_insert
+                mv   a0, s2
+                mv   a1, s6
+                call kof_list_get        # a0 = a = get(j)
+                mv   a2, a0              # arg1 = a
+                mv   a1, s4              # arg0 = key
+                mv   a0, s1              # cmp lambda
+                ld   t3, 8(a0)
+                ld   t3, 0(t3)
+                jalr t3                  # a0 = cmp(key, a)
+                bgez a0, .Llsc_insert    # a >= key: stop (stable)
+                mv   a0, s2
+                mv   a1, s6
+                call kof_list_get        # a0 = v = get(j)
+                mv   a2, a0
+                mv   a0, s2
+                addi a1, s6, 1
+                call kof_list_set        # set(j+1, v)
+                addi s6, s6, -1          # j--
+                j    .Llsc_inner
+            .Llsc_insert:
+                mv   a0, s2
+                addi a1, s6, 1
+                mv   a2, s4
+                call kof_list_set        # set(j+1, key)
+                addi s3, s3, 1
+                j    .Llsc_outer
+            .Llsc_done:
+                mv   a0, s2
+                ld   s6, 0(sp)
+                ld   s5, 8(sp)
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+
             # kof_list_count_pred(a0=list, a1=fn) -> a0 count
             .globl kof_list_count_pred
             kof_list_count_pred:

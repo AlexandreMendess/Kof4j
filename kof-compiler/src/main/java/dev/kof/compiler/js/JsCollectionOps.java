@@ -165,6 +165,11 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             // the prelude mirrors contains: kofValEq per element).
             case "kof_list_distinct" -> "kofListDistinct";
             case "kof_list_sort" -> "kofListSort";
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted returns a fresh
+            // copy (natural via kofNaturalCmp, comparator via the lambda);
+            // insertion sort keeps both stable.
+            case "kof_list_sorted" -> "kofListSorted";
+            case "kof_list_sorted_cmp" -> "kofListSortedCmp";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };
         p.lc.registerRuntime(fn);

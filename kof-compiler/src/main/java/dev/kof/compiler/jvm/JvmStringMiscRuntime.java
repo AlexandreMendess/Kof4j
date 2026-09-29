@@ -175,6 +175,36 @@ public final class JvmStringMiscRuntime {
                     return out;
                 }
 
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1g — sorted returns a
+                // fresh copy (never mutates the receiver): natural order via
+                // TimSort (stable); the tag is Native-only. With a comparator
+                // the order comes from the lambda (negative/zero/positive);
+                // insertion sort keeps it stable for pure comparators.
+
+                public static java.util.ArrayList<Object> kof_list_sorted(
+                        java.util.ArrayList<?> list, int tag) {
+                    var out = new java.util.ArrayList<Object>(list);
+                    out.sort(null);
+                    return out;
+                }
+
+                public static java.util.ArrayList<Object> kof_list_sorted_cmp(
+                        java.util.ArrayList<?> list, Object cmp) throws Exception {
+                    var out = new java.util.ArrayList<Object>(list);
+                    for (int i = 1; i < out.size(); i++) {
+                        Object key = out.get(i);
+                        int j = i - 1;
+                        while (j >= 0
+                                && ((Number) kof_ho_invoke(cmp,
+                                        new Object[]{out.get(j), key})).intValue() > 0) {
+                            out.set(j + 1, out.get(j));
+                            j--;
+                        }
+                        out.set(j + 1, key);
+                    }
+                    return out;
+                }
+
                 // ── D-MULTIPARADIGMA-PHASE1A slice 1c — forEach runs the
                 // lambda per element for effect and returns nothing.
 

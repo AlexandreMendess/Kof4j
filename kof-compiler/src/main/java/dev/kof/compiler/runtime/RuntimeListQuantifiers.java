@@ -213,6 +213,98 @@ public final class RuntimeListQuantifiers {
                 popq %rbx
                 ret
 
+            # kof_list_sorted_cmp(rdi=list, rsi=cmp) -> rax new List ordered
+            # by the comparator (negative/zero/positive Int); insertion sort
+            # (stable for pure comparators); the receiver is never mutated.
+            # Lambda call mirrors kof_list_reduce (rdi=lambda, rsi=a,
+            # rdx=b through the vtable slot); raw slots like map/filter.
+            # Slice 1g (D-MULTIPARADIGMA-SORTED).
+            .globl kof_list_sorted_cmp
+            .type kof_list_sorted_cmp, @function
+            kof_list_sorted_cmp:
+                pushq %rbx
+                pushq %rbp
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $8, %rsp
+                movq %rdi, %rbp             # src (rbp livre: só salvo)
+                movq %rsi, %r12             # cmp lambda
+                movl 16(%rbp), %r15d        # n
+                call kof_list_new
+                movq %rax, %rbx             # out
+                xorl %r13d, %r13d           # i = 0 (copy)
+            .Llsc_copy:
+                cmpl %r15d, %r13d
+                jge .Llsc_isort
+                movq %rbp, %rdi
+                movslq %r13d, %rsi
+                call kof_list_get
+                movq %rax, %rsi
+                movq %rbx, %rdi
+                call kof_list_add
+                incl %r13d
+                jmp .Llsc_copy
+            .Llsc_isort:
+                movl $1, %r13d              # i = 1
+            .Llsc_outer:
+                cmpl %r15d, %r13d
+                jge .Llsc_done
+                movq %rbx, %rdi
+                movslq %r13d, %rsi
+                call kof_list_get
+                movq %rax, %r14             # key
+                movl %r13d, %eax
+                decl %eax
+                movl %eax, 0(%rsp)          # j = i - 1
+            .Llsc_inner:
+                movl 0(%rsp), %ecx
+                cmpl $0, %ecx
+                jl .Llsc_insert
+                movq %rbx, %rdi
+                movslq %ecx, %rsi
+                call kof_list_get           # rax = a = get(j)
+                movq %r14, %rsi             # PROBE: key como arg0
+                movq %rax, %rdx             # PROBE: a como arg1
+                movq %r12, %rdi             # cmp lambda
+                movq 8(%rdi), %rax
+                movq (%rax), %rax
+                call *%rax                  # eax = cmp(a, key)
+                testl %eax, %eax
+                jge .Llsc_insert             # a >= key: stop (stable)
+                movq %rbx, %rdi
+                movl 0(%rsp), %esi
+                movslq %esi, %rsi
+                call kof_list_get           # rax = v = get(j)
+                movq %rax, %rdx
+                movq %rbx, %rdi
+                movl 0(%rsp), %esi
+                addl $1, %esi
+                movslq %esi, %rsi
+                call kof_list_set           # set(j+1, v)
+                decl 0(%rsp)                # j--
+                jmp .Llsc_inner
+            .Llsc_insert:
+                movq %rbx, %rdi
+                movl 0(%rsp), %esi
+                addl $1, %esi
+                movslq %esi, %rsi
+                movq %r14, %rdx
+                call kof_list_set           # set(j+1, key)
+                incl %r13d
+                jmp .Llsc_outer
+            .Llsc_done:
+                movq %rbx, %rax
+                addq $8, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbp
+                popq %rbx
+                ret
+
             # kof_list_count_pred(list, fn) -> eax count
             .globl kof_list_count_pred
             .type kof_list_count_pred, @function

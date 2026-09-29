@@ -457,6 +457,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_list_foreach" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)V";
             case "kof_list_flatmap" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)Ljava/util/ArrayList;";
             case "kof_list_distinct" -> "(Ljava/util/ArrayList;I)Ljava/util/ArrayList;";
+            case "kof_list_sorted" -> "(Ljava/util/ArrayList;I)Ljava/util/ArrayList;";
+            case "kof_list_sorted_cmp" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)Ljava/util/ArrayList;";
             case "kof_list_take", "kof_list_drop" -> "(Ljava/util/ArrayList;I)Ljava/util/ArrayList;";
             case "kof_list_slice" -> "(Ljava/util/ArrayList;II)Ljava/util/ArrayList;";
             case "kof_list_reduce" -> "(Ljava/util/ArrayList;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
