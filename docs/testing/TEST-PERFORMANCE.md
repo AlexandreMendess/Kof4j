@@ -158,7 +158,8 @@ the suite) for the quick-win targets the plan names.
   + `WEB_APP` hoisted) → oversized 27→26, baseline 153; and `KofScriptPrograms` out of
   `KofScriptTest` (all 25 cases kept, 8 programs hoisted) → oversized 26→25, baseline 152; and
   `WorkflowPrograms` out of `WorkflowE2ETest` (all 24 cases kept, 7 programs hoisted) → oversized
-  25→24, baseline **151**. Re-measure `--citations`
+  25→24, baseline 151; and `DomainGapPrograms` out of `DomainGapCodesTest` (all 29 cases kept, 10
+  programs hoisted) → oversized 24→23, baseline **150**. Re-measure `--citations`
   before the next pick: naming candidates in the queue itself adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated
