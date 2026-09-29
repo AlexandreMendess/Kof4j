@@ -2,6 +2,7 @@ package interop
 
 import file.Toml
 import interop.InteropType
+import interop.InteropOwnership
 
 // kof.interop — connector manifest reader (fatia 1 of the Kof Connector
 // Ecosystem plan, `D-CONNECTORS-GO`, promoted 29/09/2026).
@@ -93,9 +94,10 @@ class ConnectorManifest {
     }
 
     // The Core's ownership vocabulary (plan §3.2) — a connector declares which
-    // concepts it supports; it never invents its own rule.
+    // concepts it supports; it never invents its own rule. Single source of
+    // truth: `InteropOwnership` (fatia 6), never duplicated here.
     List<String> knownOwnership() {
-        return listOf("owned", "borrowed", "shared", "opaque", "immutable", "mutable")
+        return InteropOwnership().concepts()
     }
 
     // Honest validation (R6): every declared capability and ownership concept

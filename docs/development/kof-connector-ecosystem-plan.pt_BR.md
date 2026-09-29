@@ -612,6 +612,21 @@ lacuna JS `IOJS001` + negativos). A face de validação da fatia 5 é provada em
 
 ---
 
+
+## 9.6 Fatia promovida 6 (29/09/2026) — contrato de posse / tempo de vida
+
+**Estado:** landada. `interop.InteropOwnership` é a fonte única do Core para o vocabulário de posse
+da §3.2 (owned/borrowed/shared/opaque/immutable/mutable), seu contrato e tempo de vida explícitos
+(`contract`/`lifetime`/`describe`); conceito desconhecido lança `INTEROP: unknown ownership <x>`
+(R6). `ConnectorManifest.knownOwnership()` agora delega a ela (vocabulário não duplicado). É o
+modelo de posse do Core em Kof puro, neutro de alvo (sem IO).
+
+**Prova:** `InteropOwnershipE2ETest` **5/5** (golden JVM + Script + JS + Native x86-64 + o
+diagnóstico desconhecido), e `ConnectorManifestE2ETest` **8/8** após a delegação. Sem mudança no
+compilador.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

@@ -607,6 +607,20 @@ JS `IOJS001` gap + the negatives). Fatia 5's validation face is proven on JVM/Sc
 
 ---
 
+
+## 9.6 Promoted slice 6 (29/09/2026) — ownership / lifetime contract
+
+**State:** landed. `interop.InteropOwnership` is the Core's single source of truth for the §3.2
+ownership vocabulary (owned/borrowed/shared/opaque/immutable/mutable), its explicit contract and
+lifetime (`contract`/`lifetime`/`describe`); an unknown concept throws
+`INTEROP: unknown ownership <x>` (R6). `ConnectorManifest.knownOwnership()` now delegates to it
+(no duplicated vocabulary). This is the Core's ownership model in pure Kof, target-neutral (no IO).
+
+**Proof:** `InteropOwnershipE2ETest` **5/5** (JVM golden + Script + JS + Native x86-64 + the unknown
+diagnostic), and `ConnectorManifestE2ETest` **8/8** after the delegation. No compiler change.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
