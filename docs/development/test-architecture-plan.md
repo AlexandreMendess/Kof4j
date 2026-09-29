@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 157 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 156 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -112,7 +112,9 @@ oversized 33→32, baseline 160→159. **Twelfth split landed (29/09):** `KofInt
 `KofInterpreterParityTest` (all 26 cases and the cited class name stayed) → oversized 32→31,
 baseline 159→158. **Thirteenth split landed (29/09):** `UiSupport` (runners) + `UiPrograms` (11
 largest inline Kof programs, hoisted) out of `UiE2ETest` (all 29 cases and the cited class name
-stayed) → oversized 31→30, baseline 158→157. The metric is a
+stayed) → oversized 31→30, baseline 158→157. **Fourteenth split landed (29/09):** `JvmSupport`
+(runner) + `JvmPrograms` (12 largest inline Kof programs, hoisted) out of `JvmE2ETest` (all 35
+cases and the cited class name stayed) → oversized 30→29, baseline 157→156. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -617,8 +619,9 @@ Before any deep refactoring, the path is:
    `KofStringsSupport` out of `KofStringsTest` (18/18 kept) and `KofSwitchExprSupport` out of
    `KofSwitchExprE2ETest` (32/32 kept) and `KofInterpreterParitySupport`/`...Programs` out of
    `KofInterpreterParityTest` (26/26 kept) and `UiSupport`/`UiPrograms` out of `UiE2ETest` (29/29
-   kept) → oversized 43→30, baseline 170→157; next split picks by a fresh `--citations`
-   measurement).
+   kept), `UiSupport`/`UiPrograms` out of `UiE2ETest` (29/29 kept) and `JvmSupport`/`JvmPrograms`
+   out of `JvmE2ETest` (35/35 kept) → oversized 43→29, baseline 170→156; next split picks by a
+   fresh `--citations` measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
