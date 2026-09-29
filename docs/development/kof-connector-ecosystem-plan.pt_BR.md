@@ -627,6 +627,19 @@ compilador.
 
 ---
 
+
+## 9.7 Fatia promovida 7 (29/09/2026) — custos visíveis de interop
+
+**Estado:** landada. `interop.InteropCost` é o vocabulário do Core para os custos visíveis da §3.10
+(copy/conversion/allocation/crossing/thread-switch/serialization/boxing/gc) com `describe`,
+`summary` ("none" quando vazio) e `validate`; custo desconhecido lança `INTEROP: unknown cost <x>`
+(R6). Torna explícito o custo de uma travessia em vez de invisível, conforme §3.10.
+
+**Prova:** `InteropCostE2ETest` **5/5** (golden JVM + Script + JS + Native x86-64 + o diagnóstico
+desconhecido). Kof puro, neutro de alvo, sem mudança no compilador.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

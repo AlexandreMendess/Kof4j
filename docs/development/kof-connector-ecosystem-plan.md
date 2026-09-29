@@ -621,6 +621,19 @@ diagnostic), and `ConnectorManifestE2ETest` **8/8** after the delegation. No com
 
 ---
 
+
+## 9.7 Promoted slice 7 (29/09/2026) — visible interop costs
+
+**State:** landed. `interop.InteropCost` is the Core's vocabulary for the §3.10 visible costs
+(copy/conversion/allocation/crossing/thread-switch/serialization/boxing/gc) with `describe`,
+`summary` ("none" when empty) and `validate`; an unknown cost throws `INTEROP: unknown cost <x>`
+(R6). It makes a crossing's cost explicit instead of invisible, per §3.10.
+
+**Proof:** `InteropCostE2ETest` **5/5** (JVM golden + Script + JS + Native x86-64 + the unknown
+diagnostic). Pure Kof, target-neutral, no compiler change.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
