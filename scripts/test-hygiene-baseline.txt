@@ -139,7 +139,6 @@ oversized	kof-compiler/src/test/java/dev/kof/compiler/KofJsBrowserE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/KofOrmE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/KofSecurityTest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/KofTimeE2ETest.java
-oversized	kof-compiler/src/test/java/dev/kof/compiler/KofWebE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/MemorySafetyE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/NativeAarch64E2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/NativeE2ETest.java
