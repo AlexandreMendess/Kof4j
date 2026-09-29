@@ -268,7 +268,7 @@ main() {
 | Operação | Descrição |
 |----------|-----------|
 | `XmlReader(path[, chunkSize])` | leitor pull streaming (chunk default 8192) |
-| `next()` | `XmlEvent?` (`kind` `start`/`end`/`empty`/`text`, `name`, `text`, `attributes`), `null` no EOF |
+| `next()` | `XmlEvent?` (`kind` `start`/`end`/`empty`/`text`, `name` verbatim, `localName`, `namespaceUri`, `text`, `attributes`, `attributeNamespaces`), `null` no EOF |
 
 Subconjunto documentado: elementos/atributos/texto/elementos vazios; a
 declaração XML, instruções de processamento e comentários são pulados; um
@@ -276,10 +276,13 @@ DOCTYPE (com subset interno opcional) é pulado mas suas entidades **não** são
 resolvidas; CDATA vira um evento de texto e **não** é decodificado; as entidades
 predefinidas e numéricas `&#D;`/`&#xH;` são resolvidas (qualquer outra entidade
 lança); texto só-espaços é pulado; a pilha de elementos é validada (end tag
-trocada ou EOF lança). Prefixos de namespace são preservados verbatim nos nomes
-— a resolução é uma fatia posterior, então isto é um subconjunto documentado,
-não um stub. Alvos iguais ao `TextStream` (JVM, Native x86-64/riscv64, Script;
-JS `IOJS001`).
+trocada ou EOF lança). Resolução de namespace (fatia 2.5): declarações
+`xmlns`/`xmlns:prefix` têm escopo na subárvore do elemento; `localName`/
+`namespaceUri` são resolvidos nos eventos de elemento e `attributeNamespaces`
+mapeia cada atributo ao seu URI (atributos sem prefixo não têm namespace);
+`name` segue verbatim, então é aditivo sobre a 2.4. Um prefixo não ligado lança;
+as ligações predefinidas `xml`/`xmlns` são impostas. Alvos iguais ao `TextStream`
+(JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
 
 ### INI (`Ini`, fatia 3.1)
 

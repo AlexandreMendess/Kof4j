@@ -2,7 +2,7 @@ package file
 
 import file.TextStream
 
-// kof.file — streaming XML pull reader (slice 2.4).
+// kof.file — streaming XML pull reader (slice 2.4, namespace resolution 2.5).
 //
 // A non-validating, pull-style XML reader over `TextStream` (bounded memory):
 // the programmer drives it with `while` over `next()`, and each call returns
@@ -20,24 +20,38 @@ import file.TextStream
 //   * whitespace-only text between tags is skipped; the element stack is
 //     validated, so a mismatched end tag (or EOF) throws.
 //
-// Namespace prefixes are preserved verbatim in names (`ns:tag`); prefix
-// resolution is a later slice, so this is a subset, not a stub.
+// Namespace resolution (slice 2.5): `xmlns`/`xmlns:prefix` declarations are
+// scoped to the element subtree; `localName`/`namespaceUri` are resolved on
+// element events and `attributeNamespaces` maps each attribute to its URI
+// (unprefixed attributes and the declarations use the XMLNS namespace rule).
+// `name` stays verbatim (prefix included), so this is additive over 2.4. An
+// unbound prefix throws; the predefined `xml`/`xmlns` bindings are enforced.
 //
 // No new syntax, built on `libs/file/TextStream.kf`. JS inherits the
 // compile-time gap `IOJS001` (`readRange`); non-BMP text is the Native
 // divergence `§537`.
 
-record XmlEvent(String kind, String name, String text, Map<String, String> attributes)
+record XmlEvent(String kind, String name, String localName, String namespaceUri, String text, Map<String, String> attributes, Map<String, String> attributeNamespaces)
 
 class XmlReader {
     TextStream stream
     List<String> stack
+    List<String> stackNs
+    List<String> stackLocal
+    List<String> nsPrefixes
+    List<String> nsUris
+    List<Int> nsScopes
     Bool pendingTag
     Bool started
 
     constructor(String path) {
         this.stream = TextStream(path)
         this.stack = listOf<String>()
+        this.stackNs = listOf<String>()
+        this.stackLocal = listOf<String>()
+        this.nsPrefixes = listOf<String>()
+        this.nsUris = listOf<String>()
+        this.nsScopes = listOf<Int>()
         this.pendingTag = false
         this.started = false
     }
@@ -45,6 +59,11 @@ class XmlReader {
     constructor(String path, Int chunkSize) {
         this.stream = TextStream(path, chunkSize)
         this.stack = listOf<String>()
+        this.stackNs = listOf<String>()
+        this.stackLocal = listOf<String>()
+        this.nsPrefixes = listOf<String>()
+        this.nsUris = listOf<String>()
+        this.nsScopes = listOf<Int>()
         this.pendingTag = false
         this.started = false
     }
@@ -94,7 +113,7 @@ class XmlReader {
                 if (this.stack.size() == 0) {
                     throw "XML: text outside the root element"
                 }
-                return XmlEvent("text", "", text, mapOf<String, String>())
+                return XmlEvent("text", "", "", "", text, mapOf<String, String>(), mapOf<String, String>())
             }
         }
     }
@@ -122,12 +141,17 @@ class XmlReader {
             if (this.stack.size() == 0) {
                 throw "XML: unexpected end tag </" + name + ">"
             }
+            var local = localNameOf(name)
+            var uri = uriOf(name)
             var top = this.stack.get(this.stack.size() - 1)
-            if (top != name) {
+            if (this.stackNs.get(this.stack.size() - 1) != uri || this.stackLocal.get(this.stack.size() - 1) != local) {
                 throw "XML: end tag </" + name + "> does not match <" + top + ">"
             }
             this.stack.remove(this.stack.size() - 1)
-            return XmlEvent("end", name, "", mapOf<String, String>())
+            this.stackNs.remove(this.stackNs.size() - 1)
+            this.stackLocal.remove(this.stackLocal.size() - 1)
+            endScope()
+            return XmlEvent("end", name, local, uri, "", mapOf<String, String>(), mapOf<String, String>())
         }
         if (!isNameStart(c)) {
             throw "XML: expected an element name"
@@ -140,11 +164,24 @@ class XmlReader {
             if (this.stream.nextCode() != '>' as Int) {
                 throw "XML: malformed empty tag <" + name + "/>"
             }
-            return XmlEvent("empty", name, "", attrs)
+            beginScope()
+            applyNamespaceDeclarations(attrs)
+            var local = localNameOf(name)
+            var uri = uriOf(name)
+            var attrNs = attributeNamespaces(attrs)
+            endScope()
+            return XmlEvent("empty", name, local, uri, "", attrs, attrNs)
         }
         if (close == '>' as Int) {
+            beginScope()
+            applyNamespaceDeclarations(attrs)
+            var local = localNameOf(name)
+            var uri = uriOf(name)
+            var attrNs = attributeNamespaces(attrs)
             this.stack.add(name)
-            return XmlEvent("start", name, "", attrs)
+            this.stackNs.add(uri)
+            this.stackLocal.add(local)
+            return XmlEvent("start", name, local, uri, "", attrs, attrNs)
         }
         throw "XML: malformed start tag <" + name + ">"
     }
@@ -180,7 +217,7 @@ class XmlReader {
             if (data.length == 0) {
                 return null
             }
-            return XmlEvent("text", "", data, mapOf<String, String>())
+            return XmlEvent("text", "", "", "", data, mapOf<String, String>(), mapOf<String, String>())
         }
         skipDeclaration()
         return null
@@ -243,6 +280,125 @@ class XmlReader {
             this.stream.nextCode()
             out = out + (c as Char)
         }
+    }
+
+    // --- namespace scope (slice 2.5) ---
+
+    beginScope() {
+        this.nsScopes.add(this.nsPrefixes.size())
+    }
+
+    endScope() {
+        if (this.nsScopes.size() == 0) {
+            return
+        }
+        var n = this.nsScopes.get(this.nsScopes.size() - 1)
+        this.nsScopes.remove(this.nsScopes.size() - 1)
+        while (this.nsPrefixes.size() > n) {
+            this.nsPrefixes.remove(this.nsPrefixes.size() - 1)
+            this.nsUris.remove(this.nsUris.size() - 1)
+        }
+    }
+
+    applyNamespaceDeclarations(Map<String, String> attrs) {
+        var ks = attrs.keys()
+        var i = 0
+        while (i < ks.size) {
+            var n = ks.get(i)
+            var v = attrs.get(n)
+            if (v != null) {
+                if (n == "xmlns") {
+                    this.nsPrefixes.add("")
+                    this.nsUris.add(v)
+                } else if (isXmlnsDeclaration(n)) {
+                    var prefix = n.substring(6, n.length)
+                    if (prefix == "xmlns") {
+                        throw "XML: the 'xmlns' prefix cannot be redeclared"
+                    }
+                    if (prefix == "xml") {
+                        if (v != "http://www.w3.org/XML/1998/namespace") {
+                            throw "XML: the 'xml' prefix is bound to the wrong namespace"
+                        }
+                    } else if (v.length == 0) {
+                        throw "XML: namespace prefix '" + prefix + "' cannot be bound to an empty URI"
+                    }
+                    this.nsPrefixes.add(prefix)
+                    this.nsUris.add(v)
+                }
+            }
+            i = i + 1
+        }
+    }
+
+    Map<String, String> attributeNamespaces(Map<String, String> attrs) {
+        var out = mapOf<String, String>()
+        var ks = attrs.keys()
+        var i = 0
+        while (i < ks.size) {
+            var n = ks.get(i)
+            if (n == "xmlns" || isXmlnsDeclaration(n)) {
+                out.put(n, "http://www.w3.org/2000/xmlns/")
+            } else if (colonAt(n) < 0) {
+                out.put(n, "")
+            } else {
+                out.put(n, uriOf(n))
+            }
+            i = i + 1
+        }
+        return out
+    }
+
+    String lookupNamespace(String prefix) {
+        if (prefix == "xml") {
+            return "http://www.w3.org/XML/1998/namespace"
+        }
+        if (prefix == "xmlns") {
+            return "http://www.w3.org/2000/xmlns/"
+        }
+        var i = this.nsPrefixes.size() - 1
+        while (i >= 0) {
+            if (this.nsPrefixes.get(i) == prefix) {
+                return this.nsUris.get(i)
+            }
+            i = i - 1
+        }
+        if (prefix.length == 0) {
+            return ""
+        }
+        throw "XML: unbound namespace prefix '" + prefix + "'"
+    }
+
+    String localNameOf(String name) {
+        var c = colonAt(name)
+        if (c < 0) {
+            return name
+        }
+        return name.substring(c + 1, name.length)
+    }
+
+    String uriOf(String name) {
+        var c = colonAt(name)
+        if (c < 0) {
+            return lookupNamespace("")
+        }
+        return lookupNamespace(name.substring(0, c))
+    }
+
+    Int colonAt(String name) {
+        var i = 0
+        while (i < name.length) {
+            if (name.charAt(i) == ':') {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+
+    Bool isXmlnsDeclaration(String name) {
+        return name.length > 6 && name.charAt(0) == 'x' && name.charAt(1) == 'm'
+            && name.charAt(2) == 'l' && name.charAt(3) == 'n' && name.charAt(4) == 's'
+            && name.charAt(5) == ':'
     }
 
     // Body until the closing "-->" (the two opening dashes are consumed).

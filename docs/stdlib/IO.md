@@ -266,7 +266,7 @@ main() {
 | Operation | Description |
 |----------|-------------|
 | `XmlReader(path[, chunkSize])` | streaming pull reader (default chunk 8192) |
-| `next()` | `XmlEvent?` (`kind` `start`/`end`/`empty`/`text`, `name`, `text`, `attributes`), `null` at EOF |
+| `next()` | `XmlEvent?` (`kind` `start`/`end`/`empty`/`text`, `name` verbatim, `localName`, `namespaceUri`, `text`, `attributes`, `attributeNamespaces`), `null` at EOF |
 
 Documented subset: elements/attributes/text/empty elements; the XML declaration,
 processing instructions and comments are skipped; a DOCTYPE (with an optional
@@ -274,9 +274,12 @@ internal subset) is skipped but its entities are **not** resolved; CDATA becomes
 a text event and is **not** entity-decoded; the predefined entities and numeric
 `&#D;`/`&#xH;` are resolved (any other entity throws); whitespace-only text is
 skipped; the element stack is validated (mismatched end tag or EOF throws).
-Namespace prefixes are preserved verbatim in names — resolution is a later
-slice, so this is a documented subset, not a stub. Targets match `TextStream`
-(JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
+Namespace resolution (slice 2.5): `xmlns`/`xmlns:prefix` declarations are scoped
+to the element subtree; `localName`/`namespaceUri` are resolved on element events
+and `attributeNamespaces` maps each attribute to its URI (unprefixed attributes
+have no namespace); `name` stays verbatim, so it is additive over 2.4. An unbound
+prefix throws; the predefined `xml`/`xmlns` bindings are enforced. Targets match
+`TextStream` (JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
 
 ### INI (`Ini`, slice 3.1)
 

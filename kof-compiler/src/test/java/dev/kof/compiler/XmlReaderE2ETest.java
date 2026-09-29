@@ -59,6 +59,19 @@ class XmlReaderE2ETest {
             "<!DOCTYPE library [ <!ENTITY x \"y\"> ]>\n<library><a/></library>\n";
     private static final String DOCTYPE_GOLDEN = "start:library\nempty:a\nend:library";
 
+    private static final String NS_XML =
+            "<root xmlns=\"urn:def\" xmlns:p=\"urn:p\">\n"
+            + "  <child p:attr=\"1\" plain=\"2\"/>\n"
+            + "  <p:item xml:lang=\"en\">hi</p:item>\n"
+            + "</root>\n";
+    private static final String NS_GOLDEN = String.join("\n",
+            "start:root@urn:def",
+            "empty:child@urn:def p:attr=urn:p plain=",
+            "start:item@urn:p xml:lang=http://www.w3.org/XML/1998/namespace",
+            "text:hi",
+            "end:item@urn:p",
+            "end:root@urn:def");
+
     @Test
     void parsesEventsOnJvm() throws Exception {
         Path src = tmp.resolve("doc.xml");
@@ -85,6 +98,58 @@ class XmlReaderE2ETest {
         Path src = tmp.resolve("unclosed.xml");
         Files.writeString(src, "<a><b>", StandardCharsets.UTF_8);
         assertEquals("XML: unexpected end of document (unclosed element <b>)", runJvm(errorProbe(src)));
+    }
+
+    @Test
+    void resolvesNamespacesOnJvm() throws Exception {
+        Path src = tmp.resolve("ns.xml");
+        Files.writeString(src, NS_XML, StandardCharsets.UTF_8);
+        assertEquals(NS_GOLDEN, runJvm(namespaceProbe(src)));
+    }
+
+    @Test
+    void resolvesNamespacesOnScript() throws Exception {
+        Path root = tmp.resolve("script-ns");
+        Files.createDirectories(root);
+        Path src = root.resolve("ns.xml");
+        Files.writeString(src, NS_XML, StandardCharsets.UTF_8);
+        Files.writeString(root.resolve("Main.kf"), namespaceProbe(src));
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(NS_GOLDEN, result.stdout().strip());
+    }
+
+    @Test
+    void resolvesNamespacesOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(System.getProperty("os.name").toLowerCase().contains("linux"),
+                "Native x86-64 requires the Linux assembler/linker toolchain");
+        Path src = tmp.resolve("ns-x86.xml");
+        Files.writeString(src, NS_XML, StandardCharsets.UTF_8);
+        assertEquals(NS_GOLDEN, runNativeX86(namespaceProbe(src)));
+    }
+
+    @Test
+    void resolvesNamespacesOnNativeRiscv64() throws Exception {
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross riscv64 + qemu absent — skipping (NATIVE002)");
+        Path src = tmp.resolve("ns-riscv.xml");
+        Files.writeString(src, NS_XML, StandardCharsets.UTF_8);
+        assertEquals(NS_GOLDEN, runCrossCode("riscv64", Target.NATIVE_RISCV64, namespaceProbe(src)));
+    }
+
+    @Test
+    void unboundPrefixThrows() throws Exception {
+        Path src = tmp.resolve("unbound.xml");
+        Files.writeString(src, "<a><q:b/></a>", StandardCharsets.UTF_8);
+        assertEquals("XML: unbound namespace prefix 'q'", runJvm(errorProbe(src)));
+    }
+
+    @Test
+    void namespaceScopeIsRestoredAfterElement() throws Exception {
+        Path src = tmp.resolve("scope.xml");
+        Files.writeString(src, "<r><a xmlns:p=\"u\"><p:b/></a><p:c/></r>", StandardCharsets.UTF_8);
+        assertEquals("XML: unbound namespace prefix 'p'", runJvm(errorProbe(src)));
     }
 
     @Test
@@ -164,6 +229,45 @@ class XmlReaderE2ETest {
                         } else {
                             println("end:" + ev.name)
                         }
+                    }
+                    ev = reader.next()
+                }
+            }
+            """.formatted(path(src));
+    }
+
+    private static String namespaceProbe(Path src) {
+        return """
+            import file.Xml
+
+            String nsOf(Map<String, String> m, String k) {
+                var v = m.get(k)
+                if (v == null) {
+                    return "<absent>"
+                }
+                return v
+            }
+
+            main() {
+                var reader = XmlReader("%s", 4)
+                var ev = reader.next()
+                while (ev != null) {
+                    if (ev.kind == "text") {
+                        println("text:" + ev.text)
+                    } else if (setOf("start", "empty").contains(ev.kind)) {
+                        var line = ev.kind + ":" + ev.localName + "@" + ev.namespaceUri
+                        if (ev.attributes.containsKey("p:attr")) {
+                            line = line + " p:attr=" + nsOf(ev.attributeNamespaces, "p:attr")
+                        }
+                        if (ev.attributes.containsKey("plain")) {
+                            line = line + " plain=" + nsOf(ev.attributeNamespaces, "plain")
+                        }
+                        if (ev.attributes.containsKey("xml:lang")) {
+                            line = line + " xml:lang=" + nsOf(ev.attributeNamespaces, "xml:lang")
+                        }
+                        println(line)
+                    } else {
+                        println("end:" + ev.localName + "@" + ev.namespaceUri)
                     }
                     ev = reader.next()
                 }
