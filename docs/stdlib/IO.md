@@ -351,8 +351,49 @@ explicit diagnostic: `[[array of tables]]`, multi-line arrays, nested
 arrays/inline tables and date/time values. Targets match `TextStream` (JVM,
 Native x86-64/riscv64, Script; JS `IOJS001`).
 
+### YAML (`Yaml`, slice 3.3)
+
+A streaming YAML configuration reader over `TextStream` for block mappings and
+block sequences of scalars. Mappings are flattened into a canonical dotted key
+and sequence items are indexed, so a document is queried without nested maps.
+
+```kof
+import file.Yaml
+
+main() {
+    var y = Yaml("app.yaml")
+    var name = y.getString("service.name")     // String?, null when absent
+    var port = y.getInt("service.port", 8080)  // Int, fallback when absent
+    var tags = y.getArray("service.tags")      // List<String>?, null when absent
+}
+```
+
+| Operation | Description |
+|----------|-------------|
+| `Yaml(path[, chunkSize])` | parse a YAML file (default chunk 8192) |
+| `has(key)` | `Bool` |
+| `kindOf(key)` | `String?` — `string`/`integer`/`float`/`boolean`/`null` |
+| `getString(key)` | `String?` — decoded string value |
+| `getArray(key)` | `List<String>?` — scalar sequence at `key` (items `key.0`…) |
+| `getRaw(key)` | `String?` — canonical scalar text |
+| `getInt(key, fallback)` / `getDouble(key, fallback)` / `getBool(key, fallback)` | typed value or `fallback` |
+| `keys()` | `List<String>` — mapping paths and indexed items in file order |
+
+Documented subset: comments `#` (at line start or after whitespace, outside
+quotes) and blank lines; block mappings `key: value` nested by a deeper space
+indent; block sequences of scalars `- value` (indexed under the parent key);
+scalars plain, single-quoted (`''` = `'`), double-quoted (escapes
+`\0 \a \b \t \n \v \f \r \e \" \\ \uXXXX \UXXXXXXXX`), boolean, null
+(`null`/`~`/empty, case-insensitive), integer and float. A key with an empty
+value is a section header; use `null`/`~` for an explicit null. A duplicate
+key, tab indentation or a malformed line throws a `String`. Not supported, with
+an explicit diagnostic: block scalars (`|`/`>`), flow collections (`[]`/`{}`),
+sequences of mappings, nested sequences, anchors/aliases/tags and multi-line
+scalars. Targets match `TextStream` (JVM, Native x86-64/riscv64, Script; JS
+`IOJS001`).
+
 ## Reference
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Tests: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `libs/file/Yaml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`, `YamlReaderE2ETest.java`

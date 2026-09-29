@@ -355,8 +355,50 @@ escalares de uma linha. Uma chave duplicada ou uma linha malformada lança um
 arrays multi-linha, arrays/inline tables aninhados e valores de data/hora.
 Alvos iguais ao `TextStream` (JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
 
+### YAML (`Yaml`, fatia 3.3)
+
+Um leitor de configuração YAML streaming sobre o `TextStream` para block
+mappings e block sequences de escalares. Mappings são achatados numa chave
+pontuada canônica e os itens de sequência são indexados, então o documento é
+consultado sem mapas aninhados.
+
+```kof
+import file.Yaml
+
+main() {
+    var y = Yaml("app.yaml")
+    var name = y.getString("service.name")     // String?, null quando ausente
+    var port = y.getInt("service.port", 8080)  // Int, fallback quando ausente
+    var tags = y.getArray("service.tags")      // List<String>?, null quando ausente
+}
+```
+
+| Operação | Descrição |
+|----------|-----------|
+| `Yaml(path[, chunkSize])` | parseia um arquivo YAML (chunk default 8192) |
+| `has(key)` | `Bool` |
+| `kindOf(key)` | `String?` — `string`/`integer`/`float`/`boolean`/`null` |
+| `getString(key)` | `String?` — valor string decodificado |
+| `getArray(key)` | `List<String>?` — sequência de escalares em `key` (itens `key.0`…) |
+| `getRaw(key)` | `String?` — texto escalar canônico |
+| `getInt(key, fallback)` / `getDouble(key, fallback)` / `getBool(key, fallback)` | valor tipado ou `fallback` |
+| `keys()` | `List<String>` — caminhos de mapping e itens indexados em ordem de arquivo |
+
+Subconjunto documentado: comentários `#` (no início da linha ou após espaço,
+fora de quotes) e linhas em branco; block mappings `key: value` aninhados por
+indentação de espaços mais profunda; block sequences de escalares `- value`
+(indexadas sob a chave pai); escalares plain, entre aspas simples (`''` = `'`),
+entre aspas duplas (escapes `\0 \a \b \t \n \v \f \r \e \" \\ \uXXXX \UXXXXXXXX`),
+boolean, null (`null`/`~`/vazio, case-insensitive), inteiro e float. Uma chave
+com valor vazio é um header de seção; use `null`/`~` para um null explícito. Uma
+chave duplicada, indentação com tab ou linha malformada lança um `String`. Não
+suportado, com diagnóstico explícito: block scalars (`|`/`>`), flow collections
+(`[]`/`{}`), sequências de mappings, sequências aninhadas, anchors/aliases/tags
+e escalares multi-linha. Alvos iguais ao `TextStream` (JVM, Native
+x86-64/riscv64, Script; JS `IOJS001`).
+
 ## Referência
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Testes: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `libs/file/Yaml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`, `YamlReaderE2ETest.java`
