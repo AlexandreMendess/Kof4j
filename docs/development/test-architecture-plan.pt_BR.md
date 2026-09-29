@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 174 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 171 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -52,6 +52,14 @@ sobre um stdout agora thread-safe (`StringBuffer`) — zerando as duas últimas 
 são compensadas por 2 **leads** `dupname` (`assertManagedTargets`, `runCross`) que
 entraram no conjunto congelado com as lanes kof-file/multiparadigma na mesma janela —
 registrados, não escondidos.
+**Fatia quick-win 7 (29/09):** os sleeps de readiness/teardown do E2E de CLI foram para um
+novo `CliAwaitFixture` (`awaitTrue`, `awaitExit`, `pause`, infra de teste do `kof-cli`):
+`ServePortTest` (2 loops de readiness + a espera de órfão §390), `ServeManifestPortE2ETest`
+e `FullStackE2ETest` (readiness) e `CliDebugProcessLeakTest` (espera de órfão §438) agora
+polls com deadline ou bloqueiam em `ProcessHandle.onExit()` em vez de `Thread.sleep` fixo
+→ baseline 174→171 chaves (4 chaves de teste removidas, 1 do fixture adicionada).
+`KofDebugJvmExceptionTest` mantém seus 500 ms — um "deixa o laço rodar antes de pausar"
+intencional no fluxo DAP, não um settle de readiness.
 **Como terminar:** Fase 1/2 descoberta feita — depois **remoções quick-win da Fase 2**
 (encolher o baseline: sleeps / duplicação / oversized) → 3 (modularização) → 4
 (harness) → 5 (alvos) → 6 (conformance) → 7 (`mvn verify`). **Infraestrutura de teste pura — o compilador

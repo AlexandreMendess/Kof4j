@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 174 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 171 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -52,6 +52,14 @@ over a now thread-safe `StringBuffer` stdout — zeroing the last two `sleep` ke
 the web/log E2E. The baseline count stays 174: the 2 removed `sleep` keys are offset
 by 2 `dupname` **leads** (`assertManagedTargets`, `runCross`) that entered the frozen
 set with the kof-file/multiparadigma lanes in the same window — recorded, not hidden.
+**Quick-win slice 7 (29/09):** the CLI E2E readiness/teardown sleeps moved into a new
+`CliAwaitFixture` (`awaitTrue`, `awaitExit`, `pause`, `kof-cli` test infra):
+`ServePortTest` (2 readiness loops + the §390 orphan wait), `ServeManifestPortE2ETest`
+and `FullStackE2ETest` (readiness) and `CliDebugProcessLeakTest` (§438 orphan wait) now
+poll a deadline or block on `ProcessHandle.onExit()` instead of a fixed `Thread.sleep`
+→ baseline 174→171 keys (4 test keys removed, 1 fixture key added).
+`KofDebugJvmExceptionTest` keeps its 500 ms — an intentional "let the loop run before
+pause" in the DAP flow, not a readiness settle.
 **How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
 (shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4
 (harness) → 5 (targets) → 6 (conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
