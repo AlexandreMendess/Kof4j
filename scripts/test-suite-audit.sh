@@ -12,12 +12,13 @@
 #   scripts/test-suite-audit.sh [--root DIR] [--md FILE] [--top N] [--quiet]
 #   scripts/test-suite-audit.sh [--root DIR] --keys FILE   # chaves maquina
 #   scripts/test-suite-audit.sh [--root DIR] --citations [--cite-docs DIR]
+#   scripts/test-suite-audit.sh [--root DIR] --dups          # nomes duplicados + classes
 # rc: 0 medido · 2 uso invalido · 3 nenhuma fonte de teste.
 set -uo pipefail
 export LC_ALL=C
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-MD=""; TOP=20; QUIET=0; BIG=500; KEYS=""; CITATIONS=0; DOCS=""
+MD=""; TOP=20; QUIET=0; BIG=500; KEYS=""; CITATIONS=0; DOCS=""; DUPS=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --root) ROOT="$2"; shift ;;
@@ -26,8 +27,9 @@ while [ $# -gt 0 ]; do
     --keys) KEYS="$2"; shift ;;
     --citations) CITATIONS=1 ;;
     --cite-docs) DOCS="$2"; shift ;;
+    --dups) DUPS=1 ;;
     --quiet) QUIET=1 ;;
-    *) echo "uso: $0 [--root DIR] [--md FILE] [--top N] [--keys FILE] [--citations] [--cite-docs DIR] [--quiet]" >&2; exit 2 ;;
+    *) echo "uso: $0 [--root DIR] [--md FILE] [--top N] [--keys FILE] [--citations] [--cite-docs DIR] [--dups] [--quiet]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -121,6 +123,14 @@ fi
 if [ -n "$KEYS" ]; then
   emit_keys > "$KEYS"
   [ "$QUIET" -eq 0 ] && echo "TEST-AUDIT: chaves gravadas em $KEYS"
+  exit 0
+fi
+
+# READ-ONLY: para dimensionar a Fase 5 (harness cross-target) — cada nome de
+# metodo repetido com as classes que o declaram. Sem julgamento de "paridade".
+if [ "$DUPS" -eq 1 ]; then
+  echo "DUPLICATE METHOD NAMES across >=2 classes (name<TAB>count<TAB>classes):"
+  awk -F'\t' '{printf "%s\t%s\t%s\n", $2, $1, $3}' "$TMP/dupclus.txt"
   exit 0
 fi
 

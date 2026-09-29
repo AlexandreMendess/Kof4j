@@ -79,6 +79,12 @@ grep -qE "0  .*CBig\.java" <<<"$out" && pass "CBig (nao citado) = 0" || fail "CB
 grep -qE "1  .*BigTest\.java" <<<"$out" && pass "BigTest (citado 1x) = 1" || fail "BigTest nao mediu 1: $(grep BigTest <<<"$out")"
 grep -q "citation exposure" "$TMP/out.md" && pass "markdown com secao de citacoes" || fail "markdown sem secao de citacoes"
 
+# ── cenario 8: --dups lista nome + count + classes (read-only) ─────────────
+out="$(bash "$AUDIT" --root "$TMP" --dups 2>&1)"; rc=$?
+expect "dups mede" 0 "$rc"
+grep -qE "^shared	2	.*ATest.*BTest" <<<"$out" && pass "dups lista 'shared' com ATest+BTest" \
+  || fail "dups nao listou shared/classes: $(grep shared <<<"$out")"
+
 if [ "$FAILED" = 1 ]; then
   echo "== RESULTADO: FALHOU =="
   exit 1

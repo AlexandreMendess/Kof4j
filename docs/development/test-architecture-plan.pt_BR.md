@@ -548,6 +548,19 @@ o helper `javac` idêntico de `CompareTest`/`MigrateTest` (kof-cli) foi para uma
 `CliJavacSupport` — mais 1 chave `dupname`. Harness 146→**132** (14 chaves eliminadas nas seis
 fatias).
 
+**Harness de pares idênticos da Fase 4 ESGOTADO (29/09):** seis fatias reduziram o ratchet
+146→132 consolidando métodos com corpo **byte-idêntico** em exatamente duas classes (bytes de
+mídia, harness C, laço de golden C, nível de log, frames WebSocket, `javac`). A auditoria confirma
+**zero pares idênticos restantes**; todo `dupname` restante é um teste/harness compartilhado POR
+DESENHO entre dois alvos (ex.: golden de `KofCParamsCompilerTest`×`KofCStructCompilerTest`,
+`execArithmetic` em `JvmE2ETest`×`KofJsE2ETest`, `native*MatchesJvmGolden` em
+`NativeAarch64`×`NativeRiscv64`). Consolidá-los exige um **harness cross-target parametrizado por
+alvo** (Fase 5) — incremento de design, não refactor de risco zero; forçá-lo esconderia o alvo sob
+hocks de abstração e arriscaria as contagens por alvo citadas. Ferramenta para dimensionar:
+`scripts/test-suite-audit.sh --dups` (read-only) lista cada nome duplicado com as classes que o
+declaram; os topos atuais são `main` (32 classes), `assumeToolchain` (26), `copyLibrary` (16),
+`stopServer` (12), `jvmOracle` (12).
+
 Nota da Fase 3 (29/09): extração pura esgotada — **43 oversized → 19** em 24 divisões, todas com
 zero drift; o restante ou pertence a lane ativa ou exige mover testes (citation sweep).
 

@@ -544,6 +544,18 @@ removed. Harness baseline 146→**133** (13 keys eliminated across the five slic
 `CliJavacSupport` base — 1 more `dupname` key. Harness baseline 146→**132** (14 keys eliminated
 across the six slices).
 
+**Phase 4 identical-pair harness EXHAUSTED (29/09):** six slices reduced the ratchet 146→132 by
+consolidating methods whose bodies are **byte-identical** across exactly two classes (media bytes,
+C harness, C golden loop, log level, WebSocket frames, `javac`). The audit confirms **zero
+identical pairs remain**; every remaining `dupname` is a test/harness shared by design across two
+targets (e.g. `KofCParamsCompilerTest`×`KofCStructCompilerTest`'s golden tests, `execArithmetic`
+in `JvmE2ETest`×`KofJsE2ETest`, `native*MatchesJvmGolden` in `NativeAarch64`×`NativeRiscv64`).
+Consolidating those needs a **target-parameterized cross-target harness** (Phase 5) — a design
+increment, not a zero-risk refactor; forcing it would hide the target under abstraction hooks and
+risk the cited per-target counts. Tool to scope it: `scripts/test-suite-audit.sh --dups` (read-only)
+lists each duplicated name with its declaring classes; the current heads are `main` (32 classes),
+`assumeToolchain` (26), `copyLibrary` (16), `stopServer` (12), `jvmOracle` (12).
+
 Phase 3 note (29/09): pure extraction is now exhausted — **43 oversized classes down to 19** over 24
 splits, all with zero citation drift; the remaining oversized classes either belong to an active
 lane or require moving test methods (citation sweep), which is Phase 4/5 scope.
