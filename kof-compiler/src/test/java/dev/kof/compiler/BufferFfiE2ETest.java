@@ -106,6 +106,44 @@ class BufferFfiE2ETest {
     }
 
     @Test
+    void bufferInoutInsideSpawnAwaitNativeParity(@TempDir Path dir) throws Exception {
+        // Fase 5 / unidade 3 (medir-antes): a interseção `Buffer(U8)` INOUT ×
+        // `spawn`/`await` nunca fora EXECUTADA — a A2 bindou o param no x86-64 e
+        // a unidade 1 pinou FFI escalar × spawn. Aqui o extern escreve o buffer
+        // DENTRO do worker e a mãe lê após `await`: o ponteiro do payload
+        // (obj+24) atravessa a thread. Golden JVM (FFM copy-in/copy-back) ==
+        // Native byte a byte; o OwnershipPass não deve arder (escrita única
+        // sincronizada).
+        String so = compileHostLib(dir);
+        String kof = """
+                extern "%s" bump(Buffer(U8) buf, Int n): Int
+
+                main() {
+                    var b = buffer.alloc(2)
+                    var h = spawn { return bump(b, 2) }
+                    println(await h)
+                    println(b.bytes())
+                }
+                """.formatted(so);
+        String expected = "20\n[10, 10]";
+
+        Path natSrc = dir.resolve("bufinout-spawn-native.kf");
+        Files.writeString(natSrc, kof);
+        Path natOut = dir.resolve("out-bufinout-spawn-native");
+        CompilationResult rn = driver.compile(natSrc, natOut, Target.NATIVE);
+        assertTrue(rn.success(), () -> "NATIVE compile (Buffer INOUT under spawn): "
+                + rn.diagnostics().getDiagnostics());
+        assertEquals(expected, runBinary(natOut), "Native x86-64 golden (buffer INOUT × spawn)");
+
+        Path jvmSrc = dir.resolve("bufinout-spawn-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        Path jvmOut = dir.resolve("out-bufinout-spawn-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), "JVM compile: " + rj.diagnostics().getDiagnostics());
+        assertEquals(expected, runJvm(jvmOut), "JVM golden (buffer INOUT × spawn)");
+    }
+
+    @Test
     void bufferParamCrossStaysFfi001(@TempDir Path dir) throws IOException {
         // A fatia A2 abre só o x86-64; riscv64/aarch64 seguem FFI001 honesto (R6).
         for (Target t : new Target[] {Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -203,6 +241,21 @@ class BufferFfiE2ETest {
         try {
             Process p = new ProcessBuilder(bin.toString()).directory(dir.toFile())
                     .redirectErrorStream(true).start();
+            String o = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n");
+            assertEquals(0, p.waitFor(), () -> "NATIVE run exit code, output: " + o);
+            return o.trim();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted", e);
+        }
+    }
+
+    private String runBinary(Path outDir) throws IOException {
+        Path bin = outDir.resolve("Default/Main");
+        assertTrue(Files.exists(bin), "binary " + bin + " must exist");
+        try {
+            Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
             String o = new String(p.getInputStream().readAllBytes(),
                     java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n");
             assertEquals(0, p.waitFor(), () -> "NATIVE run exit code, output: " + o);
