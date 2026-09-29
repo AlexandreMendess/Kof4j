@@ -1,0 +1,92 @@
+package dev.kof.compiler;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * §540 — (a) a single large allocation and (b) many live objects on the cross
+ * natives (riscv64/aarch64) must behave like JVM/x86-64.
+ *
+ * <p>Before the fix the cross arena was a static 256 KiB, so `new Int[65536]`
+ * OOMed; and beyond ~10 000 live blocks the conservative GC could not find a
+ * block (linear scan capped at 10 000) and freed live memory (SIGSEGV). The
+ * fixed cross uses a 16 MiB arena plus an O(1) block-start bitmap in the GC.
+ *
+ * <p>NOTE: the x86-64 native is a SEPARATE heap (dynamic mmap) and is NOT part
+ * of this fix; a distinct x86 many-live-objects regression is catalogued
+ * separately (its own §NNN).
+ */
+class CrossHeapParityE2ETest extends KofStringsSupport {
+
+    private static final String LARGE = """
+            main() {
+                var b = new Int[65536]
+                b[0] = 1
+                b[65535] = 2
+                println(b[0] + b[65535])
+                var c = new Int[262144]
+                c[262143] = 7
+                println(c.length)
+                println(c[262143])
+            }
+            """;
+    private static final String LARGE_EXPECTED = "3\n262144\n7";
+
+    private static final String MANY_LIVE_STRINGS = """
+            main() {
+                val l = listOf("")
+                var i = 0
+                while (i < 15000) { l.add("padding " + i + " aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); i = i + 1 }
+                println(l.size)
+            }
+            """;
+    private static final String MANY_EXPECTED = "15001";
+
+    @Test
+    void largeAllocationJvm(@TempDir Path t) throws Exception {
+        runJvm(t, LARGE, LARGE_EXPECTED);
+    }
+
+    @Test
+    void largeAllocationNativeX86(@TempDir Path t) throws Exception {
+        runNative(t, LARGE, LARGE_EXPECTED);
+    }
+
+    @Test
+    void largeAllocationCross(@TempDir Path t) throws Exception {
+        assumeToolchain("qemu-riscv64", "qemu-aarch64");
+        runQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", LARGE, LARGE_EXPECTED);
+        runQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", LARGE, LARGE_EXPECTED);
+    }
+
+    @Test
+    void manyLiveObjectsCross(@TempDir Path t) throws Exception {
+        assumeToolchain("qemu-riscv64", "qemu-aarch64");
+        runQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", MANY_LIVE_STRINGS, MANY_EXPECTED);
+        runQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", MANY_LIVE_STRINGS, MANY_EXPECTED);
+    }
+
+    private void runQemuExpect(Path tempDir, Target target, String qemu, String source,
+                               String expected) throws Exception {
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path outDir = tempDir.resolve("out-" + System.nanoTime());
+        CompilationResult result = driver.compile(file, outDir, target);
+        assertTrue(result.success(), target + " compile failed: "
+                + result.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), bin).redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertTrue(p.waitFor(120, TimeUnit.SECONDS), target + " timed out");
+        assertEquals(0, p.exitValue(), target + " exit, out: " + output);
+        assertEquals(expected, output, target + " output");
+    }
+}

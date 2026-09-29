@@ -106,8 +106,9 @@ class NativeRiscvGcSweepTest {
                 .quad 0
             """;
 
-    /** Laço de 10000 allocs de 64B com só o último vivo na raiz estática.
-     *  Sem coletor, a arena de 256KB esgota e o kof_alloc panica. */
+    /** Laço de 10000 allocs de 2KB com só o último vivo na raiz estática.
+     *  Sem coletor, a arena de 16MB (§540) esgota e o kof_alloc panica
+     *  (10000×2KB = ~20MB > 16MB); com o G-4 o coletor recicla e completa. */
     private static final String HARNESS_LOOP = """
             .option arch, rv64g
             .section .data
@@ -123,7 +124,7 @@ class NativeRiscvGcSweepTest {
                 andi sp, sp, -16
                 li   s0, 10000
             .Lloop:
-                li   a0, 64
+                li   a0, 2048
                 call kof_alloc
                 la   t0, .Lroot_live
                 sd   a0, 0(t0)
