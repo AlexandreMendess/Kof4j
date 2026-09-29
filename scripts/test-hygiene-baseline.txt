@@ -52,7 +52,6 @@ dupname	identityStepDoesNotChangeEmittedBytecode
 dupname	inc
 dupname	interpreterDeathWithoutResponseIsNamedInterop004
 dupname	invoke
-dupname	javac
 dupname	jvmOracle
 dupname	later
 dupname	main

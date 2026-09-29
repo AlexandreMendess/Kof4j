@@ -168,8 +168,8 @@ executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
   extraídos, módulo kof-cli) → oversized 20→19, baseline 146. **Fase 4/harness (29/09):**
   `MediaByteSupport` consolidou 7 helpers de layout de bytes duplicados de
   `MediaCrossE2ETest`/`MediaNativeE2ETest` → **3 chaves `dupname` a menos**; e `KofCSupport`
-  consolidou o harness do compilador C entre 4 `KofC*CompilerTest` → **mais 2** (baseline **133**,
-  13 no total nas cinco fatias). Re-meça o `--citations` antes da próxima escolha: nomear candidatos na própria
+  consolidou o harness do compilador C entre 4 `KofC*CompilerTest` → **mais 2** (baseline **132**,
+  14 no total nas seis fatias). Re-meça o `--citations` antes da próxima escolha: nomear candidatos na própria
   fila adiciona citações a eles. (A terceira divisão também reparou uma regressão herdada do
   ratchet: `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` do
   `IniReaderE2ETest` duplicavam os nomes do `XmlReaderE2ETest`, então ganharam prefixo
