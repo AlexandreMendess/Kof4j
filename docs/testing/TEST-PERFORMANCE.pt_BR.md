@@ -121,6 +121,17 @@ executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
   face em JVM/Native/JS) e helpers compartilhados (`main`, `assumeToolchain`,
   `jvmOracle`) são esperados e intencionais.
 
+- **Classes oversized por exposição a citações de doc** — `--citations` conta,
+  por classe oversized, quantos arquivos sob `docs/` citam seu nome (uma divisão
+  que renomeia/move testes citados força varredura de citação; `0` é o mais
+  barato). Cabeça medida do mais barato ao mais caro: `ArrayBoundsStressTest` (2),
+  `KofSetEqualityTest` (2), `SemanticResolutionTest` (4), `CmdDeployTest` /
+  `BiosBootE2ETest` / `KofInterpreterParityTest` /
+  `NullablePrimitiveContractE2ETest` (8) … `ConformanceMatrixTest` (42). O custo
+  é prosa também: uma citação de contagem de classe ("`KofSetEqualityTest`
+  inteiro 21/21") sofre drift mesmo mantendo o método citado — mova só testes
+  não citados, mantenha métodos citados e o nome da classe, atualize as contagens.
+
 A auditoria não modifica nada; agir sobre um lead é uma unidade separada e
 escopada.
 

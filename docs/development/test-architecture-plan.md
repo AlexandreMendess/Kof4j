@@ -69,11 +69,20 @@ interval; then assert no fire in the 80 ms after `cancel`), and `TickCounter.n` 
 **Phase 3 cost found (29/09):** the giant-test split is NOT a cheap increment — test class names
 are cited as proof across `docs/` (e.g. `TranslateTest` in `known-bugs`, `audits/`,
 `future/TRANSLATOR`), so splitting or renaming a class requires a reference sweep and risks doc
-drift. Phase 3 needs either a citation-sweep step or a layer approach that keeps class names
-stable (recorded as the open design point; not started).
-**How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
-(shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4
-(harness) → 5 (targets) → 6 (conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
+drift. This is now **measured, not guessed**: `scripts/test-suite-audit.sh --citations` counts, per
+oversized class, how many files under `docs/` mention its name (`0` = split with no citation
+sweep). Measured cheapest-first head: `ArrayBoundsStressTest` (2), `KofSetEqualityTest` (2),
+`SemanticResolutionTest` (4), `CmdDeployTest`/`BiosBootE2ETest`/`KofInterpreterParityTest`/
+`NullablePrimitiveContractE2ETest` (8) … `ConformanceMatrixTest` (42). Two `docs/bugs-and-gaps`
+citations of `KofSetEqualityTest`/`ArrayBoundsStressTest` are class-level counts ("whole
+`KofSetEqualityTest` 21/21"), which drift even when the cited method stays in place — so the
+cheap Phase 3 rule is: **move only uncited tests out, keep cited methods and class name in the
+original file, update the counts**. That rule + this ordering is the traced Phase 3 todo; the
+first split is the next unit.
+**How to finish:** Phase 1/2 discovery done — then **Phase 3 modularization** (cheapest-first by
+the `--citations` order above) and remaining **Phase 2 quick-win removals** interleaved
+(shrink the baseline: sleeps / duplication / oversized) → 4 (harness) → 5 (targets) → 6
+(conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
 (golden rule below). One slice per commit, RED-first + `check_500`.
 
 ## 📌 Overview
@@ -559,7 +568,9 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; open work =
    shrink `scripts/test-hygiene-baseline.txt` and re-freeze);
-4. propose the modularization (Phase 3 — not started).
+4. propose the modularization (Phase 3 — started: `--citations` orders the oversized classes
+   cheapest-first and the drift rule is fixed; first split = `ArrayBoundsStressTest` /
+   `KofSetEqualityTest`, moving only uncited tests out).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open

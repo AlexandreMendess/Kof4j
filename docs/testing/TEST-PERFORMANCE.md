@@ -121,6 +121,17 @@ the suite) for the quick-win targets the plan names.
   JVM/Native/JS) and shared helpers (`main`, `assumeToolchain`, `jvmOracle`) are
   expected and intentional.
 
+- **Oversized classes by doc-citation exposure** — `--citations` counts, per
+  oversized class, how many files under `docs/` mention its name (a split that
+  renames/moves cited tests forces a citation sweep; `0` is the cheapest).
+  Measured cheapest-first head: `ArrayBoundsStressTest` (2),
+  `KofSetEqualityTest` (2), `SemanticResolutionTest` (4), `CmdDeployTest` /
+  `BiosBootE2ETest` / `KofInterpreterParityTest` /
+  `NullablePrimitiveContractE2ETest` (8) … `ConformanceMatrixTest` (42). Cost is
+  prose too: a class-count citation ("whole `KofSetEqualityTest` 21/21") drifts
+  even when the cited method stays — move only uncited tests, keep cited
+  methods and the class name in place, update the counts.
+
 The audit modifies nothing; acting on a lead is a separate, scoped unit.
 
 ## Reading

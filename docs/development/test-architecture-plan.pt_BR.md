@@ -69,11 +69,20 @@ conjunto sleep); `KofTimeE2ETest` 44/44 (0 skip), teste focado 4/4 execuções.
 **Custo da Fase 3 encontrado (29/09):** a divisão de teste gigante NÃO é incremento barato — nomes de
 classe de teste são citados como prova em `docs/` (ex.: `TranslateTest` em `known-bugs`, `audits/`,
 `future/TRANSLATOR`), então dividir/renomear uma classe exige varredura de referências e arrisca drift
-de doc. A Fase 3 precisa de um passo de varredura de citações ou de uma abordagem por camada que
-mantenha os nomes de classe estáveis (registrado como ponto de design aberto; não iniciado).
-**Como terminar:** Fase 1/2 descoberta feita — depois **remoções quick-win da Fase 2**
-(encolher o baseline: sleeps / duplicação / oversized) → 3 (modularização) → 4
-(harness) → 5 (alvos) → 6 (conformance) → 7 (`mvn verify`). **Infraestrutura de teste pura — o compilador
+de doc. Isto agora é **medido, não adivinhado**: `scripts/test-suite-audit.sh --citations` conta, por
+classe oversized, quantos arquivos sob `docs/` citam seu nome (`0` = divisão sem varredura de
+citação). Cabeça medida do mais barato ao mais caro: `ArrayBoundsStressTest` (2),
+`KofSetEqualityTest` (2), `SemanticResolutionTest` (4),
+`CmdDeployTest`/`BiosBootE2ETest`/`KofInterpreterParityTest`/`NullablePrimitiveContractE2ETest` (8) …
+`ConformanceMatrixTest` (42). Duas citações em `docs/bugs-and-gaps` de
+`KofSetEqualityTest`/`ArrayBoundsStressTest` são contagens de classe ("`KofSetEqualityTest` inteiro
+21/21"), que sofrem drift mesmo mantendo o método citado — então a regra barata da Fase 3 é: **mover
+só testes não citados, manter métodos citados e o nome da classe no arquivo original, atualizar as
+contagens**. Essa regra + esta ordem é o todo da Fase 3 traçado; a primeira divisão é a próxima fatia.
+**Como terminar:** Fase 1/2 descoberta feita — depois **modularização da Fase 3** (do mais barato ao
+mais caro pela ordem do `--citations`) e **remoções quick-win da Fase 2** intercaladas
+(encolher o baseline: sleeps / duplicação / oversized) → 4 (harness) → 5 (alvos) → 6
+(conformance) → 7 (`mvn verify`). **Infraestrutura de teste pura — o compilador
 nunca é tocado** (regra de ouro abaixo). Uma fatia por commit, RED-first + `check_500`.
 
 ## 📌 Visão Geral
@@ -560,7 +569,9 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho aberto =
    encolher `scripts/test-hygiene-baseline.txt` e regravar);
-4. propor modularização (Fase 3 — não iniciada).
+4. propor modularização (Fase 3 — iniciada: `--citations` ordena as classes oversized do mais
+   barato ao mais caro e a regra de drift está fixada; primeira divisão =
+   `ArrayBoundsStressTest` / `KofSetEqualityTest`, movendo só testes não citados).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta

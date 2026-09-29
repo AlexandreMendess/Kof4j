@@ -11,20 +11,23 @@
 # Uso:
 #   scripts/test-suite-audit.sh [--root DIR] [--md FILE] [--top N] [--quiet]
 #   scripts/test-suite-audit.sh [--root DIR] --keys FILE   # chaves maquina
+#   scripts/test-suite-audit.sh [--root DIR] --citations [--cite-docs DIR]
 # rc: 0 medido · 2 uso invalido · 3 nenhuma fonte de teste.
 set -uo pipefail
 export LC_ALL=C
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-MD=""; TOP=20; QUIET=0; BIG=500; KEYS=""
+MD=""; TOP=20; QUIET=0; BIG=500; KEYS=""; CITATIONS=0; DOCS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --root) ROOT="$2"; shift ;;
     --md) MD="$2"; shift ;;
     --top) TOP="$2"; shift ;;
     --keys) KEYS="$2"; shift ;;
+    --citations) CITATIONS=1 ;;
+    --cite-docs) DOCS="$2"; shift ;;
     --quiet) QUIET=1 ;;
-    *) echo "uso: $0 [--root DIR] [--md FILE] [--top N] [--keys FILE] [--quiet]" >&2; exit 2 ;;
+    *) echo "uso: $0 [--root DIR] [--md FILE] [--top N] [--keys FILE] [--citations] [--cite-docs DIR] [--quiet]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -56,6 +59,19 @@ done >> "$TMP/dups.tsv"
 awk -F'\t' '{c[$1]=c[$1]" "$2; n[$1]++} END{for(m in c) if(n[m]>=2) print n[m]"\t"m"\t"c[m]}' "$TMP/dups.tsv" | sort -rn > "$TMP/dupclus.txt"
 NDUP="$(wc -l < "$TMP/dupclus.txt" | tr -d ' ')"
 
+# Exposicao a citacoes: quantos arquivos de doc citam o nome de cada classe de
+# teste oversized. Fase 3 (split) exige varredura de doc quando o nome aparece;
+# `0` = split mais barato (nenhuma citacao a corrigir). Mede, nunca edita.
+emit_citations() {
+  local docs="${DOCS:-$ROOT/docs}"
+  [ -d "$docs" ] || return 0
+  while IFS=$'\t' read -r _ f; do
+    local cls="${f##*/}"; cls="${cls%.java}"
+    local c; c="$(grep -rlF --include='*.md' -- "$cls" "$docs" 2>/dev/null | wc -l | tr -d ' ')"
+    printf '%s\t%s\n' "$c" "$f"
+  done < "$TMP/big.txt" | sort -n -k1,1 -k2,2
+}
+
 emit_md() {
   echo "**Measured:** \`sleeps=$NSLEEP oversized(>=${BIG})=$NBIG duplicate-across-classes=$NDUP\` over ${#SRC[@]} test source(s)."
   echo
@@ -78,6 +94,14 @@ emit_md() {
   echo "| Classes | Method | Where |"
   echo "--------:|--------|-------|"
   head -n "$TOP" "$TMP/dupclus.txt" | awk -F'\t' '{printf "| %s | `%s` |%s |\n", $1, $2, $3}'
+  echo
+  echo "### Oversized test classes — doc citation exposure"
+  echo
+  echo "> Phase 3 splitting a class whose name is cited in docs needs a citation sweep; \`0\` = cheapest to split (no doc rename/drift). Ordered cheapest-first."
+  echo
+  echo '```'
+  emit_citations | awk -F'\t' '{printf "%3d  %s\n", $1, $2}'
+  echo '```'
 }
 
 emit_keys() {
@@ -87,6 +111,12 @@ emit_keys() {
     cut -f2 "$TMP/dupclus.txt" | sort -u | awk 'BEGIN{OFS="\t"}{print "dupname",$0}'
   } | sort -u
 }
+
+if [ "$CITATIONS" -eq 1 ]; then
+  echo "OVERSIZED — exposicao a citacoes de doc (0 = split sem varredura de doc):"
+  emit_citations | awk -F'\t' '{printf "  %3d  %s\n", $1, $2}'
+  exit 0
+fi
 
 if [ -n "$KEYS" ]; then
   emit_keys > "$KEYS"

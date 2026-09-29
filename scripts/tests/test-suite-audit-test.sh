@@ -36,6 +36,12 @@ JAVA
 # oversized: >= 500 lines (500 pad lines + 1 method)
 BIG="$TMP/mod/src/test/java/dev/y/BigTest.java"
 { echo "package dev.y;"; echo "class BigTest {"; echo "    void big() { }"; for i in $(seq 1 500); do echo "    // pad $i"; done; echo "}"; } > "$BIG"
+# segundo oversized NAO citado (exposicao 0) para ordenar o relatorio de citacoes
+CBIG="$TMP/mod/src/test/java/dev/y/CBig.java"
+{ echo "package dev.y;"; echo "class CBig {"; echo "    void cbig() { }"; for i in $(seq 1 500); do echo "    // pad $i"; done; echo "}"; } > "$CBIG"
+# docs falsos: BigTest citado 1x, CBig nunca
+mkdir -p "$TMP/docs"
+echo "ver \`BigTest\` para detalhes" > "$TMP/docs/one.md"
 
 # ── cenario 1: sem fonte de teste => rc 3 ────────────────────────────────
 mkdir -p "$TMP/empty"
@@ -46,8 +52,8 @@ grep -q "TEST-AUDIT: unknown" <<<"$out" && pass "unknown emitido (sem fonte)" ||
 # ── cenario 2: sleeps medidos ─────────────────────────────────────────────
 out="$(bash "$AUDIT" --root "$TMP" 2>&1)"; rc=$?
 expect "arvore com fontes mede" 0 "$rc"
-grep -qE "sleeps=1 oversized\(>=500\)=1 duplicate-across-classes=1" <<<"$out" \
-  && pass "totais (1 sleep / 1 oversized / 1 duplicado)" || fail "totais errados: $(grep TEST-AUDIT <<<"$out")"
+grep -qE "sleeps=1 oversized\(>=500\)=2 duplicate-across-classes=1" <<<"$out" \
+  && pass "totais (1 sleep / 2 oversized / 1 duplicado)" || fail "totais errados: $(grep TEST-AUDIT <<<"$out")"
 
 # ── cenario 3: o site de sleep certo ──────────────────────────────────────
 grep -q "ATest.java:3:    void shared() { Thread.sleep(1); }" <<<"$out" \
@@ -62,9 +68,16 @@ grep -qE "aOnly|bOnly" <<<"$out" && fail "metodo nao-duplicado vazou" || pass "n
 
 # ── cenario 6: saida markdown ─────────────────────────────────────────────
 bash "$AUDIT" --root "$TMP" --md "$TMP/out.md" --quiet >/dev/null 2>&1
-grep -q "sleeps=1 oversized(>=500)=1 duplicate-across-classes=1" "$TMP/out.md" \
+grep -q "sleeps=1 oversized(>=500)=2 duplicate-across-classes=1" "$TMP/out.md" \
   && pass "markdown com resumo medido" || fail "markdown sem resumo"
 grep -q '`shared`' "$TMP/out.md" && pass "markdown com o duplicado" || fail "markdown sem duplicado"
+
+# ── cenario 7: exposicao a citacoes (0 = split mais barato) ───────────────
+out="$(bash "$AUDIT" --root "$TMP" --citations --cite-docs "$TMP/docs" 2>&1)"; rc=$?
+expect "citations mede" 0 "$rc"
+grep -qE "0  .*CBig\.java" <<<"$out" && pass "CBig (nao citado) = 0" || fail "CBig nao mediu 0: $(grep CBig <<<"$out")"
+grep -qE "1  .*BigTest\.java" <<<"$out" && pass "BigTest (citado 1x) = 1" || fail "BigTest nao mediu 1: $(grep BigTest <<<"$out")"
+grep -q "citation exposure" "$TMP/out.md" && pass "markdown com secao de citacoes" || fail "markdown sem secao de citacoes"
 
 if [ "$FAILED" = 1 ]; then
   echo "== RESULTADO: FALHOU =="
