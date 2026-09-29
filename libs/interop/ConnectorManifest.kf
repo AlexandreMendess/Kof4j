@@ -1,6 +1,7 @@
 package interop
 
 import file.Toml
+import interop.InteropType
 
 // kof.interop — connector manifest reader (fatia 1 of the Kof Connector
 // Ecosystem plan, `D-CONNECTORS-GO`, promoted 29/09/2026).
@@ -73,6 +74,12 @@ class ConnectorManifest {
         return optionalList("ownership")
     }
 
+    // Interop kinds this connector supports (plan §4.2 "supported types"),
+    // validated against the Core's type model (`InteropType`, plan §3.1).
+    List<String> supportedTypes() {
+        return optionalList("types")
+    }
+
     Bool hasCapability(String capability) {
         return capabilities().contains(capability)
     }
@@ -112,6 +119,18 @@ class ConnectorManifest {
                 throw "CONNECTOR: unknown ownership " + o
             }
             j = j + 1
+        }
+        // Declared supported types must belong to the Core's interop type model
+        // (§3.1) — validated through `InteropType`, never accepted blindly.
+        var typeModel = InteropType()
+        var types = supportedTypes()
+        var k = 0
+        while (k < types.size()) {
+            var t = types.get(k)
+            if (!typeModel.isKnownKind(t)) {
+                throw "CONNECTOR: unknown type " + t
+            }
+            k = k + 1
         }
     }
 

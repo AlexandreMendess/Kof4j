@@ -591,6 +591,27 @@ lane compilador/generics.
 
 ---
 
+
+## 9.5 Fatia promovida 5 (29/09/2026) — tipos suportados declarados, validados pelo type model
+
+**Estado:** landada. `interop.ConnectorManifest` agora lê o campo opcional `types = [...]` (§4.2
+"tipos suportados") e o `validate()` checa cada nome contra o type model de interop do Core
+(`interop.InteropType.isKnownKind`, §3.1) — um kind desconhecido lança `CONNECTOR: unknown type <x>`
+(R6), nunca aceito às cegas. Isto liga as fatias 1/2 (manifest) com a fatia 3 (type model).
+
+**Prova cross-target:** `ConnectorManifestE2ETest` **8/8** (golden JVM + Script + Native x86-64 + a
+lacuna JS `IOJS001` + negativos). A face de validação da fatia 5 é provada em JVM/Script/JS/x86.
+
+**Divergências cross-target medidas (NÃO desta lane — registradas para a lane native):**
+- riscv64: o runtime do E2E de manifest dá **SIGSEGV (exit 139)** até para o probe read-only da fatia 1,
+  de forma determinística no tip `e7c4abd95` (que já contém o fix §540). O caso riscv64 foi removido do
+  `ConnectorManifestE2ETest` em vez de escondido atrás de um assumption; nenhuma alegação riscv64 é feita
+  para esta biblioteca até a divergência native ser resolvida.
+- erro de link em native x86-64 observado perto (`undefined reference to kof_bm_set` em `kof_alloc`),
+  do trabalho §540/§542 do irmão — reportado via `twin.md`, não tocado aqui.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

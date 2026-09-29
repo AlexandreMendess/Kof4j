@@ -586,6 +586,27 @@ blocked until that is fixed; catalogued for the compiler/generics lane.
 
 ---
 
+
+## 9.5 Promoted slice 5 (29/09/2026) — declared supported types, validated by the type model
+
+**State:** landed. `interop.ConnectorManifest` now reads the optional `types = [...]` field (§4.2
+"supported types") and `validate()` checks each name against the Core's interop type model
+(`interop.InteropType.isKnownKind`, §3.1) — an unknown kind throws `CONNECTOR: unknown type <x>` (R6),
+never accepted blindly. This links slice 1/2 (manifest) with slice 3 (type model).
+
+**Cross-target proof:** `ConnectorManifestE2ETest` **8/8** (JVM golden + Script + Native x86-64 + the
+JS `IOJS001` gap + the negatives). Fatia 5's validation face is proven on JVM/Script/JS/x86.
+
+**Measured cross-target divergences (NOT this lane — recorded for the native lane):**
+- riscv64: the manifest E2E runtime **SIGSEGVs (exit 139)** even for the read-only slice-1 probe,
+  deterministically on tip `e7c4abd95` (which already contains the §540 fix). The riscv64 case was
+  removed from `ConnectorManifestE2ETest` rather than hidden behind an assumption; no riscv64 claim
+  is made for this library until the native divergence is resolved.
+- native x86-64 link error observed nearby (`undefined reference to kof_bm_set` in `kof_alloc`),
+  from the sibling §540/§542 runtime work — reported via `twin.md`, not touched here.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
