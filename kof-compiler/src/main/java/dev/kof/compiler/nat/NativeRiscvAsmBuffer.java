@@ -13,7 +13,10 @@ public final class NativeRiscvAsmBuffer {
 
     private NativeRiscvAsmBuffer() {}
 
-    static final String RISCV_ASM_BUFFER = """
+    // §257: NÃO `final` — o javac inlinaria a constante nos consumidores
+    // (build incremental deixa byte velho); mesmo padrão de
+    // NativeRiscvAsmProcessResult.
+    static String RISCV_ASM_BUFFER = """
             .section .rodata
             .Lkof_buf_null:
                 .ascii "null"
