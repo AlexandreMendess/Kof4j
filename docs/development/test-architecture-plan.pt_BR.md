@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 155 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 154 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -119,7 +119,9 @@ programas Kof inline, hoisted) saídos do `JvmE2ETest` (os 35 casos e o nome de 
 ficaram) → oversized 30→29, baseline 157→156. **Décima quinta divisão landada (29/09):**
 `KofValidationSupport` (runners) + `KofValidationPrograms` (6 maiores programas Kof inline,
 hoisted) saídos do `KofValidationTest` (os 34 casos e o nome de classe citado ficaram) →
-oversized 29→28, baseline 156→155. A métrica é guia, não oráculo:
+oversized 29→28, baseline 156→155. **Décima sexta divisão landada (29/09):** `KofJsSupport`
+(runners) + `KofJsPrograms` (24 programas Kof inline, hoisted) saídos do `KofJsE2ETest` (os 40
+casos e o nome de classe citado ficaram) → oversized 28→27, baseline 155→154. A métrica é guia, não oráculo:
 nomear candidatos nesta fila (e no `README`) já
 adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher a próxima
 divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
@@ -626,8 +628,9 @@ Antes de qualquer refatoração profunda, o caminho é:
    `KofSwitchExprE2ETest` (32/32 mantidos) e `KofInterpreterParitySupport`/`...Programs` do
    `KofInterpreterParityTest` (26/26 mantidos), `UiSupport`/`UiPrograms` do `UiE2ETest` (29/29
    mantidos), `JvmSupport`/`JvmPrograms` do `JvmE2ETest` (35/35 mantidos) e
-   `KofValidationSupport`/`...Programs` do `KofValidationTest` (34/34 mantidos) → oversized 43→28,
-   baseline 170→155; a próxima divisão escolhe por um `--citations` fresco).
+   `KofValidationSupport`/`...Programs` do `KofValidationTest` (34/34 mantidos) e `KofJsSupport`/`KofJsPrograms` do `KofJsE2ETest` (40/40
+   mantidos) → oversized 43→27, baseline 170→154; a próxima divisão escolhe por um `--citations`
+   fresco).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta

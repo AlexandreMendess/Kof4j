@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 155 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 154 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -117,7 +117,9 @@ stayed) → oversized 31→30, baseline 158→157. **Fourteenth split landed (29
 cases and the cited class name stayed) → oversized 30→29, baseline 157→156. **Fifteenth split
 landed (29/09):** `KofValidationSupport` (runners) + `KofValidationPrograms` (6 largest inline Kof
 programs, hoisted) out of `KofValidationTest` (all 34 cases and the cited class name stayed) →
-oversized 29→28, baseline 156→155. The metric is a
+oversized 29→28, baseline 156→155. **Sixteenth split landed (29/09):** `KofJsSupport`
+(runners) + `KofJsPrograms` (24 inline Kof programs, hoisted) out of `KofJsE2ETest` (all 40 cases
+and the cited class name stayed) → oversized 28→27, baseline 155→154. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -624,8 +626,9 @@ Before any deep refactoring, the path is:
    `KofInterpreterParityTest` (26/26 kept) and `UiSupport`/`UiPrograms` out of `UiE2ETest` (29/29
    kept), `UiSupport`/`UiPrograms` out of `UiE2ETest` (29/29 kept) and `JvmSupport`/`JvmPrograms`
    out of `JvmE2ETest` (35/35 kept) and `KofValidationSupport`/`...Programs` out of
-   `KofValidationTest` (34/34 kept) → oversized 43→28, baseline 170→155; next split picks by a
-   fresh `--citations` measurement).
+   `KofValidationTest` (34/34 kept) and `KofJsSupport`/`KofJsPrograms` out of `KofJsE2ETest` (40/40
+   kept) → oversized 43→27, baseline 170→154; next split picks by a fresh `--citations`
+   measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open

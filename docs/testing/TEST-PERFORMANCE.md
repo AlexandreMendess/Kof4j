@@ -152,7 +152,9 @@ the suite) for the quick-win targets the plan names.
   programs hoisted) → oversized 31→30, baseline 157; and `JvmSupport`/`JvmPrograms` out of
   `JvmE2ETest` (all 35 cases kept, 12 largest programs hoisted) → oversized 30→29, baseline 156;
   and `KofValidationSupport`/`KofValidationPrograms` out of `KofValidationTest` (all 34 cases
-  kept, 6 largest programs hoisted) → oversized 29→28, baseline **155**. Re-measure `--citations`
+  kept, 6 largest programs hoisted) → oversized 29→28, baseline 155; and `KofJsSupport`/
+  `KofJsPrograms` out of `KofJsE2ETest` (all 40 cases kept, 24 programs hoisted) → oversized
+  28→27, baseline **154**. Re-measure `--citations`
   before the next pick: naming candidates in the queue itself adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated
