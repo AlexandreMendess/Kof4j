@@ -599,7 +599,7 @@ lane compilador/generics.
 (`interop.InteropType.isKnownKind`, §3.1) — um kind desconhecido lança `CONNECTOR: unknown type <x>`
 (R6), nunca aceito às cegas. Isto liga as fatias 1/2 (manifest) com a fatia 3 (type model).
 
-**Prova cross-target:** `ConnectorManifestE2ETest` **8/8** (golden JVM + Script + Native x86-64 + a
+**Prova cross-target:** `ConnectorManifestE2ETest` **10/10** (golden JVM + Script + Native x86-64 + a
 lacuna JS `IOJS001` + negativos). A face de validação da fatia 5 é provada em JVM/Script/JS/x86.
 
 **Divergências cross-target medidas (NÃO desta lane — registradas para a lane native):**
@@ -622,7 +622,7 @@ da §3.2 (owned/borrowed/shared/opaque/immutable/mutable), seu contrato e tempo 
 modelo de posse do Core em Kof puro, neutro de alvo (sem IO).
 
 **Prova:** `InteropOwnershipE2ETest` **5/5** (golden JVM + Script + JS + Native x86-64 + o
-diagnóstico desconhecido), e `ConnectorManifestE2ETest` **8/8** após a delegação. Sem mudança no
+diagnóstico desconhecido), e `ConnectorManifestE2ETest` **10/10** após a delegação. Sem mudança no
 compilador.
 
 ---
@@ -762,6 +762,17 @@ callbacks · erros · ownership de memória · threads · async · objetos opaco
 
 Cada connector implementa o subconjunto que a linguagem permite. A suíte é o corpus golden do
 ecossistema; testes de compatibilidade e negativos são portões, não extras.
+
+---
+
+
+**Suíte Core landada (29/09/2026).** O Interop Core em Kof puro é coberto por 11 classes E2E
+cross-target, todas verdes juntas (**60/60**): `ConnectorManifestE2ETest` (10), `ConnectorCatalogueE2ETest`
+(4), `InteropCoreE2ETest` (4), `InteropTypeE2ETest` (5), `InteropOwnershipE2ETest` (5),
+`InteropStringE2ETest` (5), `InteropCostE2ETest` (5), `InteropLibraryE2ETest` (5),
+`InteropCompatibilityE2ETest` (6), `ConnectorSpiE2ETest` (5), `ForeignModuleE2ETest` (6) — cada uma roda
+golden JVM + Script + Native x86-64 (+ JS quando a biblioteca é neutra de alvo; as de IO de arquivo
+afirmam a lacuna JS `IOJS001`), mais os diagnósticos negativos.
 
 ---
 

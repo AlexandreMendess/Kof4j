@@ -594,7 +594,7 @@ blocked until that is fixed; catalogued for the compiler/generics lane.
 (`interop.InteropType.isKnownKind`, §3.1) — an unknown kind throws `CONNECTOR: unknown type <x>` (R6),
 never accepted blindly. This links slice 1/2 (manifest) with slice 3 (type model).
 
-**Cross-target proof:** `ConnectorManifestE2ETest` **8/8** (JVM golden + Script + Native x86-64 + the
+**Cross-target proof:** `ConnectorManifestE2ETest` **10/10** (JVM golden + Script + Native x86-64 + the
 JS `IOJS001` gap + the negatives). Fatia 5's validation face is proven on JVM/Script/JS/x86.
 
 **Measured cross-target divergences (NOT this lane — recorded for the native lane):**
@@ -617,7 +617,7 @@ lifetime (`contract`/`lifetime`/`describe`); an unknown concept throws
 (no duplicated vocabulary). This is the Core's ownership model in pure Kof, target-neutral (no IO).
 
 **Proof:** `InteropOwnershipE2ETest` **5/5** (JVM golden + Script + JS + Native x86-64 + the unknown
-diagnostic), and `ConnectorManifestE2ETest` **8/8** after the delegation. No compiler change.
+diagnostic), and `ConnectorManifestE2ETest` **10/10** after the delegation. No compiler change.
 
 ---
 
@@ -755,6 +755,17 @@ callbacks · errors · memory ownership · threads · async · opaque objects
 
 Each connector implements the subset its language allows. The suite is the ecosystem's
 golden corpus; compatibility and negative tests are gates, not extras.
+
+---
+
+
+**Landed Core suite (29/09/2026).** The pure-Kof Interop Core is covered by 11 cross-target E2E
+classes, all green together (**60/60**): `ConnectorManifestE2ETest` (10), `ConnectorCatalogueE2ETest`
+(4), `InteropCoreE2ETest` (4), `InteropTypeE2ETest` (5), `InteropOwnershipE2ETest` (5),
+`InteropStringE2ETest` (5), `InteropCostE2ETest` (5), `InteropLibraryE2ETest` (5),
+`InteropCompatibilityE2ETest` (6), `ConnectorSpiE2ETest` (5), `ForeignModuleE2ETest` (6) — each runs
+JVM golden + Script + Native x86-64 (+ JS where the library is target-neutral; the file-IO libraries
+assert the JS `IOJS001` gap), plus the negative diagnostics.
 
 ---
 
