@@ -16216,6 +16216,8 @@ silent run-vs-run divergence).
 with `Db.kf` = `db.connect("mysql://root:kofpass@127.0.0.1:13306/test")` + query
 → DB001; `--target jvm` → row.
 
+**✅ FIXED 29/09 (lane js):** the JS run path now provisions like the JVM one. `CmdRun` computes the same driver/dep jar set for `--target js` (declared `--deps` + `DbDrivers.provision` for the program's schemes) and, because the KofJS guest runs in-process and `DriverManager`'s caller-classloader check defeats a child `URLClassLoader`, it **re-execs the same JVM with the jars appended to the classpath** (marked by `-Dkof.js.driver.cp` so it never recurses; an honest stderr note when the JVM cannot re-exec, R6 — never silent). Proof RED-first: `JsRunDbDriverProvisionE2ETest` seeds a real H2 jar into the kofdeps cache and spawns the CLI child with every `h2` entry stripped from the classpath (so the bug cannot be masked): pre-fix → `DB001` rc=1, post-fix → ORM count `1` rc=0; `DbDriversTest` 9/9 unchanged.
+
 <!-- pt-switch --> **PT:** [§534 (pt_BR)](known-bugs.pt_BR.md#534--kof-run---target-js-ignora-drivers-jdbc-provisionadosdeclarados-kofjsrunner-in-process--db001-onde-o-jvm-conecta---open-dona--lane-js)
 
 
