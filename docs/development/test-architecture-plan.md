@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 169 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 168 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -80,9 +80,12 @@ cheap Phase 3 rule is: **move only uncited tests out, keep cited methods and cla
 original file, update the counts**. **First split landed (29/09):** the reusable support of
 `KofSetEqualitySupport` (the four Kof sources + the JVM/JS runners) was extracted out of
 `KofSetEqualityTest` — all 21 cases and the cited method stayed, so **zero citation drift** — with
-oversized 43→42 and baseline 170→169. The metric is a guide, not an oracle: naming candidates in
-this queue (and in `README`) itself adds citations to a class, so **re-measure `--citations` before
-choosing the next split**. That rule + ordering is the traced Phase 3 todo.
+oversized 43→42 and baseline 170→169. **Second split landed (29/09):** `KofMathSupport` extracted
+the JVM/Native/JS runners + cross-arch qemu golden + toolchain guard out of `KofMathTest` (all 29
+cases and the `conformance-matrix`/parity-cited class name stayed) → oversized 42→41, baseline
+169→168. The metric is a guide, not an oracle: naming candidates in this queue (and in `README`)
+itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
+That rule + ordering is the traced Phase 3 todo.
 **How to finish:** Phase 1/2 discovery done — then **Phase 3 modularization** (re-measure
 `--citations`; extract support and move only uncited tests, keeping cited methods and class names)
 and remaining **Phase 2 quick-win removals** interleaved (shrink the baseline: sleeps / duplication
@@ -575,8 +578,9 @@ Before any deep refactoring, the path is:
    shrink `scripts/test-hygiene-baseline.txt` and re-freeze);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; first split landed = `KofSetEqualitySupport`
-   extracted out of `KofSetEqualityTest` (21/21 kept, oversized 43→42, baseline 170→169); next
-   split picks by a fresh `--citations` measurement).
+   extracted out of `KofSetEqualityTest` (21/21 kept) and `KofMathSupport` out of `KofMathTest`
+   (29/29 kept) → oversized 43→41, baseline 170→168; next split picks by a fresh `--citations`
+   measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open

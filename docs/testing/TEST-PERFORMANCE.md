@@ -133,8 +133,10 @@ the suite) for the quick-win targets the plan names.
   methods and the class name in place, update the counts. **First split
   (29/09):** `KofSetEqualitySupport` extracted the shared sources + JVM/JS
   runners out of `KofSetEqualityTest` (all 21 cases kept, zero citation drift)
-  → oversized 43→42, baseline 170→169. Re-measure `--citations` before the next
-  pick: naming candidates in the queue itself adds citations to them.
+  → oversized 43→42, baseline 170→169; and `KofMathSupport` out of `KofMathTest`
+  (all 29 cases kept) → oversized 42→41, baseline 169→168. Re-measure
+  `--citations` before the next pick: naming candidates in the queue itself adds
+  citations to them.
 
 The audit modifies nothing; acting on a lead is a separate, scoped unit.
 
