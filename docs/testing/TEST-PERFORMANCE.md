@@ -141,8 +141,9 @@ the suite) for the quick-win targets the plan names.
   of `NullablePrimitiveContractE2ETest` (all 26 cases kept) → oversized 39→38, baseline 165;
   and `LambdaSupport` out of `LambdaE2ETest` (all 36 cases kept) → oversized 38→37, baseline 164;
   and `BiosBootSupport` out of `BiosBootE2ETest` (all 10 cases kept) → oversized 37→36, baseline
-  **163**. Re-measure `--citations` before the next pick: naming candidates in the queue itself
-  adds citations to them. (The
+  163; and `FfiStructSupport` out of `FfiStructE2ETest` (all 12 cases kept) → oversized 36→35,
+  baseline **162**. Re-measure `--citations` before the next pick: naming candidates in the queue
+  itself adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated
   `XmlReaderE2ETest`'s names, so they were prefixed `ini` — the ratchet stays honest.)

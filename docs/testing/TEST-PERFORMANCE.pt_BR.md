@@ -141,7 +141,8 @@ executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
   `NullablePrimitiveContractSupport` do `NullablePrimitiveContractE2ETest` (os 26 casos
   mantidos) → oversized 39→38, baseline 165; e `LambdaSupport` do `LambdaE2ETest` (os 36 casos
   mantidos) → oversized 38→37, baseline 164; e `BiosBootSupport` do `BiosBootE2ETest` (os 10
-  casos mantidos) → oversized 37→36, baseline **163**. Re-meça o `--citations` antes da próxima
+  casos   mantidos) → oversized 37→36, baseline 163; e `FfiStructSupport` do `FfiStructE2ETest` (os 12
+  casos mantidos) → oversized 36→35, baseline **162**. Re-meça o `--citations` antes da próxima
   escolha: nomear candidatos na própria fila adiciona citações a eles. (A terceira divisão também reparou uma regressão herdada do
   ratchet: `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` do
   `IniReaderE2ETest` duplicavam os nomes do `XmlReaderE2ETest`, então ganharam prefixo
