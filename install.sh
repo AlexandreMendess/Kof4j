@@ -9,9 +9,13 @@ KFVM_DATA="${KFVM_DATA:-$HOME/.local/share/kfvm}"
 BIN_DIR="${KFVM_BIN_DIR:-$HOME/.local/bin}"
 KOF_MIN="${KOF_MIN:-0.5.0}"
 
-say() { printf 'kfvm-install: %s\n' "$*"; }
-die() { printf 'kfvm-install: error: %s\n' "$*" >&2; exit 1; }
-require() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required"; }
+say() { printf 'kfvm: %s\n' "$*"; }
+die() {
+    printf '[ERR] kfvm: install error: %s\n' "$*" >&2
+    exit 1
+}
+
+require() { command -v "$1" > /dev/null 2>&1 || die "'$1' is required"; }
 
 detect_os() {
     case "$(uname -s)" in
@@ -20,8 +24,8 @@ detect_os() {
         *) die "unsupported OS: $(uname -s)" ;;
     esac
     case "$(uname -m)" in
-        x86_64|amd64) arch=x86_64 ;;
-        aarch64|arm64) arch=arm64 ;;
+        x86_64 | amd64) arch=x86_64 ;;
+        aarch64 | arm64) arch=arm64 ;;
         *) die "unsupported architecture: $(uname -m)" ;;
     esac
     PLATFORM="$os-$arch"
@@ -53,22 +57,22 @@ resolve_kof_tag() {
 }
 
 sha256_check() {
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum -c - >/dev/null
+    if command -v sha256sum > /dev/null 2>&1; then
+        sha256sum -c - > /dev/null
     else
-        shasum -a 256 -c - >/dev/null
+        shasum -a 256 -c - > /dev/null
     fi
 }
 
 kof_meets_min() {
     [ -x "$1" ] || return 1
-    v="$("$1" version </dev/null 2>/dev/null | head -n 1)" || return 1
+    v="$("$1" version < /dev/null 2> /dev/null | head -n 1)" || return 1
     [ -n "$v" ] || return 1
     [ "$(version_to_int "$v")" -ge "$REQUIRED" ]
 }
 
 locate_kof_bin() {
-    for k in "$(command -v kof 2>/dev/null || true)" "$KFVM_HOME/current/bin/kof" "$KFVM_HOME"/kof-*/bin/kof; do
+    for k in "$(command -v kof 2> /dev/null || true)" "$KFVM_HOME/current/bin/kof" "$KFVM_HOME"/kof-*/bin/kof; do
         if [ -n "$k" ] && kof_meets_min "$k"; then
             KOF="$k"
             return 0
@@ -119,18 +123,21 @@ get_kfvm_source() {
 
 find_kof_native_bin() {
     for name in kfvm main; do
-        f="$(find "$TMP/native" -type f -name "$name" -perm -u+x 2>/dev/null | head -n 1)"
-        [ -n "$f" ] && { printf '%s\n' "$f"; return; }
+        f="$(find "$TMP/native" -type f -name "$name" -perm -u+x 2> /dev/null | head -n 1)"
+        [ -n "$f" ] && {
+            printf '%s\n' "$f"
+            return
+        }
     done
-    find "$TMP/native" -type f -perm -u+x ! -name '*.jar' ! -name '*.class' 2>/dev/null | head -n 1
+    find "$TMP/native" -type f -perm -u+x ! -name '*.jar' ! -name '*.class' 2> /dev/null | head -n 1
 }
 
 build_native_kof_bin() {
-    "$KOF" build "$SRC/src" --target native --release --output "$TMP/native" </dev/null >/dev/null 2>&1 || return 1
+    "$KOF" build "$SRC/src" --target native --release --output "$TMP/native" < /dev/null > /dev/null 2>&1 || return 1
     [ -d "$TMP/native" ] || return 1
     f="$(find_kof_native_bin)"
     [ -n "$f" ] || return 1
-    "$f" -v </dev/null >/dev/null 2>&1 || return 1
+    "$f" -v < /dev/null > /dev/null 2>&1 || return 1
     mkdir -p "$BIN_DIR"
     cp "$f" "$BIN_DIR/kfvm.tmp"
     chmod 755 "$BIN_DIR/kfvm.tmp"
@@ -139,7 +146,7 @@ build_native_kof_bin() {
 }
 
 build_jar() {
-    "$KOF" build "$SRC/src" --release --fat --output "$TMP/jvm" </dev/null >"$TMP/build.log" 2>&1 || {
+    "$KOF" build "$SRC/src" --release --fat --output "$TMP/jvm" < /dev/null > "$TMP/build.log" 2>&1 || {
         cat "$TMP/build.log" >&2
         die "build failed"
     }
@@ -153,7 +160,7 @@ build_jar() {
 }
 
 write_wrapper() {
-    cat <<EOF
+    cat << EOF
 #!/bin/sh
 KFVM_HOME="\${KFVM_HOME:-\$HOME/.local/share/kof}"
 JAR="$KFVM_DATA/kfvm.jar"
@@ -193,12 +200,12 @@ setup_path() {
 }
 
 install_kof_launcher() {
-    command -v kof >/dev/null 2>&1 && return
+    command -v kof > /dev/null 2>&1 && return
     if [ ! -e "$KFVM_HOME/current" ]; then
         ln -sfn "$(dirname "$(dirname "$KOF")")" "$KFVM_HOME/current"
     fi
     mkdir -p "$BIN_DIR"
-    cat > "$BIN_DIR/kof.tmp" <<EOF
+    cat > "$BIN_DIR/kof.tmp" << EOF
 #!/bin/sh
 exec "\${KFVM_HOME:-$KFVM_HOME}/current/bin/kof" "\$@"
 EOF
@@ -218,7 +225,7 @@ main() {
     REQUIRED="$(version_to_int "$KOF_MIN")"
     locate_kof_bin || install_kof
     install_kof_launcher
-    say "using $KOF ($("$KOF" version </dev/null | head -n 1))"
+    say "using $KOF ($("$KOF" version < /dev/null | head -n 1))"
     say "building kfvm"
     if build_native_kof_bin; then
         say "installed native binary to $BIN_DIR/kfvm"
@@ -227,7 +234,7 @@ main() {
         say "installed $KFVM_DATA/kfvm.jar and launcher $BIN_DIR/kfvm"
     fi
     setup_path
-    "$BIN_DIR/kfvm" -v </dev/null || true
+    "$BIN_DIR/kfvm" -v < /dev/null || true
 }
 
 main "$@"
