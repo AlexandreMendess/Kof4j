@@ -317,7 +317,8 @@ final class CmdRun {
             }
             try {
                 exitCode = dev.kof.runtime.KofJsRunner.run(java.nio.file.Path.of(entry),
-                        System.out, System.in, System.err, true, programArgs);
+                        KofStdio.fromUtf8(System.out), System.in, KofStdio.fromUtf8(System.err),
+                        true, programArgs);
             } catch (IOException e) {
                 System.err.println("failed to execute: " + e.getMessage());
                 KofCliSupport.cleanup(tempDir);
@@ -369,6 +370,7 @@ final class CmdRun {
         }
         List<String> javaArgs = new ArrayList<>();
         javaArgs.add(KofCliSupport.javaExecutable());
+        javaArgs.addAll(KofStdio.inheritedJvmFlags());
         javaArgs.add("-Dkof.root=" + file.toAbsolutePath().normalize().getParent());
         javaArgs.add("-cp");
         String jvmCp = tempDir.toString();
