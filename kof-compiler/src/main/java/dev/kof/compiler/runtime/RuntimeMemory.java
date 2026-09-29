@@ -105,6 +105,17 @@ public final class RuntimeMemory {
                 movq 8(%r13), %rax
                 movq %rax, kof_free_head(%rip)
             .Lkof_alloc_found:
+                # §541: a memória devolvida da free-list é LIXO da vida anterior
+                # (o antigo mmap por alocação vinha zerado; a arena/free-list do
+                # §542 não). A JVM (oráculo) zera `new Int[n]` SEMPRE — zerar
+                # aqui p/ paridade (medido: `new Int[16].count[8]` = 6 no x86 e 0
+                # na JVM → tabela Huffman corrompida no inflate/PNG). O bloco é
+                # [header 32B][payload sizeB]; rax=0 alimenta `rep stosb`.
+                movq 0(%r13), %rcx
+                subq $32, %rcx
+                leaq 32(%r13), %rdi
+                xorl %eax, %eax
+                rep stosb
                 movb $0, 24(%r13)
                 movq %r13, %rdi                  # §542: registra início-de-bloco
                 call kof_bm_set                  #        no bitmap O(1) do GC

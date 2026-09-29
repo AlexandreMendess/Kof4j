@@ -152,10 +152,11 @@ class RasterDecodeE2ETest {
     }
 
     @Test
-    void pngOnNativeX86QuarantinedBy541() {
-        Assumptions.abort("known-bugs §541: x86-native inflate returns 0 (Huffman table corrupted "
-                + "in the inflate flow) — PNG decode quarantined on x86 until the native GC/codegen "
-                + "fix lands; JVM/riscv64/Script decode correctly");
+    void pngDecodesOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(System.getProperty("os.name").toLowerCase().contains("linux"),
+                "Native x86-64 requires the Linux assembler/linker toolchain");
+        Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("x86-png"));
+        assertEquals(PNG_GOLDEN, runNativeX86(RasterDecodeFixtures.pngProbe(dir)));
     }
 
     @Test
