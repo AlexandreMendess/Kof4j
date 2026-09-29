@@ -4268,6 +4268,16 @@ individuais:
 
 - **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-PAGINATION, D-VALUE-RECORDS-GO, D-ENTITY-HISTORY, D-MULTIPARADIGMA-GO, D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-CONNECTORS, D-KOF-FILE-GO, D-IMAGE-VISION-GO, D-BOOTSTRAP-GO, D-WASM-GO, regra 6`.
 
+## D-PAGINATION-P4-LOWERING — `orm.window` dessuga no lowerer de ORM para o helper Kof `windowPage(...)` (mantenedora 29/09/2026, "P4 via (b)")
+
+**Estado:** DECIDED (mantenedora) — destrava a P4 do plano de paginação sob `D-PAGINATION`.
+
+- **Problema:** `orm.window<T>(db, limit, offset[, true])` precisa devolver `Window<T>`, mas `Window<T>` é um `record` Kof compilado por-programa: um runtime por alvo `kof_orm_window` não consegue construí-lo (sem reflection/codegen). Uma decisão de design era necessária (AGENTS regra 6).
+- **Escolhido (b) — desugar no lowerer de ORM (library-first):** `ExpressionOrmCallLowerer` dessuga `orm.window` para o helper Kof injetado `windowPage(...)` sobre as faces já existentes `orm.page`/`orm.count`. Nenhum símbolo de runtime novo por alvo, sem mudança de superfície da linguagem, sem mudança em `Window<T>`.
+- **Semântica:** `orm.page<T>(db, limit, offset)` fornece as linhas (já paginadas em LIMIT/OFFSET SQL — `windowPage` NÃO re-fatiar); o helper fornece os metadados de `Window<T>` exatamente como a face em memória P2 (`hasPrevious = offset > 0`; `hasNext` otimista `page.size == limit` sem total, exato com ele). A forma de 4 argumentos é o total opt-in explícito: roda `orm.count<T>(db)` **só naquele ramo** (lazy), então a forma de 3 argumentos nunca emite `COUNT(*)`. Os argumentos são avaliados uma vez (temps do lowerer) e `windowBounds(limit, offset)` valida antes do SQL (erro nomeado, não erro de driver).
+- **Suporte:** segue os conjuntos de suporte de `orm.page`/`orm.count` (JVM/Android/JS + Native x86-64 + riscv64/aarch64 cross), `ORM001` honesto onde a face de base falta.
+- **Relacionamentos:** `Related: D-PAGINATION, D-KOF-FIRST, D-KOF-FIRST-IMPL, D-DB-GAPS, rule 6, rule 12`.
+
 ## D-HTTP-POLICIES — políticas HTTP/Web declarativas: global (existente), por prefixo de recurso e por endpoint, com payloads de rejeição declarativos (mantenedora 28/09/2026, "pode assumir")
 
 **Estado:** DECIDED (mantenedora) — frente promovida sob `D-FUTURE-PROMOTION` (`docs/stdlib/http-policies-plan.md`, concluída 28/09: fatias F0–F6 pousadas, `KofHttpPoliciesE2ETest` 10/10); parte da autorização `D-FUTURE-BATCH-2809`.

@@ -68,6 +68,15 @@ final class MemberCallNamespaces {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             boolean typed = !mc.typeArguments().isEmpty();
             String entityName = typed ? mc.typeArguments().get(0) : null;
+            // P4 (D-PAGINATION-P4-LOWERING): `orm.window<T>` devolve Window<T>,
+            // nao List<T> — a face e dessugada no ORM lowerer sobre
+            // orm.page/orm.count + o helper Kof window(...). Exige o host
+            // kof.pagination importado (Window existe); sem ele nao resolve.
+            if ("window".equals(mc.methodName()) && typed) {
+                Type ent = MemberResolver.resolveType(sa, mc.typeArguments().get(0), scope);
+                Type win = KofOrm.windowType(sa, ent);
+                if (win != null) return win;
+            }
             KofOrm.OrmCall ormCall = KofOrm.staticCall(mc.methodName(), argTypes, typed, entityName);
             if (ormCall != null) {
                 if ("save".equals(mc.methodName()) && !argTypes.isEmpty()) {

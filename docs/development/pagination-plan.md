@@ -433,8 +433,15 @@ Each slice is independently provable; no slice ships without a test and docs.
   (`D-PAGINATION`) keeps `offset` off the typed DSL (a grammar token is a
   frozen-surface change, rule 6). Deferred to a NEW maintainer decision; do not
   implement from this plan. The windowed DB offset is P4 below.
-- **P4 — `orm.window<T>(db, limit, offset[, total])`** on all four legs, reusing
-  `kof_orm_page`/`kof_orm_count`. Proof: JVM + Native(sqlite) + JS parity.
+- **P4 — `orm.window<T>(db, limit, offset[, true])`** on all four legs, reusing
+  `kof_orm_page`/`kof_orm_count`. **LANDED (29/09)** per
+  `D-PAGINATION-P4-LOWERING`: the ORM lowerer desugars `orm.window` into the
+  injected Kof `windowPage(...)` helper over `orm.page`/`orm.count` (library-
+  first; no per-target runtime for the `Window` record; `windowPage` does not
+  re-slice — the SQL already paginated; `windowBounds` validates before the SQL;
+  the 4-argument form's `orm.count` is lazy/opt-in). Proof: `PaginationOrmWindowE2ETest`
+  5/5 — JVM(H2) + Native x86(sqlite) + JS parity + negative named error + import
+  required.
 - **P5 — HTTP helper `pageRequest(...)`** + query-decode parity fix. Proof:
   parsing/clamping/rejection E2E.
 - **P6 — Docs/corpus** (`training/idioms/database.md`, `collections.md`,
@@ -443,15 +450,11 @@ Each slice is independently provable; no slice ships without a test and docs.
 - **Future (separate decision) — cursor/keyset** and the lazy
   `PLAN-MULTIPARADIGMA` spine.
 
-> **Decision pending (recorded 29/09 — P2 landed):** **P4** cannot be done
-> additively without a maintainer design decision. `Window<T>` is a Kof `record`
-> compiled per-program, so a per-target runtime `kof_orm_window` cannot construct
-> it (no reflection/codegen). The two additive alternatives are **(a)** make
-> `Window<T>` a core/builtin type, or **(b)** desugar `orm.window` in the ORM
-> lowerer into the existing Kof `window(...)` helper over `orm.page` (AST/IR
-> synthesis) — library-first but a compiler-architecture change. **P5**'s return
-> shape is still open at §19 Q8. Both are rule-6/design points; implementation is
-> stopped here until the maintainer decides (AGENTS "record the finding").
+> **Decision resolved (29/09 — `D-PAGINATION-P4-LOWERING`):** the maintainer
+> chose **(b)** — the ORM lowerer desugars `orm.window` into the injected Kof
+> `window(...)` helper over `orm.page`/`orm.count`, so no per-target runtime
+> constructs the `Window<T>` record. **P5**'s return shape remains open at §19
+> Q8 (the `kof.web`-owned `pageRequest`); it is the next design point after P4.
 
 ## 21. Acceptance criteria per phase
 

@@ -432,8 +432,14 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
   mudança de superfície congelada, regra 6). Adiado para uma NOVA decisão da
   mantenedora; não implementar a partir deste plano. O offset windowed no DB é a
   P4 abaixo.
-- **P4 — `orm.window<T>(db, limit, offset[, total])`** nas quatro pernas, reusando
-  `kof_orm_page`/`kof_orm_count`. Prova: paridade JVM + Native(sqlite) + JS.
+- **P4 — `orm.window<T>(db, limit, offset[, true])`** nas quatro pernas, reusando
+  `kof_orm_page`/`kof_orm_count`. **LANDED (29/09)** por
+  `D-PAGINATION-P4-LOWERING`: o lowerer de ORM dessuga `orm.window` no helper
+  Kof `windowPage(...)` injetado sobre `orm.page`/`orm.count` (library-first; sem
+  runtime por alvo para o record `Window`; `windowPage` NÃO re-fatiar — o SQL já
+  paginou; `windowBounds` valida antes do SQL; o `orm.count` da forma de 4 args é
+  lazy/opt-in). Prova: `PaginationOrmWindowE2ETest` 5/5 — paridade JVM(H2) +
+  Native x86(sqlite) + JS + erro nomeado negativo + import obrigatório.
 - **P5 — helper HTTP `pageRequest(...)`** + correção da paridade de decode de query.
   Prova: E2E de parse/clamp/rejeição.
 - **P6 — Docs/corpus** (`training/idioms/database.md`, `collections.md`,
@@ -442,16 +448,11 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
 - **Futuro (decisão separada) — cursor/keyset** e a espinha lazy do
   `PLAN-MULTIPARADIGMA`.
 
-> **Decisão pendente (registrado 29/09 — P2 landed):** **P4** não pode ser feito
-> de forma aditiva sem uma decisão de design da mantenedora. `Window<T>` é um
-> `record` Kof compilado por programa, então um `kof_orm_window` de runtime por
-> alvo não consegue construí-lo (sem reflection/codegen). As duas alternativas
-> aditivas são **(a)** tornar `Window<T>` um tipo core/builtin, ou **(b)**
-> dessugar `orm.window` no lowerer de ORM para o helper Kof `window(...)`
-> existente sobre `orm.page` (síntese de AST/IR) — library-first, mas mudança de
-> arquitetura do compilador. A forma de retorno de **P5** ainda está aberta em
-> §19 Q8. Ambos são pontos rule-6/design; a implementação para aqui até a
-> mantenedora decidir (AGENTS "record the finding").
+> **Decisão resolvida (29/09 — `D-PAGINATION-P4-LOWERING`):** a mantenedora
+> escolheu **(b)** — o lowerer de ORM dessuga `orm.window` no helper Kof
+> `window(...)` injetado sobre `orm.page`/`orm.count`, então nenhum runtime por
+> alvo constrói o record `Window<T>`. A forma de retorno de **P5** segue aberta
+> em §19 Q8 (o `pageRequest`, de `kof.web`); é o próximo ponto de design após P4.
 
 ## 21. Critérios de aceite por fase
 

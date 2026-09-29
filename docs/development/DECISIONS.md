@@ -4280,6 +4280,16 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 - **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-PAGINATION, D-VALUE-RECORDS-GO, D-ENTITY-HISTORY, D-MULTIPARADIGMA-GO, D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-CONNECTORS, D-KOF-FILE-GO, D-IMAGE-VISION-GO, D-BOOTSTRAP-GO, D-WASM-GO, rule 6`.
 
+## D-PAGINATION-P4-LOWERING — `orm.window` desugars in the ORM lowerer into the Kof `window(...)` helper (maintainer 29/09/2026, "P4 via (b)")
+
+**State:** DECIDED (maintainer) — unblocks pagination plan P4 under `D-PAGINATION`.
+
+- **Problem:** `orm.window<T>(db, limit, offset[, true])` must return `Window<T>`, but `Window<T>` is a Kof `record` compiled per-program: a per-target runtime `kof_orm_window` cannot construct it (no reflection/codegen). A design decision was required (AGENTS rule 6).
+- **Chosen (b) — ORM-lowerer desugar (library-first):** `ExpressionOrmCallLowerer` lowers `orm.window` into the existing injected Kof `window(...)` helper over the already-existing `orm.page`/`orm.count` faces. No new runtime symbol per target, no language-surface change, no change to `Window<T>`.
+- **Semantics:** `orm.page<T>(db, limit, offset)` supplies the rows; the helper supplies `Window<T>` metadata exactly as the in-memory P2 face (`hasPrevious = offset > 0`; `hasNext` optimistic `page.size == limit` without total). The 4-argument form is the explicit opt-in total: it runs `orm.count<T>(db)` **only on that branch** (lazy), so the 3-argument form never issues a `COUNT(*)`. Argument expressions are evaluated once (lowerer temps).
+- **Support:** rides the `orm.page`/`orm.count` support sets (JVM/Android/JS + Native x86-64 + riscv64/aarch64 cross), honest `ORM001` wherever the underlying face is absent.
+- **Relationships:** `Related: D-PAGINATION, D-KOF-FIRST, D-KOF-FIRST-IMPL, D-DB-GAPS, rule 6, rule 12`.
+
 ## D-HTTP-POLICIES — declarative HTTP/Web policies: global (existing), per-resource prefix and per-endpoint, with declarative rejection payloads (maintainer 28/09/2026, "pode assumir")
 
 **State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/stdlib/http-policies-plan.md`, concluded 28/09: slices F0–F6 landed, `KofHttpPoliciesE2ETest` 10/10); part of the `D-FUTURE-BATCH-2809` authorization.
