@@ -119,6 +119,21 @@ public final class JsRuntimeCollections {
                 return list.flatMap(x => kofQuantCall(fn, x));
             }
 
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct dedups by kofValEq
+            // (same rule as contains on this target); the tag arg is
+            // Native-only and ignored here.
+            export function kofListDistinct(list, tag) {
+                const out = [];
+                for (let i = 0; i < list.length; i++) {
+                    let found = false;
+                    for (let j = 0; j < out.length; j++) {
+                        if (kofValEq(out[j], list[i])) { found = true; break; }
+                    }
+                    if (!found) out.push(list[i]);
+                }
+                return out;
+            }
+
             function kofNaturalCmp(a, b) {
                 if (typeof a === "number" && typeof b === "number") {
                     return a < b ? -1 : a > b ? 1 : 0;

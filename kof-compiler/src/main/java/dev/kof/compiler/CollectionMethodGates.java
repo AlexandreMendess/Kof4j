@@ -22,8 +22,11 @@ public final class CollectionMethodGates {
             // D-MULTIPARADIGMA-PHASE1A slice 1b — find takes one lambda;
             // count with a lambda counts matches (bare count keeps size).
             // Slice 1c — forEach takes one lambda. Slice 1d — flatMap too.
+            // Slice 1e — distinct takes no arguments.
             case "kof_list_find", "kof_list_count_pred", "kof_list_foreach",
                     "kof_list_flatmap" -> 1;
+            // Slice 1e — distinct takes no arguments.
+            case "kof_list_distinct" -> 0;
             case "kof_list_sort" -> 0;
             case "kof_map_contains_value" -> 1;
             case "kof_map_put_if_absent" -> 2;

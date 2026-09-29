@@ -323,6 +323,50 @@ public final class RuntimeListQuantifiers {
                 popq %r12
                 popq %rbx
                 ret
+            # kof_list_distinct(list, tag) -> rax new List (first occurrences).
+            # Equality reuses kof_list_contains (same tag taxonomy: 0=raw,
+            # 1=String content, 2=kof_obj_equals) — no divergent comparison.
+            .globl kof_list_distinct
+            .type kof_list_distinct, @function
+            kof_list_distinct:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rdi, %r12
+                movl %esi, %r13d
+                call kof_list_new
+                movq %rax, %r14
+                xorl %r15d, %r15d
+            .Lkof_list_distinct_loop:
+                movl 16(%r12), %eax
+                cmpl %eax, %r15d
+                jge .Lkof_list_distinct_done
+                movq 24(%r12), %rax
+                movslq %r15d, %rcx
+                movq (%rax,%rcx,8), %rsi
+                movq %r14, %rdi
+                movl %r13d, %edx
+                call kof_list_contains
+                testl %eax, %eax
+                jnz .Lkof_list_distinct_next
+                movq 24(%r12), %rax
+                movslq %r15d, %rcx
+                movq (%rax,%rcx,8), %rsi
+                movq %r14, %rdi
+                call kof_list_add
+            .Lkof_list_distinct_next:
+                incl %r15d
+                jmp .Lkof_list_distinct_loop
+            .Lkof_list_distinct_done:
+                movq %r14, %rax
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
             """);
     }
 }

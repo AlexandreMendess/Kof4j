@@ -162,6 +162,19 @@ public final class JvmStringMiscRuntime {
                     return n;
                 }
 
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1e — distinct dedups by
+                // Java equals (String content, numbers by value — the same
+                // rule as kof_list_contains on the JVM); the tag is Native-only.
+
+                public static java.util.ArrayList<Object> kof_list_distinct(
+                        java.util.ArrayList<?> list, int tag) {
+                    var out = new java.util.ArrayList<Object>();
+                    for (Object o : list) {
+                        if (!out.contains(o)) out.add(o);
+                    }
+                    return out;
+                }
+
                 // ── D-MULTIPARADIGMA-PHASE1A slice 1c — forEach runs the
                 // lambda per element for effect and returns nothing.
 

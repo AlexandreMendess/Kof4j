@@ -90,6 +90,8 @@
 
 > **✅ CONCLUDED 28/09 (lane issues — owner: esta sessao, `D-SCOPED-RESOURCES-GO`): `scoped-resources` front CLOSED — slice 6 (cross riscv64/aarch64 happy+nest under qemu, `UsingDesugarE2ETest` 14/14 → 18/18) + plan moved `development/` → `docs/`.** Unblocked by the maintainer-installed qemu user-mode 11.1.1 (sysroot as/ld + loaders + `QEMU_LD_PREFIX` + `LD_LIBRARY_PATH` measured). Docs: plan conclusion + §6 rows, README queue + §4.3, future/README, roadmap 2.4.1 + queue, status, DECISIONS closure, CHANGELOG (EN+PT). Lane free for the next cheapest front. NAO TOCADO: pagination, http-policies F4+, memory-safety, test-arch, §524/§534, stage PRs.
 
+> **✅ DONE 29/09 slice 1e (lane issues — owner: esta sessao, `D-MULTIPARADIGMA-PHASE1A`): `distinct`, `ListDistinctE2ETest` 3/3 (JVM/Script/JS + Native + cross).** Equality reuses contains per target. Docs EN+PT. NAO TOCADO: rest lanes.
+
 > **✅ DONE 29/09 slice 1d (lane issues — owner: esta sessao, `D-MULTIPARADIGMA-PHASE1A`): `flatMap`, `ListFlatMapE2ETest` 3/3 (JVM/Script/JS + Native + cross).** CamelCase trap ×3 (explicit snake mapping). Docs EN+PT. NAO TOCADO: rest lanes.
 
 > **✅ DONE 29/09 slice 1c (lane issues — owner: esta sessao, `D-MULTIPARADIGMA-PHASE1A`): `forEach`, `ListForEachE2ETest` 3/3 (JVM/Script/JS + Native + cross).** CamelCase traps measured twice (kof_list_foreach + kofListForeach). Docs EN+PT. NAO TOCADO: rest lanes.

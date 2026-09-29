@@ -153,6 +153,16 @@ public final class KofInterpreterCollections {
                 int remaining = size - start;
                 yield new ArrayList<>(l.subList(start, start + (limit < remaining ? limit : remaining)));
             }
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct dedups by Java
+            // equals (same rule as contains on this target); the tag arg is
+            // Native-only and ignored here.
+            case "kof_list_distinct" -> {
+                ArrayList<Object> out = new ArrayList<>();
+                for (Object o : l) {
+                    if (!out.contains(o)) out.add(o);
+                }
+                yield out;
+            }
             // #382 — sort: ordem natural (Comparator null = mesma escolha
             // do JVM; o gate SEM097 já restringeu o domínio — o NAT001/Float
             // caiu em 21/09, §352).

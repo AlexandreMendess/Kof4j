@@ -161,6 +161,9 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             case "kof_list_foreach" -> "kofListForeach";
             // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap (native concat).
             case "kof_list_flatmap" -> "kofListFlatmap";
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct (tag ignored here;
+            // the prelude mirrors contains: kofValEq per element).
+            case "kof_list_distinct" -> "kofListDistinct";
             case "kof_list_sort" -> "kofListSort";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };

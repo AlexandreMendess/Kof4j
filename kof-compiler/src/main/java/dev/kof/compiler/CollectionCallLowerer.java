@@ -62,6 +62,8 @@ public final class CollectionCallLowerer {
             case "drop" -> "kof_list_drop";
             case "slice" -> "kof_list_slice";
             case "sort" -> "kof_list_sort";
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct (dedup copy).
+            case "distinct" -> "kof_list_distinct";
             default -> null;
         };
         // R6: método desconhecido em List não pode ser silencioso (bug Set.first)
@@ -73,7 +75,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct)",
                     "SEM025");
             return localIdx;
         }
@@ -225,6 +227,8 @@ public final class CollectionCallLowerer {
                 // subList: List do mesmo tipo de elemento.
                 case "kof_list_index_of", "kof_list_last_index_of" -> Type.PrimitiveType.INT;
                 case "kof_list_sub_list", "kof_list_take", "kof_list_drop", "kof_list_slice" -> recvType;
+                // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct returns List<E> (copy).
+                case "kof_list_distinct" -> recvType;
                 case "kof_list_remove" -> elemType;
                 default -> elemType;
             };
@@ -236,6 +240,16 @@ public final class CollectionCallLowerer {
                 // = false do JVM). Int-arg em String-list era SIGSEGV (E1).
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
                         CollectionWrites.stringTag(elemType, argTypes, 0)));
+                argTypes = new ArrayList<>(argTypes);
+                argTypes.add(Type.PrimitiveType.INT);
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct: tag derivada só do
+            // elemType (sem arg), mesma taxonomia do contains (0=raw, 1=String
+            // content, 2=object via kof_obj_equals); Unknown herda o default 1
+            // da família (listas vazias nunca comparam — tag sem uso).
+            if ("kof_list_distinct".equals(listFn)) {
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
+                        CollectionWrites.stringTag(elemType, List.of(), 0)));
                 argTypes = new ArrayList<>(argTypes);
                 argTypes.add(Type.PrimitiveType.INT);
             }

@@ -174,6 +174,15 @@ var ys = xs.flatMap((x) -> listOf(x, x * 10))   // [1, 10, 2, 20, 3, 30]
 var e = listOf().flatMap((x) -> listOf(x))      // empty in, empty out
 ```
 
+## `distinct` (D-MULTIPARADIGMA-PHASE1A slice 1e, all targets)
+
+```kof
+var xs = listOf(3, 1, 2, 1, 3)
+var d = xs.distinct()   // [3, 1, 2] — first occurrences in order
+```
+Equality is the `contains` rule per target (String content, rest like
+`contains`); empty in, empty out.
+
 ## `listOf` with related subtypes infers the common ancestor (0.5.0-beta, §285)
 
 ```kof

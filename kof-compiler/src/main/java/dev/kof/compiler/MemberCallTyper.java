@@ -230,6 +230,8 @@ public final class MemberCallTyper {
             // pagination P1 — take/drop/slice devolvem List<E> do mesmo tipo
             // (janela materializada; clamping no runtime, negativos = erro nomeado).
             if ("take".equals(mn) || "drop".equals(mn) || "slice".equals(mn)) return recvType;
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct returns List<E> (copy).
+            if ("distinct".equals(mn)) return recvType;
             // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool.
             if ("any".equals(mn) || "all".equals(mn) || "none".equals(mn))
                 return Type.PrimitiveType.BOOL;
@@ -277,7 +279,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct)",
                             "SEM025");
                 }
             }

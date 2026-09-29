@@ -312,5 +312,50 @@ public final class NativeRiscvAsmQuantifiers {
                 ld   ra, 40(sp)
                 addi sp, sp, 48
                 ret
+            # kof_list_distinct(a0=list, a1=tag) -> a0 new List.
+            # Equality reuses kof_list_contains (same tag taxonomy:
+            # 0=raw cmpq, 1=kof_string_equals, 2=kof_obj_equals).
+            .globl kof_list_distinct
+            kof_list_distinct:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                mv   s0, a0
+                mv   s1, a1
+                call kof_list_new
+                mv   s2, a0
+                li   s3, 0
+            .Lldist_loop:
+                lw   t0, 16(s0)
+                bge  s3, t0, .Lldist_done
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)
+                mv   a0, s2
+                mv   a2, s1
+                call kof_list_contains
+                bnez a0, .Lldist_next
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)
+                mv   a0, s2
+                call kof_list_add
+            .Lldist_next:
+                addi s3, s3, 1
+                j    .Lldist_loop
+            .Lldist_done:
+                mv   a0, s2
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
             """;
 }

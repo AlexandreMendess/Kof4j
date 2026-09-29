@@ -174,6 +174,15 @@ var ys = xs.flatMap((x) -> listOf(x, x * 10))   // [1, 10, 2, 20, 3, 30]
 var e = listOf().flatMap((x) -> listOf(x))      // vazio entra, vazio sai
 ```
 
+## `distinct` (D-MULTIPARADIGMA-PHASE1A fatia 1e, todos os alvos)
+
+```kof
+var xs = listOf(3, 1, 2, 1, 3)
+var d = xs.distinct()   // [3, 1, 2] — primeiras ocorrências em ordem
+```
+Igualdade é a regra do `contains` por alvo (String por conteúdo, resto como
+`contains`); vazio entra, vazio sai.
+
 ## `listOf` com subtipos relacionados infere o ancestral comum (0.5.0-beta, §285)
 
 ```kof
