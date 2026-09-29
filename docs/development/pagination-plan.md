@@ -13,10 +13,19 @@ finish; it is no longer a "plan only".
 starts now (rides `D-MULTIPARADIGMA-GO` Phase 1); keep `orm.page` alongside
 `orm.window` (no bump); `offset` only on the windowed method (not the typed DSL);
 HTTP helper `pageRequest(...)` in `kof.web`.
-**How to finish:** follow §20 order P0→P6 (each slice independently provable);
-P1 (in-memory `slice`/`take`/`drop` on `List`) is the first slice — RED-first.
-**Snapshot:** branch `beta-0.5.0`, tip `63c7b15d8` (original recon). Every
-`file:line` below was measured on that tip; re-measure before the slice lands.
+**How to finish:** follow §20 order P0→P6 (each slice independently provable).
+P1 (`slice`/`take`/`drop`) and P2 (`Window<T>` + `window(...)`) LANDED 28/09; the
+next slice is **P4** (`orm.window`, the windowed DB offset face). **P3 is OUT of
+the locked surface** — see the correction below.
+**Correction (29/09/2026):** §7.4/§10/§15/§16/§21/§22 and the former P3 planned
+an `offset` token on the typed query DSL. The maintainer's locked surface
+(`D-PAGINATION`, `DECISIONS.md` §D-PAGINATION) rules the opposite: `offset` lives
+**only on the windowed method, never the typed DSL**. A DSL token changes the
+frozen grammar (rule 6), so it is deferred to a NEW maintainer decision; the
+executable sequence is P4→P5→P6. The DSL-offset mentions below are historical
+design notes, not scope.
+**Snapshot:** original recon on tip `63c7b15d8`; re-measure every `file:line`
+before a slice lands. Active branch = `lab` (`D-BRANCH-PIPELINE`).
 
 ---
 
@@ -417,9 +426,11 @@ Each slice is independently provable; no slice ships without a test and docs.
   and `window(l,2,1)` emitting `List<T>`/`Window<T>` on Native, which boxed a raw
   `int` in `println` and SIGSEGV'd via `kof_box_to_string`). Proof:
   `PaginationWindowE2ETest` 7/7 (JVM/JS/Script/native x86-64 + cross
-  riscv64/aarch64, 0 skips) + neighbors 150/150. P3/P4 next (not started).
-- **P3 — DB offset pushdown in the typed DSL.** parser + AST + SQL builder. Proof:
-  row-correctness + SQL assertion; `ORM00x` diagnostic for unordered window.
+  riscv64/aarch64, 0 skips) + neighbors 150/150. P4 next (not started).
+- **P3 — DB offset in the typed DSL: OUT OF SCOPE.** The locked surface
+  (`D-PAGINATION`) keeps `offset` off the typed DSL (a grammar token is a
+  frozen-surface change, rule 6). Deferred to a NEW maintainer decision; do not
+  implement from this plan. The windowed DB offset is P4 below.
 - **P4 — `orm.window<T>(db, limit, offset[, total])`** on all four legs, reusing
   `kof_orm_page`/`kof_orm_count`. Proof: JVM + Native(sqlite) + JS parity.
 - **P5 — HTTP helper `pageRequest(...)`** + query-decode parity fix. Proof:
@@ -463,9 +474,10 @@ Each slice is independently provable; no slice ships without a test and docs.
    - HTTP: `KofWeb.java`, `jvm/JvmRuntimeWebDispatch.java`, `jvm/JvmWebCoreRuntime.java`,
      `js/JsRuntimeUiWeb.java`.
    - JSON (Native): `nat/NativeJsonSchema.java`, `ExpressionJsonCallLowerer.java`.
-3. **New contracts:** `Window<T>` (value + metadata semantics), the `offset` DSL
-   token, `orm.window<T>(db, limit, offset[, total])`, `kof.web.pageRequest(...)`.
-   All require `D-PAGINATION`.
+3. **New contracts:** `Window<T>` (value + metadata semantics),
+   `orm.window<T>(db, limit, offset[, total])`, `kof.web.pageRequest(...)`. (The
+   `offset` DSL token shown in the design sections is NOT in the locked surface —
+   see the correction in the header.) All require `D-PAGINATION`.
 4. **Implement first:** P1 (in-memory `slice/take/drop`, no new type) — smallest,
    rides `PLAN-MULTIPARADIGMA` Phase 1, immediately useful.
 5. **Explicitly future:** cursor/keyset pagination; the lazy `Sequence<T>` spine

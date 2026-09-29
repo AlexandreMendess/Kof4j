@@ -14,10 +14,18 @@ in-memory começa agora (monta na fase 1 do `D-MULTIPARADIGMA-GO`); manter
 `orm.page` ao lado de `orm.window` (sem bump); `offset` só no método windowed
 (não no DSL tipado); helper HTTP `pageRequest(...)` em `kof.web`.
 **Como terminar:** seguir a ordem §20 P0→P6 (cada fatia provável de forma
-independente); P1 (`slice`/`take`/`drop` in-memory em `List`) é a primeira fatia —
-RED-first.
-**Snapshot:** branch `beta-0.5.0`, tip `63c7b15d8` (recon original). Todo
-`file:line` abaixo foi medido nesse tip; remeça antes da fatia pousar.
+independente). P1 (`slice`/`take`/`drop`) e P2 (`Window<T>` + `window(...)`)
+POUSARAM 28/09; a próxima fatia é a **P4** (`orm.window`, a face windowed com
+offset no DB). **P3 está FORA da superfície travada** — ver a correção abaixo.
+**Correção (29/09/2026):** §7.4/§10/§15/§16/§21/§22 e a antiga P3 planejavam um
+token `offset` na DSL tipada. A superfície travada pela mantenedora
+(`D-PAGINATION`, `DECISIONS.md` §D-PAGINATION) diz o oposto: `offset` vive **só
+no método windowed, nunca na DSL tipada**. Um token na DSL muda a gramática
+congelada (regra 6), então fica adiado para uma NOVA decisão da mantenedora; a
+sequência executável é P4→P5→P6. As menções a DSL-offset abaixo são notas
+históricas de projeto, não escopo.
+**Snapshot:** recon original no tip `63c7b15d8`; remeça todo `file:line` antes de
+uma fatia pousar. Branch ativa = `lab` (`D-BRANCH-PIPELINE`).
 
 ---
 
@@ -415,10 +423,13 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
   em `MethodCallTyper#tloFns` — corrige `Box<Int>.items()` e `window(l,2,1)` emitindo
   `List<T>`/`Window<T>` no Native, que boxeava um `int` cru no `println` e dava
   SIGSEGV via `kof_box_to_string`). Prova: `PaginationWindowE2ETest` 7/7 (JVM/JS/Script/
-  nativo x86-64 + cross riscv64/aarch64, 0 skips) + vizinhos 150/150. P3/P4
-  próximos (não iniciados).
-- **P3 — pushdown de offset na DSL tipada.** parser + AST + gerador SQL. Prova:
-  corretude de linhas + assert do SQL; diagnóstico `ORM00x` para janela sem ordem.
+  nativo x86-64 + cross riscv64/aarch64, 0 skips) + vizinhos 150/150. P4
+  próxima (não iniciada).
+- **P3 — offset no DB pela DSL tipada: FORA DE ESCOPO.** A superfície travada
+  (`D-PAGINATION`) mantém `offset` fora da DSL tipada (um token de gramática é
+  mudança de superfície congelada, regra 6). Adiado para uma NOVA decisão da
+  mantenedora; não implementar a partir deste plano. O offset windowed no DB é a
+  P4 abaixo.
 - **P4 — `orm.window<T>(db, limit, offset[, total])`** nas quatro pernas, reusando
   `kof_orm_page`/`kof_orm_count`. Prova: paridade JVM + Native(sqlite) + JS.
 - **P5 — helper HTTP `pageRequest(...)`** + correção da paridade de decode de query.
@@ -462,9 +473,10 @@ Cada fatia é provável de forma independente; nenhuma pousa sem teste e docs.
    - HTTP: `KofWeb.java`, `jvm/JvmRuntimeWebDispatch.java`, `jvm/JvmWebCoreRuntime.java`,
      `js/JsRuntimeUiWeb.java`.
    - JSON (Native): `nat/NativeJsonSchema.java`, `ExpressionJsonCallLowerer.java`.
-3. **Contratos novos:** `Window<T>` (valor + semântica de metadados), o token
-   `offset` da DSL, `orm.window<T>(db, limit, offset[, total])`,
-   `kof.web.pageRequest(...)`. Todos exigem `D-PAGINATION`.
+3. **Contratos novos:** `Window<T>` (valor + semântica de metadados),
+   `orm.window<T>(db, limit, offset[, total])`, `kof.web.pageRequest(...)`. (O
+   token `offset` da DSL mostrado nas seções de projeto NÃO está na superfície
+   travada — ver a correção no cabeçalho.) Todos exigem `D-PAGINATION`.
 4. **Implementar primeiro:** P1 (em memória `slice/take/drop`, sem tipo novo) —
    a menor, pega carona na Fase 1 do `PLAN-MULTIPARADIGMA`, útil imediatamente.
 5. **Explicitamente futuro:** paginação cursor/keyset; a espinha lazy
