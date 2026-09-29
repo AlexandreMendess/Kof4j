@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 164 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 163 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -94,8 +94,10 @@ do `KofMediaE2ETest` (os 17 casos e o nome de classe citado ficaram) → oversiz
 JVM/SCRIPT/JS + o oráculo de alvo do `NullablePrimitiveContractE2ETest` (os 26 casos e o nome de
 classe citado ficaram) → oversized 39→38, baseline 166→165. **Sexta divisão landada (29/09):**
 `LambdaSupport` extraiu os runners JVM/Native/SCRIPT/JS do `LambdaE2ETest` (os 36 casos e o nome de
-classe citado ficaram) → oversized 38→37, baseline 165→164. A métrica é guia, não oráculo: nomear
-candidatos nesta fila (e no `README`) já
+classe citado ficaram) → oversized 38→37, baseline 165→164. **Sétima divisão landada (29/09):**
+`BiosBootSupport` extraiu os helpers de qemu/serial/build do `BiosBootE2ETest` (os 10 casos e o
+nome de classe citado ficaram) → oversized 37→36, baseline 164→163. A métrica é guia, não oráculo:
+nomear candidatos nesta fila (e no `README`) já
 adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher a próxima
 divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
 **Como terminar:** Fase 1/2 descoberta feita — depois **modularização da Fase 3** (re-medir
@@ -594,9 +596,9 @@ Antes de qualquer refatoração profunda, o caminho é:
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
    `ArrayBoundsStressSupport` do `ArrayBoundsStressTest` (15/15 mantidos), `KofMediaSupport` do
    `KofMediaE2ETest` (17/17 mantidos), `NullablePrimitiveContractSupport` do
-   `NullablePrimitiveContractE2ETest` (26/26 mantidos) e `LambdaSupport` do `LambdaE2ETest`
-   (36/36 mantidos) → oversized 43→37, baseline 170→164; a próxima divisão escolhe por um
-   `--citations` fresco).
+   `NullablePrimitiveContractE2ETest` (26/26 mantidos), `LambdaSupport` do `LambdaE2ETest`
+   (36/36 mantidos) e `BiosBootSupport` do `BiosBootE2ETest` (10/10 mantidos) → oversized 43→36,
+   baseline 170→163; a próxima divisão escolhe por um `--citations` fresco).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta

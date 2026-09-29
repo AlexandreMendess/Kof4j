@@ -139,8 +139,9 @@ the suite) for the quick-win targets the plan names.
   168→167; and `KofMediaSupport` out of `KofMediaE2ETest` (all 17 cases kept, the WAV/MP4
   byte builders) → oversized 40→39, baseline 166; and `NullablePrimitiveContractSupport` out
   of `NullablePrimitiveContractE2ETest` (all 26 cases kept) → oversized 39→38, baseline 165;
-  and `LambdaSupport` out of `LambdaE2ETest` (all 36 cases kept) → oversized 38→37, baseline
-  **164**. Re-measure `--citations` before the next pick: naming candidates in the queue itself
+  and `LambdaSupport` out of `LambdaE2ETest` (all 36 cases kept) → oversized 38→37, baseline 164;
+  and `BiosBootSupport` out of `BiosBootE2ETest` (all 10 cases kept) → oversized 37→36, baseline
+  **163**. Re-measure `--citations` before the next pick: naming candidates in the queue itself
   adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated

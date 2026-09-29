@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 164 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 163 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -93,7 +93,9 @@ and the cited class name stayed) → oversized 40→39, baseline 167→166. **Fi
 out of `NullablePrimitiveContractE2ETest` (all 26 cases and the cited class name stayed) →
 oversized 39→38, baseline 166→165. **Sixth split landed (29/09):** `LambdaSupport` extracted the
 JVM/Native/SCRIPT/JS runners out of `LambdaE2ETest` (all 36 cases and the cited class name
-stayed) → oversized 38→37, baseline 165→164. The metric is a
+stayed) → oversized 38→37, baseline 165→164. **Seventh split landed (29/09):** `BiosBootSupport`
+extracted the qemu/serial/build helpers out of `BiosBootE2ETest` (all 10 cases and the cited class
+name stayed) → oversized 37→36, baseline 164→163. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -592,9 +594,9 @@ Before any deep refactoring, the path is:
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
    `ArrayBoundsStressSupport` out of `ArrayBoundsStressTest` (15/15 kept), `KofMediaSupport`
    out of `KofMediaE2ETest` (17/17 kept), `NullablePrimitiveContractSupport` out of
-   `NullablePrimitiveContractE2ETest` (26/26 kept) and `LambdaSupport` out of `LambdaE2ETest`
-   (36/36 kept) → oversized 43→37, baseline 170→164; next split picks by a fresh `--citations`
-   measurement).
+   `NullablePrimitiveContractE2ETest` (26/26 kept), `LambdaSupport` out of `LambdaE2ETest`
+   (36/36 kept) and `BiosBootSupport` out of `BiosBootE2ETest` (10/10 kept) → oversized 43→36,
+   baseline 170→163; next split picks by a fresh `--citations` measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
