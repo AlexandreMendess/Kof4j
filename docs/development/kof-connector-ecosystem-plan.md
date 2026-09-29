@@ -2,14 +2,14 @@
 
 # Kof Interoperability — Connector Ecosystem
 
-**Status:** Future plan — design only, **zero code**
-**Location:** `docs/development/future/`
+**Status:** UNDER DEVELOPMENT — promoted `future/` → `docs/development/` by `D-CONNECTORS-GO` (maintainer 29/09/2026)
+**Location:** `docs/development/kof-connector-ecosystem-plan.md`
 **Nature:** architecture, contracts, dependencies, implementation strategy, promotion criteria
-**Normative source:** pending `DECISIONS.md` §`D-CONNECTORS` (rule 6 — the maintainer decides)
+**Normative source:** `DECISIONS.md` §`D-CONNECTORS-GO` (DECIDED — promotion authorized)
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, the Native backends, `kof.toml`/`kofdeps`
-**Implementation status:** not started
+**Implementation status:** fatia 1 = connector manifest reader (pure-Kof `libs/interop/`) — see §9
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation
@@ -524,6 +524,24 @@ The order may change after technical analysis; phase 1 is the prerequisite of al
 
 ---
 
+
+## 9.1 Promoted slice 1 (29/09/2026) — connector manifest reader
+
+**State:** defined; implementation = pure-Kof library `libs/interop/` over the existing
+`kof.toml` format (never a new format, §4.2), consumed by `ConnectorManifest(path)`:
+
+- `name()` / `language()` / `version()` / `abi()` / `runtime()` → `String` (a required field absent
+  throws an explicit `CONNECTOR: missing <field>` — R6, never silent);
+- `platforms()` / `dependencies()` / `capabilities()` → `List<String>` (empty when absent);
+- `hasCapability(String)` → `Bool`; `describe()` → one-line summary.
+
+**How to finish:** land the library + a cross-target E2E (`ConnectorManifestE2ETest`) proving the
+read + the missing-field diagnostic on JVM/Native x86-64/riscv64(qemu)/Script (JS inherits the
+`TOML`/`IOJS001` file gap). **No compiler change** (library-first, `D-KOF-FIRST-IMPL`). This is the
+declarative seam every connector shares; the Interop Core (Phase 1) and the C-ABI connector
+(Phase 2) build on it.
+
+---
 # 10. Testing
 
 Each connector must have tests at multiple levels:
@@ -612,7 +630,7 @@ front opens:
 * Whether/when a `foreign module` declaration enters the grammar.
 * ABI stability tiers and the first stable ABI version.
 * Which connector is the official second case after Java.
-* Promotion roadmap: `future/` → `docs/development/` when the first connector slice lands
+* Promotion roadmap: `future/` → `docs/development/` **DONE 29/09/2026** (`D-CONNECTORS-GO`, maintainer) — fatia 1 (connector manifest reader) is the first slice (§9.1)
   (three-states rule + R12 unless overridden by the maintainer).
 
 ---

@@ -1,0 +1,98 @@
+package interop
+
+import file.Toml
+
+// kof.interop — connector manifest reader (fatia 1 of the Kof Connector
+// Ecosystem plan, `D-CONNECTORS-GO`, promoted 29/09/2026).
+//
+// A connector declares itself with a declarative manifest in the EXISTING
+// `kof.toml` format (plan §4.2 — never a new format invented here). This
+// library reads that manifest and exposes it typed; it is the declarative seam
+// every connector shares, and the base the Interop Core (Phase 1) and the C-ABI
+// connector (Phase 2) build on.
+//
+//   var m = ConnectorManifest("kof-connector.toml")
+//   m.name()        // "kof-java"        (required; missing → throws)
+//   m.language()    // "java"
+//   m.version()     // "0.5.0"
+//   m.abi()         // "jni"
+//   m.runtime()     // "jvm"
+//   m.platforms()   // List<String>  (empty when absent)
+//   m.hasCapability("callbacks")
+//   m.describe()
+//
+// Honest by construction (R6): a missing REQUIRED field throws an explicit
+// `CONNECTOR: missing <field>`, never a silent default. Optional list fields
+// return an empty `List<String>`. Built on `libs/file/Toml.kf`; JS inherits the
+// compile-time gap `IOJS001`.
+
+class ConnectorManifest {
+    Toml toml
+
+    constructor(String path) {
+        this.toml = Toml(path)
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.toml = Toml(path, chunkSize)
+    }
+
+    String name() {
+        return required("name")
+    }
+
+    String language() {
+        return required("language")
+    }
+
+    String version() {
+        return required("version")
+    }
+
+    String abi() {
+        return required("abi")
+    }
+
+    String runtime() {
+        return required("runtime")
+    }
+
+    List<String> platforms() {
+        return optionalList("platforms")
+    }
+
+    List<String> dependencies() {
+        return optionalList("dependencies")
+    }
+
+    List<String> capabilities() {
+        return optionalList("capabilities")
+    }
+
+    Bool hasCapability(String capability) {
+        return capabilities().contains(capability)
+    }
+
+    String describe() {
+        return name() + " " + version() + " (" + language() + ", abi " + abi() + ", runtime " + runtime() + ")"
+    }
+
+    // A required scalar field. Absent → explicit diagnostic, never a default.
+    String required(String key) {
+        var value = this.toml.getString(key)
+        if (value == null) {
+            throw "CONNECTOR: missing " + key
+        }
+        return value
+    }
+
+    // An optional list field. Absent → empty list (not null).
+    List<String> optionalList(String key) {
+        var value = this.toml.getArray(key)
+        if (value == null) {
+            var empty: List<String> = listOf()
+            return empty
+        }
+        return value
+    }
+}

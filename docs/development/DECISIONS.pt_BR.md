@@ -4438,7 +4438,7 @@ individuais:
 
 ## D-CONNECTORS-GO — o plano do Ecossistema de Connectors Kof é promovido ao trabalho corrente (mantenedora 29/09/2026, múltipla escolha "connectors" + `D-FUTURE-PROMOTION`)
 
-**Estado:** DECIDIDO (mantenedora) — `docs/development/future/kof-connector-ecosystem-plan.md` move-se para `docs/development/` com estado EM DESENVOLVIMENTO; uma frente por vez.
+**Estado:** DECIDIDO (mantenedora) — `docs/development/kof-connector-ecosystem-plan.md` move-se para `docs/development/` com estado EM DESENVOLVIMENTO; uma frente por vez.
 
 - **Escopo:** Interop Core + SPI/manifest de Connectors + catálogo, construindo sobre o substrato FFI/ABI existente (sem duplicá-lo, regra 54); controle de escopo regra 55 (provar com poucos connectors primeiro — Java primeiro, sem cascata de 30 runtimes); camadas official-packages (R1) e interop-first (R9) valem.
 - **Relações:** `Related: D-FUTURE-PROMOTION, D-FUTURE-BATCH-2809B, regra 6, regra 54, regra 55, R1, R9`.

@@ -2,14 +2,14 @@
 
 # Interoperabilidade Kof — Ecossistema de Connectors
 
-**Status:** Plano futuro — só design, **zero código**
-**Local:** `docs/development/future/`
+**Status:** EM DESENVOLVIMENTO — promovido `future/` → `docs/development/` por `D-CONNECTORS-GO` (mantenedora 29/09/2026)
+**Local:** `docs/development/kof-connector-ecosystem-plan.md`
 **Natureza:** arquitetura, contratos, dependências, estratégia de implementação, critérios de promoção
-**Fonte normativa:** `DECISIONS.md` §`D-CONNECTORS` pendente (regra 6 — a mantenedora decide)
+**Fonte normativa:** `DECISIONS.md` §`D-CONNECTORS-GO` (DECIDIDO — promoção autorizada)
 **Dependências principais:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), o caminho de interop JVM
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, os backends Native, `kof.toml`/`kofdeps`
-**Estado de implementação:** não iniciado
+**Estado de implementação:** fatia 1 = leitor de manifest de connector (pure-Kof `libs/interop/`) — ver §9
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de
@@ -529,6 +529,24 @@ A ordem pode mudar após análise técnica; a fase 1 é pré-requisito de todas 
 
 ---
 
+
+## 9.1 Fatia promovida 1 (29/09/2026) — leitor de manifest de connector
+
+**Estado:** definida; implementação = biblioteca pure-Kof `libs/interop/` sobre o formato
+`kof.toml` existente (nunca um formato novo, §4.2), consumida por `ConnectorManifest(path)`:
+
+- `name()` / `language()` / `version()` / `abi()` / `runtime()` → `String` (campo obrigatório
+  ausente lança um `CONNECTOR: missing <field>` explícito — R6, nunca silencioso);
+- `platforms()` / `dependencies()` / `capabilities()` → `List<String>` (vazio quando ausente);
+- `hasCapability(String)` → `Bool`; `describe()` → resumo de uma linha.
+
+**Como terminar:** pousar a biblioteca + um E2E cross-target (`ConnectorManifestE2ETest`) provando a
+leitura + o diagnóstico de campo ausente na JVM/Native x86-64/riscv64(qemu)/Script (JS herda a
+lacuna `TOML`/`IOJS001`). **Sem mudança no compilador** (library-first, `D-KOF-FIRST-IMPL`). É a
+costura declarativa que todo connector compartilha; o Interop Core (Fase 1) e o connector C-ABI
+(Fase 2) se apoiam nela.
+
+---
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:
@@ -618,7 +636,7 @@ frente abrir:
 * Se/quando uma declaração `foreign module` entra na gramática.
 * Tiers de estabilidade de ABI e a primeira versão estável de ABI.
 * Qual connector é o segundo caso oficial depois do Java.
-* Roteiro de promoção: `future/` → `docs/development/` quando a primeira fatia de connector
+* Roteiro de promoção: `future/` → `docs/development/` **FEITO 29/09/2026** (`D-CONNECTORS-GO`, mantenedora) — a fatia 1 (leitor de manifest) é a primeira fatia (§9.1); (linha original: quando a primeira fatia de connector
   landar (regra dos três estados + R12, salvo sobreposição da mantenedora).
 
 ---
