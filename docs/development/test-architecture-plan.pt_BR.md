@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 160 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 159 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -105,7 +105,10 @@ herdado) do `ShellE2ETest` (os 21 casos e o nome de classe citado ficaram) → o
 baseline 162→161. **Décima divisão landada (29/09):** `KofStringsSupport` extraiu os runners
 JVM/Native/JS/qemu, o guard de toolchain e os dois maiores programas Kof inline (como constantes
 `ALL_JVM`/`ALL_NATIVE`) do `KofStringsTest` (os 18 casos e o nome de classe citado ficaram) →
-oversized 34→33, baseline 161→160. A métrica é guia, não oráculo:
+oversized 34→33, baseline 161→160. **Décima primeira divisão landada (29/09):**
+`KofSwitchExprSupport` extraiu os runners JVM/Native/JS e hoisted os 32 programas Kof inline do
+`KofSwitchExprE2ETest` para constantes nomeadas (os 32 casos e o nome de classe citado ficaram) →
+oversized 33→32, baseline 160→159. A métrica é guia, não oráculo:
 nomear candidatos nesta fila (e no `README`) já
 adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher a próxima
 divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
@@ -608,8 +611,9 @@ Antes de qualquer refatoração profunda, o caminho é:
    `NullablePrimitiveContractE2ETest` (26/26 mantidos), `LambdaSupport` do `LambdaE2ETest`
    (36/36 mantidos), `BiosBootSupport` do `BiosBootE2ETest` (10/10 mantidos) e `FfiStructSupport`
    do `FfiStructE2ETest` (12/12 mantidos), `ShellSupport` do `ShellE2ETest` (21/21 mantidos) e
-   `KofStringsSupport` do `KofStringsTest` (18/18 mantidos) → oversized 43→33, baseline 170→160;
-   a próxima divisão escolhe por um `--citations` fresco).
+   `KofStringsSupport` do `KofStringsTest` (18/18 mantidos) e `KofSwitchExprSupport` do
+   `KofSwitchExprE2ETest` (32/32 mantidos) → oversized 43→32, baseline 170→159; a próxima
+   divisão escolhe por um `--citations` fresco).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
