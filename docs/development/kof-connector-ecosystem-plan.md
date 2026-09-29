@@ -721,6 +721,19 @@ No compiler change.
 
 ---
 
+
+## 9.14 Promoted slice 14 (29/09/2026) — manifest stability tier, validated by the Core
+
+**State:** landed. `ConnectorManifest.stability()` reads the optional `stability` field (§3.9) and
+`validate()` checks it against the Core tier vocabulary (`InteropCompatibility.isKnownTier`) — an
+unknown tier throws `CONNECTOR: unknown stability <x>` (R6). This connects the manifest to the
+compatibility mechanism; the policy of WHICH tier an interface gets stays a rule-6 decision (§13).
+
+**Proof:** `ConnectorManifestE2ETest` **10/10** (JVM golden + Script + Native x86-64 + the JS
+`IOJS001` gap + the negatives, incl. the new unknown-stability). No compiler change.
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:

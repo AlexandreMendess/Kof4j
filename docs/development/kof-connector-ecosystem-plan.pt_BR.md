@@ -728,6 +728,19 @@ Sem mudança no compilador.
 
 ---
 
+
+## 9.14 Fatia promovida 14 (29/09/2026) — tier de estabilidade no manifest, validado pelo Core
+
+**Estado:** landada. `ConnectorManifest.stability()` lê o campo opcional `stability` (§3.9) e o
+`validate()` o checa contra o vocabulário de tiers do Core (`InteropCompatibility.isKnownTier`) — tier
+desconhecido lança `CONNECTOR: unknown stability <x>` (R6). Liga o manifesto ao mecanismo de
+compatibilidade; a política de QUAL tier cada interface recebe segue rule-6 (§13).
+
+**Prova:** `ConnectorManifestE2ETest` **10/10** (golden JVM + Script + Native x86-64 + a lacuna JS
+`IOJS001` + os negativos, incl. o novo unknown-stability). Sem mudança no compilador.
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:

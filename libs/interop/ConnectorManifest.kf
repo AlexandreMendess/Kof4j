@@ -4,6 +4,7 @@ import file.Toml
 import interop.InteropType
 import interop.InteropOwnership
 import interop.ConnectorSpi
+import interop.InteropCompatibility
 
 // kof.interop — connector manifest reader (fatia 1 of the Kof Connector
 // Ecosystem plan, `D-CONNECTORS-GO`, promoted 29/09/2026).
@@ -88,6 +89,13 @@ class ConnectorManifest {
         return optionalList("spi")
     }
 
+    // The connector's stability tier (plan §3.9), validated against the Core's
+    // tier vocabulary (`InteropCompatibility`). Optional (null when absent); the
+    // policy of WHICH tier an interface gets stays a rule-6 decision.
+    String? stability() {
+        return this.toml.getString("stability")
+    }
+
     Bool hasCapability(String capability) {
         return capabilities().contains(capability)
     }
@@ -152,6 +160,12 @@ class ConnectorManifest {
                 throw "CONNECTOR: unknown SPI hook " + h
             }
             m = m + 1
+        }
+        // A declared stability tier must belong to the Core's tiers (§3.9) —
+        // validated through `InteropCompatibility`, never accepted blindly.
+        var tier = stability()
+        if (tier != null && !InteropCompatibility().isKnownTier(tier)) {
+            throw "CONNECTOR: unknown stability " + tier
         }
     }
 

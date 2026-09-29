@@ -43,7 +43,8 @@ class ConnectorManifestE2ETest {
             + "capabilities = [\"callbacks\", \"threads\"]\n"
             + "ownership = [\"borrowed\", \"immutable\"]\n"
             + "types = [\"integer\", \"string\", \"array\"]\n"
-            + "spi = [\"marshalling\", \"symbol-resolution\"]\n";
+            + "spi = [\"marshalling\", \"symbol-resolution\"]\n"
+            + "stability = \"experimental\"\n";
 
     private static final String GOLDEN = String.join("\n",
             "name=kof-java",
@@ -58,6 +59,7 @@ class ConnectorManifestE2ETest {
             "owners=2",
             "types=3",
             "spi=2",
+            "stability=experimental",
             "callbacks=true",
             "gc=false",
             "valid=ok");
@@ -170,6 +172,14 @@ class ConnectorManifestE2ETest {
         assertEquals("CONNECTOR: unknown SPI hook telepathy", runJvm(validateProbe(src)));
     }
 
+    @Test
+    void unknownStabilityIsAnExplicitDiagnostic() throws Exception {
+        Path src = tmp.resolve("bad-stability.toml");
+        Files.writeString(src, "name = \"x\"\nlanguage = \"x\"\nversion = \"1\"\nabi = \"c\"\n"
+                + "runtime = \"x\"\nstability = \"widget\"\n");
+        assertEquals("CONNECTOR: unknown stability widget", runJvm(validateProbe(src)));
+    }
+
     private static String validateProbe(Path src) {
         return """
             import interop.ConnectorManifest
@@ -240,6 +250,7 @@ class ConnectorManifestE2ETest {
                 println("owners=" + m.ownership().size())
                 println("types=" + m.supportedTypes().size())
                 println("spi=" + m.spi().size())
+                println("stability=" + m.stability())
                 println("callbacks=" + flag(m.hasCapability("callbacks")))
                 println("gc=" + flag(m.hasCapability("gc")))
                 m.validate()
