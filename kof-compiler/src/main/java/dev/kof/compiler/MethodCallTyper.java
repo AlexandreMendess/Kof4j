@@ -46,7 +46,7 @@ if (driver.semanticAnalyzer != null) {
             && !CompilerTypes.containsLambdaFunctionType(semantic)) {
         if (mc.receiver() != null) {
             Type recvT = ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
-            Type subst = CompilerTypes.substituteTypeVariableIn(semantic, recvT, driver.currentUnit);
+            Type subst = TypeSubstitution.substituteTypeVariableIn(semantic, recvT, driver.currentUnit);
             // Se a substituicao pelo receiver NAO resolveu (o `semantic` ainda e
             // um type-variable de OUTRO escopo — ex.: `Box<Int>.items().get(0)`
             // grava `T` do Box, nao de List) mas o receiver JA e a colecao
@@ -61,7 +61,7 @@ if (driver.semanticAnalyzer != null) {
             if (subst != null) return subst;
             return semantic;
         }
-        if (!CompilerTypes.containsTypeVariable(semantic)) {
+        if (!TypeSubstitution.containsTypeVariable(semantic)) {
             return semantic;
         }
         // receiver == null e o retorno do semantic ainda carrega type-var
@@ -498,10 +498,10 @@ if (mc.receiver() != null) {
                     Type formal = CompilerTypes.resolveWithTypeParams(fn.parameters().get(pi).type(),
                             fn.typeParameters(), driver.currentUnit, driver.semanticAnalyzer);
                     Type actual = ExpressionTyper.inferExprType(driver, mc.arguments().get(pi), locals);
-                    CompilerTypes.bindTypeVars(formal, actual, fn.typeParameters(), bind);
+                    TypeSubstitution.bindTypeVars(formal, actual, fn.typeParameters(), bind);
                 }
                 if (!bind.isEmpty()) {
-                    Type rewritten = CompilerTypes.substituteTypeVars(returnType, bind::get);
+                    Type rewritten = TypeSubstitution.substituteTypeVars(returnType, bind::get);
                     if (rewritten != null && !(rewritten instanceof Type.UnknownType)) {
                         return rewritten;
                     }
@@ -528,7 +528,7 @@ if (resolvedMethod != null) {
         // devolve `List<T>` — mesmo com receiver concreto `Box<int>` o retorno
         // saia `List<T>` (sem substituir o type-var ANINHADO) e `w.items().get(0)`
         // virava `T` no print -> box de int cru -> SIGSEGV no Native (§D-PAGINATION).
-        Type subst = CompilerTypes.substituteTypeVariableIn(rt, recvT, driver.currentUnit);
+        Type subst = TypeSubstitution.substituteTypeVariableIn(rt, recvT, driver.currentUnit);
         if (subst != null) return subst;
     }
     return rt;
@@ -549,7 +549,7 @@ if (mc.receiver() != null) {
             Type rt = ms.returnType();
             // Substitucao recursiva (type-var aninhado) — `items(): List<T>`
             // com receiver `Window<int>` -> `List<int>`.
-            Type subst = CompilerTypes.substituteTypeVariableIn(rt, recvT, driver.currentUnit);
+            Type subst = TypeSubstitution.substituteTypeVariableIn(rt, recvT, driver.currentUnit);
             return subst != null ? subst : rt;
         }
     }
