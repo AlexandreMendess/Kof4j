@@ -10,6 +10,7 @@ dupname	assertBoth
 dupname	assertCompiles
 dupname	assertGap
 dupname	assertJvmJsParity
+dupname	assertManagedTargets
 dupname	assertParity
 dupname	assertRejected
 dupname	assertRuns
@@ -88,6 +89,7 @@ dupname	riscv64MatchesEveryGolden
 dupname	run
 dupname	runAll3
 dupname	runBoth
+dupname	runCross
 dupname	runEchoPathResolutionAndArgs
 dupname	runJavac
 dupname	runJs
@@ -170,9 +172,7 @@ sleep	kof-cli/src/test/java/dev/kof/cli/ServePortTest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/BiosBootE2ETest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/KofDbE2ETest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/KofJsBrowserE2ETest.java
-sleep	kof-compiler/src/test/java/dev/kof/compiler/KofLogE2ETest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/KofTimeE2ETest.java
-sleep	kof-compiler/src/test/java/dev/kof/compiler/KofWebTlsTest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/OvmfSerialWait.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/OvmfSerialWaitTest.java
 sleep	kof-compiler/src/test/java/dev/kof/compiler/TestServerFixture.java

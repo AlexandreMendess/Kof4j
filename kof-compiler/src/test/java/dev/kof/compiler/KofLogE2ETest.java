@@ -128,7 +128,7 @@ class KofLogE2ETest {
         ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
         pb.redirectErrorStream(true);
         Process server = pb.start();
-        StringBuilder serverOut = new StringBuilder();
+        StringBuffer serverOut = new StringBuffer();
         Thread drain = new Thread(() -> {
             try {
                 byte[] buffer = new byte[4096];
@@ -141,21 +141,7 @@ class KofLogE2ETest {
         });
         drain.start();
         try {
-            int attempt = 0;
-            while (attempt < 40) {
-                try (java.net.Socket probe = new java.net.Socket()) {
-                    probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                    break;
-                } catch (IOException e) {
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-                attempt++;
-            }
+            TestServerFixture.awaitListening(server, port);
             try (java.net.Socket socket = new java.net.Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(5000);
                 socket.getOutputStream().write(("GET /log HTTP/1.1\r\nHost: x\r\n\r\n")
@@ -163,11 +149,8 @@ class KofLogE2ETest {
                 socket.getOutputStream().flush();
                 socket.getInputStream().readAllBytes();
             }
-            try {
-                Thread.sleep(300);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
+            TestServerFixture.awaitTrue(50, 100,
+                    () -> serverOut.toString().contains("INFO handler called"));
             server.destroy();
             try {
                 drain.join(2000);
@@ -231,7 +214,7 @@ class KofLogE2ETest {
         pb.redirectErrorStream(true);
         pb.environment().put("KOF_LOG_JSON", "1");
         Process server = pb.start();
-        StringBuilder serverOut = new StringBuilder();
+        StringBuffer serverOut = new StringBuffer();
         Thread drain = new Thread(() -> {
             try {
                 byte[] buffer = new byte[4096];
@@ -244,16 +227,7 @@ class KofLogE2ETest {
         });
         drain.start();
         try {
-            int attempt = 0;
-            while (attempt < 40) {
-                try (java.net.Socket probe = new java.net.Socket()) {
-                    probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                    break;
-                } catch (IOException e) {
-                    Thread.sleep(100);
-                }
-                attempt++;
-            }
+            TestServerFixture.awaitListening(server, port);
             String request = "GET /x HTTP/1.1\r\nHost: x\r\n\r\n";
             for (int i = 0; i < 2; i++) {
                 try (java.net.Socket socket = new java.net.Socket("127.0.0.1", port)) {
@@ -263,7 +237,11 @@ class KofLogE2ETest {
                     socket.getInputStream().readAllBytes();
                 }
             }
-            Thread.sleep(400);
+            TestServerFixture.awaitTrue(50, 100, () -> {
+                String o = serverOut.toString();
+                int f = o.indexOf("handled");
+                return f >= 0 && o.indexOf("handled", f + 1) >= 0;
+            });
             server.destroy();
             drain.join(2000);
             String out = serverOut.toString();

@@ -31,14 +31,32 @@ final class TestServerFixture {
      */
     static void awaitListening(Process serverProcess, int port, int attempts, long intervalMillis)
             throws IOException {
+        await(serverProcess, port, attempts, intervalMillis, () -> awaitPort(port, 1, 0));
+    }
+
+    /**
+     * Child-process readiness with a custom probe (e.g. a TLS handshake before
+     * the port can serve). Fails fast on death and kills the process on timeout,
+     * like {@link #awaitListening}. An {@link IOException} from the probe means
+     * "not ready yet" and is retried; any other exception aborts immediately, so
+     * an {@code AssertionError} raised inside the probe still fails the test.
+     */
+    static void await(Process serverProcess, int port, int attempts, long intervalMillis,
+            Callable<Boolean> ready) throws IOException {
         for (int attempt = 0; attempt < attempts; attempt++) {
             if (!serverProcess.isAlive()) {
                 String out = new String(serverProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
                         .replace("\r\n", "\n").trim();
                 throw new IOException("server exited early: " + out);
             }
-            if (awaitPort(port, 1, 0)) {
-                return;
+            try {
+                if (Boolean.TRUE.equals(ready.call())) {
+                    return;
+                }
+            } catch (IOException e) {
+                // not ready yet; retry
+            } catch (Exception e) {
+                throw new IOException("readiness probe failed: " + e, e);
             }
             sleepQuietly(intervalMillis);
         }

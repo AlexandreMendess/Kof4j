@@ -41,6 +41,17 @@ SSE/WS counter decrements 1600/100 ms) with bounded polls; `KofWebWsE2ETest`
 replaced its 300 ms "socket stays open" settle with a `setSoTimeout(300)` read
 that must time out → baseline 176→174 keys. Both de-flake: the old settles were
 guessing the app's `time.sleep(1500)` margin.
+**Quick-win slice 6 (29/09):** `TestServerFixture` gained
+`await(process, port, attempts, interval, probe)` — a custom readiness probe where
+an `IOException` means "not ready yet" and any other exception aborts, so an
+`AssertionError` inside the probe still fails the test; `awaitListening` now
+delegates to it. `KofWebTlsTest` replaced its two SSL-handshake readiness loops
+with `await`; `KofLogE2ETest` replaced its two readiness loops with `awaitListening`
+and its two fixed `Thread.sleep` settles (300/400 ms) with bounded `awaitTrue` polls
+over a now thread-safe `StringBuffer` stdout — zeroing the last two `sleep` keys of
+the web/log E2E. The baseline count stays 174: the 2 removed `sleep` keys are offset
+by 2 `dupname` **leads** (`assertManagedTargets`, `runCross`) that entered the frozen
+set with the kof-file/multiparadigma lanes in the same window — recorded, not hidden.
 **How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
 (shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4
 (harness) → 5 (targets) → 6 (conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**
