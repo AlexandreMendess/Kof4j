@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 156 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 155 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -116,7 +116,10 @@ ficaram) → oversized 32→31, baseline 159→158. **Décima terceira divisão 
 `UiE2ETest` (os 29 casos e o nome de classe citado ficaram) → oversized 31→30, baseline 158→157.
 **Décima quarta divisão landada (29/09):** `JvmSupport` (runner) + `JvmPrograms` (12 maiores
 programas Kof inline, hoisted) saídos do `JvmE2ETest` (os 35 casos e o nome de classe citado
-ficaram) → oversized 30→29, baseline 157→156. A métrica é guia, não oráculo:
+ficaram) → oversized 30→29, baseline 157→156. **Décima quinta divisão landada (29/09):**
+`KofValidationSupport` (runners) + `KofValidationPrograms` (6 maiores programas Kof inline,
+hoisted) saídos do `KofValidationTest` (os 34 casos e o nome de classe citado ficaram) →
+oversized 29→28, baseline 156→155. A métrica é guia, não oráculo:
 nomear candidatos nesta fila (e no `README`) já
 adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher a próxima
 divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
@@ -622,8 +625,9 @@ Antes de qualquer refatoração profunda, o caminho é:
    `KofStringsSupport` do `KofStringsTest` (18/18 mantidos) e `KofSwitchExprSupport` do
    `KofSwitchExprE2ETest` (32/32 mantidos) e `KofInterpreterParitySupport`/`...Programs` do
    `KofInterpreterParityTest` (26/26 mantidos), `UiSupport`/`UiPrograms` do `UiE2ETest` (29/29
-   mantidos) e `JvmSupport`/`JvmPrograms` do `JvmE2ETest` (35/35 mantidos) → oversized 43→29,
-   baseline 170→156; a próxima divisão escolhe por um `--citations` fresco).
+   mantidos), `JvmSupport`/`JvmPrograms` do `JvmE2ETest` (35/35 mantidos) e
+   `KofValidationSupport`/`...Programs` do `KofValidationTest` (34/34 mantidos) → oversized 43→28,
+   baseline 170→155; a próxima divisão escolhe por um `--citations` fresco).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta

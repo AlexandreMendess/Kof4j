@@ -151,8 +151,10 @@ executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
   programas hoisted) → oversized 32→31, baseline 158; e `UiSupport`/`UiPrograms` do `UiE2ETest`
   (os 29 casos mantidos, 11 maiores programas hoisted) → oversized 31→30, baseline 157; e
   `JvmSupport`/`JvmPrograms` do `JvmE2ETest` (os 35 casos mantidos, 12 maiores programas hoisted)
-  → oversized 30→29, baseline **156**. Re-meça o `--citations` antes da próxima escolha: nomear
-  candidatos na própria fila adiciona citações a eles. (A terceira divisão também reparou uma regressão herdada do
+  → oversized 30→29, baseline 156; e `KofValidationSupport`/`KofValidationPrograms` do
+  `KofValidationTest` (os 34 casos mantidos, 6 maiores programas hoisted) → oversized 29→28,
+  baseline **155**. Re-meça o `--citations` antes da próxima escolha: nomear candidatos na própria
+  fila adiciona citações a eles. (A terceira divisão também reparou uma regressão herdada do
   ratchet: `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` do
   `IniReaderE2ETest` duplicavam os nomes do `XmlReaderE2ETest`, então ganharam prefixo
   `ini` — o ratchet segue honesto.)
