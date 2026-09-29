@@ -174,7 +174,7 @@ public final class MemberCallTyper {
             // D-MULTIPARADIGMA-PHASE1A: any/all/none/find/count herdam igual.
             if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
                     || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
-                    || "find".equals(mn) || "count".equals(mn))
+                    || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn))
                     && !(elemType instanceof Type.UnknownType)) {
                 for (int i = 0; i < mc.arguments().size(); i++) {
                     if (mc.arguments().get(i) instanceof LambdaExpr le) {
@@ -236,6 +236,8 @@ public final class MemberCallTyper {
             if ("find".equals(mn)) return new Type.NullableType(
                     recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()
                             ? ct.typeArguments().get(0) : Type.UnknownType.UNKNOWN);
+            // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns Void.
+            if ("forEach".equals(mn)) return Type.PrimitiveType.VOID;
             if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                     || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn))
                 return Type.PrimitiveType.VOID;
@@ -273,7 +275,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach)",
                             "SEM025");
                 }
             }

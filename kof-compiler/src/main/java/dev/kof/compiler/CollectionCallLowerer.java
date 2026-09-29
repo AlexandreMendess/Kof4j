@@ -73,7 +73,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach)",
                     "SEM025");
             return localIdx;
         }

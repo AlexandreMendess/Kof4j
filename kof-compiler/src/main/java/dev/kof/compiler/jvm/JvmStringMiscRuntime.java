@@ -162,6 +162,14 @@ public final class JvmStringMiscRuntime {
                     return n;
                 }
 
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1c — forEach runs the
+                // lambda per element for effect and returns nothing.
+
+                public static void kof_list_foreach(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    for (Object o : list) kof_ho_invoke(lambda, new Object[]{o});
+                }
+
                 public static Object kof_list_reduce(
                         java.util.ArrayList<?> list, Object initial, Object lambda) throws Exception {
                     Object acc = initial;

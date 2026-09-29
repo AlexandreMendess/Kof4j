@@ -106,6 +106,13 @@ public final class KofInterpreterConcurrency {
                 }
                 return n;
             }
+            // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach runs for effect.
+            case "kof_list_foreach": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) interp.invokeLambda(args[1], new Object[]{o});
+                return null;
+            }
             case "kof_spawn_result": {
                 CompletableFuture<Object> future = new CompletableFuture<>();
                 startTask(future, () -> future.complete(interp.invokeLambda(args[0], new Object[0])));

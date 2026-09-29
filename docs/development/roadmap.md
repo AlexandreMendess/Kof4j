@@ -956,7 +956,7 @@ science) **without** destroying the language's simplicity.
 > JVM/Native/Script + JS gap `IOJS001`, `FileLibraryE2ETest` 7/7).
 > **OPEN (6th front):** `multiparadigma` — promoted 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) to
-> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); slices 1a+1b LANDED (`any`/`all`/`none` + `find`/`count(pred)`; `ListQuantifiersE2ETest` 5/5 + `ListFindCountE2ETest` 3/3 + script parity).
+> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); slices 1a+1b+1c LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach`; E2E 5/5+3/3+3/3 + script parity).
 > All remaining `future/` plans are authorized with their
 > design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
 > one-at-a-time (`D-FUTURE-PROMOTION`).

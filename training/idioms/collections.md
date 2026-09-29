@@ -154,9 +154,17 @@ var m = xs.find((x) -> x > 9)   // null — test with `== null` (the V? idiom)
 var n = xs.count((x) -> x > 1)  // 2 — bare count() keeps meaning size
 ```
 
-On Native, a found primitive is boxed behind the scenes (raw slots vs boxed
-`T?` consumers); miss stays null/0 per target. Block lambdas yield only via
+On Native, a found primitive is boxed behind the scenes (raw slots vs
+boxed `T?` consumers); miss stays null/0 per target. Block lambdas yield only via
 explicit `return` (SEM033).
+
+## `forEach` (D-MULTIPARADIGMA-PHASE1A slice 1c, all targets)
+
+```kof
+var xs = listOf(1, 2, 3)
+xs.forEach((x) -> println(x * 10))   // 10, 20, 30 — effect only, no allocation
+listOf().forEach((x) -> println(x))  // vacuous: prints nothing
+```
 
 ## `listOf` with related subtypes infers the common ancestor (0.5.0-beta, §285)
 

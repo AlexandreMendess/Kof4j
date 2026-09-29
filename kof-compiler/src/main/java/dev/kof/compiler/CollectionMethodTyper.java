@@ -15,7 +15,7 @@ public final class CollectionMethodTyper {
         String mn = mc.methodName();
         if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
                 || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
-                || "find".equals(mn) || "count".equals(mn))
+                || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn))
                 && mc.arguments().stream().anyMatch(a -> a instanceof LambdaExpr)) {
             Type lambdaT = null;
             for (ExpressionNode arg : mc.arguments()) {
@@ -39,6 +39,9 @@ public final class CollectionMethodTyper {
                 // type as nullable (missing = null per target, like Map.get).
                 if ("find".equals(mn))
                     return new Type.NullableType(driver.listElementType(recvType));
+                // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns
+                // Void, whatever the lambda yields.
+                if ("forEach".equals(mn)) return Type.PrimitiveType.VOID;
             }
             return Type.UnknownType.UNKNOWN;
         }

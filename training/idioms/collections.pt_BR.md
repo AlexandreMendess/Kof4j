@@ -158,6 +158,14 @@ No Native, a primitiva encontrada leva box por baixo (slots crus vs
 consumidores `T?` boxed); ausência segue null/0 por alvo. Lambdas de bloco só
 produzem valor com `return` explícito (SEM033).
 
+## `forEach` (D-MULTIPARADIGMA-PHASE1A fatia 1c, todos os alvos)
+
+```kof
+var xs = listOf(1, 2, 3)
+xs.forEach((x) -> println(x * 10))   // 10, 20, 30 — só efeito, sem alocação
+listOf().forEach((x) -> println(x))  // vácuo: não imprime nada
+```
+
 ## `listOf` com subtipos relacionados infere o ancestral comum (0.5.0-beta, §285)
 
 ```kof

@@ -155,6 +155,10 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             // like kofMapGet) + count with predicate.
             case "kof_list_find" -> "kofListFind";
             case "kof_list_count_pred" -> "kofListCountPred";
+            // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach (effect only; the
+            // void path below carries it as a statement). Name follows the
+            // generic runtimeJsName mapping (kof_list_foreach → kofListForeach).
+            case "kof_list_foreach" -> "kofListForeach";
             case "kof_list_sort" -> "kofListSort";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };

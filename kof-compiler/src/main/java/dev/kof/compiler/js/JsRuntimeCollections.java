@@ -106,6 +106,13 @@ public final class JsRuntimeCollections {
                 return n;
             }
 
+            // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach runs for effect.
+            export function kofListForeach(list, fn) {
+                for (let i = 0; i < list.length; i++) {
+                    kofQuantCall(fn, list[i]);
+                }
+            }
+
             function kofNaturalCmp(a, b) {
                 if (typeof a === "number" && typeof b === "number") {
                     return a < b ? -1 : a > b ? 1 : 0;

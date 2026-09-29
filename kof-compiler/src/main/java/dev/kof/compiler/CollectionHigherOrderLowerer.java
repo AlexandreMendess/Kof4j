@@ -26,16 +26,22 @@ final class CollectionHigherOrderLowerer {
         if (!BuiltinTypes.isList(recvType)
                 || !("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
                     || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
-                    || "find".equals(mn) || countPred)) {
+                    || "find".equals(mn) || "forEach".equals(mn) || countPred)) {
             return -1;
         }
-        String hoFn = countPred ? "kof_list_count_pred" : "kof_list_" + mc.methodName();
-        // D-MULTIPARADIGMA-PHASE1A — quantifiers/find/count(pred) take exactly
-        // one lambda; without it the runtime call would break per-target (R6,
-        // same class as #382's indexOf gate). map/filter/reduce keep theirs.
+        // kof_ names are snake_case: forEach is camelCase at the surface and
+        // must map explicitly (like indexOf→kof_list_index_of in the switch
+        // below) — a verbatim "kof_list_forEach" misses every registry
+        // (hasRuntimeFn/descriptors/pieces) and breaks per-target (R6).
+        String hoFn = "forEach".equals(mc.methodName()) ? "kof_list_foreach"
+                : countPred ? "kof_list_count_pred" : "kof_list_" + mc.methodName();
+        // D-MULTIPARADIGMA-PHASE1A — quantifiers/find/count(pred)/forEach take
+        // exactly one lambda; without it the runtime call would break
+        // per-target (R6, same class as #382's indexOf gate). map/filter/reduce
+        // keep theirs.
         if ("any".equals(mc.methodName()) || "all".equals(mc.methodName())
                 || "none".equals(mc.methodName()) || "find".equals(mc.methodName())
-                || countPred) {
+                || "forEach".equals(mc.methodName()) || countPred) {
             boolean oneLambda = mc.arguments().size() == 1
                     && mc.arguments().get(0) instanceof LambdaExpr;
             if (!oneLambda && driver.currentDiagnostics != null) {
@@ -92,6 +98,11 @@ final class CollectionHigherOrderLowerer {
             ret = Type.PrimitiveType.BOOL;
         else if ("find".equals(mc.methodName()))
             ret = new Type.NullableType(driver.listElementType(recvType));
+        else if (countPred)
+            ret = Type.PrimitiveType.INT;
+        // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns Void.
+        else if ("forEach".equals(mc.methodName()))
+            ret = Type.PrimitiveType.VOID;
         else if (countPred)
             ret = Type.PrimitiveType.INT;
         else if ("map".equals(mc.methodName())) {

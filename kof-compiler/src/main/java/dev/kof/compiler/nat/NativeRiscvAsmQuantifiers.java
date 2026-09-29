@@ -239,5 +239,37 @@ public final class NativeRiscvAsmQuantifiers {
                 ld   ra, 48(sp)
                 addi sp, sp, 56
                 ret
+
+            # kof_list_foreach(a0=list, a1=fn) -> void (effect only)
+            .globl kof_list_foreach
+            kof_list_foreach:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                mv   s0, a0
+                mv   s1, a1
+                li   s2, 0
+            .Lforeach_loop:
+                lw   t0, 16(s0)
+                bge  s2, t0, .Lforeach_done
+                ld   t1, 24(s0)
+                slli t2, s2, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)
+                mv   a0, s1
+                ld   t3, 8(a0)
+                ld   t3, 0(t3)
+                jalr t3
+                addi s2, s2, 1
+                j    .Lforeach_loop
+            .Lforeach_done:
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
             """;
 }

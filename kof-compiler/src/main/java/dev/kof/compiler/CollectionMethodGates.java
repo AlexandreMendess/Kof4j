@@ -21,7 +21,8 @@ public final class CollectionMethodGates {
             case "kof_list_any", "kof_list_all", "kof_list_none" -> 1;
             // D-MULTIPARADIGMA-PHASE1A slice 1b — find takes one lambda;
             // count with a lambda counts matches (bare count keeps size).
-            case "kof_list_find", "kof_list_count_pred" -> 1;
+            // Slice 1c — forEach takes one lambda.
+            case "kof_list_find", "kof_list_count_pred", "kof_list_foreach" -> 1;
             case "kof_list_sort" -> 0;
             case "kof_map_contains_value" -> 1;
             case "kof_map_put_if_absent" -> 2;
