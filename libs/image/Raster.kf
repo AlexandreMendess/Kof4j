@@ -19,7 +19,9 @@ import image.Image
 // under the cross-native allocation cap, `known-bugs` §540) and the value must
 // fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
 // 16-bit PNM, comments in the pixel area) throws a `String` beginning with
-// `IMAGE:` — never a silent wrong decode.
+// `IMAGE:` — never a silent wrong decode. `cropRaster` and `resizeNearest`
+// operate on a `Raster` in pure Kof (nearest-neighbour; smooth filtering rides
+// the interop slice); their output is bounded by the same cap.
 //
 // The final `Image`/`Pixel`/`Color` value surface and the imageio bindings are
 // a rule-6 decision (see the plan); this `Raster` view is provisional and
@@ -77,6 +79,56 @@ guardRaster(Int count) {
     if (count > 16384) {
         throw "IMAGE: raster too large for this slice (max 16384 samples)"
     }
+}
+
+Raster cropRaster(Raster r, Int x, Int y, Int w, Int h) {
+    if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > r.width || y + h > r.height) {
+        throw "IMAGE: crop rectangle out of bounds"
+    }
+    var count = w * h * r.channels
+    guardRaster(count)
+    var out = new Int[count]
+    var row = 0
+    while (row < h) {
+        var srcRow = (y + row) * r.width
+        var dstRow = row * w
+        var col = 0
+        while (col < w) {
+            var c = 0
+            while (c < r.channels) {
+                out[(dstRow + col) * r.channels + c] = r.samples[(srcRow + x + col) * r.channels + c]
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, w, h, r.channels, out)
+}
+
+Raster resizeNearest(Raster r, Int w, Int h) {
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: invalid resize size"
+    }
+    var count = w * h * r.channels
+    guardRaster(count)
+    var out = new Int[count]
+    var row = 0
+    while (row < h) {
+        var srcRow = row * r.height / h
+        var col = 0
+        while (col < w) {
+            var srcCol = col * r.width / w
+            var c = 0
+            while (c < r.channels) {
+                out[(row * w + col) * r.channels + c] = r.samples[(srcRow * r.width + srcCol) * r.channels + c]
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, w, h, r.channels, out)
 }
 
 String buildPnmName(Bool color) {
