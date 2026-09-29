@@ -78,7 +78,7 @@ class IniReaderE2ETest {
     }
 
     @Test
-    void parsesOnScript() throws Exception {
+    void iniParsesOnScript() throws Exception {
         Path root = tmp.resolve("script-ini");
         Files.createDirectories(root);
         Path src = root.resolve("app.ini");
@@ -91,7 +91,7 @@ class IniReaderE2ETest {
     }
 
     @Test
-    void parsesOnNativeX86() throws Exception {
+    void iniParsesOnNativeX86() throws Exception {
         Assumptions.assumeTrue(System.getProperty("os.name").toLowerCase().contains("linux"),
                 "Native x86-64 requires the Linux assembler/linker toolchain");
         Path src = tmp.resolve("app-x86.ini");
@@ -100,7 +100,7 @@ class IniReaderE2ETest {
     }
 
     @Test
-    void parsesOnNativeRiscv64() throws Exception {
+    void iniParsesOnNativeRiscv64() throws Exception {
         Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
         Path src = tmp.resolve("app-riscv.ini");

@@ -134,9 +134,13 @@ the suite) for the quick-win targets the plan names.
   (29/09):** `KofSetEqualitySupport` extracted the shared sources + JVM/JS
   runners out of `KofSetEqualityTest` (all 21 cases kept, zero citation drift)
   → oversized 43→42, baseline 170→169; and `KofMathSupport` out of `KofMathTest`
-  (all 29 cases kept) → oversized 42→41, baseline 169→168. Re-measure
-  `--citations` before the next pick: naming candidates in the queue itself adds
-  citations to them.
+  (all 29 cases kept) → oversized 42→41, baseline 169→168; and `ArrayBoundsStressSupport`
+  out of `ArrayBoundsStressTest` (all 15 cases kept) → oversized 41→40, baseline
+  168→167. Re-measure `--citations` before the next pick: naming candidates in the
+  queue itself adds citations to them. (The third split also repaired an inherited
+  ratchet regression: `IniReaderE2ETest`'s `parsesOnScript`/`parsesOnNativeX86`/
+  `parsesOnNativeRiscv64` duplicated `XmlReaderE2ETest`'s names, so they were prefixed
+  `ini` — the ratchet stays at 167 keys.)
 
 The audit modifies nothing; acting on a lead is a separate, scoped unit.
 
