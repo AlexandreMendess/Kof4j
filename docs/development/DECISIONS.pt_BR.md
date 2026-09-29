@@ -4393,3 +4393,41 @@ individuais:
 - **Achado medido (lane native):** nativos cross falham uma única alocação `new Int[65536]` (256 KiB) — catalogado `known-bugs` **§540**.
 
 - **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 12`.
+
+## D-STDOUT-ENCODING
+
+## D-STDOUT-ENCODING — uma regra só de encoding de stdout para tudo que a CLI executa: console mantém sua code page, arquivo/pipe recebe UTF-8 (mantenedora 29/09/2026, múltipla escolha "Aprovar forma (c) + merge")
+
+**Estado:** DECIDIDO (mantenedora) — forma candidata (c) do §539; fecha #676 e §539 quando a PR #677 pousar no `lab`.
+
+- **Regra:** stream ligado a um console Windows é emitido na code page do console (o que ele sabe mostrar — comportamento da própria JVM ali, sem regressão); arquivo ou pipe recebe UTF-8 (paridade com Native/KofJS e `semantics.md` §7). Linux/macOS inalterados (todos os valores já UTF-8).
+- **Escopo:** só wiring de processos da CLI (`KofStdio` + os 9 sites de launch + `fromUtf8` do KofJS); sem sintaxe, stdlib ou compilador. O resíduo do artefato JVM do `kof build` (regra no startup do programa gerado) é follow-up separado, não esta decisão.
+- **Relações:** `Related: #676, #677, §539, regra 5, regra 6`.
+
+## D-MULTIPARADIGMA-SORTED — `sorted` embarca ordem natural MAIS o comparador `(A,A)->Int` nesta fatia, nos 4 alvos (mantenedora 29/09/2026, múltipla escolha "Com comparador agora")
+
+**Estado:** DECIDIDO (mantenedora) — desbloqueia o resto `sorted` do `PLAN-MULTIPARADIGMA.md`.
+
+- **Escopo:** `List<T>.sorted(): List<T>` (ordem natural via `compareTo` para String/números; ingênuo-para-outros segue gap honesto) E `List<T>.sorted((T,T)->Int): List<T>` agora (não depois); estável, copia e ordena, eager como o resto da Fase 1.
+- **Relações:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, regra 6`.
+
+## D-MULTIPARADIGMA-ZIP — `zip` trunca em `min` e produz um record nomeado `Pair` (mantenedora 29/09/2026, múltipla escolha "Record Pair")
+
+**Estado:** DECIDIDO (mantenedora) — desbloqueia o resto `zip` do `PLAN-MULTIPARADIGMA.md`, fechando o TBD do §231 do plano.
+
+- **Escopo:** `List<T>.zip(List<U>)` trunca silencioso em `min(sizeA,sizeB)` (não é erro); cada elemento é um record nomeado `Pair` (parâmetros genéricos como o sistema de records permitir — provado pelo E2E da fatia, nunca assumido).
+- **Relações:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, regra 6`.
+
+## D-MULTIPARADIGMA-GROUPBY — `groupBy` como especificado no §230 do plano (mantenedora 29/09/2026, múltipla escolha "Aprovar especificado")
+
+**Estado:** DECIDIDO (mantenedora) — desbloqueia o resto `groupBy` do `PLAN-MULTIPARADIGMA.md`.
+
+- **Escopo:** `List<T>.groupBy((T)->K): Map<K,List<T>>` exatamente como §230 (mapa de grupos em ordem de inserção; chaves com a igualdade boxed do mapOf); eager, aditivo.
+- **Relações:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, regra 6`.
+
+## D-CONNECTORS-GO — o plano do Ecossistema de Connectors Kof é promovido ao trabalho corrente (mantenedora 29/09/2026, múltipla escolha "connectors" + `D-FUTURE-PROMOTION`)
+
+**Estado:** DECIDIDO (mantenedora) — `docs/development/future/kof-connector-ecosystem-plan.md` move-se para `docs/development/` com estado EM DESENVOLVIMENTO; uma frente por vez.
+
+- **Escopo:** Interop Core + SPI/manifest de Connectors + catálogo, construindo sobre o substrato FFI/ABI existente (sem duplicá-lo, regra 54); controle de escopo regra 55 (provar com poucos connectors primeiro — Java primeiro, sem cascata de 30 runtimes); camadas official-packages (R1) e interop-first (R9) valem.
+- **Relações:** `Related: D-FUTURE-PROMOTION, D-FUTURE-BATCH-2809B, regra 6, regra 54, regra 55, R1, R9`.
