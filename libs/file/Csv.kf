@@ -97,3 +97,81 @@ class CsvReader {
         return fields
     }
 }
+
+// kof.file — streaming CSV/TSV writer (slice 2.2).
+//
+// Encodes records back over `kof.io.writeText`/`appendText` (the first
+// `writeRow` truncates, the rest append), quoting a field when it contains the
+// delimiter, a quote, a newline or a carriage return and doubling embedded
+// quotes. The reader and writer are inverses: `CsvWriter` → `CsvReader`
+// round-trips the same records. TSV reuses the writer with a tab delimiter.
+//
+// No new syntax; JS inherits the compile-time gap `IOJS001`.
+
+class CsvWriter {
+    String path
+    Char delimiter
+    Bool started
+
+    constructor(String path) {
+        this.path = path
+        this.delimiter = ','
+        this.started = false
+    }
+
+    constructor(String path, Char delimiter) {
+        this.path = path
+        this.delimiter = delimiter
+        this.started = false
+    }
+
+    // Encode and write one record (a trailing newline terminates it).
+    writeRow(List<String> cells) {
+        var line = ""
+        var i = 0
+        while (i < cells.size()) {
+            if (i > 0) {
+                line = line + this.delimiter
+            }
+            line = line + encodeField(cells.get(i))
+            i = i + 1
+        }
+        line = line + "\n"
+        if (this.started) {
+            File(this.path).appendText(line)
+        } else {
+            File(this.path).writeText(line)
+            this.started = true
+        }
+    }
+
+    String encodeField(String s) {
+        if (!needsQuoting(s)) {
+            return s
+        }
+        var out = "\""
+        var i = 0
+        while (i < s.length) {
+            var ch = s.charAt(i)
+            if (ch == '"') {
+                out = out + "\"\""
+            } else {
+                out = out + ch
+            }
+            i = i + 1
+        }
+        return out + "\""
+    }
+
+    Bool needsQuoting(String s) {
+        var i = 0
+        while (i < s.length) {
+            var ch = s.charAt(i)
+            if (ch == this.delimiter || ch == '"' || ch == '\n' || ch == '\r') {
+                return true
+            }
+            i = i + 1
+        }
+        return false
+    }
+}

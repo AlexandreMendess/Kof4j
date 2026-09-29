@@ -160,12 +160,15 @@ measured Native divergence**: Native stores strings as UTF-8 and has no
 WTF-8 representation for a surrogate pair (`§537`); it is exact on JVM and
 Script.
 
-### CSV / TSV (`CsvReader`, slice 2.2)
+### CSV / TSV (`CsvReader` / `CsvWriter`, slice 2.2)
 
 `CsvReader` streams **records** over `TextStream` character by character, so a
 quoted field may contain the delimiter and newlines, records split on `\n`/
 `\r\n`, and memory stays bounded by one chunk plus the current record. TSV
-reuses the same reader with a tab delimiter.
+reuses the same reader with a tab delimiter. `CsvWriter` is its inverse: the
+first `writeRow` truncates the file, the rest append, and a field is quoted
+only when it contains the delimiter, a quote, a newline or a carriage return
+(embedded quotes are doubled). Reader and writer round-trip the same records.
 
 ```kof
 import file.Csv
@@ -177,6 +180,10 @@ main() {
         // row.get(0) is the first field of the record
         row = reader.nextRow()
     }
+
+    var writer = CsvWriter("out.csv", ',')
+    writer.writeRow(listOf("id", "name"))
+    writer.writeRow(listOf("1", "Doe, John"))       // quoted automatically
 }
 ```
 
@@ -184,6 +191,8 @@ main() {
 |----------|-------------|
 | `CsvReader(path[, delimiter[, chunkSize]])` | streaming record reader (default delimiter `,`, chunk 8192) |
 | `nextRow()` | `List<String>?` — next record's fields, `null` at end of file |
+| `CsvWriter(path[, delimiter])` | streaming record writer (default delimiter `,`; first write truncates) |
+| `writeRow(cells)` | encode and append one record terminated by `\n` |
 
 A `"` opens a quoted field only at the start of a field; inside it `""` is one
 literal quote. A blank line is a record with one empty field; a trailing

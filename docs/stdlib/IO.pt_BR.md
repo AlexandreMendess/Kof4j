@@ -161,12 +161,16 @@ divergência medida no Native**: o Native armazena strings como UTF-8 e não
 tem representação WTF-8 para um par surrogate (`§537`); é exato na JVM e no
 Script.
 
-### CSV / TSV (`CsvReader`, fatia 2.2)
+### CSV / TSV (`CsvReader` / `CsvWriter`, fatia 2.2)
 
 O `CsvReader` faz streaming de **registros** sobre o `TextStream` caractere a
 caractere, então um campo entre quotes pode conter o delimitador e newlines,
 os registros quebram em `\n`/`\r\n`, e a memória fica limitada a um chunk mais
-o registro atual. TSV reusa o mesmo leitor com delimitador de tab.
+o registro atual. TSV reusa o mesmo leitor com delimitador de tab. O
+`CsvWriter` é o inverso: o primeiro `writeRow` trunca o arquivo, os demais
+apendam, e um campo só é citado quando contém o delimitador, uma quote, um
+newline ou um carriage return (quotes internas são duplicadas). Leitor e
+escritor fazem round-trip dos mesmos registros.
 
 ```kof
 import file.Csv
@@ -178,6 +182,10 @@ main() {
         // row.get(0) é o primeiro campo do registro
         row = reader.nextRow()
     }
+
+    var writer = CsvWriter("out.csv", ',')
+    writer.writeRow(listOf("id", "nome"))
+    writer.writeRow(listOf("1", "Doe, John"))       // citado automaticamente
 }
 ```
 
@@ -185,6 +193,8 @@ main() {
 |----------|-----------|
 | `CsvReader(path[, delimiter[, chunkSize]])` | leitor streaming de registros (delimitador default `,`, chunk 8192) |
 | `nextRow()` | `List<String>?` — campos do próximo registro, `null` no fim do arquivo |
+| `CsvWriter(path[, delimiter])` | escritor streaming de registros (delimitador default `,`; o primeiro write trunca) |
+| `writeRow(cells)` | codifica e apenda um registro terminado por `\n` |
 
 Um `"` abre um campo entre quotes apenas no início de um campo; dentro dele
 `""` é uma quote literal. Uma linha em branco é um registro com um campo
