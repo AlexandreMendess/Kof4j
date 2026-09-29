@@ -20,7 +20,9 @@ package image
 //   * TIFF — first IFD `ImageWidth`/`ImageLength` tags (`II`/`MM`, LE/BE);
 //   * ICO/CUR — first directory entry (0 means 256);
 //   * PNM — `PBM`/`PGM`/`PPM` (P1–P6) width/height tokens (comments allowed);
-//   * QOI — `qoif` header width/height.
+//   * QOI — `qoif` header width/height;
+//   * PSD (`8BPS`), DDS (`DDS `) and farbfeld — width/height fields;
+//   * AVIF/HEIF — `ftyp` brand + the `ispe` dimensions box.
 // A `Bool isImage(path)` helper answers "is this a supported image?" without
 // throwing. Any other format, a truncated header or an unreadable structure
 // throws a `String` beginning with `IMAGE:`.
@@ -85,6 +87,25 @@ ImageMetadata readImageMetadata(String path) {
     if (matchesAscii(head, 0, "qoif")) {
         need(head, 12, "QOI")
         return ImageMetadata("QOI", be32(head, 4), be32(head, 8))
+    }
+    if (matchesAscii(head, 0, "8BPS")) {
+        return psdMetadata(head)
+    }
+    if (matchesAscii(head, 0, "DDS ")) {
+        return ddsMetadata(head)
+    }
+    if (matchesAscii(head, 0, "farbfeld")) {
+        return farbfeldMetadata(head)
+    }
+    if (matchesAscii(head, 4, "ftyp")) {
+        if (matchesAscii(head, 8, "avif") || matchesAscii(head, 8, "avis")) {
+            return isobmffMetadata(head, "AVIF")
+        }
+        if (matchesAscii(head, 8, "heic") || matchesAscii(head, 8, "heix")
+            || matchesAscii(head, 8, "hevc") || matchesAscii(head, 8, "hevx")
+            || matchesAscii(head, 8, "mif1") || matchesAscii(head, 8, "msf1")) {
+            return isobmffMetadata(head, "HEIF")
+        }
     }
     throw "IMAGE: unsupported image format"
 }
@@ -287,6 +308,34 @@ ImageMetadata pnmMetadata(Int[] b) {
         throw "IMAGE: invalid PNM dimensions"
     }
     return ImageMetadata(kind, w, h)
+}
+
+ImageMetadata psdMetadata(Int[] b) {
+    need(b, 22, "PSD")
+    return ImageMetadata("PSD", be32(b, 18), be32(b, 14))
+}
+
+ImageMetadata ddsMetadata(Int[] b) {
+    need(b, 20, "DDS")
+    return ImageMetadata("DDS", le32(b, 16), le32(b, 12))
+}
+
+ImageMetadata farbfeldMetadata(Int[] b) {
+    need(b, 16, "farbfeld")
+    return ImageMetadata("farbfeld", be32(b, 8), be32(b, 12))
+}
+
+// ISOBMFF (AVIF/HEIF) stores pixel dimensions in the `ispe` box; scan the
+// prefix for it (a documented heuristic, explicit failure when absent).
+ImageMetadata isobmffMetadata(Int[] b, String format) {
+    var k = 0
+    while (k + 16 <= b.length) {
+        if (matchesAscii(b, k, "ispe")) {
+            return ImageMetadata(format, be32(b, k + 8), be32(b, k + 12))
+        }
+        k = k + 1
+    }
+    throw "IMAGE: no ispe dimensions box found"
 }
 
 // Skip PNM whitespace and `#` comments, returning the next payload index.
