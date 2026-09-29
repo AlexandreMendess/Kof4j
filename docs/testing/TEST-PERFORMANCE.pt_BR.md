@@ -160,7 +160,9 @@ executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
   do `WorkflowE2ETest` (os 24 casos mantidos, 7 programas hoisted) → oversized 25→24, baseline
   151; e `DomainGapPrograms` do `DomainGapCodesTest` (os 29 casos mantidos, 10 programas hoisted)
   → oversized 24→23, baseline 150; e `BackendParityPrograms` do `BackendParityTest` (os 19 casos
-  mantidos, 5 programas hoisted) → oversized 23→22, baseline **149**. Re-meça o `--citations` antes da próxima escolha: nomear candidatos na própria
+  mantidos, 5 programas hoisted) → oversized 23→22, baseline 149; e `ComponentCoreSupport`/
+  `ComponentCorePrograms` do `ComponentCoreE2ETest` (os 29 casos mantidos, 28 programas hoisted) →
+  oversized 22→21, baseline **148**. Re-meça o `--citations` antes da próxima escolha: nomear candidatos na própria
   fila adiciona citações a eles. (A terceira divisão também reparou uma regressão herdada do
   ratchet: `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` do
   `IniReaderE2ETest` duplicavam os nomes do `XmlReaderE2ETest`, então ganharam prefixo

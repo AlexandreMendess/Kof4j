@@ -160,8 +160,9 @@ the suite) for the quick-win targets the plan names.
   `WorkflowPrograms` out of `WorkflowE2ETest` (all 24 cases kept, 7 programs hoisted) → oversized
   25→24, baseline 151; and `DomainGapPrograms` out of `DomainGapCodesTest` (all 29 cases kept, 10
   programs hoisted) → oversized 24→23, baseline 150; and `BackendParityPrograms` out of
-  `BackendParityTest` (all 19 cases kept, 5 programs hoisted) → oversized 23→22, baseline **149**.
-  Re-measure `--citations`
+  `BackendParityTest` (all 19 cases kept, 5 programs hoisted) → oversized 23→22, baseline 149; and
+  `ComponentCoreSupport`/`ComponentCorePrograms` out of `ComponentCoreE2ETest` (all 29 cases kept,
+  28 programs hoisted) → oversized 22→21, baseline **148**. Re-measure `--citations`
   before the next pick: naming candidates in the queue itself adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated

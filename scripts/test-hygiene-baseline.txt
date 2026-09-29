@@ -128,7 +128,6 @@ oversized	kof-cli/src/test/java/dev/kof/cli/LspServerTest.java
 oversized	kof-cli/src/test/java/dev/kof/cli/TranslateTest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/AndroidInteropE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/CompilerDriverTest.java
-oversized	kof-compiler/src/test/java/dev/kof/compiler/ComponentCoreE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/ConformanceMatrixTest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/CoreRegressionE2ETest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/KofConcurrency2Test.java

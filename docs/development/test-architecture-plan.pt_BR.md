@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 149 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 148 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -132,7 +132,9 @@ citado ficaram) → oversized 25→24, baseline 152→151. **Vigésima divisão 
 e o nome de classe citado ficaram) → oversized 24→23, baseline 151→150. **Vigésima primeira
 divisão landada (29/09):** `BackendParityPrograms` (5 programas Kof inline, hoisted) saídos do
 `BackendParityTest` (os 19 casos e o nome de classe citado ficaram) → oversized 23→22, baseline
-150→149. A métrica é guia, não oráculo:
+150→149. **Vigésima segunda divisão landada (29/09):** `ComponentCoreSupport` (runners) +
+`ComponentCorePrograms` (28 programas hoisted) saídos do `ComponentCoreE2ETest` (os 29 casos e o
+nome de classe citado ficaram) → oversized 22→21, baseline 149→148. A métrica é guia, não oráculo:
 nomear candidatos nesta fila (e no `README`) já
 adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher a próxima
 divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
@@ -643,7 +645,8 @@ Antes de qualquer refatoração profunda, o caminho é:
    mantidos) e `KofWebPrograms` do `KofWebE2ETest` (28/28 mantidos) e `KofScriptPrograms` do `KofScriptTest`
    (25/25 mantidos) `WorkflowPrograms` do `WorkflowE2ETest` (24/24 mantidos) e `DomainGapPrograms` do
    `DomainGapCodesTest` (29/29 mantidos) e `BackendParityPrograms` do `BackendParityTest` (19/19
-   mantidos) → oversized 43→22, baseline 170→149; a próxima divisão escolhe por um `--citations`
+   mantidos) e `ComponentCoreSupport`/`ComponentCorePrograms` do `ComponentCoreE2ETest` (29/29
+   mantidos) → oversized 43→21, baseline 170→148; a próxima divisão escolhe por um `--citations`
    fresco).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
