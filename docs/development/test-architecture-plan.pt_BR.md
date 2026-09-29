@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 166 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 165 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -90,7 +90,10 @@ runners JVM/JS/Native, os geradores de programa Kof e os oráculos de invariante
 baseline 168→167. **Quarta divisão landada (29/09):** `KofMediaSupport` extraiu os builders puros
 de bytes WAV/MP4 (`makeWav`/`mp4Box`/`makeMp4`/`mp4Box64`/`makeMp4WithExtendedSizeBoxBeforeMoov`)
 do `KofMediaE2ETest` (os 17 casos e o nome de classe citado ficaram) → oversized 40→39, baseline
-167→166. A métrica é guia, não oráculo: nomear candidatos nesta fila (e no `README`) já
+167→166. **Quinta divisão landada (29/09):** `NullablePrimitiveContractSupport` extraiu os runners
+JVM/SCRIPT/JS + o oráculo de alvo do `NullablePrimitiveContractE2ETest` (os 26 casos e o nome de
+classe citado ficaram) → oversized 39→38, baseline 166→165. A métrica é guia, não oráculo: nomear
+candidatos nesta fila (e no `README`) já
 adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher a próxima
 divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
 **Como terminar:** Fase 1/2 descoberta feita — depois **modularização da Fase 3** (re-medir
@@ -587,9 +590,10 @@ Antes de qualquer refatoração profunda, o caminho é:
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
-   `ArrayBoundsStressSupport` do `ArrayBoundsStressTest` (15/15 mantidos) e `KofMediaSupport` do
-   `KofMediaE2ETest` (17/17 mantidos) → oversized 43→39, baseline 170→166; a próxima divisão
-   escolhe por um `--citations` fresco).
+   `ArrayBoundsStressSupport` do `ArrayBoundsStressTest` (15/15 mantidos), `KofMediaSupport` do
+   `KofMediaE2ETest` (17/17 mantidos) e `NullablePrimitiveContractSupport` do
+   `NullablePrimitiveContractE2ETest` (26/26 mantidos) → oversized 43→38, baseline 170→165; a
+   próxima divisão escolhe por um `--citations` fresco).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
