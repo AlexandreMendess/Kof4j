@@ -121,7 +121,11 @@ final class CmdTest {
                         output.append("no main class found\n");
                     } else {
                         try {
-                            ProcessBuilder pb = new ProcessBuilder(KofCliSupport.javaExecutable(), "-cp", tmp.toString(), className);
+                            List<String> cmd = new java.util.ArrayList<>();
+                            cmd.add(KofCliSupport.javaExecutable());
+                            cmd.addAll(KofStdio.capturedJvmFlags());
+                            cmd.addAll(List.of("-cp", tmp.toString(), className));
+                            ProcessBuilder pb = new ProcessBuilder(cmd);
                             pb.redirectErrorStream(true);
                             Integer ec = boundedRun(pb, timeoutSec, output);
                             if (ec == null) {
@@ -151,7 +155,8 @@ final class CmdTest {
                             Thread js = new Thread(() -> {
                                 try {
                                     code[0] = dev.kof.runtime.KofJsRunner.run(java.nio.file.Path.of(entry),
-                                            System.out, System.in, System.err, false, new String[0]);
+                                            KofStdio.fromUtf8(System.out), System.in,
+                                            KofStdio.fromUtf8(System.err), false, new String[0]);
                                 } catch (IOException e) {
                                     code[0] = 1;
                                 }
