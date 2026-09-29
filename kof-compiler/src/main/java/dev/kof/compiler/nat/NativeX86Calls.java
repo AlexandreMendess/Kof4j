@@ -208,7 +208,7 @@ public final class NativeX86Calls {
             if (stackArgs > 0) {
                 // Save stack args to local frame (high offsets to avoid collision)
                 for (int s = stackArgs - 1; s >= 0; s--) {
-                    int off = 256 + s * 8;
+                    int off = nb.scratchOffset(s);
                     sb.append("    popq %rax\n");
                     sb.append("    movq %rax, -").append(off).append("(%rbp)\n");
                 }
@@ -222,7 +222,7 @@ public final class NativeX86Calls {
                 // Push stack args back (arg6 por último → fica no topo da
                 // stack → 16(%rbp) no callee; SysV exige essa ordem)
                 for (int s = stackArgs - 1; s >= 0; s--) {
-                    int off = 256 + s * 8;
+                    int off = nb.scratchOffset(s);
                     sb.append("    pushq -").append(off).append("(%rbp)\n");
                 }
             } else {
@@ -346,7 +346,7 @@ public final class NativeX86Calls {
                 if (stackArgs > 0) {
                     // salva stack args em slots do frame (ordem: argN no slot alto)
                     for (int s = stackArgs - 1; s >= 0; s--) {
-                        int off = 256 + s * 8;
+                        int off = nb.scratchOffset(s);
                         sb.append("    popq %r10\n");
                         sb.append("    movq %r10, -").append(off).append("(%rbp)\n");
                     }
@@ -359,7 +359,7 @@ public final class NativeX86Calls {
                 if (stackArgs > 0) {
                     // arg6 por último → topo → 16(%rbp) no callee
                     for (int s = stackArgs - 1; s >= 0; s--) {
-                        int off = 256 + s * 8;
+                        int off = nb.scratchOffset(s);
                         sb.append("    pushq -").append(off).append("(%rbp)\n");
                     }
                 }
@@ -385,7 +385,7 @@ public final class NativeX86Calls {
                 if (stackArgs > 0) {
                     // salva stack args em slots do frame (ordem: argN no slot alto)
                     for (int s = stackArgs - 1; s >= 0; s--) {
-                        int off = 256 + s * 8;
+                        int off = nb.scratchOffset(s);
                         sb.append("    popq %r10\n");
                         sb.append("    movq %r10, -").append(off).append("(%rbp)\n");
                     }
@@ -398,7 +398,7 @@ public final class NativeX86Calls {
                 if (stackArgs > 0) {
                     // arg6 por último → topo → 16(%rbp) no callee
                     for (int s = stackArgs - 1; s >= 0; s--) {
-                        int off = 256 + s * 8;
+                        int off = nb.scratchOffset(s);
                         sb.append("    pushq -").append(off).append("(%rbp)\n");
                     }
                 }
@@ -429,7 +429,7 @@ public final class NativeX86Calls {
             // re-empilho em ordem reversa (argN primeiro => arg7 no topo).
             for (int s = stackArgs - 1; s >= 0; s--) {
                 // slots altos do frame local (padrão do ramo CONSTRUCTOR)
-                int off = 256 + s * 8;
+                int off = nb.scratchOffset(s);
                 sb.append("    popq %r10\n");
                 sb.append("    movq %r10, -").append(off).append("(%rbp)\n");
             }
@@ -440,7 +440,7 @@ public final class NativeX86Calls {
         if (stackArgs > 0) {
             // re-push: argN primeiro ... arg7 por último (topo = 0(%rsp))
             for (int s = stackArgs - 1; s >= 0; s--) {
-                int off = 256 + s * 8;
+                int off = nb.scratchOffset(s);
                 sb.append("    pushq -").append(off).append("(%rbp)\n");
             }
         }

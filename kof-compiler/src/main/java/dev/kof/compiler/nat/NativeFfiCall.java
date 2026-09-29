@@ -189,13 +189,13 @@ final class NativeFfiCall {
             sb.append("    movq ").append(8 * (n - 1 - i)).append("(%rsp), %rdi\n");
             sb.append("    movq $").append(arrayElemSize(arrayElem[i])).append(", %rsi\n");
             sb.append("    call kof_ffi_pack_array\n");
-            sb.append("    movq %rax, -").append(256 + i * 8).append("(%rbp)\n");
+            sb.append("    movq %rax, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
         }
         for (int i = n - 1; i >= 0; i--) {
             if (isArray[i]) {
                 sb.append("    popq %r10\n");   // descarta o objeto; o buffer está no temp
                 if (ord[i] < 6) {
-                    sb.append("    movq -").append(256 + i * 8).append("(%rbp), ")
+                    sb.append("    movq -").append(nb.scratchOffset(i)).append("(%rbp), ")
                       .append(intRegs[ord[i]]).append("\n");
                 }
                 continue;
@@ -213,7 +213,7 @@ final class NativeFfiCall {
                 if (ord[i] < 6) {
                     sb.append("    movq %r10, ").append(intRegs[ord[i]]).append("\n");
                 } else {
-                    sb.append("    movq %r10, -").append(256 + i * 8).append("(%rbp)\n");
+                    sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
                 }
                 continue;
             }
@@ -235,7 +235,7 @@ final class NativeFfiCall {
                     sb.append(c == 'f' ? "    movd %r11d, %xmm" : "    movq %r11, %xmm")
                       .append(ord[i]).append("\n");
                 } else {
-                    sb.append("    movq %r11, -").append(256 + i * 8).append("(%rbp)\n");
+                    sb.append("    movq %r11, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
                 }
             } else if (ord[i] < 6) {
                 sb.append("    popq ").append(intRegs[ord[i]]).append("\n");
@@ -256,7 +256,7 @@ final class NativeFfiCall {
                     sb.append("    leaq 24(%r11), %r11\n");
                     sb.append(lbl).append(":\n");
                 }
-                sb.append("    movq %r11, -").append(256 + i * 8).append("(%rbp)\n");
+                sb.append("    movq %r11, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
             }
         }
         // 2) pilha SysV: salva o topo da pilha de operandos, alinha 16,
@@ -274,7 +274,7 @@ final class NativeFfiCall {
         if (spill % 2 != 0) sb.append("    subq $8, %rsp\n");
         for (int i = n - 1; i >= 0; i--) {
             if (!isStruct[i] && (isFloatClass(cls[i]) ? ord[i] >= 8 : ord[i] >= 6)) {
-                sb.append("    pushq -").append(256 + i * 8).append("(%rbp)\n");
+                sb.append("    pushq -").append(nb.scratchOffset(i)).append("(%rbp)\n");
             }
         }
         if (sret) sb.append("    movq %r13, %rdi\n");   // ponteiro escondido (D6-4)

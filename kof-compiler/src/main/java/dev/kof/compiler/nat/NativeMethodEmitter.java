@@ -76,19 +76,26 @@ final class NativeMethodEmitter {
 
         int maxSlot = method.localVariables().stream()
                 .mapToInt(IRLocalVariable::index).max().orElse(0);
-        // Scan for CONSTRUCTOR calls with stack args to reserve frame space
-        int maxCtorStackArgs = 0;
+        // §541/§542: reserva o rascunho dos args de pilha para TODO call com
+        // stack args (não só construtores) — o call-site x86 guarda os args
+        // 6+/7+ em slots do frame ANTES de re-empurrá-los. A base do rascunho
+        // é logo abaixo dos locais (nb.scratchOffset), então os locais reais
+        // nunca são sobrescritos. Antes: offset fixo -256-s*8 colidia com
+        // locais >32 slots (corrupção silenciosa no x86).
+        int maxCallStackArgs = 0;
         for (IRBasicBlock bb : method.basicBlocks()) {
             for (KofOperation op : bb.operations()) {
-                if (op instanceof KofCall kc && kc.kind() == KofCallKind.CONSTRUCTOR
-                        && "<init>".equals(kc.methodName())) {
-                    int sa = Math.max(0, kc.parameterTypes().size() - 5);
-                    maxCtorStackArgs = Math.max(maxCtorStackArgs, sa);
+                if (op instanceof KofCall kc) {
+                    // reserva n slots de rascunho (cobre o spill genérico
+                    // n-5 e os temporários por-arg do FFI, indexados por i).
+                    maxCallStackArgs = Math.max(maxCallStackArgs, kc.parameterTypes().size());
                 }
             }
         }
-        int extraFrame = maxCtorStackArgs > 0 ? 256 + maxCtorStackArgs * 8 : 0;
-        int frameSize = Math.max((maxSlot + 1) * 8, 16) + extraFrame;
+        int localsBytes = (maxSlot + 1) * 8;
+        nb.frameLocalsBytes = localsBytes;
+        int extraFrame = maxCallStackArgs > 0 ? maxCallStackArgs * 8 : 0;
+        int frameSize = Math.max(localsBytes, 16) + extraFrame;
         frameSize = (frameSize + 15) & ~15;
         if (frameSize > 0) {
             sb.append("    subq $").append(frameSize).append(", %rsp\n");

@@ -87,6 +87,20 @@ public class NativeBackend implements Backend {
     final NativeStaticData staticData = new NativeStaticData(this);
     Type lastPushedType = Type.UnknownType.UNKNOWN;
     IRClass currentClass = null;
+    /**
+     * §541/§542 (29/09): bytes de locais do método em emissão — a base dos
+     * slots de rascunho usados pelo call-site x86 para guardar os args de
+     * pilha (args 6..N de métodos de instância, 7..N de funções) entre o pop
+     * e o re-push. As versões antigas usavam offsets FIXOS `-256-s*8(%rbp)`,
+     * que colidiam com locais reais quando o método tinha >32 slots: o valor
+     * do local era sobrescrito pelo argumento (corrupção silenciosa; medido
+     * `v31` 31000->6 no x86). Agora o rascunho fica ABAIXO dos locais.
+     */
+    int frameLocalsBytes = 0;
+
+    /** Offset (positivo, usado como `-off(%rbp)`) do slot de rascunho `s`. */
+    int scratchOffset(int s) { return frameLocalsBytes + (s + 1) * 8; }
+
     boolean usesDb = false;
     boolean usesOrm = false;
     /** F2b: className das entidades usadas com {@code orm.find} (para o
