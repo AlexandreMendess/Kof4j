@@ -1,0 +1,46 @@
+enum TermColorEnum {
+    RESET,
+    BLACK,
+    RED,
+    GREEN,
+    YELLOW,
+    BLUE,
+    PURPLE,
+    PINK,
+    CYAN,
+    WHITE,
+    BRIGHT_BLACK,
+    BRIGHT_RED,
+    BRIGHT_GREEN,
+    BRIGHT_YELLOW,
+    BRIGHT_BLUE,
+    BRIGHT_PURPLE,
+    BRIGHT_WHITE
+}
+
+String getTermColor(c: TermColorEnum) {
+    String outColor;
+
+    switch (c) {
+        case RESET: { outColor = "\u001b[0m" }
+        case BLACK: { outColor = "\u001b[30m" }
+        case RED: { outColor = "\u001b[31m" }
+        case GREEN: { outColor = "\u001b[32m" }
+        case YELLOW: { outColor = "\u001b[33m" }
+        case BLUE: { outColor = "\u001b[34m" }
+        case PINK: { outColor = "\u001b[35m" }
+        case PURPLE: { outColor = "\u001b[36m" }
+        case WHITE: { outColor = "\u001b[37m" }
+        case CYAN: { outColor = "\u001b[96m" }
+        case BRIGHT_BLACK: { outColor = "\u001b[90m" }
+        case BRIGHT_RED: { outColor = "\u001b[91m" }
+        case BRIGHT_GREEN: { outColor = "\u001b[92m" }
+        case BRIGHT_YELLOW: { outColor = "\u001b[93m" }
+        case BRIGHT_BLUE: { outColor = "\u001b[94m" }
+        case BRIGHT_PURPLE: { outColor = "\u001b[95m" }
+        case BRIGHT_WHITE: { outColor = "\u001b[97m" }
+        default: { outColor = "\u001b[97m" }
+    }
+
+    return outColor
+}

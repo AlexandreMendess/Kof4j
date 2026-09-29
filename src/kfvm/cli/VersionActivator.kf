@@ -7,19 +7,19 @@ import kfvm.store
 class VersionActivator {
     Store store
     kfvm.platform.UserPath userPath
-    Console console
+    Logger logger
 
-    constructor(Store store, kfvm.platform.UserPath userPath, Console console) {
+    constructor(Store store, kfvm.platform.UserPath userPath, Logger logger) {
         this.store = store
         this.userPath = userPath
-        this.console = console
+        this.logger = logger
     }
 
     void activate(String version) {
         store.activate(version)
-        console.info("now using kof " + version)
+        logger.info("now using kof " + version)
         if (userPath.include(store.currentBin())) {
-            console.info("added kof to your PATH (open a new terminal to use it)")
+            logger.info("added kof to your PATH (open a new terminal to use it)")
         }
     }
 }

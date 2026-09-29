@@ -7,13 +7,13 @@ class UseCommand implements kfvm.cli.Command {
     RemoteVersions remote
     InstalledVersions installed
     VersionActivator activator
-    Console console
+    Logger logger
 
-    constructor(RemoteVersions remote, InstalledVersions installed, VersionActivator activator, Console console) {
+    constructor(RemoteVersions remote, InstalledVersions installed, VersionActivator activator, Logger logger) {
         this.remote = remote
         this.installed = installed
         this.activator = activator
-        this.console = console
+        this.logger = logger
     }
 
     List<String> names() { return listOf("u", "use") }
@@ -32,7 +32,7 @@ class UseCommand implements kfvm.cli.Command {
         try {
             releases = remote.releases()
         } catch (String e) {
-            console.info("could not reach GitHub (" + e + "), using installed versions")
+            logger.info("could not reach GitHub (" + e + "), using installed versions")
             activator.activate(installed.resolveLocal(query))
             return
         }

@@ -6,27 +6,26 @@ import kfvm.store
 class UninstallCommand implements kfvm.cli.Command {
     InstalledVersions versions
     Store store
-    Console console
+    Logger logger
 
-    constructor(InstalledVersions versions, Store store, Console console) {
+    constructor(InstalledVersions versions, Store store, Logger logger) {
         this.versions = versions
         this.store = store
-        this.console = console
+        this.logger = logger
     }
 
     List<String> names() { return listOf("uni", "uninstall") }
 
     void run(List<String> args) {
-        if (args.size == 0) {
-            throw "usage: kfvm uni <ver|lst|nightly>"
-        }
+        if (args.size == 0) throw "usage: kfvm uni <ver|lst|nightly>"
+
         var version = versions.resolve(args.get(0))
         var active = version == store.current()
         store.remove(version)
         if (active) {
             store.deactivate()
-            console.info("kof " + version + " was the active version; no version is active now (run: kfvm u <ver>)")
+            logger.info("kof " + version + " was the active version; no version is active now (run: kfvm u <ver>)")
         }
-        console.info("uninstalled kof " + version)
+        logger.info("uninstalled kof " + version)
     }
 }

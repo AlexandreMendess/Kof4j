@@ -11,13 +11,13 @@ class Installer {
     GitHubClient github
     Store store
     kfvm.platform.FileSystem fs
-    Console console
+    Logger logger
 
-    constructor(GitHubClient github, Store store, kfvm.platform.FileSystem fs, Console console) {
+    constructor(GitHubClient github, Store store, kfvm.platform.FileSystem fs, Logger logger) {
         this.github = github
         this.store = store
         this.fs = fs
-        this.console = console
+        this.logger = logger
     }
 
     void install(RemoteRelease release) {
@@ -42,7 +42,7 @@ class Installer {
         if (archive == "")
             throw "release " + release.name() + " has no archive to download"
 
-        console.info("downloading " + archive + " (" + release.sizeInMb() + " MB) ...")
+        logger.info("downloading " + archive + " (" + release.sizeInMb() + " MB) ...")
         fetch(github.downloadUrl(release, archive), staging + "/" + archive)
         fetch(github.downloadUrl(release, "SHA256SUMS"), staging + "/SHA256SUMS")
 
@@ -54,7 +54,7 @@ class Installer {
     }
 
     void verify(String staging, String archive) {
-        console.info("verifying checksum ...")
+        logger.info("verifying checksum ...")
         var expected = Checksums.of(File(staging + "/SHA256SUMS").readText(), archive)
         if (expected == "")
             throw "checksum for " + archive + " not found"

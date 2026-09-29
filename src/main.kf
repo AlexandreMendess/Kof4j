@@ -6,17 +6,19 @@ import kfvm.installer
 import kfvm.cli
 
 main(args: List<String>) {
-    var console = Console()
-    var home = Env.getOr("KFVM_HOME", Env.userHome() + "/.local/share/kof")
-    var first = if (args.size > 0) args.get(0) else ""
+    val VERSION = "0.3.0"
+    val logger = Logger()
+    val home = Env.getOr("KFVM_HOME", Env.userHome() + "/.local/share/kof")
+    val first = if (args.size > 0) args.get(0) else ""
+    val usage = Usage(home, VERSION, logger)
 
     if (first == "" || first == "-h" || first == "--help" || first == "help") {
-        console.out(Usage.text(home))
+        usage.logUsage()
         return
     }
 
     if (first == "-v" || first == "--version" || first == "version") {
-        console.out("kfvm " + Usage.VERSION)
+        logger.logWithKind("version", CYAN, VERSION)
         return
     }
 
@@ -27,20 +29,20 @@ main(args: List<String>) {
         var fs = platform.fileSystem()
         var github = GitHubClient("KofLang/Kof4j", platform.id(), Env.get("GITHUB_TOKEN"))
         var store = Store(home, platform.id(), fs)
-        var installer = Installer(github, store, fs, console)
+        var installer = Installer(github, store, fs, logger)
         var installed = InstalledVersions(github, store)
-        var remote = RemoteVersions(github, store, installer, console)
-        var activator = VersionActivator(store, platform.userPath(), console)
+        var remote = RemoteVersions(github, store, installer, logger)
+        var activator = VersionActivator(store, platform.userPath(), logger)
         var commands = listOf<kfvm.cli.Command>()
 
-        commands.add(ListCommand(github, store, console))
-        commands.add(InstallCommand(remote, store, activator, console))
-        commands.add(UseCommand(remote, installed, activator, console))
-        commands.add(UninstallCommand(installed, store, console))
+        commands.add(ListCommand(github, store, logger))
+        commands.add(InstallCommand(remote, store, activator, logger))
+        commands.add(UseCommand(remote, installed, activator, logger))
+        commands.add(UninstallCommand(installed, store, logger))
 
-        process.exit(Cli(commands, console, home).run(args))
+        process.exit(Cli(commands, logger, home, usage).run(args))
     } catch (String err) {
-        console.error(err)
+        logger.error(err)
         process.exit(1)
     }
 }

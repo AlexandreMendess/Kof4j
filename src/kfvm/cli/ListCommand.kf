@@ -7,12 +7,12 @@ import kfvm.store
 class ListCommand implements kfvm.cli.Command {
     GitHubClient github
     Store store
-    Console console
+    Logger logger
 
-    constructor(GitHubClient github, Store store, Console console) {
+    constructor(GitHubClient github, Store store, Logger logger) {
         this.github = github
         this.store = store
-        this.console = console
+        this.logger = logger
     }
 
     List<String> names() { return listOf("ls", "list") }
@@ -33,13 +33,13 @@ class ListCommand implements kfvm.cli.Command {
     void listInstalled() {
         var installed = store.installed()
         if (installed.size == 0) {
-            console.info("no versions installed (try: kfvm i lst)")
+            logger.info("no versions installed (try: kfvm i lst)")
             return
         }
 
         var current = store.current()
         for (var v in installed) {
-            console.out(if (v == current) "* " + v + " (current)" else "  " + v)
+            if (v == current) logger.logWithKind("current", GREEN, "* " + v) else logger.log("  " + v)
         }
     }
 
@@ -53,7 +53,7 @@ class ListCommand implements kfvm.cli.Command {
             var marker = if (r.version() == current) "* " else "  "
             var channel = if (r.nightly()) "nightly" else "stable"
             var status = if (installed.contains(r.version())) " installed" else ""
-            console.out(marker + pad(r.version(), 28) + " " + pad(channel, 8) + status)
+            logger.log(marker + pad(r.version(), 28) + " " + pad(channel, 8) + status)
         }
     }
 

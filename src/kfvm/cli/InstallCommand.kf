@@ -7,13 +7,13 @@ class InstallCommand implements kfvm.cli.Command {
     RemoteVersions remote
     Store store
     VersionActivator activator
-    Console console
+    Logger logger
 
-    constructor(RemoteVersions remote, Store store, VersionActivator activator, Console console) {
+    constructor(RemoteVersions remote, Store store, VersionActivator activator, Logger logger) {
         this.remote = remote
         this.store = store
         this.activator = activator
-        this.console = console
+        this.logger = logger
     }
 
     List<String> names() { return listOf("i", "install") }
@@ -30,7 +30,7 @@ class InstallCommand implements kfvm.cli.Command {
         if (current == "" || current == version)
             activator.activate(version)
         else 
-            console.info("run 'kfvm u " + version + "' to activate it")
+            logger.info("run 'kfvm u " + version + "' to activate it")
         
     }
 }
