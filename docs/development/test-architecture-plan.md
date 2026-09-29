@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 159 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 158 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -107,7 +107,10 @@ qemu runners, the toolchain guard and the two largest inline Kof programs (as `A
 oversized 34→33, baseline 161→160. **Eleventh split landed (29/09):** `KofSwitchExprSupport`
 extracted the JVM/Native/JS runners and hoisted all 32 inline Kof programs out of
 `KofSwitchExprE2ETest` into named constants (all 32 cases and the cited class name stayed) →
-oversized 33→32, baseline 160→159. The metric is a
+oversized 33→32, baseline 160→159. **Twelfth split landed (29/09):** `KofInterpreterParitySupport`
+(harness) + `KofInterpreterParityPrograms` (the 8 largest inline Kof programs, hoisted) out of
+`KofInterpreterParityTest` (all 26 cases and the cited class name stayed) → oversized 32→31,
+baseline 159→158. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -610,8 +613,9 @@ Before any deep refactoring, the path is:
    (36/36 kept), `BiosBootSupport` out of `BiosBootE2ETest` (10/10 kept) and `FfiStructSupport`
    out of `FfiStructE2ETest` (12/12 kept), `ShellSupport` out of `ShellE2ETest` (21/21 kept)
    `KofStringsSupport` out of `KofStringsTest` (18/18 kept) and `KofSwitchExprSupport` out of
-   `KofSwitchExprE2ETest` (32/32 kept) → oversized 43→32, baseline 170→159; next split picks by
-   a fresh `--citations` measurement).
+   `KofSwitchExprE2ETest` (32/32 kept) and `KofInterpreterParitySupport`/`...Programs` out of
+   `KofInterpreterParityTest` (26/26 kept) → oversized 43→31, baseline 170→158; next split picks
+   by a fresh `--citations` measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open

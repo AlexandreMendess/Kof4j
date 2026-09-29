@@ -146,7 +146,9 @@ the suite) for the quick-win targets the plan names.
   baseline 161; and `KofStringsSupport` out of `KofStringsTest` (all 18 cases kept, two inline
   programs hoisted to constants) → oversized 34→33, baseline 160; and `KofSwitchExprSupport`
   out of `KofSwitchExprE2ETest` (all 32 cases kept, all 32 inline programs hoisted) → oversized
-  33→32, baseline **159**. Re-measure `--citations` before the next pick: naming candidates in the
+  33→32, baseline 159; and `KofInterpreterParitySupport`/`KofInterpreterParityPrograms` out of
+  `KofInterpreterParityTest` (all 26 cases kept, 8 largest programs hoisted) → oversized 32→31,
+  baseline **158**. Re-measure `--citations` before the next pick: naming candidates in the
   queue itself adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated
