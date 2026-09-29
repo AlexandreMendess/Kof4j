@@ -278,8 +278,40 @@ Namespace prefixes are preserved verbatim in names — resolution is a later
 slice, so this is a documented subset, not a stub. Targets match `TextStream`
 (JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
 
+### INI (`Ini`, slice 3.1)
+
+An INI configuration reader over `TextStream`: entries are kept in an ordered
+list (config-sized), and `get(section, key)` / `has(section, key)` /
+`keysOf(section)` query them. Section `""` is the global scope.
+
+```kof
+import file.Ini
+
+main() {
+    var ini = Ini("app.ini")
+    var host = ini.get("db", "host")   // String?, null when absent
+    if (host != null) {
+        println(host)
+    }
+}
+```
+
+| Operation | Description |
+|----------|-------------|
+| `Ini(path[, chunkSize])` | parse an INI file (default chunk 8192) |
+| `get(section, key)` | `String?` — value, or `null` (section `""` = global) |
+| `has(section, key)` | `Bool` |
+| `keysOf(section)` | `List<String>` — keys in first-appearance order |
+
+Documented subset: `[section]` headers (keys before the first are global);
+`key = value` and `key: value`, trimmed; a value wrapped in matching single or
+double quotes is unquoted; full-line comments start with `;` or `#` (inline
+comments are data); a duplicate `section`+`key` keeps the **last** value; a
+malformed header or a line without a separator throws a `String`. Targets match
+`TextStream` (JVM, Native x86-64/riscv64, Script; JS `IOJS001`).
+
 ## Reference
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Tests: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`

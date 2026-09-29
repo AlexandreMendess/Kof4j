@@ -281,8 +281,41 @@ trocada ou EOF lança). Prefixos de namespace são preservados verbatim nos nome
 não um stub. Alvos iguais ao `TextStream` (JVM, Native x86-64/riscv64, Script;
 JS `IOJS001`).
 
+### INI (`Ini`, fatia 3.1)
+
+Um leitor de configuração INI sobre o `TextStream`: as entradas ficam numa lista
+ordenada (tamanho de config), e `get(section, key)` / `has(section, key)` /
+`keysOf(section)` consultam. Seção `""` é o escopo global.
+
+```kof
+import file.Ini
+
+main() {
+    var ini = Ini("app.ini")
+    var host = ini.get("db", "host")   // String?, null quando ausente
+    if (host != null) {
+        println(host)
+    }
+}
+```
+
+| Operação | Descrição |
+|----------|-----------|
+| `Ini(path[, chunkSize])` | parseia um arquivo INI (chunk default 8192) |
+| `get(section, key)` | `String?` — valor, ou `null` (seção `""` = global) |
+| `has(section, key)` | `Bool` |
+| `keysOf(section)` | `List<String>` — chaves em ordem de primeira aparição |
+
+Subconjunto documentado: headers `[section]` (chaves antes do primeiro são
+globais); `key = value` e `key: value`, com trim; um valor entre quotes simples
+ou duplas correspondentes é desquotado; comentários de linha inteira começam com
+`;` ou `#` (comentário inline é dado); uma chave `section`+`key` duplicada
+mantém o ÚLTIMO valor; um header malformado ou uma linha sem separador lança um
+`String`. Alvos iguais ao `TextStream` (JVM, Native x86-64/riscv64, Script; JS
+`IOJS001`).
+
 ## Referência
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Testes: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`
+- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`
