@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 147 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 146 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -135,7 +135,9 @@ and the cited class name stayed) → oversized 23→22, baseline 150→149. **Tw
 baseline 149→148. **Twenty-third split landed (29/09):** `SemanticResolutionSupport` (driver +
 SEM025/SEM050 oracles) + `SemanticResolutionPrograms` (19 hoisted programs) out of
 `SemanticResolutionTest` (all 30 cases and the cited class name stayed) → oversized 21→20,
-baseline 148→147. The metric is a
+baseline 148→147. **Twenty-fourth split landed (29/09):** `CmdDeploySupport` (16 helper
+methods/records, extracted) out of `CmdDeployTest` (all 16 cases and the cited class name stayed)
+→ oversized 20→19, baseline 147→146. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -648,8 +650,8 @@ Before any deep refactoring, the path is:
    `DomainGapCodesTest` (29/29 kept) and `BackendParityPrograms` out of `BackendParityTest` (19/19
    kept) and `ComponentCoreSupport`/`ComponentCorePrograms` out of `ComponentCoreE2ETest` (29/29
    kept) and `SemanticResolutionSupport`/`SemanticResolutionPrograms` out of `SemanticResolutionTest`
-   (30/30 kept) → oversized 43→20, baseline 170→147; next split picks by a fresh `--citations`
-   measurement).
+   (30/30 kept) and `CmdDeploySupport` out of `CmdDeployTest` (16/16 kept) → oversized 43→19,
+   baseline 170→146; next split picks by a fresh `--citations` measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
