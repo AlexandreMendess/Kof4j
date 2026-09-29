@@ -747,6 +747,21 @@ round-trip write→read→validate on JVM; the JS `IOJS001` gap). No compiler ch
 
 ---
 
+
+## 9.17 Promoted slice 16 (29/09/2026) — C-ABI connector, declarative half (Slice C of §9.16)
+
+**State:** landed. `interop.CAbiConnector` is the declarative half of the official second connector
+(C ABI, `D-CONNECTORS`): it composes the landed Core pieces into one validated profile — the foreign
+module (`ForeignModule`: library+symbols+ABI+ownership), the declared visible costs (`InteropCost`),
+the supported interop types (`InteropType`) and the stability tier (`InteropCompatibility`) — with
+`describe()` and validation. The runtime round-trip (dlopen/call) waits on the `foreign module`
+grammar + interop error type compiler slices (§9.16 A/B). Pure Kof, no compiler change.
+
+**Proof:** `CAbiConnectorE2ETest` **7/7** (JVM golden + Script + JS + Native x86-64 + three
+negatives: unknown cost/type/symbol).
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:
@@ -772,11 +787,11 @@ golden corpus; compatibility and negative tests are gates, not extras.
 ---
 
 
-**Landed Core suite (29/09/2026).** The pure-Kof Interop Core is covered by 12 cross-target E2E
-classes, all green together (**65/65**): `ConnectorManifestE2ETest` (10), `ConnectorCatalogueE2ETest`
+**Landed Core suite (29/09/2026).** The pure-Kof Interop Core is covered by 13 cross-target E2E
+classes, all green together (**72/72**): `ConnectorManifestE2ETest` (10), `ConnectorCatalogueE2ETest`
 (4), `InteropCoreE2ETest` (4), `InteropTypeE2ETest` (5), `InteropOwnershipE2ETest` (5),
 `InteropStringE2ETest` (5), `InteropCostE2ETest` (5), `InteropLibraryE2ETest` (5),
-`InteropCompatibilityE2ETest` (6), `ConnectorSpiE2ETest` (5), `ForeignModuleE2ETest` (6), `ConnectorTemplateE2ETest` (5) — each runs
+`InteropCompatibilityE2ETest` (6), `ConnectorSpiE2ETest` (5), `ForeignModuleE2ETest` (6), `ConnectorTemplateE2ETest` (5), `CAbiConnectorE2ETest` (7) — each runs
 JVM golden + Script + Native x86-64 (+ JS where the library is target-neutral; the file-IO libraries
 assert the JS `IOJS001` gap), plus the negative diagnostics.
 
@@ -859,6 +874,37 @@ authorized and its design questions are locked in `DECISIONS.md`:
 **Still to land (compiler/language slices, rule 6 records already in place):** the interop error
 type on the language surface and the `foreign module` grammar construct — both touch the
 compiler/frontend and are separate slices, not library-only.
+
+---
+
+
+## 9.16 Measurement — the remaining authorized work, decomposed (29/09/2026)
+
+`D-CONNECTORS` authorizes more than the pure-Kof Core: the interop **error type** (language), the
+`foreign module` **grammar**, and the **C-ABI connector** as the official second connector. This is a
+measure-first slice: it names the real anchors and splits the work, and implements nothing by itself.
+
+**Real anchors (verified in-tree):** `FfiSignature.java`, `AbiLayout.java`, `FfiStructLayout.java`,
+`CompilerFfiBinding.java`, `JvmFfiRuntime.java`, `nat/NativeFfiCall.java`, `TargetMatrix.java`.
+
+* **Slice A — `foreign module` grammar** (compiler/frontend). Today the module is a pure-Kof
+  descriptor (`ForeignModule`, §9.9); the decision puts the construct in the grammar. Smallest
+  measurable step: parse `foreign module <name> { ... }` into the existing FFI binding
+  (`CompilerFfiBinding`) — no new ABI engine (rule 54); proof = a Kof program declaring and calling a
+  symbol through the existing FFI path. Touches lexer/parser + binder → compiler lane.
+* **Slice B — interop error type** (type system). The decision makes the interop error a language
+  type. Smallest measurable step: the type + its mapping to existing throws/catch; proof = a foreign
+  error surfaces as that type and is never swallowed (R6). Touches the type system → compiler lane.
+* **Slice C — C-ABI connector, declarative half** (library-first, startable now). Compose the landed
+  Core pieces into the official C connector profile: `ForeignModule` (library+symbols+ABI+ownership)
+  + `InteropCost` (declared visible costs) + `InteropCompatibility` (stability tier)
+  + `InteropLibrary` (`.so`/`.dylib`/`.dll`/`.a`/`.lib`); `describe()`/validation; runtime round-trip
+  waits on A/B. Pure Kof; no compiler change.
+* **Slice D — ABI tier table** (documentation). The concrete tier table and first stable version are
+  decided by `D-CONNECTORS` but not transcribed; record them before the ABI slice.
+
+**Order:** D (doc, unblocks) → C (library-first, no compiler) → A → B (compiler slices). Slices A/B
+are the first place this front touches the compiler; they are not library-only.
 
 ---
 

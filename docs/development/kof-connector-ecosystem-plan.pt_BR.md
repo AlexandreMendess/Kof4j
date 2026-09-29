@@ -754,6 +754,21 @@ round-trip real write→read→validate na JVM; a lacuna JS `IOJS001`). Sem muda
 
 ---
 
+
+## 9.17 Fatia promovida 16 (29/09/2026) — connector C-ABI, metade declarativa (Fatia C da §9.16)
+
+**Estado:** landada. `interop.CAbiConnector` é a metade declarativa do segundo connector oficial
+(C ABI, `D-CONNECTORS`): compõe as peças do Core num perfil validado — o foreign module
+(`ForeignModule`: library+símbolos+ABI+posse), os custos visíveis declarados (`InteropCost`), os tipos
+de interop suportados (`InteropType`) e o tier de estabilidade (`InteropCompatibility`) — com
+`describe()` e validação. O round-trip de runtime (dlopen/call) espera as fatias de compilador
+gramática `foreign module` + tipo de erro (§9.16 A/B). Kof puro, sem mudança no compilador.
+
+**Prova:** `CAbiConnectorE2ETest` **7/7** (golden JVM + Script + JS + Native x86-64 + três negativos:
+custo/tipo/símbolo desconhecidos).
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:
@@ -779,11 +794,11 @@ ecossistema; testes de compatibilidade e negativos são portões, não extras.
 ---
 
 
-**Suíte Core landada (29/09/2026).** O Interop Core em Kof puro é coberto por 12 classes E2E
-cross-target, todas verdes juntas (**65/65**): `ConnectorManifestE2ETest` (10), `ConnectorCatalogueE2ETest`
+**Suíte Core landada (29/09/2026).** O Interop Core em Kof puro é coberto por 13 classes E2E
+cross-target, todas verdes juntas (**72/72**): `ConnectorManifestE2ETest` (10), `ConnectorCatalogueE2ETest`
 (4), `InteropCoreE2ETest` (4), `InteropTypeE2ETest` (5), `InteropOwnershipE2ETest` (5),
 `InteropStringE2ETest` (5), `InteropCostE2ETest` (5), `InteropLibraryE2ETest` (5),
-`InteropCompatibilityE2ETest` (6), `ConnectorSpiE2ETest` (5), `ForeignModuleE2ETest` (6), `ConnectorTemplateE2ETest` (5) — cada uma roda
+`InteropCompatibilityE2ETest` (6), `ConnectorSpiE2ETest` (5), `ForeignModuleE2ETest` (6), `ConnectorTemplateE2ETest` (5), `CAbiConnectorE2ETest` (7) — cada uma roda
 golden JVM + Script + Native x86-64 (+ JS quando a biblioteca é neutra de alvo; as de IO de arquivo
 afirmam a lacuna JS `IOJS001`), mais os diagnósticos negativos.
 
@@ -868,6 +883,37 @@ autorizada e suas questões de design travadas no `DECISIONS.md`:
 **Falta pousar (fatias de compilador/linguagem, registros rule 6 já existentes):** o tipo de erro de
 interop na superfície da linguagem e o construto `foreign module` na gramática — ambos tocam o
 compilador/frontend e são fatias separadas, não só biblioteca.
+
+---
+
+
+## 9.16 Medição — o trabalho autorizado restante, decomposto (29/09/2026)
+
+O `D-CONNECTORS` autoriza mais que o Core em Kof puro: o **tipo de erro** de interop (linguagem), a
+**gramática** `foreign module` e o **connector C-ABI** como segundo connector oficial. Esta é uma
+fatia medir-antes: nomeia as âncoras reais, divide o trabalho e não implementa nada por si.
+
+**Âncoras reais (verificadas no repositório):** `FfiSignature.java`, `AbiLayout.java`,
+`FfiStructLayout.java`, `CompilerFfiBinding.java`, `JvmFfiRuntime.java`, `nat/NativeFfiCall.java`,
+`TargetMatrix.java`.
+
+* **Fatia A — gramática `foreign module`** (compilador/frontend). Hoje o módulo é descritor Kof puro
+  (`ForeignModule`, §9.9); a decisão põe o construto na gramática. Menor passo mensurável: parsear
+  `foreign module <name> { ... }` para o binding FFI existente (`CompilerFfiBinding`) — sem novo motor
+  ABI (regra 54); prova = um programa Kof declarando e chamando um símbolo pelo caminho FFI existente.
+  Toca lexer/parser + binder → lane compilador.
+* **Fatia B — tipo de erro de interop** (sistema de tipos). A decisão faz do erro de interop um tipo
+  da linguagem. Menor passo: o tipo + seu mapeamento para throws/catch existentes; prova = um erro
+  estrangeiro surge como esse tipo e nunca é engolido (R6). Toca o sistema de tipos → lane compilador.
+* **Fatia C — connector C-ABI, metade declarativa** (library-first, começa já). Compõe as peças do
+  Core: `ForeignModule` (library+símbolos+ABI+posse) + `InteropCost` (custos visíveis declarados) +
+  `InteropCompatibility` (tier de estabilidade) + `InteropLibrary` (`.so`/`.dylib`/`.dll`/`.a`/`.lib`);
+  `describe()`/validação; o round-trip de runtime espera A/B. Kof puro; sem mudança no compilador.
+* **Fatia D — tabela de tiers ABI** (documentação). A tabela concreta e a primeira versão estável
+  estão decididas no `D-CONNECTORS` mas não transcritas; registrar antes da fatia de ABI.
+
+**Ordem:** D (doc, destrava) → C (library-first, sem compilador) → A → B (fatias de compilador). As
+fatias A/B são o primeiro ponto em que esta frente toca o compilador; não são só biblioteca.
 
 ---
 
