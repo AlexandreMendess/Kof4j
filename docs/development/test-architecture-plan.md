@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 179 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 176 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -27,6 +27,12 @@ bounded poll (it was flaky: 1/3 green) → baseline 182→179 keys. **Honest
 correction:** slice 1's "redundant" settle in `KofWebHardeningTest` was part of
 that race's timing — the test now waits for the 503 instead of guessing. The visible cost is
 feedback latency, not correctness (the reactor suite is green).
+**Quick-win slice 4 (28/09):** `TestServerFixture` gained a TCP-only
+`awaitPort(port, attempts, interval)` and an explicit-budget
+`awaitListening(process, port, attempts, interval)`; the remaining pure readiness
+loops in `KofWebNativeE2ETest` (4), `KofWebJsE2ETest` (3) and `KofBlogE2ETest` (1)
+now call them instead of hand-rolled probes → baseline 179→176 keys. Fail-fast on
+child death and kill-on-timeout stay inside the fixture.
 **How to finish:** Phase 1/2 discovery done — then **Phase 2 quick-win removals**
 (shrink the baseline: sleeps / duplication / oversized) → 3 (modularization) → 4
 (harness) → 5 (targets) → 6 (conformance) → 7 (`mvn verify`). **Pure test infrastructure — the compiler is never touched**

@@ -6,9 +6,10 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Shared readiness probe for the JVM web E2E fixtures: the server is started as a
- * child process, so the test must wait until it binds the port. This is the single
- * home of that bounded poll — test classes call {@link #awaitListening(Process, int)}
+ * Shared readiness probe for the web E2E fixtures: the server is started as a
+ * child process (or an in-test runner thread), so the test must wait until it
+ * binds the port. This is the single home of that bounded poll — test classes
+ * call {@link #awaitListening(Process, int)} / {@link #awaitPort(int, int, long)}
  * instead of duplicating the loop (and its {@code Thread.sleep}) each time.
  *
  * <p>Pure test infrastructure: the compiler is never touched.
@@ -17,26 +18,59 @@ final class TestServerFixture {
     private TestServerFixture() {
     }
 
+    /** Default JVM child-process probe: 40 attempts, 100 ms apart (≈4 s). */
     static void awaitListening(Process serverProcess, int port) throws IOException {
-        for (int attempt = 0; attempt < 40; attempt++) {
+        awaitListening(serverProcess, port, 40, 100);
+    }
+
+    /**
+     * Child-process probe with explicit budget. Fails fast if the process dies,
+     * reading its stdout for the diagnostic, and kills it on timeout so a stuck
+     * server never leaks past the test.
+     */
+    static void awaitListening(Process serverProcess, int port, int attempts, long intervalMillis)
+            throws IOException {
+        for (int attempt = 0; attempt < attempts; attempt++) {
             if (!serverProcess.isAlive()) {
                 String out = new String(serverProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
                         .replace("\r\n", "\n").trim();
                 throw new IOException("server exited early: " + out);
             }
-            try (Socket probe = new Socket()) {
-                probe.connect(new InetSocketAddress("127.0.0.1", port), 200);
+            if (awaitPort(port, 1, 0)) {
                 return;
-            } catch (IOException e) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
             }
+            sleepQuietly(intervalMillis);
         }
         serverProcess.destroyForcibly();
         throw new IOException("server did not start listening on port " + port);
+    }
+
+    /**
+     * TCP-only probe for servers whose lifetime is not a Java child process
+     * (in-test runner threads, native binaries). Returns true as soon as the port
+     * accepts a connection, false if the budget expires; it never throws for a
+     * refused connection.
+     */
+    static boolean awaitPort(int port, int attempts, long intervalMillis) {
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            try (Socket probe = new Socket()) {
+                probe.connect(new InetSocketAddress("127.0.0.1", port), 200);
+                return true;
+            } catch (IOException e) {
+                sleepQuietly(intervalMillis);
+            }
+        }
+        return false;
+    }
+
+    private static void sleepQuietly(long millis) {
+        if (millis <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
