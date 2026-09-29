@@ -555,6 +555,19 @@ expose the vocabulary. No compiler change.
 
 ---
 
+
+## 9.3 Promoted slice 3 (29/09/2026) — interop type model
+
+**State:** landed. `libs/interop/InteropType.kf` answers the plan §3.1 question in pure Kof: for a
+Kof type, its **interop kind** (integer/float/boolean/char/string/buffer/array/struct-or-handle/
+enum/function-pointer/callback/opaque/nullable/result/object-handle). `kindOf` returns null for a
+non-interoperable type and `describe` throws `INTEROP: unsupported type <x>` (R6, never a guess);
+`kinds()`/`isKnownKind` expose the vocabulary. No target-specific ABI widths (those stay with
+`AbiLayout`/`FfiSignature`), no compiler change, and no file IO — so it is target-neutral and runs
+on every target including JS (no gap).
+
+---
+
 # 10. Testing
 
 Each connector must have tests at multiple levels:

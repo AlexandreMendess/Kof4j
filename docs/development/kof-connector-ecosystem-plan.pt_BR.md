@@ -560,6 +560,19 @@ expõem o vocabulário. Sem mudança no compilador.
 
 ---
 
+
+## 9.3 Fatia promovida 3 (29/09/2026) — modelo de tipos de interop
+
+**Estado:** landada. `libs/interop/InteropType.kf` responde em pure Kof à pergunta do plano §3.1:
+para um tipo Kof, seu **kind de interop** (integer/float/boolean/char/string/buffer/array/
+struct-or-handle/enum/function-pointer/callback/opaque/nullable/result/object-handle). `kindOf`
+retorna null para um tipo não-interoperável e `describe` lança `INTEROP: unsupported type <x>` (R6,
+nunca um chute); `kinds()`/`isKnownKind` expõem o vocabulário. Sem larguras de ABI de alvo (isso
+fica com `AbiLayout`/`FfiSignature`), sem mudança no compilador, e sem IO de arquivo — logo é
+neutra de alvo e roda em todos, inclusive JS (sem lacuna).
+
+---
+
 # 10. Testes
 
 Cada connector deve possuir testes em múltiplos níveis:
