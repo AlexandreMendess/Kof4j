@@ -24,14 +24,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * do {@code div_t} da libc. Oráculo x86_64 + concordância riscv64/aarch64 sob
  * qemu; golden de medição real (REGRA 5).
  */
-class KofCStructCompilerTest extends KofCSupport {
+class KofCStructCompilerTest extends KofCGoldenSupport {
 
     @Override
     protected List<Prog> programs() {
         return PROGRAMS;
     }
-
-
 
     private static final List<Prog> PROGRAMS = List.of(
             new Prog("local struct field round trip", """
@@ -108,29 +106,6 @@ class KofCStructCompilerTest extends KofCSupport {
                     struct Triple bump(struct Triple t, int k) { struct Triple r; r.a = t.a + k; r.b = t.b + k; r.c = t.c + k; return r; }
                     void main() { struct Triple t; t.a = 1; t.b = 2; t.c = 3; struct Triple u; u = bump(t, 10); print_arg = (u.a + u.b) + u.c; print(); }
                     """, "36"));
-
-
-
-
-
-    @Test
-    void x86OracleMatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.X86_64);
-        assertAllPrograms(KofCTarget.X86_64, tmp);
-    }
-
-    @Test
-    void riscv64MatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.RISCV64);
-        assertAllPrograms(KofCTarget.RISCV64, tmp);
-    }
-
-    @Test
-    void aarch64MatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.AARCH64);
-        assertAllPrograms(KofCTarget.AARCH64, tmp);
-    }
-
 
     @Test
     void structParamAboveSixEightbytesIsRejected(@TempDir Path tmp) throws Exception {

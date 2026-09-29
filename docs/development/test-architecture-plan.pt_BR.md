@@ -10,7 +10,7 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 141 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, 138 chaves). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -532,8 +532,11 @@ chaves `dupname` do ratchet (ambas as classes seguem verdes, zero drift de cita�
 fatia da Fase 4 (29/09):** `KofCSupport` consolidou o harness duplicado do compilador C
 (`has`/`requireTools`/`run`/`assertAllPrograms`/`compile` + o record `Prog`) entre os 4
 `KofC*CompilerTest` — removendo 2 chaves `dupname` (`assertAllPrograms`, `requireTools`;
-`has`/`run`/`compile` persistem declarados noutros módulos), as 4 classes verdes. Harness
-146→**141** (5 chaves eliminadas nas duas fatias).
+`has`/`run`/`compile` persistem declarados noutros módulos), as 4 classes verdes. **Terceira
+fatia da Fase 4 (29/09):** os 3 `@Test` do laço de golden compartilhados por
+`KofCParamsCompilerTest`/`KofCStructCompilerTest` foram para uma base intermediária
+`KofCGoldenSupport` (só elas a estendem) — removendo mais 3 chaves `dupname`. Harness 146→**138**
+(8 chaves eliminadas nas três fatias).
 
 Nota da Fase 3 (29/09): extração pura esgotada — **43 oversized → 19** em 24 divisões, todas com
 zero drift; o restante ou pertence a lane ativa ou exige mover testes (citation sweep).

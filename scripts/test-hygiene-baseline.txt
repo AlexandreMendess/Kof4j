@@ -2,7 +2,6 @@
 # Formato TSV: <tipo><TAB><chave>; tipo = sleep | oversized | dupname.
 # Regenerar DELIBERADAMENTE so apos MELHORAR: scripts/check_test_hygiene.sh --write-baseline
 # Linhas com '#' e vazias sao ignoradas; a comparacao e por conjunto (sorted -u).
-dupname	aarch64MatchesEveryGolden
 dupname	append
 dupname	assertAllTargets
 dupname	assertBoth
@@ -81,7 +80,6 @@ dupname	readLineAtEofIsHonestEmpty
 dupname	registeredStepRunsDuringCompile
 dupname	requirePython3
 dupname	restore
-dupname	riscv64MatchesEveryGolden
 dupname	run
 dupname	runAll3
 dupname	runBoth
@@ -115,7 +113,6 @@ dupname	writeMaskedFrame
 dupname	writeOversizedFrameHeader
 dupname	wrongArityRejectedOnAllArtifactTargets
 dupname	x86AndJsMatchJvmOutput
-dupname	x86OracleMatchesEveryGolden
 oversized	kof-cli/src/test/java/dev/kof/cli/DecompileTest.java
 oversized	kof-cli/src/test/java/dev/kof/cli/DepsRegistryTest.java
 oversized	kof-cli/src/test/java/dev/kof/cli/LspServerTest.java

@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 141 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 138 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -527,8 +527,12 @@ helpers (`be32`/`type4`/`le16`/`le32`/`clipMp4`/`clipZeroSizeMp4`/`wav`) of `Med
 (`has`/`requireTools`/`run`/`assertAllPrograms`/`compile` + the `Prog` record) across
 `KofCParamsCompilerTest`, `KofCStructCompilerTest`, `KofCCrossCompilerTest` and `KofCObjectCompilerTest`
 — removing 2 `dupname` keys (`assertAllPrograms`, `requireTools`; `has`/`run`/`compile` persist
-declared in other modules), all 4 classes green. Harness baseline 146→**141**
-(5 `dupname` keys eliminated across the two slices).
+declared in other modules), all 4 classes green. **Third Phase 4 slice (29/09):** the 3 golden-loop
+`@Test` methods (`x86OracleMatchesEveryGolden`/`riscv64MatchesEveryGolden`/`aarch64MatchesEveryGolden`)
+shared by `KofCParamsCompilerTest`/`KofCStructCompilerTest` moved to an intermediate
+`KofCGoldenSupport` base (only those two extend it, so no leak to Cross/Object) — 3 more `dupname`
+keys removed; both classes keep 7/9 tests green. Harness baseline 146→**138**
+(8 `dupname` keys eliminated across the three slices).
 
 Phase 3 note (29/09): pure extraction is now exhausted — **43 oversized classes down to 19** over 24
 splits, all with zero citation drift; the remaining oversized classes either belong to an active

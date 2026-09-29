@@ -22,14 +22,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * host; as archs cross concordam com o mesmo golden sob qemu. Onde o texto é
  * construído, o golden vem de medição real (REGRA 5), nunca de memória.
  */
-class KofCParamsCompilerTest extends KofCSupport {
+class KofCParamsCompilerTest extends KofCGoldenSupport {
 
     @Override
     protected List<Prog> programs() {
         return PROGRAMS;
     }
-
-
 
     private static final List<Prog> PROGRAMS = List.of(
             new Prog("two integer parameters", """
@@ -86,29 +84,6 @@ class KofCParamsCompilerTest extends KofCSupport {
                       print();
                     }
                     """, "1\n6"));
-
-
-
-
-
-    @Test
-    void x86OracleMatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.X86_64);
-        assertAllPrograms(KofCTarget.X86_64, tmp);
-    }
-
-    @Test
-    void riscv64MatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.RISCV64);
-        assertAllPrograms(KofCTarget.RISCV64, tmp);
-    }
-
-    @Test
-    void aarch64MatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.AARCH64);
-        assertAllPrograms(KofCTarget.AARCH64, tmp);
-    }
-
 
     @Test
     void unknownCallIsAHonestDiagnostic(@TempDir Path tmp) throws Exception {
