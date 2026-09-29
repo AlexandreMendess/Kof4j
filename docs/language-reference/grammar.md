@@ -115,7 +115,8 @@ enum-declaration = modifiers , "enum" , identifier ,
 `
 
 **Enums are just constants** — no body, no methods, no constructors, no
-fields (`enum E { A String f(){…} }` → `PARSE032`, *probe*). At runtime the
+fields (`enum E { A String f(){…} }` → `PARSE032`, *probe*); a clause before
+the `{` (`enum Cor extends Tudo { A, B }`) is a single `PARSE034` (§687). At runtime the
 value of an enum **is** the name (`String`) — see [classes.md](classes.md).
 
 `ebnf
