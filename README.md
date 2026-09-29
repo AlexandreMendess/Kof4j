@@ -90,7 +90,7 @@ kfvm ls -r        # versions available on GitHub Releases
 ### Installing
 
 ```bash
-kfvm i lts        # latest stable release (same as lts or latest)
+kfvm i lts        # latest stable release (same as latest)
 kfvm i nightly    # latest pre-release
 kfvm i 0.4        # newest 0.4.x release
 kfvm i 0.4.10     # a specific version
@@ -119,7 +119,7 @@ On Windows, kfvm runs on the JDK of the active Kof version and files in use cann
 
 | Specifier | Meaning |
 |---|---|
-| `lts`, `lts`, `latest` | The newest stable release. |
+| `lts`, `latest` | The newest stable release. |
 | `nightly` | The newest pre-release. |
 | `<ver>` | A full or partial version, resolved as described below. A leading `v` is ignored (`v0.4` is `0.4`). |
 

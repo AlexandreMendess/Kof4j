@@ -12,7 +12,7 @@ class Usage {
     }
 
     logUsage() {
-        TermColor headColor = CYAN
+        TermColor headColor = BRIGHT_CYAN
 
         logger.logWithKind("kfvm version", BLUE, version + " - Kof Version Manager\n")
         logger.logColorfulLine(headColor, "Usage:")

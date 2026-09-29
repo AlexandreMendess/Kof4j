@@ -18,7 +18,7 @@ main(args: List<String>) {
     }
 
     if (first == "-v" || first == "--version" || first == "version") {
-        logger.logWithKind("version", CYAN, VERSION)
+        logger.logWithKind("version", BRIGHT_CYAN, VERSION)
         return
     }
 
