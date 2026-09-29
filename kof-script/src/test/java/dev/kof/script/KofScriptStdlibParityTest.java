@@ -103,6 +103,62 @@ class KofScriptStdlibParityTest {
             """, "true\ntrue\ntrue\nfalse\ntrue\ntrue");
     }
 
+    @Test
+    void findCountParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1b — find/count: interpretador e JVM
+        // concordam (match/valor, ausência, contagens, count nu).
+        parity("""
+            main() {
+                var xs = listOf(1, 2, 3)
+                println(xs.find((x) -> x > 1))
+                println(xs.find((x) -> x > 9))
+                println(xs.count((x) -> x > 1))
+                println(xs.count())
+            }
+            """, "2\nnull\n2\n3");
+    }
+
+    @Test
+    void forEachParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach: efeito + vácuo.
+        parity("""
+            main() {
+                var xs = listOf(1, 2, 3)
+                xs.forEach((x) -> println(x * 10))
+                listOf().forEach((x) -> println("never"))
+                println("done")
+            }
+            """, "10\n20\n30\ndone");
+    }
+
+    @Test
+    void flatMapParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatena em ordem.
+        parity("""
+            main() {
+                var xs = listOf(1, 2, 3)
+                var ys = xs.flatMap((x) -> listOf(x, x * 10))
+                println(ys.size)
+                println(ys.get(0))
+                println(ys.get(5))
+            }
+            """, "6\n1\n30");
+    }
+
+    @Test
+    void distinctParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct primeira-ocorrência.
+        parity("""
+            main() {
+                var xs = listOf(3, 1, 2, 1, 3)
+                var d = xs.distinct()
+                println(d.size)
+                println(d.get(0))
+                println(d.get(2))
+            }
+            """, "3\n3\n2");
+    }
+
     // #386 slice 2 + #382: containsValue/putIfAbsent e a família de List
     // (indexOf/lastIndexOf/subList/addAll/sort) — interpretador e JVM
     // compilado concordam com o oráculo medido (java.util no dois lados).
