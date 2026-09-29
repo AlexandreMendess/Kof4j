@@ -4,9 +4,9 @@ import image.Image
 
 // kof.image — VP8L (WebP lossless) decoder, slice A: core.
 //
-// This slice decodes the **no-transform, no-color-cache, single-Huffman-group,
-// literal** subset of VP8L entirely in Kof (bit reader + simple Huffman codes),
-// which proves the core. The richer machinery that real libwebp output uses —
+// This slice decodes the **subtract-green transform, no-color-cache,
+// single-Huffman-group, literal** subset of VP8L entirely in Kof (bit reader +
+// simple Huffman codes), which proves the core. The richer machinery that real libwebp output uses —
 // predictor/color/indexing transforms, the color cache, meta-Huffman groups and
 // LZ77 back-references — is **not** decoded yet and is refused with an explicit
 // `IMAGE:` diagnostic (never a silent wrong image):
@@ -126,8 +126,18 @@ Raster vp8lRaster(String path) {
     if (version != 0) {
         throw "IMAGE: unsupported VP8L version"
     }
-    if (r.bit() == 1) {
-        throw "IMAGE: WebP transforms are not supported yet"
+    var subtractGreen = false
+    while (r.bit() == 1) {
+        var t = r.bits(2)
+        if (t == 2) {
+            subtractGreen = true
+        } else if (t == 0) {
+            throw "IMAGE: WebP predictor transform is not supported yet"
+        } else if (t == 1) {
+            throw "IMAGE: WebP color transform is not supported yet"
+        } else {
+            throw "IMAGE: WebP color-indexing transform is not supported yet"
+        }
     }
     if (r.bit() == 1) {
         throw "IMAGE: WebP color cache is not supported yet"
@@ -164,6 +174,16 @@ Raster vp8lRaster(String path) {
             samples[base + 3] = aa & 255
         }
         px = px + 1
+    }
+    if (subtractGreen) {
+        var q = 0
+        while (q < width * height) {
+            var b0 = q * channels
+            var g2 = samples[b0 + 1]
+            samples[b0] = (samples[b0] + g2) & 255
+            samples[b0 + 2] = (samples[b0 + 2] + g2) & 255
+            q = q + 1
+        }
     }
     return Raster("WEBP", width, height, channels, samples)
 }

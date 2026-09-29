@@ -71,6 +71,8 @@ class RasterDecodeE2ETest {
             "px=10,20,30,40,50,60,70,80,90,100,110,120");
     private static final String WEBP_GOLDEN = String.join("\n",
             "WEBP:2x2 ch=3",
+            "px=10,20,30,10,20,30,10,20,30,10,20,30",
+            "WEBP:2x2 ch=3",
             "px=10,20,30,10,20,30,10,20,30,10,20,30");
 
     @Test
