@@ -138,9 +138,10 @@ the suite) for the quick-win targets the plan names.
   out of `ArrayBoundsStressTest` (all 15 cases kept) → oversized 41→40, baseline
   168→167; and `KofMediaSupport` out of `KofMediaE2ETest` (all 17 cases kept, the WAV/MP4
   byte builders) → oversized 40→39, baseline 166; and `NullablePrimitiveContractSupport` out
-  of `NullablePrimitiveContractE2ETest` (all 26 cases kept) → oversized 39→38, baseline **165**.
-  Re-measure `--citations` before the next pick: naming candidates in the queue itself adds
-  citations to them. (The
+  of `NullablePrimitiveContractE2ETest` (all 26 cases kept) → oversized 39→38, baseline 165;
+  and `LambdaSupport` out of `LambdaE2ETest` (all 36 cases kept) → oversized 38→37, baseline
+  **164**. Re-measure `--citations` before the next pick: naming candidates in the queue itself
+  adds citations to them. (The
   third split also repaired an inherited ratchet regression: `IniReaderE2ETest`'s
   `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` duplicated
   `XmlReaderE2ETest`'s names, so they were prefixed `ini` — the ratchet stays honest.)
