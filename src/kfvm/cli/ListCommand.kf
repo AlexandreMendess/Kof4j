@@ -33,7 +33,7 @@ class ListCommand implements kfvm.cli.Command {
     void listInstalled() {
         var installed = store.installed()
         if (installed.size == 0) {
-            logger.info("no versions installed (try: kfvm i lst)")
+            logger.info("no versions installed (try: kfvm i lts)")
             return
         }
 

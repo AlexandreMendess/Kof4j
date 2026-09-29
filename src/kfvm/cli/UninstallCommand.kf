@@ -17,7 +17,7 @@ class UninstallCommand implements kfvm.cli.Command {
     List<String> names() { return listOf("uni", "uninstall") }
 
     void run(List<String> args) {
-        if (args.size == 0) throw "usage: kfvm uni <ver|lst|nightly>"
+        if (args.size == 0) throw "usage: kfvm uni <ver|lts|nightly>"
 
         var version = versions.resolve(args.get(0))
         var active = version == store.current()

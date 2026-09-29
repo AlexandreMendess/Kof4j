@@ -19,7 +19,7 @@ class InstallCommand implements kfvm.cli.Command {
     List<String> names() { return listOf("i", "install") }
 
     void run(List<String> args) {
-        if (args.size == 0) throw "usage: kfvm i <ver|lst|nightly>"
+        if (args.size == 0) throw "usage: kfvm i <ver|lts|nightly>"
         var releases = remote.releases()
         var version = remote.resolve(args.get(0), releases)
         var current;

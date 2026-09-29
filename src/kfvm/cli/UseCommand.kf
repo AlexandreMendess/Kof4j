@@ -20,7 +20,7 @@ class UseCommand implements kfvm.cli.Command {
 
     void run(List<String> args) {
         if (args.size == 0) {
-            throw "usage: kfvm u <ver|lst|nightly>"
+            throw "usage: kfvm u <ver|lts|nightly>"
         }
         var query = args.get(0)
         var exact = if (query.startsWith("v")) query.substring(1) else query

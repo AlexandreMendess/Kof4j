@@ -17,16 +17,16 @@ class Logger {
         logIo(WHITE, message, null)
     }
 
-    logWithKind(kind: String, kindColor: TermColorEnum, message: String) {
-        println(getTermColor(kindColor) + "(" + kind + ") " + getTermColor(RESET) + message)
+    logWithKind(kind: String, kindColor: TermColor, message: String) {
+        println(ansi(kindColor) + "(" + kind + ") " + ansi(RESET) + message)
     }
 
-    logColorfulLine(color: TermColorEnum, message: String) {
-        println(getTermColor(color) + message + getTermColor(RESET))
+    logColorfulLine(color: TermColor, message: String) {
+        println(ansi(color) + message + ansi(RESET))
     }
 
-    private logIo(color: TermColorEnum, message: String, messageKind: String?) {
-        String kind = if (messageKind instanceof String) getTermColor(color) + "\n[" + messageKind + "]: " + getTermColor(RESET) else ""
-        println(getTermColor(color) + kind + getTermColor(RESET) + message)
+    private logIo(color: TermColor, message: String, messageKind: String?) {
+        String kind = if (messageKind instanceof String) ansi(color) + "\n[" + messageKind + "]: " + ansi(RESET) else ""
+        println(kind + message)
     }
 }

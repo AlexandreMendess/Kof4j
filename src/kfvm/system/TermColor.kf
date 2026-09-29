@@ -1,4 +1,4 @@
-enum TermColorEnum {
+enum TermColor {
     RESET,
     BLACK,
     RED,
@@ -18,7 +18,7 @@ enum TermColorEnum {
     BRIGHT_WHITE
 }
 
-String getTermColor(c: TermColorEnum) {
+String ansi(c: TermColor) {
     String outColor;
 
     switch (c) {

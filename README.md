@@ -3,7 +3,7 @@
 Install, switch between and remove versions of the [Kof](https://github.com/KofLang/Kof4j) toolchain from the command line, on Linux, macOS and Windows.
 
 ```console
-$ kfvm i lst        # install the latest stable release
+$ kfvm i lts        # install the latest stable release
 $ kfvm i 0.4        # install the newest 0.4.x (0.4.10-beta)
 $ kfvm u 0.4.8      # make it the active one, installing it first if needed
 $ kof version
@@ -73,9 +73,9 @@ kfvm -h
 
 ```
 kfvm ls,  list [-r, --remote]          list installed versions (or available ones)
-kfvm i,   install <ver|lst|nightly>    install a version
-kfvm u,   use <ver|lst|nightly>        switch the active version (installs it if needed)
-kfvm uni, uninstall <ver|lst|nightly>  remove an installed version
+kfvm i,   install <ver|lts|nightly>    install a version
+kfvm u,   use <ver|lts|nightly>        switch the active version (installs it if needed)
+kfvm uni, uninstall <ver|lts|nightly>  remove an installed version
 ```
 
 Every command has a short alias, so `kfvm install 0.4.10` and `kfvm i 0.4.10` are the same thing.
@@ -90,7 +90,7 @@ kfvm ls -r        # versions available on GitHub Releases
 ### Installing
 
 ```bash
-kfvm i lst        # latest stable release (same as lts or latest)
+kfvm i lts        # latest stable release (same as lts or latest)
 kfvm i nightly    # latest pre-release
 kfvm i 0.4        # newest 0.4.x release
 kfvm i 0.4.10     # a specific version
@@ -119,7 +119,7 @@ On Windows, kfvm runs on the JDK of the active Kof version and files in use cann
 
 | Specifier | Meaning |
 |---|---|
-| `lst`, `lts`, `latest` | The newest stable release. |
+| `lts`, `lts`, `latest` | The newest stable release. |
 | `nightly` | The newest pre-release. |
 | `<ver>` | A full or partial version, resolved as described below. A leading `v` is ignored (`v0.4` is `0.4`). |
 
@@ -137,7 +137,7 @@ With these releases published:
 
 | You type | kfvm picks | Why |
 |---|---|---|
-| `lst` | `0.4.10-beta` | the newest stable release (the 0.5.0 builds are pre-releases) |
+| `lts` | `0.4.10-beta` | the newest stable release (the 0.5.0 builds are pre-releases) |
 | `nightly` | `0.5.0-beta+2026.09.26` | the newest pre-release |
 | `0.4` | `0.4.10-beta` | the newest 0.4.x; there is no 0.4 release without `-beta` |
 | `0.4.9` | `0.4.9-beta` | the only 0.4.9 release |
