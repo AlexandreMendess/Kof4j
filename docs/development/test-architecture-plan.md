@@ -10,7 +10,7 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 167 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, 166 keys). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -85,7 +85,10 @@ the JVM/Native/JS runners + cross-arch qemu golden + toolchain guard out of `Kof
 cases and the `conformance-matrix`/parity-cited class name stayed) → oversized 42→41, baseline
 169→168. **Third split landed (29/09):** `ArrayBoundsStressSupport` extracted the JVM/JS/Native
 runners, the Kof program generators and the invariant oracles out of `ArrayBoundsStressTest` (all
-15 cases and the cited class name stayed) → oversized 41→40, baseline 168→167. The metric is a
+15 cases and the cited class name stayed) → oversized 41→40, baseline 168→167. **Fourth split
+landed (29/09):** `KofMediaSupport` extracted the pure WAV/MP4 byte builders (`makeWav`/`mp4Box`/
+`makeMp4`/`mp4Box64`/`makeMp4WithExtendedSizeBoxBeforeMoov`) out of `KofMediaE2ETest` (all 17 cases
+and the cited class name stayed) → oversized 40→39, baseline 167→166. The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
@@ -580,10 +583,11 @@ Before any deep refactoring, the path is:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; open work =
    shrink `scripts/test-hygiene-baseline.txt` and re-freeze);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
-   oversized class and the drift rule is fixed; three splits landed = `KofSetEqualitySupport`
-   out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept)
-   and `ArrayBoundsStressSupport` out of `ArrayBoundsStressTest` (15/15 kept) → oversized 43→40,
-   baseline 170→167; next split picks by a fresh `--citations` measurement).
+   oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
+   out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
+   `ArrayBoundsStressSupport` out of `ArrayBoundsStressTest` (15/15 kept) and `KofMediaSupport`
+   out of `KofMediaE2ETest` (17/17 kept) → oversized 43→39, baseline 170→166; next split picks by
+   a fresh `--citations` measurement).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open

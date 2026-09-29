@@ -136,12 +136,13 @@ executa a suíte) atrás dos alvos de quick win nomeados pelo plano.
   zero drift de citação) → oversized 43→42, baseline 170→169; e `KofMathSupport`
   do `KofMathTest` (os 29 casos mantidos) → oversized 42→41, baseline 169→168; e
   `ArrayBoundsStressSupport` do `ArrayBoundsStressTest` (os 15 casos mantidos) →
-  oversized 41→40, baseline 168→167. Re-meça o `--citations` antes da próxima
-  escolha: nomear candidatos na própria fila adiciona citações a eles. (A terceira
-  divisão também reparou uma regressão herdada do ratchet: `parsesOnScript`/
-  `parsesOnNativeX86`/`parsesOnNativeRiscv64` do `IniReaderE2ETest` duplicavam os
-  nomes do `XmlReaderE2ETest`, então ganharam prefixo `ini` — o ratchet segue em
-  167 chaves.)
+  oversized 41→40, baseline 168→167; e `KofMediaSupport` do `KofMediaE2ETest` (os 17
+  casos mantidos, os builders de bytes WAV/MP4) → oversized 40→39, baseline **166**.
+  Re-meça o `--citations` antes da próxima escolha: nomear candidatos na própria fila
+  adiciona citações a eles. (A terceira divisão também reparou uma regressão herdada do
+  ratchet: `parsesOnScript`/`parsesOnNativeX86`/`parsesOnNativeRiscv64` do
+  `IniReaderE2ETest` duplicavam os nomes do `XmlReaderE2ETest`, então ganharam prefixo
+  `ini` — o ratchet segue honesto.)
 
 A auditoria não modifica nada; agir sobre um lead é uma unidade separada e
 escopada.
