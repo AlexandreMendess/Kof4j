@@ -426,7 +426,7 @@ Família dedicada (códigos finais na promoção), emitida com arquivo/linha/col
   conforme a assinatura escolhida. Essa distinção é documentada explicitamente.
 
 Todo código novo deve ser adicionado a `docs/backend-parity.md` (o ledger R6
-checado por `DomainGapCodesTest.everyPinnedGapIsDocumentedInTheParityMatrix`),
+checado por `DomainGapParityMatrixTest.everyPinnedGapIsDocumentedInTheParityMatrix`),
 ainda que a v1 não tenha lacunas de alvo.
 
 ## 14. Checklist de integração (arquivos que uma fatia de promoção toca)

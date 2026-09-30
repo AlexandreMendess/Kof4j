@@ -564,7 +564,10 @@ lists each duplicated name with its declaring classes; the current heads are `ma
 
 Phase 3 note (29/09): pure extraction is now exhausted — **43 oversized classes down to 19** over 24
 splits, all with zero citation drift; the remaining oversized classes either belong to an active
-lane or require moving test methods (citation sweep), which is Phase 4/5 scope.
+lane or require moving test methods (citation sweep), which is Phase 4/5 scope. **Re-opened once for
+a regrowth (30/09):** `DomainGapCodesTest` crossed 500 again with the `zip`/`NAT008` pins — the
+hygiene `oversized` key count 19→20 (one NEW key, RED) — a twenty-fifth pure extraction
+(`DomainGapParityMatrixTest`, the R6 ledger) returned it to 492 → the key count back to **19**.
 
 ### Phase 5 — Targets
 
