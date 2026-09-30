@@ -363,10 +363,14 @@ public final class NativeX86Calls {
                         sb.append("    pushq -").append(off).append("(%rbp)\n");
                     }
                 }
-                sb.append("    movq 8(%rax), %rbx\n");
-                sb.append("    addq $").append(vtableIdx * 8).append(", %rbx\n");
-                sb.append("    movq (%rbx), %rbx\n");
-                sb.append("    call *%rbx\n");
+                // %r11 (scratch volátil): usar %rbx violava a ABI SysV — o
+                // método gerado não preserva %rbx, então um runtime que o
+                // mantém vivo (ex.: kof_list_sorted_cmp guardava `out` em
+                // %rbx) corrompia após um dispatch virtual (#685).
+                sb.append("    movq 8(%rax), %r11\n");
+                sb.append("    addq $").append(vtableIdx * 8).append(", %r11\n");
+                sb.append("    movq (%r11), %r11\n");
+                sb.append("    call *%r11\n");
                 if (stackArgs > 0) {
                     sb.append("    addq $").append(stackArgs * 8).append(", %rsp\n");
                 }
@@ -402,10 +406,14 @@ public final class NativeX86Calls {
                         sb.append("    pushq -").append(off).append("(%rbp)\n");
                     }
                 }
-                sb.append("    movq 8(%rax), %rbx\n");
-                sb.append("    addq $").append(vtableIdx * 8).append(", %rbx\n");
-                sb.append("    movq (%rbx), %rbx\n");
-                sb.append("    call *%rbx\n");
+                // %r11 (scratch volátil): usar %rbx violava a ABI SysV — o
+                // método gerado não preserva %rbx, então um runtime que o
+                // mantém vivo (ex.: kof_list_sorted_cmp guardava `out` em
+                // %rbx) corrompia após um dispatch virtual (#685).
+                sb.append("    movq 8(%rax), %r11\n");
+                sb.append("    addq $").append(vtableIdx * 8).append(", %r11\n");
+                sb.append("    movq (%r11), %r11\n");
+                sb.append("    call *%r11\n");
                 if (stackArgs > 0) {
                     sb.append("    addq $").append(stackArgs * 8).append(", %rsp\n");
                 }

@@ -280,6 +280,72 @@ public final class NativeRiscvAsmQuantifiers {
                 addi sp, sp, 64
                 ret
 
+            # kof_list_sort_cmp(a0=list, a1=cmp) — in-place insertion sort
+            # ordered by the comparator (negative/zero/positive Int); stable
+            # for pure comparators; the receiver IS mutated (#685 enum sort).
+            # aarch64 herda via translateRiscvToAarch64.
+            .globl kof_list_sort_cmp
+            kof_list_sort_cmp:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)          # list
+                sd   s1, 40(sp)          # cmp lambda
+                sd   s2, 32(sp)          # (unused)
+                sd   s3, 24(sp)          # i
+                sd   s4, 16(sp)          # key
+                sd   s5, 8(sp)           # n
+                sd   s6, 0(sp)           # j
+                mv   s0, a0
+                mv   s1, a1
+                lw   s5, 16(s0)
+                li   s3, 1
+            .Llsoc_outer:
+                bge  s3, s5, .Llsoc_done
+                mv   a0, s0
+                mv   a1, s3
+                call kof_list_get
+                mv   s4, a0              # key
+                addi s6, s3, -1          # j = i - 1
+            .Llsoc_inner:
+                bltz s6, .Llsoc_insert
+                mv   a0, s0
+                mv   a1, s6
+                call kof_list_get        # a0 = a = get(j)
+                mv   a2, a0              # arg1 = a
+                mv   a1, s4              # arg0 = key
+                mv   a0, s1              # cmp lambda
+                ld   t3, 8(a0)
+                ld   t3, 0(t3)
+                jalr t3                  # a0 = cmp(key, a)
+                bgez a0, .Llsoc_insert   # a >= key: stop (stable)
+                mv   a0, s0
+                mv   a1, s6
+                call kof_list_get        # a0 = v = get(j)
+                mv   a2, a0
+                mv   a0, s0
+                addi a1, s6, 1
+                call kof_list_set        # set(j+1, v)
+                addi s6, s6, -1          # j--
+                j    .Llsoc_inner
+            .Llsoc_insert:
+                mv   a0, s0
+                addi a1, s6, 1
+                mv   a2, s4
+                call kof_list_set        # set(j+1, key)
+                addi s3, s3, 1
+                j    .Llsoc_outer
+            .Llsoc_done:
+                ld   s6, 0(sp)
+                ld   s5, 8(sp)
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+
             # kof_list_sorted_cmp(a0=list, a1=cmp) -> a0 new List ordered by
             # the comparator (negative/zero/positive Int); insertion sort
             # (stable for pure comparators); the receiver is never mutated.

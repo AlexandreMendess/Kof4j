@@ -161,11 +161,11 @@ final class NativeX86ValueOf {
                     sb.append("    pushq %rax\n");
                     sb.append("    testq %rax, %rax\n");
                     sb.append("    je .Lstr_nullv").append(psn).append("\n");
-                    sb.append("    movq 8(%rax), %rbx\n");
-                    sb.append("    addq $").append(tosIdx * 8).append(", %rbx\n");
-                    sb.append("    movq (%rbx), %rbx\n");
+                    sb.append("    movq 8(%rax), %r11\n");
+                    sb.append("    addq $").append(tosIdx * 8).append(", %r11\n");
+                    sb.append("    movq (%r11), %r11\n");
                     sb.append("    popq %rdi\n");
-                    sb.append("    call *%rbx\n");
+                    sb.append("    call *%r11\n");
                     sb.append("    pushq %rax\n");
                     sb.append("    jmp .Lstr_nullv_e").append(psn).append("\n");
                     sb.append(".Lstr_nullv").append(psn).append(":\n");

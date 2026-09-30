@@ -170,6 +170,8 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             // insertion sort keeps both stable.
             case "kof_list_sorted" -> "kofListSorted";
             case "kof_list_sorted_cmp" -> "kofListSortedCmp";
+            // #685 — enum sort(): in-place insertion via the comparator.
+            case "kof_list_sort_cmp" -> "kofListSortCmp";
             // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy (insertion-ordered
             // Map of fresh lists; the tag rides along ignored like distinct).
             case "kof_list_groupby" -> "kofListGroupBy";

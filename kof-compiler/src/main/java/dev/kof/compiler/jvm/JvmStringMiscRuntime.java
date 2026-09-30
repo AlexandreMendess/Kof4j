@@ -188,6 +188,24 @@ public final class JvmStringMiscRuntime {
                     return out;
                 }
 
+                // #685 — enum sort(): in-place insertion via the synthesized
+                // comparator (a.compareTo(b)); mirrors kof_list_sorted_cmp but
+                // mutates the receiver (sort is in-place, D-ENUM207 ordinal).
+                public static void kof_list_sort_cmp(
+                        java.util.ArrayList<Object> list, Object cmp) throws Exception {
+                    for (int i = 1; i < list.size(); i++) {
+                        Object key = list.get(i);
+                        int j = i - 1;
+                        while (j >= 0
+                                && ((Number) kof_ho_invoke(cmp,
+                                        new Object[]{list.get(j), key})).intValue() > 0) {
+                            list.set(j + 1, list.get(j));
+                            j--;
+                        }
+                        list.set(j + 1, key);
+                    }
+                }
+
                 public static java.util.ArrayList<Object> kof_list_sorted_cmp(
                         java.util.ArrayList<?> list, Object cmp) throws Exception {
                     var out = new java.util.ArrayList<Object>(list);

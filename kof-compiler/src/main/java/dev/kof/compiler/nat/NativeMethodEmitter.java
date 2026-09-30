@@ -324,24 +324,24 @@ final class NativeMethodEmitter {
             case KofDup _ -> sb.append("    movq (%rsp), %rax\n    pushq %rax\n");
             case KofDup2 _ -> sb.append("""
                     movq (%rsp), %rax
-                    movq 8(%rsp), %rbx
-                    pushq %rbx
+                    movq 8(%rsp), %r11
+                    pushq %r11
                     pushq %rax
                     """);
             case KofDupX1 _ -> sb.append("""
                     movq (%rsp), %rax
-                    movq 8(%rsp), %rbx
+                    movq 8(%rsp), %r11
                     pushq %rax
-                    pushq %rbx
+                    pushq %r11
                     pushq %rax
                 """.stripIndent());
             case KofDupX2 _ -> sb.append("""
                     movq (%rsp), %rax
-                    movq 8(%rsp), %rbx
+                    movq 8(%rsp), %r11
                     movq 16(%rsp), %rcx
                     pushq %rax
                     pushq %rcx
-                    pushq %rbx
+                    pushq %r11
                     pushq %rax
                 """.stripIndent());
             case KofPop _ -> sb.append("    addq $8, %rsp\n");

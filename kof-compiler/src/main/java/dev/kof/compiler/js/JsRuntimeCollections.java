@@ -188,6 +188,20 @@ public final class JsRuntimeCollections {
                 return out;
             }
 
+            // #685 — enum sort(): in-place insertion via the comparator
+            // (a.compareTo(b) synthesized by the compiler).
+            export function kofListSortCmp(list, cmp) {
+                for (let i = 1; i < list.length; i++) {
+                    const key = list[i];
+                    let j = i - 1;
+                    while (j >= 0 && kofQuantCall2(cmp, list[j], key) > 0) {
+                        list[j + 1] = list[j];
+                        j--;
+                    }
+                    list[j + 1] = key;
+                }
+            }
+
             export function kofListGroupBy(list, fn, tag) {
                 const out = new Map();
                 for (const o of list) {

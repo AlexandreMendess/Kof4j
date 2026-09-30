@@ -109,14 +109,37 @@ public final class CollectionCallLowerer {
             // alarga os 32 bits crus do slot para Double e reusa o compare.
             // Só a forma natural (aridade 0): com comparador, a ordem vem da
             // lambda (D-MULTIPARADIGMA-SORTED) — sem gate de domínio.
-            if (("kof_list_sort".equals(listFn) || "kof_list_sorted".equals(listFn))
-                    && driver.currentDiagnostics != null
-                    && !CollectionMethodGates.naturalOrderType(elemType)) {
-                var pos = mc.position();
-                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
-                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                        CollectionMethodGates.sortDomainError(elemType), "SEM097");
-                return localIdx;
+            // #685: enum TAMBÉM tem ordem natural REAL (D-ENUM207: ordinal/
+            // compareTo determinísticos cross-target), então entra no domínio —
+            // a forma natural é rebaixada abaixo para o comparador `a.compareTo(b)`
+            // (kof_list_sort_cmp/sorted_cmp), nunca para o tag de primitivo.
+            boolean enumNatural = false;
+            if ("kof_list_sort".equals(listFn) || "kof_list_sorted".equals(listFn)) {
+                enumNatural = CompilerTypes.isEnumType(
+                        elemType instanceof Type.NullableType nt0 ? nt0.inner() : elemType,
+                        driver.currentUnit);
+                if (!enumNatural && driver.currentDiagnostics != null
+                        && !CollectionMethodGates.naturalOrderType(elemType)) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            CollectionMethodGates.sortDomainError(elemType), "SEM097");
+                    return localIdx;
+                }
+            }
+            if (enumNatural) {
+                // Rewrite the natural form into the comparator form: the
+                // in-place sort calls kof_list_sort_cmp, the copy sorted calls
+                // kof_list_sorted_cmp — both order by the enum's ordinal via
+                // compareTo (the SAME method the user/test would call).
+                boolean inPlace = "kof_list_sort".equals(listFn);
+                ExpressionNode cmp = enumOrderLambda(driver, mc, elemType);
+                mc = new MethodCallExpr(mc.position(), mc.receiver(), mc.methodName(),
+                        mc.typeArguments(), List.of(cmp));
+                listFn = inPlace ? "kof_list_sort_cmp" : "kof_list_sorted_cmp";
+                argTypes = new ArrayList<>();
+                argTypes.add(new Type.FunctionType(List.of(elemType, elemType),
+                        Type.PrimitiveType.INT, null));
             }
             // Slices 1g/1h — gates de forma lambda em CollectionMultiparadigmaLowerer.
             if (CollectionMultiparadigmaLowerer.checkLambdaForm(driver, listFn, mc)) return localIdx;
@@ -233,7 +256,8 @@ public final class CollectionCallLowerer {
                     // (Map/Set toleram heterogeneidade pelo consenso 3/4).
                     "kof_list_add".equals(listFn) || "kof_list_set".equals(listFn));
             Type retType = switch (listFn) {
-                case "kof_list_add", "kof_list_set", "kof_list_clear", "kof_list_sort" -> Type.PrimitiveType.VOID;
+                case "kof_list_add", "kof_list_set", "kof_list_clear", "kof_list_sort",
+                        "kof_list_sort_cmp" -> Type.PrimitiveType.VOID;
                 case "kof_list_contains", "kof_list_is_empty", "kof_list_add_all" -> Type.PrimitiveType.BOOL;
                 // #382 — indexOf/lastIndexOf: Int (-1 ausente, oracle java.util);
                 // subList: List do mesmo tipo de elemento.
@@ -576,6 +600,24 @@ public final class CollectionCallLowerer {
         };
     }
 
+
+    /**
+     * #685 — comparador sintético `(a, b) -> a.compareTo(b)` para a ordem
+     * natural de enum (D-ENUM207: ordinal-based, determinístico em todos os
+     * alvos). O corpo é um {@code MethodCallExpr} comum, então o lowering
+     * reusa {@code ExpressionBuiltinInstanceCalls.lowerEnum} — a MESMA
+     * chamada que o usuário escreveria; nenhum caminho de semântica novo.
+     */
+    private static ExpressionNode enumOrderLambda(CompilerDriver driver, MethodCallExpr mc, Type elemType) {
+        SourcePosition p = mc.position();
+        String typeName = CollectionWrites.typeNameFor(
+                elemType instanceof Type.NullableType nt ? nt.inner() : elemType);
+        FormalParameterNode a = new FormalParameterNode(p, List.of(), typeName, "a", null);
+        FormalParameterNode b = new FormalParameterNode(p, List.of(), typeName, "b", null);
+        ExpressionNode call = new MethodCallExpr(p, new IdentifierExpr(p, "a"), "compareTo",
+                List.of(), List.of(new IdentifierExpr(p, "b")));
+        return new LambdaExpr(p, List.of(a, b), List.of(new ReturnStmt(p, call)));
+    }
 
     /** §352 NAT002 — slot de valor REFERÊNCIA (Object): TODO primitivo é
      *  normalizado como caixa no put nativo (kof_box_* existe para

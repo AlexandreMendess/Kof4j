@@ -134,6 +134,24 @@ public final class KofInterpreterConcurrency {
                 }
                 return out;
             }
+            // #685 — enum sort(): in-place insertion via the synthesized
+            // comparator (a.compareTo(b)); mutates the receiver list.
+            case "kof_list_sort_cmp": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) recv;
+                Object cmp = args[0];
+                for (int i = 1; i < src.size(); i++) {
+                    Object key = src.get(i);
+                    int j = i - 1;
+                    while (j >= 0 && ((Number) interp.invokeLambda(cmp,
+                            new Object[]{src.get(j), key})).intValue() > 0) {
+                        src.set(j + 1, src.get(j));
+                        j--;
+                    }
+                    src.set(j + 1, key);
+                }
+                return null;
+            }
             // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatenates each
             // element's List in order (non-List lambda result fails loudly).
             case "kof_list_flatmap": {
