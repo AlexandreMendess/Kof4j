@@ -805,7 +805,7 @@ capacidade realmente não existe no alvo.
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
   `rotate90`, `grayscale`, `threshold`, `boxBlur`;
 - encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
-- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`, `componentLabels`/`componentCount`, `erode`/`dilate`/`openRaster`/`closeRaster`.
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `equalizationLut`/`equalizeRaster`, `sobelMagnitude`, `componentLabels`/`componentCount`, `erode`/`dilate`/`openRaster`/`closeRaster`.
 
 **Falta — em ordem de custo:**
 
@@ -903,6 +903,29 @@ capacidade realmente não existe no alvo.
    Prova: `VisionAnalysisE2ETest` **4/4** — um PGM 5×5 com um 255 isolado dá
    `erode=0 dilate=255,255`, `open=0 close=255` na JVM + Native x86-64 +
    riscv64(qemu) + Script.
+
+10. **Fatia de processamento do `kof.vision` — equalização de histograma —
+    LANDED 30/09 (Kof puro, todos os alvos).** `libs/vision/Histogram.kf`
+    adiciona `equalizationLut(r): Int[256]` (o remapeamento pela função de
+    distribuição acumulada) e `equalizeRaster(r): Raster` (aplica-o a cada canal
+    de cor, alfa preservado; um raster uniforme mapeia para tudo-0). Prova:
+    `VisionAnalysisE2ETest` **4/4** — um PGM de 16 pixels de baixo contraste
+    (60/200) estica para `eqLow=0,255`, `out=0,255`, e uma rampa de 64 pixels
+    com seis níveis mapeia para `eqSix=47,94,141,188`, na JVM + Native x86-64 +
+    riscv64(qemu) + Script.
+
+**PENDENTE (medido, ainda não implementável): interop de WebP lossy `VP8 ` +
+AVIF.** O último gap de imagem do plano são os dois codecs não-VP8L. O achado
+medido: a escotilha do JPEG não se estende — o OpenJDK 25 `javax.imageio` **não
+tem** leitor de WebP nem de AVIF (`ImageIO.getImageReadersByFormatName("webp"/
+"avif")` vazio), então o `image.decode` não consegue lastrear nenhum dos dois
+formatos sem um plugin de terceiros (TwelveMonkeys / uma lib AVIF), o que é uma
+decisão de dependência (regra 6). VP8 lossy em Kof puro (DCT + predição intra +
+loop filter) está fora do escopo de um incremento único. Estado honesto: um WebP
+lossy que chega ao `decodeRaster` é recusado com `IMAGE: WebP is not lossless
+(VP8L)` (nunca um decode errado silencioso); AVIF é recusado na detecção de
+formato. Fechar isso exige uma decisão da mantenedora (adicionar um plugin do
+imageio, ou um gap dedicado `IMG00x`).
 
 ## EN
 [English](image-vision-plan.md)

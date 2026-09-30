@@ -663,7 +663,7 @@ ability genuinely does not exist on a target.
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
   `rotate90`, `grayscale`, `threshold`, `boxBlur`;
 - encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
-- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`, `componentLabels`/`componentCount`, `erode`/`dilate`/`openRaster`/`closeRaster`.
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `equalizationLut`/`equalizeRaster`, `sobelMagnitude`, `componentLabels`/`componentCount`, `erode`/`dilate`/`openRaster`/`closeRaster`.
 
 **Missing — ordered by cost:**
 
@@ -761,6 +761,27 @@ ability genuinely does not exist on a target.
    `VisionAnalysisE2ETest` **4/4** — a 5×5 PGM with one isolated 255 gives
    `erode=0 dilate=255,255`, `open=0 close=255` on JVM + Native x86-64 +
    riscv64(qemu) + Script.
+
+10. **`kof.vision` processing slice — histogram equalization — LANDED 30/09
+    (pure Kof, all targets).** `libs/vision/Histogram.kf` adds
+    `equalizationLut(r): Int[256]` (the cumulative-distribution remap) and
+    `equalizeRaster(r): Raster` (applies it to every colour channel, alpha
+    preserved; a uniform raster maps to all-0). Proof: `VisionAnalysisE2ETest`
+    **4/4** — a 16-pixel low-contrast PGM (60/200) stretches to `eqLow=0,255`,
+    `out=0,255`, and a 64-pixel six-level ramp maps to `eqSix=47,94,141,188`,
+    on JVM + Native x86-64 + riscv64(qemu) + Script.
+
+**PENDING (measured, not yet implementable): WebP lossy `VP8 ` + AVIF interop.**
+The plan's last image gap is the two non-VP8L codecs. The measured finding: the
+JPEG escape hatch does not extend — OpenJDK 25 `javax.imageio` has **no** WebP
+or AVIF reader (`ImageIO.getImageReadersByFormatName("webp"/"avif")` empty),
+so `image.decode` cannot back either format without a third-party plugin
+(TwelveMonkeys / an AVIF lib), which is a dependency decision (rule 6). Pure-Kof
+VP8 lossy (DCT + intra prediction + loop filter) is out of scope for a single
+increment. Honest state: a lossy WebP reaching `decodeRaster` is refused with
+`IMAGE: WebP is not lossless (VP8L)` (no silent wrong decode); AVIF is refused
+at format detection. Closing this needs a maintainer decision (add an imageio
+plugin, or a dedicated `IMG00x` gap).
 
 ## PT
 [Português](image-vision-plan.pt_BR.md)

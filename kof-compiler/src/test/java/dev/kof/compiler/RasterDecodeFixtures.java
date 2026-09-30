@@ -346,6 +346,20 @@ final class RasterDecodeFixtures {
                 0, 0, 255, 0, 0,
                 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0}));
+        Files.write(dir.resolve("lowcontrast.pgm"), pnmGray(4, 4, new int[]{
+                60, 60, 60, 60,
+                60, 60, 60, 60,
+                60, 60, 60, 60,
+                200, 200, 200, 200}));
+        Files.write(dir.resolve("six.pgm"), pnmGray(8, 8, new int[]{
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 51, 51, 51, 51, 51, 51,
+                51, 51, 51, 51, 102, 102, 102, 102,
+                102, 102, 102, 102, 102, 102, 153, 153,
+                153, 153, 153, 153, 153, 153, 153, 153,
+                204, 204, 204, 204, 204, 204, 204, 204,
+                204, 204, 255, 255, 255, 255, 255, 255,
+                255, 255, 255, 255, 255, 255, 255, 255}));
         return dir;
     }
 
@@ -388,6 +402,13 @@ import vision.Morphology
                 var speck = decodeRaster("%s/speck.pgm")
                 println("erode=" + erode(speck).samples[12] + " dilate=" + dilate(speck).samples[12] + "," + dilate(speck).samples[6])
                 println("open=" + openRaster(speck).samples[12] + " close=" + closeRaster(speck).samples[12])
+                var lowc = decodeRaster("%s/lowcontrast.pgm")
+                var lowLut = equalizationLut(lowc)
+                var lowEq = equalizeRaster(lowc)
+                println("eqLow=" + lowLut[60] + "," + lowLut[200] + " out=" + lowEq.samples[0] + "," + lowEq.samples[15])
+                var six = decodeRaster("%s/six.pgm")
+                var sixLut = equalizationLut(six)
+                println("eqSix=" + sixLut[51] + "," + sixLut[102] + "," + sixLut[153] + "," + sixLut[204])
             }
 
             String sat(Int v) {
@@ -395,7 +416,7 @@ import vision.Morphology
                 if (v > 255) { return "over" }
                 return v.toString()
             }
-            """.formatted(base, base, base, base, base);
+            """.formatted(base, base, base, base, base, base, base);
     }
 
     static byte[] rasterPpm() throws Exception {

@@ -98,3 +98,68 @@ Int luminanceAt(Raster r, Int px) {
     }
     return (r.samples[base] * 299 + r.samples[base + 1] * 587 + r.samples[base + 2] * 114) / 1000
 }
+
+// Histogram equalization (plan §Processing): remap every level through the
+// cumulative-distribution function so the result spans the full 0..255 range.
+// `equalizationLut(r)` returns the 256-entry mapping; `equalizeRaster(r)`
+// applies it to every colour channel (alpha preserved) and returns a new
+// `Raster`. A uniform raster maps to all-0 (nothing to stretch). Deterministic,
+// pure Kof, all targets.
+//
+//   var boosted = equalizeRaster(decodeRaster("flat.ppm"))
+
+Int[] equalizationLut(Raster r) {
+    var bins = histogram(r)
+    var out = new Int[256]
+    var total = r.width * r.height
+    var cdfMin = 0
+    var cum = 0
+    var i = 0
+    while (i < 256) {
+        cum = cum + bins[i]
+        if (cdfMin == 0 && cum > 0) {
+            cdfMin = cum
+        }
+        i = i + 1
+    }
+    if (cdfMin == total) {
+        return out
+    }
+    cum = 0
+    i = 0
+    while (i < 256) {
+        cum = cum + bins[i]
+        var level = ((cum - cdfMin) * 255) / (total - cdfMin)
+        if (level < 0) {
+            level = 0
+        }
+        if (level > 255) {
+            level = 255
+        }
+        out[i] = level
+        i = i + 1
+    }
+    return out
+}
+
+Raster equalizeRaster(Raster r) {
+    guardVision(r)
+    var lut = equalizationLut(r)
+    var out = new Int[r.samples.length]
+    var px = 0
+    while (px < r.width * r.height) {
+        var base = px * r.channels
+        var c = 0
+        while (c < r.channels) {
+            if (r.channels == 4 && c == 3) {
+                out[base + c] = r.samples[base + c]
+            } else {
+                out[base + c] = lut[r.samples[base + c] & 255]
+            }
+            c = c + 1
+        }
+        px = px + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+

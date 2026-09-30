@@ -40,7 +40,9 @@ class VisionAnalysisE2ETest {
             "sobelDot=0 border=0,0",
             "comp=2 a=1 b=2 bg=0",
             "erode=0 dilate=255,255",
-            "open=0 close=255");
+            "open=0 close=255",
+            "eqLow=0,255 out=0,255",
+            "eqSix=47,94,141,188");
 
     @Test
     void visionAnalysisOnJvm() throws Exception {
