@@ -306,6 +306,7 @@ class Vp8Frame {
     Int skipCoeff(Int mb) { return this.skipCoeffs[mb] }
     Int bMode(Int mb, Int i) { return this.bModes[mb * 16 + i] }
     Int modeBytes() { return this.modeBytes }
+    Int[] payload() { return this.frame }
 }
 
 // Extracts and parses the `VP8 ` frame out of a RIFF/WEBP container.
