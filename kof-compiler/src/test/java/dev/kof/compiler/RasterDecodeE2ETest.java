@@ -125,9 +125,26 @@ class RasterDecodeE2ETest {
     @Test
     void oversizedRasterThrows() throws Exception {
         Path src = tmp.resolve("big.ppm");
-        Files.write(src, ("P6\n200 200\n255\n").getBytes(StandardCharsets.US_ASCII));
-        assertEquals("IMAGE: raster too large for this slice (max 16384 samples)",
+        Files.write(src, ("P6\n400 400\n255\n").getBytes(StandardCharsets.US_ASCII));
+        assertEquals("IMAGE: raster too large for this slice (max 262144 samples)",
                 runJvm(RasterDecodeFixtures.errorProbe(src)));
+    }
+
+    @Test
+    void largeRasterAboveOldCapDecodes() throws Exception {
+        Path src = tmp.resolve("large.ppm");
+        RasterDecodeFixtures.writeLargePnm6(src, 200, 200);
+        assertEquals("PPM", runJvm(RasterDecodeFixtures.errorProbe(src)));
+    }
+
+    @Test
+    void largeRasterAboveOldCapDecodesOnNativeRiscv64() throws Exception {
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross riscv64 + qemu absent — skipping (NATIVE002)");
+        Path src = tmp.resolve("large-cross.ppm");
+        RasterDecodeFixtures.writeLargePnm6(src, 200, 200);
+        assertEquals("PPM",
+                runCrossCode("riscv64", Target.NATIVE_RISCV64, RasterDecodeFixtures.errorProbe(src)));
     }
 
     @Test

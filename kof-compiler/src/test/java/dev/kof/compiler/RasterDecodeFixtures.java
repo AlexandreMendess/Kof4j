@@ -267,6 +267,13 @@ final class RasterDecodeFixtures {
         return out.toByteArray();
     }
 
+    static void writeLargePnm6(Path src, int w, int h) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(("P6\n" + w + " " + h + "\n255\n").getBytes(StandardCharsets.US_ASCII));
+        out.write(new byte[w * h * 3]);
+        Files.write(src, out.toByteArray());
+    }
+
     static byte[] rasterPgm() throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write("P5\n3 1\n255\n".getBytes(StandardCharsets.US_ASCII));

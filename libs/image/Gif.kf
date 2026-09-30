@@ -12,7 +12,7 @@ import image.Image
 //
 //   decodeRaster("anim.gif")   // GIF is routed here from Raster.kf
 //
-// Bounded by the same ≤16384-sample cap as the rest of the raster slice; a
+// Bounded by the same ≤262144-sample cap as the rest of the raster slice; a
 // malformed GIF throws `IMAGE:`.
 
 Raster gifRaster(String path, Int screenW, Int screenH) {

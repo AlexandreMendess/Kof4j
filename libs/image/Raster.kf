@@ -19,9 +19,9 @@ import image.Vp8l
 // Supported now (pure Kof, all targets): **PNM** `P5`/`P6` 8-bit, **farbfeld**
 // (16-bit RGBA downsampled to 8-bit), **BMP** 24/32-bit uncompressed (BGR rows
 // padded to 4 bytes; alpha dropped) and **QOI** (all chunks decoded in Kof). Documented bounds: the
-// sample count must be <= 16384 (one bounded read; keeps the single array
-// under the cross-native allocation cap, `known-bugs` §540) and the value must
-// fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
+// sample count must be <= 262144 (one bounded read; the single array fits the
+// cross-native 16 MiB arena landed with `known-bugs` §540, and the x86-64
+// contiguous arena of §542) and the value must fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
 // 16-bit PNM, comments in the pixel area) throws a `String` beginning with
 // `IMAGE:` — never a silent wrong decode. `cropRaster`, `resizeNearest`,
 // `flipHorizontal`/`flipVertical`, `rotate90`, `grayscale`, `threshold` and
@@ -221,8 +221,8 @@ guardRaster(Int count) {
     if (count <= 0) {
         throw "IMAGE: empty raster"
     }
-    if (count > 16384) {
-        throw "IMAGE: raster too large for this slice (max 16384 samples)"
+    if (count > 262144) {
+        throw "IMAGE: raster too large for this slice (max 262144 samples)"
     }
 }
 

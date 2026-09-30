@@ -13,10 +13,10 @@ import image.Inflate
 //
 //   decodeRaster("logo.png")   // PNG is routed here from Raster.kf
 //
-// Bounded by the same ≤16384-sample cap as the rest of the raster slice (the
+// Bounded by the same ≤262144-sample cap as the rest of the raster slice (the
 // whole PNG is read once, so keep the files within the bounded-read contract;
-// very large files wait for `known-bugs` §540). A malformed PNG throws
-// `IMAGE:`.
+// the cap is backed by the cross-native 16 MiB arena of `known-bugs` §540 and
+// the x86-64 contiguous arena of §542). A malformed PNG throws `IMAGE:`.
 
 Raster pngRaster(String path) {
     var b = File(path).readBytes()
