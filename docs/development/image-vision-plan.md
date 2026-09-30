@@ -661,7 +661,8 @@ ability genuinely does not exist on a target.
 - metadata for 17 formats (`Image.kf`);
 - raw decode: PNM `P5`/`P6`, farbfeld, BMP 24/32-bit, **QOI** (all chunks);
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
-  `rotate90`, `grayscale`, `threshold`, `boxBlur`.
+  `rotate90`, `grayscale`, `threshold`, `boxBlur`;
+- encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI.
 
 **Missing — ordered by cost:**
 
@@ -695,8 +696,16 @@ ability genuinely does not exist on a target.
      `IMG001`) + `DomainGapCodesTest#imageDecodeOnJsIsImg001`.
 3. **GIF — LANDED 29/09 (pure Kof, all targets).** `libs/image/Gif.kf` decodes the first frame with a Kof LZW (variable width 2–12, KwKwK), global/local palette and interlaced rows, RGB output.
    **WebP VP8L — slices A–I LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` + `libs/image/Vp8lTransforms.kf` decode the full VP8L lossless path: **simple and normal (code-length) Huffman**, **LZ77 backward references**, the **color cache**, the **predictor + color inverse transforms** (14 predictor modes and the §3.5.2 color delta, applied in reverse order), the **COLOR_INDEXING transform** (§3.5.4) and **meta-Huffman groups** (§3.7.2.2; RFC 9649 §3.5/§3.6.2.1/§3.6.2.2/§3.7). Fixtures are libwebp-validated (the hand-built normal-Huffman+LZ77 stream, a libwebp-generated 8x8 color-cache stream, a libwebp-generated 8x8 predictor+color stream, a libwebp-generated 8x8 8-color indexing stream and a libwebp-generated 8x8 two-group meta-Huffman stream, all byte-matched by PIL); the VP8L native face was re-tested green after the §541/§543 native fixes. No VP8L machinery remains refused. Next: WebP lossy (`VP8 `) and AVIF still pending (interop/gap).
-4. **Encode/write** (`encodeRaster` for PNM/BMP/farbfeld/QOI) — pure Kof,
-   parity; deferred until a write surface is requested.
+4. **Encode/write — LANDED 30/09 (pure Kof, all targets).** `libs/image/Encode.kf`
+   adds `encodeRaster(r, format): Int[]` and `writeRaster(path, r, format): Bool`
+   for **PNM `P5`/`P6`**, **farbfeld**, **BMP** 24-bit and **QOI** (full
+   encoder: RUN/INDEX/DIFF/LUMA/RGB/RGBA + end marker), so a raster can be
+   written back on every target. Proof: `RasterEncodeE2ETest` **4/4** — a
+   decode → encode → decode round-trip is byte-identical on JVM + Native x86-64
+   + riscv64(qemu) + Script, the emitted BMP is independently read by
+   `javax.imageio`, and the re-decoded QOI/PNM/farbfeld match the source
+   samples. No new gap: pure Kof, full parity (JS inherits `IOJS001` through
+   the `kof.io` write).
 5. **Larger rasters — LANDED 30/09 (post-`§540`/`§542`).** The cap that was
    deliberately held at 16384 samples until the native allocation fixes landed
    is raised to **262144** (a 1 MiB `Int` array, fitting the cross-native

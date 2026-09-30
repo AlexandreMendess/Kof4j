@@ -278,6 +278,44 @@ final class RasterDecodeFixtures {
             """.formatted(base);
     }
 
+    static String encodeProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Encode
+            import image.Raster
+
+            String dump(Raster r) {
+                var out = r.format + ":" + r.width + "x" + r.height + " ch=" + r.channels + "\\npx="
+                var i = 0
+                while (i < r.samples.length) {
+                    if (i > 0) {
+                        out = out + ","
+                    }
+                    out = out + r.samples[i]
+                    i = i + 1
+                }
+                return out
+            }
+
+            main() {
+                var rgb = decodeRaster("%s/rgb.ppm")
+                var rgba = decodeRaster("%s/rgba.ff")
+                writeRaster("%s/e.ppm", rgb, "PPM")
+                writeRaster("%s/e.pgm", rgb, "PGM")
+                writeRaster("%s/e.bmp", rgb, "BMP")
+                writeRaster("%s/e.ff", rgba, "farbfeld")
+                writeRaster("%s/e.qoi", rgba, "QOI")
+                writeRaster("%s/e3.qoi", rgb, "QOI")
+                println(dump(decodeRaster("%s/e.ppm")))
+                println(dump(decodeRaster("%s/e.pgm")))
+                println(dump(decodeRaster("%s/e.bmp")))
+                println(dump(decodeRaster("%s/e.ff")))
+                println(dump(decodeRaster("%s/e.qoi")))
+                println(dump(decodeRaster("%s/e3.qoi")))
+            }
+            """.formatted(base, base, base, base, base, base, base, base, base, base, base, base, base, base);
+    }
+
     static byte[] rasterPpm() throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write("P6\n2 2\n255\n".getBytes(StandardCharsets.US_ASCII));

@@ -803,7 +803,8 @@ capacidade realmente não existe no alvo.
 - metadados de 17 formatos (`Image.kf`);
 - decode cru: PNM `P5`/`P6`, farbfeld, BMP 24/32-bit, **QOI** (todos os chunks);
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
-  `rotate90`, `grayscale`, `threshold`, `boxBlur`.
+  `rotate90`, `grayscale`, `threshold`, `boxBlur`;
+- encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI.
 
 **Falta — em ordem de custo:**
 
@@ -837,8 +838,16 @@ capacidade realmente não existe no alvo.
      com `IMG001`) + `DomainGapCodesTest#imageDecodeOnJsIsImg001`.
 3. **GIF — LANDED 29/09 (Kof puro, todos os alvos).** `libs/image/Gif.kf` decodifica o primeiro quadro com um LZW Kof (largura variável 2–12, KwKwK), paleta global/local e linhas entrelaçadas, saída RGB.
    **WebP VP8L — fatias A–I LANDED 30/09 (Kof puro, todos os alvos):** `libs/image/Vp8l.kf` + `libs/image/Vp8lTransforms.kf` decodificam todo o caminho lossless do VP8L: **Huffman simples e normal (code-length)**, **referências LZ77**, o **cache de cor**, os **transforms inversos predictor + color** (14 modos de predictor e o delta de cor §3.5.2, aplicados em ordem reversa), o transform **COLOR_INDEXING** (§3.5.4) e os **grupos meta-Huffman** (§3.7.2.2; RFC 9649 §3.5/§3.6.2.1/§3.6.2.2/§3.7). Os fixtures são validados contra libwebp (o stream normal-Huffman+LZ77 feito à mão, um stream 8x8 com cache de cor, um stream 8x8 predictor+color, um stream 8x8 de 8 cores com indexing e um stream 8x8 de dois grupos meta-Huffman, todos gerados pelo libwebp e casados byte a byte pelo PIL); a face VP8L no native foi re-testada verde após os fixes §541/§543. Nenhuma maquinaria do VP8L segue recusada. Próximo: WebP lossy (`VP8 `) e AVIF seguem pendentes (interop/gap).
-4. **Encode/write** (`encodeRaster` para PNM/BMP/farbfeld/QOI) — Kof puro,
-   paridade; adiado até haver pedido de superfície de escrita.
+4. **Encode/write — LANDED 30/09 (Kof puro, todos os alvos).** `libs/image/Encode.kf`
+   adiciona `encodeRaster(r, format): Int[]` e `writeRaster(path, r, format): Bool`
+   para **PNM `P5`/`P6`**, **farbfeld**, **BMP** 24-bit e **QOI** (encoder
+   completo: RUN/INDEX/DIFF/LUMA/RGB/RGBA + marcador final), então um raster
+   pode ser escrito de volta em todo alvo. Prova: `RasterEncodeE2ETest` **4/4** —
+   um round-trip decode → encode → decode é byte-idêntico na JVM + Native
+   x86-64 + riscv64(qemu) + Script, o BMP emitido é lido independentemente pelo
+   `javax.imageio`, e o QOI/PNM/farbfeld re-decodificado casa com as amostras
+   de origem. Sem gap novo: Kof puro, paridade total (JS herda `IOJS001` via a
+   escrita do `kof.io`).
 5. **Rasters maiores — LANDED 30/09 (pós-`§540`/`§542`).** O teto que era
    mantido deliberadamente em 16384 amostras até os fixes de alocação native
    pousarem sobe para **262144** (um array `Int` de 1 MiB, que cabe na arena
