@@ -958,9 +958,9 @@ science) **without** destroying the language's simplicity.
 > File/Path/Text/Binary already exists as `kof.io`); streaming slices 1–2.5 +
 > config slices 3.1–3.3 landed (Phase 3 configuration COMPLETE: Ini/Toml/Yaml;
 > goldens JVM/Native/Script + JS gap `IOJS001`). — plan CONCLUDED 28/09, moved to `docs/stdlib/kof-file-plan.md` (3-state rule; documents/archives deferred).
-> **OPEN (6th front):** `multiparadigma` — promoted 28/09
+> **CONCLUDED 30/09 (6th front):** `multiparadigma` — promoted 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) to
-> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); slices 1a+1b+1c+1d+1e+1f+1g+1h LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins + `sorted`/`sorted(cmp)` + `groupBy`; E2E + `KofScriptStdlibParityTest` 22/22); remainder (`zip`) DECIDED 29/09 (`D-MULTIPARADIGMA-ZIP` record `Pair`) — implementing.
+> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); slices 1a+1b+1c+1d+1e+1f+1g+1h+1i LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins + `sorted`/`sorted(cmp)` + `groupBy` + `zip`; E2E + `KofScriptStdlibParityTest` 22/22); `zip` landed 30/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` + `D-MULTIPARADIGMA-ZIP-NATIVE` — native reference-elements GREEN, primitive elements refused `NAT008`).
 > **OPEN (7th front):** `image-vision` — promoted 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) to
 > [`image-vision-plan.md`](image-vision-plan.md); slice 1 = pure-Kof `libs/image/` metadata (format + dimensions,
 > PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).

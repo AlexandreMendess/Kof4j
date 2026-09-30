@@ -4420,6 +4420,15 @@ individuais:
 - **CONFLITO RESOLVIDO (opção A):** `Pair` está listado como constructo falso/estrangeiro na regra de ferro `D-NOT-JAVA` (§8) — `Pair` foi um dos símbolos fechados como "não existe em Kof" na varredura de 18/09 (issue #418). A resposta de múltipla escolha da mantenedora **"Record Pair"** escolhe a opção **(A)**: este `D-*` de escopo limitado introduz o `Pair<A,B>(A first, B second)` de stdlib e sobrepõe a entrada de fake-idiom SÓ para este tipo; `zip` produz `List<Pair<T,U>>`. Valores registrados: casa = prelude de stdlib (`dev/kof/pairs.kf`), nomes dos campos `first`/`second`, acessores `p.first()`/`p.second()`. **IMPLEMENTADO 30/09** (`80dd32b50`: rewrite `CompilerPairs`/`CollectionZipLowerer`, `ListZipE2ETest` JVM/Script/JS verde; perna nativa bloqueada por um gap de backend independente — corrupção do `List.get` de tipo-variável puro, ABI de erasure `§271`). Registrado em `docs/development/README.md` §3.
 - **Relações:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, D-NOT-JAVA, regra 6`.
 
+## D-MULTIPARADIGMA-ZIP-NATIVE — `zip` é recusado em tempo de compilação nos alvos nativos quando o tipo de elemento de qualquer lista é primitivo (mantenedora 30/09/2026, múltipla escolha "B — NAT008 honesto")
+
+**Estado:** DECIDIDO (mantenedora) — sobrepõe a célula native-BLOCKED do `D-MULTIPARADIGMA-ZIP` (fatia 1i); a superfície managed (JVM/Script/JS) não é afetada.
+
+- **Escopo:** `List<T>.zip(List<U>)` mantém `Pair` + truncamento em `min` na JVM/Script/JS. Em todo alvo nativo (`NATIVE`, `NATIVE_RISCV64`, `NATIVE_AARCH64`, mais os alvos MCU), um `zip` cujo elemento do receiver/argumento seja `PrimitiveType` (ou ainda `Unknown` no lowering) é recusado em tempo de compilação com o código de gap honesto **`NAT008`** — nunca um `SIGSEGV` (R6).
+- **Causa-raiz (medida 30/09):** listas nativas de elemento primitivo concreto guardam o valor **cru** (`kof_list_get` devolve o qword cru); quando a mesma lista é vista por uma type-variable bare (`zipPairs<A,B>` lê `xs.get(i)`), o contrato de erasure diz "referência" e o call-site emite `kof_unbox_*`, que desreferencia o inteiro cru como ponteiro → `SIGSEGV` (rc=139). Provado sem zip/injeção por `firstOf<T>(List<T>): T { return xs.get(0) }` → rc=139 no native, `1` na JVM. O zip de elemento-referência funciona no native (medido), então só elementos primitivos são recusados.
+- **Adiado (gap honesto):** o fix de representação (box na fronteira de erasure genérica, cross-target) é frente de backend; quando pousar, o `NAT008` é removido e o `zip` nativo é reabilitado para todo tipo de elemento. Registrado em `docs/backend-parity.md` (Documented Gaps) como o `NAT006`/`NAT007` — limitação deliberada e nomeada, não bug na fila aberta.
+- **Relações:** `Related: D-MULTIPARADIGMA-ZIP, D-MULTIPARADIGMA-PHASE1A, D-KOF-FIRST-IMPL, regra 6`.
+
 ## D-MULTIPARADIGMA-GROUPBY — `groupBy` como especificado no §230 do plano (mantenedora 29/09/2026, múltipla escolha "Aprovar especificado")
 
 **Estado:** DECIDIDO (mantenedora) — desbloqueia o resto `groupBy` do `PLAN-MULTIPARADIGMA.md`.

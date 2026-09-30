@@ -58,6 +58,38 @@ class ListZipE2ETest {
 
     private static final String EXPECTED = "2\n1\nb\n3\n3\nzzz\n30\nxyyzzz\n0\n0";
 
+    /**
+     * D-MULTIPARADIGMA-ZIP-NATIVE (30/09): reference-element zip runs on the
+     * native targets (the element is a pointer, no raw-primitive/erasure
+     * mismatch); the primitive-element case is refused at compile time with
+     * `NAT008` (proven in {@link DomainGapCodesTest#zipPrimitiveElementOnNativeIsNat008}).
+     */
+    private static final String REFERENCE = """
+            main() {
+                var xs = listOf("a", "b", "c")
+                var ys = listOf("x", "yy")
+                var z = xs.zip(ys)
+                println(z.size)
+                println(z.get(0).first())
+                println(z.get(1).second())
+                var acc = ""
+                for (var p in z) {
+                    acc = acc + p.first()
+                }
+                println(acc)
+                var names = listOf("x", "yy", "zzz")
+                var more = listOf("q", "r", "s", "t")
+                var w = names.zip(more)
+                println(w.size)
+                println(w.get(2).first())
+                println(w.get(2).second())
+                println(listOf("a").zip(listOf<String>()).size)
+                println(listOf<String>().zip(listOf("a")).size)
+            }
+            """;
+
+    private static final String EXPECTED_REFERENCE = "2\na\nyy\nab\n3\nzzz\ns\n0\n0";
+
     private Run runJvm(Path src, Path out) throws Exception {
         CompilationResult r = driver.compile(src, out, Target.JVM);
         if (!r.success()) return new Run(false, diags(r));
@@ -138,33 +170,31 @@ class ListZipE2ETest {
     }
 
     @Test
-    @org.junit.jupiter.api.Disabled("1i-native-blocked: native kof_list_get with a bare type-variable element corrupts the value (SIGSEGV, rc=139) — proven without zip/injection by firstOf<T>(List<T>): T { return xs.get(0) } on NATIVE (30/09). Backend-lane front; re-enable when the backend represents var-typed gets correctly.")
     void zipNativeX86(@TempDir Path tmp) throws Exception {
         assumeTrue(System.getProperty("os.name").toLowerCase().contains("linux"),
                 "Native x86-64 requires the Linux assembler/linker toolchain");
         Path src = tmp.resolve("ZipNative.kf");
-        Files.writeString(src, BASIC);
+        Files.writeString(src, REFERENCE);
         Run n = runNativeX86(src, tmp.resolve("o-zip-native"));
         assertTrue(n.ok(), () -> "Native: " + n.output());
-        assertEquals(EXPECTED, norm(n.output()), "Native output");
+        assertEquals(EXPECTED_REFERENCE, norm(n.output()), "Native output");
     }
 
     @Test
-    @org.junit.jupiter.api.Disabled("1i-native-blocked: same native var-elem get gap as zipNativeX86 (cross uses the same backend family). Re-enable together.")
     void zipCross(@TempDir Path tmp) throws Exception {
         for (String arch : new String[]{"riscv64", "aarch64"}) {
             assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
                     "cross " + arch + " toolchain + qemu ausente — pulando");
             Target t = arch.equals("riscv64") ? Target.NATIVE_RISCV64 : Target.NATIVE_AARCH64;
             Path src = tmp.resolve("Zip-" + arch + ".kf");
-            Files.writeString(src, BASIC);
+            Files.writeString(src, REFERENCE);
             Path out = tmp.resolve("o-zip-" + arch);
             CompilationResult r = driver.compile(src, out, t);
             assertTrue(r.success(), arch + " compile: " + diags(r));
             Path bin = out.resolve("Default/Main");
             assertTrue(Files.isRegularFile(bin), arch + " binary must exist");
             String output = NativeRiscv64E2ETest.runQemu(arch, bin);
-            assertEquals(EXPECTED, norm(output), arch + " output");
+            assertEquals(EXPECTED_REFERENCE, norm(output), arch + " output");
         }
     }
 }

@@ -45,6 +45,27 @@ final class CollectionZipLowerer {
                     "SEM025");
             return localIdx;
         }
+        // D-MULTIPARADIGMA-ZIP-NATIVE (30/09): the native targets store a
+        // concrete primitive element RAW (kof_list_get returns the raw qword),
+        // but the injected `zipPairs<A,B>` views the list through a bare type
+        // variable whose erasure contract is "reference" — the call-site then
+        // emits kof_unbox_*, dereferencing the raw integer as a pointer →
+        // SIGSEGV (rc=139, proven by `firstOf<T>(List<T>): T { return
+        // xs.get(0) }`). Reference-element zip works natively (measured), so
+        // only a primitive/unknown element is refused — R6/NAT004 pattern,
+        // never a silent crash. Deleted once the backend boxes at the generic
+        // erasure boundary.
+        if (driver.target.isNative() && driver.currentDiagnostics != null
+                && (zipElementUnrepresentable(driver, recvType)
+                        || zipElementUnrepresentable(driver, argListType))) {
+            driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                    pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                    "List.zip: the native targets cannot zip a list of primitive elements yet "
+                            + "(NAT008) — the element crosses a bare type parameter and would be "
+                            + "unboxed as a pointer (SIGSEGV); use the JVM/Script/JS targets",
+                    "NAT008");
+            return localIdx;
+        }
         localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
         int argIdx = localIdx++;
         locals.add(new IRLocalVariable(argIdx, "$kwziparg" + argIdx, argListType));
@@ -59,5 +80,21 @@ final class CollectionZipLowerer {
                 List.of(new IdentifierExpr(pos, "$kwziprecv" + recvIdx),
                         new IdentifierExpr(pos, "$kwziparg" + argIdx)));
         return ExpressionLowerer.emitExpression(driver, rebuilt, ops, owner, localIdx, locals);
+    }
+
+    /**
+     * D-MULTIPARADIGMA-ZIP-NATIVE: a native list element that is a bare
+     * primitive (or still {@code Unknown} at lowering — cannot be proven a
+     * reference) cannot cross the generic {@code zipPairs<A,B>} boundary
+     * safely. Nullable(primitive) is a physical boxed reference on native
+     * (D-NULL-INTENT), so it is representable and NOT refused.
+     */
+    private static boolean zipElementUnrepresentable(CompilerDriver driver, Type listType) {
+        if (!BuiltinTypes.isList(listType)) {
+            // Unknown receiver/argument: cannot prove reference → refuse.
+            return listType instanceof Type.UnknownType;
+        }
+        Type elem = driver.listElementType(listType);
+        return elem instanceof Type.PrimitiveType || elem instanceof Type.UnknownType;
     }
 }

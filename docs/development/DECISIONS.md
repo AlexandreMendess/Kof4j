@@ -4430,6 +4430,15 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **CONFLICT RESOLVED (option A):** `Pair` is listed as a fake/foreign construct in the `D-NOT-JAVA` iron rule (§8) — `Pair` was among the symbols closed as "does not exist in Kof" in the 18/09 sweep (issue #418). The maintainer's multiple-choice answer **"Record Pair"** picks option **(A)**: this scope-limited `D-*` introduces the stdlib `Pair<A,B>(A first, B second)` and supersedes the fake-idiom entry for this type only; `zip` yields `List<Pair<T,U>>`. Recorded values: home = stdlib prelude (`dev/kof/pairs.kf`), field names `first`/`second`, accessors `p.first()`/`p.second()`. **IMPLEMENTED 30/09** (`80dd32b50`: `CompilerPairs`/`CollectionZipLowerer` rewrite, `ListZipE2ETest` JVM/Script/JS green; native leg blocked by an independent backend gap — bare type-variable `List.get` corruption, `§271` erasure ABI). Registered in `docs/development/README.md` §3.
 - **Relationships:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, D-NOT-JAVA, rule 6`.
 
+## D-MULTIPARADIGMA-ZIP-NATIVE — `zip` is refused at compile time on the native targets when either list element type is a primitive (maintainer 30/09/2026, multiple-choice "B — honest NAT008")
+
+**State:** DECIDED (maintainer) — supersedes the native-BLOCKED cell of `D-MULTIPARADIGMA-ZIP` (slice 1i); the managed surface (JVM/Script/JS) is unaffected.
+
+- **Scope:** `List<T>.zip(List<U>)` keeps `Pair` + `min` truncation on JVM/Script/JS. On every native target (`NATIVE`, `NATIVE_RISCV64`, `NATIVE_AARCH64`, plus the MCU targets), a `zip` whose receiver/argument element type is a `PrimitiveType` (or still `Unknown` at lowering) is refused at compile time with the honest gap code **`NAT008`** — never a `SIGSEGV` (R6).
+- **Root cause (measured 30/09):** native lists of a concrete primitive element store the value **raw** (`kof_list_get` returns the raw qword); when the same list is viewed through a bare type-variable (`zipPairs<A,B>` reads `xs.get(i)`), the erasure contract says "reference" and the call-site emits `kof_unbox_*`, which dereferences the raw integer as a pointer → `SIGSEGV` (rc=139). Proven without zip/injection by `firstOf<T>(List<T>): T { return xs.get(0) }` → rc=139 on native, `1` on JVM. Reference-element zip works natively (measured), so only primitive elements are refused.
+- **Deferred (honest gap):** the representation fix (box at the generic erasure boundary, cross-target) is a backend front; when it lands, `NAT008` is deleted and native `zip` is re-enabled for every element type. Recorded in `docs/backend-parity.md` (Documented Gaps) like `NAT006`/`NAT007` — a deliberate, named limitation, not a bug in the open queue.
+- **Relationships:** `Related: D-MULTIPARADIGMA-ZIP, D-MULTIPARADIGMA-PHASE1A, D-KOF-FIRST-IMPL, rule 6`.
+
 ## D-MULTIPARADIGMA-GROUPBY — `groupBy` as specified in plan §230 (maintainer 29/09/2026, multiple-choice "Aprovar especificado")
 
 **State:** DECIDED (maintainer) — unblocks the `groupBy` remainder of `PLAN-MULTIPARADIGMA.md`.

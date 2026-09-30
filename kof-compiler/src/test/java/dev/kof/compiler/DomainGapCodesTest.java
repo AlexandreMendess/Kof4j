@@ -260,6 +260,42 @@ class DomainGapCodesTest extends DomainGapPrograms {
     }
 
     @Test
+    void zipPrimitiveElementOnNativeIsNat008(@TempDir Path tmp) throws Exception {
+        // D-MULTIPARADIGMA-ZIP-NATIVE (30/09): a native list of a concrete
+        // primitive element stores the value RAW, so viewing it through the
+        // injected `zipPairs<A,B>` (bare type variable → erasure "reference")
+        // emitted `kof_unbox_*` over the raw int → SIGSEGV (rc=139). The
+        // lowering now refuses every native target honestly with NAT008.
+        for (Target t : new Target[]{Target.NATIVE, Target.NATIVE_RISCV64,
+                Target.NATIVE_AARCH64}) {
+            assertGap(tmp, t, "NAT008", """
+                main() {
+                    val z = listOf(1, 2, 3).zip(listOf("a", "b"))
+                    println(z.size)
+                }
+                """);
+        }
+    }
+
+    @Test
+    void zipReferenceElementOnNativeHasNoGap(@TempDir Path tmp) throws Exception {
+        // Control for NAT008: a reference element is a real pointer and crosses
+        // the generic boundary safely (execution proof in ListZipE2ETest#zipNativeX86).
+        Path file = tmp.resolve("Main-zipref-" + System.nanoTime() + ".kf");
+        Files.writeString(file, """
+            main() {
+                val z = listOf("a", "b").zip(listOf("x", "y", "z"))
+                println(z.size)
+            }
+            """);
+        CompilationResult r = driver.compile(file, tmp.resolve("out-zipref"), Target.NATIVE_RISCV64);
+        for (var d : r.diagnostics().getDiagnostics()) {
+            assertFalse("NAT008".equals(d.code()),
+                    "reference-element zip must NOT be refused with NAT008: " + d);
+        }
+    }
+
+    @Test
     void ioAndWebT1OnX86AndJsHaveNoGap(@TempDir Path tmp) throws Exception {
         Path x86 = tmp.resolve("Main-x86-" + System.nanoTime() + ".kf");
         Files.writeString(x86, SRC_IO_AND_WEB_T1_ON_X86_AND_JS_HAVE_NO_GAP);
