@@ -237,6 +237,21 @@ public final class MemberCallTyper {
             // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted/sorted_cmp return
             // List<E> (fresh copy; arity/domain gates live in the lowerer).
             if ("sorted".equals(mn)) return recvType;
+            // D-MULTIPARADIGMA-PHASE1A slice 1i — zip returns List<Pair<A,B>>
+            // (library-first: the lowerer rewrites into injected zipPairs).
+            // The Pair package is "" (default): CompilerPairs injects FLAT
+            // with declarationPackages "" and the backends emit Pair.class
+            // at the output root (javap-measured 30/09). Unknown here
+            // poisoned downstream owners ("?" → NoClassDefFoundError).
+            if ("zip".equals(mn)) {
+                Type argElem = Type.UnknownType.UNKNOWN;
+                if (!mc.arguments().isEmpty()
+                        && sa.expressionTypes().get(mc.arguments().get(0)) instanceof Type.ClassType act
+                        && "List".equals(act.name()) && !act.typeArguments().isEmpty()) {
+                    argElem = act.typeArguments().get(0);
+                }
+                return CollectionMultiparadigmaLowerer.zipPairListType(elemType, argElem);
+            }
             // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy returns
             // Map<K,List<E>> (K = lambda return, from the already-inferred
             // arg types — lambdas inferred just above, like flatMap).
@@ -267,7 +282,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
                             "SEM025");
                 }
             }

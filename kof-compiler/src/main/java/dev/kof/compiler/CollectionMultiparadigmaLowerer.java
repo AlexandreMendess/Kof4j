@@ -55,6 +55,13 @@ final class CollectionMultiparadigmaLowerer {
                 new Type.ClassType("kof", "List", List.of(elemType))));
     }
 
+    /** Tipo de retorno do zip: List&lt;Pair&lt;A,B&gt;&gt; (record nominal
+     *  injetado de pairs.kf). */
+    static Type zipPairListType(Type elemA, Type elemB) {
+        return new Type.ClassType("kof", "List", List.of(
+                new Type.ClassType("", "Pair", List.of(elemA, elemB))));
+    }
+
     /** Tag de chave do groupBy (mesma taxonomia das chaves de mapOf via
      *  mapKeyTag; -1/Unknown mantém o default histórico 1, como mapOf). */
     static int groupKeyTag(java.util.List<Type> argTypes) {

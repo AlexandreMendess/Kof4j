@@ -75,6 +75,20 @@ public final class CollectionMethodTyper {
         if ("distinct".equals(mn)) return recvType;
         // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted/sorted_cmp: List<E>.
         if ("sorted".equals(mn)) return recvType;
+        // D-MULTIPARADIGMA-PHASE1A slice 1i — zip: List<Pair<A,B>>
+        // (package "" per MemberCallTyper rationale above).
+        if ("zip".equals(mn)) {
+            Type argElem = Type.UnknownType.UNKNOWN;
+            if (!mc.arguments().isEmpty()) {
+                Type at = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
+                if (at instanceof Type.ClassType act
+                        && "List".equals(act.name()) && !act.typeArguments().isEmpty()) {
+                    argElem = act.typeArguments().get(0);
+                }
+            }
+            return CollectionMultiparadigmaLowerer.zipPairListType(
+                    driver.listElementType(recvType), argElem);
+        }
         if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                 || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn)) {
             return Type.PrimitiveType.VOID;

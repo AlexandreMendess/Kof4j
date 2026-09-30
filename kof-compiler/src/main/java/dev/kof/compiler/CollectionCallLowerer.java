@@ -43,6 +43,11 @@ public final class CollectionCallLowerer {
         if (chIdx >= 0) return chIdx;
     }
     if (BuiltinTypes.isList(recvType)) {
+        // D-MULTIPARADIGMA-PHASE1A slice 1i — zip lives in CollectionZipLowerer
+        // (split do gate 500: o bloco cruzou a linha vermelha de 600).
+        if ("zip".equals(mc.methodName())) {
+            return CollectionZipLowerer.lower(driver, recvType, mc, ops, owner, localIdx, locals);
+        }
         String listFn = switch (mc.methodName()) {
             case "add", "push", "append" -> "kof_list_add";
             case "get" -> "kof_list_get";
@@ -77,7 +82,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
                     "SEM025");
             return localIdx;
         }
