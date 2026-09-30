@@ -78,6 +78,7 @@ final class VisionFixtures {
             import vision.Edges
             import vision.Histogram
             import vision.Morphology
+            import vision.Regions
             import vision.Vision
 
             main() {
@@ -109,6 +110,14 @@ final class VisionFixtures {
                 var six = decodeRaster("%s/six.pgm")
                 var sixLut = equalizationLut(six)
                 println("eqSix=" + sixLut[51] + "," + sixLut[102] + "," + sixLut[153] + "," + sixLut[204])
+                var boxes = componentBoxes(lab, blobs.width)
+                var areas = componentAreas(lab)
+                println("areas=" + areas[1] + "," + areas[2])
+                println("box1=" + boxes.get(1).minX + "," + boxes.get(1).minY + "," + boxes.get(1).maxX + "," + boxes.get(1).maxY)
+                println("box2=" + boxes.get(2).minX + "," + boxes.get(2).minY + "," + boxes.get(2).maxX + "," + boxes.get(2).maxY)
+                var comps = labelComponents(lab, blobs.width)
+                var c1 = comps.get(0)
+                println("regions=" + comps.size() + " r1=" + c1.label + "@" + c1.box.minX + "," + c1.box.minY + " a" + c1.area)
             }
 
             String sat(Int v) {

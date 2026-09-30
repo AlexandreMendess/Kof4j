@@ -42,7 +42,11 @@ class VisionAnalysisE2ETest {
             "erode=0 dilate=255,255",
             "open=0 close=255",
             "eqLow=0,255 out=0,255",
-            "eqSix=47,94,141,188");
+            "eqSix=47,94,141,188",
+            "areas=3,4",
+            "box1=0,0,1,1",
+            "box2=3,1,4,2",
+            "regions=2 r1=1@0,0 a3");
 
     @Test
     void visionAnalysisOnJvm() throws Exception {
