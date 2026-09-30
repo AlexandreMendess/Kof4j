@@ -4388,7 +4388,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-MULTIPARADIGMA-PHASE1A — `any`/`all`/`none` on `List`: eager short-circuit quantifiers reusing the `kof_list_*` pattern (maintainer 28/09/2026, batch `D-MULTIPARADIGMA-GO` + `D-FUTURE-PROMOTION`)
 
-**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/development/PLAN-MULTIPARADIGMA.md`); the batch one-liner authorizes Tier 2.x, this entry locks Phase-1a scope.
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/stdlib/PLAN-MULTIPARADIGMA.md`); the batch one-liner authorizes Tier 2.x, this entry locks Phase-1a scope.
 
 - **Scope:** three additive `List` methods, no grammar/keyword/type change. Truthiness reuses the `filter` rule (`Boolean.TRUE` or `Integer 1`); short-circuit per the plan §4 table (vacuous: `all`/`none` true, `any` false on empty — `none` ≡ ¬`any`; the plan's draft line read `any`/`none` false and the maintainer corrected it 28/09). Zero new typer/lowerer machinery beyond the map/filter path (`contextualLambda` generalization to the new set).
 - **Surface v1 (locked, plan §4):** `List<T>.any((T)->Bool): Bool`, `all`, `none` — same signatures on every target; `take`/`drop`/`slice` are the pagination lane's P1 ride and are NOT in this slice; `find`/`forEach`/`flatMap`/`count(pred)`/rest are later slices.

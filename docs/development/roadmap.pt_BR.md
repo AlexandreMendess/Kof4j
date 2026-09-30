@@ -964,10 +964,10 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > File/Path/Text/Binary já existe como `kof.io`); fatias 1–2.5 de streaming +
 > fatias 3.1–3.3 de config landed (configuração da Fase 3 COMPLETA: Ini/Toml/Yaml;
 > goldens JVM/Native/Script + lacuna JS `IOJS001`). — plano CONCLUÍDO 28/09, movido para `docs/stdlib/kof-file-plan.md` (regra dos 3 estados; documentos/archives adiados).
-> **Fase 1 COMPLETA 30/09 (6ª frente, plano ainda EM DESENVOLVIMENTO):** `multiparadigma` — promovido 28/09
+> **Fase 1 + Fase 2 COMPLETAS 30/09 (6ª frente, plano CONCLUÍDO + MOVIDO para `docs/stdlib/`):** `multiparadigma` — promovido 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) para
-> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); o escopo promovido da **Fase 1** está completo, então o
-> plano **não** vai para `docs/` (regra dos três estados) — as Fases 5–7 (DATA/INFRA: query/SQL/stream) seguem
+> [`PLAN-MULTIPARADIGMA.md`](../stdlib/PLAN-MULTIPARADIGMA.md); o escopo promovido está completo, então o
+> plano **foi para `docs/`** (regra dos três estados) — as Fases 5–7 (DATA/INFRA: query/SQL/stream) seguem
 > **só-desenho**, travadas por R12 + decisão da mantenedora. Fatias 1a+1b+1c+1d+1e+1f+1g+1h+1i LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + pins de paridade script + `sorted`/`sorted(cmp)` + `groupBy` + `zip`; E2E + `KofScriptStdlibParityTest` 22/22); `zip` pousado 30/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` + `D-MULTIPARADIGMA-ZIP-NATIVE` — nativo com elemento-referência VERDE, elemento primitivo recusado `NAT008`).
 > **ABERTA (7ª frente):** `image-vision` — promovido 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) para
 > [`image-vision-plan.md`](image-vision-plan.md); fatia 1 = metadados pure-Kof em `libs/image/` (formato + dimensões,

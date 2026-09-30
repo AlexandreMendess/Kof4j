@@ -2,8 +2,8 @@
 
 # PLAN-MULTIPARADIGMA — Multiparadigma, Pipelines Funcionais e Consultas Declarativas
 
-**Status:** EM DESENVOLVIMENTO (28/09, lane issues — `D-MULTIPARADIGMA-GO`, `D-FUTURE-PROMOTION`, mais barato implementável).
-**Dona:** lane issues (esta sessão).
+**Status:** CONCLUÍDO 30/09 — promovido 28/09/2026 de `future/` para `docs/development/` (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`), Fase 1 (fatias 1a–1i) + Fase 2 (medidor de custo eager) pousadas, **movido para `docs/stdlib/`** (regra dos três estados). As Fases 5–7 seguem só-desenho (§13), travadas por R12 + decisão da mantenedora; a frente de erasure nativa adiada é rastreada pela lane nativa (`NAT008`).
+**Dona:** lane issues (fechado 30/09).
 **Decisão:** `D-MULTIPARADIGMA-GO` (Tier 2.x) + `D-MULTIPARADIGMA-PHASE1A` (`DECISIONS.md`) — escopo da Fase 1a travado durante a implementação (o plano é dono).
 **Estado real (medido 28/09):** `map`/`filter`/`reduce` existem eager em `List` (todos os alvos); `any`/`all`/`none` não existem em lugar nenhum (zero uso no corpus, sem keywords); o padrão `kof_list_*` por alvo está estabelecido; a spec da Fase 1a (tabela §4) define short-circuit + semântica de vácuos por completo.
 **Fatia 1a (landed 28/09):** `any`/`all`/`none` em `List` — quantificadores eager com short-circuit reusando o padrão `kof_list_*`, zero maquinaria nova além do caminho map/filter. FRONTEIRA (carona da lane pagination, NÃO tocada): `take`/`drop`/`slice`; depois: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/resto. Prova: `ListQuantifiersE2ETest` 5/5 (JVM/Script/JS + Native-x86 + cross riscv/aarch64 rodado) + `KofScriptStdlibParityTest#quantifiersParity`. `none` vácuo = true (decisão da mantenedora 28/09, `none` ≡ ¬`any`).
@@ -371,9 +371,9 @@ Sem cópia de Scala/Kotlin/Haskell/Rust/LINQ; sem API funcional gigante sem sem�
 
 ## 13. Estado / próximo passo
 
-**A Fase 1 (list ops) está CONCLUÍDA** — fatias 1a–1i POUSADAS (ver §14 e o header). O único resíduo é a **frente de erasure do backend** (`Adiado` em §14): o box na fronteira de erasure genérica removeria o `NAT008` e reabilitaria o `zip` nativo para elementos primitivos; isso toca a erasure/ABI genérica e pertence à lane de backend (adjacente à regra 6), logo NÃO é unidade deste plano.
+**A Fase 1 (list ops) e a Fase 2 (medidor de custo eager, `benchmarks/pipelines/`) estão CONCLUÍDAS** — fatias 1a–1i POUSADAS (ver §14 e o header), então o escopo promovido fechou e este documento foi **movido para `docs/stdlib/`** (regra dos três estados). O único resíduo é a **frente de erasure do backend** (`Adiado` em §14): o box na fronteira de erasure genérica removeria o `NAT008` e reabilitaria o `zip` nativo para elementos primitivos; isso toca a erasure/ABI genérica e pertence à lane de backend (adjacente à regra 6), logo NÃO é unidade deste plano.
 
-`PRÓXIMO PASSO (nenhum para este plano): a Fase 1 está completa; as Fases 5–7 seguem só-design até o SYSTEMS fechar (R12) + decisão da mantenedora. Frente de erasure do backend rastreada pela lane nativa; gap code NAT008 em docs/backend-parity.md`
+`PRÓXIMO PASSO (nenhum para este plano): o escopo promovido (Fase 1 + Fase 2) está completo; as Fases 5–7 seguem só-design até o SYSTEMS fechar (R12) + decisão da mantenedora. Frente de erasure do backend rastreada pela lane nativa; gap code NAT008 em docs/backend-parity.md`
 
 ---
 

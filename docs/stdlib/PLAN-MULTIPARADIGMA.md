@@ -2,8 +2,8 @@
 
 # PLAN-MULTIPARADIGMA — Multiparadigm, Functional Pipelines and Declarative Queries
 
-**Status:** UNDER DEVELOPMENT (28/09, lane issues — `D-MULTIPARADIGMA-GO`, `D-FUTURE-PROMOTION`, cheapest implementable).
-**Owner:** issues lane (this session).
+**Status:** CONCLUDED 30/09 — promoted 28/09/2026 from `future/` to `docs/development/` (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`), Phase 1 (slices 1a–1i) + Phase 2 (eager-cost yardstick) landed, **moved to `docs/stdlib/`** (3-state rule). Phases 5–7 remain design-only (§13), gated by R12 + a maintainer decision; the deferred native erasure front is tracked by the native lane (`NAT008`).
+**Owner:** issues lane (closed 30/09).
 **Decision:** `D-MULTIPARADIGMA-GO` (Tier 2.x) + `D-MULTIPARADIGMA-PHASE1A` (`DECISIONS.md`) — Phase-1a scope locked during implementation (the plan owns it).
 **Real state (measured 28/09):** `map`/`filter`/`reduce` exist eager on `List` (all targets); `any`/`all`/`none` do not exist anywhere (zero corpus usage, no keywords); the `kof_list_*` per-target pattern is established; Phase-1a spec (§4 table) fully defines short-circuit + vacuous semantics.
 **Slice 1a (landed 28/09):** `any`/`all`/`none` on `List` — eager short-circuit quantifiers reusing the `kof_list_*` pattern, zero typer/lowerer machinery beyond the map/filter path. BOUNDARY (pagination lane's ride, NOT touched): `take`/`drop`/`slice`; later: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/rest. Proof: `ListQuantifiersE2ETest` 5/5 (JVM/Script/JS + Native-x86 + cross riscv/aarch64 run) + `KofScriptStdlibParityTest#quantifiersParity`. Vacuous `none` = true (maintainer decision 28/09, `none` ≡ ¬`any`).
@@ -406,9 +406,9 @@ If a frontend feature seems implementable "because other languages have it" (pip
 
 ## 13. Status / next step
 
-**Phase 1 (list ops) is CONCLUDED** — slices 1a–1i LANDED (see §14 and the header). The only remainder is the **backend erasure front** (`Deferred` in §14): boxing at the generic erasure boundary would delete `NAT008` and re-enable native `zip` for primitive elements; that touches the generic erasure/ABI and needs the backend lane (rule 6-adjacent), so it is NOT this plan's unit.
+**Phase 1 (list ops) and Phase 2 (eager-cost benchmark yardstick, `benchmarks/pipelines/`) are CONCLUDED** — slices 1a–1i LANDED (see §14 and the header), then the promoted scope closed and this document was **moved to `docs/stdlib/`** (3-state rule). The only remainder is the **backend erasure front** (`Deferred` in §14): boxing at the generic erasure boundary would delete `NAT008` and re-enable native `zip` for primitive elements; that touches the generic erasure/ABI and needs the backend lane (rule 6-adjacent), so it is NOT this plan's unit.
 
-`NEXT STEP (none for this plan): Phase 1 is complete; Phases 5–7 stay design-only until SYSTEMS closes (R12) + a maintainer decision. Backend erasure front tracked by the native lane; gap code NAT008 in docs/backend-parity.md`
+`NEXT STEP (none for this plan): the promoted scope (Phase 1 + Phase 2) is complete; Phases 5–7 stay design-only until SYSTEMS closes (R12) + a maintainer decision. Backend erasure front tracked by the native lane; gap code NAT008 in docs/backend-parity.md`
 
 ---
 
