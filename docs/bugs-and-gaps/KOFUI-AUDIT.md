@@ -10,11 +10,17 @@
 ## 1. Compiler registry (`KofUi.java`, 539 lines — was 383 in the 07/09 audit)
 
 > **⚠️ 07/09 snapshot — the inventory below is historical.** Recount 17/09:
-> `isUiType` covers **36 types** (the text lists 24) — Color, Theme, Label,
+> `isUiType` covers **37 types** (the text lists 24) — Color, Theme, Label,
 > Button, Input, Textarea, Select, Ul, Ol, Table, Column, Row, Form, View,
 > Style, Window, Link, Image, Icon, Font, Component, Event, the layout set
-> (Box, Stack, Spacer, Wrap, Grid, Center, Align) and Store, Canvas, Fieldset,
-> Iframe, Video, Audio, Hr. The `UI00x` matrix and R6 convention remain valid.
+> (Box, Stack, Spacer, Wrap, Grid, Center, Align, **Scroll**) and Store, Canvas,
+> Fieldset, Iframe, Video, Audio, Hr. The `UI00x` matrix and R6 convention remain
+> valid.
+> **`Scroll` recount (30/09):** ✅ **LANDED** — #702. `Scroll(children)` (1-arg
+> `List`, like `Box`) joins the layout set: KofJS renders `div.kof-scroll` with
+> `overflow:auto`, JVM/Native are no-op handles (the same CSS-first contract).
+> Proof: `ComponentCoreE2ETest#scrollRendersScrollableContainer` + UI battery
+> 74/74.
 > **`UI001/UI002` recount (17/09):** `UI002` ✅ confirmed DONE 08/09 (the
 > interpreter prints the warning once via `ui002Warned`).
 > **`UI001` recount (29/09):** ✅ **DONE** — #683. `kof.ui` on Native is no
@@ -27,7 +33,7 @@
 
 **Types (24 in the 07/09 scan):** Color, Theme, Label, Button, Input, Column, Row, View, Style,
 Window, Link, Image, Icon, Font, Component, Event, Box, Stack, Spacer, Wrap,
-Grid, Center, Align, Store, Canvas + namespace `Router`.
+Grid, Center, Align, Scroll, Store, Canvas + namespace `Router`.
 
 **Methods per type (summary):**
 - `Color`: rgba, red/green/blue/alpha, toCss, withAlpha, isOpaque
@@ -43,7 +49,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 - `Store`: get, set, subscribe, unsubscribe
 - `Canvas`: beginPath, closePath, moveTo, lineTo, arc, fill, stroke, setFill, setStroke, setLineWidth, clearRect, remove
 - `Router` (namespace): route, go, replace, back, forward, param, current, depth
-- Layout: Box/Stack/Spacer/Wrap/Grid/Center/Align (ctors) · `Palette.<name>` (15 colors)
+- Layout: Box/Stack/Spacer/Wrap/Grid/Center/Align/Scroll (ctors) · `Palette.<name>` (15 colors)
 
 ## 2. Implementation per target
 

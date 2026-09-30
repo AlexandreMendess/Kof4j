@@ -10,12 +10,17 @@
 ## 1. Registry do compilador (`KofUi.java`, 539 linhas — era 383 na auditoria de 07/09)
 
 > **⚠️ Snapshot 07/09 — inventário abaixo é histórico.** Recontagem 17/09:
-> `isUiType` cobre **36 tipos** (o texto lista 24) — Color, Theme, Label,
+> `isUiType` cobre **37 tipos** (o texto lista 24) — Color, Theme, Label,
 > Button, Input, Textarea, Select, Ul, Ol, Table, Column, Row, Form, View,
 > Style, Window, Link, Image, Icon, Font, Component, Event, o conjunto de
-> layout (Box, Stack, Spacer, Wrap, Grid, Center, Align) e Store, Canvas,
-> Fieldset, Iframe, Video, Audio, Hr. A matriz `UI00x` e a convenção R6
-> continuam válidas. **Recontagem `UI001/UI002` (17/09):** `UI002` ✅
+> layout (Box, Stack, Spacer, Wrap, Grid, Center, Align, **Scroll**) e Store,
+> Canvas, Fieldset, Iframe, Video, Audio, Hr. A matriz `UI00x` e a convenção R6
+> continuam válidas.
+> **Recontagem `Scroll` (30/09):** ✅ **POUSOU** — #702. `Scroll(children)`
+> (1 arg `List`, como `Box`) entra no conjunto de layout: o KofJS renderiza
+> `div.kof-scroll` com `overflow:auto`, JVM/Native são handles no-op (o mesmo
+> contrato CSS-first). Prova: `ComponentCoreE2ETest#scrollRendersScrollableContainer`
+> + bateria UI 74/74. **Recontagem `UI001/UI002` (17/09):** `UI002` ✅
 > confirmado FEITO 08/09 (o interpretador imprime o warning uma vez via
 > `ui002Warned`).
 > **Recontagem `UI001` (29/09):** ✅ **FEITO** — #683. `kof.ui` no Native não é
@@ -28,7 +33,7 @@
 
 **Tipos (24 na varredura de 07/09):** Color, Theme, Label, Button, Input, Column, Row, View, Style,
 Window, Link, Image, Icon, Font, Component, Event, Box, Stack, Spacer, Wrap,
-Grid, Center, Align, Store, Canvas + namespace `Router`.
+Grid, Center, Align, Scroll, Store, Canvas + namespace `Router`.
 
 **Métodos por tipo (resumo):**
 - `Color`: rgba, red/green/blue/alpha, toCss, withAlpha, isOpaque
@@ -44,7 +49,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 - `Store`: get, set, subscribe, unsubscribe
 - `Canvas`: beginPath, closePath, moveTo, lineTo, arc, fill, stroke, setFill, setStroke, setLineWidth, clearRect, remove
 - `Router` (namespace): route, go, replace, back, forward, param, current, depth
-- Layout: Box/Stack/Spacer/Wrap/Grid/Center/Align (ctores) · `Palette.<name>` (15 cores)
+- Layout: Box/Stack/Spacer/Wrap/Grid/Center/Align/Scroll (ctores) · `Palette.<name>` (15 cores)
 
 ## 2. Implementação por target
 
