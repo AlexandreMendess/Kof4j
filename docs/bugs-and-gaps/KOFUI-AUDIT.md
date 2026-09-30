@@ -19,7 +19,7 @@
 > **`Scroll` recount (30/09):** ✅ **LANDED** — #702. `Scroll(children)` (1-arg
 > `List`, like `Box`) joins the layout set: KofJS renders `div.kof-scroll` with
 > `overflow:auto`, JVM/Native are no-op handles (the same CSS-first contract).
-> Proof: `ComponentCoreE2ETest#scrollRendersScrollableContainer` + UI battery
+> Proof: `UiLayoutRenderE2ETest#scrollRendersScrollableContainer` + UI battery
 > 74/74.
 > **`UI001/UI002` recount (17/09):** `UI002` ✅ confirmed DONE 08/09 (the
 > interpreter prints the warning once via `ui002Warned`).
