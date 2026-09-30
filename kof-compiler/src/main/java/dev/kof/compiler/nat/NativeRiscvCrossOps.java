@@ -389,13 +389,12 @@ public final class NativeRiscvCrossOps {
                     // §111 cross: sentinela "até o fim" = -1 (0 colide com o
                     // 0 legítimo do 2-arg — mesmo fix x86 do maintainer).
                     sb.append("    pop a1\n    li a2, -1\n");
+                    sb.append("    pop a0\n");
                 } else {
-                    for (int i = argCount - 1; i >= 0; i--) {
-                        sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
-                    }
+                    emitCrossArgLoads(sb, 1 + argCount);   // a1.. = args; a0 = receiver
                 }
-                sb.append("    pop a0\n");
                 sb.append("    call ").append(fn).append("\n");
+                emitCrossStackCleanup(sb, 1 + argCount);
                 if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
                 return;
             }
@@ -420,11 +419,9 @@ public final class NativeRiscvCrossOps {
 
         // kof_string_equals / concat como FUNCTION (frontend emite assim)
         if (kc.kind() == KofCallKind.FUNCTION && ("kof_string_equals".equals(mn) || "kof_string_concat".equals(mn))) {
-            int argCount = kc.parameterTypes().size();
-            for (int i = argCount - 1; i >= 0; i--) {
-                sb.append("    pop ").append(crossArgReg(i)).append("\n");
-            }
+            emitCrossArgLoads(sb, kc.parameterTypes().size());
             sb.append("    call ").append(mn).append("\n");
+            emitCrossStackCleanup(sb, kc.parameterTypes().size());
             if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
             return;
         }
@@ -432,10 +429,7 @@ public final class NativeRiscvCrossOps {
         // coleções (List/Map/Set) — kof_list_*/kof_map_*/kof_set_*
         if (kc.kind() == KofCallKind.INSTANCE && mn.startsWith("kof_")) {
             int argCount = kc.parameterTypes().size();
-            for (int i = argCount - 1; i >= 0; i--) {
-                sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
-            }
-            sb.append("    pop a0\n");
+            emitCrossArgLoads(sb, 1 + argCount);   // a1.. = args; a0 = receiver
             // §123: tag de chave no header do map (off 40) — 1=String
             // (kof_string_equals), 0=raw cmpq (Int/Long/... senão chave Int
             // vira PONTEIRO → SIGSEGV). Unknown NÃO toca (mantém default 1).
@@ -456,6 +450,7 @@ public final class NativeRiscvCrossOps {
                 }
             }
             sb.append("    call ").append(mn).append("\n");
+            emitCrossStackCleanup(sb, 1 + argCount);
             if (!Type.isVoid(kc.returnType())) {
                 // §284-map (18/09): leitura de Map com retorno PRIMITIVO
                 // declarado (get/getOrDefault com V pinado) recebe a caixa do
@@ -473,12 +468,9 @@ public final class NativeRiscvCrossOps {
 
         // construtor: obj (dup) + args
         if (kc.kind() == KofCallKind.CONSTRUCTOR && "<init>".equals(mn)) {
-            int argCount = kc.parameterTypes().size();
-            for (int i = argCount - 1; i >= 0; i--) {
-                sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
-            }
-            sb.append("    pop a0\n");
+            emitCrossArgLoads(sb, 1 + kc.parameterTypes().size());   // a1.. = args; a0 = obj
             sb.append("    call ").append(resolveCalleeNameRiscv(kc)).append("\n");
+            emitCrossStackCleanup(sb, 1 + kc.parameterTypes().size());
             return;
         }
 
@@ -488,31 +480,75 @@ public final class NativeRiscvCrossOps {
             int argCount = kc.parameterTypes().size();
             int vtableIdx = nb.findVirtualMethodIndex(ct.name(), mn, kc.parameterTypes());
             if (vtableIdx >= 0) {
-                for (int i = argCount - 1; i >= 0; i--) {
-                    sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
-                }
-                sb.append("    pop a0\n");
+                emitCrossArgLoads(sb, 1 + argCount);   // a1.. = args; a0 = receiver
                 sb.append("    ld t0, 8(a0)\n");
                 sb.append("    addi t0, t0, ").append(vtableIdx * 8).append("\n");
                 sb.append("    ld t0, 0(t0)\n");
                 sb.append("    jalr t0\n");
+                emitCrossStackCleanup(sb, 1 + argCount);
                 if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
                 return;
             }
         }
 
         // chamada direta (FUNCTION/STATIC de usuário — args em a0..aN, sem receiver)
-        int argCount = kc.parameterTypes().size();
-        for (int i = argCount - 1; i >= 0; i--) {
-            sb.append("    pop ").append(crossArgReg(i)).append("\n");
-        }
+        emitCrossArgLoads(sb, kc.parameterTypes().size());
         sb.append("    call ").append(resolveCalleeNameRiscv(kc)).append("\n");
+        emitCrossStackCleanup(sb, kc.parameterTypes().size());
         if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
     }
 
-    String crossArgReg(int i) {
+    /**
+     * §546: carrega os {@code count} args do topo da pilha de operandos para a
+     * ABI (a0..a7) — os args 9+ (índice ≥ 8, LP64/AAPCS64) vão à pilha do
+     * callee. O arg {@code count-1} é o topo (0(sp)) e o arg {@code r} está em
+     * {@code 8*(count-1-r)(sp)}. Para ≤8 args usa pops diretos (caminho
+     * histórico, zero drift); para 9+, lê a0..a7 por offset e aloca/mirrora os
+     * stack args abaixo, deixando arg8 no menor endereço (lido em 0(s11)).
+     */
+    void emitCrossArgLoads(StringBuilder sb, int count) {
+        if (count <= 0) return;
         String[] regs = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
-        return i < regs.length ? regs[i] : "a7";
+        if (count <= regs.length) {
+            for (int r = count - 1; r >= 0; r--) {
+                sb.append("    pop ").append(regs[r]).append("\n");
+            }
+            return;
+        }
+        // §546: LP64/AAPCS64 só tem a0..a7. A pilha de operandos tem o arg
+        // `count-1` no topo (0(sp)) e o arg `r` em `8*(count-1-r)(sp)`.
+        // (a) carrega a0..a7 por OFFSET (sem tocar sp), então o bloco de args
+        //     baixos fica intacto até lermos a0;
+        // (b) aloca o bloco de stack args ABAIXO do sp atual e o espelha na
+        //     ordem reversa (arg8 no menor endereço, como o callee lê 0(s11));
+        // (c) o cleanup pós-call só devolve 8*stackArgs a sp.
+        int stackArgs = count - regs.length;
+        for (int r = regs.length - 1; r >= 0; r--) {
+            sb.append("    ld ").append(regs[r]).append(", ")
+              .append(8 * (count - 1 - r)).append("(sp)\n");
+        }
+        if (stackArgs > 0) {
+            sb.append("    addi sp, sp, ").append(-8 * stackArgs).append("\n");
+            // arg(8+k) estava em 8*(count-1-(8+k)) = 8*(2*stackArgs-1-k) do
+            // novo sp; vai para o slot k (arg8 no menor endereço).
+            for (int k = 0; k < stackArgs; k++) {
+                sb.append("    ld t0, ").append(8 * (2 * stackArgs - 1 - k)).append("(sp)\n");
+                sb.append("    sd t0, ").append(8 * k).append("(sp)\n");
+            }
+        }
+    }
+
+    /**
+     * §546: limpa a pilha após o {@code call} de uma aridade com stack args.
+     * Para ≤8 args o {@link #emitCrossArgLoads} já consumiu exatamente `count`
+     * slots via pop (sp volta ao nível pré-args) → no-op. Para 9+, nada foi
+     * popado: sp caiu 8*stackArgs (bloco novo) e o bloco de args original
+     * (count slots) ainda está lá → devolve 8*(count+stackArgs).
+     */
+    void emitCrossStackCleanup(StringBuilder sb, int count) {
+        int stackArgs = Math.max(0, count - 8);
+        if (stackArgs == 0) return;
+        sb.append("    addi sp, sp, ").append(8 * (count + stackArgs)).append("\n");
     }
 
     String resolveCalleeNameRiscv(KofCall kc) {

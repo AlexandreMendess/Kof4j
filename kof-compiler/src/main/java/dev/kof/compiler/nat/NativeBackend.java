@@ -101,6 +101,19 @@ public class NativeBackend implements Backend {
     /** Offset (positivo, usado como `-off(%rbp)`) do slot de rascunho `s`. */
     int scratchOffset(int s) { return frameLocalsBytes + (s + 1) * 8; }
 
+    /**
+     * §546: frame size do método cross riscv64/aarch64 em emissão. Base do
+     * rascunho ({@link #crossScratchOff}), reservado ABAIXO dos locais (que
+     * ficam logo abaixo de s11) e usado hoje pelo OBJ de cada `Buffer(U8)`
+     * INOUT de um extern (o release relê dali, nunca do bloco de args que o C
+     * pode sobrescrever). Args de pilha (&gt;8) não usam rascunho — o
+     * call-site os acessa por offset direto.
+     */
+    int crossFrameSize = 0;
+
+    /** Offset (negativo, base s11) do slot de rascunho cross `s`. */
+    int crossScratchOff(int s) { return -crossFrameSize + s * 8; }
+
     boolean usesDb = false;
     boolean usesOrm = false;
     /** F2b: className das entidades usadas com {@code orm.find} (para o

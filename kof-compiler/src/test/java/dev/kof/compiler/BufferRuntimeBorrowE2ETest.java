@@ -199,6 +199,40 @@ class BufferRuntimeBorrowE2ETest {
         }
     }
 
+    @Test
+    void sequentialWritersReleaseBorrowCross(@TempDir Path dir) throws Exception {
+        // O release precisa LIMPAR o flag após a downcall: dois writers
+        // SEQUENCIAIS (não concorrentes) não podem colidir. Pega o bug em que o
+        // release relia o OBJ do bloco de args — o C sobrescrevia o bloco, o
+        // release lia ponteiro-lixo e o flag vazava (o 2º acquire acharia o
+        // borrow preso → MEM020 espúrio).
+        String kof = """
+                extern "%s" barriered_write(Buffer(U8) buf, Int n, Int v): Int
+
+                main() {
+                    var b = buffer.alloc(2)
+                    println(barriered_write(b, 2, 9))
+                    println(barriered_write(b, 2, 8))
+                    println(b.bytes())
+                }
+                """;
+        for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
+            String arch = a[0];
+            Target t = Target.valueOf(a[1]);
+            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            String so = compileCrossLib(dir, arch);
+            Path src = dir.resolve("borrow-seq-" + arch + ".kf");
+            Files.writeString(src, kof.formatted(so));
+            Path out = dir.resolve("out-borrow-seq-" + arch);
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
+            String o = runQemu(dir, arch, out.resolve("Default/Main"));
+            assertFalse(o.contains("MEM020"), arch + ": release must clear the flag; got:\n" + o);
+            assertEquals("2\n2\n[8, 0]", o, arch + " golden (second sequential writer succeeds)");
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static String compileHostLib(Path dir) throws IOException, InterruptedException {
