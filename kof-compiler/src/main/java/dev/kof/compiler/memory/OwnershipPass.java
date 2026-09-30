@@ -210,13 +210,17 @@ public final class OwnershipPass {
                     }
                 }
                 case BlockStmt blk -> {
-                    // bloco e incondicional: propaga
+                    // bloco nu e retilineo: propaga grupos, aliases E racy/racyFfi (#693)
                     Region sub = new Region(this);
                     sub.walkBody(blk.statements());
                     groups.clear();
                     groups.putAll(sub.groups);
                     aliasOf.clear();
                     aliasOf.putAll(sub.aliasOf);
+                    racy.clear();
+                    racy.putAll(sub.racy);
+                    racyFfi.clear();
+                    racyFfi.putAll(sub.racyFfi);
                 }
                 case IfStmt iff -> {
                     readExpr(iff.condition());

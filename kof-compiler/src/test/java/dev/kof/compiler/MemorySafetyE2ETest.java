@@ -694,6 +694,23 @@ class MemorySafetyE2ETest {
     }
 
     @Test
+    void spawnInsideBareBlockThenParentMutatesFailsMem021(@TempDir Path tempDir) throws IOException {
+        // #693 — a bare `{ ... }` is unconditional/straight-line, so a spawn's
+        // pending race must propagate out of the block (like groups/aliasOf);
+        // before the fix the block boundary dropped `racy` and the clear race
+        // after it compiled clean.
+        assertMem021FailsOnAllTargets(tempDir, "mem021-block", """
+                main() {
+                    var a = listOf(1)
+                    {
+                        spawn { a.add(2) }
+                    }
+                    a.add(3)
+                }
+                """);
+    }
+
+    @Test
     void handleFormSpawnWithoutAwaitFailsMem021(@TempDir Path tempDir) throws IOException {
         assertMem021FailsOnAllTargets(tempDir, "mem021-handle", """
                 main() {
