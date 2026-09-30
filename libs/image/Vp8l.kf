@@ -4,11 +4,11 @@ import image.Image
 
 // kof.image — VP8L (WebP lossless) decoder.
 //
-// Decodes the **no-transform / SUBTRACT_GREEN / no-color-cache /
+// Decodes the **no-transform / SUBTRACT_GREEN / color-cache /
 // single-Huffman-group** subset of VP8L entirely in Kof, including **normal
-// (code-length) Huffman codes** and **LZ77 backward references**. The richer
-// machinery real libwebp often emits — predictor/color/indexing transforms,
-// the color cache and meta-Huffman groups — is **not** decoded yet and is
+// (code-length) Huffman codes**, **LZ77 backward references** and the **color
+// cache**. The richer machinery real libwebp often emits — predictor/color/
+// indexing transforms and meta-Huffman groups — is **not** decoded yet and is
 // refused with an explicit `IMAGE:` diagnostic (never a silent wrong image):
 //
 //   decodeRaster("shot.webp")   // lossless VP8L is routed here from Raster.kf
@@ -268,6 +268,17 @@ Int vp8lDistance(Int code, Int width) {
     return dist
 }
 
+// Insert one ARGB pixel into the VP8L color cache. The slot is
+// `(0x1e35a7bd * argb) >> (32 - bits)` (RFC 9649 §3.6.2.3); the multiply is
+// done in 64-bit so the low 32 bits are exact (Int is 32-bit).
+vp8lCachePut(Long[] cache, Int bits, Int size, Int a, Int r, Int g, Int b) {
+    var argb = (((a & 255) as Long) << 24) | (((r & 255) as Long) << 16)
+    argb = argb | (((g & 255) as Long) << 8)
+    argb = argb | ((b & 255) as Long)
+    var key = ((argb * 0x1e35a7bd) >>> (32 - bits)) & (size - 1)
+    cache[key as Int] = argb
+}
+
 Raster vp8lRaster(String path) {
     var b = File(path).readBytes()
     if (b.length < 21 || !matchesAscii(b, 0, "RIFF") || !matchesAscii(b, 8, "WEBP")) {
@@ -308,13 +319,19 @@ Raster vp8lRaster(String path) {
             throw "IMAGE: WebP color-indexing transform is not supported yet"
         }
     }
+    var cacheBits = 0
+    var cacheSize = 0
     if (r.bit() == 1) {
-        throw "IMAGE: WebP color cache is not supported yet"
+        cacheBits = r.bits(4)
+        if (cacheBits < 1 || cacheBits > 11) {
+            throw "IMAGE: bad WebP color cache size"
+        }
+        cacheSize = 1 << cacheBits
     }
     if (r.bit() == 1) {
         throw "IMAGE: WebP meta-Huffman groups are not supported yet"
     }
-    var green = vp8lReadHuffman(r, 256 + 24)
+    var green = vp8lReadHuffman(r, 256 + 24 + cacheSize)
     var red = vp8lReadHuffman(r, 256)
     var blue = vp8lReadHuffman(r, 256)
     var alpha = vp8lReadHuffman(r, 256)
@@ -327,6 +344,7 @@ Raster vp8lRaster(String path) {
     var count = pixels * channels
     guardRaster(count)
     var samples = new Int[count]
+    var cache = new Long[cacheSize]
     var px = 0
     while (px < pixels) {
         var g = green.decode(r)
@@ -346,6 +364,13 @@ Raster vp8lRaster(String path) {
                     samples[at + c] = samples[src + c]
                     c = c + 1
                 }
+                if (cacheSize > 0) {
+                    var ca = 255
+                    if (channels == 4) {
+                        ca = samples[at + 3]
+                    }
+                    vp8lCachePut(cache, cacheBits, cacheSize, ca, samples[at], samples[at + 1], samples[at + 2])
+                }
                 px = px + 1
                 k = k + 1
             }
@@ -360,9 +385,21 @@ Raster vp8lRaster(String path) {
             if (channels == 4) {
                 samples[base + 3] = aa & 255
             }
+            if (cacheSize > 0) {
+                vp8lCachePut(cache, cacheBits, cacheSize, aa & 255, rr & 255, g & 255, bb & 255)
+            }
             px = px + 1
         } else {
-            throw "IMAGE: WebP color cache is not supported yet"
+            var idx = g - (256 + 24)
+            var argb = cache[idx]
+            var base2 = px * channels
+            samples[base2] = (((argb >> 16) & 255)) as Int
+            samples[base2 + 1] = (((argb >> 8) & 255)) as Int
+            samples[base2 + 2] = ((argb & 255)) as Int
+            if (channels == 4) {
+                samples[base2 + 3] = (((argb >> 24) & 255)) as Int
+            }
+            px = px + 1
         }
     }
     if (subtractGreen) {

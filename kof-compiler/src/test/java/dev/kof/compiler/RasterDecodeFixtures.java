@@ -155,8 +155,9 @@ final class RasterDecodeFixtures {
                 println(dump(decodeRaster("%s/v.webp")))
                 println(dump(decodeRaster("%s/vsub.webp")))
                 println(dump(decodeRaster("%s/vnorm.webp")))
+                println(dump(decodeRaster("%s/vcache.webp")))
             }
-            """.formatted(base, base, base);
+            """.formatted(base, base, base, base);
     }
 
     static Path rasterFixtures(Path dir) throws Exception {
@@ -182,6 +183,14 @@ final class RasterDecodeFixtures {
                 "5249464619000000574542505650384c0d0000002f0140000045296a5f85fe1700"));
         Files.write(dir.resolve("vnorm.webp"), decodeHex(
                 "5249464622000000574542505650384c160000002f034000001008241293ec4f17c51550eec1d3ff0c0f"));
+        Files.write(dir.resolve("vcache.webp"), decodeHex(
+                "5249464612010000574542505650384c060100002f07c0010016a7110020ca3b1635babb445d81630297"
+                        + "48768f2e159a0fc00a1ab98fd0dd9d517c01b2d3000008a9dd1b1bb059d1b66d0da06e2df1d18a88b68"
+                        + "d01b4c335271200a0c9daaa6f69c90d7777f7ee6e1fe00124d744e305b4d168f007881c0f7072ff83f6"
+                        + "1ee595b16ddbc42a81ec46ed56b5293fe734f63319ec470c20908857cabe6065ab2005f1e8b403d6943"
+                        + "fd1d7d9d80215aa4e7cfc556272acc3257b7ced2fb319d6c92e3ff7c48cb3fa2142c15da7bde2bfedbc9"
+                        + "9515527a29ce6d06b1ce6735098fbd5e36b8fc2013fb1eb71da56f3a1765599dd45557a79764b4f43f61e"
+                        + "5b6503f2bfe4018ca790a5f8f8ce00a1d43f762205fc4802202a0d05418811"));
         return dir;
     }
 
