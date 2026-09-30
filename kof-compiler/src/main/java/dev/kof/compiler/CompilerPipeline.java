@@ -131,7 +131,7 @@ public final class CompilerPipeline {
                                                     Path outputDir, Target target, Path moduleRoot) {
         driver.testHarnessMode = true;
         try {
-            return CompilerPipeline.compileSources(driver, sources, outputDir, target, driver.moduleRoot);
+            return CompilerPipeline.compileSources(driver, sources, outputDir, target, moduleRoot);
         } finally {
             driver.testHarnessMode = false;
         }
