@@ -410,7 +410,7 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM029` | `toArray()` em List/Set | driver:4052 |
 | `SEM030` | enum sem a constante acessada | driver:4859 |
 | `SEM031` | switch-statement sobre enum não exaustivo | SwitchStmtLowerer:32 |
-| `SEM032` | switch-expressão sem default | `SemExpressionTyper` (case `SwitchExpr`) |
+| `SEM032` | switch `Bool`/enum não exaustivo (expression ou **statement**, §686) sem default | `MemberResolver` / `SemExpressionTyper` |
 | `SEM033` | valor `void` usado como expressão | driver:2675 |
 | `SEM034` | `sublist()`/`subSet()` | driver:4067 |
 | `SEM037` | reatribuição de `val` | parser (`type="val"`) + `StatementAnalyzer` |
@@ -442,7 +442,7 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM078` | `Style("<declarações>")` com valor inválido para propriedade conhecida | `KofStyleParser` (D-UI-STYLE/UI007) |
 | `SEM079` | uso errado de token do design system: membro inexistente de `Spacing`/`Radius`/`Border`/`Elevation`/`Typography`, ou chamada de método num namespace de token | `KofUiTokens` (Fase 10) |
 | `SEM080` | subtipo (`extends`/`implements`) de tipo `sealed` declarado fora de sua unidade de compilação (o conjunto de subtipos selado é fechado) | `SealedTypeChecks` (X5.1/D-X5-SURFACE) |
-| `SEM081` | `switch` expressão sobre sujeito `sealed` sem um caso de subtipo direto (sem `default`) | `MemberResolver` (X5.2/D-X5-SURFACE) |
+| `SEM081` | `switch` (expressão ou **statement**, §686) sobre sujeito `sealed` sem um caso de subtipo direto (sem `default`) | `MemberResolver` (X5.2/D-X5-SURFACE) |
 | `SEM082` | type-param `out` usado em posição de entrada (parâmetro/campo gravável) ou type-param `in` usado em posição de saída (retorno/campo/componente de record) — solidez da variância declaration-site | `VarianceChecks` (X5.3/D-TYPE-VARIANCE) |
 | `SEM083` | type-param `out`/`in` passado a um parâmetro de supertipo com variância incompatível (ou invariante) em `extends`/`implements` — solidez da variância em posição de herança | `VarianceChecks` (X5.3b/D-TYPE-VARIANCE) |
 | `ARITH001` | divisão/resto por zero **constante** | `ExpressionBinaryLowerer` (guarda de zero constante) |

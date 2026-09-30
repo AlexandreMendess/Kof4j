@@ -290,7 +290,10 @@ public final class StatementAnalyzer {
                 analyzeStatement(sa, fis.body(), forScope, returnType);
             }
             case SwitchStmt ss -> {
-                SemExpressionTyper.inferType(sa, ss.expression(), scope);
+                Type switchSubject = SemExpressionTyper.inferType(sa, ss.expression(), scope);
+                // #686: a forma-statement também exige exaustividade (sealed/
+                // Bool/enum) — antes só a forma-expression checava (SEM081/SEM032).
+                MemberResolver.checkSwitchStmtExhaustiveness(sa, ss, switchSubject);
                 SymbolTable switchScope = scope.enterScope();
                 for (SwitchCase sc : ss.cases()) {
                     if (sc.value() instanceof PatternExpr pe) {

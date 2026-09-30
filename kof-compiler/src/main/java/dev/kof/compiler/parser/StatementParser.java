@@ -314,6 +314,7 @@ public class StatementParser {
         ctx.expect(TokenType.LBRACE, "Expected '{'", "PARSE072");
         List<SwitchCase> cases = new ArrayList<>();
         List<StatementNode> defaultBody = List.of();
+        boolean hasDefault = false;
         while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
             if (ctx.check(TokenType.CASE)) {
                 SourcePosition cp = ctx.pos();
@@ -328,6 +329,7 @@ public class StatementParser {
             } else if (ctx.check(TokenType.DEFAULT)) {
                 ctx.advance();
                 ctx.expect(TokenType.COLON, "Expected ':'", "PARSE074");
+                hasDefault = true;                       // #686: `default: }` conta
                 defaultBody = new ArrayList<>();
                 while (!ctx.check(TokenType.CASE) && !ctx.check(TokenType.DEFAULT) && !ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
                     defaultBody.add(StatementParser.parseStatement(ctx));
@@ -337,7 +339,7 @@ public class StatementParser {
             }
         }
         ctx.expect(TokenType.RBRACE, "Expected '}'", "PARSE075");
-        return new SwitchStmt(p, expr, cases, defaultBody);
+        return new SwitchStmt(p, expr, cases, defaultBody, hasDefault);
     }
 
     /**

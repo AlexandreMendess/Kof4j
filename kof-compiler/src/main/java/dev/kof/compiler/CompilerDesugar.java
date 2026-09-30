@@ -176,7 +176,8 @@ public final class CompilerDesugar {
                 cases.add(new SwitchCase(c.position(), c.value(), rewriteUsing(c.body())));
             }
             return new SwitchStmt(sw.position(), sw.expression(), cases,
-                    sw.defaultBody() == null ? null : rewriteUsing(sw.defaultBody()));
+                    sw.defaultBody() == null ? null : rewriteUsing(sw.defaultBody()),
+                    sw.hasDefault());
         }
         if (s instanceof FunctionDeclStmt fn) {
             FunctionDeclarationNode inner = fn.function();
