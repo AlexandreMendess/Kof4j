@@ -27,10 +27,16 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
   `scripts/check_javafx_absent.sh` (RED-first self-test in
   `scripts/tests/check-javafx-absent-test.sh`).
 - **Host candidate libs (x86-64 dev box):** runtime `.so` present for SDL2
-  (`libSDL2-2.0.so.0`), OpenAL (`libopenal.so.1`), FFmpeg libavformat/avcodec
-  (`libavformat.so.60`/`libavcodec.so.60`); **no `-dev` headers** (`pkg-config`
-  reports none of sdl3/sdl2/raylib/glfw3/openal/libavcodec/ffmpeg). The spike
-  measurement, not the stack pick.
+  (`2.30.0`), OpenAL (`1.23.1`), FFmpeg libavformat/avcodec (`6.1.1`); **no
+  `-dev` headers** (`pkg-config` reports none of sdl3/sdl2/raylib/glfw3/openal/
+  libavcodec/ffmpeg). Licenses read from the distro `copyright` files (SDL2 =
+  zlib/libpng + permissive, OpenAL = LGPL-2+, libavformat = LGPL-2.1+). The
+  spike measurement, not the stack pick.
+- **Cross (riscv64/aarch64): not measurable yet.** No candidate `.so`/headers
+  are in the distro cross sysroot, and the project's cross toolchain
+  (`scripts/setup-cross-toolchain.sh`, default `/tmp/kof-cross`) was not set up
+  in this environment. **Any picked stack must ship its cross libs in that
+  sysroot** — a concrete, testable requirement for slice 3.1, not a promise.
 - **R3/FFI substrate present** (this is the dependency the plan §3 names):
   `FfiSignature`, `AbiLayout`, `FfiStructLayout`, `CompilerFfiBinding`,
   `JvmFfiRuntime`, `NativeFfiCall`, `ExternalClasspath`, `KofProcess`
@@ -44,12 +50,12 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
 
 | Candidate | Domain | License (`?` = confirm upstream) | Runs on host | Headless | Cross (riscv64/aarch64) | Axis |
 |---|---|---|---|---|---|---|
-| SDL3 / SDL2 | window+input+audio | zlib (`?`) | SDL2 runtime `.so` present, no `-dev` | SDL3 yes / SDL2 via dummy driver (`?`) | `?` | one lib, many targets |
-| raylib | 2D/3D+audio | zlib (`?`) | `?` | yes (`?`) | `?` | batteries-included 2D |
-| GLFW + GL API | window+context | zlib (`?`) | `?` | offscreen ctx (`?`) | `?` | thin, GL expertise needed |
-| miniaudio | audio | public-domain/MIT-0 (`?`) | header-only, `?` | offline mix yes (`?`) | `?` | single-header audio |
-| OpenAL-Soft | audio | LGPL-2.1 (`?`) | runtime `.so` present, no `-dev` | `?` | `?` | 3D positional audio |
-| FFmpeg / Libav | video+codecs | LGPL-2.1 / GPL (`?`) | libavcodec/avformat `.so` present, no `-dev` | yes (`?`) | `?` | full codec set |
+| SDL3 / SDL2 | window+input+audio | zlib/libpng + permissive (distro `copyright`) | SDL2 `2.30.0` runtime `.so` present, no `-dev` | SDL3 yes / SDL2 via dummy driver (`?`) | `?` | one lib, many targets |
+| raylib | 2D/3D+audio | zlib (`?`) | not present | `?` | `?` | batteries-included 2D |
+| GLFW + GL API | window+context | zlib (`?`) | not present | offscreen ctx (`?`) | `?` | thin, GL expertise needed |
+| miniaudio | audio | public-domain/MIT-0 (`?`) | not present (header-only, drop-in) | offline mix yes (`?`) | `?` | single-header audio |
+| OpenAL-Soft | audio | **LGPL-2+** (distro `copyright`) | runtime `1.23.1` `.so` present, no `-dev` | `?` | `?` | 3D positional audio |
+| FFmpeg / Libav | video+codecs | LGPL-2.1+ (distro `copyright`, `libavformat60`) / GPL if built with `--enable-gpl` | libavcodec/avformat `6.1.1` `.so` present, no `-dev` | yes (`?`) | `?` | full codec set |
 
 **Recommendation (measurement-driven, not by familiarity):** the plan's JVM rule
 (§11: never JavaFX/Swing/AWT/`javax.sound`) plus the R3-first coupling (§3) point
