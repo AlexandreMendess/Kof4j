@@ -9,8 +9,9 @@
 
     $KofRepo = 'KofLang/Kof4j'
     $UserHome = Get-Setting 'HOME' $env:USERPROFILE
-    $KfvmRepo = Get-Setting 'KFVM_REPO' 'etieppo/kfvm'
-    $KfvmRef = Get-Setting 'KFVM_REF' 'master'
+    $KfvmRepo = Get-Setting 'KFVM_REPO' 'KofLang/Kof4j'
+    $KfvmRef = Get-Setting 'KFVM_REF' 'lab'
+    $KfvmPath = Get-Setting 'KFVM_PATH' 'tooling/kfvm'
     $KfvmHome = Get-Setting 'KFVM_HOME' (Join-Path $UserHome '.local\share\kof')
     $KfvmData = Get-Setting 'KFVM_DATA' (Join-Path $UserHome '.local\share\kfvm')
     $KfvmSource = Get-Setting 'KFVM_SOURCE' ''
@@ -141,25 +142,40 @@
         Join-Path $target 'bin\kof.bat'
     }
 
-    function Get-KfvmSource([string] $Tmp) {
+    function Test-KfvmSource([string] $Dir) {
+        $Dir -and (Test-Path -LiteralPath (Join-Path $Dir 'src') -PathType Container)
+    }
+
+    function Get-KfvmSource([string] $Tmp, [string] $Kof) {
         if ($KfvmSource) {
-            if (-not (Test-Path -LiteralPath (Join-Path $KfvmSource 'src') -PathType Container)) {
+            if (-not (Test-KfvmSource $KfvmSource)) {
                 Stop-Install "KFVM_SOURCE has no src directory: $KfvmSource"
             }
             return (Resolve-Path -LiteralPath $KfvmSource).Path
         }
-        Write-Info "downloading kfvm source ($KfvmRepo@$KfvmRef)"
+        $bundled = Join-Path (Split-Path -Parent (Split-Path -Parent $Kof)) $KfvmPath
+        if (Test-KfvmSource $bundled) {
+            Write-Info "using kfvm source from $bundled"
+            return $bundled
+        }
+        Write-Info "downloading kfvm source ($KfvmRepo@${KfvmRef}:$KfvmPath)"
+        $repo = Join-Path $Tmp 'repo'
+        if (Get-Command git.exe -ErrorAction SilentlyContinue) {
+            $cloned = (Invoke-Logged git.exe @('clone', '--quiet', '--depth', '1', '--filter=blob:none', '--sparse', '--branch', $KfvmRef, "https://github.com/$KfvmRepo.git", $repo) (Join-Path $Tmp 'git.log')) -and
+                (Invoke-Logged git.exe @('-C', $repo, 'sparse-checkout', 'set', $KfvmPath) (Join-Path $Tmp 'git.log'))
+            $src = Join-Path $repo $KfvmPath
+            if ($cloned -and (Test-KfvmSource $src)) { return $src }
+        }
         $archive = Join-Path $Tmp 'kfvm.tar.gz'
         Save-Download "https://github.com/$KfvmRepo/archive/$KfvmRef.tar.gz" $archive
         $dir = Join-Path $Tmp 'src'
         New-Item -ItemType Directory -Path $dir | Out-Null
         & tar.exe -xzf $archive -C $dir
         if ($LASTEXITCODE -ne 0) { Stop-Install 'could not extract the kfvm source' }
-        $src = Get-ChildItem -LiteralPath $dir -Directory | Select-Object -First 1
-        if (-not $src -or -not (Test-Path -LiteralPath (Join-Path $src.FullName 'src') -PathType Container)) {
-            Stop-Install 'downloaded archive has no src directory'
-        }
-        $src.FullName
+        $root = Get-ChildItem -LiteralPath $dir -Directory | Select-Object -First 1
+        $src = if ($root) { Join-Path $root.FullName $KfvmPath }
+        if (-not (Test-KfvmSource $src)) { Stop-Install "kfvm source not found in $KfvmRepo@${KfvmRef}:$KfvmPath" }
+        $src
     }
 
     function Find-NativeBin([string] $Dir) {
@@ -250,10 +266,10 @@ exit /b %ERRORLEVEL%
         $tmp = Join-Path ([IO.Path]::GetTempPath()) ('kfvm-install.' + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $tmp | Out-Null
         try {
-            $src = Get-KfvmSource $tmp
             $minimum = ConvertTo-VersionNumber $KofMin
             $kof = Find-KofBin $minimum
             if (-not $kof) { $kof = Install-Kof $platform $minimum $tmp }
+            $src = Get-KfvmSource $tmp $kof
             Write-Info "using $kof ($(Get-KofVersion $kof))"
             Write-Info 'building kfvm'
             if (Build-NativeBin $kof $src $tmp) {

@@ -2,8 +2,9 @@
 set -eu
 
 KOF_REPO="KofLang/Kof4j"
-KFVM_REPO="${KFVM_REPO:-etieppo/kfvm}"
-KFVM_REF="${KFVM_REF:-master}"
+KFVM_REPO="${KFVM_REPO:-KofLang/Kof4j}"
+KFVM_REF="${KFVM_REF:-lab}"
+KFVM_PATH="${KFVM_PATH:-tooling/kfvm}"
 KFVM_HOME="${KFVM_HOME:-$HOME/.local/share/kof}"
 KFVM_DATA="${KFVM_DATA:-$HOME/.local/share/kfvm}"
 BIN_DIR="${KFVM_BIN_DIR:-$HOME/.local/bin}"
@@ -113,12 +114,24 @@ get_kfvm_source() {
         SRC="$KFVM_SOURCE"
         return
     fi
-    say "downloading kfvm source ($KFVM_REPO@$KFVM_REF)"
-    fetch "https://github.com/$KFVM_REPO/archive/$KFVM_REF.tar.gz" > "$TMP/kfvm.tar.gz"
-    mkdir -p "$TMP/src"
-    tar -xzf "$TMP/kfvm.tar.gz" -C "$TMP/src"
-    SRC="$(find "$TMP/src" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-    [ -d "$SRC/src" ] || die "downloaded archive has no src directory"
+    bundled="$(dirname "$(dirname "$KOF")")/$KFVM_PATH"
+    if [ -d "$bundled/src" ]; then
+        say "using kfvm source from $bundled"
+        SRC="$bundled"
+        return
+    fi
+    say "downloading kfvm source ($KFVM_REPO@$KFVM_REF:$KFVM_PATH)"
+    if command -v git > /dev/null 2>&1 \
+        && git clone --quiet --depth 1 --filter=blob:none --sparse --branch "$KFVM_REF" "https://github.com/$KFVM_REPO.git" "$TMP/repo" > /dev/null 2>&1 \
+        && git -C "$TMP/repo" sparse-checkout set "$KFVM_PATH" > /dev/null 2>&1; then
+        SRC="$TMP/repo/$KFVM_PATH"
+    else
+        fetch "https://github.com/$KFVM_REPO/archive/$KFVM_REF.tar.gz" > "$TMP/kfvm.tar.gz"
+        mkdir -p "$TMP/src"
+        tar -xzf "$TMP/kfvm.tar.gz" -C "$TMP/src"
+        SRC="$(find "$TMP/src" -mindepth 1 -maxdepth 1 -type d | head -n 1)/$KFVM_PATH"
+    fi
+    [ -d "$SRC/src" ] || die "kfvm source not found in $KFVM_REPO@$KFVM_REF:$KFVM_PATH"
 }
 
 find_kof_native_bin() {
@@ -221,9 +234,9 @@ main() {
     detect_os
     TMP="$(mktemp -d "${TMPDIR:-/tmp}/kfvm-install.XXXXXX")"
     trap 'rm -rf "$TMP"' EXIT INT TERM
-    get_kfvm_source
     REQUIRED="$(version_to_int "$KOF_MIN")"
     locate_kof_bin || install_kof
+    get_kfvm_source
     install_kof_launcher
     say "using $KOF ($("$KOF" version < /dev/null | head -n 1))"
     say "building kfvm"

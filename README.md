@@ -1,3 +1,5 @@
+[English](README.md) | [Português](README.pt_BR.md)
+
 # kfvm — Kof Version Manager
 
 Install, switch between and remove versions of the [Kof](https://github.com/KofLang/Kof4j) toolchain from the command line, on Linux, macOS and Windows.
@@ -9,7 +11,7 @@ $ kfvm u 0.4.8      # make it the active one, installing it first if needed
 $ kof version
 ```
 
-> kfvm is an independent community tool. It is not maintained by or affiliated with the KofLang project. It downloads the official Kof releases published on [GitHub Releases](https://github.com/KofLang/Kof4j/releases).
+kfvm is part of the Kof tooling and lives in `tooling/kfvm` of the Kof4j repository. It downloads the official Kof releases published on [GitHub Releases](https://github.com/KofLang/Kof4j/releases). It is a JVM tool: it runs on the embedded JDK of an installed Kof version.
 
 ## Why
 
@@ -24,23 +26,23 @@ Kof ships as a self-contained distribution (compiler, CLI, runtime, stdlib and a
 ### Linux and macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/etieppo/kfvm/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/lab/tooling/kfvm/install.sh | sh
 ```
 
-The script builds kfvm from source. If no Kof 0.5.0 or newer is found, it first installs one into `~/.local/share/kof`. When Kof can compile kfvm into a native binary, that binary is installed as `~/.local/bin/kfvm`. Otherwise kfvm is installed as `~/.local/share/kfvm/kfvm.jar` plus a launcher in `~/.local/bin/kfvm`, which runs on the embedded JDK of an installed Kof version. If `~/.local/bin` is not in your `PATH`, the script adds it to your shell config.
+The script builds kfvm from source. If no Kof 0.5.0 or newer is found, it first installs one into `~/.local/share/kof`. It uses the kfvm source shipped in that Kof distribution (`tooling/kfvm`) when there is one, and otherwise downloads `tooling/kfvm` from the Kof4j repository. When Kof can compile kfvm into a native binary, that binary is installed as `~/.local/bin/kfvm`. Otherwise kfvm is installed as `~/.local/share/kfvm/kfvm.jar` plus a launcher in `~/.local/bin/kfvm`, which runs on the embedded JDK of an installed Kof version. If `~/.local/bin` is not in your `PATH`, the script adds it to your shell config.
 
 ### Windows
 
 In PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/etieppo/kfvm/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/KofLang/Kof4j/lab/tooling/kfvm/install.ps1 | iex
 ```
 
 Or from `cmd`:
 
 ```bat
-powershell -c "irm https://raw.githubusercontent.com/etieppo/kfvm/master/install.ps1 | iex"
+powershell -c "irm https://raw.githubusercontent.com/KofLang/Kof4j/lab/tooling/kfvm/install.ps1 | iex"
 ```
 
 Requires Windows 10 (1803 or newer) or Windows 11, which ship `curl.exe` and `tar.exe`. Kof publishes Windows builds for x86_64 only.
@@ -52,17 +54,17 @@ When kfvm activates a Kof version (`kfvm i` or `kfvm u`), it adds `%USERPROFILE%
 ### Install manually
 
 ```bash
-git clone https://github.com/etieppo/kfvm
-cd kfvm
-KFVM_SOURCE=. sh install.sh
+git clone https://github.com/KofLang/Kof4j
+cd Kof4j
+KFVM_SOURCE=tooling/kfvm sh tooling/kfvm/install.sh
 ```
 
 On Windows:
 
 ```powershell
-git clone https://github.com/etieppo/kfvm
-cd kfvm
-$env:KFVM_SOURCE = '.'; powershell -ExecutionPolicy Bypass -File install.ps1
+git clone https://github.com/KofLang/Kof4j
+cd Kof4j
+$env:KFVM_SOURCE = 'tooling\kfvm'; powershell -ExecutionPolicy Bypass -File tooling\kfvm\install.ps1
 ```
 
 ## Usage
@@ -184,3 +186,9 @@ On Windows, delete `%USERPROFILE%\.local\bin\kfvm.cmd` and `%USERPROFILE%\.local
 ```powershell
 Remove-Item -Recurse -Force "$env:USERPROFILE\.local\share\kof"
 ```
+
+## License
+
+Copyright (C) 2026 Emerson A. Tieppo Jr.
+
+kfvm is free software, released under the [GNU General Public License v3.0](LICENSE), the same license as Kof.
