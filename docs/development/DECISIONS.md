@@ -4473,6 +4473,17 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 - **Relationships:** `Related: D-IMAGE-VISION-GO, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`.
 
+## D-WEBP-LOSSY-PURE-KOF — WebP lossy (`VP8 `) and AVIF decode as a pure-Kof decoder on all targets, no third-party imageio plugin (maintainer 30/09/2026, multiple-choice "decoder VP8 lossy em Kof puro")
+
+**State:** DECIDED (maintainer) — closes the last image codec gap; supersedes the "interop/gap" note in `image-vision-plan.md` §34 PENDING.
+
+- **Question:** the last image decoders — WebP lossy `VP8 ` and AVIF — cannot ride the JVM `imageio` escape hatch: OpenJDK 25 `javax.imageio` has **no** WebP or AVIF reader (measured 30/09; `ImageIO.getImageReadersByFormatName("webp"/"avif")` empty), so `image.decode` would need a third-party plugin (TwelveMonkeys / an AVIF lib) — a dependency decision. The maintainer chose to keep interop-first for JVM-only formats but to **reject** a new dependency for this.
+- **Decision (option C):** implement the **VP8 lossy decoder in pure Kof**, on all targets (JVM + Native x86-64/riscv64/aarch64 + JS + Script), library-first, no compiler change — the same shape as the VP8L slices. AVIF follows the same route (its intra codec is a later, separate increment).
+- **Why pure Kof over imageio:** `D-IMAGE-SURFACE` says pure Kof whenever feasible; a full third-party imageio plugin set would break the offline (`mvn -o`) build and the "no reimplement, no gratuitous dependency" balance. VP8 lossy is large but bounded and fully described by RFC 6386.
+- **Slices (each one complete unit, tested):** (1) RIFF/`VP8 ` chunk parser + frame-header + the boolean **range decoder** (RFC 6386 §7); (2) the per-macroblock mode/segment header + coefficient probability tables; (3) intra prediction (`VP8 ` keyframes are all-intra) + the inverse DCT/WHT + reconstruction; (4) the in-loop deblocking filter; (5) the adaptive (non-keyframe) path — if in scope.
+- **Honest boundary:** until the full slice chain lands, a lossy WebP is still refused at runtime (`IMAGE: WebP is not lossless (VP8L)`); no intermediate slice ships a half decode (no stub, Q7).
+- **Relationships:** `Related: D-IMAGE-SURFACE, D-IMAGE-VISION-GO, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`; plan `docs/development/image-vision-plan.md` §34.
+
 ## D-KOF-IS-KOF — Kof source never embeds HTML, CSS or JavaScript (maintainer directive 29/09/2026: "NÃO ENFIAR HTML NEM JS DENTRO DE CÓDIGO KOF. KOF É KOF")
 
 **State:** DECIDED (maintainer) — absolute rule.

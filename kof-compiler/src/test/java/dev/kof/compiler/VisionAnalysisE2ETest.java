@@ -48,8 +48,8 @@ class VisionAnalysisE2ETest {
     void visionAnalysisOnJvm() throws Exception {
         Path root = tmp.resolve("jvm-vision");
         Files.createDirectories(root);
-        Path dir = RasterDecodeFixtures.visionFixtures(root.resolve("fixtures"));
-        assertEquals(GOLDEN, visionJvm(root, RasterDecodeFixtures.visionProbe(dir)));
+        Path dir = VisionFixtures.visionFixtures(root.resolve("fixtures"));
+        assertEquals(GOLDEN, visionJvm(root, VisionFixtures.visionProbe(dir)));
     }
 
     @Test
@@ -58,8 +58,8 @@ class VisionAnalysisE2ETest {
                 "Native x86-64 requires the Linux assembler/linker toolchain");
         Path root = tmp.resolve("x86-vision");
         Files.createDirectories(root);
-        Path dir = RasterDecodeFixtures.visionFixtures(root.resolve("fixtures"));
-        assertEquals(GOLDEN, visionX86(root, RasterDecodeFixtures.visionProbe(dir)));
+        Path dir = VisionFixtures.visionFixtures(root.resolve("fixtures"));
+        assertEquals(GOLDEN, visionX86(root, VisionFixtures.visionProbe(dir)));
     }
 
     @Test
@@ -68,17 +68,17 @@ class VisionAnalysisE2ETest {
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
         Path root = tmp.resolve("riscv-vision");
         Files.createDirectories(root);
-        Path dir = RasterDecodeFixtures.visionFixtures(root.resolve("fixtures"));
+        Path dir = VisionFixtures.visionFixtures(root.resolve("fixtures"));
         assertEquals(GOLDEN, visionCross("riscv64", Target.NATIVE_RISCV64, root,
-                RasterDecodeFixtures.visionProbe(dir)));
+                VisionFixtures.visionProbe(dir)));
     }
 
     @Test
     void visionAnalysisOnScript() throws Exception {
         Path root = tmp.resolve("script-vision");
         Files.createDirectories(root);
-        Path dir = RasterDecodeFixtures.visionFixtures(root.resolve("fixtures"));
-        Files.writeString(root.resolve("Main.kf"), RasterDecodeFixtures.visionProbe(dir));
+        Path dir = VisionFixtures.visionFixtures(root.resolve("fixtures"));
+        Files.writeString(root.resolve("Main.kf"), VisionFixtures.visionProbe(dir));
         KofInterpreter.Result result = stageVisionLibraries(root,
                 () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
         assertEquals(0, result.exitCode(), "script output: " + result.stdout());

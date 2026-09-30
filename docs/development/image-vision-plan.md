@@ -771,17 +771,34 @@ ability genuinely does not exist on a target.
     `out=0,255`, and a 64-pixel six-level ramp maps to `eqSix=47,94,141,188`,
     on JVM + Native x86-64 + riscv64(qemu) + Script.
 
-**PENDING (measured, not yet implementable): WebP lossy `VP8 ` + AVIF interop.**
-The plan's last image gap is the two non-VP8L codecs. The measured finding: the
-JPEG escape hatch does not extend — OpenJDK 25 `javax.imageio` has **no** WebP
-or AVIF reader (`ImageIO.getImageReadersByFormatName("webp"/"avif")` empty),
-so `image.decode` cannot back either format without a third-party plugin
-(TwelveMonkeys / an AVIF lib), which is a dependency decision (rule 6). Pure-Kof
-VP8 lossy (DCT + intra prediction + loop filter) is out of scope for a single
-increment. Honest state: a lossy WebP reaching `decodeRaster` is refused with
-`IMAGE: WebP is not lossless (VP8L)` (no silent wrong decode); AVIF is refused
-at format detection. Closing this needs a maintainer decision (add an imageio
-plugin, or a dedicated `IMG00x` gap).
+11. **VP8 lossy slice 1 — boolean range decoder — LANDED 30/09 (pure Kof,
+    all targets).** `libs/image/Vp8.kf` adds `Vp8Bool`, the entropy decoder
+    shared by every VP8 partition (RFC 6386 §7.3): `bit(prob)` (one bool at
+    `prob/256`) and `literal(n)` (an `n`-bit value at 1/2). All arithmetic stays
+    within 17 bits, so a 32-bit `Int` is exact on every backend. Proof:
+    `Vp8BoolE2ETest` **4/4** — an **independent RFC §7.3 encoder** (offline
+    Python) writes 64 bools at a fixed seed over an 8-probability pattern into a
+    20-byte partition, and the Kof decoder reproduces the exact sequence
+    (`vp8bool=1101…0010`) byte-for-byte on JVM + Native x86-64 + riscv64(qemu) +
+    Script (no compiler change). Next slices: RIFF/`VP8 ` container + frame
+    header, then per-macroblock modes/coefficients, intra prediction + inverse
+    DCT, and the loop filter.
+
+**DECIDED 30/09 (`D-WEBP-LOSSY-PURE-KOF`, option C): WebP lossy `VP8 ` + AVIF
+as a pure-Kof decoder on all targets.** The measured finding that forced the
+decision: the JPEG escape hatch does not extend — OpenJDK 25 `javax.imageio`
+has **no** WebP or AVIF reader (`ImageIO.getImageReadersByFormatName("webp"/
+"avif")` empty), so `image.decode` cannot back either format without a
+third-party plugin (TwelveMonkeys / an AVIF lib), a dependency the maintainer
+rejected. The route is a pure-Kof VP8 lossy decoder (RFC 6386), library-first,
+same shape as the VP8L slices, with the same slice discipline (each one a
+complete, tested unit; no interim half-decode). Slice chain: (1) RIFF/`VP8 `
+parser + frame header + boolean range decoder (§7); (2) per-macroblock mode/
+segment header + coefficient probability tables; (3) intra prediction + inverse
+DCT/WHT + reconstruction; (4) in-loop deblocking filter; (5) the adaptive
+(non-keyframe) path. Until the chain lands, a lossy WebP is still refused at
+runtime with `IMAGE: WebP is not lossless (VP8L)` (no silent wrong decode);
+AVIF follows after VP8.
 
 ## PT
 [Português](image-vision-plan.pt_BR.md)

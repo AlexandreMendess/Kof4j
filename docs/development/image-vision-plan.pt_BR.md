@@ -914,18 +914,34 @@ capacidade realmente não existe no alvo.
     com seis níveis mapeia para `eqSix=47,94,141,188`, na JVM + Native x86-64 +
     riscv64(qemu) + Script.
 
-**PENDENTE (medido, ainda não implementável): interop de WebP lossy `VP8 ` +
-AVIF.** O último gap de imagem do plano são os dois codecs não-VP8L. O achado
-medido: a escotilha do JPEG não se estende — o OpenJDK 25 `javax.imageio` **não
-tem** leitor de WebP nem de AVIF (`ImageIO.getImageReadersByFormatName("webp"/
-"avif")` vazio), então o `image.decode` não consegue lastrear nenhum dos dois
-formatos sem um plugin de terceiros (TwelveMonkeys / uma lib AVIF), o que é uma
-decisão de dependência (regra 6). VP8 lossy em Kof puro (DCT + predição intra +
-loop filter) está fora do escopo de um incremento único. Estado honesto: um WebP
-lossy que chega ao `decodeRaster` é recusado com `IMAGE: WebP is not lossless
-(VP8L)` (nunca um decode errado silencioso); AVIF é recusado na detecção de
-formato. Fechar isso exige uma decisão da mantenedora (adicionar um plugin do
-imageio, ou um gap dedicado `IMG00x`).
+11. **Fatia 1 do VP8 lossy — decoder booleano de range — LANDED 30/09 (Kof
+    puro, todos os alvos).** `libs/image/Vp8.kf` adiciona `Vp8Bool`, o decoder de
+    entropia compartilhado por toda partição VP8 (RFC 6386 §7.3): `bit(prob)`
+    (um bool a `prob/256`) e `literal(n)` (um valor de `n` bits a 1/2). Toda a
+    aritmética fica em 17 bits, então um `Int` de 32 bits é exato em todo
+    backend. Prova: `Vp8BoolE2ETest` **4/4** — um **encoder independente da
+    RFC §7.3** (Python offline) escreve 64 bools com seed fixa sobre um padrão de
+    8 probabilidades numa partição de 20 bytes, e o decoder Kof reproduz a
+    sequência exata (`vp8bool=1101…0010`) byte a byte na JVM + Native x86-64 +
+    riscv64(qemu) + Script (sem mudança no compilador). Próximas fatias:
+    container RIFF/`VP8 ` + frame header, depois modos/coeficientes por
+    macrobloco, predição intra + DCT inversa, e o loop filter.
+
+**DECIDIDO 30/09 (`D-WEBP-LOSSY-PURE-KOF`, opção C): WebP lossy `VP8 ` + AVIF
+como decoder Kof puro em todos os alvos.** O achado medido que forçou a decisão:
+a escotilha do JPEG não se estende — o OpenJDK 25 `javax.imageio` **não tem**
+leitor de WebP nem de AVIF (`ImageIO.getImageReadersByFormatName("webp"/
+"avif")` vazio), então o `image.decode` não lastreia nenhum dos dois formatos
+sem um plugin de terceiros (TwelveMonkeys / uma lib AVIF), dependência que a
+mantenedora rejeitou. A rota é um decoder VP8 lossy em Kof puro (RFC 6386),
+library-first, mesma forma das fatias do VP8L, com a mesma disciplina de fatias
+(cada uma unidade completa e testada; sem meio-decode intermediário). Cadeia de
+fatias: (1) parser RIFF/`VP8 ` + frame header + decoder booleano de range (§7);
+(2) header de modo/segmento por macrobloco + tabelas de probabilidade dos
+coeficientes; (3) predição intra + DCT/WHT inversa + reconstrução; (4) filtro de
+deblocking in-loop; (5) o caminho adaptativo (não-keyframe). Até a cadeia
+pousar, um WebP lossy segue recusado em runtime com `IMAGE: WebP is not lossless
+(VP8L)` (nunca decode errado silencioso); AVIF vem depois do VP8.
 
 ## EN
 [English](image-vision-plan.md)
