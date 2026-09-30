@@ -156,8 +156,9 @@ final class RasterDecodeFixtures {
                 println(dump(decodeRaster("%s/vsub.webp")))
                 println(dump(decodeRaster("%s/vnorm.webp")))
                 println(dump(decodeRaster("%s/vcache.webp")))
+                println(dump(decodeRaster("%s/vpred.webp")))
             }
-            """.formatted(base, base, base, base);
+            """.formatted(base, base, base, base, base);
     }
 
     static Path rasterFixtures(Path dir) throws Exception {
@@ -191,6 +192,9 @@ final class RasterDecodeFixtures {
                         + "fd1d7d9d80215aa4e7cfc556272acc3257b7ced2fb319d6c92e3ff7c48cb3fa2142c15da7bde2bfedbc9"
                         + "9515527a29ce6d06b1ce6735098fbd5e36b8fc2013fb1eb71da56f3a1765599dd45557a79764b4f43f61e"
                         + "5b6503f2bfe4018ca790a5f8f8ce00a1d43f762205fc4802202a0d05418811"));
+        Files.write(dir.resolve("vpred.webp"), decodeHex(
+                "524946462a000000574542505650384c1e0000002f07c00100898ce87f2c220adeff309049dbb4fe6df79b81"
+                        + "91191370da19"));
         return dir;
     }
 

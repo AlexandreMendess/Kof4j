@@ -1,15 +1,16 @@
 package image
 
 import image.Image
+import image.Vp8lTransforms
 
 // kof.image — VP8L (WebP lossless) decoder.
 //
-// Decodes the **no-transform / SUBTRACT_GREEN / color-cache /
+// Decodes the **predictor / color / SUBTRACT_GREEN transforms, color cache and
 // single-Huffman-group** subset of VP8L entirely in Kof, including **normal
 // (code-length) Huffman codes**, **LZ77 backward references** and the **color
-// cache**. The richer machinery real libwebp often emits — predictor/color/
-// indexing transforms and meta-Huffman groups — is **not** decoded yet and is
-// refused with an explicit `IMAGE:` diagnostic (never a silent wrong image):
+// cache**. The remaining machinery — the color-indexing transform and
+// meta-Huffman groups — is **not** decoded yet and is refused with an explicit
+// `IMAGE:` diagnostic (never a silent wrong image):
 //
 //   decodeRaster("shot.webp")   // lossless VP8L is routed here from Raster.kf
 //
@@ -306,19 +307,57 @@ Raster vp8lRaster(String path) {
     if (version != 0) {
         throw "IMAGE: unsupported VP8L version"
     }
-    var subtractGreen = false
+    var transforms = listOf<Vp8lTransform>()
     while (r.bit() == 1) {
         var t = r.bits(2)
-        if (t == 2) {
-            subtractGreen = true
-        } else if (t == 0) {
-            throw "IMAGE: WebP predictor transform is not supported yet"
+        if (t == 0) {
+            var sb = r.bits(3) + 2
+            var tw = vp8lDivRoundUp(width, 1 << sb)
+            var th = vp8lDivRoundUp(height, 1 << sb)
+            transforms.add(Vp8lTransform(0, sb, tw, vp8lDecodeImage(r, tw, th, false)))
         } else if (t == 1) {
-            throw "IMAGE: WebP color transform is not supported yet"
+            var sb = r.bits(3) + 2
+            var tw = vp8lDivRoundUp(width, 1 << sb)
+            var th = vp8lDivRoundUp(height, 1 << sb)
+            transforms.add(Vp8lTransform(1, sb, tw, vp8lDecodeImage(r, tw, th, false)))
+        } else if (t == 2) {
+            transforms.add(Vp8lTransform(2, 0, 0, new Int[0]))
         } else {
             throw "IMAGE: WebP color-indexing transform is not supported yet"
         }
     }
+    var rgba = vp8lDecodeImage(r, width, height, true)
+    vp8lApplyTransforms(rgba, width, height, transforms)
+    var channels = 3
+    if (alphaUsed == 1) {
+        channels = 4
+    }
+    var count = width * height * channels
+    guardRaster(count)
+    var samples = new Int[count]
+    var p = 0
+    while (p < width * height) {
+        var s = p * 4
+        var d = p * channels
+        samples[d] = rgba[s]
+        samples[d + 1] = rgba[s + 1]
+        samples[d + 2] = rgba[s + 2]
+        if (channels == 4) {
+            samples[d + 3] = rgba[s + 3]
+        }
+        p = p + 1
+    }
+    return Raster("WEBP", width, height, channels, samples)
+}
+
+Int vp8lDivRoundUp(Int n, Int d) {
+    return (n + d - 1) / d
+}
+
+// Decodes one entropy-coded image (RFC 9649 §3.7.2.3) to flat RGBA. Used both
+// for the ARGB image and for the transform subresolution images; only the ARGB
+// image carries a meta-prefix-codes bit (RFC 9649 §3.8.3).
+Int[] vp8lDecodeImage(Vp8lBits r, Int width, Int height, Bool metaAllowed) {
     var cacheBits = 0
     var cacheSize = 0
     if (r.bit() == 1) {
@@ -328,7 +367,7 @@ Raster vp8lRaster(String path) {
         }
         cacheSize = 1 << cacheBits
     }
-    if (r.bit() == 1) {
+    if (metaAllowed && r.bit() == 1) {
         throw "IMAGE: WebP meta-Huffman groups are not supported yet"
     }
     var green = vp8lReadHuffman(r, 256 + 24 + cacheSize)
@@ -336,14 +375,11 @@ Raster vp8lRaster(String path) {
     var blue = vp8lReadHuffman(r, 256)
     var alpha = vp8lReadHuffman(r, 256)
     var dist = vp8lReadHuffman(r, 40)
-    var channels = 3
-    if (alphaUsed == 1) {
-        channels = 4
-    }
     var pixels = width * height
-    var count = pixels * channels
-    guardRaster(count)
-    var samples = new Int[count]
+    if (pixels > 16384) {
+        throw "IMAGE: WebP image too large for this slice"
+    }
+    var rgba = new Int[pixels * 4]
     var cache = new Long[cacheSize]
     var px = 0
     while (px < pixels) {
@@ -357,19 +393,15 @@ Raster vp8lRaster(String path) {
             }
             var k = 0
             while (k < length && px < pixels) {
-                var src = (px - distance) * channels
-                var at = px * channels
+                var src = (px - distance) * 4
+                var at = px * 4
                 var c = 0
-                while (c < channels) {
-                    samples[at + c] = samples[src + c]
+                while (c < 4) {
+                    rgba[at + c] = rgba[src + c]
                     c = c + 1
                 }
                 if (cacheSize > 0) {
-                    var ca = 255
-                    if (channels == 4) {
-                        ca = samples[at + 3]
-                    }
-                    vp8lCachePut(cache, cacheBits, cacheSize, ca, samples[at], samples[at + 1], samples[at + 2])
+                    vp8lCachePut(cache, cacheBits, cacheSize, rgba[at + 3], rgba[at], rgba[at + 1], rgba[at + 2])
                 }
                 px = px + 1
                 k = k + 1
@@ -378,13 +410,11 @@ Raster vp8lRaster(String path) {
             var rr = red.decode(r)
             var bb = blue.decode(r)
             var aa = alpha.decode(r)
-            var base = px * channels
-            samples[base] = rr & 255
-            samples[base + 1] = g & 255
-            samples[base + 2] = bb & 255
-            if (channels == 4) {
-                samples[base + 3] = aa & 255
-            }
+            var base = px * 4
+            rgba[base] = rr & 255
+            rgba[base + 1] = g & 255
+            rgba[base + 2] = bb & 255
+            rgba[base + 3] = aa & 255
             if (cacheSize > 0) {
                 vp8lCachePut(cache, cacheBits, cacheSize, aa & 255, rr & 255, g & 255, bb & 255)
             }
@@ -392,25 +422,13 @@ Raster vp8lRaster(String path) {
         } else {
             var idx = g - (256 + 24)
             var argb = cache[idx]
-            var base2 = px * channels
-            samples[base2] = (((argb >> 16) & 255)) as Int
-            samples[base2 + 1] = (((argb >> 8) & 255)) as Int
-            samples[base2 + 2] = ((argb & 255)) as Int
-            if (channels == 4) {
-                samples[base2 + 3] = (((argb >> 24) & 255)) as Int
-            }
+            var base2 = px * 4
+            rgba[base2] = (((argb >> 16) & 255)) as Int
+            rgba[base2 + 1] = (((argb >> 8) & 255)) as Int
+            rgba[base2 + 2] = ((argb & 255)) as Int
+            rgba[base2 + 3] = (((argb >> 24) & 255)) as Int
             px = px + 1
         }
     }
-    if (subtractGreen) {
-        var q = 0
-        while (q < pixels) {
-            var b0 = q * channels
-            var g2 = samples[b0 + 1]
-            samples[b0] = (samples[b0] + g2) & 255
-            samples[b0 + 2] = (samples[b0 + 2] + g2) & 255
-            q = q + 1
-        }
-    }
-    return Raster("WEBP", width, height, channels, samples)
+    return rgba
 }
