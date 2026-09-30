@@ -118,7 +118,7 @@ Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a ha
 
 | File | Trigger to fall in here |
 |---|---|
-| `PLAN-MULTIPARADIGMA.md` (multiparadigm / functional pipelines; 16/09, design only) | first functional increment (SYSTEMS closed, R12) |
+| ~~`PLAN-MULTIPARADIGMA.md`~~ → promoted 28/09 → [`../PLAN-MULTIPARADIGMA.md`](../PLAN-MULTIPARADIGMA.md) (multiparadigm / functional pipelines) | **PROMOTED 28/09** (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) — now `IN DEVELOPMENT`; see §1 row 0d (native `zip` leg blocked by §271) |
 | ~~`scoped-resources-plan.md`~~ → CONCLUDED + moved to `docs/scoped-resources-plan.md` 28/09 | CLOSED 28/09 (`D-SCOPED-RESOURCES-GO`; `UsingDesugarE2ETest` 18/18) |
 | ~~`PLAN-BAREMETAL-BOOT.md`~~ → promoted 22/09, CONCLUDED + moved to `docs/PLAN-BAREMETAL-BOOT.md` 25/09 | CLOSED 25/09 (`D-BAREMETAL-BOOT`; `D-BAREMETAL-MCU-GC` closed B-4 on riscv32) |
 | `PLAN-BOOTSTRAP.md` (the Bootstrapper: Kof in Kof — **north star**, `D-BOOTSTRAP`) | 1.0 EXIT GATE closed + entry conditions E1–E6 |

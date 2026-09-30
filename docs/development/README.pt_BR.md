@@ -118,7 +118,7 @@ Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca u
 
 | Arquivo | Gatilho p/ cair p/ cá |
 |---|---|
-| `PLAN-MULTIPARADIGMA.md` (multiparadigma / pipelines funcionais; 16/09, só design) | primeiro incremento funcional (SYSTEMS fechado, R12) |
+| ~~`PLAN-MULTIPARADIGMA.md`~~ → promovido 28/09 → [`../PLAN-MULTIPARADIGMA.md`](../PLAN-MULTIPARADIGMA.md) (multiparadigma / pipelines funcionais) | **PROMOVIDO 28/09** (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) — agora `EM DESENVOLVIMENTO`; ver §1 linha 0d (perna nativa `zip` bloqueada pelo §271) |
 | ~~`scoped-resources-plan.md`~~ → CONCLUÍDO + movido para `docs/scoped-resources-plan.md` 28/09 | FECHADO 28/09 (`D-SCOPED-RESOURCES-GO`; `UsingDesugarE2ETest` 18/18) |
 | ~~`PLAN-BAREMETAL-BOOT.md`~~ → promovido 22/09, CONCLUÍDO + movido para `docs/PLAN-BAREMETAL-BOOT.md` 25/09 | FECHADO 25/09 (`D-BAREMETAL-BOOT`; `D-BAREMETAL-MCU-GC` fechou B-4 no riscv32) |
 | `PLAN-BOOTSTRAP.md` (o Bootstrapper: Kof em Kof — **estrela-guia**, `D-BOOTSTRAP`) | EXIT GATE 1.0 fechado + condições de entrada E1–E6 |
