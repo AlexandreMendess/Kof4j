@@ -39,6 +39,11 @@ public final class RuntimeMemory {
             .balign 8
             kof_arena_base: .quad 0
             kof_arena_ptr: .quad 0
+            # §542-fix: tamanho REAL da arena reservada (o host tenta 4 GiB e,
+            # sob RLIMIT_AS apertado como `ulimit -v 256M`, cai para a maior
+            # potência-de-dois que couber). _ prefixado: não entra em kofSymbols.
+            .balign 8
+            _kof_arena_size: .quad 0
             # §542: ponteiro p/ o bitmap de inícios-de-bloco do HOST. O bitmap
             # NÃO fica em .bss: o GC varre .data.._end como raízes a cada
             # passada, então um bitmap grande em .bss encareceria TODA coleta.
@@ -279,29 +284,36 @@ public final class RuntimeMemory {
                 # §542: arena CONTÍGUA única (bump) p/ o GC usar bitmap O(1).
                 # rdi=tamanho -> rax=ptr | -1 (mesma semântica: ptr válido ou -1).
                 pushq %rbx
+                pushq %r12
+                pushq %r13
                 movq %rdi, %rbx              # salva o tamanho (rdi é clobberado)
                 movq kof_arena_base(%rip), %rax
                 testq %rax, %rax
                 jne .Lgrow_have
-                # primeiro alloc: mmap o BITMAP (4 GiB / 16B / 8 = 32 MiB) FORA
-                # de .bss, para o GC não varrê-lo como raízes. MAP_NORESERVE.
+                # primeiro alloc: escolhe a MAIOR arena que couber. O host antigo
+                # mmap-por-alocação era ilimitado -> tenta 4 GiB primeiro; sob
+                # RLIMIT_AS apertado (`ulimit -v 256M`, KofGcE2ETest) a mmap de
+                # 4 GiB dá ENOMEM e cai para potências menores. O bitmap (fora de
+                # .bss, para o GC não varrê-lo) tem 1 bit/16B -> tamanho/128.
+                #   r12 = arena candidata (bytes)
+                movabsq $0x100000000, %r12   # 4 GiB
+            .Lgrow_try:
+                # bitmap = r12/128
+                movq %r12, %rsi
+                shrq $7, %rsi
                 movq $0, %rdi
-                movabsq $0x2000000, %rsi     # 32 MiB
                 movq $3, %rdx                # PROT_READ|PROT_WRITE
                 movq $0x4022, %r10           # MAP_PRIVATE|ANONYMOUS|NORESERVE
                 movq $-1, %r8
                 movq $0, %r9
-                movq $9, %rax
+                movq $9, %rax                # mmap
                 syscall
                 cmpq $-4095, %rax            # erro mmap = [-4095,-1]
-                jae .Lgrow_fail
-                movq %rax, _kof_bm_ptr(%rip)
-                # mmap a ARENA (4 GiB VIRTUAIS, páginas lazy). O heap antigo
-                # (mmap por alocação) era efetivamente ilimitado; 4 GiB preserva
-                # isso sem custo de RAM. Uma arena contígua é o que permite o
-                # bitmap O(1) cobrir todos os blocos.
+                jae .Lgrow_smaller
+                movq %rax, %r13              # bitmap ptr (temporário)
+                # arena = r12
                 movq $0, %rdi
-                movabsq $0x100000000, %rsi   # 4 GiB
+                movq %r12, %rsi
                 movq $3, %rdx
                 movq $0x4022, %r10
                 movq $-1, %r8
@@ -309,9 +321,27 @@ public final class RuntimeMemory {
                 movq $9, %rax
                 syscall
                 cmpq $-4095, %rax
-                jae .Lgrow_fail
+                jb .Lgrow_arena_ok
+                # arena falhou: devolve o bitmap (< cap) antes de tentar menor,
+                # senão os bitmaps de cada tentativa vazam o address space.
+                movq %r13, %rdi
+                movq %r12, %rsi
+                shrq $7, %rsi
+                movq $11, %rax               # munmap
+                syscall
+                jmp .Lgrow_smaller
+            .Lgrow_arena_ok:
                 movq %rax, kof_arena_base(%rip)
                 movq %rax, kof_arena_ptr(%rip)
+                movq %r12, _kof_arena_size(%rip)
+                movq %r13, _kof_bm_ptr(%rip)
+                jmp .Lgrow_have
+            .Lgrow_smaller:
+                shrq $1, %r12                # 4G->2G->...->64M
+                movabsq $0x4000000, %rax     # 64 MiB piso
+                cmpq %rax, %r12
+                jae .Lgrow_try
+                jmp .Lgrow_fail
             .Lgrow_have:
                 movq kof_arena_ptr(%rip), %rax
                 addq $15, %rax
@@ -319,15 +349,18 @@ public final class RuntimeMemory {
                 movq %rax, %rcx
                 addq %rbx, %rcx              # fim desta alocação
                 movq kof_arena_base(%rip), %rdx
-                movabsq $0x100000000, %rsi
-                addq %rsi, %rdx
+                addq _kof_arena_size(%rip), %rdx
                 cmpq %rdx, %rcx
                 ja .Lgrow_fail
                 movq %rcx, kof_arena_ptr(%rip)
+                popq %r13
+                popq %r12
                 popq %rbx
                 ret
             .Lgrow_fail:
                 movq $-1, %rax
+                popq %r13
+                popq %r12
                 popq %rbx
                 ret
             """);
