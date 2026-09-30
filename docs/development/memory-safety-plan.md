@@ -2,9 +2,9 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-4-CLOSED (4.1/4.2/4.3 landed 28/09, #658/#659/#662) + phase-5-unit-2-LANDED (29/09: #667 Script×extern → FFI001 at the decl line; #668 MEM020 compile face) + phase-5-unit-3-pinned (29/09: Buffer(U8) INOUT × spawn/await runtime parity, measured) + #651 fatias A1/A2/B ALL LANDED (B cross 29/09, qemu goldens)
+last: phase-4-CLOSED (4.1/4.2/4.3 landed 28/09, #658/#659/#662) + phase-5-unit-2-LANDED (29/09: #667 Script×extern → FFI001 at the decl line; #668 MEM020 compile face) + phase-5-unit-3-pinned (29/09) + #651 A1/A2/B landed (29/09) + 30/09 maintainer batch: D-MEM030-BORROW-RUNTIME (B-03 runtime half, total cross proof), D-MEM-PHASE6-4BACKENDS (phase 6 = 4 real backends; WASM out; DoD anchor fixed), D-MEM-FFI-CROSS-FULL (String[]/structs/callbacks/out-buffer on cross before closing)
 doing: memory-safety
-next: phase-5 unit 4 (measure-first; residual B-03 runtime face is option-B territory) / #651 CLOSED once B verified (cross toolchain installed 29/09)
+next: phase-5 unit 4 — B-03 runtime borrow-state on Buffer(U8) (D-MEM030-BORROW-RUNTIME; 6-face proof) / D-MEM-FFI-CROSS-FULL (cross String[]/structs/callbacks/out-buffer) / #651 CLOSED once verified
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -35,7 +35,7 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 | 3 First guarantees | use-after-move; dangling; invalid escapes; mutable aliasing; double ownership/destruction | in progress (slices below) |
 | 4 Closures & async | closure capture; callbacks; async/futures; iterators/generators | FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores: veredito de ausencia medido (#659) |
 | 5 Native & FFI | pointers/allocation/C ABI; Kof↔C↔Rust↔JVM↔Python ownership table | in progress — ownership table LANDED 28/09 (#670, spec §7); pointers/allocation: unit 1 pinned (#666), **unit 2 LANDED 29/09** (#667 Script×extern refused `FFI001` at the decl line; #668 `MEM020` compile face), **unit 3 pinned 29/09** (`Buffer(U8)` INOUT × `spawn`/`await` runtime parity measured); residual B-03 runtime face = option B (not chosen) |
-| 6 JVM / JS / WASM | same semantics every backend | pending — scope note (#671, measured 28/09): the tree has NO WASM backend (`docs/backend-parity.md` = "Kof JVM × Native × KofJS", no WASM column; absence also recorded by the future-sweep), so phase 6 today means JVM/Script/JS/Native×3; the WASM column joins when a real WASM backend lands — never before |
+| 6 JVM / JS / Script / Native | same semantics on every backend that exists | resolved scope 30/09 by `D-MEM-PHASE6-4BACKENDS`: the tree has NO WASM backend (`docs/backend-parity.md` = "Kof JVM × Native × KofJS", no WASM column), so phase 6 means **JVM/Script/JS/Native×3** (the four real backends); WASM leaves the contract until a real backend lands — never before, and never an accepted gap |
 
 ## Phase 3 slices (emission surface = what exists in the user surface)
 
@@ -91,6 +91,6 @@ Pass + wiring + `MemorySafetyE2ETest` per target (JVM/Script/JS/Native same sour
 
 ## Definition of done (whole front)
 
-The 12 §27 questions answered in the spec, the impossible-bug-classes list explicit, and the implementation matching the spec with the §22 safety matrix green per backend — "structures named `Ownership`/`Borrow`/`Lifetime`" is NOT done.
+The twelve sections of `docs/spec/memory-safety.md` (§1–§12 + Appendix) fully realized, the impossible-bug-classes list explicit, and the implementation matching the spec with the §11 safety matrix green on the four real backends (JVM/Native/JS/Script; `D-MEM-PHASE6-4BACKENDS`) — "structures named `Ownership`/`Borrow`/`Lifetime`" is NOT done.
 
 Relationships: `DECISIONS.md` §`D-MEMORY-SAFETY`; `PARITY-GAPS.md` (the blocker this front queues behind); rule 6 (frozen semantics — any ownership semantics changing evaluation order or operator contracts is a maintainer decision, never an agent edit).

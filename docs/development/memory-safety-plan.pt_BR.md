@@ -21,7 +21,7 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 - Kof-first: nenhuma suposição de que o Kof funciona como Rust, C++, Java, Kotlin, Swift ou Zig (rules 8/10).
 - Arquitetura antes de código; a implementação espera a fila atual.
 - Lei da Simplicidade (rule 11): garantias fortes sem corrente infinita de anotações de lifetime.
-- Cross-target por construção (JVM/Native/JS/WASM mesma semântica; GC nunca desculpa divergência; a FFI define o dono em cada travessia).
+- Cross-target por construção (JVM/Native/JS/Script mesma semântica; WASM reentra quando houver backend real — `D-MEM-PHASE6-4BACKENDS`; GC nunca desculpa divergência; a FFI define o dono em cada travessia).
 - Diagnósticos e testes fazem parte da feature (válido/inválido/diagnóstico-esperado/regressão/por-backend).
 - Proibido: copiar o borrow checker do Rust, inventar sintaxe (`let`/`const`/marcadores de move estrangeiros), reescrever a null safety, refactor big-bang, ownership de um único backend, esconder ownership no runtime.
 
@@ -35,7 +35,7 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 | 3 Primeiras garantias | use-after-move; dangling; escapes inválidos; mutable aliasing; dupla ownership/destruição | em curso (fatias abaixo) |
 | 4 Closures & async | captura de closure; callbacks; async/futures; iteradores/geradores | FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores: veredito de ausencia medido (#659) |
 | 5 Native & FFI | ponteiros/alocação/C ABI; tabela de ownership Kof↔C↔Rust↔JVM↔Python | em progresso — tabela de ownership POUSADA 28/09 (#670, spec §7); ponteiros/alocação: unidade 1 pinada (#666), **unidade 2 POUSADA 29/09** (#667 Script×extern recusado `FFI001` na linha da declaração; #668 face de compilação `MEM020`), **unidade 3 pinada 29/09** (paridade runtime de `Buffer(U8)` INOUT × `spawn`/`await` medida); face runtime residual de B-03 = opção B (não escolhida) |
-| 6 JVM / JS / WASM | mesma semântica em todos os backends | pendente — nota de escopo (#671, medido 28/09): a árvore NÃO tem backend WASM (`docs/backend-parity.md` = "Kof JVM × Native × KofJS", sem coluna WASM; ausência também registrada pela varredura future/), então a fase 6 hoje significa JVM/Script/JS/Native×3; a coluna WASM entra quando um backend WASM real pousar — nunca antes |
+| 6 JVM / JS / Script / Native | mesma semântica em todo backend que existe | escopo resolvido 30/09 por `D-MEM-PHASE6-4BACKENDS`: a árvore NÃO tem backend WASM (`docs/backend-parity.md` = "Kof JVM × Native × KofJS", sem coluna WASM), então a fase 6 significa **JVM/Script/JS/Native×3** (os quatro backends reais); WASM sai do contrato até um backend real pousar — nunca antes, e nunca gap aceito |
 
 ## Fatias da Fase 3 (superfície de emissão = o que existe na superfície do usuário)
 
@@ -90,6 +90,6 @@ Passe + wiring + `MemorySafetyE2ETest` por alvo (JVM/Script/JS/Native mesmas fon
 
 ## Definition of done (frente inteira)
 
-As 12 perguntas do §27 respondidas na spec, a lista de classes de bugs impossíveis explícita, e a implementação casando com a spec com a matriz de segurança do §22 verde por backend — "estruturas chamadas `Ownership`/`Borrow`/`Lifetime`" NÃO é done.
+As doze seções de `docs/spec/memory-safety.md` (§1–§12 + Apêndice) plenamente realizadas, a lista de classes de bugs impossíveis explícita, e a implementação casando com a spec com a matriz de segurança do §11 verde nos quatro backends reais (JVM/Native/JS/Script; `D-MEM-PHASE6-4BACKENDS`) — "estruturas chamadas `Ownership`/`Borrow`/`Lifetime`" NÃO é done.
 
 Relacionamentos: `DECISIONS.md` §`D-MEMORY-SAFETY`; `PARITY-GAPS.md` (o bloqueador atrás do qual esta frente fila); regra 6 (semântica congelada — qualquer semântica de ownership que mude ordem de avaliação ou contratos de operador é decisão da mantenedora, nunca edição de agente).

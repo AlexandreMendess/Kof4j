@@ -4463,3 +4463,29 @@ individuais:
 - **O que fazer no lugar:** se Kof não consegue expressar a intenção, o que falta é uma abstração Kof (library-first, `D-KOF-FIRST`) ou uma decisão da mantenedora — nunca sintaxe estrangeira ou payload de código estrangeiro. Interop, quando realmente necessário, passa pelo caminho sancionado de FFI/pacotes oficiais, não por markup/script embutido.
 - **Escopo:** todos os alvos e bibliotecas oficiais do Kof; vale para fonte, fixtures de teste e exemplos de documentação igualmente.
 - **Relações:** `Related: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-GRAPHICS-GAMING, AGENTS.md regras 3/5/11, docs/philosophy.md`; anti-pattern: `training/anti-patterns/embedded-html-js.md`.
+
+## D-MEM030-BORROW-RUNTIME — o B-03 ganha a metade RUNTIME: estado de borrow gravável no `Buffer(U8)`, com prova cross-target total (mantenedora 30/09/2026, múltipla escolha "Borrow-state + prova cross total")
+
+**State:** DECIDED (mantenedora) — estende `D-MEM020-COMPILE`; a mantenedora rejeitou aceitar a metade runtime como gap. A implementação pertence à lane memory-safety (frente `docs/development/memory-safety-plan.md`, fase-5 unidade 4).
+
+- **Questão:** o `MEM020` (B-03, `MemRule.java:36` `COMPILE_AND_RUNTIME`) entregou só a face de compilação sobre o `OwnershipPass` (`D-MEM020-COMPILE`); a metade runtime ("Passar o mesmo `Buffer` para duas chamadas FFI concorrentes sem sync") ficou sem forma porque a opção B exigia primitiva nova de núcleo. A mantenedora decidiu 30/09 que nenhum gap é aceito — a metade runtime tem de ser desenvolvida.
+- **Decisão:** implementar a **opção B — estado de borrow gravável em runtime no objeto `Buffer`**: um flag de borrow (e a identidade da task detentora) mantido pelo runtime do `Buffer` (native/JVM/JS); uma escrita INOUT de `extern` tenta adquirir um borrow gravável exclusivo, e um segundo borrow gravável concorrente (dois `spawn`s, ou worker×parente sem `await`) levanta `MEM020` em runtime. Escritor único e um `await` no meio seguem limpos (mesma forma da face de compilação).
+- **Prova cross-target total exigida:** a primitiva e o E2E devem ser byte-idênticos nas **seis** faces alcançáveis — JVM, Script, JS, Native x86-64, Native riscv64, Native aarch64 — com caso negativo (escritores concorrentes → `MEM020`) e controle positivo (escritor único / com `await` → limpo).
+- **Não escolhido:** deixar a metade runtime sem forma como corte de escopo documentado (rejeitado pela mantenedora, 30/09); o enforcement só de compilação já era a decisão anterior.
+- **Relações:** `Related: D-MEMORY-SAFETY, D-MEM020-COMPILE, D-MEM021-SCALAR, D-BUFFER-INOUT-NATIVE, D-R3-BUFFER, rule 6, rule 12`; tracker `#668`.
+
+## D-MEM-PHASE6-4BACKENDS — a paridade da fase 6 são os QUATRO backends reais (JVM/Native/JS/Script); WASM sai do contrato da spec até existir backend (mantenedora 30/09/2026, múltipla escolha "Reescrever a spec para os 4 backends reais")
+
+**State:** DECIDED (mantenedora) — reescreve o escopo da fase 6 em `docs/spec/memory-safety.md` (§12 roadmap + Apêndice) e o DoD do plano.
+
+- **Questão:** a spec nomeava "JVM / JS / WASM" como o conjunto de paridade da fase 6, mas a árvore **não tem backend WASM** (medido 28/09, #671; `docs/backend-parity.md` = JVM × Native × KofJS — sem coluna WASM). O DoD também citava uma âncora morta "§27 questions" que não existe na spec.
+- **Decisão:** a paridade da fase 6 define-se sobre os **quatro backends que existem** — **JVM, Native, JS, Script** (mais as ISAs cross do Native riscv64/aarch64 usadas nos testes de memória). WASM **não** é gap aberto desta frente: só reentra no contrato quando um backend WASM real pousar (nunca antes). A referência morta "§27" é corrigida para as doze seções da spec.
+- **Relações:** `Related: D-MEMORY-SAFETY, D-WASM-01, D-KOF-IS-KOF, D-KOF-FIRST, rule 5, rule 6`; tracker `#671`.
+
+## D-MEM-FFI-CROSS-FULL — a paridade FFI cross é total antes de fechar a frente: `String[]`, structs memory-path, callbacks e out-buffer poussam no riscv64/aarch64 também (mantenedora 30/09/2026, múltipla escolha "Paridade total cross antes de fechar")
+
+**State:** DECIDED (mantenedora) — estende `D-BUFFER-INOUT-NATIVE`; a mantenedora rejeitou aceitar as recusas cross restantes como gaps permanentes.
+
+- **Questão:** o Native x86-64 liga externs escalares, `T[]` escalar→`ptr`, struct por valor e `Buffer(U8)` INOUT, enquanto o cross riscv64/aarch64 ainda recusa `String[]`, structs memory-path, callbacks e out-buffer com `FFI001`/`FFI002`.
+- **Decisão:** implementar essas quatro faces nos runtimes cross (`NativeFfiCallRiscv` + o binding/ABI FFI compartilhado) com a mesma ABI do x86-64, e exigir prova **byte-idêntica** JVM ≡ riscv64 ≡ aarch64 para cada face antes de declarar memory-safety concluída. Nada é aceito como gap permanente.
+- **Relações:** `Related: D-MEMORY-SAFETY, D-BUFFER-INOUT-NATIVE, D-MEM020-COMPILE, D-R3-BUFFER, D-FFI-STRUCT, rule 6, rule 12`; tracker `#651`.

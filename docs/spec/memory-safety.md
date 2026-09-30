@@ -276,7 +276,9 @@ The following matrix maps each bug class to its prevention mechanism:
 | **3** First guarantees | Use-after-move, dangling, escape, mutable aliasing | ✅ CLOSED — slices 3.1→4 landed (MEM001/002/013/014/021/022); see `memory-safety-plan.md` |
 | **4** Closures & async | Capture semantics, async boundaries | ✅ CLOSED 28/09 — 4.1 capture (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iterators/generators = measured absence |
 | **5** Native & FFI | Pointer/alloc/free, C ABI ownership table | 🔓 IN PROGRESS — ownership table landed (#670); unit 1 pinned (#666); unit 2 landed (#667/#668); unit 3 pinned (`Buffer(U8)` INOUT × spawn/await); `#651` B cross pending |
-| **6** Cross-target | JVM/JS/WASM parity matrix — no WASM backend in the tree today (absence measured 28/09, #671); scope now = JVM/Script/JS/Native×3 | ⏳ WAITING |
+| **6** Cross-target | same memory-safety semantics on the **four backends that exist** — JVM, Native (x86-64 + cross riscv64/aarch64), JS, Script. WASM is not a gap of this front: it re-enters the contract only when a real WASM backend lands (`D-MEM-PHASE6-4BACKENDS`, 30/09) | ⏳ WAITING |
+
+> **Phase-6 scope (corrected 30/09, `D-MEM-PHASE6-4BACKENDS`):** the original roadmap named "JVM / JS / WASM", but the tree has **no WASM backend** (`docs/backend-parity.md` = JVM × Native × KofJS; absence measured 28/09, #671). Phase-6 parity is therefore defined over the backends that exist (the four above). WASM leaves the contract until a real backend lands — it is **not** an accepted gap of this front.
 
 ---
 

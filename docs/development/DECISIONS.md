@@ -4473,3 +4473,29 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **What to do instead:** if Kof cannot express the intent, the missing piece is a Kof abstraction (library-first, `D-KOF-FIRST`) or a maintainer decision — never foreign syntax or a foreign-code payload. Interop, when truly needed, goes through the sanctioned FFI/official-package path, not embedded markup/script.
 - **Scope:** all Kof targets and all official libraries; applies to source, test fixtures and documentation examples alike.
 - **Relationships:** `Related: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-GRAPHICS-GAMING, AGENTS.md rules 3/5/11, docs/philosophy.md`; anti-pattern: `training/anti-patterns/embedded-html-js.md`.
+
+## D-MEM030-BORROW-RUNTIME — B-03 gets its RUNTIME half: a writable-borrow state on `Buffer(U8)`, with total cross-target proof (maintainer 30/09/2026, multiple-choice "Borrow-state + prova cross total")
+
+**State:** DECIDED (maintainer) — extends `D-MEM020-COMPILE`; the maintainer rejected accepting the runtime half as a gap. Implementation belongs to the memory-safety lane (front `docs/development/memory-safety-plan.md`, phase-5 unit 4).
+
+- **Question:** `MEM020` (B-03, `MemRule.java:36` `COMPILE_AND_RUNTIME`) shipped only the compile face over `OwnershipPass` (`D-MEM020-COMPILE`); the runtime half ("Passing same `Buffer` to two concurrent FFI calls without sync") was left unshaped because option B needed a new core primitive. The maintainer decided 30/09 that no gap is accepted — the runtime half must be developed.
+- **Decision:** implement **option B — runtime writable-borrow state on the `Buffer` object**: a borrow flag (and owning task identity) held by the native/JVM/JS `Buffer` runtime; an `extern` INOUT write attempts to acquire an exclusive writable borrow, and a second concurrent writable borrow (two `spawn`s, or worker×parent without `await`) raises a runtime `MEM020`. Single writers and an intervening `await` stay clean (same shape as the compile face).
+- **Total cross-target proof required:** the primitive and the E2E must be byte-identical on **all six** reachable faces — JVM, Script, JS, Native x86-64, Native riscv64, Native aarch64 — with a negative case (concurrent writers → `MEM020`) and a positive control (single writer / awaited → clean).
+- **Not chosen:** leaving the runtime half unshaped as a documented scope cut (rejected by the maintainer, 30/09); compile-only enforcement was already the previous decision.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-MEM020-COMPILE, D-MEM021-SCALAR, D-BUFFER-INOUT-NATIVE, D-R3-BUFFER, rule 6, rule 12`; tracker `#668`.
+
+## D-MEM-PHASE6-4BACKENDS — phase 6 parity is the FOUR real backends (JVM/Native/JS/Script); WASM leaves the spec contract until a backend exists (maintainer 30/09/2026, multiple-choice "Reescrever a spec para os 4 backends reais")
+
+**State:** DECIDED (maintainer) — rewrites the phase-6 scope in `docs/spec/memory-safety.md` (§12 roadmap + Appendix) and the plan DoD.
+
+- **Question:** the spec named "JVM / JS / WASM" as the phase-6 parity set, but the tree has **no WASM backend** (measured 28/09, #671; `docs/backend-parity.md` = JVM × Native × KofJS — no WASM column). The DoD also referenced a dead "§27 questions" anchor that does not exist in the spec.
+- **Decision:** phase 6 parity is defined over the **four backends that exist** — **JVM, Native, JS, Script** (plus the Native cross ISAs riscv64/aarch64 used for the memory tests). WASM is **not** an open gap of this front: it re-enters the contract only when a real WASM backend lands (never before). The dead "§27" reference is corrected to the spec's twelve sections.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-WASM-01, D-KOF-IS-KOF, D-KOF-FIRST, rule 5, rule 6`; tracker `#671`.
+
+## D-MEM-FFI-CROSS-FULL — cross FFI parity is total before the front closes: `String[]`, memory-path structs, callbacks and out-buffer land on riscv64/aarch64 too (maintainer 30/09/2026, multiple-choice "Paridade total cross antes de fechar")
+
+**State:** DECIDED (maintainer) — extends `D-BUFFER-INOUT-NATIVE`; the maintainer rejected accepting the remaining cross refusals as permanent gaps.
+
+- **Question:** Native x86-64 binds scalar externs, scalar `T[]`→`ptr`, struct by-value and `Buffer(U8)` INOUT, while cross riscv64/aarch64 still refuse `String[]`, memory-path structs, callbacks and out-buffer with `FFI001`/`FFI002`.
+- **Decision:** implement those four faces on the cross runtimes (`NativeFfiCallRiscv` + the shared FFI binding/ABI) with the same ABI as x86-64, and require **byte-identical** proof JVM ≡ riscv64 ≡ aarch64 for each face before memory-safety is declared done. Nothing is accepted as a permanent gap.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-BUFFER-INOUT-NATIVE, D-MEM020-COMPILE, D-R3-BUFFER, D-FFI-STRUCT, rule 6, rule 12`; tracker `#651`.
