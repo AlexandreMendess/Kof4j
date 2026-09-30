@@ -805,7 +805,7 @@ capacidade realmente não existe no alvo.
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
   `rotate90`, `grayscale`, `threshold`, `boxBlur`;
 - encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
-- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`.
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`, `componentLabels`/`componentCount`.
 
 **Falta — em ordem de custo:**
 
@@ -886,6 +886,14 @@ capacidade realmente não existe no alvo.
    `VisionAnalysisE2ETest` **4/4** — um PGM 5×5 com um 255 interior e um PGM 5×5
    de "cruz" dão as magnitudes exatas (`edge=98`, centro `0`, bordas `0`) na JVM
    + Native x86-64 + riscv64(qemu) + Script.
+
+8. **`kof.vision` fatia 2b — componentes conectados — LANDED 30/09 (Kof puro,
+   todos os alvos).** `libs/vision/Components.kf` adiciona
+   `componentLabels(r): Int[]` (rotulagem 4-conectada da luminância não-zero,
+   0 = fundo, flood fill iterativo com pilha LIFO — sem recursão) e
+   `componentCount(labels): Int` (o "connected components" do §14). Prova:
+   `VisionAnalysisE2ETest` **4/4** — um PGM 6×4 com dois blobs disjuntos dá
+   `comp=2 a=1 b=2 bg=0` na JVM + Native x86-64 + riscv64(qemu) + Script.
 
 ## EN
 [English](image-vision-plan.md)

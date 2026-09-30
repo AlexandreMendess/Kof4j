@@ -37,7 +37,8 @@ class VisionAnalysisE2ETest {
             "otsu=30 bw=0,0,255",
             "sobelRamp=SOBEL:5x5 ch=1",
             "sobelRamp-mid=0 edge=98",
-            "sobelDot=0 border=0,0");
+            "sobelDot=0 border=0,0",
+            "comp=2 a=1 b=2 bg=0");
 
     @Test
     void visionAnalysisOnJvm() throws Exception {

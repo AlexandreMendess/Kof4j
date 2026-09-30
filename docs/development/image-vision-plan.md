@@ -663,7 +663,7 @@ ability genuinely does not exist on a target.
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
   `rotate90`, `grayscale`, `threshold`, `boxBlur`;
 - encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
-- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`.
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`, `componentLabels`/`componentCount`.
 
 **Missing — ordered by cost:**
 
@@ -744,6 +744,14 @@ ability genuinely does not exist on a target.
    **4/4** — a 5×5 PGM with a single interior 255 and a 5×5 "cross" ramp give
    the exact magnitudes (`edge=98`, centre `0`, borders `0`) on JVM + Native
    x86-64 + riscv64(qemu) + Script.
+
+8. **`kof.vision` slice 2b — connected components — LANDED 30/09 (pure Kof,
+   all targets).** `libs/vision/Components.kf` adds `componentLabels(r): Int[]`
+   (4-connected labeling of the non-zero luminance, 0 = background, iterative
+   LIFO flood fill — no recursion) and `componentCount(labels): Int` (§14's
+   "connected components"). Proof: `VisionAnalysisE2ETest` **4/4** — a 6×4 PGM
+   with two disjoint blobs gives `comp=2 a=1 b=2 bg=0` on JVM + Native x86-64 +
+   riscv64(qemu) + Script.
 
 ## PT
 [Português](image-vision-plan.pt_BR.md)

@@ -335,6 +335,11 @@ final class RasterDecodeFixtures {
                 0, 0, 255, 0, 0,
                 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0}));
+        Files.write(dir.resolve("blobs.pgm"), pnmGray(6, 4, new int[]{
+                255, 255, 0, 0, 0, 0,
+                255, 0, 0, 255, 255, 0,
+                0, 0, 0, 255, 255, 0,
+                0, 0, 0, 0, 0, 0}));
         return dir;
     }
 
@@ -349,6 +354,7 @@ final class RasterDecodeFixtures {
         String base = path(dir);
         return """
             import image.Raster
+            import vision.Components
             import vision.Edges
             import vision.Histogram
             import vision.Vision
@@ -369,6 +375,9 @@ final class RasterDecodeFixtures {
                 var dot = decodeRaster("%s/edge.pgm")
                 var d = sobelMagnitude(dot)
                 println("sobelDot=" + d.samples[12] + " border=" + d.samples[0] + "," + d.samples[24])
+                var blobs = decodeRaster("%s/blobs.pgm")
+                var lab = componentLabels(blobs)
+                println("comp=" + componentCount(lab) + " a=" + lab[0] + " b=" + lab[9] + " bg=" + lab[7])
             }
 
             String sat(Int v) {
@@ -376,7 +385,7 @@ final class RasterDecodeFixtures {
                 if (v > 255) { return "over" }
                 return v.toString()
             }
-            """.formatted(base, base, base);
+            """.formatted(base, base, base, base);
     }
 
     static byte[] rasterPpm() throws Exception {
