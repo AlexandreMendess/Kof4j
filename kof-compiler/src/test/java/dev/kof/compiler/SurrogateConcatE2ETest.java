@@ -48,12 +48,12 @@ class SurrogateConcatE2ETest extends KofStringsSupport {
     @Test
     void crossArch(@TempDir Path t) throws Exception {
         assumeToolchain("qemu-riscv64", "qemu-aarch64");
-        runQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", PROG, "ok");
-        runQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", PROG, "ok");
+        surrogateRunQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", PROG, "ok");
+        surrogateRunQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", PROG, "ok");
     }
 
     /** runQemu do support só checa exit 0; aqui o stdout importa (bytes UTF-8). */
-    private void runQemuExpect(Path tempDir, Target target, String qemu, String source,
+    private void surrogateRunQemuExpect(Path tempDir, Target target, String qemu, String source,
                                String expected) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

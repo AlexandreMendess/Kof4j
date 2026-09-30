@@ -86,8 +86,8 @@ class CrossHeapParityE2ETest extends KofStringsSupport {
     @Test
     void largeAllocationCross(@TempDir Path t) throws Exception {
         assumeToolchain("qemu-riscv64", "qemu-aarch64");
-        runQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", LARGE, LARGE_EXPECTED);
-        runQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", LARGE, LARGE_EXPECTED);
+        crossHeapRunQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", LARGE, LARGE_EXPECTED);
+        crossHeapRunQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", LARGE, LARGE_EXPECTED);
     }
 
     @Test
@@ -135,11 +135,11 @@ class CrossHeapParityE2ETest extends KofStringsSupport {
     @Test
     void manyLiveObjectsCross(@TempDir Path t) throws Exception {
         assumeToolchain("qemu-riscv64", "qemu-aarch64");
-        runQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", MANY_LIVE_STRINGS, MANY_EXPECTED);
-        runQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", MANY_LIVE_STRINGS, MANY_EXPECTED);
+        crossHeapRunQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", MANY_LIVE_STRINGS, MANY_EXPECTED);
+        crossHeapRunQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", MANY_LIVE_STRINGS, MANY_EXPECTED);
     }
 
-    private void runQemuExpect(Path tempDir, Target target, String qemu, String source,
+    private void crossHeapRunQemuExpect(Path tempDir, Target target, String qemu, String source,
                                String expected) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);
