@@ -864,7 +864,8 @@ legacy systems into Kof — **outside the 0.0.x scope**.
 - Central document: `future/LEGACY_MIGRATION.md` (§4 = Legacy Semantic
   IR/Confidence; §8 = differential test + migration report) — **DEPRIORITIZED
   by the maintainer 15/09: the trio + work-logs went back to `future/`; code in
-  kof-cli stays, promotion needs her explicit decision**
+  kof-cli stays. REOPENED 28/09 by `D-DEPRIORITIZED-REOPEN` (maintainer batch):
+  still plan-only in `future/`, promotion one-at-a-time per `D-FUTURE-PROMOTION`**
 - Planned components: `kof inspect`, `kof decompile`, `kof translate`,
   `kof migrate`, `kof compare`
 - Architecture: `Legacy Input → Legacy Semantic IR → Kof AST → Kof IR → Backend`
@@ -1078,7 +1079,7 @@ since the `.22` lane closed it). Method body recovery still partial
 number is stale, the pure if-then join sub-case already recovered). The
 detailed technical history lives in `future/LEGACY_MIGRATION.md` +
 `future/DECOMPILER.md` (§7) — **do not duplicate here**; this table only gives
-the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work.**
+the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work. REOPENED 28/09 by `D-DEPRIORITIZED-REOPEN` — still not promoted; promotion is one-at-a-time per `D-FUTURE-PROMOTION`.**
 
 ### TIER 6–12 — Universal platform (architecture **UNDER DEVELOPMENT** 17/09 — R12 overridden; governed by `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)
 

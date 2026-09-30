@@ -866,7 +866,9 @@ sistemas legados para Kof — **fora do escopo 0.0.x**.
 - Documento central: `future/LEGACY_MIGRATION.md` (§4 = Legacy Semantic
   IR/Confidence; §8 = teste diferencial + migration report) —
   **DESPRIORIZADO pela mantenedora 15/09: o trio + work-logs voltaram para
-  `future/`; o código em kof-cli fica, promoção exige decisão explícita dela**
+  `future/`; o código em kof-cli fica. REABERTO 28/09 por `D-DEPRIORITIZED-REOPEN`
+  (lote da mantenedora): ainda só-plano em `future/`, promoção uma-por-vez por
+  `D-FUTURE-PROMOTION`**
 - Componentes planejados: `kof inspect`, `kof decompile`, `kof translate`,
   `kof migrate`, `kof compare`
 - Arquitetura: `Legacy Input → Legacy Semantic IR → Kof AST → Kof IR → Backend`
@@ -1082,7 +1084,7 @@ Recuperação de corpo de método ainda parcial
 StoreCat está defasado, o sub-caso de join if-then puro já está recuperado). O
 histórico técnico detalhado vive em `future/LEGACY_MIGRATION.md` +
 `future/DECOMPILER.md` (§7) — **não duplicar aqui**; esta tabela só dá a
-ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual.**
+ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual. REABERTO 28/09 por `D-DEPRIORITIZED-REOPEN` — ainda não promovido; promoção é uma-por-vez por `D-FUTURE-PROMOTION`.**
 
 ### TIER 6–12 — Plataforma universal (arquitetura **EM DESENVOLVIMENTO** 17/09 — R12 sobreposto; regidos por `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)
 
