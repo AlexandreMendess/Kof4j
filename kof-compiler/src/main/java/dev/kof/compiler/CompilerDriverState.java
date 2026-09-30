@@ -236,6 +236,15 @@ IRModule currentModule;
         return CompilerPipeline.compileForTests((CompilerDriver) this, sourceFile, outputDir, target);
     }
 
+    /**
+     * #708: variante com module root EXPLÍCITO — uma raiz de testes separada
+     * (ex.: {@code src/test/kof}) deixa fontes em subdiretórios-pacote
+     * ({@code exemplo/CalcTest.kf}) resolverem a correspondência PKG004.
+     */
+    public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target, Path moduleRoot) {
+        return CompilerPipeline.compileForTests((CompilerDriver) this, sourceFile, outputDir, target, moduleRoot);
+    }
+
     public CompilationResult compile(Path sourceFile, Path outputDir, Target target) {
         return CompilerPipeline.compile((CompilerDriver) this, sourceFile, outputDir, target);
     }

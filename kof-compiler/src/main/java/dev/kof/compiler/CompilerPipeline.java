@@ -127,6 +127,20 @@ public final class CompilerPipeline {
         }
     }
 
+    static CompilationResult compileForTests(CompilerDriver driver, Path sourceFile, Path outputDir,
+                                             Target target, Path moduleRoot) {
+        driver.testHarnessMode = true;
+        try {
+            // #708: raiz de testes explícita — compila o arquivo sozinho
+            // (per-file, um main por arquivo) mas resolve o pacote contra a
+            // raiz de testes, não contra o diretório imediato do arquivo.
+            return CompilerPipeline.compileSources(driver, java.util.List.of(sourceFile),
+                    outputDir, target, moduleRoot);
+        } finally {
+            driver.testHarnessMode = false;
+        }
+    }
+
     static CompilationResult compileForTestsSources(CompilerDriver driver, java.util.List<Path> sources,
                                                     Path outputDir, Target target, Path moduleRoot) {
         driver.testHarnessMode = true;

@@ -88,7 +88,16 @@ final class CmdTest {
         }
         boolean dirMode = Files.isDirectory(src);
         List<Path> files = dirMode ? collectTests(src) : List.of(src);
-        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
+        if (files.isEmpty()) {
+            // R6 (#708): a test root with no Kof source used to print this and
+            // exit 0 — indistinguishable from "all tests passed". Fail
+            // explicitly (zero discovered tests is not a success).
+            System.err.println("test: no .kf/.kof files found in " + src
+                    + " (discovery is recursive; run from the directory that"
+                    + " holds the test sources)");
+            System.exit(1);
+            return;
+        }
         CompilerDriver driver = new CompilerDriver();
         int passed = 0;
         int failed = 0;
@@ -100,13 +109,17 @@ final class CmdTest {
         // independente com seu próprio main() — NUNCA agrupar irmãos num
         // módulo só (PKG002: 2 main()). Cross-file é domínio de kof build.
         if (tag != null) System.setProperty("kof.test.tag", tag);
+        // #708: a raiz de testes é a base dos pacotes por diretório. Em modo
+        // diretório é o próprio `src` (fonte em exemplo/CalcTest.kf declara
+        // `package exemplo`); em modo arquivo, o diretório do arquivo.
+        Path testsRoot = dirMode ? src : src.getParent();
         for (Path f : files) {
             Path tmp;
             try { tmp = Files.createTempDirectory("kof-test-"); }
             catch (IOException e) { System.err.println("failed to create temp dir: " + e.getMessage()); System.exit(1); return; }
             // modo harness: `test "nome" { }` vira função + runner sintetizado;
             // arquivos sem testes compilam idênticos ao modo normal
-            CompilationResult result = driver.compileForTests(f, tmp, target);
+            CompilationResult result = driver.compileForTests(f, tmp, target, testsRoot);
             boolean ok = result.success();
             StringBuilder output = new StringBuilder();
             if (ok) {
