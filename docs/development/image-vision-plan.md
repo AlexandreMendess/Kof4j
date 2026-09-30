@@ -705,9 +705,12 @@ ability genuinely does not exist on a target.
    `#largeRasterAboveOldCapDecodesOnNativeRiscv64` (riscv64/qemu) decode a
    200×200 P6 (120 000 samples, far past both the old 16384 cap and the old
    256 KiB cross arena) plus the bumped `#oversizedRasterThrows` (400×400).
-   Residual: the VP8L path in `libs/image/Vp8l.kf` still keeps its own 16384
-   pixel guard (owned by the native/GC lane) and is to be lifted with the same
-   proof once that lane lands it.
+   The VP8L path now shares the same guard (`libs/image/Vp8l.kf` calls
+   `guardRaster(pixels * 4)` instead of its own 16384-pixel cap), verified on
+   JVM and Native x86-64 with a libwebp-generated 160×120 lossless WebP
+   (`#largeWebpAboveOldPixelCapDecodesOnJvm`/`...OnNativeX86`); Native riscv64
+   aborts on the same fixture and is quarantined by new `known-bugs` **§544**
+   (owner = native/GC lane, issue #700).
 
 ## PT
 [Português](image-vision-plan.pt_BR.md)

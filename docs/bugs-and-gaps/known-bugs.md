@@ -16343,3 +16343,11 @@ plan "Phase 5 slices".
 **Boundary note:** §541 (corrupted inflate `count[8]` / PNG x86) **stays OPEN** after this fix — the x86 PNG probe still fails (`IMAGE: truncated PNG image data (got 0 of 14)`), so §543 is a DISTINCT defect, not the root of §541.
 
 <!-- pt-switch --> **PT:** [§543 (pt_BR)](known-bugs.pt_BR.md#543--native-x86-64-o-rascunho-de-argumentos-de-pilha-do-call-site-usava-offsets-fixos--256-s8rbp-sobrescrevendo-locais-reais-quando-o-metodo-tinha-mais-de-32-slots--corrupcao-silenciosa-de-variavel-sem-crash---fixed-2909-dona--lane-nativegc-encontrado-ao-sondar-541)
+
+## §544 — Native riscv64: the pure-Kof VP8L decode of a 160x120 lossless WebP (LZ77-dense, 19200 px) aborts with Runtime error: array index out of bounds; JVM and x86-64 decode the same fixture correctly — 🟡 OPEN (owner = native/GC lane); found by the image-vision §34.5 VP8L cap raise
+**Symptom (measured 30/09, clean tip `240bae71d`):** decoding the libwebp-generated lossless WebP `vlarge.webp` (160×120 = 19 200 px, LZ77-dense, 90 bytes) through the pure-Kof VP8L decoder (`libs/image/Vp8l.kf`) prints `WEBP:160x120 ch=3 / first=0,0,0 last=84,141,128` (== PIL) on the JVM and Native x86-64, but on Native **riscv64** (qemu) the program aborts with `Runtime error: array index out of bounds` (exit 1).
+**Context:** surfaced when the VP8L pixel guard (16384 px) was raised to the shared raster cap of 262144 samples (`guardRaster`, §34.5); `known-bugs` §540 already proves `Int[262144]` allocates and runs on riscv64, so array size is not the cause — the aborts are specific to the riscv64 decode path (LZ77/transforms) while JVM and x86-64 are correct.
+**Quarantine:** `RasterDecodeE2ETest#largeWebpOnNativeRiscv64QuarantinedBy544` (honest abort naming the §); the JVM and x86-64 cases stay green. Issue **#700**.
+**Boundary:** not an image-vision defect — it is riscv64 codegen/runtime (owner = native/GC lane).
+
+<!-- pt-switch --> **PT:** [§544 (pt_BR)](known-bugs.pt_BR.md#544--nativo-riscv64-o-decode-vp8l-puro-kof-de-um-webp-lossless-160x120-denso-em-lz77-19200-px-aborta-com-runtime-error-array-index-out-of-bounds-jvm-e-x86-64-decodificam-a-mesma-fixture---aberto-dona--lane-nativegc-encontrado-pela-elevacao-do-teto-vp8l-da-345-image-vision)

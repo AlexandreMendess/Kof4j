@@ -257,7 +257,25 @@ final class RasterDecodeFixtures {
         Files.write(dir.resolve("vmeta.webp"), decodeHex(
                 "5249464628000000574542505650384c1c0000002f07c0010084030414a000fd2f0057a114f5e87f018a5cb2"
                         + "caf4bf00"));
+        Files.write(dir.resolve("vlarge.webp"), decodeHex(
+                "5249464652000000574542505650384c450000002f9fc01d00092049c0ffe38d11fd4f550b2141c2ffe546631c"
+                        + "02bcff49728b414ddb068c5afed87b4d29041000058d82b40d58d8ee441e5f1da9bdf0cefff93fffe77f040000"));
         return dir;
+    }
+
+    static String largeWebpProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Raster
+
+            main() {
+                var r = decodeRaster("%s/vlarge.webp")
+                println(r.format + ":" + r.width + "x" + r.height + " ch=" + r.channels)
+                var last = (r.width * r.height - 1) * r.channels
+                println("first=" + r.samples[0] + "," + r.samples[1] + "," + r.samples[2]
+                    + " last=" + r.samples[last] + "," + r.samples[last + 1] + "," + r.samples[last + 2])
+            }
+            """.formatted(base);
     }
 
     static byte[] rasterPpm() throws Exception {

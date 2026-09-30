@@ -13897,3 +13897,11 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Fronteira:** §541 (Huffman/PNG x86) **continua ABERTO** — a sonda PNG x86 ainda falha (`IMAGE: truncated PNG image data (got 0 of 14)`); §543 é defeito DISTINTO, não a raiz de §541.
 
 <!-- en-switch --> **EN:** [§543 (EN)](known-bugs.md#543--native-x86-64-the-call-site-scratch-for-stack-arguments-used-fixed--256-s8rbp-offsets-overwriting-a-real-local-when-the-method-had-more-than-32-local-slots--silent-variable-corruption-no-crash---fixed-2909-owner--nativegc-lane-found-while-probing-541)
+
+## §544 — Nativo riscv64: o decode VP8L puro-Kof de um WebP lossless 160x120 (denso em LZ77, 19200 px) aborta com Runtime error: array index out of bounds; JVM e x86-64 decodificam a mesma fixture — 🟡 ABERTO (dona = lane native/GC); encontrado pela elevação do teto VP8L da §34.5 (image-vision)
+**Sintoma (medido 30/09, tip limpo `240bae71d`):** decodificar o WebP lossless `vlarge.webp` gerado no libwebp (160×120 = 19 200 px, denso em LZ77, 90 bytes) pelo decoder VP8L puro-Kof (`libs/image/Vp8l.kf`) imprime `WEBP:160x120 ch=3 / first=0,0,0 last=84,141,128` (== PIL) na JVM e no Native x86-64, mas no Native **riscv64** (qemu) o programa aborta com `Runtime error: array index out of bounds` (exit 1).
+**Contexto:** apareceu quando o guard de pixels do VP8L (16384 px) foi elevado ao teto compartilhado de 262144 amostras (`guardRaster`, §34.5); o `known-bugs` §540 já prova que `Int[262144]` aloca e roda no riscv64, então o tamanho do array não é a causa — os aborts são específicos do caminho de decode riscv64 (LZ77/transforms), com JVM e x86-64 corretos.
+**Quarentena:** `RasterDecodeE2ETest#largeWebpOnNativeRiscv64QuarantinedBy544` (abort honesto nomeando o §); os casos JVM e x86-64 seguem verdes. Issue **#700**.
+**Fronteira:** não é defeito da image-vision — é codegen/runtime do riscv64 (dona = lane native/GC).
+
+<!-- en-switch --> **EN:** [§544 (EN)](known-bugs.md#544--native-riscv64-the-pure-kof-vp8l-decode-of-a-160x120-lossless-webp-lz77-dense-19200-px-aborts-with-runtime-error-array-index-out-of-bounds-jvm-and-x86-64-decode-the-same-fixture-correctly---open-owner--nativegc-lane-found-by-the-image-vision-345-vp8l-cap-raise)

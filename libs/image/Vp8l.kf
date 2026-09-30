@@ -426,9 +426,7 @@ Int[] vp8lDecodeImage(Vp8lBits r, Int width, Int height, Bool metaAllowed) {
         gi = gi + 1
     }
     var pixels = width * height
-    if (pixels > 16384) {
-        throw "IMAGE: WebP image too large for this slice"
-    }
+    guardRaster(pixels * 4)
     var rgba = new Int[pixels * 4]
     var cache = new Long[cacheSize]
     var px = 0

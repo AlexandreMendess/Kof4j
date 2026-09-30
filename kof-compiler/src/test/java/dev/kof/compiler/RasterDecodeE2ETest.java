@@ -278,6 +278,30 @@ class RasterDecodeE2ETest {
     }
 
     @Test
+    void largeWebpAboveOldPixelCapDecodesOnJvm() throws Exception {
+        Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("jvm-large-webp"));
+        assertEquals("WEBP:160x120 ch=3\nfirst=0,0,0 last=84,141,128",
+                runJvm(RasterDecodeFixtures.largeWebpProbe(dir)));
+    }
+
+    @Test
+    void largeWebpOnNativeRiscv64QuarantinedBy544() {
+        Assumptions.abort("known-bugs §544: riscv64-native VP8L decode of a 160x120 lossless WebP "
+                + "(19200 px, LZ77-heavy) aborts with 'Runtime error: array index out of bounds'; "
+                + "JVM and Native x86-64 decode the same fixture correctly — quarantined until the "
+                + "native/compiler fix lands");
+    }
+
+    @Test
+    void largeWebpAboveOldPixelCapDecodesOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(System.getProperty("os.name").toLowerCase().contains("linux"),
+                "Native x86-64 requires the Linux assembler/linker toolchain");
+        Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("x86-large-webp"));
+        assertEquals("WEBP:160x120 ch=3\nfirst=0,0,0 last=84,141,128",
+                runNativeX86(RasterDecodeFixtures.largeWebpProbe(dir)));
+    }
+
+    @Test
     void jpegDecodesOnJvmViaInterop() throws Exception {
         Path root = tmp.resolve("jvm-jpeg");
         Files.createDirectories(root);
