@@ -74,4 +74,19 @@ class BenchTest {
         assertEquals(1, r.code);
         assertTrue(r.err.contains("benchmark"), "passa pelo parse e cai no discovery: " + r.err);
     }
+
+    /**
+     * Regressão (unidade): `wallNanos` é nanossegundos, mas a métrica publicada
+     * (`ms`, baseline JSON, guarda absoluta de 10 ms) é milissegundos. Antes, o
+     * valor cru em ns era gravado sob a chave `ms` — a coluna imprimia ~10^6× o
+     * tempo real. Prova medível: 500_000_000 ns = 500 ms.
+     */
+    @Test
+    void wallTimeIsPublishedInMillisecondsNotNanoseconds() {
+        assertEquals(0L, Bench.medianMs(java.util.List.of()), "sem amostras = 0 ms");
+        assertEquals(500L, Bench.medianMs(java.util.List.of(500_000_000L)), "500 ms");
+        assertEquals(1L, Bench.medianMs(java.util.List.of(1_000_000L)), "1 ms");
+        // mediana par: média das duas centrais, ainda em ms
+        assertEquals(15L, Bench.medianMs(java.util.List.of(20_000_000L, 10_000_000L)), "(20+10)/2 ms");
+    }
 }

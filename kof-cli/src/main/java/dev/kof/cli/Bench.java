@@ -285,7 +285,7 @@ public final class Bench {
             }
 
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("ms", median(times));
+            row.put("ms", medianMs(times));
             if (rssKb > 0) row.put("rss_kb", rssKb);
             if (cpuMicros > 0) row.put("cpu_ms", cpuMicros / 1_000);
             row.put("compile_ms", compileMs);
@@ -323,5 +323,15 @@ public final class Bench {
         int mid = sorted.size() / 2;
         if (sorted.size() % 2 == 1) return sorted.get(mid);
         return (sorted.get(mid - 1) + sorted.get(mid)) / 2;
+    }
+
+    /**
+     * Mediana do tempo de parede em milissegundos. {@link BenchRunners.RunResult#wallNanos}
+     * vem em nanossegundos; o relatório, o baseline JSON e a guarda absoluta de 10 ms
+     * comparam em ms — a conversão fica AQUI, uma vez só (antes o valor em ns era
+     * gravado sob a chave {@code "ms"}, inflando a métrica por 10^6).
+     */
+    static long medianMs(List<Long> wallNanos) {
+        return Math.round(median(wallNanos) / 1_000_000.0);
     }
 }
