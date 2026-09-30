@@ -1,6 +1,6 @@
 [English](DECOMPILER.md) | [Português](DECOMPILER.pt_BR.md)
 
-# DECOMPILER.md — Kof Decompiler (DEPRIORITIZED 15/09 — back to future/)
+# DECOMPILER.md — Kof Decompiler (DEPRIORITIZED 15/09 → REOPENED 28/09, still in future/)
 
 **Status:** **REOPENED by the maintainer (`D-DEPRIORITIZED-REOPEN`, 28/09 batch)** —
 still plan-only here; promotion to current work is one-at-a-time per

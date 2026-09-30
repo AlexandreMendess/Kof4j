@@ -1,6 +1,6 @@
 [English](TRANSLATOR.md) | [Português](TRANSLATOR.pt_BR.md)
 
-# TRANSLATOR.md — Kof Translator (DEPRIORITIZED 15/09 — back to future/)
+# TRANSLATOR.md — Kof Translator (DEPRIORITIZED 15/09 → REOPENED 28/09, still in future/)
 
 > **Owner:** 192.168.100.22 (claimed 13/09 ~10:05 — orphan: no owner with IP
 > in the header; last code 6 days ago `84c48041`; maintainer's owner-without-IP=orphan

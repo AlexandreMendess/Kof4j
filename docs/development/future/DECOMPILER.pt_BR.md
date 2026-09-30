@@ -1,6 +1,6 @@
 [English](DECOMPILER.md) | [Português](DECOMPILER.pt_BR.md)
 
-# DECOMPILER.md — Decompilador Kof (DESPRIORIZADO 15/09 — de volta a future/)
+# DECOMPILER.md — Decompilador Kof (DESPRIORIZADO 15/09 → REABERTO 28/09, ainda em future/)
 
 **Status:** **REABERTO pela mantenedora (`D-DEPRIORITIZED-REOPEN`, lote 28/09)** —
 ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
