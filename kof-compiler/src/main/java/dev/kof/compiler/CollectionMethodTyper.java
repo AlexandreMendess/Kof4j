@@ -51,6 +51,12 @@ public final class CollectionMethodTyper {
                             && "List".equals(ct.name())) return ft.returnType();
                     return Type.UnknownType.UNKNOWN;
                 }
+                // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy returns
+                // Map<K,List<E>> (K = lambda return).
+                if ("groupBy".equals(mn))
+                    return new Type.ClassType("kof", "Map", List.of(ft.returnType(),
+                            new Type.ClassType("kof", "List",
+                                    List.of(driver.listElementType(recvType)))));
             }
             return Type.UnknownType.UNKNOWN;
         }

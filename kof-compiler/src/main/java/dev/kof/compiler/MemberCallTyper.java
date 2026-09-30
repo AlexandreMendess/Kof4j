@@ -172,10 +172,12 @@ public final class MemberCallTyper {
             // anotação herda o tipo do ELEMENTO da lista — antes caía em
             // Object/Unknown e forçava `(x: Int)` mesmo com contexto óbvio.
             // D-MULTIPARADIGMA-PHASE1A: any/all/none/find/count/forEach herdam igual.
+            // Slice 1g/1h — sorted/sorted_cmp/groupBy herdam igual (senao a
+            // lambda sem anotacao cai em Object/Unknown).
             if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
                     || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
                     || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn)
-                    || "flatMap".equals(mn))
+                    || "flatMap".equals(mn) || "sorted".equals(mn) || "groupBy".equals(mn))
                     && !(elemType instanceof Type.UnknownType)) {
                 for (int i = 0; i < mc.arguments().size(); i++) {
                     if (mc.arguments().get(i) instanceof LambdaExpr le) {
@@ -235,6 +237,17 @@ public final class MemberCallTyper {
             // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted/sorted_cmp return
             // List<E> (fresh copy; arity/domain gates live in the lowerer).
             if ("sorted".equals(mn)) return recvType;
+            // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy returns
+            // Map<K,List<E>> (K = lambda return, from the already-inferred
+            // arg types — lambdas inferred just above, like flatMap).
+            if ("groupBy".equals(mn)) {
+                Type keyType = CollectionMultiparadigmaLowerer.groupByKeyType(
+                        mc.arguments().stream()
+                                .map(a -> sa.expressionTypes().get(a))
+                                .toList());
+                return new Type.ClassType("kof", "Map", List.of(keyType,
+                        new Type.ClassType("kof", "List", List.of(elemType))));
+            }
             // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool.
             if ("any".equals(mn) || "all".equals(mn) || "none".equals(mn))
                 return Type.PrimitiveType.BOOL;
@@ -247,42 +260,14 @@ public final class MemberCallTyper {
             if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                     || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn))
                 return Type.PrimitiveType.VOID;
-            // #334 — `map` devolvia recvType (ELEMENTO-FONTE) e `reduce`
-            // devolvia elemType: a expressao era cacheada com o tipo errado
-            // (inferType guarda o resultado no no), entao `strs.get(0)`
-            // emitia checkcast do tipo FONTE sobre o valor real da lambda →
-            // ClassCastException silenciosa. Agora espelha o EMIT
-            // (`MethodCallTyper` #149 / `CollectionMethodTyper`): map →
-            // List<retorno-da-lambda>, reduce → retorno, filter → recvType
-            // (mesmo elemento, correto). Lambda sem retorno inferido =
-            // UNKNOWN honesto (o emit trata igual) — nunca mentir com o
-            // tipo da fonte.
-            if ("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
-                    || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
-                    || "flatMap".equals(mn)) {
-                Type lamRet = Type.UnknownType.UNKNOWN;
-                for (ExpressionNode arg : mc.arguments()) {
-                    if (arg instanceof LambdaExpr || !(arg instanceof MethodCallExpr)) {
-                        if (sa.expressionTypes().get(arg) instanceof Type.FunctionType ft) {
-                            lamRet = ft.returnType();
-                            break;
-                        }
-                    }
-                }
-                if ("filter".equals(mn)) return recvType;
-                // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool.
-                if ("any".equals(mn) || "all".equals(mn) || "none".equals(mn))
-                    return Type.PrimitiveType.BOOL;
-                if (lamRet instanceof Type.UnknownType) return Type.UnknownType.UNKNOWN;
-                if ("map".equals(mn)) {
-                    return new Type.ClassType("kof", "List", List.of(lamRet));
-                }
-                return lamRet;
-            }
+            // #334 + higher-orders no typer dedicado (gate 500).
+            Type hoType = CollectionMultiparadigmaTyper.inferHigherOrder(
+                    elemType, recvType, mc, sa);
+            if (hoType != null) return hoType;
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy)",
                             "SEM025");
                 }
             }

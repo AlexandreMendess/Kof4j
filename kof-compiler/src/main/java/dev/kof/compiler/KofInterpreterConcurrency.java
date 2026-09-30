@@ -146,6 +146,20 @@ public final class KofInterpreterConcurrency {
                 }
                 return out;
             }
+            // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy buckets by the
+            // lambda key (LinkedHashMap = insertion order). INSTANCE shape:
+            // caller emits user args first: recv is the list, args[0] the
+            // lambda, args[1] the Native-only tag (same as kof_list_find).
+            case "kof_list_groupby": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) recv;
+                var out = new java.util.LinkedHashMap<Object, Object>();
+                for (Object o : src) {
+                    Object key = interp.invokeLambda(args[0], new Object[]{o});
+                    groupBucket(out, key).add(o);
+                }
+                return out;
+            }
             case "kof_spawn_result": {
                 CompletableFuture<Object> future = new CompletableFuture<>();
                 startTask(future, () -> future.complete(interp.invokeLambda(args[0], new Object[0])));
@@ -249,8 +263,19 @@ public final class KofInterpreterConcurrency {
         return new RuntimeException(cause);
     }
 
-    private void startTask(Object handle, ThrowingRunnable body) {
-        Runnable wrapped = () -> {
+    // D-MULTIPARADIGMA-PHASE1A slice 1h — bucket list for a groupBy key
+    // (fresh list on first encounter, insertion order preserved).
+    @SuppressWarnings("unchecked")
+    private static ArrayList<Object> groupBucket(Map<Object, Object> out, Object key) {
+        Object bucket = out.get(key);
+        if (!(bucket instanceof ArrayList)) {
+            bucket = new ArrayList<Object>();
+            out.put(key, bucket);
+        }
+        return (ArrayList<Object>) bucket;
+    }
+
+    private void startTask(Object handle, ThrowingRunnable body) {        Runnable wrapped = () -> {
             try {
                 body.run();
             } catch (Throwable e) {

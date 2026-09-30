@@ -192,6 +192,14 @@ var d = xs.sorted((a: Int, b: Int) -> b - a)   // [3, 2, 1] — comparador: nega
 ```
 Ordem natural exige domínio natural (Int/Long/Double/Float/Bool/Char/String — SEM097 senão); com comparador a lambda define a ordem (records bem-vindos). Estável para comparadores puros; vazio/unitário entra, igual sai.
 
+## `groupBy` (D-MULTIPARADIGMA-PHASE1A fatia 1h, todos os alvos)
+
+```kof
+var xs = listOf(1, 2, 3, 4)
+var g = xs.groupBy((n: Int) -> n % 2)   // {1=[1, 3], 0=[2, 4]} — Map<K,List<E>>
+```
+Chaves usam a igualdade boxed do mapa (mesma taxonomia do `mapOf`); valores são listas frescas em ordem de encontro; chaves ausentes leem `null` (use `getOrDefault` ou estreite com `if`).
+
 ## `listOf` com subtipos relacionados infere o ancestral comum (0.5.0-beta, §285)
 
 ```kof

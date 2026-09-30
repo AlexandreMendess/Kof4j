@@ -33,6 +33,9 @@ public final class CollectionMethodGates {
             // (D-MULTIPARADIGMA-SORTED).
             case "kof_list_sorted" -> 0;
             case "kof_list_sorted_cmp" -> 1;
+            // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy takes exactly one
+            // lambda (D-MULTIPARADIGMA-GROUPBY).
+            case "kof_list_groupby" -> 1;
             case "kof_map_contains_value" -> 1;
             case "kof_map_put_if_absent" -> 2;
             default -> -1;

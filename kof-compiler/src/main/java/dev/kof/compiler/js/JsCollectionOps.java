@@ -170,6 +170,9 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             // insertion sort keeps both stable.
             case "kof_list_sorted" -> "kofListSorted";
             case "kof_list_sorted_cmp" -> "kofListSortedCmp";
+            // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy (insertion-ordered
+            // Map of fresh lists; the tag rides along ignored like distinct).
+            case "kof_list_groupby" -> "kofListGroupBy";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };
         p.lc.registerRuntime(fn);

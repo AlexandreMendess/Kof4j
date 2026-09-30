@@ -305,6 +305,80 @@ public final class RuntimeListQuantifiers {
                 popq %rbx
                 ret
 
+            # kof_list_groupby(rdi=list, rsi=fn, edx=tag) -> rax new Map
+            # (groups in encounter order). Buckets are fresh lists; keys use
+            # the map machinery (kof_map_new/find/put) with the tag written
+            # to the map header (slot 40) like the x86 emitter does for
+            # kof_map_* calls (tag <0 keeps the historic default).
+            # Lambda call mirrors kof_list_any (raw slots). Slice 1h.
+            .globl kof_list_groupby
+            .type kof_list_groupby, @function
+            kof_list_groupby:
+                pushq %rbx
+                pushq %rbp
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $8, %rsp
+                movq %rdi, %r12             # src
+                movq %rsi, %r13             # lambda
+                movl %edx, 0(%rsp)          # tag spill
+                call kof_map_new
+                movq %rax, %rbx             # map
+                movl 0(%rsp), %eax
+                cmpl $0, %eax
+                jl .Llgb_loop_init
+                movl %eax, 40(%rbx)         # key tag
+            .Llgb_loop_init:
+                xorl %r14d, %r14d           # i = 0
+            .Llgb_loop:
+                movl 16(%r12), %eax
+                cmpl %eax, %r14d
+                jge .Llgb_done
+                movq 24(%r12), %rax
+                movslq %r14d, %rcx
+                movq (%rax,%rcx,8), %rsi    # elem
+                movq %r13, %rdi             # lambda
+                movq 8(%rdi), %rax
+                movq (%rax), %rax
+                call *%rax                  # rax = key
+                movq %rax, %r15             # key
+                movq %rbx, %rdi             # map
+                movq %r15, %rsi             # key
+                call kof_map_find           # eax = idx | -1
+                cmpl $-1, %eax
+                je .Llgb_miss
+                movslq %eax, %rcx
+                movq 32(%rbx), %rdx
+                movq (%rdx,%rcx,8), %rdi    # existing bucket list
+                jmp .Llgb_add
+            .Llgb_miss:
+                call kof_list_new
+                movq %rax, %rbp             # new bucket
+                movq %rbx, %rdi             # map
+                movq %r15, %rsi             # key
+                movq %rbp, %rdx             # bucket
+                call kof_map_put
+                movq %rbp, %rdi             # bucket list
+            .Llgb_add:
+                movq 24(%r12), %rax
+                movslq %r14d, %rcx
+                movq (%rax,%rcx,8), %rsi    # elem
+                call kof_list_add
+                incl %r14d
+                jmp .Llgb_loop
+            .Llgb_done:
+                movq %rbx, %rax
+                addq $8, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbp
+                popq %rbx
+                ret
+
             # kof_list_count_pred(list, fn) -> eax count
             .globl kof_list_count_pred
             .type kof_list_count_pred, @function

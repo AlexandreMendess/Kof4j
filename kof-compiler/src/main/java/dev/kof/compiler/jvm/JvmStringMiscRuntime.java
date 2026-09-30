@@ -205,6 +205,25 @@ public final class JvmStringMiscRuntime {
                     return out;
                 }
 
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy buckets by
+                // the lambda key (LinkedHashMap = insertion order, plan
+                // §230); the tag rides LAST (caller emits user args first —
+                // same shape as kof_list_find) and is Native-only.
+                public static java.util.Map<Object, Object> kof_list_groupby(
+                        java.util.ArrayList<?> list, Object fn, int tag) throws Exception {
+                    var out = new java.util.LinkedHashMap<Object, Object>();
+                    for (Object o : list) {
+                        Object key = kof_ho_invoke(fn, new Object[]{o});
+                        Object bucket = out.get(key);
+                        if (!(bucket instanceof java.util.ArrayList)) {
+                            bucket = new java.util.ArrayList<Object>();
+                            out.put(key, bucket);
+                        }
+                        ((java.util.ArrayList<Object>) bucket).add(o);
+                    }
+                    return out;
+                }
+
                 // ── D-MULTIPARADIGMA-PHASE1A slice 1c — forEach runs the
                 // lambda per element for effect and returns nothing.
 

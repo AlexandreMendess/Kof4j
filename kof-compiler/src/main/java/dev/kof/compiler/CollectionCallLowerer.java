@@ -62,13 +62,10 @@ public final class CollectionCallLowerer {
             case "drop" -> "kof_list_drop";
             case "slice" -> "kof_list_slice";
             case "sort" -> "kof_list_sort";
-            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted (non-mutating copy):
-            // arity 0 = natural order, arity 1 = explicit comparator lambda
-            // (D-MULTIPARADIGMA-SORTED); other arities fall into the shared
-            // arity gate below via the chosen fn.
-            case "sorted" -> mc.arguments().size() == 1 ? "kof_list_sorted_cmp" : "kof_list_sorted";
+            case "sorted" -> CollectionMultiparadigmaLowerer.sortedFn(mc);
             // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct (dedup copy).
             case "distinct" -> "kof_list_distinct";
+            case "groupBy" -> "kof_list_groupby";
             default -> null;
         };
         // R6: método desconhecido em List não pode ser silencioso (bug Set.first)
@@ -80,7 +77,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy)",
                     "SEM025");
             return localIdx;
         }
@@ -116,22 +113,8 @@ public final class CollectionCallLowerer {
                         CollectionMethodGates.sortDomainError(elemType), "SEM097");
                 return localIdx;
             }
-            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted(cmp) takes exactly
-            // one lambda (R6, mesma classe do gate higher-order: sem ela o
-            // call quebraria diferente em cada backend). A aridade (1) já
-            // passou no gate compartilhado; aqui vale a FORMA do argumento.
-            if ("kof_list_sorted_cmp".equals(listFn)) {
-                boolean oneLambda = mc.arguments().size() == 1
-                        && mc.arguments().get(0) instanceof LambdaExpr;
-                if (!oneLambda && driver.currentDiagnostics != null) {
-                    var pos = mc.position();
-                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
-                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                            "List.sorted takes exactly one lambda argument",
-                            "SEM025");
-                    return localIdx;
-                }
-            }
+            // Slices 1g/1h — gates de forma lambda em CollectionMultiparadigmaLowerer.
+            if (CollectionMultiparadigmaLowerer.checkLambdaForm(driver, listFn, mc)) return localIdx;
             // §122 (opção B, família SEM051/052/053/054): o índice de
             // get/set/remove é Int (learn/12: remove(0) devolve o elemento);
             // String/record/array no índice era ACEITO em silêncio e quebrava
@@ -253,7 +236,9 @@ public final class CollectionCallLowerer {
                 case "kof_list_sub_list", "kof_list_take", "kof_list_drop", "kof_list_slice" -> recvType;
                 // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct returns List<E> (copy).
                 // Slice 1g — sorted/sorted_cmp return List<E> (fresh copy).
+                // Slice 1h — groupBy returns Map<K,List<E>> (K = lambda return).
                 case "kof_list_distinct", "kof_list_sorted", "kof_list_sorted_cmp" -> recvType;
+                case "kof_list_groupby" -> CollectionMultiparadigmaLowerer.groupReturnType(elemType, argTypes);
                 case "kof_list_remove" -> elemType;
                 default -> elemType;
             };
@@ -287,6 +272,12 @@ public final class CollectionCallLowerer {
             if ("kof_list_sort".equals(listFn) || "kof_list_sorted".equals(listFn)) {
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
                         CollectionMethodGates.sortTag(elemType)));
+                argTypes = new ArrayList<>(argTypes);
+                argTypes.add(Type.PrimitiveType.INT);
+            }
+            if ("kof_list_groupby".equals(listFn)) {
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
+                        CollectionMultiparadigmaLowerer.groupKeyTag(argTypes)));
                 argTypes = new ArrayList<>(argTypes);
                 argTypes.add(Type.PrimitiveType.INT);
             }
@@ -579,6 +570,7 @@ public final class CollectionCallLowerer {
             default -> false;
         };
     }
+
 
     /** §352 NAT002 — slot de valor REFERÊNCIA (Object): TODO primitivo é
      *  normalizado como caixa no put nativo (kof_box_* existe para

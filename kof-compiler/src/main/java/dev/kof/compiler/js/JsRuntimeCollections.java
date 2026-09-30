@@ -188,6 +188,20 @@ public final class JsRuntimeCollections {
                 return out;
             }
 
+            export function kofListGroupBy(list, fn, tag) {
+                const out = new Map();
+                for (const o of list) {
+                    const key = kofQuantCall(fn, o);
+                    let bucket = out.get(key);
+                    if (bucket === undefined) {
+                        bucket = [];
+                        out.set(key, bucket);
+                    }
+                    bucket.push(o);
+                }
+                return out;
+            }
+
             export function kofMapContainsValue(map, value) {
                 for (const v of map.values()) {
                     if (kofValEq(v, value)) return 1;

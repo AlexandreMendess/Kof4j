@@ -960,7 +960,7 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > goldens JVM/Native/Script + lacuna JS `IOJS001`). — plano CONCLUÍDO 28/09, movido para `docs/stdlib/kof-file-plan.md` (regra dos 3 estados; documentos/archives adiados).
 > **ABERTA (6ª frente):** `multiparadigma` — promovido 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) para
-> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatias 1a+1b+1c+1d+1e+1f+1g LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + pins de paridade script + `sorted`/`sorted(cmp)`; E2E + `KofScriptStdlibParityTest` 22/22); resto (`groupBy`/`zip`) DECIDIDO 29/09 (`D-MULTIPARADIGMA-GROUPBY`, `D-MULTIPARADIGMA-ZIP`) — implementando.
+> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); fatias 1a+1b+1c+1d+1e+1f+1g+1h LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + pins de paridade script + `sorted`/`sorted(cmp)` + `groupBy`; E2E + `KofScriptStdlibParityTest` 22/22); resto (`zip`) DECIDIDO 29/09 (`D-MULTIPARADIGMA-ZIP` record `Pair`) — implementando.
 > **ABERTA (7ª frente):** `image-vision` — promovido 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) para
 > [`image-vision-plan.md`](image-vision-plan.md); fatia 1 = metadados pure-Kof em `libs/image/` (formato + dimensões,
 > PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 na JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).
