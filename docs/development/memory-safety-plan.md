@@ -85,8 +85,6 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 
 ## Package DoD
 
-## Package DoD
-
 Pass + wiring + `MemorySafetyE2ETest` per target (JVM/Script/JS/Native same sources, same diagnostics) + corpus note in `training/idioms/concurrency.md`+`interop.md` when emission lands; each slice lands complete or does not land (`D-COMPLETE-FIRST`).
 
 ## Definition of done (whole front)
