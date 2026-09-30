@@ -11,12 +11,16 @@ class Vp8lTransform {
     Int sizeBits
     Int gridWidth
     Int[] image
+    Int width
+    Int height
 
-    constructor(Int kind, Int sizeBits, Int gridWidth, Int[] image) {
+    constructor(Int kind, Int sizeBits, Int gridWidth, Int[] image, Int width, Int height) {
         this.kind = kind
         this.sizeBits = sizeBits
         this.gridWidth = gridWidth
         this.image = image
+        this.width = width
+        this.height = height
     }
 }
 
@@ -152,20 +156,80 @@ Int[] vp8lQuad(Int[] src, Int at) {
     return q
 }
 
-Int[] vp8lApplyTransforms(Int[] rgba, Int width, Int height, List<Vp8lTransform> transforms) {
+Int[] vp8lApplyTransforms(Int[] rgba, List<Vp8lTransform> transforms) {
+    var buf = rgba
     var i = transforms.size() - 1
     while (i >= 0) {
         var tr = transforms.get(i)
         if (tr.kind == 0) {
-            vp8lApplyPredictor(rgba, width, height, tr)
+            vp8lApplyPredictor(buf, tr.width, tr.height, tr)
         } else if (tr.kind == 1) {
-            vp8lApplyColor(rgba, width, height, tr)
-        } else {
-            vp8lApplySubtractGreen(rgba, width * height)
+            vp8lApplyColor(buf, tr.width, tr.height, tr)
+        } else if (tr.kind == 2) {
+            vp8lApplySubtractGreen(buf, tr.width * tr.height)
         }
         i = i - 1
     }
-    return rgba
+    return buf
+}
+
+// Inverse color-indexing transform (RFC 9649 §3.5.4). The entropy image stores
+// one or more palette indices packed into the green channel of each pixel: a
+// packed pixel holds `1 << nbits` indices of `8 >> nbits` bits, least
+// significant first. The palette table is delta-coded (each colour is the sum
+// of the previous one) and expanded to `1 << (8 >> nbits)` entries. `src` is the
+// reduced-width image and `width`/`height` the original image dimensions.
+Int[] vp8lApplyColorIndexing(Int[] src, Int width, Int height, Int nbits, Int[] rawPalette) {
+    var numColors = rawPalette.length / 4
+    var perPixel = 1 << nbits
+    var indexBits = 8 >> nbits
+    var finalColors = 1 << indexBits
+    var table = new Int[finalColors * 4]
+    var c = 0
+    while (c < numColors && c < finalColors) {
+        var s = c * 4
+        var d = c * 4
+        if (c == 0) {
+            table[0] = rawPalette[0] & 255
+            table[1] = rawPalette[1] & 255
+            table[2] = rawPalette[2] & 255
+            table[3] = rawPalette[3] & 255
+        } else {
+            var p = d - 4
+            table[d] = (rawPalette[s] + table[p]) & 255
+            table[d + 1] = (rawPalette[s + 1] + table[p + 1]) & 255
+            table[d + 2] = (rawPalette[s + 2] + table[p + 2]) & 255
+            table[d + 3] = (rawPalette[s + 3] + table[p + 3]) & 255
+        }
+        c = c + 1
+    }
+    var reduced = vp8lDivRoundUp(width, perPixel)
+    var mask = (1 << indexBits) - 1
+    var out = new Int[width * height * 4]
+    var y = 0
+    while (y < height) {
+        var x = 0
+        while (x < width) {
+            var packed = src[(y * reduced + (x >> nbits)) * 4 + 1]
+            var k = 0
+            while (k < perPixel && x < width) {
+                var idx = packed & mask
+                var d = (y * width + x) * 4
+                if (idx < finalColors) {
+                    var t = idx * 4
+                    out[d] = table[t]
+                    out[d + 1] = table[t + 1]
+                    out[d + 2] = table[t + 2]
+                    out[d + 3] = table[t + 3]
+                }
+                packed = packed >> indexBits
+                x = x + 1
+                k = k + 1
+            }
+        }
+        y = y + 1
+    }
+    return out
 }
 
 void vp8lApplySubtractGreen(Int[] rgba, Int pixels) {

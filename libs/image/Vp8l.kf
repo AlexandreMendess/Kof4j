@@ -208,7 +208,12 @@ Vp8lHuff vp8lReadNormal(Vp8lBits r, Int alphabet) {
     var lens = new Int[alphabet]
     var n = 0
     var prev = 8
-    while (n < maxSymbol) {
+    var remaining = maxSymbol
+    while (n < alphabet) {
+        if (remaining == 0) {
+            break
+        }
+        remaining = remaining - 1
         var sym = clHuff.decode(r)
         if (sym < 16) {
             lens[n] = sym
@@ -308,26 +313,46 @@ Raster vp8lRaster(String path) {
         throw "IMAGE: unsupported VP8L version"
     }
     var transforms = listOf<Vp8lTransform>()
+    var curW = width
+    var bundled = false
+    var widthBits = 0
+    var palette = new Int[0]
     while (r.bit() == 1) {
         var t = r.bits(2)
         if (t == 0) {
             var sb = r.bits(3) + 2
-            var tw = vp8lDivRoundUp(width, 1 << sb)
+            var tw = vp8lDivRoundUp(curW, 1 << sb)
             var th = vp8lDivRoundUp(height, 1 << sb)
-            transforms.add(Vp8lTransform(0, sb, tw, vp8lDecodeImage(r, tw, th, false)))
+            transforms.add(Vp8lTransform(0, sb, tw, vp8lDecodeImage(r, tw, th, false), curW, height))
         } else if (t == 1) {
             var sb = r.bits(3) + 2
-            var tw = vp8lDivRoundUp(width, 1 << sb)
+            var tw = vp8lDivRoundUp(curW, 1 << sb)
             var th = vp8lDivRoundUp(height, 1 << sb)
-            transforms.add(Vp8lTransform(1, sb, tw, vp8lDecodeImage(r, tw, th, false)))
+            transforms.add(Vp8lTransform(1, sb, tw, vp8lDecodeImage(r, tw, th, false), curW, height))
         } else if (t == 2) {
-            transforms.add(Vp8lTransform(2, 0, 0, new Int[0]))
+            transforms.add(Vp8lTransform(2, 0, 0, new Int[0], curW, height))
         } else {
-            throw "IMAGE: WebP color-indexing transform is not supported yet"
+            var cts = r.bits(8) + 1
+            palette = vp8lDecodeImage(r, cts, 1, false)
+            var wb = 0
+            if (cts <= 2) {
+                wb = 3
+            } else if (cts <= 4) {
+                wb = 2
+            } else if (cts <= 16) {
+                wb = 1
+            }
+            bundled = true
+            widthBits = wb
+            curW = vp8lDivRoundUp(curW, 1 << wb)
+            transforms.add(Vp8lTransform(3, wb, 0, palette, curW, height))
         }
     }
-    var rgba = vp8lDecodeImage(r, width, height, true)
-    vp8lApplyTransforms(rgba, width, height, transforms)
+    var rgba = vp8lDecodeImage(r, curW, height, true)
+    rgba = vp8lApplyTransforms(rgba, transforms)
+    if (bundled) {
+        rgba = vp8lApplyColorIndexing(rgba, width, height, widthBits, palette)
+    }
     var channels = 3
     if (alphaUsed == 1) {
         channels = 4
