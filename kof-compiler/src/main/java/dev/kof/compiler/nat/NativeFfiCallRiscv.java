@@ -73,6 +73,14 @@ final class NativeFfiCallRiscv {
         }
         int ns = (nInt > 8 ? nInt - 8 : 0) + (nFlt > 8 ? nFlt - 8 : 0);
         int seq = nb.inlineSeq++;
+        // 0) D-MEM030-BORROW-RUNTIME (B-03): cada `Buffer(U8)` INOUT adquire um
+        //    borrow gravável exclusivo ANTES de consumir o bloco (o acquire é um
+        //    call e clobbera t0..t6; aqui só `sp`/bloco são estado, intactos).
+        for (int i = 0; i < n; i++) {
+            if (!isBuf[i]) continue;
+            sb.append("    ld a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
+            sb.append("    call kof_buffer_borrow_acquire\n");
+        }
         // 1) t0 = topo E; args de registro por offset SEM popar (o bloco fica
         //    intacto p/ os derramados; String: payload no offset 24, NULL→NULL)
         sb.append("    mv t0, sp\n");
@@ -152,12 +160,18 @@ final class NativeFfiCallRiscv {
         // 5) call direto (PLT gerado pelo ld; §61: resolve no exec sem dlopen)
         sb.append("    call ").append(NativeFfiCall.symbolOf(kc)).append("\n");
         sb.append("    ld sp, ").append(8 * ns + 8).append("(sp)\n");
+        // B-03: o release usa a0 (registrador de retorno!), então ele corre
+        // DEPOIS de o retorno já estar preservado na pilha. Após o push do
+        // resultado, o bloco [E, E+8n) fica em sp+8; em void, em sp.
         if (structRet) {
             emitRiscvStructReturn(nb, sb, kc);
+            emitRiscvBufferReleases(sb, n, isBuf, 8);
             return;
         }
         switch (ret) {
-            case 'v': return;
+            case 'v':
+                emitRiscvBufferReleases(sb, n, isBuf, 0);
+                return;
             case 'i': sb.append("    sext.w a0, a0\n"); break; // canonicaliza o Int 32-bit
             case 'j': break;
             // RETORNO FP em fa0 (NÃO ft0!): medido 19/09 — o glibc riscv64
@@ -171,10 +185,35 @@ final class NativeFfiCallRiscv {
             case 'S':
                 sb.append("    call kof_ffi_from_cstr\n");
                 break;
-            default: return;
+            default:
+                emitRiscvBufferReleases(sb, n, isBuf, 0);
+                return;
         }
         sb.append("    addi sp, sp, -8\n");
         sb.append("    sd a0, 0(sp)\n");
+        emitRiscvBufferReleases(sb, n, isBuf, 8);
+    }
+
+    /**
+     * D-MEM030-BORROW-RUNTIME (B-03, cross): libera o borrow de cada
+     * {@code Buffer(U8)} INOUT. {@code resultOnStack} = 8 quando o valor de
+     * retorno já foi empilhado (bloco em {@code sp+8}), 0 em void. O OBJ do
+     * buffer foi preservado no bloco (a C não escreve acima do sp de entrada);
+     * {@code kof_buffer_borrow_release} é leaf e não toca {@code t0}.
+     */
+    private static void emitRiscvBufferReleases(StringBuilder sb, int n, boolean[] isBuf,
+                                                int resultOnStack) {
+        boolean any = false;
+        for (int i = 0; i < n; i++) if (isBuf[i]) any = true;
+        if (!any) return;
+        // Após o restore sp = E e só o push do resultado muda sp (E → E-8), então
+        // a base do bloco é sp + resultOnStack.
+        sb.append("    addi t0, sp, ").append(resultOnStack).append("\n");
+        for (int i = 0; i < n; i++) {
+            if (!isBuf[i]) continue;
+            sb.append("    ld a0, ").append(8 * (n - 1 - i)).append("(t0)\n");
+            sb.append("    call kof_buffer_borrow_release\n");
+        }
     }
 
     /**

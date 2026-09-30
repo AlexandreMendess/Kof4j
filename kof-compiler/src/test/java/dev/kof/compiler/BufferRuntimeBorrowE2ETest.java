@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -106,6 +107,98 @@ class BufferRuntimeBorrowE2ETest {
                 "a single writer must never raise MEM020");
     }
 
+    @Test
+    void singleWritableBorrowStaysCleanJs(@TempDir Path dir) throws Exception {
+        // D-MEM030-BORROW-RUNTIME: the JS face carries the borrow primitive for
+        // uniformity, but JS spawn is cooperative (async/Promise), so a
+        // concurrent negative case is structurally unreachable there. Proven:
+        // the exactly-once acquire/release around a single extern writer stays
+        // clean and the copy-back golden matches the JVM.
+        String so = compileHostLib(dir);
+        Path src = dir.resolve("borrow-single-js.kf");
+        Files.writeString(src, KOF_CONTROL.formatted(so));
+        Path out = dir.resolve("out-js-borrow-single");
+        CompilationResult r = driver.compile(src, out, Target.JS);
+        assertTrue(r.success(), "JS compile: " + r.diagnostics().getDiagnostics());
+        String js = runJs(out);
+        assertFalse(js.contains("MEM020"), "single writer must never raise MEM020 on JS");
+        assertEquals("2\n[9, 0]", js, "JS golden (borrow acquire/release + copy-back)");
+    }
+
+    @Test
+    void concurrentBufferBorrowRaisesMem020NativeX86(@TempDir Path dir) throws Exception {
+        String so = compileHostLib(dir);
+        Path src = dir.resolve("borrow-race-native.kf");
+        Files.writeString(src, KOF.formatted(so));
+        Path out = dir.resolve("out-native-borrow-race");
+        CompilationResult r = driver.compile(src, out, Target.NATIVE);
+        assertTrue(r.success(), "NATIVE compile: " + r.diagnostics().getDiagnostics());
+
+        String output = runBinaryWithBarrier(dir, out.resolve("Default/Main"), "ready-na", "go-na");
+        long mem020 = output.lines().filter(l -> l.contains("MEM020")).count();
+        assertEquals(1L, mem020, "exactly one concurrent writer must hit MEM020 on x86-64; got:\n" + output);
+    }
+
+    @Test
+    void singleWritableBorrowStaysCleanNativeX86(@TempDir Path dir) throws Exception {
+        String so = compileHostLib(dir);
+        Path src = dir.resolve("borrow-single-native.kf");
+        Files.writeString(src, KOF_CONTROL.formatted(so));
+        Path out = dir.resolve("out-native-borrow-single");
+        CompilationResult r = driver.compile(src, out, Target.NATIVE);
+        assertTrue(r.success(), "NATIVE compile: " + r.diagnostics().getDiagnostics());
+        String o = runBinary(out.resolve("Default/Main"));
+        assertFalse(o.contains("MEM020"), "single writer must never raise MEM020 on x86-64; got:\n" + o);
+        assertEquals("2\n[9, 0]", o, "x86-64 golden (borrow acquire/release + payload untouched)");
+    }
+
+    @Disabled("blocked by known-bugs §545: any `spawn` worker calling an extern SIGSEGVs on cross "
+            + "riscv64/aarch64 because the raw clone starts the worker with tls=0 (tp invalid). "
+            + "The negative race needs two concurrent extern writers, so it cannot run until the "
+            + "native/cross lane fixes §545. The primitive itself is proven by the positive cross "
+            + "control and by the preemptive x86-64 negative.")
+    @Test
+    void concurrentBufferBorrowRaisesMem020Cross(@TempDir Path dir) throws Exception {
+        // D-MEM030-BORROW-RUNTIME: cross riscv64/aarch64 são preemptivos
+        // (pthread), então a corrida negativa é real aqui; o barriered_write C
+        // torna-a determinística sob qemu. BLOQUEADO por §545 (spawn × extern).
+        for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
+            String arch = a[0];
+            Target t = Target.valueOf(a[1]);
+            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            String so = compileCrossLib(dir, arch);
+            Path src = dir.resolve("borrow-race-" + arch + ".kf");
+            Files.writeString(src, KOF.formatted(so));
+            Path out = dir.resolve("out-borrow-race-" + arch);
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
+            String output = runQemuWithBarrier(dir, arch, out.resolve("Default/Main"),
+                    "ready-" + arch, "go-" + arch);
+            long mem020 = output.lines().filter(l -> l.contains("MEM020")).count();
+            assertEquals(1L, mem020, arch + ": exactly one concurrent writer must hit MEM020; got:\n" + output);
+        }
+    }
+
+    @Test
+    void singleWritableBorrowStaysCleanCross(@TempDir Path dir) throws Exception {
+        for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
+            String arch = a[0];
+            Target t = Target.valueOf(a[1]);
+            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            String so = compileCrossLib(dir, arch);
+            Path src = dir.resolve("borrow-single-" + arch + ".kf");
+            Files.writeString(src, KOF_CONTROL.formatted(so));
+            Path out = dir.resolve("out-borrow-single-" + arch);
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
+            String o = runQemu(dir, arch, out.resolve("Default/Main"));
+            assertFalse(o.contains("MEM020"), arch + ": single writer must never raise MEM020; got:\n" + o);
+            assertEquals("2\n[9, 0]", o, arch + " golden (borrow acquire/release + payload untouched)");
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static String compileHostLib(Path dir) throws IOException, InterruptedException {
@@ -121,6 +214,125 @@ class BufferRuntimeBorrowE2ETest {
         String out = new String(p.getInputStream().readAllBytes());
         assumeTrue(p.waitFor(60, TimeUnit.SECONDS) && p.exitValue() == 0,
                 "cc/gcc falhou ao compilar o host de borrow: " + out);
+        return so.toString();
+    }
+
+    private static String runBinary(Path bin) throws IOException, InterruptedException {
+        Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertTrue(p.waitFor(60, TimeUnit.SECONDS), "native binary must finish");
+        assertEquals(0, p.exitValue(), "native exit, output: " + o);
+        return o;
+    }
+
+    private static String runBinaryWithBarrier(Path dir, Path bin, String readyName, String goName)
+            throws IOException, InterruptedException {
+        Path ready = dir.resolve(readyName);
+        Path go = dir.resolve(goName);
+        Files.deleteIfExists(ready);
+        Files.deleteIfExists(go);
+        ProcessBuilder pb = new ProcessBuilder(bin.toString());
+        pb.redirectErrorStream(true);
+        pb.environment().put("KOF_BUF_READY", ready.toString());
+        pb.environment().put("KOF_BUF_GO", go.toString());
+        Process p = pb.start();
+        StringBuilder output = new StringBuilder();
+        Thread reader = new Thread(() -> {
+            try {
+                output.append(new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+            } catch (IOException ignored) {
+            }
+        });
+        reader.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (Files.notExists(ready)) {
+            if (!p.isAlive()) {
+                reader.join(1000);
+                fail("native exited before the barrier; output:\n" + output);
+            }
+            if (System.nanoTime() > deadline) {
+                p.destroyForcibly();
+                fail("timeout waiting for the barrier READY file");
+            }
+            Thread.sleep(5);
+        }
+        Files.writeString(go, "go");
+        assertTrue(p.waitFor(60, TimeUnit.SECONDS), "native must finish after GO");
+        reader.join(5000);
+        return output.toString().replace("\r\n", "\n").trim();
+    }
+
+    private static String runQemu(Path dir, String arch, Path bin) throws IOException, InterruptedException {
+        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
+        pb.environment().put("LD_LIBRARY_PATH", dir.toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertTrue(p.waitFor(60, TimeUnit.SECONDS), arch + " must finish");
+        assertEquals(0, p.exitValue(), arch + " exit, output: " + o);
+        return o;
+    }
+
+    private static String runQemuWithBarrier(Path dir, String arch, Path bin,
+                                             String readyName, String goName)
+            throws IOException, InterruptedException {
+        Path ready = dir.resolve(readyName);
+        Path go = dir.resolve(goName);
+        Files.deleteIfExists(ready);
+        Files.deleteIfExists(go);
+        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
+        pb.redirectErrorStream(true);
+        pb.environment().put("LD_LIBRARY_PATH", dir.toString());
+        pb.environment().put("KOF_BUF_READY", ready.toString());
+        pb.environment().put("KOF_BUF_GO", go.toString());
+        Process p = pb.start();
+        StringBuilder output = new StringBuilder();
+        Thread reader = new Thread(() -> {
+            try {
+                output.append(new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+            } catch (IOException ignored) {
+            }
+        });
+        reader.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90);
+        while (Files.notExists(ready)) {
+            if (!p.isAlive()) {
+                reader.join(2000);
+                fail(arch + " exited before the barrier; exit=" + p.exitValue()
+                        + " output:\n" + output);
+            }
+            if (System.nanoTime() > deadline) {
+                p.destroyForcibly();
+                fail(arch + ": timeout waiting for the barrier READY file");
+            }
+            Thread.sleep(5);
+        }
+        Files.writeString(go, "go");
+        assertTrue(p.waitFor(90, TimeUnit.SECONDS), arch + " must finish after GO");
+        reader.join(5000);
+        return output.toString().replace("\r\n", "\n").trim();
+    }
+
+    private static String runJs(Path outDir) throws IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        int ec = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
+                new java.io.ByteArrayInputStream(new byte[0]), out);
+        assertEquals(0, ec, "JS exit code, output: " + out);
+        return out.toString(java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+    }
+
+    private static String compileCrossLib(Path dir, String arch) throws IOException, InterruptedException {
+        Path c = dir.resolve("libkofborrow-" + arch + ".c");
+        Files.writeString(c, C_SRC);
+        Path so = dir.resolve("libkofborrow-" + arch + ".so");
+        String cc = arch + "-linux-gnu-gcc";
+        Process p = new ProcessBuilder(cc, "-shared", "-fPIC", "-O2",
+                "-o", so.toString(), c.toString()).redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes());
+        assumeTrue(p.waitFor(60, TimeUnit.SECONDS) && p.exitValue() == 0,
+                cc + " falhou ao compilar o host cross: " + out);
         return so.toString();
     }
 

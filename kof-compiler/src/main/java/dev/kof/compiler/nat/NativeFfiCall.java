@@ -191,6 +191,17 @@ final class NativeFfiCall {
             sb.append("    call kof_ffi_pack_array\n");
             sb.append("    movq %rax, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
         }
+        // D-MEM030-BORROW-RUNTIME (B-03): cada `Buffer(U8)` INOUT adquire um
+        // borrow gravável exclusivo ANTES de carregar os registradores (o
+        // acquire é um call e clobberaria os args). O objeto fica no slot de
+        // rascunho; o release após o downcall lê-o de lá.
+        for (int i = 0; i < n; i++) {
+            if (!isBufPtr[i]) continue;
+            sb.append("    movq ").append(8 * (n - 1 - i)).append("(%rsp), %r10\n");
+            sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
+            sb.append("    movq %r10, %rdi\n");
+            sb.append("    call kof_buffer_borrow_acquire\n");
+        }
         for (int i = n - 1; i >= 0; i--) {
             if (isArray[i]) {
                 sb.append("    popq %r10\n");   // descarta o objeto; o buffer está no temp
@@ -203,14 +214,16 @@ final class NativeFfiCall {
             if (isBufPtr[i]) {
                 // D6-3/A2: objeto Kof Buffer → ponteiro do payload (obj+24). O
                 // Buffer é não-nulo; o guard mantém um null honesto (0), nunca
-                // obj+24 sobre ponteiro nulo.
+                // obj+24 sobre ponteiro nulo. ord>=6 (buf derramado): guarda o
+                // OBJ no rascunho (o passo 2 deriva o payload ao empilhar) para
+                // que o release pós-call ainda encontre o objeto (B-03).
                 sb.append("    popq %r10\n");
-                String lbl = ".Lffi_b" + seq + "_" + i;
-                sb.append("    testq %r10, %r10\n");
-                sb.append("    je ").append(lbl).append("\n");
-                sb.append("    leaq 24(%r10), %r10\n");
-                sb.append(lbl).append(":\n");
                 if (ord[i] < 6) {
+                    String lbl = ".Lffi_b" + seq + "_" + i;
+                    sb.append("    testq %r10, %r10\n");
+                    sb.append("    je ").append(lbl).append("\n");
+                    sb.append("    leaq 24(%r10), %r10\n");
+                    sb.append(lbl).append(":\n");
                     sb.append("    movq %r10, ").append(intRegs[ord[i]]).append("\n");
                 } else {
                     sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
@@ -273,7 +286,22 @@ final class NativeFfiCall {
         }
         if (spill % 2 != 0) sb.append("    subq $8, %rsp\n");
         for (int i = n - 1; i >= 0; i--) {
-            if (!isStruct[i] && (isFloatClass(cls[i]) ? ord[i] >= 8 : ord[i] >= 6)) {
+            if (isStruct[i]) continue;
+            if (isBufPtr[i]) {
+                // B-03: rascunho guarda o OBJ (não o payload) p/ o release; deriva
+                // o payload ao empilhar, com o mesmo guard de null do caminho reg.
+                if (ord[i] >= 6) {
+                    String lbl = ".Lffi_b" + seq + "_" + i;
+                    sb.append("    movq -").append(nb.scratchOffset(i)).append("(%rbp), %r11\n");
+                    sb.append("    testq %r11, %r11\n");
+                    sb.append("    je ").append(lbl).append("\n");
+                    sb.append("    leaq 24(%r11), %r11\n");
+                    sb.append(lbl).append(":\n");
+                    sb.append("    pushq %r11\n");
+                }
+                continue;
+            }
+            if (isFloatClass(cls[i]) ? ord[i] >= 8 : ord[i] >= 6) {
                 sb.append("    pushq -").append(nb.scratchOffset(i)).append("(%rbp)\n");
             }
         }
@@ -285,8 +313,14 @@ final class NativeFfiCall {
         //    sret); caso contrário, o escalar/void de sempre → slot de 8 bytes.
         if (structRet) {
             emitX86StructReturn(nb, sb, retResolved, retLayout, sret);
+            // B-03: libera os borrows depois de o objeto de retorno já estar
+            // empilhado (o resultado em %rax/%r10 fica intocado).
+            emitBufferReleases(nb, sb, isBufPtr);
             return;
         }
+        // B-03: libera os borrows ANTES de materializar o retorno (o escalar
+        // ainda não está na pilha; o release preserva %rax/%rdx).
+        emitBufferReleases(nb, sb, isBufPtr);
         switch (ret) {
             case 'v': return;
             case 'i': sb.append("    movslq %eax, %rax\n"); break;
@@ -375,6 +409,20 @@ final class NativeFfiCall {
         // 4) remove o scratch e empilha o objeto como resultado
         if (!classes.isEmpty()) sb.append("    addq $").append(8 * classes.size()).append(", %rsp\n");
         sb.append("    pushq %r10\n");
+    }
+
+    /**
+     * D-MEM030-BORROW-RUNTIME (B-03, x86-64): libera o borrow gravável de cada
+     * {@code Buffer(U8)} INOUT, lendo o OBJ do slot de rascunho. Chamado depois
+     * do downcall e depois de o valor de retorno já estar preservado na pilha;
+     * {@code kof_buffer_borrow_release} é null-safe e preserva %rax/%rdx.
+     */
+    private static void emitBufferReleases(NativeBackend nb, StringBuilder sb, boolean[] isBufPtr) {
+        for (int i = 0; i < isBufPtr.length; i++) {
+            if (!isBufPtr[i]) continue;
+            sb.append("    movq -").append(nb.scratchOffset(i)).append("(%rbp), %rdi\n");
+            sb.append("    call kof_buffer_borrow_release\n");
+        }
     }
 
     private static int ordinal(List<AbiLayout.ArgClass> classes, int e, boolean sse) {

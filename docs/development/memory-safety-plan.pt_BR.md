@@ -2,9 +2,9 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-4-FECHADA (4.1/4.2/4.3 pousadas 28/09, #658/#659/#662) + unidade-2-fase-5-POUSADA (29/09: #667 Script×extern → FFI001 na linha da declaração; #668 face de compilação MEM020) + unidade-3-fase-5-pinada (29/09) + #651 A1/A2/B pousadas (29/09) + lote da mantenedora 30/09: D-MEM030-BORROW-RUNTIME (metade runtime de B-03, prova cross total), D-MEM-PHASE6-4BACKENDS (fase 6 = 4 backends reais; WASM fora; âncora do DoD corrigida), D-MEM-FFI-CROSS-FULL (String[]/structs/callbacks/out-buffer no cross antes de fechar) + face JVM de B-03 POUSADA 30/09
+last: phase-4-FECHADA (4.1/4.2/4.3 pousadas 28/09, #658/#659/#662) + unidade-2-fase-5-POUSADA (29/09: #667 Script×extern → FFI001 na linha da declaração; #668 face de compilação MEM020) + unidade-3-fase-5-pinada (29/09) + #651 A1/A2/B pousadas (29/09) + lote da mantenedora 30/09: D-MEM030-BORROW-RUNTIME (metade runtime de B-03, prova cross total), D-MEM-PHASE6-4BACKENDS (fase 6 = 4 backends reais; WASM fora; âncora do DoD corrigida), D-MEM-FFI-CROSS-FULL (String[]/structs/callbacks/out-buffer no cross antes de fechar) + 30/09 faces runtime de B-03 POUSADAS (primitivas JVM/JS/x86-64/riscv64/aarch64; negativo x86-64; negativo cross BLOQUEADO pelo known-bugs §545 = SIGSEGV pré-existente de spawn×extern no cross)
 doing: memory-safety
-next: unidade 4 da fase 5 (em progresso) — estado de borrow runtime de B-03 no Buffer(U8): face JVM POUSADA 30/09; restam JS/Script/Native x86-64/riscv64/aarch64 (D-MEM030-BORROW-RUNTIME; prova de 6 faces) / D-MEM-FFI-CROSS-FULL (String[]/structs/callbacks/out-buffer no cross) / #651 FECHADA assim que verificado
+next: unidade 4 da fase 5 — faces runtime de B-03 POUSADAS 30/09 em todos os alvos alcançáveis (JS/Script N/A estrutural documentado); a corrida NEGATIVA cross espera o known-bugs §545 (SIGSEGV de spawn×extern no cross, lane native/cross) / D-MEM-FFI-CROSS-FULL (String[]/structs/callbacks/out-buffer no cross) / #651 FECHADA assim que verificado
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety

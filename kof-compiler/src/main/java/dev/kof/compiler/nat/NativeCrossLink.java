@@ -233,7 +233,17 @@ public final class NativeCrossLink {
         a.add("-lc");
         if (sqlite) a.add(sqliteLinkArg(arch));
         if (libm) a.add("-lm");
-        for (String lib : ffiLibs) a.add(ffiLinkArg(lib));
+        for (String lib : ffiLibs) {
+            // Um caminho absoluto precisa do seu diretório no search path: o
+            // `ffiLinkArg` reduz ao basename (`-l:<base>`), então sem o `-L` o
+            // ld do sysroot não acha a lib. Libs relativas (ex. `libc.so.6`)
+            // seguem inalteradas — aditivo.
+            if (lib.startsWith("/")) {
+                int slash = lib.lastIndexOf('/');
+                if (slash > 0) a.add("-L" + lib.substring(0, slash));
+            }
+            a.add(ffiLinkArg(lib));
+        }
         return a.toArray(new String[0]);
     }
 }

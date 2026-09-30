@@ -24,7 +24,37 @@ public final class NativeRiscvAsmBuffer {
                 .ascii "Buffer["
             .Lkof_buf_suffix:
                 .ascii "]"
+            .Lkof_buf_mem020:
+                .ascii "MEM020: Buffer(U8) writable borrow already held by another task"
             .section .text
+
+            # kof_buffer_borrow_acquire(a0=Buffer?) — B-03 (D-MEM030-BORROW-RUNTIME).
+            # Flag no header offset 8 (spare); segunda aquisição concorrente lança
+            # MEM020 via kof_throw_string (capturável em try/catch; panic sem handler).
+            .globl kof_buffer_borrow_acquire
+            .type kof_buffer_borrow_acquire, @function
+            kof_buffer_borrow_acquire:
+                beqz a0, .Lkof_bfk_ba_done
+                ld   t0, 8(a0)
+                beqz t0, .Lkof_bfk_ba_free
+                la   a0, .Lkof_buf_mem020
+                li   a1, 63
+                call kof_string_from_literal
+                call kof_throw_string
+            .Lkof_bfk_ba_free:
+                li   t0, 1
+                sd   t0, 8(a0)
+            .Lkof_bfk_ba_done:
+                ret
+
+            # kof_buffer_borrow_release(a0=Buffer?) — limpa o flag (null-safe).
+            .globl kof_buffer_borrow_release
+            .type kof_buffer_borrow_release, @function
+            kof_buffer_borrow_release:
+                beqz a0, .Lkof_bfk_br_done
+                sd   zero, 8(a0)
+            .Lkof_bfk_br_done:
+                ret
 
             # kof_buffer_alloc(a0=n) -> a0=Buffer*. Cap negativo/zero clampa p/ 0;
             # payload zero-filled. Layout: [0..8]=header, cap@16(qword), payload@24.

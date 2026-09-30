@@ -2,9 +2,9 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
-last: phase-4-CLOSED (4.1/4.2/4.3 landed 28/09, #658/#659/#662) + phase-5-unit-2-LANDED (29/09: #667 Script×extern → FFI001 at the decl line; #668 MEM020 compile face) + phase-5-unit-3-pinned (29/09) + #651 A1/A2/B landed (29/09) + 30/09 maintainer batch: D-MEM030-BORROW-RUNTIME (B-03 runtime half, total cross proof), D-MEM-PHASE6-4BACKENDS (phase 6 = 4 real backends; WASM out; DoD anchor fixed), D-MEM-FFI-CROSS-FULL (String[]/structs/callbacks/out-buffer on cross before closing)
+last: phase-4-CLOSED (4.1/4.2/4.3 landed 28/09, #658/#659/#662) + phase-5-unit-2-LANDED (29/09: #667 Script×extern → FFI001 at the decl line; #668 MEM020 compile face) + phase-5-unit-3-pinned (29/09) + #651 A1/A2/B landed (29/09) + 30/09 maintainer batch: D-MEM030-BORROW-RUNTIME (B-03 runtime half, total cross proof + follow-up "primitive on all 6, negative by structure on JS/Script"), D-MEM-PHASE6-4BACKENDS (phase 6 = 4 real backends; WASM out; DoD anchor fixed), D-MEM-FFI-CROSS-FULL (String[]/structs/callbacks/out-buffer on cross before closing) + 30/09 B-03 runtime faces LANDED (JVM/JS/x86-64/riscv64/aarch64 primitives; x86-64 negative; cross negative blocked by known-bugs §545 = pre-existing spawn×extern cross SIGSEGV)
 doing: memory-safety
-next: phase-5 unit 4 (in progress) — B-03 runtime borrow-state on Buffer(U8): JVM face LANDED 30/09; remaining JS/Script/Native x86-64/riscv64/aarch64 (D-MEM030-BORROW-RUNTIME; 6-face proof) / D-MEM-FFI-CROSS-FULL (cross String[]/structs/callbacks/out-buffer) / #651 CLOSED once verified
+next: phase-5 unit 4 — B-03 runtime borrow-state faces LANDED 30/09 on all reachable targets (JS/Script structural-N/A documented); the cross NEGATIVE race waits on known-bugs §545 (spawn×extern cross SIGSEGV, lane native/cross) / D-MEM-FFI-CROSS-FULL (cross String[]/structs/callbacks/out-buffer) / #651 CLOSED once verified
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety

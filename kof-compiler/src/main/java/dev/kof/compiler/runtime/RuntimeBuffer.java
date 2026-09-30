@@ -85,6 +85,34 @@ public final class RuntimeBuffer {
                 popq %rbx
                 ret
 
+            # kof_buffer_borrow_acquire(rdi=Buffer?) — B-03 (D-MEM030-BORROW-RUNTIME).
+            # Borrow flag no header offset 8 (spare, não sobrepõe o payload@24);
+            # uma segunda aquisição concorrente lança MEM020 via kof_throw_string
+            # (capturável em try/catch; panic sem handler — igual aos demais throws).
+            .globl kof_buffer_borrow_acquire
+            .type kof_buffer_borrow_acquire, @function
+            kof_buffer_borrow_acquire:
+                testq %rdi, %rdi
+                je .Lbfk_ba_done
+                cmpq $0, 8(%rdi)
+                je .Lbfk_ba_free
+                leaq .Lbfk_mem020(%rip), %rdi
+                jmp kof_throw_string
+            .Lbfk_ba_free:
+                movq $1, 8(%rdi)
+            .Lbfk_ba_done:
+                ret
+
+            # kof_buffer_borrow_release(rdi=Buffer?) — limpa o flag (null-safe).
+            .globl kof_buffer_borrow_release
+            .type kof_buffer_borrow_release, @function
+            kof_buffer_borrow_release:
+                testq %rdi, %rdi
+                je .Lbfk_br_done
+                movq $0, 8(%rdi)
+            .Lbfk_br_done:
+                ret
+
             # kof_buffer_to_string(rdi=Buffer?) -> rax = "Buffer[cap]" KofString*
             # Used by the native println valueOf dispatch, mirroring JVM/JS
             # toString rather than the raw object-pointer print path.
@@ -143,6 +171,15 @@ public final class RuntimeBuffer {
                 .int 1
                 .int 0
                 .ascii "]"
+                .byte 0
+            .Lbfk_mem020:
+                .int 1
+                .int 0
+                .int 0
+                .int 0
+                .int 63
+                .int 0
+                .ascii "MEM020: Buffer(U8) writable borrow already held by another task"
                 .byte 0
             .text
             """);
