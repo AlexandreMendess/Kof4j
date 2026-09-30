@@ -11,6 +11,7 @@
 > **Fatia 2b LANDED 29/09:** operações de raster pure-Kof sobre o `Raster` provisório — `cropRaster(r,x,y,w,h)` e `resizeNearest(r,w,h)` (vizinho mais próximo), saída limitada pelo mesmo teto; filtragem suave aguarda a fatia de interop. Prova: `RasterDecodeE2ETest` 7/7.
 > **Fatia 3g LANDED 29/09 (Kof puro, todos os alvos):** `libs/image/Vp8lTransforms.kf` (novo) + `libs/image/Vp8l.kf` — transforms inversos **predictor** (14 modos, §3.5.1) e **color** (§3.5.2, `ColorTransformDelta = (s8(t)*s8(c))>>5`) do VP8L, aplicados em ordem reversa; o loop de transforms agora lê `size_bits`/grade de subresolução para ambos e a decodificação de entropia foi extraída para `vp8lDecodeImage(r,w,h,metaAllowed)`, de modo que sub-imagens de transform nunca leem o bit meta-prefix (só do ARGB, §3.8.3). Transform color-indexing e grupos meta-Huffman ainda recusados com diagnóstico explícito `IMAGE:`. Prova: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. um stream 8x8 predictor+color gerado pelo libwebp **validado byte a byte contra ele**, JVM + Native x86-64 + riscv64(qemu) + Script); RED medido no decoder pré-fatia (`IMAGE: WebP predictor transform is not supported yet`).
 > **Fatia 3h LANDED 30/09 (Kof puro, todos os alvos):** `libs/image/Vp8lTransforms.kf` + `libs/image/Vp8l.kf` — transform **COLOR_INDEXING** do VP8L (§3.5.4): a sub-imagem de paleta (`num_colors = ReadBits(8)+1`, cores delta-codificadas da esquerda para a direita e expandidas para `1 << (8 >> bits)` entradas) é aplicada à imagem de entropia, cujo canal verde empacota `1 << bits` índices de `8 >> bits` bits, do menos significativo para o mais, na largura reduzida `ceil(w / 2^bits)`. Corrigido um bug latente de **`max_symbol`** em `vp8lReadNormal` (`ReadHuffmanCodeLengths` limita o número de *símbolos* de code-length decodificados, não o comprimento do array resultante — RFC 9649 §3.6.2.1); o bug só aparecia quando o flag "use length" reduzia `max_symbol` abaixo do alfabeto e dessincronizava o bitstream. Grupos meta-Huffman ainda recusados com diagnóstico explícito `IMAGE:`. Prova: `RasterDecodeE2ETest` 19/19 (novo stream 8x8 de 8 cores com indexing gerado pelo libwebp, validado byte a byte contra ele; JVM + Native x86-64 + riscv64(qemu) + Script); RED medido no decoder pré-fatia (`IMAGE: WebP color-indexing transform is not supported yet`).
+> **Fatia 2 do VP8 lossy LANDED 30/09 (Kof puro, todos os alvos):** `libs/image/Vp8Frame.kf` + `libs/image/Vp8Probs.kf` (novos) — caminhada RIFF/`WEBP` + frame header `VP8 ` completo (RFC 6386 §9/§19): tag de key-frame/start code/dimensões, segmentação, loop filter, número de partições, os seis índices de dequant e a tabela de 1056 probabilidades de coeficiente (defaults + updates). `Vp8Bool` ganhou `signedOrZero`/`bytePosition`. Prova: `Vp8FrameE2ETest` 4/4 vs um oráculo RFC §19.2 independente na JVM + Native x86-64 + riscv64(qemu) + Script. Modelado como classe (não record largo) porque o backend cross corrompe chamadas com ≥9 argumentos (`known-bugs` §546, issue #703).
 > **Fatia 3i LANDED 30/09 (Kof puro, todos os alvos):** `libs/image/Vp8l.kf` — **grupos meta-Huffman** do VP8L (RFC 9649 §3.7.2.2): `prefix_bits = ReadBits(3)+2`; a imagem de entropia `ceil(w/2^bits) × ceil(h/2^bits)` é decodificada por entropia, os bytes red/green de cada pixel dão seu índice de grupo, lê-se um grupo de códigos de prefixo por valor distinto, e cada pixel seleciona seu grupo por `entropy[(y>>bits)*xw + (x>>bits)]` (a cópia LZ77 não é limitada aos blocos de grupo, espelhando o libwebp). Esta era a última recusa do VP8L — todo o caminho lossless do VP8L agora decodifica. Prova: `RasterDecodeE2ETest` 19/19 (novo stream 8x8 de dois grupos gerado pelo libwebp, validado byte a byte contra ele; JVM + Native x86-64 + riscv64(qemu) + Script); RED medido no decoder pré-fatia (`IMAGE: WebP meta-Huffman groups are not supported yet`).
 > **Fatia 3f LANDED 29/09 (Kof puro, todos os alvos):** `libs/image/Vp8l.kf` — **cache de cor** do VP8L (RFC 9649 §3.6.2.3: `color_cache_code_bits` 1..11, slot `(0x1e35a7bd * argb) >> (32 - bits)`, todo pixel literal/copiado inserido na ordem do stream, `S >= 256+24` lê o cache). O alfabeto do código de prefixo verde agora é `256+24+cache_size`. Decodifica streams subtract-green/cache-de-cor/grupo-único. Transforms predictor/color/indexing e meta-Huffman ainda recusados com diagnóstico explícito `IMAGE:`. Prova: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. um stream 8x8 com cache de cor **gerado pelo libwebp e validado byte a byte contra ele**, JVM + Native x86-64 + riscv64(qemu) + Script); RED medido no decoder pré-fatia (`IMAGE: WebP color cache is not supported yet`).
 > **Fatia 3e LANDED 29/09 (Kof puro, todos os alvos):** `libs/image/Vp8l.kf` — **Huffman normal (code-length codes)** + **referências LZ77** (bits extras de prefixo de length/distance + o mapa de distância §3.6.2.2.1). Decodifica o subconjunto subtract-green/sem-cache/grupo-único que o libwebp real emite. Predictor/color/indexing, cache de cor e meta-Huffman ainda recusados com diagnóstico explícito `IMAGE:`. Prova: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. um stream normal-Huffman+LZ77 feito à mão, validado contra libwebp, JVM + Native x86-64 + riscv64(qemu) + Script). Re-teste da face VP8L no native após os fixes §541/§543.
@@ -926,6 +927,30 @@ capacidade realmente não existe no alvo.
     riscv64(qemu) + Script (sem mudança no compilador). Próximas fatias:
     container RIFF/`VP8 ` + frame header, depois modos/coeficientes por
     macrobloco, predição intra + DCT inversa, e o loop filter.
+
+12. **Fatia 2 do VP8 lossy — container RIFF/`VP8 ` + frame header — LANDED
+    30/09 (Kof puro, todos os alvos).** `libs/image/Vp8Frame.kf` (novo) percorre
+    o envelope RIFF/`WEBP`, extrai o chunk `VP8 ` e parseia o chunk
+    descomprimido (§9.1: frame tag, start code de key-frame, dimensões de 14
+    bits) mais todo o frame header (§9.2–§9.11): color space/clamp,
+    segmentação, tipo/nível/sharpness do loop filter e grupos de delta por
+    macrobloco, número de partições de token, os seis índices de dequant,
+    `refresh_entropy`, a tabela completa de probabilidades de coeficiente
+    `[4][8][3][11]` (defaults + updates por frame) e
+    `mb_no_skip_coeff`/`prob_skip_false`. `libs/image/Vp8Probs.kf` (novo) carrega
+    as duas tabelas da RFC (updates §13.4, defaults §13.5); `Vp8Bool` ganhou
+    `signedOrZero(n)` (`bool_maybe_get_int` da RFC) e `bytePosition()`. Modelado
+    como **classe de construtor de um argumento** em vez de record largo: o
+    backend cross riscv64/aarch64 corrompe chamadas com ≥9 argumentos (medido,
+    catalogado como `known-bugs` **§546** / issue **#703**), então o parser fica
+    dentro da aridade verificada e segue verde em todos os alvos. Prova:
+    `Vp8FrameE2ETest` **4/4** contra um **parser RFC §19.2 independente**
+    (Python offline) sobre um arquivo lossy 8×8 real do libwebp — idêntico
+    `w=8,h=8,lf=3,qi=9,parts=1,pos=13,sum=174173` (a soma da tabela de 1056
+    entradas, incluindo os 3 updates por frame) na JVM + Native x86-64 +
+    riscv64(qemu) + Script (sem mudança no compilador). Próximas fatias:
+    modos/coeficientes por macrobloco (§11/§13), predição intra + DCT/WHT
+    inversa (§12/§14), o loop filter (§15).
 
 **DECIDIDO 30/09 (`D-WEBP-LOSSY-PURE-KOF`, opção C): WebP lossy `VP8 ` + AVIF
 como decoder Kof puro em todos os alvos.** O achado medido que forçou a decisão:

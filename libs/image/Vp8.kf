@@ -67,6 +67,25 @@ class Vp8Bool {
         return v
     }
 
+    // Bytes consumed so far (diagnostic: the frame header must land exactly
+    // inside its partition).
+    Int bytePosition() {
+        return this.pos
+    }
+
+    // Reads a flag at probability 1/2; if set, an `n`-bit magnitude followed
+    // by a sign bit (RFC 6386 `bool_maybe_get_int`). Zero when the flag is 0.
+    Int signedOrZero(Int n) {
+        if (bit(128) == 0) {
+            return 0
+        }
+        var z = literal(n)
+        if (bit(128) == 1) {
+            return -z
+        }
+        return z
+    }
+
     Int nextByte() {
         if (this.pos >= this.data.length) {
             throw "IMAGE: truncated VP8 partition"

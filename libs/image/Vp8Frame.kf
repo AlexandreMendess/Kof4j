@@ -1,0 +1,261 @@
+package image
+
+import image.Image
+import image.Vp8
+import image.Vp8Probs
+
+// kof.image — VP8 (lossy WebP) frame header parser (RFC 6386 §9/§19).
+//
+// `Vp8Frame(frame)` reads a `VP8 ` frame payload (from its 3-byte frame tag)
+// up to the end of the frame header, exposing every field the token decoder
+// needs: dimensions, loop-filter settings, quantizer indices, the (possibly
+// updated) coefficient probabilities and the token-partition layout.
+//
+// `vp8FrameFromWebp(file)` validates the RIFF/`WEBP` envelope and extracts the
+// single `VP8 ` chunk. A malformed stream throws a `String` beginning with
+// `IMAGE:` — never a silent partial parse. Pure Kof, all targets; library-first
+// (no compiler change). Slice 2 of the pure-Kof VP8 chain
+// (`D-WEBP-LOSSY-PURE-KOF`): it parses, it does not yet reconstruct.
+//
+// Modeled as a class with a single-argument constructor (not a wide record):
+// the riscv64 cross backend currently mis-handles calls with >= 8 stack
+// arguments (see `known-bugs`), so the parser keeps every call within the
+// verified arity.
+
+class Vp8Frame {
+    Int[] frame
+    Int width
+    Int height
+    Int version
+    Int colorSpace
+    Int clampType
+    Int segmentEnabled
+    Int updateSegmentMap
+    Int updateSegmentData
+    Int segmentAbs
+    Int[] segmentQuant
+    Int[] segmentFilter
+    Int[] segmentTreeProbs
+    Int filterType
+    Int loopFilterLevel
+    Int sharpnessLevel
+    Int loopFilterDeltaEnabled
+    Int[] refLfDelta
+    Int[] modeLfDelta
+    Int tokenPartitions
+    Int firstPartitionSize
+    Int yAcQi
+    Int yDcDelta
+    Int y2DcDelta
+    Int y2AcDelta
+    Int uvDcDelta
+    Int uvAcDelta
+    Int refreshEntropy
+    Int mbNoSkipCoeff
+    Int probSkipFalse
+    Int[] coeffProbs
+    Int headerBytes
+
+    constructor(Int[] frame) {
+        need(frame, 3, "VP8")
+        var tag = (frame[0] & 255) | ((frame[1] & 255) << 8) | ((frame[2] & 255) << 16)
+        var isKey = (tag & 1) == 0
+        this.version = (tag >> 1) & 7
+        this.firstPartitionSize = (tag >> 5) & 0x7FFFF
+        if (!isKey) {
+            throw "IMAGE: VP8 interframe is not supported"
+        }
+        if (this.version > 3) {
+            throw "IMAGE: unsupported VP8 version " + this.version
+        }
+        need(frame, 10 + this.firstPartitionSize, "VP8")
+        if (frame[3] != 157 || frame[4] != 1 || frame[5] != 42) {
+            throw "IMAGE: bad VP8 start code"
+        }
+        this.width = le16(frame, 6) & 0x3FFF
+        this.height = le16(frame, 8) & 0x3FFF
+        if (this.width == 0 || this.height == 0) {
+            throw "IMAGE: bad VP8 dimensions"
+        }
+        this.frame = frame
+        parse()
+    }
+
+    parse() {
+        var d = Vp8Bool(vp8Slice(this.frame, 10, this.firstPartitionSize))
+        this.colorSpace = d.bit(128)
+        this.clampType = d.bit(128)
+        parseSegmentation(d)
+        this.filterType = d.bit(128)
+        this.loopFilterLevel = d.literal(6)
+        this.sharpnessLevel = d.literal(3)
+        parseLoopFilterDelta(d)
+        this.tokenPartitions = 1 << d.literal(2)
+        this.yAcQi = d.literal(7)
+        this.yDcDelta = d.signedOrZero(4)
+        this.y2DcDelta = d.signedOrZero(4)
+        this.y2AcDelta = d.signedOrZero(4)
+        this.uvDcDelta = d.signedOrZero(4)
+        this.uvAcDelta = d.signedOrZero(4)
+        this.refreshEntropy = d.bit(128)
+        this.coeffProbs = vp8CoeffProbs(d)
+        this.mbNoSkipCoeff = d.bit(128)
+        this.probSkipFalse = 0
+        if (this.mbNoSkipCoeff == 1) {
+            this.probSkipFalse = d.literal(8)
+        }
+        this.headerBytes = d.bytePosition()
+    }
+
+    parseSegmentation(Vp8Bool d) {
+        this.segmentEnabled = d.bit(128)
+        this.updateSegmentMap = 0
+        this.updateSegmentData = 0
+        this.segmentAbs = 0
+        this.segmentQuant = new Int[4]
+        this.segmentFilter = new Int[4]
+        this.segmentTreeProbs = new Int[3]
+        this.segmentTreeProbs[0] = 255
+        this.segmentTreeProbs[1] = 255
+        this.segmentTreeProbs[2] = 255
+        if (this.segmentEnabled == 0) {
+            return
+        }
+        this.updateSegmentMap = d.bit(128)
+        this.updateSegmentData = d.bit(128)
+        if (this.updateSegmentData == 1) {
+            this.segmentAbs = d.bit(128)
+            var i = 0
+            while (i < 4) {
+                this.segmentQuant[i] = d.signedOrZero(7)
+                i = i + 1
+            }
+            i = 0
+            while (i < 4) {
+                this.segmentFilter[i] = d.signedOrZero(6)
+                i = i + 1
+            }
+        }
+        if (this.updateSegmentMap == 1) {
+            var i = 0
+            while (i < 3) {
+                this.segmentTreeProbs[i] = vp8MaybeByte(d)
+                i = i + 1
+            }
+        }
+    }
+
+    parseLoopFilterDelta(Vp8Bool d) {
+        this.loopFilterDeltaEnabled = d.bit(128)
+        this.refLfDelta = new Int[4]
+        this.modeLfDelta = new Int[4]
+        if (this.loopFilterDeltaEnabled == 0) {
+            return
+        }
+        var deltaUpdate = d.bit(128)
+        if (deltaUpdate == 0) {
+            return
+        }
+        var i = 0
+        while (i < 4) {
+            this.refLfDelta[i] = d.signedOrZero(6)
+            i = i + 1
+        }
+        i = 0
+        while (i < 4) {
+            this.modeLfDelta[i] = d.signedOrZero(6)
+            i = i + 1
+        }
+    }
+
+    Int width() { return this.width }
+    Int height() { return this.height }
+    Int version() { return this.version }
+    Int colorSpace() { return this.colorSpace }
+    Int clampType() { return this.clampType }
+    Int segmentEnabled() { return this.segmentEnabled }
+    Int updateSegmentMap() { return this.updateSegmentMap }
+    Int updateSegmentData() { return this.updateSegmentData }
+    Int segmentAbs() { return this.segmentAbs }
+    Int[] segmentQuant() { return this.segmentQuant }
+    Int[] segmentFilter() { return this.segmentFilter }
+    Int[] segmentTreeProbs() { return this.segmentTreeProbs }
+    Int filterType() { return this.filterType }
+    Int loopFilterLevel() { return this.loopFilterLevel }
+    Int sharpnessLevel() { return this.sharpnessLevel }
+    Int loopFilterDeltaEnabled() { return this.loopFilterDeltaEnabled }
+    Int[] refLfDelta() { return this.refLfDelta }
+    Int[] modeLfDelta() { return this.modeLfDelta }
+    Int tokenPartitions() { return this.tokenPartitions }
+    Int firstPartitionSize() { return this.firstPartitionSize }
+    Int yAcQi() { return this.yAcQi }
+    Int yDcDelta() { return this.yDcDelta }
+    Int y2DcDelta() { return this.y2DcDelta }
+    Int y2AcDelta() { return this.y2AcDelta }
+    Int uvDcDelta() { return this.uvDcDelta }
+    Int uvAcDelta() { return this.uvAcDelta }
+    Int refreshEntropy() { return this.refreshEntropy }
+    Int mbNoSkipCoeff() { return this.mbNoSkipCoeff }
+    Int probSkipFalse() { return this.probSkipFalse }
+    Int[] coeffProbs() { return this.coeffProbs }
+    Int headerBytes() { return this.headerBytes }
+}
+
+// Extracts and parses the `VP8 ` frame out of a RIFF/WEBP container.
+Vp8Frame vp8FrameFromWebp(Int[] file) {
+    need(file, 12, "WEBP")
+    if (!matchesAscii(file, 0, "RIFF") || !matchesAscii(file, 8, "WEBP")) {
+        throw "IMAGE: bad WEBP container"
+    }
+    var off = 12
+    while (off + 8 <= file.length) {
+        var size = le32(file, off + 4)
+        if (size < 0 || off + 8 + size > file.length) {
+            throw "IMAGE: malformed WEBP chunk"
+        }
+        if (matchesAscii(file, off, "VP8 ")) {
+            return Vp8Frame(vp8Slice(file, off + 8, size))
+        }
+        off = off + 8 + size + (size & 1)
+    }
+    throw "IMAGE: WEBP has no VP8 chunk"
+}
+
+// Reads the 4x8x3x11 coefficient probabilities: start from the defaults and
+// apply every update flagged with its fixed update probability (RFC §13.4).
+Int[] vp8CoeffProbs(Vp8Bool d) {
+    var defaults = vp8DefaultCoeffProbs()
+    var update = vp8CoeffUpdateProbs()
+    var probs = new Int[1056]
+    var i = 0
+    while (i < 1056) {
+        var p = defaults.get(i)
+        if (d.bit(update.get(i)) == 1) {
+            p = d.literal(8)
+        }
+        probs[i] = p
+        i = i + 1
+    }
+    return probs
+}
+
+// A one-bit flag; if set, an 8-bit value, otherwise the default 255 (RFC §9.3).
+Int vp8MaybeByte(Vp8Bool d) {
+    if (d.bit(128) == 1) {
+        return d.literal(8)
+    }
+    return 255
+}
+
+Int[] vp8Slice(Int[] a, Int at, Int len) {
+    if (at < 0 || len < 0 || at + len > a.length) {
+        throw "IMAGE: truncated VP8 payload"
+    }
+    var out = new Int[len]
+    var i = 0
+    while (i < len) {
+        out[i] = a[at + i]
+        i = i + 1
+    }
+    return out
+}
