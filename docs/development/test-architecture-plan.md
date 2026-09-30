@@ -667,8 +667,9 @@ Before any deep refactoring, the path is:
    tooling; results in `docs/testing/TEST-PERFORMANCE.md`);
 2. identify the 20 slowest tests (the profiler ranks them);
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
-   `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; open work =
-   shrink `scripts/test-hygiene-baseline.txt` and re-freeze);
+   `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
+   shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
+   authority = **132** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -689,9 +690,9 @@ Before any deep refactoring, the path is:
    kept) and `ComponentCoreSupport`/`ComponentCorePrograms` out of `ComponentCoreE2ETest` (29/29
    kept) and `SemanticResolutionSupport`/`SemanticResolutionPrograms` out of `SemanticResolutionTest`
    (30/30 kept) and `CmdDeploySupport` out of `CmdDeployTest` (16/16 kept) → oversized 43→19,
-   baseline 170→146; next split picks by a fresh `--citations` measurement).
+   baseline 170→146 at the Phase-3 stage; the harness ratchet continued **146→132** in Phase 4
+   and is EXHAUSTED — no further split is queued).
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phase 1 profiling + Phase 2 discovery/ratchet have
-landed — the open work is the quick-win removals.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→19; harness ratchet 146→132, zero identical pairs remain) — the only open work is Phase 5 (target-parameterized cross-target harness), which needs a decision.

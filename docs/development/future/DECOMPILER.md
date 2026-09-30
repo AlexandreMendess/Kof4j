@@ -2,8 +2,9 @@
 
 # DECOMPILER.md — Kof Decompiler (DEPRIORITIZED 15/09 — back to future/)
 
-**Status:** **DEPRIORITIZED by the maintainer (15/09) — moved back to
-`future/`. Not current work; promotion needs her explicit decision** (the
+**Status:** **REOPENED by the maintainer (`D-DEPRIORITIZED-REOPEN`, 28/09 batch)** —
+still plan-only here; promotion to current work is one-at-a-time per
+`D-FUTURE-PROMOTION` (the
 three-states rule). Code already in the repo stays (kof-cli `Decompile.java` +
 decoders, `DecompileTest` 67/67) — only the *queue* stops here; the full
 work-log below remains as the record for a future session. Implemented:

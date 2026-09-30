@@ -13,7 +13,7 @@
 **Slice 1e (landed 29/09):** `distinct` — dedup preserving first-occurrence order + `ListDistinctE2ETest` 3/3. Equality reuses `contains` per target (static tag via `stringTag`, same taxonomy; x86/cross call `kof_list_contains` per candidate). Lesson: an end-anchored asm insertion ate flatMap's epilogue (SIGILL on cross, caught by flatMapCross) — fixed by reconstructing from the known-good commit; verify asm junctions by reading, not by anchor-matching.
 **How to finish (next slices):** 1e+1f+1g (`ListSortedE2ETest` 6/6)+1h (`ListGroupByE2ETest` 3/3) LANDED 29/09; `take`/`drop`/`slice` stay with pagination; `zip` DECIDED 29/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` truncating at min — supersedes the rule-6 `D-NOT-JAVA` stop) — **1i LANDED 30/09:** library-first (`pairs.kf` record `Pair<A,B>` + `zipPairs<A,B>` via `CompilerPairs`, rewrite in `CollectionCallLowerer`/`CollectionZipLowerer`, `ListZipE2ETest` JVM/Script/JS GREEN incl. truncation/empty-hetero) + **native DONE via the honest gate `NAT008`** (`D-MULTIPARADIGMA-ZIP-NATIVE`, 30/09): a native list of a concrete primitive element stores the value RAW, so viewing it through the bare type-variable `zipPairs<A,B>` emitted `kof_unbox_*` over the raw int → SIGSEGV (rc=139; proven by `firstOf<T>(List<T>): T { return xs.get(0) }`, zero zip/injection). `CollectionZipLowerer` now refuses `zip` of a primitive-element list on every native target with `NAT008` (recorded in `backend-parity.md` Documented Gaps); reference-element `zip` runs natively and `zipNativeX86`/`zipCross` are GREEN against JVM (byte-identical), `zipPrimitiveElementOnNativeIsNat008` pins the refusal. Fixes en route: missing `emit` of the arg (stack corruption), type-before-name fns don't parse `<A,B>` (helper uses type-after-params), record accessors are `p.x()` (idioms/records). **Deferred (backend front):** box at the generic erasure boundary → delete `NAT008`, re-enable native `zip` for every element type.
 
-> **Rule of this folder:** this document is a **plan without code**. No file listed in §8 was changed by this document. When the first functional increment ships, this plan moves to `docs/development/` with a real state table (what is done vs what is missing), per the three-states rule (`docs/development/future/README.md`). The current state of Kof remains 100% intact.
+> **State:** promoted `future/` → `docs/development/` (28/09, `D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`); Phase 1 list ops 1a–1i are LANDED (see the header + `README.md` §1 row 0d). Phases 5–7 (DATA/INFRA: query/SQL/stream) remain **design-only**, gated by R12 (SYSTEMS closure) and a maintainer decision — this doc does not open them as work.
 
 ---
 
@@ -402,15 +402,11 @@ If a frontend feature seems implementable "because other languages have it" (pip
 
 ---
 
-## 13. Next step after this plan (for the re-trigger)
+## 13. Status / next step
 
-**Do not move this doc yet.** To start Phase 1a, the next agent:
+**Phase 1 (list ops) is CONCLUDED** — slices 1a–1i LANDED (see §14 and the header). The only remainder is the **backend erasure front** (`Deferred` in §14): boxing at the generic erasure boundary would delete `NAT008` and re-enable native `zip` for primitive elements; that touches the generic erasure/ABI and needs the backend lane (rule 6-adjacent), so it is NOT this plan's unit.
 
-1. `git log --oneline -5 -- kof-compiler/src/main/java/dev/kof/compiler/CollectionCallLowerer.java` — confirm the file is free (lane collision rule).
-2. Adds **one** method `flatMap` end-to-end (3 layers + 4 backends + E2E) — proves the pattern and the parity harness; commits with `DOING.md` claim `IN PROGRESS` (owner IPv4, branch, files) and Q0-Q7 checklist in the message.
-3. Repeats per op-pair until Phase 1 closes, at that point moves this doc `future/PLAN-MULTIPARADIGMA.md` → `docs/development/PLAN-MULTIPARADIGMA.md` with state `IN_PROGRESS`, and finally to `docs/` when the whole functional foundation is `IMPLEMENTED`.
-
-`NEXT STEP: Phase 1a — CollectionCallLowerer flatMap+forEach (kof_list_flatMap/forEach) with contextualLambda widening, 4-target E2E, Q3 edges, no new IR — file kof-compiler/src/main/java/dev/kof/compiler/CollectionCallLowerer.java proof CompilerDriverTest+KofInterpreterParity`
+`NEXT STEP (none for this plan): Phase 1 is complete; Phases 5–7 stay design-only until SYSTEMS closes (R12) + a maintainer decision. Backend erasure front tracked by the native lane; gap code NAT008 in docs/backend-parity.md`
 
 ---
 

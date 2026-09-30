@@ -9,8 +9,8 @@
 > named/diagnosed gap on others. **`0.5.0` does not cut while this ledger
 > has ANY open row.**
 >
-> Rule of the ledger (three states, machine-checked by
-> `check_release_050_gate.sh` → `full_parity`):
+> Rule of the ledger (three states; the 0.5.0 gate `check_release_050_gate.sh`
+> was retired `D-RELEASE-0.5.0-CLOSED` — live authority `scripts/check_live_records.sh`):
 > - a row leaves ONLY when the feature compiles AND runs with byte/golden
 >   parity on ALL targets (proof test named, runner recorded);
 > - partial closes move the row's target cells (never mark a row DONE

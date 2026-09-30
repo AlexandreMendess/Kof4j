@@ -817,7 +817,7 @@ capacidade realmente não existe no alvo.
      `IDAT`, **inflate zlib** (DEFLATE: stored/fixed/dynamic Huffman) em Kof
      puro, filtros de scanline 0–4 (None/Sub/Up/Average/Paeth), de-paleta
      (`PLTE`) e expansão para os canais do `Raster`.
-   - Prova: `PngDecodeE2ETest` (bytes PNG conhecidos → golden de amostras) na
+   - Prova: `RasterDecodeE2ETest#pngDecodesOnJvm` (bytes PNG conhecidos → golden de amostras) na
      JVM + Native x86-64 + riscv64 + Script; JS `IOJS001` (a biblioteca ainda
      usa `readRange`). Sem gap novo: o decoder é independente de alvo.
    - Risco: correção do inflate; mitigar com golden de bloco fixo/dinâmico e a

@@ -2,7 +2,7 @@
 
 # DECISIONS — language decision record
 
-**Last updated:** 2026-09-15
+**Last updated:** 2026-09-30
 
 **Maintainer:** Mel Santos
 

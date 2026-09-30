@@ -9,7 +9,7 @@
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, the Native backends, `kof.toml`/`kofdeps`
-**Implementation status:** fatia 1 = connector manifest reader (pure-Kof `libs/interop/`) — see §9
+**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. Remaining: the compiler slices (interop error type + `foreign module` grammar, §9.16 Slice A/B) and the ABI-tier transcription (§9.16 Slice D) — all rule-6 gated per `D-CONNECTORS`.
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation
@@ -899,7 +899,7 @@ measure-first slice: it names the real anchors and splits the work, and implemen
 * **Slice B — interop error type** (type system). The decision makes the interop error a language
   type. Smallest measurable step: the type + its mapping to existing throws/catch; proof = a foreign
   error surfaces as that type and is never swallowed (R6). Touches the type system → compiler lane.
-* **Slice C — C-ABI connector, declarative half** (library-first, startable now). Compose the landed
+* **Slice C — C-ABI connector, declarative half** (library-first; **LANDED 29/09 as promoted slice 16**, `libs/interop/CAbiConnector.kf`). Compose the landed
   Core pieces into the official C connector profile: `ForeignModule` (library+symbols+ABI+ownership)
   + `InteropCost` (declared visible costs) + `InteropCompatibility` (stability tier)
   + `InteropLibrary` (`.so`/`.dylib`/`.dll`/`.a`/`.lib`); `describe()`/validation; runtime round-trip

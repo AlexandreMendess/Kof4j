@@ -2,7 +2,7 @@
 
 # DECISIONS — registro de decisões da linguagem
 
-**Última atualização:** 15/09/2026
+**Última atualização:** 30/09/2026
 **Mantenedora:** Mel Santos
 **Natureza:** registro normativo e histórico de decisões de arquitetura, semântica e evolução da linguagem.
 

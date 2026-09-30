@@ -675,7 +675,7 @@ ability genuinely does not exist on a target.
      concatenation, **zlib inflate** (DEFLATE: stored/fixed/dynamic Huffman)
      in pure Kof, per-scanline filters 0–4 (None/Sub/Up/Average/Paeth),
      de-palette (`PLTE`) and expand to the `Raster` channels.
-   - Proof: `PngDecodeE2ETest` (known-good PNG bytes → golden samples) on JVM +
+   - Proof: `RasterDecodeE2ETest#pngDecodesOnJvm` (known-good PNG bytes → golden samples) on JVM +
      Native x86-64 + riscv64 + Script; JS `IOJS001` (the library still uses
      `readRange`). No new gap: the decoder is target-independent.
    - Risk: inflate correctness; mitigate with a fixed/dynamic-block golden and

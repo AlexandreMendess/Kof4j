@@ -672,8 +672,9 @@ Antes de qualquer refatoração profunda, o caminho é:
    POUSADA; resultados em `docs/testing/TEST-PERFORMANCE.md`);
 2. identificar os 20 testes mais lentos (o profiler os ranqueia);
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
-   `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho aberto =
-   encolher `scripts/test-hygiene-baseline.txt` e regravar);
+   `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho =
+   encolher `scripts/test-hygiene-baseline.txt` via remoções quick-win — autoridade
+   atual = **132** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
@@ -693,9 +694,9 @@ Antes de qualquer refatoração profunda, o caminho é:
    mantidos) e `ComponentCoreSupport`/`ComponentCorePrograms` do `ComponentCoreE2ETest` (29/29
    mantidos) e `SemanticResolutionSupport`/`SemanticResolutionPrograms` do `SemanticResolutionTest`
    (30/30 mantidos) e `CmdDeploySupport` do `CmdDeployTest` (16/16 mantidos) → oversized 43→19,
-   baseline 170→146; a próxima divisão escolhe por um `--citations` fresco).
+   baseline 170→146 no estágio da Fase 3; o ratchet do harness continuou **146→132** na Fase 4
+   e está ESGOTADO — nenhuma nova divisão está na fila).
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); o profiling da Fase 1 + a descoberta/ratchet da Fase 2
-pousaram — o trabalho aberto são as remoções quick-win.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→19; ratchet do harness 146→132, zero pares idênticos restantes) — o único trabalho aberto é a Fase 5 (harness cross-target parametrizado por alvo), que precisa de decisão.

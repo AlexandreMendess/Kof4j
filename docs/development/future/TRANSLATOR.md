@@ -6,8 +6,9 @@
 > in the header; last code 6 days ago `84c48041`; maintainer's owner-without-IP=orphan
 > rule).
 
-**Status:** **DEPRIORITIZED by the maintainer (15/09) — moved back to
-`future/`. Not current work; promotion needs her explicit decision.** Code
+**Status:** **REOPENED by the maintainer (`D-DEPRIORITIZED-REOPEN`, 28/09 batch)** —
+still plan-only here; promotion to current work is one-at-a-time per
+`D-FUTURE-PROMOTION`. Code
 already in the repo stays (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
 `TranslateTest` 61/61) — only the *queue* stops here. Phase F
 implemented: `Translate.java` + `TranslateLexer`/`TranslateExpr`;

@@ -5,7 +5,7 @@
 **Status:** Future plan — design only, **zero code**
 **Location:** `docs/development/future/`
 **Nature:** architecture, contracts, API intent, dependencies, promotion criteria
-**Normative source:** pending `DECISIONS.md` §`D-TESTING-PLATFORM` (rule 6 — the maintainer decides)
+**Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface
 (`test`/`assert`), the per-target harness (`ConformanceMatrixTest`), `KofJsRunner`,
 `KofJsBrowserE2ETest`, the CLI, KofJS, the future KofWasm

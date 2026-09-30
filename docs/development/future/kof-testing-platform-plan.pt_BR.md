@@ -5,7 +5,7 @@
 **Status:** Plano futuro — só design, **zero código**
 **Local:** `docs/development/future/`
 **Natureza:** arquitetura, contratos, intenção de API, dependências, critérios de promoção
-**Fonte normativa:** `DECISIONS.md` §`D-TESTING-PLATFORM` pendente (regra 6 — a mantenedora decide)
+**Fonte normativa:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, autorizada — `D-FUTURE-BATCH-2809`/`B`); a promoção a trabalho corrente é uma-por-vez por `D-FUTURE-PROMOTION`
 **Dependências principais:** o comando `kof test` existente (`CmdTest`), a superfície de teste da
 linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJsRunner`,
 `KofJsBrowserE2ETest`, a CLI, KofJS, o futuro KofWasm

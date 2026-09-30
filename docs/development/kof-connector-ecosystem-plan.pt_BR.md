@@ -9,7 +9,7 @@
 **Dependências principais:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), o caminho de interop JVM
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, os backends Native, `kof.toml`/`kofdeps`
-**Estado de implementação:** fatia 1 = leitor de manifest de connector (pure-Kof `libs/interop/`) — ver §9
+**Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. Restam: as fatias de compilador (tipo de erro de interop + gramática `foreign module`, §9.16 Fatia A/B) e a transcrição dos tiers de ABI (§9.16 Fatia D) — todas gated pela regra 6 por `D-CONNECTORS`.
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de

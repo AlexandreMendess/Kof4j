@@ -4,10 +4,10 @@
 
 **Status:** proposal, zero code — `docs/development/future/`
 **Requested by:** maintainer (26/09/2026)
-**Rule 6 gate:** the declaration surface and the query surface proposed here are
-**design decisions**. Before any code, the maintainer locks a `DECISIONS.md`
-entry (`D-ENTITY-HISTORY`) with the chosen surface. This document is a
-proposal, not an authorization.
+**Rule 6 gate:** the declaration/query surfaces were **resolved** by the maintainer
+in `DECISIONS.md` §`D-ENTITY-HISTORY` (28/09, authorized; Q1–Q15 answered in
+`D-FUTURE-BATCH-2809B`). This document is the specification; promotion to
+current work is one-at-a-time per `D-FUTURE-PROMOTION`.
 **Snapshot:** branch `beta-0.5.0`, tip `12bacc39e`. Every `file:line` below was
 measured on that tip.
 

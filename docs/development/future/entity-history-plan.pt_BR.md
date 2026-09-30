@@ -4,10 +4,10 @@
 
 **Status:** proposta, zero código — `docs/development/future/`
 **Solicitado por:** mantenedora (26/09/2026)
-**Trava da regra 6:** a superfície de declaração e a superfície de consulta
-propostas aqui são **decisões de projeto**. Antes de qualquer código, a
-mantenedora trava uma entrada em `DECISIONS.md` (`D-ENTITY-HISTORY`) com a
-superfície escolhida. Este documento é uma proposta, não uma autorização.
+**Trava da regra 6:** as superfícies de declaração/consulta foram **resolvidas**
+pela mantenedora em `DECISIONS.md` §`D-ENTITY-HISTORY` (28/09, autorizada;
+Q1–Q15 respondidas em `D-FUTURE-BATCH-2809B`). Este documento é a especificação;
+a promoção a trabalho corrente é uma-por-vez por `D-FUTURE-PROMOTION`.
 **Snapshot:** branch `beta-0.5.0`, tip `12bacc39e`. Todo `file:line` abaixo foi
 medido nesse tip.
 
