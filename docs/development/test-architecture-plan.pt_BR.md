@@ -5,12 +5,14 @@
 **Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
 **Dono:** lane issues/tooling (esta sessão)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
-**Estado real (atualizado 28/09/2026, pós-ratchet):** a suíte são milhares de
+**Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, 132 chaves). **Fatia quick-win 1 (28/09):**
+`scripts/test-hygiene-baseline.txt`, **132 chaves, rc=0** — a medição de 30/09; a
+cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
+de doc, e o cluster `dupname` restante exige o harness da Fase 5). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -140,7 +142,11 @@ landada (29/09):** `SemanticResolutionSupport` (driver + oráculos SEM025/SEM050
 e o nome de classe citado ficaram) → oversized 21→20, baseline 148→147. **Vigésima quarta
 divisão landada (29/09):** `CmdDeploySupport` (16 métodos/records helper, extraídos) saídos do
 `CmdDeployTest` (os 16 casos e o nome de classe citado ficaram) → oversized 20→19, baseline
-147→146. A métrica é guia, não oráculo:
+147→146. **Vigésima quinta divisão landada (30/09):** `DomainGapParityMatrixTest` (o teste-ledger R6 +
+`repoRoot`/`GAP_CODE`, extraídos) saídos do `DomainGapCodesTest` (os 31 casos de comportamento e o
+nome de classe citado ficaram; 6 citações de doc do ledger moveram-se) — o arquivo tinha voltado a
+passar de 500 com os pinos de `zip`/`NAT008` de 30/09 → oversized 492, baseline 146 (inalterado; a
+classe não estava no baseline congelado). A métrica é guia, não oráculo:
 nomear candidatos nesta fila (e no `README`) já
 adiciona citações a uma classe, então **re-meça o `--citations` antes de escolher a próxima
 divisão**. Essa regra + ordem é o todo da Fase 3 traçado.
@@ -562,7 +568,11 @@ declaram; os topos atuais são `main` (32 classes), `assumeToolchain` (26), `cop
 `stopServer` (12), `jvmOracle` (12).
 
 Nota da Fase 3 (29/09): extração pura esgotada — **43 oversized → 19** em 24 divisões, todas com
-zero drift; o restante ou pertence a lane ativa ou exige mover testes (citation sweep).
+zero drift; o restante ou pertence a lane ativa ou exige mover testes (citation sweep). **Reaberta
+uma vez por regrowth (30/09):** o `DomainGapCodesTest` passou de 500 de novo com os pinos
+`zip`/`NAT008` — a contagem de chaves `oversized` 19→20 (uma chave NOVA, RED) — uma vigésima quinta
+extração pura (`DomainGapParityMatrixTest`, o ledger R6) devolveu-o a 492 → a contagem de volta a
+**19**.
 
 Criar infraestrutura oficial.
 
@@ -699,4 +709,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→19; ratchet do harness 146→132, zero pares idênticos restantes) — o único trabalho aberto é a Fase 5 (harness cross-target parametrizado por alvo), que precisa de decisão.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→132, zero pares idênticos restantes) — o único trabalho aberto é a Fase 5 (harness cross-target parametrizado por alvo), que precisa de decisão.

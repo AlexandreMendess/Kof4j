@@ -422,7 +422,7 @@ context, following `DiagnosticCollector` (`DiagnosticCollector.java:25-57`):
   per the chosen signature. This distinction is documented explicitly.
 
 Every new code must be added to `docs/backend-parity.md` (the R6 ledger checked
-by `DomainGapCodesTest.everyPinnedGapIsDocumentedInTheParityMatrix`), even
+by `DomainGapParityMatrixTest.everyPinnedGapIsDocumentedInTheParityMatrix`), even
 though v1 has no target gaps.
 
 ## 14. Integration checklist (files a promotion slice must touch)

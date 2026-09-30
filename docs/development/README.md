@@ -86,7 +86,7 @@ Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a ha
 |---|---|---|
 | ~~`PLATFORM-PLAN.md`~~ → `DECISIONS.md` §D-PLATFORM (dead) | F1–3/8/9 with code | F1 by the manifest; F4/F5→KOFUI-AUDIT/stdlib-web; F6 wasm/F7 android→D-APP Q7/Q10; F9→conformance-matrix |
 | ~~`APPLICATION_MODEL.md`~~ → `DECISIONS.md` §D-APP (Q1–Q10 locked) | `application { onStart/onShutdown }` ✅; I2 ✅ `FullStackE2ETest` | `CmdNew` (I1), I3 (`--fat`), System/distributed — queue |
-| ~~`LEGACY_MIGRATION.md` + `DECOMPILER.md` + `TRANSLATOR.md`~~ → **`future/` (DEPRIORITIZED 15/09)** | code stays: `inspect/decompile/translate/compare/migrate`; **not current work — promotion needs explicit decision**; live count = `roadmap.md` §23 TIER 3–5 | coverage: opaque switch/athrow, `inspect --java`, IR non-JVM |
+| ~~`LEGACY_MIGRATION.md` + `DECOMPILER.md` + `TRANSLATOR.md`~~ → **`future/` (DEPRIORITIZED 15/09, REOPENED 28/09)** | code stays: `inspect/decompile/translate/compare/migrate`; **REOPENED by `D-DEPRIORITIZED-REOPEN` (28/09 batch) but still plan-only in `future/` — promotion is one-at-a-time per `D-FUTURE-PROMOTION`**; live count = `roadmap.md` §23 TIER 3–5 | coverage: opaque switch/athrow, `inspect --java`, IR non-JVM |
 | ~~`IMPLEMENTATION_PLAN.md` / `ACTION_PLAN.md`~~ → `roadmap.md` §23 | **MERGED 13/09** | §23 is the single plan; tiers 6–12 = `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` |
 | ~~`PLANNING-FUTURE-AUDIT.md` / `planning-future-reconcile.md`~~ → `docs/audits/` | comparison branch closed 13/09 | — (outside `development/`) |
 | ~~`planning-finally-return.md`~~ → `docs/decisions/DD-01-finally-return.md` | CLOSED 13/09 | — |
@@ -125,7 +125,7 @@ Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a ha
 | ~~`scoped-resources-plan.md`~~ → CONCLUDED + moved to `docs/scoped-resources-plan.md` 28/09 | CLOSED 28/09 (`D-SCOPED-RESOURCES-GO`; `UsingDesugarE2ETest` 18/18) |
 | ~~`PLAN-BAREMETAL-BOOT.md`~~ → promoted 22/09, CONCLUDED + moved to `docs/PLAN-BAREMETAL-BOOT.md` 25/09 | CLOSED 25/09 (`D-BAREMETAL-BOOT`; `D-BAREMETAL-MCU-GC` closed B-4 on riscv32) |
 | `PLAN-BOOTSTRAP.md` (the Bootstrapper: Kof in Kof — **north star**, `D-BOOTSTRAP`) | 1.0 EXIT GATE closed + entry conditions E1–E6 |
-| `DECOMPILER.md`, `TRANSLATOR.md`, `LEGACY_MIGRATION.md` (legacy migration) | back here 15/09 — DEPRIORITIZED; promotion needs explicit decision |
+| `DECOMPILER.md`, `TRANSLATOR.md`, `LEGACY_MIGRATION.md` (legacy migration) | back here 15/09 — DEPRIORITIZED, then **REOPENED 28/09 (`D-DEPRIORITIZED-REOPEN`)**; still plan-only, promotion one-at-a-time per `D-FUTURE-PROMOTION` |
 
 *(DD-STDLIB-01 `planning-stdlib-array-returns.md` left `future/` 13/09 → `docs/stdlib/DD-STDLIB-01-array-returns.md`. Historical moves 12/09: 13 docs fell from `future/` to here; SG snapshot 08/09 → `docs/history/`.)*
 

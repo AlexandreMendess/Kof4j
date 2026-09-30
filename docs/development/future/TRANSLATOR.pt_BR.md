@@ -1,6 +1,6 @@
 [English](TRANSLATOR.md) | [Português](TRANSLATOR.pt_BR.md)
 
-# TRANSLATOR.md — Tradutor Kof (DESPRIORIZADO 15/09 — de volta a future/)
+# TRANSLATOR.md — Tradutor Kof (DESPRIORIZADO 15/09 → REABERTO 28/09, ainda em future/)
 
 > **Dono:** 192.168.100.22 (reivindicado 13/09 ~10:05 — órfão: sem dono com IP
 > no header; último código há 6 dias `84c48041`; regra dono-sem-IP=órfão da

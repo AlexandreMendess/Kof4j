@@ -2,12 +2,7 @@ package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import java.io.IOException;
 import java.nio.file.*;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -16,15 +11,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * Each case pins a row of {@code docs/backend-parity.md} (Documented Gaps).
  * Measured on the CLI 17/09; this keeps the matrix honest.
  *
- * {@link #everyPinnedGapIsDocumentedInTheParityMatrix()} closes the other
- * direction: any code this guard proves the compiler EMITS must also be in the
- * matrix (R6); the ledger is derived from this file's own {@code assertGap}
- * calls, so a new pin cannot be added without documenting it.
+ * {@link DomainGapParityMatrixTest#everyPinnedGapIsDocumentedInTheParityMatrix()}
+ * closes the other direction: any code this guard proves the compiler EMITS must
+ * also be in the matrix (R6); the ledger is derived from this file's own
+ * {@code assertGap} calls, so a new pin cannot be added without documenting it.
  */
 class DomainGapCodesTest extends DomainGapPrograms {
     private final CompilerDriver driver = new CompilerDriver();
-
-    private static final Pattern GAP_CODE = Pattern.compile("\"([A-Z]{2,6}[0-9]{3})\"");
 
     @Test
     void processRunOnNativeCompiles(@TempDir Path tmp) throws Exception {
@@ -472,13 +465,6 @@ class DomainGapCodesTest extends DomainGapPrograms {
                 + rg.diagnostics().getDiagnostics());
     }
 
-    /**
-     * R6 machine gate (mirrors the R1 boundary gate): every gap code this
-     * guard pins — i.e. every code the compiler is proven to emit for a
-     * domain namespace — must appear in {@code docs/backend-parity.md}. The
-     * ledger is read from this file's own {@code assertGap} calls, so the
-     * check cannot rot: adding a pin without a matrix row fails here.
-     */
     @Test
     void externalStaticFieldOnNonJvmBackedTargetsIsInterop003(@TempDir Path tmp) throws Exception {
         assertGap(tmp, Target.JS, "INTEROP003", """
@@ -491,33 +477,6 @@ class DomainGapCodesTest extends DomainGapPrograms {
                 println(Integer.MAX_VALUE)
             }
             """);
-    }
-
-    @Test
-    void everyPinnedGapIsDocumentedInTheParityMatrix() throws IOException {
-        Path root = repoRoot();
-        Set<String> pinned = new LinkedHashSet<>();
-        Matcher m = GAP_CODE.matcher(Files.readString(root.resolve(
-                "kof-compiler/src/test/java/dev/kof/compiler/DomainGapCodesTest.java")));
-        while (m.find()) pinned.add(m.group(1));
-        assertFalse(pinned.isEmpty(), "no gap codes found in this guard's assertGap calls");
-
-        String matrix = Files.readString(root.resolve("docs/backend-parity.md"));
-        for (String code : pinned) {
-            assertTrue(matrix.contains(code),
-                    "gap " + code + " is pinned by this guard (the compiler emits it) "
-                            + "but has no entry in docs/backend-parity.md (R6)");
-        }
-    }
-
-    /** Repo root, found by walking up to the parity matrix (same as
-     *  {@code ConformanceMatrixDocTest}). */
-    private static Path repoRoot() {
-        Path p = Path.of(System.getProperty("user.dir")).toAbsolutePath();
-        for (int i = 0; i < 6 && p != null; i++, p = p.getParent()) {
-            if (Files.exists(p.resolve("docs/backend-parity.md"))) return p;
-        }
-        throw new IllegalStateException("backend-parity.md not found from " + p);
     }
 
     private void assertGap(Path tmp, Target target, String code, String source)
