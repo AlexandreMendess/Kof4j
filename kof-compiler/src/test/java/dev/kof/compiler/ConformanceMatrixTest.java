@@ -295,9 +295,11 @@ class ConformanceMatrixTest {
         // §104 (paridade absoluta): record DENTRO de coleção usa equals/
         // hashCode/toString por CONTEÚDO (oracle = JVM, registro real gera os
         // 3). Script era identidade (KofObj sem override → §104a CORRIGIDO
-        // 11/09); Native LINK_FAIL em Thing.equals (Object.equals herdado sem
-        // slot na vtable → §104b ABERTO, célula excluída); JS usa identidade
-        // (Map/HashSet nativos + sem wrapper → §104c ABERTO, excluído).
+        // 11/09); JS era identidade (Map/HashSet nativos → §104c CORRIGIDO
+        // 11/09); Native era LINK_FAIL em Thing.equals (Object.equals herdado
+        // sem slot na vtable → §104b-i FIXED 11/09, §104b-ii CLOSED 24/09 —
+        // record-em-coleção por conteúdo nos 3 nativos). Os 4 alvos entram na
+        // asserção.
         matrix("objmethods", """
                 record Point(Int x, Int y)
                 main() {
@@ -308,7 +310,7 @@ class ConformanceMatrixTest {
                     println(mapOf(p1, 7).get(p2))
                     println(listOf(p1))
                 }
-                """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of("native"), tempDir);
+                """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of(), tempDir);
         // §107-JS (paridade absoluta): `println(coleção)` no JS dava
         // "1,2" (Array.toString sem colchetes) / "[object Map]" / "[object
         // Set]" — sem o formato do contêiner JVM ([1, 2] / {k=1}). kofFormat
@@ -318,13 +320,14 @@ class ConformanceMatrixTest {
         // §107 (Native, CORRIGIDO 12/09 p/ escalares): o println(<coleção>)
         // nativo imprimia LIXO de ponteiro; agora kof_{list,set,map}_to_string
         // (x86 f3b3821c + cross B39) reproduzem o formato JVM p/ elementos
-        // escalares. A célula CONTINUA com native excluído porque os golden
-        // aqui exigem o que os nativos ainda NÃO têm: (a) record-em-lista →
-        // os nativos dão `?` (recusa honesta, cara do §104b-ii — face dos
-        // records, lane alheia), (b) `listOf(1.5, 2.25)` → o cross levanta
-        // FLT001 em compilação (recusa honesta, R6). Escalares int/string/
-        // bool/long/char aninhado=`?`/Map-single estão provados por exec
-        // em NativeE2ETest#execCollectionPrintMatchesJvmGolden +
+        // escalares; o record/nested print x86 foi fechado 19/09 (§107, descritor
+        // recursivo) e o record-em-lista por conteúdo pelo §104b-ii (CLOSED
+        // 24/09) — a célula x86 entra na asserção. O cross riscv64/aarch64
+        // ainda dá `?` p/ record-em-lista (catalogado §107) e levanta FLT001
+        // no `listOf(1.5, 2.25)` — cobertos pelas próprias baterias cross, não
+        // por esta célula x86 (matrix->runNative usa Target.NATIVE). Escalares
+        // int/string/bool/long/char aninhado=`?`/Map-single seguem provados por
+        // exec em NativeE2ETest#execCollectionPrintMatchesJvmGolden +
         // Native{Riscv64,Aarch64}E2ETest#nativeCollectionPrintMatchesJvmGolden
         // (golden = oracle JVM medido, byte-idêntico nos 3 targets nativos).
         // §388-B (voto da mantenedora 21/09): array CRU segue a mesma gramática
@@ -360,7 +363,7 @@ class ConformanceMatrixTest {
                     println(listOf(listOf(1), listOf(2)))
                 }
                 """, "[1, 2]\n[a, b]\n[1.5, 2.25]\n{k=1}\n[1]\n[Point[x=1, y=2], Point[x=3, y=4]]\n[[1], [2]]",
-                Set.of("native"), tempDir);
+                Set.of(), tempDir);
 
         // §109 (paridade absoluta + JVM CRASH): mapOf(k, <primitivo>) e o
         // GUARD do kof_map_get (Nullable(V) primitivo) chamavam
@@ -412,8 +415,10 @@ class ConformanceMatrixTest {
         // (Commits A-D do #278) o contrato é Absent|Present(T) de verdade
         // nos 3 alvos JVM/Script/JS — `return null`, ramo null de if/switch
         // (`en`/`bn`/`v`), `== null` e concatenação de String todos
-        // preservam null genuíno em vez do fold. Native fica de fora (fase
-        // 2 do rollout, DECISIONS.md — representação antiga preservada lá).
+        // preservam null genuíno em vez do fold. Native foi migrado para a
+        // MESMA representação boxed (D-NULL-INTENT fila item 2, decisão 23/09
+        // + fatias N2–N4, §259/§361; prova `NativeNullablePrimitiveContract
+        // E2ETest`) — a exclusão `Set.of("native")` era da fase 2, hoje stale.
         matrix("nullableprint", """
                 Int? ni() { return null }
                 Troolean nb() { return null }
@@ -442,7 +447,7 @@ class ConformanceMatrixTest {
                     println(ni() + "b")
                 }
                  """, "null\nnull\nnull\n6\ntrue\ntrue\ntrue\ntrue\ntrue\n7\nnull\nnull\nnull\nanull\nnullb",
-                Set.of("native"), tempDir);
+                Set.of(), tempDir);
 
         // §143 (B1, 12/09): widening numérico ABENÇOADO pelo §126 ("Int em
         // Long passa") em escrita de coleção PINADA dava VerifyError/CCE no
@@ -505,8 +510,8 @@ class ConformanceMatrixTest {
         // **SIGSEGV** em `m.remove(chave-ausente)`) — 5 pops simétricos.
         // D-NULL-INTENT (#278, 18/09): supersede o `emitPrevValueUnbox`/
         // `prevOrDefault` do §112 acima — `m.remove("zz")` (chave ausente)
-        // agora devolve null genuíno em JVM/Script/JS, não o default do
-        // primitivo. Set.of("native") = fase 2 do rollout, DECISIONS.md.
+        // agora devolve null genuíno nos 4 alvos (Native migrado na fase 2,
+        // D-NULL-INTENT fila item 2, 23/09 — §304/§284-map).
         matrix("mapmutret", """
                 main() {
                     var s = setOf(1, 2)
@@ -522,7 +527,7 @@ class ConformanceMatrixTest {
                     println(m.remove("zz"))
                     println(m.size)
                 }
-                """, "false\ntrue\n3\ntrue\nfalse\n1\n2\n2\nnull\n0", Set.of("native"), tempDir);
+                """, "false\ntrue\n3\ntrue\nfalse\n1\n2\n2\nnull\n0", Set.of(), tempDir);
         // §104b-i (Native): `Thing.equals(...)` em classe NÂO-record dava
         // LINK_FAIL (Object.equals herdado sem símbolo no bare-metal).
         // Síntese de equals de identidade → oracle JVM (false entre
@@ -1361,10 +1366,9 @@ class ConformanceMatrixTest {
                 }
                 """, "um\ndois\n2\num\nnull", Set.of(), tempDir);
         // D-NULL-INTENT/I7 (#278): `n.get(5)` (chave errada, Map<String,Int>)
-        // agora preserva ausência de verdade (null) em JVM/Script/JS —
-        // supersede o fold null->default do primitivo (§125/SG-008 antigo).
-        // Native ainda não foi migrado para a representação boxed (fase 2
-        // da fila D-NULL-INTENT em DECISIONS.md) — continua no default "0".
+        // preserva ausência de verdade (null) nos 4 alvos — supersede o fold
+        // null->default do primitivo (§125/SG-008 antigo). Native migrado na
+        // fase 2 (D-NULL-INTENT fila item 2, 23/09; §304 CLOSED 18/09).
         matrix("wrongkey", """
                 main() {
                     var m = mapOf(1, "a")
@@ -1376,7 +1380,7 @@ class ConformanceMatrixTest {
                     var n = mapOf("a", 1)
                     println(n.get(5))
                 }
-                """, "null\nfalse\nfalse\nnull", Set.of("native"), tempDir);
+                """, "null\nfalse\nfalse\nnull", Set.of(), tempDir);
         matrix("emptylist", """
                 main() {
                     var l = listOf()
