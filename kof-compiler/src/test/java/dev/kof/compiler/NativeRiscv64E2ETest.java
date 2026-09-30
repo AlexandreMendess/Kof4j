@@ -558,6 +558,23 @@ class NativeRiscv64E2ETest {
         assertTrue(lines.contains("fim"), "main não bloqueia no spawn: " + lines);
     }
 
+    // §545: um worker de `spawn` que chama um `extern` precisa de `tp` válido
+    // (TLS da libc). Antes do fix o clone cru começava com tls=0 → SIGSEGV no
+    // primeiro acesso TLS/PLT (`-1888(tp)`). Regressão: sem fallback, worker
+    // chama abs() e o resultado dobra. aarch64 tem o gêmeo em NativeAarch64.
+    @Test
+    void riscv64SpawnExtern(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            extern "libc.so.6" abs(Int x): Int
+            main() {
+                val r = spawn { return abs(-5) + abs(3) }
+                println(await r)
+            }
+            """);
+        assertEquals("8", out);
+    }
+
     // NATIVE002-stdlib: métodos String riscv64 (trim/toUpper/toLowerCase/
     // replace char+String/lastIndexOf/equalsIgnoreCase/split) — antes
     // quebriam no link com undefined reference (R6: nunca silencioso).

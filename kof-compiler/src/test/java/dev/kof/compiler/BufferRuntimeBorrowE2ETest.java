@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -152,16 +151,12 @@ class BufferRuntimeBorrowE2ETest {
         assertEquals("2\n[9, 0]", o, "x86-64 golden (borrow acquire/release + payload untouched)");
     }
 
-    @Disabled("blocked by known-bugs §545: any `spawn` worker calling an extern SIGSEGVs on cross "
-            + "riscv64/aarch64 because the raw clone starts the worker with tls=0 (tp invalid). "
-            + "The negative race needs two concurrent extern writers, so it cannot run until the "
-            + "native/cross lane fixes §545. The primitive itself is proven by the positive cross "
-            + "control and by the preemptive x86-64 negative.")
     @Test
     void concurrentBufferBorrowRaisesMem020Cross(@TempDir Path dir) throws Exception {
         // D-MEM030-BORROW-RUNTIME: cross riscv64/aarch64 são preemptivos
         // (pthread), então a corrida negativa é real aqui; o barriered_write C
-        // torna-a determinística sob qemu. BLOQUEADO por §545 (spawn × extern).
+        // torna-a determinística sob qemu. Desbloqueado por §545 (spawn ×
+        // extern: o worker de clone cru agora ganha tp via _dl_allocate_tls).
         for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
             String arch = a[0];
             Target t = Target.valueOf(a[1]);
