@@ -118,17 +118,11 @@ public final class StatementAnalyzer {
                     Type viaImports = MemberResolver.qualifyViaImports(sa.unit(), vds.type(),
                             sa.externalTypes());
                     varType = viaImports != null ? viaImports : Type.of(vds.type());
-                    // #639 face 2 (D-DECISION-BATCH-2709B): anotação com caminho
-                    // qualificado `pkg.Type` (topo ou dentro de genéricos
-                    // `List<pkg.Type>`). qualifyDeep separa o pacote do nome
-                    // simples recursivamente.
-                    // #690: e SEMPRE (não só quando há '.') — o TYPE-ARG de nome
-                    // simples do próprio pacote/módulo (`List<Rotulo>`) ficava
-                    // ClassType("", "Rotulo") enquanto `listOf<Rotulo>()`/`new
-                    // List<Rotulo>()` resolviam para "dominio.Rotulo" → SEM021
-                    // espúrio na atribuição. Idempotente: nomes já resolvidos e
-                    // builtins não são tocados; o import externo (inclusive
-                    // wildcard) já veio acima.
+                    // #639/#697: qualifyDeep separa `pkg.Type` e resolve o
+                    // type-arg de nome simples do próprio pacote (`List<Rotulo>`
+                    // -> "dominio.Rotulo"), SEMPRE — antes só rodava com '.', o
+                    // arg ficava ClassType("", "Rotulo") e divergia de
+                    // `listOf<Rotulo>()` -> SEM021 espúrio. Idempotente.
                     varType = CompilerTypes.qualifyDeep(varType, sa.unit(), sa);
                     // §249: tipo explícito que não resolve para NENHUM tipo
                     // conhecido era aceito em silêncio (`Foo x`/`s length` viravam

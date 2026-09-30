@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * #690 — the type-argument of an explicit generic was not resolved to the
+ * #697 — the type-argument of an explicit generic was not resolved to the
  * package-qualified type in two places:
  *
  * <ul>

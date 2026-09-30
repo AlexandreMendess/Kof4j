@@ -581,13 +581,18 @@ diretório (`Directory(base).list()`) e expõe `count`/`names`/`find`/`has`; ent
 ignoradas, e um manifest malformado lança seu próprio diagnóstico explícito (nunca um skip
 silencioso). Sobre o `Directory` do `kof.io`; JS herda a lacuna `IOJS001`.
 
-**Achado medido (compilador/generics — bug candidato, não desta lane):** uma coleção genérica de um
-tipo da biblioteca no MESMO pacote não tipa: `var xs = new List<ConnectorManifest>()` (e o qualificado
-`new List<interop.ConnectorManifest>()`) dá `SEM012` — o tipo do elemento degrada para pacote vazio /
-nome pontuado literal e não atribui a `List<ConnectorManifest>`. O catálogo contorna guardando os
-CAMINHOS dos manifests (`List<String>`) e construindo o manifest sob demanda no `find`. Uma API
-pública `all(): List<ConnectorManifest>` fica bloqueada até isso ser corrigido; catalogado para a
-lane compilador/generics.
+**Achado medido (compilador/generics — CORRIGIDO no #697):** uma coleção genérica de um tipo da
+biblioteca no MESMO pacote não tipava quando a anotação declarada estava presente:
+`List<interop.ConnectorManifest> xs = new List<interop.ConnectorManifest>()` e
+`List<ConnectorManifest> xs = listOf<ConnectorManifest>()` davam `SEM021` espúrio ("type mismatch") —
+o type-argument degradava para pacote vazio / nome pontuado literal
+(`ClassType("", "interop.ConnectorManifest")`) enquanto o outro lado era qualificado pelo pacote.
+Causa-raiz: o `SemNewExprTyper` aplicava o `Type::of` (só-texto) aos type-args de um ctor de coleção
+builtin, e o tipo declarado do `VarDeclStmt` só passava por `qualifyDeep` quando continha `'.'`.
+Ambos agora passam pela qualificação ciente do analisador (#697, issue 697; prova
+`SamePackageGenericArgTest` matriz de 6 formas + golden JVM). O catálogo manteve o workaround
+`List<String>` durante a lacuna; a API pública `all(): List<ConnectorManifest>` não está mais
+bloqueada.
 
 ---
 

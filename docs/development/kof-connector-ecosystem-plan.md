@@ -576,13 +576,17 @@ directory (`Directory(base).list()`) and exposes `count`/`names`/`find`/`has`; n
 ignored, and a malformed manifest throws its own explicit diagnostic (never a silent skip). Built on
 `kof.io` `Directory`; JS inherits the `IOJS001` gap.
 
-**Measured finding (compiler/generics — candidate bug, not this lane):** a generic collection of a
-library type in the SAME package fails to type: `var xs = new List<ConnectorManifest>()` (and the
-qualified `new List<interop.ConnectorManifest>()`) yields `SEM012` — the value's element type
-degrades to an empty-package / literal-dotted name and cannot be assigned to `List<ConnectorManifest>`.
-The catalogue works around it by keeping manifest PATHS (`List<String>`) and constructing the
-manifest on demand in `find`. A redeclaration-style public API (`all(): List<ConnectorManifest>`) is
-blocked until that is fixed; catalogued for the compiler/generics lane.
+**Measured finding (compiler/generics — FIXED in #697):** a generic collection of a library type in
+the SAME package failed to type when the declared annotation was present: `List<interop.ConnectorManifest>
+xs = new List<interop.ConnectorManifest>()` and `List<ConnectorManifest> xs = listOf<ConnectorManifest>()`
+yielded a spurious `SEM021` ("type mismatch") — the type-argument degraded to an empty-package /
+literal-dotted name (`ClassType("", "interop.ConnectorManifest")`) while the other side was
+package-qualified. Root cause: `SemNewExprTyper` applied the text-only `Type::of` to a builtin
+collection ctor's type-args, and the `VarDeclStmt` declared type was only `qualifyDeep`-ed when it
+contained a `'.'`. Both now route through the analyzer-aware qualification (#697, issue 697; proof
+`SamePackageGenericArgTest` 6-shape matrix + JVM golden). The catalogue kept the `List<String>`
+workaround during the gap; the redeclaration-style public API (`all(): List<ConnectorManifest>`) is
+no longer blocked.
 
 ---
 
