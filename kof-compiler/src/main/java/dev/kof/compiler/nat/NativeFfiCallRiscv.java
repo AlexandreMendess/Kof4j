@@ -37,12 +37,19 @@ final class NativeFfiCallRiscv {
         char[] cls = new char[n];
         boolean[] isStruct = new boolean[n];
         boolean[] isBuf = new boolean[n];
+        boolean[] isArray = new boolean[n];
+        char[] arrayElem = new char[n];
         Type[] structTypes = new Type[n];
         for (int i = 0; i < n; i++) {
             Type pt = kc.parameterTypes().get(i);
             if (FfiStructLayout.isStructType(pt)) {
                 isStruct[i] = true;
                 structTypes[i] = pt;
+            } else if (FfiStructLayout.isArrayPtr(pt)) {
+                // D-MEM-FFI-CROSS-FULL: array escalar `T[]`→ptr (copy-in por
+                // chamada, pack em `kof_ffi_pack_array` riscv).
+                isArray[i] = true;
+                arrayElem[i] = FfiStructLayout.arrayPtrElem(pt);
             } else if (FfiStructLayout.isBufferPtr(pt)) {
                 // #651 fatia B: Buffer(U8) → ponteiro do payload (obj+24), NULL→NULL
                 // (mesma forma do String/'S' abaixo; o buffer cross é memória
@@ -65,6 +72,8 @@ final class NativeFfiCallRiscv {
                 int w = FfiStructLayout.crossWords(structTypes[i]);
                 sOrd[i] = new int[w];
                 for (int e = 0; e < w; e++) sOrd[i][e] = nInt++;
+            } else if (isArray[i]) {
+                ord[i] = nInt++;   // T[]→ptr: um ponteiro INTEGER (D-MEM-FFI-CROSS-FULL)
             } else if (isFloatClass(cls[i])) {
                 ord[i] = nFlt++;
             } else {
@@ -73,6 +82,17 @@ final class NativeFfiCallRiscv {
         }
         int ns = (nInt > 8 ? nInt - 8 : 0) + (nFlt > 8 ? nFlt - 8 : 0);
         int seq = nb.inlineSeq++;
+        // 0a) D-MEM-FFI-CROSS-FULL: arrays `T[]`→`ptr` são empacotados (copy-in)
+        //     num buffer C próprio e o PONTEIRO substitui o objeto no bloco (o
+        //     slot é relido no passo 1). O call do helper clobbera a0-a7, por
+        //     isso corre ANTES de carregar os registradores de argumento.
+        for (int i = 0; i < n; i++) {
+            if (!isArray[i]) continue;
+            sb.append("    ld a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
+            sb.append("    li a1, ").append(NativeFfiCall.arrayElemSize(arrayElem[i])).append("\n");
+            sb.append("    call kof_ffi_pack_array\n");
+            sb.append("    sd a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
+        }
         // 0) D-MEM030-BORROW-RUNTIME (B-03): cada `Buffer(U8)` INOUT adquire um
         //    borrow gravável exclusivo ANTES de consumir o bloco (o acquire é um
         //    call e clobbera t0..t6; aqui só `sp`/bloco são estado, intactos).
@@ -275,6 +295,54 @@ final class NativeFfiCallRiscv {
         sb.append("    addi sp, sp, ").append(8 * words).append("\n");
         sb.append("    addi sp, sp, -8\n");
         sb.append("    sd t3, 0(sp)\n");
+    }
+
+    /**
+     * D-MEM-FFI-CROSS-FULL: empacota um array Kof de escalares num buffer C
+     * contíguo (copy-in por chamada; o array Kof nunca é mutado pela C). Port
+     * do {@code emitX86ArrayPackHelper} para o cross. {@code a0} = objeto array,
+     * {@code a1} = tamanho do elemento em bytes; retorno {@code a0} = buffer
+     * ({@code kof_alloc}, ponteiro do payload). Layout Kof do array: len em
+     * 16(obj), payload em 24. Definido uma vez por programa quando um extern
+     * recebe array; o aarch64 o recebe por tradução linha-a-linha (todas as
+     * instruções cobertas: ld/lw/sd/mv/add/addi/mul/beqz/j/call/ret).
+     */
+    static void emitRiscvArrayPackHelper(StringBuilder sb) {
+        sb.append("""
+                .globl kof_ffi_pack_array
+                .type kof_ffi_pack_array, @function
+                kof_ffi_pack_array:
+                    addi sp, sp, -48
+                    sd   ra, 40(sp)
+                    sd   s0, 32(sp)
+                    sd   s1, 24(sp)
+                    sd   s2, 16(sp)
+                    sd   s3, 8(sp)
+                    mv   s0, a0              # objeto array
+                    mv   s2, a1              # tamanho do elemento
+                    lw   s1, 16(s0)          # len (32-bit, como o x86)
+                    mul  t0, s1, s2          # bytes = len * elemsize
+                    bnez t0, .Lfpa_alloc
+                    li   t0, 8               # alocação mínima (≠0)
+                .Lfpa_alloc:
+                    mv   a0, t0
+                    call kof_alloc
+                    mv   s3, a0              # dst (kof_memcpy avança a0)
+                    mul  a2, s1, s2
+                    beqz a2, .Lfpa_done
+                    mv   a0, s3
+                    addi a1, s0, 24          # src = payload do array Kof
+                    call kof_memcpy
+                .Lfpa_done:
+                    mv   a0, s3
+                    ld   s3, 8(sp)
+                    ld   s2, 16(sp)
+                    ld   s1, 24(sp)
+                    ld   s0, 32(sp)
+                    ld   ra, 40(sp)
+                    addi sp, sp, 48
+                    ret
+                """);
     }
 
     /** Helper char*→String no cross: strlen + kof_string_from_literal (copia

@@ -482,7 +482,7 @@ final class NativeFfiCall {
 
     /** Largura (bytes) do elemento de um array escalar — igual à largura C do
      *  char ('b'→1, 'i'/'f'→4, 'j'/'d'→8), então o pack é um memcpy direto. */
-    private static int arrayElemSize(char elem) {
+    static int arrayElemSize(char elem) {
         return switch (elem) {
             case 'b' -> 1;
             case 'i', 'f' -> 4;

@@ -155,9 +155,9 @@ class FfiNativeArrayE2ETest {
     }
 
     @Test
-    void stringArrayAndCrossArrayStayFfi001(@TempDir Path dir) throws IOException {
-        // `String[]` é array de ponteiros (distinto do copy-in escalar) e o
-        // cross ainda não tem o pack — ambos seguem FFI001 honesto (R6).
+    void stringArrayStaysFfi001NativeAndCross(@TempDir Path dir) throws IOException {
+        // `String[]` é array de ponteiros (distinto do copy-in escalar) — segue
+        // FFI001 honesto no Native x86-64 e no cross (R6).
         Path str = dir.resolve("StringArray.kf");
         Files.writeString(str, """
                 extern "libc.so.6" probe(String[] xs, Long n): Int
@@ -168,14 +168,86 @@ class FfiNativeArrayE2ETest {
         assertTrue(rs.diagnostics().getDiagnostics().toString().contains("FFI001"),
                 "String[] → FFI001 honesto: " + rs.diagnostics().getDiagnostics());
 
-        Path cross = dir.resolve("CrossArray.kf");
-        Files.writeString(cross, """
-                extern "libc.so.6" probe(Long[] xs, Long n): Long
-                main() { println("gap") }
-                """);
-        CompilationResult rc = driver.compile(cross, dir.resolve("out-cross"), Target.NATIVE_RISCV64);
-        assertFalse(rc.success(), "array no cross não pode virar silêncio");
+        CompilationResult rc = driver.compile(str, dir.resolve("out-str-cross"), Target.NATIVE_RISCV64);
+        assertFalse(rc.success(), "String[] não pode virar silêncio no cross");
         assertTrue(rc.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "array cross → FFI001 honesto: " + rc.diagnostics().getDiagnostics());
+                "String[] cross → FFI001 honesto: " + rc.diagnostics().getDiagnostics());
+    }
+
+    /**
+     * D-MEM-FFI-CROSS-FULL (30/09): array escalar {@code T[]}→C {@code ptr} no
+     * cross riscv64/aarch64, com copy-in por chamada. A MESMA fixture C
+     * (suml/sumd/sumi/sumf/sumb) é cross-compilada; o Oráculo JVM (FFM) roda o
+     * MESMO fonte e a saída é byte-a-byte igual (regra 5). Cobre os 5 elementos
+     * (Bool 1 B, Int/Float 4 B, Long/Double 8 B). Sem toolchain → skip honesto.
+     */
+    @Test
+    void scalarArrayCrossBindsAndMatchesJvm(@TempDir Path dir) throws Exception {
+        for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
+            String arch = a[0];
+            Target t = Target.valueOf(a[1]);
+            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            String hostSo = buildHostLib(dir);
+            String crossSo = compileCrossLib(dir, arch);
+
+            Path jvmSrc = dir.resolve("ffiarray-jvm-" + arch + ".kf");
+            Files.writeString(jvmSrc, KOF.formatted(hostSo));
+            CompilationResult rj = driver.compile(jvmSrc, dir.resolve("out-ffiarray-jvm-" + arch), Target.JVM);
+            assertTrue(rj.success(), "JVM compile: " + rj.diagnostics().getDiagnostics());
+            assertEquals(GOLDEN, runJvm(dir.resolve("out-ffiarray-jvm-" + arch)),
+                    "oráculo JVM (mesma fixture) deve concordar byte-a-byte (regra 5)");
+
+            Path src = dir.resolve("ffiarray-" + arch + ".kf");
+            Files.writeString(src, KOF.formatted(crossSo));
+            Path out = dir.resolve("out-ffiarray-" + arch);
+            CompilationResult rc = driver.compile(src, out, t);
+            assertTrue(rc.success(), "D-MEM-FFI-CROSS-FULL: scalar array extern must bind on "
+                    + arch + ": " + rc.diagnostics().getDiagnostics());
+            assertEquals(GOLDEN, runQemu(dir, arch, out.resolve("Default/Main")),
+                    "JVM==" + arch + " (scalar array cross copy-in)");
+        }
+    }
+
+    private static String compileCrossLib(Path dir, String arch) throws IOException, InterruptedException {
+        Path c = dir.resolve("libkofarray-" + arch + ".c");
+        Files.writeString(c, C_SRC);
+        Path so = dir.resolve("libkofarray-" + arch + ".so");
+        String cc = arch + "-linux-gnu-gcc";
+        Process p = new ProcessBuilder(cc, "-shared", "-fPIC", "-O2",
+                "-o", so.toString(), c.toString()).redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes());
+        assumeTrue(p.waitFor(60, TimeUnit.SECONDS) && p.exitValue() == 0,
+                cc + " falhou ao compilar a fixture cross: " + out);
+        return so.toString();
+    }
+
+    private static String runQemu(Path dir, String arch, Path bin) throws IOException, InterruptedException {
+        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
+        pb.environment().put("LD_LIBRARY_PATH", dir.toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertTrue(p.waitFor(60, TimeUnit.SECONDS), arch + " must finish");
+        assertEquals(0, p.exitValue(), arch + " exit, output: " + o);
+        return o;
+    }
+
+    private String runJvm(Path outDir) throws IOException {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                    "--enable-native-access=ALL-UNNAMED", "-cp", outDir.toString(), "Default.Main");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n");
+            assertEquals(0, p.waitFor(), () -> "JVM run exit code, output: " + o);
+            return o.trim();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted", e);
+        }
     }
 }

@@ -144,6 +144,7 @@ final class NativeArchEmitter {
         // no texto do PROGRAMA (a poda só alcança o blob do runtime), em
         // plena seção .text; o aarch64 o recebe pela tradução linha-a-linha.
         if (nb.ffiUsesCstr) NativeFfiCallRiscv.emitRiscvCstrHelper(sb);
+        if (nb.ffiUsesArray) NativeFfiCallRiscv.emitRiscvArrayPackHelper(sb);
 
         // Ponto de entrada: chama <mainClass>_main e sai via exit_group(94).
         // O runtime é asm puro — binário estático. exit_group (não exit/93)
@@ -346,6 +347,7 @@ final class NativeArchEmitter {
         // #431 fatia 2: idem riscv — o helper entra ANTES da tradução p/ o
         // ARM (linhas todas cobertas pelo tradutor: beqz/lbu/j/mv/li/sd/ld/call/ret).
         if (nb.ffiUsesCstr) NativeFfiCallRiscv.emitRiscvCstrHelper(riscvSb);
+        if (nb.ffiUsesArray) NativeFfiCallRiscv.emitRiscvArrayPackHelper(riscvSb);
         String mainEntry = mainClass != null ? nb.sanitizeName(mainClass.name()) + "_main" : "kof_main";
         riscvSb.append("\n.globl _start\n");
         riscvSb.append("_start:\n");

@@ -198,6 +198,13 @@ public final class FfiStructLayout {
                 nInt++;
                 continue;
             }
+            if (isArrayPtr(t)) {
+                // D-MEM-FFI-CROSS-FULL: array escalar `T[]`→ptr é um ponteiro
+                // INTEGER (um ordinal) — mesma forma do buffer-ptr no LP64/AAPCS64.
+                if (nInt >= 8) return false;
+                nInt++;
+                continue;
+            }
             if (isStructType(t)) {
                 AbiLayout.Layout l = layout(AbiLayout.Abi.RISCV64, t);
                 if (l.byMemory() || l.size() > 16 || l.classes().isEmpty()) return false;

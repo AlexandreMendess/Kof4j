@@ -112,10 +112,11 @@ final class CompilerFfiBinding {
             // D6-2/3.7: array escalar `T[]`→`ptr` no x86-64. A largura de slot
             // do elemento Kof == largura C (Long/Double 8 B, Int/Float 4 B,
             // Bool 1 B), então o pack é um memcpy com o tamanho do elemento.
-            // Cross e `String[]` (array de ponteiros) seguem FFI001 (R6).
+            // D-MEM-FFI-CROSS-FULL (30/09): mesma forma no cross (pack em
+            // `kof_ffi_pack_array` riscv). `String[]` (array de ponteiros)
+            // segue FFI001 (R6).
             Character ae = FfiSignature.arrayElemChar(param.type());
             if (ae != null) {
-                if (!x86) return false;
                 paramTypes.add(FfiStructLayout.arrayPtrType(ae));
                 continue;
             }
