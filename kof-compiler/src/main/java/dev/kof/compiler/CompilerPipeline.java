@@ -297,6 +297,8 @@ public final class CompilerPipeline {
         if (irModule == null) {
             return;
         }
+        // UI001 (R6): kof.ui é no-op no Native — avisa UMA vez (aditivo, §KOFUI-AUDIT).
+        UiTargetDiagnostics.warnIfNative(driver, irModule, diagnostics);
         Files.createDirectories(outputDir);
         Backend backend = CompilerPipeline.selectBackend(driver, target);
         backend.emit(irModule, outputDir, driver.debugInfoEnabled);
