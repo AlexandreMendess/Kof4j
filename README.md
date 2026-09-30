@@ -560,6 +560,10 @@ Proprietary software written in Kof is allowed, as long as it respects the licen
 
 For more details, see [docs/distribution/LICENSING.md](docs/distribution/LICENSING.md).
 
+The **Kof** / **Kof4j** logo, mascot and visual identity are available for free
+commercial and community use under CC BY 4.0 — see
+[TRADEMARK.md](TRADEMARK.md).
+
 ---
 
 **Kof**
