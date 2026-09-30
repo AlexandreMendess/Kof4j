@@ -3,6 +3,7 @@ package image
 import image.Image
 import image.Vp8
 import image.Vp8Probs
+import image.Vp8ModeProbs
 
 // kof.image — VP8 (lossy WebP) frame header parser (RFC 6386 §9/§19).
 //
@@ -55,6 +56,15 @@ class Vp8Frame {
     Int probSkipFalse
     Int[] coeffProbs
     Int headerBytes
+    Int mbCols
+    Int mbRows
+    Int[] yModes
+    Int[] uvModes
+    Int[] bModes
+    Int[] segmentIds
+    Int[] skipCoeffs
+    Int modeBytes
+    Vp8Bool decoder
 
     constructor(Int[] frame) {
         need(frame, 3, "VP8")
@@ -83,6 +93,7 @@ class Vp8Frame {
 
     parse() {
         var d = Vp8Bool(vp8Slice(this.frame, 10, this.firstPartitionSize))
+        this.decoder = d
         this.colorSpace = d.bit(128)
         this.clampType = d.bit(128)
         parseSegmentation(d)
@@ -105,6 +116,93 @@ class Vp8Frame {
             this.probSkipFalse = d.literal(8)
         }
         this.headerBytes = d.bytePosition()
+        this.parseModes()
+    }
+
+    // Reads the key-frame macroblock prediction records from the first data
+    // partition (RFC 6386 §10/§11): per-macroblock segment id, `mb_skip_coeff`
+    // and the intra prediction modes (luma 16x16, the 16 luma subblock modes
+    // when `B_PRED`, and the chroma mode). Pure Kof, all targets.
+    parseModes() {
+        var d = this.decoder
+        this.mbCols = (this.width + 15) >> 4
+        this.mbRows = (this.height + 15) >> 4
+        var n = this.mbCols * this.mbRows
+        this.yModes = new Int[n]
+        this.uvModes = new Int[n]
+        this.bModes = new Int[n * 16]
+        this.segmentIds = new Int[n]
+        this.skipCoeffs = new Int[n]
+        var aboveY = new Int[this.mbCols]
+        var aboveB = new Int[this.mbCols * 16]
+        var leftY = 0
+        var leftB = new Int[16]
+        var yTree = vp8KfYModeTree()
+        var uvTree = vp8KfUvModeTree()
+        var bTree = vp8KfBModeTree()
+        var yProbs = vp8KfYModeProbs()
+        var uvProbs = vp8KfUvModeProbs()
+        var bProbs = vp8KfBModeProbs()
+        var mb = 0
+        while (mb < n) {
+            var col = mb % this.mbCols
+            if (col == 0) {
+                leftY = 0
+                leftB = new Int[16]
+            }
+            var segId = 0
+            if (this.updateSegmentMap == 1) {
+                segId = vp8SegmentId(d, this.segmentTreeProbs)
+            }
+            var skip = 0
+            if (this.mbNoSkipCoeff == 1) {
+                skip = d.bit(this.probSkipFalse)
+            }
+            var ym = vp8Tree(d, yTree, yProbs, 0)
+            var base = mb * 16
+            if (ym == 4) {
+                var i = 0
+                while (i < 16) {
+                    var a = 0
+                    if (i < 4) {
+                        if (aboveY[col] == 4) {
+                            a = aboveB[col * 16 + i + 12]
+                        } else {
+                            a = vp8LumaToSub(aboveY[col])
+                        }
+                    } else {
+                        a = this.bModes[base + i - 4]
+                    }
+                    var l = 0
+                    if ((i & 3) == 0) {
+                        if (leftY == 4) {
+                            l = leftB[i + 3]
+                        } else {
+                            l = vp8LumaToSub(leftY)
+                        }
+                    } else {
+                        l = this.bModes[base + i - 1]
+                    }
+                    this.bModes[base + i] = vp8Tree(d, bTree, bProbs, (a * 10 + l) * 9)
+                    i = i + 1
+                }
+            }
+            var uv = vp8Tree(d, uvTree, uvProbs, 0)
+            this.yModes[mb] = ym
+            this.uvModes[mb] = uv
+            this.segmentIds[mb] = segId
+            this.skipCoeffs[mb] = skip
+            aboveY[col] = ym
+            var j = 0
+            while (j < 16) {
+                aboveB[col * 16 + j] = this.bModes[base + j]
+                leftB[j] = this.bModes[base + j]
+                j = j + 1
+            }
+            leftY = ym
+            mb = mb + 1
+        }
+        this.modeBytes = d.bytePosition()
     }
 
     parseSegmentation(Vp8Bool d) {
@@ -199,6 +297,15 @@ class Vp8Frame {
     Int probSkipFalse() { return this.probSkipFalse }
     Int[] coeffProbs() { return this.coeffProbs }
     Int headerBytes() { return this.headerBytes }
+    Int mbCols() { return this.mbCols }
+    Int mbRows() { return this.mbRows }
+    Int mbCount() { return this.yModes.length }
+    Int yMode(Int mb) { return this.yModes[mb] }
+    Int uvMode(Int mb) { return this.uvModes[mb] }
+    Int segmentId(Int mb) { return this.segmentIds[mb] }
+    Int skipCoeff(Int mb) { return this.skipCoeffs[mb] }
+    Int bMode(Int mb, Int i) { return this.bModes[mb * 16 + i] }
+    Int modeBytes() { return this.modeBytes }
 }
 
 // Extracts and parses the `VP8 ` frame out of a RIFF/WEBP container.
@@ -258,4 +365,56 @@ Int[] vp8Slice(Int[] a, Int at, Int len) {
         i = i + 1
     }
     return out
+}
+
+// Walks a VP8 bool tree (RFC 6386 §8 `bool_read_tree`): `tree` holds the
+// flattened branch/leaf table (a negative entry is a leaf, `value = -entry`)
+// and `probs` the branch probabilities, starting at `at`.
+Int vp8Tree(Vp8Bool d, List<Int> tree, List<Int> probs, Int at) {
+    var i = 0
+    while (true) {
+        var bit = d.bit(probs.get(at + (i >> 1)))
+        i = tree.get(i + bit)
+        if (i <= 0) {
+            return -i
+        }
+    }
+}
+
+// Decodes one macroblock's segment id (RFC 6386 §10).
+Int vp8SegmentId(Vp8Bool d, Int[] probs) {
+    if (d.bit(probs[0]) == 1) {
+        return 2 + d.bit(probs[2])
+    }
+    return d.bit(probs[1])
+}
+
+// The subblock mode implied by a 16x16 luma mode, for subblock-mode context
+// (RFC 6386 §11.3 point 4).
+Int vp8LumaToSub(Int m) {
+    if (m == 1) {
+        return 2
+    }
+    if (m == 2) {
+        return 3
+    }
+    if (m == 3) {
+        return 1
+    }
+    return 0
+}
+
+// `kf_ymode_tree` (RFC 6386 §11.2).
+List<Int> vp8KfYModeTree() {
+    return listOf(-4, 2, 4, 6, 0, -1, -2, -3)
+}
+
+// `uv_mode_tree` (RFC 6386 §11.4).
+List<Int> vp8KfUvModeTree() {
+    return listOf(0, 2, -1, 4, -2, -3)
+}
+
+// `bmode_tree` (RFC 6386 §11.2).
+List<Int> vp8KfBModeTree() {
+    return listOf(0, 2, -1, 4, -2, 6, 8, 12, -3, 10, -5, -6, -4, 14, -7, 16, -8, -9)
 }
