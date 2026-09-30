@@ -662,7 +662,8 @@ ability genuinely does not exist on a target.
 - raw decode: PNM `P5`/`P6`, farbfeld, BMP 24/32-bit, **QOI** (all chunks);
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
   `rotate90`, `grayscale`, `threshold`, `boxBlur`;
-- encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI.
+- encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`.
 
 **Missing — ordered by cost:**
 
@@ -733,6 +734,16 @@ ability genuinely does not exist on a target.
    (10×30, 6×220) yields `hist=6,10`, `norm=375`, `otsu=30`,
    `bw=0,0,255` byte-identically on JVM + Native x86-64 + riscv64(qemu) +
    Script. Next vision slices (edges/contours, §12) are additive.
+
+7. **`kof.vision` slice 2a — Sobel edges — LANDED 30/09 (pure Kof, all targets).**
+   `libs/vision/Edges.kf` adds `sobelMagnitude(r): Raster` (a single-channel
+   `"SOBEL"` raster) and `sobelValues(r): Double[]` — the classic Sobel
+   gradient magnitude of the BT.601 luminance, borders 0. The square root is a
+   deterministic Newton iteration (no libm), so the result is byte-identical on
+   every target. §12's first detection primitive. Proof: `VisionAnalysisE2ETest`
+   **4/4** — a 5×5 PGM with a single interior 255 and a 5×5 "cross" ramp give
+   the exact magnitudes (`edge=98`, centre `0`, borders `0`) on JVM + Native
+   x86-64 + riscv64(qemu) + Script.
 
 ## PT
 [Português](image-vision-plan.pt_BR.md)

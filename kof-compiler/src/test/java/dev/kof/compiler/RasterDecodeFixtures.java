@@ -323,13 +323,33 @@ final class RasterDecodeFixtures {
         for (int i = 0; i < 10; i++) out.write(30);
         for (int i = 0; i < 6; i++) out.write(220);
         Files.write(dir.resolve("bimodal.pgm"), out.toByteArray());
+        Files.write(dir.resolve("ramp.pgm"), pnmGray(5, 5, new int[]{
+                0, 0, 0, 0, 0,
+                0, 10, 10, 10, 10,
+                0, 10, 50, 10, 10,
+                0, 10, 10, 10, 10,
+                0, 0, 0, 0, 0}));
+        Files.write(dir.resolve("edge.pgm"), pnmGray(5, 5, new int[]{
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0,
+                0, 0, 255, 0, 0,
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0}));
         return dir;
+    }
+
+    static byte[] pnmGray(int w, int h, int[] samples) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(("P5\n" + w + " " + h + "\n255\n").getBytes(StandardCharsets.US_ASCII));
+        for (int s : samples) out.write(s & 0xFF);
+        return out.toByteArray();
     }
 
     static String visionProbe(Path dir) {
         String base = path(dir);
         return """
             import image.Raster
+            import vision.Edges
             import vision.Histogram
             import vision.Vision
 
@@ -342,6 +362,13 @@ final class RasterDecodeFixtures {
                 var bw = otsuBinarize(r)
                 var t = sat(otsuLevel(r))
                 println("otsu=" + t + " bw=" + bw.samples[0] + "," + bw.samples[6] + "," + bw.samples[15])
+                var ramp = decodeRaster("%s/ramp.pgm")
+                var e = sobelMagnitude(ramp)
+                println("sobelRamp=" + e.format + ":" + e.width + "x" + e.height + " ch=" + e.channels)
+                println("sobelRamp-mid=" + e.samples[12] + " edge=" + e.samples[6])
+                var dot = decodeRaster("%s/edge.pgm")
+                var d = sobelMagnitude(dot)
+                println("sobelDot=" + d.samples[12] + " border=" + d.samples[0] + "," + d.samples[24])
             }
 
             String sat(Int v) {
@@ -349,7 +376,7 @@ final class RasterDecodeFixtures {
                 if (v > 255) { return "over" }
                 return v.toString()
             }
-            """.formatted(base);
+            """.formatted(base, base, base);
     }
 
     static byte[] rasterPpm() throws Exception {

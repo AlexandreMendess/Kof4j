@@ -804,7 +804,8 @@ capacidade realmente não existe no alvo.
 - decode cru: PNM `P5`/`P6`, farbfeld, BMP 24/32-bit, **QOI** (todos os chunks);
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
   `rotate90`, `grayscale`, `threshold`, `boxBlur`;
-- encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI.
+- encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`.
 
 **Falta — em ordem de custo:**
 
@@ -875,6 +876,16 @@ capacidade realmente não existe no alvo.
    mão (10×30, 6×220) dá `hist=6,10`, `norm=375`, `otsu=30`, `bw=0,0,255`
    byte-idêntico na JVM + Native x86-64 + riscv64(qemu) + Script. As próximas
    fatias de visão (bordas/contornos, §12) são aditivas.
+
+7. **`kof.vision` fatia 2a — bordas de Sobel — LANDED 30/09 (Kof puro, todos os alvos).**
+   `libs/vision/Edges.kf` adiciona `sobelMagnitude(r): Raster` (um raster
+   `"SOBEL"` de um canal) e `sobelValues(r): Double[]` — a magnitude clássica do
+   gradiente de Sobel sobre a luminância BT.601, bordas 0. A raiz quadrada é uma
+   iteração de Newton determinística (sem libm), então o resultado é
+   byte-idêntico em todo alvo. O primeiro primitivo de detecção do §12. Prova:
+   `VisionAnalysisE2ETest` **4/4** — um PGM 5×5 com um 255 interior e um PGM 5×5
+   de "cruz" dão as magnitudes exatas (`edge=98`, centro `0`, bordas `0`) na JVM
+   + Native x86-64 + riscv64(qemu) + Script.
 
 ## EN
 [English](image-vision-plan.md)
