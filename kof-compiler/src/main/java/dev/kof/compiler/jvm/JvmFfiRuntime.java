@@ -85,6 +85,7 @@ final class JvmFfiRuntime {
 
                 public static Object kof_ffi(String lib, String name, String sig, Object[] args) {
                     java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined();
+                    java.util.ArrayList<Buffer> borrowHolds = new java.util.ArrayList<>();
                     try {
                         java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
                                 ? java.lang.foreign.SymbolLookup.loaderLookup()
@@ -142,6 +143,10 @@ final class JvmFfiRuntime {
                                         kof_ffi_buffer_in(arena, args[i]);
                                 real[i] = bseg;
                                 copybacks.add(new Object[] { args[i], bseg });
+                                // MEM020 runtime: exclusive writable borrow for
+                                // the duration of the FFI call.
+                                kof_buffer_borrow_acquire((Buffer) args[i]);
+                                borrowHolds.add((Buffer) args[i]);
                             } else {
                                 cur++;
                                 pl[i] = kof_ffi_layout(c);
@@ -194,6 +199,7 @@ final class JvmFfiRuntime {
                         throw new RuntimeException("kof_ffi: " + lib + "::" + name + " (" + sig + ") failed: "
                                 + t.getMessage(), t);
                     } finally {
+                        for (Buffer bh : borrowHolds) kof_buffer_borrow_release(bh);
                         arena.close();
                     }
                 }
