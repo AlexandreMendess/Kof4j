@@ -44,7 +44,7 @@ Claim an item in `DOING.md` **in the same commit** that starts the work.
 | Stage | Name | Status | Blocker |
 |-------|------|--------|---------|
 | 1 | SYSTEMS (consolidation) | 🟡 in progress | web/native parity gaps **1.1.3–1.1.9** (owners: web/native lanes) — **D1–D3 ✅ decided 19/09** (GC x86 ✅ D1-A; registry ✅ 19/09) |
-| 2 | AUTOMATION | 🔵 not started | Stage 1 |
+| 2 | AUTOMATION | 🟡 **mostly landed** — 2.1 `kof.workflow`/`kof.batch`, 2.2 `kof.shell`, 2.3 `kof.ssh`, 2.5 CI/CD as Kof code, 2.6 `kof workflow run` all ✅ (JVM==JS byte parity); 2.4 mature cron 🟡 (`at(cron)` real JVM/JS, Native honest `CRON001`) | 2.4 residual (`CRON001` Native); Stage 2 rows otherwise closed |
 | 3 | INFRASTRUCTURE (Kof Makealive) | ✅ **all rows 3.1–3.8 landed** (3.6 secrets landed 21/09 `32285136`, closed 21/09 `04473bbe`) — `makealive-plan.md` moved to `docs/architecture/` | Stage 2, R3 (FFI), R4 (codegen hook — **✅ landed 21/09**); **name collision R1 ✅ resolved (`kof.makealive`, plan §2.1/Q1)** |
 | 4 | DATA (engineering / science / ML) | 🔵 not started | Stage 3, R3 (FFI) |
 | 5 | SECURITY (expansion) | 🔵 not started | Stage 3, R3 (FFI) |

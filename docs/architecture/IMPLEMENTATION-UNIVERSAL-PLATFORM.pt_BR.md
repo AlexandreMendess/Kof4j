@@ -45,7 +45,7 @@ Reivindique um item no `DOING.md` **no mesmo commit** que inicia o trabalho.
 | Estágio | Nome | Status | Bloqueio |
 |---------|------|--------|----------|
 | 1 | SYSTEMS (consolidação) | 🟡 em curso | gaps de paridade web/native **1.1.3–1.1.9** (donos: lanes web/native) — **D1–D3 ✅ decididos 19/09** (GC x86 ✅ D1-A; registry ✅ 19/09) |
-| 2 | AUTOMATION | 🔵 não iniciado | Estágio 1 |
+| 2 | AUTOMATION | 🟡 **majoritariamente pousado** — 2.1 `kof.workflow`/`kof.batch`, 2.2 `kof.shell`, 2.3 `kof.ssh`, 2.5 CI/CD como código Kof, 2.6 `kof workflow run` todos ✅ (paridade byte JVM==JS); 2.4 cron maduro 🟡 (`at(cron)` real JVM/JS, Nativo gap honesto `CRON001`) | residual 2.4 (`CRON001` Nativo); linhas do Estágio 2 de resto fechadas |
 | 3 | INFRASTRUCTURE (Kof Makealive) | ✅ **todas as linhas 3.1–3.8 pousadas** (3.6 secrets pousou 21/09 `32285136`, fechado 21/09 `04473bbe`) — `makealive-plan.md` movido para `docs/architecture/` | Estágio 2, R3 (FFI), R4 (hook de codegen — **✅ pousou 21/09**); **colisão de nome R1 ✅ resolvida (`kof.makealive`, plano §2.1/Q1)** |
 | 4 | DATA (engineering / science / ML) | 🔵 não iniciado | Estágio 3, R3 (FFI) |
 | 5 | SECURITY (expansão) | 🔵 não iniciado | Estágio 3, R3 (FFI) |
