@@ -109,7 +109,7 @@ Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca u
 | ~~`KOFUI-AUDIT.md`~~ → `docs/bugs-and-gaps/` | UI001-Native (no-op silencioso) ✅ CORRIGIDO 29/09 (#683, `Ui001NativeWarnTest` 5/5) — audit vivo | lane UI |
 | ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **1 vivo** (autoridade = `scripts/check_known_bugs_status.sh`) | fila viva |
 | ~~`refactoring/PLAN-SOLID-500.md`~~ → `docs/architecture/PLAN-SOLID-500.md` | ✅ FEITO + MOVIDO 13/09 (F1–F9) | ratchet `check_500-baseline.txt` no CI |
-| `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (→ `docs/architecture/`, **CONCLUÍDO** — Estágios 1–3 + R + Estágio 8; fases futuras em `development/future/`) | promovido 17/09 (`D-UNIVERSAL`, R12 sobreposto) | arquitetura dos Tiers 6–12 |
+| `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (→ `docs/architecture/`, **EM DESENVOLVIMENTO** — autoridade = o próprio cabeçalho de status do doc: linhas dos Estágios 1–3 em sua maioria pousadas, Estágios 4–8 pendentes; linha 8 acima) | promovido 17/09 (`D-UNIVERSAL`, R12 sobreposto) | arquitetura dos Tiers 6–12 |
 | `docs/PROPOSAL-1.0-EXIT-GATE.md` (+PT; saiu de `development/` 24/09) | **KOF 1.0 EXIT GATE — RATIFICADO 20/09** (`DECISIONS.md` §D-RELEASE-1.0`) | ordem = o §23 do próprio PROPOSAL, rastreado no `roadmap.md` §24 (EG-1..EG-10); todas as arestas `[? MEL]` FECHADAS 20/09 (`D-1.0-EDGES`); resta só EG-8 (abertura do RC) |
 
 ### 4.3 `future/` — só plano, zero código (não é trabalho atual)

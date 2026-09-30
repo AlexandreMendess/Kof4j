@@ -2,14 +2,17 @@
 
 # Kof — Long-Term Roadmap
 
-last: native-record-equality
-doing: 0.5.0-release-prep
-next: 1.0-exit-gate
+last: 0.5.0-release-cut
+doing: 1.0-exit-gate
+next: promotion-sweep
 location: roadmap
 state: active
-constraint: pr619-maintainer-only
+constraint: maintainer-gated-promotion
 
-**Last updated:** September 20, 2026 (§0 "read first" index added; active branch
+**Last updated:** September 30, 2026 (active branch corrected to `lab`
+(`D-BRANCH-PIPELINE`); the 0.5.0 cut recorded closed by
+`D-RELEASE-0.5.0-CLOSED` — PR #619 merged, `D-BRANCH-0.5.0` `SUPERSEDED`; the
+`pr619-maintainer-only` constraint is retired). (older: September 20, 2026 — §0 "read first" index added; active branch
 corrected to `beta-0.5.0`/`D-BRANCH-0.5.0`). (older: September 15, 2026 — §23
 gains 2.6 = D-NULL-INTENT queue N1→N4 [compiler lane, maintainer decision 15/09];
 TIER 3–5 marked DEPRIORITIZED by the maintainer 15/09 — trio back to `future/`).
@@ -17,7 +20,7 @@ TIER 3–5 marked DEPRIORITIZED by the maintainer 15/09 — trio back to `future
 implementation plan (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`);
 migration cluster consolidated — `LEGACY_IR`+`DIFFERENTIAL_TESTING` merged into
 `LEGACY_MIGRATION.md`)
-**Version:** 0.5.0-beta (active branch `beta-0.5.0`)
+**Version:** 0.5.0-beta (active development branch `lab`)
 
 ---
 
