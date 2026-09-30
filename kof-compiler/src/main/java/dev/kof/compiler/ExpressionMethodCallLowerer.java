@@ -492,6 +492,24 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     }
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
+        && KofImage.isImageNamespace(rid.name())) {
+    KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
+            mc.arguments().size());
+    if (imageCall != null) {
+        if (!KofImage.supportedOn(driver.target)) {
+            gapError(driver, mc, rid.name() + "." + mc.methodName()
+                    + ": no image codec runtime on the " + driver.target
+                    + " target yet (" + KofImage.gapCode() + ")",
+                    KofImage.gapCode());
+            return localIdx;
+        }
+        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
+        ops.add(new KofCall(new Type.ClassType("kof.image", "Image", List.of()),
+                imageCall.function(), imageCall.parameterTypes(), imageCall.returnType(),
+                KofCallKind.FUNCTION));
+    }
+    return localIdx;
+} else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofWeb.isWebNamespace(rid.name())) {
     if ("app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
         // AND002 (docs/targets/KOFANDROID.md): app móvel não escuta porta —

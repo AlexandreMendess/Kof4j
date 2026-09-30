@@ -253,6 +253,30 @@ class RasterDecodeE2ETest {
     }
 
     @Test
+    void jpegDecodesOnJvmViaInterop() throws Exception {
+        Path root = tmp.resolve("jvm-jpeg");
+        Files.createDirectories(root);
+        Path dir = RasterDecodeFixtures.rasterFixtures(root.resolve("fixtures"));
+        String expected = RasterDecodeFixtures.jpegExpected(dir.resolve("u.jpg"));
+        assertEquals(expected, runJvm(RasterDecodeFixtures.jpegProbe(dir)));
+    }
+
+    @Test
+    void jpegOnNonJvmIsImg001() throws Exception {
+        Path root = tmp.resolve("js-jpeg");
+        Files.createDirectories(root);
+        Path dir = RasterDecodeFixtures.rasterFixtures(root.resolve("fixtures"));
+        Files.writeString(root.resolve("Main.kf"), RasterDecodeFixtures.jpegProbe(dir));
+        Path out = root.resolve("out");
+        CompilationResult result = withLibrary(root,
+                () -> compile(root.resolve("Main.kf"), out, Target.JS));
+        assertTrue(!result.success(), "JS must refuse the JVM-only image codec (R6)");
+        String diag = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diag.contains("IMG001"),
+                () -> "expected the explicit IMG001 gap diagnostic, got: " + diag);
+    }
+
+    @Test
     void rasterReadRangeGapOnJs() throws Exception {
         Path root = tmp.resolve("js-raster");
         Files.createDirectories(root);

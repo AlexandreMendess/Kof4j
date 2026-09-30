@@ -224,6 +224,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_web_health" -> "(Ljava/lang/String;Ljava/lang/String;)V";
             case "kof_web_configure" -> "(Ljava/lang/String;Ljava/lang/String;I)V";
             case "kof_web_stats" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            // ── kof.image ──
+            case "kof_image_decode" -> "(Ljava/lang/String;)[I";
             // ── kof.media: imagem / áudio / microfone ──
             case "kof_media_image_open", "kof_media_audio_open_wav", "kof_media_video_open"
                     -> "(Ljava/lang/String;)I";

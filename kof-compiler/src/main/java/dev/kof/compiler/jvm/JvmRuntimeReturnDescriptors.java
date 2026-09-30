@@ -199,7 +199,8 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_media_image_format", "kof_media_image_data_uri",
                     "kof_media_video_path", "kof_media_video_format" -> "Ljava/lang/String;";
             case "kof_media_image_bytes", "kof_media_image_bytes_fmt",
-                    "kof_media_audio_pcm_bytes", "kof_media_video_bytes" -> "[I";
+                    "kof_media_audio_pcm_bytes", "kof_media_video_bytes",
+                    "kof_image_decode" -> "[I";
             case "kof_media_image_close", "kof_media_video_close", "kof_web_serve_dir",
                     "kof_web_use", "kof_web_security", "kof_web_security_opts",
                     "kof_web_policy", "kof_web_route_opts" -> "V";

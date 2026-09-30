@@ -57,6 +57,7 @@ public final class StdCatalog {
         m.put("validation", KofValidation.functions());
         m.put("observability", KofObservability.functions());
         m.put("tetris", KofTetris.functions());
+        m.put("image", KofImage.functions());
         m.putAll(KofMedia.functions());
         MEMBERS = java.util.Collections.unmodifiableMap(m);
     }

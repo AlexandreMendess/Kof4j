@@ -192,6 +192,12 @@ final class MethodCallNamespaces {
             if (tetrisCall != null) return tetrisCall.returnType();
             return Type.UnknownType.UNKNOWN;
         }
+        if (mc.receiver() instanceof IdentifierExpr rid && KofImage.isImageNamespace(rid.name())) {
+            KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
+                    mc.arguments().size());
+            if (imageCall != null) return imageCall.returnType();
+            return Type.UnknownType.UNKNOWN;
+        }
         if (mc.receiver() instanceof IdentifierExpr rid2 && KofIo.isConstructor(rid2.name())) {
             KofIo.IoCall ioCall = KofIo.staticMethod(rid2.name(), mc.methodName(), mc.arguments().size());
             if (ioCall != null) return ioCall.returnType();

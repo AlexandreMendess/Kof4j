@@ -818,13 +818,22 @@ capacidade realmente não existe no alvo.
      usa `readRange`). Sem gap novo: o decoder é independente de alvo.
    - Risco: correção do inflate; mitigar com golden de bloco fixo/dinâmico e a
      checagem Adler-32 do zlib (ignorar o rabo, não pode crashar).
-2. **Decode JPEG (inviável em Kof puro → interop imageio no JVM).**
-   - Trabalho: builtin de plataforma `kof.image` `decode(path): Int[]` (layout
-     `[w,h,channels,samples…]`) com runtime JVM via `javax.imageio.ImageIO`; o
-     `Raster.decodeRaster` o envolve. Outros alvos: gap honesto **`IMG001`** em
-     compile-time (sem imageio), nunca fallback silencioso.
-   - Precisa: `KofImage.java` + runtime JVM + descriptor + linha no ledger +
-     gap code + linha em `backend-parity`; unidade coordenada.
+2. **Decode JPEG (inviável em Kof puro → interop imageio no JVM) — LANDED 29/09.**
+   - Builtin de plataforma `kof.image` `image.decode(path): Int[]` (layout
+     `[w,h,samples…]`) + runtime JVM `JvmImageRuntime` via
+     `javax.imageio.ImageIO`; `libs/image/Jpeg.kf` o envolve como
+     `decodeJpegRaster(path): Raster` (JPEG, RGB/RGBA); o wrapper liga o
+     resultado a um local `Int[]` explícito (`var` na chamada inferia elemento
+     `Unknown[]` no emit — medido, inócuo quando tipado). Outros alvos: gap
+     honesto **`IMG001`** em compile-time no lowering do namespace
+     (`ExpressionMethodCallLowerer`), nunca fallback silencioso. Como o
+     builtin só existe no JVM, importar `image.Jpeg` é o compromisso
+     explícito JVM-only; os formatos Kof puro sem gap em `Raster.kf` ficam
+     intactos. Registrado no ledger stdlib (`platform`, `experimental`) e
+     travado na matriz de paridade.
+   - Prova: `RasterDecodeE2ETest#jpegDecodesOnJvmViaInterop` (golden JVM ==
+     fixture decodificada pelo ImageIO) + `#jpegOnNonJvmIsImg001` (JS recusa
+     com `IMG001`) + `DomainGapCodesTest#imageDecodeOnJsIsImg001`.
 3. **GIF — LANDED 29/09 (Kof puro, todos os alvos).** `libs/image/Gif.kf` decodifica o primeiro quadro com um LZW Kof (largura variável 2–12, KwKwK), paleta global/local e linhas entrelaçadas, saída RGB.
    **WebP VP8L — fatias A–H LANDED 30/09 (Kof puro, todos os alvos):** `libs/image/Vp8l.kf` + `libs/image/Vp8lTransforms.kf` decodificam o subconjunto subtract-green/cache-de-cor/grupo-único com **Huffman simples e normal (code-length)**, **referências LZ77**, o **cache de cor**, os **transforms inversos predictor + color** (14 modos de predictor e o delta de cor §3.5.2, aplicados em ordem reversa) e o transform **COLOR_INDEXING** (§3.5.4; RFC 9649 §3.5/§3.6.2.1/§3.6.2.2/§3.7). Os fixtures são validados contra libwebp (o stream normal-Huffman+LZ77 feito à mão, um stream 8x8 com cache de cor, um stream 8x8 predictor+color e um stream 8x8 de 8 cores com indexing, todos gerados pelo libwebp e casados byte a byte pelo PIL); a face VP8L no native foi re-testada verde após os fixes §541/§543. Ainda recusado com diagnóstico explícito `IMAGE:`: grupos meta-Huffman. Próximo: grupos meta-Huffman. WebP lossy (`VP8 `) e AVIF seguem pendentes (interop/gap).
 4. **Encode/write** (`encodeRaster` para PNM/BMP/farbfeld/QOI) — Kof puro,

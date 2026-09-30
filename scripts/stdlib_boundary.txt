@@ -50,6 +50,7 @@ ui platform experimental — ExpressionStaticCallLowerer.java (declared platform
 media platform experimental — KofMedia.java (gap-gated MEDIA00x on non-JVM targets)
 gpu platform experimental — KofGpu.java (gap-gated GPU00x; interop-first via FFI)
 tetris platform experimental — demo namespace shipped in the runtime surface (ExpressionMethodCallLowerer.java); documented, registered
+image platform experimental — KofImage.java (gap-gated IMG001 on non-JVM; interop-first via javax.imageio)
 build excluded - — VscodeExtensionContent.java (generated editor manifest snippet, not a namespace)
 check excluded - — VscodeExtensionContent.java (same)
 executable excluded - — VscodeExtensionContent.java (same)

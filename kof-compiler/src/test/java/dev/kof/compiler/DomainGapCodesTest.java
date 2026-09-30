@@ -16,16 +16,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Each case pins a row of {@code docs/backend-parity.md} (Documented Gaps).
  * Measured on the CLI 17/09; this keeps the matrix honest.
  *
- * The web-gate cases pin the code the corpus promises for each feature
- * (TLS {@code WEB002}, SSE {@code WEB003}, WebSocket {@code WEB004},
- * security middleware {@code WEB006}) — the {@code app.serveDir} /
- * {@code WEB005} drift of §275 happened exactly because the catch-all
- * emitted {@code WEB001} while only the docs knew {@code WEB005}.
- *
  * {@link #everyPinnedGapIsDocumentedInTheParityMatrix()} closes the other
- * direction: a code this guard proves the compiler EMITS must also be in the
- * matrix (R6 — "every domain gap has a code + an entry in the parity
- * matrix"). The ledger is derived from this file's own {@code assertGap}
+ * direction: any code this guard proves the compiler EMITS must also be in the
+ * matrix (R6); the ledger is derived from this file's own {@code assertGap}
  * calls, so a new pin cannot be added without documenting it.
  */
 class DomainGapCodesTest extends DomainGapPrograms {
@@ -230,6 +223,14 @@ class DomainGapCodesTest extends DomainGapPrograms {
         // runtime with a SyntaxError (R6). The lowering now refuses at compile
         // time with IOJS001; Script keeps the real interpreter semantics.
         assertGap(tmp, Target.JS, "IOJS001", SRC_IO_READ_RANGE_ON_JS_IS_IOJS001);
+    }
+
+    @Test
+    void imageDecodeOnJsIsImg001(@TempDir Path tmp) throws Exception {
+        // §34.2: kof.image.decode is JVM-only (javax.imageio) — others IMG001.
+        assertGap(tmp, Target.JS, "IMG001", """
+            main() { println(image.decode("/tmp/kof-image-probe.jpg")) }
+            """);
     }
 
     @Test

@@ -218,6 +218,15 @@ final class MemberCallNamespaces {
             }
             return unknown(sa, rid.name(), mc.methodName());
         }
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofImage.isImageNamespace(rid.name())) {
+            KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
+                    mc.arguments().size());
+            if (imageCall != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return imageCall.returnType();
+            }
+            return unknown(sa, rid.name(), mc.methodName());
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofMedia.isStaticNamespace(rid.name())) {
             KofMedia.MediaCall mediaCall = KofMedia.staticCall(rid.name(), mc.methodName(),
                     mc.arguments().size());

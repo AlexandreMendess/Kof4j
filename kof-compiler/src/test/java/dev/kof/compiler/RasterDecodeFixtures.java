@@ -162,8 +162,61 @@ final class RasterDecodeFixtures {
             """.formatted(base, base, base, base, base, base);
     }
 
-    static Path rasterFixtures(Path dir) throws Exception {
-        Files.createDirectories(dir);
+    static String jpegProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Jpeg
+            import image.Raster
+
+            String dump(Raster r) {
+                var out = r.format + ":" + r.width + "x" + r.height + " ch=" + r.channels + "\\npx="
+                var i = 0
+                while (i < r.samples.length) {
+                    if (i > 0) {
+                        out = out + ","
+                    }
+                    out = out + r.samples[i]
+                    i = i + 1
+                }
+                return out
+            }
+
+            main() {
+                println(dump(decodeJpegRaster("%s/u.jpg")))
+            }
+            """.formatted(base);
+    }
+
+    static String jpegExpected(Path file) throws Exception {
+        BufferedImage img = ImageIO.read(file.toFile());
+        int w = img.getWidth();
+        int h = img.getHeight();
+        int channels = img.getColorModel().hasAlpha() ? 4 : 3;
+        StringBuilder sb = new StringBuilder("JPEG:").append(w).append("x").append(h)
+                .append(" ch=").append(channels).append("\npx=");
+        int[] row = new int[w];
+        boolean first = true;
+        for (int y = 0; y < h; y++) {
+            img.getRGB(0, y, w, 1, row, 0, w);
+            for (int x = 0; x < w; x++) {
+                int argb = row[x];
+                for (int c = 0; c < channels; c++) {
+                    int v = switch (c) {
+                        case 0 -> (argb >> 16) & 0xFF;
+                        case 1 -> (argb >> 8) & 0xFF;
+                        case 2 -> argb & 0xFF;
+                        default -> (argb >> 24) & 0xFF;
+                    };
+                    if (!first) sb.append(',');
+                    sb.append(v);
+                    first = false;
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    static Path rasterFixtures(Path dir) throws Exception {        Files.createDirectories(dir);
         Files.write(dir.resolve("rgb.ppm"), rasterPpm());
         Files.write(dir.resolve("gray.pgm"), rasterPgm());
         Files.write(dir.resolve("rgba.ff"), rasterFarbfeld());
