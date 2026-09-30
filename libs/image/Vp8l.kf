@@ -5,12 +5,12 @@ import image.Vp8lTransforms
 
 // kof.image — VP8L (WebP lossless) decoder.
 //
-// Decodes the **predictor / color / SUBTRACT_GREEN transforms, color cache and
-// single-Huffman-group** subset of VP8L entirely in Kof, including **normal
-// (code-length) Huffman codes**, **LZ77 backward references** and the **color
-// cache**. The remaining machinery — the color-indexing transform and
-// meta-Huffman groups — is **not** decoded yet and is refused with an explicit
-// `IMAGE:` diagnostic (never a silent wrong image):
+// Decodes VP8L entirely in Kof: the **predictor / color / SUBTRACT_GREEN /
+// color-indexing transforms**, **color cache**, **normal (code-length) and
+// simple Huffman codes**, **LZ77 backward references** and **meta-Huffman
+// groups** (one prefix-code group per spatial block, selected by an entropy
+// image). Malformed input is refused with an explicit `IMAGE:` diagnostic
+// (never a silent wrong image):
 //
 //   decodeRaster("shot.webp")   // lossless VP8L is routed here from Raster.kf
 //
@@ -392,14 +392,39 @@ Int[] vp8lDecodeImage(Vp8lBits r, Int width, Int height, Bool metaAllowed) {
         }
         cacheSize = 1 << cacheBits
     }
+    var entropy = new Int[0]
+    var metaBits = 0
+    var metaW = 1
+    var groupCount = 1
     if (metaAllowed && r.bit() == 1) {
-        throw "IMAGE: WebP meta-Huffman groups are not supported yet"
+        metaBits = r.bits(3) + 2
+        metaW = vp8lDivRoundUp(width, 1 << metaBits)
+        var metaH = vp8lDivRoundUp(height, 1 << metaBits)
+        entropy = vp8lDecodeImage(r, metaW, metaH, false)
+        groupCount = 0
+        var pi = 0
+        while (pi < metaW * metaH) {
+            var gv = ((entropy[pi * 4] & 255) << 8) | (entropy[pi * 4 + 1] & 255)
+            if (gv + 1 > groupCount) {
+                groupCount = gv + 1
+            }
+            pi = pi + 1
+        }
     }
-    var green = vp8lReadHuffman(r, 256 + 24 + cacheSize)
-    var red = vp8lReadHuffman(r, 256)
-    var blue = vp8lReadHuffman(r, 256)
-    var alpha = vp8lReadHuffman(r, 256)
-    var dist = vp8lReadHuffman(r, 40)
+    var greens = listOf<Vp8lHuff>()
+    var reds = listOf<Vp8lHuff>()
+    var blues = listOf<Vp8lHuff>()
+    var alphas = listOf<Vp8lHuff>()
+    var dists = listOf<Vp8lHuff>()
+    var gi = 0
+    while (gi < groupCount) {
+        greens.add(vp8lReadHuffman(r, 256 + 24 + cacheSize))
+        reds.add(vp8lReadHuffman(r, 256))
+        blues.add(vp8lReadHuffman(r, 256))
+        alphas.add(vp8lReadHuffman(r, 256))
+        dists.add(vp8lReadHuffman(r, 40))
+        gi = gi + 1
+    }
     var pixels = width * height
     if (pixels > 16384) {
         throw "IMAGE: WebP image too large for this slice"
@@ -408,10 +433,17 @@ Int[] vp8lDecodeImage(Vp8lBits r, Int width, Int height, Bool metaAllowed) {
     var cache = new Long[cacheSize]
     var px = 0
     while (px < pixels) {
-        var g = green.decode(r)
+        var gy = px / width
+        var gx = px - gy * width
+        var gidx = 0
+        if (metaBits > 0) {
+            gidx = ((entropy[((gy >> metaBits) * metaW + (gx >> metaBits)) * 4] & 255) << 8)
+            gidx = gidx | (entropy[((gy >> metaBits) * metaW + (gx >> metaBits)) * 4 + 1] & 255)
+        }
+        var g = greens.get(gidx).decode(r)
         if (g >= 256 && g < 256 + 24) {
             var length = vp8lPrefixValue(r, g - 256)
-            var dcode = vp8lPrefixValue(r, dist.decode(r))
+            var dcode = vp8lPrefixValue(r, dists.get(gidx).decode(r))
             var distance = vp8lDistance(dcode, width)
             if (distance < 1 || distance > px) {
                 throw "IMAGE: bad WebP backward reference"
@@ -432,9 +464,9 @@ Int[] vp8lDecodeImage(Vp8lBits r, Int width, Int height, Bool metaAllowed) {
                 k = k + 1
             }
         } else if (g < 256) {
-            var rr = red.decode(r)
-            var bb = blue.decode(r)
-            var aa = alpha.decode(r)
+            var rr = reds.get(gidx).decode(r)
+            var bb = blues.get(gidx).decode(r)
+            var aa = alphas.get(gidx).decode(r)
             var base = px * 4
             rgba[base] = rr & 255
             rgba[base + 1] = g & 255

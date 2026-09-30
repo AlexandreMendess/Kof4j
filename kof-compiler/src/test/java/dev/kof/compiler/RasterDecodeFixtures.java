@@ -158,8 +158,9 @@ final class RasterDecodeFixtures {
                 println(dump(decodeRaster("%s/vcache.webp")))
                 println(dump(decodeRaster("%s/vpred.webp")))
                 println(dump(decodeRaster("%s/vindex.webp")))
+                println(dump(decodeRaster("%s/vmeta.webp")))
             }
-            """.formatted(base, base, base, base, base, base);
+            """.formatted(base, base, base, base, base, base, base);
     }
 
     static String jpegProbe(Path dir) {
@@ -253,6 +254,9 @@ final class RasterDecodeFixtures {
                 "5249464652000000574542505650384c460000002f07c001003f201048da1f7a8df9171014f93fdafc07b241"
                         + "24b001369124ab9674121ec7fc62fa024ec2e71805f08fe87f0000b4dcffe94807995f8788a89f512dcdd29c"
                         + "510c"));
+        Files.write(dir.resolve("vmeta.webp"), decodeHex(
+                "5249464628000000574542505650384c1c0000002f07c0010084030414a000fd2f0057a114f5e87f018a5cb2"
+                        + "caf4bf00"));
         return dir;
     }
 
