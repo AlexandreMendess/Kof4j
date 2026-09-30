@@ -316,6 +316,42 @@ final class RasterDecodeFixtures {
             """.formatted(base, base, base, base, base, base, base, base, base, base, base, base, base, base);
     }
 
+    static Path visionFixtures(Path dir) throws Exception {
+        Files.createDirectories(dir);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("P5\n4 4\n255\n".getBytes(StandardCharsets.US_ASCII));
+        for (int i = 0; i < 10; i++) out.write(30);
+        for (int i = 0; i < 6; i++) out.write(220);
+        Files.write(dir.resolve("bimodal.pgm"), out.toByteArray());
+        return dir;
+    }
+
+    static String visionProbe(Path dir) {
+        String base = path(dir);
+        return """
+            import image.Raster
+            import vision.Histogram
+            import vision.Vision
+
+            main() {
+                var r = decodeRaster("%s/bimodal.pgm")
+                var h = histogram(r)
+                println("P5:" + r.width + "x" + r.height + " ch=" + r.channels + " px=" + (r.width * r.height))
+                println("hist=" + h[220] + "," + h[30])
+                println("norm=" + (normalizedHistogram(r)[220] * 1000).toInt())
+                var bw = otsuBinarize(r)
+                var t = sat(otsuLevel(r))
+                println("otsu=" + t + " bw=" + bw.samples[0] + "," + bw.samples[6] + "," + bw.samples[15])
+            }
+
+            String sat(Int v) {
+                if (v < 0) { return "neg" }
+                if (v > 255) { return "over" }
+                return v.toString()
+            }
+            """.formatted(base);
+    }
+
     static byte[] rasterPpm() throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write("P6\n2 2\n255\n".getBytes(StandardCharsets.US_ASCII));

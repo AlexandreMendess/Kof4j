@@ -721,6 +721,19 @@ ability genuinely does not exist on a target.
    aborts on the same fixture and is quarantined by new `known-bugs` **§544**
    (owner = native/GC lane, issue #700).
 
+6. **`kof.vision` slice 1 — LANDED 30/09 (pure Kof, all targets).** New
+   `libs/vision/` package opens the vision front: `histogram(r): Int[256]`
+   (BT.601 luminance bins, same rule as `image.grayscale`),
+   `normalizedHistogram(r): Double[256]` (bins as probabilities) and
+   `otsuLevel(r): Int` + `otsuBinarize(r): Raster` (Otsu 1979 optimal global
+   threshold and its black/white raster, alpha preserved — §14's first
+   segmentation primitive). Built on the shared `image.Raster`
+   (`D-IMAGE-SURFACE`); deterministic, O(256) after the histogram, no interop,
+   no ML. Proof: `VisionAnalysisE2ETest` **4/4** — a hand-built bimodal PGM
+   (10×30, 6×220) yields `hist=6,10`, `norm=375`, `otsu=30`,
+   `bw=0,0,255` byte-identically on JVM + Native x86-64 + riscv64(qemu) +
+   Script. Next vision slices (edges/contours, §12) are additive.
+
 ## PT
 [Português](image-vision-plan.pt_BR.md)
 

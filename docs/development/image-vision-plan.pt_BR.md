@@ -863,6 +863,19 @@ capacidade realmente não existe no alvo.
    aborta na mesma fixture e fica em quarentena pelo novo `known-bugs` **§544**
    (dona = lane native/GC, issue #700).
 
+6. **Fatia 1 do `kof.vision` — LANDED 30/09 (Kof puro, todos os alvos).** Novo
+   pacote `libs/vision/` abre a frente de visão: `histogram(r): Int[256]`
+   (bins de luminância BT.601, mesma regra do `image.grayscale`),
+   `normalizedHistogram(r): Double[256]` (bins como probabilidades) e
+   `otsuLevel(r): Int` + `otsuBinarize(r): Raster` (limiar global ótimo de Otsu
+   1979 e seu raster preto/branco, alpha preservado — o primeiro primitivo de
+   segmentação do §14). Construído sobre o `image.Raster` compartilhado
+   (`D-IMAGE-SURFACE`); determinístico, O(256) após o histograma, sem interop,
+   sem ML. Prova: `VisionAnalysisE2ETest` **4/4** — um PGM bimodal construído à
+   mão (10×30, 6×220) dá `hist=6,10`, `norm=375`, `otsu=30`, `bw=0,0,255`
+   byte-idêntico na JVM + Native x86-64 + riscv64(qemu) + Script. As próximas
+   fatias de visão (bordas/contornos, §12) são aditivas.
+
 ## EN
 [English](image-vision-plan.md)
 
