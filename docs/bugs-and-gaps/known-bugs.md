@@ -16084,6 +16084,11 @@ DEFECT SHE ROUTED to this lane by name on #629 — it enters the lane queue at
 the front of the HELD pair because it blocks the 0.5.0 acceptance item
 "official library is multi-target"; re-trigger: claim in DOING, read root
 cause, RED test first (maintainer's program), fix, prove.
+
+**UPDATE 30/09 (lane compiler) — the three #629 wiring defects are all closed; the 27/09 defect-3 note is stale.** Re-measured the maintainer's happy-path program against the current tree:
+- **defect 1 (`String.join` JVM-ism at `libs/pdf/PdfBuffer.kf:18`) — FIXED by the contributor** `0d7ab505b` (PR #642, `fix(pdf): remove JVM-only join and test backend parity`): `PdfBuffer.content()` now builds by `+`; `grep -c "String.join" libs/pdf/` = 0.
+- **defect 3 (JS `[COMP002] unknown JS expression: null` at `JsEmitter.java:330`) — NO LONGER REPRODUCES.** A focused probe staging `lib/kof-libs/pdf` and compiling the maintainer's program (`import pdf.PdfDocument` + `GridStyle`/`TextStyle` + `document.grid(2).header(...).row(...).style(...)`) to `Target.JS` returns `success=true, diagnostics=[]`; the full program with the `pessoas.map((p: Pessoa) -> …)` lambda and `title`/`text` also compiles clean. `JsEmitter.java` had no change since 26/09 — the trigger was removed with defect 1, i.e. the ICE was a downstream effect of the JVM-ism, not a distinct JS-lane defect.
+- **parity coverage EXISTS now:** `PdfLibraryE2ETest` **6/6** green includes `createsPdfOnScript`, `createsPdfOnJs` (JS compiles, runs via `KofJsRunner`, emits a validated PDF), `createsPdfOnNativeX86` (binary links/runs) and the JVM golden — so the entry's "missing parity test" scope is satisfied.
 <!-- pt-switch --> **PT:** [§530 (pt_BR)](known-bugs.pt_BR.md#530--o-wiring-de-biblioteca-oficial-libspdf-pr-557-pousou-com-cobertura-so-jvm-o-cross-riscv64aarch64-deixa-as-classes-da-biblioteca-fora-do-link-_init_-indefinidos---fixed-2709-dono-lane-cross--roteado-pela-verificacao-medida-da-mantenedora-na-629)
 ## §531 — SEM010 printed both sides of a same-simple-name record collision from different packages as IDENTICAL text (`Type.display` omitted the package) — ✅ FIXED 27/09 (interop/docs lane — #640)
 

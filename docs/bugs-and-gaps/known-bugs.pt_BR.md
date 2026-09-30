@@ -13642,6 +13642,11 @@ entra na fila da lane NA FRENTE do par segurado porque bloqueia o item de
 aceitacao da 0.5.0 "biblioteca oficial e multi-target"; re-trigger: claim no
 DOING, ler root cause, teste RED primeiro (programa da mantenedora), consertar,
 provar.
+
+**ATUALIZACAO 30/09 (lane compilador) — os tres defeitos de wiring da #629 estao fechados; a nota do defeito 3 de 27/09 esta obsoleta.** Re-medi o programa happy-path da mantenedora contra a arvore atual:
+- **defeito 1 (`String.join` JVM-ism em `libs/pdf/PdfBuffer.kf:18`) — CORRIGIDO pelo contribuidor** `0d7ab505b` (PR #642, `fix(pdf): remove JVM-only join and test backend parity`): `PdfBuffer.content()` agora monta por `+`; `grep -c "String.join" libs/pdf/` = 0.
+- **defeito 3 (JS `[COMP002] unknown JS expression: null` em `JsEmitter.java:330`) — NAO REPRODUZ MAIS.** Uma sonda focada que estagia `lib/kof-libs/pdf` e compila o programa da mantenedora (`import pdf.PdfDocument` + `GridStyle`/`TextStyle` + `document.grid(2).header(...).row(...).style(...)`) para `Target.JS` retorna `success=true, diagnostics=[]`; o programa completo com a lambda `pessoas.map((p: Pessoa) -> …)` e `title`/`text` tambem compila limpo. `JsEmitter.java` nao mudou desde 26/09 — o gatilho saiu junto com o defeito 1, ou seja o ICE era efeito a jusante do JVM-ism, nao um defeito distinto da lane JS.
+- **a cobertura de paridade EXISTE agora:** `PdfLibraryE2ETest` **6/6** verde inclui `createsPdfOnScript`, `createsPdfOnJs` (JS compila, roda via `KofJsRunner`, emite PDF validado), `createsPdfOnNativeX86` (binario linka/roda) e o golden JVM — o escopo "teste de paridade ausente" da entrada esta satisfeito.
 <!-- pt-switch --> **EN:** [§530 (known-bugs.md)](known-bugs.md#530--official-library-wiring-libspdf-pr-557-lands-with-jvm-only-coverage-cross-riscv64aarch64-leave-the-library-classes-out-of-the-link-_init_-undefined---fixed-2709-owner-lane-cross--routed-by-the-maintainers-measured-verification-on-629)
 ## §531 — o SEM010 imprimia os dois lados de uma colisão de records de mesmo nome simples em packages diferentes como TEXTO IDENTICO (`Type.display` omitia o package) — ✅ FIXED 27/09 (lane interop/docs — #640)
 
