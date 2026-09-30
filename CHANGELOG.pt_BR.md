@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+  - **Tooling — `check_500.sh` ganha um guarda `--selftest` (30/09, lane issues/tooling)**: o gate crítico do CI (≥600 linhas) não tinha guarda-do-guarda, então uma regressão na lógica de limite podia passar por acidente. Raiz/baseline agora sobrescrevíveis por env (`CHECK500_ROOT`/`CHECK500_BASELINE`) e adicionado `--selftest` em sandbox provando as quatro faixas: ≤500 verde (baseline vazio), classe nova ≥600 falha, avô crítico congelado passa, e crescimento desse avô falha. Prova: `--selftest` rc=0 + o gate real rc=0.
 
 # Changelog
 

@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+  - **Tooling — `check_500.sh` gains a `--selftest` guard (30/09, lane issues/tooling)**: the CI-critical ≥600-lines gate had no guard-of-the-guard, so a regression in its threshold logic could pass by accident. Made its root/baseline env-overridable (`CHECK500_ROOT`/`CHECK500_BASELINE`) and added a sandbox `--selftest` proving all four bands: ≤500 green (empty baseline), a new ≥600 class fails, a critical grandfather frozen at baseline passes, and growth of that grandfather fails. Proof: `--selftest` rc=0 + the real gate rc=0.
 
 # Changelog
 
