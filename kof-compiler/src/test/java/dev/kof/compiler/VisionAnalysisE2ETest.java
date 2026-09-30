@@ -38,7 +38,9 @@ class VisionAnalysisE2ETest {
             "sobelRamp=SOBEL:5x5 ch=1",
             "sobelRamp-mid=0 edge=98",
             "sobelDot=0 border=0,0",
-            "comp=2 a=1 b=2 bg=0");
+            "comp=2 a=1 b=2 bg=0",
+            "erode=0 dilate=255,255",
+            "open=0 close=255");
 
     @Test
     void visionAnalysisOnJvm() throws Exception {

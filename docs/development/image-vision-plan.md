@@ -663,7 +663,7 @@ ability genuinely does not exist on a target.
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
   `rotate90`, `grayscale`, `threshold`, `boxBlur`;
 - encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
-- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`, `componentLabels`/`componentCount`.
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`, `componentLabels`/`componentCount`, `erode`/`dilate`/`openRaster`/`closeRaster`.
 
 **Missing — ordered by cost:**
 
@@ -751,6 +751,15 @@ ability genuinely does not exist on a target.
    LIFO flood fill — no recursion) and `componentCount(labels): Int` (§14's
    "connected components"). Proof: `VisionAnalysisE2ETest` **4/4** — a 6×4 PGM
    with two disjoint blobs gives `comp=2 a=1 b=2 bg=0` on JVM + Native x86-64 +
+   riscv64(qemu) + Script.
+
+9. **`kof.vision` processing slice — morphology — LANDED 30/09 (pure Kof, all
+   targets).** `libs/vision/Morphology.kf` adds `erode(r)`/`dilate(r)` (3x3
+   square element, minimum/maximum over every channel, alpha preserved, borders
+   clamped), plus the compositions `openRaster(r)` (erode→dilate) and
+   `closeRaster(r)` (dilate→erode) — plan §Processing. Proof:
+   `VisionAnalysisE2ETest` **4/4** — a 5×5 PGM with one isolated 255 gives
+   `erode=0 dilate=255,255`, `open=0 close=255` on JVM + Native x86-64 +
    riscv64(qemu) + Script.
 
 ## PT

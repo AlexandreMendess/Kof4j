@@ -340,6 +340,12 @@ final class RasterDecodeFixtures {
                 255, 0, 0, 255, 255, 0,
                 0, 0, 0, 255, 255, 0,
                 0, 0, 0, 0, 0, 0}));
+        Files.write(dir.resolve("speck.pgm"), pnmGray(5, 5, new int[]{
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0,
+                0, 0, 255, 0, 0,
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0}));
         return dir;
     }
 
@@ -357,6 +363,7 @@ final class RasterDecodeFixtures {
             import vision.Components
             import vision.Edges
             import vision.Histogram
+import vision.Morphology
             import vision.Vision
 
             main() {
@@ -378,6 +385,9 @@ final class RasterDecodeFixtures {
                 var blobs = decodeRaster("%s/blobs.pgm")
                 var lab = componentLabels(blobs)
                 println("comp=" + componentCount(lab) + " a=" + lab[0] + " b=" + lab[9] + " bg=" + lab[7])
+                var speck = decodeRaster("%s/speck.pgm")
+                println("erode=" + erode(speck).samples[12] + " dilate=" + dilate(speck).samples[12] + "," + dilate(speck).samples[6])
+                println("open=" + openRaster(speck).samples[12] + " close=" + closeRaster(speck).samples[12])
             }
 
             String sat(Int v) {
@@ -385,7 +395,7 @@ final class RasterDecodeFixtures {
                 if (v > 255) { return "over" }
                 return v.toString()
             }
-            """.formatted(base, base, base, base);
+            """.formatted(base, base, base, base, base);
     }
 
     static byte[] rasterPpm() throws Exception {

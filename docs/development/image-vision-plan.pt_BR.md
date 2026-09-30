@@ -805,7 +805,7 @@ capacidade realmente não existe no alvo.
 - ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
   `rotate90`, `grayscale`, `threshold`, `boxBlur`;
 - encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
-- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`, `componentLabels`/`componentCount`.
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `sobelMagnitude`, `componentLabels`/`componentCount`, `erode`/`dilate`/`openRaster`/`closeRaster`.
 
 **Falta — em ordem de custo:**
 
@@ -894,6 +894,15 @@ capacidade realmente não existe no alvo.
    `componentCount(labels): Int` (o "connected components" do §14). Prova:
    `VisionAnalysisE2ETest` **4/4** — um PGM 6×4 com dois blobs disjuntos dá
    `comp=2 a=1 b=2 bg=0` na JVM + Native x86-64 + riscv64(qemu) + Script.
+
+9. **Fatia de processamento do `kof.vision` — morfologia — LANDED 30/09 (Kof
+   puro, todos os alvos).** `libs/vision/Morphology.kf` adiciona `erode(r)`/
+   `dilate(r)` (elemento quadrado 3×3, mínimo/máximo sobre cada canal, alfa
+   preservado, bordas recortadas), mais as composições `openRaster(r)`
+   (erode→dilate) e `closeRaster(r)` (dilate→erode) — §Processing do plano.
+   Prova: `VisionAnalysisE2ETest` **4/4** — um PGM 5×5 com um 255 isolado dá
+   `erode=0 dilate=255,255`, `open=0 close=255` na JVM + Native x86-64 +
+   riscv64(qemu) + Script.
 
 ## EN
 [English](image-vision-plan.md)
