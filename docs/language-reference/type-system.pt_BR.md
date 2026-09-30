@@ -283,8 +283,10 @@ bytes de execução não mudam. `out`/`in` num type-argument continuam contextua
 **Garantia do type checker:** chamada a função/método **inexistente em tipo
 conhecido** é erro (`SEM015`/`SEM025`); aridade de argumentos/construtores é
 checada (`SEM013`/`SEM023`); tipo de retorno incompatível é erro (`SEM010`);
-`throw` só aceita `String` (`SEM026`); atribuição respeita `isAssignable`
-(`SEM012`/`SEM021`); redeclaração no mesmo escopo é erro (`SEM024`); switch-
+`throw` só aceita `String` (`SEM026`); atribuição **e argumento de chamada**
+respeitam o `isAssignable` nominal — hierarquia + args de genérico (invariante
+por padrão, `out`/`in` por variância declaration-site; #688) — (`SEM012`/`SEM014`/
+`SEM021`); redeclaração no mesmo escopo é erro (`SEM024`); switch-
 expressão exige default/exaustividade (`SEM032`); enum exaustivo em switch
 (`SEM031`).
 
@@ -397,7 +399,7 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM011` | variável/tipo indefinido | `SemExpressionTyper` (case `IdentifierExpr`) |
 | `SEM012` | atribuição incompatível (statement) | `StatementAnalyzer` (case `AssignStmt`) |
 | `SEM013` | nº de argumentos ≠ parâmetros | `TypeChecker.checkArgTypes` |
-| `SEM014` | argumento com tipo incompatível | `TypeChecker.checkArgTypes` |
+| `SEM014` | argumento com tipo incompatível — hierarquia nominal + args de genérico (#688) | `TypeChecker.checkArgTypes` |
 | `SEM015` | função indefinida / não-função chamada | `BuiltinCallTyper` |
 | `SEM020` | atribuição a variável nunca declarada | `SemExpressionTyper` (case `AssignExpr`) |
 | `SEM021` | tipo explícito ≠ tipo do inicializador | `StatementAnalyzer` (case `VarDeclStmt`) |
