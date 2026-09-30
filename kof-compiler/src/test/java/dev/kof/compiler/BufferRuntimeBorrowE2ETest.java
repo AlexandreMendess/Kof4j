@@ -255,7 +255,7 @@ class BufferRuntimeBorrowE2ETest {
                 p.destroyForcibly();
                 fail("timeout waiting for the barrier READY file");
             }
-            Thread.sleep(5);
+            TestServerFixture.awaitTrue(1, 5, () -> Files.exists(ready));
         }
         Files.writeString(go, "go");
         assertTrue(p.waitFor(60, TimeUnit.SECONDS), "native must finish after GO");
@@ -307,7 +307,7 @@ class BufferRuntimeBorrowE2ETest {
                 p.destroyForcibly();
                 fail(arch + ": timeout waiting for the barrier READY file");
             }
-            Thread.sleep(5);
+            TestServerFixture.awaitTrue(1, 5, () -> Files.exists(ready));
         }
         Files.writeString(go, "go");
         assertTrue(p.waitFor(90, TimeUnit.SECONDS), arch + " must finish after GO");
@@ -383,7 +383,7 @@ class BufferRuntimeBorrowE2ETest {
                 p.destroyForcibly();
                 fail("timeout waiting for the barrier READY file");
             }
-            Thread.sleep(5);
+            TestServerFixture.awaitTrue(1, 5, () -> Files.exists(ready));
         }
         Files.writeString(go, "go");
         assertTrue(p.waitFor(60, TimeUnit.SECONDS), "JVM must finish after GO");
