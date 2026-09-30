@@ -1654,11 +1654,13 @@ class ConformanceMatrixTest {
                     println(s[0])
                 }
                 """, "-126\n4464", Set.of(), tempDir);
-        // §185 (13/09): store em elemento de `Char[]`/`Bool[]` — o
-        // interpretador (Script) LANÇA "argument type mismatch" no caminho
-        // vivo `KofInterpreter:306` (`coerceFor` devolve Integer; `Array.set`
-        // de `char[]`/`boolean[]` exige Character/Boolean). JVM/Native/JS
-        // imprimem o code unit/bool. PARTIAL script.
+        // §185 (13/09, FIXED 15/09): store em elemento de `Char[]`/`Bool[]` —
+        // o interpretador (Script) LANÇAVA "argument type mismatch" no caminho
+        // vivo `KofInterpreter:306` (`coerceFor` devolvia Integer; `Array.set`
+        // de `char[]`/`boolean[]` exige Character/Boolean). Fix:
+        // `KofInterpreterValues.coerceFor` produz o tipo REAL do slot
+        // (`KofInterpreterParityTest#charBoolArrayStore`). Os 4 alvos
+        // imprimem o code unit/bool — a antiga exclusão do script era stale.
         matrix("chararr", """
                 main() {
                     var c = new Char[2]
@@ -1672,7 +1674,7 @@ class ConformanceMatrixTest {
                     println(b[0])
                     println(b[1])
                 }
-                """, "A\nB\ntrue\nfalse", Set.of("script"), tempDir);
+                """, "A\nB\ntrue\nfalse", Set.of(), tempDir);
         // §186 (13/09): inicializador de campo `static` NÃO-literal. O
         // front-end só levava `LiteralExpr` direto ao `initialValue`; `-1`
         // (unário) e `2 + 3` (binário dobrado) ficavam de fora e, no JVM,
@@ -1709,8 +1711,9 @@ class ConformanceMatrixTest {
         // segue correto). A 2-D trava o `kof_multi_alloc`; o `Short[]`
         // negativo é o controle de SINAL (prova que a máscara não virou
         // zero-extend genérico). §184/§187 fix na RAIZ: o JS também estreita
-        // Char[] (kind=3 → `& 0xFFFF`) — só o `script` segue PARTIAL (§185,
-        // crash do interpretador no store de Char[]).
+        // Char[] (kind=3 → `& 0xFFFF`); o `script` também estreita (o store de
+        // `Char[]`/`Bool[]` do interpretador foi corrigido por §185, 15/09) —
+        // os 4 alvos casam.
         matrix("charnarrow", """
                 main() {
                     var c = new Char[2]
@@ -1727,7 +1730,7 @@ class ConformanceMatrixTest {
                     s[0] = -1
                     println(s[0])
                 }
-                """, "4464\n65535\n4464\n65535\n-1", Set.of("script"), tempDir);
+                """, "4464\n65535\n4464\n65535\n-1", Set.of(), tempDir);
         // §131 (decisão 10a, 13/09): sobrecarga de MÉTODO de classe por
         // assinatura (aridade/tipos). Antes: SEM013 no JVM (último def
         // sobrescrevia) e colisão de símbolo no Native. Prova só JVM+JS

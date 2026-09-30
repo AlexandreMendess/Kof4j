@@ -6475,8 +6475,9 @@ para o label) é o predicado correto e **já era usado** no `parseStatements`.
   `KofInterpreterOps.arrayStore` morto pode ser removido ou alinhado — não é
   o fix.) Alternativa mínima: tratar no ponto do `Array.set` (l.306).
 - **Provas a adicionar:** `KofInterpreterParityTest.charArrayStore` +
-  `boolArrayStore` (novos) + célula de matriz `chararr` (4 targets; a célula
-  já cobre `Char[]` e `Bool[]`, hoje PARTIAL script).
+  `boolArrayStore` (novos) + célula de matriz `chararr` (nos 4 alvos — a
+  célula cobre `Char[]` e `Bool[]`; **agora DONE**, o skip do script foi
+  removido quando o §185 pousou).
 - **Nota Q7 (código morto):** `KofInterpreterOps.arrayStore`/`arrayLoad` e o
   `KofInterpreterBuiltins` que os expõe são fachada não-invocada — catalogar
   a remoção junto do fix (não é stub de feature, é resto de refactor).
@@ -6644,7 +6645,9 @@ para o label) é o predicado correto e **já era usado** no `parseStatements`.
   `movslq`/`lw` **segue correto** porque o valor gravado fica em `[0,65535]`
   — o alerta "trocar o tamanho p/ 2 quebra o load (`movswq` sinaliza)" é
   evitado por construção. Prova: célula `charnarrow` ampliada (1-D **e**
-  2-D, `Set.of("script","js")` — Native e JVM travam `4464\n65535`).
+  2-D, então `Set.of("script","js")` — Native e JVM travam `4464\n65535`;
+  **agora `Set.of()`** depois das faces JS (§187, 15/09) e Script (§185,
+  15/09) — a célula é DONE nos quatro alvos).
   **NÃO estende a arrays `int`**: `elementTypeSize` fica intacto (a
   ambiguidade `char`↔`int` só existe no store, que agora carrega o
   `elementType` do `KofArrayStore`).
@@ -6656,10 +6659,12 @@ para o label) é o predicado correto e **já era usado** no `parseStatements`.
   `kofArraySet`/`Get`). ~~Face JS segue ABERTA.~~ **(SUPERADO — ✅ CORRIGIDA
   15/09 lane compiler `192.168.100.22`: `kofArraySet` kind char→`& 0xFFFF`;
   ver o cabeçalho da seção.)**
-- **Provas a adicionar:** célula de matriz `charnarrow` (JVM DONE; Native/
-  Script/JS PARTIAL — Script cai no §185) + testes cross.
+- **Provas a adicionar:** célula de matriz `charnarrow` (agora DONE em
+  JVM/Native/Script/JS — a face Script caiu sob o §185, CORRIGIDO 15/09) +
+  testes cross.
 - **Nota de escopo:** a face JS já é o mesmo defeito do §184; registrada
-  separada para o Native (que o §184 não cobre). Script = §185 (crash).
+  separada para o Native (que o §184 não cobre). Script = §185 (CORRIGIDO
+  15/09 — `coerceFor` produz o tipo real do slot).
 
 ### §188 — `String as Int` compila e faz `VerifyError` no runtime JVM (R6: código errado emitido)
 
