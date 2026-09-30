@@ -14,6 +14,7 @@
 > **Fatia 2 do VP8 lossy LANDED 30/09 (Kof puro, todos os alvos):** `libs/image/Vp8Frame.kf` + `libs/image/Vp8Probs.kf` (novos) — caminhada RIFF/`WEBP` + frame header `VP8 ` completo (RFC 6386 §9/§19): tag de key-frame/start code/dimensões, segmentação, loop filter, número de partições, os seis índices de dequant e a tabela de 1056 probabilidades de coeficiente (defaults + updates). `Vp8Bool` ganhou `signedOrZero`/`bytePosition`. Prova: `Vp8FrameE2ETest` 4/4 vs um oráculo RFC §19.2 independente na JVM + Native x86-64 + riscv64(qemu) + Script. Modelado como classe (não record largo) porque o backend cross corrompia chamadas com ≥9 argumentos (`known-bugs` §546, issue #703 — **CORRIGIDO 30/09**, `NativeCrossWideArgsE2ETest` 3/3).
 > **Fatia 3 do VP8 lossy LANDED 30/09 (Kof puro, todos os alvos):** `libs/image/Vp8Frame.kf` agora decodifica os registros de predição por macrobloco de key-frame (RFC 6386 §10/§11): o segment id por macrobloco (quando `update_mb_segmentation_map`), o `mb_skip_coeff` (quando `mb_no_skip_coeff`), o modo luma 16x16, os 16 modos de subbloco luma com contexto quando o modo é `B_PRED` (a `kf_bmode_prob` 10×10×9 indexada pelos modos dos subblocos acima/à esquerda, atravessando fronteiras de macrobloco) e o modo de croma. O novo `libs/image/Vp8ModeProbs.kf` carrega as três tabelas fixas (`kf_ymode_prob`, `kf_uv_mode_prob`, `kf_bmode_prob`). Prova: `Vp8ModeE2ETest` 4/4 vs um oráculo RFC §7.3/§10/§11 independente sobre três arquivos lossy do libwebp (mapa de segmentos 4×4 + `mb_skip_coeff`; 2×2 todo `B_PRED`; modos luma/croma mistos) na JVM + Native x86-64 + riscv64(qemu) + Script — cada segment id, flag de skip e modo idênticos. Próximas fatias: decodificação de coeficientes DCT (§13), predição intra + DCT/WHT inversa (§12/§14), o loop filter (§15).
 > **Fatia 4 do VP8 lossy LANDED 30/09 (Kof puro, todos os alvos):** o novo `libs/image/Vp8Coeffs.kf` — o **decodificador de coeficientes DCT/WHT** da partição de token (RFC 6386 §13.2/§13.3): para cada macrobloco não marcado `mb_skip_coeff`, os blocos 4×4 Y2/16 Y/4 U/4 V são lidos da árvore de blocos (end-of-block, zero, 1, 2 e ramos 3–4, os três nós de valor codificados por contexto e os seis tokens de categoria com suas probabilidades fixas de bits extras `Pcat1..Pcat6`) para `mb*400 + block*16 + zig-zagIndex`, com a posição de end-of-block por bloco; os preditores de não-zero acima/à esquerda atravessam fronteiras de macrobloco e são zerados num macrobloco skipado. `vp8TokenPartition` constrói o decoder bool da única partição de token e recusa um frame multi-partição com diagnóstico explícito (o libwebp sempre emite uma) em vez de errar o decode. Prova: `Vp8CoeffE2ETest` **4/4** vs um oráculo RFC §7.3/§13 independente sobre quatro arquivos lossy reais do libwebp (16×16 só-DC, 32×32 todo `B_PRED`, um 64×64 com `mb_no_skip_coeff` + skips e um 64×64 misturando cada categoria de coeficiente), reproduzindo a contagem de blocos não-vazios e as somas de coeficientes com sinal/absolutas de cada macrobloco na JVM + Native x86-64 + riscv64(qemu) + Script. O lookup de banda por posição do oráculo foi conferido contra a referência `tokens.c` da RFC §20.16 (`prob += bands_x[c]`, um mapeamento único). Próximas fatias: predição intra + DCT/WHT inversa (§12/§14), o loop filter (§15).
+> **Fatia 5a do VP8 lossy LANDED 30/09 (Kof puro, todos os alvos):** o novo `libs/image/Vp8Residual.kf` — **desquantização + transforms inversas** (RFC 6386 §14). Os coeficientes quantizados de cada macrobloco são desquantizados com seus fatores de frame/segmento (`dc_qlookup`/`ac_qlookup` §14.1; Y2 DC `×2`, Y2 AC `×155/100` mínimo 8, UV DC limitado a 132), o bloco Y2 é invertido com a transformada inversa de Walsh-Hadamard (§14.3) e sua saída 4×4 torna-se o termo DC dos 16 subblocos luma, então cada subbloco luma/croma é invertido com a DCT inversa (§14.4, `20091`/`35468`). As duas tabelas de quant de 128 entradas são construídas **uma vez** num objeto `Vp8QuantTables` (mantendo-as vivas entre macroblocos — reconstruir o `listOf` a cada chamada disparava uma corrida de marca do GC do riscv64 que corrompia o resíduo; a forma de objeto é estável em todos os alvos). Prova: `Vp8ResidualE2ETest` **4/4** vs um oráculo RFC §14 independente sobre quatro arquivos lossy reais do libwebp (um `B_PRED` só-DC, um 2×2 todo `B_PRED`, um frame com segmentos/skip e um misturando cada categoria) — as somas com sinal/absolutas de luma/croma de cada macrobloco idênticas na JVM + Native x86-64 + riscv64(qemu) + Script. Próximo: predição intra (§12) + reconstrução (somar o resíduo aos pixels preditos), depois o loop filter (§15).
 > **Descritores de região do `kof.vision` LANDADOS 30/09 (Kof puro, todos os alvos):** `libs/vision/Regions.kf` (novo) adiciona `componentBoxes(labels, width)` (bounding box axis-aligned exata por rótulo de componente), `componentAreas(labels)` (contagem de pixels por rótulo) e `labelComponents(labels, width)` (a forma objeto `List<Component>`) — os descritores do §12 "regiões" / §14 "extração de contorno", sobre `componentLabels`. Prova: `VisionAnalysisE2ETest` **4/4** (o PGM 6×4 de dois blobs dá `areas=3,4`, `box1=0,0,1,1`, `box2=3,1,4,2`, `regions=2 r1=1@0,0 a3`) na JVM + Native x86-64 + riscv64(qemu) + Script.
 > **Fatia 3i LANDED 30/09 (Kof puro, todos os alvos):** `libs/image/Vp8l.kf` — **grupos meta-Huffman** do VP8L (RFC 9649 §3.7.2.2): `prefix_bits = ReadBits(3)+2`; a imagem de entropia `ceil(w/2^bits) × ceil(h/2^bits)` é decodificada por entropia, os bytes red/green de cada pixel dão seu índice de grupo, lê-se um grupo de códigos de prefixo por valor distinto, e cada pixel seleciona seu grupo por `entropy[(y>>bits)*xw + (x>>bits)]` (a cópia LZ77 não é limitada aos blocos de grupo, espelhando o libwebp). Esta era a última recusa do VP8L — todo o caminho lossless do VP8L agora decodifica. Prova: `RasterDecodeE2ETest` 19/19 (novo stream 8x8 de dois grupos gerado pelo libwebp, validado byte a byte contra ele; JVM + Native x86-64 + riscv64(qemu) + Script); RED medido no decoder pré-fatia (`IMAGE: WebP meta-Huffman groups are not supported yet`).
 > **Fatia 3f LANDED 29/09 (Kof puro, todos os alvos):** `libs/image/Vp8l.kf` — **cache de cor** do VP8L (RFC 9649 §3.6.2.3: `color_cache_code_bits` 1..11, slot `(0x1e35a7bd * argb) >> (32 - bits)`, todo pixel literal/copiado inserido na ordem do stream, `S >= 256+24` lê o cache). O alfabeto do código de prefixo verde agora é `256+24+cache_size`. Decodifica streams subtract-green/cache-de-cor/grupo-único. Transforms predictor/color/indexing e meta-Huffman ainda recusados com diagnóstico explícito `IMAGE:`. Prova: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. um stream 8x8 com cache de cor **gerado pelo libwebp e validado byte a byte contra ele**, JVM + Native x86-64 + riscv64(qemu) + Script); RED medido no decoder pré-fatia (`IMAGE: WebP color cache is not supported yet`).
@@ -1003,7 +1004,32 @@ capacidade realmente não existe no alvo.
     bands_x[c]`, um mapeamento único; o decoder Kof o aplica uma vez). Próxima
     fatia: predição intra + DCT/WHT inversa (§12/§14), depois o loop filter (§15).
 
-15. **Fatia 2c do `kof.vision` — regiões de componentes conexos — LANDADA 30/09
+15. **Fatia 5a do VP8 lossy — desquantização + transforms inversas — LANDADA
+    30/09 (Kof puro, todos os alvos).** O novo `libs/image/Vp8Residual.kf`
+    converte o resíduo quantizado da fatia 4 no resíduo sem predição de cada
+    macrobloco (RFC 6386 §14). Para cada macrobloco deriva os seis fatores de
+    desquantização do seu quantizador de frame e de segmento (§14.1): as tabelas
+    `dc_qlookup`/`ac_qlookup` alimentam Y DC/AC, Y2 DC (`×2`) e AC (`×155/100`,
+    mínimo 8), e o croma DC/AC (DC limitado a 132). O bloco Y2 é invertido com a
+    transformada inversa de Walsh-Hadamard (§14.3) e sua saída 4×4 torna-se o
+    coeficiente DC de cada um dos 16 subblocos luma; cada subbloco luma e croma é
+    então invertido com a DCT inversa (§14.4, ponto fixo `20091`/`35468`). Os
+    resultados são guardados como `y` (16×16 por macrobloco) e `u`/`v` (8×8),
+    com macroblocos `B_PRED` tomando o DC direto do stream de coeficientes (sem
+    Y2). As duas tabelas de quant de 128 entradas são construídas **uma vez**
+    dentro de um objeto `Vp8QuantTables` compartilhado pelo decode: reconstruir
+    o `listOf` a cada chamada de desquantização deixava um temporário
+    profundamente vivo que o coletor do riscv64 marcava em corrida e corrompia
+    os arrays de trabalho (um achado de GC nativo, contornado estruturalmente em
+    Kof puro). Prova: `Vp8ResidualE2ETest` **4/4** contra um **oráculo RFC §14
+    independente** (Python offline) sobre quatro arquivos lossy reais do libwebp
+    — um frame `B_PRED` só-DC, um 32×32 todo `B_PRED`, um 64×64 com
+    segmentos/skip e um 64×64 misturando cada categoria de coeficiente —
+    reproduzindo as somas com sinal e absolutas dos planos de resíduo luma e
+    croma de cada macrobloco na JVM + Native x86-64 + riscv64(qemu) + Script (sem
+    mudança no compilador). Próxima fatia: predição intra (§12) + reconstrução
+    (somar o resíduo aos pixels preditos), depois o loop filter (§15).
+16. **Fatia 2c do `kof.vision` — regiões de componentes conexos — LANDADA 30/09
     (Kof puro, todos os alvos).** `libs/vision/Regions.kf` adiciona os
     descritores reutilizáveis de região do §12 ("regiões") / §14 ("extração de
     contorno"): `componentBoxes(labels, width): List<ComponentBox>` (uma
@@ -1028,8 +1054,9 @@ library-first, mesma forma das fatias do VP8L, com a mesma disciplina de fatias
 (cada uma unidade completa e testada; sem meio-decode intermediário). Cadeia de
 fatias: (1) parser RIFF/`VP8 ` + frame header + decoder booleano de range (§7);
 (2) header de modo/segmento por macrobloco + tabelas de probabilidade dos
-coeficientes; (3) predição intra + DCT/WHT inversa + reconstrução; (4) filtro de
-deblocking in-loop; (5) o caminho adaptativo (não-keyframe). Até a cadeia
+coeficientes; (3) desquantização + DCT/WHT inversa (§14, fatia 5a LANDADA) e
+depois predição intra + reconstrução (§12); (4) filtro de deblocking in-loop; (5)
+o caminho adaptativo (não-keyframe). Até a cadeia
 pousar, um WebP lossy segue recusado em runtime com `IMAGE: WebP is not lossless
 (VP8L)` (nunca decode errado silencioso); AVIF vem depois do VP8.
 
