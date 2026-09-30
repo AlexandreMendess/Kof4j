@@ -2,17 +2,66 @@
 
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
-last: none
-doing: none-planned
-next: spike-3.0
-location: docs/development/future
-state: planned
+last: promovido-de-future-30/09
+doing: spike-3.0 (infra+relatório, sem API)
+next: fatia-3.1 (window/frame/input)
+location: docs/development
+state: UNDER DEVELOPMENT
 
-**Status:** plano futuro — desenho apenas, **zero código**
-**Fonte normativa:** `DECISIONS.md` §D-GRAPHICS-GAMING + adendos da mantenedora
+**Status:** **EM DESENVOLVIMENTO** — promovido 30/09 de `future/` por `D-GRAPHICS-SPIKE` (spike 3.0 = medição + stack apenas, sem API) sob `D-FUTURE-PROMOTION`.
+**Dona:** lane UI.
+**Fonte normativa:** `DECISIONS.md` §D-GRAPHICS-GAMING + adendos da mantenedora + §D-GRAPHICS-SPIKE.
 **Deps:** R3/FFI-ABI, runtime, matriz de capabilities, fronteira da stdlib, suíte de conformância
 
-> **Regra fundamental:** direção futura apenas. Toda sintaxe aqui é **forma de intenção**; a forma definitiva da linguagem é decisão da mantenedora. Sem keywords, namespaces ou trilha de implementação a partir deste doc.
+> **Regra fundamental:** toda sintaxe aqui é **forma de intenção**; a forma
+> definitiva da linguagem é decisão da mantenedora. Nenhuma keyword/namespace
+> abre a partir deste doc. A fatia 3.0 é **infra + relatório de medição apenas**
+> — **não** adiciona API (a decisão autoriza o spike, nada mais).
+
+## 0.1 Estado real (spike 3.0, medido 30/09)
+
+Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
+
+- **JavaFX: 0** — `grep -rins javafx` sobre `kof-*/src/**`, `pom.xml` e `*.kf` dá
+  **0**; todos os hits (237) são prosa de documentação/treinamento. Agora imposto
+  por `scripts/check_javafx_absent.sh` (self-test RED-first em
+  `scripts/tests/check-javafx-absent-test.sh`).
+- **Libs candidatas no host (dev box x86-64):** `.so` de runtime presente para SDL2
+  (`libSDL2-2.0.so.0`), OpenAL (`libopenal.so.1`), FFmpeg libavformat/avcodec
+  (`libavformat.so.60`/`libavcodec.so.60`); **sem headers `-dev`** (`pkg-config`
+  não acha sdl3/sdl2/raylib/glfw3/openal/libavcodec/ffmpeg). É a medição do spike,
+  não a escolha de stack.
+- **Substrato R3/FFI presente** (a dependência nomeada no §3): `FfiSignature`,
+  `AbiLayout`, `FfiStructLayout`, `CompilerFfiBinding`, `JvmFfiRuntime`,
+  `NativeFfiCall`, `ExternalClasspath`, `KofProcess` (ver `docs/ffi-abi-structs.md`).
+  Qualquer mecanismo gráfico é extensão de R3 primeiro — sem FFI paralela.
+- **`kof.ui`:** handles no-op em JVM/Native, DOM no KofJS (`KOFUI-AUDIT`);
+  **`kof.media`:** só bitmap/WAV/metadados/mic; playback/streaming/mixer/vídeo
+  ausentes (`MEDIA001`/`MEDIA003`). Ambos seguem lacunas honestas até um backend real.
+
+**Matriz de candidatas (entrada para a escolha de stack da mantenedora; `?` = não medido):**
+
+| Candidata | Domínio | Licença (`?` = confirmar upstream) | Roda no host | Headless | Cross (riscv64/aarch64) | Eixo |
+|---|---|---|---|---|---|---|
+| SDL3 / SDL2 | janela+input+áudio | zlib (`?`) | `.so` de SDL2 presente, sem `-dev` | SDL3 sim / SDL2 via dummy driver (`?`) | `?` | uma lib, muitos alvos |
+| raylib | 2D/3D+áudio | zlib (`?`) | `?` | sim (`?`) | `?` | 2D batteries-included |
+| GLFW + API GL | janela+contexto | zlib (`?`) | `?` | contexto offscreen (`?`) | `?` | fina, exige expertise GL |
+| miniaudio | áudio | public-domain/MIT-0 (`?`) | header-only, `?` | mix offline sim (`?`) | `?` | áudio single-header |
+| OpenAL-Soft | áudio | LGPL-2.1 (`?`) | `.so` de runtime presente, sem `-dev` | `?` | `?` | áudio posicional 3D |
+| FFmpeg / Libav | vídeo+codecs | LGPL-2.1 / GPL (`?`) | `.so` de libavcodec/avformat presente, sem `-dev` | sim (`?`) | `?` | conjunto de codecs completo |
+
+**Recomendação (guiada por medição, não por familiaridade):** a regra JVM do plano
+(§11: nunca JavaFX/Swing/AWT/`javax.sound`) + o acoplamento R3-first (§3) apontam para
+**uma stack portátil multi-alvo para janela+input+áudio** (SDL3 é a candidata natural)
+e **FFmpeg/Libav para codecs de vídeo** (nunca caseiros, §10/§14). A escolha é da
+mantenedora; o spike só remove incógnitas e restaura a guarda.
+
+**Como terminar (ordem das fatias, §15):** 3.0 (esta infra+relatório) → **3.1**
+window/frame/input em JVM/Script/Native/JS + conformância → 3.2 (2D) → 3.3
+(áudio, golden PCM offline) → 3.4 (vídeo, frame readback) → 3.5 (3D, só se a
+paridade permitir) → 3.6 (corpus). Cada fatia é una, testada, e exige a **escolha
+de stack** registrada como `D-*` antes de qualquer API (a matriz do relatório do
+spike é a entrada dessa decisão).
 
 # 0. Objetivo
 

@@ -968,6 +968,10 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > **ABERTA (7ª frente):** `image-vision` — promovido 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) para
 > [`image-vision-plan.md`](image-vision-plan.md); fatia 1 = metadados pure-Kof em `libs/image/` (formato + dimensões,
 > PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 na JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).
+> **ABERTA (8ª frente):** `graphics-gaming` — promovido 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) para
+> [`graphics-gaming-plan.md`](graphics-gaming-plan.md); fatia **3.0 = spike+infra** (guarda JavaFX-ausente
+> `scripts/check_javafx_absent.sh` + self-test + relatório medido, **sem API**). Próximo = escolha de stack
+> da mantenedora (`D-*`), depois a fatia 3.1 (window/frame/input).
 > Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).

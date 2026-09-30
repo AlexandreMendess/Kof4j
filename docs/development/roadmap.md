@@ -964,6 +964,10 @@ science) **without** destroying the language's simplicity.
 > **OPEN (7th front):** `image-vision` — promoted 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) to
 > [`image-vision-plan.md`](image-vision-plan.md); slice 1 = pure-Kof `libs/image/` metadata (format + dimensions,
 > PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).
+> **OPEN (8th front):** `graphics-gaming` — promoted 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) to
+> [`graphics-gaming-plan.md`](graphics-gaming-plan.md); slice **3.0 = spike+infra** (JavaFX-absent guard
+> `scripts/check_javafx_absent.sh` + self-test + measured report, **no API**). Next = the maintainer's stack
+> pick (`D-*`), then slice 3.1 (window/frame/input).
 > All remaining `future/` plans are authorized with their
 > design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
 > one-at-a-time (`D-FUTURE-PROMOTION`).

@@ -2,17 +2,67 @@
 
 # Graphics, Games and Media — Kof's Intent Surface
 
-last: none
-doing: none-planned
-next: spike-3.0
-location: docs/development/future
-state: planned
+last: promoted-from-future-30/09
+doing: spike-3.0 (infra+report, no API)
+next: slice-3.1 (window/frame/input)
+location: docs/development
+state: UNDER DEVELOPMENT
 
-**Status:** future plan — design only, **zero code**
-**Normative source:** `DECISIONS.md` §D-GRAPHICS-GAMING + maintainer addenda
+**Status:** **UNDER DEVELOPMENT** — promoted 30/09 from `future/` by `D-GRAPHICS-SPIKE` (spike 3.0 = measurement + stack only, no API) under `D-FUTURE-PROMOTION`.
+**Owner:** lane UI.
+**Normative source:** `DECISIONS.md` §D-GRAPHICS-GAMING + maintainer addenda + §D-GRAPHICS-SPIKE.
 **Deps:** R3/FFI-ABI, runtime, capability matrix, stdlib boundary, conformance suite
 
-> **Fundamental rule:** future direction only. Every syntax here is an **intent form**; the definitive language form is the maintainer's decision. No keywords, namespaces, or implementation track opens from this doc.
+> **Fundamental rule:** every syntax here is an **intent form**; the definitive
+> language form is the maintainer's decision. No keywords/namespaces open from
+> this doc. Slice 3.0 is **infra + a measurement report only** — it adds **no
+> API** (the decision authorizes the spike, nothing else).
+
+## 0.1 Real state (spike 3.0, measured 30/09)
+
+Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
+
+- **JavaFX: 0** — `grep -rins javafx` over `kof-*/src/**`, `pom.xml` and `*.kf`
+  is **0**; every hit (237) is documentation/training prose. Enforced now by
+  `scripts/check_javafx_absent.sh` (RED-first self-test in
+  `scripts/tests/check-javafx-absent-test.sh`).
+- **Host candidate libs (x86-64 dev box):** runtime `.so` present for SDL2
+  (`libSDL2-2.0.so.0`), OpenAL (`libopenal.so.1`), FFmpeg libavformat/avcodec
+  (`libavformat.so.60`/`libavcodec.so.60`); **no `-dev` headers** (`pkg-config`
+  reports none of sdl3/sdl2/raylib/glfw3/openal/libavcodec/ffmpeg). The spike
+  measurement, not the stack pick.
+- **R3/FFI substrate present** (this is the dependency the plan §3 names):
+  `FfiSignature`, `AbiLayout`, `FfiStructLayout`, `CompilerFfiBinding`,
+  `JvmFfiRuntime`, `NativeFfiCall`, `ExternalClasspath`, `KofProcess`
+  (see `docs/ffi-abi-structs.md`). Any graphics mechanism is an R3 extension
+  first — no parallel FFI.
+- **`kof.ui`:** JVM/Native no-op handles, KofJS DOM (`KOFUI-AUDIT`); **`kof.media`:**
+  bitmap/WAV/metadata/mic only; playback/streaming/mixer/video absent
+  (`MEDIA001`/`MEDIA003`). Both stay honest gaps until a real backend lands.
+
+**Candidate matrix (input to the maintainer's stack pick; `?` = not measured):**
+
+| Candidate | Domain | License (`?` = confirm upstream) | Runs on host | Headless | Cross (riscv64/aarch64) | Axis |
+|---|---|---|---|---|---|---|
+| SDL3 / SDL2 | window+input+audio | zlib (`?`) | SDL2 runtime `.so` present, no `-dev` | SDL3 yes / SDL2 via dummy driver (`?`) | `?` | one lib, many targets |
+| raylib | 2D/3D+audio | zlib (`?`) | `?` | yes (`?`) | `?` | batteries-included 2D |
+| GLFW + GL API | window+context | zlib (`?`) | `?` | offscreen ctx (`?`) | `?` | thin, GL expertise needed |
+| miniaudio | audio | public-domain/MIT-0 (`?`) | header-only, `?` | offline mix yes (`?`) | `?` | single-header audio |
+| OpenAL-Soft | audio | LGPL-2.1 (`?`) | runtime `.so` present, no `-dev` | `?` | `?` | 3D positional audio |
+| FFmpeg / Libav | video+codecs | LGPL-2.1 / GPL (`?`) | libavcodec/avformat `.so` present, no `-dev` | yes (`?`) | `?` | full codec set |
+
+**Recommendation (measurement-driven, not by familiarity):** the plan's JVM rule
+(§11: never JavaFX/Swing/AWT/`javax.sound`) plus the R3-first coupling (§3) point
+to **one portable multi-target stack for window+input+audio** (SDL3 is the natural
+candidate) and **FFmpeg/Libav for video codecs** (never homemade, §10/§14). The
+maintainer picks; the spike only removes unknowns and restores the guard.
+
+**How to finish (slice order, `§15`):** 3.0 (this infra+report) → **3.1**
+window/frame/input on JVM/Script/Native/JS + conformance → 3.2 (2D) → 3.3
+(audio, offline PCM golden) → 3.4 (video, frame readback) → 3.5 (3D, only if
+parity allows) → 3.6 (corpus). Each slice is a complete, tested unit and needs
+its **stack choice** recorded as a `D-*` before any API lands (the spike report's
+matrix is the input to that decision).
 
 # 0. Objective
 
