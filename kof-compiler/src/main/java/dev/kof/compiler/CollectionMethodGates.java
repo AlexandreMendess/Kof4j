@@ -170,8 +170,8 @@ public final class CollectionMethodGates {
         if (vt == null || vt instanceof Type.UnknownType) return 3;
         if (BuiltinTypes.isObject(vt)) return 6;
         if (vStr) return aStr ? 1 : 3;
-        boolean vBox = CollectionCallLowerer.mapBoxablePrim(vt);
-        boolean aBox = at != null && CollectionCallLowerer.mapBoxablePrim(at);
+        boolean vBox = CollectionLoweringSupport.mapBoxablePrim(vt);
+        boolean aBox = at != null && CollectionLoweringSupport.mapBoxablePrim(at);
         if (vBox) return aBox ? 2 : 3;
         if (aStr || aBox) return 3;
         if (CollectionWrites.isKofObject(vt)) return 7;

@@ -37,7 +37,7 @@ public final class ExpressionJsonCallLowerer {
             // (desembale via kof_box_to_string, mesma tabela do println) para
             // nao JSONificar o PONTEIRO da caixa. List/Set seguem crus.
             if (driver.target.isNative()
-                    && CollectionCallLowerer.mapBoxablePrim(
+                    && CollectionLoweringSupport.mapBoxablePrim(
                         mv2 instanceof Type.NullableType nt ? nt.inner() : mv2)) {
                 tag = 7;
             }
