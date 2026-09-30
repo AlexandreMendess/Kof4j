@@ -13389,7 +13389,7 @@ Follow-up na mesma unidade (feedback da CI): os pins herméticos expuseram que o
 
 <!-- en-switch --> **EN:** [§523 (EN)](known-bugs.md#523--mysqlmariadb-connect-against-a-server-that-rejects-auth-returns-a-dead-handle-and-the-next-queryexecute-sigsegvs-139-instead-of-throwing-the-handshake-error---fixed-2709-lane-issues-por-ordem-da-mantenedora)
 
-## §524 — harnesses qemu aarch64 em `NativeRiscvGc*/Dtoa/DbWire` SIGSEGAM (139) sob carga de CPU enquanto ficam verdes em isolamento — determinístico na suíte completa, NÃO é regressão de código — 🟡 OPEN (dona = lane native-cross)
+## §524 — harnesses qemu aarch64 em `NativeRiscvGc*/Dtoa/DbWire` SIGSEGAM (139) sob carga de CPU enquanto ficam verdes em isolamento — determinístico na suíte completa, NÃO é regressão de código — ✅ FIXED 30/09 (dona = lane native-cross)
 **Sintoma (medido 26/09):** sob carga, os métodos de execução aarch64 de
 `NativeRiscvGcSweep/GcMark/GcList/GcFreeList/NativeRiscvDtoa` e os métodos
 raw-asm `NativeRiscvDbWireTest` (`sha1/scramble/greeting/bindRender/authResponse`
@@ -13414,7 +13414,12 @@ a hipótese — provar com `qemu-aarch64 -strace` antes de mexer no runtime.
 **Política de leitura:** um 139 nestas classes sob carga da suíte completa,
 verde em isolamento, é esta flake — nunca atribuí-la a uma lane não relacionada.
 
-<!-- en-switch --> **EN:** [§524 (EN)](known-bugs.md#524--qemu-aarch64-harnesses-in-nativeriscvgcdtoadbwire-sigsegv-139-under-cpu-load-while-green-in-isolation--deterministic-at-suite-scale-not-a-code-regression---open-owner--lane-native-cross)
+**✅ FIXED 30/09 (dona = lane native-cross): os seis harnesses qemu-aarch64 agora compartilham UMA política de limitar+repetir (`QemuRun`).** Todo exec `qemu-aarch64` em `NativeRiscvGcSweep/Mark/List/FreeListTest`, `NativeRiscvDtoaTest#buildDynamic` e `NativeRiscvDbWireTest#buildRun`/`#buildRunExpectThrow` foi substituído por `QemuRun` (pacote `dev.kof.compiler.nat`): espera limitada (`waitFor(180s)`, precedente §418 — qemu pendurado é `destroyForcibly`ado, nunca deixa a suíte travar) mais repetição **só** em `139` (o SIGSEGV de guest transiente documentado). Uma falha real ainda aparece: um exit ≠139 retorna imediatamente e um 139 em todas as tentativas retorna 139, então o `assertEquals(0, …)` do chamador continua disparando; `QemuRun.runExpect0` mantém essa asserção de exit 0 no call site. Derivado dos docs, sem mudança de compilador/runtime. **Prova:**
+- **Mecanismo (determinístico, `QemuRunTest` 5/5):** um stand-in de shell que sai 139 duas vezes e então sucede é repetido até o sucesso (exatamente 3 tentativas); um 139 persistente NÃO é escondido (ainda 139 após o limite de 3); um ≠139 (7) retorna na PRIMEIRA tentativa (nunca repetido); um filho pendurado (`sleep 60`) é morto pelo limite de 1 s dentro de 30 s; um exit 0 retorna como está.
+- **Regressão:** `NativeRiscvGcSweep/Mark/List/FreeListTest` + `NativeRiscvDtoaTest` + `NativeRiscvDbWireTest` verdes — **63 run/0F/17 skips** (skips honestos de ferramenta/sysroot) neste host.
+- **Fronteira honesta:** a flake de carga NÃO reproduziu no host quieto atual (carga ficou ≤30 com spinners sintéticos; três repetições verdes), então a confirmação sob carga real segue sendo o job `Native cross` da CI — o hardening remove a classe de falha do lado do harness de qualquer forma.
+
+<!-- en-switch --> **EN:** [§524 (EN)](known-bugs.md#524--qemu-aarch64-harnesses-in-nativeriscvgcdtoadbwire-sigsegv-139-under-cpu-load-while-green-in-isolation--deterministic-at-suite-scale-not-a-code-regression---fixed-3009-lane-native-cross)
 
 <!-- pt-switch --> **EN:** [§521 (EN)](known-bugs.md#521--kof-mapkv-was-erased-to-the-concrete-descriptor-ljavautilhashmap-so-a-map-value-from-jsondecodemap-failed-jvm-bytecode-verification-and-the-real-verifyerror-was-masked-as-javafx-runtime-components-not-found-github-634---fixed-2609-parityjson-lane)
 
