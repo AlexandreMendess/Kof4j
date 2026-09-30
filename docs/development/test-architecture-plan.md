@@ -5,12 +5,14 @@
 **Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
 **Owner:** issues/tooling lane (this session)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
-**Real state (updated 28/09/2026, post-ratchet):** the suite is thousands of
+**Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, 132 keys). **Quick-win slice 1
+over the frozen `scripts/test-hygiene-baseline.txt`, **132 keys, rc=0** — the 30/09
+measurement; the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
 `KofWebHardeningTest` (the port-readiness probe already guarantees the bind).
@@ -137,7 +139,11 @@ SEM025/SEM050 oracles) + `SemanticResolutionPrograms` (19 hoisted programs) out 
 `SemanticResolutionTest` (all 30 cases and the cited class name stayed) → oversized 21→20,
 baseline 148→147. **Twenty-fourth split landed (29/09):** `CmdDeploySupport` (16 helper
 methods/records, extracted) out of `CmdDeployTest` (all 16 cases and the cited class name stayed)
-→ oversized 20→19, baseline 147→146. The metric is a
+→ oversized 20→19, baseline 147→146. **Twenty-fifth split landed (30/09):** `DomainGapParityMatrixTest`
+(the R6 ledger test + `repoRoot`/`GAP_CODE`, extracted) out of `DomainGapCodesTest` (all 31 behavior
+cases and the cited class name stayed; 6 doc citations of the ledger moved) — the file had regrown
+past 500 with the 30/09 `zip`/`NAT008` pins → oversized 492, baseline 146 (unchanged; the class was
+not in the frozen baseline). The metric is a
 guide, not an oracle: naming candidates in this queue (and in `README`)
 itself adds citations to a class, so **re-measure `--citations` before choosing the next split**.
 That rule + ordering is the traced Phase 3 todo.
