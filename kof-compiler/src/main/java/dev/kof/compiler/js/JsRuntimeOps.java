@@ -199,7 +199,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_box_new") || name.equals("kof_ui_stack_new")
                 || name.equals("kof_ui_wrap_new") || name.equals("kof_ui_grid_new")
                 || name.equals("kof_ui_spacer_new") || name.equals("kof_ui_center_new")
-                || name.equals("kof_ui_align_new")
+                || name.equals("kof_ui_align_new") || name.equals("kof_ui_scroll_new")
                 || name.equals("kof_ui_style_new") || name.equals("kof_ui_style_css")
                 || name.equals("kof_ui_view_bind")
                 || name.equals("kof_ui_window_set_title") || name.equals("kof_ui_window_title")

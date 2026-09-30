@@ -118,7 +118,8 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_ui_label_set_color" -> "(II)V";
             case "kof_ui_label_font_size", "kof_ui_label_bold", "kof_ui_label_color" -> "(I)I";
             case "kof_ui_box_new", "kof_ui_stack_new",
-                    "kof_ui_wrap_new", "kof_ui_center_new", "kof_ui_column_new",
+                    "kof_ui_wrap_new", "kof_ui_center_new", "kof_ui_scroll_new",
+                    "kof_ui_column_new",
                     "kof_ui_row_new", "kof_ui_fieldset_new" -> "(Ljava/util/ArrayList;)I";
             case "kof_ui_grid_new", "kof_ui_align_new" -> "(ILjava/util/ArrayList;)I";
             case "kof_ui_spacer_new" -> "(I)I";

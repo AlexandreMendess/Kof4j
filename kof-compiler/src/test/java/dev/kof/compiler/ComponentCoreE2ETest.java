@@ -310,6 +310,39 @@ class ComponentCoreE2ETest extends ComponentCoreSupport {
     }
 
     @Test
+    void scrollRendersScrollableContainer(@TempDir Path tempDir) throws IOException {
+        // #702 (docs/ui/architecture.md §2.8): Scroll(children) — a bounded
+        // scrollable container; CSS-first (overflow:auto) on KofJS, no-op on
+        // JVM/Native, 1-arg List like Box.
+        String program = """
+            main() {
+                var l1 = Label("a")
+                var l2 = Label("b")
+                var scroll = Scroll(listOf(l1, l2))
+                var win = Window("App")
+                win.bind(scroll)
+                win.show()
+            }
+            """;
+        Path layoutSrc = tempDir.resolve("scroll.kf");
+        Files.writeString(layoutSrc, program);
+        runJvm(layoutSrc, tempDir.resolve("jvm-scroll"), "");
+        runNative(layoutSrc, tempDir.resolve("native-scroll"), "");
+        Path jsSource = tempDir.resolve("scroll-js.kf");
+        Files.writeString(jsSource, program);
+        CompilationResult js = driver.compile(jsSource, tempDir.resolve("js-scroll"), Target.JS);
+        assertTrue(js.success(), "JS compilation should succeed: " + js.diagnostics().getDiagnostics());
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        String html = dev.kof.runtime.KofJsRunner.runCaptureHtml(
+                tempDir.resolve("js-scroll").resolve("Default.mjs"), out,
+                new java.io.ByteArrayInputStream(new byte[0]), out);
+        assertNotNull(html, "The window should serialize to HTML");
+        assertTrue(html.contains("kof-scroll"), "Scroll must render as a CSS container: " + html);
+        assertTrue(html.contains(">a</span>") && html.contains(">b</span>"),
+                "Scroll must contain its children: " + html);
+    }
+
+    @Test
     void eventsBubbleUpTheComponentTree(@TempDir Path tempDir) throws IOException {
         // Fase 5 (docs/ui/architecture.md §2.5): emit(child) -> child handler
         // -> bubbles to parent. emit(parent) reaches only the parent.
