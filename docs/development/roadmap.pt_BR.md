@@ -1179,9 +1179,9 @@ aposentado — a promoção agora é regida pelo TIER 14 (`D-QUALITY-PIPELINE-26
 ### TIER 14 — Migração do quality-pipeline (DECIDIDO 26/09 `D-QUALITY-PIPELINE-2609`; execução gated POST-0.5.0)
 
 A esteira `lab → testing → prerelease → stable → release/x.y.z → tag` está
-fechada no design. **NENHUMA unidade pode começar antes do ciclo 0.5.0 fechar** —
-o trabalho de hoje segue pousando em `beta-0.5.0` (`D-BRANCH-0.5.0` em vigor).
-Quando a mantenedora abrir a frente, as unidades são:
+fechada no design. **O ciclo 0.5.0 fechou 28/09 (`D-RELEASE-0.5.0-CLOSED`) e o
+`D-BRANCH-0.5.0` está `SUPERSEDED` — a branch ativa de desenvolvimento é `lab`
+(`D-BRANCH-PIPELINE`).** Quando a mantenedora abrir esta frente, as unidades são:
 
 | # | Unidade | Gate/prova |
 |---|---|---|

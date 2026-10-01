@@ -1170,10 +1170,10 @@ retired — promotion is now governed by TIER 14 (`D-QUALITY-PIPELINE-2609`).
 
 ### TIER 14 — Quality-pipeline migration (DECIDED 26/09 `D-QUALITY-PIPELINE-2609`; execution gated POST-0.5.0)
 
-The `lab → testing → prerelease → stable → release/x.y.z → tag` esteira is
-design-closed. **NO unit may start before the 0.5.0 cycle closes** — today's
-work keeps landing on `beta-0.5.0` (`D-BRANCH-0.5.0` in force). When the
-maintainer opens the front, the units are:
+The `lab → testing → prerelease → stable → release/x.y.z → tag` pipeline is
+design-closed. **The 0.5.0 cycle closed 28/09 (`D-RELEASE-0.5.0-CLOSED`) and
+`D-BRANCH-0.5.0` is `SUPERSEDED` — the active development branch is `lab`
+(`D-BRANCH-PIPELINE`).** When the maintainer opens this front, the units are:
 
 | # | Unit | Gate/proof |
 |---|---|---|
