@@ -32,7 +32,7 @@ final class StringTargetGaps {
 
     /** Accepted by the typer, not lowered on JS/Native. */
     private static final Set<String> INCOMPLETE = Set.of(
-            "matches", "replaceAll", "replaceFirst");
+            "matches", "replaceAll", "replaceFirst", "getBytes");
 
     static boolean isIncompleteMethod(String method) {
         return INCOMPLETE.contains(method);
