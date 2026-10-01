@@ -90,7 +90,14 @@ public final class CompilerLambdaClass {
                 : CompilerTypes.toType(CompilerTypes.typeToString(ft.returnType()), driver.currentUnit);
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
-        for (FormalParameterNode p : params) paramTypes.add(CompilerTypes.toType(p.type(), driver.currentUnit));
+        // #710: usar a sobrecarga ciente do SemanticAnalyzer (qualifyDeep, §179)
+        // — a de 2 args NÃO qualifica um tipo kof.ui/kof.media DECLARADO como
+        // parâmetro de lambda, então o descritor do invoke saía `LLabel;` (e o
+        // `w` local virava um objeto JS cru) enquanto o call-site usava o
+        // handle `int`/`kof.ui.Label` → NoSuchMethodError/`not a function`.
+        for (FormalParameterNode p : params) {
+            paramTypes.add(CompilerTypes.toType(p.type(), driver.currentUnit, driver.semanticAnalyzer));
+        }
 
         List<IRField> fields = new ArrayList<>();
         List<Type> captureTypes = new ArrayList<>();
