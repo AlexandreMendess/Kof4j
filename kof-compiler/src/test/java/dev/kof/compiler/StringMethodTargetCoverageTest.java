@@ -40,8 +40,10 @@ class StringMethodTargetCoverageTest {
             "toInt", "toLong", "toDouble", "toFloat");
 
     /** §424/`D-STR-UNICODE` — aceitos no typer, SEM lowering no JS (regex trio, deferido a 1.0). */
+    // §555/#719: getBytes bindou no JVM (Typer/registry) mas JS/Native ficam
+    // no gate STR003 (StringTargetGaps.INCOMPLETE) — gap documentado, nao crescimento.
     private static final Set<String> JS_KNOWN_GAP = Set.of(
-            "matches", "replaceAll", "replaceFirst");
+            "matches", "replaceAll", "replaceFirst", "getBytes");
 
     private static Set<String> registryMethods() throws Exception {
         String src = Files.readString(
@@ -124,7 +126,7 @@ class StringMethodTargetCoverageTest {
     @Test
     @DisplayName("o gap JS do §424 e exatamente o conjunto documentado — nao cresce nem some")
     void knownJsGapIsPinnedToTheDocumentedSet() throws Exception {
-        assertEquals(Set.of("matches", "replaceAll", "replaceFirst"), JS_KNOWN_GAP);
+        assertEquals(Set.of("matches", "replaceAll", "replaceFirst", "getBytes"), JS_KNOWN_GAP);
     }
 
     @Test
