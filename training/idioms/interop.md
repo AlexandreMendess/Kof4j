@@ -40,6 +40,23 @@ extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — Stri
 //     What Kof does not convert (String/Bool in a numeric slot, Double->Int narrowing) is SEM014
 //     at the call site — never bits reinterpreted by the slot class.
 
+// (b2) FOREIGN MODULE (connector ecosystem, `D-CONNECTORS`, plan §9.16 slice A —
+//   landed 01/10): a block grouping several `extern` under ONE library, so a
+//   connector declares its symbols once instead of repeating the path. It is
+//   sugar over the SAME FFI path — no new ABI engine (rule 54):
+foreign module libm {
+    library "libm.so.6"       // required (else PARSE097)
+    abi c                     // declared ABI (plan §3.9)
+    ownership borrowed        // Core vocabulary: owned/borrowed/shared/opaque/immutable/mutable (else PARSE099)
+    extern fmod(Double a, Double b): Double
+    extern sqrt(Double x): Double
+    extern pow(Double x, Double y): Double
+}
+// `foreign`/`module` are CONTEXTUAL keywords (like `sealed`): outside this
+// header they stay ordinary identifiers. An `extern "..."` inside the block
+// may still carry its own library (it overrides the header). Binding/ABI is
+// exactly the existing CompilerFfiBinding (FFI001/FFI002 per target).
+
 // (c) CALLBACKS (C2 ✅ + JS parity C3.2/C3.3 ✅, 18/09): a Kof function handed to C as a
 // function pointer. Function-typed parameter + lambda at the call site;
 // PRIMITIVE + String-arg callback ABI (synchronous, non-escaping):

@@ -9,7 +9,7 @@
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, the Native backends, `kof.toml`/`kofdeps`
-**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. Remaining: the compiler slices (interop error type + `foreign module` grammar, §9.16 Slice A/B) and the ABI-tier transcription (§9.16 Slice D) — all rule-6 gated per `D-CONNECTORS`.
+**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). Remaining: Slice B (interop error type) and the ABI-tier transcription (§9.16 Slice D) — rule-6 gated per `D-CONNECTORS`.
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation
@@ -876,8 +876,9 @@ authorized and its design questions are locked in `DECISIONS.md`:
 * **Promotion roadmap** — `future/` → `docs/development/` **DONE 29/09/2026** (`D-CONNECTORS-GO`).
 
 **Still to land (compiler/language slices, rule 6 records already in place):** the interop error
-type on the language surface and the `foreign module` grammar construct — both touch the
-compiler/frontend and are separate slices, not library-only.
+type on the language surface (Slice B). The `foreign module` **grammar construct is LANDED 01/10**
+(Slice A, `ForeignModuleGrammarE2ETest` 5/5) — it enters the grammar as sugar over the existing FFI
+path, not as a new ABI engine. Slice B still touches the type system and is a separate slice.
 
 ---
 
@@ -891,11 +892,16 @@ measure-first slice: it names the real anchors and splits the work, and implemen
 **Real anchors (verified in-tree):** `FfiSignature.java`, `AbiLayout.java`, `FfiStructLayout.java`,
 `CompilerFfiBinding.java`, `JvmFfiRuntime.java`, `nat/NativeFfiCall.java`, `TargetMatrix.java`.
 
-* **Slice A — `foreign module` grammar** (compiler/frontend). Today the module is a pure-Kof
-  descriptor (`ForeignModule`, §9.9); the decision puts the construct in the grammar. Smallest
-  measurable step: parse `foreign module <name> { ... }` into the existing FFI binding
-  (`CompilerFfiBinding`) — no new ABI engine (rule 54); proof = a Kof program declaring and calling a
-  symbol through the existing FFI path. Touches lexer/parser + binder → compiler lane.
+* **Slice A — `foreign module` grammar** (compiler/frontend). **LANDED 01/10** (`Parser.parseForeignModule`,
+  `ForeignModuleNode`): the block
+  `foreign module libm { library "libm.so.6"; abi c; ownership borrowed; extern fmod(Double a, Double b): Double; … }`
+  is sugar over the **existing** FFI path — it desugars to plain `extern` declarations sharing the
+  module `library` (no new ABI engine, rule 54), so binding/ABI is exactly `CompilerFfiBinding`.
+  `library` is required (else `PARSE097`); `ownership` is validated against the Core vocabulary
+  (else `PARSE099`); `foreign`/`module` are contextual keywords that stay identifiers outside the
+  header. Proof RED-first: `ForeignModuleGrammarE2ETest` **5/5** — a module calling real libm symbols
+  (`fmod`/`sqrt`/`pow`) on the JVM, a per-extern library override, the two honest diagnostics, and
+  the identifier retrocompat. Touches lexer/parser → the frontend; no ABI/runtime change.
 * **Slice B — interop error type** (type system). The decision makes the interop error a language
   type. Smallest measurable step: the type + its mapping to existing throws/catch; proof = a foreign
   error surfaces as that type and is never swallowed (R6). Touches the type system → compiler lane.

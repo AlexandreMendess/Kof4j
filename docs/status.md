@@ -1,3 +1,4 @@
+last: connectors slice A LANDED 01/10 (`foreign module` grammar — `Parser.parseForeignModule` desugars `foreign module <name> { library "..."; abi c; ownership borrowed; extern ... }` to plain `extern` declarations inheriting the module library, so the binding is the existing `CompilerFfiBinding`; no new ABI engine, rule 54). `library` required (`PARSE097`), `ownership` validated (`PARSE099`), `foreign`/`module` contextual. `ForeignModuleGrammarE2ETest` **5/5** RED-first on the JVM via real libm symbols; grammar documented EN+PT. This closes the orphaned `kof-connector-ecosystem-plan` (remaining slice B = interop error type, rule-6 gated).
 [English](status.md) | [Português](status.pt_BR.md)
 
 # Kof Project Status

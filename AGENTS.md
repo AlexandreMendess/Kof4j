@@ -152,7 +152,7 @@ rule:
 
 identity:
 preferred: kof-agent-worker
-by: local-ipv4
+by: local-ipv4:port
 fallback: maintainer-default
 forbidden:
 - synthetic email
@@ -161,9 +161,10 @@ forbidden:
 
 rule:
 
-* identify by the **local IPv4** (`hostname -I`) — DOING §Operating-loop rule 9
-* every `IN PROGRESS`/`DONE` claim carries `owner = <local-ipv4>`, not "this session"
-* never act on another owner's lane on IP alone — the 21/09 amendment: confirm by session + lane + commit SHA/IP (routers/DHCP change the address)
+* identify by the **local IPv4:port** (`hostname -I` + the opencode server `--port`) — DOING §Operating-loop rule 9
+* every `IN PROGRESS`/`DONE` claim carries `owner = <local-ipv4>:<port>`, never "this session" (a bare IP is ambiguous when the same host runs more than one session/lane: DOING §Operating-loop rule 9, 01/10 amendment — 110 lines had recorded `owner: this session` and no lane could be attributed)
+* the port is the opencode TUI server of the owning session (`ps -o args= -C opencode` / `ss -ltnp`), so `<ipv4>:<port>` names one lane unambiguously
+* never act on another owner's lane on IP alone — confirm by session + lane + commit SHA/IP:port (routers/DHCP change the address)
 
 ---
 

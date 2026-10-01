@@ -1,3 +1,4 @@
+last: connectors fatia A LANDADA 01/10 (gramática `foreign module` — `Parser.parseForeignModule` desdobra `foreign module <name> { library "..."; abi c; ownership borrowed; extern ... }` em declarações `extern` normais que herdam a library do módulo, então o binding é a `CompilerFfiBinding` existente; sem motor de ABI novo, regra 54). `library` obrigatória (`PARSE097`), `ownership` validada (`PARSE099`), `foreign`/`module` contextuais. `ForeignModuleGrammarE2ETest` **5/5** RED-first na JVM via símbolos reais da libm; gramática documentada EN+PT. Isto fecha o plano órfão `kof-connector-ecosystem-plan` (fatia B restante = tipo de erro de interop, travada em rule 6).
 [English](status.md) | [Português](status.pt_BR.md)
 
 # Status do Projeto Kof

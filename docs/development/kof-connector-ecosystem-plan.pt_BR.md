@@ -9,7 +9,7 @@
 **Dependências principais:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), o caminho de interop JVM
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, os backends Native, `kof.toml`/`kofdeps`
-**Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. Restam: as fatias de compilador (tipo de erro de interop + gramática `foreign module`, §9.16 Fatia A/B) e a transcrição dos tiers de ABI (§9.16 Fatia D) — todas gated pela regra 6 por `D-CONNECTORS`.
+**Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). Restam: a fatia B (tipo de erro de interop) e a transcrição dos tiers de ABI (§9.16 Fatia D) — gated pela regra 6 / `D-CONNECTORS`.
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de
@@ -902,11 +902,17 @@ fatia medir-antes: nomeia as âncoras reais, divide o trabalho e não implementa
 `FfiStructLayout.java`, `CompilerFfiBinding.java`, `JvmFfiRuntime.java`, `nat/NativeFfiCall.java`,
 `TargetMatrix.java`.
 
-* **Fatia A — gramática `foreign module`** (compilador/frontend). Hoje o módulo é descritor Kof puro
-  (`ForeignModule`, §9.9); a decisão põe o construto na gramática. Menor passo mensurável: parsear
-  `foreign module <name> { ... }` para o binding FFI existente (`CompilerFfiBinding`) — sem novo motor
-  ABI (regra 54); prova = um programa Kof declarando e chamando um símbolo pelo caminho FFI existente.
-  Toca lexer/parser + binder → lane compilador.
+* **Fatia A — gramática `foreign module`** (compilador/frontend). **LANDADA 01/10**
+  (`Parser.parseForeignModule`, `ForeignModuleNode`): o bloco
+  `foreign module libm { library "libm.so.6"; abi c; ownership borrowed; extern fmod(Double a, Double b): Double; … }`
+  é açúcar sobre a via FFI **existente** — desdobra em declarações `extern` normais que herdam a
+  `library` do módulo (sem novo motor ABI, regra 54), então o binding/ABI é exatamente a
+  `CompilerFfiBinding`. `library` é obrigatória (senão `PARSE097`); `ownership` é validada contra o
+  vocabulário do Core (senão `PARSE099`); `foreign`/`module` são keywords contextuais que seguem
+  identificadores fora do cabeçalho. Prova RED-first: `ForeignModuleGrammarE2ETest` **5/5** — um
+  módulo chamando símbolos reais da libm (`fmod`/`sqrt`/`pow`) na JVM, a sobreposição de library por
+  `extern`, os dois diagnósticos honestos e a retrocompat dos identificadores. Toca lexer/parser →
+  frontend; sem mudança de ABI/runtime.
 * **Fatia B — tipo de erro de interop** (sistema de tipos). A decisão faz do erro de interop um tipo
   da linguagem. Menor passo: o tipo + seu mapeamento para throws/catch existentes; prova = um erro
   estrangeiro surge como esse tipo e nunca é engolido (R6). Toca o sistema de tipos → lane compilador.

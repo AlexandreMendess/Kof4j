@@ -41,6 +41,24 @@ extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — "mel
 //     O que o Kof nao converte (String/Bool em slot numerico, Double->Int estreitando) e SEM014
 //     no call-site — nunca bits reinterpretados pela classe do slot.
 
+// (b2) FOREIGN MODULE (ecossistema de connectors, `D-CONNECTORS`, plano §9.16
+//   fatia A — landada 01/10): um bloco que agrupa vários `extern` sob UMA
+//   biblioteca, para um connector declarar os seus símbolos uma vez só em vez de
+//   repetir o caminho. É açúcar sobre a MESMA via FFI (sem motor de ABI novo,
+//   regra 54):
+foreign module libm {
+    library "libm.so.6"       // obrigatória (senão PARSE097)
+    abi c                     // ABI declarada (plano §3.9)
+    ownership borrowed        // vocabulário do Core: owned/borrowed/shared/opaque/immutable/mutable (senão PARSE099)
+    extern fmod(Double a, Double b): Double
+    extern sqrt(Double x): Double
+    extern pow(Double x, Double y): Double
+}
+// `foreign`/`module` são keywords CONTEXTUAIS (como `sealed`): fora deste
+// cabeçalho seguem identificadores comuns. Um `extern "..."` dentro do bloco
+// ainda pode trazer a sua própria biblioteca (sobrepõe a do cabeçalho). O
+// binding/ABI é exatamente a CompilerFfiBinding existente (FFI001/FFI002 por alvo).
+
 // (c) CALLBACKS (C2 ✅ JVM + paridade JS C3 ✅, 18/09): uma função Kof entregue
 // ao C como ponteiro de função. Parâmetro tipo-função + lambda no call site;
 // só ABI de callback PRIMITIVA + arg `String` (síncrono, não-escapante):
