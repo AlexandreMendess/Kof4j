@@ -78,14 +78,23 @@ final class TestHarnessBuilder {
                 new LiteralExpr(p, ConcreteLiteralKind.INT, "0")));
         // §4.2 lifecycle: beforeAll() runs ONCE before the first test.
         if (beforeAllName != null) {
+            body.add(new VarDeclStmt(p, "Bool", "__kof_before_all_ok",
+                    new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "true")));
+            List<StatementNode> beforeAllCatch = List.of(
+                    new ExpressionStmt(p, callPrintln(p, concat(p,
+                            new LiteralExpr(p, ConcreteLiteralKind.STRING,
+                                    "beforeAll failed: "),
+                            new IdentifierExpr(p, "e")))),
+                    new ExpressionStmt(p, new AssignmentExpr(p,
+                            new IdentifierExpr(p, "__kof_before_all_ok"), "=",
+                            new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false"))),
+                    new ExpressionStmt(p, new AssignmentExpr(p, failedVar, "=",
+                            new BinaryExpr(p, "+", failedVar,
+                                    new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
             body.add(new TryStmt(p,
                     List.of(new ExpressionStmt(p,
                             new MethodCallExpr(p, null, beforeAllName, List.of(), List.of()))),
-                    List.of(new CatchClause(p, "String", "e", List.of(new ExpressionStmt(p,
-                            callPrintln(p, concat(p,
-                                    new LiteralExpr(p, ConcreteLiteralKind.STRING,
-                                            "beforeAll failed: "),
-                                    new IdentifierExpr(p, "e"))))))),
+                    List.of(new CatchClause(p, "String", "e", beforeAllCatch)),
                     List.of()));
         }
         int i = 0;
@@ -112,34 +121,60 @@ final class TestHarnessBuilder {
             List<StatementNode> runInner = List.of(
                     new TryStmt(p, runBody, List.of(new CatchClause(p, "String", "e", catchBody)),
                             finalizers));
+            List<StatementNode> testExecution = new ArrayList<>();
             if (!hasSetup) {
-                body.addAll(runInner);
-                continue;
+                testExecution.addAll(runInner);
+            } else {
+                String skipName = "__kof_skip_" + i++;
+                testExecution.add(new VarDeclStmt(p, "Bool", skipName,
+                        new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")));
+                List<StatementNode> setupCatch = new ArrayList<>();
+                setupCatch.add(new ExpressionStmt(p, new AssignmentExpr(p,
+                        new IdentifierExpr(p, skipName), "=",
+                        new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "true"))));
+                setupCatch.add(new ExpressionStmt(p, callPrintln(p, concat(p,
+                        new LiteralExpr(p, ConcreteLiteralKind.STRING, "SKIP "), nameLit,
+                        new LiteralExpr(p, ConcreteLiteralKind.STRING, ": setup failed: "),
+                        new IdentifierExpr(p, "e")))));
+                testExecution.add(new TryStmt(p,
+                        List.of(new ExpressionStmt(p,
+                                new MethodCallExpr(p, null, setupName, List.of(), List.of()))),
+                        List.of(new CatchClause(p, "String", "e", setupCatch)), List.of()));
+                testExecution.add(new IfStmt(p,
+                        new BinaryExpr(p, "==", new IdentifierExpr(p, skipName),
+                                new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")),
+                        new BlockStmt(p, runInner), null));
             }
-            String skipName = "__kof_skip_" + i++;
-            body.add(new VarDeclStmt(p, "Bool", skipName,
-                    new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")));
-            List<StatementNode> setupCatch = new ArrayList<>();
-            setupCatch.add(new ExpressionStmt(p, new AssignmentExpr(p,
-                    new IdentifierExpr(p, skipName), "=",
-                    new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "true"))));
-            setupCatch.add(new ExpressionStmt(p, callPrintln(p, concat(p,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, "SKIP "), nameLit,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, ": setup failed: "),
-                    new IdentifierExpr(p, "e")))));
-            body.add(new TryStmt(p,
-                    List.of(new ExpressionStmt(p,
-                            new MethodCallExpr(p, null, setupName, List.of(), List.of()))),
-                    List.of(new CatchClause(p, "String", "e", setupCatch)), List.of()));
-            body.add(new IfStmt(p,
-                    new BinaryExpr(p, "==", new IdentifierExpr(p, skipName),
-                            new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")),
-                    new BlockStmt(p, runInner), null));
+            if (beforeAllName != null) {
+                // §4.3 Isolation: se beforeAll falhar, pula o teste com SKIP nomeado
+                // e não deixa o teste rodar em estado corrompido/inexistente.
+                body.add(new IfStmt(p,
+                        new BinaryExpr(p, "==", new IdentifierExpr(p, "__kof_before_all_ok"),
+                                new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "true")),
+                        new BlockStmt(p, testExecution),
+                        new BlockStmt(p, List.of(new ExpressionStmt(p, callPrintln(p, concat(p,
+                                new LiteralExpr(p, ConcreteLiteralKind.STRING, "SKIP "), nameLit,
+                                new LiteralExpr(p, ConcreteLiteralKind.STRING,
+                                        ": beforeAll failed"))))))));
+            } else {
+                body.addAll(testExecution);
+            }
         }
         // §4.2 lifecycle: afterAll() runs ONCE after the last test.
         if (afterAllName != null) {
-            body.add(new ExpressionStmt(p,
-                    new MethodCallExpr(p, null, afterAllName, List.of(), List.of())));
+            List<StatementNode> afterAllCatch = List.of(
+                    new ExpressionStmt(p, callPrintln(p, concat(p,
+                            new LiteralExpr(p, ConcreteLiteralKind.STRING,
+                                    "afterAll failed: "),
+                            new IdentifierExpr(p, "e")))),
+                    new ExpressionStmt(p, new AssignmentExpr(p, failedVar, "=",
+                            new BinaryExpr(p, "+", failedVar,
+                                    new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
+            body.add(new TryStmt(p,
+                    List.of(new ExpressionStmt(p,
+                            new MethodCallExpr(p, null, afterAllName, List.of(), List.of()))),
+                    List.of(new CatchClause(p, "String", "e", afterAllCatch)),
+                    List.of()));
         }
         body.add(new ExpressionStmt(p, callPrintln(p,
                 new LiteralExpr(p, ConcreteLiteralKind.STRING, "────────"))));

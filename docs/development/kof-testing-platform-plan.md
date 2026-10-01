@@ -213,13 +213,24 @@ Proof: `TestTagsE2ETest` (14/14 green). Maintains test isolation — never a glo
 
 ## 4.3 Isolation
 
+**Status:** LANDED 01/10 (`TestHarnessBuilder`).
+
 ```text
 test A → isolated state
 test B → isolated state
 ```
 
 Never `test A → global state → test B depends on A`. Temporary filesystem, ports, database and
-resources have explicit lifecycle.
+resources have explicit lifecycle:
+- If `beforeAll()` fails: all subsequent tests are skipped with a named `SKIP <name>: beforeAll failed`,
+  the failure is counted, and the test runner exits with code 1. Tests never run against a broken/missing
+  shared fixture.
+- If `afterAll()` fails: the error is caught, reported (`afterAll failed: <e>`), the failure is counted,
+  and the summary is printed with a non-zero exit code.
+- If `beforeEach()` / `setup()` fails: that specific test is marked `SKIP` and does not run.
+- `afterEach()` / `teardown()` always runs via `finally` for every test that setup allowed to execute.
+
+Proof: `TestTagsE2ETest` (16/16 green).
 
 ## 4.4 Parameterized tests
 

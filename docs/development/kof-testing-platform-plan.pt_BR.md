@@ -193,9 +193,11 @@ argumentos:
 - `beforeEach()`: alias §4.2 do `setup()` existente (executa antes de cada teste; uma falha gera um `SKIP` nomeado)
 - `afterEach()`: alias §4.2 do `teardown()` existente (executa via `finally` depois de cada teste)
 
-Prova: `TestTagsE2ETest` (14/14 verde). Mantém o isolamento dos testes — nunca um mecanismo de estado global.
+Prova: `TestTagsE2ETest` (16/16 verde). Mantém o isolamento dos testes — nunca um mecanismo de estado global.
 
 ## 4.3 Isolamento
+
+**Status:** ENTREGUE 01/10 (`TestHarnessBuilder`).
 
 ```text
 teste A → estado isolado
@@ -203,7 +205,16 @@ teste B → estado isolado
 ```
 
 Nunca `teste A → estado global → teste B depende de A`. Filesystem temporário, portas, banco e
-recursos têm lifecycle explícito.
+recursos têm lifecycle explícito:
+- Se `beforeAll()` falhar: todos os testes seguintes são pulados com um `SKIP <nome>: beforeAll failed`
+  nomeado, a falha é contada, e o runner sai com código 1. Testes nunca rodam contra uma fixture
+  compartilhada quebrada/ausente.
+- Se `afterAll()` falhar: o erro é capturado, reportado (`afterAll failed: <e>`), a falha é contada,
+  e o resumo é impresso com código de saída não-zero.
+- Se `beforeEach()` / `setup()` falhar: aquele teste específico é marcado `SKIP` e não roda.
+- `afterEach()` / `teardown()` sempre roda via `finally` para todo teste que o setup deixou executar.
+
+Prova: `TestTagsE2ETest` (16/16 verde).
 
 ## 4.4 Testes parametrizados
 
