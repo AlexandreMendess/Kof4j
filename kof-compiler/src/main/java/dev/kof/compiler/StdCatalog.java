@@ -310,6 +310,8 @@ public final class StdCatalog {
                     Map.entry("isPort", List.of("isPort(Int p) -> Bool")),
                     Map.entry("isCreditCard", List.of("isCreditCard(String s) -> Bool")),
                     Map.entry("isIpv6", List.of("isIpv6(String s) -> Bool")),
+                    Map.entry("creditCardBrand", List.of("creditCardBrand(String card) -> String")),
+                    Map.entry("last4", List.of("last4(String card) -> String")),
                     Map.entry("isDomain", List.of("isDomain(String s) -> Bool")))),
             Map.entry("observability", java.util.Map.ofEntries(
                     Map.entry("health", List.of("health() -> String")),

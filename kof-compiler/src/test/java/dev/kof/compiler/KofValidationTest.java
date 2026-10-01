@@ -477,4 +477,5 @@ class KofValidationTest extends KofValidationSupport {
         assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
         runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
     }
+
 }

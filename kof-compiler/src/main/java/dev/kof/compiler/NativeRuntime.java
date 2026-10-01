@@ -12,6 +12,7 @@ import dev.kof.compiler.runtime.RuntimeEncoding;
 import dev.kof.compiler.runtime.RuntimeValidationBr;
 import dev.kof.compiler.runtime.RuntimeValidationFmtBr;
 import dev.kof.compiler.runtime.RuntimeValidationNet;
+import dev.kof.compiler.runtime.RuntimeValidationCard;
 import dev.kof.compiler.runtime.RuntimeRandom;
 import dev.kof.compiler.runtime.RuntimeRng;
 import dev.kof.compiler.runtime.RuntimeRings;
@@ -250,6 +251,7 @@ public final class NativeRuntime {
         RuntimeValidationBr.emit(sb);
         RuntimeValidationFmtBr.emit(sb);
         RuntimeValidationNet.emit(sb);
+        RuntimeValidationCard.emit(sb);
         RuntimeUri.emit(sb);
         RuntimeMath.emit(sb);
         RuntimeStrings.emit(sb);

@@ -355,6 +355,7 @@ public final class NativeRiscvAsm {
                 // STDLIB S7a-ext3: kof_time startOf/endOf riscv64 (composicao
                 // dos primitivos ja provados — paridade byte-a-byte).
                 .append(NativeRiscvAsmRtB83.RISCV_RUNTIME_ASM_B_83)
+                .append(NativeRiscvAsmRtB84.RISCV_RUNTIME_ASM_B_84)
                 .toString();
     }
 }
