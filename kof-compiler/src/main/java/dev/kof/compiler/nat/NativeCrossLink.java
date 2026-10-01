@@ -47,7 +47,7 @@ public final class NativeCrossLink {
             "strlen", "strcmp", "strncmp", "open", "read", "write", "execvp");
 
    static final Set<String> LIBM_SYMBOLS = Set.of(
-            "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+            "pow", "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
             "sinh", "cosh", "tanh", "log", "log10", "exp",
             "floor", "ceil", "round", "hypot"
     );
@@ -95,8 +95,8 @@ public final class NativeCrossLink {
             if (t.startsWith("#")) continue;
             int hash = t.indexOf('#');
             if (hash > 0) t = t.substring(0, hash).stripTrailing();
-            String sym = t.substring(5).strip();
-    return LIBM_SYMBOLS.contains(sym);
+            if (!t.startsWith("call ")) continue;
+            if (LIBM_SYMBOLS.contains(t.substring(5).strip())) return true;
         }
         return false;
     }
