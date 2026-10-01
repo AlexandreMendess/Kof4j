@@ -313,10 +313,15 @@ final class NativeMethodEmitter {
                 // §266: marcador estrutural (fronteira corpo/update do for) — no-op
             }
             case KofExcUnlink _ -> {
-                // §549: pop de handler no caminho NORMAL (o KofTryEnd fica no
-                // ramo else, inalcançável) — mesmas instruções do KofTryEnd.
-                sb.append("    movq 24(%rsp), %rcx\n");
+                // §549/§551: pop de handler control-flow (caminho normal do try,
+                // break/continue/return que atravessam região). A base do frame
+                // NÃO é necessariamente `rsp` — lê do TOPO da cadeia (o TLS
+                // kof_exc_chain guarda a base salva no KofTryStart), religa o
+                // prev e restaura rsp antes de transferir o controle.
+                sb.append("    movq %fs:kof_exc_chain@tpoff, %rax\n");
+                sb.append("    movq 24(%rax), %rcx\n");
                 sb.append("    movq %rcx, %fs:kof_exc_chain@tpoff\n");
+                sb.append("    movq %rax, %rsp\n");
                 sb.append("    addq $32, %rsp\n");
             }
             case KofTryEnd _ -> {

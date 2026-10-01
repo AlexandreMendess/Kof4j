@@ -66,6 +66,95 @@ class NativeTryHandlerLeakE2ETest {
                     println("FIN")
                 }""");
 
+    // §551: desvios que ATRAVESSAM uma região try (return/break/continue) têm
+    // que desvincular o handler nativo antes de saltar; senão o frame fica
+    // pendurado e o throw seguinte (fora da região) dá UAF/captura espúria.
+    // O goto ilegal em produção nativa antiga termina com "CAUGHT" (handler
+    // fantasma) ou crash/no-output; as âncoras exigem "fim correto".
+    private static final String RETURN_VOID = """
+            Void f(Bool b) {
+                try {
+                    println("T")
+                    if (b) {
+                        return
+                    }
+                } catch (String e) {
+                    println("CAUGHT")
+                }
+                println("END")
+            }
+            main() {
+                f(true)
+                println("AFTER")
+                throw "BOOM"
+            }
+            """;
+
+    private static final String RETURN_VALUE = """
+            String g(Bool b) {
+                try {
+                    if (b) {
+                        return "RESULT"
+                    }
+                } catch (String e) {
+                    return "BAD"
+                }
+                return "FALL"
+            }
+            main() {
+                println(g(true))
+                throw "BOOM"
+            }
+            """;
+
+    private static final String RETURN_FINALLY = """
+            String h(Bool b) {
+                try {
+                    if (b) {
+                        return "VALUE"
+                    }
+                } finally {
+                    println("F")
+                }
+                return "FALL"
+            }
+            main() {
+                println(h(true))
+                throw "BOOM"
+            }
+            """;
+
+    private static final String BREAK_IN_TRY = """
+            main() {
+                for (var i in listOf(1)) {
+                    try {
+                        println("T")
+                        break
+                    } catch (String e) {
+                        println("CAUGHT")
+                    }
+                }
+                println("AFTER")
+                throw "BOOM"
+            }
+            """;
+
+    private static final String CONTINUE_IN_TRY = """
+            main() {
+                for (var i in listOf(1, 2)) {
+                    try {
+                        println("T" + i)
+                        continue
+                    } catch (String e) {
+                        println("CAUGHT")
+                    }
+                    println("X")
+                }
+                println("AFTER")
+                throw "BOOM"
+            }
+            """;
+
     private static final String NESTED = program("""
                 try {
                     try {
@@ -188,6 +277,70 @@ class NativeTryHandlerLeakE2ETest {
     @Test
     void tryFinallyDoesNotRerunFinallyOnLaterThrow() throws Exception {
         allTargets("finally", FINALLY, new Expect("FIN", 1));
+    }
+
+    @Test
+    void returnVoidInsideTryDoesNotLeakHandler() throws Exception {
+        allTargets("return-void", RETURN_VOID,
+                new Expect("CAUGHT", 0), new Expect("AFTER", 1), new Expect("END", 0));
+    }
+
+    @Test
+    void returnValueInsideTryDoesNotLeakHandler() throws Exception {
+        allTargets("return-value", RETURN_VALUE,
+                new Expect("CAUGHT", 0), new Expect("RESULT", 1), new Expect("FALL", 0));
+    }
+
+    @Test
+    void returnInsideTryWithFinallyDoesNotLeakHandler() throws Exception {
+        allTargets("return-finally", RETURN_FINALLY,
+                new Expect("CAUGHT", 0), new Expect("VALUE", 1), new Expect("FALL", 0));
+    }
+
+    @Test
+    void breakInsideTryDoesNotLeakHandler() throws Exception {
+        allTargets("break-try", BREAK_IN_TRY, new Expect("CAUGHT", 0), new Expect("AFTER", 1));
+    }
+
+    @Test
+    void continueInsideTryDoesNotLeakHandler() throws Exception {
+        allTargets("continue-try", CONTINUE_IN_TRY, new Expect("CAUGHT", 0), new Expect("AFTER", 1));
+    }
+
+    @Test
+    void crossRiscv64ReturnVoidInsideTryDoesNotLeakHandler() throws Exception {
+        Path src = tmp.resolve("cross-rv-ret.kf");
+        Files.writeString(src, RETURN_VOID);
+        assertNoLeak("riscv64", runCross(src, tmp.resolve("cross-rv-ret-out"),
+                        Target.NATIVE_RISCV64, "riscv64"),
+                List.of(new Expect("CAUGHT", 0), new Expect("AFTER", 1)));
+    }
+
+    @Test
+    void crossAarch64ReturnVoidInsideTryDoesNotLeakHandler() throws Exception {
+        Path src = tmp.resolve("cross-aa-ret.kf");
+        Files.writeString(src, RETURN_VOID);
+        assertNoLeak("aarch64", runCross(src, tmp.resolve("cross-aa-ret-out"),
+                        Target.NATIVE_AARCH64, "aarch64"),
+                List.of(new Expect("CAUGHT", 0), new Expect("AFTER", 1)));
+    }
+
+    @Test
+    void crossRiscv64BreakInsideTryDoesNotLeakHandler() throws Exception {
+        Path src = tmp.resolve("cross-rv-brk.kf");
+        Files.writeString(src, BREAK_IN_TRY);
+        assertNoLeak("riscv64", runCross(src, tmp.resolve("cross-rv-brk-out"),
+                        Target.NATIVE_RISCV64, "riscv64"),
+                List.of(new Expect("CAUGHT", 0), new Expect("AFTER", 1)));
+    }
+
+    @Test
+    void crossAarch64BreakInsideTryDoesNotLeakHandler() throws Exception {
+        Path src = tmp.resolve("cross-aa-brk.kf");
+        Files.writeString(src, BREAK_IN_TRY);
+        assertNoLeak("aarch64", runCross(src, tmp.resolve("cross-aa-brk-out"),
+                        Target.NATIVE_AARCH64, "aarch64"),
+                List.of(new Expect("CAUGHT", 0), new Expect("AFTER", 1)));
     }
 
     @Test

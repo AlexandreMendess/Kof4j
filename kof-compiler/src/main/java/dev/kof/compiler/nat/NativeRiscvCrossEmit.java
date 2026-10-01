@@ -339,10 +339,17 @@ public final class NativeRiscvCrossEmit {
                 // §266: marcador estrutural (fronteira corpo/update do for) — no-op
             }
             case KofExcUnlink _ -> {
-                // §549: pop de handler no caminho NORMAL (espelha o KofTryEnd).
+                // §549/§551: pop de handler control-flow (caminho normal do try,
+                // break/continue/return que atravessam região). A base do frame
+                // NÃO é necessariamente `sp` — há emissões (ex.: println cross)
+                // que deixam temporário empilhado. Lê a base do TOPO da cadeia
+                // (0(a0) = frame base salva no KofTryStart), religa o prev e
+                // restaura sp antes de transferir o controle.
                 sb.append("    call kof_exc_slot\n");
-                sb.append("    ld t2, 24(sp)\n");
-                sb.append("    sd t2, 0(a0)\n");
+                sb.append("    ld t2, 0(a0)\n");
+                sb.append("    ld t3, 24(t2)\n");
+                sb.append("    sd t3, 0(a0)\n");
+                sb.append("    mv sp, t2\n");
                 sb.append("    addi sp, sp, 32\n");
             }
             case KofTryEnd _ -> {

@@ -139,6 +139,7 @@ public final class CompilerLambdaClass {
         driver.mutatedCapturedNames = new java.util.HashSet<>();
         java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = driver.finallyFrames;
         driver.finallyFrames.clear(); // DD-01: frame do finally externo não vaza p/ dentro
+        driver.tryDepth = 0; // §551: profundidade de try é por função
         // lambda não-void com corpo de expressão única: a expressão É o retorno
         // (ExpressionStmt emitiria POP e mataria o valor antes do areturn)
         java.util.List<StatementNode> bodyStmts = le.body();
