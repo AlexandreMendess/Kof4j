@@ -53,6 +53,37 @@ class Vp8CoeffE2ETest {
           + "29bfac1d5803f02e096206700c40ffa23f042099e275feffeb03ffffe4c86ffbf000feefea"
           + "3c87dbba1ae81df7cea6b0ba4b7d01db3e51344d74e50de3adef74cd294734473b63de1363"
           + "d6c97e017c2accc9adb06c756c3ebda3959f373f50db6ff0739c41c1136c0872340000";
+    // Dense 20x28 fixture (libwebp, quality 100): the pre-fix per-coefficient
+    // `listOf` zig-zag rebuild corrupted the riscv64 decode (§547).
+    private static final String BP2028_HEX =
+            "52494646140400005745425056503820080400001019009d012a14001c0000000025b00274ca"
+          + "11d41e31f901f8cdd10bac5da5fd95dc11205d35fe1fed57ddcff00fc6eea0ffee1f8e5c003f"
+          + "4ebfc3ff72f7e3f166f700fd33eb00f400fd00f429feabfd27e033f513fbbff63f80dfe43fcf"
+          + "7ef82f19f271fa97fb2ba003e817c43f113f68ffd1ea08fe71f867f94d9c65f19fe4bf8d7fcc"
+          + "ff5bb6407f08fe61f8b3b211fc63f8d7e3dff63f77afcbff077cc5bf8c7e19fd007f08fe0ffc"
+          + "abf11bfad7fcfe508fd08fe127a6c36acc7b222b8737592490fa7efae4ef1fd6b98fefd4b3eb"
+          + "3000fef0574bb6e2183e2cd42aa7d3eeb26a1fb32873cd3d6867fea05ec88a8ac8e5e743ae33"
+          + "a09f4228cbcc667b7a0d8ad593af67d7328c30302af4c4fee89dbaccc3cfb7b80b811c1ffc2c"
+          + "a2a5c8c6672ccd4d4fd673ced138db89a4c0b5500c59fd600dd2cdffd1e101097dba502c3f39"
+          + "e58d0825b25f969c9f9c2873c8656470fcb0fe90aa7e1c66503644b436045ddd5ebf2d2f7b68"
+          + "3684427144cf3bec7fff94a7ead6110a6687821203ffc3ae33438efb497d0168e970276ef835"
+          + "3d354140ee781f000b3ece6959b6a0374d21b97a2702cc2c57a81fc85768a5c456ba2616ab84"
+          + "d6e1ffde9bfde0f66c29c3f699d3f2982277f85755a652e045fbb867ec114a6a50fc90c1138e"
+          + "c33c77e4d5a7ad521656e6ffe4b57410173040dd55849eabc733c8274f39dd6c119f1ea7b1ab"
+          + "ffaa7fe047a578b08df07d13fff90f241d11c6ca991abba7ba4ab45a7f0e922ac9758cc87f07"
+          + "c4ff71a2a4a1a8e7bf2be7cf7d94edd22f2b72f5ac100cd0aeab4cc787ab64f165e4dbfffc53"
+          + "b9b6edf6d4cb5b6d596be3336c84571ffd06aa6b08eda4ec26834fb413e0b3029cc03bfc1e1f"
+          + "74d953d93b485d6a7962156fd0785a9d5332a2a397d0e81806c8cf2b7cd59f5ce9b07b36b1ea"
+          + "4672c2bb87d8f378f3977a4a6fab397e421d8dad73ad9ae4dff3b61fff77f060c9ce2634aadf"
+          + "e049241cef1e821c98de70a890262217f448f5fdea133ffbae8fa7ab95a4c5584785b82e7c2d"
+          + "4a9b3f9d5fa068dd1e47837ec670bbcd42afae492595f29eacc42392ea5112a177f9e85a25ed"
+          + "e1dba0b555fffff441718c978618d11ad088fe28b4e163a45d9f2830f7304a05ada86c26cccb"
+          + "3b7a4ba5dcfde7c13c1b3e28fdfec01fcbc7b6d8c69c6bffd34251f8fffec8d8b0a202ccd562"
+          + "a445edd08b0121e79d11bcb83d5d4c9d9b72db0998eeb344d77a59d7749d2ed82d6a2f469066"
+          + "f754cbda69e9ef72922070c8bab32ad5bfd3d28b7e568c9df9512e0748a7966e71b0cdf42a8c"
+          + "1db4f4b94789ac8a49ff9f9b00df7ffefa22f954afe908d849a72545f9d42768bca0fe3b7fd3"
+          + "4799819705084ebe801d041cfe3141d57fe86bd5c07c73f77d0b77f97b4769adc0042dbc5ee8"
+          + "f59a64c705502a1b981b679a6d7e941eda844f06fcec80000000";
 
     private static final String GOLDEN =
               "flat16 17:-3:3\n"
@@ -60,7 +91,8 @@ class Vp8CoeffE2ETest {
             + "skip64 25:21:135,18:-43:43,17:-42:42,17:-42:42,18:-2:2,0:0:0,0:0:0,"
             + "0:0:0,0:0:0,0:0:0,0:0:0,0:0:0,0:0:0,0:0:0,0:0:0,0:0:0\n"
             + "cat64 23:-69:73,21:10:14,23:8:16,21:10:14,24:-6:22,23:-7:13,22:4:8,21:-4:6,"
-            + "25:-6:24,23:2:10,21:-5:5,20:-5:5,24:-4:20,23:-7:11,19:3:3,18:2:2";
+            + "25:-6:24,23:2:10,21:-5:5,20:-5:5,24:-4:20,23:-7:11,19:3:3,18:2:2\n"
+            + "bp2028 24:-291:4807,22:-173:1847,23:338:3792,14:369:1483";
 
     @Test
     void vp8CoeffsOnJvm() throws Exception {
@@ -108,6 +140,7 @@ class Vp8CoeffE2ETest {
         Files.write(dir.resolve("diag32.webp"), hex(DIAG32_HEX));
         Files.write(dir.resolve("skip64.webp"), hex(SKIP64_HEX));
         Files.write(dir.resolve("cat64.webp"), hex(CAT64_HEX));
+        Files.write(dir.resolve("bp2028.webp"), hex(BP2028_HEX));
         return dir;
     }
 
@@ -164,6 +197,7 @@ class Vp8CoeffE2ETest {
              + "    println(\"diag32 \" + coeffs(File(\"" + base + "/diag32.webp\").readBytes()))\n"
              + "    println(\"skip64 \" + coeffs(File(\"" + base + "/skip64.webp\").readBytes()))\n"
              + "    println(\"cat64 \" + coeffs(File(\"" + base + "/cat64.webp\").readBytes()))\n"
+             + "    println(\"bp2028 \" + coeffs(File(\"" + base + "/bp2028.webp\").readBytes()))\n"
              + "}\n";
     }
 

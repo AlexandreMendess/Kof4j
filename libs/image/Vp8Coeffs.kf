@@ -63,6 +63,7 @@ class Vp8CoeffDecoder {
     Int[] eob
     Int[] left
     Int[] above
+    List<Int> zig
     Int mbCols
     Int col
     Int mb
@@ -75,6 +76,9 @@ class Vp8CoeffDecoder {
         this.mbCols = mbCols
         this.left = new Int[9]
         this.above = new Int[mbCols * 9]
+        // Built once. Rebuilding the order per coefficient left a short-lived
+        // object that raced the riscv64 collector (`known-bugs` §550).
+        this.zig = vp8ZigzagOrder()
     }
 
     // Resets the left (row) context before decoding a new macroblock row.
@@ -191,7 +195,7 @@ class Vp8CoeffDecoder {
                     }
                     p = vp8CoeffProbBase(type, band, 2)
                 }
-                var j = vp8Zigzag(n - 1)
+                var j = this.zig.get(n - 1)
                 var sv = v
                 if (this.d.bit(128) == 1) {
                     sv = -v
@@ -274,9 +278,8 @@ Int vp8CoeffBand(Int c) {
 }
 
 // Zig-zag order of the 16 DCT coefficients (RFC 6386 §13.2).
-Int vp8Zigzag(Int i) {
-    var z = listOf(0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15)
-    return z.get(i)
+List<Int> vp8ZigzagOrder() {
+    return listOf(0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15)
 }
 
 // Left context slot of block `ci` (RFC 6386 reference `left_context_index`).
