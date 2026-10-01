@@ -1,8 +1,8 @@
 last: none
 doing: none-planned
-next: decision-required-D-UDP
+next: promote-and-implement-D-KOF-NET
 location: docs/development/future
-state: planned
+state: decided
 
 intent: kof-udp-datagram-network
 
@@ -113,6 +113,8 @@ A gap code (e.g. `NETUDP001`) and a `backend-parity.md` row are part of the
 promotion, not of this plan.
 
 ## 5. Open questions (DECISION REQUIRED — rule 6)
+
+> **ANSWERED 01/10 by the maintainer (chat votes) — frozen in `D-KOF-NET`:** unified namespace `kof.net` (Q1=no separate kof.udp; extends the URI-only `net`); payload `Byte[]` on the wire both transports (Q2); address = `"host:port"` String, receive yields source addr the same way (Q3); blocking verbs + `spawn` per connection/endpoint (Q4); bound 64 KiB with `NET00x` refusal, no transparent fragmentation (Q5); unicast only in v1 — broadcast/multicast deferred to their own decision (Q6); Q7: endpoints obey the existing `app.security`/policy model (no new face). TCP joins the same front (maintainer chose TCP+UDP together, rejecting TCP-first).
 
 1. **Namespace** — new `kof.udp`, or extend `kof.net` (today URI-only) with a
    transport section?

@@ -4553,7 +4553,7 @@ individuais:
 
 ## D-UDP — a rede UDP / datagrama (sem conexão) é uma frente de fila autorizada; a superfície aguarda definição (mantenedora 01/10/2026, diretriz "kof nao tem suporte a UDP adiciona na fila pra por em network, isso é crucial")
 
-**Estado:** ENFILEIRADO (frente autorizada, superfície NÃO decidida) — registrado em `DECISIONS.md` para que a entrada da fila não seja fantasma; o plano é `docs/development/future/network-udp-plan.md` (+PT).
+**Estado:** RESPONDIDA 01/10 — superfície decidida e SUBSUMIDA por `D-KOF-NET` (`kof.net` unificado, TCP+UDP, bloqueante+spawn, `Byte[]`, endereçamento "host:port", limite 64 KiB, unicast-only no v1); o plano é `docs/development/future/network-udp-plan.md` (+PT).
 - **Diretriz (mantenedora):** Kof precisa suportar UDP; fica enfileirado **sob a frente de rede** (`roadmap.md` §3). A diretriz autoriza abrir a frente; **não** fixa ainda a superfície.
 - **Ausência medida (01/10/2026):** uma varredura da árvore acha **0** hits para `udp`/`datagram`/`SOCK_DGRAM` em `kof-compiler/src/main` (só um comentário de faixa de porta TCP/UDP); `KofNet.java` é **só parsing de URI** (a extensão `net` da stdlib S8); o transporte real é TCP (`runtime/RuntimeNet.java` + `KofWeb` + syscalls cruas nativas). Nenhuma célula existe em `backend-parity.md`.
 - **Abordagem (library-first, `D-KOF-FIRST-IMPL`):** implementar sobre a **costura de socket existente** por alvo (`DatagramSocket` no JVM, `SOCK_DGRAM` + `sendto`/`recvfrom` no Native, `dgram` no node JS; navegador = lacuna honesta; Script herda JVM ou recusa explícita). Sem mudança no lexer/parser; cada alvo sem suporte recebe um código de gap honesto (R6/R7).
@@ -4584,3 +4584,20 @@ individuais:
 - **Casa arquitetural:** TCP/listen/accept/connect entra na frente de rede já autorizada pelo `D-UDP` (mesma família, mesma pergunta de namespace — a pergunta aberta (1) do plano UDP, `kof.udp` vs extensão de `kof.net`, agora É também a pergunta de nomeação do TCP; responder uma vez, para ambos).
 - **O que isto NÃO autoriza:** inventar a superfície de sockets sem a resposta da mantenedora às perguntas de namespace/bloqueio/tipos (regra 6); lançar o KofShare em interop mesmo assim; um shim C privado por produto.
 - **Relações:** `Depende de: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-UDP (pergunta de nomeação), §559 (casa catalogada)`
+
+---
+
+## D-KOF-NET — frente de rede unificada `kof.net` (TCP + UDP), verbos bloqueantes + `spawn`, payload `Byte[]`, UDP endereçado por `"host:port"`, limite de 64 KiB, unicast-only no v1 (mantenedora 01/10/2026, votos regra-6 no chat)
+
+**Estado:** DECIDIDO — o contrato de superfície da frente de rede da stdlib; destrava o bloqueio do KofShare (`D-KOFSHARE-100KOF`/§559-a); a implementação segue o fluxo de promoção
+
+- **Namespace:** UM `kof.net` para as duas famílias de transporte, ao lado dos acessores URI já existentes (`net.scheme/host/port/path/query/fragment/queryEncode/Decode` — medido: todos recebem String de URL, sem colisão de verbos). Verbos TCP e verbos UDP vivem no mesmo namespace.
+- **Escopo:** TCP e UDP NA MESMA frente/v1 (a mantenedora escolheu "TCP + UDP juntos agora", rejeitando TCP-primeiro) — o item de fila embarca como uma frente de rede coerente.
+- **Modelo de bloqueio:** verbos BLOQUEANTES (`listen/connect/accept/send/receive` bloqueiam o worker chamador); o paralelismo é a concorrência Kof existente — `spawn` de um worker por conexão/endpoint. Nenhuma máquina async/await de I/O é introduzida (nenhuma existe, medida para I/O; no-silent-fallback).
+- **Tipo de payload:** `Byte[]` flui nas duas mãos nos dois transportes (bytes de stream no TCP, um datagrama por `send` no UDP). Sem record `Message`/`Datagram`, sem overload de conveniência String no v1 (um jeito de fazer; os namespaces `encoding` convertem).
+- **Endereçamento UDP:** endpoint/par = `String "host:port"` (ex.: `"127.0.0.1:9000"`); o `receive` entrega os bytes E o endereço de origem nessa forma. Nenhum tipo `Addr` novo no v1.
+- **Limite de datagrama:** 64 KiB (limite IPv4 prático) — `bind`/`send` RECUSAM maiores com diagnóstico `NET00x`; sem fragmentação transparente; comportamento idêntico por alvo.
+- **Broadcast/multicast:** NÃO no v1 (só unicast). Uma face posterior exige decisão regra-6 própria.
+- **Segurança/política:** endpoints de rede obedecem ao modelo `app.security`/política existente — nenhuma face nova de política é inventada aqui. A face de troca de chaves (`SECN005`, o outro requisito do `D-KOFSHARE-100KOF`) permanece decisão de superfície separada.
+- **Superfície (contrato, a validar por compilação na fatia 1):** `net.listen(port) -> Listener`, `listener.accept() -> Conn`, `net.connect(host, port) -> Conn`, `conn.send(Byte[]) -> Int`, `conn.receive(maxBytes) -> Byte[]`, `conn.close()`, `listener.close()`; `net.bind(port) -> Endpoint`, `endpoint.send(addr, Byte[])`, `endpoint.receive(maxBytes)` com origem, `endpoint.close()`. Nomes/tipos congelados por esta decisão; a forma exata do receive-com-origem é a primeira questão de projeto a sonda-de-compilação (ausência de tupla no Kof ⇒ provável `record Datagram(Byte[] bytes, String from)` — a preferência Byte[]/sem-record nova é honrada no ENVIO; o LADO RECEBEDOR pode exigir o portador da origem: decidir via sonda RED-first, mantendo esta nota atualizada).
+- **Relações:** `Depende de: D-KOF-FIRST-IMPL (library-first), D-UDP (subsumido aqui), §559 (gap catalogado que isto fecha), D-KOFSHARE-100KOF (produto bloqueado nisto)`; `Resolve-questoes: D-UDP §5 (1,2,3,4,5,6)`
