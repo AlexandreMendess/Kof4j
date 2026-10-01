@@ -221,6 +221,7 @@ Do not reimplement Spring. Instead, transform recurring capabilities into Kof Ru
 Future objectives:
 - HTTP / REST / WebSocket / SSE (WebSocket/SSE + JVM hardening completed 04/09; JS/Native follow-up);
 - HTTP client;
+- **UDP / datagram transport (connectionless)** — queued 01/10/2026 (maintainer directive): measured absent on every target; plan [`future/network-udp-plan.md`](future/network-udp-plan.md), promotion needs `D-UDP`;
 - JSON;
 - RPC;
 - events / queues / pub/sub;

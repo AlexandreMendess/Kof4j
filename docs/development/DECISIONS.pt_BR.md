@@ -4548,3 +4548,16 @@ individuais:
 - **Confirmação de lane estendida (substitui a de 21/09):** um agente nunca age na lane de outro dono só pelo IP — a confirmação exige sessão + lane + SHA do commit + **IP:PORT** juntos (roteador/DHCP podem mudar ambos, então IP sozinho é obsoleto).
 - **Não autorizado:** entregar um claim sem `:<porta>` (o gate bloqueia), editar o claim de outra lane, reescrever retroativamente claims com data < `01/10` (a regra não vale para trás; claims históricos ficam como estão como evidência).
 - **Relações:** substitui a redação "confirme por SHA/IP" de 21/09 pela mais forte **IP:PORT**; ortogonal a `D-KOFMD-OPERATING-STANDARD`; complementa `check_release_blockers.sh` (higiene do ledger) e `check_live_records.sh` (verdade dos docs vivos).
+
+---
+
+## D-UDP — a rede UDP / datagrama (sem conexão) é uma frente de fila autorizada; a superfície aguarda definição (mantenedora 01/10/2026, diretriz "kof nao tem suporte a UDP adiciona na fila pra por em network, isso é crucial")
+
+**Estado:** ENFILEIRADO (frente autorizada, superfície NÃO decidida) — registrado em `DECISIONS.md` para que a entrada da fila não seja fantasma; o plano é `docs/development/future/network-udp-plan.md` (+PT).
+
+- **Diretriz (mantenedora):** Kof precisa suportar UDP; fica enfileirado **sob a frente de rede** (`roadmap.md` §3). A diretriz autoriza abrir a frente; **não** fixa ainda a superfície.
+- **Ausência medida (01/10/2026):** uma varredura da árvore acha **0** hits para `udp`/`datagram`/`SOCK_DGRAM` em `kof-compiler/src/main` (só um comentário de faixa de porta TCP/UDP); `KofNet.java` é **só parsing de URI** (a extensão `net` da stdlib S8); o transporte real é TCP (`runtime/RuntimeNet.java` + `KofWeb` + syscalls cruas nativas). Nenhuma célula existe em `backend-parity.md`.
+- **Abordagem (library-first, `D-KOF-FIRST-IMPL`):** implementar sobre a **costura de socket existente** por alvo (`DatagramSocket` no JVM, `SOCK_DGRAM` + `sendto`/`recvfrom` no Native, `dgram` no node JS; navegador = lacuna honesta; Script herda JVM ou recusa explícita). Sem mudança no lexer/parser; cada alvo sem suporte recebe um código de gap honesto (R6/R7).
+- **Aguardando definição (7 questões abertas, plano §5):** (1) namespace `kof.udp` vs extensão de `kof.net`; (2) tipo da mensagem `String` vs bytes `Buffer(U8)` vs record `Datagram`; (3) representação do peer/endereço; (4) recepção bloqueante vs timeout vs callback (`udp.listen`); (5) tamanho máximo de datagrama (limitar + recusar, nunca truncar); (6) broadcast/multicast na v1 ou depois; (7) se o UDP obedece ao modelo `app.security`/policy.
+- **Promoção:** quando a mantenedora responder às questões, o plano é reescrito `UNDER DEVELOPMENT`, movido para fora de `future/` (+PT) e promovido um-a-um por `D-FUTURE-PROMOTION`; a fatia JVM pousa primeiro (E2E RED-first sobre socket loopback real), depois as faces native e JS com suas lacunas.
+- **Relações:** `Related: D-KOF-FIRST-IMPL, D-SPRING, D-FUTURE-PROMOTION, D-KOF-FILE-GO (codecs pesados R1), rule 6, rule 12`; linha na fila de `docs/development/README.md` §3 (+PT).

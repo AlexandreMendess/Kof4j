@@ -222,6 +222,7 @@ Não reimplementar Spring. Em vez disso, transformar capacidades recorrentes em 
 Objetivos futuros:
 - HTTP / REST / WebSocket / SSE (WebSocket/SSE + hardening JVM concluídos 04/09; JS/Native follow-up);
 - HTTP client;
+- **UDP / transporte de datagramas (sem conexão)** — enfileirado 01/10/2026 (diretriz da mantenedora): medido ausente em todos os alvos; plano [`future/network-udp-plan.md`](future/network-udp-plan.md), promoção exige `D-UDP`;
 - JSON;
 - RPC;
 - eventos / filas / pub/sub;
