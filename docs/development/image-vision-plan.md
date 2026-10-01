@@ -999,6 +999,25 @@ ability genuinely does not exist on a target.
     on JVM + Native x86-64 + riscv64(qemu) + Script; the existing
     `RasterDecodeE2ETest` PNG tests stay 4/4.
 
+22. **PNG bit depths 1/2/4/16 — LANDED 01/10 (pure Kof, all targets).**
+    `libs/image/Png.kf` now decodes every spec-allowed bit depth instead of
+    refusing `IMAGE: unsupported PNG bit depth`. The decoder is generalized to
+    bits-per-pixel: `pngSampleChannels` validates the depth/color-type
+    combination, `pngRawLen`/`pngAdam7RawLen` size the inflated stream, and
+    `unfilter`/`unfilterAdam7` move sub-byte samples as bit-fields and 8/16-bit
+    samples as bytes. After unfiltering, `pngUnpackSub` scales 1/2/4-bit gray by
+    `255/maxval` (palette indices are kept raw) and `pngUnpack16` takes the high
+    byte of 16-bit samples (the `farbfeld` rule). The 8-bit path is unchanged.
+    Fixtures cover every new combination — 1/2/4-bit gray, 16-bit gray, 16-bit
+    RGB, 2/4-bit palette — plus two Adam7-interlaced sub-byte files (4-bit gray
+    19x11, 4-bit palette 18x10) that exercise the sub-byte scatter; the sub-byte
+    gray and 16-bit files are hand-built (zlib) and all are independently
+    readable by PIL and Java `ImageIO`. Proof: `PngBitDepthE2ETest` **4/4**
+    (sample sum + 24-bit rolling hash) on JVM + Native x86-64 + riscv64(qemu) +
+    Script, RED-first (`IMAGE: unsupported PNG bit depth 1` with the old decoder,
+    measured); neighbors `RasterDecodeE2ETest` PNG 4/4 and `PngInterlaceE2ETest`
+    4/4 unchanged.
+
 **DECIDED 30/09 (`D-WEBP-LOSSY-PURE-KOF`, option C): WebP lossy `VP8 ` + AVIF
 as a pure-Kof decoder on all targets.** The measured finding that forced the
 decision: the JPEG escape hatch does not extend — OpenJDK 25 `javax.imageio`

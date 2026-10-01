@@ -1147,6 +1147,26 @@ capacidade realmente não existe no alvo.
     + riscv64(qemu) + Script; os testes PNG existentes do `RasterDecodeE2ETest`
     seguem 4/4.
 
+22. **Bit depths 1/2/4/16 do PNG — LANDADA 01/10 (Kof puro, todos os alvos).**
+    O `libs/image/Png.kf` agora decodifica todos os bit depths permitidos pela
+    especificação, no lugar da recusa `IMAGE: unsupported PNG bit depth`. O
+    decoder é generalizado para bits-por-pixel: `pngSampleChannels` valida a
+    combinação profundidade/tipo de cor, `pngRawLen`/`pngAdam7RawLen` dimensionam
+    o stream inflado, e `unfilter`/`unfilterAdam7` movem amostras sub-byte como
+    campos de bits e amostras de 8/16 bits como bytes. Depois do unfilter,
+    `pngUnpackSub` escala o cinza 1/2/4-bit por `255/maxval` (índices de paleta
+    ficam crus) e `pngUnpack16` pega o byte alto das amostras de 16 bits (a regra
+    do `farbfeld`). O caminho de 8 bits fica inalterado. As fixtures cobrem
+    cada combinação nova — cinza 1/2/4-bit, cinza 16-bit, RGB 16-bit, paleta
+    2/4-bit — mais dois arquivos sub-byte interlaçados Adam7 (cinza 4-bit 19x11,
+    paleta 4-bit 18x10) que exercitam o scatter sub-byte; os arquivos cinza
+    sub-byte e 16-bit são montados à mão (zlib) e todos são lidos de forma
+    independente pelo PIL e pelo `ImageIO` do Java. Prova: `PngBitDepthE2ETest`
+    **4/4** (soma das amostras + hash rolante de 24 bits) na JVM + Native x86-64
+    + riscv64(qemu) + Script, RED-first (`IMAGE: unsupported PNG bit depth 1` com
+    o decoder antigo, medido); vizinhos `RasterDecodeE2ETest` PNG 4/4 e
+    `PngInterlaceE2ETest` 4/4 inalterados.
+
 **DECIDIDO 30/09 (`D-WEBP-LOSSY-PURE-KOF`, opção C): WebP lossy `VP8 ` + AVIF
 como decoder Kof puro em todos os alvos.** O achado medido que forçou a decisão:
 a escotilha do JPEG não se estende — o OpenJDK 25 `javax.imageio` **não tem**
