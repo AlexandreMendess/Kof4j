@@ -1103,7 +1103,7 @@ the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work. R
 FFI) · `2.2 codegen hook` → `infra`/gRPC stubs · **TIER 1 (SYSTEMS) closes
 before ANY Tier 6+ (R12).**
 
-### TIER 14 — Tech-debt ledger queue (OPEN 23/09, `D-TECHDEBT-23/09`; **LEDGER KILLED 24/09** — debt measured zeroed)
+### TIER 14 (retired) — Tech-debt ledger queue (OPEN 23/09, `D-TECHDEBT-23/09`; **LEDGER KILLED 24/09** — debt measured zeroed)
 
 Ordered queue from the maintainer's multiple-choice rulings 23/09. **24/09,
 maintainer order: the `tech-debt.md` ledger is KILLED** — every live §NNN it

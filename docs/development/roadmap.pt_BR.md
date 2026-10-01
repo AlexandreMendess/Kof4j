@@ -1108,7 +1108,7 @@ ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual. R
 FFI) · `2.2 codegen hook` → `infra`/gRPC stubs · **TIER 1 (SYSTEMS) fecha
 antes de QUALQUER Tier 6+ (R12).**
 
-### TIER 14 — Fila do ledger de dívida técnica (ABERTA 23/09, `D-TECHDEBT-23/09`; **LEDGER MORTO 24/09** — dívida medida zerada)
+### TIER 14 (aposentado) — Fila do ledger de dívida técnica (ABERTA 23/09, `D-TECHDEBT-23/09`; **LEDGER MORTO 24/09** — dívida medida zerada)
 
 Fila ordenada dos vereditos de múltipla escolha da mantenedora 23/09. **24/09,
 ordem da mantenedora: o ledger `tech-debt.md` está MORTO** — todo §NNN vivo
@@ -1174,3 +1174,19 @@ pendente em bugs-and-gaps. Fila + estado atual:
 o corte pousou (`main` mergeou `#619`, tags `kof-0.5.0-beta*`); o registro de
 aceitação foi para `docs/distribution/release-beta-0.5.0.md` e o gate foi
 aposentado — a promoção agora é regida pelo TIER 14 (`D-QUALITY-PIPELINE-2609`).
+
+
+### TIER 14 — Migração do quality-pipeline (DECIDIDO 26/09 `D-QUALITY-PIPELINE-2609`; execução gated POST-0.5.0)
+
+A esteira `lab → testing → prerelease → stable → release/x.y.z → tag` está
+fechada no design. **NENHUMA unidade pode começar antes do ciclo 0.5.0 fechar** —
+o trabalho de hoje segue pousando em `beta-0.5.0` (`D-BRANCH-0.5.0` em vigor).
+Quando a mantenedora abrir a frente, as unidades são:
+
+| # | Unidade | Gate/prova |
+|---|---|---|
+| 14.1 | Piloto: branch temporária `release/0.5.0` (bump de versão, changelog, artefatos, checksums) cortada de stable-candidate; publicar; encerrar branch | GitHub Release + tag `v0.5.0`; nada novo adicionado no meio do piloto |
+| 14.2 | Cutover atômico (UMA mudança): criar `lab`/`testing`/`prerelease`/`stable`; workflows de CI (`codeql.yml` branches+schedule, gates, jobs cross) re-apontados; `scripts/sync-push.sh` + gate de tip §NNN + crons heartbeat/watcher re-apontados; `AGENTS.md` (`D-BRANCH` substituído), `DOING.md`, `DECISIONS.md` atualizados | build após o cutover: toda automação resolve o mesmo estágio; zero agente pousando em branch aposentada |
+| 14.3 | Ferramental de promoção: `lab→testing` roda a suíte completa como primeiro gate formal; checagens de promoção codificam 80% (testing→prerelease) / 100% (prerelease→stable + CLOSEALL/docs) mecanicamente (estender `check_release_050_gate.sh` por estágio) | prova scriptada por promoção, não opinião |
+| 14.4 | Proteções de branch: sem force-push + checks requeridos em `testing`/`prerelease`/`stable`; caminho de hotfix (PR + backport + revalidação) documentado em `AGENTS.md` | GitHub settings + espelho nos docs |
+| 14.5 | Ponto aberto a fechar com a mantenedora neste plano: o `lab` mantém o piso de zero-regressão (regra 8) sem CI a cada push? | registrado em `D-QUALITY-PIPELINE-2609` §OPEN POINT |
