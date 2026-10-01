@@ -28,6 +28,14 @@
 #
 # —— FP de ferramenta (motivo por alerta; re-abrir so se o CodeQL corrigir) ——
 876	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/SemanticAnalyzer.java	#555	2026-09-20	FP CodeQL 2.27: `case EnumDeclarationNode _` e padrao SEM NOME (JEP 443) — nao existe binding para ler; mesmo caso ja dismissado em #510/#631-#636/#885
+1077	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/KofInterpreter.java	#876	2026-10-01	FP CodeQL 2.27 idem #876: `case KofContinueLabel _` (JEP 443, padrao sem nome, sem binding); nasceu na lane #549
+1078	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/KofInterpreter.java	#876	2026-10-01	FP CodeQL 2.27 idem #876: `case KofExcUnlink _` (JEP 443, padrao sem nome, sem binding); nasceu na lane #549
+1079	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmOpEmitter.java	#876	2026-10-01	FP CodeQL 2.27 idem #876: `case KofContinueLabel _` (JEP 443, padrao sem nome, sem binding); nasceu na lane #549
+1080	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmOpEmitter.java	#876	2026-10-01	FP CodeQL 2.27 idem #876: `case KofExcUnlink _` (JEP 443, padrao sem nome, sem binding); nasceu na lane #549
+1083	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvCrossEmit.java	#876	2026-10-01	FP CodeQL 2.27 idem #876: `case KofContinueLabel _` (JEP 443, padrao sem nome, sem binding); nasceu na lane #549
+1084	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvCrossEmit.java	#876	2026-10-01	FP CodeQL 2.27 idem #876: `case KofExcUnlink _` (JEP 443, padrao sem nome, sem binding); nasceu na lane #549
+1085	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/StatementLowerer.java	#876	2026-10-01	FP CodeQL 2.27 idem #876: `case BreakStmt _` (JEP 443, padrao sem nome, sem binding); nasceu na lane §551 (903335bc4)
+1086	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/StatementLowerer.java	#876	2026-10-01	FP CodeQL 2.27 idem #876: `case ContinueStmt _` (JEP 443, padrao sem nome, sem binding); nasceu na lane §551 (903335bc4)
 #
 # —— FIXADOS no codigo, aguardando o proximo re-scan fechar o alerta ——
 # (todos provados com teste alvo em 20/09; sairao de `open` sozinhos no re-scan
