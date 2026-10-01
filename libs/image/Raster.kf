@@ -4,13 +4,14 @@ import image.Image
 import image.Png
 import image.Gif
 import image.Vp8l
+import image.Vp8Raster
 
 // kof.image — raw raster decode, first pixel slice (provisional surface).
 //
-// `decodeRaster(path)` returns the pixel samples of an **uncompressed** image
-// (no codec, no decompression engine): the Kof-first half of the pixel slice.
-// Compressed formats (PNG/JPEG/…) stay interop-first (R9) behind a later
-// maintainer-decided `kof.image` surface.
+// `decodeRaster(path)` returns the pixel samples of an image. The Kof-first
+// half of the pixel slice decodes every supported format in pure Kof; JPEG
+// stays interop-first (JVM `imageio`, R9) behind a later maintainer-decided
+// `kof.image` surface.
 //
 //   var r = decodeRaster("shot.ppm")
 //   println(r.width + "x" + r.height + " ch=" + r.channels)
@@ -18,10 +19,12 @@ import image.Vp8l
 //
 // Supported now (pure Kof, all targets): **PNM** `P5`/`P6` 8-bit, **farbfeld**
 // (16-bit RGBA downsampled to 8-bit), **BMP** 24/32-bit uncompressed (BGR rows
-// padded to 4 bytes; alpha dropped) and **QOI** (all chunks decoded in Kof). Documented bounds: the
+// padded to 4 bytes; alpha dropped), **QOI**, **PNG** (deflate), **GIF** (first
+// frame) and **WebP** — `VP8 ` (lossy, the full RFC 6386 key-frame chain) and
+// `VP8L` (lossless). Documented bounds: the
 // sample count must be <= 262144 (one bounded read; the single array fits the
 // cross-native 16 MiB arena landed with `known-bugs` §540, and the x86-64
-// contiguous arena of §542) and the value must fit an 8-bit sample. Anything else (a compressed format, a larger raster, a
+// contiguous arena of §542) and the value must fit an 8-bit sample. Anything else (an unsupported format, a larger raster, a
 // 16-bit PNM, comments in the pixel area) throws a `String` beginning with
 // `IMAGE:` — never a silent wrong decode. `cropRaster`, `resizeNearest`,
 // `flipHorizontal`/`flipVertical`, `rotate90`, `grayscale`, `threshold` and
@@ -56,9 +59,20 @@ Raster decodeRaster(String path) {
         return gifRaster(path, img.width(), img.height())
     }
     if (fmt == "WEBP") {
-        return vp8lRaster(path)
+        return webpRaster(path)
     }
     throw "IMAGE: raster decode is not supported for " + fmt
+}
+
+// WebP container: `VP8 ` (lossy) rides the pure-Kof VP8 chain
+// (`libs/image/Vp8Raster.kf`); `VP8L` (lossless) its own decoder. Any other
+// chunk is refused by `vp8lRaster` with an explicit `IMAGE:` diagnostic.
+Raster webpRaster(String path) {
+    var head = File(path).readRange(0, 16)
+    if (matchesAscii(head, 12, "VP8 ")) {
+        return vp8Raster(path)
+    }
+    return vp8lRaster(path)
 }
 
 // QOI ("Quite OK Image") — pure Kof, all targets: the chunks are decoded here
