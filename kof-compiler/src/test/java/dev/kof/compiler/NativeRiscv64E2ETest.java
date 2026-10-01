@@ -137,6 +137,33 @@ class NativeRiscv64E2ETest {
         assertFalse(p.isAlive(), "§418: o filho pendurado tem de morrer (destroyForcibly)");
     }
 
+    /** #714 (regra 1 — teste de regressão do fix): o guarda de toolchain com
+     *  gcc cruzado NUNCA lança e concorda com a sonda {@code command -v}. Era a
+     *  causa-raiz do falso-vermelho: os testes de fixture C chamavam
+     *  {@code ProcessBuilder("<arch>-linux-gnu-gcc")} direto com guarda só em
+     *  {@link #hasToolchain} (as/ld/qemu), então num host sem o gcc cruzado o
+     *  filho estourava {@code IOException} (ERROR) em vez de pular. O
+     *  {@link #hasToolchainWithGcc} devolve boolean e acrescenta o {@code gcc}
+     *  ao conjunto exigido. Prova: arch inexistente ⇒ false sem exceção; e para
+     *  riscv64/aarch64 o resultado bate com a sonda {@code command -v} do host —
+     *  true na CI (gcc presente), false num host que só tem as/ld/qemu. */
+    @Test
+    void gccToolchainGuardIsANonThrowingPredicateMatchingCommandProbe() {
+        assertFalse(hasToolchainWithGcc("nonexistent-arch"),
+                "arch inexistente deve dar false (nunca lançar)");
+        for (String arch : new String[]{"riscv64", "aarch64"}) {
+            boolean viaGuard = hasToolchainWithGcc(arch);
+            boolean allPresent = has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld",
+                    arch + "-linux-gnu-gcc", "qemu-" + arch);
+            assertEquals(allPresent, viaGuard,
+                    arch + ": o guarda deve refletir exatamente o conjunto exigido (command -v)");
+            // direcional e robusto: se falta o C cross compiler, o guarda é SEMPRE false
+            if (!has(arch + "-linux-gnu-gcc")) {
+                assertFalse(viaGuard, arch + ": sem o gcc cruzado o guarda não pode dar true");
+            }
+        }
+    }
+
     private String runRiscv64(Path tempDir, String source) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, source);
