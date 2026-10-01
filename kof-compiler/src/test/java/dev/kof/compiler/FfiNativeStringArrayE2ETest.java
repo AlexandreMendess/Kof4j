@@ -162,7 +162,7 @@ class FfiNativeStringArrayE2ETest {
         for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
             String arch = a[0];
             Target t = Target.valueOf(a[1]);
-            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+            assumeTrue(NativeRiscv64E2ETest.hasToolchainWithGcc(arch),
                     "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
             String hostSo = buildHostLib(dir);
             String crossSo = compileCrossLib(dir, arch);

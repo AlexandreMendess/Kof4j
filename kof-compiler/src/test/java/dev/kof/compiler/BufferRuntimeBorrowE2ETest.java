@@ -160,7 +160,7 @@ class BufferRuntimeBorrowE2ETest {
         for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
             String arch = a[0];
             Target t = Target.valueOf(a[1]);
-            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+            assumeTrue(NativeRiscv64E2ETest.hasToolchainWithGcc(arch),
                     "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
             String so = compileCrossLib(dir, arch);
             Path src = dir.resolve("borrow-race-" + arch + ".kf");
@@ -180,7 +180,7 @@ class BufferRuntimeBorrowE2ETest {
         for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
             String arch = a[0];
             Target t = Target.valueOf(a[1]);
-            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+            assumeTrue(NativeRiscv64E2ETest.hasToolchainWithGcc(arch),
                     "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
             String so = compileCrossLib(dir, arch);
             Path src = dir.resolve("borrow-single-" + arch + ".kf");
@@ -214,7 +214,7 @@ class BufferRuntimeBorrowE2ETest {
         for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
             String arch = a[0];
             Target t = Target.valueOf(a[1]);
-            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+            assumeTrue(NativeRiscv64E2ETest.hasToolchainWithGcc(arch),
                     "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
             String so = compileCrossLib(dir, arch);
             Path src = dir.resolve("borrow-seq-" + arch + ".kf");

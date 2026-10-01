@@ -50,6 +50,15 @@ class NativeRiscv64E2ETest {
         return has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld", "qemu-" + arch);
     }
 
+    /** Como {@link #hasToolchain} mas exige TAMBÉM o compilador C cross
+     *  (`<arch>-linux-gnu-gcc`). #714: testes que compilam um shim C
+     *  (`compileCrossLib`) precisam do `gcc`; sem ele o `hasToolchain` (só
+     *  as/ld/qemu) devolvia {@code true} e o teste morria em ERROR em vez de
+     *  pular. Use este guard em qualquer teste que invoque o gcc cross. */
+    static boolean hasToolchainWithGcc(String arch) {
+        return has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld", arch + "-linux-gnu-gcc", "qemu-" + arch);
+    }
+
     /** Roda o binário sob qemu (QEMU_LD_PREFIX do sysroot resolvido) e
      *  devolve o stdout normalizado; falha o teste em exit != 0. */
     static String runQemu(String arch, Path binFile) throws IOException {
