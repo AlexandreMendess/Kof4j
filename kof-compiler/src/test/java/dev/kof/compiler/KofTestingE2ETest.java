@@ -85,6 +85,48 @@ class KofTestingE2ETest {
                 } catch (String e) {
                     println(e)
                 }
+                assertEqualLong(1234567890123, 1234567890123, "eqLong")
+                assertNotEqualLong(1, 2, "neqLong")
+                assertEqualDouble(3.5, 3.5, "eqDbl")
+                assertNotEqualDouble(1.5, 2.5, "neqDbl")
+                assertEqualFloat(1.5, 1.5, "eqFlt")
+                assertNotEqualFloat(1.5, 2.5, "neqFlt")
+                try {
+                    assertEqualLong(10, 20, "boomeqLong")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotEqualLong(7, 7, "boomneqLong")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertEqualDouble(1.5, 2.5, "boomeqDbl")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotEqualDouble(2.5, 2.5, "boomneqDbl")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertEqualFloat(1.5, 2.5, "boomeqFlt")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotEqualFloat(2.5, 2.5, "boomneqFlt")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
                 println("ALL PASS")
             }
             """;
@@ -100,6 +142,12 @@ class KofTestingE2ETest {
           + "assertion failed: boomneqstr (did not expect \"a\")\n"
           + "NOOP\n"
           + "assertion failed: boomthrows (expected an exception)\n"
+          + "assertion failed: boomeqLong (expected 10, got 20)\n"
+          + "assertion failed: boomneqLong (did not expect 7)\n"
+          + "assertion failed: boomeqDbl (expected 1.5, got 2.5)\n"
+          + "assertion failed: boomneqDbl (did not expect 2.5)\n"
+          + "assertion failed: boomeqFlt (expected 1.5, got 2.5)\n"
+          + "assertion failed: boomneqFlt (did not expect 2.5)\n"
           + "ALL PASS";
 
     private final CompilerDriver driver = new CompilerDriver();

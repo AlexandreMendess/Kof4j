@@ -49,6 +49,46 @@ Void assertEqualBool(Bool expected, Bool actual, String label) {
     }
 }
 
+// Terceiro slice (01/10): os numericos que faltavam (Long/Double/Float), par
+// igualdade/desigualdade por tipo — o generico `assertEqual<T>` esta bloqueado
+// por known-bugs §553 (`==` sobre T nao-limitado diverge entre alvos). Sem
+// primitiva nova: so `!=`/`==` de tipo concreto + concat de String.
+Void assertEqualLong(Long expected, Long actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualLong(Long unexpected, Long actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertEqualDouble(Double expected, Double actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualDouble(Double unexpected, Double actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertEqualFloat(Float expected, Float actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualFloat(Float unexpected, Float actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
 // Comparacao com null (generico, apagado no alvo): aceita qualquer T? e recusa
 // o tipo errado ainda em compilacao. Escrito EM KOF — nenhuma primitiva nova.
 Void assertNull<T>(T? value, String label) {

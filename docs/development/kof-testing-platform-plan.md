@@ -12,7 +12,17 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10 — §4.1 complete.
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10 — §4.1 complete modulo the generic pair (§553).
+
+> **Slice 4 (LANDED 01/10).** The numeric assertions that §4.1 was still missing at the
+> primitive level: `assertEqualLong`/`assertNotEqualLong`, `assertEqualDouble`/`assertNotEqualDouble`
+> and `assertEqualFloat`/`assertNotEqualFloat`, added to `dev/kof/test.kf` (same virtual-package
+> mechanism). Typed per primitive — **not** a generic `assertEqual<T>`, which stays deferred by
+> `known-bugs` §553 (`==` on an unbounded `T` diverges across targets). Additive, pure Kof, no new
+> syntax/primitives. Proof: `KofTestingE2ETest` **7/7** across JVM + JS + Script + Native x86-64 +
+> cross riscv64(qemu) + aarch64(qemu), golden-parity with the JVM oracle (RED pre-slice 1/1 on the
+> JVM leg: 12 × `SEM015 Undefined function` for the six helpers). Next: lifecycle (§4.2, needs a
+> runner/desugar decision) and the integration/browser faces (§11 phases 2–4).
 
 > **Slice 3 (LANDED 01/10).** The remaining §4.1 assertions added to the `kof.test` virtual package:
 > `assertNotEqualString`, `assertEqualBool`, `assertNull<T>(T? value, String label)` and
