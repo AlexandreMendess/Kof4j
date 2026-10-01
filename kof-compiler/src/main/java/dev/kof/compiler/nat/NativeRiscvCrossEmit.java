@@ -83,6 +83,10 @@ public final class NativeRiscvCrossEmit {
                 if (pop instanceof KofCall pkc && NativeFfiCall.isExternCall(pkc)) {
                     int b = 0;
                     for (Type t : pkc.parameterTypes()) if (FfiStructLayout.isBufferPtr(t)) b++;
+                    // D-MEM-FFI-CROSS-FULL face 3: um extern com retorno struct
+                    // por memória (sret) reserva o slot 0 ao ponteiro do buffer C
+                    // (os borrow buffers usam a partir do slot 1 — ver bufBase).
+                    if (NativeFfiCallRiscv.usesMemStructReturn(nb, pkc)) b++;
                     maxFfiBuf = Math.max(maxFfiBuf, b);
                 }
             }

@@ -89,8 +89,9 @@ final class CompilerFfiBinding {
         // O caller só entra aqui com `driver.target.isNative()`.
         boolean x86 = driver.target == Target.NATIVE;
         // Retorno: escalar/void, struct por valor no register path (≤ 16 B) OU
-        // sret (> 16 B, ponteiro escondido — D6-4).
+        // sret (> 16 B, ponteiro escondido — D6-4 / face 3 cross).
         boolean sret = false;
+        boolean crossMemRet = false;
         if (FfiSignature.returnChar(ext.returnType()) == null) {
             String retFields = FfiSignature.structFieldChars(ext.returnType(), driver);
             if (retFields == null) return false;
@@ -103,9 +104,15 @@ final class CompilerFfiBinding {
                 } else {
                     return false;
                 }
+            } else if (FfiStructLayout.crossMemoryReturn(driver.target, retStruct)) {
+                // D-MEM-FFI-CROSS-FULL face 3: memory-path (sret) no cross — o
+                // ponteiro do resultado é `a0` no riscv64 e `x8` no aarch64
+                // (arch-aware na emissão, medidas divergem). Consome 1 registrador
+                // INTEGER no riscv64 (ver crossBindable abaixo).
+                crossMemRet = true;
             } else if (!FfiStructLayout.crossIntRegisterOnly(driver.target, retStruct)) {
-                // 3.7 fatia 3: cross struct return = INTEGER register path only;
-                // floats/HFA/byref segue FFI001 honesto (R6).
+                // register path (≤ 16 B, INTEGER-only); HFA/registradores
+                // insuficientes segue FFI001 honesto (R6).
                 return false;
             }
         }
@@ -155,6 +162,6 @@ final class CompilerFfiBinding {
         // aplica). sret consome 1 registrador INTEGER (o ponteiro escondido) —
         // os parâmetros deslocam uma posição (rdi vira rsi…).
         if (x86) return FfiStructLayout.x86Bindable(paramTypes, sret ? 1 : 0);
-        return FfiStructLayout.crossBindable(paramTypes);
+        return FfiStructLayout.crossBindable(paramTypes, crossMemRet ? 1 : 0);
     }
 }

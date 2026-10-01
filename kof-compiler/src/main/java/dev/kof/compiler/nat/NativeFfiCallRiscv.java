@@ -4,6 +4,7 @@ import dev.kof.compiler.AbiLayout;
 import dev.kof.compiler.FfiSignature;
 import dev.kof.compiler.FfiStructLayout;
 import dev.kof.compiler.KofCall;
+import dev.kof.compiler.Target;
 import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
@@ -62,11 +63,22 @@ final class NativeFfiCallRiscv {
         Character retC = FfiSignature.charOfType(kc.returnType());
         boolean structRet = retC == null;   // `record` por valor (3.7 fatia 3)
         char ret = structRet ? 0 : retC.charValue();
+        // D-MEM-FFI-CROSS-FULL face 3: retorno struct por MEMÓRIA (> 16 B) →
+        // sret, com o ponteiro do resultado divergente por arch: `a0` (LP64
+        // riscv64) vs `x8` (AAPCS64 aarch64, via a7→x8 do tradutor). O buffer C
+        // é alocado por `kof_alloc` e guardado num slot de rascunho do frame
+        // (s11-relative) para sobreviver ao call e à recomposição do sp.
+        Type retSt = structRet ? structStructType(nb, kc) : null;
+        boolean memRet = structRet && FfiStructLayout.crossMemoryReturn(nb.target, retSt);
+        // RISC-V LP64: o ponteiro sret ocupa `a0`, os demais args deslocam para
+        // `a1`.. (nInt começa em 1). AAPCS64: `x8`, os args NÃO deslocam (a7→x8
+        // do tradutor entrega o 8º registrador de arg no slot legado).
+        int intBase = (memRet && nb.target == Target.NATIVE_RISCV64) ? 1 : 0;
         // ordinais POR CLASSE na ordem formal (arg0 → reg0 da sua classe). Um
         // struct INTEGER ocupa um ordinal por eightbyte (fatia 4).
         int[] ord = new int[n];
         int[][] sOrd = new int[n][];
-        int nInt = 0, nFlt = 0;
+        int nInt = intBase, nFlt = 0;
         for (int i = 0; i < n; i++) {
             if (isStruct[i]) {
                 int w = FfiStructLayout.crossWords(structTypes[i]);
@@ -82,6 +94,20 @@ final class NativeFfiCallRiscv {
         }
         int ns = (nInt > 8 ? nInt - 8 : 0) + (nFlt > 8 ? nFlt - 8 : 0);
         int seq = nb.inlineSeq++;
+        // 0) sret cross (face 3): aloca o buffer do resultado ANTES de empacotar
+        //    args/acquire de borrow (kof_alloc clobbera a0-a3) e guarda o
+        //    ponteiro no rascunho do frame. O passo 1 o carrega no registrador
+        //    da ABI (a0 no riscv64, a7→x8 no aarch64). O rascunho 0 fica
+        //    reservado; os buffers de borrow usam a partir do slot 1.
+        if (memRet) {
+            int bufSz = FfiStructLayout.layout(AbiLayout.Abi.SYSV_X86_64, retSt).size();
+            bufSz = (bufSz + 15) & ~15;
+            if (bufSz < 16) bufSz = 16;
+            sb.append("    li a0, ").append(bufSz).append("\n");
+            sb.append("    call kof_alloc\n");
+            sb.append("    sd a0, ").append(nb.crossScratchOff(0)).append("(s11)\n");
+        }
+        int bufBase = memRet ? 1 : 0;   // slot 0 reservado ao ponteiro sret
         // 0a) D-MEM-FFI-CROSS-FULL: arrays `T[]`→`ptr` são empacotados (copy-in)
         //     num buffer C próprio e o PONTEIRO substitui o objeto no bloco (o
         //     slot é relido no passo 1). O call do helper clobbera a0-a7, por
@@ -184,7 +210,15 @@ final class NativeFfiCallRiscv {
             }
             sb.append("    sd t2, ").append(8 * k++).append("(sp)\n");
         }
-        // 4) ponto de restauração (E+8n) salvo ACIMA dos args da C: a callee
+        // 4) sret cross (face 3): carrega o ponteiro do resultado no registrador
+        //    da ABI — `a0` no riscv64, `a7`→`x8` no aarch64 — DEPOIS dos args
+        //    (o passo 3 derrama em t0/t4; o ponteiro vai em a0/a7). O buffer
+        //    foi alocado no passo 0 e sobrevive ao call no rascunho do frame.
+        if (memRet) {
+            sb.append("    ld ").append(nb.target == Target.NATIVE_RISCV64 ? "a0" : "a7")
+              .append(", ").append(nb.crossScratchOff(0)).append("(s11)\n");
+        }
+        // 4b) ponto de restauração (E+8n) salvo ACIMA dos args da C: a callee
         //    toca só [< sp, +8ns); a chamada devolve sp = A (ABI) — o slot é
         //    lido com sp ainda em A.
         sb.append("    addi t2, t0, ").append(8 * n).append("\n");
@@ -196,13 +230,14 @@ final class NativeFfiCallRiscv {
         // DEPOIS de o retorno já estar preservado na pilha. Após o push do
         // resultado, o bloco [E, E+8n) fica em sp+8; em void, em sp.
         if (structRet) {
-            emitRiscvStructReturn(nb, sb, kc);
-            emitRiscvBufferReleases(nb, sb, n, isBuf);
+            if (memRet) emitRiscvMemStructReturn(nb, sb, kc, retSt);
+            else emitRiscvStructReturn(nb, sb, kc);
+            emitRiscvBufferReleases(nb, sb, n, isBuf, bufBase);
             return;
         }
         switch (ret) {
             case 'v':
-                emitRiscvBufferReleases(nb, sb, n, isBuf);
+                emitRiscvBufferReleases(nb, sb, n, isBuf, bufBase);
                 return;
             case 'i': sb.append("    sext.w a0, a0\n"); break; // canonicaliza o Int 32-bit
             case 'j': break;
@@ -218,12 +253,12 @@ final class NativeFfiCallRiscv {
                 sb.append("    call kof_ffi_from_cstr\n");
                 break;
             default:
-                emitRiscvBufferReleases(nb, sb, n, isBuf);
+                emitRiscvBufferReleases(nb, sb, n, isBuf, bufBase);
                 return;
         }
         sb.append("    addi sp, sp, -8\n");
         sb.append("    sd a0, 0(sp)\n");
-        emitRiscvBufferReleases(nb, sb, n, isBuf);
+        emitRiscvBufferReleases(nb, sb, n, isBuf, bufBase);
     }
 
     /**
@@ -233,8 +268,8 @@ final class NativeFfiCallRiscv {
      * tê-lo sobrescrito. {@code kof_buffer_borrow_release} é leaf.
      */
     private static void emitRiscvBufferReleases(NativeBackend nb, StringBuilder sb, int n,
-                                                boolean[] isBuf) {
-        int bufSlot = 0;
+                                                boolean[] isBuf, int bufBase) {
+        int bufSlot = bufBase;
         for (int i = 0; i < n; i++) {
             if (!isBuf[i]) continue;
             sb.append("    ld a0, ").append(nb.crossScratchOff(bufSlot)).append("(s11)\n");
@@ -302,6 +337,68 @@ final class NativeFfiCallRiscv {
         sb.append("    addi sp, sp, ").append(8 * words).append("\n");
         sb.append("    addi sp, sp, -8\n");
         sb.append("    sd t3, 0(sp)\n");
+    }
+
+    /** D-MEM-FFI-CROSS-FULL face 3: true quando o extern devolve um `record`
+     *  INTEGER por MEMÓRIA (sret > 16 B). Usado tanto na emissão quanto na
+     *  reserva do slot de rascunho do frame (o ponteiro do buffer C). */
+    static boolean usesMemStructReturn(NativeBackend nb, KofCall kc) {
+        if (FfiSignature.charOfType(kc.returnType()) != null) return false;
+        return FfiStructLayout.crossMemoryReturn(nb.target, structStructType(nb, kc));
+    }
+
+    /** Type real do `record` de retorno (campos na ordem do layout) — mesma
+     *  derivação do register path, computada uma vez para o gate da face 3. */
+    private static Type structStructType(NativeBackend nb, KofCall kc) {
+        NativeOpHelpers.Resolved r = NativeOpHelpers.resolveClass(nb, kc.returnType());
+        List<Type> fts = new ArrayList<>();
+        if (r != null) for (var f : r.layout().fields()) fts.add(f.type());
+        return FfiStructLayout.structType(fts);
+    }
+
+    /**
+     * D-MEM-FFI-CROSS-FULL face 3: materializa o `record` devolvido por MEMÓRIA
+     * (sret, campos INTEGER, &gt; 16 B). O buffer C foi alocado no passo 0 e o
+     * ponteiro gravado no rascunho do frame; cada campo é lido do seu offset C
+     * (arch-independente para INTEGER) e escrito no objeto Kof (mesma largura
+     * natural do register path). O objeto é alocado+inicializado e empilhado
+     * como resultado.
+     */
+    private static void emitRiscvMemStructReturn(NativeBackend nb, StringBuilder sb, KofCall kc, Type st) {
+        NativeOpHelpers.Resolved r = NativeOpHelpers.resolveClass(nb, kc.returnType());
+        // t5 = objeto Kof (kof_alloc clobbera a0-a3; t3 é recarregado do
+        // rascunho DEPOIS do init, pois kof_alloc/kof_init_object não o
+        // preservam — caller-saved).
+        int size = r != null ? r.layout().totalSize()
+                             : dev.kof.compiler.ClassLayout.HEADER_SIZE + 64;
+        sb.append("    li a0, ").append(size).append("\n");
+        sb.append("    call kof_alloc\n");
+        if (r != null) {
+            String mangled = nb.sanitizeName(r.name());
+            sb.append("    mv a1, a0\n");
+            sb.append("    li a2, ").append(r.typeId()).append("\n");
+            sb.append("    la a3, ").append(mangled).append("_vtable\n");
+            sb.append("    mv a0, a1\n");
+            sb.append("    mv a1, a2\n");
+            sb.append("    mv a2, a3\n");
+            sb.append("    call kof_init_object\n");
+        }
+        sb.append("    mv t5, a0\n");
+        // t3 = buffer C (ponteiro sret), agora seguro (nenhum call adiante).
+        sb.append("    ld t3, ").append(nb.crossScratchOff(0)).append("(s11)\n");
+        for (FfiStructLayout.FieldInfo f : FfiStructLayout.fields(st)) {
+            int cOff = f.cOffset();
+            int kofOff = 16 + 8 * f.kofSlot();
+            switch (f.scalar().size) {
+                case 1 -> sb.append("    lbu t0, ").append(cOff).append("(t3)\n");
+                case 2 -> sb.append("    lhu t0, ").append(cOff).append("(t3)\n");
+                case 4 -> sb.append("    lw t0, ").append(cOff).append("(t3)\n");
+                default -> sb.append("    ld t0, ").append(cOff).append("(t3)\n");
+            }
+            sb.append("    sd t0, ").append(kofOff).append("(t5)\n");
+        }
+        sb.append("    addi sp, sp, -8\n");
+        sb.append("    sd t5, 0(sp)\n");
     }
 
     /**
