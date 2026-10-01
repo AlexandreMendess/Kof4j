@@ -26,7 +26,7 @@ GATE_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 KB_CLASS="$GATE_DIR/check_known_bugs_status.sh"
 
-BASE=""; HEADR="HEAD"; CHANGED=""; TOKENS=""; CORPUS="."
+BASE=""; HEADR="HEAD"; CHANGED=""; TOKENS=""; CORPUS="."; SELFTEST=0
 WAIVERS="${DOC_IMPACT_WAIVERS:-scripts/doc-impact-waivers.txt}"
 while [ $# -gt 0 ]; do case "$1" in
   --base) BASE="${2:-}"; shift 2;;
@@ -35,9 +35,39 @@ while [ $# -gt 0 ]; do case "$1" in
   --tokens-file) TOKENS="${2:-}"; shift 2;;
   --corpus) CORPUS="${2:-}"; shift 2;;
   --waivers) WAIVERS="${2:-}"; shift 2;;
+  --selftest) SELFTEST=1; shift;;
   -h|--help) sed -n '2,20p' "$0"; exit 0;;
   *) echo "check_doc_impact: argumento desconhecido: $1" >&2; exit 2;;
 esac; done
+
+# --selftest: guarda-da-guarda. Prova, com fixtures plantadas, que o gate
+# DISPARA quando um consumidor vivo cita o token mudado e NAO foi tocado no
+# mesmo diff, e que ele PASSA quando o consumidor foi tocado (ou waivado).
+# Roda no modo fixture (--corpus/--changed-file/--tokens-file) — nao usa git.
+if [ "$SELFTEST" -eq 1 ]; then
+  ST="$(mktemp -d)"; trap 'rm -rf "$ST"' EXIT
+  mkdir -p "$ST/corpus"
+  printf '# consumer\nconsumes §907 here\n' > "$ST/corpus/consumer.md"
+  printf 'status\t§907\n' > "$ST/tokens.tsv"
+  # 1) consumidor NAO tocado -> BLOCK (o defeito que o gate existe para pegar)
+  : > "$ST/changed-empty"
+  if bash "$0" --corpus "$ST/corpus" --changed-file "$ST/changed-empty" \
+       --tokens-file "$ST/tokens.tsv" --waivers /dev/null >/dev/null 2>&1; then
+    echo "SELFTEST FAIL: consumidor vivo nao atualizado passou (deveria BLOCK)"; exit 2
+  fi
+  # 2) consumidor tocado no MESMO diff -> PASS
+  printf 'consumer.md\n' > "$ST/changed-ok"
+  bash "$0" --corpus "$ST/corpus" --changed-file "$ST/changed-ok" \
+    --tokens-file "$ST/tokens.tsv" --waivers /dev/null >/dev/null 2>&1 \
+    || { echo "SELFTEST FAIL: consumidor atualizado ainda BLOCK (falso vermelho)"; exit 2; }
+  # 3) diff sem nenhum token normativo -> PASS (nao inventa bloqueio)
+  printf 'status\t§999\n' > "$ST/tokens-none.tsv"
+  bash "$0" --corpus "$ST/corpus" --changed-file "$ST/changed-empty" \
+    --tokens-file "$ST/tokens-none.tsv" --waivers /dev/null >/dev/null 2>&1 \
+    || { echo "SELFTEST FAIL: §999 sem consumidor bloqueou (falso vermelho)"; exit 2; }
+  echo "SELFTEST OK"
+  exit 0
+fi
 
 status_tokens_from() { # $1=caminho-relativo-do-ledger — estado BEFORE x AFTER pelo classificador canonico
   local f="$1" b="$TMP/kb-b" a="$TMP/kb-a"
