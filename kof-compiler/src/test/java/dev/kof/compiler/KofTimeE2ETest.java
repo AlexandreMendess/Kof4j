@@ -937,6 +937,103 @@ class KofTimeE2ETest {
                 + "9999-01-01\n2124-02-29\n2020-02-29\n\n\n2032-05-31";
     }
 
+    // STDLIB S7a-ext3 (front #1 da stdlib, D-DEV-PRIORITY): time.startOf(iso,unit)
+    // / time.endOf(iso,unit) -> String, unit = day|week|month|year. Semana =
+    // segunda..domingo (dayOfWeek ISO 1=seg..7=dom). Composta dos primitivos já
+    // com paridade provada (dayOfWeek/addDays/daysInMonth) => byte-idêntica por
+    // construção. Data inválida / unit desconhecida / resultado fora de
+    // 1..9999 => "". Oráculo: java.time (validado caso a caso).
+    @Test
+    void timeStartEndOfJvm(@TempDir Path tempDir) throws IOException {
+        runJvm(tempDir, startEndOfSrc(), startEndOfGolden());
+    }
+
+    @Test
+    void timeStartEndOfJs(@TempDir Path tempDir) throws IOException {
+        runJs(tempDir, startEndOfSrc(), startEndOfGolden());
+    }
+
+    @Test
+    void timeStartEndOfNative(@TempDir Path tempDir) throws IOException {
+        runNative(tempDir, startEndOfSrc(), startEndOfGolden());
+    }
+
+    @Test
+    void timeStartEndOfCrossArch(@TempDir Path tempDir) throws IOException {
+        String src = startEndOfSrc();
+        String expected = startEndOfGolden();
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tempDir.resolve("Se-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("se-" + t + "-" + System.nanoTime());
+            CompilationResult r = new CompilerDriver().compile(file, outDir, t);
+            assertTrue(r.success(), t + " compile: " + r.diagnostics().getDiagnostics());
+            Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), outDir.resolve("Default/Main"))
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec;
+            try {
+                ec = p.waitFor();
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted", e);
+            }
+            assertEquals(0, ec, t + " qemu exit, out: " + out);
+            assertEquals(expected, out, t + " golden startOf/endOf");
+        }
+    }
+
+    @Test
+    void timeStartEndOfCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
+        String src = """
+            main() {
+                println(time.startOf("2026-10-01", "week"))
+                println(time.endOf("2026-10-01", "month"))
+            }
+            """;
+        Path gateSrc = tempDir.resolve("GateStartEnd.kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-se-" + t), t);
+            assertTrue(r.success(), t + " deve compilar startOf/endOf: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    private static String startEndOfSrc() {
+        return """
+            main() {
+                println(time.startOf("2026-10-01", "day"))
+                println(time.startOf("2026-10-01", "week"))
+                println(time.endOf("2026-10-01", "week"))
+                println(time.startOf("2026-09-28", "week"))
+                println(time.startOf("2024-02-15", "month"))
+                println(time.endOf("2024-02-15", "month"))
+                println(time.endOf("2023-02-15", "month"))
+                println(time.startOf("2024-07-04", "year"))
+                println(time.endOf("2024-07-04", "year"))
+                println(time.startOf("0001-01-01", "week"))
+                println(time.endOf("0001-01-01", "week"))
+                println(time.startOf("9999-12-31", "week"))
+                println(time.endOf("9999-12-31", "week"))
+                println(time.startOf("2024-02-30", "month"))
+                println(time.startOf("garbage", "day"))
+                println(time.startOf("2026-10-01", "decade"))
+                println(time.endOf("2026-12-31", "month"))
+            }
+            """;
+    }
+
+    private static String startEndOfGolden() {
+        return "2026-10-01\n2026-09-28\n2026-10-04\n2026-09-28\n2024-02-01\n2024-02-29"
+                + "\n2023-02-28\n2024-01-01\n2024-12-31\n0001-01-01\n0001-01-07\n9999-12-27"
+                + "\n\n\n\n\n2026-12-31";
+    }
+
     /**
      * §426 (improved 25/09): time.collect() on JS is a REAL host GC request
      * (kof_platform.gcCollect -> System.gc()), not the old compile-time

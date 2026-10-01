@@ -352,6 +352,9 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmGroupBy.RISCV_GROUPBY_ASM)
                 // STDLIB S7a-ext: kof_time addMonths riscv64 (split da B33).
                 .append(NativeRiscvAsmRtB82.RISCV_RUNTIME_ASM_B_82)
+                // STDLIB S7a-ext3: kof_time startOf/endOf riscv64 (composicao
+                // dos primitivos ja provados — paridade byte-a-byte).
+                .append(NativeRiscvAsmRtB83.RISCV_RUNTIME_ASM_B_83)
                 .toString();
     }
 }

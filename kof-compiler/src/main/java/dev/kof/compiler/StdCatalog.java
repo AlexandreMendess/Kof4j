@@ -107,6 +107,8 @@ public final class StdCatalog {
                     Map.entry("addDays", List.of("addDays(String iso, Int days) -> String")),
                     Map.entry("addMonths", List.of("addMonths(String iso, Int months) -> String")),
                     Map.entry("addYears", List.of("addYears(String iso, Int years) -> String")),
+                    Map.entry("startOf", List.of("startOf(String iso, String unit) -> String")),
+                    Map.entry("endOf", List.of("endOf(String iso, String unit) -> String")),
                     Map.entry("diffDays", List.of("diffDays(String isoA, String isoB) -> Int")),
                     Map.entry("todayIso", List.of("todayIso() -> String")),
                     Map.entry("formatDateIso", List.of("formatDateIso(Int y, Int m, Int d) -> String")),

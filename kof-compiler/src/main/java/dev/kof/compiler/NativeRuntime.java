@@ -208,6 +208,7 @@ public final class NativeRuntime {
         RuntimeTimeIso.emitTimeIsoFunctions(sb);
         RuntimeTimeMonthIso.emitAddMonths(sb);
         RuntimeTimeMonthIso.emitAddYears(sb);
+        RuntimeTimeMonthIso.emitStartEndOf(sb);
         RuntimeCache.emitCacheFunctions(sb);
         RuntimeVk.emitVkStubs(sb);
         RuntimeLog1.emit(sb);
