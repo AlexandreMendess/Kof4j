@@ -1128,6 +1128,25 @@ capacidade realmente não existe no alvo.
     partitions are not supported yet`, 4/4 vermelho), na JVM + Native x86-64 +
     riscv64(qemu) + Script.
 
+21. **Interlace Adam7 do PNG — LANDADA 01/10 (Kof puro, todos os alvos).**
+    O `libs/image/Png.kf` passa a desinterlaçar os sete passes Adam7
+    (especificação PNG §9), no lugar da recusa `IMAGE: interlaced PNG is not
+    supported`. Todo o IDAT é inflado uma vez para o comprimento cru somado dos
+    passes (`pngAdam7RawLen`); cada passe é uma sub-imagem independente, com seus
+    próprios filtros de scanline, revertida pelo `unfilter` existente (agora com
+    offset) e espalhada no buffer completo `width x height` (`unfilterAdam7`).
+    Passes vazios (largura/altura zero) e passes com exatamente um pixel de
+    largura/altura são tratados, seguindo a geometria de passes da especificação.
+    Os tipos de cor 0/2/3/4/6 com bit-depth 8 no caminho não-interlaçado ficam
+    inalterados. As fixtures são PNGs interlaçados reais do ImageMagick (RGB 20x13
+    cobrindo todos os passes, RGBA 13x9, e cinza 17x11 com passes vazios e de um
+    pixel), cada um byte-validado de forma independente pelo `ImageIO` do Java e
+    pelo PIL. Prova: `PngInterlaceE2ETest` **4/4** (soma das amostras + hash
+    rolante de 24 bits contra os pixels do PIL/ImageIO), RED-first (`IMAGE:
+    interlaced PNG is not supported` com o decoder antigo), na JVM + Native x86-64
+    + riscv64(qemu) + Script; os testes PNG existentes do `RasterDecodeE2ETest`
+    seguem 4/4.
+
 **DECIDIDO 30/09 (`D-WEBP-LOSSY-PURE-KOF`, opção C): WebP lossy `VP8 ` + AVIF
 como decoder Kof puro em todos os alvos.** O achado medido que forçou a decisão:
 a escotilha do JPEG não se estende — o OpenJDK 25 `javax.imageio` **não tem**

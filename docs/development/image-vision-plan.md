@@ -981,6 +981,24 @@ ability genuinely does not exist on a target.
     (`IMAGE: VP8 multiple token partitions are not supported yet`, 4/4 red), on
     JVM + Native x86-64 + riscv64(qemu) + Script.
 
+21. **PNG Adam7 interlace — LANDED 01/10 (pure Kof, all targets).**
+    `libs/image/Png.kf` de-interlaces the seven Adam7 passes (PNG spec §9),
+    replacing the `IMAGE: interlaced PNG is not supported` refusal. The whole
+    IDAT stream is inflated once to the pass-summed raw length
+    (`pngAdam7RawLen`); each pass is an independent sub-image with its own
+    scanline filters, reversed by the existing `unfilter` (now offset-based)
+    and scattered into the full `width x height` buffer (`unfilterAdam7`).
+    Empty passes (sub-image width/height zero) and passes exactly one pixel
+    wide/tall are handled, matching the spec's pass geometry. Bit-depth-8 color
+    types 0/2/3/4/6 on the non-interlaced path are unchanged. Fixtures are real
+    ImageMagick interlaced PNGs (RGB 20x13 covering every pass, RGBA 13x9,
+    grayscale 17x11 with empty and one-pixel passes), each independently
+    byte-validated by Java `ImageIO` and PIL. Proof: `PngInterlaceE2ETest`
+    **4/4** (sample sum + 24-bit rolling hash against the PIL/ImageIO pixels),
+    RED-first (`IMAGE: interlaced PNG is not supported` with the old decoder),
+    on JVM + Native x86-64 + riscv64(qemu) + Script; the existing
+    `RasterDecodeE2ETest` PNG tests stay 4/4.
+
 **DECIDED 30/09 (`D-WEBP-LOSSY-PURE-KOF`, option C): WebP lossy `VP8 ` + AVIF
 as a pure-Kof decoder on all targets.** The measured finding that forced the
 decision: the JPEG escape hatch does not extend — OpenJDK 25 `javax.imageio`

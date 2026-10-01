@@ -5,11 +5,11 @@ import image.Inflate
 
 // kof.image — pure-Kof PNG decoder (part of the pixel slice).
 //
-// Bit depth 8, no interlace; color types 0 (gray), 2 (RGB), 3 (palette),
-// 4 (gray+alpha) and 6 (RGBA). IDAT is inflated with the Kof DEFLATE in
-// `Inflate.kf`; the five scanline filters (None/Sub/Up/Average/Paeth) are
-// reversed here. Palette images expand to RGB. No zlib, no interop — full
-// target parity.
+// Bit depth 8; color types 0 (gray), 2 (RGB), 3 (palette), 4 (gray+alpha)
+// and 6 (RGBA); non-interlaced and Adam7-interlaced (interlace=1). IDAT is
+// inflated with the Kof DEFLATE in `Inflate.kf`; the five scanline filters
+// (None/Sub/Up/Average/Paeth) are reversed here. Palette images expand to RGB.
+// No zlib, no interop — full target parity.
 //
 //   decodeRaster("logo.png")   // PNG is routed here from Raster.kf
 //
@@ -73,8 +73,8 @@ Raster pngRaster(String path) {
     if (bitDepth != 8) {
         throw "IMAGE: unsupported PNG bit depth " + bitDepth
     }
-    if (interlace != 0) {
-        throw "IMAGE: interlaced PNG is not supported"
+    if (interlace != 0 && interlace != 1) {
+        throw "IMAGE: unsupported PNG interlace " + interlace
     }
     var srcChannels = 1
     if (colorType == 2) {
@@ -95,7 +95,12 @@ Raster pngRaster(String path) {
     var count = width * height * outChannels
     guardRaster(count)
     var rowBytes = width * srcChannels
-    var rawLen = height * (1 + rowBytes)
+    var rawLen = 0
+    if (interlace == 0) {
+        rawLen = height * (1 + rowBytes)
+    } else {
+        rawLen = pngAdam7RawLen(width, height, srcChannels)
+    }
     var zdata = new Int[idatLen - 2]
     var z = 0
     while (z < idatLen - 2) {
@@ -107,17 +112,125 @@ Raster pngRaster(String path) {
     if (got < rawLen) {
         throw "IMAGE: truncated PNG image data (got " + got + " of " + rawLen + ")"
     }
-    var pixels = unfilter(inflate.out, width, height, srcChannels)
+    var pixels = new Int[height * rowBytes]
+    if (interlace == 0) {
+        pixels = unfilter(inflate.out, 0, width, height, srcChannels)
+    } else {
+        unfilterAdam7(inflate.out, pixels, width, height, srcChannels)
+    }
     return expand(pixels, width, height, srcChannels, outChannels, colorType, plte, plteLen)
 }
 
-Int[] unfilter(Int[] raw, Int width, Int height, Int bpp) {
+// Adam7 pass geometry (PNG spec §9): the starting column and row and the
+// column/row strides of the seven sub-images. Passes with a zero stride (the
+// column of passes 2–4 when one pixel wide) contribute no sub-image.
+Int a7x0(Int p) {
+    if (p == 0) { return 0 }
+    if (p == 1) { return 4 }
+    if (p == 2) { return 0 }
+    if (p == 3) { return 2 }
+    if (p == 4) { return 0 }
+    if (p == 5) { return 1 }
+    return 0
+}
+
+Int a7y0(Int p) {
+    if (p == 0) { return 0 }
+    if (p == 1) { return 0 }
+    if (p == 2) { return 4 }
+    if (p == 3) { return 0 }
+    if (p == 4) { return 2 }
+    if (p == 5) { return 0 }
+    return 1
+}
+
+Int a7dx(Int p) {
+    if (p == 0) { return 8 }
+    if (p == 1) { return 8 }
+    if (p == 2) { return 4 }
+    if (p == 3) { return 4 }
+    if (p == 4) { return 2 }
+    if (p == 5) { return 2 }
+    return 1
+}
+
+Int a7dy(Int p) {
+    if (p == 0) { return 8 }
+    if (p == 1) { return 8 }
+    if (p == 2) { return 8 }
+    if (p == 3) { return 4 }
+    if (p == 4) { return 4 }
+    if (p == 5) { return 2 }
+    return 2
+}
+
+Int a7count(Int total, Int origin, Int stride) {
+    if (total <= origin) {
+        return 0
+    }
+    return (total - origin + stride - 1) / stride
+}
+
+// Total inflated byte count of an Adam7 image: every non-empty pass carries one
+// filter byte per sub-image row (PNG spec §9, `rawlen`).
+Int pngAdam7RawLen(Int width, Int height, Int bpp) {
+    var total = 0
+    var p = 0
+    while (p < 7) {
+        var pw = a7count(width, a7x0(p), a7dx(p))
+        var ph = a7count(height, a7y0(p), a7dy(p))
+        if (pw > 0 && ph > 0) {
+            total = total + ph * (1 + pw * bpp)
+        }
+        p = p + 1
+    }
+    return total
+}
+
+// Reverses the seven Adam7 passes into a full `width x height` sample buffer.
+// Each pass is an independent sub-image (its own scanlines/filters); `rawOff`
+// walks the single inflated stream in pass order 1..7.
+void unfilterAdam7(Int[] raw, Int[] out, Int width, Int height, Int bpp) {
+    var rowBytes = width * bpp
+    var rawOff = 0
+    var p = 0
+    while (p < 7) {
+        var x0 = a7x0(p)
+        var y0 = a7y0(p)
+        var dx = a7dx(p)
+        var dy = a7dy(p)
+        var pw = a7count(width, x0, dx)
+        var ph = a7count(height, y0, dy)
+        if (pw > 0 && ph > 0) {
+            var sub = unfilter(raw, rawOff, pw, ph, bpp)
+            rawOff = rawOff + ph * (1 + pw * bpp)
+            var j = 0
+            while (j < ph) {
+                var y = y0 + j * dy
+                var i = 0
+                while (i < pw) {
+                    var x = x0 + i * dx
+                    var c = 0
+                    while (c < bpp) {
+                        out[y * rowBytes + x * bpp + c] = sub[j * pw * bpp + i * bpp + c]
+                        c = c + 1
+                    }
+                    i = i + 1
+                }
+                j = j + 1
+            }
+        }
+        p = p + 1
+    }
+}
+
+Int[] unfilter(Int[] raw, Int offset, Int width, Int height, Int bpp) {
     var rowBytes = width * bpp
     var out = new Int[height * rowBytes]
     var y = 0
     while (y < height) {
-        var ft = raw[y * (1 + rowBytes)] & 255
-        var src = y * (1 + rowBytes) + 1
+        var ft = raw[offset + y * (1 + rowBytes)] & 255
+        var src = offset + y * (1 + rowBytes) + 1
         var dst = y * rowBytes
         var prev = (y - 1) * rowBytes
         var x = 0
