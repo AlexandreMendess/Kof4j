@@ -532,13 +532,27 @@ public final class JsRuntimeUiWeb {
                 while (s.length < 4) s = "0" + s;
                 return s;
             }
-            export function kofTimeAddDays(iso, days) {
-                const a = kofTimeParseIso(iso);
-                if (!a) return "";
-                const r = kofTimeCivilFromEpoch(kofTimeEpochDay(a.y, a.m, a.d) + days);
-                if (r.y < 1 || r.y > 9999) return "";
-                return kofTimePad4(r.y) + "-" + kofTimePad2(r.m) + "-" + kofTimePad2(r.d);
-            }
+             export function kofTimeAddDays(iso, days) {
+                 const a = kofTimeParseIso(iso);
+                 if (!a) return "";
+                 const r = kofTimeCivilFromEpoch(kofTimeEpochDay(a.y, a.m, a.d) + days);
+                 if (r.y < 1 || r.y > 9999) return "";
+                 return kofTimePad4(r.y) + "-" + kofTimePad2(r.m) + "-" + kofTimePad2(r.d);
+             }
+             // STDLIB S7a-ext — ISO date + N meses (front #1 da stdlib). MESMA
+             // aritmética inteira dos demais alvos: t = y*12+(m-1)+n; clamp de fim
+             // de mês d = min(d, daysInMonth). Pré-guarda t em [12,119999] (divisão
+             // positiva, idêntica). Inválida/out-of-range => "" (política addDays).
+             export function kofTimeAddMonths(iso, months) {
+                 const a = kofTimeParseIso(iso);
+                 if (!a) return "";
+                 const t = a.y * 12 + (a.m - 1) + months;
+                 if (t < 12 || t > 119999) return "";
+                 const y1 = Math.floor(t / 12);
+                 const m1 = (t % 12) + 1;
+                 const d1 = Math.min(a.d, kofTimeDaysInMonth(y1, m1));
+                 return kofTimePad4(y1) + "-" + kofTimePad2(m1) + "-" + kofTimePad2(d1);
+             }
             export function kofTimeDiffDays(iso1, iso2) {
                 const a = kofTimeParseIso(iso1);
                 const b = kofTimeParseIso(iso2);

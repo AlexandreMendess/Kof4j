@@ -350,6 +350,8 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmSlices.RISCV_SLICES_ASM)
                 .append(NativeRiscvAsmQuantifiers.RISCV_QUANTIFIERS_ASM)
                 .append(NativeRiscvAsmGroupBy.RISCV_GROUPBY_ASM)
+                // STDLIB S7a-ext: kof_time addMonths riscv64 (split da B33).
+                .append(NativeRiscvAsmRtB82.RISCV_RUNTIME_ASM_B_82)
                 .toString();
     }
 }

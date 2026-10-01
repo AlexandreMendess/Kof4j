@@ -88,6 +88,7 @@ import dev.kof.compiler.runtime.RuntimeStringParseFp;
 import dev.kof.compiler.runtime.RuntimeStringSearch;
 import dev.kof.compiler.runtime.RuntimeTime;
 import dev.kof.compiler.runtime.RuntimeTimeIso;
+import dev.kof.compiler.runtime.RuntimeTimeMonthIso;
 import dev.kof.compiler.runtime.RuntimeUi;
 import dev.kof.compiler.runtime.RuntimeValidation;
 
@@ -205,6 +206,7 @@ public final class NativeRuntime {
         RuntimeTime.emitIoTimeFunctions(sb);
         RuntimeTime.emitKofTimeFunctions(sb);
         RuntimeTimeIso.emitTimeIsoFunctions(sb);
+        RuntimeTimeMonthIso.emitAddMonths(sb);
         RuntimeCache.emitCacheFunctions(sb);
         RuntimeVk.emitVkStubs(sb);
         RuntimeLog1.emit(sb);

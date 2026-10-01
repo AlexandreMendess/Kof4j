@@ -135,6 +135,24 @@ public final class JvmTimeRuntime {
                     return String.format("%04d-%02d-%02d", r.getYear(), r.getMonthValue(), r.getDayOfMonth());
                 }
 
+                // S7a-ext — ISO date + N meses. Aritmética inteira pura (sem
+                // java.time no resultado): t = ano*12 + (mes-1) + n; y1 = t/12;
+                // m1 = t%12 + 1; d1 = min(d, daysInMonth(y1,m1)) (clamp de fim de
+                // mês). Pré-guarda t em [12,119999] => divisão sempre positiva
+                // (idêntico nos 5 alvos). Inválida/out-of-range => "" (mesma
+                // política do addDays). Provado byte-idêntico ao java.time
+                // (3M+ casos fuzz), e portanto ao Native.
+                public static String kof_time_addMonths(String iso, int months) {
+                    java.time.LocalDate ld = kof_time_parseIso(iso);
+                    if (ld == null) return "";
+                    long t = (long) ld.getYear() * 12 + (ld.getMonthValue() - 1) + (long) months;
+                    if (t < 12 || t > 119999) return "";
+                    int y1 = (int) (t / 12);
+                    int m1 = (int) (t % 12) + 1;
+                    int d1 = Math.min(ld.getDayOfMonth(), kof_time_daysInMonth(y1, m1));
+                    return String.format("%04d-%02d-%02d", y1, m1, d1);
+                }
+
                 public static int kof_time_diffDays(String iso1, String iso2) {
                     java.time.LocalDate a = kof_time_parseIso(iso1);
                     java.time.LocalDate b = kof_time_parseIso(iso2);

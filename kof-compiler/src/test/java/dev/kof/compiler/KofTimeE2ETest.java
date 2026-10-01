@@ -753,6 +753,100 @@ class KofTimeE2ETest {
         }
     }
 
+    // STDLIB S7a-ext (front #1 da stdlib, D-DEV-PRIORITY): time.addMonths(iso, n)
+    // -> String. clamp de fim de mês (dia=min(d, daysInMonth)), rolo de ano/mês,
+    // bissexto 29/fev, n=0, n negativo, out-of-range e inválida => "" (a MESMA
+    // política do addDays). Algoritmo inteiro puro (t=y*12+(m-1)+n; y1=t/12;
+    // m1=t%12+1; d1=min(d,dim)), pré-guarda t em [12,119999] => byte-idêntico nos
+    // 5 alvos. Oráculo: java.time (3M+ casos fuzz 0 mismatch).
+    @Test
+    void timeAddMonthsJvm(@TempDir Path tempDir) throws IOException {
+        runJvm(tempDir, addMonthsSrc(), addMonthsGolden());
+    }
+
+    @Test
+    void timeAddMonthsJs(@TempDir Path tempDir) throws IOException {
+        runJs(tempDir, addMonthsSrc(), addMonthsGolden());
+    }
+
+    @Test
+    void timeAddMonthsNative(@TempDir Path tempDir) throws IOException {
+        runNative(tempDir, addMonthsSrc(), addMonthsGolden());
+    }
+
+    @Test
+    void timeAddMonthsCrossArch(@TempDir Path tempDir) throws IOException {
+        String src = addMonthsSrc();
+        String expected = addMonthsGolden();
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tempDir.resolve("Am-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("am-" + t + "-" + System.nanoTime());
+            CompilationResult r = new CompilerDriver().compile(file, outDir, t);
+            assertTrue(r.success(), t + " compile: " + r.diagnostics().getDiagnostics());
+            Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), outDir.resolve("Default/Main"))
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec;
+            try {
+                ec = p.waitFor();
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted", e);
+            }
+            assertEquals(0, ec, t + " qemu exit, out: " + out);
+            assertEquals(expected, out, t + " golden addMonths");
+        }
+    }
+
+    @Test
+    void timeAddMonthsCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
+        String src = """
+            main() {
+                println(time.addMonths("2024-01-31", 1))
+            }
+            """;
+        Path gateSrc = tempDir.resolve("GateAddMonths.kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-am-" + t), t);
+            assertTrue(r.success(), t + " deve compilar addMonths: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    private static String addMonthsSrc() {
+        return """
+            main() {
+                println(time.addMonths("2024-02-28", 1))
+                println(time.addMonths("2024-01-31", 1))
+                println(time.addMonths("2023-01-31", 1))
+                println(time.addMonths("2024-02-29", 12))
+                println(time.addMonths("2024-12-31", 1))
+                println(time.addMonths("2024-03-31", -1))
+                println(time.addMonths("2024-01-15", 13))
+                println(time.addMonths("2024-05-31", 1))
+                println(time.addMonths("2024-06-15", 0))
+                println(time.addMonths("2024-02-29", 0))
+                println(time.addMonths("2023-01-01", -1))
+                println(time.addMonths("2024-01-31", 999999))
+                println(time.addMonths("2024-01-31", -999999))
+                println(time.addMonths("2024-02-30", 1))
+                println(time.addMonths("garbage", 1))
+                println(time.addMonths("2023-02-28", 1))
+            }
+            """;
+    }
+
+    private static String addMonthsGolden() {
+        return "2024-03-28\n2024-02-29\n2023-02-28\n2025-02-28\n2025-01-31\n2024-02-29"
+                + "\n2025-02-15\n2024-06-30\n2024-06-15\n2024-02-29\n2022-12-01\n\n\n\n\n2023-03-28";
+    }
+
     /**
      * §426 (improved 25/09): time.collect() on JS is a REAL host GC request
      * (kof_platform.gcCollect -> System.gc()), not the old compile-time

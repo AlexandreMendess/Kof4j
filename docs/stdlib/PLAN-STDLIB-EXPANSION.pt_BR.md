@@ -46,7 +46,7 @@ briefing aceita ("adapte à arquitetura real"). Então: `math.clamp(...)`,
 | `encoding` | base64Encode/Decode · base64UrlEncode/Decode · hexEncode/Decode · urlEncode/Decode |
 | `random` | randomDouble · randomBoolean · randomChoice · randomString · randomBytes (secure split: `random.*` inseguro vs `security.*` seguro — já documentado) |
 | `validation` (ext) | ~~isCpf/formatCpf~~ (formatCpf FEITO S12 09/09, 5 alvos) · ~~isCnpj~~ · formatCnpj FEITO S12b 09/09 (5 alvos) · ~~isCep/formatCep~~ (formatCep FEITO S12 09/09, 5 alvos) · ~~isPis/isNis~~ · isIp/isIpv4/isIpv6/isMac/isDomain/isPort · isCreditCard/creditCardBrand/last4 (Luhn) · isStrongPassword/passwordScore |
- | `time` (ext) | addDays/addMonths/addYears · daysBetween/hoursBetween · startOf/endOf (day/week/month/year) · isLeapYear · daysInMonth · ~~age~~ (FEITO 01/10, 5 alvos — S7-wedge-ext: anos completos, paridade inteira pura) · formatDate/parseDate · isToday/~~isWeekend~~ (FEITO S7-ext 09/09, 5 alvos) · today |
+ | `time` (ext) | addDays/~~addMonths~~ (FEITO 01/10, 5 alvos — S7a-ext: clamp de fim de mês, paridade inteira pura)/addYears · daysBetween/hoursBetween · startOf/endOf (day/week/month/year) · isLeapYear · daysInMonth · ~~age~~ (FEITO 01/10, 5 alvos — S7-wedge-ext: anos completos, paridade inteira pura) · formatDate/parseDate · isToday/~~isWeekend~~ (FEITO S7-ext 09/09, 5 alvos) · today |
 | `net` (novo, P2) | **6 escalares** `net.scheme/host/port/path/query/fragment(STR)->STR` + `queryEncode/queryDecode` — ver §4 (decisão S8, 09/09) |
 | `util` (P2) | debounce/throttle · retry (backoff/jitter) |
 

@@ -277,6 +277,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_time_daysBetween" -> "(IIIIII)I";
             case "kof_time_age" -> "(IIIIII)I";
             case "kof_time_addDays" -> "(Ljava/lang/String;I)Ljava/lang/String;";
+            case "kof_time_addMonths" -> "(Ljava/lang/String;I)Ljava/lang/String;";
             case "kof_time_diffDays" -> "(Ljava/lang/String;Ljava/lang/String;)I";
             // S7e (D-STDLIB 13/09): hoje/formato UTC-only
             case "kof_time_todayIso" -> "()Ljava/lang/String;";
