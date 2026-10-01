@@ -411,9 +411,12 @@ public final class MemberCallTyper {
                         params.add(ExternalClasspath.typeFromDescriptor(d));
                     }
                     Type ret = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
+                    // §557: a flag ownerIsInterface() do MethodSignature é o que
+                    // decide INVOKEINTERFACE vs INVOKEVIRTUAL — ver
+                    // ExternalDispatchKind.of (InterfaceCalls).
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
                             ct.internalName(), ret, params, 1,
-                            SymbolTable.DispatchKind.INSTANCE));
+                            ExternalDispatchKind.of(sig.ownerIsInterface())));
                     return ret;
                 }
             }

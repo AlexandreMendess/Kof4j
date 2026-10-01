@@ -399,16 +399,28 @@ public final class ExpressionInstanceCallLowerer {
     if (callKind == KofCallKind.INSTANCE && resolvedMethod != null && driver.semanticAnalyzer != null) {
         if ((resolvedMethod.accessFlags() & AccessFlags.STATIC) != 0) {
             callKind = KofCallKind.STATIC;
+        } else if (resolvedMethod.dispatchKind() == SymbolTable.DispatchKind.INTERFACE) {
+            // §557: o typer já carimbou INTERFACE (interface externa/JDK).
+            callKind = KofCallKind.INTERFACE;
         } else {
             String ownerName = resolvedMethod.ownerClass();
             if (ownerName.contains("/")) ownerName = ownerName.substring(ownerName.lastIndexOf('/') + 1);
             if (driver.semanticAnalyzer.isInterfaceType(ownerName)) {
                 callKind = KofCallKind.INTERFACE;
+            } else if (driver.externalClasspath != null
+                    && driver.externalClasspath.isInterface(resolvedMethod.ownerClass())) {
+                // §557: interface EXTERNA/JDK — interfaceNames é só Kof-local.
+                callKind = KofCallKind.INTERFACE;
             }
         }
     }
-    if (callKind == KofCallKind.INSTANCE && recvType instanceof Type.ClassType rt && driver.semanticAnalyzer != null) {
-        if (driver.semanticAnalyzer.isInterfaceType(rt.name())) {
+    if (callKind == KofCallKind.INSTANCE && recvType instanceof Type.ClassType rt) {
+        if (driver.semanticAnalyzer != null && driver.semanticAnalyzer.isInterfaceType(rt.name())) {
+            callKind = KofCallKind.INTERFACE;
+        } else if (driver.externalClasspath != null
+                && driver.externalClasspath.isInterface(rt.internalName())) {
+            // §557: o RECEPTOR é uma interface externa/JDK (o sintoma medido:
+            // `PublicKey pub = ...; pub.getEncoded()`).
             callKind = KofCallKind.INTERFACE;
         }
     }
@@ -448,6 +460,11 @@ public final class ExpressionInstanceCallLowerer {
                 recvType = ct2;
                 methodParamTypes = formal;
                 methodReturnType = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
+                if (sig.ownerIsInterface()) {
+                    // §557: mesma flag do ramo com símbolo resolvido — sem
+                    // isto o conserto seria meio-aplicado.
+                    callKind = KofCallKind.INTERFACE;
+                }
             }
         }
     }
