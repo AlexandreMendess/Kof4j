@@ -177,6 +177,78 @@ class TestTagsE2ETest {
     }
 
     @Test
+    void beforeAllRunsOnceBeforeAnyTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeAll() {
+                println("before-all")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("before-all\ntest-a\nPASS a\ntest-b\nPASS b\n────────\n0 failed of 2 tests",
+                r.output().trim(), "beforeAll runs once before the first test");
+    }
+
+    @Test
+    void afterAllRunsOnceAfterAllTests() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterAll() {
+                println("after-all")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("test-a\nPASS a\ntest-b\nPASS b\nafter-all\n────────\n0 failed of 2 tests",
+                r.output().trim(), "afterAll runs once after the last test");
+    }
+
+    @Test
+    void beforeEachAliasRunsBeforeEveryTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeEach() {
+                println("before-each")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("before-each\ntest-a\nPASS a\nbefore-each\ntest-b\nPASS b\n────────\n0 failed of 2 tests",
+                r.output().trim(), "beforeEach is the §4.2 alias of setup (runs per test)");
+    }
+
+    @Test
+    void afterEachAliasRunsAfterEveryTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterEach() {
+                println("after-each")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("test-a\nPASS a\nafter-each\ntest-b\nPASS b\nafter-each\n────────\n0 failed of 2 tests",
+                r.output().trim(), "afterEach is the §4.2 alias of teardown (runs per test)");
+    }
+
+    @Test
     void formatterKeepsTagsIdempotently() throws Exception {
         String src = "test \"a\", \"smoke\", \"ui\" {\n    assert(true)\n}\n";
         String once = KofFormatter.format(src, "T.kf");

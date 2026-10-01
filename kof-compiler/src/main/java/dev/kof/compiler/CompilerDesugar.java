@@ -19,7 +19,8 @@ public final class CompilerDesugar {
         discoveredTests.clear();
         java.util.List<AstNode> decls = new ArrayList<>();
         java.util.List<TestHarnessBuilder.Entry> harnessEntries = new ArrayList<>();
-        boolean hasSetup = false, hasTeardown = false;
+        String setupName = null, teardownName = null;
+        String beforeAllName = null, afterAllName = null;
         int ti = 0;
         for (AstNode d : unit.declarations()) {
             if (d instanceof TestDeclarationNode t) {
@@ -33,8 +34,10 @@ public final class CompilerDesugar {
             }
             if (d instanceof FunctionDeclarationNode f && f.parameters().isEmpty()
                     && "void".equals(f.returnType())) {
-                if ("setup".equals(f.name())) hasSetup = true;
-                if ("teardown".equals(f.name())) hasTeardown = true;
+                if ("setup".equals(f.name()) || "beforeEach".equals(f.name())) setupName = f.name();
+                if ("teardown".equals(f.name()) || "afterEach".equals(f.name())) teardownName = f.name();
+                if ("beforeAll".equals(f.name())) beforeAllName = f.name();
+                if ("afterAll".equals(f.name())) afterAllName = f.name();
             }
         }
         if (testHarnessMode && !discoveredTests.isEmpty()) {
@@ -46,7 +49,8 @@ public final class CompilerDesugar {
                 withHarness.add(d);
             }
             withHarness.add(TestHarnessBuilder.build(harnessEntries, currentSourceName,
-                    hasSetup, hasTeardown, System.getProperty("kof.test.tag")));
+                    setupName, teardownName, System.getProperty("kof.test.tag"),
+                    beforeAllName, afterAllName));
             decls = withHarness;
         }
         return new CompilationUnitNode(unit.position(), unit.packageName(), unit.imports(),

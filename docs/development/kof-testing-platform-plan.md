@@ -200,8 +200,16 @@ bare `test failed`.
 
 ## 4.2 Lifecycle
 
-Support `beforeAll` / `afterAll` / `beforeEach` / `afterEach` when needed, but never as a
-global-state mechanism. A test stays isolated.
+**Status:** LANDED 01/10 (`CompilerDesugar` + `TestHarnessBuilder`).
+
+Implemented with zero new syntax — uses the existing top-level zero-argument `Void` function
+convention:
+- `beforeAll()`: runs once before any tests run (in a `try/catch` reporting `beforeAll failed`)
+- `afterAll()`: runs once after all tests finish
+- `beforeEach()`: §4.2 alias of the existing `setup()` (runs before each test; a failure causes a named `SKIP`)
+- `afterEach()`: §4.2 alias of the existing `teardown()` (runs via `finally` after each test)
+
+Proof: `TestTagsE2ETest` (14/14 green). Maintains test isolation — never a global-state mechanism.
 
 ## 4.3 Isolation
 

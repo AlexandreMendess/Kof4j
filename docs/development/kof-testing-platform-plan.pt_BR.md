@@ -184,8 +184,16 @@ nunca um `test failed` seco.
 
 ## 4.2 Lifecycle
 
-Suportar `beforeAll` / `afterAll` / `beforeEach` / `afterEach` quando necessário, mas nunca como
-mecanismo de estado global. Um teste continua isolado.
+**Estado:** ENTREGUE 01/10 (`CompilerDesugar` + `TestHarnessBuilder`).
+
+Implementado sem sintaxe nova — usa a convenção existente de função `Void` de nível superior sem
+argumentos:
+- `beforeAll()`: executa uma vez antes de qualquer teste rodar (em `try/catch` reportando `beforeAll failed`)
+- `afterAll()`: executa uma vez depois que todos os testes terminam
+- `beforeEach()`: alias §4.2 do `setup()` existente (executa antes de cada teste; uma falha gera um `SKIP` nomeado)
+- `afterEach()`: alias §4.2 do `teardown()` existente (executa via `finally` depois de cada teste)
+
+Prova: `TestTagsE2ETest` (14/14 verde). Mantém o isolamento dos testes — nunca um mecanismo de estado global.
 
 ## 4.3 Isolamento
 
