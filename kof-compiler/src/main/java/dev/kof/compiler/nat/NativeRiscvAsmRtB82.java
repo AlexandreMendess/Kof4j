@@ -104,6 +104,87 @@ public final class NativeRiscvAsmRtB82 {
                 addi sp, sp, 64
                 ret
 
+            # kof_time_addYears(a0=str, a1=years) -> String (alloc; inválida ou
+            # resultado FORA de [1,9999] => ""). MESMA política do addMonths:
+            # clamp de fim de mês (dia=min(dia, dim(y1, mês))). y1 = y + years
+            # (int32; years pode ser negativo — soma antes do guard, depois do
+            # guard cabe em int32). Reusa .Lu8_parse2 + kof_time_daysInMonth +
+            # .Lu8_put4/.Lu8_put2 (cauda idêntica ao addMonths).
+            .globl kof_time_addYears
+            kof_time_addYears:
+                addi sp, sp, -64
+                sd ra, 56(sp)
+                sd s1, 40(sp)
+                sd s2, 32(sp)
+                sd s3, 24(sp)
+                sd s4, 16(sp)
+                mv   s1, a1                    # years
+                li   s3, 0                     # present
+                mv   a1, sp                    # slots 0/4/8 = y/m/d
+                call .Lu8_parse2
+                beqz a0, .Lu8_ay_r
+                lw   a0, 0(sp)                 # y
+                add  a0, a0, s1                # y1 = y + years
+                li   t0, 1
+                blt  a0, t0, .Lu8_ay_r         # y1 < 1 -> fora
+                li   t0, 9999
+                bgt  a0, t0, .Lu8_ay_r         # y1 > 9999 -> fora
+                sw   a0, 0(sp)                 # y1
+                lw   a1, 4(sp)                 # m
+                call kof_time_daysInMonth      # a0 = dim(y1, m)
+                lw   t5, 8(sp)                 # d
+                blt  t5, a0, .Lu8_ay_keepd     # d < dim -> d1 = d
+                j    .Lu8_ay_setd              # d1 = dim
+            .Lu8_ay_keepd:
+                mv   a0, t5
+            .Lu8_ay_setd:
+                sw   a0, 8(sp)                 # d1
+                li   s3, 1                     # present
+            .Lu8_ay_r:
+                li   s2, 10
+                beqz s3, .Lu8_ay_r0
+                j    .Lu8_ay_a
+            .Lu8_ay_r0:
+                li   s2, 0
+            .Lu8_ay_a:
+                addi a0, s2, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s4, a0
+                li   t0, 1
+                sw   t0, 0(s4)
+                li   t0, 0
+                sw   t0, 4(s4)
+                sd   t0, 8(s4)
+                sw   s2, 16(s4)
+                sw   t0, 20(s4)
+                sb   t0, 24(s4)
+                beqz s3, .Lu8_ay_d
+                addi a0, s4, 24
+                lw   a1, 0(sp)
+                call .Lu8_put4
+                li   t0, 45
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                lw   a1, 4(sp)
+                call .Lu8_put2
+                li   t0, 45
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                lw   a1, 8(sp)
+                call .Lu8_put2
+                li   t0, 0
+                sb   t0, 0(a0)
+            .Lu8_ay_d:
+                mv   a0, s4
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
 
             """;
 }

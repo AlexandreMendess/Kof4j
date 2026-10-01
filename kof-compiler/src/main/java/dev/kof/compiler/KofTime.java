@@ -39,7 +39,7 @@ public final class KofTime {
 
 /** X10 fatia 2: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("sleep", "now", "interval", "cancel", "collect", "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween", "age", "isWeekend", "addDays", "addMonths", "diffDays", "todayIso", "formatDateIso", "isToday", "hoursBetween", "parseDateIso", "tzOffsetSeconds"); }
+    static List<String> functions() { return List.of("sleep", "now", "interval", "cancel", "collect", "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween", "age", "isWeekend", "addDays", "addMonths", "addYears", "diffDays", "todayIso", "formatDateIso", "isToday", "hoursBetween", "parseDateIso", "tzOffsetSeconds"); }
 
     static boolean isTimeMethod(String name) {
         return switch (name) {
@@ -52,7 +52,7 @@ public final class KofTime {
                     // S7-ext: fim de semana (dayOfWeek >= 6)
                     "isWeekend",
                     // STDLIB S7a: add/diff sobre data ISO (STR->STR/Int)
-                    "addDays", "addMonths", "diffDays",
+                    "addDays", "addMonths", "addYears", "diffDays",
                     // S7e (D-STDLIB ratificado 13/09): hoje/formato UTC-only
                     "todayIso", "formatDateIso", "isToday",
                     // S7f (D3): diferença de horas entre dois instantes
@@ -178,6 +178,12 @@ public final class KofTime {
             case "addMonths" -> argTypes.size() == 2 && argTypes.get(0) == STR
                     && argTypes.get(1) == INT
                     ? new TimeCall("kof_time_addMonths", STR, List.of(STR, INT)) : null;
+            // S7a-ext2 (STDLIB front #1) — data ISO + N anos. clamp de fim de
+            // mês em 29/fev (ano destino não-bissexto => 28/fev); inválida /
+            // resultado fora de 1..9999 => "". Aritmética inteira pura.
+            case "addYears" -> argTypes.size() == 2 && argTypes.get(0) == STR
+                    && argTypes.get(1) == INT
+                    ? new TimeCall("kof_time_addYears", STR, List.of(STR, INT)) : null;
             case "diffDays" -> argTypes.size() == 2 && argTypes.get(0) == STR
                     && argTypes.get(1) == STR
                     ? new TimeCall("kof_time_diffDays", INT, List.of(STR, STR)) : null;

@@ -847,6 +847,96 @@ class KofTimeE2ETest {
                 + "\n2025-02-15\n2024-06-30\n2024-06-15\n2024-02-29\n2022-12-01\n\n\n\n\n2023-03-28";
     }
 
+    // STDLIB S7a-ext2 (front #1 da stdlib, D-DEV-PRIORITY): time.addYears(iso, n)
+    // -> String. Anos em aritmética inteira simples (y1 = y + n; clamp de fim de
+    // mês => dia=min(d, daysInMonth(y1, m))); inválida/out-of-range => "". Oráculo:
+    // java.time (mesma política).
+    @Test
+    void timeAddYearsJvm(@TempDir Path tempDir) throws IOException {
+        runJvm(tempDir, addYearsSrc(), addYearsGolden());
+    }
+
+    @Test
+    void timeAddYearsJs(@TempDir Path tempDir) throws IOException {
+        runJs(tempDir, addYearsSrc(), addYearsGolden());
+    }
+
+    @Test
+    void timeAddYearsNative(@TempDir Path tempDir) throws IOException {
+        runNative(tempDir, addYearsSrc(), addYearsGolden());
+    }
+
+    @Test
+    void timeAddYearsCrossArch(@TempDir Path tempDir) throws IOException {
+        String src = addYearsSrc();
+        String expected = addYearsGolden();
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tempDir.resolve("Ay-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("ay-" + t + "-" + System.nanoTime());
+            CompilationResult r = new CompilerDriver().compile(file, outDir, t);
+            assertTrue(r.success(), t + " compile: " + r.diagnostics().getDiagnostics());
+            Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), outDir.resolve("Default/Main"))
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec;
+            try {
+                ec = p.waitFor();
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted", e);
+            }
+            assertEquals(0, ec, t + " qemu exit, out: " + out);
+            assertEquals(expected, out, t + " golden addYears");
+        }
+    }
+
+    @Test
+    void timeAddYearsCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
+        String src = """
+            main() {
+                println(time.addYears("2024-02-29", 1))
+            }
+            """;
+        Path gateSrc = tempDir.resolve("GateAddYears.kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-ay-" + t), t);
+            assertTrue(r.success(), t + " deve compilar addYears: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    private static String addYearsSrc() {
+        return """
+            main() {
+                println(time.addYears("2024-02-29", 1))
+                println(time.addYears("2024-02-29", 4))
+                println(time.addYears("2024-12-31", 1))
+                println(time.addYears("2023-06-15", -1))
+                println(time.addYears("2024-02-29", 0))
+                println(time.addYears("2100-02-29", 0))
+                println(time.addYears("0001-01-01", -1))
+                println(time.addYears("9999-12-31", 1))
+                println(time.addYears("0001-01-01", 9998))
+                println(time.addYears("2024-02-29", 100))
+                println(time.addYears("2024-02-29", -4))
+                println(time.addYears("2024-02-30", 1))
+                println(time.addYears("garbage", 1))
+                println(time.addYears("2024-05-31", 8))
+            }
+            """;
+    }
+
+    private static String addYearsGolden() {
+        return "2025-02-28\n2028-02-29\n2025-12-31\n2022-06-15\n2024-02-29\n\n\n\n"
+                + "9999-01-01\n2124-02-29\n2020-02-29\n\n\n2032-05-31";
+    }
+
     /**
      * §426 (improved 25/09): time.collect() on JS is a REAL host GC request
      * (kof_platform.gcCollect -> System.gc()), not the old compile-time

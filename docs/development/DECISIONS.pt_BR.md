@@ -4534,3 +4534,17 @@ individuais:
 - **Aceite (Fase 1):** baseline reproduzível (commit + ambiente + tamanhos) versionada em `docs/audits/`, módulos e distribuição medidos, dependências atribuídas, `hello-world` por alvo, diff entre commits funcionando — com zero mudança de dependência ou comportamento.
 - **Regra consolidadora (objetivo):** capacidade opcional tem custo opcional (app que não usa PDF paga 0 de PDF).
 - **Relações:** `Related: D-KOF-FIRST-IMPL, D-APP (--fat opcional), D-KOF-FILE-GO, R1, R9`; independente da `#629` (onde o PDFBox mora é decisão separada que pode seguir esta regra). Ledger `post-1.0`.
+
+---
+
+## D-AGENT-IDENTITY-IPPORT — todo claim de agente no DOING leva `<ipv4-local>:<porta-opencode>`, absoluto e obrigatório (mantenedora 01/10/2026, diretiva de chat "DEIXA A REGRA ABSOLUTA PARA TODOS OS AGENTES. SEMPRE MARCAR IP E PORTA NO DOING. VIROU BAGUNÇA MESMO COM ESSA REGRA, PRECISO QUE REFORCE")
+
+**Estado:** DECIDIDO (mantenedora) — codificado 01/10 em `AGENTS.md`/`AGENTS.pt_BR.md` (§Autoridade identity + §Ciclo-operacional passo do claim + §Estado-multiagente bloco claim + §Autoverificação-final) com enforcement em `scripts/check_owner_identity.sh`.
+
+- **Pergunta:** um claim só com IPv4 (ou só "esta sessão") é ambíguo: roteador/DHCP mudam o IPv4 e várias sessões podem rodar no mesmo host, então o claim não pode ser verificado como o mesmo dono mais tarde.
+- **Decisão (absoluta):** todo claim `EM PROGRESSO` / `FEITO` / `CORRIGIDO` / `PARADA` em `DOING.md` (EN) / `DOING.pt_BR.md` (PT) DEVE levar `owner = <ipv4-local>:<porta-opencode>` (EN) ou `dona = <ipv4-local>:<porta-opencode>` (PT). IPv4 puro ou "this session"/"esta sessão" é INVÁLIDO e o gate `scripts/check_owner_identity.sh` rejeita rc=1.
+- **Enforcement:** `scripts/check_owner_identity.sh` varre `DOING.md` + `DOING.pt_BR.md`, policia só claims com data ≥ `01/10` (sem enforcement retroativo) e falha em: (a) valor `owner`/`dona` sem `:<porta>`, (b) string "this session"/"esta sessão" pura. `--selftest` com fixtures `ok.md`/`bad.md`/`ptbad.md` provam que aceite/rejeição têm dentes.
+- **Fonte da porta:** a porta do servidor opencode à qual a sessão está anexada — lida de `ss -tln | grep opencode` (o `opencode -s ... --port <N>` em execução) ou do argumento `--attach http://127.0.0.1:<N>` do `opencode run` atual.
+- **Confirmação de lane estendida (substitui a de 21/09):** um agente nunca age na lane de outro dono só pelo IP — a confirmação exige sessão + lane + SHA do commit + **IP:PORT** juntos (roteador/DHCP podem mudar ambos, então IP sozinho é obsoleto).
+- **Não autorizado:** entregar um claim sem `:<porta>` (o gate bloqueia), editar o claim de outra lane, reescrever retroativamente claims com data < `01/10` (a regra não vale para trás; claims históricos ficam como estão como evidência).
+- **Relações:** substitui a redação "confirme por SHA/IP" de 21/09 pela mais forte **IP:PORT**; ortogonal a `D-KOFMD-OPERATING-STANDARD`; complementa `check_release_blockers.sh` (higiene do ledger) e `check_live_records.sh` (verdade dos docs vivos).

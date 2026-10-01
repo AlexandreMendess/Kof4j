@@ -543,13 +543,22 @@ public final class JsRuntimeUiWeb {
              // aritmética inteira dos demais alvos: t = y*12+(m-1)+n; clamp de fim
              // de mês d = min(d, daysInMonth). Pré-guarda t em [12,119999] (divisão
              // positiva, idêntica). Inválida/out-of-range => "" (política addDays).
-             export function kofTimeAddMonths(iso, months) {
+              export function kofTimeAddMonths(iso, months) {
+                  const a = kofTimeParseIso(iso);
+                  if (!a) return "";
+                  const t = a.y * 12 + (a.m - 1) + months;
+                  if (t < 12 || t > 119999) return "";
+                  const y1 = Math.floor(t / 12);
+                  const m1 = (t % 12) + 1;
+                  const d1 = Math.min(a.d, kofTimeDaysInMonth(y1, m1));
+                  return kofTimePad4(y1) + "-" + kofTimePad2(m1) + "-" + kofTimePad2(d1);
+              }
+             export function kofTimeAddYears(iso, years) {
                  const a = kofTimeParseIso(iso);
                  if (!a) return "";
-                 const t = a.y * 12 + (a.m - 1) + months;
-                 if (t < 12 || t > 119999) return "";
-                 const y1 = Math.floor(t / 12);
-                 const m1 = (t % 12) + 1;
+                 const y1 = a.y + years;
+                 if (y1 < 1 || y1 > 9999) return "";
+                 const m1 = a.m;
                  const d1 = Math.min(a.d, kofTimeDaysInMonth(y1, m1));
                  return kofTimePad4(y1) + "-" + kofTimePad2(m1) + "-" + kofTimePad2(d1);
              }

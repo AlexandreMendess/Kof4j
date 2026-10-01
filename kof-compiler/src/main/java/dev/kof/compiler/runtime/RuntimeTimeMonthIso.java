@@ -106,4 +106,90 @@ public final class RuntimeTimeMonthIso {
                 ret
             """);
     }
+
+    public static void emitAddYears(StringBuilder sb) {
+        sb.append("""
+            # ── kof_time (STDLIB S7a-ext2) — ISO date + N anos ─────────────
+            # kof_time_addYears(rdi=iso, esi=years) -> String | "" (alloc)
+            # MESMA política de addMonths: clamp de fim de mês (dia=min(dia,
+            # dim(y1, m))); y1 = y + years; resultado FORA de 1..9999 => "";
+            # inválida => "". Aritmética inteira pura; anos em int64 só para
+            # o add signed (years pode ser negativo), depois o range-check
+            # garante caber em int32. Reusa .Lka_parse2 + kof_time_daysInMonth
+            # + .Lka_put4/.Lka_put2 (a cauda de render é cópia exata de addMonths).
+            .globl kof_time_addYears
+            .type kof_time_addYears, @function
+            kof_time_addYears:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $48, %rsp
+                xorl %r14d, %r14d               # present = 0
+                movslq %esi, %rbx               # years (sign-extended)
+                movq %rsp, %rsi                 # slots = [y,m,d]
+                call .Lka_parse2                # edi=iso, rsi=slots -> eax=1 ok
+                testl %eax, %eax
+                jz .Lka_ay_render
+                movslq 0(%rsp), %rax            # y
+                addq %rbx, %rax                 # y + years
+                cmpq $1, %rax
+                jl .Lka_ay_render
+                cmpq $9999, %rax
+                jg .Lka_ay_render
+                movl %eax, 0(%rsp)              # y1 (fits int32 by the guard)
+                movl 0(%rsp), %edi              # y1
+                movl 4(%rsp), %esi              # m
+                call kof_time_daysInMonth       # eax = dim(y1, m)
+                movl 8(%rsp), %edx              # d
+                cmpl %eax, %edx                 # d - dim
+                jge .Lka_ay_keepdim             # d >= dim -> d1 = dim
+                movl %edx, %eax                 # d < dim -> d1 = d
+            .Lka_ay_keepdim:
+                movl %eax, 8(%rsp)              # d1
+                movl $1, %r14d                  # present
+                movl $10, %r12d                 # len
+            .Lka_ay_render:
+                testl %r14d, %r14d
+                jz .Lka_ay_len0
+                movl $10, %r12d
+                jmp .Lka_ay_alloc
+            .Lka_ay_len0:
+                xorl %r12d, %r12d
+            .Lka_ay_alloc:
+                leal 25(%r12), %edi
+                call kof_alloc
+                movq %rax, %r15
+                movl $1, 0(%r15)
+                movl $0, 4(%r15)
+                movq $0, 8(%r15)
+                movl %r12d, 16(%r15)
+                movl $0, 20(%r15)
+                movb $0, 24(%r15)
+                testl %r14d, %r14d
+                jz .Lka_ay_done
+                leaq 24(%r15), %rdi
+                movl 0(%rsp), %r13d
+                call .Lka_put4
+                movb $45, (%rdi)
+                incq %rdi
+                movl 4(%rsp), %r13d
+                call .Lka_put2
+                movb $45, (%rdi)
+                incq %rdi
+                movl 8(%rsp), %r13d
+                call .Lka_put2
+                movb $0, (%rdi)
+            .Lka_ay_done:
+                movq %r15, %rax
+                addq $48, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            """);
+    }
 }

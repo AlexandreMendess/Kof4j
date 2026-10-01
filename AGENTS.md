@@ -56,10 +56,10 @@ loop:
 * ensure the active branch is `lab` — migrate all current work to `lab` BEFORE starting; `beta-*` is frozen (`D-BRANCH-PIPELINE`)
 * if no live unowned task, promote the lowest-cost implementable plan from `docs/development/future/` (see Future promotion, `D-FUTURE-PROMOTION`)
 * choose highest-value unowned task
-* claim it in DOING.md
+* claim it in DOING.md with `owner = <local-ipv4>:<opencode-port>` (EN) / `dona = <local-ipv4>:<opencode-port>` (PT) — the **absolute identity rule** (`D-AGENT-IDENTITY-IPPORT`, 01/10); a claim without IP:PORT is INVALID (gate `scripts/check_owner_identity.sh`)
 * execute one complete scope
 * test
-* commit with DOING.md
+* commit with DOING.md (every commit updates the claim's `owner = <ip>:<port>`)
 * push through scripts/sync-push.sh
 * re-read DOING.md
 * continue
@@ -152,19 +152,21 @@ rule:
 
 identity:
 preferred: kof-agent-worker
-by: local-ipv4:port
+by: local-ipv4 + opencode-port (absolute, mandatory — 01/10 amendment, `D-AGENT-IDENTITY-IPPORT`)
 fallback: maintainer-default
 forbidden:
 - synthetic email
 - Co-authored-by
 - identity tricks
+- owner = <ipv4> WITHOUT :<port> — the gate rejects it
+- owner = <ipv4> WITHOUT :<port> — the gate rejects it
 
 rule:
 
-* identify by the **local IPv4:port** (`hostname -I` + the opencode server `--port`) — DOING §Operating-loop rule 9
-* every `IN PROGRESS`/`DONE` claim carries `owner = <local-ipv4>:<port>`, never "this session" (a bare IP is ambiguous when the same host runs more than one session/lane: DOING §Operating-loop rule 9, 01/10 amendment — 110 lines had recorded `owner: this session` and no lane could be attributed)
-* the port is the opencode TUI server of the owning session (`ps -o args= -C opencode` / `ss -ltnp`), so `<ipv4>:<port>` names one lane unambiguously
-* never act on another owner's lane on IP alone — confirm by session + lane + commit SHA/IP:port (routers/DHCP change the address)
+* identify by the **local IPv4** (`hostname -I`) AND the **opencode server port** the session attaches to (`ss -tln | grep opencode` / the running `opencode -s ... --port <N>` or `--attach http://127.0.0.1:<N>` / `ps -o args= -C opencode`) — DOING §Operating-loop rule 9
+* every `IN PROGRESS`/`DONE`/`FIXED`/`STOP` claim carries `owner = <local-ipv4>:<port>` (EN) / `dona = <local-ipv4>:<port>` (PT), never just "this session" and never bare IPv4 (a bare IP is ambiguous when the same host runs more than one session/lane; 110 historical lines recorded `owner: this session` with no lane attributable)
+* the enforcement gate is `scripts/check_owner_identity.sh` — rc=1 on any claim dated ≥ `01/10` whose IPv4 lacks `:<port>`
+* never act on another owner's lane on IP alone — confirm by session + lane + commit SHA + IP:PORT (routers/DHCP change both)
 
 ---
 
@@ -182,6 +184,7 @@ claim:
 * read DOING.md before work
 * existing IN PROGRESS item is not yours
 * claim before implementation
+* **absolute identity rule (`D-AGENT-IDENTITY-IPPORT`, 01/10): every claim is `owner = <local-ipv4>:<opencode-port>` (EN) / `dona = <local-ipv4>:<opencode-port>` (PT) — a bare IPv4 or "this session" is INVALID and the gate `scripts/check_owner_identity.sh` rejects it (rc=1)**
 * claim and first change share a commit
 * every commit updates your DOING.md line
 * DONE requires date + SHA + proof
@@ -816,7 +819,7 @@ ready:
 * no unnecessary infrastructure
 * Kof abstraction preferred
 * test and change share commit
-* DOING.md current
+* DOING.md current — every claim carries `owner = <ipv4>:<port>` (`D-AGENT-IDENTITY-IPPORT`, gate `scripts/check_owner_identity.sh`)
 * remote synchronized
 
 if_any_false:

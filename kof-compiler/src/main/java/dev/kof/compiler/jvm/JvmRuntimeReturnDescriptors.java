@@ -87,7 +87,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_time_now" -> "J";
             case "kof_gc_collect_now" -> "V";
             case "kof_time_isLeapYear", "kof_time_daysInMonth", "kof_time_dayOfWeek", "kof_time_daysBetween", "kof_time_age", "kof_time_isWeekend", "kof_time_diffDays" -> "I";
-            case "kof_time_interval", "kof_time_addDays", "kof_time_addMonths" -> "Ljava/lang/String;";
+            case "kof_time_interval", "kof_time_addDays", "kof_time_addMonths", "kof_time_addYears" -> "Ljava/lang/String;";
             case "kof_config_int", "kof_config_bool", "kof_config_has" -> "I";
             case "kof_config_long" -> "J";
             case "kof_web_configure" -> "V";

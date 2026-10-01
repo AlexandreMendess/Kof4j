@@ -61,10 +61,10 @@ loop:
 * garantir que a branch ativa é `lab` — migrar todo o trabalho atual para `lab` ANTES de começar; `beta-*` está congelada (`D-BRANCH-PIPELINE`)
 * se não houver tarefa viva sem dono, promover o plano de menor custo implementável de `docs/development/future/` (ver Promoção de futuro, `D-FUTURE-PROMOTION`)
 * escolher a tarefa não atribuída de maior valor
-* reivindicá-la em DOING.md
+* reivindicá-la em DOING.md com `dona = <ipv4-local>:<porta-opencode>` (PT) / `owner = <ipv4-local>:<porta-opencode>` (EN) — a **regra absoluta de identidade** (`D-AGENT-IDENTITY-IPPORT`, 01/10); um claim sem IP:PORT é INVÁLIDO (gate `scripts/check_owner_identity.sh`)
 * executar um escopo completo
 * testar
-* fazer commit com DOING.md
+* fazer commit com DOING.md (todo commit atualiza a linha `dona = <ip>:<porta>`)
 * fazer push através de scripts/sync-push.sh
 * reler DOING.md
 * continuar
@@ -174,7 +174,7 @@ identity:
 
 preferred: kof-agent-worker
 
-by: local-ipv4
+by: ipv4-local + porta-opencode (absoluto, obrigatório — emenda 01/10, `D-AGENT-IDENTITY-IPPORT`)
 
 fallback: maintainer-default
 
@@ -183,12 +183,14 @@ forbidden:
 * email sintético
 * Co-authored-by
 * truques de identidade
+* `dona = <ipv4>` SEM `:<porta>` — o gate rejeita
 
 rule:
 
-* identifique pelo **IPv4 local** (`hostname -I`) — DOING §Operating-loop regra 9
-* toda reivindicação `EM CURSO`/`FEITO` leva `dono = <IPv4 local>`, não "esta sessão"
-* nunca agir na lane de outro dono só pelo IP — emenda 21/09: confirme por sessão + lane + SHA/IP do commit (roteador/DHCP mudam o endereço)
+* identifique pelo **IPv4 local** (`hostname -I`) E pela **porta do servidor opencode** à qual a sessão está anexada (`ss -tln | grep opencode` / o `opencode -s ... --port <N>` ou `--attach http://127.0.0.1:<N>` em execução) — DOING §Operating-loop regra 9
+* toda reivindicação `EM PROGRESSO`/`FEITO`/`CORRIGIDO`/`PARADA` leva `dona = <ipv4-local>:<porta>` (PT) / `owner = <ipv4-local>:<porta>` (EN) — nunca só "esta sessão" e nunca IPv4 puro (roteador/DHCP mudam o endereço; a porta desambigua sessões no mesmo host)
+* o gate de enforcement é `scripts/check_owner_identity.sh` — rc=1 em qualquer claim com data ≥ `01/10` cujo IPv4 não tenha `:<porta>`
+* nunca agir na lane de outro dono só pelo IP — confirme por sessão + lane + SHA do commit + IP:PORT (roteador/DHCP mudam ambos)
 
 ---
 
@@ -206,6 +208,7 @@ claim:
 * ler DOING.md antes de trabalhar
 * item IN PROGRESS existente não é seu
 * reivindicar antes da implementação
+* **regra absoluta de identidade (`D-AGENT-IDENTITY-IPPORT`, 01/10): todo claim é `dona = <ipv4-local>:<porta-opencode>` (PT) / `owner = <ipv4-local>:<porta-opencode>` (EN) — um IPv4 puro ou "esta sessão" é INVÁLIDO e o gate `scripts/check_owner_identity.sh` rejeita (rc=1)**
 * claim e primeira mudança compartilham o mesmo commit
 * todo commit atualiza sua linha no DOING.md
 * DONE exige data + SHA + prova
@@ -917,7 +920,7 @@ ready:
 * sem infraestrutura desnecessária
 * abstração Kof preferida
 * teste e mudança compartilham commit
-* DOING.md atualizado
+* DOING.md atualizado — todo claim leva `dona = <ipv4>:<porta>` (`D-AGENT-IDENTITY-IPPORT`, gate `scripts/check_owner_identity.sh`)
 * remoto sincronizado
 
 if_any_false:

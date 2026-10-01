@@ -4544,3 +4544,17 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Acceptance (Phase 1):** a reproducible baseline (commit + environment + sizes) versioned under `docs/audits/`, modules and distribution measured, dependencies attributed, `hello-world` per target, working inter-commit diff — with zero dependency or behaviour change.
 - **Consolidating rule (target):** an optional capability has an optional cost (an app that does not use PDF pays 0 for PDF).
 - **Relationships:** `Related: D-KOF-FIRST-IMPL, D-APP (--fat optional), D-KOF-FILE-GO, R1, R9`; independent of `#629` (where PDFBox lives is a separate decision that may follow this rule). Ledger `post-1.0`.
+
+---
+
+## D-AGENT-IDENTITY-IPPORT — every agent claim in DOING carries `<local-ipv4>:<opencode-port>`, absolute and mandatory (maintainer 01/10/2026, chat directive "DEIXA A REGRA ABSOLUTA PARA TODOS OS AGENTES. SEMPRE MARCAR IP E PORTA NO DOING. VIROU BAGUNÇA MESMO COM ESSA REGRA, PRECISO QUE REFORCE")
+
+**State:** DECIDED (maintainer) — codified 01/10 in `AGENTS.md`/`AGENTS.pt_BR.md` (§Authority identity + §Operating-loop claim step + §Multi-agent state claim block + §Final self-check) with enforcement in `scripts/check_owner_identity.sh`.
+
+- **Question:** a claim with only an IPv4 (or only "this session") is ambiguous: routers/DHCP change the IPv4 and multiple sessions can run on the same host, so the claim cannot be verified as the same owner later.
+- **Decision (absolute):** every `IN PROGRESS` / `DONE` / `FIXED` / `STOP` claim in `DOING.md` (EN) / `DOING.pt_BR.md` (PT) MUST carry `owner = <local-ipv4>:<opencode-port>` (EN) or `dona = <local-ipv4>:<opencode-port>` (PT). A bare IPv4 or a "this session"/"esta sessão" is INVALID and the gate `scripts/check_owner_identity.sh` rejects it rc=1.
+- **Enforcement:** `scripts/check_owner_identity.sh` scans `DOING.md` + `DOING.pt_BR.md`, polices only claims dated ≥ `01/10` (no retroactive enforcement), and fails on: (a) an `owner`/`dona` value that lacks `:<port>`, (b) a bare "this session"/"esta sessão" string. `--selftest` fixtures `ok.md`/`bad.md`/`ptbad.md` prove accept/reject have teeth.
+- **Port source:** the opencode server port the session attaches to — read from `ss -tln | grep opencode` (the running `opencode -s ... --port <N>`) or from the `--attach http://127.0.0.1:<N>` argument of the current `opencode run`.
+- **Lane identity confirmation (extended):** an agent never acts on another owner's lane on IP alone — the confirmation requires session + lane + commit SHA + **IP:PORT** together (a router/DHCP may change both, so IP alone is stale).
+- **Not authorized:** shipping a claim without `:<port>` (the gate blocks it), editing another lane's claim, retroactively rewriting historical claims with dates < `01/10` (the rule is not enforced backward; historical claims stay as-is as evidence).
+- **Relationships:** replaces the 21/09 "confirm by SHA/IP" phrasing with the stronger **IP:PORT**; orthogonal to `D-KOFMD-OPERATING-STANDARD`; complements `check_release_blockers.sh` (ledger hygiene) and `check_live_records.sh` (live-doc truth).

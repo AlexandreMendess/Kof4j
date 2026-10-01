@@ -153,6 +153,20 @@ public final class JvmTimeRuntime {
                     return String.format("%04d-%02d-%02d", y1, m1, d1);
                 }
 
+                // STDLIB S7a-ext2 (front #1): ISO date + N years. Same clamp of
+                // end-of-month (Feb 29 -> Feb 28 when the target year is not a
+                // leap year), year range 1..9999, and invalid/out-of-range =>
+                // "". Pure integer arithmetic (byte-identical across backends).
+                public static String kof_time_addYears(String iso, int years) {
+                    java.time.LocalDate ld = kof_time_parseIso(iso);
+                    if (ld == null) return "";
+                    int y1 = ld.getYear() + years;
+                    if (y1 < 1 || y1 > 9999) return "";
+                    int m1 = ld.getMonthValue();
+                    int d1 = Math.min(ld.getDayOfMonth(), kof_time_daysInMonth(y1, m1));
+                    return String.format("%04d-%02d-%02d", y1, m1, d1);
+                }
+
                 public static int kof_time_diffDays(String iso1, String iso2) {
                     java.time.LocalDate a = kof_time_parseIso(iso1);
                     java.time.LocalDate b = kof_time_parseIso(iso2);
