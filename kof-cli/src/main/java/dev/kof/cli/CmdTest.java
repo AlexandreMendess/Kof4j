@@ -3,6 +3,7 @@ package dev.kof.cli;
 import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.KofProjectConfig;
 import dev.kof.compiler.Target;
 
 import java.io.IOException;
@@ -26,16 +27,41 @@ final class CmdTest {
             + " [--tag <tag>]";
 
     static void run(String[] args) {
-        if (args.length < 2) { System.err.println(USAGE); System.exit(1); return; }
-        if (args[1].equals("--help") || args[1].equals("-h")) {
+        if (args.length >= 2 && (args[1].equals("--help") || args[1].equals("-h"))) {
             System.out.println(USAGE);
             return;
         }
-        Path src = Path.of(args[1]);
+        // #708: raiz de testes declarada em [sources] test permite `kof test`
+        // sem argumento posicional; a raiz de app ([sources] app, ou o pai do
+        // diretório do teste) entra como source path para resolver imports.
+        boolean flagMode = args.length < 2 || args[1].startsWith("-");
+        Path src = null;
+        Path appRoot = null;
+        int argStart = 2;
+        if (flagMode) {
+            Path projectRoot = KofCliSupport.projectRootOf(Path.of("."));
+            KofProjectConfig cfg = KofCliSupport.configOf(projectRoot);
+            // src pode ficar ausente (sem [sources] test): o erro é decidido
+            // DEPOIS de parsear as flags, para que um typo de flag seja
+            // reportado como flag desconhecida (R6), não como "sem raiz".
+            src = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceTest(), null);
+            appRoot = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceApp(), null);
+            argStart = 1;
+        } else {
+            src = Path.of(args[1]);
+            // Sem [sources]: se o teste vive sob um kof.toml, a raiz do app
+            // (se declarada) ainda é oferecida como source path — aditivo, o
+            // modo posicional de hoje não tinha imports cross-root.
+            Path projectRoot = KofCliSupport.projectRootOf(src);
+            if (projectRoot != null) {
+                KofProjectConfig cfg = KofCliSupport.configOf(projectRoot);
+                appRoot = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceApp(), null);
+            }
+        }
         Target target = Target.JVM;
         long timeoutSec = 0;   // 0 = sem limite (comportamento histórico, aditivo)
         String tag = null;     // X8 fatia 3: filtro por tag (compile-time, único p/ 4 alvos)
-        for (int i = 2; i < args.length; i++) {
+        for (int i = argStart; i < args.length; i++) {
             if (args[i].startsWith("--target=")) {
                 target = KofCliSupport.parseTarget(args[i].substring("--target=".length()));
             } else if (args[i].equals("--target") && i + 1 < args.length) {
@@ -74,6 +100,12 @@ final class CmdTest {
                 return;
             }
         }
+        if (src == null) {
+            System.err.println("test: no test root given and no [sources] test"
+                    + " declared in kof.toml (see 'kof test --help')");
+            System.exit(1);
+            return;
+        }
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
         // android é empacotamento (APK/AAB), não um alvo de execução: `kof test`
         // não produz binário standalone. Recusa honesta e cedo (R6) em vez do
@@ -99,6 +131,11 @@ final class CmdTest {
             return;
         }
         CompilerDriver driver = new CompilerDriver();
+        // #708: a raiz de app entra como source path — `import exemplo.Calculo`
+        // resolve de src/main/kof sem cópia nem arquivo de entrada gerado.
+        if (appRoot != null && Files.isDirectory(appRoot)) {
+            driver.setDependencySourceRoots(java.util.List.of(appRoot));
+        }
         int passed = 0;
         int failed = 0;
         // X8 fatia 3 ("named suites by directory"): em modo diretório cada
