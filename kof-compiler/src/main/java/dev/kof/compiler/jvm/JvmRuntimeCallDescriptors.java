@@ -399,6 +399,11 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero" -> "(I)Z";
             case "kof_math_sqrt" -> "(D)D";
+            case "kof_math_sin", "kof_math_cos", "kof_math_tan",
+                    "kof_math_asin", "kof_math_acos", "kof_math_atan",
+                    "kof_math_toRadians", "kof_math_toDegrees" -> "(D)D";
+            case "kof_math_atan2" -> "(DD)D";
+            case "kof_math_pi", "kof_math_e", "kof_math_tau" -> "()D";
             case "kof_math_lerp" -> "(DDD)D";
             case "kof_math_percentage" -> "(DD)D";
             case "kof_math_pow" -> "(DD)D";

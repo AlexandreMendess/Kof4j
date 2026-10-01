@@ -413,4 +413,34 @@ class KofMathTest extends KofMathSupport {
         assertFalse(result.success(), "math.roundTo(2.0, 2.0) deve ser rejeitado no typer (SEM025)");
     }
 
+    private static final String TRIG_SRC = """
+        main() {
+            println(math.sin(0.0) == 0.0)
+            println(math.cos(0.0) == 1.0)
+            println(math.tan(0.0) == 0.0)
+            println(math.asin(0.0) == 0.0)
+            println(math.acos(1.0) == 0.0)
+            println(math.atan(0.0) == 0.0)
+            println(math.atan2(0.0, 1.0) == 0.0)
+            println(math.toRadians(180.0) == math.pi())
+            println(math.toDegrees(math.pi()) == 180.0)
+            println(math.pi() > 3.14 && math.pi() < 3.15)
+            println(math.e() > 2.71 && math.e() < 2.72)
+            println(math.tau() == 2.0 * math.pi())
+        }
+        """;
+
+    private static final String TRIG_OUT =
+            "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue";
+
+    @Test
+    void trigJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, TRIG_SRC, TRIG_OUT);
+    }
+
+    @Test
+    void trigJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, TRIG_SRC, TRIG_OUT);
+    }
+
 }
