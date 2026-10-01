@@ -4581,3 +4581,16 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Not authorized here:** adding any symbol, touching the native link policy, or shipping `MATH001`/a new gap code as the end state without a decision.
 - **Classification:** `post-1.0` per the #717 labels (new stdlib surface, not a 1.0 blocker). The issue author's claim that the work already exists ("12 symbols in `KofMath.functions()`", "`KofMathTest` 29 run") is **NOT** in the tree — measured above.
 - **Relationships:** `Related: D-DECISION-BATCH-2709B (#3 pow = libm), D-FULL-PARITY-050, D-KOF-FIRST, rule 5, rule 6, rule 11`; plan `docs/stdlib/PLAN-STDLIB-EXPANSION.md`.
+
+---
+
+## D-KOFSHARE-100KOF — KofShare is a 100% Kof application (server + client); interop is NOT a product route; the §559 capability decision is (a) stdlib front (maintainer 01/10/2026, directive "o kofshare é 100% feito em kof" / "kofshare é um aplicativo, um servidor e um cliente")
+
+**State:** DECIDED — closes the §559 rule-6 choice; opens the `kof.net` socket-front queue front
+
+- **Directive (maintainer):** KofShare — the P2P file-share product (server + client, repo `kof-share`) — is written **entirely in Kof**. JVM interop over `java.net.ServerSocket`/`KeyAgreement`/`Signature` is FORBIDDEN as a product route.
+- **What interop was:** the §559 probe evidence — the fastest way to MEASURE the missing capabilities (transport, key agreement, signing) and to derive the transfer protocol semantics (X25519 + Ed25519 + AES-GCM + HMAC framing, green 01/10). The probes stay as evidence; the route dies.
+- **Decision consequence (§559):** option **(a)** — the data-plane surface becomes an official stdlib front: connection-oriented sockets in the network namespace (the smallest primitive per `D-KOF-FIRST`), and a key-agreement/key-exchange face in `kof.security` (`SECN005` family). Until the front ships, **KofShare is BLOCKED on stdlib capability, not on product code** — an honest block, never a silent interop fallback (`no-silent-fallback`).
+- **Architecture home:** TCP/listen/accept/connect joins the network front already authorized by `D-UDP` (same family, same namespace question — the UDP plan's open question (1) `kof.udp` vs extension of `kof.net` is now ALSO the TCP naming question; answer it once, for both).
+- **What this does NOT authorize:** inventing the socket surface without the maintainer's answer to the namespace/blocking/type questions (rule 6); shipping KofShare on interop anyway; a private per-product C shim.
+- **Relationships:** `Depends on: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-UDP (naming question), §559 (catalogued home)`

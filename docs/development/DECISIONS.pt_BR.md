@@ -4571,3 +4571,16 @@ individuais:
 - **Não autorizado aqui:** adicionar qualquer símbolo, tocar a política de link nativo, ou entregar `MATH001`/novo gap code como estado final sem decisão.
 - **Classificação:** `post-1.0` conforme as labels da #717 (superfície nova de stdlib, não é bloqueador 1.0). A alegação do autor de que o trabalho já existe ("12 símbolos em `KofMath.functions()`", "`KofMathTest` 29 run") **NÃO** está na árvore — medido acima.
 - **Relações:** `Related: D-DECISION-BATCH-2709B (#3 pow = libm), D-FULL-PARITY-050, D-KOF-FIRST, rule 5, rule 6, rule 11`; plano `docs/stdlib/PLAN-STDLIB-EXPANSION.md`.
+
+---
+
+## D-KOFSHARE-100KOF — o KofShare é um aplicativo 100% Kof (servidor + cliente); interop NÃO é rota de produto; a decisão de capacidade do §559 é (a) frente stdlib (mantenedora 01/10/2026, diretriz "o kofshare é 100% feito em kof" / "kofshare é um aplicativo, um servidor e um cliente")
+
+**Estado:** DECIDIDO — fecha a escolha regra-6 do §559; abre a frente de fila do socket-front `kof.net`
+
+- **Diretriz (mantenedora):** o KofShare — o produto de compartilhamento P2P de arquivos (servidor + cliente, repositório `kof-share`) — é escrito **inteiramente em Kof**. Interop JVM sobre `java.net.ServerSocket`/`KeyAgreement`/`Signature` é PROIBIDO como rota de produto.
+- **O que o interop foi:** a evidência de sonda do §559 — o caminho mais rápido para MEDIR as capacidades faltantes (transporte, acordo de chaves, assinatura) e derivar a semântica do protocolo de transferência (X25519 + Ed25519 + AES-GCM + framing HMAC, verde 01/10). As sondas ficam como evidência; a rota morre.
+- **Consequência da decisão (§559):** opção **(a)** — a superfície de data-plane vira uma frente oficial da stdlib: sockets orientados a conexão no namespace de rede (o menor primitivo pelo `D-KOF-FIRST`), e uma face de acordo/troca de chaves no `kof.security` (família `SECN005`). Até a frente existir, **o KofShare está BLOQUEADO por capacidade da stdlib, não por código de produto** — bloqueio honesto, nunca fallback silencioso por interop (`no-silent-fallback`).
+- **Casa arquitetural:** TCP/listen/accept/connect entra na frente de rede já autorizada pelo `D-UDP` (mesma família, mesma pergunta de namespace — a pergunta aberta (1) do plano UDP, `kof.udp` vs extensão de `kof.net`, agora É também a pergunta de nomeação do TCP; responder uma vez, para ambos).
+- **O que isto NÃO autoriza:** inventar a superfície de sockets sem a resposta da mantenedora às perguntas de namespace/bloqueio/tipos (regra 6); lançar o KofShare em interop mesmo assim; um shim C privado por produto.
+- **Relações:** `Depende de: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-UDP (pergunta de nomeação), §559 (casa catalogada)`

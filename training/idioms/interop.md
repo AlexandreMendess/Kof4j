@@ -13,8 +13,14 @@ Two surfaces, one rule: the platform already exists — do not rebuild it.
 ## Real API (measured in the compiler — 0.5.0-beta)
 
 ```kof
-// (a) JVM interop — qualified name, no wrapper
-var now = java.time.Instant.now()
+// (a) JVM interop — import first; the qualified name is NOT a general receiver
+// (measured 01/10, §558): `import java.X.Y;` + the plain name works on JDK
+// `java.*`/`javax.*` with NO external classpath; a bare-qualified CALL
+// (`java.time.Instant.now()` as a statement/argument) is SEM011 at every
+// position except var-decl initializer and `new java.X.Y(...)`.
+import java.time.Instant
+
+var now = Instant.now()
 println(now.toString())
 
 // (b) C FFI — the JVM binds any SCALAR signature (R3 generalized 18/09):
@@ -133,7 +139,7 @@ println(r.callInt("sq", listOf(5)))                    // 25 — byte-identical 
 
 // records through the boundary: composition is the platform's own JSON
 var wire = py.callJson("norm", json.encode(listOf(p)))
-var back = json.decode[Point](wire)
+var back = json.decode<Point>(wire)
 
 // the call can never hang (fatia 3) — the DEADLINE RUNS IN THE CHILD:
 py.timeout(2000)              // default 30000; 0 = no limit (declared, never silent)
