@@ -1,6 +1,6 @@
-last: votos D-KOF-NET congelaram a superfície 01/10; costuras re-medidas hoje; fatia 1 começa com a sonda RED-first de compilação do contrato
-doing: promocao-frente-rede
-next: fatia-1-jvm-superficie-e-runtime
+last: fatia 1 POUSADA 01/10 — superfície bindada em todos os alvos, descritores JVM reais, e o VERDE FALSO medido fechado (todo verbo agora recusa NET002 em todo alvo até a fatia 2 emitir o runtime); prova NetSurfaceE2ETest 7/7 + StdCatalog{,Signatures} 24/24 + ConformanceMatrix 14/14 + KofNetTest 4/4
+doing: fatia-2-runtime-jvm
+next: fatia-2-runtime-jvm — emitir JvmRuntimeSockets com corpo java.net real, virar supportedOn(kof_net_*) para só-JVM quando o método EXISTIR, e então o golden de eco NetTcpE2ETest
 location: docs/development
 state: em-desenvolvimento
 
@@ -43,7 +43,7 @@ Autoridade `grep`: `ServerSocket` em `KofHttpServer.java`/`JvmRuntimeWebServer.j
 
 ## 2. Fatias (cada uma = reivindicar-commit-testar-push, RED-first)
 
-1. **Sonda de compilação do contrato (JVM)** — registrar as faces no `StdCatalog`/typer (chamadas de membro de namespace, precedentes `web`/`db`); sondas golden de compilação: formas válidas amarram, erros de aridade/tipo são diagnósticos SEM, códigos `NET00x` reservados catalogados na matriz de paridade. Prova esperada: `NetSurfaceCompileTest` + guardas de catálogo (`StdCatalog{,Signatures}Test`) verdes, RED-first em toda forma ainda não-faciada.
+1. ~~**Sonda de compilação do contrato (JVM)**~~ — **POUSADA 01/10.** Faces registradas em `KofNet` (`staticMethod` + `instanceMethod`, handles como 1º argumento como `web`/`db`) e em `MemberCallNamespaces`; descritores JVM em `JvmRuntimeCallDescriptors`/`JvmRuntimeReturnDescriptors` (13 casos `kof_net_*`, medidos corretos no `javap`). Códigos: `NET002` = verbo de socket sem runtime (antes usado para Native/JS; agora também JVM). **Verde falso medido fechado:** a sonda provou que `javap KofRuntime.class` tem só os 8 verbos de URI + `split` — NENHUM `kof_net_listen` — então aceitar no JVM era um verde de compilação que morreria `NoSuchMethodError` no class load. `supportedOn` agora devolve `false` para todo verbo de socket em TODO alvo; o no-silent-fallback se sustenta até a fatia 2. Prova: `NetSurfaceE2ETest` **7/7** (`jvmRefusesUntilRuntimeExists`, `everyVerbRefusedOnEveryTarget`, `NET002` por alvo, aridade é diagnóstico SEM/NET nomeado, acessores de URI ainda verdes em todos os alvos de artefato, o catálogo lista exatamente os verbos de namespace), `StdCatalogTest` 11/11, `StdCatalogSignaturesTest` 13/13, `ConformanceMatrixTest` 14/14, `KofNetTest` 4/4 (1 skip de ambiente).
 2. **Runtime JVM + E2E TCP** — `JvmRuntimeSockets` (nenhum `java.net` fora do emissor de runtime, mesma higiene do servidor web): listen→accept→connect eco, worker `spawn` (a sonda de interop 01/10 é o ORÁCULO: eco de bytes, framing de chunks, offset de resume — agora em Kof puro). Prova: `NetTcpE2ETest` JVM (+Script se faciável) golden.
 3. **Runtime JVM + E2E UDP** — `DatagramSocket` bind/send/receive + recusa de 64 KiB `NET00x`; echo golden. Prova: `NetUdpE2ETest`.
 4. **Native x86-64 + portes cross** — amarrar o asm já existente nos verbos `net`; adicionar primitivas de connect+datagrama; riscv64 asm + translator aarch64 (ou gap honesto + entrada no ledger se o escopo quebrar — regra: sem escrita gigante). Prova: `NetE2ETest` native (+qemu).

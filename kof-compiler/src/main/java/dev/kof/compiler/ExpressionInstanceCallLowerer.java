@@ -187,6 +187,9 @@ public final class ExpressionInstanceCallLowerer {
     if (enumHandled >= 0) {
         return enumHandled;
     }
+    if (KofNet.isNetHandleType(recvType)) {
+        return ExpressionBuiltinInstanceCalls.lowerNet(driver, mc, ops, owner, localIdx, locals, recvType);
+    }
     if (KofWeb.isAppType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerWeb(driver, mc, ops, owner, localIdx, locals, recvType);
     }

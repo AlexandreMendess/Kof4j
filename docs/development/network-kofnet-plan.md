@@ -1,6 +1,6 @@
-last: D-KOF-NET votes frozen the surface 01/10; seams re-measured today; slice 1 starts with the RED-first compile probe of the contract
-doing: network-front-promotion
-next: slice-1-jvm-surface-and-runtime
+last: slice 1 LANDED 01/10 — surface bound on all targets, JVM descriptors real, and the measured FALSE GREEN closed (every verb now refuses NET002 on every target until slice 2 emits the runtime); proof NetSurfaceE2ETest 7/7 + StdCatalog{,Signatures} 24/24 + ConformanceMatrix 14/14 + KofNetTest 4/4
+doing: slice-2-jvm-runtime
+next: slice-2-jvm-runtime — emit JvmRuntimeSockets with a real java.net body, flip supportedOn(kof_net_*) to JVM-only when the method EXISTS, then NetTcpE2ETest echo golden
 location: docs/development
 state: under-development
 
@@ -43,7 +43,7 @@ The `Datagram` receive-carrier is the one open shape inside the frozen contract:
 
 ## 2. Slices (each = claim-commit-test-push, RED-first)
 
-1. **Surface contract compile probe (JVM)** — register the faces in `StdCatalog`/typer (namespaces member calls like `web`/`db` precedents); golden compile probes: valid forms bind, arity/type errors are SEM diagnostics, `NET00x` reserved codes catalogued in the parity matrix. Expected proof: `NetSurfaceCompileTest` + catalog guards (`StdCatalog{,Signatures}Test`) green, RED-first at every unfaced form.
+1. ~~**Surface contract compile probe (JVM)**~~ — **LANDED 01/10.** Faces registered in `KofNet` (`staticMethod` + `instanceMethod`, handles as 1st argument like `web`/`db`) and in `MemberCallNamespaces`; JVM descriptors in `JvmRuntimeCallDescriptors`/`JvmRuntimeReturnDescriptors` (13 `kof_net_*` cases, measured correct in `javap`). Codes: `NET002` = socket verb without runtime (was used for Native/JS; now also JVM). **Measured false green closed:** the probe proved `javap KofRuntime.class` has only the 8 URI verbs + `split` — NO `kof_net_listen` — so JVM acceptance was a compile-green that would die `NoSuchMethodError` at class load. `supportedOn` now returns `false` for every socket verb on EVERY target; no-silent-fallback holds until slice 2. Proof: `NetSurfaceE2ETest` **7/7** (`jvmRefusesUntilRuntimeExists`, `everyVerbRefusedOnEveryTarget`, per-target `NET002`, arity is a named SEM/NET diagnostic, URI accessors still green on all artifact targets, catalog lists exactly the namespace verbs), `StdCatalogTest` 11/11, `StdCatalogSignaturesTest` 13/13, `ConformanceMatrixTest` 14/14, `KofNetTest` 4/4 (1 env-skip).
 2. **JVM runtime + TCP E2E** — `JvmRuntimeSockets` (no `java.net` outside the runtime emitter, same hygiene as the web server): listen→accept→connect echo, `spawn` worker (the 01/10 interop probe is the ORACLE: echo bytes, chunk framing, resume offset — now in pure Kof). Proof: `NetTcpE2ETest` JVM (+Script if faceable) golden.
 3. **JVM runtime + UDP E2E** — `DatagramSocket` bind/send/receive + 64 KiB `NET00x` refusal; echo golden. Proof: `NetUdpE2ETest`.
 4. **Native x86-64 + cross ports** — bind the existing asm helpers into the `net` verbs; add `connect`+datagram primitives; riscv64 asm + aarch64 translator (or honest gap + ledger entry if scope breaks — rule: no giant write). Proof: `NetE2ETest` native (+qemu).

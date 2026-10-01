@@ -213,6 +213,46 @@ final class ExpressionBuiltinInstanceCalls {
         return localIdx;
     }
 
+
+    /** D-KOF-NET fatia 1: membros de handle `net` (Listener/Conn/Endpoint). O
+     *  handle é o receiver (carregado a montante, padrão buffer/media). Fora de
+     *  JVM/ANDROID = recusa honesta NET002 (fatias 3–5 do plano portam os alvos). */
+    static int lowerNet(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
+                        String owner, int localIdx, List<IRLocalVariable> locals, Type recvType) {
+        List<Type> netArgTypes = new ArrayList<>();
+        netArgTypes.add(recvType);
+        for (ExpressionNode arg : mc.arguments()) {
+            netArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        }
+        KofNet.NetCall netCall = KofNet.instanceMethod(mc.methodName(), netArgTypes);
+        if (netCall != null) {
+            // Fatia 1 (Q5): recusa em TODO alvo ate KofNet.socketRuntimeReady
+            // virar JVM-only na fatia 2 (corpo java.net real no runtime gerado).
+            if (!KofNet.socketRuntimeReady(driver.target)) {
+                if (driver.currentDiagnostics != null) {
+                    driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                            mc.position() != null ? mc.position().line() : 0,
+                            mc.position() != null ? mc.position().column() : 0,
+                            0,
+                            mc.methodName() + ": kof.net sockets are not available on the "
+                                    + driver.target + " target yet (NET002) — plan network-kofnet",
+                            "NET002");
+                }
+                return localIdx;
+            }
+            List<Type> netParams = new ArrayList<>();
+            netParams.add(recvType); // handle (receiver) first — JvmTypeMapper maps it
+            for (ExpressionNode arg : mc.arguments()) {
+                netParams.add(ExpressionTyper.inferExprType(driver, arg, locals));
+                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+            }
+            ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
+                    netCall.function(), netParams,
+                    netCall.returnType(), KofCallKind.FUNCTION));
+        }
+        return localIdx;
+    }
+
     static int lowerBuffer(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                            String owner, int localIdx, List<IRLocalVariable> locals, Type recvType) {
         KofBuffer.BufferCall bufferCall =

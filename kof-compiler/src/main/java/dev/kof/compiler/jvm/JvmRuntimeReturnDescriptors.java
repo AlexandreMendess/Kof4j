@@ -94,6 +94,16 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_web_stats" -> "Ljava/lang/String;";
             case "kof_log_debug", "kof_log_info", "kof_log_warn", "kof_log_error" -> "V";
             case "kof_db_connect", "kof_db_connect2" -> "Ljava/lang/String;";
+            // D-KOF-NET front — returns espelhando JvmRuntimeCallDescriptors.
+            case "kof_net_listen" -> "Ldev/kof/runtime/KofRuntime$NetListener;";
+            case "kof_net_accept" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_connect" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_bind" -> "Ldev/kof/runtime/KofRuntime$NetEndpoint;";
+            case "kof_net_send" -> "I";
+            case "kof_net_receive", "kof_net_receiveFrom" -> "[B";
+            case "kof_net_sendTo" -> "I";
+            case "kof_net_peer" -> "Ljava/lang/String;";
+            case "kof_net_close" -> "V";
             case "kof_db_close", "kof_db_transaction" -> "V";
             case "kof_db_execute", "kof_db_execute1", "kof_db_execute2", "kof_db_execute3", "kof_db_execute4" -> "I";
             case "kof_db_query0", "kof_db_query1", "kof_db_query2", "kof_db_query3", "kof_db_query4",

@@ -424,6 +424,18 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_net_scheme", "kof_net_host", "kof_net_port",
                     "kof_net_path", "kof_net_query", "kof_net_fragment",
                     "kof_net_queryEncode", "kof_net_queryDecode", "kof_encoding_hexEncode", "kof_encoding_hexDecode", "kof_encoding_base64Encode", "kof_encoding_base64Decode" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            // D-KOF-NET front (plan network-kofnet, fatia 1): handles opacos —
+            // as classes internas Net* do KofRuntime sao emitadas na fatia 2.
+            case "kof_net_listen" -> "(I)Ldev/kof/runtime/KofRuntime$NetListener;";
+            case "kof_net_accept" -> "(Ldev/kof/runtime/KofRuntime$NetListener;)Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_connect" -> "(Ljava/lang/String;I)Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_bind" -> "(I)Ldev/kof/runtime/KofRuntime$NetEndpoint;";
+            case "kof_net_send" -> "(Ldev/kof/runtime/KofRuntime$NetConn;[B)I";
+            case "kof_net_receive" -> "(Ldev/kof/runtime/KofRuntime$NetConn;I)[B";
+            case "kof_net_sendTo" -> "(Ldev/kof/runtime/KofRuntime$NetEndpoint;Ljava/lang/String;[B)I";
+            case "kof_net_receiveFrom" -> "(Ldev/kof/runtime/KofRuntime$NetEndpoint;I)[B";
+            case "kof_net_peer" -> "(Ldev/kof/runtime/KofRuntime$NetEndpoint;)Ljava/lang/String;";
+            case "kof_net_close" -> "(Ljava/lang/Object;)V";
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_uuid_v4", "kof_uuid_v7" -> "()Ljava/lang/String;";
             case "kof_uuid_isUuid" -> "(Ljava/lang/String;)Z";

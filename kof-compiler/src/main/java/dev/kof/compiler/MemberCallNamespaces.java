@@ -262,6 +262,19 @@ final class MemberCallNamespaces {
             }
             return unknown(sa, "web", mc.methodName());
         }
+        // D-KOF-NET (fatia 1): membros de handle `net` (Listener/Conn/Endpoint).
+        // Sem braço próprio caíam em webInstance → null silencioso (a família
+        // R6 do §498). Handle é o 1º argumento na rota de membros (padrão web/db).
+        if (KofNet.isNetHandleType(recvType)) {
+            java.util.List<Type> netArgTypes = new java.util.ArrayList<>();
+            netArgTypes.add(recvType);
+            for (ExpressionNode arg : mc.arguments()) {
+                netArgTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            }
+            KofNet.NetCall netCall = KofNet.instanceMethod(mc.methodName(), netArgTypes);
+            if (netCall != null) return netCall.returnType();
+            return unknown(sa, "net", mc.methodName());
+        }
         return webInstance(sa, mc, scope, recvType);
     }
 
