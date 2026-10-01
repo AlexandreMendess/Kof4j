@@ -102,6 +102,7 @@ public final class StdCatalog {
                     Map.entry("dayOfWeek", List.of("dayOfWeek(Int y, Int m, Int d) -> Int")),
                     Map.entry("isWeekend", List.of("isWeekend(Int y, Int m, Int d) -> Bool")),
                     Map.entry("daysBetween", List.of("daysBetween(Int y1, Int m1, Int d1, Int y2, Int m2, Int d2) -> Int")),
+                    Map.entry("age", List.of("age(Int by, Int bm, Int bd, Int ry, Int rm, Int rd) -> Int")),
                     Map.entry("isToday", List.of("isToday(Int y, Int m, Int d) -> Bool")),
                     Map.entry("addDays", List.of("addDays(String iso, Int days) -> String")),
                     Map.entry("diffDays", List.of("diffDays(String isoA, String isoB) -> Int")),

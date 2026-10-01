@@ -84,8 +84,20 @@ public final class JvmTimeRuntime {
                                                        int y2, int m2, int d2) {
                     if (!kof_time_validDate(y1, m1, d1) || !kof_time_validDate(y2, m2, d2)) return 0;
                     // 1..9999 => diff cabe em Int (máx ~3.65M dias)
-                    return (int) (kof_time_epochDay(y2, m2, d2) - kof_time_epochDay(y1, m1, d1));
-                }
+                     return (int) (kof_time_epochDay(y2, m2, d2) - kof_time_epochDay(y1, m1, d1));
+                 }
+
+                 // kof_time_age(birthY,birthM,birthDay, refY,refM,refDay) -> Int | 0
+                 // Anos COMPLETOS entre as duas datas. Aritmética inteira (sem
+                 // java.time) => MESMA fórmula nos 5 alvos => paridade byte-a-byte.
+                 // Data inválida => 0 (política do wedge).
+                 public static int kof_time_age(int by, int bm, int bd,
+                                                int ry, int rm, int rd) {
+                     if (!kof_time_validDate(by, bm, bd) || !kof_time_validDate(ry, rm, rd)) return 0;
+                     int years = ry - by;
+                     if (rm < bm || (rm == bm && rd < bd)) years -= 1;
+                     return years;
+                 }
 
                 // ── kof.time (STDLIB S7a) — data ISO (String) add/diff ─────
                 // "YYYY-MM-DD" estrito; inválido => "" (add) / 0 (diff) —

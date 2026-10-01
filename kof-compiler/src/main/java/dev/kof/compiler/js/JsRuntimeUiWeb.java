@@ -474,10 +474,19 @@ public final class JsRuntimeUiWeb {
             export function kofTimeIsWeekend(year, month, day) {
                 return kofTimeDayOfWeek(year, month, day) >= 6 ? 1 : 0;
             }
-            export function kofTimeDaysBetween(y1, m1, d1, y2, m2, d2) {
-                if (!kofTimeValidDate(y1, m1, d1) || !kofTimeValidDate(y2, m2, d2)) return 0;
-                return kofTimeEpochDay(y2, m2, d2) - kofTimeEpochDay(y1, m1, d1);
-            }
+             export function kofTimeDaysBetween(y1, m1, d1, y2, m2, d2) {
+                 if (!kofTimeValidDate(y1, m1, d1) || !kofTimeValidDate(y2, m2, d2)) return 0;
+                 return kofTimeEpochDay(y2, m2, d2) - kofTimeEpochDay(y1, m1, d1);
+             }
+             // STDLIB S7-wedge ext — idade: anos COMPLETOS entre nascimento e
+             // referência. Mesma fórmula inteira dos demais alvos => paridade
+             // byte-idêntica. Data inválida => 0 (política do wedge).
+             export function kofTimeAge(by, bm, bd, ry, rm, rd) {
+                 if (!kofTimeValidDate(by, bm, bd) || !kofTimeValidDate(ry, rm, rd)) return 0;
+                 let years = ry - by;
+                 if (rm < bm || (rm === bm && rd < bd)) years -= 1;
+                 return years;
+             }
             // STDLIB S7b — data ISO (String) add/diff. MESMO algoritmo civil
             // do wedge (época de Hinnant + inversa), SEM Date (evita DST e o
             // parse de ano 2-dígitos) => paridade byte-idêntica JVM/JS/Native.

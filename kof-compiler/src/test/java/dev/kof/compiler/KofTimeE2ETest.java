@@ -406,11 +406,52 @@ class KofTimeE2ETest {
                     println(time.isWeekend(2024, 2, 25))
                     println(time.isWeekend(2024, 2, 29))
                 }
-                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n31\n0\ntrue\nfalse");
-    }
+                 """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n31\n0\ntrue\nfalse");
+     }
 
-    @Test
-    void calendarCrossArchRuntimes(@TempDir Path tempDir) throws IOException {
+     @Test
+     void calendarAgeJvm(@TempDir Path tempDir) throws IOException {
+         runJvm(tempDir, ageProgram(), ageGolden());
+     }
+
+     @Test
+     void calendarAgeJs(@TempDir Path tempDir) throws IOException {
+         runJs(tempDir, ageProgram(), ageGolden());
+     }
+
+     @Test
+     void calendarAgeNative(@TempDir Path tempDir) throws IOException {
+         runNative(tempDir, ageProgram(), ageGolden());
+     }
+
+     private static String ageProgram() {
+         return """
+                 main() {
+                     println(time.age(2000, 5, 15, 2025, 5, 14))
+                     println(time.age(2000, 5, 15, 2025, 5, 15))
+                     println(time.age(2000, 5, 15, 2025, 5, 16))
+                     println(time.age(2000, 5, 15, 2026, 1, 1))
+                     println(time.age(2000, 2, 29, 2001, 2, 28))
+                     println(time.age(2000, 2, 29, 2004, 2, 29))
+                     println(time.age(2000, 2, 29, 2000, 2, 29))
+                     println(time.age(2025, 12, 31, 2026, 1, 1))
+                     println(time.age(2020, 1, 1, 2015, 1, 1))
+                     println(time.age(2000, 13, 1, 2025, 1, 1))
+                     println(time.age(2000, 1, 1, 2025, 1, 32))
+                     println(time.age(0, 1, 1, 2025, 1, 1))
+                     println(time.age(1925, 1, 1, 2025, 1, 1))
+                 }
+                 """;
+     }
+
+     private static String ageGolden() {
+         // anos completos: não-reached / exato / after / mês-anterior / Feb29->nonleap
+         // / Feb29 leap / same-date / virada / ref<birth(neg) / invalidas(0) / 100anos
+         return "24\n25\n25\n25\n0\n4\n0\n0\n-5\n0\n0\n0\n100";
+     }
+
+     @Test
+     void calendarCrossArchRuntimes(@TempDir Path tempDir) throws IOException {
         // PRIMEIRO teste de calendário que EXECUTA riscv/aarch (assert-only +
         // qemu; bug 59 é só no link do println).
         String src = """
@@ -442,9 +483,22 @@ class KofTimeE2ETest {
                     assert(!time.isWeekend(2026, 9, 9))
                     assert(!time.isWeekend(2026, 9, 7))
                     assert(!time.isWeekend(2026, 2, 30))
-                    assert(time.isWeekend(2024, 2, 25))
-                    assert(!time.isWeekend(2024, 2, 29))
-                }
+                     assert(time.isWeekend(2024, 2, 25))
+                     assert(!time.isWeekend(2024, 2, 29))
+                     assert(time.age(2000, 5, 15, 2025, 5, 14) == 24)
+                     assert(time.age(2000, 5, 15, 2025, 5, 15) == 25)
+                     assert(time.age(2000, 5, 15, 2025, 5, 16) == 25)
+                     assert(time.age(2000, 5, 15, 2026, 1, 1) == 25)
+                     assert(time.age(2000, 2, 29, 2001, 2, 28) == 0)
+                     assert(time.age(2000, 2, 29, 2004, 2, 29) == 4)
+                     assert(time.age(2000, 2, 29, 2000, 2, 29) == 0)
+                     assert(time.age(2025, 12, 31, 2026, 1, 1) == 0)
+                     assert(time.age(2020, 1, 1, 2015, 1, 1) == -5)
+                     assert(time.age(2000, 13, 1, 2025, 1, 1) == 0)
+                     assert(time.age(2000, 1, 1, 2025, 1, 32) == 0)
+                     assert(time.age(0, 1, 1, 2025, 1, 1) == 0)
+                     assert(time.age(1925, 1, 1, 2025, 1, 1) == 100)
+                 }
                 """;
         if (has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")) {
             runQemu(tempDir, Target.NATIVE_RISCV64, "qemu-riscv64", src);
