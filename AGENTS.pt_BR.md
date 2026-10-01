@@ -174,6 +174,8 @@ identity:
 
 preferred: kof-agent-worker
 
+by: local-ipv4
+
 fallback: maintainer-default
 
 forbidden:
@@ -181,6 +183,12 @@ forbidden:
 * email sintético
 * Co-authored-by
 * truques de identidade
+
+rule:
+
+* identifique pelo **IPv4 local** (`hostname -I`) — DOING §Operating-loop regra 9
+* toda reivindicação `EM CURSO`/`FEITO` leva `dono = <IPv4 local>`, não "esta sessão"
+* nunca agir na lane de outro dono só pelo IP — emenda 21/09: confirme por sessão + lane + SHA/IP do commit (roteador/DHCP mudam o endereço)
 
 ---
 

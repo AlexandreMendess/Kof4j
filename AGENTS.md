@@ -152,11 +152,18 @@ rule:
 
 identity:
 preferred: kof-agent-worker
+by: local-ipv4
 fallback: maintainer-default
 forbidden:
 - synthetic email
 - Co-authored-by
 - identity tricks
+
+rule:
+
+* identify by the **local IPv4** (`hostname -I`) — DOING §Operating-loop rule 9
+* every `IN PROGRESS`/`DONE` claim carries `owner = <local-ipv4>`, not "this session"
+* never act on another owner's lane on IP alone — the 21/09 amendment: confirm by session + lane + commit SHA/IP (routers/DHCP change the address)
 
 ---
 
