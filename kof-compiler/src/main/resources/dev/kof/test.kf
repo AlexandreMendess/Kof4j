@@ -37,6 +37,32 @@ Void assertNotEqualInt(Int unexpected, Int actual, String label) {
     }
 }
 
+Void assertNotEqualString(String unexpected, String actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect \"" + actual + "\")"
+    }
+}
+
+Void assertEqualBool(Bool expected, Bool actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+// Comparacao com null (generico, apagado no alvo): aceita qualquer T? e recusa
+// o tipo errado ainda em compilacao. Escrito EM KOF — nenhuma primitiva nova.
+Void assertNull<T>(T? value, String label) {
+    if (value != null) {
+        throw "assertion failed: " + label + " (expected null)"
+    }
+}
+
+Void assertNotNull<T>(T? value, String label) {
+    if (value == null) {
+        throw "assertion failed: " + label + " (expected non-null)"
+    }
+}
+
 Void fail(String label) {
     throw "assertion failed: " + label
 }

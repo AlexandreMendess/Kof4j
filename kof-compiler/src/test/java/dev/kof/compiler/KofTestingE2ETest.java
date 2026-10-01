@@ -52,6 +52,32 @@ class KofTestingE2ETest {
                 } catch (String e) {
                     println(e)
                 }
+                assertNull<String>(null, "null")
+                assertNotNull<String>("x", "notnull")
+                try {
+                    assertNull<String>("x", "boomnull")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotNull<String>(null, "boomnotnull")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertEqualBool(true, false, "boomeqbool")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotEqualString("a", "a", "boomneqstr")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
                 assertThrows(() -> { throw "expected" }, "throws")
                 try {
                     assertThrows(() -> { println("NOOP") }, "boomthrows")
@@ -68,6 +94,10 @@ class KofTestingE2ETest {
           + "assertion failed: boomstr (expected \"a\", got \"b\")\n"
           + "assertion failed: boomtrue\n"
           + "assertion failed: boomfail\n"
+          + "assertion failed: boomnull (expected null)\n"
+          + "assertion failed: boomnotnull (expected non-null)\n"
+          + "assertion failed: boomeqbool (expected true, got false)\n"
+          + "assertion failed: boomneqstr (did not expect \"a\")\n"
           + "NOOP\n"
           + "assertion failed: boomthrows (expected an exception)\n"
           + "ALL PASS";

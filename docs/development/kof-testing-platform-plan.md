@@ -12,7 +12,16 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15).
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10 — §4.1 complete.
+
+> **Slice 3 (LANDED 01/10).** The remaining §4.1 assertions added to the `kof.test` virtual package:
+> `assertNotEqualString`, `assertEqualBool`, `assertNull<T>(T? value, String label)` and
+> `assertNotNull<T>(T? value, String label)`. The null checks are **generic over `T?`** (erased
+> per target) so they accept any nullable value and still reject the wrong type at compile time;
+> nothing new was added to the language. Additive, pure Kof, no per-target runtime. Proof:
+> `KofTestingE2ETest` **7/7** across JVM + JS + Script + Native x86-64 + cross riscv64(qemu) +
+> aarch64(qemu), golden-parity with the JVM oracle (RED pre-slice 6/7 `SEM015 Undefined function`).
+> §4.1 is now complete; next are lifecycle (§4.2) and the integration/browser faces (§11 phases 2–4).
 
 > **Slice 2 (LANDED 30/09).** `assertThrows(() -> Void block, String label)` added to the `kof.test` virtual package. The blocker was `known-bugs` §549: the native `try` handler leaked on the normal exit path, so this exact helper took the catch on the no-exception path on native. §549 is now FIXED (new IR `KofExcUnlink` on the normal fall-through, x86 + riscv/aarch64 cross, parity in interpreter/JS; see CHANGELOG). Proof: `KofTestingE2ETest` **7/7** across JVM + JS + Script + Native x86-64 + cross riscv64(qemu) + aarch64(qemu), golden-parity with the JVM oracle (RED pre-fix 3/7). A residual native face remained (`return`/`break`/`continue` INSIDE a `try`, one of which crashed the next throw) and is catalogued as §551 — it did NOT gate this slice, and is now ✅ FIXED 01/10 (per-region depth + chain-relative unlink).
 

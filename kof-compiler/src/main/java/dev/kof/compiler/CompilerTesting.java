@@ -11,8 +11,9 @@ import java.util.List;
  * Pacote virtual {@code kof.test} (D-TESTING-PLATFORM, 28/09/2026;
  * design em {@code D-FUTURE-BATCH-2809B}). Os helpers de asserção
  * ({@code assertTrue}/{@code assertFalse}/{@code assertEqualInt}/
- * {@code assertEqualString}/{@code assertNotEqualInt}/{@code fail}) são
- * escritos EM KOF
+ * {@code assertEqualString}/{@code assertNotEqualInt}/{@code assertNotEqualString}/
+ * {@code assertEqualBool}/{@code assertNull}/{@code assertNotNull}/{@code assertThrows}/
+ * {@code fail}) são escritos EM KOF
  * ({@code dev/kof/test.kf} no resource) e injetados FLAT no
  * {@code import kof.test} EXPLÍCITO — mesmo mecanismo de
  * {@code kof.pagination}/{@code kof.pairs}. Aditivo à superfície
