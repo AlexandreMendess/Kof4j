@@ -131,7 +131,11 @@ final class JvmFfiRuntime {
                                 char e = sig.charAt(cur + 1);
                                 cur += 2;
                                 pl[i] = java.lang.foreign.ValueLayout.ADDRESS;
-                                real[i] = kof_ffi_copy_in(arena, args[i], e);
+                                // D-MEM-FFI-CROSS-FULL face 2: `String[]` -> `char**`
+                                // (cada elemento vira um cstr NUL-terminado na arena).
+                                real[i] = (e == 'S')
+                                        ? kof_ffi_copy_in_strings(arena, args[i])
+                                        : kof_ffi_copy_in(arena, args[i], e);
                             } else if (c == 'B') {
                                 // D6-3 / D-R3-BUFFER: Buffer(U8) INOUT — copy-in
                                 // para a arena da chamada; o copy-back acontece
@@ -343,6 +347,24 @@ final class JvmFfiRuntime {
                     java.lang.foreign.ValueLayout vl = kof_ffi_layout(e);
                     java.lang.foreign.MemorySegment seg = arena.allocate(vl, n);
                     java.lang.foreign.MemorySegment.copy(arr, 0, seg, vl, 0, n);
+                    return seg;
+                }
+
+                // D-MEM-FFI-CROSS-FULL face 2: `String[]` -> `char**`. Cada String
+                // vira um cstr NUL-terminado na arena da chamada (mesma forma do
+                // escalar 'S') e um array de ADDRESS recebe os ponteiros; null -> 0.
+                static java.lang.foreign.MemorySegment kof_ffi_copy_in_strings(
+                        java.lang.foreign.Arena arena, Object arr) {
+                    int n = java.lang.reflect.Array.getLength(arr);
+                    java.lang.foreign.MemorySegment seg = arena.allocate(
+                            java.lang.foreign.ValueLayout.ADDRESS, n == 0 ? 1 : n);
+                    for (int i = 0; i < n; i++) {
+                        String s = (String) java.lang.reflect.Array.get(arr, i);
+                        if (s != null) {
+                            seg.setAtIndex(java.lang.foreign.ValueLayout.ADDRESS, i,
+                                    arena.%1$s(s));
+                        }
+                    }
                     return seg;
                 }
 

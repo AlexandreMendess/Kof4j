@@ -360,17 +360,17 @@ class FfiNativeE2ETest {
 
     // ── gaps honestos travados (R6, §350: linha da DECLARAÇÃO) ──────────
     @Test
-    void listArgStaysFfi001AtDeclLineNative(@TempDir Path dir) throws IOException {
-        Path src = dir.resolve("ffi-list.kf");
+    void nestedArrayStaysFfi001AtDeclLineNative(@TempDir Path dir) throws IOException {
+        Path src = dir.resolve("ffi-nestedarr.kf");
         Files.writeString(src, """
-                extern "libc.so.6" sum(String[] xs): Int
+                extern "libc.so.6" sum(Int[][] xs): Int
 
                 main() {
                     println("hi")
                 }
                 """);
         CompilationResult r = driver.compile(src, dir.resolve("out"), Target.NATIVE);
-        assertFalse(r.success(), "String[] (array de ponteiros) segue gap honesto no Native");
+        assertFalse(r.success(), "Int[][] (array aninhado) segue gap honesto no Native");
         String diags = r.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("FFI001"), "expected FFI001, got: " + diags);
         assertTrue(diags.contains("line=1, column=1"), "diagnostic must point at the DECL line (§350): " + diags);

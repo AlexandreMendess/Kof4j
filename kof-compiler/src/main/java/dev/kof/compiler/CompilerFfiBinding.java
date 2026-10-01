@@ -45,6 +45,12 @@ final class CompilerFfiBinding {
                 // no JVM E no runner JS (copy-in 21/09: o Marshal lê o array JS e
                 // copia para a arena da chamada). Native fica no gap code (R6).
                 if (FfiSignature.arrayElemChar(param.type()) != null) continue;
+                // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` binda no
+                // JVM (FFM). O runner JS ainda não tem o marshal de `char**`
+                // (host bridge) — segue FFI002 honesto (R6); o nativo tem o seu
+                // próprio caminho abaixo.
+                if (driver.target == Target.JVM
+                        && FfiSignature.isStringArray(param.type())) continue;
                 // D6-3 / D-R3-BUFFER: `Buffer(U8)` como param INOUT binda no JVM E
                 // no runner JS (bridge de buffer 21/09: `packBuffer` copia in e o
                 // copy-back pós-chamada devolve ao `Uint8Array` do guest, paridade
@@ -118,6 +124,13 @@ final class CompilerFfiBinding {
             Character ae = FfiSignature.arrayElemChar(param.type());
             if (ae != null) {
                 paramTypes.add(FfiStructLayout.arrayPtrType(ae));
+                continue;
+            }
+            // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` — um
+            // ponteiro INTEGER (como o array-ptr escalar) em x86-64 e no cross;
+            // o call-site empacota o payload de cada String (offset 24).
+            if (FfiSignature.isStringArray(param.type())) {
+                paramTypes.add(FfiStructLayout.arrayPtrType('S'));
                 continue;
             }
             // D6-3/D-R3-BUFFER (fatias A2 + B): `Buffer(U8)` INOUT atravessa como

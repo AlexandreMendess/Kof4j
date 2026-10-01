@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -155,23 +154,23 @@ class FfiNativeArrayE2ETest {
     }
 
     @Test
-    void stringArrayStaysFfi001NativeAndCross(@TempDir Path dir) throws IOException {
-        // `String[]` é array de ponteiros (distinto do copy-in escalar) — segue
-        // FFI001 honesto no Native x86-64 e no cross (R6).
+    void stringArrayBindsNativeAndCross(@TempDir Path dir) throws IOException {
+        // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` binda no Native
+        // x86-64 E no cross (sem link/execução aqui — só o gate na declaração; a
+        // prova por execução está em FfiNativeStringArrayE2ETest). Antes o gate
+        // devolvia FFI001 honesto (R6).
         Path str = dir.resolve("StringArray.kf");
         Files.writeString(str, """
                 extern "libc.so.6" probe(String[] xs, Long n): Int
-                main() { println("gap") }
+                main() { println("bound") }
                 """);
         CompilationResult rs = driver.compile(str, dir.resolve("out-str"), Target.NATIVE);
-        assertFalse(rs.success(), "String[] não pode virar silêncio no Native");
-        assertTrue(rs.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "String[] → FFI001 honesto: " + rs.diagnostics().getDiagnostics());
+        assertTrue(rs.success(), "String[] must bind on Native x86-64: "
+                + rs.diagnostics().getDiagnostics());
 
         CompilationResult rc = driver.compile(str, dir.resolve("out-str-cross"), Target.NATIVE_RISCV64);
-        assertFalse(rc.success(), "String[] não pode virar silêncio no cross");
-        assertTrue(rc.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "String[] cross → FFI001 honesto: " + rc.diagnostics().getDiagnostics());
+        assertTrue(rc.success(), "String[] must bind on cross riscv64: "
+                + rc.diagnostics().getDiagnostics());
     }
 
     /**

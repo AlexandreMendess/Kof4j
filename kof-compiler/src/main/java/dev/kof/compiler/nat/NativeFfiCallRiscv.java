@@ -89,8 +89,14 @@ final class NativeFfiCallRiscv {
         for (int i = 0; i < n; i++) {
             if (!isArray[i]) continue;
             sb.append("    ld a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
-            sb.append("    li a1, ").append(NativeFfiCall.arrayElemSize(arrayElem[i])).append("\n");
-            sb.append("    call kof_ffi_pack_array\n");
+            if (arrayElem[i] == 'S') {
+                // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**` (payload de
+                // cada String; sem tamanho de elemento).
+                sb.append("    call kof_ffi_pack_str_array\n");
+            } else {
+                sb.append("    li a1, ").append(NativeFfiCall.arrayElemSize(arrayElem[i])).append("\n");
+                sb.append("    call kof_ffi_pack_array\n");
+            }
             sb.append("    sd a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
         }
         // 0) D-MEM030-BORROW-RUNTIME (B-03): cada `Buffer(U8)` INOUT adquire um
@@ -336,6 +342,59 @@ final class NativeFfiCallRiscv {
                     call kof_memcpy
                 .Lfpa_done:
                     mv   a0, s3
+                    ld   s3, 8(sp)
+                    ld   s2, 16(sp)
+                    ld   s1, 24(sp)
+                    ld   s0, 32(sp)
+                    ld   ra, 40(sp)
+                    addi sp, sp, 48
+                    ret
+                """);
+    }
+
+    /**
+     * D-MEM-FFI-CROSS-FULL face 2: empacota um array Kof `String[]` num
+     * `char**` C — cada slot recebe o payload UTF-8 do objeto String (offset 24,
+     * cstr NUL-terminado já usado pelo escalar `'S'`), NULL→0. Copy-in por
+     * chamada. {@code a0} = objeto array; retorno {@code a0} = buffer
+     * ({@code kof_alloc}). Layout Kof: len em 16(obj), ponteiros em 24. O
+     * aarch64 o recebe por tradução (slli/ld/sd/add/addi/bge/beqz/j/call/ret
+     * todos cobertos pelo tradutor).
+     */
+    static void emitRiscvStrArrayPackHelper(StringBuilder sb) {
+        sb.append("""
+                .globl kof_ffi_pack_str_array
+                .type kof_ffi_pack_str_array, @function
+                kof_ffi_pack_str_array:
+                    addi sp, sp, -48
+                    sd   ra, 40(sp)
+                    sd   s0, 32(sp)
+                    sd   s1, 24(sp)
+                    sd   s2, 16(sp)
+                    sd   s3, 8(sp)
+                    mv   s0, a0              # objeto array
+                    lw   s1, 16(s0)          # len
+                    slli a0, s1, 3           # bytes = len * 8
+                    bnez a0, .Lfps_alloc
+                    li   a0, 8               # alocação mínima (≠0)
+                .Lfps_alloc:
+                    call kof_alloc
+                    mv   s2, a0              # dst
+                    li   s3, 0               # k
+                .Lfps_loop:
+                    bge  s3, s1, .Lfps_done
+                    slli t0, s3, 3
+                    add  t1, s0, t0
+                    ld   t2, 24(t1)          # elemento String (objeto ou 0)
+                    beqz t2, .Lfps_store
+                    addi t2, t2, 24          # payload cstr
+                .Lfps_store:
+                    add  t1, s2, t0
+                    sd   t2, 0(t1)
+                    addi s3, s3, 1
+                    j    .Lfps_loop
+                .Lfps_done:
+                    mv   a0, s2
                     ld   s3, 8(sp)
                     ld   s2, 16(sp)
                     ld   s1, 24(sp)

@@ -75,6 +75,7 @@ public final class FfiStructLayout {
             case 'f' -> Type.PrimitiveType.FLOAT;
             case 'd' -> Type.PrimitiveType.DOUBLE;
             case 'b' -> Type.PrimitiveType.BOOL;
+            case 'S' -> BuiltinTypes.STRING;   // D-MEM-FFI-CROSS-FULL face 2
             default -> Type.PrimitiveType.INT;
         };
     }

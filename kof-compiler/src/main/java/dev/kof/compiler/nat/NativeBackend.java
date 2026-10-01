@@ -131,6 +131,8 @@ public class NativeBackend implements Backend {
     boolean ffiUsesCstr = false;
     /** D6-2/3.7: algum extern recebe array `T[]`→`ptr` (pede `kof_ffi_pack_array`). */
     boolean ffiUsesArray = false;
+    /** D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**` (pede `kof_ffi_pack_str_array`). */
+    boolean ffiUsesStrArray = false;
     final Map<String, String> functionMangleMap = new HashMap<>();
     private final Map<String, ClassLayout> layoutCache = new HashMap<>();
     Map<String, IRClass> allClassesMap = new HashMap<>();
