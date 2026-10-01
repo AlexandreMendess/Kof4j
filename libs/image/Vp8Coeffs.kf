@@ -28,12 +28,14 @@ class Vp8Coeffs {
         var n = f.mbCount()
         this.coeffs = new Int[n * 400]
         this.eob = new Int[n * 25]
-        var d = vp8TokenPartition(f.payload(), f.firstPartitionSize(), f.tokenPartitions())
+        var nParts = f.tokenPartitions()
+        var parts = vp8TokenPartitions(f.payload(), f.firstPartitionSize(), nParts)
         var probs = f.coeffProbs()
         var dec = Vp8CoeffDecoder(probs, this.coeffs, this.eob, f.mbCols())
         var row = 0
         while (row < f.mbRows()) {
             dec.startRow()
+            var d = parts.get(row % nParts)
             var col = 0
             while (col < f.mbCols()) {
                 var mb = row * f.mbCols() + col
@@ -299,17 +301,50 @@ Int vp8AboveCtx(Int ci) {
     return ci & 3
 }
 
-// Builds the token-partition entropy decoder (RFC 6386 §9.5). The available
-// WebP encoders (libwebp) always emit a single token partition; a frame that
-// splits its residue across more than one is refused with an explicit
-// diagnostic rather than mis-decoded (a follow-up slice).
-Vp8Bool vp8TokenPartition(Int[] frame, Int firstSize, Int n) {
-    if (n != 1) {
-        throw "IMAGE: VP8 multiple token partitions are not supported yet"
-    }
-    var start = 10 + firstSize
-    if (start > frame.length) {
+// Builds the token-partition entropy decoders (RFC 6386 §9.5). The first
+// data partition (`firstSize` bytes after the 10-byte uncompressed chunk)
+// holds the per-macroblock modes; the coefficient tokens follow it. When a
+// frame splits its residue across more than one token partition, each of the
+// first `n-1` partition sizes is written there as 3 little-endian bytes, the
+// last partition taking the remainder; macroblock row `r` is decoded with
+// partition `r % n`. A single-partition frame leaves the residue immediately
+// after the first partition.
+List<Vp8Bool> vp8TokenPartitions(Int[] frame, Int firstSize, Int n) {
+    var first = 10 + firstSize
+    if (first > frame.length) {
         throw "IMAGE: truncated VP8 token partition"
     }
-    return Vp8Bool(vp8Slice(frame, start, frame.length - start))
+    if (n == 1) {
+        return listOf(Vp8Bool(vp8Slice(frame, first, frame.length - first)))
+    }
+    var table = 3 * (n - 1)
+    if (first + table > frame.length) {
+        throw "IMAGE: truncated VP8 token partition"
+    }
+    var sizes = new Int[n]
+    var total = 0
+    var k = 0
+    while (k < n - 1) {
+        var size = frame[first + k * 3] | (frame[first + k * 3 + 1] << 8) | (frame[first + k * 3 + 2] << 16)
+        if (size < 0) {
+            throw "IMAGE: malformed VP8 token partition size"
+        }
+        sizes[k] = size
+        total = total + size
+        k = k + 1
+    }
+    var rem = frame.length - first - table - total
+    if (rem < 0) {
+        throw "IMAGE: truncated VP8 token partition"
+    }
+    sizes[n - 1] = rem
+    var parts: List<Vp8Bool> = listOf()
+    var off = first + table
+    var j = 0
+    while (j < n) {
+        parts.add(Vp8Bool(vp8Slice(frame, off, sizes[j])))
+        off = off + sizes[j]
+        j = j + 1
+    }
+    return parts
 }

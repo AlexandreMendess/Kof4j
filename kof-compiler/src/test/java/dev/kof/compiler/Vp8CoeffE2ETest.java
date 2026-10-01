@@ -24,8 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * files: a DC-only 16x16 ({@code flat16}), an all-{@code B_PRED} 32x32
  * ({@code diag32}), a 64x64 with {@code mb_no_skip_coeff=1} and many skipped
  * macroblocks ({@code skip64}) and a 64x64 mixing coefficient categories
- * ({@code cat64}). For every macroblock the Kof decoder must reproduce the
- * non-empty-block count and the signed/absolute coefficient sums exactly.
+ * ({@code cat64}), plus a 16x128 frame encoded by libvpx with 2, 4 and 8 token
+ * partitions ({@code np2}/{@code np4}/{@code np8}) whose coefficient golden is
+ * identical to the one-partition encode. For every macroblock the Kof decoder
+ * must reproduce the non-empty-block count and the signed/absolute coefficient
+ * sums exactly.
  * The oracle's per-position band lookup was cross-checked against the RFC
  * §20.16 reference {@code tokens.c} ({@code prob += bands_x[c]}, a single
  * mapping) — the Kof decoder applies the band mapping exactly once.
@@ -53,6 +56,37 @@ class Vp8CoeffE2ETest {
           + "29bfac1d5803f02e096206700c40ffa23f042099e275feffeb03ffffe4c86ffbf000feefea"
           + "3c87dbba1ae81df7cea6b0ba4b7d01db3e51344d74e50de3adef74cd294734473b63de1363"
           + "d6c97e017c2accc9adb06c756c3ebda3959f373f50db6ff0739c41c1136c0872340000";
+    // Multi-token-partition fixtures (libvpx 1.14, `VP8E_SET_TOKEN_PARTITIONS`):
+    // a 16x128 frame (8 macroblock rows) encoded with 2, 4 and 8 token
+    // partitions. The row-to-partition map (`row % n`) is the only difference
+    // from the single-partition encode; libwebp decodes all four to the same
+    // picture, and the coefficient golden is identical to the 1-partition
+    // encode of the same content.
+    private static final String NP2_HEX =
+            "52494646c40000005745425056503820b8000000b007009d012a100080000007"
+          + "0885858885848842020051a9f5e7f3ecdc9288a816d05f80703a496cddbb317a"
+          + "e0815e964971e56bf54b37ad8cf803e7647f3830af3e14912042003e0000feff"
+          + "ff02f75a8c052e10cf80f675b0a046923dffe64c27813e7025c3c367e3c8c0a1"
+          + "d3af38d846f96a57efff90c7fffef7383ffe6ee7b7589b31106d1f00d4a9fedf"
+          + "ed5fb99618a1052c9b3c2ffef2f450051e11bb323514df98a2b23d68cd426993"
+          + "191688dec1cddf111e943a00";
+    private static final String NP4_HEX =
+            "52494646cc0000005745425056503820c0000000b007009d012a100080000007"
+          + "0885858885848882020051a9f5e7f3ecdc9288a816d05f80703a496cddbb317a"
+          + "e0815e964971e56bf54b37ad8cf803e7647f3830af3e14912042001d00001800"
+          + "00220000feffff02f75a8c052e10cf80f675b0aba107d123172836a1723b76b3"
+          + "00d4a9fedfed5fb99618a1052a3806b8bb5afc8dabafe63d007cbdb158480c8d"
+          + "1135a590fc5b36c33ffc863ffff7b9c1fff3773dbac4d9888368f8be7d1c3fef"
+          + "2f450051e11bb323614fb78a09df5e2372eff000";
+    private static final String NP8_HEX =
+            "52494646e00000005745425056503820d3000000b007009d012a100080000007"
+          + "08858588858488c2020051a9f5e7f3ecdc9288a816d05f80703a496cddbb317a"
+          + "e0815e964971e56bf54b37ad8cf803e7647f3830af3e14912042001100000d00"
+          + "000c00000f00000d00000d0000180000feffff02f75a8c052e10cf80f675b090"
+          + "00d4a9fedfed5fb99618a10524007cbdb158480c8d1135a56800be7d1c3fef2f"
+          + "450051e11bb3233400d4d9d8422518f3a07fffdbb598890019d0476d1fd031db"
+          + "708000d4d9d8648afff218ffffdee707ffcddcf6eb1366220da3e0d4d7f4a96a"
+          + "3bf3d71bc4530000";
     // Dense 20x28 fixture (libwebp, quality 100): the pre-fix per-coefficient
     // `listOf` zig-zag rebuild corrupted the riscv64 decode (§547).
     private static final String BP2028_HEX =
@@ -92,7 +126,10 @@ class Vp8CoeffE2ETest {
             + "0:0:0,0:0:0,0:0:0,0:0:0,0:0:0,0:0:0,0:0:0,0:0:0,0:0:0\n"
             + "cat64 23:-69:73,21:10:14,23:8:16,21:10:14,24:-6:22,23:-7:13,22:4:8,21:-4:6,"
             + "25:-6:24,23:2:10,21:-5:5,20:-5:5,24:-4:20,23:-7:11,19:3:3,18:2:2\n"
-            + "bp2028 24:-291:4807,22:-173:1847,23:338:3792,14:369:1483";
+            + "bp2028 24:-291:4807,22:-173:1847,23:338:3792,14:369:1483\n"
+            + "np2 14:-96:152,14:0:58,13:2:48,14:-94:150,13:-5:51,15:17:53,15:39:137,15:-5:49\n"
+            + "np4 14:-96:152,14:0:58,13:2:48,14:-94:150,13:-5:51,15:17:53,15:39:137,15:-5:49\n"
+            + "np8 14:-96:152,14:0:58,13:2:48,14:-94:150,13:-5:51,15:17:53,15:39:137,15:-5:49";
 
     @Test
     void vp8CoeffsOnJvm() throws Exception {
@@ -141,6 +178,9 @@ class Vp8CoeffE2ETest {
         Files.write(dir.resolve("skip64.webp"), hex(SKIP64_HEX));
         Files.write(dir.resolve("cat64.webp"), hex(CAT64_HEX));
         Files.write(dir.resolve("bp2028.webp"), hex(BP2028_HEX));
+        Files.write(dir.resolve("np2.webp"), hex(NP2_HEX));
+        Files.write(dir.resolve("np4.webp"), hex(NP4_HEX));
+        Files.write(dir.resolve("np8.webp"), hex(NP8_HEX));
         return dir;
     }
 
@@ -198,6 +238,9 @@ class Vp8CoeffE2ETest {
              + "    println(\"skip64 \" + coeffs(File(\"" + base + "/skip64.webp\").readBytes()))\n"
              + "    println(\"cat64 \" + coeffs(File(\"" + base + "/cat64.webp\").readBytes()))\n"
              + "    println(\"bp2028 \" + coeffs(File(\"" + base + "/bp2028.webp\").readBytes()))\n"
+             + "    println(\"np2 \" + coeffs(File(\"" + base + "/np2.webp\").readBytes()))\n"
+             + "    println(\"np4 \" + coeffs(File(\"" + base + "/np4.webp\").readBytes()))\n"
+             + "    println(\"np8 \" + coeffs(File(\"" + base + "/np8.webp\").readBytes()))\n"
              + "}\n";
     }
 

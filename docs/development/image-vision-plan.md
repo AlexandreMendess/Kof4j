@@ -18,6 +18,7 @@
 > **VP8 lossy slice 5 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Reconstruct.kf` (new, `vp8Reconstruct`) turns the quantized coefficients into the three reconstructed **pre-loop-filter** planes (RFC 6386 §12/§14) — the residue — per-segment dequantization §14.1, inverse Walsh-Hadamard transform of the Y2 DC block §14.3 and inverse 4×4 DCT §14.4, all in `libs/image/Vp8Residual.kf` (landed as slice 5a) — then 16×16 luma (DC/V/H/TM) + the ten `B_PRED` 4×4 subblock modes §12.3 (`libs/image/Vp8Predict4.kf`) + 8×8 chroma modes §12.2 and the saturating prediction+residue sum §14.5, into padded planes. The `B_PRED` above/right pixels replicate the macroblock top-right pixels down the row (libwebp `top_right[BPS]=…`), the Y-block DC uses the Y2 `(dc[0]+3)>>3` shortcut when only the DC is non-zero, and U/V are predicted independently from their own planes. **Oracle = libwebp itself** decoded with the loop filter disabled (`ffmpeg -skip_loop_filter all`): slice 5 stops before §15, so the exact pre-filter planes are the golden. Proof: `Vp8ReconstructE2ETest` **4/4** — four real libwebp files (`flat16` 16×16 V_PRED + DC-only Y2, `diag32` all-`B_PRED` 32×32, `skip64` mixed 16×16 + skipped MBs, `cat64` mixed modes + every residual) reproduce libwebp's per-plane sample sum and a rolling hash for Y, U and V on JVM + Native x86-64 + riscv64(qemu) + Script. Next slice: the loop filter (§15), after which the full decoder is byte-identical to libwebp.
 > **VP8 lossy slice 6 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Filter.kf` (new, `vp8LoopFilter`) — the in-loop **deblocking filter** (RFC 6386 §15), the last stage of key-frame reconstruction. Per macroblock it derives the strength from the frame level and the segment override (§15.4: `interior_limit`, `hev_threshold`, the `+4` inter-macroblock edge limit), then filters the left vertical, internal vertical, top horizontal and internal horizontal edges in that order: the 4-tap adjustment (`DoFilter4`/`common_adjust` without outer taps) on inter-sub-block edges, the 6-tap one (`DoFilter6`/`MBfilter`) on inter-macroblock edges, and the simple 2-tap adjustment on high edge variance; chroma is left untouched by the simple filter type. Internal edges are skipped for a macroblock that is neither `B_PRED` nor carries coefficients (§15.1). **Oracle = libwebp itself** with its default filter enabled (plain `ffmpeg` decode): `Vp8FilterE2ETest` **4/4** — the four slice-5 fixtures reproduce libwebp's filtered per-plane sample sum and 24-bit rolling hash (`skip64`/`cat64` are the ones whose planes the filter changes), on JVM + Native x86-64 + riscv64(qemu) + Script; the two pre-filter fixtures are unchanged, matching libwebp. With this slice the pure-Kof VP8 key-frame decoder reproduces libwebp end-to-end.
 > **VP8 lossy slice 7 LANDED 01/10 (pure Kof, all targets):** `libs/image/Vp8Raster.kf` (new, `vp8Raster`) routes a lossy WebP to the `Raster` view — the honest boundary is closed. `decodeRaster(path)` now dispatches a `VP8 ` chunk through the whole key-frame chain (frame header → modes → coefficients → dequantization + intra prediction → `vp8LoopFilter`) and converts the filtered YUV 4:2:0 planes to interleaved RGB (BT.601 limited range, nearest chroma: `clip((298*(Y-16) + 409*(V-128) + 128) >> 8)`, the arithmetic shift matching libwebp's fixed point). The planes are read through the reconstruction's own `yAt/uAt/vAt` accessors, so the macroblock-padded stride (`mbCols*16+1`) is handled — the naive `width+1` stride silently corrupts a frame whose width is not a multiple of 16. Proof: `Vp8RasterE2ETest` **4/4** — five real libwebp files (`flat16`, `diag32`, `skip64`, `cat64`, `odd20x28` 20×28) reproduce libwebp's Y/U/V (slice 6) through the documented limited-range matrix; the formula was validated against libwebp's RGB output on solid chroma; JVM + Native x86-64 + riscv64(qemu) + Script, RED-first (`PKG006 import 'image.Vp8Raster' not found`).
+> **VP8 lossy slice 8 LANDED 01/10 (pure Kof, all targets):** `libs/image/Vp8Coeffs.kf` (`vp8TokenPartitions`) decodes the **multi-token-partition** key frames (RFC 6386 §9.5) instead of refusing them — the first data partition holds the 3-byte size of each of the first `n-1` partitions and macroblock row `r` uses partition `r % n` (2, 4 or 8 partitions). Fixtures are real libvpx 1.14 encodes (`VP8E_SET_TOKEN_PARTITIONS`) of a 16x128 frame. Proof: `Vp8CoeffE2ETest` **4/4** (eight fixtures: `np2`/`np4`/`np8` reproduce the single-partition coefficient golden), RED-first on JVM + Native x86-64 + riscv64(qemu) + Script.
 > **`kof.vision` region descriptors LANDED 30/09 (pure Kof, all targets):** `libs/vision/Regions.kf` (new) adds `componentBoxes(labels, width)` (exact axis-aligned bounding box per component label), `componentAreas(labels)` (pixel count per label) and `labelComponents(labels, width)` (the `List<Component>` object form) — the §12 "regions" / §14 "contour extraction" descriptors, built on `componentLabels`. Proof: `VisionAnalysisE2ETest` **4/4** (the 6×4 two-blob PGM yields `areas=3,4`, `box1=0,0,1,1`, `box2=3,1,4,2`, `regions=2 r1=1@0,0 a3`) on JVM + Native x86-64 + riscv64(qemu) + Script.
 > **Slice 3i LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L **meta-Huffman groups** (RFC 9649 §3.7.2.2): `prefix_bits = ReadBits(3)+2`; the entropy image `ceil(w/2^bits) × ceil(h/2^bits)` is entropy-decoded, each pixel's red/green bytes give its group index, one prefix-code group is read per distinct value, and each pixel selects its group by `entropy[(y>>bits)*xw + (x>>bits)]` (the LZ77 copy is not clamped to group blocks, matching libwebp). This was the last VP8L refusal — the whole VP8L lossless path now decodes. Proof: `RasterDecodeE2ETest` 19/19 (new 8x8 two-group libwebp-generated stream, byte-validated against libwebp; JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP meta-Huffman groups are not supported yet`).
 > **Slice 3f LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L **color cache** (RFC 9649 §3.6.2.3: `color_cache_code_bits` 1..11, slot `(0x1e35a7bd * argb) >> (32 - bits)`, every literal/copied pixel inserted in stream order, `S >= 256+24` reads the cache). The green prefix code alphabet is now `256+24+cache_size`. Decodes subtract-green/color-cache/single-group streams. Predictor/color/indexing transforms and meta-Huffman still refused with explicit `IMAGE:` diagnostics. Proof: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. a new 8x8 color-cache stream **generated by libwebp and byte-validated against it**, JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP color cache is not supported yet`).
@@ -959,6 +960,27 @@ ability genuinely does not exist on a target.
     limited-range matrix validated against libwebp's RGB on solid chroma, on
     JVM + Native x86-64 + riscv64(qemu) + Script.
 
+20. **VP8 lossy slice 8 — multi-token-partition decode — LANDED 01/10 (pure
+    Kof, all targets).** `libs/image/Vp8Coeffs.kf` (`vp8TokenPartitions`) now
+    decodes frames whose residue is split across 2, 4 or 8 token partitions
+    (RFC 6386 §9.5), replacing the `IMAGE: VP8 multiple token partitions are
+    not supported yet` refusal. When the frame header declares more than one
+    token partition, the first data partition carries the sizes of the first
+    `n-1` partitions as 3 little-endian bytes each (the last takes the
+    remainder); macroblock row `r` is read with partition `r % n`. The
+    single-partition path is unchanged (the residue still follows the first
+    partition directly). The previous decoder already threaded the entropy
+    decoder per macroblock, so only the partition selection and offset table
+    were added. Fixtures are real libvpx 1.14 encodes
+    (`VP8E_SET_TOKEN_PARTITIONS`) of a 16x128 frame (8 macroblock rows) at 2, 4
+    and 8 partitions — `libvpx` is the only available encoder that emits
+    multiple partitions (libwebp and ffmpeg's WebP muxer always emit one) — and
+    each decodes to exactly the single-partition coefficient golden. Proof:
+    `Vp8CoeffE2ETest` **4/4** (eight fixtures now: the five prior plus
+    `np2`/`np4`/`np8`), RED-first on the pre-slice tree
+    (`IMAGE: VP8 multiple token partitions are not supported yet`, 4/4 red), on
+    JVM + Native x86-64 + riscv64(qemu) + Script.
+
 **DECIDED 30/09 (`D-WEBP-LOSSY-PURE-KOF`, option C): WebP lossy `VP8 ` + AVIF
 as a pure-Kof decoder on all targets.** The measured finding that forced the
 decision: the JPEG escape hatch does not extend — OpenJDK 25 `javax.imageio`
@@ -974,8 +996,9 @@ DCT/WHT (§14, slice 5a LANDED) then intra prediction + reconstruction (§12);
 (4) in-loop deblocking filter; (5) the adaptive (non-keyframe) path. The
 key-frame chain is complete and routed (slice 7 LANDED 01/10): `decodeRaster`
 now decodes a lossy WebP through `libs/image/Vp8Raster.kf` (no silent wrong
-decode); AVIF follows after VP8. The adaptive (non-keyframe) path and multi-partition
-token streams remain explicit `IMAGE:` refusals, not half-decodes.
+decode); AVIF follows after VP8. Multi-token-partition key frames now decode
+(slice 8 LANDED 01/10, `libs/image/Vp8Coeffs.kf`); the adaptive (non-keyframe)
+path remains an explicit `IMAGE:` refusal, not a half-decode.
 
 ## PT
 [Português](image-vision-plan.pt_BR.md)
