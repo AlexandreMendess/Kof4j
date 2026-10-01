@@ -12,7 +12,9 @@ linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJ
 **Plano companheiro:** `test-architecture-plan.md` (refatoração da **suíte Java do próprio
 compilador** — camadas L0–L5, perfis, performance). Este documento é a **plataforma de testes do
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
-**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09 — ver §15.
+**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09 — ver §15. A fatia 2 (`assertThrows`) foi escopada: bloqueada por um defeito nativo medido (`known-bugs` §549), não por decisão regra-6.
+
+> **Escopo da fatia 2 — `assertThrows` (BLOQUEADO 30/09, defeito nativo).** Medido ao implementar o helper: um `assertThrows(() -> Void task, String label) { try { task() } catch (String e) { return } throw label + ": expected an exception" }` pure-Kof toma o catch no caminho sem-exceção em todo alvo nativo, então nunca lança. A raiz NÃO é o helper — é o `known-bugs` §549: o handler nativo de uma região `try` vaza nos caminhos de saída normal/return/break/continue e captura o próximo `throw`. Até o §549 pousar (lane nativa, cross-backend), `assertThrows` não pode ser provado no Native; implementá-lo agora shiparia um vermelho. A fatia retoma quando o §549 for corrigido (ou como caso JS/JVM-only se a mantenedora preferir, o que seria prova mais fraca — não feito aqui).
 
 > **Fatia 1 (POUSADA 30/09).** Pacote virtual pure-Kof `kof.test`
 > (recurso `dev/kof/test.kf` + `CompilerTesting.java`, injetado flat no
