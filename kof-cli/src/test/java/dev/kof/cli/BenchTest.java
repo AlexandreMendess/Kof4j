@@ -89,4 +89,20 @@ class BenchTest {
         // mediana par: média das duas centrais, ainda em ms
         assertEquals(15L, Bench.medianMs(java.util.List.of(20_000_000L, 10_000_000L)), "(20+10)/2 ms");
     }
+
+    /**
+     * Regressão (unidade + estatística): `cpu_ms` é a mediana do CPU time
+     * (user+system) de UMA iteração, em ms — não o acumulado das iterações.
+     * Antes o somatório era gravado, então `--iterations 3` inflava a coluna
+     * por 3 (700→2240 no `pipelines/map`) enquanto `ms` já era mediana.
+     */
+    @Test
+    void cpuTimeIsMeanPerIterationInMilliseconds() {
+        assertEquals(0L, Bench.medianCpuMs(java.util.List.of()), "sem amostras = 0 ms");
+        assertEquals(700L, Bench.medianCpuMs(java.util.List.of(700_000L)), "700 ms de uma iteração");
+        // 3 iterações de ~700ms NÃO podem virar 2100 (o bug antigo somava)
+        assertEquals(700L, Bench.medianCpuMs(java.util.List.of(700_000L, 710_000L, 690_000L)),
+                "mediana por iteração, não soma");
+        assertEquals(15L, Bench.medianCpuMs(java.util.List.of(20_000L, 10_000L)), "(20+10)/2 ms");
+    }
 }
