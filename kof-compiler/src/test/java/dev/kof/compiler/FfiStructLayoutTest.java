@@ -119,6 +119,24 @@ class FfiStructLayoutTest {
     }
 
     @Test
+    void crossByMemoryStructParamCountsAsOnePointer() {
+        // D-MEM-FFI-CROSS-FULL face 3 estendida: struct > 16 B como PARÂMETRO
+        // viaja como UM ponteiro INTEGER (BYREF, medido riscv64+aarch64).
+        Type big = struct('j', 'j', 'j');
+        assertTrue(FfiStructLayout.crossByMemory(Target.NATIVE_RISCV64, big),
+                "{Long,Long,Long} = 24 B → BYREF no riscv64");
+        assertTrue(FfiStructLayout.crossByMemory(Target.NATIVE_AARCH64, big),
+                "{Long,Long,Long} = 24 B → BYREF no aarch64");
+        assertTrue(FfiStructLayout.crossBindable(List.of(big, Type.PrimitiveType.LONG)),
+                "um struct > 16 B + um Long cabem (2 ordinais INTEGER)");
+        assertFalse(FfiStructLayout.crossBindable(List.of(
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, big)),
+                "8 ints já consomem os registradores → o ponteiro do struct derrama → não-bindável");
+    }
+
+    @Test
     void abiForMapsTargets() {
         assertEquals(AbiLayout.Abi.SYSV_X86_64, FfiStructLayout.abiFor(Target.NATIVE));
         assertEquals(AbiLayout.Abi.RISCV64, FfiStructLayout.abiFor(Target.NATIVE_RISCV64));

@@ -139,6 +139,11 @@ into `a0`/`a7`→`x8` and reconstructs each field from its C offset. Proof:
 `FfiNativeStructReturnE2ETest` 2/2 — a real cross `.so` returning
 `Big{long,long,long}` (24 B), byte-for-byte JVM (FFM oracle) == x86-64 ==
 riscv64(qemu) == aarch64(qemu); `FfiStructLayoutTest#crossMemoryReturnIsSretOnlyForLargeStructs`.
+The same face also binds the **>16 B by-value parameter**: measured with
+cross-gcc, both archs pass it as a pointer (`a0`/`x0`), so the emitter passes
+the object payload `obj+16` as one INTEGER (`FfiStructLayout.crossByMemory`).
+Proof `FfiCrossStructParamE2ETest` 8/8 (`bigsum(Big,long)` → `142` under qemu on
+both archs); `FfiStructLayoutTest#crossByMemoryStructParamCountsAsOnePointer`.
 
 
 ## 1. What exists today (measured 19/09, not remembered)
@@ -156,7 +161,7 @@ the nested token `(<ret><params>)`. Anything the map does not cover is a
 | scalar downcall | ✅ `kof_ffi` FFM (`JvmFfiRuntime.java:142+`) | ✅ **direct `call sym@PLT` on x86-64/riscv64/aarch64** (#431 slices 1–2, 20/09, §369 — link-by-use, no `dlopen`) | ✅ host bridge `KofJsFfiBridge` (browser degrades honestly, R7) |
 | callbacks/upcalls (3.4) | ✅ `Linker.upcallStub` | ❌ `FFI001` (no mechanism) | ✅ host |
 | String = `char*` | ✅ in + out | ✅ in (payload off 24) + out (boundary copy) | ✅ |
-| **struct (record, scalar fields)** | ✅ **by value in + out** (`@` token, 3.8b fatias 1–2, 20–21/09) | ◐ **by value param + return, register path *and* sret x86-64** (3.7 fatias 1–2b, 21/09); cross **return** INTEGER ≤ 16 B binds (fatia 3, 22/09) and **memory-path return/sret** binds (30/09 face 3, `D-MEM-FFI-CROSS-FULL`); cross `T[]`/`String[]`/`Buffer` bind (faces 1–2 + `#651` B); a >16 B struct **param**/float/HFA on riscv64/aarch64 → `FFI001` (3.7) | ✅ **by value IN + OUT** (IN: `@<n><chars>` + `__kof_ffi_fields`; OUT: `@<n><chars>` return + `__kof_ffi_from`; bridges 21/09) |
+| **struct (record, scalar fields)** | ✅ **by value in + out** (`@` token, 3.8b fatias 1–2, 20–21/09) | ◐ **by value param + return, register path *and* sret x86-64** (3.7 fatias 1–2b, 21/09); cross **return** INTEGER ≤ 16 B binds (fatia 3, 22/09) and **memory-path return/sret** binds (30/09 face 3, `D-MEM-FFI-CROSS-FULL`); cross `T[]`/`String[]`/`Buffer` bind (faces 1–2 + `#651` B) and the >16 B by-value **param** binds (30/09 face 3, BYREF pointer `a0`/`x0`, `FfiCrossStructParamE2ETest`); float/HFA on riscv64/aarch64 → `FFI001` (3.7) | ✅ **by value IN + OUT** (IN: `@<n><chars>` + `__kof_ffi_fields`; OUT: `@<n><chars>` return + `__kof_ffi_from`; bridges 21/09) |
 | **scalar array `T[]`→`ptr`** | ✅ **copy-in per call** (`p<elem>` token, 3.8b fatia 3, 21/09; no write-back) | ✅ **copy-in** for `Long[]`/`Double[]`/`Int[]`/`Float[]`/`Bool[]` — x86-64 (3.7 steps 1–2, 22/09) AND cross riscv64/aarch64 (30/09, `D-MEM-FFI-CROSS-FULL` face 1, `kof_ffi_pack_array`); `FfiNativeArrayE2ETest` (JVM==riscv64==aarch64); `String[]` (array of pointers) still `FFI001` | ✅ **copy-in per call** (`packArray` bridge, 21/09; no write-back) |
 | **out-buffer `Buffer(U8)` INOUT** | ✅ **copy-in / call / copy-back** (`B` token + `buffer.alloc`/`Buffer.bytes()`, D6-3, 21/09) | ✅ **payload pointer `obj+24` (the C write is the copy-back)** on x86-64 (#651 fatia A2, 29/09); cross riscv64/aarch64 → `FFI001` | ✅ **copy-in / call / copy-back** (`B` token + `packBuffer`/copy-back after the downcall, bridge 21/09) |
 | non-scalar array / opaque (e.g. `String[]`/`List<T>`/`Handle`) | ❌ FFI001 | ❌ FFI001 | ❌ FFI002 |

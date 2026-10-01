@@ -37,6 +37,7 @@ final class NativeFfiCallRiscv {
         int n = kc.parameterTypes().size();
         char[] cls = new char[n];
         boolean[] isStruct = new boolean[n];
+        boolean[] isMemStruct = new boolean[n];
         boolean[] isBuf = new boolean[n];
         boolean[] isArray = new boolean[n];
         char[] arrayElem = new char[n];
@@ -46,6 +47,10 @@ final class NativeFfiCallRiscv {
             if (FfiStructLayout.isStructType(pt)) {
                 isStruct[i] = true;
                 structTypes[i] = pt;
+                // D-MEM-FFI-CROSS-FULL face 3: struct > 16 B por valor →
+                // BYREF, um ponteiro INTEGER para os bytes do objeto Kof
+                // (medido 30/09: riscv64 e aarch64 passam ambos em `a0`/`x0`).
+                isMemStruct[i] = FfiStructLayout.crossByMemory(nb.target, pt);
             } else if (FfiStructLayout.isArrayPtr(pt)) {
                 // D-MEM-FFI-CROSS-FULL: array escalar `T[]`→ptr (copy-in por
                 // chamada, pack em `kof_ffi_pack_array` riscv).
@@ -80,7 +85,10 @@ final class NativeFfiCallRiscv {
         int[][] sOrd = new int[n][];
         int nInt = intBase, nFlt = 0;
         for (int i = 0; i < n; i++) {
-            if (isStruct[i]) {
+            if (isMemStruct[i]) {
+                // struct > 16 B por valor → BYREF: um ordinal de ponteiro.
+                ord[i] = nInt++;
+            } else if (isStruct[i]) {
                 int w = FfiStructLayout.crossWords(structTypes[i]);
                 sOrd[i] = new int[w];
                 for (int e = 0; e < w; e++) sOrd[i][e] = nInt++;
@@ -143,6 +151,20 @@ final class NativeFfiCallRiscv {
         //    intacto p/ os derramados; String: payload no offset 24, NULL→NULL)
         sb.append("    mv t0, sp\n");
         for (int i = 0; i < n; i++) {
+            if (isMemStruct[i]) {
+                // struct > 16 B por valor → BYREF: o valor no bloco é o objeto
+                // Kof (ponteiro); a C espera um ponteiro para os bytes, que
+                // ficam em obj+16 (header de 16 B) — o mesmo endereço que o
+                // x86 sret usa. NULL→0.
+                if (ord[i] >= 8) continue;   // derramado: passo 3
+                String dst = intRegs[ord[i]];
+                String lbl = ".Lffim" + seq + "_" + i;
+                sb.append("    ld ").append(dst).append(", ").append(8 * (n - 1 - i)).append("(t0)\n");
+                sb.append("    beqz ").append(dst).append(", ").append(lbl).append("\n");
+                sb.append("    addi ").append(dst).append(", ").append(dst).append(", 16\n");
+                sb.append(lbl).append(":\n");
+                continue;
+            }
             if (isStruct[i]) {
                 // struct INTEGER por valor: ponteiro do objeto Kof → monta cada
                 // eightbyte no registrador de destino da sua classe (fatia 4).
@@ -189,6 +211,16 @@ final class NativeFfiCallRiscv {
         //    valor cru (8 bytes) passa direto p/ o slot da C, float incluso.
         int k = 0;
         for (int i = 0; i < n; i++) {
+            if (isMemStruct[i]) {
+                if (ord[i] < 8) continue;
+                sb.append("    ld t2, ").append(8 * (n - 1 - i)).append("(t0)\n");
+                String lbl = ".Lffim" + seq + "_" + i;
+                sb.append("    beqz t2, ").append(lbl).append("\n");
+                sb.append("    addi t2, t2, 16\n");
+                sb.append(lbl).append(":\n");
+                sb.append("    sd t2, ").append(8 * k++).append("(sp)\n");
+                continue;
+            }
             if (isStruct[i]) {
                 sb.append("    ld t4, ").append(8 * (n - 1 - i)).append("(t0)\n");
                 for (int e = 0; e < sOrd[i].length; e++) {

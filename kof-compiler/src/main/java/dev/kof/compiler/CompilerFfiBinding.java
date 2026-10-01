@@ -153,9 +153,14 @@ final class CompilerFfiBinding {
             String fc = FfiSignature.structFieldChars(param.type(), driver);
             if (fc == null) return false;
             Type st = FfiStructLayout.structTypeOfChars(fc);
-            // 3.7 fatia 4: no cross o struct por valor binda só no register path
-            // INTEGER (≤ 16 B) — float/HFA/byref segue FFI001 honesto (R6).
-            if (!x86 && !FfiStructLayout.crossIntRegisterOnly(driver.target, st)) return false;
+            // 3.7 fatia 4 + D-MEM-FFI-CROSS-FULL face 3 estendida: no cross o
+            // struct por valor binda no register path INTEGER (≤ 16 B) OU no
+            // memory path (> 16 B → BYREF, um ponteiro em `a0`/`x0`; medido
+            // 30/09). float/HFA segue FFI001 honesto (R6).
+            if (!x86 && !FfiStructLayout.crossIntRegisterOnly(driver.target, st)
+                    && !FfiStructLayout.crossByMemory(driver.target, st)) {
+                return false;
+            }
             paramTypes.add(st);
         }
         // Chamada puramente escalar: binda em todo nativo (o layout x86 não se

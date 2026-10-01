@@ -186,6 +186,15 @@ public final class FfiStructLayout {
      *  {@code a0} (first real arg in {@code a1}), AAPCS64 in {@code x8} (first
      *  real arg still {@code x0}). Measured 30/09 with cross-gcc. */
     public static boolean crossMemoryReturn(Target t, Type structType) {
+        return crossByMemory(t, structType);
+    }
+
+    /** True when a cross struct travels through memory (BYREF) — as a by-value
+     *  PARAMETER passed by reference or as a RETURN via the sret pointer. Fields
+     *  may be mixed; the emitter copies raw bytes against the C layout. Measured
+     *  30/09 with cross-gcc: both riscv64 and aarch64 pass a &gt; 16 B struct
+     *  param as a pointer in `a0`/`x0`. */
+    public static boolean crossByMemory(Target t, Type structType) {
         return layout(abiFor(t), structType).byMemory();
     }
 
@@ -226,8 +235,16 @@ public final class FfiStructLayout {
                 continue;
             }
             if (isStructType(t)) {
+                // D-MEM-FFI-CROSS-FULL face 3 estendida: struct > 16 B (BYREF)
+                // viaja como UM ponteiro INTEGER (medido 30/09: riscv64 e aarch64
+                // passam ambos o param por referência em `a0`/`x0`).
                 AbiLayout.Layout l = layout(AbiLayout.Abi.RISCV64, t);
-                if (l.byMemory() || l.size() > 16 || l.classes().isEmpty()) return false;
+                if (l.byMemory()) {
+                    if (nInt >= 8) return false;
+                    nInt++;
+                    continue;
+                }
+                if (l.size() > 16 || l.classes().isEmpty()) return false;
                 for (AbiLayout.ArgClass c : l.classes()) {
                     if (c != AbiLayout.ArgClass.INTEGER) return false;
                     if (nInt >= 8) return false;
