@@ -119,8 +119,15 @@ public final class KofNet {
      *  kof_net_* (medido 01/10) — aceitar em qualquer alvo seria verde falso
      *  (class load morreria NoSuchMethodError). A fatia 2 emite o corpo
      *  java.net real e vira isto para `target == Target.JVM || target == Target.ANDROID`. */
+    /** Portão dos verbos de MEMBRO (handle receiver). Espelha
+     *  {@link #supportedOn} para os verbos `accept/send/receive/sendTo/peer/
+     *  close`, que passam pelo caminho do receiver e não pelo
+     *  `staticMethod`. Verdadeiro no JVM desde a fatia 2, quando
+     *  `JvmRuntimeSockets` emite o corpo real — os dois portões precisam
+     *  concordar, senão um verbo aceito cai num runtime sem método (o verde
+     *  falso que a fatia 1 mediu). */
     static boolean socketRuntimeReady(Target target) {
-        return false;
+        return target == Target.JVM || target == Target.ANDROID;
     }
 
     static boolean isNetHandleType(Type t) {
@@ -133,19 +140,19 @@ public final class KofNet {
 
     static boolean supportedOn(String function, Target target) {
         // URI accessors: NET001 fechado 09/09 — rodam em todo alvo (true).
-        // Socket verbs do front D-KOF-NET: NENHUM alvo aceita ainda. Medido
-        // 01/10 (fatia 1): a superfície binda e o descritor JVM sai correto
-        // (`invokestatic KofRuntime.kof_net_listen:(I)Ldev/kof/runtime/
-        // KofRuntime$NetListener;`), mas o runtime GERADO não tem o método —
-        // `javap KofRuntime.class` devolve só os 8 verbos de URI + split. Aceitar
-        // no JVM seria um verde falso (Q5): o class load morreria NoSuchMethodError.
-        // A honestidade (no-silent-fallback) manda recusar até a fatia 2
-        // (`JvmRuntimeSockets`) emitir o corpo real do runtime.
+// Socket verbs do front D-KOF-NET: JVM a partir da fatia 2 — medido
+        // 01/10, `JvmRuntimeSockets` emite o corpo real (ServerSocket/Socket/
+        // DatagramSocket) e `javap KofRuntime.class` passa a listar
+        // kof_net_listen/accept/connect/bind/send/receive/sendTo/receiveFrom/
+        // peer/close. Antes disso o gate recusava em TODO alvo: a fatia 1 mediu
+        // que aceitar sem o método no runtime gerado é um verde falso (Q5) que
+        // morre NoSuchMethodError no class load. Native/JS/Script seguem as
+        // fatias 3–5 e ainda recusam com NET002 (nunca drop silencioso).
         if (function.startsWith("kof_net_listen") || function.startsWith("kof_net_accept")
                 || function.startsWith("kof_net_connect") || function.startsWith("kof_net_bind")
                 || function.startsWith("kof_net_send") || function.startsWith("kof_net_receive")
                 || function.startsWith("kof_net_peer") || function.equals("kof_net_close")) {
-            return socketRuntimeReady(target);
+            return target == Target.JVM || target == Target.ANDROID;
         }
         return true;
     }
