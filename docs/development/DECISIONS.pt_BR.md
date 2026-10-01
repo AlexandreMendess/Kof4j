@@ -4523,3 +4523,14 @@ individuais:
 - **Decisão:** declarar as raízes no manifesto — `[sources] app = "src/main/kof"`, `[sources] test = "src/test/kof"` (D1); uma raiz declarada é descoberta **recursivamente** (subdiretório = pacote), e o `kof build <dir>` posicional mantém a descoberta histórica de um-diretório-um-pacote (D2); a raiz de teste reusa o source path existente `dependencySourceRoots` para resolver `import` contra a raiz de app (D3); o aceite cobre **todos os alvos de teste reais** (jvm/native/js; D4). `kof build`/`kof test` sem posicional usam as raízes declaradas; sem manifesto ou sem raiz declarada falham explicitamente (R6), nunca um no-op silencioso.
 - **Não autorizado:** mudança de linguagem/sintaxe, primitivo novo de núcleo, ou inferência automática de duas raízes só por nomes de diretório (as raízes são explícitas no `kof.toml`).
 - **Relações:** `Related: D-APP, D-APP.REF, D-KOF-FIRST, D-MEM-FFI-CROSS-FULL, rule 6, R6`; os três defeitos independentes da interface foram corrigidos antes, na mesma issue (commit `687570a64`).
+
+## D-SIZE-BUDGET — abrir a frente de tamanho da distribuição do KOF; **Fase 1 = só medição** (mantenedora 01/10/2026, "Aprovado" no pedido regra-6 da #704 — a opção recomendada A)
+
+**Estado:** DECIDIDO (mantenedora) — tracker `#704` (caso `jonasrochanasajon`). Fase 1 AINDA não implementada (próximo candidato de promoção por `D-FUTURE-PROMOTION`).
+
+- **Questão:** a distribuição não tem contrato de tamanho. O `kof-cli` é shaded (`maven-shade-plugin`), então toda dependência nova de runtime/compiler é paga por todo usuário; o PDFBox (`#629`) é o primeiro caso concreto.
+- **Decisão (aprovada = opção A):** abrir a frente com **Fase 1 = só observabilidade** — medir o toolchain (jars dos módulos, distribuição compactada e instalada), atribuir bytes por dependência (direta, transitiva, top 20), medir um `hello-world` por alvo (JVM, Native x86-64/riscv64/aarch64, JS, Script) e gerar um `size diff` entre dois commits. **Sem mudança de comportamento, dependência, packaging ou segurança; sem bloqueio de CI na Fase 1.**
+- **Não autorizado (cada um exige decisão própria posterior):** qualquer redução, remover funcionalidade/alvo/teste/diagnóstico/segurança por bytes, remover GraalJS, ativar `minimizeJar`, mudar o packaging padrão, definir limites em MB antes de haver baseline, ou colocar PDFBox no core.
+- **Aceite (Fase 1):** baseline reproduzível (commit + ambiente + tamanhos) versionada em `docs/audits/`, módulos e distribuição medidos, dependências atribuídas, `hello-world` por alvo, diff entre commits funcionando — com zero mudança de dependência ou comportamento.
+- **Regra consolidadora (objetivo):** capacidade opcional tem custo opcional (app que não usa PDF paga 0 de PDF).
+- **Relações:** `Related: D-KOF-FIRST-IMPL, D-APP (--fat opcional), D-KOF-FILE-GO, R1, R9`; independente da `#629` (onde o PDFBox mora é decisão separada que pode seguir esta regra). Ledger `post-1.0`.
