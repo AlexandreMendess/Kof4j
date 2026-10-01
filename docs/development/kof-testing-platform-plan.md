@@ -2,9 +2,9 @@
 
 # Kof Testing Platform — Unit / Integration / Frontend E2E
 
-**Status:** Future plan — design only, **zero code**
-**Location:** `docs/development/future/`
-**Nature:** architecture, contracts, API intent, dependencies, promotion criteria
+**Status:** UNDER DEVELOPMENT — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
+**Location:** `docs/development/`
+**Nature:** implementation plan — real state + how to finish (design record kept below)
 **Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface
 (`test`/`assert`), the per-target harness (`ConformanceMatrixTest`), `KofJsRunner`,
@@ -12,7 +12,18 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** not started
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09 — see §15.
+
+> **Slice 1 (LANDED 30/09).** Pure-Kof `kof.test` virtual package
+> (`dev/kof/test.kf` resource + `CompilerTesting.java`, injected flat on the
+> explicit `import kof.test`; same mechanism as `kof.pagination`/`kof.pairs`):
+> `assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`.
+> Additive to the existing `test`/`assert` surface — **no new syntax**, no per-target
+> runtime (only `throw` of `String`, already handled by all four targets); useful
+> diagnostics (label + expected/actual) instead of the bare `assertion failed`. User-defined
+> `assertTrue` disables injection (collision is signal, not silence). Proof:
+> `KofTestingE2ETest` 5/5 (JVM + JS + Script + Native x86-64 parity-per-golden + collision).
+> Next: `assertThrows`, lifecycle, and the integration/browser faces (§11 phases 2–4).
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation

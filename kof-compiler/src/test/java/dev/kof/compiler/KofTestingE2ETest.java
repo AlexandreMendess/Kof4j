@@ -1,0 +1,150 @@
+package dev.kof.compiler;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * kof.test primeiro slice (D-TESTING-PLATFORM, design `D-FUTURE-BATCH-2809B`)
+ * — helpers de asserção aditivos, pacote virtual {@code kof.test}
+ * (library-first, D-KOF-FIRST item 12). Contrato: nada de sintaxe estrangeira
+ * (a superfície {@code test}/{@code assert} continua sendo a da linguagem);
+ * cada helper falha com diagnóstico útil (label + esperado/atual) via
+ * {@code throw} de String — mesmo caminho dos 4 alvos. Golden medido no
+ * oráculo JVM; JS/Script/Native têm de bater (regra 5).
+ */
+class KofTestingE2ETest {
+
+    static final String PROGRAM = """
+            import kof.test
+
+            main() {
+                assertTrue(1 + 1 == 2, "add")
+                assertFalse(1 == 2, "false")
+                assertEqualInt(3, 3, "eqInt")
+                assertEqualString("ab", "ab", "eqStr")
+                assertNotEqualInt(1, 2, "neqInt")
+                try {
+                    assertEqualInt(1, 2, "boom")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertEqualString("a", "b", "boomstr")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertTrue(false, "boomtrue")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    fail("boomfail")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                println("ALL PASS")
+            }
+            """;
+
+    static final String GOLDEN =
+            "assertion failed: boom (expected 1, got 2)\n"
+          + "assertion failed: boomstr (expected \"a\", got \"b\")\n"
+          + "assertion failed: boomtrue\n"
+          + "assertion failed: boomfail\n"
+          + "ALL PASS";
+
+    private final CompilerDriver driver = new CompilerDriver();
+
+    private Path outDirFor(Path tempDir, String name, Target t) {
+        return tempDir.resolve("out-" + name + "-" + t);
+    }
+
+    private CompilationResult compile(Path tempDir, String name, String program, Target t) throws Exception {
+        Path source = tempDir.resolve(name + ".kf");
+        Files.writeString(source, program);
+        return driver.compile(source, outDirFor(tempDir, name, t), t);
+    }
+
+    private String runJvm(Path tempDir, String name) throws Exception {
+        Process p = new ProcessBuilder(TestJdk.javaBin(), "-cp",
+                outDirFor(tempDir, name, Target.JVM).toString(), "Default.Main")
+                .redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "JVM run must exit 0, got:\n" + out);
+        return out;
+    }
+
+    @Test
+    void assertionsRunOnJvm(@TempDir Path tempDir) throws Exception {
+        CompilationResult r = compile(tempDir, "T", PROGRAM, Target.JVM);
+        assertTrue(r.success(), "kof.test must compile: " + r.diagnostics().getDiagnostics());
+        assertEquals(GOLDEN, runJvm(tempDir, "T"));
+    }
+
+    @Test
+    void assertionsRunOnJs(@TempDir Path tempDir) throws Exception {
+        Path src = tempDir.resolve("TJ.kf");
+        Files.writeString(src, PROGRAM);
+        Path outDir = tempDir.resolve("outTJ");
+        CompilationResult r = driver.compile(src, outDir, Target.JS);
+        assertTrue(r.success(), "js compile: " + r.diagnostics().getDiagnostics());
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        int ec = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
+                new java.io.ByteArrayInputStream(new byte[0]), out);
+        String txt = out.toString().replace("\r\n", "\n").trim();
+        assertEquals(0, ec, "js run exit, output:\n" + txt);
+        assertEquals(GOLDEN, txt, "js must match the JVM oracle (parity rule 5)");
+    }
+
+    @Test
+    void assertionsRunOnScript(@TempDir Path tempDir) throws Exception {
+        Path src = tempDir.resolve("TS.kf");
+        Files.writeString(src, PROGRAM);
+        KofInterpreter.Result ir = driver.interpret(java.util.List.of(src), tempDir, new String[0]);
+        assertEquals(0, ir.exitCode(), "script stderr: " + ir.stderr());
+        assertEquals(GOLDEN, ir.stdout().replace("\r\n", "\n").trim(),
+                "script must match the JVM oracle (parity rule 5)");
+    }
+
+    @Test
+    void assertionsRunOnNativeX86(@TempDir Path tempDir) throws Exception {
+        Path src = tempDir.resolve("TN.kf");
+        Files.writeString(src, PROGRAM);
+        Path outDir = tempDir.resolve("outTN");
+        CompilationResult r = driver.compile(src, outDir, Target.NATIVE);
+        assertTrue(r.success(), "native compile: " + r.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        assertTrue(Files.exists(bin), "binary should exist");
+        Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "native run must exit 0, got:\n" + out);
+        assertEquals(GOLDEN, out, "native x86_64 must match the JVM oracle (rule 5)");
+    }
+
+    @Test
+    void userDefinedAssertTrueDisablesInjection(@TempDir Path tempDir) throws Exception {
+        CompilationResult r = compile(tempDir, "TCOL", """
+                import kof.test
+
+                Void assertTrue(Bool cond, String label) {
+                    println("user-defined")
+                }
+
+                main() {
+                    assertTrue(true, "x")
+                }
+                """, Target.JVM);
+        assertTrue(r.success(), "collision must compile: " + r.diagnostics().getDiagnostics());
+        assertEquals("user-defined", runJvm(tempDir, "TCOL"));
+    }
+}
