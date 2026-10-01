@@ -20,6 +20,7 @@ import dev.kof.compiler.KofReturnVoid;
 import dev.kof.compiler.KofThrow;
 import dev.kof.compiler.KofContinueLabel;
 import dev.kof.compiler.KofStatementIf;
+import dev.kof.compiler.KofExcUnlink;
 import dev.kof.compiler.KofTryEnd;
 import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.KofUnary;
@@ -310,6 +311,13 @@ final class NativeMethodEmitter {
             }
             case KofContinueLabel _ -> {
                 // §266: marcador estrutural (fronteira corpo/update do for) — no-op
+            }
+            case KofExcUnlink _ -> {
+                // §549: pop de handler no caminho NORMAL (o KofTryEnd fica no
+                // ramo else, inalcançável) — mesmas instruções do KofTryEnd.
+                sb.append("    movq 24(%rsp), %rcx\n");
+                sb.append("    movq %rcx, %fs:kof_exc_chain@tpoff\n");
+                sb.append("    addq $32, %rsp\n");
             }
             case KofTryEnd _ -> {
                 sb.append("    movq 24(%rsp), %rcx\n");

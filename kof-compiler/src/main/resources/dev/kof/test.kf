@@ -40,3 +40,18 @@ Void assertNotEqualInt(Int unexpected, Int actual, String label) {
 Void fail(String label) {
     throw "assertion failed: " + label
 }
+
+// Segundo slice (30/09): assertThrows. Escrito EM KOF. O bloco que deve lancar
+// e um `() -> Void`. Se o bloco NAO lancar, falha com diagnostico util; se
+// lancar, o catch desvincula o handler do try e o `return` sai limpo (nativo:
+// o kof_throw_string ja desvincula o frame ANTES de saltar para o catch).
+// Exige o fix do §549 no caminho normal (senao o handler vazaria e capturaria
+// o throw SEGUINTE na mesma funcao).
+Void assertThrows(() -> Void block, String label) {
+    try {
+        block()
+    } catch (String e) {
+        return
+    }
+    throw "assertion failed: " + label + " (expected an exception)"
+}

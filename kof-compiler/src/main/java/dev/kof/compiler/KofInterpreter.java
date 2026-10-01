@@ -374,6 +374,11 @@ public final class KofInterpreter {
                     case KofContinueLabel _ -> {
                         // §266: marcador estrutural (fronteira corpo/update do for) — no-op
                     }
+                    case KofExcUnlink _ -> {
+                        // §549: pop no caminho normal — o match por intervalo de
+                        // pc já tornava o frame inerte, isto é higiene de pilha.
+                        if (!f.tryStack.isEmpty()) f.tryStack.pop();
+                    }
                     case KofTryEnd _ -> {
                         if (!f.tryStack.isEmpty()) f.tryStack.pop();
                     }

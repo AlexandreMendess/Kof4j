@@ -12,9 +12,9 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09 — see §15. Slice 2 (`assertThrows`) scoped: blocked by a measured native defect (`known-bugs` §549), not by a rule-6 decision.
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15).
 
-> **Slice 2 scope — `assertThrows` (BLOCKED 30/09, native defect).** Measured while implementing the helper: a pure-Kof `assertThrows(() -> Void task, String label) { try { task() } catch (String e) { return } throw label + ": expected an exception" }` takes the catch on the no-exception path on every native target, so it never throws. Root is NOT the helper — it is `known-bugs` §549: a `try` region's native handler leaks on the normal/return/break/continue exit paths and captures the next `throw`. Until §549 lands (native lane, cross-backend), `assertThrows` cannot be proven on Native; implementing it now would ship a red. The slice resumes when §549 is fixed (or as a JS/JVM-only case if the maintainer prefers, which would be a weaker proof — not done here).
+> **Slice 2 (LANDED 30/09).** `assertThrows(() -> Void block, String label)` added to the `kof.test` virtual package. The blocker was `known-bugs` §549: the native `try` handler leaked on the normal exit path, so this exact helper took the catch on the no-exception path on native. §549 is now FIXED (new IR `KofExcUnlink` on the normal fall-through, x86 + riscv/aarch64 cross, parity in interpreter/JS; see CHANGELOG). Proof: `KofTestingE2ETest` **7/7** across JVM + JS + Script + Native x86-64 + cross riscv64(qemu) + aarch64(qemu), golden-parity with the JVM oracle (RED pre-fix 3/7). A residual native face remains (`return`/`break`/`continue` INSIDE a `try`, one of which crashes the next throw) and is catalogued as §551 — it does NOT gate this slice.
 
 > **Slice 1 (LANDED 30/09).** Pure-Kof `kof.test` virtual package
 > (`dev/kof/test.kf` resource + `CompilerTesting.java`, injected flat on the

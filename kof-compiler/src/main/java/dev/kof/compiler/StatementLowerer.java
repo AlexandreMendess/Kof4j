@@ -403,6 +403,10 @@ public final class StatementLowerer {
                 for (StatementNode s : ts.tryBody()) {
                     localIdx = driver.emitStatement(s, ops, owner, localIdx, locals, returnType);
                 }
+                // §549: o caminho normal salta por cima do KofTryEnd (que fica
+                // no ramo else, inalcançável) — sem este pop o handler nativo
+                // continuava vinculado e capturava o throw SEGUINTE ao try.
+                ops.add(new KofExcUnlink());
                 ops.add(new KofJump(finallyLabel));
                 ops.add(new KofLabel(tryEnd));
                 for (int ci = 0; ci < ts.catchClauses().size(); ci++) {

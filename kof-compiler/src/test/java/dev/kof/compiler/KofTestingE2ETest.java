@@ -52,6 +52,13 @@ class KofTestingE2ETest {
                 } catch (String e) {
                     println(e)
                 }
+                assertThrows(() -> { throw "expected" }, "throws")
+                try {
+                    assertThrows(() -> { println("NOOP") }, "boomthrows")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
                 println("ALL PASS")
             }
             """;
@@ -61,6 +68,8 @@ class KofTestingE2ETest {
           + "assertion failed: boomstr (expected \"a\", got \"b\")\n"
           + "assertion failed: boomtrue\n"
           + "assertion failed: boomfail\n"
+          + "NOOP\n"
+          + "assertion failed: boomthrows (expected an exception)\n"
           + "ALL PASS";
 
     private final CompilerDriver driver = new CompilerDriver();
@@ -146,5 +155,35 @@ class KofTestingE2ETest {
                 """, Target.JVM);
         assertTrue(r.success(), "collision must compile: " + r.diagnostics().getDiagnostics());
         assertEquals("user-defined", runJvm(tempDir, "TCOL"));
+    }
+
+    /** §549: `assertThrows` depende do pop do handler no caminho normal — o
+     *  mesmo alvo que antes vazava. Prova cross riscv64/aarch64 (o bug existia
+     *  também no cross; ver NativeTryHandlerLeakE2ETest). */
+    private void assertionsMatchOnCross(Path tempDir, String name, Target target, String arch) throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                NativeRiscv64E2ETest.hasToolchain(arch),
+                "cross " + arch + " + qemu ausente — pulando");
+        Path src = tempDir.resolve(name + ".kf");
+        Files.writeString(src, PROGRAM);
+        Path outDir = tempDir.resolve("out-" + name);
+        CompilationResult r = driver.compile(src, outDir, target);
+        assertTrue(r.success(), name + " compile: " + r.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        assertTrue(Files.exists(bin), name + " binary should exist");
+        Process p = NativeRiscv64E2ETest.qemu(arch, bin).redirectErrorStream(true).start();
+        String out = NativeRiscv64E2ETest.runBounded(p, arch + " kof.test probe").replace("\r\n", "\n").trim();
+        assertEquals(0, p.exitValue(), name + " run must exit 0, got:\n" + out);
+        assertEquals(GOLDEN, out, name + " must match the JVM oracle (parity rule 5)");
+    }
+
+    @Test
+    void assertionsRunOnNativeRiscv64(@TempDir Path tempDir) throws Exception {
+        assertionsMatchOnCross(tempDir, "TRV", Target.NATIVE_RISCV64, "riscv64");
+    }
+
+    @Test
+    void assertionsRunOnNativeAarch64(@TempDir Path tempDir) throws Exception {
+        assertionsMatchOnCross(tempDir, "TAA", Target.NATIVE_AARCH64, "aarch64");
     }
 }

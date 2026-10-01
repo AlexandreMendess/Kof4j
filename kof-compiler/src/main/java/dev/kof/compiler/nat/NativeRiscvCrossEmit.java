@@ -41,6 +41,7 @@ import dev.kof.compiler.KofStoreLocal;
 import dev.kof.compiler.KofThrow;
 import dev.kof.compiler.KofContinueLabel;
 import dev.kof.compiler.KofStatementIf;
+import dev.kof.compiler.KofExcUnlink;
 import dev.kof.compiler.KofTryEnd;
 import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.KofUnary;
@@ -336,6 +337,13 @@ public final class NativeRiscvCrossEmit {
             }
             case KofContinueLabel _ -> {
                 // §266: marcador estrutural (fronteira corpo/update do for) — no-op
+            }
+            case KofExcUnlink _ -> {
+                // §549: pop de handler no caminho NORMAL (espelha o KofTryEnd).
+                sb.append("    call kof_exc_slot\n");
+                sb.append("    ld t2, 24(sp)\n");
+                sb.append("    sd t2, 0(a0)\n");
+                sb.append("    addi sp, sp, 32\n");
             }
             case KofTryEnd _ -> {
                 sb.append("    call kof_exc_slot\n");
