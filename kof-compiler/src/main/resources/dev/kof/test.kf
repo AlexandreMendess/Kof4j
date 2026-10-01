@@ -1,0 +1,42 @@
+// kof.test — primeiro slice aditivo (D-TESTING-PLATFORM, D-FUTURE-BATCH-2809B).
+//
+// Escrito EM KOF (D-KOF-FIRST item 12): o compilador injeta FLAT no
+// `import kof.test` EXPLICITO, mesmo mecanismo de kof.pagination/kof.pairs.
+// Nada de sintaxe estrangeira (a superficie `test`/`assert` continua sendo a
+// da linguagem); aqui so helpers que produzem diagnostico util (label +
+// esperado/atual) em vez do `assertion failed` generico do `assert` puro.
+// Zero runtime por backend: so throw de String, que os 4 alvos ja tratam.
+
+Void assertTrue(Bool cond, String label) {
+    if (!cond) {
+        throw "assertion failed: " + label
+    }
+}
+
+Void assertFalse(Bool cond, String label) {
+    if (cond) {
+        throw "assertion failed: " + label
+    }
+}
+
+Void assertEqualInt(Int expected, Int actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertEqualString(String expected, String actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected \"" + expected + "\", got \"" + actual + "\")"
+    }
+}
+
+Void assertNotEqualInt(Int unexpected, Int actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void fail(String label) {
+    throw "assertion failed: " + label
+}

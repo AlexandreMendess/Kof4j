@@ -32,6 +32,18 @@ Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
   libavcodec/ffmpeg). Licenças lidas dos arquivos `copyright` da distro (SDL2 =
   zlib/libpng + permissiva, OpenAL = LGPL-2+, libavformat = LGPL-2.1+). É a
   medição do spike, não a escolha de stack.
+- **Nuance de licença (medida do `.so` linkado, 30/09):** o FFmpeg da distro é
+  **buildado com GPL** — `avcodec_license()` = `GPL version 3 or later`,
+  `avformat_license()` = `GPL version 2 or later`, e `--enable-gpl` aparece em
+  `avcodec_configuration()`. O "LGPL-2.1+" do `copyright` é a base upstream,
+  **não** o build entregue → uma escolha de stack GPL, se tomada, é uma decisão
+  de licenciamento da mantenedora (o spike só reporta).
+- **Capacidade headless (sonda ctypes, 30/09):** o SDL2 inicializa sem display —
+  `SDL_Init(VIDEO|AUDIO)` rc=0 sob `SDL_VIDEODRIVER=dummy` +
+  `SDL_AUDIODRIVER=dummy` (`2.30.0`); o OpenAL-Soft abre device nulo —
+  `alcOpenDevice(NULL)` + contexto OK sob `ALSOFT_DRIVERS=null` (`AL_VERSION =
+  1.1 ALSOFT 1.23.1`). raylib/GLFW/miniaudio **não estão presentes** no host
+  (`pkg-config`/`dpkg`), então ficam não medidos aqui.
 - **Cross (riscv64/aarch64): ainda não mensurável.** Nenhum `.so`/header candidato
   está no sysroot cross da distro, e a toolchain cross do projeto
   (`scripts/setup-cross-toolchain.sh`, padrão `/tmp/kof-cross`) não foi montada
@@ -49,18 +61,21 @@ Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
 
 | Candidata | Domínio | Licença (`?` = confirmar upstream) | Roda no host | Headless | Cross (riscv64/aarch64) | Eixo |
 |---|---|---|---|---|---|---|
-| SDL3 / SDL2 | janela+input+áudio | zlib/libpng + permissiva (`copyright` da distro) | `.so` de runtime SDL2 `2.30.0` presente, sem `-dev` | SDL3 sim / SDL2 via dummy driver (`?`) | `?` | uma lib, muitos alvos |
+| SDL3 / SDL2 | janela+input+áudio | zlib/libpng + permissiva (`copyright` da distro) | `.so` de runtime SDL2 `2.30.0` presente, sem `-dev` | SDL3 `?` / SDL2 dummy driver **medido OK** | `?` | uma lib, muitos alvos |
 | raylib | 2D/3D+áudio | zlib (`?`) | ausente | `?` | `?` | 2D batteries-included |
 | GLFW + API GL | janela+contexto | zlib (`?`) | ausente | contexto offscreen (`?`) | `?` | fina, exige expertise GL |
 | miniaudio | áudio | public-domain/MIT-0 (`?`) | ausente (header-only, drop-in) | mix offline sim (`?`) | `?` | áudio single-header |
-| OpenAL-Soft | áudio | **LGPL-2+** (`copyright` da distro) | `.so` de runtime `1.23.1` presente, sem `-dev` | `?` | `?` | áudio posicional 3D |
-| FFmpeg / Libav | vídeo+codecs | LGPL-2.1+ (`copyright` da distro, `libavformat60`) / GPL se buildado com `--enable-gpl` | `.so` de libavcodec/avformat `6.1.1` presente, sem `-dev` | sim (`?`) | `?` | conjunto de codecs completo |
+| OpenAL-Soft | áudio | **LGPL-2+** (`copyright` da distro) | `.so` de runtime `1.23.1` presente, sem `-dev` | backend nulo **medido OK** | `?` | áudio posicional 3D |
+| FFmpeg / Libav | vídeo+codecs | **buildado com GPL** aqui (`avcodec_license()` = GPLv3+; `--enable-gpl`); base upstream LGPL-2.1+ | `.so` de libavcodec/avformat `6.1.1` presente, sem `-dev` | API de codec (`?`) | `?` | conjunto de codecs completo |
 
 **Recomendação (guiada por medição, não por familiaridade):** a regra JVM do plano
 (§11: nunca JavaFX/Swing/AWT/`javax.sound`) + o acoplamento R3-first (§3) apontam para
 **uma stack portátil multi-alvo para janela+input+áudio** (SDL3 é a candidata natural)
 e **FFmpeg/Libav para codecs de vídeo** (nunca caseiros, §10/§14). A escolha é da
 mantenedora; o spike só remove incógnitas e restaura a guarda.
+**Ressalva da sonda de licença:** a face FFmpeg só é "livre" se um build LGPL for
+empacotado — a da distro mediu GPL (acima), então usá-la como está é uma decisão
+de licenciamento, não só técnica.
 
 **Como terminar (ordem das fatias, §15):** 3.0 (esta infra+relatório) → **3.1**
 window/frame/input em JVM/Script/Native/JS + conformância → 3.2 (2D) → 3.3

@@ -80,6 +80,10 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
                         Character ae = FfiSignature.arrayElemChar(p.type());
                         if (ae != null) {
                             ffiParams.add(FfiStructLayout.arrayPtrType(ae));
+                        } else if (FfiSignature.isStringArray(p.type())) {
+                            // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**`
+                            // (marker arrayPtrType('S')).
+                            ffiParams.add(FfiStructLayout.arrayPtrType('S'));
                         } else if (FfiSignature.isBufferParam(p.type())) {
                             // D6-3/D-R3-BUFFER (fatia A2): Buffer(U8) INOUT — o
                             // backend x86-64 passa o payload (obj+24) direto.

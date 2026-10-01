@@ -2,8 +2,8 @@
 
 # PLAN-MULTIPARADIGMA — Multiparadigma, Pipelines Funcionais e Consultas Declarativas
 
-**Status:** EM DESENVOLVIMENTO (28/09, lane issues — `D-MULTIPARADIGMA-GO`, `D-FUTURE-PROMOTION`, mais barato implementável).
-**Dona:** lane issues (esta sessão).
+**Status:** CONCLUÍDO 30/09 — promovido 28/09/2026 de `future/` para `docs/development/` (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`), Fase 1 (fatias 1a–1i) + Fase 2 (medidor de custo eager) pousadas, **movido para `docs/stdlib/`** (regra dos três estados). As Fases 5–7 seguem só-desenho (§13), travadas por R12 + decisão da mantenedora; a frente de erasure nativa adiada é rastreada pela lane nativa (`NAT008`).
+**Dona:** lane issues (fechado 30/09).
 **Decisão:** `D-MULTIPARADIGMA-GO` (Tier 2.x) + `D-MULTIPARADIGMA-PHASE1A` (`DECISIONS.md`) — escopo da Fase 1a travado durante a implementação (o plano é dono).
 **Estado real (medido 28/09):** `map`/`filter`/`reduce` existem eager em `List` (todos os alvos); `any`/`all`/`none` não existem em lugar nenhum (zero uso no corpus, sem keywords); o padrão `kof_list_*` por alvo está estabelecido; a spec da Fase 1a (tabela §4) define short-circuit + semântica de vácuos por completo.
 **Fatia 1a (landed 28/09):** `any`/`all`/`none` em `List` — quantificadores eager com short-circuit reusando o padrão `kof_list_*`, zero maquinaria nova além do caminho map/filter. FRONTEIRA (carona da lane pagination, NÃO tocada): `take`/`drop`/`slice`; depois: `find`/`forEach`/`flatMap`/`count(pred)`/`distinct`/resto. Prova: `ListQuantifiersE2ETest` 5/5 (JVM/Script/JS + Native-x86 + cross riscv/aarch64 rodado) + `KofScriptStdlibParityTest#quantifiersParity`. `none` vácuo = true (decisão da mantenedora 28/09, `none` ≡ ¬`any`).
@@ -11,9 +11,11 @@
 **Fatia 1c (landed 29/09):** `forEach` — iteração com side-effect sem alocação + `ListForEachE2ETest` 3/3 (JVM/Script/JS + Native-x86 + cross rodado). Armadilhas de nome medidas duas vezes: nomes kof_ são snake_case (`kof_list_foreach`, nunca camelCase verbatim — erra todos os registros) e o prelude JS segue o mapeamento genérico `runtimeJsName` (`kofListForeach`, não `kofListForEach`).
 **Fatia 1d (landed 29/09):** `flatMap` — cada elemento mapeia para uma List, concatenadas em ordem (x86/cross reusam `kof_list_add_all`; tipo resultado = o próprio `List<R>` da lambda, não-List é UNKNOWN honesto) + `ListFlatMapE2ETest` 3/3 (JVM/Script/JS + Native-x86 + cross riscv/aarch64 rodado). Mesma armadilha camelCase pela terceira vez (`flatMap` → mapeamento explícito `kof_list_flatmap` no lowerer).
 **Fatia 1e (landed 29/09):** `distinct` — dedup preservando primeira-ocorrência + `ListDistinctE2ETest` 3/3. Igualdade reusa `contains` por alvo (tag estático via `stringTag`, mesma taxonomia; x86/cross chamam `kof_list_contains` por candidato). Lição: inserção ancorada no fim comeu o epílogo do flatmap (SIGILL no cross, pego pelo flatMapCross) — corrigido reconstruindo do commit bom; verificar junções asm lendo, não por anchor-matching.
+**Fatia 2 (Fase 2, pousada 30/09):** o medidor de custo eager sai como **programas-benchmark Kof** em `benchmarks/pipelines/` (a descoberta do `kof bench` já cobre qualquer `<categoria>/<nome>/Main.kf` + `expected.txt`, então esta é a forma natural no lugar do previsto harness Java `bench/ListPipelineBenchTest.java`). Cobertura bate com o §3 Fase 2 — map / filter / combinado / with-take — mais `distinct` (igualdade O(n²)) e `sorted` (`D-MULTIPARADIGMA-SORTED`) como os primeiros pontos de custo eager; 6/6 validam byte-a-byte na JVM + JS (`--quick`; medianas medidas JVM 614–824 ms, JS 101–4451 ms). A medição Nativa roda no job CI `Benchmarks (native)` (o host não tem a toolchain cross). Sem código `Sequence`/lazy — **só números**, conforme o gate da fase. Pontos de referência quando houver baselines: `sorted`/`distinct` no JS são quadráticos (≈4,1 s/4,5 s em n=4000) vs as ops eager O(n) em ≈0,1–0,4 s.
+
 **Como terminar (próximas fatias):** 1e+1f+1g (`ListSortedE2ETest` 6/6)+1h (`ListGroupByE2ETest` 3/3) LANDED 29/09; `take`/`drop`/`slice` ficam com pagination; `zip` DECIDIDO 29/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` truncando em min — supera a parada da regra 6 `D-NOT-JAVA`) — **1i LANDED 30/09:** library-first (`pairs.kf` record `Pair<A,B>` + `zipPairs<A,B>` via `CompilerPairs`, rewrite em `CollectionCallLowerer`/`CollectionZipLowerer`, `ListZipE2ETest` JVM/Script/JS VERDE incl. truncamento/vazio-hetero) + **nativo FEITO via o gate honesto `NAT008`** (`D-MULTIPARADIGMA-ZIP-NATIVE`, 30/09): uma lista nativa de elemento primitivo concreto guarda o valor CRU, então vê-la pela type-variable bare `zipPairs<A,B>` emitia `kof_unbox_*` sobre o inteiro cru → SIGSEGV (rc=139; provado por `firstOf<T>(List<T>): T { return xs.get(0) }`, zero zip/injeção). O `CollectionZipLowerer` agora recusa `zip` de lista de elemento primitivo em todo alvo nativo com `NAT008` (registrado em `backend-parity.md` Documented Gaps); `zip` de elemento-referência roda no nativo e `zipNativeX86`/`zipCross` estão VERDES contra a JVM (byte-idênticos), `zipPrimitiveElementOnNativeIsNat008` pina a recusa. Fixes no caminho: `emit` faltante do arg (corrupção de pilha), funções type-before-name não parseiam `<A,B>` (helper usa type-after-params), acessores de record são `p.x()` (idioms/records). **Adiado (frente de backend):** box na fronteira de erasure genérica → remover `NAT008`, reabilitar `zip` nativo para todo tipo de elemento.
 
-> **Estado:** promovido `future/` → `docs/development/` (28/09, `D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`); as list ops da Fase 1 (1a–1i) estão POUSADAS (ver o header + `README.md` §1 linha 0d). As Fases 5–7 (DATA/INFRA: query/SQL/stream) permanecem **só-design**, barradas pelo R12 (fechamento do SYSTEMS) e por decisão da mantenedora — este doc não as abre como trabalho.
+> **Estado:** promovido `future/` → `docs/development/` (28/09, `D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`); as list ops da Fase 1 (1a–1i) estão POUSADAS e a Fase 2 (medidor de custo eager, `benchmarks/pipelines/`) saiu 30/09 (ver o header + `README.md` §1 linha 0d). As Fases 5–7 (DATA/INFRA: query/SQL/stream) permanecem **só-design**, barradas pelo R12 (fechamento do SYSTEMS) e por decisão da mantenedora — este doc não as abre como trabalho.
 
 ---
 
@@ -185,7 +187,7 @@ var big = values.filter((x: Int) -> x > 10).map((x: Int) -> x * 2)
 |------|--------|------|---------------|-------------------|
 | **0** | Diagnóstico + proposta (este doc) | este commit | este `PLAN-MULTIPARADIGMA.md` par | — |
 | **1** | Fundações funcionais (§5) — fechar L1-L2 sem novo IR | `beta-0.4.0` aditivo | `flatMap`, `forEach`, `find`/`firstOrNull`, `any`/`all`/`none`, `count` (+ `take`/`drop`), `distinct`, mínimo `groupBy`/`zip` depois — tudo eager em `List`; generalizar `contextualLambda`; diagnósticos `SEM05x` reuse | Sem Sequence, sem IR, sem pure analysis |
-| **2** | Avaliação & benchmarks | após Fase 1 | harness `kof bench` compara eager vs lazy (map/filter/combinado/with-take, pequenos/grandes, com capture) — sem promessa de perf antes de números | Sem código Sequence ainda, só números |
+| **2** | Avaliação & benchmarks | após Fase 1 | **POUSADO 30/09** — 6 benchmarks eager de pipeline em `benchmarks/pipelines/` (map/filter/combinado/with-take/distinct/sorted), validados JVM+JS; harness `kof bench` compara eager vs lazy (map/filter/combinado/with-take, pequenos/grandes, com capture) — sem promessa de perf antes de números | Sem código Sequence ainda, só números |
 | **3** | Sequence / pipelines (§7) — `Sequence<T>` lazy | tier `experimental` | `Sequence<T>` (`sequenceOf`, `asSequence`, `toList`, terminais) com iteradores lazy (JVM `Iterator`, Native state machine, JS `generator`), compat `List.asSequence()` / `Sequence.toList()` | Sem fusão ainda — lazy via iteradores, não reescrita do op stream |
 | **4** | Transformation Expression IR (§8) | middle-end, não-runtime | `transform/TransformExpr` sealed + `TransformOptimizer` (fusão filter-filter, map-map só quando pure) | Sem reescrita de backend, sem DB |
 | **5** | Análise de efeitos (§9) | checker estático | `isPure`, `isTranslatable`, `hasObservableEffect` — progressiva (pure Bool/Int/String property/binop/logic/call puro conhecido vs unknown/external/log) | Sem promessa "metade traduz, metade local" |
@@ -290,8 +292,8 @@ db.query<User>(db).filter{ it.active }             // quando traduzível
 | `transform/TransformOptimizer.java` (fusion) | 4 | ≤200 |
 | `collection/Sequence.java` + `collection/SequenceRuntime.java` | 3 | ≤400 cada |
 | `collection/SequenceOpsLowerer.java` | 3 | ≤250 |
-| `bench/ListPipelineBenchTest.java` | 2 | harness |
-| `E2ET: KofFunctionalOpsE2ETTest`, `SequenceE2ETest` | 1 / 3 | por fase |
+| `bench/ListPipelineBenchTest.java` | 2 | **saiu 30/09 como programas Kof em `benchmarks/pipelines/`** (map/filter/combinado/with-take/distinct/sorted) — a forma da descoberta do `kof bench`, não um harness Java |
+| `E2ET: List*E2ETest` (Fase 1: `ListQuantifiersE2ETest`/`ListFindCountE2ETest`/`ListForEachE2ETest`/`ListFlatMapE2ETest`/`ListDistinctE2ETest`/`ListSortedE2ETest`/`ListGroupByE2ETest`/`ListZipE2ETest`), `SequenceE2ETest` | 1 / 3 | Fase 1 pousada; `SequenceE2ETest` é Fase 3 (não construído) |
 
 **Não tocados:** `IRNodes.java` (flat permanece flat), `Parser.java` (gramática inalterada), `Lexer.java` (sem novo token).
 
@@ -369,9 +371,9 @@ Sem cópia de Scala/Kotlin/Haskell/Rust/LINQ; sem API funcional gigante sem sem�
 
 ## 13. Estado / próximo passo
 
-**A Fase 1 (list ops) está CONCLUÍDA** — fatias 1a–1i POUSADAS (ver §14 e o header). O único resíduo é a **frente de erasure do backend** (`Adiado` em §14): o box na fronteira de erasure genérica removeria o `NAT008` e reabilitaria o `zip` nativo para elementos primitivos; isso toca a erasure/ABI genérica e pertence à lane de backend (adjacente à regra 6), logo NÃO é unidade deste plano.
+**A Fase 1 (list ops) e a Fase 2 (medidor de custo eager, `benchmarks/pipelines/`) estão CONCLUÍDAS** — fatias 1a–1i POUSADAS (ver §14 e o header), então o escopo promovido fechou e este documento foi **movido para `docs/stdlib/`** (regra dos três estados). O único resíduo é a **frente de erasure do backend** (`Adiado` em §14): o box na fronteira de erasure genérica removeria o `NAT008` e reabilitaria o `zip` nativo para elementos primitivos; isso toca a erasure/ABI genérica e pertence à lane de backend (adjacente à regra 6), logo NÃO é unidade deste plano.
 
-`PRÓXIMO PASSO (nenhum para este plano): a Fase 1 está completa; as Fases 5–7 seguem só-design até o SYSTEMS fechar (R12) + decisão da mantenedora. Frente de erasure do backend rastreada pela lane nativa; gap code NAT008 em docs/backend-parity.md`
+`PRÓXIMO PASSO (nenhum para este plano): o escopo promovido (Fase 1 + Fase 2) está completo; as Fases 5–7 seguem só-design até o SYSTEMS fechar (R12) + decisão da mantenedora. Frente de erasure do backend rastreada pela lane nativa; gap code NAT008 em docs/backend-parity.md`
 
 ---
 

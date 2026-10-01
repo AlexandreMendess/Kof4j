@@ -2,9 +2,9 @@
 
 # Kof Testing Platform — Unit / Integration / Frontend E2E
 
-**Status:** Future plan — design only, **zero code**
-**Location:** `docs/development/future/`
-**Nature:** architecture, contracts, API intent, dependencies, promotion criteria
+**Status:** UNDER DEVELOPMENT — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
+**Location:** `docs/development/`
+**Nature:** implementation plan — real state + how to finish (design record kept below)
 **Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface
 (`test`/`assert`), the per-target harness (`ConformanceMatrixTest`), `KofJsRunner`,
@@ -12,7 +12,20 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** not started
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09 — see §15. Slice 2 (`assertThrows`) scoped: blocked by a measured native defect (`known-bugs` §549), not by a rule-6 decision.
+
+> **Slice 2 scope — `assertThrows` (BLOCKED 30/09, native defect).** Measured while implementing the helper: a pure-Kof `assertThrows(() -> Void task, String label) { try { task() } catch (String e) { return } throw label + ": expected an exception" }` takes the catch on the no-exception path on every native target, so it never throws. Root is NOT the helper — it is `known-bugs` §549: a `try` region's native handler leaks on the normal/return/break/continue exit paths and captures the next `throw`. Until §549 lands (native lane, cross-backend), `assertThrows` cannot be proven on Native; implementing it now would ship a red. The slice resumes when §549 is fixed (or as a JS/JVM-only case if the maintainer prefers, which would be a weaker proof — not done here).
+
+> **Slice 1 (LANDED 30/09).** Pure-Kof `kof.test` virtual package
+> (`dev/kof/test.kf` resource + `CompilerTesting.java`, injected flat on the
+> explicit `import kof.test`; same mechanism as `kof.pagination`/`kof.pairs`):
+> `assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`.
+> Additive to the existing `test`/`assert` surface — **no new syntax**, no per-target
+> runtime (only `throw` of `String`, already handled by all four targets); useful
+> diagnostics (label + expected/actual) instead of the bare `assertion failed`. User-defined
+> `assertTrue` disables injection (collision is signal, not silence). Proof:
+> `KofTestingE2ETest` 5/5 (JVM + JS + Script + Native x86-64 parity-per-golden + collision).
+> Next: `assertThrows`, lifecycle, and the integration/browser faces (§11 phases 2–4).
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation

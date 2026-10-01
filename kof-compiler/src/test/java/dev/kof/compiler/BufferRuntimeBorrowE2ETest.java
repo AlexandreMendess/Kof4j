@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -152,20 +151,16 @@ class BufferRuntimeBorrowE2ETest {
         assertEquals("2\n[9, 0]", o, "x86-64 golden (borrow acquire/release + payload untouched)");
     }
 
-    @Disabled("blocked by known-bugs §545: any `spawn` worker calling an extern SIGSEGVs on cross "
-            + "riscv64/aarch64 because the raw clone starts the worker with tls=0 (tp invalid). "
-            + "The negative race needs two concurrent extern writers, so it cannot run until the "
-            + "native/cross lane fixes §545. The primitive itself is proven by the positive cross "
-            + "control and by the preemptive x86-64 negative.")
     @Test
     void concurrentBufferBorrowRaisesMem020Cross(@TempDir Path dir) throws Exception {
         // D-MEM030-BORROW-RUNTIME: cross riscv64/aarch64 são preemptivos
         // (pthread), então a corrida negativa é real aqui; o barriered_write C
-        // torna-a determinística sob qemu. BLOQUEADO por §545 (spawn × extern).
+        // torna-a determinística sob qemu. Desbloqueado por §545 (spawn ×
+        // extern: o worker de clone cru agora ganha tp via _dl_allocate_tls).
         for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
             String arch = a[0];
             Target t = Target.valueOf(a[1]);
-            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+            assumeTrue(NativeRiscv64E2ETest.hasToolchainWithGcc(arch),
                     "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
             String so = compileCrossLib(dir, arch);
             Path src = dir.resolve("borrow-race-" + arch + ".kf");
@@ -185,7 +180,7 @@ class BufferRuntimeBorrowE2ETest {
         for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
             String arch = a[0];
             Target t = Target.valueOf(a[1]);
-            assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+            assumeTrue(NativeRiscv64E2ETest.hasToolchainWithGcc(arch),
                     "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
             String so = compileCrossLib(dir, arch);
             Path src = dir.resolve("borrow-single-" + arch + ".kf");
@@ -196,6 +191,40 @@ class BufferRuntimeBorrowE2ETest {
             String o = runQemu(dir, arch, out.resolve("Default/Main"));
             assertFalse(o.contains("MEM020"), arch + ": single writer must never raise MEM020; got:\n" + o);
             assertEquals("2\n[9, 0]", o, arch + " golden (borrow acquire/release + payload untouched)");
+        }
+    }
+
+    @Test
+    void sequentialWritersReleaseBorrowCross(@TempDir Path dir) throws Exception {
+        // O release precisa LIMPAR o flag após a downcall: dois writers
+        // SEQUENCIAIS (não concorrentes) não podem colidir. Pega o bug em que o
+        // release relia o OBJ do bloco de args — o C sobrescrevia o bloco, o
+        // release lia ponteiro-lixo e o flag vazava (o 2º acquire acharia o
+        // borrow preso → MEM020 espúrio).
+        String kof = """
+                extern "%s" barriered_write(Buffer(U8) buf, Int n, Int v): Int
+
+                main() {
+                    var b = buffer.alloc(2)
+                    println(barriered_write(b, 2, 9))
+                    println(barriered_write(b, 2, 8))
+                    println(b.bytes())
+                }
+                """;
+        for (String[] a : new String[][]{{"riscv64", "NATIVE_RISCV64"}, {"aarch64", "NATIVE_AARCH64"}}) {
+            String arch = a[0];
+            Target t = Target.valueOf(a[1]);
+            assumeTrue(NativeRiscv64E2ETest.hasToolchainWithGcc(arch),
+                    "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
+            String so = compileCrossLib(dir, arch);
+            Path src = dir.resolve("borrow-seq-" + arch + ".kf");
+            Files.writeString(src, kof.formatted(so));
+            Path out = dir.resolve("out-borrow-seq-" + arch);
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
+            String o = runQemu(dir, arch, out.resolve("Default/Main"));
+            assertFalse(o.contains("MEM020"), arch + ": release must clear the flag; got:\n" + o);
+            assertEquals("2\n2\n[8, 0]", o, arch + " golden (second sequential writer succeeds)");
         }
     }
 

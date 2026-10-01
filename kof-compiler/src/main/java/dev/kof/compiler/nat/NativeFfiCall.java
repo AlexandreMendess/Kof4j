@@ -69,18 +69,30 @@ final class NativeFfiCall {
         return false;
     }
 
+    /** true se algum parâmetro é `String[]` (marker `arrayPtrType('S')`) — pede
+     *  o helper `kof_ffi_pack_str_array` (D-MEM-FFI-CROSS-FULL face 2). */
+    static boolean usesStrArrayParam(KofCall kc) {
+        for (Type t : kc.parameterTypes()) {
+            Character e = FfiStructLayout.arrayPtrElem(t);
+            if (e != null && e.charValue() == 'S') return true;
+        }
+        return false;
+    }
+
     /** #431: registra um extern no backend (biblioteca p/ o ld + flags dos
      *  helpers). Extraído do `NativeBackend` (gate ≤500 regra 7). */
     static void noteExtern(NativeBackend nb, KofCall kc) {
         nb.ffiLibs.add(libOf(kc));
         if (returnsCstr(kc)) nb.ffiUsesCstr = true;
         if (usesArrayParam(kc)) nb.ffiUsesArray = true;
+        if (usesStrArrayParam(kc)) nb.ffiUsesStrArray = true;
     }
 
     /** Emite os helpers de runtime dos extern x86-64 (uma vez por programa). */
     static void emitHelpers(NativeBackend nb, StringBuilder sb) {
-        if (nb.ffiUsesCstr) emitX86CstrHelper(sb);
-        if (nb.ffiUsesArray) emitX86ArrayPackHelper(sb);
+        if (nb.ffiUsesCstr) NativeFfiAsmHelpers.emitX86CstrHelper(sb);
+        if (nb.ffiUsesArray) NativeFfiAsmHelpers.emitX86ArrayPackHelper(sb);
+        if (nb.ffiUsesStrArray) NativeFfiAsmHelpers.emitX86StrArrayPackHelper(sb);
     }
 
     /** #431 fatia 2 / D6-2: link-by-use dos externs no cross (mesmo scan do
@@ -89,6 +101,7 @@ final class NativeFfiCall {
         nb.ffiLibs.clear();
         nb.ffiUsesCstr = false;
         nb.ffiUsesArray = false;
+        nb.ffiUsesStrArray = false;
         for (IRClass c : module.classes()) {
             for (IRMethod m : c.methods()) {
                 for (IRBasicBlock b : m.basicBlocks()) {
@@ -187,8 +200,14 @@ final class NativeFfiCall {
         for (int i = 0; i < n; i++) {
             if (!isArray[i]) continue;
             sb.append("    movq ").append(8 * (n - 1 - i)).append("(%rsp), %rdi\n");
-            sb.append("    movq $").append(arrayElemSize(arrayElem[i])).append(", %rsi\n");
-            sb.append("    call kof_ffi_pack_array\n");
+            if (arrayElem[i] == 'S') {
+                // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**` (payload de
+                // cada String; sem tamanho de elemento).
+                sb.append("    call kof_ffi_pack_str_array\n");
+            } else {
+                sb.append("    movq $").append(arrayElemSize(arrayElem[i])).append(", %rsi\n");
+                sb.append("    call kof_ffi_pack_array\n");
+            }
             sb.append("    movq %rax, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
         }
         // D-MEM030-BORROW-RUNTIME (B-03): cada `Buffer(U8)` INOUT adquire um
@@ -435,51 +454,6 @@ final class NativeFfiCall {
     }
 
 
-    /** Helper char*→String (cópia UTF-8 crua na fronteira — o buffer C nunca é
-     *  liberado; NULL → 0 = null Kof). Definido UMA vez por programa quando um
-     *  extern retorna String; o PRÓPRIO call-site o referencia (a poda de
-     *  runtime é por texto do programa — o helper vive no texto do programa). */
-    static void emitX86CstrHelper(StringBuilder sb) {
-        sb.append("""
-                kof_ffi_from_cstr:
-                    testq %rdi, %rdi
-                    je .Lffc_null
-                    pushq %r12
-                    pushq %r13
-                    pushq %r14
-                    movq %rdi, %r12
-                    xorq %rcx, %rcx
-                .Lffc_scan:
-                    cmpb $0, (%r12,%rcx)
-                    je .Lffc_got
-                    incq %rcx
-                    jmp .Lffc_scan
-                .Lffc_got:
-                    movq %rcx, %r13
-                    leal 25(%r13), %edi
-                    call kof_alloc
-                    movq %rax, %r14
-                    movl $1, 0(%r14)
-                    movl $0, 4(%r14)
-                    movq $0, 8(%r14)
-                    movl %r13d, 16(%r14)
-                    movl $0, 20(%r14)
-                    leaq 24(%r14), %rdi
-                    movq %r12, %rsi
-                    movl %r13d, %edx
-                    call kof_memcpy
-                    movb $0, 24(%r14,%r13)
-                    movq %r14, %rax
-                    popq %r14
-                    popq %r13
-                    popq %r12
-                    ret
-                .Lffc_null:
-                    xorl %eax, %eax
-                    ret
-                """);
-    }
-
     /** Largura (bytes) do elemento de um array escalar — igual à largura C do
      *  char ('b'→1, 'i'/'f'→4, 'j'/'d'→8), então o pack é um memcpy direto. */
     static int arrayElemSize(char elem) {
@@ -488,54 +462,6 @@ final class NativeFfiCall {
             case 'i', 'f' -> 4;
             default -> 8;
         };
-    }
-
-    /**
-     * D6-2/3.7: empacota um array Kof de escalares num buffer C contíguo —
-     * copy-in por chamada, paridade com o JVM (o array Kof nunca é mutado pela
-     * C; escritas são descartadas). {@code %rdi} = objeto array, {@code %rsi} =
-     * tamanho do elemento em bytes; retorno {@code %rax} = buffer
-     * ({@code kof_alloc}). Layout Kof do array: len em 16(obj), payload em 24.
-     * Definido uma vez por programa quando um extern recebe array (o call-site o
-     * referencia).
-     */
-    static void emitX86ArrayPackHelper(StringBuilder sb) {
-        sb.append("""
-                .globl kof_ffi_pack_array
-                .type kof_ffi_pack_array, @function
-                kof_ffi_pack_array:
-                    pushq %rbx
-                    pushq %r12
-                    pushq %r13
-                    pushq %r14
-                    subq $8, %rsp
-                    movq %rdi, %rbx
-                    movq %rsi, %r13
-                    movl 16(%rbx), %r12d
-                    movq %r12, %rdi
-                    imulq %r13, %rdi
-                    testq %rdi, %rdi
-                    jne .Lfpa_alloc
-                    movq $8, %rdi
-                .Lfpa_alloc:
-                    call kof_alloc
-                    movq %rax, %r14
-                    leaq 24(%rbx), %rsi
-                    movq %r14, %rdi
-                    movq %r12, %rdx
-                    imulq %r13, %rdx
-                    testq %rdx, %rdx
-                    je .Lfpa_done
-                    call kof_memcpy
-                .Lfpa_done:
-                    movq %r14, %rax
-                    addq $8, %rsp
-                    popq %r14
-                    popq %r13
-                    popq %r12
-                    popq %rbx
-                    ret
-                """);
     }
 
 }

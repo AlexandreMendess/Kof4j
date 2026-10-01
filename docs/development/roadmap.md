@@ -959,9 +959,11 @@ science) **without** destroying the language's simplicity.
 > File/Path/Text/Binary already exists as `kof.io`); streaming slices 1–2.5 +
 > config slices 3.1–3.3 landed (Phase 3 configuration COMPLETE: Ini/Toml/Yaml;
 > goldens JVM/Native/Script + JS gap `IOJS001`). — plan CONCLUDED 28/09, moved to `docs/stdlib/kof-file-plan.md` (3-state rule; documents/archives deferred).
-> **CONCLUDED 30/09 (6th front):** `multiparadigma` — promoted 28/09
+> **Phase 1 + Phase 2 COMPLETE 30/09 (6th front, plan CONCLUDED + MOVED to `docs/stdlib/`):** `multiparadigma` — promoted 28/09
 > (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) to
-> [`PLAN-MULTIPARADIGMA.md`](PLAN-MULTIPARADIGMA.md); slices 1a+1b+1c+1d+1e+1f+1g+1h+1i LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins + `sorted`/`sorted(cmp)` + `groupBy` + `zip`; E2E + `KofScriptStdlibParityTest` 22/22); `zip` landed 30/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` + `D-MULTIPARADIGMA-ZIP-NATIVE` — native reference-elements GREEN, primitive elements refused `NAT008`).
+> [`PLAN-MULTIPARADIGMA.md`](../stdlib/PLAN-MULTIPARADIGMA.md); the promoted scope is complete, so the plan
+> **moved to `docs/`** (3-state rule) — Phases 5–7 (DATA/INFRA: query/SQL/stream) stay **design-only**,
+> gated by R12 + a maintainer decision. Slices 1a+1b+1c+1d+1e+1f+1g+1h+1i LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins + `sorted`/`sorted(cmp)` + `groupBy` + `zip`; E2E + `KofScriptStdlibParityTest` 22/22); `zip` landed 30/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` + `D-MULTIPARADIGMA-ZIP-NATIVE` — native reference-elements GREEN, primitive elements refused `NAT008`).
 > **OPEN (7th front):** `image-vision` — promoted 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) to
 > [`image-vision-plan.md`](image-vision-plan.md); slice 1 = pure-Kof `libs/image/` metadata (format + dimensions,
 > PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).
@@ -1101,7 +1103,7 @@ the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work. R
 FFI) · `2.2 codegen hook` → `infra`/gRPC stubs · **TIER 1 (SYSTEMS) closes
 before ANY Tier 6+ (R12).**
 
-### TIER 14 — Tech-debt ledger queue (OPEN 23/09, `D-TECHDEBT-23/09`; **LEDGER KILLED 24/09** — debt measured zeroed)
+### TIER 14 (retired) — Tech-debt ledger queue (OPEN 23/09, `D-TECHDEBT-23/09`; **LEDGER KILLED 24/09** — debt measured zeroed)
 
 Ordered queue from the maintainer's multiple-choice rulings 23/09. **24/09,
 maintainer order: the `tech-debt.md` ledger is KILLED** — every live §NNN it
@@ -1168,10 +1170,10 @@ retired — promotion is now governed by TIER 14 (`D-QUALITY-PIPELINE-2609`).
 
 ### TIER 14 — Quality-pipeline migration (DECIDED 26/09 `D-QUALITY-PIPELINE-2609`; execution gated POST-0.5.0)
 
-The `lab → testing → prerelease → stable → release/x.y.z → tag` esteira is
-design-closed. **NO unit may start before the 0.5.0 cycle closes** — today's
-work keeps landing on `beta-0.5.0` (`D-BRANCH-0.5.0` in force). When the
-maintainer opens the front, the units are:
+The `lab → testing → prerelease → stable → release/x.y.z → tag` pipeline is
+design-closed. **The 0.5.0 cycle closed 28/09 (`D-RELEASE-0.5.0-CLOSED`) and
+`D-BRANCH-0.5.0` is `SUPERSEDED` — the active development branch is `lab`
+(`D-BRANCH-PIPELINE`).** When the maintainer opens this front, the units are:
 
 | # | Unit | Gate/proof |
 |---|---|---|

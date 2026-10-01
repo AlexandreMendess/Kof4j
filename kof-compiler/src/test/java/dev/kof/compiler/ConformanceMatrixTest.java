@@ -387,7 +387,10 @@ class ConformanceMatrixTest {
         // D-NULL-INTENT (#278, supersede §125 opção A): a última célula
         // (`miss`, Troolean de chave ausente) imprimia "false" — o fold
         // null→default. Agora JVM/Script/JS preservam o null genuíno
-        // (Absent|Present(T)); Native fica de fora (fase 2, DECISIONS.md).
+        // (Absent|Present(T)). Native entrou 30/09: o slot de valor Bool/
+        // Double/Float do Map ficava CRU mas o descritor tag-7 lia caixa
+        // (§284-map × #259/N2) → SIGSEGV; o escritor agora boxa a família
+        // toda (mapBoxablePrim), 4/4.
         matrix("mapgetprim", """
                 main() {
                     val b = mapOf("t", true).get("t")
@@ -404,7 +407,7 @@ class ConformanceMatrixTest {
                     val miss = mapOf("x", true).get("nope")
                     println(miss)
                 }
-                """, "true\ntrue\n8\n9000000001\ntrue\na\nnull", Set.of("native"), tempDir);
+                """, "true\ntrue\n8\n9000000001\ntrue\na\nnull", Set.of(), tempDir);
 
         // D-NULL-INTENT (#278, 18/09): supersede a §125 (decisão da
         // mantenedora 12/09, opção A). A opção A congelava println de função

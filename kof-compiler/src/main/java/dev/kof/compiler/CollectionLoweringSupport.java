@@ -19,13 +19,20 @@ final class CollectionLoweringSupport {
         return mapBoxablePrim(inner);
     }
 
-    // ...e o dominio exato de unboxFn no nativo (int/char/short/byte/long).
-    // Double/Float/Bool ficam crus la e ca: sem kof_unbox para eles, o par
-    // cru × no-op que existia antes do §284 permanece casado (zero regressao).
+    // ...e o dominio de box/unbox de erasure no nativo. Ate #259/N2 (19/09)
+    // so a familia int/char/short/byte/long tinha kof_unbox_*; bool/float/
+    // double eram crus la e ca. O N2 implementou kof_{unbox,unbox_soft}_
+    // {bool,float,double} e passou os consumidores de Nullable(primitivo) a
+    // tratar o slot como CAIXA (kof_box_equals, kof_box_to_string), mas este
+    // predicado (e o literal/put do Map) ficou no estado pre-N2 -> descritor
+    // tag-7 lia o valor cru como ponteiro (SIGSEGV rc=139: `println(mapOf(
+    // "t",true).get("t"))`). Agora o escritor cobre TODA a familia boxavel,
+    // como NativeBoxTags.unboxFn, fechando o par escrita×leitura.
     static boolean mapBoxablePrim(Type t) {
         if (!(t instanceof Type.PrimitiveType pt)) return false;
         return switch (pt.name()) {
-            case "int", "char", "short", "byte", "long" -> true;
+            case "int", "char", "short", "byte", "long", "bool", "boolean",
+                 "float", "double" -> true;
             default -> false;
         };
     }

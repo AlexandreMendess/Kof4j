@@ -466,6 +466,14 @@ public final class KofUi {
                 default -> null;
             };
         }
+        if (isFieldset(receiver)) {
+            // issue #711: `remove` existia no runtime (JVM/Native/JS) mas nunca
+            // era mapeado — a chamada era DROPADA em silêncio.
+            return switch (name) {
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_fieldset_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
         if (isComponent(receiver)) {
             // Component Core (docs/ui/architecture.md): estado reativo +
             // invalidação + render + lifecycle + effects + events.
@@ -477,6 +485,9 @@ public final class KofUi {
                 case "onDispose" -> argCount == 1 ? new UiCall("kof_ui_component_on_dispose", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
                 case "effect" -> argCount == 1 ? new UiCall("kof_ui_component_effect", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
                 case "on" -> argCount == 2 ? new UiCall("kof_ui_component_on", Type.PrimitiveType.VOID, List.of(STR, Type.UnknownType.UNKNOWN)) : null;
+                // issue #711: `mount()` existia no runtime (JVM/Native/JS) mas
+                // nunca era mapeado — a chamada era DROPADA em silêncio.
+                case "mount" -> argCount == 0 ? new UiCall("kof_ui_component_mount", Type.PrimitiveType.VOID, List.of()) : null;
                 case "bind" -> argCount == 1 ? new UiCall("kof_ui_component_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_component_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;

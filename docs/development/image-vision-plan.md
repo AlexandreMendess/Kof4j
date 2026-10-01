@@ -11,8 +11,12 @@
 > **Slice 2b LANDED 29/09:** pure-Kof raster operations over the provisional `Raster` — `cropRaster(r,x,y,w,h)` and `resizeNearest(r,w,h)` (nearest-neighbour), output bounded by the same cap; smooth filtering waits for the interop slice. Proof: `RasterDecodeE2ETest` 7/7.
 > **Slice 3g LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8lTransforms.kf` (new) + `libs/image/Vp8l.kf` — VP8L **predictor** (14 modes, §3.5.1) and **color** (§3.5.2, `ColorTransformDelta = (s8(t)*s8(c))>>5`) inverse transforms, applied in reverse order; the transform loop now reads `size_bits`/subresolution grids for both and the entropy decode was factored into `vp8lDecodeImage(r,w,h,metaAllowed)` so transform sub-images never read the ARGB-only meta-prefix bit (§3.8.3). Color-indexing transform and meta-Huffman groups still refused with explicit `IMAGE:` diagnostics. Proof: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. a new 8x8 libwebp-generated predictor+color stream **byte-validated against libwebp**, JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP predictor transform is not supported yet`).
 > **Slice 3h LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8lTransforms.kf` + `libs/image/Vp8l.kf` — VP8L **COLOR_INDEXING transform** (§3.5.4): the palette sub-image (`num_colors = ReadBits(8)+1`, colors delta-coded left-to-right and expanded to `1 << (8 >> bits)` entries) is applied to the entropy image, whose green channel packs `1 << bits` indices of `8 >> bits` bits, least significant first, at the reduced width `ceil(w / 2^bits)`. Fixed a latent **`max_symbol`** bug in `vp8lReadNormal` (`ReadHuffmanCodeLengths` caps the number of decoded code-length *symbols*, not the resulting array length — RFC 9649 §3.6.2.1); the bug only surfaced when the "use length" flag reduced `max_symbol` below the alphabet and desynced the bitstream. Meta-Huffman groups still refused with an explicit `IMAGE:` diagnostic. Proof: `RasterDecodeE2ETest` 19/19 (new 8x8 libwebp-generated 8-color indexing stream, byte-validated against libwebp; JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP color-indexing transform is not supported yet`).
-> **VP8 lossy slice 2 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Frame.kf` + `libs/image/Vp8Probs.kf` (new) — RIFF/`WEBP` walk + full `VP8 ` frame header (RFC 6386 §9/§19): key-frame tag/start code/dimensions, segmentation, loop filter, token-partition count, the six dequant indices and the 1056-entry coefficient-probability table (defaults + updates). `Vp8Bool` gained `signedOrZero`/`bytePosition`. Proof: `Vp8FrameE2ETest` 4/4 vs an independent RFC §19.2 oracle on JVM + Native x86-64 + riscv64(qemu) + Script. Modeled as a class (not a wide record) because the cross backend corrupts calls with ≥9 arguments (`known-bugs` §546, issue #703).
+> **VP8 lossy slice 2 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Frame.kf` + `libs/image/Vp8Probs.kf` (new) — RIFF/`WEBP` walk + full `VP8 ` frame header (RFC 6386 §9/§19): key-frame tag/start code/dimensions, segmentation, loop filter, token-partition count, the six dequant indices and the 1056-entry coefficient-probability table (defaults + updates). `Vp8Bool` gained `signedOrZero`/`bytePosition`. Proof: `Vp8FrameE2ETest` 4/4 vs an independent RFC §19.2 oracle on JVM + Native x86-64 + riscv64(qemu) + Script. Modeled as a class (not a wide record) because the cross backend corrupted calls with ≥9 arguments (`known-bugs` §546, issue #703 — **FIXED 30/09**, `NativeCrossWideArgsE2ETest` 3/3).
 > **VP8 lossy slice 3 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Frame.kf` now decodes the key-frame macroblock prediction records (RFC 6386 §10/§11): per-macroblock segment id (when `update_mb_segmentation_map`), `mb_skip_coeff` (when `mb_no_skip_coeff`), the luma 16x16 mode, the 16 context-coded luma subblock modes when the mode is `B_PRED` (the 10×10×9 `kf_bmode_prob` indexed by the subblock modes above/left, across macroblock boundaries) and the chroma mode. New `libs/image/Vp8ModeProbs.kf` carries the three fixed tables (`kf_ymode_prob`, `kf_uv_mode_prob`, `kf_bmode_prob`). Proof: `Vp8ModeE2ETest` 4/4 vs an independent RFC §7.3/§10/§11 oracle over three libwebp lossy files (4×4 segment map + `mb_skip_coeff`; all-`B_PRED` 2×2; mixed luma/chroma modes) on JVM + Native x86-64 + riscv64(qemu) + Script — every segment id, skip flag and mode identical. Next slices: DCT coefficient decoding (§13), intra prediction + inverse DCT/WHT (§12/§14), the loop filter (§15).
+> **VP8 lossy slice 4 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Coeffs.kf` (new) — the token-partition DCT/WHT **coefficient decoder** (RFC 6386 §13.2/§13.3): for every macroblock not marked `mb_skip_coeff`, the Y2/16 Y/4 U/4 V 4×4 blocks are read from the block tree (end-of-block, zero, 1, 2 and 3–4 branches, the three context-coded value nodes and the six category tokens with their fixed extra-bit probabilities `Pcat1..Pcat6`) into `mb*400 + block*16 + zig-zagIndex`, with the end-of-block position per block; the above/left non-zero predictors cross macroblock boundaries and are cleared for a skipped macroblock. `vp8TokenPartition` builds the single token-partition bool decoder and refuses a multi-partition frame with an explicit diagnostic (libwebp always emits one) rather than mis-decoding. Proof: `Vp8CoeffE2ETest` **4/4** vs an independent RFC §7.3/§13 oracle over four real libwebp lossy files (DC-only 16×16, all-`B_PRED` 32×32, a 64×64 with `mb_no_skip_coeff` + skips, and a 64×64 mixing every coefficient category), reproducing the non-empty-block count and signed/absolute coefficient sums of every macroblock on JVM + Native x86-64 + riscv64(qemu) + Script. The oracle's per-position band lookup was cross-checked against the RFC §20.16 reference `tokens.c` (`prob += bands_x[c]`, a single mapping). Next slices: intra prediction + inverse DCT/WHT (§12/§14), the loop filter (§15).
+> **VP8 lossy slice 5a LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Residual.kf` (new) — **dequantization + inverse transforms** (RFC 6386 §14). Every macroblock's quantized coefficients are dequantized with its frame/segment factors (`dc_qlookup`/`ac_qlookup` §14.1; Y2 DC `×2`, Y2 AC `×155/100` min 8, UV DC clamped to 132), the Y2 block is inverted with the inverse Walsh-Hadamard transform (§14.3) and its 4×4 output becomes the DC term of the 16 luma subblocks, then every luma/chroma subblock is inverted with the inverse DCT (§14.4, `20091`/`35468`). The two 128-entry quant tables are built **once** into a `Vp8QuantTables` object (holding them alive across macroblocks — rebuilding the `listOf` per call triggered a riscv64 GC mark race that corrupted the residue; the object form is stable across all targets). Proof: `Vp8ResidualE2ETest` **4/4** vs an independent RFC §14 oracle over four real libwebp lossy files (one `B_PRED` DC-only, a 2×2 all-`B_PRED`, a segmented/skip frame, a frame mixing every category) — the signed/absolute luma/chroma sums of every macroblock identical on JVM + Native x86-64 + riscv64(qemu) + Script. Next: intra prediction (§12) + reconstruction (add the residue to the predicted pixels), then the loop filter (§15).
+> **VP8 lossy slice 5 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Reconstruct.kf` (new, `vp8Reconstruct`) turns the quantized coefficients into the three reconstructed **pre-loop-filter** planes (RFC 6386 §12/§14) — the residue — per-segment dequantization §14.1, inverse Walsh-Hadamard transform of the Y2 DC block §14.3 and inverse 4×4 DCT §14.4, all in `libs/image/Vp8Residual.kf` (landed as slice 5a) — then 16×16 luma (DC/V/H/TM) + the ten `B_PRED` 4×4 subblock modes §12.3 (`libs/image/Vp8Predict4.kf`) + 8×8 chroma modes §12.2 and the saturating prediction+residue sum §14.5, into padded planes. The `B_PRED` above/right pixels replicate the macroblock top-right pixels down the row (libwebp `top_right[BPS]=…`), the Y-block DC uses the Y2 `(dc[0]+3)>>3` shortcut when only the DC is non-zero, and U/V are predicted independently from their own planes. **Oracle = libwebp itself** decoded with the loop filter disabled (`ffmpeg -skip_loop_filter all`): slice 5 stops before §15, so the exact pre-filter planes are the golden. Proof: `Vp8ReconstructE2ETest` **4/4** — four real libwebp files (`flat16` 16×16 V_PRED + DC-only Y2, `diag32` all-`B_PRED` 32×32, `skip64` mixed 16×16 + skipped MBs, `cat64` mixed modes + every residual) reproduce libwebp's per-plane sample sum and a rolling hash for Y, U and V on JVM + Native x86-64 + riscv64(qemu) + Script. Next slice: the loop filter (§15), after which the full decoder is byte-identical to libwebp.
+> **`kof.vision` region descriptors LANDED 30/09 (pure Kof, all targets):** `libs/vision/Regions.kf` (new) adds `componentBoxes(labels, width)` (exact axis-aligned bounding box per component label), `componentAreas(labels)` (pixel count per label) and `labelComponents(labels, width)` (the `List<Component>` object form) — the §12 "regions" / §14 "contour extraction" descriptors, built on `componentLabels`. Proof: `VisionAnalysisE2ETest` **4/4** (the 6×4 two-blob PGM yields `areas=3,4`, `box1=0,0,1,1`, `box2=3,1,4,2`, `regions=2 r1=1@0,0 a3`) on JVM + Native x86-64 + riscv64(qemu) + Script.
 > **Slice 3i LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L **meta-Huffman groups** (RFC 9649 §3.7.2.2): `prefix_bits = ReadBits(3)+2`; the entropy image `ceil(w/2^bits) × ceil(h/2^bits)` is entropy-decoded, each pixel's red/green bytes give its group index, one prefix-code group is read per distinct value, and each pixel selects its group by `entropy[(y>>bits)*xw + (x>>bits)]` (the LZ77 copy is not clamped to group blocks, matching libwebp). This was the last VP8L refusal — the whole VP8L lossless path now decodes. Proof: `RasterDecodeE2ETest` 19/19 (new 8x8 two-group libwebp-generated stream, byte-validated against libwebp; JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP meta-Huffman groups are not supported yet`).
 > **Slice 3f LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L **color cache** (RFC 9649 §3.6.2.3: `color_cache_code_bits` 1..11, slot `(0x1e35a7bd * argb) >> (32 - bits)`, every literal/copied pixel inserted in stream order, `S >= 256+24` reads the cache). The green prefix code alphabet is now `256+24+cache_size`. Decodes subtract-green/color-cache/single-group streams. Predictor/color/indexing transforms and meta-Huffman still refused with explicit `IMAGE:` diagnostics. Proof: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. a new 8x8 color-cache stream **generated by libwebp and byte-validated against it**, JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP color cache is not supported yet`).
 > **Slice 3e LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L **normal (code-length) Huffman codes** + **LZ77 backward references** (length/distance prefix extra bits + the §3.6.2.2.1 distance map). Decodes the subtract-green/no-cache/single-group subset that real libwebp emits. Predictor/color/indexing transforms, color cache and meta-Huffman still refused with explicit `IMAGE:` diagnostics. Proof: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. a hand-built normal-Huffman+LZ77 stream, libwebp-validated, JVM + Native x86-64 + riscv64(qemu) + Script). Re-test of the VP8L native face after the §541/§543 fixes.
@@ -798,9 +802,10 @@ ability genuinely does not exist on a target.
     the two RFC tables (`§13.4` update probs, `§13.5` defaults); `Vp8Bool` gained
     `signedOrZero(n)` (RFC `bool_maybe_get_int`) and `bytePosition()`. Modeled
     as a **single-argument-constructor class** rather than a wide record: the
-    riscv64/aarch64 cross backend corrupts calls with ≥9 arguments (measured,
-    catalogued as `known-bugs` **§546** / issue **#703**), so the parser stays
-    inside the verified arity and stays green on every target. Proof:
+    riscv64/aarch64 cross backend corrupted calls with ≥9 arguments (measured,
+    catalogued as `known-bugs` **§546** / issue **#703**; **FIXED 30/09** — the
+    parser was kept inside the verified arity at the time, and a wide record may
+    now be revisited), so the parser stayed green on every target. Proof:
     `Vp8FrameE2ETest` **4/4** against an **independent RFC §19.2 parser**
     (offline Python) over a real libwebp 8×8 lossy file — identical
     `w=8,h=8,lf=3,qi=9,parts=1,pos=13,sum=174173` (the 1056-entry table sum,
@@ -826,9 +831,96 @@ ability genuinely does not exist on a target.
     frame whose subblock modes are context-coded (`diag32`) and a 4×4 frame
     mixing every luma/chroma mode (`mix`) — reproducing every segment id, skip
     flag, luma mode, subblock mode and chroma mode on JVM + Native x86-64 +
-    riscv64(qemu) + Script (no compiler change). Next slices: DCT coefficient
-    token decoding (§13), intra prediction + inverse DCT/WHT (§12/§14), the loop
-    filter (§15).
+    riscv64(qemu) + Script (no compiler change). Next slices: intra prediction
+    + inverse DCT/WHT (§12/§14), the loop filter (§15).
+
+14. **VP8 lossy slice 4 — DCT/WHT coefficient decoder — LANDED 30/09 (pure
+    Kof, all targets).** `libs/image/Vp8Coeffs.kf` (new) walks the token
+    partition(s) and decodes the quantized residue of every macroblock that was
+    not `mb_skip_coeff` (RFC 6386 §13.2/§13.3). The block tree is read with the
+    three context-coded value nodes and the six category tokens, each category
+    carrying its fixed extra-bit probabilities (`Pcat1..Pcat6`) and a trailing
+    sign bit; the result lands in `coeffs` at `mb*400 + block*16 + zigzag` with
+    the end-of-block position stored per block. The above/left non-zero
+    predictors are indexed by `left_context_index`/`above_context_index` (the
+    Y2 predictor keeps the most recent macroblock that has a Y2 block) and are
+    cleared for a skipped macroblock. `vp8TokenPartition` builds the single
+    token-partition bool decoder; a frame that splits its residue across more
+    than one partition is refused with an explicit diagnostic (the available
+    libwebp encoders always emit one) instead of a silent wrong decode. Proof:
+    `Vp8CoeffE2ETest` **4/4** against an **independent RFC §7.3/§13 coefficient
+    decoder** (offline Python) over four real libwebp lossy files — a DC-only
+    16×16, an all-`B_PRED` 32×32, a 64×64 with `mb_no_skip_coeff=1` and many
+    skipped macroblocks, and a 64×64 mixing every coefficient category —
+    reproducing the non-empty-block count and the signed/absolute coefficient
+    sums of every macroblock on JVM + Native x86-64 + riscv64(qemu) + Script
+    (no compiler change). The oracle's per-position band lookup was cross-checked
+    against the RFC §20.16 reference `tokens.c` (`prob += bands_x[c]`, a single
+    mapping; the Kof decoder applies it once). Next slice: intra prediction +
+    inverse DCT/WHT (§12/§14), then the loop filter (§15).
+
+15. **VP8 lossy slice 5a — dequantization + inverse transforms — LANDED 30/09
+    (pure Kof, all targets).** `libs/image/Vp8Residual.kf` (new) converts the
+    quantized residue produced by slice 4 into the prediction-free residue of
+    every macroblock (RFC 6386 §14). For each macroblock it derives the six
+    dequantization factors from its frame quantizer and segment quantizer
+    (§14.1): the `dc_qlookup`/`ac_qlookup` tables feed Y DC/AC, Y2 DC (`×2`) and
+    AC (`×155/100`, minimum 8), and the chroma DC/AC (DC clamped to 132). The Y2
+    block is inverted with the inverse Walsh-Hadamard transform (§14.3) and its
+    4×4 output becomes the DC coefficient of each of the 16 luma subblocks;
+    every luma and chroma subblock is then inverted with the inverse DCT (§14.4,
+    fixed-point `20091`/`35468`). Results are stored as `y` (16×16 per
+    macroblock) and `u`/`v` (8×8), with `B_PRED` macroblocks taking their DC
+    directly from the coefficient stream (no Y2). The two 128-entry quant tables
+    are built **once** inside a `Vp8QuantTables` object shared by the decode:
+    rebuilding the `listOf` on each dequantization call left a deep-live
+    temporary that the riscv64 collector marked race-collected and corrupted the
+    working arrays (a native GC finding, worked around structurally in pure
+    Kof). Proof: `Vp8ResidualE2ETest` **4/4** against an **independent RFC §14
+    oracle** (offline Python) over four real libwebp lossy files — a DC-only
+    `B_PRED` frame, an all-`B_PRED` 32×32, a segment-mapped/skip 64×64, and a
+    64×64 mixing every coefficient category — reproducing the signed and
+    absolute sums of the luma and chroma residue planes of every macroblock on
+    JVM + Native x86-64 + riscv64(qemu) + Script (no compiler change). Next
+    slice: intra prediction (§12) + reconstruction (add the residue to the
+    predicted pixels), then the loop filter (§15).
+16. **`kof.vision` slice 2c — connected-component regions — LANDED 30/09 (pure
+    Kof, all targets).** `libs/vision/Regions.kf` adds the reusable region
+    descriptors of §12 ("regions") / §14 ("contour extraction"):
+    `componentBoxes(labels, width): List<ComponentBox>` (one exact axis-aligned
+    bounding box per component label, index 0 = background),
+    `componentAreas(labels): Int[]` (pixel count per label) and
+    `labelComponents(labels, width): List<Component>` (the object form — a
+    `Component(label, box, area)` per region, in label order). Built on
+    `componentLabels`; deterministic, no interop, all targets. Proof:
+    `VisionAnalysisE2ETest` **4/4** — the 6×4 two-blob PGM yields
+    `areas=3,4`, `box1=0,0,1,1`, `box2=3,1,4,2` and `regions=2 r1=1@0,0 a3`
+    on JVM + Native x86-64 + riscv64(qemu) + Script (same class extends the
+    histogram/Otsu/Sobel/components/morphology golden).
+
+16. **VP8 lossy slice 5 — intra prediction + inverse DCT/WHT — LANDED 30/09
+    (pure Kof, all targets).** `libs/image/Vp8Reconstruct.kf` (`vp8Reconstruct`)
+    reconstructs the three **pre-loop-filter** key-frame planes from the
+    coefficients of slice 4 (RFC 6386 §12/§14). Split by responsibility: it builds on the slice-5a residue
+    `libs/image/Vp8Residual.kf` (§14.1 dequantization + §14.3/§14.4 inverse
+    WHT/DCT) and adds `libs/image/Vp8Predict4.kf` (the ten `B_PRED` 4×4 modes,
+    §12.3) and the reconstruction driver (16×16 DC/V/H/TM §12.3, 8×8 chroma
+    §12.2, prediction+residue sum §14.5). The `B_PRED` above/right samples
+    replicate the macroblock's top-right pixels down the row (libwebp
+    `top_right[BPS] = top_right[2*BPS] = …`), the `B_PRED` cells read the row
+    above the subblock / the column to its left in the frame buffer, the Y-block
+    DC is the inverse-WHT output (or the `(dc[0]+3)>>3` shortcut when only the
+    Y2 DC is non-zero), and U/V predict independently from their own planes.
+    **Oracle = libwebp itself**, decoded with the loop filter disabled
+    (`ffmpeg -skip_loop_filter all`): slice 5 stops at §14.5, so libwebp's exact
+    pre-filter planes are the golden. Proof: `Vp8ReconstructE2ETest` **4/4** —
+    four real libwebp files (`flat16` 16×16 V_PRED + DC-only Y2, `diag32`
+    all-`B_PRED` 32×32, `skip64` mixed 16×16 + skipped macroblocks, `cat64`
+    mixed modes + every residual) match libwebp's per-plane sample sum and a
+    24-bit rolling hash for Y, U and V on JVM + Native x86-64 + riscv64(qemu) +
+    Script; RED-first (`PKG006 import 'image.Vp8Reconstruct' not found`) on the
+    pre-slice tree. Next slice: the loop filter (§15), which completes the
+    byte-exact VP8 decoder.
 
 **DECIDED 30/09 (`D-WEBP-LOSSY-PURE-KOF`, option C): WebP lossy `VP8 ` + AVIF
 as a pure-Kof decoder on all targets.** The measured finding that forced the
@@ -840,9 +932,10 @@ rejected. The route is a pure-Kof VP8 lossy decoder (RFC 6386), library-first,
 same shape as the VP8L slices, with the same slice discipline (each one a
 complete, tested unit; no interim half-decode). Slice chain: (1) RIFF/`VP8 `
 parser + frame header + boolean range decoder (§7); (2) per-macroblock mode/
-segment header + coefficient probability tables; (3) intra prediction + inverse
-DCT/WHT + reconstruction; (4) in-loop deblocking filter; (5) the adaptive
-(non-keyframe) path. Until the chain lands, a lossy WebP is still refused at
+segment header + coefficient probability tables; (3) dequantization + inverse
+DCT/WHT (§14, slice 5a LANDED) then intra prediction + reconstruction (§12);
+(4) in-loop deblocking filter; (5) the adaptive (non-keyframe) path. Until the
+chain lands, a lossy WebP is still refused at
 runtime with `IMAGE: WebP is not lossless (VP8L)` (no silent wrong decode);
 AVIF follows after VP8.
 

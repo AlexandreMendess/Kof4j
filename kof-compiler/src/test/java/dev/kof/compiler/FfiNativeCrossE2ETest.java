@@ -237,7 +237,7 @@ class FfiNativeCrossE2ETest {
     }
 
     @Test
-    void riscv64ScalarArrayBindsStringArrayStaysFfi001(@TempDir Path tempDir) throws IOException {
+    void riscv64ScalarArrayAndStringArrayBind(@TempDir Path tempDir) throws IOException {
         assumeTrue(ready("riscv64"), "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
         // D-MEM-FFI-CROSS-FULL (30/09): array escalar `T[]`→ptr agora binda no
         // cross (copy-in `kof_ffi_pack_array`), provado com execução em
@@ -251,16 +251,16 @@ class FfiNativeCrossE2ETest {
         assertTrue(r.success(), "scalar array extern must bind on riscv64: "
                 + r.diagnostics().getDiagnostics());
 
-        // `String[]` (array de ponteiros) continua fora do v1 → FFI001 honesto.
-        Path gap = tempDir.resolve("Gap.kf");
-        Files.writeString(gap, """
+        // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` agora binda no
+        // cross (a prova por execução está em FfiNativeStringArrayE2ETest); aqui
+        // pina só o gate na declaração.
+        Path strArr = tempDir.resolve("StringArray.kf");
+        Files.writeString(strArr, """
                 extern "libc.so.6" sum(String[] xs): Int
-                main() { println("gap") }
+                main() { println("bound") }
                 """);
-        CompilationResult rg = driver.compile(gap, tempDir.resolve("out-gap"), Target.NATIVE_RISCV64);
-        assertFalse(rg.success(), "String[] extern não pode virar silêncio no cross");
-        String diags = rg.diagnostics().getDiagnostics().toString();
-        assertTrue(diags.contains("FFI001"),
-                "String[]/struct no cross permanece FFI001 honesto na declaração: " + diags);
+        CompilationResult rg = driver.compile(strArr, tempDir.resolve("out-strarr"), Target.NATIVE_RISCV64);
+        assertTrue(rg.success(), "String[] must bind on cross riscv64: "
+                + rg.diagnostics().getDiagnostics());
     }
 }

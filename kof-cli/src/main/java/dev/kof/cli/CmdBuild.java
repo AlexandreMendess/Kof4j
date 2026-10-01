@@ -278,7 +278,18 @@ final class CmdBuild {
         String app001 = KofCliSupport.app001(target, layout.fullStack());
         if (app001 != null) { System.err.println("build: " + app001); System.exit(1); return; }
         List<Path> files = KofCliSupport.collect(backendDir);
-        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
+        if (files.isEmpty()) {
+            // R6 (#708): a directory with no Kof source used to print this and
+            // exit 0 — a silent no-op that looked like a successful build. The
+            // discovery is non-recursive (one directory = one package), so a
+            // tree like src/main/kof/exemplo/ yields nothing here; fail
+            // explicitly instead, and point at the expected layout.
+            System.err.println("build: no .kf/.kof files found in " + backendDir
+                    + " (discovery is one directory = one package; run from the"
+                    + " directory that holds the sources)");
+            System.exit(1);
+            return;
+        }
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
         // D-DB-ZERODRIVER (a): mesmos drivers auto no build JVM (cp de
         // compilação + embed no --fat via externalEntries, que o

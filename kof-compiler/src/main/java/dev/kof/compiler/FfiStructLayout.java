@@ -75,6 +75,7 @@ public final class FfiStructLayout {
             case 'f' -> Type.PrimitiveType.FLOAT;
             case 'd' -> Type.PrimitiveType.DOUBLE;
             case 'b' -> Type.PrimitiveType.BOOL;
+            case 'S' -> BuiltinTypes.STRING;   // D-MEM-FFI-CROSS-FULL face 2
             default -> Type.PrimitiveType.INT;
         };
     }
@@ -177,6 +178,26 @@ public final class FfiStructLayout {
         return true;
     }
 
+    /** True when a single struct is bindable as a cross (riscv64/aarch64) RETURN
+     *  in the **memory path** (sret) — larger than 16 B, so the C writes it
+     *  through the ABI's indirect-result pointer. Unlike x86-64 sret (a hidden
+     *  INTEGER argument in {@code rdi}), the two cross ABIs diverge and the
+     *  emitter must branch on the target: RISC-V LP64 passes the pointer in
+     *  {@code a0} (first real arg in {@code a1}), AAPCS64 in {@code x8} (first
+     *  real arg still {@code x0}). Measured 30/09 with cross-gcc. */
+    public static boolean crossMemoryReturn(Target t, Type structType) {
+        return crossByMemory(t, structType);
+    }
+
+    /** True when a cross struct travels through memory (BYREF) — as a by-value
+     *  PARAMETER passed by reference or as a RETURN via the sret pointer. Fields
+     *  may be mixed; the emitter copies raw bytes against the C layout. Measured
+     *  30/09 with cross-gcc: both riscv64 and aarch64 pass a &gt; 16 B struct
+     *  param as a pointer in `a0`/`x0`. */
+    public static boolean crossByMemory(Target t, Type structType) {
+        return layout(abiFor(t), structType).byMemory();
+    }
+
     /** Number of eightbyte words a cross struct occupies (INTEGER-only, from
      *  {@code crossIntRegisterOnly}). Integer fields are ABI-independent in
      *  size/offset, so the SysV layout is reused for the word count. */
@@ -189,7 +210,15 @@ public final class FfiStructLayout {
      *  registers — unlike scalars, which may spill (the shim handles it).
      *  Simulates LP64/AAPCS64 register counting in formal order. */
     public static boolean crossBindable(List<Type> paramTypes) {
-        int nInt = 0, nFlt = 0;
+        return crossBindable(paramTypes, 0);
+    }
+
+    /** As {@link #crossBindable(List)} but {@code intReserved} INTEGER registers
+     *  are already consumed — 1 for the RISC-V LP64 sret pointer (memory-path
+     *  return, {@link #crossMemoryReturn}); AAPCS64 uses x8 but reserving
+     *  conservatively keeps the single shared gate honest (never over-binds). */
+    public static boolean crossBindable(List<Type> paramTypes, int intReserved) {
+        int nInt = intReserved, nFlt = 0;
         for (Type t : paramTypes) {
             if (isBufferPtr(t)) {
                 // #651 fatia B: Buffer(U8)→ptr é um ponteiro INTEGER (um ordinal),
@@ -206,8 +235,16 @@ public final class FfiStructLayout {
                 continue;
             }
             if (isStructType(t)) {
+                // D-MEM-FFI-CROSS-FULL face 3 estendida: struct > 16 B (BYREF)
+                // viaja como UM ponteiro INTEGER (medido 30/09: riscv64 e aarch64
+                // passam ambos o param por referência em `a0`/`x0`).
                 AbiLayout.Layout l = layout(AbiLayout.Abi.RISCV64, t);
-                if (l.byMemory() || l.size() > 16 || l.classes().isEmpty()) return false;
+                if (l.byMemory()) {
+                    if (nInt >= 8) return false;
+                    nInt++;
+                    continue;
+                }
+                if (l.size() > 16 || l.classes().isEmpty()) return false;
                 for (AbiLayout.ArgClass c : l.classes()) {
                     if (c != AbiLayout.ArgClass.INTEGER) return false;
                     if (nInt >= 8) return false;
