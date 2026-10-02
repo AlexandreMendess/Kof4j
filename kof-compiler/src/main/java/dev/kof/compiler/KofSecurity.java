@@ -53,6 +53,19 @@ public final class KofSecurity {
 
     static boolean isSecretType(Type t) { return SECRET.equals(t); }
 
+    /** Declared-type hook (same pattern as {@code KofUi}/{@code KofNet} —
+     *  §179/§slice-6): without it a Kof function CANNOT declare a
+     *  {@code Secret} or {@code KeyHandle} PARAMETER — the name resolves to
+     *  an unqualified ClassType and SECN014 fires on legit calls (measured
+     *  02/10 building the KofShare handshake; catalogued §569). */
+    static Type typeByName(String name) {
+        return switch (name) {
+            case "Secret" -> SECRET;
+            case "KeyHandle" -> KEY_HANDLE;
+            default -> null;
+        };
+    }
+
     /** D-SECRETS P3 (Stage 5 / 3.6): {@code KeyHandle} — chave nomeada que
      *  nunca expoe bytes ao guest; so os algoritmos de crypto a consomem. */
     static final Type KEY_HANDLE = new Type.ClassType("kof", "KeyHandle", List.of());

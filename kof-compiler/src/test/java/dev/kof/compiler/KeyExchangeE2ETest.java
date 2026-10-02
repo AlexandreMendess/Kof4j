@@ -121,6 +121,37 @@ class KeyExchangeE2ETest {
     }
 
     @Test
+    @DisplayName("§569: Secret declared as a parameter/return type resolves — no SEM011, no spurious SECN014 (KofShare handshake regression)")
+    void secretDeclaredParameterType(@TempDir Path dir) throws Exception {
+        Path s = dir.resolve("param.kf");
+        Files.writeString(s, """
+                Secret derive(Secret priv) {
+                    var pub = keyExchange.publicKey(priv)
+                    return keyExchange.shared(priv, secrets.of(pub))
+                }
+                main() {
+                    var p = keyExchange.privateKey()
+                    var shared = derive(p)
+                    println(shared.redacted())
+                    println(keyExchange.hkdfSha256(shared, "00", "f0f1", 16).length)
+                }
+                """);
+        CompilationResult r = driver.compile(s, dir.resolve("out-param"), Target.JVM);
+        assertTrue(r.success(), "Secret param/return must compile: " + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "--enable-native-access=ALL-UNNAMED", "-cp", dir.resolve("out-param").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(30, TimeUnit.SECONDS), "finish");
+        assertEquals(0, proc.exitValue(), "exit: " + out);
+        String[] lines = out.trim().split("\n");
+        assertTrue(lines[0].contains("***"), "shared secret must redact (R8): " + lines[0]);
+        assertEquals("32", lines[1], "16 derived bytes = 32 hex chars: " + lines[1]);
+    }
+
+    @Test
     @DisplayName("D-KOF-X25519: JS/Native/cross refuse the face with the named SECN012 gap until ported")
     void targetGapRefusal(@TempDir Path dir) throws Exception {
         Path s = dir.resolve("gap.kf");

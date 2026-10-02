@@ -279,6 +279,8 @@ public final class CompilerTypes {
         if ("ImageData".equals(name)) return KofMedia.IMAGE_DATA;
         Type net = KofNet.typeByName(name);
         if (net != null) return net;
+        Type sec = KofSecurity.typeByName(name);
+        if (sec != null) return sec;
         return BuiltinTypes.declaredCollectionType(name);
     }
 
