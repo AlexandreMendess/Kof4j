@@ -2,7 +2,7 @@ package dev.kof.compiler.jvm;
 
 /**
  * Fragmento do source do KofRuntime gerado — frente de sockets do front
- * `D-KOF-NET` (plan {@code docs/development/network-kofnet-plan.md}, fatia 2).
+ * `D-KOF-NET` (plan {@code docs/stdlib/network-kofnet-plan.md}, fatia 2).
  *
  * Contrato congelado pela decisão: uma namespace `kof.net`, verbos BLOQUEANTES
  * (o paralelismo é o `spawn` do Kof — nenhuma maquinaria async/await de I/O é

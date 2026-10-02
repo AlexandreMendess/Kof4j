@@ -222,7 +222,7 @@ Não reimplementar Spring. Em vez disso, transformar capacidades recorrentes em 
 Objetivos futuros:
 - HTTP / REST / WebSocket / SSE (WebSocket/SSE + hardening JVM concluídos 04/09; JS/Native follow-up);
 - HTTP client;
-- **Rede `kof.net` unificada (TCP + UDP)** — DECIDIDA 01/10/2026 (`D-KOF-NET`, votos regra-6 da mantenedora; subsume `D-UDP` da diretriz de 01/10): plano promovido para [`network-kofnet-plan.pt_BR.md`](network-kofnet-plan.pt_BR.md) EM DESENVOLVIMENTO (fatias 1–3 POUSADAS — superfície + runtime JVM real + runtime Native x86-64 real; fatia 4a POUSADA — ponte de host JS real; riscv/aarch ainda NET002, fatia 4b); o antigo `future/network-udp-plan.pt_BR.md` está superado;
+- **Rede `kof.net` unificada (TCP + UDP)** — ✅ CONCLUÍDA 02/10/2026 (`D-KOF-NET`, votos regra-6 da mantenedora; subsume `D-UDP` da diretriz de 01/10): as cinco fatias POUSADAS — superfície + runtime JVM real + runtime Native x86-64 real + ponte de host JS real + Native riscv64/aarch64 real (front x86 portado para asm riscv, aarch64 pelo tradutor) + Script por construção; plano movido para [`../stdlib/network-kofnet-plan.pt_BR.md`](../stdlib/network-kofnet-plan.pt_BR.md); o antigo `future/network-udp-plan.pt_BR.md` está superado;
 - JSON;
 - RPC;
 - eventos / filas / pub/sub;

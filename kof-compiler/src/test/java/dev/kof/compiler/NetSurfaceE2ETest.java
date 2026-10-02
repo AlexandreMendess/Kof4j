@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * D-KOF-NET fatia 1 (plan docs/development/network-kofnet-plan.md): the frozen
+ * D-KOF-NET fatia 1 (plan docs/stdlib/network-kofnet-plan.md): the frozen
  * surface contract must BIND at compile time on the JVM and every non-implemented
  * target must REFUSE honestly with NET002 (no-silent-fallback). Handles are
  * strings composed as in {@code db}/{@code orm} (no new stdlib record — the
@@ -60,19 +60,15 @@ public class NetSurfaceE2ETest {
     }
 
     @Test
-    @DisplayName("D-KOF-NET: cross targets still refuse the socket contract with NET002 (no silent drop)")
-    void crossStillRefuses() throws Exception {
-        // Fatia 4a abre o JS; riscv64/aarch64 seguem sem os símbolos no runtime
-        // cross (fatia 4b) e recusam com NET002 — nunca drop silencioso. O
-        // contrato INTEIRO recusa no primeiro verbo estático (net.listen) já
-        // com o código nomeado; os verbos de membro não têm handle válido sem
-        // um listen/connect/bind que compile, então a recusa é pelo gate.
+    @DisplayName("D-KOF-NET: cross targets BIND now that slice 4b emits the riscv/aarch runtime")
+    void crossSurfaceCompiles() throws Exception {
+        // Fatia 4b: o front x86 (NativeNetFront*) foi portado para riscv64 e o
+        // aarch64 herda pelo tradutor; os símbolos existem no runtime gerado,
+        // então o portão abre. O E2E `NetNativeE2ETest` prova que os verbos
+        // RESOLVEM no link e rodam sob qemu.
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = compile(CONTRACT, t);
-            assertFalse(r.success(), t + " must refuse the socket contract: "
-                    + r.diagnostics().getDiagnostics());
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("NET002"),
-                    t + " must name NET002: " + r.diagnostics().getDiagnostics());
+            assertTrue(r.success(), t + " must bind now: " + r.diagnostics().getDiagnostics());
         }
     }
 
@@ -80,9 +76,7 @@ public class NetSurfaceE2ETest {
     @DisplayName("D-KOF-NET Native x86-64: the frozen contract BINDS now that slice 3 emits the runtime")
     void nativeSurfaceCompiles() throws Exception {
         // Fatia 3 emite `NativeNetFront*` com corpo real (sockets/handles); o
-        // E2E `NetNativeE2ETest` prova que os verbos RESOLVEM e rodam. Os alvos
-        // cross seguem recusando NET002 (os símbolos não existem no runtime
-        // riscv/aarch ainda — fatia 4) e o teste acima o guarda.
+        // E2E `NetNativeE2ETest` prova que os verbos RESOLVEM e rodam.
         CompilationResult r = compile(CONTRACT, Target.NATIVE);
         assertTrue(r.success(), "native x86-64 must bind now: "
                 + r.diagnostics().getDiagnostics());

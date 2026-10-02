@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * D-KOF-NET fatia 4a (plan {@code docs/development/network-kofnet-plan.md}): o
+ * D-KOF-NET fatia 4a (plan {@code docs/stdlib/network-kofnet-plan.md}): o
  * front {@code kof.net} roda no alvo JS (GraalJS embarcado no JVM) sobre a
  * ponte de host {@link dev.kof.runtime.KofJsNetBridge}, que usa o MESMO
  * {@code java.net} do runtime JVM. O oráculo é o da fatia 2/3: eco de bytes

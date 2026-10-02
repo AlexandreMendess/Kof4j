@@ -1,7 +1,7 @@
 package dev.kof.compiler.nat;
 
 /**
- * `kof.net` x86-64 (D-KOF-NET, plan {@code docs/development/network-kofnet-plan.md},
+ * `kof.net` x86-64 (D-KOF-NET, plan {@code docs/stdlib/network-kofnet-plan.md},
  * fatia 3): TCP core do front — helpers de erro/handle + listen/accept/connect/close.
  *
  * <p>Diferente da costura CRUA {@code kof_net_socket/read/write} (fd puro,

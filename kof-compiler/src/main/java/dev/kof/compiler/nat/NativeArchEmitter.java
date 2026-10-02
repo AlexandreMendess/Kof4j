@@ -189,6 +189,7 @@ final class NativeArchEmitter {
             if (nb.usesHttp) break;
         }
         if (nb.usesHttp) nb.emitRiscvHttp(sb);
+        if (NativeRiscvNetEmit.usesNet(module)) NativeRiscvNetEmit.emit(sb);
         if (usesSpawn) nb.emitRiscvSpawn(sb);
 
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
@@ -395,6 +396,7 @@ final class NativeArchEmitter {
             if (usesHttpA) break;
         }
         if (usesHttpA) nb.emitRiscvHttp(riscvSb);
+        if (NativeRiscvNetEmit.usesNet(module)) NativeRiscvNetEmit.emit(riscvSb);
         if (usesSpawnA) nb.emitRiscvSpawn(riscvSb);
 
         // traduz linha-a-linha (runtime já podado — a poda no riscv vale p/ os 2)

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * D-KOF-NET fatia 2 (plan {@code docs/development/network-kofnet-plan.md}):
+ * D-KOF-NET fatia 2 (plan {@code docs/stdlib/network-kofnet-plan.md}):
  * o runtime de sockets JVM é REAL. O ORÁCULO é a sonda de interop de 01/10
  * (eco de bytes sobre porta real) — só que agora em Kof puro, sem
  * {@code java.net} no código do usuário.
@@ -230,20 +230,14 @@ class NetTcpE2ETest {
     }
 
     @Test
-    @DisplayName("The cross targets still refuse with NET002 (no silent drop; JS opened in slice 4a)")
-    void otherTargetsStillRefuse(@TempDir Path dir) throws Exception {
+    @DisplayName("Every artifact target binds the socket surface now (JS slice 4a; cross slice 4b)")
+    void everyArtifactTargetBinds(@TempDir Path dir) throws Exception {
         Path s = dir.resolve("x.kf");
         Files.writeString(s, "main() { var l = net.listen(18880) }");
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64, Target.JS}) {
             CompilationResult r = driver.compile(s, dir.resolve("out-" + t), t);
-            assertTrue(!r.success(), t + " has no socket runtime yet");
-            String d = r.diagnostics().getDiagnostics().toString();
-            assertTrue(d.contains("NET002"), t + " must refuse by name: " + d);
+            assertTrue(r.success(), t + " must bind now: " + r.diagnostics().getDiagnostics());
         }
-        // Fatia 4a: o JS agora BINDA (a ponte de host cobre o runtime).
-        CompilationResult js = driver.compile(s, dir.resolve("out-JS"), Target.JS);
-        assertTrue(js.success(), "JS must bind now (slice 4a host bridge): "
-                + js.diagnostics().getDiagnostics());
     }
 
     @Test

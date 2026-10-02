@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * D-KOF-NET fatia 5 (plan docs/development/network-kofnet-plan.md): o Script
+ * D-KOF-NET fatia 5 (plan docs/stdlib/network-kofnet-plan.md): o Script
  * alvo é PARIDADE POR CONSTRUÇÃO — {@code CompilerPipeline.prepareForInterpretation}
  * faz o lowering com {@code driver.target = Target.JVM} (medido 02/10, linha 389)
  * e o {@code KofInterpreter} reflete os MESMOS {@code KofRuntime.kof_net_*}
