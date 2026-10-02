@@ -966,8 +966,10 @@ science) **without** destroying the language's simplicity.
 > **moved to `docs/`** (3-state rule) — Phases 5–7 (DATA/INFRA: query/SQL/stream) stay **design-only**,
 > gated by R12 + a maintainer decision. Slices 1a+1b+1c+1d+1e+1f+1g+1h+1i LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins + `sorted`/`sorted(cmp)` + `groupBy` + `zip`; E2E + `KofScriptStdlibParityTest` 22/22); `zip` landed 30/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` + `D-MULTIPARADIGMA-ZIP-NATIVE` — native reference-elements GREEN, primitive elements refused `NAT008`).
 > **OPEN (7th front):** `image-vision` — promoted 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) to
-> [`image-vision-plan.md`](image-vision-plan.md); slice 1 = pure-Kof `libs/image/` metadata (format + dimensions,
-> PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).
+> [`image-vision-plan.md`](image-vision-plan.md); state 02/10: metadata 17 formats + raster decode/encode/ops +
+> `kof.vision` slices + VP8 lossy key-frame decoder END-TO-END (libwebp oracle) + AVIF slices 1–2f (container/item/
+> OBU-stream/sequence-header/frame-prefix/tile-group-header walks, pure Kof, `AvifFrameE2ETest` 16/16) LANDED; no
+> AVIF pixel decode (`decodeRaster` refuses AVIF by policy). Queue per the plan §34 — authoritative state lives there.
 > **OPEN (8th front):** `graphics-gaming` — promoted 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) to
 > [`graphics-gaming-plan.md`](graphics-gaming-plan.md); slice **3.0 = spike+infra** (JavaFX-absent guard
 > `scripts/check_javafx_absent.sh` + self-test + measured report, **no API**). Next = the maintainer's stack
@@ -1003,7 +1005,7 @@ domain (`INFRA00x`/`DATA00x`/`SCI00x`/`BIO00x`/`SECPQ`) + parity matrix;
 | 2.1.1–2.1.3 | `extern` syntax + type-check + gaps `FFI001`/`FFI002` (never silent drop) | ✅ `Parser.java:192` (PARSE090), `ExternalFunctionNode`, `FfiE2ETest` |
 | 2.1.4 | **JVM** binding (FFM `java.lang.foreign`) | ✅ **generalized 18/09 (`.18`, R3):** any scalar signature, arbitrary arity, `void`/`String` returns — measured `fmod`→1.5, `ldexp`→12.0, `strncmp`→-1, `puts(void)`, `getenv`→String (`syntax.md`) |
 | 2.1.5 | **Native** binding | ✅ **20/09 (#431 slices 1–2, §369)** — the raw binary binds scalars **direct** (`call sym@PLT`, link-by-use), which **supersedes `dlopen`/`dlsym`**; §61 closed. The old `dlopen` segfault was the reason for the switch, not an open gap |
-| 2.1.6 | struct/array marshalling | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` by value as arg/return + scalar `T[]`→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landed 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **remaining** = JS struct bridge, Native sret (3.7). D6 ✅ decided 20/09 |
+| 2.1.6 | struct/array marshalling | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` by value as arg/return + scalar `T[]`→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landed 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **Native/cross struct sret + by-value param LANDED 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan.md` — the roadmap row was stale); **remaining** = JS struct bridge. D6 ✅ decided 20/09 |
 | 2.1.7 | JS: gap `FFI002` | ✅ honest gap + **scalar parity CLOSED 18/09 (`d3598c2d`, slices 3.6.F1–F3):** host runner binds via `KofJsFfiBridge`, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS; browser = runtime R7; non-scalar keeps `FFI002` |
 | 2.2.1 | Inventory of implicit codegen (4 points: runtime `.source()`, `desugarTests`, `desugarApplication`, entity→record+schema) | ✅ the 4 exist (`CompilerPipeline:295-296`) |
 | 2.2.2 | **Formal `CodegenStep` hook** | ✅ **LANDED 21/09 (R4, `D-CODEGEN-STEP`)** — `CodegenStep`/`CodegenStepPipeline` (additive; empty registry = identity, zero behavior change; `CodegenStepPipelineTest` 6/6). The old `d1c56bad` "✅" was an over-claim from the `planning-future` branch; R4 is the real landing |
