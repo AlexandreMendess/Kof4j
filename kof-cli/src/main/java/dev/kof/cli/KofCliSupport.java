@@ -336,4 +336,53 @@ final class KofCliSupport {
             return null;
         }
     }
+
+    /**
+     * §556: o wrapper de diagnóstico {@code KofJvmMain} vive em kof-runtime e
+     * invoca o {@code main} do usuário por reflexão, expondo a causa real de um
+     * {@code VerifyError}/{@code NoClassDefFoundError} em vez da mensagem FALSA
+     * "os componentes de runtime do JavaFX não foram encontrados" que o launcher
+     * da JDK imprime. O JVM filho só o enxerga quando as classes do próprio CLI
+     * estão no {@code java.class.path} (distribuição/`-cp`); um runner de
+     * reflexão/IDE com booter jar mantém o launch direto histórico. Retorna a
+     * localização (diretório de classes ou jar) a acrescentar ao classpath do
+     * filho, ou null quando o wrapper não é alcançável.
+     */
+    static Path jvmLaunchWrapperLocation() {
+        String cp = System.getProperty("java.class.path", "");
+        if (cp.isBlank()) return null;
+        try {
+            java.security.CodeSource cs = dev.kof.runtime.KofJvmMain.class
+                    .getProtectionDomain().getCodeSource();
+            if (cs == null || cs.getLocation() == null) return null;
+            Path loc = Path.of(cs.getLocation().toURI()).toAbsolutePath().normalize();
+            for (String part : cp.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+                if (part.isBlank()) continue;
+                try {
+                    if (Path.of(part).toAbsolutePath().normalize().equals(loc)) return loc;
+                } catch (RuntimeException ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * §556: acrescenta ao comando os argumentos de lançamento do {@code main}
+     * do usuário — o classpath do filho (com o diretório/jar do wrapper quando
+     * alcançável), o wrapper de diagnóstico e a classe principal. Sem o wrapper,
+     * mantém o lançamento direto histórico.
+     */
+    static void appendJvmLaunch(List<String> cmd, String classpath, String className) {
+        Path wrapperLoc = jvmLaunchWrapperLocation();
+        String childCp = classpath;
+        if (wrapperLoc != null) {
+            childCp += java.io.File.pathSeparator + wrapperLoc;
+        }
+        cmd.add("-cp");
+        cmd.add(childCp);
+        if (wrapperLoc != null) cmd.add("dev.kof.runtime.KofJvmMain");
+        cmd.add(className);
+    }
 }

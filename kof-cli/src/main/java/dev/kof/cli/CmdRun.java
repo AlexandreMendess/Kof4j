@@ -376,7 +376,6 @@ final class CmdRun {
         javaArgs.add(KofCliSupport.javaExecutable());
         javaArgs.addAll(KofStdio.inheritedJvmFlags());
         javaArgs.add("-Dkof.root=" + file.toAbsolutePath().normalize().getParent());
-        javaArgs.add("-cp");
         String jvmCp = tempDir.toString();
         if (useDeps) {
             try {
@@ -386,8 +385,11 @@ final class CmdRun {
             }
         }
         if (!autoDbCp.isBlank()) jvmCp += java.io.File.pathSeparator + autoDbCp;
-        javaArgs.add(jvmCp);
-        javaArgs.add(className);
+        // §556: o launcher da JVM mascara qualquer falha de load/link da classe
+        // principal como "os componentes de runtime do JavaFX nao foram
+        // encontrados"; o wrapper de diagnostico invoca main por reflexao e
+        // expoe a causa real (sem ele, o launch direto historico e mantido).
+        KofCliSupport.appendJvmLaunch(javaArgs, jvmCp, className);
         for (int i = argStart; i < args.length; i++) javaArgs.add(args[i]);
         KofCliSupport.executeProcess(javaArgs, tempDir, appEnv);
     }

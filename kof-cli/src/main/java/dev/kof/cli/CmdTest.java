@@ -174,7 +174,9 @@ final class CmdTest {
                             List<String> cmd = new java.util.ArrayList<>();
                             cmd.add(KofCliSupport.javaExecutable());
                             cmd.addAll(KofStdio.capturedJvmFlags());
-                            cmd.addAll(List.of("-cp", tmp.toString(), className));
+                            // §556: sem o wrapper de diagnóstico, uma falha de
+                            // load/link do runner vira a mensagem falsa do launcher.
+                            KofCliSupport.appendJvmLaunch(cmd, tmp.toString(), className);
                             ProcessBuilder pb = new ProcessBuilder(cmd);
                             pb.redirectErrorStream(true);
                             Integer ec = boundedRun(pb, timeoutSec, output);
