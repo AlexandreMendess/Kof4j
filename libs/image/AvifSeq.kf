@@ -75,6 +75,16 @@ AvifSeqHeader avifSeqHeader(Int[] b) {
     if (limit > rec + boxSize(b, rec - 8) - 8) {
         throw "IMAGE: truncated avif config obu"
     }
+    return seqWalk(b, p, limit)
+}
+
+// Slice 2c extraction: the pure payload walk, bounded by [p, limit). The
+// av1C face (avifSeqHeader) validates the container bounds before calling;
+// the item face (AvifObu) validates the OBU bounds before calling.
+AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
+    if (limit <= p) {
+        throw "IMAGE: truncated avif sequence header"
+    }
     var bits = p * 8
     var profile = seqRead(b, bits, 2)
     bits = bits + 2
@@ -259,6 +269,9 @@ AvifSeqHeader avifSeqHeader(Int[] b) {
     }
     var filmGrain = seqRead(b, bits, 1)
     bits = bits + 1
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif sequence header"
+    }
     if (filmGrain == 1) {
         throw "IMAGE: avif film grain not covered"
     }

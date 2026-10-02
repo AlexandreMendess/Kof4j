@@ -19,11 +19,19 @@ final class AvifSeqSupport {
     }
 
     static byte[] obu(byte[] payload) {
+        return obuType(1, payload);
+    }
+
+    static byte[] obuType(int type, byte[] payload) {
         byte[] out = new byte[2 + payload.length];
-        out[0] = 0x0A;
+        out[0] = (byte) ((type << 3) | 0x02);
         out[1] = (byte) payload.length;
         System.arraycopy(payload, 0, out, 2, payload.length);
         return out;
+    }
+
+    static byte[] delimiter() {
+        return obuType(2, new byte[0]);
     }
 
     /**
@@ -34,6 +42,13 @@ final class AvifSeqSupport {
      * mono, trailing bits.
      */
     static byte[] nrMonoObu(int profile, int level, boolean high, boolean twelve,
+                            boolean timing, boolean model, boolean film,
+                            int frameW, int frameH) {
+        return nrMonoObuType(1, profile, level, high, twelve, timing, model, film, frameW, frameH);
+    }
+
+    /** Same walk, arbitrary OBU type (for slice 2c item-stream fixtures). */
+    static byte[] nrMonoObuType(int type, int profile, int level, boolean high, boolean twelve,
                             boolean timing, boolean model, boolean film,
                             int frameW, int frameH) {
         AvifMetadataSupport.Bits w = new AvifMetadataSupport.Bits();
@@ -84,11 +99,16 @@ final class AvifSeqSupport {
         w.bits(0, 1);                       // color_range
         w.bits(film ? 1 : 0, 1);            // film_grain_params_present
         w.bits(1, 1);                       // trailing one bit
-        return obu(w.bytes());
+        return obuType(type, w.bytes());
     }
 
     static String javaSeqFacts(Path file) throws Exception {
         byte[] b = Files.readAllBytes(file);
+        int[] ps = javaSeqObuRange(b);
+        return javaSeqCore(b, ps[0], ps[1]);
+    }
+
+    static int[] javaSeqObuRange(byte[] b) {
         int meta = AvifMetadataSupport.findBox(b, 0, b.length, "meta");
         int metaEnd = AvifMetadataSupport.boxEnd(b, meta);
         int av1At = AvifMetadataSupport.findBox(b, meta + 12, metaEnd, "av1C");
@@ -108,9 +128,11 @@ final class AvifSeqSupport {
                 break;
             }
         }
+        return new int[]{p, p + size};
+    }
+
+    static String javaSeqCore(byte[] b, int p, int limit) {
         int bits = p * 8;
-        java.util.function.IntFunction<Integer> rd = null;
-        // bit reader
         int profile = readBits(b, bits, 2); bits += 2;
         if (profile > 2) throw new AssertionError("prof3");
         int still = readBits(b, bits, 1); bits += 1;
@@ -200,6 +222,7 @@ final class AvifSeqSupport {
             bits += 1; // separate_uv_delta_q
         }
         int film = readBits(b, bits, 1); bits += 1;
+        if (bits > limit * 8) throw new AssertionError("trunc");
         if (film == 1) throw new AssertionError("film");
         return "p=" + profile + " r=" + reduced + " w=" + maxW + " h=" + maxH
                 + " mono=" + mono + " sub=" + subX + "/" + subY
