@@ -12,7 +12,11 @@ import java.util.List;
  * design em {@code D-FUTURE-BATCH-2809B}). Os helpers de asserção
  * ({@code assertTrue}/{@code assertFalse}/{@code assertEqualInt}/
  * {@code assertEqualString}/{@code assertNotEqualInt}/{@code assertNotEqualString}/
- * {@code assertEqualBool}/{@code assertEqualLong}/{@code assertNotEqualLong}/
+ * {@code assertEqualBool}/{@code assertNotEqualBool}/
+ * {@code assertEqualByte}/{@code assertNotEqualByte}/
+ * {@code assertEqualShort}/{@code assertNotEqualShort}/
+ * {@code assertEqualChar}/{@code assertNotEqualChar}/
+ * {@code assertEqualLong}/{@code assertNotEqualLong}/
  * {@code assertEqualDouble}/{@code assertNotEqualDouble}/{@code assertEqualFloat}/
  * {@code assertNotEqualFloat}/{@code assertNull}/{@code assertNotNull}/{@code assertThrows}/
  * {@code fail}) são escritos EM KOF

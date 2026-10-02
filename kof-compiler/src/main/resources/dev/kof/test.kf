@@ -49,6 +49,12 @@ Void assertEqualBool(Bool expected, Bool actual, String label) {
     }
 }
 
+Void assertNotEqualBool(Bool unexpected, Bool actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
 // Terceiro slice (01/10): os numericos que faltavam (Long/Double/Float), par
 // igualdade/desigualdade por tipo — o generico `assertEqual<T>` esta bloqueado
 // por known-bugs §553 (`==` sobre T nao-limitado diverge entre alvos). Sem
@@ -86,6 +92,48 @@ Void assertEqualFloat(Float expected, Float actual, String label) {
 Void assertNotEqualFloat(Float unexpected, Float actual, String label) {
     if (unexpected == actual) {
         throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+// Quinto slice (01/10): os escalares restantes de §4.1 — Byte, Short e Char —
+// com o par igualdade/desigualdade por tipo, mais o par que faltava de Bool.
+// Mesma regra dos slices anteriores: nada de primitiva nova, so `!=`/`==` de
+// tipo concreto + `throw` de String. NAO usa aritmetica de Byte/Short (isso e
+// o defeito #720, decisao de superficie congelada — regra 6), entao compara e
+// imprime sem tocar o codegen de `iadd`.
+Void assertEqualByte(Byte expected, Byte actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualByte(Byte unexpected, Byte actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertEqualShort(Short expected, Short actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualShort(Short unexpected, Short actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertEqualChar(Char expected, Char actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected '" + expected + "', got '" + actual + "')"
+    }
+}
+
+Void assertNotEqualChar(Char unexpected, Char actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect '" + actual + "')"
     }
 }
 

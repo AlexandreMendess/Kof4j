@@ -127,6 +127,55 @@ class KofTestingE2ETest {
                 } catch (String e) {
                     println(e)
                 }
+                assertEqualByte(10, 10, "eqByte")
+                assertNotEqualByte(10, 20, "neqByte")
+                assertEqualShort(1000, 1000, "eqShort")
+                assertNotEqualShort(1000, 2000, "neqShort")
+                assertEqualChar('a', 'a', "eqChar")
+                assertNotEqualChar('a', 'b', "neqChar")
+                assertNotEqualBool(true, false, "neqBool")
+                try {
+                    assertEqualByte(10, 20, "boomeqByte")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotEqualByte(10, 10, "boomneqByte")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertEqualShort(1000, 2000, "boomeqShort")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotEqualShort(1000, 1000, "boomneqShort")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertEqualChar('a', 'b', "boomeqChar")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotEqualChar('a', 'a', "boomneqChar")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    assertNotEqualBool(true, true, "boomneqBool")
+                    println("NO-THROW")
+                } catch (String e) {
+                    println(e)
+                }
                 println("ALL PASS")
             }
             """;
@@ -148,6 +197,13 @@ class KofTestingE2ETest {
           + "assertion failed: boomneqDbl (did not expect 2.5)\n"
           + "assertion failed: boomeqFlt (expected 1.5, got 2.5)\n"
           + "assertion failed: boomneqFlt (did not expect 2.5)\n"
+          + "assertion failed: boomeqByte (expected 10, got 20)\n"
+          + "assertion failed: boomneqByte (did not expect 10)\n"
+          + "assertion failed: boomeqShort (expected 1000, got 2000)\n"
+          + "assertion failed: boomneqShort (did not expect 1000)\n"
+          + "assertion failed: boomeqChar (expected 'a', got 'b')\n"
+          + "assertion failed: boomneqChar (did not expect 'a')\n"
+          + "assertion failed: boomneqBool (did not expect true)\n"
           + "ALL PASS";
 
     private final CompilerDriver driver = new CompilerDriver();

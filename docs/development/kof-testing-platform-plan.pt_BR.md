@@ -12,7 +12,17 @@ linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJ
 **Plano companheiro:** `test-architecture-plan.md` (refatoração da **suíte Java do próprio
 compilador** — camadas L0–L5, perfis, performance). Este documento é a **plataforma de testes do
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
-**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10 — §4.1 completo a menos do par genérico (§553).
+**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10 — superfície primitiva do §4.1 completa a menos do par genérico (§553).
+
+> **Fatia 5 (POUSADA 01/10).** A superfície escalar restante do §4.1: `assertEqualByte`/`assertNotEqualByte`,
+> `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, mais o
+> `assertNotEqualBool` que faltava (o lado da igualdade já existia). Adicionadas a `dev/kof/test.kf`
+> (mesmo mecanismo de pacote virtual). **Sem aritmética de `Byte`/`Short`** — os helpers só comparam
+> (`!=`/`==`) e imprimem, então não tocam o caminho aritmético congelado do `#720` (`known-bugs` §561).
+> Tipadas por primitivo, não um `assertEqual<T>` genérico (ainda adiado pelo §553). Aditivo, Kof puro,
+> sem sintaxe/primitiva nova. Prova: `KofTestingE2ETest` **7/7** em JVM + JS + Script + Native x86-64 +
+> cross riscv64(qemu) + aarch64(qemu), paridade-por-golden com o oráculo JVM (RED pré-fatia: 7 ×
+> `SEM015 Undefined function` na perna JVM). Próximo: faces de integração/browser (§11 fases 2–4).
 
 > **Fatia 4 (POUSADA 01/10).** As asserções numéricas que ainda faltavam no §4.1 ao nível de primitivo: `assertEqualLong`/`assertNotEqualLong`, `assertEqualDouble`/`assertNotEqualDouble` e `assertEqualFloat`/`assertNotEqualFloat`, adicionadas a `dev/kof/test.kf` (mesmo mecanismo de pacote virtual). **Tipadas por primitivo** — NÃO um `assertEqual<T>` genérico, que segue adiado pelo `known-bugs` §553 (`==` sobre um `T` não-limitado diverge entre alvos). Aditivo, Kof puro, sem sintaxe/primitiva nova. Prova: `KofTestingE2ETest` **7/7** em JVM + JS + Script + Native x86-64 + cross riscv64(qemu) + aarch64(qemu), paridade-por-golden com o oráculo JVM (RED pré-fatia 1/1 na perna JVM: 12 × `SEM015 Undefined function` para os seis helpers). Agora lifecycle (§4.2, exige decisão de runner/desugar) e as faces de integração/browser (§11 fases 2–4).
 
@@ -181,6 +191,8 @@ assertThrows(...)
 
 As assertions devem produzir diagnósticos úteis — `expected`, `actual`, `test`, `source` —
 nunca um `test failed` seco.
+
+**Estado (01/10):** os helpers primitivos pousaram incrementalmente — fatia 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), fatia 2 (`assertThrows`), fatia 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), fatia 4 (`Long`/`Double`/`Float`), fatia 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`). O par genérico `assertEqual`/`assertNotEqual` segue adiado pelo `known-bugs` §553. Prova: `KofTestingE2ETest` 7/7 em JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
 
 ## 4.2 Lifecycle
 

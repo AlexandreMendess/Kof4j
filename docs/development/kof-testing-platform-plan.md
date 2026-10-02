@@ -12,7 +12,17 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10 — §4.1 complete modulo the generic pair (§553).
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10 — §4.1 primitive surface complete modulo the generic pair (§553).
+
+> **Slice 5 (LANDED 01/10).** The remaining §4.1 scalar surface: `assertEqualByte`/`assertNotEqualByte`,
+> `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, plus the missing
+> `assertNotEqualBool` (the equality side already existed). Added to `dev/kof/test.kf` (same
+> virtual-package mechanism). **No arithmetic on `Byte`/`Short`** — the helpers only compare (`!=`/`==`)
+> and print, so they do not touch the `#720` frozen arithmetic path (`known-bugs` §561). Typed per
+> primitive, not a generic `assertEqual<T>` (still deferred by §553). Additive, pure Kof, no new
+> syntax/primitives. Proof: `KofTestingE2ETest` **7/7** across JVM + JS + Script + Native x86-64 +
+> cross riscv64(qemu) + aarch64(qemu), golden-parity with the JVM oracle (RED pre-slice: 7 ×
+> `SEM015 Undefined function` on the JVM leg). Next: integration/browser faces (§11 phases 2–4).
 
 > **Slice 4 (LANDED 01/10).** The numeric assertions that §4.1 was still missing at the
 > primitive level: `assertEqualLong`/`assertNotEqualLong`, `assertEqualDouble`/`assertNotEqualDouble`
@@ -197,6 +207,8 @@ assertThrows(...)
 
 Assertions must produce useful diagnostics — `expected`, `actual`, `test`, `source` — never a
 bare `test failed`.
+
+**Status (01/10):** the primitive helpers landed incrementally — slice 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), slice 2 (`assertThrows`), slice 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), slice 4 (`Long`/`Double`/`Float`), slice 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`). The generic `assertEqual`/`assertNotEqual` pair is deferred by `known-bugs` §553. Proof: `KofTestingE2ETest` 7/7 across JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
 
 ## 4.2 Lifecycle
 
