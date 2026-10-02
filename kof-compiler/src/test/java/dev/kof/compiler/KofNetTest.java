@@ -70,21 +70,17 @@ class KofNetTest {
     }
 
     @Test
-    void netOnJs(@TempDir Path tmp) throws Exception {
+    // D-NET-JS-V1 (mantenedora 02/10): a frente inteira de kof.net — incluindo
+    // os helpers puros de URI, que viviam nela — e RECUSADA no compile em
+    // Target.JS com NETN001; nao ha artefato JS de rede no v1 e nao existe
+    // sub-alvo browser/Node. As pernas JVM/Native/Script continuam o contrato.
+    void netOnJsRefused(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("Main.kf");
         Files.writeString(file, SRC);
-        Path out = tmp.resolve("js");
-        CompilationResult r = driver.compile(file, out, Target.JS);
-        assertTrue(r.success(), "JS compile: " + r.diagnostics().getDiagnostics());
-        Path entry;
-        try (var s = Files.walk(out)) {
-            entry = s.filter(q -> q.getFileName().toString().equals("Default.mjs")).findFirst().orElseThrow();
-        }
-        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
-        int ec = dev.kof.runtime.KofJsRunner.run(entry, buf,
-                java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
-        assertEquals(0, ec, "JS exit " + ec + " out: " + buf);
-        assertEquals(EXPECTED, buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim());
+        CompilationResult r = driver.compile(file, tmp.resolve("js"), Target.JS);
+        assertFalse(r.success(), "JS must refuse the net front");
+        String diag = r.diagnostics().getDiagnostics().toString();
+        assertTrue(diag.contains("NETN001"), "must name NETN001: " + diag);
     }
 
     @Test

@@ -340,8 +340,10 @@ public final class StdCatalog {
                     Map.entry("needsRehash", List.of("needsRehash(String hash) -> Bool")))),
             Map.entry("crypto", java.util.Map.ofEntries(
                     Map.entry("sha256", List.of("sha256(String s) -> String")),
+                    Map.entry("sha256Bytes", List.of("sha256Bytes(Byte[] data) -> String")),
                     Map.entry("sha512", List.of("sha512(String s) -> String")),
                     Map.entry("hmacSha256", List.of("hmacSha256(String key, String msg) -> String", "hmacSha256(KeyHandle key, String msg) -> String")),
+                    Map.entry("hmacSha256Bytes", List.of("hmacSha256Bytes(Byte[] key, Byte[] msg) -> String")),
                     Map.entry("encryptAesGcm", List.of("encryptAesGcm(String plain, String keyHex64) -> String", "encryptAesGcm(String plain, KeyHandle key) -> String")),
                     Map.entry("decryptAesGcm", List.of("decryptAesGcm(String cipher, String keyHex64) -> String", "decryptAesGcm(String cipher, KeyHandle key) -> String")),
                     Map.entry("encryptChacha20", List.of("encryptChacha20(String plain, String keyHex) -> String", "encryptChacha20(String plain, KeyHandle key) -> String")),

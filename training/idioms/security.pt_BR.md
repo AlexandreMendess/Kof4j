@@ -41,8 +41,11 @@ REGRA: os digests levam Strings ou Ints — NUNCA um array de bytes.
 `crypto.sha256(new Byte[n])` / `crypto.hmacSha256(key, byteArr)` recusa no
 compile com `SECN011` em todo alvo (§563: a forma degradava por alvo — o
 Script digeria a IDENTIDADE do array, a JVM morria `VerifyError` no load).
-Para digestar bytes, fixe-os primeiro numa String determinística (hex é a
-face estável: AAD no estilo `"" + hexOf(payload)`).
+Para payloads BINÁRIOS a linguagem tem face dedicada —
+`crypto.sha256Bytes(Byte[])` / `crypto.hmacSha256Bytes(Byte[] key, Byte[] msg)`
+(D-KOF-DIGEST-BYTES; hoje JVM/Android/Script/x86-Native; JS e riscv64/aarch64
+recusam com o gap SECN000 até o port). Fixar bytes como AAD-String em hex
+continua legal onde a face não está disponível.
 
 ## Criptografia — AES-GCM; argumentos são `(plain, keyHex)`, chave = 32 bytes
 

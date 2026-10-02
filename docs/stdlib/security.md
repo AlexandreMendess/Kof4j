@@ -243,7 +243,7 @@ Intent namespaces (compiled, same pattern as `kof.io`/`kof.web`):
 ```text
 kof.security
 ├── passwords        → hash/verify/needsRehash (PBKDF2-HMAC-SHA256, secure by default)
-├── crypto           → sha256/sha512, hmacSha256, aesGcm (encrypt/decrypt), randomHex/randomInt
+├── crypto           → sha256/sha512, sha256Bytes, hmacSha256/hmacSha256Bytes, aesGcm (encrypt/decrypt), randomHex/randomInt
 ├── jwt              → create/verify (HS256, exp/iss/aud, no algorithm confusion)
 ├── secrets          → get (env, raw String), redact, of/secret/fromBytes (→ Secret value type),
 │                      keyFromHex/keyFromPem/keyFromKeystore (→ KeyHandle, raw key never exposed)
@@ -261,6 +261,8 @@ Support per target (current state — `KofSecurity.supportedOn`):
 | `passwords.hash/verify/needsRehash` | YES (javax.crypto PBKDF2) | YES (asm PBKDF2-HMAC-SHA256) | YES (platform-delegated PBKDF2) |
 | `crypto.sha256/sha512` | YES | YES (asm, FIPS 180-4) | YES (JS) |
 | `crypto.hmacSha256` | YES | YES (asm) | YES (JS) |
+| `crypto.sha256Bytes` | YES | YES (layout-compatible asm alias of sha256) | gap SECN000 (D-KOF-DIGEST-BYTES, 02/10) |
+| `crypto.hmacSha256Bytes` | YES | YES (asm alias of hmacSha256) | gap SECN000 |
 | `crypto.aesGcm` encrypt/decrypt | YES | YES (asm, GCM) | YES (pure JS, 01/09) |
 | `crypto.randomHex/randomInt` | YES (SecureRandom) | YES (getrandom) | YES (kof_platform) |
 | `jwt.create/verify/secret` | YES | YES (asm: base64url + HMAC) | YES |

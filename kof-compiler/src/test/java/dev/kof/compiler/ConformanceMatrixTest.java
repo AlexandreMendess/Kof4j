@@ -1045,7 +1045,7 @@ class ConformanceMatrixTest {
                     println(net.queryEncode("a b&c=1"))
                     println(net.queryDecode("a%20b%26c%3D1"))
                 }
-                """, "https|host.io|8443|/p|q|f\n/only/path|onlyquery\na%20b%26c%3D1\na b&c=1", Set.of(), tempDir);
+                """, "https|host.io|8443|/p|q|f\n/only/path|onlyquery\na%20b%26c%3D1\na b&c=1", Set.of("js"), tempDir);
         // STDLIB S3 — kof.uuid.isUuid (predicado de forma 8-4-4-4-12; hex min
         // ou maiúsculo; version/variant NAO verificadas — so forma canonica).
         // Deterministica => matriz nos 4 targets (riscv/aarch = UUID001 gate,

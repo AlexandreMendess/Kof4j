@@ -358,6 +358,8 @@ public final class JvmRuntimeCallDescriptors {
             // ── kof.security (docs/stdlib/security.md §5) ───────────────────
             case "kof_sec_sha256", "kof_sec_sha512", "kof_sec_redact", "kof_sec_secret_get",
                     "kof_sec_password_hash" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_sec_sha256_bytes" -> "([B)Ljava/lang/String;";
+            case "kof_sec_hmac_sha256_bytes" -> "([B[B)Ljava/lang/String;";
             case "kof_sec_hmac_sha256", "kof_sec_aesgcm_encrypt", "kof_sec_aesgcm_decrypt",
                     "kof_sec_chacha20_encrypt", "kof_sec_chacha20_decrypt",
                     "kof_sec_secret_get_default", "kof_sec_jwt_create", "kof_sec_jwt_verify"

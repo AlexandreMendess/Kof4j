@@ -42,6 +42,7 @@ public final class KofSecurity {
     private static final Type BOOL = Type.PrimitiveType.BOOL;
     private static final Type INT = Type.PrimitiveType.INT;
     private static final Type INT_ARRAY = new Type.ArrayType(INT);
+    private static final Type BYTE_ARRAY = new Type.ArrayType(Type.PrimitiveType.BYTE);
 
     /** Face 1 do D-SECRETS (Stage 5 / 3.6): tipo nominal {@code Secret}. Um
      *  valor que NÃO se imprime/serializa sem um ato explícito ({@code reveal()}).
@@ -72,7 +73,7 @@ public final class KofSecurity {
     static java.util.Map<String, List<String>> functions() {
         return java.util.Map.of(
                 "passwords", List.of("hash", "verify", "needsRehash"),
-                "crypto", List.of("sha256", "sha512", "hmacSha256", "encryptAesGcm", "decryptAesGcm", "encryptChacha20", "decryptChacha20", "randomHex", "randomInt"),
+                "crypto", List.of("sha256", "sha512", "sha256Bytes", "hmacSha256Bytes", "hmacSha256", "encryptAesGcm", "decryptAesGcm", "encryptChacha20", "decryptChacha20", "randomHex", "randomInt"),
                 "jwt", List.of("create", "verify", "secret"),
                 "secrets", List.of("get", "redact", "of", "secret", "fromBytes", "keyFromHex", "keyFromPem", "keyFromKeystore"),
                 "security", List.of("constantTimeEquals", "randomHex", "redact", "randomInt", "csrfToken", "csrfValid", "corsAllowed", "cspHeader", "hstsHeader", "contentTypeOptionsHeader", "frameHeader", "referrerHeader", "rateLimit", "sessionCreate", "sessionGet", "sessionDestroy", "apiKeyGenerate", "apiKeyValid", "cookieSet", "cookieGet"),
@@ -100,6 +101,13 @@ public final class KofSecurity {
                         ? new SecCall("kof_sec_sha256", STR, List.of(STR)) : null;
                 case "sha512" -> argc == 1
                         ? new SecCall("kof_sec_sha512", STR, List.of(STR)) : null;
+                // D-KOF-DIGEST-BYTES (02/10): a face binária dedicada. Os
+                // nomes simples ficam SÓ String/Int (SECN011, §563); Byte[]
+                // real exige a face Bytes — SECN013 para o resto.
+                case "sha256Bytes" -> argc == 1
+                        ? new SecCall("kof_sec_sha256_bytes", STR, List.of(BYTE_ARRAY)) : null;
+                case "hmacSha256Bytes" -> argc == 2
+                        ? new SecCall("kof_sec_hmac_sha256_bytes", STR, List.of(BYTE_ARRAY, BYTE_ARRAY)) : null;
                 case "hmacSha256" -> argc == 2
                         ? new SecCall(isKeyHandleType(argTypes.get(0)) ? "kof_sec_hmac_sha256_key" : "kof_sec_hmac_sha256",
                                 STR, isKeyHandleType(argTypes.get(0)) ? List.of(KEY_HANDLE, STR) : List.of(STR, STR)) : null;
@@ -312,6 +320,12 @@ public final class KofSecurity {
             case "kof_sec_password_hash", "kof_sec_password_verify", "kof_sec_password_needs_rehash" ->
                     jvmLike(target) || target == Target.JS || target.isNative();
             case "kof_sec_sha512" -> jvmLike(target) || target == Target.JS || target.isNative();
+            // D-KOF-DIGEST-BYTES: JVM+Android+Script (corpo JVM refletido) e
+            // x86-Native (alias asm — o layout len@16/dados@24 do array é o
+            // mesmo da String). JS (host bridge não traz byte[]) e os cross
+            // (SECN000) seguem gap honesto nomeado, nunca silencioso.
+            case "kof_sec_sha256_bytes", "kof_sec_hmac_sha256_bytes" ->
+                    jvmLike(target) || target == Target.NATIVE;
             case "kof_sec_jwt_create", "kof_sec_jwt_create_ttl", "kof_sec_jwt_verify",
                     "kof_sec_jwt_verify_iss_aud", "kof_sec_jwt_secret" ->
                     jvmLike(target) || target == Target.JS || target.isNative();
@@ -396,6 +410,12 @@ public final class KofSecurity {
             Type d = decl.get(i);
             Type a = actuals.get(i);
             if (a == null || a instanceof Type.UnknownType) continue;
+            if (BYTE_ARRAY.equals(d)) {
+                if (!(a instanceof Type.ArrayType at && Type.PrimitiveType.BYTE.equals(at.componentType()))) {
+                    return "SECN013";
+                }
+                continue;
+            }
             if (BuiltinTypes.STRING.equals(d) && !isStringish(a)) return "SECN011";
             if (Type.PrimitiveType.INT.equals(d) && !(a instanceof Type.PrimitiveType pt && pt == Type.PrimitiveType.INT)) {
                 if (!(a instanceof Type.PrimitiveType pt2 && (pt2 == Type.PrimitiveType.LONG || pt2 == Type.PrimitiveType.SHORT || pt2 == Type.PrimitiveType.BYTE || pt2 == Type.PrimitiveType.CHAR))) {
