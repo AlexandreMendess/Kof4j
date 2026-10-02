@@ -124,7 +124,7 @@ Authority = `scripts/check_known_bugs_status.sh` (EN×PT consistent), never a ha
 | `roadmap.md` | §§8–11 ❌ (frontend same-project, monolith→micro) | long term |
 | ~~`roadmap-audit.md`~~ → `docs/audits/roadmap-audit.md` | matrix 06/09 + queue P0→P5 | re-audit on closure |
 | ~~`KOFUI-AUDIT.md`~~ → `docs/bugs-and-gaps/` | UI001-Native (silent no-op) ✅ FIXED 29/09 (#683, `Ui001NativeWarnTest` 5/5) — audit live | UI lane |
-| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **5 live** (authority = `scripts/check_known_bugs_status.sh`) | live queue |
+| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **6 live** (authority = `scripts/check_known_bugs_status.sh`) | live queue |
 | ~~`refactoring/PLAN-SOLID-500.md`~~ → `docs/architecture/PLAN-SOLID-500.md` | ✅ DONE + MOVED 13/09 (F1–F9) | ratchet `check_500-baseline.txt` in CI |
 | `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (→ `docs/architecture/`, **UNDER DEVELOPMENT** — authority = the doc's own status header: Stages 1–3 rows mostly landed, Stages 4–8 pending; row 8 above) | promoted 17/09 (`D-UNIVERSAL`, R12 overridden) | architecture for Tiers 6–12 |
 | `docs/PROPOSAL-1.0-EXIT-GATE.md` (+PT; left `development/` 24/09) | **KOF 1.0 EXIT GATE — RATIFIED 20/09** (`DECISIONS.md` §D-RELEASE-1.0`) | order = the PROPOSAL's §23, tracked in `roadmap.md` §24 (EG-1..EG-10); all `[? MEL]` edges CLOSED 20/09 (`D-1.0-EDGES`); only EG-8 (RC opening) remains |
