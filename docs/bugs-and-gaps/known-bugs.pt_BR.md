@@ -14081,4 +14081,24 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Fronteira:** o slice 5 do `kof.test` (`assertEqualByte`/`assertEqualShort`/`assertEqualChar`) só compara e imprime — NÃO faz aritmética de `Byte`, então nunca dependeu desta decisão.
 **Status:** ✅ CORRIGIDO 02/10 — `D-KOF-BYTE-ARITH` (resposta regra 6 da mantenedora: promover para `Int`); issue #720.
 
+<<<<<<< HEAD
 <!-- en-switch --> **EN:** [§561 (EN)](known-bugs.md#561--jvm-byteshortchar-arithmetic-keeps-the-operand-type-commonnumerictype-returns-the-left-operand-and-boxes-the-un-narrowed-result-byte--byte-outside--128127-crashes-bytevalueof-arrayindexoutofboundsexception-while-jsnative-return-the-un-truncated-int-and-the-documented-contract-says-the-result-is-int---fixed-0210-lane-compilerjvm--owner-19216815309092-d-kof-byte-arith--promote-to-int-issue-720)
+=======
+<!-- en-switch --> **EN:** [§561 (EN)](known-bugs.md#561--jvm-byteshortchar-arithmetic-keeps-the-operand-type-commonnumerictype-returns-the-left-operand-and-boxes-the-un-narrowed-result-byte--byte-outside--128127-crashes-bytevalueof-arrayindexoutofboundsexception-while-jsnative-return-the-un-truncated-int-and-the-documented-contract-says-the-result-is-int---open-rule-6-promote-to-int-vs-wrap-to-byte-issue-720)
+
+## §562 — o corpus de sistema de arquivos anuncia uma superfície ESTÁTICA `File.readBytes(path)` / `File.writeText(path, s)` que não existe: a chamada morre `SEM011 Undefined variable or type: 'File'`; só o estilo instância `File("x").readBytes()` existe — 🟡 ABERTO (corpus x implementação; o ramo estático de `KofIo.staticMethod("File")` não tem chegada pelo typer)
+
+**Sintoma (medido 02/10, tip `74f956575`, ao pousar o core de transferência do KofShare):** o `learn/34-file-system.md` linhas 66–68 ensina `File.exists("x.txt")`, `File.readText("x.txt")`, `File.writeText("x.txt", "conteúdo")`. Um programa que os usa falha na análise semântica: `error: Undefined variable or type: 'File' [SEM011]` — o nome cru `File` não é resolvível como expressão em posição de chamada. O estilo instância funciona: `var f = File("p.bin"); f.writeBytes(a); f.readBytes(); f.size()` roda verde em Script E JVM (medido, o fixture exato do KofShare).
+
+**Causa raiz (medida):** `KofIo.staticMethod("File", …)` existe (a tabela trata o ramo `className == "File"`), mas nada o ALCANÇA: o typer resolve o receptor `File` como nome de valor/classe primeiro, e `File` não é registrado como tipo declarado nem como namespace de chamada estática (contraste: `net.listen` — `MemberCallNamespaces` lista `net`; `File` não tem equivalente para estáticos). O estilo instância liga porque `File("x")` é um ramo de construtor.
+
+**Contrato Kof:** o diagnóstico honesto R6 já dispara (SEM011, nunca fallback silencioso) — o bug é o CORPUS prometer uma face que o compilador recusa (AGENTS: "hallucinated_feature → fake-idioms.md"; o corpus é memória de longo prazo dos agentes: um idioma falso ensina todo agente futuro errado). Decidir QUAL verdade pousar (corrigir o corpus só para o estilo instância, OU ligar um namespace estático `File` como face aditiva) é uma chamada pequena de regra-6/corpus; nada depende do forma estática ser legal HOJE (o estilo instância é binário-seguro e provado pelo `transfer.kf` do KofShare).
+
+**Consequência:** agentes que seguem learn/34 linhas 66–68 perdem um ciclo de compilação em SEM011 (medido ao vivo: o core do KofShare foi escrito primeiro na forma estática e teve de ser re-sondado).
+
+**Fronteira:** `training/idioms/io.md` e `stdlib.md` NÃO anunciam a forma estática (grepado: 0 hits) — a divergência é só do learn/34. O core commitado do KofShare usa o estilo instância (`src/main/kof/kofshare/transfer.kf`, E2E verde nas duas pernas).
+
+**Status:** 🟡 ABERTO — correção de corpus ou ligação do namespace estático (unidade própria); registrado ao construir o D-KOFSHARE-100KOF.
+
+<!-- en-switch --> **EN:** [§562 (known-bugs.md)](known-bugs.md#562--the-filesystem-corpus-advertises-a-static-file-readbytespath--file-writetextpath-s-surface-that-does-not-exist-the-call-dies-sem011-undefined-variable-or-type-file-only-the-instance-style-filex-readbytes-exists--open-corpus-x-implementation-the-static-arm-in-koifiostaticmethod-file-has-no-reach)
+>>>>>>> 69806a77e (docs(ledger,doing): §562 catalogued EN+PT + slice-6/KofShare-core DONE claims (EN+PT))

@@ -16526,4 +16526,24 @@ plan "Phase 5 slices".
 **Boundary:** `kof.test` slice 5 (`assertEqualByte`/`assertEqualShort`/`assertEqualChar`) only compares and prints — it does NOT do `Byte` arithmetic, so it never depended on this decision.
 **Status:** ✅ FIXED 02/10 — `D-KOF-BYTE-ARITH` (maintainer rule-6 answer: promote to `Int`); issue #720.
 
+<<<<<<< HEAD
 <!-- pt-switch --> **PT:** [§561 (pt_BR)](known-bugs.pt_BR.md#561--aritmetica-de-byteshortchar-na-jvm-mantem-o-tipo-do-operando-commonnumerictype-devolve-o-operando-da-esquerda-e-faz-box-do-resultado-sem-narrowing-byte--byte-fora-de--128127-crasheia-bytevalueof-arrayindexoutofboundsexception-enquanto-jsnativo-devolvem-o-int-nao-truncado-e-o-contrato-documentado-diz-que-o-resultado-e-int---corrigido-0210-lane-compilerjvm--dona-19216815309092-d-kof-byte-arith--promover-para-int-issue-720)
+=======
+<!-- pt-switch --> **PT:** [§561 (pt_BR)](known-bugs.pt_BR.md#561--aritmetica-de-byteshortchar-na-jvm-mantem-o-tipo-do-operando-commonnumerictype-devolve-o-operando-da-esquerda-e-faz-box-do-resultado-sem-narrowing-byte--byte-fora-de--128127-crasheia-bytevalueof-arrayindexoutofboundsexception-enquanto-jsnativo-devolvem-o-int-nao-truncado-e-o-contrato-documentado-diz-que-o-resultado-e-int---aberto-regra-6-promover-para-int-vs-wrap-para-byte-issue-720)
+
+## §562 — the filesystem corpus advertises a STATIC `File.readBytes(path)` / `File.writeText(path, s)` surface that does not exist: the call dies `SEM011 Undefined variable or type: 'File'`; only the instance style `File("x").readBytes()` exists — 🟡 OPEN (corpus x implementation; the static arm in `KofIo.staticMethod` has no namespace wiring)
+
+**Symptom (measured 02/10, tip `74f956575`, while landing the KofShare transfer core):** `learn/34-file-system.md` lines 66–68 teach `File.exists("x.txt")`, `File.readText("x.txt")`, `File.writeText("x.txt", "conteúdo")`. A program using them fails at semantic analysis: `error: Undefined variable or type: 'File' [SEM011]` — the bare name `File` is not a resolvable expression at call position. The instance form works: `var f = File("p.bin"); f.writeBytes(a); f.readBytes(); f.size()` runs green on Script AND JVM (measured, the exact KofShare fixture).
+
+**Root cause (measured):** `KofIo.staticMethod("File", …)` exists (the dispatch table handles the `className == "File"` arm), but nothing can REACH it: the typer resolves the receiver `File` as a value/class name first, and `File` is not registered as a declared type name nor as a static-call namespace (contrast: `net.listen` — `MemberCallNamespaces` lists `net`; `File` has no equivalent for statics). The instance style binds because `File("x")` is a constructor arm.
+
+**Kof contract:** R6 honest diagnostics already fire (SEM011, never a silent fallback) — the bug is the CORPUS promising a face the compiler refuses (AGENTS: "hallucinated_feature → fake-idioms.md", corpus is long-term agent memory: a false idiom teaches every future agent wrong). The decision of WHICH truth to ship (fix the corpus to the instance style only, or wire a static `File` namespace as an additive face) is a small rule-6/corpus call; nothing depends on the static form being legal TODAY (the instance style is fully binary-safe and proven by KofShare `transfer.kf`).
+
+**Consequence:** agents following learn/34 lines 66–68 lose a compile cycle to SEM011 (measured live: the KofShare core was first written with the static form and had to be re-probed).
+
+**Boundary:** `training/idioms/io.md` and `stdlib.md` do NOT advertise the static form (grepped: 0 hits) — the divergence is learn/34-specific. KofShare's committed core uses the instance style (`src/main/kof/kofshare/transfer.kf`, E2E green both legs).
+
+**Status:** 🟡 OPEN — corpus fix or static wiring (own unit); registered while building D-KOFSHARE-100KOF.
+
+<!-- pt-switch --> **PT:** [§562 (pt_BR)](known-bugs.pt_BR.md#562--o-corpus-de-sistema-de-arquivos-anuncia-uma-surface-estatica-file--file-readbytespath--file-writetextpath-s-que-nao-existe-a-chamada-morre-sem011-undefined-variable-or-type-file-so-o-estilo-instancia-filex--readbytes-existe--aberto-corpus-x-implementacao-o-ramo-estatico-de-kofiostaticmethod-file-nao-tem-chegada)
+>>>>>>> 69806a77e (docs(ledger,doing): §562 catalogued EN+PT + slice-6/KofShare-core DONE claims (EN+PT))
