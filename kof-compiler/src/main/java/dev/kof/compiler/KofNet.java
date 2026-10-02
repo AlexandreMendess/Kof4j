@@ -125,9 +125,14 @@ public final class KofNet {
      *  `staticMethod`. Verdadeiro no JVM desde a fatia 2, quando
      *  `JvmRuntimeSockets` emite o corpo real — os dois portões precisam
      *  concordar, senão um verbo aceito cai num runtime sem método (o verde
-     *  falso que a fatia 1 mediu). */
+     *  falso que a fatia 1 mediu).
+     *
+     *  <p>Fatia 3: NATIVE x86-64 entra porque {@link dev.kof.compiler.nat.NativeNetFront}
+     *  emite os dez símbolos no runtime gerado. NATIVE_RISCV64/NATIVE_AARCH64
+     *  seguem recusando (NET002) — os símbolos não existem no runtime cross
+     *  ainda (fatia 4); aceitar ali seria o mesmo verde falso. */
     static boolean socketRuntimeReady(Target target) {
-        return target == Target.JVM || target == Target.ANDROID;
+        return target == Target.JVM || target == Target.ANDROID || target == Target.NATIVE;
     }
 
     static boolean isNetHandleType(Type t) {
@@ -152,7 +157,8 @@ public final class KofNet {
                 || function.startsWith("kof_net_connect") || function.startsWith("kof_net_bind")
                 || function.startsWith("kof_net_send") || function.startsWith("kof_net_receive")
                 || function.startsWith("kof_net_peer") || function.equals("kof_net_close")) {
-            return target == Target.JVM || target == Target.ANDROID;
+            return target == Target.JVM || target == Target.ANDROID
+                    || target == Target.NATIVE;
         }
         return true;
     }

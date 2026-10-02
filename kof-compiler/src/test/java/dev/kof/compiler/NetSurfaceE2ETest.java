@@ -33,7 +33,8 @@ public class NetSurfaceE2ETest {
         main() {
             var l = net.listen(8123)
             var c = net.connect("127.0.0.1", 8123)
-            var n = c.send("abc".getBytes())
+            var payload = new Byte[3]
+            var n = c.send(payload)
             var data = c.receive(4096)
             var e = net.bind(9123)
             e.sendTo("127.0.0.1:9123", data)
@@ -59,12 +60,12 @@ public class NetSurfaceE2ETest {
     }
 
     @Test
-    @DisplayName("D-KOF-NET: Native/JS still refuse every socket verb with NET002 (no silent drop)")
-    void nativeAndJsStillRefuse() throws Exception {
+    @DisplayName("D-KOF-NET: JS/cross still refuse every socket verb with NET002 (no silent drop)")
+    void jsAndCrossStillRefuse() throws Exception {
         String one = "main() { var l = net.%s }";
         String[] verbs = {"listen(8123)", "connect(\"h\", 1)", "bind(8123)",
                 "accept(h)", "send(h, b)", "receive(h, 10)", "peer(e)", "close(h)"};
-        for (Target t : new Target[]{Target.NATIVE, Target.JS}) {
+        for (Target t : new Target[]{Target.JS, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             for (String v : verbs) {
                 CompilationResult r = compile(String.format(one, v), t);
                 assertFalse(r.success(), t + " must refuse net." + v + ": "
@@ -74,12 +75,15 @@ public class NetSurfaceE2ETest {
     }
 
     @Test
-    @DisplayName("D-KOF-NET Native: refuses the socket verbs honestly with NET002")
-    void nativeRefusesWithNet002() throws Exception {
+    @DisplayName("D-KOF-NET Native x86-64: the frozen contract BINDS now that slice 3 emits the runtime")
+    void nativeSurfaceCompiles() throws Exception {
+        // Fatia 3 emite `NativeNetFront*` com corpo real (sockets/handles); o
+        // E2E `NetNativeE2ETest` prova que os verbos RESOLVEM e rodam. Os alvos
+        // cross seguem recusando NET002 (os símbolos não existem no runtime
+        // riscv/aarch ainda — fatia 4) e o teste acima o guarda.
         CompilationResult r = compile(CONTRACT, Target.NATIVE);
-        assertFalse(r.success(), "native has no socket runtime yet");
-        String diag = r.diagnostics().getDiagnostics().toString();
-        assertTrue(diag.contains("NET002"), diag);
+        assertTrue(r.success(), "native x86-64 must bind now: "
+                + r.diagnostics().getDiagnostics());
     }
 
     @Test

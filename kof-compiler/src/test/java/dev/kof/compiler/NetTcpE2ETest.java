@@ -230,11 +230,11 @@ class NetTcpE2ETest {
     }
 
     @Test
-    @DisplayName("the socket runtime is a pure-JVM face: Native/JS still refuse with NET002")
+    @DisplayName("JS and the cross targets still refuse with NET002 (no silent drop)")
     void otherTargetsStillRefuse(@TempDir Path dir) throws Exception {
         Path s = dir.resolve("x.kf");
         Files.writeString(s, "main() { var l = net.listen(18880) }");
-        for (Target t : new Target[]{Target.NATIVE, Target.JS}) {
+        for (Target t : new Target[]{Target.JS, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = driver.compile(s, dir.resolve("out-" + t), t);
             assertTrue(!r.success(), t + " has no socket runtime yet");
             String d = r.diagnostics().getDiagnostics().toString();
