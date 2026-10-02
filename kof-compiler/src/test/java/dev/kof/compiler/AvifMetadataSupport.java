@@ -1,0 +1,404 @@
+package dev.kof.compiler;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Fixture builders + the independent second reader for AVIF slice 1
+ * (image-vision front, plan §34). Split from {@link AvifMetadataE2ETest}
+ * by the test-hygiene ratchet (precedent: {@code KofValidationSupport}).
+ */
+final class AvifMetadataSupport {
+
+    private AvifMetadataSupport() {
+    }
+
+    // --- fixtures (byte-exact per AVIF/AV1-ISOBMFF/AV1 specs) ---------------
+
+    // OBU_SEQUENCE_HEADER (type 1), header 0x0A (no ext, size field set,
+    // no padding) + LEB size + payload whose first bytes carry:
+    // seq_profile(2) seq_level_idx(5) [seq_tier(1)] show_existing_frame(1)
+    // reduced_frame_header(1) + still picture(1, reduced form) +
+    // operating_points_cnt_minus_1(5) = 0 + op level/tier + 32-bit timing
+    // zeros. The remaining fields (colour config, frame sizes, ...) are NOT
+    // read by slice 1 — the av1C record is the authority; the reduced-form
+    // flag position is what the refusal test exercises.
+    static byte[] configObu(int profile, boolean reduced, boolean twelve) {
+        boolean high = profile == 0 ? false : !twelve;
+        int level = 2;
+        int w = (profile << 14) | ((level & 31) << 9);
+        if (profile >= 2) {
+            w = (profile << 14) | ((level & 31) << 9) | (0 << 8) | (0 << 6)
+                    | (0 << 5) | ((reduced ? 1 : 0) << 4) | (1 << 3);
+        } else {
+            w = (profile << 14) | ((level & 31) << 9) | (0 << 8)
+                    | ((reduced ? 1 : 0) << 7) | (1 << 6);
+        }
+        byte[] payload = new byte[]{
+                (byte) (w >>> 8), (byte) w,
+                (byte) ((high ? 1 : 0) << 1), 0x00, 0x00, 0x00, 0x00, 0x00};
+        byte[] out = new byte[2 + payload.length];
+        out[0] = 0x0A;
+        out[1] = (byte) payload.length;
+        System.arraycopy(payload, 0, out, 2, payload.length);
+        return out;
+    }
+
+    // av1C record: byte0 0x81 (marker+version), byte1 = profile<<5|level,
+    // byte2 = tier<<7|high<<6|twelve<<5|mono<<4|subX<<3|subY<<2|reserved(1)+
+    // chroma_present... (the 2-bit tail carries chroma_sample_position when
+    // not mono; 0 here — 4:2:0 unspecified), byte3 reserved=0, then
+    // configOBUsLength(4) + obu.
+    static byte[] av1c(int profile, int level, boolean tier, boolean high,
+                               boolean twelve, boolean mono, boolean subX, boolean subY,
+                               byte[] obu) {
+        int b2 = ((tier ? 1 : 0) << 7) | ((high ? 1 : 0) << 6)
+                | ((twelve ? 1 : 0) << 5) | ((mono ? 1 : 0) << 4)
+                | ((subX ? 1 : 0) << 3) | ((subY ? 1 : 0) << 2);
+        byte[] rec = new byte[12 + obu.length];
+        rec[0] = (byte) 0x81;
+        rec[1] = (byte) ((profile << 5) | (level & 31));
+        rec[2] = (byte) b2;
+        rec[3] = 0;
+        rec[4] = (byte) (obu.length >>> 24);
+        rec[5] = (byte) (obu.length >>> 16);
+        rec[6] = (byte) (obu.length >>> 8);
+        rec[7] = (byte) obu.length;
+        System.arraycopy(obu, 0, rec, 8, obu.length);
+        return box("av1C", rec);
+    }
+
+    static byte[] ispe(int w, int h) {
+        return box("ispe", new byte[]{0, 0, 0, 0,
+                (byte) (w >>> 24), (byte) (w >>> 16), (byte) (w >>> 8), (byte) w,
+                (byte) (h >>> 24), (byte) (h >>> 16), (byte) (h >>> 8), (byte) h});
+    }
+
+    static byte[] infe(int id, String type) {
+        // version 2: ver+flags(4) item_ID(2) item_protection_index(2) item_type(4)
+        byte[] t = type.getBytes(StandardCharsets.US_ASCII);
+        byte[] body = new byte[4 + 2 + 2 + 4];
+        body[4] = (byte) (id >>> 8);
+        body[5] = (byte) id;
+        System.arraycopy(t, 0, body, 8, 4);
+        return box("infe", body);
+    }
+
+    static byte[] pitm(int id) {
+        return box("pitm", new byte[]{0, 0, 0, 0, (byte) (id >>> 8), (byte) id});
+    }
+
+    // iinf full box: ver+flags(4) entry_count(2) + the infe boxes as children
+    static byte[] iinf(int count, List<byte[]> infeBoxes) {
+        byte[] head = new byte[]{0, 0, 0, 0, (byte) (count >>> 8), (byte) count};
+        return box("iinf", concatWith(head, infeBoxes));
+    }
+
+    static byte[] hdlr() {
+        byte[] b = new byte[21];
+        byte[] p = "pict".getBytes(StandardCharsets.US_ASCII);
+        System.arraycopy(p, 0, b, 8, 4);
+        return box("hdlr", b);
+    }
+
+    static byte[] iprp(List<byte[]> children, List<byte[]> entries) {
+        // ipma v0: ver+flags(4) entry_count(2) + item_id(2) assoc_count(1) idx(1)*
+        byte[] head = new byte[]{0, 0, 0, 0, (byte) (entries.size() >>> 8), (byte) entries.size()};
+        byte[] ipma = box("ipma", concatWith(head, entries));
+        return box("iprp", concat(List.of(box("ipco", concat(children)), ipma)));
+    }
+
+    // one ipma entry: item id + 1-based property indexes into ipco
+    static byte[] ipmaEntry(int id, int... idx) {
+        byte[] b = new byte[2 + 1 + idx.length];
+        b[0] = (byte) (id >>> 8);
+        b[1] = (byte) id;
+        b[2] = (byte) idx.length;
+        for (int i = 0; i < idx.length; i++) b[3 + i] = (byte) idx[i];
+        return b;
+    }
+
+    static byte[] metaChildless(String type, byte[] body) {
+        return box("meta", body);
+    }
+
+    // version 0: ver+flags(4) entry_count(2) then: type(4) from(2) count(2)
+    // to(2*count) aux_urn\0
+    static byte[] irefAuxc(int auxItem, int primary, String urn) {
+        byte[] u = (urn + "\0").getBytes(StandardCharsets.US_ASCII);
+        byte[] body = new byte[4 + 2 + 4 + 2 + 2 + 2 + u.length];
+        body[4] = 0;
+        body[5] = 1; // entry_count
+        byte[] t = "auxc".getBytes(StandardCharsets.US_ASCII);
+        System.arraycopy(t, 0, body, 6, 4);
+        body[10] = (byte) (auxItem >>> 8);
+        body[11] = (byte) auxItem;
+        body[12] = 0;
+        body[13] = 1; // reference_count
+        body[14] = (byte) (primary >>> 8);
+        body[15] = (byte) primary;
+        System.arraycopy(u, 0, body, 16, u.length);
+        return box("iref", body);
+    }
+
+    static byte[] container(String major, List<byte[]> metaChildren) {
+        return containerWithCompat(major, List.of("mif1"), metaChildren);
+    }
+
+    static byte[] containerWithCompat(String major, List<String> compat,
+                                              List<byte[]> metaChildren) {
+        List<byte[]> brands = new java.util.ArrayList<>();
+        brands.add(major.getBytes(StandardCharsets.US_ASCII));
+        brands.add(new byte[]{0, 0, 0, 2});
+        for (String c : compat) {
+            brands.add(c.getBytes(StandardCharsets.US_ASCII));
+        }
+        byte[] ftyp = box("ftyp", concat(brands));
+        byte[] metaBox = box("meta", concatWith(new byte[]{0, 0, 0, 0}, metaChildren));
+        return concat(List.of(ftyp, metaBox));
+    }
+
+    static int sum(List<byte[]> parts) {
+        int s = 0;
+        for (byte[] b : parts) s += b.length;
+        return s;
+    }
+
+    static byte[] concat(List<byte[]> parts) {
+        return concatWith(new byte[0], parts);
+    }
+
+    static byte[] concatWith(byte[] head, List<byte[]> parts) {
+        byte[] out = new byte[head.length + sum(parts)];
+        int p = 0;
+        System.arraycopy(head, 0, out, p, head.length);
+        p += head.length;
+        for (byte[] b : parts) {
+            System.arraycopy(b, 0, out, p, b.length);
+            p += b.length;
+        }
+        return out;
+    }
+
+    static byte[] box(String type, byte[] body) {
+        int size = 8 + body.length;
+        byte[] out = new byte[size];
+        out[0] = (byte) (size >>> 24);
+        out[1] = (byte) (size >>> 16);
+        out[2] = (byte) (size >>> 8);
+        out[3] = (byte) size;
+        byte[] t = type.getBytes(StandardCharsets.US_ASCII);
+        System.arraycopy(t, 0, out, 4, 4);
+        System.arraycopy(body, 0, out, 8, body.length);
+        return out;
+    }
+
+    static Path fixtures(Path dir) throws Exception {
+        Files.createDirectories(dir);
+
+        byte[] obu0 = configObu(0, true, false);
+        byte[] flat = container("avif", List.of(
+                av1c(0, 2, false, false, false, true, false, false, obu0),
+                ispe(8, 8),
+                pitm(1),
+                iinf(1, List.of(infe(1, "av01"))),
+                hdlr(),
+                iprp(List.of(av1c(0, 2, false, false, false, true, false, false, obu0), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
+        Files.write(dir.resolve("flat.avif"), flat);
+
+        byte[] obu1 = configObu(1, true, false);
+        byte[] alpha = container("avif", List.of(
+                av1c(1, 4, false, true, false, false, true, true, obu1),
+                ispe(16, 16),
+                pitm(1),
+                iinf(2, List.of(infe(1, "av01"), infe(2, "av01"))),
+                hdlr(),
+                irefAuxc(2, 1, "urn:mpeg:hevc:2015:auxid:1"),
+                iprp(List.of(av1c(1, 4, false, true, false, false, true, true, obu1), ispe(16, 16)), List.of(ipmaEntry(1, 1, 2), ipmaEntry(2, 1, 2)))));
+        Files.write(dir.resolve("alpha.avif"), alpha);
+
+        byte[] obu2 = configObu(2, true, true);
+        byte[] compat = containerWithCompat("mif1", List.of("avis", "mif1"), List.of(
+                av1c(2, 0, true, true, true, false, false, false, obu2),
+                ispe(32, 24),
+                pitm(7),
+                iinf(1, List.of(infe(7, "av01"))),
+                hdlr(),
+                iprp(List.of(av1c(2, 0, true, true, true, false, false, false, obu2), ispe(32, 24)), List.of(ipmaEntry(7, 1, 2)))));
+        Files.write(dir.resolve("compat.avif"), compat);
+        return dir;
+    }
+
+    static String javaFacts(Path file) throws Exception {
+        byte[] b = Files.readAllBytes(file);
+        int meta = findBox(b, 0, b.length, "meta");
+        assertTrue(meta >= 0, "meta");
+        int metaEnd = boxEnd(b, meta);
+        int pitm = be16(b, findBox(b, meta + 12, metaEnd, "pitm") + 12);
+        int iinf = findBox(b, meta + 12, metaEnd, "iinf");
+        int items = be16(b, iinf + 12);
+        int iprpAt = findBox(b, meta + 12, metaEnd, "iprp");
+        int ipcoAt = findBox(b, iprpAt + 8, boxEnd(b, iprpAt), "ipco");
+        int ispe = findBox(b, ipcoAt + 8, boxEnd(b, ipcoAt), "ispe");
+        int width = be32(b, ispe + 12);
+        int height = be32(b, ispe + 16);
+        int av1 = findBox(b, ipcoAt + 8, boxEnd(b, ipcoAt), "av1C");
+        assertTrue((b[av1 + 8] & 255) == 0x81, "av1C marker");
+        int b1 = b[av1 + 9] & 255, b2 = b[av1 + 10] & 255;
+        int profile = b1 >> 5, level = b1 & 31;
+        int high = (b2 >> 6) & 1, twelve = (b2 >> 5) & 1, mono = (b2 >> 4) & 1;
+        int subX = (b2 >> 3) & 1, subY = (b2 >> 2) & 1, tier = b2 >> 7;
+        int depth = (high == 0) ? 8 : (twelve == 1 ? 12 : 10);
+        int iref = findBox(b, meta + 12, metaEnd, "iref");
+        boolean alpha = iref >= 0
+                && new String(b, iref + 14, 4, StandardCharsets.US_ASCII).equals("auxc")
+                && be16(b, iref + 22) == pitm;
+        String brand = new String(b, 8, 4, StandardCharsets.US_ASCII);
+        if (!brand.equals("avif") && !brand.equals("avis")) {
+            brand = "";
+            for (int i = 16; i + 4 <= be32(b, 0); i += 4) {
+                String cb = new String(b, i, 4, StandardCharsets.US_ASCII);
+                if (cb.equals("avif") || cb.equals("avis")) {
+                    brand = cb;
+                    break;
+                }
+            }
+        }
+        return brand + " " + width + "x" + height
+                + " items=" + items + " primary=" + pitm
+                + " alpha=" + (alpha ? 1 : 0) + " profile=" + profile
+                + " level=" + level + " tier=" + tier + " mono=" + mono
+                + " sub=" + subX + "/" + subY + " depth=" + depth + "/" + depth;
+    }
+
+    static String probe(Path dir) {
+        String base = dir.toString().replace('\\', '/');
+        return """
+            import image.Avif
+
+            String flag(Bool b) {
+                if (b) {
+                    return "1"
+                }
+                return "0"
+            }
+
+            main() {
+                var base = "%s"
+                var files = listOf("flat.avif", "alpha.avif", "compat.avif")
+                for (var name in files) {
+                    var m = readAvifMetadata(base + "/" + name)
+                    println(m.brand + " " + m.width + "x" + m.height
+                        + " items=" + m.itemCount + " primary=" + m.primaryId
+                        + " alpha=" + flag(m.hasAlpha) + " profile=" + m.seqProfile
+                        + " level=" + m.levelIdx + " tier=" + flag(m.seqTier)
+                        + " mono=" + flag(m.monochrome) + " sub=" + flag(m.chromaSubX)
+                        + "/" + flag(m.chromaSubY) + " depth=" + m.bitDepthLuma
+                        + "/" + m.bitDepthChroma)
+                }
+            }
+            """.formatted(base);
+    }
+
+    static String errorProbe(Path dir) {
+        String base = dir.toString().replace('\\', '/');
+        return """
+            import image.Avif
+
+            main() {
+                var base = "%s"
+                var files = listOf("notisobmf.avif", "heic.avif", "nonreduced.avif",
+                    "baddepth.avif", "trunc.avif")
+                for (var name in files) {
+                    try {
+                        var m = readAvifMetadata(base + "/" + name)
+                        println(m.brand)
+                    } catch (String e) {
+                        println(e)
+                    }
+                }
+            }
+            """.formatted(base);
+    }
+
+    static Path errorFixtures(Path root) throws Exception {
+        Files.createDirectories(root);
+        Path dir = root.resolve("errors-fixtures");
+        Files.createDirectories(dir);
+
+        byte[] jpeg = new byte[64];
+        jpeg[0] = (byte) 0xFF;
+        jpeg[1] = (byte) 0xD8;
+        Files.write(dir.resolve("notisobmf.avif"), jpeg);
+
+        byte[] heic = container("heic", List.of(
+                av1c(0, 2, false, false, false, true, false, false, configObu(0, true, false)),
+                ispe(8, 8),
+                pitm(1),
+                iinf(1, List.of(infe(1, "av01"))),
+                hdlr(),
+                iprp(List.of(av1c(0, 2, false, false, false, true, false, false, configObu(0, true, false)), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
+        Files.write(dir.resolve("heic.avif"), heic);
+
+        byte[] nonReduced = container("avif", List.of(
+                av1c(0, 2, false, false, false, true, false, false, configObu(0, false, false)),
+                ispe(8, 8),
+                pitm(1),
+                iinf(1, List.of(infe(1, "av01"))),
+                hdlr(),
+                iprp(List.of(av1c(0, 2, false, false, false, true, false, false, configObu(0, false, false)), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
+        Files.write(dir.resolve("nonreduced.avif"), nonReduced);
+
+        byte[] badDepth = container("avif", List.of(
+                av1c(0, 2, false, true, false, true, false, false, configObu(0, true, false)),
+                ispe(8, 8),
+                pitm(1),
+                iinf(1, List.of(infe(1, "av01"))),
+                hdlr(),
+                iprp(List.of(av1c(0, 2, false, true, false, true, false, false, configObu(0, true, false)), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
+        Files.write(dir.resolve("baddepth.avif"), badDepth);
+
+        byte[] truncated = new byte[8];
+        System.arraycopy("ftyp".getBytes(StandardCharsets.US_ASCII), 0, truncated, 4, 4);
+        Files.write(dir.resolve("trunc.avif"), truncated);
+
+        return root.resolve("errors-fixtures");
+    }
+
+    // --- independent box helpers for the second reader ----------------------
+
+    static int be16(byte[] b, int i) {
+        return ((b[i] & 255) << 8) | (b[i + 1] & 255);
+    }
+
+    static int be32(byte[] b, int i) {
+        return ((b[i] & 255) << 24) | ((b[i + 1] & 255) << 16)
+                | ((b[i + 2] & 255) << 8) | (b[i + 3] & 255);
+    }
+
+    static int boxEnd(byte[] b, int at) {
+        int s = be32(b, at);
+        assertTrue(s >= 8 && at + s <= b.length, "box size");
+        return at + s;
+    }
+
+    static int findBox(byte[] b, int from, int to, String type) {
+        int p = from;
+        while (p + 8 <= to) {
+            int s = be32(b, p);
+            if (s < 8 || p + s > to) {
+                return -1;
+            }
+            if (new String(b, p + 4, 4, StandardCharsets.US_ASCII).equals(type)) {
+                return p;
+            }
+            p += s;
+        }
+        return -1;
+    }
+}
