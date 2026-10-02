@@ -1,6 +1,0 @@
-main() {
-    var h = crypto.sha256("hello")
-    println(h.length)
-    var m = crypto.hmacSha256("key", "msg")
-    println(m.length)
-}
