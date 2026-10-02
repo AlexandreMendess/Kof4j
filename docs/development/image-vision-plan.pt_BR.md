@@ -1181,16 +1181,25 @@ capacidade realmente não existe no alvo.
 23. **Transparência `tRNS` do PNG — LANDADA 01/10 (Kof puro, todos os alvos).**
     O `libs/image/Png.kf` agora lê o chunk `tRNS` (antes ignorado). Para cinza
     (tipo de cor 0) a saída passa a cinza+alpha com alpha 0 onde a amostra é
-    igual ao valor cinza de 16 bits do tRNS (senão 255); para RGB (tipo 2) passa
-    a RGBA com alpha 0 no casamento exato da cor-chave de 24 bits (senão 255);
+    igual à chave cinza do tRNS (senão 255); para RGB (tipo 2) passa
+    a RGBA com alpha 0 no casamento exato da cor-chave (senão 255);
     para paleta (tipo 3) passa a RGBA com o alpha por cor, entradas além do
     comprimento do tRNS ficando opacas. Um `tRNS` em tipo de cor que não carrega
-    transparência (4/6) é recusado com diagnóstico `IMAGE:` explícito. As
-    fixtures são um PNG cinza 12x6, um RGB 10x5 e um paleta 11x7, cada um lido de
+    transparência (4/6) é recusado com diagnóstico `IMAGE:` explícito. O
+    componente tRNS é sempre um valor de 16 bits big-endian (spec PNG §11.3.2)
+    independente da profundidade de bits, então a chave é mapeada para o mesmo
+    espaço de 8 bits que as amostras decodificadas usam (`pngTrnsKey`): o byte
+    alto para imagens de 16 bits (a regra do `pngUnpack16`), um escalonamento
+    `255/maxval` para cinza sub-byte, e o próprio byte para 8 bits — uma amostra
+    de 16 bits que compartilha o byte alto com a chave mas não o baixo permanece
+    opaca. As fixtures são um PNG cinza 12x6, um RGB 10x5, um paleta 11x7, um
+    cinza 16-bit 4x1, um RGB 16-bit 4x1 e um cinza 4-bit 4x2, cada um lido de
     forma independente pelo PIL e pelo `ImageIO` do Java. Prova:
     `PngTransparencyE2ETest` **4/4** (soma das amostras + hash rolante de 24
     bits) na JVM + Native x86-64 + riscv64(qemu) + Script, RED-first (o decoder
-    pré-fatia ignorava o `tRNS`, medido); vizinhos `RasterDecodeE2ETest` PNG 4/4,
+    pré-fatia ignorava o `tRNS`, medido; a chave ciente de profundidade foi
+    adicionada após o primeiro pouso medir alpha errado nas fixtures de 16 bits e
+    sub-byte); vizinhos `RasterDecodeE2ETest` PNG 4/4,
     `PngInterlaceE2ETest` 4/4 e `PngBitDepthE2ETest` 4/4 inalterados.
 
 **DECIDIDO 30/09 (`D-WEBP-LOSSY-PURE-KOF`, opção C): WebP lossy `VP8 ` + AVIF

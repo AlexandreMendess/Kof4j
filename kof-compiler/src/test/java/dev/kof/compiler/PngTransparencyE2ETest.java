@@ -27,10 +27,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * opaque). A {@code tRNS} chunk on a color type that cannot carry transparency
  * (4/6) is refused with an explicit {@code IMAGE:} diagnostic.
  *
- * <p>Three fixtures cover the three allowed color types (gray 12x6, RGB 10x5,
- * palette 11x7), each independently readable by PIL and Java {@code ImageIO}.
- * Golden = the decoded sample sum and a 24-bit rolling hash. Proven on JVM +
- * Native x86-64 + riscv64 (qemu) + Script; no compiler change.
+ * <p>The tRNS component is always a 16-bit big-endian value (PNG spec
+ * §11.3.2) regardless of the image bit depth, so the color key is mapped into
+ * the same 8-bit space the decoded samples use: the high byte for 16-bit images
+ * (the {@code pngUnpack16} rule), a {@code 255/maxval} scaling for sub-byte
+ * gray, and the byte itself for 8-bit. This is what makes a 16-bit sample that
+ * shares its high byte with the key (but not its low byte) stay opaque.
+ *
+ * <p>Six fixtures cover the three allowed color types and the depth-sensitive
+ * key mapping: gray 12x6, RGB 10x5, palette 11x7 (all 8-bit), 16-bit gray 4x1,
+ * 16-bit RGB 4x1 and 4-bit gray 4x2. Each is independently readable by PIL and
+ * Java {@code ImageIO}. Golden = the decoded sample sum and a 24-bit rolling
+ * hash. Proven on JVM + Native x86-64 + riscv64 (qemu) + Script; no compiler
+ * change.
  */
 class PngTransparencyE2ETest {
 
@@ -58,10 +67,27 @@ class PngTransparencyE2ETest {
           + "001c4944415478da63606066628462064604878109c1415282c2c1a51e00133200737bcd160"
           + "f0000000049454e44ae426082";
 
+    private static final String T16G_HEX =
+            "89504e470d0a1a0a0000000d49484452000000040000000110000000008cc78c"
+          + "520000000274524e5312342fd3495e000000114944415478da63103211fabffa"
+          + "2c0303000c7f02d0f91cb3720000000049454e44ae426082";
+    private static final String T16RGB_HEX =
+            "89504e470d0a1a0a0000000d494844520000000400000001100200000026ce44"
+          + "d90000000674524e53123456789abc89e44ee6000000224944415478da631032"
+          + "09ab98b547e87fd8ff59ff191819981898ffff7ff7eeee5d0081d00c04d03c3b"
+          + "130000000049454e44ae426082";
+    private static final String TSUB4_HEX =
+            "89504e470d0a1a0a0000000d49484452000000040000000204000000009f33cf"
+          + "be0000000274524e53000a964624260000000e4944415478da63105dcfb06039"
+          + "000512020c72c604020000000049454e44ae426082";
+
     private static final String GOLDEN =
               "tgray PNG 12x6 ch=2 27177:13599977\n"
             + "trgb PNG 10x5 ch=4 20975:14788335\n"
-            + "tpal PNG 11x7 ch=4 29545:1876073";
+            + "tpal PNG 11x7 ch=4 29545:1876073\n"
+            + "t16g PNG 4x1 ch=2 717:16766381\n"
+            + "t16rgb PNG 4x1 ch=4 1740:9520396\n"
+            + "tsub4 PNG 4x2 ch=2 2261:14524949";
 
     @Test
     void trnsPngOnJvm() throws Exception {
@@ -108,6 +134,9 @@ class PngTransparencyE2ETest {
         Files.write(dir.resolve("tgray.png"), hex(TGRAY_HEX));
         Files.write(dir.resolve("trgb.png"), hex(TRGB_HEX));
         Files.write(dir.resolve("tpal.png"), hex(TPAL_HEX));
+        Files.write(dir.resolve("t16g.png"), hex(T16G_HEX));
+        Files.write(dir.resolve("t16rgb.png"), hex(T16RGB_HEX));
+        Files.write(dir.resolve("tsub4.png"), hex(TSUB4_HEX));
         return dir;
     }
 
@@ -139,6 +168,9 @@ class PngTransparencyE2ETest {
              + "    println(probe(\"tgray\", \"" + base + "/tgray.png\"))\n"
              + "    println(probe(\"trgb\", \"" + base + "/trgb.png\"))\n"
              + "    println(probe(\"tpal\", \"" + base + "/tpal.png\"))\n"
+             + "    println(probe(\"t16g\", \"" + base + "/t16g.png\"))\n"
+             + "    println(probe(\"t16rgb\", \"" + base + "/t16rgb.png\"))\n"
+             + "    println(probe(\"tsub4\", \"" + base + "/tsub4.png\"))\n"
              + "}\n";
     }
 

@@ -1032,16 +1032,24 @@ ability genuinely does not exist on a target.
 23. **PNG `tRNS` transparency — LANDED 01/10 (pure Kof, all targets).**
     `libs/image/Png.kf` now reads the `tRNS` chunk (previously ignored). For
     grayscale (color type 0) the output becomes gray+alpha with alpha 0 where the
-    sample equals the 16-bit tRNS gray value (else 255); for RGB (color type 2) it
-    becomes RGBA with alpha 0 on the exact 24-bit color-key match (else 255); for
+    sample equals the tRNS gray key (else 255); for RGB (color type 2) it
+    becomes RGBA with alpha 0 on the exact color-key match (else 255); for
     palette (color type 3) it becomes RGBA with the per-color alpha, entries past
     the tRNS length being opaque. A `tRNS` on a color type that cannot carry
-    transparency (4/6) is refused with an explicit `IMAGE:` diagnostic. Fixtures
-    are a gray 12x6, an RGB 10x5 and a palette 11x7 PNG, each independently
-    readable by PIL and Java `ImageIO`. Proof: `PngTransparencyE2ETest` **4/4**
-    (sample sum + 24-bit rolling hash) on JVM + Native x86-64 + riscv64(qemu) +
-    Script, RED-first (the pre-slice decoder ignored `tRNS`, measured); neighbors
-    `RasterDecodeE2ETest` PNG 4/4, `PngInterlaceE2ETest` 4/4 and
+    transparency (4/6) is refused with an explicit `IMAGE:` diagnostic. The tRNS
+    component is always a 16-bit big-endian value (PNG spec §11.3.2) regardless
+    of the image bit depth, so the key is mapped into the same 8-bit space the
+    decoded samples use (`pngTrnsKey`): the high byte for 16-bit images (the
+    `pngUnpack16` rule), a `255/maxval` scaling for sub-byte gray, and the byte
+    itself for 8-bit — a 16-bit sample sharing its high byte with the key but not
+    its low byte stays opaque. Fixtures are a gray 12x6, an RGB 10x5, a palette
+    11x7, a 16-bit gray 4x1, a 16-bit RGB 4x1 and a 4-bit gray 4x2 PNG, each
+    independently readable by PIL and Java `ImageIO`. Proof:
+    `PngTransparencyE2ETest` **4/4** (sample sum + 24-bit rolling hash) on JVM +
+    Native x86-64 + riscv64(qemu) + Script, RED-first (the pre-slice decoder
+    ignored `tRNS`, measured; the depth-aware key was added after the first
+    landing measured a wrong alpha on the 16-bit and sub-byte fixtures);
+    neighbors `RasterDecodeE2ETest` PNG 4/4, `PngInterlaceE2ETest` 4/4 and
     `PngBitDepthE2ETest` 4/4 unchanged.
 
 **DECIDED 30/09 (`D-WEBP-LOSSY-PURE-KOF`, option C): WebP lossy `VP8 ` + AVIF
