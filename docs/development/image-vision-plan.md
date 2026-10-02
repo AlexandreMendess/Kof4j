@@ -1024,6 +1024,21 @@ ability genuinely does not exist on a target.
     measured); neighbors `RasterDecodeE2ETest` PNG 4/4 and `PngInterlaceE2ETest`
     4/4 unchanged.
 
+23. **PNG `tRNS` transparency — LANDED 01/10 (pure Kof, all targets).**
+    `libs/image/Png.kf` now reads the `tRNS` chunk (previously ignored). For
+    grayscale (color type 0) the output becomes gray+alpha with alpha 0 where the
+    sample equals the 16-bit tRNS gray value (else 255); for RGB (color type 2) it
+    becomes RGBA with alpha 0 on the exact 24-bit color-key match (else 255); for
+    palette (color type 3) it becomes RGBA with the per-color alpha, entries past
+    the tRNS length being opaque. A `tRNS` on a color type that cannot carry
+    transparency (4/6) is refused with an explicit `IMAGE:` diagnostic. Fixtures
+    are a gray 12x6, an RGB 10x5 and a palette 11x7 PNG, each independently
+    readable by PIL and Java `ImageIO`. Proof: `PngTransparencyE2ETest` **4/4**
+    (sample sum + 24-bit rolling hash) on JVM + Native x86-64 + riscv64(qemu) +
+    Script, RED-first (the pre-slice decoder ignored `tRNS`, measured); neighbors
+    `RasterDecodeE2ETest` PNG 4/4, `PngInterlaceE2ETest` 4/4 and
+    `PngBitDepthE2ETest` 4/4 unchanged.
+
 **DECIDED 30/09 (`D-WEBP-LOSSY-PURE-KOF`, option C): WebP lossy `VP8 ` + AVIF
 as a pure-Kof decoder on all targets.** The measured finding that forced the
 decision: the JPEG escape hatch does not extend — OpenJDK 25 `javax.imageio`

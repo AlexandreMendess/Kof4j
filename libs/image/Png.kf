@@ -33,6 +33,8 @@ Raster pngRaster(String path) {
     var interlace = 0
     var plte = new Int[768]
     var plteLen = 0
+    var trns = new Int[256]
+    var trnsLen = 0
     var off = 8
     var idat = new Int[b.length]
     var idatLen = 0
@@ -58,6 +60,13 @@ Raster pngRaster(String path) {
                 i = i + 1
             }
             plteLen = len
+        } else if (matchesAscii(b, off + 4, "tRNS")) {
+            var i = 0
+            while (i < len && i < 256) {
+                trns[i] = b[dataOff + i] & 255
+                i = i + 1
+            }
+            trnsLen = len
         } else if (matchesAscii(b, off + 4, "IDAT")) {
             var i = 0
             while (i < len) {
@@ -80,6 +89,18 @@ Raster pngRaster(String path) {
     var outChannels = srcChannels
     if (colorType == 3) {
         outChannels = 3
+    }
+    var hasTrns = trnsLen > 0
+    if (hasTrns) {
+        if (colorType == 0) {
+            outChannels = 2
+        } else if (colorType == 2) {
+            outChannels = 4
+        } else if (colorType == 3) {
+            outChannels = 4
+        } else {
+            throw "IMAGE: tRNS is not allowed for PNG color type " + colorType
+        }
     }
     var count = width * height * outChannels
     guardRaster(count)
@@ -116,7 +137,7 @@ Raster pngRaster(String path) {
     } else {
         pixels = pngUnpackSub(packed, width, height, srcChannels, bitDepth, colorType != 3)
     }
-    return expand(pixels, width, height, srcChannels, outChannels, colorType, plte, plteLen)
+    return expand(pixels, width, height, srcChannels, outChannels, colorType, plte, plteLen, trns, trnsLen)
 }
 
 // Allowed bit-depth/color-type combinations (PNG spec §4.3), returning the
@@ -378,7 +399,7 @@ Int paeth(Int a, Int b, Int c) {
     return c
 }
 
-Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChannels, Int colorType, Int[] plte, Int plteLen) {
+Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChannels, Int colorType, Int[] plte, Int plteLen, Int[] trns, Int trnsLen) {
     var count = width * height * outChannels
     var samples = new Int[count]
     var px = 0
@@ -388,9 +409,37 @@ Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChann
             if (idx * 3 + 2 >= plteLen) {
                 throw "IMAGE: PNG palette index out of range"
             }
-            samples[px * 3] = plte[idx * 3]
-            samples[px * 3 + 1] = plte[idx * 3 + 1]
-            samples[px * 3 + 2] = plte[idx * 3 + 2]
+            samples[px * outChannels] = plte[idx * 3]
+            samples[px * outChannels + 1] = plte[idx * 3 + 1]
+            samples[px * outChannels + 2] = plte[idx * 3 + 2]
+            if (trnsLen > 0) {
+                if (idx < trnsLen) {
+                    samples[px * outChannels + 3] = trns[idx]
+                } else {
+                    samples[px * outChannels + 3] = 255
+                }
+            }
+        } else if (colorType == 0 && trnsLen > 0) {
+            samples[px * 2] = pixels[px]
+            var tval = (trns[0] << 8) | trns[1]
+            if (trnsLen == 2 && pixels[px] == (tval & 255)) {
+                samples[px * 2 + 1] = 0
+            } else {
+                samples[px * 2 + 1] = 255
+            }
+        } else if (colorType == 2 && trnsLen > 0) {
+            samples[px * 4] = pixels[px * 3]
+            samples[px * 4 + 1] = pixels[px * 3 + 1]
+            samples[px * 4 + 2] = pixels[px * 3 + 2]
+            var tr = (trns[0] << 8) | trns[1]
+            var tg = (trns[2] << 8) | trns[3]
+            var tb = (trns[4] << 8) | trns[5]
+            if (trnsLen == 6 && pixels[px * 3] == (tr & 255)
+                    && pixels[px * 3 + 1] == (tg & 255) && pixels[px * 3 + 2] == (tb & 255)) {
+                samples[px * 4 + 3] = 0
+            } else {
+                samples[px * 4 + 3] = 255
+            }
         } else {
             var c = 0
             while (c < outChannels) {
