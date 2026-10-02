@@ -4691,3 +4691,31 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Question (resolved):** `Target` has a single `JS`; should a compile-time node/browser selector be added so a browser build can be refused at compile time? **Chosen: no.** The runtime `kof_platform` Proxy error (R7, proven for `net` by `KofJsHostlessRuntimeTest`) remains the mechanism.
 - **Consequence:** no `Target`/frozen-surface change; no `D-*` surface addition. A future compile-time split would need its own decision.
 - **Relationships:** `Related: D-KOF-NET (slice 5 measurement), network-kofnet-plan.md §2.5, rule 6, rule 11`.
+
+## D-KOF-X25519 — session key exchange is APPROVED as X25519 + HKDF-SHA256; the `SECN005` face goes through the promotion flow (maintainer 02/10/2026, rule-6 multi-choice vote "(a) Sim, aprovar")
+
+**State:** DECIDED (maintainer) — X25519 ECDH + HKDF-SHA256 become the session-key face of `kof.security`; the KofShare AES-GCM envelope (`D-KOFSHARE-100KOF`) and the `kof.net` handshake frame are unblocked at the DECISION level; implementation lands through the stdlib promotion flow (corpus + catalog + per-target proof), NOT as a JVM-interop escape hatch.
+
+- **Decision:** a handshake/derive face (shape `KeyExchange.privateKey()` → `publicValue` → `sharedSecret(peerPublic)` sealed as `Secret`, with HKDF-SHA256 expansion into per-direction AES keys) is authorized as a `kof.security` stdlib surface. Rejected: deferring v1 to chunk-HMAC only (option b) — the maintainer wants the confidential-transfer envelope.
+- **What it unblocks:** (1) KofShare envelope: per-session AES-GCM on top of the proven `transfer.kf` framing/resume + `SECN005`-derived keys; (2) any other app needing forward secrets over `kof.net`.
+- **Boundary:** this decides the ALGORITHM family and the face's existence; the exact names/signatures are the implementation unit's surface contract (proposed EN/PT corpus review at promotion). KeyHandle rotation semantics (`SECN010`) unchanged.
+- **Relationships:** `Depends on: D-KOF-NET (transport), D-KOFSHARE-100KOF (product), SECN005 (the face this approves), §559`; `Related: D-KOF-NET frozen policy clause "key exchange remains a separate decision" — that decision is THIS one`.
+
+## D-NET-JS-V1 — `kof.net` is OUT of `Target.JS` in v1: a named compile-time refusal, no browser/Node sub-target (maintainer 02/10/2026, rule-6 multi-choice vote "(c) kof.net fora do JS no v1")
+
+**State:** DECIDED (maintainer) — network is not a v1 JS surface; importing/calling `kof.net` under `Target.JS` must refuse with a NAMED code (proposed `NETN001`) at compile time on every target uniformly. Rejected: Node-only-with-runtime-refusal (a) and `js.node`/`js.browser` sub-targets (b) — the selector decision dies with this ruling; a JS network face returns only as a future D-*.
+
+- **Consequence for D-KOF-NET:** the frozen plan's "payload `Byte[]`, blocking+spawn" model keeps JVM + Script + Native legs; the JS leg of the plan is explicitly declined for v1. `NetScriptE2ETest` (Script) and the JVM legs stay the proof; no JS net golden exists or will be expected.
+- **Relationships:** `Amends: D-KOF-NET (target matrix: JS v1 = refusal)`, `Resolves-questions: the JS selector question (browser vs Node) held open since slice 5`
+- **Reconciliation (02/10):** the same-day `D-JS-PLATFORM-SELECTOR` (no node/browser sub-selector; runtime `kof_platform` Proxy error as the general mechanism) still STANDS for every other runtime-only surface — this decision supersedes it ONLY for `kof.net`: the maintainer's later vote "(c) kof.net fora do JS no v1" moves the network refusal to COMPILE time (`NETN001`), uniformly across all JS platform guesses (no sub-selector is introduced either way)..
+
+## D-FILE-STATIC — the static `File.readBytes(path)`/`File.writeText(path, s)` forms STAY refused (no wiring of `KofIo.staticMethod("File")`) (maintainer 02/10/2026, rule-6 multi-choice vote "(a) Manter proibido")
+
+**State:** DECIDED (maintainer) — the file face stays instance-style ONLY (`File("x").readBytes()`); the unreachable `KofIo.staticMethod("File")` arm is NOT wired, per rule 6 a new static surface was asked and the answer is NO. §562's corpus fix (already CLOSED) is now the permanent contract, not a temporary doc patch; `SEM011` on static forms is intended behavior.
+- **Relationships:** `Confirms: §562 closure (documentation-only, no code surface added)`, `Related: D-KOFSHARE-100KOF (KofShare uses the instance face)`.
+
+## D-KOF-DIGEST-BYTES — a DEDICATED binary digest face is APPROVED: `crypto.sha256Bytes(Byte[])` and `crypto.hmacSha256Bytes(Byte[] key, Byte[] msg)`; `SECN011` stays on the String/Int faces (maintainer 02/10/2026, rule-6 multi-choice vote "(b) Nova face sha256Bytes(Byte[])")
+
+**State:** DECIDED (maintainer) — instead of letting `sha256`/`hmacSha256` silently accept arrays (the §563 degradation), the binary payload gets its OWN named face: `sha256Bytes(Byte[])` → hex String and `hmacSha256Bytes(key Byte[], msg Byte[])` → hex String, with identical per-target proofs (RED-first like §563: same bytes → same digest on JVM+Script+Native, array identity NEVER digested). The §563 `SECN011` refusal on the String/Int faces is KEPT — two faces, one job each.
+- **Consequence for KofShare:** `tagHex`'s `"" + hexOf(payload)` String-AAD remains legal; when the face lands, the integrity frame can switch to `hmacSha256Bytes(keyBytes, payloadBytes)` directly (implementation detail, no decision needed).
+- **Relationships:** `Amends: §563 (refusal kept + binary face added)`, `Depends on: D-KOF-FIRST-IMPL (stdlib face, all targets)`, `Related: D-KOFSHARE-100KOF`.
