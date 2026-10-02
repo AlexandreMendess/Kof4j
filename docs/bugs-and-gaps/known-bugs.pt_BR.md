@@ -14134,7 +14134,7 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 <!-- en-switch --> **EN:** [§565 (EN)](known-bugs.md#565--jvm-jsondecoderecord-with-a-missingnull-primitive-component-throws-the-jdk-internal-valueconversions-binder-npe-instead-of-a-named-jsn-error---open-owner--lane-compilerruntime-jvm-found-by-kof-publisher-ollama-error-envelopes)
 
-## §566 — JVM: uma `entity` declarada em pacote NOMEDADO compila, mas as chamadas ORM fazem `Class.forName` com o nome SIMPLES — `NoClassDefFoundError` na primeira leitura — 🟡 ABERTO (dona = lane compiler JVM); encontrado pelo kof-publisher
+## §566 — JVM: uma `entity` declarada em pacote NOMEADO compila, mas as chamadas ORM fazem `Class.forName` com o nome SIMPLES — `NoClassDefFoundError` na primeira leitura — 🟡 ABERTO (dona = lane compiler JVM); encontrado pelo kof-publisher
 **Sintoma (medido 01/10, `kof-cli-0.5.0-beta.jar`):** `package app` + `entity Erec { ... }` + `orm.create/save/find` → compila limpo, `app/Erec.class` é emitido, mas a execução morre em `NoClassDefFoundError: Erec`: o `className` passado a `kof_orm_*`/`kof_json_bind` é o `Erec` puro. Na ROOT package funciona (é o workaround do `src/Store.kf` do kof-publisher).
 **Causa (lida):** o `ExpressionOrmCallLowerer` passa `entityName` = o NOME do type-argument (`mc.typeArguments().get(0)`) direto ao runtime (`Class.forName(className)`); o pacote da declaração nunca vira nome binário (compare §308 — o conserto de enum em pacote importado criou a resolução de pacote em ~8 sites; o caminho ORM é a face restante).
 **Prova (executada):** `/home/mel/Documentos/kof-publisher/docs/repros/orm-entity-package/` (`build src --target jvm` → `java -cp out ...` → `NoClassDefFoundError: Erec`).
