@@ -28,22 +28,74 @@ final class AvifMetadataSupport {
     // zeros. The remaining fields (colour config, frame sizes, ...) are NOT
     // read by slice 1 — the av1C record is the authority; the reduced-form
     // flag position is what the refusal test exercises.
-    static byte[] configObu(int profile, boolean reduced, boolean twelve) {
-        boolean high = profile == 0 ? false : !twelve;
-        int level = 2;
-        int w = (profile << 14) | ((level & 31) << 9);
-        if (profile >= 2) {
-            w = (profile << 14) | ((level & 31) << 9) | (0 << 8) | (0 << 6)
-                    | (0 << 5) | ((reduced ? 1 : 0) << 4) | (1 << 3);
-        } else {
-            w = (profile << 14) | ((level & 31) << 9) | (0 << 8)
-                    | ((reduced ? 1 : 0) << 7) | (1 << 6);
+    /** MSB-first bit writer for the spec-exact sequence header payload. */
+    static final class Bits {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        int cur, n;
+        void bits(int v, int w) {
+            for (int i = w - 1; i >= 0; i--) {
+                cur = (cur << 1) | ((v >> i) & 1);
+                n++;
+                if (n == 8) {
+                    out.write(cur);
+                    cur = 0;
+                    n = 0;
+                }
+            }
         }
-        byte[] payload = new byte[]{
-                (byte) (w >>> 8), (byte) w,
-                (byte) ((high ? 1 : 0) << 1), 0x00, 0x00, 0x00, 0x00, 0x00};
+        void pad() {
+            if (n > 0) {
+                out.write(cur << (8 - n));
+                cur = 0;
+                n = 0;
+            }
+        }
+        byte[] bytes() {
+            pad();
+            return out.toByteArray();
+        }
+    }
+
+    /** REDUCED form per AV1 5.5.1: profile(2) still(1) reduced(1) level(5)
+     *  then color_config (5.5.2) + superres/cdef/restoration + film grain
+     *  (absent=0) + trailing one bit. */
+    static byte[] configObu(int profile, int level, boolean high, boolean twelve,
+                            boolean mono) {
+        Bits w = new Bits();
+        w.bits(profile, 2);
+        w.bits(1, 1);           // still_picture (conformance for reduced)
+        w.bits(1, 1);           // reduced_still_picture_header
+        w.bits(level, 5);
+        // reduced-form defaults (spec 5.5.1): 32x32 max frame, 5-bit id
+        w.bits(4, 4);           // frame_width_bits_minus_1
+        w.bits(4, 4);           // frame_height_bits_minus_1
+        w.bits(31, 5);          // max_frame_width_minus_1  (32)
+        w.bits(31, 5);          // max_frame_height_minus_1 (32)
+        w.bits(0, 3);           // use_128x128/filter_intra/intra_edge
+        w.bits(0, 3);           // superres/cdef/restoration
+        w.bits(high ? 1 : 0, 1);
+        if (profile == 2 && high) {
+            w.bits(twelve ? 1 : 0, 1);
+        }
+        if (profile != 1) {
+            w.bits(mono ? 1 : 0, 1);
+        }
+        w.bits(0, 1);           // color_description_present = 0
+        if (mono) {
+            w.bits(0, 1);       // color_range
+        } else if (profile == 2) {
+            w.bits(0, 1);       // color_range
+            w.bits(0, 1);       // subsampling_x (-> subY=0)
+            w.bits(0, 1);       // separate_uv_delta_q
+        } else {
+            w.bits(0, 1);       // color_range
+            w.bits(0, 1);       // separate_uv_delta_q
+        }
+        w.bits(0, 1);           // film_grain_params_present = 0
+        w.bits(1, 1);           // trailing one bit pads the byte
+        byte[] payload = w.bytes();
         byte[] out = new byte[2 + payload.length];
-        out[0] = 0x0A;
+        out[0] = 0x0A;          // forbidden0 | type=1 | ext0 | size=1 | 0
         out[1] = (byte) payload.length;
         System.arraycopy(payload, 0, out, 2, payload.length);
         return out;
@@ -201,7 +253,7 @@ final class AvifMetadataSupport {
     static Path fixtures(Path dir) throws Exception {
         Files.createDirectories(dir);
 
-        byte[] obu0 = configObu(0, true, false);
+        byte[] obu0 = configObu(0, 2, false, false, true);
         byte[] flat = container("avif", List.of(
                 av1c(0, 2, false, false, false, true, false, false, obu0),
                 ispe(8, 8),
@@ -211,7 +263,7 @@ final class AvifMetadataSupport {
                 iprp(List.of(av1c(0, 2, false, false, false, true, false, false, obu0), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
         Files.write(dir.resolve("flat.avif"), flat);
 
-        byte[] obu1 = configObu(1, true, false);
+        byte[] obu1 = configObu(1, 4, true, false, false);
         byte[] alpha = container("avif", List.of(
                 av1c(1, 4, false, true, false, false, true, true, obu1),
                 ispe(16, 16),
@@ -222,7 +274,7 @@ final class AvifMetadataSupport {
                 iprp(List.of(av1c(1, 4, false, true, false, false, true, true, obu1), ispe(16, 16)), List.of(ipmaEntry(1, 1, 2), ipmaEntry(2, 1, 2)))));
         Files.write(dir.resolve("alpha.avif"), alpha);
 
-        byte[] obu2 = configObu(2, true, true);
+        byte[] obu2 = configObu(2, 0, true, true, false);
         byte[] compat = containerWithCompat("mif1", List.of("avis", "mif1"), List.of(
                 av1c(2, 0, true, true, true, false, false, false, obu2),
                 ispe(32, 24),
@@ -232,6 +284,40 @@ final class AvifMetadataSupport {
                 iprp(List.of(av1c(2, 0, true, true, true, false, false, false, obu2), ispe(32, 24)), List.of(ipmaEntry(7, 1, 2)))));
         Files.write(dir.resolve("compat.avif"), compat);
         return dir;
+    }
+
+    static byte[] configObuNotReduced() {
+        Bits w = new Bits();
+        w.bits(0, 2);       // seq_profile
+        w.bits(0, 1);       // still_picture = 0
+        w.bits(0, 1);       // reduced_still_picture_header = 0  -> slice 1 refuses
+        w.bits(0, 1);       // timing_info_present_flag = 0
+        w.bits(0, 1);       // initial_display_delay_present = 0
+        w.bits(0, 5);       // operating_points_cnt_minus_1
+        w.bits(0, 16);      // operating_point_idc[0]
+        w.bits(2, 5);       // seq_level_idx[0]
+        w.bits(0, 4);       // frame_width_bits_minus_1
+        w.bits(0, 4);       // frame_height_bits_minus_1
+        w.bits(7, 4);       // max_frame_width_minus_1
+        w.bits(7, 4);       // max_frame_height_minus_1
+        w.bits(0, 1);       // frame_id_numbers_present
+        w.bits(0, 3);       // 128x128 / filter_intra / intra_edge
+        w.bits(0, 1); w.bits(0, 1); w.bits(0, 1); w.bits(0, 1); w.bits(0, 1); // inter block
+        w.bits(1, 1);       // seq_choose_screen_content_tools
+        w.bits(1, 1);       // seq_choose_integer_mv
+        w.bits(0, 1); w.bits(0, 1); w.bits(0, 1); // superres/cdef/restoration
+        w.bits(0, 1);       // high_bitdepth
+        w.bits(1, 1);       // mono_chrome
+        w.bits(0, 1);       // color_description_present
+        w.bits(0, 1);       // color_range
+        w.bits(0, 1);       // film_grain
+        w.bits(1, 1);       // trailing one bit
+        byte[] payload = w.bytes();
+        byte[] out = new byte[2 + payload.length];
+        out[0] = 0x0A;
+        out[1] = (byte) payload.length;
+        System.arraycopy(payload, 0, out, 2, payload.length);
+        return out;
     }
 
     static String javaFacts(Path file) throws Exception {
@@ -337,30 +423,30 @@ final class AvifMetadataSupport {
         Files.write(dir.resolve("notisobmf.avif"), jpeg);
 
         byte[] heic = container("heic", List.of(
-                av1c(0, 2, false, false, false, true, false, false, configObu(0, true, false)),
+                av1c(0, 2, false, false, false, true, false, false, configObu(0, 2, false, false, true)),
                 ispe(8, 8),
                 pitm(1),
                 iinf(1, List.of(infe(1, "av01"))),
                 hdlr(),
-                iprp(List.of(av1c(0, 2, false, false, false, true, false, false, configObu(0, true, false)), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
+                iprp(List.of(av1c(0, 2, false, false, false, true, false, false, configObu(0, 2, false, false, true)), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
         Files.write(dir.resolve("heic.avif"), heic);
 
         byte[] nonReduced = container("avif", List.of(
-                av1c(0, 2, false, false, false, true, false, false, configObu(0, false, false)),
+                av1c(0, 2, false, false, false, true, false, false, configObuNotReduced()),
                 ispe(8, 8),
                 pitm(1),
                 iinf(1, List.of(infe(1, "av01"))),
                 hdlr(),
-                iprp(List.of(av1c(0, 2, false, false, false, true, false, false, configObu(0, false, false)), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
+                iprp(List.of(av1c(0, 2, false, false, false, true, false, false, configObuNotReduced()), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
         Files.write(dir.resolve("nonreduced.avif"), nonReduced);
 
         byte[] badDepth = container("avif", List.of(
-                av1c(0, 2, false, true, false, true, false, false, configObu(0, true, false)),
+                av1c(0, 2, false, true, false, true, false, false, configObu(0, 2, false, false, true)),
                 ispe(8, 8),
                 pitm(1),
                 iinf(1, List.of(infe(1, "av01"))),
                 hdlr(),
-                iprp(List.of(av1c(0, 2, false, true, false, true, false, false, configObu(0, true, false)), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
+                iprp(List.of(av1c(0, 2, false, true, false, true, false, false, configObu(0, 2, false, false, true)), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
         Files.write(dir.resolve("baddepth.avif"), badDepth);
 
         byte[] truncated = new byte[8];
