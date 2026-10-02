@@ -55,10 +55,27 @@ Void assertNotEqualBool(Bool unexpected, Bool actual, String label) {
     }
 }
 
+// Sexto slice (02/10): o par GENERICO `assertEqual<T>`/`assertNotEqual<T>` —
+// desbloqueado por D-EQ-UNBOUNDED-T (mantenedora 02/10, regra 6): `==` sobre um
+// type variable SEM bound e igualdade ESTRUTURAL de conteudo (mesmo contrato de
+// String/record) nos 4 alvos, entao o helper funciona para qualquer T. O label
+// stringifica expected/actual via `+` (toString do record/boxed), sem primitiva
+// nova.
+Void assertEqual<T>(T expected, T actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqual<T>(T unexpected, T actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
 // Terceiro slice (01/10): os numericos que faltavam (Long/Double/Float), par
-// igualdade/desigualdade por tipo — o generico `assertEqual<T>` esta bloqueado
-// por known-bugs §553 (`==` sobre T nao-limitado diverge entre alvos). Sem
-// primitiva nova: so `!=`/`==` de tipo concreto + concat de String.
+// igualdade/desigualdade por tipo. Sem primitiva nova: so `!=`/`==` de tipo
+// concreto + concat de String.
 Void assertEqualLong(Long expected, Long actual, String label) {
     if (expected != actual) {
         throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"

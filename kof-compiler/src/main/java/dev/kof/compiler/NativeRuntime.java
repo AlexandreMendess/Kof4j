@@ -40,6 +40,7 @@ import dev.kof.compiler.runtime.RuntimeJsonEncode;
 import dev.kof.compiler.runtime.RuntimeJsonEncodeString;
 import dev.kof.compiler.runtime.RuntimeJsonObjectEncode;
 import dev.kof.compiler.runtime.RuntimeJsonUtils;
+import dev.kof.compiler.runtime.RuntimeGenericEq;
 import dev.kof.compiler.runtime.RuntimeList;
 import dev.kof.compiler.runtime.RuntimeListLookups;
 import dev.kof.compiler.runtime.RuntimeListQuantifiers;
@@ -132,6 +133,7 @@ public final class NativeRuntime {
         RuntimePrint.emitPrint(sb);
         RuntimePrint.emitPrintln(sb);
         RuntimeErasureBox.emitBox(sb);   // §284
+        RuntimeGenericEq.emit(sb);       // §553 / D-EQ-UNBOUNDED-T
         RuntimePrintNum.emitPrintInt(sb);
         RuntimePrintNum.emitPrintFloat(sb);
         RuntimePrintNum.emitPrintDouble(sb);

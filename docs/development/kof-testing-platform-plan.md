@@ -13,7 +13,9 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10 — §4.1 primitive surface complete modulo the generic pair (§553).
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**.
+
+> **Slice 6 (LANDED 02/10).** The last §4.1 face: the generic pair `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` in `dev/kof/test.kf`. It was deliberately deferred (not shipped broken) until `known-bugs` §553 was resolved: the maintainer's rule-6 answer `D-EQ-UNBOUNDED-T` (02/10) fixes `==` on an unbounded `T` as **structural content equality** on every target, so the helper is correct for any `T` (Int, String, record, …). The label stringifies `expected`/`actual` via `+` — no new primitive, no per-target runtime. Proof RED-first: new `GenericEqualityE2ETest` **16/16** (the generic pair green on JVM/Script/JS/Native and throwing on a real mismatch; the `==` semantics golden byte-identical to the JVM oracle on JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. §4.1 is complete; the remaining faces are rule-6/decision-gated (§4.4 parameterized, §4.6 test doubles, §5 harness, §6 browser provider).
 
 > **Slice 5 (LANDED 01/10).** The remaining §4.1 scalar surface: `assertEqualByte`/`assertNotEqualByte`,
 > `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, plus the missing
@@ -209,7 +211,7 @@ assertThrows(...)
 Assertions must produce useful diagnostics — `expected`, `actual`, `test`, `source` — never a
 bare `test failed`.
 
-**Status (01/10):** the primitive helpers landed incrementally — slice 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), slice 2 (`assertThrows`), slice 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), slice 4 (`Long`/`Double`/`Float`), slice 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`). The generic `assertEqual`/`assertNotEqual` pair is deferred by `known-bugs` §553. Proof: `KofTestingE2ETest` 7/7 across JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
+**Status (02/10):** the primitive helpers landed incrementally — slice 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), slice 2 (`assertThrows`), slice 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), slice 4 (`Long`/`Double`/`Float`), slice 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`), slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>`, unblocked by the `known-bugs` §553 fix / `D-EQ-UNBOUNDED-T`). §4.1 is **complete**. Proof: `KofTestingE2ETest` 7/7 + `GenericEqualityE2ETest` 16/16 across JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
 
 ## 4.2 Lifecycle
 

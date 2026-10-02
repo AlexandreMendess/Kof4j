@@ -13,7 +13,9 @@ linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJ
 **Plano companheiro:** `test-architecture-plan.md` (refatoração da **suíte Java do próprio
 compilador** — camadas L0–L5, perfis, performance). Este documento é a **plataforma de testes do
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
-**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10 — superfície primitiva do §4.1 completa a menos do par genérico (§553).
+**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**.
+
+> **Fatia 6 (POUSADA 02/10).** A última face do §4.1: o par genérico `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` em `dev/kof/test.kf`. Ficou deliberadamente adiado (não entregue quebrado) até o `known-bugs` §553 ser resolvido: a resposta regra-6 da mantenedora `D-EQ-UNBOUNDED-T` (02/10) fixa `==` sobre um `T` não-limitado como **igualdade estrutural de conteúdo** em todo alvo, então o helper é correto para qualquer `T` (Int, String, record, …). O label stringifica `expected`/`actual` via `+` — sem primitiva nova, sem runtime por alvo. Prova RED-first: novo `GenericEqualityE2ETest` **16/16** (o par genérico verde em JVM/Script/JS/Nativo e lançando em mismatch real; o golden de semântica de `==` byte-idêntico ao oráculo JVM em JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. O §4.1 está completo; as faces restantes são regra-6/decisão (§4.4 parametrizado, §4.6 doubles, §5 harness, §6 provider de browser).
 
 > **Fatia 5 (POUSADA 01/10).** A superfície escalar restante do §4.1: `assertEqualByte`/`assertNotEqualByte`,
 > `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, mais o
@@ -193,7 +195,7 @@ assertThrows(...)
 As assertions devem produzir diagnósticos úteis — `expected`, `actual`, `test`, `source` —
 nunca um `test failed` seco.
 
-**Estado (01/10):** os helpers primitivos pousaram incrementalmente — fatia 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), fatia 2 (`assertThrows`), fatia 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), fatia 4 (`Long`/`Double`/`Float`), fatia 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`). O par genérico `assertEqual`/`assertNotEqual` segue adiado pelo `known-bugs` §553. Prova: `KofTestingE2ETest` 7/7 em JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
+**Estado (02/10):** os helpers primitivos pousaram incrementalmente — fatia 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), fatia 2 (`assertThrows`), fatia 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), fatia 4 (`Long`/`Double`/`Float`), fatia 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`), fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`, desbloqueado pela correção do `known-bugs` §553 / `D-EQ-UNBOUNDED-T`). O §4.1 está **completo**. Prova: `KofTestingE2ETest` 7/7 + `GenericEqualityE2ETest` 16/16 em JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
 
 ## 4.2 Lifecycle
 

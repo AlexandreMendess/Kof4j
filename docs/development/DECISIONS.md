@@ -4666,13 +4666,13 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-EQ-UNBOUNDED-T — `==` on an unbounded type parameter `T` means STRUCTURAL content equality (maintainer 02/10/2026, chat rule-6 answer; catalogued `known-bugs` §553)
 
-**State:** DECIDED (maintainer) — option **A: structural equality**, matching the concrete `String`/`record` content-equality contract. Implementation pending.
+**State:** DECIDED (maintainer) — option **A: structural equality**, matching the concrete `String`/`record` content-equality contract. **IMPLEMENTED 02/10** (lane `192.168.15.30:9092`; `known-bugs` §553 ✅ FIXED): the `==`/`!=` lowering routes an unbounded `T`/`T?` to content equality on every target (`Objects.equals` JVM/Script, `kofRecordEq` JS, new `kof_eq_generic` Native x86-64/riscv64), bypassing the erased `Object` fallback and the `if_acmp` comparison shortcut; a bounded `T: Bound` keeps the bound's contract. Proof: `GenericEqualityE2ETest` **16/16** (JVM+Script+JS+Native x86-64+riscv64/aarch64 qemu), RED-first. The `kof.test` generic `assertEqual<T>`/`assertNotEqual<T>` pair landed in `dev/kof/test.kf`.
 
 - **Question (resolved):** what must `==` mean on an unbounded `T` — structural content equality (like the concrete `String`/`record` contract), or an honest compile-time refusal (like `NAT004` for `toString` on unbounded `T`, §358)? **Chosen: structural equality.**
 - **Measured divergence (01/10, catalogued §553):** JS compares structurally (`===` on the erased value); JVM/Script/Native compare by reference (JVM `if_acmp` / native pointer compare); literal caching masks the JVM/Script face (`eq(1,1)`/`eq("a","a")` true) while Native has no cache (false). Concrete-type `==` is correct on every target.
 - **Consequence:** the `kof.test` §4.1 `assertEqual`/`assertNotEqual` generic pair (deferred, not shipped broken) is unblocked once the semantics are implemented per-target. This aligns an implementation divergence with the frozen `content ==` contract — a bug fix, not a new operator; no version bump for the operator itself.
-- **Not authorized:** shipping the generic `assertEqual` pair before the per-target `==` is proven byte-identical.
-- **Relationships:** `Related: §553, §358 (NAT004 precedent), content == (frozen), D-KOF-FIRST, rule 5, rule 6, rule 11`; owner = issues/tooling lane.
+- **Authorization satisfied:** the generic `assertEqual` pair shipped only after the per-target `==` was proven byte-identical (`GenericEqualityE2ETest` 16/16).
+- **Relationships:** `Related: §553, §358 (NAT004 precedent), content == (frozen), D-KOF-FIRST, rule 5, rule 6, rule 11`; implemented by lane `192.168.15.30:9092`.
 
 ---
 
