@@ -15,6 +15,12 @@ import java.util.List;
 import static dev.kof.compiler.AvifFrameSupport.errorFixtures;
 import static dev.kof.compiler.AvifFrameSupport.errorProbe;
 import static dev.kof.compiler.AvifFrameSupport.fixtures;
+import static dev.kof.compiler.AvifGroupSupport.groupFixtures;
+import static dev.kof.compiler.AvifGroupSupport.groupErrorFixtures;
+import static dev.kof.compiler.AvifGroupSupport.groupProbe;
+import static dev.kof.compiler.AvifGroupSupport.groupErrorProbe;
+import static dev.kof.compiler.AvifGroupJavaSupport.javaGroupFacts;
+import static dev.kof.compiler.AvifGroupJavaSupport.javaGroupFactsError;
 import static dev.kof.compiler.AvifFrameJavaSupport.javaFrameFacts;
 import static dev.kof.compiler.AvifFrameJavaSupport.javaFrameFactsError;
 import static dev.kof.compiler.AvifFrameSupport.probe;
@@ -152,6 +158,106 @@ class AvifFrameE2ETest {
                 "sizelist:REFUSED:sizelist",
                 "interp:REFUSED:interp");
         assertEquals(expectedErrors, javaErrors);
+    }
+
+
+    private static final String GOLDEN_GROUPS = String.join("\n",
+            "one 0..0 n=1 sizes= last=2 total=2",
+            "split 0..1 n=2 sizes=,5 last=3 total=8",
+            "split 2..3 n=2 sizes=,4 last=2 total=6");
+
+    private static final String GROUP_REFUSALS = String.join("\n",
+            "IMAGE: avif frame obu tile group not covered",
+            "IMAGE: avif tile group full range flag set",
+            "IMAGE: avif tile group order invalid",
+            "IMAGE: avif tile group range invalid",
+            "IMAGE: avif tile group end incomplete",
+            "IMAGE: truncated avif tile group",
+            "IMAGE: avif frame has no tile group",
+            "IMAGE: avif tile group without frame header");
+
+    @Test
+    void avifTileGroupsOnJvm() throws Exception {
+        Path dir = groupFixtures(tmp.resolve("group-jvm"));
+        assertEquals(GOLDEN_GROUPS, runJvm(groupProbe(dir)));
+    }
+
+    @Test
+    void avifTileGroupsOnScript() throws Exception {
+        Path root = tmp.resolve("script-groups");
+        Files.createDirectories(root);
+        Path dir = groupFixtures(root.resolve("fixtures"));
+        Files.writeString(root.resolve("Main.kf"), groupProbe(dir));
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(GOLDEN_GROUPS, result.stdout().strip());
+    }
+
+    @Test
+    void avifTileGroupsOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
+        Path dir = groupFixtures(tmp.resolve("group-native"));
+        assertEquals(GOLDEN_GROUPS, runNativeX86(groupProbe(dir)));
+    }
+
+    @Test
+    void avifTileGroupsOnNativeRiscv64() throws Exception {
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross riscv64 + qemu absent — skipping (NATIVE002)");
+        Path dir = groupFixtures(tmp.resolve("group-riscv"));
+        assertEquals(GOLDEN_GROUPS, runCrossCode("riscv64", Target.NATIVE_RISCV64, groupProbe(dir)));
+    }
+
+    @Test
+    void avifTileGroupsOnNativeAarch64() throws Exception {
+        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
+                "cross aarch64 + qemu absent — skipping (NATIVE002)");
+        Path dir = groupFixtures(tmp.resolve("group-aarch"));
+        assertEquals(GOLDEN_GROUPS, runCrossCode("aarch64", Target.NATIVE_AARCH64, groupProbe(dir)));
+    }
+
+    @Test
+    void groupReaderRefusesOnJs() throws Exception {
+        Path root = tmp.resolve("js-groups");
+        Files.createDirectories(root);
+        Path dir = groupFixtures(root.resolve("fixtures"));
+        Files.writeString(root.resolve("Main.kf"), groupProbe(dir));
+        Path out = root.resolve("out");
+        CompilationResult result = withLibrary(root,
+                () -> compile(root.resolve("Main.kf"), out, Target.JS));
+        assertTrue(!result.success(), "JS must refuse the missing kof.io readRange binding (R6)");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("IOJS001"),
+                () -> "expected IOJS001, got: " + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void groupRefusalsAreHonest() throws Exception {
+        Path dir = groupErrorFixtures(tmp.resolve("group-errors"));
+        assertEquals(GROUP_REFUSALS, runJvm(groupErrorProbe(dir)));
+    }
+
+    @Test
+    void javaGroupReaderAgreesOnFixtures() throws Exception {
+        // second independent implementation: plain-Java AV1 5.11 prefix walk
+        // vs the pure-Kof group face over the same fixtures and refusals
+        Path dir = groupFixtures(tmp.resolve("gxcheck-fixtures"));
+        String[] one = javaGroupFacts(dir.resolve("tg-one.avif")).split("\n");
+        String[] sp = javaGroupFacts(dir.resolve("tg-split.avif")).split("\n");
+        assertEquals(1, one.length);
+        assertEquals(2, sp.length);
+        String java = String.join("\n",
+                "one " + one[0], "split " + sp[0], "split " + sp[1]);
+        assertEquals(GOLDEN_GROUPS, java);
+
+        Path errDir = groupErrorFixtures(tmp.resolve("gxcheck-errors"));
+        String[] names = {"frame6", "full", "order", "range", "incomplete", "trunc", "nogroup", "before"};
+        StringBuilder javaErrors = new StringBuilder();
+        for (int i = 0; i < names.length; i++) {
+            javaErrors.append(javaGroupFactsError(errDir.resolve(names[i] + ".avif")));
+            if (i + 1 < names.length) javaErrors.append("\n");
+        }
+        assertEquals(GROUP_REFUSALS, javaErrors.toString());
     }
 
     private String runJvm(String code) throws Exception {

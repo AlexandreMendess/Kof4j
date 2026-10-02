@@ -17,7 +17,8 @@ import image.AvifSeq
 //
 // The walk PARSES THE PREFIX AND STOPS — deliberately, not a stub: the
 // non-uniform tile size lists (ns() per-tile tables), loop filter,
-// quantization and coefficient syntax ride the AV1 decode slices.
+// quantization and coefficient syntax ride the AV1 decode slices, as do the
+// tile payloads themselves (slice 2f ENUMERATES their sizes).
 // `AvifFrameHeader` reports: frame type, show flag, error resilience,
 // coded frame size (override-aware, superres-free), render size, the
 // screen-content/force-mv facts and the derived uniform tile counts.
@@ -45,14 +46,17 @@ import image.AvifSeq
 // framing), parses the first sequence header (slice 2b `seqWalk`) for the
 // context, then the FIRST OBU_FRAME_HEADER (3) or OBU_FRAME (6) payload as
 // the frame prefix. `readAvifFrameHeader(path)` composes container -> pitm
-// -> iloc -> this walk. No pixel decoding — `decodeRaster` keeps refusing
-// AVIF.
+// -> iloc -> this walk. Slice 2f's tile group face lives in
+// `AvifGroup.kf` (sibling OBU_TILE_GROUP payloads; an OBU_FRAME's inline
+// group needs the full header walk and is refused by name there). No pixel
+// decoding — `decodeRaster` keeps refusing AVIF.
 
 record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
                       Bool sizeOverride, Int codedWidth, Int codedHeight,
                       Bool renderDifferent, Int renderWidth, Int renderHeight,
                       Bool allowScreenContent, Bool allowIntrabc,
-                      Int tileColumns, Int tileRows)
+                      Int tileColumns, Int tileRows, Int tileBits,
+                      Int tileSizeBytes, Int headerBytes)
 
 AvifFrameHeader readAvifFrameHeader(String path) {
     var bytes = File(path).readRange(0, 65536)
@@ -255,20 +259,25 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     if (bits > limit * 8) {
         throw "IMAGE: truncated avif frame header"
     }
+    var hb = tiles[0]
+    while ((hb & 7) != 0) {
+        hb = hb + 1
+    }
     return AvifFrameHeader(frameType, showFrame == 1, errorResilient == 1,
                            sizeOverride == 1, codedW, codedH,
                            renderDiff == 1, renderW, renderH,
                            allowSct == 1, allowIntrabc == 1,
-                           tiles[1], tiles[2])
+                           tiles[1], tiles[2], tiles[3], tiles[4], hb / 8)
 }
 
 // tile_info() uniform-spacing path per 5.9.15: the flag plus the
 // increment_tile_cols_log2 / increment_tile_rows_log2 loops, then
-// context_update_tile_id (TileColsLog2 + TileRowsLog2 bits) and
-// tile_size_bytes_minus_1 (2 bits) when either log2 is > 0.
+// context_update_tile_id (TileColsLog2 + TileRowsLog2 bits, skipped as a
+// value — the CDF update rides decode) and tile_size_bytes_minus_1 (f(2),
+// TileSizeBytes = value + 1) when either log2 is > 0.
 // Non-uniform spacing (per-tile ns() size lists) is a named refusal —
-// its own later slice. Returns {nextBitPos, tileCols, tileRows} (the
-// per-axis superblock count loops of the spec).
+// its own later slice. Returns {nextBitPos, tileCols, tileRows, tileBits,
+// tileSizeBytes} (the per-axis superblock count loops of the spec).
 Int[] tileWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq, Int codedW, Int codedH) {
     var sbShift = 4
     if (seq.use128x128Superblock) {
@@ -315,8 +324,12 @@ Int[] tileWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq, Int codedW, Int 
         }
         bits = bits + 1
     }
+    var tileBits = 0
+    var tileSizeBytes = 0
     if (colsLog2 > 0 || rowsLog2 > 0) {
-        bits = bits + colsLog2 + rowsLog2
+        tileBits = colsLog2 + rowsLog2
+        bits = bits + tileBits
+        tileSizeBytes = seqRead(b, bits, 2) + 1
         bits = bits + 2
     }
     var tileWidthSb = (sbCols + (1 << colsLog2) - 1) >> colsLog2
@@ -333,10 +346,12 @@ Int[] tileWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq, Int codedW, Int 
         rows = rows + 1
         start = start + tileHeightSb
     }
-    var out = new Int[3]
+    var out = new Int[5]
     out[0] = bits
     out[1] = cols
     out[2] = rows
+    out[3] = tileBits
+    out[4] = tileSizeBytes
     return out
 }
 
