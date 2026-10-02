@@ -202,10 +202,23 @@ public final class SemMethodCallTyper {
         }
         // D-SECRETS face 1: espelha o ramo do emit para o tipo Secret.
         if (KofSecurity.isSecretType(recv) || KofSecurity.isKeyHandleType(recv)) {
-            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            java.util.List<Type> secArgs = new java.util.ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) secArgs.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofSecurity.SecCall secretCall =
                     KofSecurity.instanceMethod(recv, mc.methodName(), mc.arguments().size());
-            if (secretCall != null) return secretCall.returnType();
+            if (secretCall != null) {
+                String viol = KofSecurity.argTypeViolation(secretCall, secArgs);
+                if (viol != null && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "Argument type must match the declared String/Int face of '"
+                                    + mc.methodName() + "' — this form is not silently digested"
+                                    + " per target (SECN011: non-String/Int actual reaches an"
+                                    + " identity digest on Script and a VerifyError on the JVM; §563)",
+                            viol);
+                    return Type.UnknownType.UNKNOWN;
+                }
+                return secretCall.returnType();
+            }
         }
         // #490 (SEM102): método desconhecido em tipo builtin de kof.buffer /
         // kof.security (Buffer/Secret/KeyHandle). Os ramos acima só devolvem os

@@ -185,7 +185,11 @@ final class MemberCallNamespaces {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofSecurity.SecCall secCall = KofSecurity.staticMethod(rid.name(), mc.methodName(), argTypes);
-            if (secCall != null) return secCall.returnType();
+            if (secCall != null) {
+                String viol = KofSecurity.argTypeViolation(secCall, argTypes);
+                if (viol != null) return securityArgRefused(sa, rid.name(), mc.methodName(), viol);
+                return secCall.returnType();
+            }
             return unknown(sa, rid.name(), mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofValidation.isValidationNamespace(rid.name())) {
@@ -302,6 +306,18 @@ final class MemberCallNamespaces {
             return unknown(sa, "sse", mc.methodName());
         }
         return null;
+    }
+
+    private static Type securityArgRefused(SemanticAnalyzer sa, String ns, String method, String code) {
+        if (sa.diagnostics() != null) {
+            sa.diagnostics().error("", 0, 0, 0,
+                    "Argument type must match the declared String/Int face of '" + method
+                            + "' on '" + ns + "' — this form is not silently digested per target"
+                            + " (SECN011: non-String/Int actual reaches an identity digest on Script"
+                            + " and a VerifyError on the JVM; §563)",
+                    code);
+        }
+        return Type.UnknownType.UNKNOWN;
     }
 
     private static Type unknown(SemanticAnalyzer sa, String ns, String method) {

@@ -373,4 +373,41 @@ public final class KofSecurity {
             default -> "SECN000";
         };
     }
+
+    /**
+     * §563 (R6): os ramos SecCall declaram os tipos dos parâmetros, mas a
+     * guarda histórica era só de aridade — um argumento não-String passava no
+     * typer e degradava por alvo: o Script digestava a IDENTIDADE do objeto
+     * (dois arrays de mesmo conteúdo → digests diferentes: integridade
+     * silenciosamente errada) e a JVM morria VerifyError no load. Medido
+     * 02/10 na construção do quadro de integridade do KofShare. Este helper
+     * fecha a divergência no typer com um diagnóstico NOMEADO (SECN011) —
+     * nunca um fallback por backend. Conservador: só acusa quando a forma
+     * declarada é String/Int e o real é uma referência composta (array,
+     * classe, nullable de tal, função); null/desconhecido preserva o verde
+     * histórico (mesma política do gate de handle do §179).
+     */
+    static String argTypeViolation(SecCall call, List<Type> actuals) {
+        List<Type> decl = call.parameterTypes();
+        if (call == null || decl == null || actuals == null) return null;
+        if (decl.size() != actuals.size()) return null;
+        for (int i = 0; i < decl.size(); i++) {
+            Type d = decl.get(i);
+            Type a = actuals.get(i);
+            if (a == null || a instanceof Type.UnknownType) continue;
+            if (BuiltinTypes.STRING.equals(d) && !isStringish(a)) return "SECN011";
+            if (Type.PrimitiveType.INT.equals(d) && !(a instanceof Type.PrimitiveType pt && pt == Type.PrimitiveType.INT)) {
+                if (!(a instanceof Type.PrimitiveType pt2 && (pt2 == Type.PrimitiveType.LONG || pt2 == Type.PrimitiveType.SHORT || pt2 == Type.PrimitiveType.BYTE || pt2 == Type.PrimitiveType.CHAR))) {
+                    return "SECN011";
+                }
+            }
+        }
+        return null;
+    }
+
+    static boolean isStringish(Type t) {
+        if (BuiltinTypes.STRING.equals(t)) return true;
+        if (t instanceof Type.NullableType nt) return isStringish(nt.inner());
+        return t instanceof Type.ClassType ct && "java.lang.String".equals(ct.packageName() + "." + ct.name());
+    }
 }
