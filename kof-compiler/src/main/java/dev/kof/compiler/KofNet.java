@@ -147,6 +147,20 @@ public final class KofNet {
         return LISTENER.equals(t) || CONN.equals(t) || ENDPOINT.equals(t);
     }
 
+    /** Fatia 6: os handles viram NOMES declaráveis (parâmetro/retorno/campo)
+     *  — mesma padronagem do {@code KofUi.typeByName} (§179); registrados via
+     *  {@code CompilerTypes.builtinDeclaredType}. Sem isto, product code 100%
+     *  Kof (KofShare transfer core) não consegue passar um {@code Conn} entre
+     *  funções: SEM011. */
+    static Type typeByName(String name) {
+        return switch (name) {
+            case "Listener" -> LISTENER;
+            case "Conn" -> CONN;
+            case "Endpoint" -> ENDPOINT;
+            default -> null;
+        };
+    }
+
     static boolean isSocketVerb(String name) {
         return SOCKET_VERBS.contains(name);
     }

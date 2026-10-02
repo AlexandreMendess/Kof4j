@@ -81,6 +81,19 @@ malformado recusa com `NET004`; tipo de handle errado, `NET005`.
   nomes de host além do que a plataforma resolve.
 - Handles (`Listener`/`Conn`/`Endpoint`) são opacos: nunca imprima nem
   compare, apenas chame os métodos deles.
+- Eles são TIPOS DECLARADOS: passe-os em assinaturas tipadas
+  (`Int pump(Conn c)`, `Conn open(String host, Int port)`) — os verbos
+  ligam pelo tipo de handle, então um parâmetro se comporta exatamente
+  como o `var` que o produziu. Para locais, mantenha `var`.
+
+```
+Int pumpIn(Conn c) {              // helper tipado — sem inline via closure
+    var b = c.receive(16)
+    c.send(b)
+    c.close()
+    return b.length
+}
+```
 
 ## Diagnósticos
 

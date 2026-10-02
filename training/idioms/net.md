@@ -81,6 +81,19 @@ address refuses with `NET004`; a wrong handle kind with `NET005`.
   hostnames beyond what the platform resolves.
 - Handles (`Listener`/`Conn`/`Endpoint`) are opaque: never print or
   compare them, only call their methods.
+- They are DECLARED TYPES: pass them with typed signatures
+  (`Int pump(Conn c)`, `Conn open(String host, Int port)`) — the verbs
+  bind by the handle kind, so a parameter behaves exactly like the `var`
+  that produced it. Keep `var` for locals.
+
+```
+Int pumpIn(Conn c) {              // typed helper — no closure-inlining
+    var b = c.receive(16)
+    c.send(b)
+    c.close()
+    return b.length
+}
+```
 
 ## Diagnostics
 

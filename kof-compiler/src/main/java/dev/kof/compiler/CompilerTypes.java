@@ -277,6 +277,8 @@ public final class CompilerTypes {
         Type ui = KofUi.typeByName(name);
         if (ui != null) return ui;
         if ("ImageData".equals(name)) return KofMedia.IMAGE_DATA;
+        Type net = KofNet.typeByName(name);
+        if (net != null) return net;
         return BuiltinTypes.declaredCollectionType(name);
     }
 
