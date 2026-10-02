@@ -4644,7 +4644,7 @@ individuais:
 **Estado:** DECIDIDO (direção) — o `kfvm` é **ferramenta oficial**, não repositório da comunidade.
 
 - **Pergunta (resolvida):** o gerenciador de versões Kof (`install`/`switch`/`remove` de releases oficiais, verificação `SHA256SUMS`, `~/.local/share/kof/kof-<ver>-<platform>` + `current`, junction no Windows) sai como ferramenta oficial ou repo da comunidade? **Escolhido: ferramenta oficial.**
-- **Consequências:** a ferramenta passa a integrar a superfície oficial de distribuição/tooling; seu desenho deve ser promovido pelo fluxo normal (`docs/development/kfvm-plan.md` UNDER DEVELOPMENT + roadmap §23 + claim no `DOING.md`) antes da implementação. Segue Kof-first (escrita sobre `kof.io`/`kof.http`/`kof.json`/`kof.shell`), coerente com `D-KOF-FIRST`.
+- **Consequências:** a ferramenta passa a integrar a superfície oficial de distribuição/tooling; seu desenho deve ser promovido pelo fluxo normal (um documento de plano em `docs/development/`, criado quando a frente abrir + roadmap §23 + claim no `DOING.md`) antes da implementação. Segue Kof-first (escrita sobre `kof.io`/`kof.http`/`kof.json`/`kof.shell`), coerente com `D-KOF-FIRST`.
 - **Segue ABERTO:** o caminho exato de empacotamento/distribuição (embarcado no toolchain vs instalado à parte) e o contrato de release/layout são questões do plano de implementação, não decididas aqui.
 - **Classificação:** `post-1.0` (superfície de tooling, mesma classe de `D-CLI-SOURCE-ROOTS`/`#708`).
 - **Relações:** `Relacionado: #707, scripts/install.sh (single-version, Linux/macOS), D-CLI-SOURCE-ROOTS, D-KOF-FIRST, regra 12`.

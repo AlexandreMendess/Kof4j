@@ -1,6 +1,7 @@
 package dev.kof.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -230,14 +231,18 @@ class NetTcpE2ETest {
     }
 
     @Test
-    @DisplayName("Every artifact target binds the socket surface now (JS slice 4a; cross slice 4b)")
+    @DisplayName("Cross targets bind the socket surface (slice 4b); JS refuses per D-NET-JS-V1")
     void everyArtifactTargetBinds(@TempDir Path dir) throws Exception {
         Path s = dir.resolve("x.kf");
         Files.writeString(s, "main() { var l = net.listen(18880) }");
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64, Target.JS}) {
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = driver.compile(s, dir.resolve("out-" + t), t);
             assertTrue(r.success(), t + " must bind now: " + r.diagnostics().getDiagnostics());
         }
+        CompilationResult js = driver.compile(s, dir.resolve("out-js"), Target.JS);
+        assertFalse(js.success(), "JS must refuse the net front (D-NET-JS-V1)");
+        assertTrue(js.diagnostics().getDiagnostics().toString().contains("NETN001"),
+                "must name NETN001: " + js.diagnostics().getDiagnostics());
     }
 
     @Test

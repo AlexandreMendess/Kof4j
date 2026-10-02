@@ -199,6 +199,10 @@ final class MemberCallNamespaces {
             if (vCall != null) return vCall.returnType();
             return unknown(sa, rid.name(), mc.methodName());
         }
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name())
+                && KofNet.isNetNamespace(rid.name()) && sa.target() == Target.JS) {
+            return netJsRefused(sa, "net." + mc.methodName());
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofStd.isStdNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
@@ -270,6 +274,9 @@ final class MemberCallNamespaces {
         // Sem braço próprio caíam em webInstance → null silencioso (a família
         // R6 do §498). Handle é o 1º argumento na rota de membros (padrão web/db).
         if (KofNet.isNetHandleType(recvType)) {
+            if (sa.target() == Target.JS) {
+                return netJsRefused(sa, "net." + mc.methodName());
+            }
             java.util.List<Type> netArgTypes = new java.util.ArrayList<>();
             netArgTypes.add(recvType);
             for (ExpressionNode arg : mc.arguments()) {
@@ -306,6 +313,17 @@ final class MemberCallNamespaces {
             return unknown(sa, "sse", mc.methodName());
         }
         return null;
+    }
+
+    private static Type netJsRefused(SemanticAnalyzer sa, String face) {
+        if (sa.diagnostics() != null) {
+            sa.diagnostics().error("", 0, 0, 0,
+                    "The '" + face + "' face (and the whole kof.net front) is refused on the JS target — "
+                            + "network is not a v1 JS surface and no browser/Node sub-target exists"
+                            + " (NETN001: D-NET-JS-V1, maintainer 02/10)",
+                    "NETN001");
+        }
+        return Type.UnknownType.UNKNOWN;
     }
 
     private static Type securityArgRefused(SemanticAnalyzer sa, String ns, String method, String code) {

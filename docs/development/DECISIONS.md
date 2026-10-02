@@ -4654,7 +4654,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **State:** DECIDED (direction) — `kfvm` is **official tooling**, not a community repository.
 
 - **Question (resolved):** does the Kof version manager (`install`/`switch`/`remove` official releases, `SHA256SUMS` verification, `~/.local/share/kof/kof-<ver>-<platform>` + `current`, Windows junction) ship as official tooling or as a community repo? **Chosen: official tooling.**
-- **Consequences:** the tool becomes part of the official distribution/tooling surface; its design must be promoted through the normal flow (a `docs/development/kfvm-plan.md` UNDER DEVELOPMENT + roadmap §23 + `DOING.md` claim) before implementation. It stays Kof-first (written over `kof.io`/`kof.http`/`kof.json`/`kof.shell`), consistent with `D-KOF-FIRST`.
+- **Consequences:** the tool becomes part of the official distribution/tooling surface; its design must be promoted through the normal flow (a plan document under `docs/development/` (created when the front opens) + roadmap §23 + `DOING.md` claim) before implementation. It stays Kof-first (written over `kof.io`/`kof.http`/`kof.json`/`kof.shell`), consistent with `D-KOF-FIRST`.
 - **Still OPEN:** the exact packaging/distribution path (bundled with the toolchain vs installed separately) and the release/layout contract are implementation-plan questions, not decided here.
 - **Classification:** `post-1.0` (tooling surface, same class as `D-CLI-SOURCE-ROOTS`/`#708`).
 - **Relationships:** `Related: #707, scripts/install.sh (single-version, Linux/macOS), D-CLI-SOURCE-ROOTS, D-KOF-FIRST, rule 12`.

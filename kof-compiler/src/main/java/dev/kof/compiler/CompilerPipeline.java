@@ -228,6 +228,22 @@ public final class CompilerPipeline {
 
     static IRModule lowerToIR(CompilerDriver driver, CompilationUnitNode unit, DiagnosticCollector diagnostics) {
         List<String> imports = new ArrayList<>(unit.imports());
+        // D-NET-JS-V1 (maintainer 02/10): kof.net não é superfície JS no v1 —
+        // o import recusa no compile com código nomeado, em vez do shim de
+        // runtime (NETN001; nenhum sub-alvo browser/Node é introduzido).
+        if (driver.target == Target.JS && !driver.interpreting && diagnostics != null) {
+            for (String imp : unit.imports()) {
+                String base = imp.endsWith(".*") ? imp.substring(0, imp.length() - 2) : imp;
+                if (base.equals("kof.net") || base.equals("net") || base.startsWith("kof.net.")) {
+                    SourcePosition pos = unit.position();
+                    diagnostics.error(pos != null ? pos.file() : driver.currentSourceName,
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "The kof.net front is not a JS v1 surface — refusing 'import " + imp
+                                    + "' (NETN001: D-NET-JS-V1; the network verbs have no JS target in v1)",
+                            "NETN001");
+                }
+            }
+        }
         List<IRClass> classes = new ArrayList<>();
         List<IRMethod> topLevelFunctions = new ArrayList<>();
         String moduleName = unit.packageName().isEmpty() ? "Default" : unit.packageName().replace('.', '/');

@@ -83,13 +83,16 @@ public class NetSurfaceE2ETest {
     }
 
     @Test
-    @DisplayName("D-KOF-NET JS: the frozen contract BINDS now that slice 4a emits the host bridge")
-    void jsSurfaceCompiles() throws Exception {
-        // Fatia 4a: `JsRuntimeUiNet` exporta os wrappers kofNet* sobre a ponte
-        // `KofJsNetBridge` (host GraalJS, mesmo java.net do runtime JVM). O E2E
-        // `NetJsE2ETest` prova que os verbos RESOLVEM e rodam.
+    @DisplayName("D-NET-JS-V1: the whole kof.net contract REFUSES at compile on JS (NETN001)")
+    void jsSurfaceRefused() throws Exception {
+        // D-NET-JS-V1 (mantenedora 02/10, voto "(c)"): a perna JS do plano
+        // 4a foi RECUSADA no v1 — o compilador nomeia NETN001 antes de
+        // qualquer artefato; a ponte `KofJsNetBridge` fica como mecanismo
+        // interno sem face de linguagem. Prova de recusa em NetJsV1RefusalE2ETest.
         CompilationResult r = compile(CONTRACT, Target.JS);
-        assertTrue(r.success(), "js must bind now: " + r.diagnostics().getDiagnostics());
+        assertFalse(r.success(), "js must refuse the net front");
+        assertTrue(r.diagnostics().getDiagnostics().toString().contains("NETN001"),
+                "must name NETN001: " + r.diagnostics().getDiagnostics());
     }
 
     @Test
@@ -106,12 +109,16 @@ public class NetSurfaceE2ETest {
     // Script e coberta na fatia 5 do plano network-kofnet.
 
     @Test
-    @DisplayName("D-KOF-NET: URI accessors keep compiling on ALL targets (NET001-closed behavior)")
+    @DisplayName("D-NET-JS-V1: URI accessors stay green on JVM/Native; the JS leg refuses with the whole front")
     void uriAccessorsUnchanged() throws Exception {
         String uri = "main() { println(net.host(\"http://x.io/p\")) }";
-        for (Target t : new Target[]{Target.JVM, Target.NATIVE, Target.JS}) {
+        for (Target t : new Target[]{Target.JVM, Target.NATIVE}) {
             assertTrue(compile(uri, t).success(), t + " uri face must stay green");
         }
+        CompilationResult js = compile(uri, Target.JS);
+        assertFalse(js.success(), "JS uri is part of the refused net front");
+        assertTrue(js.diagnostics().getDiagnostics().toString().contains("NETN001"),
+                "must name NETN001: " + js.diagnostics().getDiagnostics());
     }
 
     @Test

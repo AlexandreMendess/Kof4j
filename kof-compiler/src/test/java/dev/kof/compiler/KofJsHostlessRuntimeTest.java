@@ -47,21 +47,25 @@ class KofJsHostlessRuntimeTest {
                 "esperado erro 'not available', veio: " + err);
     }
 
-    // D-KOF-NET fatia 4a: o socket JS depende do host kof_platform (a ponte
-    // java.net). Fora dele (browser puro) o shim tem de nomear o gap — nunca
-    // ReferenceError nem drop silencioso (R7, mesma família de uuid/security).
+    // D-NET-JS-V1 (mantenedora 02/10): a recusa do kof.net no JS saiu do
+    // runtime para o COMPILE (NETN001) — o shim abaixo continua a defesa de
+    // profundidade para uuid/security; para rede, o compilador nem deixa
+    // chegar ao artefato. Este teste prova a recusa nomeada nos dois
+    // pontos (import e chamada nua).
     @Test
-    void netOutsideHostGivesClearErrorNotReference(@TempDir Path tmp) throws Exception {
-        String err = runWithoutHost(tmp, """
-            main() {
-                var l = net.listen(19940)
-                println("listening")
-            }
-            """);
-        assertFalse(err.contains("ReferenceError"),
-                "esperado shim claro, veio ReferenceError: " + err);
-        assertTrue(err.contains("not available"),
-                "esperado erro 'not available', veio: " + err);
+    void netRefusedAtCompileNotRuntime(@TempDir Path tmp) throws Exception {
+        Path f1 = tmp.resolve("NetA-" + System.nanoTime() + ".kf");
+        Files.writeString(f1, "main() {\n    var l = net.listen(19940)\n    println(\"listening\")\n}\n");
+        var r1 = driver.compile(f1, tmp.resolve("out-a-" + System.nanoTime()), Target.JS);
+        assertFalse(r1.success(), "net no JS deve recusar no compile");
+        assertTrue(r1.diagnostics().getDiagnostics().toString().contains("NETN001"),
+                "esperado NETN001, veio: " + r1.diagnostics().getDiagnostics());
+        Path f2 = tmp.resolve("NetB-" + System.nanoTime() + ".kf");
+        Files.writeString(f2, "import kof.net\n\nmain() {\n    println(\"oi\")\n}\n");
+        var r2 = driver.compile(f2, tmp.resolve("out-b-" + System.nanoTime()), Target.JS);
+        assertFalse(r2.success(), "import kof.net no JS deve recusar no compile");
+        assertTrue(r2.diagnostics().getDiagnostics().toString().contains("NETN001"),
+                "esperado NETN001, veio: " + r2.diagnostics().getDiagnostics());
     }
 
     private String runWithoutHost(Path tempDir, String source) throws Exception {
