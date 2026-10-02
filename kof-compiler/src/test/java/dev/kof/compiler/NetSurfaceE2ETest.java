@@ -47,26 +47,24 @@ public class NetSurfaceE2ETest {
         """;
 
     @Test
-    @DisplayName("D-KOF-NET JVM: refuses the socket verbs until slice 2 emits the runtime (no false green)")
-    void jvmRefusesUntilRuntimeExists() throws Exception {
-        // Medido 01/10: o descritor JVM sai correto e o bytecode chama
-        // `KofRuntime.kof_net_listen:(I)Ldev/kof/runtime/KofRuntime$NetListener;`,
-        // mas o runtime GERADO não tem o método (`javap` devolve só os 8 verbos
-        // de URI + split). Aceitar aqui seria um VERDE FALSO (Q5): o class load
-        // morreria NoSuchMethodError. A honestidade exige recusar até a fatia 2.
+    @DisplayName("D-KOF-NET JVM: the frozen contract COMPILES now that slice 2 emits the runtime")
+    void jvmSurfaceCompiles() throws Exception {
+        // Fatia 1 recusava em TODO alvo porque o runtime GERADO não tinha o
+        // método (verde falso: o class load morreria NoSuchMethodError). A
+        // fatia 2 emite `JvmRuntimeSockets` com corpo java.net real, então o
+        // portão abre no JVM — e o E2E `NetTcpE2ETest` prova que os verbos
+        // RESOLVEM e rodam (compilar não basta).
         CompilationResult r = compile(CONTRACT, Target.JVM);
-        assertFalse(r.success(), "JVM has no socket runtime yet — slice 2 lands it");
-        String diag = r.diagnostics().getDiagnostics().toString();
-        assertTrue(diag.contains("NET002"), diag);
+        assertTrue(r.success(), "JVM must bind now: " + r.diagnostics().getDiagnostics());
     }
 
     @Test
-    @DisplayName("D-KOF-NET: every socket verb is refused on EVERY target (no silent drop)")
-    void everyVerbRefusedOnEveryTarget() throws Exception {
+    @DisplayName("D-KOF-NET: Native/JS still refuse every socket verb with NET002 (no silent drop)")
+    void nativeAndJsStillRefuse() throws Exception {
         String one = "main() { var l = net.%s }";
         String[] verbs = {"listen(8123)", "connect(\"h\", 1)", "bind(8123)",
                 "accept(h)", "send(h, b)", "receive(h, 10)", "peer(e)", "close(h)"};
-        for (Target t : new Target[]{Target.JVM, Target.NATIVE, Target.JS}) {
+        for (Target t : new Target[]{Target.NATIVE, Target.JS}) {
             for (String v : verbs) {
                 CompilationResult r = compile(String.format(one, v), t);
                 assertFalse(r.success(), t + " must refuse net." + v + ": "
