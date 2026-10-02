@@ -37,6 +37,13 @@ PORQUÊ: comparar segredo com `==` é canal de timing — a linguagem tem
 `constantTimeEquals` exatamente para essa comparação nunca ser artesanal.
 Criptografia nunca é caseira (R11): isto binda na JCA na JVM.
 
+REGRA: os digests levam Strings ou Ints — NUNCA um array de bytes.
+`crypto.sha256(new Byte[n])` / `crypto.hmacSha256(key, byteArr)` recusa no
+compile com `SECN011` em todo alvo (§563: a forma degradava por alvo — o
+Script digeria a IDENTIDADE do array, a JVM morria `VerifyError` no load).
+Para digestar bytes, fixe-os primeiro numa String determinística (hex é a
+face estável: AAD no estilo `"" + hexOf(payload)`).
+
 ## Criptografia — AES-GCM; argumentos são `(plain, keyHex)`, chave = 32 bytes
 
 ```kof

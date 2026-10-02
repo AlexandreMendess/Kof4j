@@ -37,6 +37,13 @@ WHY: comparing secrets with `==` is a timing channel — the language has
 `constantTimeEquals` precisely so this comparison is never hand-rolled.
 Crypto is never homemade (R11): these bind to JCA on the JVM.
 
+RULE: digests take Strings or Ints — NEVER a byte array.
+`crypto.sha256(new Byte[n])` / `crypto.hmacSha256(key, byteArr)` refuses
+at compile time with `SECN011` on every target (§563: the form used to
+degrade per target — Script digested the array IDENTITY, the JVM died
+`VerifyError` at load). To hash bytes, pin them to a deterministic String
+first (hex is the stable face: `"" + hexOf(payload)`-style AAD).
+
 ## Encryption — AES-GCM; args are `(plain, keyHex)`, key = 32 bytes
 
 ```kof
