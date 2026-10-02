@@ -1,0 +1,167 @@
+package image
+
+import image.Avif
+import image.AvifItems
+
+// kof.image — AV1 OBU_METADATA payload walk, slice 2g of the AVIF front
+// (plan §34). Syntax and semantics quoted from the AV1 Bitstream & Decoding
+// Process Specification read on the dev host 02/10: 5.8.1 (metadata_type is
+// leb128 at the head of the OBU payload) and the 6.4.1/`metadata_type`
+// symbol table (0 reserved, 1 HDR_CLL, 2 HDR_MDCV, 3 scalability,
+// 4 timecode, 5 ITUT_T35, 6–31 unregistered user private, 32+ user
+// private). All payload fields (5.8.2–5.8.4) are byte-aligned f(8)/f(16)/
+// f(32) on a byte boundary, so big-endian byte reads are exact.
+//
+// The walk ENUMERATES metadata OBUs inside an item — types, payload sizes
+// and the numeric facts of T35/CLL/MDCV — per the `Avif.kf` metadata-only
+// policy. Scalability (3) and timecode (4) payloads are structured video
+// faces: reported by name and size, their sub-syntax is not walked here.
+// The T35 "last byte that is not zero" content rule is NOT applied (the
+// raw payload byte count is reported honestly). An unknown metadata_type
+// still yields its type + size (enumeration never refuses on type alone);
+// only truncated reads throw `IMAGE:` refusals. `avifItemMetadataObus(item)`
+// scans the whole located item (the OBU framing rules of slice 2a/2c);
+// `readAvifMetadataObus(path)` composes container -> pitm -> iloc -> walk.
+// No pixel decoding — `decodeRaster` keeps refusing AVIF.
+
+record AvifObuMetadata(Int type, String name, Int payloadBytes,
+                       Int country, Bool extended, Int t35Bytes,
+                       Int maxCll, Int maxFall, List<Int> mdcv)
+
+List<AvifObuMetadata> readAvifMetadataObus(String path) {
+    var bytes = File(path).readRange(0, 65536)
+    var md = avifMetadata(bytes)
+    return avifItemMetadataObus(avifItemBytes(bytes, md.primaryId))
+}
+
+List<AvifObuMetadata> avifItemMetadataObus(Int[] item) {
+    var out = listOf<AvifObuMetadata>()
+    var pos = 0
+    var n = item.length
+    while (pos < n) {
+        var head = u8(item, pos)
+        if ((head >> 7) != 0) {
+            throw "IMAGE: avif item obu forbidden bits"
+        }
+        var type = (head >> 3) & 15
+        var ext = (head >> 2) & 1
+        if ((head & 1) != 0) {
+            throw "IMAGE: avif item obu reserved bit set"
+        }
+        if (((head >> 1) & 1) != 1) {
+            throw "IMAGE: avif item obu missing size field"
+        }
+        var p = pos + 1 + ext
+        if (p >= n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        var size = 0
+        var loop = 0
+        var sized = false
+        while (loop < 8) {
+            var x = u8(item, p)
+            p = p + 1
+            size = (size << 7) | (x & 127)
+            if ((x & 128) == 0) {
+                sized = true
+                loop = 8
+            }
+            loop = loop + 1
+        }
+        if (!sized) {
+            throw "IMAGE: avif obu size too long"
+        }
+        var limit = p + size
+        if (limit > n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        if (type == 5) {
+            out.add(metaWalk(item, p, limit))
+        }
+        pos = limit
+    }
+    return out
+}
+
+// metadata_obu() per 5.8.1: leb128 metadata_type, then the type's fields
+// (5.8.2 T35: country f(8), extension f(8) only when country == 0xFF, then
+// raw payload bytes; 5.8.3 CLL: max_cll/max_fall f(16); 5.8.4 MDCV: 3
+// primaries + white point (8x f(16)) then max/min luminance (2x f(32))).
+AvifObuMetadata metaWalk(Int[] b, Int p, Int limit) {
+    var mtype = 0
+    var loop = 0
+    var coded = false
+    while (loop < 8) {
+        var x = u8(b, p)
+        p = p + 1
+        mtype = (mtype << 7) | (x & 127)
+        if ((x & 128) == 0) {
+            coded = true
+            loop = 8
+        }
+        loop = loop + 1
+    }
+    if (!coded) {
+        throw "IMAGE: avif metadata type too long"
+    }
+    var payloadBytes = limit - p
+    var name = "userPrivate"
+    if (mtype == 0) {
+        name = "reserved"
+    } else if (mtype == 1) {
+        name = "hdrCll"
+    } else if (mtype == 2) {
+        name = "hdrMdcv"
+    } else if (mtype == 3) {
+        name = "scalability"
+    } else if (mtype == 4) {
+        name = "timecode"
+    } else if (mtype == 5) {
+        name = "itutT35"
+    } else if (mtype <= 31) {
+        name = "private"
+    }
+    var country = 0
+    var extended = false
+    var t35Bytes = 0
+    var maxCll = 0
+    var maxFall = 0
+    var mdcv = listOf<Int>()
+    if (mtype == 5) {
+        if (p + 1 > limit) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        country = u8(b, p)
+        p = p + 1
+        if (country == 255) {
+            if (p + 1 > limit) {
+                throw "IMAGE: truncated avif metadata obu"
+            }
+            extended = true
+            country = (country << 8) | u8(b, p)
+            p = p + 1
+        }
+        t35Bytes = limit - p
+    } else if (mtype == 1) {
+        if (p + 4 > limit) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        maxCll = be16(b, p)
+        maxFall = be16(b, p + 2)
+    } else if (mtype == 2) {
+        if (p + 24 > limit) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        var i = 0
+        while (i < 8) {
+            mdcv.add(be16(b, p))
+            p = p + 2
+            i = i + 1
+        }
+        mdcv.add(be32(b, p))
+        mdcv.add(be32(b, p + 4))
+    }
+    return AvifObuMetadata(mtype, name, payloadBytes, country, extended,
+                           t35Bytes, maxCll, maxFall, mdcv)
+}
+

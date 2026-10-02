@@ -967,8 +967,8 @@ science) **without** destroying the language's simplicity.
 > gated by R12 + a maintainer decision. Slices 1a+1b+1c+1d+1e+1f+1g+1h+1i LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins + `sorted`/`sorted(cmp)` + `groupBy` + `zip`; E2E + `KofScriptStdlibParityTest` 22/22); `zip` landed 30/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` + `D-MULTIPARADIGMA-ZIP-NATIVE` — native reference-elements GREEN, primitive elements refused `NAT008`).
 > **OPEN (7th front):** `image-vision` — promoted 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) to
 > [`image-vision-plan.md`](image-vision-plan.md); state 02/10: metadata 17 formats + raster decode/encode/ops +
-> `kof.vision` slices + VP8 lossy key-frame decoder END-TO-END (libwebp oracle) + AVIF slices 1–2f (container/item/
-> OBU-stream/sequence-header/frame-prefix/tile-group-header walks, pure Kof, `AvifFrameE2ETest` 16/16) LANDED; no
+> `kof.vision` slices + VP8 lossy key-frame decoder END-TO-END (libwebp oracle) + AVIF slices 1–2g (container/item/
+> OBU-stream/sequence-header/frame-prefix/tile-group-header/metadata-obu walks, pure Kof, `AvifFrameE2ETest` 16/16 + `AvifMetaE2ETest` 8/8) LANDED; no
 > AVIF pixel decode (`decodeRaster` refuses AVIF by policy). Queue per the plan §34 — authoritative state lives there.
 > **OPEN (8th front):** `graphics-gaming` — promoted 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) to
 > [`graphics-gaming-plan.md`](graphics-gaming-plan.md); slice **3.0 = spike+infra** (JavaFX-absent guard
