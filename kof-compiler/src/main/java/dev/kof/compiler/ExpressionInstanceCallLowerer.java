@@ -407,8 +407,7 @@ public final class ExpressionInstanceCallLowerer {
             if (ownerName.contains("/")) ownerName = ownerName.substring(ownerName.lastIndexOf('/') + 1);
             if (driver.semanticAnalyzer.isInterfaceType(ownerName)) {
                 callKind = KofCallKind.INTERFACE;
-            } else if (driver.externalClasspath != null
-                    && driver.externalClasspath.isInterface(resolvedMethod.ownerClass())) {
+            } else if (driver.externalClasspath.isInterface(resolvedMethod.ownerClass())) {
                 // §557: interface EXTERNA/JDK — interfaceNames é só Kof-local.
                 callKind = KofCallKind.INTERFACE;
             }
@@ -417,8 +416,7 @@ public final class ExpressionInstanceCallLowerer {
     if (callKind == KofCallKind.INSTANCE && recvType instanceof Type.ClassType rt) {
         if (driver.semanticAnalyzer != null && driver.semanticAnalyzer.isInterfaceType(rt.name())) {
             callKind = KofCallKind.INTERFACE;
-        } else if (driver.externalClasspath != null
-                && driver.externalClasspath.isInterface(rt.internalName())) {
+        } else if (driver.externalClasspath.isInterface(rt.internalName())) {
             // §557: o RECEPTOR é uma interface externa/JDK (o sintoma medido:
             // `PublicKey pub = ...; pub.getEncoded()`).
             callKind = KofCallKind.INTERFACE;

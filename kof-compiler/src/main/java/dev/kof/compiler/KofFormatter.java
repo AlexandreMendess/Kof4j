@@ -220,7 +220,7 @@ public final class KofFormatter {
             // O bloco so tem utilidade com os `extern` que ele contem (o parser
             // ja o desdobrou em `ExternalFunctionNode` herdando a library do
             // cabecalho) — entao nao ha nada a imprimir alem dos `extern`.
-            case ForeignModuleNode mod -> {
+            case ForeignModuleNode _ -> {
                 // bloco vazio (sem `extern`) nao produz codigo util: o no e
                 // informativo e o arquivo segue igual (round-trip estavel).
             }

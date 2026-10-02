@@ -388,8 +388,9 @@ public final class KofSecurity {
      * histórico (mesma política do gate de handle do §179).
      */
     static String argTypeViolation(SecCall call, List<Type> actuals) {
+        if (call == null || actuals == null) return null;
         List<Type> decl = call.parameterTypes();
-        if (call == null || decl == null || actuals == null) return null;
+        if (decl == null) return null;
         if (decl.size() != actuals.size()) return null;
         for (int i = 0; i < decl.size(); i++) {
             Type d = decl.get(i);
