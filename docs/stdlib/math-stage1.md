@@ -49,11 +49,13 @@
 
 ## Constants
 
-| Name | Approximate Value | Description |
+Constants are **zero-argument functions** (the `uuid.v4()` precedent), called with `()`:
+
+| Call | Approximate Value | Description |
 |---|---|---|
-| `math.pi` | `3.141592653589793` | π — circumference-to-diameter ratio |
-| `math.e` | `2.718281828459045` | Euler's number — base of natural logarithm |
-| `math.tau` | `6.283185307179586` | τ = 2π — circumference-to-radius ratio |
+| `math.pi()` | `3.141592653589793` | π — circumference-to-diameter ratio |
+| `math.e()` | `2.718281828459045` | Euler's number — base of natural logarithm |
+| `math.tau()` | `6.283185307179586` | τ = 2π — circumference-to-radius ratio |
 
 ---
 
@@ -61,21 +63,31 @@
 
 ```kof
 // Trigonometric
-math.sin(0)                 → 0.0
-math.cos(0)                 → 1.0
-math.tan(math.pi / 4)       → ~1.0
+math.sin(0.0)               → 0.0
+math.cos(0.0)               → 1.0
+math.tan(math.pi() / 4.0)   → ~1.0
 
 // Inverse trigonometric
-math.asin(1)                → ~1.5708   // π/2
-math.acos(0)                → ~1.5708   // π/2
-math.atan2(1, 0)            → ~1.5708   // π/2 — point above origin
-math.atan2(0, -1)           → ~3.1416   // π — point left of origin
+math.asin(1.0)              → ~1.5708   // π/2
+math.acos(0.0)              → ~1.5708   // π/2
+math.atan2(1.0, 0.0)        → ~1.5708   // π/2 — point above origin
+math.atan2(0.0, -1.0)       → ~3.1416   // π — point left of origin
 
 // Conversion
-math.toRadians(180)         → math.pi   // ~3.1416
-math.toDegrees(math.pi)     → 180.0
-math.toDegrees(math.tau)    → 360.0
+math.toRadians(180.0)       → math.pi() // ~3.1416
+math.toDegrees(math.pi())   → 180.0
+math.toDegrees(math.tau())  → 360.0
 
 // Constants
-math.tau == 2 * math.pi     → true
-math.e > 2.718              → true
+math.tau() == 2.0 * math.pi() → true
+math.e() > 2.718              → true
+```
+
+---
+
+## Behavior Notes
+
+- **Arguments are `Double`.** Every function takes an explicit `Double`; an `Int` literal is **not** silently widened (same `SEM025` type guard as `sqrt`/`lerp`). Write `math.sin(0.0)`, not `math.sin(0)`.
+- **Constants are functions.** `math.pi`, `math.e` and `math.tau` are zero-argument calls: `math.pi()`, `math.e()`, `math.tau()`.
+- **Radians.** `sin`/`cos`/`tan` and the inverse functions operate in radians; use `toRadians`/`toDegrees` to convert.
+- **Cross targets.** The trig face is byte-parity on JVM, JS, Script, Native x86-64, riscv64 and aarch64 (libm linked by-use on the cross targets, following the `pow` precedent).
