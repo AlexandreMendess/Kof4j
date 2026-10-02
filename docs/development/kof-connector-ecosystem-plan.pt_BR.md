@@ -2,7 +2,7 @@
 
 # Interoperabilidade Kof — Ecossistema de Connectors
 
-**Dono:** SEM DONO / ABERTO — reivindicar de novo. Os claims de connector de 02/10 trazem `192.168.15.101:9092`, que é dona de `memory-safety-plan` (violação de `D-PLAN-ONE-OWNER`); a slice A (`foreign module`, 01/10) pousou SEM dono nomeado nenhum. Uma identidade = um plano; reivindique com `IP:PORTA` neste cabeçalho + claim no DOING.
+**Dono:** `192.168.15.15:9092` (lane security — REIVINDICADO 02/10 por diretriz da mantenedora no chat: "assume o kof-connector". Os claims de connector anteriores de `.101` ficam como evidência histórica; uma identidade = um plano daqui em diante.)
 **Status:** EM DESENVOLVIMENTO — promovido `future/` → `docs/development/` por `D-CONNECTORS-GO` (mantenedora 29/09/2026)
 **Local:** `docs/development/kof-connector-ecosystem-plan.md`
 **Natureza:** arquitetura, contratos, dependências, estratégia de implementação, critérios de promoção
