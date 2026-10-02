@@ -40,7 +40,11 @@ import image.Avif
 record AvifSeqHeader(Int seqProfile, Bool stillPicture, Bool reduced,
                     Int maxWidth, Int maxHeight, Bool monochrome,
                     Bool subsamplingX, Bool subsamplingY, Int bitDepth,
-                    Int chromaSamplePosition, Bool separateUvDeltaQ)
+                    Int chromaSamplePosition, Bool separateUvDeltaQ,
+                    Bool frameIdNumbersPresent, Bool enableSuperres, Bool enableOrderHint,
+                    Int forceScreenContentTools, Int forceIntegerMv,
+                    Int orderHintBits, Int widthBitsMinus1, Int heightBitsMinus1,
+                    Int deltaFrameIdLengthMinus2, Int additionalFrameIdLengthMinus1)
 
 AvifSeqHeader readAvifSeqHeader(String path) {
     return avifSeqHeader(File(path).readRange(0, 4096))
@@ -98,6 +102,10 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
     var dmPresent = 0
     var delayPresent = 0
     var opCount = 0
+    var forceSct = 2
+    var forceMv = 2
+    var orderHintBits = 0
+    var orderHint = 0
     if (reduced == 1) {
         bits = bits + 5
     } else {
@@ -147,11 +155,16 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
     bits = bits + wBits + 1
     var maxHeight = seqRead(b, bits, hBits + 1) + 1
     bits = bits + hBits + 1
+    var frameIds = 0
+    var deltaIdLen = 0
+    var addIdLen = 0
     if (reduced == 0) {
-        var frameIds = seqRead(b, bits, 1)
+        frameIds = seqRead(b, bits, 1)
         bits = bits + 1
         if (frameIds == 1) {
+            deltaIdLen = seqRead(b, bits, 4)
             bits = bits + 4
+            addIdLen = seqRead(b, bits, 3)
             bits = bits + 3
         }
     }
@@ -163,7 +176,7 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
         bits = bits + 1
         bits = bits + 1
         bits = bits + 1
-        var orderHint = seqRead(b, bits, 1)
+        orderHint = seqRead(b, bits, 1)
         bits = bits + 1
         if (orderHint == 1) {
             bits = bits + 1
@@ -171,7 +184,6 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
         }
         var chooseSct = seqRead(b, bits, 1)
         bits = bits + 1
-        var forceSct = 1
         if (chooseSct == 0) {
             forceSct = seqRead(b, bits, 1)
             bits = bits + 1
@@ -180,13 +192,16 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
             var chooseMv = seqRead(b, bits, 1)
             bits = bits + 1
             if (chooseMv == 0) {
+                forceMv = seqRead(b, bits, 1)
                 bits = bits + 1
             }
         }
         if (orderHint == 1) {
+            orderHintBits = seqRead(b, bits, 3) + 1
             bits = bits + 3
         }
     }
+    var enableSuperres = seqRead(b, bits, 1)
     bits = bits + 1
     bits = bits + 1
     bits = bits + 1
@@ -277,7 +292,9 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
     }
     return AvifSeqHeader(profile, still == 1, reduced == 1, maxWidth, maxHeight,
                          mono == 1, subX == 1, subY == 1, depth, csp,
-                         separate == 1)
+                         separate == 1, frameIds == 1, enableSuperres == 1,
+                         orderHint == 1, forceSct, forceMv, orderHintBits,
+                         wBits, hBits, deltaIdLen, addIdLen)
 }
 
 // Locate the av1C configuration record payload through the same box walk

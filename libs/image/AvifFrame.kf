@@ -1,0 +1,234 @@
+package image
+
+import image.Avif
+import image.AvifItems
+import image.AvifSeq
+
+// kof.image — AV1 frame header prefix walk, slice 2d of the AVIF front
+// (plan §34). The bit widths and branch structure are quoted from the AV1
+// Bitstream & Decoding Process Specification read on the dev host 02/10:
+// 5.9.2 (uncompressed header syntax) up to and including frame_size/
+// render_size/allow_intrabc, with the 5.9.5/5.9.6 size rules and the
+// SELECT_SCREEN_CONTENT_TOOLS / SELECT_INTEGER_MV constant = 2 from the
+// symbol table.
+//
+// The walk PARSES THE PREFIX AND STOPS — deliberately, not a stub: the
+// tile info, loop filter, quantization and coefficient syntax ride the AV1
+// decode slices. `AvifFrameHeader` reports: frame type, show flag, error
+// resilience, coded frame size (override-aware, superres-free), render size
+// and the screen-content/force-mv facts. Streams that reach bits this face
+// does not walk throw an explicit `IMAGE:` refusal — never a silent skip.
+//
+// Documented subset (the `Avif.kf` policy):
+//   * show_existing_frame == 1 -> refused (`IMAGE: avif frame show-existing
+//     not covered`) — it replays a reference buffer, a video-stream face;
+//   * non-intra frames (INTER 0 / SWITCH 3) -> refused
+//     (`IMAGE: avif inter frame not covered`) — reference signaling and
+//     motion vectors are decode-chain work;
+//   * allow_intrabc == 1 -> refused (`IMAGE: avif intra block copy not
+//     covered`);
+//   * superres (seq enable_superres + frame frame_use_superres == 1) ->
+//     refused (`IMAGE: avif superres not covered`);
+//   * a frame id present on a stream whose sequence header skipped the id
+//     lengths, and any read past the OBU payload end -> refused.
+//
+// `avifItemFrameHeader(item)` walks the located item bytes (slice 2a/2c
+// framing), parses the first sequence header (slice 2b `seqWalk`) for the
+// context, then the FIRST OBU_FRAME_HEADER (3) or OBU_FRAME (6) payload as
+// the frame prefix. `readAvifFrameHeader(path)` composes container -> pitm
+// -> iloc -> this walk. No pixel decoding — `decodeRaster` keeps refusing
+// AVIF.
+
+record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
+                      Bool sizeOverride, Int codedWidth, Int codedHeight,
+                      Bool renderDifferent, Int renderWidth, Int renderHeight,
+                      Bool allowScreenContent, Bool allowIntrabc)
+
+AvifFrameHeader readAvifFrameHeader(String path) {
+    var bytes = File(path).readRange(0, 65536)
+    var md = avifMetadata(bytes)
+    return avifItemFrameHeader(avifItemBytes(bytes, md.primaryId))
+}
+
+AvifFrameHeader avifItemFrameHeader(Int[] item) {
+    var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
+                            false, false, false, false, 2, 2, 0, 0, 0, 0, 0)
+    var haveSeq = false
+    var pos = 0
+    var n = item.length
+    while (pos < n) {
+        var head = u8(item, pos)
+        if ((head >> 7) != 0) {
+            throw "IMAGE: avif item obu forbidden bits"
+        }
+        var type = (head >> 3) & 15
+        var ext = (head >> 2) & 1
+        var hasSize = (head >> 1) & 1
+        if ((head & 1) != 0) {
+            throw "IMAGE: avif item obu reserved bit set"
+        }
+        if (hasSize != 1) {
+            throw "IMAGE: avif item obu missing size field"
+        }
+        if (type != 1 && type != 2 && !haveSeq) {
+            throw "IMAGE: avif item has no sequence header"
+        }
+        var p = pos + 1 + ext
+        if (p >= n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        var size = 0
+        var loop = 0
+        var sized = false
+        while (loop < 8) {
+            var x = u8(item, p)
+            p = p + 1
+            size = (size << 7) | (x & 127)
+            if ((x & 128) == 0) {
+                sized = true
+                loop = 8
+            }
+            loop = loop + 1
+        }
+        if (!sized) {
+            throw "IMAGE: avif obu size too long"
+        }
+        var limit = p + size
+        if (limit > n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        if (type == 1) {
+            if (!haveSeq) {
+                seq = seqWalk(item, p, limit)
+                haveSeq = true
+            }
+        } else if (type == 3 || type == 6) {
+            return frameWalk(item, p, limit, seq)
+        }
+        pos = limit
+    }
+    throw "IMAGE: avif item has no frame header"
+}
+
+// uncompressed_header() prefix per 5.9.2; returns after render_size and
+// allow_intrabc (the documented stop point above).
+AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
+    var bits = p * 8
+    var reduced = 0
+    if (seq.reduced) {
+        reduced = 1
+    }
+    var frameType = 1
+    var showFrame = 1
+    var errorResilient = 1
+    if (reduced == 0) {
+        if (seqRead(b, bits, 1) == 1) {
+            throw "IMAGE: avif frame show-existing not covered"
+        }
+        bits = bits + 1
+        frameType = seqRead(b, bits, 2)
+        bits = bits + 2
+        if (frameType == 0 || frameType == 3) {
+            throw "IMAGE: avif inter frame not covered"
+        }
+        showFrame = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (showFrame == 0) {
+            bits = bits + 1
+        }
+        if (frameType == 1 && showFrame == 1) {
+            errorResilient = 1
+        } else {
+            errorResilient = seqRead(b, bits, 1)
+            bits = bits + 1
+        }
+    }
+    bits = bits + 1
+    var allowSct = 1
+    if (seq.forceScreenContentTools == 2) {
+        allowSct = seqRead(b, bits, 1)
+        bits = bits + 1
+    } else {
+        if (seq.forceScreenContentTools > 0) {
+            allowSct = seq.forceScreenContentTools
+        } else {
+            allowSct = 0
+        }
+    }
+    if (allowSct == 1 && seq.forceIntegerMv == 2) {
+        bits = bits + 1
+    }
+    var refreshAll = 1
+    if (seq.frameIdNumbersPresent) {
+        bits = bits + seq.deltaFrameIdLengthMinus2
+                  + seq.additionalFrameIdLengthMinus1 + 3
+        if (bits > limit * 8) {
+            throw "IMAGE: truncated avif frame header"
+        }
+    }
+    var sizeOverride = 0
+    if (reduced == 0) {
+        sizeOverride = seqRead(b, bits, 1)
+        bits = bits + 1
+    }
+    bits = bits + seq.orderHintBits
+    if (reduced == 0 && !(frameType == 1 && showFrame == 1)) {
+        var refresh = seqRead(b, bits, 8)
+        bits = bits + 8
+        if (refresh != 255) {
+            refreshAll = 0
+        }
+    }
+    if (reduced == 0 && refreshAll == 0
+            && seq.enableOrderHint && errorResilient == 1) {
+        bits = bits + 8 * seq.orderHintBits
+    }
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
+    if (sizeOverride == 1 && errorResilient == 0) {
+        throw "IMAGE: avif frame size-with-refs not covered"
+    }
+    var codedW = seq.maxWidth
+    var codedH = seq.maxHeight
+    if (sizeOverride == 1) {
+        var wm1 = seqRead(b, bits, seq.widthBitsMinus1 + 1)
+        bits = bits + seq.widthBitsMinus1 + 1
+        var hm1 = seqRead(b, bits, seq.heightBitsMinus1 + 1)
+        bits = bits + seq.heightBitsMinus1 + 1
+        codedW = wm1 + 1
+        codedH = hm1 + 1
+    }
+    if (seq.enableSuperres) {
+        if (seqRead(b, bits, 1) == 1) {
+            throw "IMAGE: avif superres not covered"
+        }
+        bits = bits + 1
+    }
+    // 5.9.6 render_size() has NO reduced guard: the flag is always read.
+    var renderDiff = seqRead(b, bits, 1)
+    bits = bits + 1
+    var renderW = codedW
+    var renderH = codedH
+    if (renderDiff == 1) {
+        renderW = seqRead(b, bits, 16) + 1
+        bits = bits + 16
+        renderH = seqRead(b, bits, 16) + 1
+        bits = bits + 16
+    }
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
+    var allowIntrabc = 0
+    if (allowSct == 1 && codedW == seq.maxWidth) {
+        allowIntrabc = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (allowIntrabc == 1) {
+            throw "IMAGE: avif intra block copy not covered"
+        }
+    }
+    return AvifFrameHeader(frameType, showFrame == 1, errorResilient == 1,
+                           sizeOverride == 1, codedW, codedH,
+                           renderDiff == 1, renderW, renderH,
+                           allowSct == 1, allowIntrabc == 1)
+}
