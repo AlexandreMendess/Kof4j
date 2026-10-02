@@ -41,7 +41,7 @@ record AvifSeqHeader(Int seqProfile, Bool stillPicture, Bool reduced,
                     Int maxWidth, Int maxHeight, Bool monochrome,
                     Bool subsamplingX, Bool subsamplingY, Int bitDepth,
                     Int chromaSamplePosition, Bool separateUvDeltaQ,
-                    Bool frameIdNumbersPresent, Bool enableSuperres, Bool enableOrderHint,
+                    Bool frameIdNumbersPresent, Bool enableSuperres, Bool enableOrderHint, Bool use128x128Superblock, Bool enableRefFrameMvs,
                     Int forceScreenContentTools, Int forceIntegerMv,
                     Int orderHintBits, Int widthBitsMinus1, Int heightBitsMinus1,
                     Int deltaFrameIdLengthMinus2, Int additionalFrameIdLengthMinus1)
@@ -158,6 +158,8 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
     var frameIds = 0
     var deltaIdLen = 0
     var addIdLen = 0
+    var use128 = 0
+    var refMvs = 0
     if (reduced == 0) {
         frameIds = seqRead(b, bits, 1)
         bits = bits + 1
@@ -168,6 +170,7 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
             bits = bits + 3
         }
     }
+    use128 = seqRead(b, bits, 1)
     bits = bits + 1
     bits = bits + 1
     bits = bits + 1
@@ -180,6 +183,7 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
         bits = bits + 1
         if (orderHint == 1) {
             bits = bits + 1
+            refMvs = seqRead(b, bits, 1)
             bits = bits + 1
         }
         var chooseSct = seqRead(b, bits, 1)
@@ -293,7 +297,7 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
     return AvifSeqHeader(profile, still == 1, reduced == 1, maxWidth, maxHeight,
                          mono == 1, subX == 1, subY == 1, depth, csp,
                          separate == 1, frameIds == 1, enableSuperres == 1,
-                         orderHint == 1, forceSct, forceMv, orderHintBits,
+                         orderHint == 1, use128 == 1, refMvs == 1, forceSct, forceMv, orderHintBits,
                          wBits, hBits, deltaIdLen, addIdLen)
 }
 

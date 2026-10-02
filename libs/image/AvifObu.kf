@@ -68,7 +68,7 @@ AvifObuCounts avifItemObus(Int[] item) {
     var padding = 0
     var reserved = 0
     var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0, false,
-                            false, false, false, 2, 2, 0, 0, 0, 0, 0)
+                            false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0)
     var haveSeq = false
     var pos = 0
     while (pos < n) {

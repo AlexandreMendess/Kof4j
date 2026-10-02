@@ -4,20 +4,25 @@ import image.Avif
 import image.AvifItems
 import image.AvifSeq
 
-// kof.image — AV1 frame header prefix walk, slice 2d of the AVIF front
+// kof.image — AV1 frame header prefix walk, slices 2d/2e of the AVIF front
 // (plan §34). The bit widths and branch structure are quoted from the AV1
 // Bitstream & Decoding Process Specification read on the dev host 02/10:
 // 5.9.2 (uncompressed header syntax) up to and including frame_size/
-// render_size/allow_intrabc, with the 5.9.5/5.9.6 size rules and the
+// render_size/allow_intrabc, then the 5.9.10 interpolation-filter flag and
+// motion-mode flag and the 5.9.15 tile_info() UNIFORM path (the
+// increment_tile_cols/rows_log2 loops, context_update_tile_id and
+// tile_size_bytes), with the 5.9.5/5.9.6 size rules and the
 // SELECT_SCREEN_CONTENT_TOOLS / SELECT_INTEGER_MV constant = 2 from the
 // symbol table.
 //
 // The walk PARSES THE PREFIX AND STOPS — deliberately, not a stub: the
-// tile info, loop filter, quantization and coefficient syntax ride the AV1
-// decode slices. `AvifFrameHeader` reports: frame type, show flag, error
-// resilience, coded frame size (override-aware, superres-free), render size
-// and the screen-content/force-mv facts. Streams that reach bits this face
-// does not walk throw an explicit `IMAGE:` refusal — never a silent skip.
+// non-uniform tile size lists (ns() per-tile tables), loop filter,
+// quantization and coefficient syntax ride the AV1 decode slices.
+// `AvifFrameHeader` reports: frame type, show flag, error resilience,
+// coded frame size (override-aware, superres-free), render size, the
+// screen-content/force-mv facts and the derived uniform tile counts.
+// Streams that reach bits this face does not walk throw an explicit
+// `IMAGE:` refusal — never a silent skip.
 //
 // Documented subset (the `Avif.kf` policy):
 //   * show_existing_frame == 1 -> refused (`IMAGE: avif frame show-existing
@@ -29,6 +34,10 @@ import image.AvifSeq
 //     covered`);
 //   * superres (seq enable_superres + frame frame_use_superres == 1) ->
 //     refused (`IMAGE: avif superres not covered`);
+//   * uniform_tile_spacing_flag == 0 -> refused (`IMAGE: avif tile size
+//     list not covered`) — the ns() per-tile tables are their own slice;
+//   * is_filter_switchable == 0 (frame-level interpolation filter) ->
+//     refused (`IMAGE: avif frame interp not covered`);
 //   * a frame id present on a stream whose sequence header skipped the id
 //     lengths, and any read past the OBU payload end -> refused.
 //
@@ -42,7 +51,8 @@ import image.AvifSeq
 record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
                       Bool sizeOverride, Int codedWidth, Int codedHeight,
                       Bool renderDifferent, Int renderWidth, Int renderHeight,
-                      Bool allowScreenContent, Bool allowIntrabc)
+                      Bool allowScreenContent, Bool allowIntrabc,
+                      Int tileColumns, Int tileRows)
 
 AvifFrameHeader readAvifFrameHeader(String path) {
     var bytes = File(path).readRange(0, 65536)
@@ -52,7 +62,7 @@ AvifFrameHeader readAvifFrameHeader(String path) {
 
 AvifFrameHeader avifItemFrameHeader(Int[] item) {
     var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
-                            false, false, false, false, 2, 2, 0, 0, 0, 0, 0)
+                            false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0)
     var haveSeq = false
     var pos = 0
     var n = item.length
@@ -110,8 +120,8 @@ AvifFrameHeader avifItemFrameHeader(Int[] item) {
     throw "IMAGE: avif item has no frame header"
 }
 
-// uncompressed_header() prefix per 5.9.2; returns after render_size and
-// allow_intrabc (the documented stop point above).
+// uncompressed_header() prefix per 5.9.2 + 5.9.10 + 5.9.15; returns after
+// tile_info's uniform path (the documented stop point above).
 AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     var bits = p * 8
     var reduced = 0
@@ -143,6 +153,7 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
             bits = bits + 1
         }
     }
+    var cdf = seqRead(b, bits, 1)
     bits = bits + 1
     var allowSct = 1
     if (seq.forceScreenContentTools == 2) {
@@ -227,8 +238,126 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
             throw "IMAGE: avif intra block copy not covered"
         }
     }
+    if (seqRead(b, bits, 1) == 0) {
+        bits = bits + 3
+        throw "IMAGE: avif frame interp not covered"
+    }
+    bits = bits + 1
+    bits = bits + 1
+    if (reduced == 0 && errorResilient == 0 && seq.enableRefFrameMvs) {
+        bits = bits + 1
+    }
+    if (reduced == 0 && cdf == 0) {
+        bits = bits + 1
+    }
+    var tiles = tileWalk(b, bits, limit, seq, codedW, codedH)
+    bits = tiles[0]
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
     return AvifFrameHeader(frameType, showFrame == 1, errorResilient == 1,
                            sizeOverride == 1, codedW, codedH,
                            renderDiff == 1, renderW, renderH,
-                           allowSct == 1, allowIntrabc == 1)
+                           allowSct == 1, allowIntrabc == 1,
+                           tiles[1], tiles[2])
+}
+
+// tile_info() uniform-spacing path per 5.9.15: the flag plus the
+// increment_tile_cols_log2 / increment_tile_rows_log2 loops, then
+// context_update_tile_id (TileColsLog2 + TileRowsLog2 bits) and
+// tile_size_bytes_minus_1 (2 bits) when either log2 is > 0.
+// Non-uniform spacing (per-tile ns() size lists) is a named refusal —
+// its own later slice. Returns {nextBitPos, tileCols, tileRows} (the
+// per-axis superblock count loops of the spec).
+Int[] tileWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq, Int codedW, Int codedH) {
+    var sbShift = 4
+    if (seq.use128x128Superblock) {
+        sbShift = 5
+    }
+    var sbSize = sbShift + 2
+    var miCols = (codedW + 3) >> 2
+    var miRows = (codedH + 3) >> 2
+    var sbCols = (miCols + (1 << sbShift) - 1) >> sbShift
+    var sbRows = (miRows + (1 << sbShift) - 1) >> sbShift
+    var maxTileWidthSb = 4096 >> sbSize
+    var maxTileAreaSb = 9437184 >> (2 * sbSize)
+    var minCols = tlog2(maxTileWidthSb, sbCols)
+    var maxCols = tlog2(1, tmin(sbCols, 64))
+    var maxRows = tlog2(1, tmin(sbRows, 64))
+    var minTiles = tmax(minCols, tlog2(maxTileAreaSb, sbRows * sbCols))
+    if (seqRead(b, bits, 1) == 0) {
+        throw "IMAGE: avif tile size list not covered"
+    }
+    bits = bits + 1
+    var colsLog2 = minCols
+    var stop = 0
+    while (colsLog2 < maxCols && stop == 0) {
+        if (bits > limit * 8) {
+            throw "IMAGE: truncated avif frame header"
+        }
+        if (seqRead(b, bits, 1) == 0) {
+            stop = 1
+        } else {
+            colsLog2 = colsLog2 + 1
+        }
+        bits = bits + 1
+    }
+    var rowsLog2 = tmax(minTiles - colsLog2, 0)
+    stop = 0
+    while (rowsLog2 < maxRows && stop == 0) {
+        if (bits > limit * 8) {
+            throw "IMAGE: truncated avif frame header"
+        }
+        if (seqRead(b, bits, 1) == 0) {
+            stop = 1
+        } else {
+            rowsLog2 = rowsLog2 + 1
+        }
+        bits = bits + 1
+    }
+    if (colsLog2 > 0 || rowsLog2 > 0) {
+        bits = bits + colsLog2 + rowsLog2
+        bits = bits + 2
+    }
+    var tileWidthSb = (sbCols + (1 << colsLog2) - 1) >> colsLog2
+    var tileHeightSb = (sbRows + (1 << rowsLog2) - 1) >> rowsLog2
+    var cols = 0
+    var start = 0
+    while (start < sbCols) {
+        cols = cols + 1
+        start = start + tileWidthSb
+    }
+    var rows = 0
+    start = 0
+    while (start < sbRows) {
+        rows = rows + 1
+        start = start + tileHeightSb
+    }
+    var out = new Int[3]
+    out[0] = bits
+    out[1] = cols
+    out[2] = rows
+    return out
+}
+
+Int tlog2(Int u, Int v) {
+    var k = 0
+    while ((u << k) < v) {
+        k = k + 1
+    }
+    return k
+}
+
+Int tmin(Int a, Int b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+Int tmax(Int a, Int b) {
+    if (a > b) {
+        return a
+    }
+    return b
 }

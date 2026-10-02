@@ -15,8 +15,8 @@ import java.util.List;
 import static dev.kof.compiler.AvifFrameSupport.errorFixtures;
 import static dev.kof.compiler.AvifFrameSupport.errorProbe;
 import static dev.kof.compiler.AvifFrameSupport.fixtures;
-import static dev.kof.compiler.AvifFrameSupport.javaFrameFacts;
-import static dev.kof.compiler.AvifFrameSupport.javaFrameFactsError;
+import static dev.kof.compiler.AvifFrameJavaSupport.javaFrameFacts;
+import static dev.kof.compiler.AvifFrameJavaSupport.javaFrameFactsError;
 import static dev.kof.compiler.AvifFrameSupport.probe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -41,9 +41,10 @@ class AvifFrameE2ETest {
     @TempDir Path tmp;
 
     private static final String GOLDEN = String.join("\n",
-            "red-k t=1 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32",
-            "nr-k t=1 show=1 err=1 ov=1 w=5 h=3 rd=0 rw=5 rh=3",
-            "rend t=1 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6");
+            "red-k t=1 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1",
+            "nr-k t=1 show=1 err=1 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1",
+            "rend t=1 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6 tiles=1x1",
+            "tile4 t=1 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2");
 
     @Test
     void avifFrameHeaderOnJvm() throws Exception {
@@ -111,7 +112,9 @@ class AvifFrameE2ETest {
                 "IMAGE: avif intra block copy not covered",
                 "IMAGE: avif frame size-with-refs not covered",
                 "IMAGE: truncated avif frame header",
-                "IMAGE: avif item has no frame header");
+                "IMAGE: avif item has no frame header",
+                "IMAGE: avif tile size list not covered",
+                "IMAGE: avif frame interp not covered");
         assertEquals(goldens, runJvm(errorProbe(dir)));
     }
 
@@ -124,7 +127,8 @@ class AvifFrameE2ETest {
         String java = String.join("\n",
                 "red-k " + javaFrameFacts(dir.resolve("red-k.avif")),
                 "nr-k " + javaFrameFacts(dir.resolve("nr-k.avif")),
-                "rend " + javaFrameFacts(dir.resolve("rend.avif")));
+                "rend " + javaFrameFacts(dir.resolve("rend.avif")),
+                "tile4 " + javaFrameFacts(dir.resolve("tile4.avif")));
         assertEquals(kof, java);
         assertEquals(GOLDEN, java);
 
@@ -135,14 +139,18 @@ class AvifFrameE2ETest {
                 "intrabc:" + javaFrameFactsError(errDir.resolve("intrabc.avif")),
                 "sizerefs:" + javaFrameFactsError(errDir.resolve("sizerefs.avif")),
                 "trunc:" + javaFrameFactsError(errDir.resolve("trunc.avif")),
-                "noframe:" + javaFrameFactsError(errDir.resolve("noframe.avif")));
+                "noframe:" + javaFrameFactsError(errDir.resolve("noframe.avif")),
+                "sizelist:" + javaFrameFactsError(errDir.resolve("sizelist.avif")),
+                "interp:" + javaFrameFactsError(errDir.resolve("interp.avif")));
         String expectedErrors = String.join("\n",
                 "showexisting:REFUSED:showexisting",
                 "inter:REFUSED:inter",
                 "intrabc:REFUSED:intrabc",
                 "sizerefs:REFUSED:sizerefs",
                 "trunc:REFUSED:trunc",
-                "noframe:REFUSED:noframe");
+                "noframe:REFUSED:noframe",
+                "sizelist:REFUSED:sizelist",
+                "interp:REFUSED:interp");
         assertEquals(expectedErrors, javaErrors);
     }
 
