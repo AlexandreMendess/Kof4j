@@ -18,7 +18,7 @@ usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
 > `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, mais o
 > `assertNotEqualBool` que faltava (o lado da igualdade já existia). Adicionadas a `dev/kof/test.kf`
 > (mesmo mecanismo de pacote virtual). **Sem aritmética de `Byte`/`Short`** — os helpers só comparam
-> (`!=`/`==`) e imprimem, então não tocam o caminho aritmético congelado do `#720` (`known-bugs` §561).
+> (`!=`/`==`) e imprimem, então não tocam o caminho aritmético do `#720` (`known-bugs` §561 — **CORRIGIDA 02/10** por `D-KOF-BYTE-ARITH` = promover `Byte`/`Short`/`Char` para `Int`).
 > Tipadas por primitivo, não um `assertEqual<T>` genérico (ainda adiado pelo §553). Aditivo, Kof puro,
 > sem sintaxe/primitiva nova. Prova: `KofTestingE2ETest` **7/7** em JVM + JS + Script + Native x86-64 +
 > cross riscv64(qemu) + aarch64(qemu), paridade-por-golden com o oráculo JVM (RED pré-fatia: 7 ×

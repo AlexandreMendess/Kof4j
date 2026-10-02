@@ -18,7 +18,7 @@ the two meet at §13 (Performance) and must not duplicate each other.
 > `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, plus the missing
 > `assertNotEqualBool` (the equality side already existed). Added to `dev/kof/test.kf` (same
 > virtual-package mechanism). **No arithmetic on `Byte`/`Short`** — the helpers only compare (`!=`/`==`)
-> and print, so they do not touch the `#720` frozen arithmetic path (`known-bugs` §561). Typed per
+> and print, so they do not touch the `#720` arithmetic path (`known-bugs` §561 — **FIXED 02/10** by `D-KOF-BYTE-ARITH` = promote `Byte`/`Short`/`Char` to `Int`). Typed per
 > primitive, not a generic `assertEqual<T>` (still deferred by §553). Additive, pure Kof, no new
 > syntax/primitives. Proof: `KofTestingE2ETest` **7/7** across JVM + JS + Script + Native x86-64 +
 > cross riscv64(qemu) + aarch64(qemu), golden-parity with the JVM oracle (RED pre-slice: 7 ×
