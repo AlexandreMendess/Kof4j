@@ -79,6 +79,21 @@ issues (`testing→prerelease`) or of related issues in the observation window
 (`prerelease→stable`) is non-zero. Association is by version/commit/tag, never by
 free-text heuristics.
 
+## Release cadence and lab stability
+
+The pre-1.0 release plan is a **weekly minor cadence to `0.9.0`**
+(`D-RELEASE-CADENCE`, maintainer 02/10): one minor per weekend, each cut through
+this pipeline from a STABLE `lab`. If `0.9.0` is reached without the full 1.0
+exit gate green, the line continues as `1.0.0-RC-1`, `1.0.0-RC-2`, … — each RC
+treated as a minor (its own weekend cut through this pipeline) until stable, then
+the real `1.0.0`. The version number at a cut is the maintainer's call.
+
+**`D-LAB-STABILITY` (maintainer 02/10):** a minor only enters `lab → testing` from
+a STABLE `lab` — full suite green, structural/quality gates rc=0, 0 blocking
+entries in `scripts/release-blockers.tsv`, no open `1.0-blocks`. Otherwise the cut
+**slips** to the next weekend; it is never forced through with a waiver and no
+stage is skipped. The Promotion Gate below is the executable form of this rule.
+
 ## Correction policy
 
 > Found a problem? It returns to `lab`.
@@ -89,5 +104,6 @@ new pre-release starts its own observation window.
 
 ## Contract
 
-`D-QUALITY-PIPELINE-2609` / `D-BRANCH-PIPELINE` (`docs/development/DECISIONS.md`).
+`D-QUALITY-PIPELINE-2609` / `D-BRANCH-PIPELINE`, `D-RELEASE-CADENCE`,
+`D-LAB-STABILITY` (`docs/development/DECISIONS.md`).
 Cutover announcement and migration instructions: issue #647.

@@ -2,7 +2,7 @@
 
 last: 0.5.0-beta
 doing: #651-COMPLETE (Buffer(U8) surface + FFI token B on x86-64 AND cross riscv64/aarch64; fatia B 29/09) + #678-D-SCRIPT-WARN-SURFACE-landed (Script surfaces frontend WARNING diagnostics) + phase-5-unit-3-pinned (Buffer(U8) INOUT × spawn/await runtime parity) + phase-5-unit-2-landed (#667 Script×extern FFI001 at decl line + #668 MEM020 compile face) + memory-safety-phase-4-CLOSED (#658/#659/#662) + #660-D-MEM021-SCALAR-landed (c65f9ba18, maintainer A/ERROR) + evidence-chain-hardened (#664/#665/#669) + phase-5-unit-1-pinned (#666) + ownership-table-landed (#670) + stale-cells-purged (#671) + ledger-selftest-pt-proven (#672) + living-records-registered (#673)
-next: phase-5 unit 4 (measure-first) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
+next: bugs-and-gaps front + release protocol (`D-FUTURE-FREEZE`) / 0.6.0 protocol + weekly minor cadence to 0.9.0 (`D-RELEASE-CADENCE`, `D-LAB-STABILITY`) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 
@@ -40,6 +40,9 @@ decision:
 * D-KOFMD-ON-EDIT: every document an agent edits is Kofmd-compressed in the same commit
 * D-KOFMD-OPERATING-STANDARD: every agent thinks, reasons, responds, executes and documents in Kofmd — uniform, no per-agent variant
 * D-FUTURE-PROMOTION: before starting new work, migrate to `lab` with all current work, then promote the EASIEST-to-implement plan from `docs/development/future/` to `docs/development/` and implement it — never the most interesting, never a frozen-semantics plan
+* D-FUTURE-FREEZE: `docs/development/future/` promotion is FROZEN until further notice — no agent promotes a future plan; the active front is bugs-and-gaps + the release protocol (maintainer 02/10)
+* D-RELEASE-CADENCE: weekly minor cadence to `0.9.0`; if `0.9.0` is reached without the full exit gate, the line continues as `1.0.0-RC-1`, `1.0.0-RC-2`, … (each RC a minor), until stable, then the real `1.0.0`; the version number at a cut is the maintainer's call (maintainer 02/10)
+* D-LAB-STABILITY: a minor is only cut from a STABLE `lab` (full suite green, gates rc=0, 0 blocking entries, no `1.0-blocks` open); otherwise the cut slips to the next weekend (maintainer 02/10)
 
 ---
 
@@ -54,7 +57,7 @@ loop:
 * read docs/status.md
 * inspect git log and suite
 * ensure the active branch is `lab` — migrate all current work to `lab` BEFORE starting; `beta-*` is frozen (`D-BRANCH-PIPELINE`)
-* if no live unowned task, promote the lowest-cost implementable plan from `docs/development/future/` (see Future promotion, `D-FUTURE-PROMOTION`)
+* if no live unowned task, work the bugs-and-gaps front + the release protocol; `docs/development/future/` promotion is FROZEN (`D-FUTURE-FREEZE`)
 * choose highest-value unowned task
 * claim it in DOING.md with `owner = <local-ipv4>:<opencode-port>` (EN) / `dona = <local-ipv4>:<opencode-port>` (PT) — the **absolute identity rule** (`D-AGENT-IDENTITY-IPPORT`, 01/10); a claim without IP:PORT is INVALID (gate `scripts/check_owner_identity.sh`)
 * execute one complete scope
@@ -289,6 +292,8 @@ kofmd:
 ## Future promotion
 
 intent: future-is-not-current-work-without-promotion
+
+**FROZEN until further notice (`D-FUTURE-FREEZE`, maintainer 02/10):** no agent promotes a plan out of `docs/development/future/`. The active front is bugs-and-gaps + the release protocol. The criteria below describe what a good future plan looks like; the *act* of promotion is suspended until the maintainer lifts the freeze.
 
 rule:
 

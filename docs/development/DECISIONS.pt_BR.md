@@ -2,7 +2,7 @@
 
 # DECISIONS — registro de decisões da linguagem
 
-**Última atualização:** 30/09/2026
+**Última atualização:** 02/10/2026
 **Mantenedora:** Mel Santos
 **Natureza:** registro normativo e histórico de decisões de arquitetura, semântica e evolução da linguagem.
 
@@ -74,6 +74,9 @@ Auxílio de navegação, não é uma decisão por si só. Ordenado como neste ar
 - **D-DEBT-SCOUT** — ferramenta de escoteiro de dívida técnica autorizada, só Wave 1, sem capacidade de publicar Issue
 - **D-DEBT-SCOUT-W2** — Wave 2 autorizada (qualificação de evidência, clustering, SARIF); ainda shadow, ainda sem publicar Issue
 - **D-KOF-IS-KOF** — código Kof nunca embute HTML/CSS/JS (regra absoluta)
+- **D-FUTURE-FREEZE** — a promoção de `docs/development/future/` está CONGELADA até segunda ordem (mantenedora 02/10)
+- **D-RELEASE-CADENCE** — cadência semanal de minors até `0.9.0`; linha de contingência `1.0.0-RC-n`; `1.0.0` só no exit gate completo (mantenedora 02/10)
+- **D-LAB-STABILITY** — um minor só é cortado de um `lab` ESTÁVEL (todos os checks obrigatórios PASS, 0 bloqueantes); senão o corte escorrega (mantenedora 02/10)
 
 ---
 
@@ -4709,3 +4712,40 @@ individuais:
 **State:** DECIDIDO (mantenedora) — em vez de deixar `sha256`/`hmacSha256` aceitar arrays silenciosamente (a degradação do §563), o payload binário ganha face PRÓPRIA nomeada: `sha256Bytes(Byte[])` → String hex e `hmacSha256Bytes(key Byte[], msg Byte[])` → String hex, com prova idêntica por alvo (RED-first como no §563: mesmos bytes → mesmo digest em JVM+Script+Native, a IDENTIDADE de array NUNCA é digerida). A recusa `SECN011` do §563 nas faces String/Int é MANTIDA — duas faces, um trabalho cada.
 - **Consequência para o KofShare:** a AAD-String `"" + hexOf(payload)` do `tagHex` continua legal; quando a face pousar, o frame de integridade pode migrar para `hmacSha256Bytes(chavesBytes, payloadBytes)` direto (detalhe de implementação, sem decisão nova).
 - **Relações:** `Emenda: §563 (recusa mantida + face binária adicionada)`, `Depende de: D-KOF-FIRST-IMPL (superfície stdlib, todos os alvos)`, `Relacionado: D-KOFSHARE-100KOF`.
+
+---
+
+## D-FUTURE-FREEZE — a promoção de `docs/development/future/` está CONGELADA até segunda ordem (mantenedora 02/10/2026, diretiva de chat)
+
+**State:** DECIDIDO (mantenedora) — **nenhum agente promove um plano de `docs/development/future/`** enquanto esta decisão vigorar.
+
+- **Diretiva:** o fluxo de promoção de futuro (`D-FUTURE-PROMOTION`) está suspenso. A pasta `future/` continua um arquivo só-de-plano, zero-código; os planos de lá não são reescritos `UNDER DEVELOPMENT` nem movidos para `docs/development/` por um agente.
+- **Por quê:** a mantenedora está redirecionando a frente ativa para o trabalho de bugs-and-gaps e o protocolo 0.6.0; drenar `future/` em paralelo correria contra essa direção.
+- **O que continua válido:** ler `future/` por contexto, e os *critérios de elegibilidade* do `D-FUTURE-PROMOTION` (como descrição do que é um bom plano futuro). O que está suspenso é o **ato de promover**, não os critérios.
+- **O que isto NÃO autoriza:** apagar/reescrever planos futuros, promover um plano de qualquer forma, ou inventar um novo plano para contornar o congelamento.
+- **Condição de suspensão:** só a mantenedora levanta este congelamento, por diretiva posterior explícita (registrada aqui ou como `D-*` superveniente).
+- **Relações:** `Suspende: D-FUTURE-PROMOTION (apenas o ato de promover)`, `Relacionado: D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609`.
+
+---
+
+## D-RELEASE-CADENCE — cadência semanal de minors até `0.9.0`, depois uma linha `1.0.0-RC-n` se o exit gate não estiver verde; `1.0.0` só no gate completo (mantenedora 02/10/2026, diretiva de chat)
+
+**State:** DECIDIDO (mantenedora) — o plano de releases pré-1.0 a partir da 0.5.0.
+
+- **Cadência semanal de minors:** um MINOR por fim de semana, em ordem, até **`0.9.0`** (o último minor antes da 1.0.0). Cada minor é cortado de um `lab` ESTÁVEL (`D-LAB-STABILITY`) e passa pelo pipeline unidirecional normal `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`).
+- **Critério da `1.0.0`:** a `1.0.0` sai assim que o EXIT GATE do `D-RELEASE-1.0` estiver totalmente VERDE e nenhuma borda do `D-1.0-EDGES` estiver aberta. Ela **pode** sair antes da `0.9.0` se o gate for atingido cedo; o plano padrão é que a `1.0.0` venha **depois da `0.9.0`**.
+- **Contingência `1.0.0-RC-n`:** se a `0.9.0` for atingida e o exit gate **não** estiver 100% verde, a linha continua como `1.0.0-RC-1`, `1.0.0-RC-2`, … Cada RC é tratado como **um minor** para fins de cadência e pipeline (seu próprio corte de fim de semana pelo pipeline unidirecional), e a linha itera até estabilizar; só então sai a **`1.0.0`** de verdade.
+- **O número da versão no corte é chamada da mantenedora** (`D-VERSION-BUMP-0.5.0`/regra 6): nenhum agente incrementa o `VERSION` unilateralmente; o agente prepara o corte, a mantenedora define o número.
+- **Não autorizado:** pular um estágio, publicar `1.0.0` com qualquer borda/bloqueante aberto, ou tratar um RC como release final.
+- **Relações:** `Depende de: D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, D-BRANCH-PIPELINE, D-RELEASE-1.0, D-VERSIONING-RELEASE`; `Relacionado: VERSION, scripts/bump-version.sh`.
+
+---
+
+## D-LAB-STABILITY — um minor só é cortado de um `lab` ESTÁVEL; senão o corte escorrega para o próximo fim de semana (mantenedora 02/10/2026, diretiva de chat)
+
+**State:** DECIDIDO (mantenedora) — a regra de estabilidade que governa a promoção do `lab`.
+
+- **Regra:** antes de um minor semanal (`D-RELEASE-CADENCE`) entrar em `lab → testing`, o `lab` precisa estar ESTÁVEL: a suíte completa verde, os gates estruturais/de qualidade rc=0, o ledger `release-blockers.tsv` com **0 bloqueantes**, e nenhum bug `1.0-blocks` aberto. O gate de promoção existente (`scripts/pipeline/promotion_gate.py`, 100% dos checks obrigatórios) é a forma executável desta regra.
+- **Se o `lab` não estiver estável:** o corte **escorrega** para o próximo fim de semana — não é forçado com waiver, e nenhum estágio é pulado. Uma promoção que falha retorna ao `lab` (`BLOCKED → LAB`), nunca lateralmente.
+- **O que isto NÃO autoriza:** enfraquecer um check, remover um teste, esconder um vermelho, ou declarar estável sem prova executada (`implemented` != `verified`).
+- **Relações:** `Impõe: D-QUALITY-PIPELINE-2609 (100% dos checks obrigatórios)`, `Relacionado: D-RELEASE-CADENCE, D-RELEASE-1.0, D-1.0-EDGES, D-BRANCH-PIPELINE`; máquina `scripts/pipeline/pipeline_state.py`, `scripts/pipeline/promotion_gate.py`.

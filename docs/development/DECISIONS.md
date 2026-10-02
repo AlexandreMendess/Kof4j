@@ -2,7 +2,7 @@
 
 # DECISIONS — language decision record
 
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-02
 
 **Maintainer:** Mel Santos
 
@@ -76,6 +76,9 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-DEBT-SCOUT** — technical-debt scout tooling authorized, Wave 1 only, no Issue-publish capability
 - **D-DEBT-SCOUT-W2** — Wave 2 authorized (evidence qualification, clustering, SARIF); still shadow, still no Issue-publish
 - **D-KOF-IS-KOF** — Kof source never embeds HTML/CSS/JS (absolute rule)
+- **D-FUTURE-FREEZE** — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10)
+- **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
+- **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
 
 ---
 
@@ -4719,3 +4722,40 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **State:** DECIDED (maintainer) — instead of letting `sha256`/`hmacSha256` silently accept arrays (the §563 degradation), the binary payload gets its OWN named face: `sha256Bytes(Byte[])` → hex String and `hmacSha256Bytes(key Byte[], msg Byte[])` → hex String, with identical per-target proofs (RED-first like §563: same bytes → same digest on JVM+Script+Native, array identity NEVER digested). The §563 `SECN011` refusal on the String/Int faces is KEPT — two faces, one job each.
 - **Consequence for KofShare:** `tagHex`'s `"" + hexOf(payload)` String-AAD remains legal; when the face lands, the integrity frame can switch to `hmacSha256Bytes(keyBytes, payloadBytes)` directly (implementation detail, no decision needed).
 - **Relationships:** `Amends: §563 (refusal kept + binary face added)`, `Depends on: D-KOF-FIRST-IMPL (stdlib face, all targets)`, `Related: D-KOFSHARE-100KOF`.
+
+---
+
+## D-FUTURE-FREEZE — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — **no agent promotes a plan out of `docs/development/future/`** while this decision stands.
+
+- **Directive:** the future-promotion flow (`D-FUTURE-PROMOTION`) is suspended. The `future/` folder stays a plan-only, zero-code archive; the plans there are neither rewritten `UNDER DEVELOPMENT` nor moved to `docs/development/` by an agent.
+- **Why:** the maintainer is redirecting the active front to the bugs-and-gaps work and the 0.6.0 protocol; draining `future/` in parallel would race that direction.
+- **What stays valid:** reading `future/` for context, and the `D-FUTURE-PROMOTION` *eligibility criteria* (as a description of what a good future plan looks like). What is suspended is the **act of promotion**, not the criteria.
+- **What this does NOT authorize:** deleting/rewriting future plans, promoting a plan anyway, or inventing a new plan to work around the freeze.
+- **Lift condition:** only the maintainer lifts this freeze, by an explicit later directive (recorded here or as a superseding `D-*`).
+- **Relationships:** `Suspends: D-FUTURE-PROMOTION (promotion act only)`, `Related: D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609`.
+
+---
+
+## D-RELEASE-CADENCE — weekly minor cadence to `0.9.0`, then a `1.0.0-RC-n` line if the exit gate is not green; `1.0.0` only on the full gate (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — the pre-1.0 release plan from 0.5.0 onward.
+
+- **Weekly minor cadence:** one MINOR per weekend, in order, through **`0.9.0`** (the last minor before 1.0.0). Each minor is cut from a STABLE `lab` (`D-LAB-STABILITY`) and goes through the normal one-way pipeline `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`).
+- **`1.0.0` criterion:** `1.0.0` ships as soon as the `D-RELEASE-1.0` EXIT GATE is fully GREEN and no `D-1.0-EDGES` edge is open. It **may** ship before `0.9.0` if the gate is met early; the default plan is that `1.0.0` is **post-`0.9.0`**.
+- **`1.0.0-RC-n` fallback (contingency):** if `0.9.0` is reached and the exit gate is **not** 100% green, the line continues as `1.0.0-RC-1`, `1.0.0-RC-2`, … Each RC is treated as **a minor** for cadence and pipeline purposes (its own weekend cut through the one-way pipeline), and the line iterates until it stabilizes; only then does the real **`1.0.0`** ship.
+- **Version number at a cut is the maintainer's call** (`D-VERSION-BUMP-0.5.0`/rule 6): no agent bumps `VERSION` unilaterally; the agent prepares the cut, the maintainer sets the number.
+- **Not authorized:** skipping a stage, publishing `1.0.0` with any open edge/blocker, or treating an RC as a final release.
+- **Relationships:** `Depends on: D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, D-BRANCH-PIPELINE, D-RELEASE-1.0, D-VERSIONING-RELEASE`; `Related: VERSION, scripts/bump-version.sh`.
+
+---
+
+## D-LAB-STABILITY — a minor is only cut from a STABLE `lab`; otherwise the cut slips to the next weekend (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — the stability rule that governs promoting `lab` into the pipeline.
+
+- **Rule:** before a weekly minor (`D-RELEASE-CADENCE`) enters `lab → testing`, `lab` must be STABLE: the full suite is green, the structural/quality gates are rc=0, the `release-blockers.tsv` ledger has **0 blocking** entries, and no `1.0-blocks` bug is open. The existing promotion gate (`scripts/pipeline/promotion_gate.py`, 100% of mandatory checks) is the executable form of this rule.
+- **If `lab` is not stable:** the cut **slips** to the next weekend — it is not forced through with a waiver, and no stage is skipped. A failed promotion returns to `lab` (`BLOCKED → LAB`), never sideways.
+- **What this does NOT authorize:** weakening a check, dropping a test, hiding a red, or declaring stable without executed proof (`implemented` != `verified`).
+- **Relationships:** `Enforces: D-QUALITY-PIPELINE-2609 (100% mandatory checks)`, `Related: D-RELEASE-CADENCE, D-RELEASE-1.0, D-1.0-EDGES, D-BRANCH-PIPELINE`; machine `scripts/pipeline/pipeline_state.py`, `scripts/pipeline/promotion_gate.py`.

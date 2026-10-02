@@ -4,7 +4,7 @@ last: 0.5.0-beta
 
 doing: #651-COMPLETA (superfície Buffer(U8) + token FFI B no x86-64 E no cross riscv64/aarch64; fatia B 29/09) + #678-D-SCRIPT-WARN-SURFACE-pousada (Script expõe WARNING do frontend) + unidade-3-fase-5-pinada (Buffer(U8) INOUT × spawn/await paridade runtime) + unidade-2-fase-5-pousada (#667 Script×extern FFI001 na linha da declaração + #668 face de compilação MEM020) + memory-safety-fase-4-FECHADA (#658/#659/#662) + #660-D-MEM021-SCALAR-pousado (c65f9ba18, mantenedora A/ERROR) + cadeia-de-evidencia-hardened (#664/#665/#669) + unidade-1-fase-5-pinada (#666) + tabela-ownership-pousada (#670) + celulas-defasadas-mortas (#671) + selftest-pt-provado (#672) + records-vivos-registrados (#673)
 
-next: unidade 4 da fase 5 (medir-antes) / varredura-de-promocao (lane pipeline) / 14.4-rulesets (mantenedora)
+next: frente bugs-and-gaps + protocolo de release (`D-FUTURE-FREEZE`) / protocolo 0.6.0 + cadência semanal de minors até 0.9.0 (`D-RELEASE-CADENCE`, `D-LAB-STABILITY`) / varredura-de-promoção (lane pipeline) / 14.4-rulesets (mantenedora)
 
 location: repositório
 
@@ -44,6 +44,9 @@ decision:
 * D-KOFMD-ON-EDIT: todo documento editado por um agente é comprimido em Kofmd no mesmo commit
 * D-KOFMD-OPERATING-STANDARD: todo agente pensa, raciocina, responde, executa e documenta em Kofmd — uniforme, sem variante por agente
 * D-FUTURE-PROMOTION: antes de começar trabalho novo, migrar para `lab` com TODO o trabalho atual, então promover o plano MAIS FÁCIL de implementar de `docs/development/future/` para `docs/development/` e implementá-lo — nunca o mais interessante, nunca um plano de semântica congelada
+* D-FUTURE-FREEZE: a promoção de `docs/development/future/` está CONGELADA até segunda ordem — nenhum agente promove um plano futuro; a frente ativa é bugs-and-gaps + o protocolo de release (mantenedora 02/10)
+* D-RELEASE-CADENCE: cadência semanal de minors até `0.9.0`; se a `0.9.0` for atingida sem o exit gate completo, a linha continua como `1.0.0-RC-1`, `1.0.0-RC-2`, … (cada RC um minor), até estabilizar, então a `1.0.0` de verdade; o número da versão no corte é chamada da mantenedora (mantenedora 02/10)
+* D-LAB-STABILITY: um minor só é cortado de um `lab` ESTÁVEL (suíte completa verde, gates rc=0, 0 bloqueantes, nenhum `1.0-blocks` aberto); senão o corte escorrega para o próximo fim de semana (mantenedora 02/10)
 
 ---
 
@@ -59,7 +62,7 @@ loop:
 * ler docs/status.md
 * inspecionar git log e a suíte
 * garantir que a branch ativa é `lab` — migrar todo o trabalho atual para `lab` ANTES de começar; `beta-*` está congelada (`D-BRANCH-PIPELINE`)
-* se não houver tarefa viva sem dono, promover o plano de menor custo implementável de `docs/development/future/` (ver Promoção de futuro, `D-FUTURE-PROMOTION`)
+* se não houver tarefa viva sem dono, trabalhar a frente bugs-and-gaps + o protocolo de release; a promoção de `docs/development/future/` está CONGELADA (`D-FUTURE-FREEZE`)
 * escolher a tarefa não atribuída de maior valor
 * reivindicá-la em DOING.md com `dona = <ipv4-local>:<porta-opencode>` (PT) / `owner = <ipv4-local>:<porta-opencode>` (EN) — a **regra absoluta de identidade** (`D-AGENT-IDENTITY-IPPORT`, 01/10); um claim sem IP:PORT é INVÁLIDO (gate `scripts/check_owner_identity.sh`)
 * executar um escopo completo
@@ -329,6 +332,8 @@ kofmd:
 ## Promoção de futuro
 
 intent: futuro-não-é-trabalho-atual-sem-promoção
+
+**CONGELADO até segunda ordem (`D-FUTURE-FREEZE`, mantenedora 02/10):** nenhum agente promove um plano de `docs/development/future/`. A frente ativa é bugs-and-gaps + o protocolo de release. Os critérios abaixo descrevem como é um bom plano futuro; o *ato* de promover está suspenso até a mantenedora levantar o congelamento.
 
 rule:
 

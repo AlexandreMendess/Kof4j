@@ -79,6 +79,23 @@ bloqueantes (`testing→prerelease`) ou de issues relacionadas na janela
 (`prerelease→stable`) é não-zero. A associação é por versão/commit/tag, nunca por
 heurística de texto livre.
 
+## Cadência de release e estabilidade do lab
+
+O plano de releases pré-1.0 é uma **cadência semanal de minors até `0.9.0`**
+(`D-RELEASE-CADENCE`, mantenedora 02/10): um minor por fim de semana, cada um
+cortado por esta esteira a partir de um `lab` ESTÁVEL. Se a `0.9.0` for atingida
+sem o exit gate completo da 1.0 verde, a linha continua como `1.0.0-RC-1`,
+`1.0.0-RC-2`, … — cada RC tratado como um minor (seu próprio corte de fim de
+semana por esta esteira) até estabilizar, então a `1.0.0` de verdade. O número da
+versão no corte é chamada da mantenedora.
+
+**`D-LAB-STABILITY` (mantenedora 02/10):** um minor só entra em `lab → testing` a
+partir de um `lab` ESTÁVEL — suíte completa verde, gates estruturais/de qualidade
+rc=0, 0 bloqueantes em `scripts/release-blockers.tsv`, nenhum `1.0-blocks` aberto.
+Senão o corte **escorrega** para o próximo fim de semana; nunca é forçado com
+waiver e nenhum estágio é pulado. O Promotion Gate abaixo é a forma executável
+desta regra.
+
 ## Política de correção
 
 > Encontrou problema? Volta para `lab`.
@@ -89,5 +106,6 @@ inicia sua própria janela de observação.
 
 ## Contrato
 
-`D-QUALITY-PIPELINE-2609` / `D-BRANCH-PIPELINE` (`docs/development/DECISIONS.md`).
+`D-QUALITY-PIPELINE-2609` / `D-BRANCH-PIPELINE`, `D-RELEASE-CADENCE`,
+`D-LAB-STABILITY` (`docs/development/DECISIONS.md`).
 Anúncio do cutover e instruções de migração: issue #647.
