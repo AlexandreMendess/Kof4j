@@ -10,7 +10,9 @@
 **Dependências principais:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), o caminho de interop JVM
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, os backends Native, `kof.toml`/`kofdeps`
-**Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). Restam: a fatia B (tipo de erro de interop) e a transcrição dos tiers de ABI (§9.16 Fatia D) — gated pela regra 6 / `D-CONNECTORS`.
+**Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). Resta a fatia B (tipo de erro de interop) — **superfície DECIDIDA 02/10 por `D-INTEROP-ERR-TYPE`**
+(`InteropError` catchável, `.message`/`.code`, contrato String intocado). **A transcrição dos tiers
+de ABI FECHOU 02/10 (`D-ABI-TIER-TABLE`; §9.16 Fatia D): escala do stdlib, primeiro estável `1.0.0`.**
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de
@@ -879,16 +881,20 @@ autorizada e suas questões de design travadas no `DECISIONS.md`:
   Kof puro (`ForeignModule`, §9.9), sem gramática.
 * **Tiers de estabilidade de ABI + primeira versão estável** — **definidos** no `D-CONNECTORS`; o
   Core traz o mecanismo (`InteropCompatibility`, §9.11) e o manifest carrega o tier declarado
-  (`ConnectorManifest.stability`, §9.14). Nota honesta: o `D-CONNECTORS` diz que estão
-  **definidos**, mas a tabela concreta de tiers e a primeira versão estável **ainda não foram
-  transcritas** no `DECISIONS.md` nem aqui — lacuna de documentação a registrar antes da fatia de
-  ABI (nunca a inventar por agente).
+  (`ConnectorManifest.stability`, §9.14). **Transcritos 02/10 por `D-ABI-TIER-TABLE`** (a lacuna de
+  documentação fechou): escala do stdlib (`experimental`→`beta`→`stable`, mesmos nomes de
+  `scripts/stdlib_boundary.txt`), primeiro ABI estável de connector = **1.0.0**, promoção pelo DoD R5
+  (prova de paridade por alvo no teste do próprio connector).
 * **Segundo connector oficial depois do Java** — **C ABI** (Fase 2, §5.2).
 * **Roteiro de promoção** — `future/` → `docs/development/` **FEITO 29/09/2026** (`D-CONNECTORS-GO`).
 
-**Falta pousar (fatias de compilador/linguagem, registros rule 6 já existentes):** o tipo de erro de
-interop na superfície da linguagem e o construto `foreign module` na gramática — ambos tocam o
-compilador/frontend e são fatias separadas, não só biblioteca.
+**Falta pousar:** somente a Fatia B (tipo de erro de interop) — **superfície DECIDIDA 02/10 por
+`D-INTEROP-ERR-TYPE`** (builtin `InteropError` com `.message`/`.code` (INTEROP00x),
+`catch (InteropError e)`, contrato de exceções String intocado, nunca engolido — R6); implementação =
+próxima unidade da lane, RED-first. O construto `foreign module` na gramática **POUSOU 01/10**
+(Fatia A, `ForeignModuleGrammarE2ETest` 5/5 reverificado no tip 02/10 pela lane dona
+`192.168.15.15:9092`). **Fatia D FECHADA 02/10** — tiers transcritos por `D-ABI-TIER-TABLE` (escala do
+stdlib; primeiro estável = 1.0.0; promoção pelo DoD R5).
 
 ---
 
@@ -914,14 +920,17 @@ fatia medir-antes: nomeia as âncoras reais, divide o trabalho e não implementa
   módulo chamando símbolos reais da libm (`fmod`/`sqrt`/`pow`) na JVM, a sobreposição de library por
   `extern`, os dois diagnósticos honestos e a retrocompat dos identificadores. Toca lexer/parser →
   frontend; sem mudança de ABI/runtime.
-* **Fatia B — tipo de erro de interop** (sistema de tipos). A decisão faz do erro de interop um tipo
-  da linguagem. Menor passo: o tipo + seu mapeamento para throws/catch existentes; prova = um erro
-  estrangeiro surge como esse tipo e nunca é engolido (R6). Toca o sistema de tipos → lane compilador.
+* **Fatia B — tipo de erro de interop** (sistema de tipos). **Superfície DECIDIDA 02/10 por
+  `D-INTEROP-ERR-TYPE`:** builtin `InteropError` com `.message`/`.code` (INTEROP00x),
+  `catch (InteropError e)`, convivendo com o contrato congelado de exceções String; prova = um erro
+  estrangeiro surge como esse tipo e nunca é engolido (R6). Toca o sistema de tipos → lane compilador;
+  implementação é a próxima unidade da lane (RED-first).
 * **Fatia C — connector C-ABI, metade declarativa** (library-first, começa já). Compõe as peças do
   Core: `ForeignModule` (library+símbolos+ABI+posse) + `InteropCost` (custos visíveis declarados) +
   `InteropCompatibility` (tier de estabilidade) + `InteropLibrary` (`.so`/`.dylib`/`.dll`/`.a`/`.lib`);
   `describe()`/validação; o round-trip de runtime espera A/B. Kof puro; sem mudança no compilador.
-* **Fatia D — tabela de tiers ABI** (documentação). A tabela concreta e a primeira versão estável
+* **Fatia D — tabela de tiers ABI** (documentação). **FECHADA 02/10** — transcrita pela decisão
+  `D-ABI-TIER-TABLE` (escala do stdlib, primeiro estável = 1.0.0, promoção pelo DoD R5). A tabela concreta e a primeira versão estável
   estão decididas no `D-CONNECTORS` mas não transcritas; registrar antes da fatia de ABI.
 
 **Ordem:** D (doc, destrava) → C (library-first, sem compilador) → A → B (fatias de compilador). As

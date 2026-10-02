@@ -4771,3 +4771,24 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Handoff / orphan:** a plan that loses its owner or has its claim revoked must declare `**Owner:** SEM DONO / OPEN` in its header, until re-claimed with a fresh, unique `IP:PORTA` that does not already hold another plan. A plan without an exclusive owner cannot be advanced under a shared/silent identity.
 - **Authority / enforcement:** `scripts/check_plan_owners.sh` (scans all plan headers, fails on duplicate IPs, missing owner fields, or unanchored lane names).
 - **Relationships:** `Extends: D-AGENT-IDENTITY-IPPORT (identity granularity)`, `Complements: AGENTS.md §Multi-agent state (claim discipline)`.
+
+---
+
+## D-INTEROP-ERR-TYPE — the interop error is a REAL catchable language type `InteropError` (maintainer 02/10/2026, chat multiple-choice — connectors slice B)
+
+**State:** DECIDED (maintainer) — completes `D-CONNECTORS` ("it is a language type") with the concrete surface.
+- **Law:** a failing `extern`/`foreign module` call throws the builtin **`InteropError`**; user code catches it by type: `catch (InteropError e)`; the type carries `e.message` (String) and `e.code` (String, the existing `INTEROP00x` diagnostics vocabulary). It **coexists** with the frozen String-exceptions contract — `catch (String s)` keeps working for every non-interop throw; a foreign error is NEVER swallowed (R6): if the user catches nothing the `InteropError` propagates and names itself.
+- **Why:** the alternative (type-marker minimum: name in the type system, runtime keeps throwing Strings) was REJECTED by the maintainer — decision (a) complete catchable type.
+- **Implementation:** compiler slice — type-system arm + mapping from the FFI throw path to the new type + per-target E2E RED-first (JVM/Script real; JS/Native/cross follow the existing per-target interop matrix or a named gap). `ForeignModuleGrammarE2ETest` neighbors must stay green.
+- **Relationships:** `Completes: D-CONNECTORS`, `Affects: §9.16 Slice B of docs/development/kof-connector-ecosystem-plan.md`, `Frozen-boundary: catch(String) contract unchanged`.
+
+---
+
+## D-ABI-TIER-TABLE — connector ABI tiers REUSE the stdlib scale; first stable connector ABI = 1.0.0 (maintainer 02/10/2026, chat multiple-choice — connectors slice D)
+
+**State:** DECIDED (maintainer) — transcribes what `D-CONNECTORS` called "defined but not transcribed".
+- **Table:** `experimental` → `beta` → `stable` — THE SAME three tiers and names as `scripts/stdlib_boundary.txt` / `scripts/check_stdlib_boundary.sh` (no parallel vocabulary, rule 11 simplicity).
+- **First stable version:** the first ABI a connector may declare `stable` is **`1.0.0`**; anything below is `experimental` or `beta`.
+- **Promotion rule:** a tier move requires the R5 DoD — per-target parity proof (the `BackendParityTest`/E2E discipline) recorded in the connector's own test; `ConnectorManifest.stability` carries the declared tier and the Core's `InteropCompatibility` validates it (mechanism landed as promoted slices 11/14).
+- **What this closes:** the plan's §13 documentation gap ("never to be invented by an agent") — transcribed here, in `DECISIONS.md`, and in `kof-connector-ecosystem-plan.md` EN+PT in the same commit.
+- **Relationships:** `Completes: D-CONNECTORS (ABI tiers row)`, `Closes: kof-connector-ecosystem-plan §13 gap / §9.16 Slice D`.

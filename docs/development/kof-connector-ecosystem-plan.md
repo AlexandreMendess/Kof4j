@@ -876,10 +876,16 @@ authorized and its design questions are locked in `DECISIONS.md`:
 * **Official second connector after Java** — **C ABI** (Phase 2, §5.2).
 * **Promotion roadmap** — `future/` → `docs/development/` **DONE 29/09/2026** (`D-CONNECTORS-GO`).
 
-**Still to land (compiler/language slices, rule 6 records already in place):** the interop error
-type on the language surface (Slice B). The `foreign module` **grammar construct is LANDED 01/10**
-(Slice A, `ForeignModuleGrammarE2ETest` 5/5) — it enters the grammar as sugar over the existing FFI
-path, not as a new ABI engine. Slice B still touches the type system and is a separate slice.
+**Still to land:** Slice B only — its **surface is DECIDED** 02/10 by `D-INTEROP-ERR-TYPE`
+(builtin `InteropError` with `.message`/`.code` (INTEROP00x), `catch (InteropError e)`, coexisting
+with the frozen String-exception contract, a foreign error NEVER swallowed — R6); implementation is
+the lane's next unit, RED-first (JVM/Script real; JS/Native/cross follow the interop matrix or a
+named gap). The `foreign module` **grammar construct is LANDED 01/10** (Slice A,
+`ForeignModuleGrammarE2ETest` **5/5 re-verified GREEN at tip 02/10** by the claiming lane
+`192.168.15.15:9092`) — sugar over the existing FFI path, not a new ABI engine.
+**Slice D is CLOSED 02/10** — tiers + first stable transcribed by `D-ABI-TIER-TABLE`: the stdlib
+scale (`experimental`→`beta`→`stable`, same names as `scripts/stdlib_boundary.txt`), first stable
+connector ABI = **1.0.0**, promotion by the R5 DoD (per-target parity proof in the connector's test).
 
 ---
 
@@ -903,16 +909,18 @@ measure-first slice: it names the real anchors and splits the work, and implemen
   header. Proof RED-first: `ForeignModuleGrammarE2ETest` **5/5** — a module calling real libm symbols
   (`fmod`/`sqrt`/`pow`) on the JVM, a per-extern library override, the two honest diagnostics, and
   the identifier retrocompat. Touches lexer/parser → the frontend; no ABI/runtime change.
-* **Slice B — interop error type** (type system). The decision makes the interop error a language
-  type. Smallest measurable step: the type + its mapping to existing throws/catch; proof = a foreign
-  error surfaces as that type and is never swallowed (R6). Touches the type system → compiler lane.
+* **Slice B — interop error type** (type system). **Surface DECIDED 02/10 (`D-INTEROP-ERR-TYPE`):**
+  builtin `InteropError`, fields `message`/`code`, `catch (InteropError e)`, String-`catch` contract
+  untouched, foreign errors never swallowed. Smallest measurable step: the type + its mapping to
+  existing throws/catch; proof = a foreign error surfaces as that type. Touches the type system → compiler lane.
 * **Slice C — C-ABI connector, declarative half** (library-first; **LANDED 29/09 as promoted slice 16**, `libs/interop/CAbiConnector.kf`). Compose the landed
   Core pieces into the official C connector profile: `ForeignModule` (library+symbols+ABI+ownership)
   + `InteropCost` (declared visible costs) + `InteropCompatibility` (stability tier)
   + `InteropLibrary` (`.so`/`.dylib`/`.dll`/`.a`/`.lib`); `describe()`/validation; runtime round-trip
   waits on A/B. Pure Kof; no compiler change.
-* **Slice D — ABI tier table** (documentation). The concrete tier table and first stable version are
-  decided by `D-CONNECTORS` but not transcribed; record them before the ABI slice.
+* **Slice D — ABI tier table** (documentation). **CLOSED 02/10** — transcribed by maintainer
+  decision `D-ABI-TIER-TABLE`: stdlib scale (`experimental`→`beta`→`stable`), first stable connector
+  ABI = `1.0.0`, R5-DoD promotion.
 
 **Order:** D (doc, unblocks) → C (library-first, no compiler) → A → B (compiler slices). Slices A/B
 are the first place this front touches the compiler; they are not library-only.

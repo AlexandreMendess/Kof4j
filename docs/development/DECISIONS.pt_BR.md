@@ -4761,3 +4761,24 @@ individuais:
 - **Handoff / órfão:** um plano que perde a dona ou cujo claim é revogado deve declarar `**Dono:** SEM DONO / ABERTO` no cabeçalho, até nova reivindicação com `IP:PORTA` fresco e exclusivo que não detenha outro plano. Plano sem dona exclusiva não pode ser avançado sob identidade compartilhada/silenciosa.
 - **Autoridade / execução:** `scripts/check_plan_owners.sh` (varre todos os cabeçalhos de plano, falha em IPs duplicados, campos ausentes ou nomes de lane sem âncora).
 - **Relações:** `Estende: D-AGENT-IDENTITY-IPPORT (granularidade de identidade)`, `Complementa: AGENTS.md §Multi-agent state (disciplina de claims)`.
+
+---
+
+## D-INTEROP-ERR-TYPE — o erro de interop é um TIPO REAL da linguagem, catchável: `InteropError` (mantenedora 02/10/2026, múltipla escolha no chat — fatia B de connectors)
+
+**Estado:** DECIDIDO (mantenedora) — completa `D-CONNECTORS` ("é um tipo da linguagem") com a superfície concreta.
+- **Lei:** uma chamada `extern`/`foreign module` que falha lança o builtin **`InteropError`**; o código do usuário captura por tipo: `catch (InteropError e)`; o tipo carrega `e.message` (String) e `e.code` (String, o vocabulário `INTEROP00x` já existente). Ele **convive** com o contrato congelado de exceções String — `catch (String s)` continua valendo para todo throw não-interop; um erro foreign NUNCA é engolido (R6): sem catch, o `InteropError` propaga e se nomeia.
+- **Porquê:** a alternativa (tipo-marcador mínimo: nome no type system, runtime segue lançando String) foi REJEITADA pela mantenedora — decisão (a) type completo catchável.
+- **Implementação:** fatia compiler — braço de type-system + mapeamento do caminho de throw da FFI para o tipo novo + E2E por alvo RED-first (JVM/Script reais; JS/Native/cross seguem a matriz de interop por alvo existente ou gap nomeado). Vizinhos de `ForeignModuleGrammarE2ETest` continuam verdes.
+- **Relações:** `Completa: D-CONNECTORS`, `Afeta: §9.16 Fatia B de docs/development/kof-connector-ecosystem-plan.md`, `Fronteira-congelada: contrato catch(String) inalterado`.
+
+---
+
+## D-ABI-TIER-TABLE — os tiers de ABI de connector REAPROVEITAM a escala do stdlib; primeiro ABI estável = 1.0.0 (mantenedora 02/10/2026, múltipla escolha no chat — fatia D de connectors)
+
+**Estado:** DECIDIDO (mantenedora) — transcreve o que `D-CONNECTORS` chamou de "definidos, nunca transcritos".
+- **Tabela:** `experimental` → `beta` → `stable` — as MESMAS três camadas e nomes de `scripts/stdlib_boundary.txt` / `scripts/check_stdlib_boundary.sh` (sem vocabulário paralelo, simplicidade regra 11).
+- **Primeira versão estável:** o primeiro ABI que um connector pode declarar `stable` é **`1.0.0`**; abaixo disso é `experimental` ou `beta`.
+- **Regra de promoção:** mover de camada exige o DoD R5 — prova de paridade por alvo registrada no teste do próprio connector; `ConnectorManifest.stability` carrega a camada declarada e o `InteropCompatibility` do Core a valida (mecanismo pousado nas fatias promovidas 11/14).
+- **O que fecha:** o gap de documentação do §13 do plano ("nunca inventados por um agente") — transcrito aqui, em `DECISIONS.md`, e em `kof-connector-ecosystem-plan.md` EN+PT no mesmo commit.
+- **Relações:** `Completa: D-CONNECTORS (linha dos tiers ABI)`, `Fecha: gap §13 / §9.16 Fatia D do plano de connectors`.
