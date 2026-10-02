@@ -1,0 +1,187 @@
+package image
+
+import image.Avif
+
+// kof.image — AVIF item location, slice 2a of the AVIF front (plan §34).
+//
+// Extracts the BYTES of one stored item of an AVIF container: the ISOBMFF
+// `iloc` item-location box (ISO 14496-12 §8.7.4) maps an item id to one or
+// more extents, each either file-absolute (construction 0) or relative to
+// the `idat` payload (construction 1). This is the mechanism every later
+// AVIF slice needs (the config OBU already lives in `av1C`; the coded
+// AV1/alpha items live in `mdat` or `idat` and are addressed ONLY through
+// `iloc`). No pixel decoding here: the face returns the item's raw bytes,
+// byte-exact.
+//
+// Documented subset (never a silent wrong parse), the `Avif.kf` policy:
+//   * the container must live in one bounded prefix (`readAvifItemBytes`
+//     reads 64 KiB; extents beyond it are an explicit refusal, not a
+//     truncated answer);
+//   * `iloc` full-box VERSION 1 only (2-byte item ids, 1-bit reserved +
+//     3-bit construction_method + 12-bit data_reference_index word);
+//     v0/v2 are refused (the v0 bit-packing is measured against real
+//     files in its own slice);
+//   * construction_method 0 (file offsets, e.g. into `mdat`) and 1
+//     (offsets relative to the `idat` payload); 2 (fragment) is refused;
+//   * offset_size == length_size == 4 and base_offset_size in {4, 8}
+//     (8 with a zero high word); the 2-byte forms and mixed sizes are
+//     refused (MIAF/AVIF files use the 4-byte form);
+//   * extent_index (offset_type 1) is refused; reserved nibbles must be 0;
+//   * the targeted item must have EXACTLY ONE extent (AVIF §2.3 allows
+//     more; a multi-extent item is its own later slice);
+//   * single `idat` at most.
+//
+// Errors are `String` throws beginning with `IMAGE:` — the family of the
+// whole package.
+
+Int[] readAvifItemBytes(String path, Int itemId) {
+    return avifItemBytes(File(path).readRange(0, 65536), itemId)
+}
+
+Int[] avifItemBytes(Int[] b, Int itemId) {
+    if (b.length < 12) {
+        throw "IMAGE: file too short for a valid header"
+    }
+    var metaAt = findBox(b, 0, b.length, "meta")
+    if (metaAt < 0) {
+        throw "IMAGE: avif has no meta box"
+    }
+    var iloc = -1
+    var child = metaAt + 12
+    var metaEnd = boxEnd(b, metaAt)
+    while (child + 8 <= metaEnd) {
+        var size = boxSize(b, child)
+        if (size < 8 || child + size > metaEnd) {
+            throw "IMAGE: malformed avif meta child"
+        }
+        if (matchesAscii(b, child + 4, "iloc")) {
+            if (iloc >= 0) {
+                throw "IMAGE: avif has two iloc boxes"
+            }
+            iloc = child
+        }
+        child = child + size
+    }
+    if (iloc < 0) {
+        throw "IMAGE: avif has no iloc box"
+    }
+    var end = boxEnd(b, iloc)
+    if (u8(b, iloc + 8) != 1) {
+        throw "IMAGE: avif iloc version not covered"
+    }
+    if (ilocFieldSize(b, iloc + 12) != 4) {
+        throw "IMAGE: avif iloc offset size not covered"
+    }
+    var bsize = ilocBaseSize(b, iloc + 13)
+    var ix = u8(b, iloc + 14)
+    if (ix >> 4 != 0 || (ix & 15) != 0) {
+        throw "IMAGE: avif iloc extent index not covered"
+    }
+    var p = iloc + 15
+    var itemCount = be16(b, p)
+    if (itemCount <= 0 || itemCount > 16) {
+        throw "IMAGE: avif iloc item list not covered"
+    }
+    p = p + 2
+    var i = 0
+    var found = false
+    var construction = 0
+    var base = 0
+    var off = 0
+    var len = 0
+    while (i < itemCount) {
+        if (p + 6 + bsize > end) {
+            throw "IMAGE: malformed avif iloc entry"
+        }
+        var id = be16(b, p)
+        // v1: item_ID(16) reserved(1) construction_method(3)
+        //     data_reference_index(12) extent_count(16) base_offset then
+        //     extent_count x (extent_offset offset_size + extent_length
+        //     length_size)
+        var c0 = u8(b, p + 2)
+        if (c0 >> 7 != 0) {
+            throw "IMAGE: avif iloc reserved bit"
+        }
+        if ((((c0 & 15) << 8) | u8(b, p + 3)) != 0) {
+            throw "IMAGE: avif iloc data reference not covered"
+        }
+        var ec = be16(b, p + 4)
+        if (ec == 0) {
+            throw "IMAGE: avif iloc extent count zero"
+        }
+        if (id == itemId) {
+            if (found) {
+                throw "IMAGE: avif duplicate item id"
+            }
+            if (ec != 1) {
+                throw "IMAGE: avif multi-extent item not covered"
+            }
+            construction = (c0 >> 5) & 7
+            if (construction > 1) {
+                throw "IMAGE: avif item construction not covered"
+            }
+            found = true
+            base = ilocWideSize(b, p + 6, bsize, end)
+            off = ilocWideSize(b, p + 6 + bsize, 4, end)
+            len = ilocWideSize(b, p + 10 + bsize, 4, end)
+        }
+        p = p + 6 + bsize + ec * 8
+        i = i + 1
+    }
+    if (!found) {
+        throw "IMAGE: avif item not found"
+    }
+    if (len <= 0) {
+        throw "IMAGE: avif item extent empty"
+    }
+    var at = base + off
+    if (construction == 1) {
+        var idat = findBox(b, 0, b.length, "idat")
+        if (idat < 0) {
+            throw "IMAGE: avif item in idat but no idat box"
+        }
+        at = idat + 8 + base + off
+    }
+    if (at < 0 || at + len > b.length) {
+        throw "IMAGE: avif item beyond read prefix"
+    }
+    var out = new Int[len]
+    var k = 0
+    while (k < len) {
+        out[k] = b[at + k]
+        k = k + 1
+    }
+    return out
+}
+
+Int ilocFieldSize(Int[] b, Int at) {
+    var s = u8(b, at)
+    var low = s & 15
+    if ((s >> 4) != low) {
+        throw "IMAGE: avif iloc field sizes differ"
+    }
+    return low
+}
+
+Int ilocBaseSize(Int[] b, Int at) {
+    var s = u8(b, at)
+    if ((s & 15) != 0) {
+        throw "IMAGE: avif iloc reserved nibble"
+    }
+    return s >> 4
+}
+
+Int ilocWideSize(Int[] b, Int at, Int size, Int end) {
+    if (size == 0) {
+        return 0
+    }
+    if (at + size > end) {
+        throw "IMAGE: malformed avif iloc entry"
+    }
+    if (size == 8) {
+        if (be32(b, at) != 0) {
+            throw "IMAGE: avif item beyond read prefix"
+        }
+    }
+    return be32(b, at + size - 4)
+}

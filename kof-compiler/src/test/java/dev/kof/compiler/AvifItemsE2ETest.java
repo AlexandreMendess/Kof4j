@@ -10,55 +10,49 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.List;
 
-import static dev.kof.compiler.AvifMetadataSupport.fixtures;
-import static dev.kof.compiler.AvifMetadataSupport.javaFacts;
-import static dev.kof.compiler.AvifMetadataSupport.probe;
-import static dev.kof.compiler.AvifMetadataSupport.errorProbe;
-import static dev.kof.compiler.AvifMetadataSupport.errorFixtures;
-
+import static dev.kof.compiler.AvifItemsSupport.errorProbe;
+import static dev.kof.compiler.AvifItemsSupport.fact;
+import static dev.kof.compiler.AvifItemsSupport.fixtures;
+import static dev.kof.compiler.AvifItemsSupport.itemProbe;
+import static dev.kof.compiler.AvifItemsSupport.readItemJava;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * End-to-end coverage for AVIF slice 1 (image-vision front, plan §34,
- * {@code D-WEBP-LOSSY-PURE-KOF}): the pure-Kof container reader
- * {@code libs/image/Avif.kf} reports brand, item count, primary item, ispe
- * dimensions, iref/auxc alpha and the av1C configuration record (profile,
- * level, tier, bit depths, monochrome, subsampling). Fixtures are built
- * byte-exactly to the AV1-ISOBMFF/AVIF/AV1 specs (no encoder exists on
- * this host — ffmpeg/avifenc/pip measured absent 01/10; the system libheif
- * could not be pinned honestly without headers); independent verification
- * runs against a SECOND reader written in plain Java against the box
- * grammar in {@link AvifMetadataSupport#javaFacts} — real-file encoder
- * goldens ride a later slice when a fixture host exists. Pixel decoding is
- * NOT part of this slice: {@code decodeRaster} keeps refusing AVIF.
+ * End-to-end coverage for AVIF slice 2a (image-vision front, plan §34):
+ * the pure-Kof item-location reader {@code libs/image/AvifItems.kf}
+ * extracts a stored item's bytes through the ISOBMFF {@code iloc} box
+ * (construction 0 = file offsets, 1 = {@code idat} payload). Fixtures are
+ * built byte-exactly to ISO 14496-12 (the host has no AVIF encoder —
+ * measured 01/10); the oracle is a SECOND independent Java reader
+ * ({@link AvifItemsSupport#readItemJava}) plus spec-computed goldens.
+ * Pixel decoding is NOT part of this slice.
  */
-class AvifMetadataE2ETest {
+class AvifItemsE2ETest {
 
     private final CompilerDriver driver = new CompilerDriver();
 
     @TempDir Path tmp;
 
     private static final String GOLDEN = String.join("\n",
-            "avif 8x8 items=1 primary=1 alpha=0 profile=0 level=2 tier=0 mono=1 sub=0/0 depth=8/8",
-            "avif 16x16 items=2 primary=1 alpha=1 profile=1 level=4 tier=0 mono=0 sub=1/1 depth=10/10",
-            "avis 32x24 items=1 primary=7 alpha=0 profile=2 level=0 tier=1 mono=0 sub=0/0 depth=12/12");
+            "mdat1 len=40 first=0 last=22 sum=4456",
+            "mdat2 len=20 first=200 last=143 sum=3430",
+            "idat1 len=40 first=0 last=22 sum=4456");
 
     @Test
-    void avifContainerOnJvm() throws Exception {
+    void avifItemBytesOnJvm() throws Exception {
         Path dir = fixtures(tmp.resolve("jvm-fixtures"));
-        assertEquals(GOLDEN, runJvm(probe(dir)));
+        assertEquals(GOLDEN, runJvm(itemProbe(dir)));
     }
 
     @Test
-    void avifContainerOnScript() throws Exception {
-        Path root = tmp.resolve("script-avif");
+    void avifItemBytesOnScript() throws Exception {
+        Path root = tmp.resolve("script-items");
         Files.createDirectories(root);
         Path dir = fixtures(root.resolve("fixtures"));
-        Files.writeString(root.resolve("Main.kf"), probe(dir));
+        Files.writeString(root.resolve("Main.kf"), itemProbe(dir));
         KofInterpreter.Result result = withLibrary(root,
                 () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
         assertEquals(0, result.exitCode(), "script output: " + result.stdout());
@@ -66,34 +60,34 @@ class AvifMetadataE2ETest {
     }
 
     @Test
-    void avifContainerOnNativeX86() throws Exception {
+    void avifItemBytesOnNativeX86() throws Exception {
         Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
         Path dir = fixtures(tmp.resolve("native-fixtures"));
-        assertEquals(GOLDEN, runNativeX86(probe(dir)));
+        assertEquals(GOLDEN, runNativeX86(itemProbe(dir)));
     }
 
     @Test
-    void avifContainerOnNativeRiscv64() throws Exception {
+    void avifItemBytesOnNativeRiscv64() throws Exception {
         Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
         Path dir = fixtures(tmp.resolve("riscv-fixtures"));
-        assertEquals(GOLDEN, runCrossCode("riscv64", Target.NATIVE_RISCV64, probe(dir)));
+        assertEquals(GOLDEN, runCrossCode("riscv64", Target.NATIVE_RISCV64, itemProbe(dir)));
     }
 
     @Test
-    void avifContainerOnNativeAarch64() throws Exception {
+    void avifItemBytesOnNativeAarch64() throws Exception {
         Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
                 "cross aarch64 + qemu absent — skipping (NATIVE002)");
         Path dir = fixtures(tmp.resolve("aarch-fixtures"));
-        assertEquals(GOLDEN, runCrossCode("aarch64", Target.NATIVE_AARCH64, probe(dir)));
+        assertEquals(GOLDEN, runCrossCode("aarch64", Target.NATIVE_AARCH64, itemProbe(dir)));
     }
 
     @Test
-    void avifReaderRefusesOnJs() throws Exception {
-        Path root = tmp.resolve("js-avif");
+    void itemReaderRefusesOnJs() throws Exception {
+        Path root = tmp.resolve("js-items");
         Files.createDirectories(root);
         Path dir = fixtures(root.resolve("fixtures"));
-        Files.writeString(root.resolve("Main.kf"), probe(dir));
+        Files.writeString(root.resolve("Main.kf"), itemProbe(dir));
         Path out = root.resolve("out");
         CompilationResult result = withLibrary(root,
                 () -> compile(root.resolve("Main.kf"), out, Target.JS));
@@ -103,39 +97,29 @@ class AvifMetadataE2ETest {
     }
 
     @Test
-    void refusalsAndErrorsAreHonest() throws Exception {
-        Path root = tmp.resolve("errors");
+    void itemRefusalsAreHonest() throws Exception {
+        Path root = tmp.resolve("item-errors");
         Files.createDirectories(root);
-        Path dir = errorFixtures(root);
+        Path dir = fixtures(root);
         String goldens = String.join("\n",
-                "IMAGE: not an isobmff file",
-                "IMAGE: unsupported isobmff brand",
-                "IMAGE: avif sequence header form not covered",
-                "IMAGE: inconsistent avif profile bit depth",
-                "IMAGE: file too short for a valid header");
+                "IMAGE: avif item beyond read prefix",
+                "IMAGE: avif iloc version not covered",
+                "IMAGE: avif has no iloc box",
+                "IMAGE: avif item not found");
         assertEquals(goldens, runJvm(errorProbe(dir)));
     }
 
-    /**
-     * Independent cross-check: a SECOND reader, written directly against the
-     * box grammar in plain Java (different code path, same fixtures), must
-     * agree with the pure-Kof library byte-for-byte on every fact. The real
-     * encoder/toolchain oracle is unavailable on this host (ffmpeg, avifenc,
-     * pip measured absent 01/10; the libheif C ABI could not be pinned
-     * honestly without headers) — recorded as the AVIF front's tooling gap;
-     * real-file fixtures ride the next slices when a fixture host exists.
-     */
     @Test
-    void secondJavaReaderAgreesWithKofLibrary() throws Exception {
-        Path dir = fixtures(tmp.resolve("cross-fixtures"));
-        String kof = runJvm(probe(dir));
-        String javaFacts = String.join("\n",
-                javaFacts(dir.resolve("flat.avif")),
-                javaFacts(dir.resolve("alpha.avif")),
-                javaFacts(dir.resolve("compat.avif")));
-        assertEquals(kof, javaFacts);
+    void secondJavaReaderAgreesOnItemBytes() throws Exception {
+        Path dir = fixtures(tmp.resolve("xcheck-fixtures"));
+        String kof = runJvm(itemProbe(dir));
+        String java = String.join("\n",
+                "mdat1 " + fact(readItemJava(dir.resolve("mdat.avif"), 1)),
+                "mdat2 " + fact(readItemJava(dir.resolve("mdat.avif"), 2)),
+                "idat1 " + fact(readItemJava(dir.resolve("idat.avif"), 1)));
+        assertEquals(kof, java);
+        assertEquals(GOLDEN, java);
     }
-
 
     private String runJvm(String code) throws Exception {
         Path root = tmp.resolve("jvm-" + Math.abs(code.hashCode()));
