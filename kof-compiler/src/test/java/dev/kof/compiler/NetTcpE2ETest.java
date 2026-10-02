@@ -230,16 +230,20 @@ class NetTcpE2ETest {
     }
 
     @Test
-    @DisplayName("JS and the cross targets still refuse with NET002 (no silent drop)")
+    @DisplayName("The cross targets still refuse with NET002 (no silent drop; JS opened in slice 4a)")
     void otherTargetsStillRefuse(@TempDir Path dir) throws Exception {
         Path s = dir.resolve("x.kf");
         Files.writeString(s, "main() { var l = net.listen(18880) }");
-        for (Target t : new Target[]{Target.JS, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = driver.compile(s, dir.resolve("out-" + t), t);
             assertTrue(!r.success(), t + " has no socket runtime yet");
             String d = r.diagnostics().getDiagnostics().toString();
             assertTrue(d.contains("NET002"), t + " must refuse by name: " + d);
         }
+        // Fatia 4a: o JS agora BINDA (a ponte de host cobre o runtime).
+        CompilationResult js = driver.compile(s, dir.resolve("out-JS"), Target.JS);
+        assertTrue(js.success(), "JS must bind now (slice 4a host bridge): "
+                + js.diagnostics().getDiagnostics());
     }
 
     @Test

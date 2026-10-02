@@ -60,17 +60,19 @@ public class NetSurfaceE2ETest {
     }
 
     @Test
-    @DisplayName("D-KOF-NET: JS/cross still refuse every socket verb with NET002 (no silent drop)")
-    void jsAndCrossStillRefuse() throws Exception {
-        String one = "main() { var l = net.%s }";
-        String[] verbs = {"listen(8123)", "connect(\"h\", 1)", "bind(8123)",
-                "accept(h)", "send(h, b)", "receive(h, 10)", "peer(e)", "close(h)"};
-        for (Target t : new Target[]{Target.JS, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            for (String v : verbs) {
-                CompilationResult r = compile(String.format(one, v), t);
-                assertFalse(r.success(), t + " must refuse net." + v + ": "
-                        + r.diagnostics().getDiagnostics());
-            }
+    @DisplayName("D-KOF-NET: cross targets still refuse the socket contract with NET002 (no silent drop)")
+    void crossStillRefuses() throws Exception {
+        // Fatia 4a abre o JS; riscv64/aarch64 seguem sem os símbolos no runtime
+        // cross (fatia 4b) e recusam com NET002 — nunca drop silencioso. O
+        // contrato INTEIRO recusa no primeiro verbo estático (net.listen) já
+        // com o código nomeado; os verbos de membro não têm handle válido sem
+        // um listen/connect/bind que compile, então a recusa é pelo gate.
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = compile(CONTRACT, t);
+            assertFalse(r.success(), t + " must refuse the socket contract: "
+                    + r.diagnostics().getDiagnostics());
+            assertTrue(r.diagnostics().getDiagnostics().toString().contains("NET002"),
+                    t + " must name NET002: " + r.diagnostics().getDiagnostics());
         }
     }
 
@@ -87,12 +89,13 @@ public class NetSurfaceE2ETest {
     }
 
     @Test
-    @DisplayName("D-KOF-NET JS: refuses the socket verbs honestly with NET002")
-    void jsRefusesWithNet002() throws Exception {
+    @DisplayName("D-KOF-NET JS: the frozen contract BINDS now that slice 4a emits the host bridge")
+    void jsSurfaceCompiles() throws Exception {
+        // Fatia 4a: `JsRuntimeUiNet` exporta os wrappers kofNet* sobre a ponte
+        // `KofJsNetBridge` (host GraalJS, mesmo java.net do runtime JVM). O E2E
+        // `NetJsE2ETest` prova que os verbos RESOLVEM e rodam.
         CompilationResult r = compile(CONTRACT, Target.JS);
-        assertFalse(r.success(), "js host bridge has no net runtime yet");
-        String diag = r.diagnostics().getDiagnostics().toString();
-        assertTrue(diag.contains("NET002"), diag);
+        assertTrue(r.success(), "js must bind now: " + r.diagnostics().getDiagnostics());
     }
 
     @Test

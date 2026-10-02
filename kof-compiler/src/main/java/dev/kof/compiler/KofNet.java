@@ -128,11 +128,16 @@ public final class KofNet {
      *  falso que a fatia 1 mediu).
      *
      *  <p>Fatia 3: NATIVE x86-64 entra porque {@link dev.kof.compiler.nat.NativeNetFront}
-     *  emite os dez símbolos no runtime gerado. NATIVE_RISCV64/NATIVE_AARCH64
-     *  seguem recusando (NET002) — os símbolos não existem no runtime cross
-     *  ainda (fatia 4); aceitar ali seria o mesmo verde falso. */
+     *  emite os dez símbolos no runtime gerado. Fatia 4a: JS entra porque
+     *  {@link dev.kof.compiler.js.JsRuntimeUiNet} exporta os wrappers
+     *  {@code kofNet*} sobre a ponte de host {@code KofJsNetBridge} (mesmo
+     *  {@code java.net} do runtime JVM). NATIVE_RISCV64/NATIVE_AARCH64 seguem
+     *  recusando (NET002) — os símbolos não existem no runtime cross ainda
+     *  (fatia 4b); aceitar ali seria o mesmo verde falso. SCRIPT segue
+     *  recusando: o interpretador não tem corpo de socket. */
     static boolean socketRuntimeReady(Target target) {
-        return target == Target.JVM || target == Target.ANDROID || target == Target.NATIVE;
+        return target == Target.JVM || target == Target.ANDROID
+                || target == Target.NATIVE || target == Target.JS;
     }
 
     static boolean isNetHandleType(Type t) {
@@ -158,7 +163,7 @@ public final class KofNet {
                 || function.startsWith("kof_net_send") || function.startsWith("kof_net_receive")
                 || function.startsWith("kof_net_peer") || function.equals("kof_net_close")) {
             return target == Target.JVM || target == Target.ANDROID
-                    || target == Target.NATIVE;
+                    || target == Target.NATIVE || target == Target.JS;
         }
         return true;
     }

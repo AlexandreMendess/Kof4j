@@ -47,6 +47,23 @@ class KofJsHostlessRuntimeTest {
                 "esperado erro 'not available', veio: " + err);
     }
 
+    // D-KOF-NET fatia 4a: o socket JS depende do host kof_platform (a ponte
+    // java.net). Fora dele (browser puro) o shim tem de nomear o gap — nunca
+    // ReferenceError nem drop silencioso (R7, mesma família de uuid/security).
+    @Test
+    void netOutsideHostGivesClearErrorNotReference(@TempDir Path tmp) throws Exception {
+        String err = runWithoutHost(tmp, """
+            main() {
+                var l = net.listen(19940)
+                println("listening")
+            }
+            """);
+        assertFalse(err.contains("ReferenceError"),
+                "esperado shim claro, veio ReferenceError: " + err);
+        assertTrue(err.contains("not available"),
+                "esperado erro 'not available', veio: " + err);
+    }
+
     private String runWithoutHost(Path tempDir, String source) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

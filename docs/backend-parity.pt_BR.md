@@ -190,7 +190,7 @@ nota em contrário.
 | security | ✅ asm (faces SECN002/006) | 🔴 SECN000 | 🔴 SECN000 | `KofSecurity.supportedOn` |
 | rng | ✅ (X8 fatia 2) | 🔴 RNG001 | 🔴 RNG001 | `KofRngTest` |
 | http / kof.net / JSON escalar | ✅ | ✅ | ✅ | `riscvHttpGetPostStatus`, goldens JSON cross |
-| Frente de sockets `kof.net` (D-KOF-NET, TCP+UDP; `listen/accept/connect/send/receive/bind/sendTo/peer/close`) | ✅ real (`JvmRuntimeSockets`, `java.net`) | ✅ x86-64 real (`NativeNetFront` sobre handles opacos do heap) | 🔴 `NET002` (fatia 4 — runtime riscv64/aarch64 não portado) | `NetTcpE2ETest` 9/9 + `NetNativeE2ETest` 6/6 (`NetSurfaceE2ETest` 7/7 fixa a recusa cross/JS) |
+| Frente de sockets `kof.net` (D-KOF-NET, TCP+UDP; `listen/accept/connect/send/receive/bind/sendTo/peer/close`) | ✅ real (`JvmRuntimeSockets`, `java.net`) | ✅ x86-64 real (`NativeNetFront` sobre handles opacos do heap); riscv64/aarch64 🔴 `NET002` (fatia 4b — não portado) | ✅ real (wrappers `JsRuntimeUiNet` sobre o host `KofJsNetBridge`, mesmo `java.net` do JVM); hostless/navegador = erro honesto do shim `kof_platform` | `NetTcpE2ETest` 9/9 + `NetNativeE2ETest` 6/6 + `NetJsE2ETest` 6/6 (`NetSurfaceE2ETest` 7/7 fixa a recusa cross; `KofJsHostlessRuntimeTest` 3/3 fixa a honestidade do navegador) |
 | `json.decode<Record>` | — (não medido aqui) | 🔴 JSN004 (asm pura) | 🔴 JSN004 | lista de recusas cross na re-auditagem 12/09 |
 | `process` / `kof.ui` | PROC001 / sem port | recusas idênticas | recusas idênticas | as recusas de compile-time são do alvo inteiro, não por arco (a C-FFI quebrou essa regra 20/09: #431 binda a ABI escalar por arco no Native) |
 

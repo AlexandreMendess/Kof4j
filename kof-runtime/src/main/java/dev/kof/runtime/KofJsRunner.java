@@ -185,6 +185,10 @@ public final class KofJsRunner {
             return 0;
         });
         KofJsProcessBridge.install(platform);
+        // D-KOF-NET fatia 4a: sockets kof.net no host GraalJS, sobre o MESMO
+        // java.net do runtime JVM (paridade por construção). Browser/hostless
+        // nunca chega aqui: o shim kof_platform lança erro honesto (R7).
+        KofJsNetBridge.install(platform);
         // §426 (improved 25/09): time.collect() on JS — real host GC request.
         // System.gc() is the exact semantics of the JVM/SCRIPT runtime's
         // kof_gc_collect_now (a request, not a guarantee); a no-op would be a
