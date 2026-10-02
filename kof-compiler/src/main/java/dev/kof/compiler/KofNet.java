@@ -133,8 +133,11 @@ public final class KofNet {
      *  {@code kofNet*} sobre a ponte de host {@code KofJsNetBridge} (mesmo
      *  {@code java.net} do runtime JVM). NATIVE_RISCV64/NATIVE_AARCH64 seguem
      *  recusando (NET002) — os símbolos não existem no runtime cross ainda
-     *  (fatia 4b); aceitar ali seria o mesmo verde falso. SCRIPT segue
-     *  recusando: o interpretador não tem corpo de socket. */
+     *  (fatia 4b); aceitar ali seria o mesmo verde falso. SCRIPT nunca passa
+     *  por este portão: {@code prepareForInterpretation} faz o lowering com
+     *  {@code target = JVM} (medido 02/10) e o interpretador reflete os MESMOS
+     *  {@code KofRuntime.kof_net_*} — paridade por construção, provada em
+     *  {@code NetScriptE2ETest}. */
     static boolean socketRuntimeReady(Target target) {
         return target == Target.JVM || target == Target.ANDROID
                 || target == Target.NATIVE || target == Target.JS;
@@ -156,8 +159,10 @@ public final class KofNet {
         // kof_net_listen/accept/connect/bind/send/receive/sendTo/receiveFrom/
         // peer/close. Antes disso o gate recusava em TODO alvo: a fatia 1 mediu
         // que aceitar sem o método no runtime gerado é um verde falso (Q5) que
-        // morre NoSuchMethodError no class load. Native/JS/Script seguem as
-        // fatias 3–5 e ainda recusam com NET002 (nunca drop silencioso).
+        // morre NoSuchMethodError no class load. Native x86-64 (fatia 3) e JS
+        // (fatia 4a) entraram; riscv64/aarch64 (fatia 4b) ainda recusam com
+        // NET002 (nunca drop silencioso). Script usa o lowering JVM e o mesmo
+        // runtime por reflexao (fatia 5, NetScriptE2ETest).
         if (function.startsWith("kof_net_listen") || function.startsWith("kof_net_accept")
                 || function.startsWith("kof_net_connect") || function.startsWith("kof_net_bind")
                 || function.startsWith("kof_net_send") || function.startsWith("kof_net_receive")

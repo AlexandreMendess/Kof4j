@@ -442,4 +442,31 @@ class KofInterpreterParityTest extends KofInterpreterParitySupport {
                 }
                 """);
     }
+
+    @Test
+    void byteShortArrayStore() throws IOException {
+        // D-KOF-NET fatia 5 (02/10): irmao gemeo do §185 — `new Byte[n]` era
+        // materializado int[] em newArray (default -> int) e o coerceFor
+        // agrupava byte/short com int (Integer em Array.set de byte[] =
+        // "argument type mismatch"). So parecia verde porque NAO existia
+        // consumidor de Byte[] ate kof_net_send. Fix: byte/short viram
+        // byte[]/short[] reais e a coerção produz Byte/Short. Paridade
+        // interpretado x JVM com borda assinada (200 -> -56 como o JVM).
+        parity("byteshortarr", """
+                main() {
+                    var b = new Byte[3]
+                    b[0] = 5
+                    b[1] = 6
+                    b[2] = 200
+                    println(b[0] + b[1])
+                    println(b[2])
+                    println(b.length)
+                    var s = new Short[2]
+                    s[0] = 300
+                    s[1] = -7
+                    println(s[0])
+                    println(s[1])
+                }
+                """);
+    }
 }

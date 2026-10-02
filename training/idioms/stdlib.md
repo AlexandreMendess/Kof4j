@@ -302,6 +302,9 @@ WHY: hand-rolled `split("/")`/regex over URLs breaks on port, query and fragment
 each piece is a real function, all targets (interpreter parity pinned 19/09 in
 `KofScriptStdlibParityTest`).
 
+Sockets are the SAME namespace but their own face — `net.listen/connect/bind`
+and the handle members live in `training/idioms/net.md` (D-KOF-NET, 02/10).
+
 ## gpu — probe first, kernels honest (8.5 fatia 3, 19/09)
 
 ```kof
