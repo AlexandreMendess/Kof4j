@@ -14123,7 +14123,7 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Correção (proposta, dona = lane runtime):** o `kof_json_bind` deve tentar `nome`, `nome.toLowerCase()` e a forma com underscore — OU o `kof_db_query_n` manter o rótulo RAW quando `className != null` (modo entity). Em qualquer caso, componente primitivo AUSENTE deve falhar como erro honesto nomeando o campo (R6), não como mensagem interna do JDK.
 **Fronteira:** leitura ORM do JVM apenas (as faces Script/JS/nativa têm status próprio). O §565 é o irmão pure-JSON; foi o defeito ORM que transformou a mensagem do §565 em crash de produção. Sem issue (worker sem identidade GitHub); repro no repo do kof-publisher.
 
-<!-- en-switch --> **EN:** [§564 (EN)](known-bugs.md#564--jvm-orm-the-read-path-lowercases-column-labels-so-camelpase-entity-fields-silently-bind-null-string-or-die-with-the-binder-npe-of-565-primitives--open-owner--lane-compilerruntime-jvm-found-building-kof-publisher)
+<!-- en-switch --> **EN:** [§564 (EN)](known-bugs.md#564--jvm-orm-the-read-path-lowercases-column-labels-so-camelcase-entity-fields-silently-bind-null-string-or-die-with-the-binder-npe-of-565-primitives---open-owner--lane-compilerruntime-jvm-found-building-kof-publisher)
 
 ## §565 — JVM: `json.decode<Record>` com componente PRIMITIVO ausente/null lança o NPE interno `ValueConversions` do binder em vez de um erro `JSN` nomeado — 🟡 ABERTO (dona = lane compiler/runtime JVM); encontrado pelo kof-publisher (envelopes `{"error":...}` do Ollama)
 **Sintoma (medido 01/10, JVM):** `record Envelope(String model, Bool done, Int n)`; `json.decode<Envelope>` com `n` ausente — e o mesmo com `"done":null` — chega ao chamador via `catch (String e)` como `java.lang.NullPointerException: Cannot invoke "java.lang.Number.intValue()" because the return value of "sun.invoke.util.ValueConversions.primitiveConversion(...)" is null`.
@@ -14132,7 +14132,7 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Pergunta de contrato (regra 6):** se primitivo ausente decodifica para o valor zero ou falha com `JSN004`-estilo `missing field 'done' for Envelope` é **decisão de maintainer** — hoje falha vazando o `sun.invoke` interno.
 **Fronteira:** binder do JVM (`kof_json_bind`); o §564 é a face ORM (rótulos minúsculos criam o NULL). Sem issue (worker sem identidade GitHub); repro no kof-publisher.
 
-<!-- en-switch --> **EN:** [§565 (EN)](known-bugs.md#565--jvm-jsondecoderegister-with-a-missingnull-primitive-component-throws-the-jdk-internal-valueconversions-binder-npe-instead-of-a-named-jsn-error)
+<!-- en-switch --> **EN:** [§565 (EN)](known-bugs.md#565--jvm-jsondecoderecord-with-a-missingnull-primitive-component-throws-the-jdk-internal-valueconversions-binder-npe-instead-of-a-named-jsn-error---open-owner--lane-compilerruntime-jvm-found-by-kof-publisher-ollama-error-envelopes)
 
 ## §566 — JVM: uma `entity` declarada em pacote NOMEDADO compila, mas as chamadas ORM fazem `Class.forName` com o nome SIMPLES — `NoClassDefFoundError` na primeira leitura — 🟡 ABERTO (dona = lane compiler JVM); encontrado pelo kof-publisher
 **Sintoma (medido 01/10, `kof-cli-0.5.0-beta.jar`):** `package app` + `entity Erec { ... }` + `orm.create/save/find` → compila limpo, `app/Erec.class` é emitido, mas a execução morre em `NoClassDefFoundError: Erec`: o `className` passado a `kof_orm_*`/`kof_json_bind` é o `Erec` puro. Na ROOT package funciona (é o workaround do `src/Store.kf` do kof-publisher).
@@ -14141,6 +14141,6 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Correção (proposta):** resolver o tipo da entity pela mesma máquina `CompilerTypes`/pacote-da-declaração usada para enums/records (linhagem §308) e emitir o nome BINÁRIO (`app.Erec`) no descritor ORM.
 **Consequência:** projetos que persistem entities precisam manter TODAS as entities no root package — o que também bloqueia `import` desses tipos num test root separado (arquivos do root são o próprio módulo), empurrando os testes de estado para E2E com o binário real (como faz o kof-publisher).
 
-<!-- en-switch --> **EN:** [§566 (EN)](known-bugs.md#566--jvm-an-entity-declared-in-a-named-package-compiles-but-its-orm-calls-classforname-with-the-simple-name--noclassdeffounderror-at-first-read)
+<!-- en-switch --> **EN:** [§566 (EN)](known-bugs.md#566--jvm-an-entity-declared-in-a-named-package-compiles-but-its-orm-calls-classforname-with-the-simple-name--noclassdeffounderror-at-first-read---open-owner--lane-compiler-jvm-found-by-kof-publisher)
 
 <!-- en-switch --> **EN:** [§563 (known-bugs.md)](known-bugs.md#563--the-kofsecurity-digests-accept-non-string-arguments-at-compile-time-and-degrade-per-target-cryptohmacsha256key-byte-computes-a-digest-over-the-array-identity-on-script-silent-divergence-stable-only-per-object-and-dies-verifyerror-bad-type-on-operand-stack-on-the-jvm--r6-silent-fallback-catalogued-while-building-the-kofshare-integrity-frame---fixed-0210-secn011-at-the-typer-red-first-securityargtypeguarde2etest-55)
