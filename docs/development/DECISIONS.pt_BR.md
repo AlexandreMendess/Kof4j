@@ -4750,3 +4750,14 @@ individuais:
 - **Se o `lab` não estiver estável:** o corte **escorrega** para o próximo fim de semana — não é forçado com waiver, e nenhum estágio é pulado. Uma promoção que falha retorna ao `lab` (`BLOCKED → LAB`), nunca lateralmente.
 - **O que isto NÃO autoriza:** enfraquecer um check, remover um teste, esconder um vermelho, ou declarar estável sem prova executada (`implemented` != `verified`).
 - **Relações:** `Impõe: D-QUALITY-PIPELINE-2609 (100% dos checks obrigatórios)`, `Relacionado: D-RELEASE-CADENCE, D-RELEASE-1.0, D-1.0-EDGES, D-BRANCH-PIPELINE`; máquina `scripts/pipeline/pipeline_state.py`, `scripts/pipeline/promotion_gate.py`.
+
+---
+
+## D-PLAN-ONE-OWNER — um plano = uma identidade de dona única (`IP:PORTA`); nenhuma lane é dona de múltiplos planos (mantenedora 02/10/2026, diretriz no chat)
+
+**Estado:** DECIDIDO (mantenedora) — regra operacional.
+- **Lei:** todo plano em `docs/development/` (e o rastreamento de plataforma-universal em `docs/architecture/`) leva um `**Dono:** <local-ipv4>:<opencode-port>` explícito no cabeçalho. IP solto, "esta sessão" ou rótulo de lane sem IP:PORTA é INVÁLIDO (mesma lei de identidade absoluta de `D-AGENT-IDENTITY-IPPORT`).
+- **Unicidade:** **nenhuma identidade única (`IP:PORTA`) pode ser dona de mais de um plano ativo**. Um agente atribuído a um plano não pega fatias de outro; fazer isso gera confusão, claims cruzados e handoffs não-verificados (medido 02/10: `.101:9092` era dona de memory-safety mas também pousou slices de AVIF em image-vision e de connector; `.30:9093` era dona de testing-platform mas também tocou graphics e test-architecture).
+- **Handoff / órfão:** um plano que perde a dona ou cujo claim é revogado deve declarar `**Dono:** SEM DONO / ABERTO` no cabeçalho, até nova reivindicação com `IP:PORTA` fresco e exclusivo que não detenha outro plano. Plano sem dona exclusiva não pode ser avançado sob identidade compartilhada/silenciosa.
+- **Autoridade / execução:** `scripts/check_plan_owners.sh` (varre todos os cabeçalhos de plano, falha em IPs duplicados, campos ausentes ou nomes de lane sem âncora).
+- **Relações:** `Estende: D-AGENT-IDENTITY-IPPORT (granularidade de identidade)`, `Complementa: AGENTS.md §Multi-agent state (disciplina de claims)`.

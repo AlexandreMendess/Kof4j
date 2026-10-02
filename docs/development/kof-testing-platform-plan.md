@@ -4,6 +4,7 @@
 
 **Status:** UNDER DEVELOPMENT — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
 **Location:** `docs/development/`
+**Owner:** `192.168.15.30:9093` (lane issues/tooling — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 **Nature:** implementation plan — real state + how to finish (design record kept below)
 **Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface

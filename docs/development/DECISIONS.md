@@ -4760,3 +4760,14 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **If `lab` is not stable:** the cut **slips** to the next weekend — it is not forced through with a waiver, and no stage is skipped. A failed promotion returns to `lab` (`BLOCKED → LAB`), never sideways.
 - **What this does NOT authorize:** weakening a check, dropping a test, hiding a red, or declaring stable without executed proof (`implemented` != `verified`).
 - **Relationships:** `Enforces: D-QUALITY-PIPELINE-2609 (100% mandatory checks)`, `Related: D-RELEASE-CADENCE, D-RELEASE-1.0, D-1.0-EDGES, D-BRANCH-PIPELINE`; machine `scripts/pipeline/pipeline_state.py`, `scripts/pipeline/promotion_gate.py`.
+
+---
+
+## D-PLAN-ONE-OWNER — one plan = one unique owner identity (`IP:PORTA`); no lane owns multiple plans (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — operational rule.
+- **Law:** every plan in `docs/development/` (and the universal-platform tracking in `docs/architecture/`) carries an explicit `**Owner:** <local-ipv4>:<opencode-port>` in its header. A bare IP, "this session", or a lane label without IP:PORT is INVALID (same absolute-identity rule as `D-AGENT-IDENTITY-IPPORT`).
+- **Uniqueness:** **no single identity (`IP:PORTA`) may own more than one active plan**. An agent assigned to one plan does not pick up slices from another plan; doing so creates confusion, mixed claims and unverified handoffs (measured 02/10: `.101:9092` owned memory-safety but also landed image-vision AVIF and connector slices; `.30:9093` owned testing-platform but also touched graphics and test-architecture).
+- **Handoff / orphan:** a plan that loses its owner or has its claim revoked must declare `**Owner:** SEM DONO / OPEN` in its header, until re-claimed with a fresh, unique `IP:PORTA` that does not already hold another plan. A plan without an exclusive owner cannot be advanced under a shared/silent identity.
+- **Authority / enforcement:** `scripts/check_plan_owners.sh` (scans all plan headers, fails on duplicate IPs, missing owner fields, or unanchored lane names).
+- **Relationships:** `Extends: D-AGENT-IDENTITY-IPPORT (identity granularity)`, `Complements: AGENTS.md §Multi-agent state (claim discipline)`.

@@ -180,6 +180,7 @@ if touches '^docs/bugs-and-gaps/known-bugs'; then
 fi
 if touches '^docs/development/'; then
     run_gate live_records "${AGENT_VERIFY_LIVERECORDS:-bash scripts/check_live_records.sh}"
+    run_gate plan_owners "${AGENT_VERIFY_PLANOWNERS:-bash scripts/check_plan_owners.sh}"
 fi
 if touches '(^|/)(kof-runtime|stdlib)/|stdlib_boundary'; then
     run_gate stdlib_boundary "${AGENT_VERIFY_STDLIB:-bash scripts/check_stdlib_boundary.sh}"

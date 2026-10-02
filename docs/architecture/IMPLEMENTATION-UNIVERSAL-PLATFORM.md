@@ -2,6 +2,8 @@
 
 # Implementation — Kof as a Universal Platform
 
+**Owner:** maintainer (Mel Santos) — no `IP:PORTA` lane is assigned; last named lane activity 21/09. Re-activation requires a maintainer directive (`D-AGENT-IDENTITY-IPPORT`).
+
 **Type:** implementation tracking — **UNDER DEVELOPMENT** since 17/09/2026
 (promoted from `future/` by maintainer decision; the R12 gate is **overridden**
 — see `DECISIONS.md` §D-UNIVERSAL)

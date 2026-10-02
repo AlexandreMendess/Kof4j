@@ -3,7 +3,7 @@
 # 🧪 Refactoring Plan — Kof Test Architecture and Modularization
 
 **Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
-**Owner:** issues/tooling lane (this session)
+**Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**

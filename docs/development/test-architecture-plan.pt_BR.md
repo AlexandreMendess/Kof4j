@@ -3,7 +3,7 @@
 # 🧪 Plano de Refatoração — Arquitetura e Modularização de Testes do Kof
 
 **Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
-**Dono:** lane issues/tooling (esta sessão)
+**Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**

@@ -4,6 +4,7 @@
 
 **Status:** UNDER DEVELOPMENT — promoted `future/` → `docs/development/` by `D-CONNECTORS-GO` (maintainer 29/09/2026)
 **Location:** `docs/development/kof-connector-ecosystem-plan.md`
+**Owner:** SEM DONO / OPEN — re-claim required. The 02/10 connector-line claims carry `192.168.15.101:9092`, which owns `memory-safety-plan` (a `D-PLAN-ONE-OWNER` violation); slice A (`foreign module`, 01/10) landed with NO named owner at all. One identity = one plan; claim with `IP:PORTA` in this header + a DOING claim.
 **Nature:** architecture, contracts, dependencies, implementation strategy, promotion criteria
 **Normative source:** `DECISIONS.md` §`D-CONNECTORS-GO` (DECIDED — promotion authorized)
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path

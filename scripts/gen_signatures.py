@@ -465,12 +465,10 @@ def render(groups):
     return HEADER + ",\n".join(block(ns, it) for ns, it in groups) + ");\n\n"
 
 
-def main():
-    mode = sys.argv[1] if len(sys.argv) > 1 else "check"
-    s = io.open(CAT, encoding="utf-8").read()
-    mem = io.open("kof-compiler/src/main/java/dev/kof/compiler/StdCatalog.java", encoding="utf-8").read()
+def build(cat_path):
+    """Le o catalogo, re-renderiza a tabela e devolve (fonte, esperado, grupos, membros, formas)."""
+    s = io.open(cat_path, encoding="utf-8").read()
     groups = [(ns, items) for ns, items in list(BASE.items()) + list(EXTRA_FATIAS.items())]
-    have = {ns for ns, _ in groups}
     tabled = sum(len(g) for _, g in groups)
     out = render(groups)
     i0 = s.index("    private static final Map<String, Map<String, List<String>>> SIGNATURES")
@@ -492,13 +490,65 @@ def main():
                 d -= 1
     assert d == 0, "profundidade %d — gerador abortado" % d
     ns_ = sum(len(x) for _, g in groups for _, x in g)
+    return s, s2, groups, tabled, ns_
+
+
+def selftest():
+    """RED-first do detector: catalogo limpo = rc0; deriva plantada = rc1."""
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+    s = io.open(CAT, encoding="utf-8").read()
+    tmpd = tempfile.mkdtemp(prefix="gensig-selftest.")
+    try:
+        clean = os.path.join(tmpd, "Clean.java")
+        io.open(clean, "w", encoding="utf-8").write(s)
+        rc = subprocess.call([sys.executable, os.path.abspath(__file__), "check", "--catalog", clean])
+        if rc != 0:
+            print("SELFTEST FALHOU: catalogo limpo acusado como deriva")
+            return 1
+        probe = 'Map.entry("sin", List.of("sin(Double x) -> Double")),'
+        planted = s.replace(probe, "", 1)
+        if planted == s:
+            print("SELFTEST FALHOU: linha-sonda nao encontrada (catalogo mudou)")
+            return 1
+        bad = os.path.join(tmpd, "Bad.java")
+        io.open(bad, "w", encoding="utf-8").write(planted)
+        rc = subprocess.call([sys.executable, os.path.abspath(__file__), "check", "--catalog", bad],
+                             stderr=subprocess.DEVNULL)
+        if rc == 0:
+            print("SELFTEST FALHOU: deriva plantada NAO foi detectada")
+            return 1
+    finally:
+        shutil.rmtree(tmpd)
+    print("SELFTEST OK: limpo=rc0, deriva plantada=rc1")
+    return 0
+
+
+def main():
+    argv = sys.argv[1:]
+    if argv and argv[0] == "--selftest":
+        return selftest()
+    mode = argv[0] if argv and not argv[0].startswith("--") else "check"
+    cat = CAT
+    if "--catalog" in argv:
+        cat = argv[argv.index("--catalog") + 1]
+    s, s2, groups, tabled, ns_ = build(cat)
     print("%d ns, %d membros, %d formas" % (len(groups), tabled, ns_))
-    if mode == "write" and s2 != s:
-        io.open(CAT, "w", encoding="utf-8").write(s2)
-        print("gravado")
-    else:
-        print("inalterado" if s2 == s else "modo check (sem escrita)")
+    if mode == "write":
+        if s2 != s:
+            io.open(cat, "w", encoding="utf-8").write(s2)
+            print("gravado")
+        else:
+            print("inalterado")
+        return 0
+    if s2 != s:
+        sys.stderr.write("DRIFT: %s nao casa com gen_signatures.py — rode: python3 scripts/gen_signatures.py write\n" % cat)
+        return 1
+    print("inalterado")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
