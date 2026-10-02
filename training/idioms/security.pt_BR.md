@@ -47,6 +47,21 @@ Para payloads BINÁRIOS a linguagem tem face dedicada —
 recusam com o gap SECN000 até o port). Fixar bytes como AAD-String em hex
 continua legal onde a face não está disponível.
 
+## Chaves de sessão — X25519 + HKDF, nunca montadas à mão
+
+```kof
+var minha = keyExchange.privateKey()                      // Secret (R8: nunca imprimível)
+var minhaPub = keyExchange.publicKey(minha)               // String 64-hex — envie
+var compartilhada = keyExchange.shared(minha, secrets.of(pubDoPar))
+var txKey = keyExchange.hkdfSha256(compartilhada, saltHex, "0001", 32)  // AES por direção
+```
+
+D-KOF-X25519: material privado SÓ viaja dentro de `Secret` (argumento
+errado = `SECN014`); o valor público é a única exportação. JVM/Android/
+Script reais (RFC 7748 + RFC 5869); JS/Native/cross recusam `SECN012` até
+o port. Derive chaves por direção com HKDF sobre o segredo compartilhado —
+nunca reutilize um escalar cru como chave de app.
+
 ## Criptografia — AES-GCM; argumentos são `(plain, keyHex)`, chave = 32 bytes
 
 ```kof

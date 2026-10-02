@@ -507,6 +507,14 @@ public final class JvmRuntimeCallDescriptors {
             // D-SECRETS face 1: tipo Secret.
             case "kof_sec_secret_of", "kof_sec_secret"
                     -> "(Ljava/lang/String;)Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_x25519_private_key" -> "()Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_x25519_public_key"
+                    -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
+            case "kof_sec_x25519_shared"
+                    -> "(Ldev/kof/runtime/KofRuntime$Secret;Ldev/kof/runtime/KofRuntime$Secret;)Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_hkdf_sha256"
+                    -> "(Ldev/kof/runtime/KofRuntime$Secret;Ljava/lang/String;Ljava/lang/String;I)Ljava/lang/String;";
+
             case "kof_sec_secret_from_bytes"
                     -> "([I)Ldev/kof/runtime/KofRuntime$Secret;";
             // D-SECRETS P3 (KeyHandle) — JVM-primeiro.

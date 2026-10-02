@@ -271,6 +271,12 @@ EXTRA_FATIAS = {
         ("spanEnd", ["spanEnd(String id) -> String"]),
         ("exportSpans", ["exportSpans() -> String"]),
     ],
+    "keyExchange": [
+        ("privateKey", ["privateKey() -> Secret"]),
+        ("publicKey", ["publicKey(Secret priv) -> String"]),
+        ("shared", ["shared(Secret priv, Secret peerPublicHex) -> Secret"]),
+        ("hkdfSha256", ["hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String"]),
+    ],
     "tetris": [("run", ["run() -> void"])],
     # fatia 6: seguranca (dispatcher aninhado KofSecurity.staticMethod) + media
     "passwords": [
@@ -281,6 +287,8 @@ EXTRA_FATIAS = {
     "crypto": [
         ("sha256", ["sha256(String s) -> String"]),
         ("sha512", ["sha512(String s) -> String"]),
+        ("sha256Bytes", ["sha256Bytes(Byte[] data) -> String"]),
+        ("hmacSha256Bytes", ["hmacSha256Bytes(Byte[] key, Byte[] msg) -> String"]),
         ("hmacSha256", ["hmacSha256(String key, String msg) -> String"]),
         ("encryptAesGcm", ["encryptAesGcm(String plain, String keyHex64) -> String"]),
         ("decryptAesGcm", ["decryptAesGcm(String cipher, String keyHex64) -> String"]),
