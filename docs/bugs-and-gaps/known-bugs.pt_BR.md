@@ -14081,10 +14081,8 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Fronteira:** o slice 5 do `kof.test` (`assertEqualByte`/`assertEqualShort`/`assertEqualChar`) só compara e imprime — NÃO faz aritmética de `Byte`, então nunca dependeu desta decisão.
 **Status:** ✅ CORRIGIDO 02/10 — `D-KOF-BYTE-ARITH` (resposta regra 6 da mantenedora: promover para `Int`); issue #720.
 
-<<<<<<< HEAD
 <!-- en-switch --> **EN:** [§561 (EN)](known-bugs.md#561--jvm-byteshortchar-arithmetic-keeps-the-operand-type-commonnumerictype-returns-the-left-operand-and-boxes-the-un-narrowed-result-byte--byte-outside--128127-crashes-bytevalueof-arrayindexoutofboundsexception-while-jsnative-return-the-un-truncated-int-and-the-documented-contract-says-the-result-is-int---fixed-0210-lane-compilerjvm--owner-19216815309092-d-kof-byte-arith--promote-to-int-issue-720)
-=======
-<!-- en-switch --> **EN:** [§561 (EN)](known-bugs.md#561--jvm-byteshortchar-arithmetic-keeps-the-operand-type-commonnumerictype-returns-the-left-operand-and-boxes-the-un-narrowed-result-byte--byte-outside--128127-crashes-bytevalueof-arrayindexoutofboundsexception-while-jsnative-return-the-un-truncated-int-and-the-documented-contract-says-the-result-is-int---open-rule-6-promote-to-int-vs-wrap-to-byte-issue-720)
+
 
 ## §562 — o corpus de sistema de arquivos anuncia uma superfície ESTÁTICA `File.readBytes(path)` / `File.writeText(path, s)` que não existe: a chamada morre `SEM011 Undefined variable or type: 'File'`; só o estilo instância `File("x").readBytes()` existe — 🟡 ABERTO (corpus x implementação; o ramo estático de `KofIo.staticMethod("File")` não tem chegada pelo typer)
 
@@ -14100,5 +14098,5 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 **Status:** 🟡 ABERTO — correção de corpus ou ligação do namespace estático (unidade própria); registrado ao construir o D-KOFSHARE-100KOF.
 
-<!-- en-switch --> **EN:** [§562 (known-bugs.md)](known-bugs.md#562--the-filesystem-corpus-advertises-a-static-file-readbytespath--file-writetextpath-s-surface-that-does-not-exist-the-call-dies-sem011-undefined-variable-or-type-file-only-the-instance-style-filex-readbytes-exists--open-corpus-x-implementation-the-static-arm-in-koifiostaticmethod-file-has-no-reach)
->>>>>>> 69806a77e (docs(ledger,doing): §562 catalogued EN+PT + slice-6/KofShare-core DONE claims (EN+PT))
+<!-- en-switch --> **EN:** [§562 (known-bugs.md)](known-bugs.md#562--the-filesystem-corpus-advertises-a-static-filereadbytespath--filewritetextpath-s-surface-that-does-not-exist-the-call-dies-sem011-undefined-variable-or-type-file-only-the-instance-style-filexreadbytes-exists---open-corpus-x-implementation-the-static-arm-in-kofiostaticmethod-has-no-namespace-wiring)
+

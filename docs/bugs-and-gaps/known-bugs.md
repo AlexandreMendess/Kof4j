@@ -16526,10 +16526,8 @@ plan "Phase 5 slices".
 **Boundary:** `kof.test` slice 5 (`assertEqualByte`/`assertEqualShort`/`assertEqualChar`) only compares and prints — it does NOT do `Byte` arithmetic, so it never depended on this decision.
 **Status:** ✅ FIXED 02/10 — `D-KOF-BYTE-ARITH` (maintainer rule-6 answer: promote to `Int`); issue #720.
 
-<<<<<<< HEAD
 <!-- pt-switch --> **PT:** [§561 (pt_BR)](known-bugs.pt_BR.md#561--aritmetica-de-byteshortchar-na-jvm-mantem-o-tipo-do-operando-commonnumerictype-devolve-o-operando-da-esquerda-e-faz-box-do-resultado-sem-narrowing-byte--byte-fora-de--128127-crasheia-bytevalueof-arrayindexoutofboundsexception-enquanto-jsnativo-devolvem-o-int-nao-truncado-e-o-contrato-documentado-diz-que-o-resultado-e-int---corrigido-0210-lane-compilerjvm--dona-19216815309092-d-kof-byte-arith--promover-para-int-issue-720)
-=======
-<!-- pt-switch --> **PT:** [§561 (pt_BR)](known-bugs.pt_BR.md#561--aritmetica-de-byteshortchar-na-jvm-mantem-o-tipo-do-operando-commonnumerictype-devolve-o-operando-da-esquerda-e-faz-box-do-resultado-sem-narrowing-byte--byte-fora-de--128127-crasheia-bytevalueof-arrayindexoutofboundsexception-enquanto-jsnativo-devolvem-o-int-nao-truncado-e-o-contrato-documentado-diz-que-o-resultado-e-int---aberto-regra-6-promover-para-int-vs-wrap-para-byte-issue-720)
+
 
 ## §562 — the filesystem corpus advertises a STATIC `File.readBytes(path)` / `File.writeText(path, s)` surface that does not exist: the call dies `SEM011 Undefined variable or type: 'File'`; only the instance style `File("x").readBytes()` exists — 🟡 OPEN (corpus x implementation; the static arm in `KofIo.staticMethod` has no namespace wiring)
 
@@ -16545,5 +16543,5 @@ plan "Phase 5 slices".
 
 **Status:** 🟡 OPEN — corpus fix or static wiring (own unit); registered while building D-KOFSHARE-100KOF.
 
-<!-- pt-switch --> **PT:** [§562 (pt_BR)](known-bugs.pt_BR.md#562--o-corpus-de-sistema-de-arquivos-anuncia-uma-surface-estatica-file--file-readbytespath--file-writetextpath-s-que-nao-existe-a-chamada-morre-sem011-undefined-variable-or-type-file-so-o-estilo-instancia-filex--readbytes-existe--aberto-corpus-x-implementacao-o-ramo-estatico-de-kofiostaticmethod-file-nao-tem-chegada)
->>>>>>> 69806a77e (docs(ledger,doing): §562 catalogued EN+PT + slice-6/KofShare-core DONE claims (EN+PT))
+<!-- pt-switch --> **PT:** [§562 (pt_BR)](known-bugs.pt_BR.md#562--o-corpus-de-sistema-de-arquivos-anuncia-uma-superficie-estatica-filereadbytespath--filewritetextpath-s-que-nao-existe-a-chamada-morre-sem011-undefined-variable-or-type-file-so-o-estilo-instancia-filexreadbytes-existe---aberto-corpus-x-implementacao-o-ramo-estatico-de-kofiostaticmethodfile-nao-tem-chegada-pelo-typer)
+
