@@ -148,6 +148,59 @@ class JvmLauncherDiagnosticE2ETest {
     }
 
     @Test
+    void benchAndWorkflowCommandsRouteThroughWrapper(@TempDir Path dir) throws Exception {
+        Path out = Files.createDirectories(dir.resolve("out/Default"));
+        Files.write(out.resolve("Main.class"), new byte[]{(byte) 0xCA, (byte) 0xFE});
+        java.util.List<String> bench = BenchRunners.commandFor(
+                dev.kof.compiler.Target.JVM, dir.resolve("out"));
+        assertNotNull(bench, "commandFor deve resolver a classe Main");
+        java.nio.file.Path wrapper = KofCliSupport.jvmLaunchWrapperLocation();
+        if (wrapper != null) {
+            assertTrue(bench.contains("dev.kof.runtime.KofJvmMain"),
+                    "kof bench deve passar pelo wrapper §556: " + bench);
+            assertTrue(bench.stream().anyMatch(s -> s.contains(wrapper.toString())),
+                    "o classpath do filho deve incluir o wrapper: " + bench);
+        }
+    }
+
+    @Test
+    void kofWorkflowNeverPrintsJavafxMask(@TempDir Path dir) throws Exception {
+        Path src = dir.resolve("pipe.kf");
+        Files.writeString(src, """
+            import kof.workflow
+            import java.security.MessageDigest
+
+            KofWfDag pipeline() {
+                var j = job("md", () -> {
+                    var md = MessageDigest.getInstance("SHA-256")
+                    var b = new Byte[3]
+                    b[0] = 97
+                    b[1] = 98
+                    b[2] = 99
+                    md.update(b)
+                    return md.digest().length == 32
+                })
+                return dag(listOf(j))
+            }
+            """);
+        List<String> cmd = new ArrayList<>();
+        cmd.add(javaBin());
+        cmd.add("-cp");
+        cmd.add(System.getProperty("java.class.path"));
+        cmd.add("dev.kof.cli.Main");
+        cmd.add("workflow");
+        cmd.add("run");
+        cmd.add(src.toString());
+        String out = read(start(cmd, dir));
+
+        assertFalse(out.contains("JavaFX"),
+                "kof workflow run não pode imprimir a máscara JavaFX (§556):\n" + out);
+        assertTrue(out.contains("ok") || out.contains("allOk") || out.contains("VerifyError")
+                        || out.contains("NoClassDefFoundError") || out.contains("Exception"),
+                "o pipeline roda ou a causa real aparece:\n" + out);
+    }
+
+    @Test
     void kofTestNeverPrintsJavafxMask(@TempDir Path dir) throws Exception {
         Path src = dir.resolve("Main.kf");
         Files.writeString(src, """

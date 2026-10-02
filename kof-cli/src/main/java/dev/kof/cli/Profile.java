@@ -159,14 +159,13 @@ public final class Profile {
                 command.add("-XX:StartFlightRecording=filename=" + outDir.resolve("profile.jfr")
                         + ",settings=profile,dumponexit=true");
             }
-            command.add("-cp");
-            command.add(outDir.toString());
             String mainClass = findMainClass(outDir);
             if (mainClass == null) {
                 System.err.println("kof profile: no main class found");
                 return null;
             }
-            command.add(mainClass);
+            // §556: wrapper de diagnóstico também no kof profile.
+            KofCliSupport.appendJvmLaunch(command, outDir.toString(), mainClass);
         } else {
             Path bin = outDir.resolve("Default/Main");
             if (!Files.isExecutable(bin)) {

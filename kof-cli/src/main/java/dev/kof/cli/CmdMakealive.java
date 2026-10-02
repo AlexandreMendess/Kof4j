@@ -179,9 +179,10 @@ final class CmdMakealive {
                 List<String> jvmCmd = new java.util.ArrayList<>();
                 jvmCmd.add(KofCliSupport.javaExecutable());
                 jvmCmd.addAll(KofStdio.capturedJvmFlags());
-                jvmCmd.addAll(List.of("-cp",
+                // §556: wrapper de diagnóstico também no host makealive.
+                KofCliSupport.appendJvmLaunch(jvmCmd,
                         out + java.io.File.pathSeparator + System.getProperty("java.class.path"),
-                        className));
+                        className);
                 ProcessBuilder pb = new ProcessBuilder(jvmCmd);
                 pb.directory(siblingDir != null ? siblingDir.toFile() : temp.toFile());
                 pb.redirectErrorStream(true);

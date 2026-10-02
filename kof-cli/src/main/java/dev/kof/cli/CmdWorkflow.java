@@ -172,7 +172,9 @@ final class CmdWorkflow {
             List<String> jvmCmd = new ArrayList<>();
             jvmCmd.add(KofCliSupport.javaExecutable());
             jvmCmd.addAll(KofStdio.capturedJvmFlags());
-            jvmCmd.addAll(List.of("-cp", out.toString(), className));
+            // §556: sem o wrapper de diagnóstico, uma falha de load/link do
+            // pipeline gerado vira a mensagem falsa do launcher.
+            KofCliSupport.appendJvmLaunch(jvmCmd, out.toString(), className);
             ProcessBuilder pb = new ProcessBuilder(jvmCmd);
             // o pipeline roda no diretório do arquivo: caminhos relativos do
             // pipeline (ex. build/) resolvem no projeto, não no staging.
