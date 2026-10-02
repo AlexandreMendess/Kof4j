@@ -4631,3 +4631,63 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Boundary:** `kof.test` slice 5 (`assertEqualByte`/`assertEqualShort`/`assertEqualChar`) only compares and prints — it does not do `Byte` arithmetic, so it does not depend on this decision.
 - **Classification:** `1.0-blocks` (core JVM correctness on a Stable target; the JVM face is a crash).
 - **Relationships:** `Related: #471 (the `as Byte` narrowing precedent), §561, D-KOF-FIRST, rule 5, rule 6, rule 11`; ledger `scripts/release-blockers.tsv`.
+
+---
+
+## D-PDF-READ — PDF text reading surface = option A, `pdf.text(path): String?` (maintainer 02/10/2026, chat rule-6 answer; tracker `#629`)
+
+**State:** DECIDED (surface only) — **option A: a `pdf` namespace function `pdf.text(path): String?`**, no new builtin. The remaining sub-questions of #629 stay OPEN (see below).
+
+- **Question (resolved):** which of the three proposed surfaces reads text from a PDF — A `pdf.text(path): String?` (namespace function, no new builtin), B `PdfDocument.open(path).text()` (collides with the writer's `text(String): TextElement`), or C top-level imported `pdfText(path): String?` (precedent `pngRaster`/`decodeJpegRaster`)? **Chosen: A.**
+- **Why A:** library-first over a namespace function (rule 2/12), matches the existing `pdf` writer namespace (`libs/pdf` already landed, `7d01222bf`), and avoids the B collision and the C new top-level import.
+- **Still OPEN (each is a separate rule-6 choice, not decided here):**
+  1. **Direction/dependency** — Apache PDFBox on the JVM hidden behind the Kof API (the contributor's proposal) vs a pure-Kof route (precedent `D-WEBP-LOSSY-PURE-KOF`).
+  2. **Where PDFBox lives** — isolated Maven dependency of `kof-cli` (paid by every user, see `D-SIZE-BUDGET`) vs a user jar via `--classpath`/`--deps`.
+  3. **JS/Native gap code** — the honest refusal code (precedent `IMG001`); no silent fallback.
+- **Not authorized by this entry:** adding the dependency, the runtime face, or the gap code — each needs its own decision. Classification stays `post-1.0` (outside the 1.0 core surface).
+- **Relationships:** `Related: #704/D-SIZE-BUDGET (dependency bytes), D-WEBP-LOSSY-PURE-KOF, D-KOF-FIRST, rule 2, rule 6, rule 12`; plan `docs/development/` (PDF reader, not yet promoted).
+
+---
+
+## D-KFVM — `kfvm` (Kof version manager) ships as OFFICIAL tooling (maintainer 02/10/2026, chat rule-6 answer; tracker `#707`)
+
+**State:** DECIDED (direction) — `kfvm` is **official tooling**, not a community repository.
+
+- **Question (resolved):** does the Kof version manager (`install`/`switch`/`remove` official releases, `SHA256SUMS` verification, `~/.local/share/kof/kof-<ver>-<platform>` + `current`, Windows junction) ship as official tooling or as a community repo? **Chosen: official tooling.**
+- **Consequences:** the tool becomes part of the official distribution/tooling surface; its design must be promoted through the normal flow (a `docs/development/kfvm-plan.md` UNDER DEVELOPMENT + roadmap §23 + `DOING.md` claim) before implementation. It stays Kof-first (written over `kof.io`/`kof.http`/`kof.json`/`kof.shell`), consistent with `D-KOF-FIRST`.
+- **Still OPEN:** the exact packaging/distribution path (bundled with the toolchain vs installed separately) and the release/layout contract are implementation-plan questions, not decided here.
+- **Classification:** `post-1.0` (tooling surface, same class as `D-CLI-SOURCE-ROOTS`/`#708`).
+- **Relationships:** `Related: #707, scripts/install.sh (single-version, Linux/macOS), D-CLI-SOURCE-ROOTS, D-KOF-FIRST, rule 12`.
+
+---
+
+## D-EQ-UNBOUNDED-T — `==` on an unbounded type parameter `T` means STRUCTURAL content equality (maintainer 02/10/2026, chat rule-6 answer; catalogued `known-bugs` §553)
+
+**State:** DECIDED (maintainer) — option **A: structural equality**, matching the concrete `String`/`record` content-equality contract. Implementation pending.
+
+- **Question (resolved):** what must `==` mean on an unbounded `T` — structural content equality (like the concrete `String`/`record` contract), or an honest compile-time refusal (like `NAT004` for `toString` on unbounded `T`, §358)? **Chosen: structural equality.**
+- **Measured divergence (01/10, catalogued §553):** JS compares structurally (`===` on the erased value); JVM/Script/Native compare by reference (JVM `if_acmp` / native pointer compare); literal caching masks the JVM/Script face (`eq(1,1)`/`eq("a","a")` true) while Native has no cache (false). Concrete-type `==` is correct on every target.
+- **Consequence:** the `kof.test` §4.1 `assertEqual`/`assertNotEqual` generic pair (deferred, not shipped broken) is unblocked once the semantics are implemented per-target. This aligns an implementation divergence with the frozen `content ==` contract — a bug fix, not a new operator; no version bump for the operator itself.
+- **Not authorized:** shipping the generic `assertEqual` pair before the per-target `==` is proven byte-identical.
+- **Relationships:** `Related: §553, §358 (NAT004 precedent), content == (frozen), D-KOF-FIRST, rule 5, rule 6, rule 11`; owner = issues/tooling lane.
+
+---
+
+## D-INTEROP-OVERLOAD-REFUSE — a call whose argument only matches a primitive-WIDENED Java overload is REFUSED at compile time (maintainer 02/10/2026, chat rule-6 answer; catalogued `known-bugs` §554)
+
+**State:** DECIDED (maintainer) — option **A: compile-time refusal** with an explicit diagnostic (no silent emit that dies at class load).
+
+- **Question (resolved):** §554 — a JVM interop call whose argument type only matches a Java overload via primitive widening is typed OK and dies at class load with `VerifyError: Bad type on operand stack` (masked by the launcher as the JavaFX message, §556). Fix by compile-time refusal or by emitting the correct coercion? **Chosen: compile-time refusal.**
+- **Rationale:** Kof has no silent widening at the surface (the `sqrt`/`lerp` `SEM025` type guard is the precedent); refusing at compile time is honest and target-independent, never a class-load crash.
+- **Implementation pending (compiler/interop lane):** detect the overload-match-by-widening case in the interop typer/resolver and emit a named diagnostic (code TBD); a regression test must fail on the old code.
+- **Relationships:** `Related: §554, §556 (the launcher mask, fixed), §557 (interface dispatch, fixed), SEM025 precedent, rule 6, rule 11`; owner = compiler/interop lane.
+
+---
+
+## D-JS-PLATFORM-SELECTOR — NO compile-time node/browser selector is added; the runtime `kof_platform` Proxy error stays the honest mechanism (maintainer 02/10/2026, chat rule-6 answer; `network-kofnet-plan.md` §2.5)
+
+**State:** DECIDED (maintainer) — option **A: do not create a compile-time selector**.
+
+- **Question (resolved):** `Target` has a single `JS`; should a compile-time node/browser selector be added so a browser build can be refused at compile time? **Chosen: no.** The runtime `kof_platform` Proxy error (R7, proven for `net` by `KofJsHostlessRuntimeTest`) remains the mechanism.
+- **Consequence:** no `Target`/frozen-surface change; no `D-*` surface addition. A future compile-time split would need its own decision.
+- **Relationships:** `Related: D-KOF-NET (slice 5 measurement), network-kofnet-plan.md §2.5, rule 6, rule 11`.

@@ -4621,3 +4621,63 @@ individuais:
 - **Fronteira:** o slice 5 do `kof.test` (`assertEqualByte`/`assertEqualShort`/`assertEqualChar`) só compara e imprime — não faz aritmética de `Byte`, então não depende desta decisão.
 - **Classificação:** `1.0-blocks` (corretude no core da JVM num alvo Stable; a face JVM é crash).
 - **Relações:** `Relacionado: #471 (o precedente do narrowing de `as Byte`), §561, D-KOF-FIRST, regra 5, regra 6, regra 11`; ledger `scripts/release-blockers.tsv`.
+
+---
+
+## D-PDF-READ — superfície de leitura de texto de PDF = opção A, `pdf.text(path): String?` (mantenedora 02/10/2026, resposta regra-6 no chat; tracker `#629`)
+
+**Estado:** DECIDIDO (só a superfície) — **opção A: função do namespace `pdf`, `pdf.text(path): String?`**, sem novo builtin. As subquestões restantes do #629 seguem ABERTAS (abaixo).
+
+- **Pergunta (resolvida):** qual das três superfícies lê texto de um PDF — A `pdf.text(path): String?` (função de namespace, sem novo builtin), B `PdfDocument.open(path).text()` (colide com o `text(String): TextElement` do writer), ou C top-level importado `pdfText(path): String?` (precedente `pngRaster`/`decodeJpegRaster`)? **Escolhida: A.**
+- **Por que A:** library-first sobre função de namespace (regras 2/12), casa com o namespace `pdf` do writer (`libs/pdf` já pousou, `7d01222bf`), evita a colisão de B e o novo import top-level de C.
+- **Seguem ABERTAS (cada uma é uma escolha regra-6 separada, não decidida aqui):**
+  1. **Direção/dependência** — Apache PDFBox na JVM escondido atrás da API Kof (proposta do contribuidor) vs rota puro-Kof (precedente `D-WEBP-LOSSY-PURE-KOF`).
+  2. **Onde o PDFBox mora** — dependência Maven isolada do `kof-cli` (paga por todo usuário, ver `D-SIZE-BUDGET`) vs jar do usuário via `--classpath`/`--deps`.
+  3. **Código de gap JS/Nativo** — o código de recusa honesta (precedente `IMG001`); sem fallback silencioso.
+- **Não autorizado por este verbete:** adicionar a dependência, a face de runtime ou o código de gap — cada um precisa de decisão própria. Classificação segue `post-1.0` (fora da superfície core 1.0).
+- **Relações:** `Relacionado: #704/D-SIZE-BUDGET (bytes de dependência), D-WEBP-LOSSY-PURE-KOF, D-KOF-FIRST, regra 2, regra 6, regra 12`; plano `docs/development/` (leitor de PDF, ainda não promovido).
+
+---
+
+## D-KFVM — `kfvm` (gerenciador de versões Kof) é FERRAMENTA OFICIAL (mantenedora 02/10/2026, resposta regra-6 no chat; tracker `#707`)
+
+**Estado:** DECIDIDO (direção) — o `kfvm` é **ferramenta oficial**, não repositório da comunidade.
+
+- **Pergunta (resolvida):** o gerenciador de versões Kof (`install`/`switch`/`remove` de releases oficiais, verificação `SHA256SUMS`, `~/.local/share/kof/kof-<ver>-<platform>` + `current`, junction no Windows) sai como ferramenta oficial ou repo da comunidade? **Escolhido: ferramenta oficial.**
+- **Consequências:** a ferramenta passa a integrar a superfície oficial de distribuição/tooling; seu desenho deve ser promovido pelo fluxo normal (`docs/development/kfvm-plan.md` UNDER DEVELOPMENT + roadmap §23 + claim no `DOING.md`) antes da implementação. Segue Kof-first (escrita sobre `kof.io`/`kof.http`/`kof.json`/`kof.shell`), coerente com `D-KOF-FIRST`.
+- **Segue ABERTO:** o caminho exato de empacotamento/distribuição (embarcado no toolchain vs instalado à parte) e o contrato de release/layout são questões do plano de implementação, não decididas aqui.
+- **Classificação:** `post-1.0` (superfície de tooling, mesma classe de `D-CLI-SOURCE-ROOTS`/`#708`).
+- **Relações:** `Relacionado: #707, scripts/install.sh (single-version, Linux/macOS), D-CLI-SOURCE-ROOTS, D-KOF-FIRST, regra 12`.
+
+---
+
+## D-EQ-UNBOUNDED-T — `==` num parâmetro de tipo `T` sem limite significa igualdade ESTRUTURAL de conteúdo (mantenedora 02/10/2026, resposta regra-6 no chat; catalogado `known-bugs` §553)
+
+**Estado:** DECIDIDO (mantenedora) — opção **A: igualdade estrutural**, casando com o contrato de igualdade de conteúdo do `String`/`record` concreto. Implementação pendente.
+
+- **Pergunta (resolvida):** o que `==` deve significar num `T` sem limite — igualdade estrutural de conteúdo (como o contrato concreto de `String`/`record`) ou recusa honesta em compile-time (como `NAT004` para `toString` em `T` sem limite, §358)? **Escolhido: igualdade estrutural.**
+- **Divergência medida (01/10, catalogado §553):** JS compara estruturalmente (`===` sobre o valor apagado); JVM/Script/Nativo comparam por referência (`if_acmp` na JVM / comparação de ponteiro no nativo); o cache de literais mascara a face JVM/Script (`eq(1,1)`/`eq("a","a")` true) enquanto o Nativo não tem cache (false). O `==` de tipo concreto está correto em todos os alvos.
+- **Consequência:** o par genérico `assertEqual`/`assertNotEqual` do `kof.test` §4.1 (adiado, não pousado quebrado) fica desbloqueado quando a semântica for implementada por alvo. Isto alinha uma divergência de implementação ao contrato congelado de `content ==` — correção de bug, não novo operador; sem bump de versão pelo operador em si.
+- **Não autorizado:** pousar o par genérico `assertEqual` antes de provar o `==` byte-idêntico por alvo.
+- **Relações:** `Relacionado: §553, §358 (precedente NAT004), content == (congelado), D-KOF-FIRST, regra 5, regra 6, regra 11`; dona = lane issues/tooling.
+
+---
+
+## D-INTEROP-OVERLOAD-REFUSE — chamada cujo argumento só casa com overload Java ALARGADO por primitiva é RECUSADA em compile-time (mantenedora 02/10/2026, resposta regra-6 no chat; catalogado `known-bugs` §554)
+
+**Estado:** DECIDIDO (mantenedora) — opção **A: recusa em compile-time** com diagnóstico explícito (sem emissão silenciosa que morre no class load).
+
+- **Pergunta (resolvida):** §554 — uma chamada de interop JVM cujo tipo de argumento só casa com um overload Java via alargamento primitivo é tipada OK e morre no class load com `VerifyError: Bad type on operand stack` (mascarado pelo launcher como a mensagem do JavaFX, §556). Corrigir por recusa em compile-time ou emitindo a coerção correta? **Escolhido: recusa em compile-time.**
+- **Razão:** Kof não tem alargamento silencioso na superfície (o guard de tipo `SEM025` do `sqrt`/`lerp` é o precedente); recusar em compile-time é honesto e independente de alvo, nunca crash no class load.
+- **Implementação pendente (lane compiler/interop):** detectar o caso de match-por-alargamento no typer/resolver de interop e emitir diagnóstico nomeado (código a definir); um teste de regressão deve falhar no código antigo.
+- **Relações:** `Relacionado: §554, §556 (o mask do launcher, corrigido), §557 (despacho de interface, corrigido), precedente SEM025, regra 6, regra 11`; dona = lane compiler/interop.
+
+---
+
+## D-JS-PLATFORM-SELECTOR — NENHUM seletor node/browser em compile-time; o erro de runtime do Proxy `kof_platform` segue o mecanismo honesto (mantenedora 02/10/2026, resposta regra-6 no chat; `network-kofnet-plan.md` §2.5)
+
+**Estado:** DECIDIDO (mantenedora) — opção **A: não criar seletor em compile-time**.
+
+- **Pergunta (resolvida):** o `Target` tem um só `JS`; um seletor node/browser em compile-time deveria ser adicionado para recusar um build de navegador em compile-time? **Escolhido: não.** O erro de runtime do Proxy `kof_platform` (R7, provado para `net` por `KofJsHostlessRuntimeTest`) segue o mecanismo.
+- **Consequência:** sem mudança em `Target`/superfície congelada; sem adição de `D-*` de superfície. Uma futura divisão em compile-time precisaria de decisão própria.
+- **Relações:** `Relacionado: D-KOF-NET (medição do slice 5), network-kofnet-plan.md §2.5, regra 6, regra 11`.
