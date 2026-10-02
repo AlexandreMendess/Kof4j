@@ -4536,7 +4536,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-SIZE-BUDGET — open the KOF distribution-size front; **Phase 1 = measurement only** (maintainer 01/10/2026, "Aprovado" on the #704 rule-6 request — the recommended option A)
 
-**State:** DECIDED (maintainer) — tracker `#704` (case `jonasrochanasajon`). Phase 1 NOT yet implemented (next promotion candidate per `D-FUTURE-PROMOTION`).
+**State:** DECIDED (maintainer) + **Phase 1 IMPLEMENTED 01/10/2026** — tracker `#704` (case `jonasrochanasajon`). The observability slice landed as `scripts/size/measure-size.sh` + `scripts/size/compare-size.sh` with the versioned baseline `docs/audits/size-baseline.md`(+PT) (commit `c0233cae8`); `c1b13ec09` fixed the module measurement to use the 5 reactor modules by exact VERSION path (`#725`). No reduction/packaging/CI-gate was opened — each still needs its own later decision.
 
 - **Question:** the distribution has no size contract. `kof-cli` is shaded (`maven-shade-plugin`), so every new runtime/compiler dependency is paid by every user; PDFBox (`#629`) is the first concrete case.
 - **Decision (approved = option A):** open the front with **Phase 1 = observability only** — measure the toolchain (module jars, compressed and installed distribution), attribute bytes per dependency (direct, transitive, top 20), measure a `hello-world` per target (JVM, Native x86-64/riscv64/aarch64, JS, Script), and generate a `size diff` between two commits. **No behaviour, dependency, packaging or safety change; no CI block in Phase 1.**
