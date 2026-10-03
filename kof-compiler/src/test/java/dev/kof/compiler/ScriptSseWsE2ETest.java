@@ -29,14 +29,9 @@ class ScriptSseWsE2ETest {
     private final Thread[] spawned = new Thread[1];
 
     private static void waitForPort(int port) throws Exception {
-        for (int i = 0; i < 100; i++) {
-            try (Socket probe = new Socket("127.0.0.1", port)) {
-                return;
-            } catch (java.io.IOException e) {
-                Thread.sleep(200);
-            }
+        if (!TestServerFixture.awaitPort(port, 100, 200)) {
+            throw new AssertionError("daemon never listened on " + port);
         }
-        throw new AssertionError("daemon never listened on " + port);
     }
 
     private void runInterpreted(String program) throws Exception {
