@@ -210,19 +210,19 @@ final class AvifGroupJavaSupport {
         int ohBits = sq[10], forceSct = sq[11], forceMv = sq[12];
         boolean refMvs = sq[13] == 1;
         int bits = p * 8;
-        int frameType = 1, show = 1, err = 1, sct = forceSct, ov = 0, cdfv = 1;
+        int frameType = 0, show = 1, err = 1, sct = forceSct, ov = 0, cdfv = 1;
         if (reduced == 0) {
             if (AvifSeqSupport.readBits(b, bits, 1) == 1) {
                 throw new AssertionError("IMAGE: avif frame show-existing not covered");
             }
             bits += 1;
             frameType = AvifSeqSupport.readBits(b, bits, 2); bits += 2;
-            if (frameType == 0 || frameType == 3) {
+            if (frameType == 1 || frameType == 3) {
                 throw new AssertionError("IMAGE: avif inter frame not covered");
             }
             show = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
             if (show == 0) bits += 1;
-            if (frameType == 1 && show == 1) {
+            if (frameType == 0 && show == 1) {
                 err = 1;
             } else {
                 err = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
@@ -238,13 +238,12 @@ final class AvifGroupJavaSupport {
             ov = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
         }
         bits += ohBits;
-        if (reduced == 0 && !(frameType == 1 && show == 1)) {
+        if (reduced == 0 && !(frameType == 0 && show == 1)) {
             if (AvifSeqSupport.readBits(b, bits, 8) != 255) {
                 throw new AssertionError("IMAGE: avif frame partial refresh not covered");
             }
             bits += 8;
         }
-        if (ov == 1 && err == 0) throw new AssertionError("IMAGE: avif frame size-with-refs not covered");
         int codedW = maxW, codedH = maxH;
         if (ov == 1) {
             codedW = AvifSeqSupport.readBits(b, bits, wB) + 1; bits += wB;
@@ -265,11 +264,8 @@ final class AvifGroupJavaSupport {
             }
             bits += 1;
         }
-        if (AvifSeqSupport.readBits(b, bits, 1) == 0) {
-            throw new AssertionError("IMAGE: avif frame interp not covered");
-        }
-        bits += 2;                                       // switchable + motion
-        if (reduced == 0 && err == 0 && refMvs) bits += 1;
+        // read_interpolation_filter / is_motion_mode_switchable /
+        // use_ref_frame_mvs are read only off-intra (5.9.2).
         if (reduced == 0 && cdfv == 0) bits += 1;         // disable_frame_end_update_cdf
         int sbShift = use128 ? 5 : 4;
         int sbSize = sbShift + 2;

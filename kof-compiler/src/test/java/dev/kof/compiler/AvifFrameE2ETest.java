@@ -28,13 +28,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * End-to-end coverage for AVIF slice 2d (image-vision front, plan §34):
+ * End-to-end coverage for AVIF slice 2d/2e/2l (image-vision front, plan §34):
  * the pure-Kof frame-header prefix walk {@code libs/image/AvifFrame.kf}
  * parses {@code frame_header_obu}/{@code uncompressed_header} per the AV1
  * Bitstream Specification §5.9.2/§5.9.5/§5.9.6 (quoted from the spec PDF
- * read on the dev host 02/10): frame type, show flag, screen-content and
- * force-mv signalling, frame-id width, size override + coded size,
- * superres refusal, render size and the allow_intrabc stop point. Fixtures
+ * read on the dev host 02/10): frame type (spec numbering KEY=0/INTER=1/
+ * INTRA_ONLY=2/SWITCH=3), show flag, screen-content and force-mv
+ * signalling, frame-id width, size override + coded size, superres refusal,
+ * render size and the allow_intrabc stop point. Slice 2l measured on the
+ * real host file that the intra path must NOT read read_interpolation_filter
+ * / is_motion_mode_switchable (5.9.2 has them only off-intra). Fixtures
  * are hand-built byte-exactly to the spec (no AVIF encoder exists on the
  * host — measured); METADATA ONLY — {@code decodeRaster} keeps refusing
  * AVIF, and the tile-group/loop-filter/quantization syntax past
@@ -47,10 +50,11 @@ class AvifFrameE2ETest {
     @TempDir Path tmp;
 
     private static final String GOLDEN = String.join("\n",
-            "red-k t=1 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1",
-            "nr-k t=1 show=1 err=1 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1",
-            "rend t=1 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6 tiles=1x1",
-            "tile4 t=1 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2");
+            "red-k t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1",
+            "nr-k t=0 show=1 err=1 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1",
+            "rend t=0 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6 tiles=1x1",
+            "tile4 t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2",
+            "intra t=2 show=1 err=0 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1");
 
     @Test
     void avifFrameHeaderOnJvm() throws Exception {
@@ -116,11 +120,9 @@ class AvifFrameE2ETest {
                 "IMAGE: avif frame show-existing not covered",
                 "IMAGE: avif inter frame not covered",
                 "IMAGE: avif intra block copy not covered",
-                "IMAGE: avif frame size-with-refs not covered",
                 "IMAGE: truncated avif frame header",
                 "IMAGE: avif item has no frame header",
-                "IMAGE: avif tile size list not covered",
-                "IMAGE: avif frame interp not covered");
+                "IMAGE: avif tile size list not covered");
         assertEquals(goldens, runJvm(errorProbe(dir)));
     }
 
@@ -134,7 +136,8 @@ class AvifFrameE2ETest {
                 "red-k " + javaFrameFacts(dir.resolve("red-k.avif")),
                 "nr-k " + javaFrameFacts(dir.resolve("nr-k.avif")),
                 "rend " + javaFrameFacts(dir.resolve("rend.avif")),
-                "tile4 " + javaFrameFacts(dir.resolve("tile4.avif")));
+                "tile4 " + javaFrameFacts(dir.resolve("tile4.avif")),
+                "intra " + javaFrameFacts(dir.resolve("intra.avif")));
         assertEquals(kof, java);
         assertEquals(GOLDEN, java);
 
@@ -143,20 +146,16 @@ class AvifFrameE2ETest {
                 "showexisting:" + javaFrameFactsError(errDir.resolve("showexisting.avif")),
                 "inter:" + javaFrameFactsError(errDir.resolve("inter.avif")),
                 "intrabc:" + javaFrameFactsError(errDir.resolve("intrabc.avif")),
-                "sizerefs:" + javaFrameFactsError(errDir.resolve("sizerefs.avif")),
                 "trunc:" + javaFrameFactsError(errDir.resolve("trunc.avif")),
                 "noframe:" + javaFrameFactsError(errDir.resolve("noframe.avif")),
-                "sizelist:" + javaFrameFactsError(errDir.resolve("sizelist.avif")),
-                "interp:" + javaFrameFactsError(errDir.resolve("interp.avif")));
+                "sizelist:" + javaFrameFactsError(errDir.resolve("sizelist.avif")));
         String expectedErrors = String.join("\n",
                 "showexisting:REFUSED:showexisting",
                 "inter:REFUSED:inter",
                 "intrabc:REFUSED:intrabc",
-                "sizerefs:REFUSED:sizerefs",
                 "trunc:REFUSED:trunc",
                 "noframe:REFUSED:noframe",
-                "sizelist:REFUSED:sizelist",
-                "interp:REFUSED:interp");
+                "sizelist:REFUSED:sizelist");
         assertEquals(expectedErrors, javaErrors);
     }
 
