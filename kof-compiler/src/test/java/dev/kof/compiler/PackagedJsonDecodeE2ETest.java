@@ -67,6 +67,42 @@ class PackagedJsonDecodeE2ETest {
         assertEquals("id=x1\n2", runJvm(tmp.resolve("out")));
     }
 
+    /**
+     * issue #733 (03/10, external report, Kof 0.5.0-beta): the same §573 family,
+     * but with the record + decode helper in a NAMED package and the caller in
+     * another file that imports the package and accesses the returned record's
+     * field. Reported as `NoClassDefFoundError: R`; already fixed at the tip by
+     * §573 (`ExpressionTyper.inferExprType` qualify chokepoint). This pin keeps
+     * the exact reported shape green so it never regresses.
+     */
+    @Test
+    void crossFilePackagedRecordReturnedAndMemberAccessedLoadsAndRuns() throws Exception {
+        Path root = tmp.resolve("src/main/kof");
+        Path pkg = root.resolve("pk");
+        Files.createDirectories(pkg);
+        Files.writeString(pkg.resolve("r.kf"), """
+                package pk
+
+                record R(String x, Int n)
+
+                R parse(String s) {
+                    return json.decode<R>(s)
+                }
+                """);
+        Files.writeString(root.resolve("main.kf"), """
+                import pk
+
+                main() {
+                    println(parse("{\\"x\\":\\"a\\",\\"n\\":1}").x())
+                }
+                """);
+
+        CompilationResult r = driver.compileSources(
+                List.of(root.resolve("main.kf")), tmp.resolve("out733"), Target.JVM, root);
+        assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
+        assertEquals("a", runJvm(tmp.resolve("out733")));
+    }
+
     private String runJvm(Path outDir) throws IOException {
         try {
             ProcessBuilder pb = new ProcessBuilder(
