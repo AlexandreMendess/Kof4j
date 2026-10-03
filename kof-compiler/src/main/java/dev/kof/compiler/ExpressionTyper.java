@@ -177,7 +177,13 @@ public final class ExpressionTyper {
                 yield new Type.ArrayType(elemType);
             }
             case NewExpr ne -> {
-                Type t = CompilerTypes.toType(ne.typeName(), driver.currentUnit);
+                // §582: the bare-name ctor of a PACKAGED record written inside an
+                // imported module's body resolved through currentUnit only — the
+                // merged main unit (caller's package) does not declare the type, so
+                // the owner reached the emitter BARE (NoClassDefFoundError at LOAD).
+                // The analyzer-aware toType qualifies cross-module symbols.
+                Type t = CompilerTypes.toType(ne.typeName(), driver.currentUnit,
+                        driver.semanticAnalyzer);
                 Type coll = CompilerTypes.builtinCollectionType(ne.typeName(), driver.currentUnit, driver.semanticAnalyzer);
                 if (coll != null) {
                     t = coll;
@@ -276,7 +282,7 @@ public final class ExpressionTyper {
     // NOME resolve num símbolo do módulo COM pacote, o tipo apaga qualificado.
     // Classe legítima de pacote padrão (símbolo com pkg vazio, ex.: Pair do
     // harness) NÃO é tocada.
-    private static Type qualifyBareModuleType(CompilerDriver driver, Type t) {
+    static Type qualifyBareModuleType(CompilerDriver driver, Type t) {
         if (t == null) {
             return null;
         }
