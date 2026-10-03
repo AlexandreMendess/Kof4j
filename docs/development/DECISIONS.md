@@ -4794,3 +4794,14 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Promotion rule:** a tier move requires the R5 DoD — per-target parity proof (the `BackendParityTest`/E2E discipline) recorded in the connector's own test; `ConnectorManifest.stability` carries the declared tier and the Core's `InteropCompatibility` validates it (mechanism landed as promoted slices 11/14).
 - **What this closes:** the plan's §13 documentation gap ("never to be invented by an agent") — transcribed here, in `DECISIONS.md`, and in `kof-connector-ecosystem-plan.md` EN+PT in the same commit.
 - **Relationships:** `Completes: D-CONNECTORS (ABI tiers row)`, `Closes: kof-connector-ecosystem-plan §13 gap / §9.16 Slice D`.
+
+---
+
+## D-JSON-MISSING-PRIMITIVE — a missing/JSON-null PRIMITIVE record component fails with a named `JSN004`, never the JDK-internal NPE (maintainer 03/10/2026, chat multiple-choice — §565)
+
+**State:** DECIDED (maintainer) — resolves the rule-6 contract question recorded in `known-bugs` §565.
+- **Contract:** `json.decode<Record>` where the JSON object is missing a key (or carries JSON-`null`) for a component whose declared type is PRIMITIVE (`Int`/`Long`/`Byte`/`Short`/`Float`/`Double`/`Bool`/`Char`) fails with the honest named diagnostic **`JSN004`**: `JSN004: missing field '<name>' for <Record>`. It is thrown as a runtime error, so the frozen `catch (String e)` sees the named message; it is NOT a silent zero-fill and NOT a compile-time refusal (the absence is only knowable at decode time).
+- **Reference components unchanged:** a missing/`null` component of a REFERENCE type (`String`, records, `List<T>`, …) still decodes to `null` (nullable by construction) — only primitives, which have no null, are refused.
+- **Why:** before, the `null` reached the record constructor MethodHandle with a primitive target type and died in `sun.invoke.util.ValueConversions.primitiveConversion` — a JDK-internal NPE leaking into user `catch (String)`, violating R6 (honest diagnostics) and the "no silent fallback" constraint.
+- **Implementation:** JVM binder `kof_json_bind` record arm (`JvmRuntimeJson`), shared by `json.decode<T>` and the typed ORM read path; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 refusals + reference-null control + complete-decode control), ORM/DB neighbours green.
+- **Relationships:** `Closes: known-bugs §565 (rule-6)`, `Related: D-1.0-EDGES (#565 1.0-blocks), §564 (ORM sibling, fixed 02/10)`, `Frozen-boundary: catch(String) contract unchanged; reference-null semantics unchanged`.

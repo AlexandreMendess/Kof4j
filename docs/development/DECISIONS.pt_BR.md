@@ -4784,3 +4784,14 @@ individuais:
 - **Regra de promoção:** mover de camada exige o DoD R5 — prova de paridade por alvo registrada no teste do próprio connector; `ConnectorManifest.stability` carrega a camada declarada e o `InteropCompatibility` do Core a valida (mecanismo pousado nas fatias promovidas 11/14).
 - **O que fecha:** o gap de documentação do §13 do plano ("nunca inventados por um agente") — transcrito aqui, em `DECISIONS.md`, e em `kof-connector-ecosystem-plan.md` EN+PT no mesmo commit.
 - **Relações:** `Completa: D-CONNECTORS (linha dos tiers ABI)`, `Fecha: gap §13 / §9.16 Fatia D do plano de connectors`.
+
+---
+
+## D-JSON-MISSING-PRIMITIVE — um componente PRIMITIVO ausente/JSON-null falha com `JSN004` nomeado, nunca o NPE interno do JDK (mantenedora 03/10/2026, múltipla escolha no chat — §565)
+
+**Estado:** DECIDIDO (mantenedora) — resolve a questão de contrato rule-6 registrada em `known-bugs` §565.
+- **Contrato:** `json.decode<Record>` cujo objeto JSON não tem uma chave (ou traz JSON-`null`) para um componente de tipo PRIMITIVO (`Int`/`Long`/`Byte`/`Short`/`Float`/`Double`/`Bool`/`Char`) falha com o diagnóstico nomeado honesto **`JSN004`**: `JSN004: missing field '<nome>' for <Record>`. É lançado como erro de runtime, então o `catch (String e)` congelado vê a mensagem nomeada; NÃO é preenchimento silencioso com zero nem recusa em compile-time (a ausência só é conhecível no decode).
+- **Componentes de referência inalterados:** um componente ausente/`null` de tipo REFERÊNCIA (`String`, records, `List<T>`, …) continua decodificando para `null` (nullable por construção) — só primitivos, que não têm null, são recusados.
+- **Porquê:** antes, o `null` chegava ao MethodHandle do construtor do record com alvo primitivo e morria em `sun.invoke.util.ValueConversions.primitiveConversion` — um NPE interno do JDK vazando para o `catch (String)` do usuário, violando R6 (diagnósticos honestos) e a restrição "sem fallback silencioso".
+- **Implementação:** braço de record do binder JVM `kof_json_bind` (`JvmRuntimeJson`), compartilhado por `json.decode<T>` e pelo read path tipado do ORM; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 recusas + controle de referência-null + controle de decode completo), vizinhos ORM/DB verdes.
+- **Relações:** `Fecha: known-bugs §565 (rule-6)`, `Relacionado: D-1.0-EDGES (#565 1.0-blocks), §564 (irmão ORM, corrigido 02/10)`, `Fronteira-congelada: contrato catch(String) inalterado; semântica de referência-null inalterada`.
