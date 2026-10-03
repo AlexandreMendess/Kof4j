@@ -301,6 +301,77 @@ class TestTagsE2ETest {
     }
 
     @Test
+    void setupAndBeforeEachDeclaredTogetherAreRefusedNamed() throws Exception {
+        Run r = compileAndRunJvm("""
+            void setup() {
+                println("SETUP")
+            }
+            void beforeEach() {
+                println("BEFORE_EACH")
+            }
+            test "a" {
+                println("test-a")
+            }
+            """);
+        assertFalse(r.success(), "declaring both aliases must not compile: " + r.diags());
+        assertTrue(r.diags().contains("TEST001"), "named diagnostic TEST001, was: " + r.diags());
+        assertTrue(r.diags().contains("ambiguous test lifecycle"), "names the cause: " + r.diags());
+        assertTrue(r.diags().contains("setup()") && r.diags().contains("beforeEach()"),
+                "names both hooks: " + r.diags());
+    }
+
+    @Test
+    void beforeEachThenSetupIsRefusedRegardlessOfOrder() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeEach() {
+                println("BEFORE_EACH")
+            }
+            void setup() {
+                println("SETUP")
+            }
+            test "a" {
+                println("test-a")
+            }
+            """);
+        assertFalse(r.success(), "order must not change the refusal: " + r.diags());
+        assertTrue(r.diags().contains("TEST001"), "named diagnostic TEST001, was: " + r.diags());
+    }
+
+    @Test
+    void teardownAndAfterEachDeclaredTogetherAreRefusedNamed() throws Exception {
+        Run r = compileAndRunJvm("""
+            void teardown() {
+                println("TEARDOWN")
+            }
+            void afterEach() {
+                println("AFTER_EACH")
+            }
+            test "a" {
+                println("test-a")
+            }
+            """);
+        assertFalse(r.success(), "declaring both teardown aliases must not compile: " + r.diags());
+        assertTrue(r.diags().contains("TEST001"), "named diagnostic TEST001, was: " + r.diags());
+        assertTrue(r.diags().contains("teardown()") && r.diags().contains("afterEach()"),
+                "names both hooks: " + r.diags());
+    }
+
+    @Test
+    void aSingleAliasStillCompilesAndRuns() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeEach() {
+                println("BEFORE_EACH")
+            }
+            test "a" {
+                assert(true)
+            }
+            """);
+        assertTrue(r.success(), "one alias is not ambiguous: " + r.diags());
+        assertEquals("BEFORE_EACH\nPASS a\n────────\n0 failed of 1 tests", r.output().trim(),
+                "single alias keeps the §4.2 contract");
+    }
+
+    @Test
     void formatterKeepsTagsIdempotently() throws Exception {
         String src = "test \"a\", \"smoke\", \"ui\" {\n    assert(true)\n}\n";
         String once = KofFormatter.format(src, "T.kf");

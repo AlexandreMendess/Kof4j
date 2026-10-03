@@ -229,8 +229,9 @@ recursos têm lifecycle explícito:
 - Se `beforeEach()` / `setup()` falhar: aquele teste específico é marcado `SKIP` e não roda.
 - `afterEach()` / `teardown()` sempre roda via `finally` para todo teste que o setup deixou executar.
 - Se `afterEach()` / `teardown()` lançar, é **falha nomeada, contada, e a corrida continua** (`teardown failed: <e>`) — nunca um throw sem catch que aborta o harness após o primeiro teste (defeito medido, `known-bugs` §570, CORRIGIDO 02/10). Mesmo contrato do `afterAll()`.
+- Declarar **os dois** `setup()` e `beforeEach()` (ou `teardown()` e `afterEach()`) é **recusado em compile-time** com o erro nomeado `TEST001` (`ambiguous test lifecycle: … they are the same hook; keep only one`). Os dois nomes são aliases de um hook, então manter ambos rodaria em silêncio só o último (defeito medido, `known-bugs` §577, CORRIGIDO 02/10).
 
-Prova: `TestTagsE2ETest` (18/18 verde).
+Prova: `TestTagsE2ETest` (22/22 verde).
 
 ## 4.4 Testes parametrizados
 

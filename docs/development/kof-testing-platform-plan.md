@@ -245,8 +245,9 @@ resources have explicit lifecycle:
 - If `beforeEach()` / `setup()` fails: that specific test is marked `SKIP` and does not run.
 - `afterEach()` / `teardown()` always runs via `finally` for every test that setup allowed to execute.
 - If `afterEach()` / `teardown()` throws, it is a **named failure, counted, and the run continues** (`teardown failed: <e>`) — never an uncaught throw that aborts the harness after the first test (measured defect, `known-bugs` §570, FIXED 02/10). Same contract as `afterAll()`.
+- Declaring **both** `setup()` and `beforeEach()` (or both `teardown()` and `afterEach()`) is **refused at compile time** with the named error `TEST001` (`ambiguous test lifecycle: … they are the same hook; keep only one`). The two names are aliases of one hook, so keeping both would silently run only the last one (measured defect, `known-bugs` §577, FIXED 02/10).
 
-Proof: `TestTagsE2ETest` (18/18 green).
+Proof: `TestTagsE2ETest` (22/22 green).
 
 ## 4.4 Parameterized tests
 

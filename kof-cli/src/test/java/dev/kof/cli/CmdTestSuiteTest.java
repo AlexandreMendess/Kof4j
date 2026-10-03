@@ -76,7 +76,7 @@ class CmdTestSuiteTest {
 
     @Test
     void helperFilesWithoutTestsOrMainAreSkippedHonestly(@TempDir Path dir) throws Exception {
-        // §571: um módulo auxiliar (funções puras que outro arquivo importa)
+        // §576: um módulo auxiliar (funções puras que outro arquivo importa)
         // não tem `test` nem `main`. Antes: "could not resolve main([String])"
         // e a corrida inteira falhava. Agora: nota honesta, sem contar como
         // suíte nem como falha.

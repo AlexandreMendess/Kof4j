@@ -45,7 +45,8 @@ final class DesugarSteps {
                                 .anyMatch(d -> d instanceof FunctionDeclarationNode f
                                         && "main".equals(f.name()));
                         return CompilerDesugar.desugarTests(unit, driver.discoveredTests,
-                                driver.testHarnessMode, driver.currentSourceName);
+                                driver.testHarnessMode, driver.currentSourceName,
+                                driver.currentDiagnostics);
                     }
                 },
                 new DesugarStep() {

@@ -14243,3 +14243,17 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Fronteira:** só a descoberta do runner (`main` gerado / `CmdTest`); sem parser/typer/codegen tocado, sem runtime por alvo, sem sintaxe nova. `kof build`/`kof run` inalterados (um módulo auxiliar ainda compila como módulo).
 
 <!-- en-switch --> **EN:** [§576 (EN)](known-bugs.md#576--kof-test-a-source-file-with-neither-test-nor-main-an-auxiliary-module-crashed-the-directory-run-could-not-resolve-main-and-in-single-file-mode-on-js-false-passed---fixed-0210-owner--19216815309093-found-in-the-kof-testing-platform-runner)
+
+## §577 — ciclo de vida do `kof test`: declarar `setup()` e `beforeEach()` juntos (ou `teardown()` e `afterEach()`) rodava em silêncio só o último — ✅ CORRIGIDO 02/10 (dona = 192.168.15.30:9093); encontrado no runner do `kof-testing-platform`
+
+**Sintoma (medido 02/10, tip `1b80614a4`):** `kof test` num arquivo que declara `setup()` e `beforeEach()` juntos (os aliases §4.2 do MESMO hook) compila e roda, mas só UM deles executa — o que aparece por último na ordem do fonte. A corrida imprime `0 failed of 1 tests` e sai 0. Quem declara os dois acredita que ambos rodam; o último-vence silencioso é um verde falso (sem diagnóstico, sem nota). Mesmo defeito para `teardown()` + `afterEach()`. Depende da ordem: `setup` e depois `beforeEach` roda `beforeEach`; `beforeEach` e depois `setup` roda `setup`.
+
+**Causa (leitura):** o `CompilerDesugar.desugarTests` atribuía `setupName = f.name()` tanto para `setup` quanto para `beforeEach` (e `teardownName` para `teardown`/`afterEach`), então a segunda declaração simplesmente sobrescrevia a primeira — um fallback silencioso sem checagem de ambiguidade.
+
+**Correção (só o desugar do compilador, zero mudança de linguagem):** o `desugarTests` agora rastreia se viu `setup` e `beforeEach` (e `teardown`/`afterEach`) e, quando os dois estão presentes numa unidade em modo harness, reporta um erro nomeado `TEST001` na segunda declaração: ``ambiguous test lifecycle: both `setup()` and `beforeEach()` are declared — they are the same hook; keep only one``. Independe da ordem; a checagem roda só quando `testHarnessMode` e a unidade tem testes, então `kof build`/`kof run` ficam intactos. O `desugarTests` ganhou um parâmetro `DiagnosticCollector` (o passo "tests" do desugar passa `driver.currentDiagnostics`).
+
+**Prova (RED-first):** novos casos em `TestTagsE2ETest` — `setupAndBeforeEachDeclaredTogetherAreRefusedNamed` (TEST001 + nomeia os dois hooks), `beforeEachThenSetupIsRefusedRegardlessOfOrder` (a ordem não importa), `teardownAndAfterEachDeclaredTogetherAreRefusedNamed` (TEST001 para os aliases de teardown), `aSingleAliasStillCompilesAndRuns` (um alias mantém o contrato §4.2). Pré-correção os três testes de recusa falham (`expected false but was true` — o arquivo compilava); pós-correção `TestTagsE2ETest` 22/22. Bateria de não-regressão 64/64 compilador (`KofTestingE2ETest` 7, `GenericEqualityE2ETest` 16, `PropertyTestIdiomE2ETest` 7, `StructuredTestE2ETest` 12) + 19/19 CLI (`CmdTestSuiteTest` 7, `CmdTestTagTest` 4, `CmdTestTimeoutTest` 3, `KofSourceDiscoveryTest` 5); Q2 rc=0.
+
+**Fronteira:** só a detecção de ambiguidade de ciclo de vida; sem mudança de parser/typer/codegen/runtime, sem sintaxe nova, sem divergência por alvo.
+
+<!-- en-switch --> **EN:** [§577 (EN)](known-bugs.md#577--kof-test-lifecycle-declaring-both-setup-and-beforeeach-or-teardown-and-aftereach-silently-ran-only-the-last-one---fixed-0210-owner--19216815309093-found-in-the-kof-testing-platform-runner)

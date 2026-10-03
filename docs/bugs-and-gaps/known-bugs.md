@@ -16692,3 +16692,17 @@ plan "Phase 5 slices".
 **Boundary:** runner discovery only (generated `main` / `CmdTest`); no parser/typer/codegen touched, no per-target runtime, no new syntax. `kof build`/`kof run` unchanged (a helper module still compiles as a module).
 
 <!-- pt-switch --> **PT:** [§576 (pt_BR)](known-bugs.pt_BR.md#576--kof-test-um-arquivo-fonte-sem-test-nem-main-modulo-auxiliar-derrubava-a-corrida-em-diretorio-could-not-resolve-main-e-em-modo-arquivo-unico-no-js-falso-passava---corrigido-0210-dona--19216815309093-encontrado-no-runner-do-kof-testing-platform)
+
+## §577 — `kof test` lifecycle: declaring both `setup()` and `beforeEach()` (or `teardown()` and `afterEach()`) silently ran only the last one — ✅ FIXED 02/10 (owner = 192.168.15.30:9093); found in the `kof-testing-platform` runner
+
+**Symptom (measured 02/10, tip `1b80614a4`):** `kof test` on a file that declares both `setup()` and `beforeEach()` (the §4.2 aliases of the same hook) compiles and runs, but only ONE of them executes — whichever appears last in source order. The run prints `0 failed of 1 tests` and exits 0. A developer who declares both believes both run; the silent last-wins is a false green (no diagnostic, no note). Same defect for `teardown()` + `afterEach()`. Order-dependent: `setup` then `beforeEach` runs `beforeEach`; `beforeEach` then `setup` runs `setup`.
+
+**Root (read):** `CompilerDesugar.desugarTests` assigned `setupName = f.name()` for either `setup` or `beforeEach` (and `teardownName` for either `teardown`/`afterEach`), so the second declaration simply overwrote the first — a silent fallback with no ambiguity check.
+
+**Fix (compiler desugar only, zero language change):** `desugarTests` now tracks whether it saw `setup` and `beforeEach` (and `teardown`/`afterEach`) and, when both are present in a test-harness unit, reports a named error `TEST001` at the second declaration: ``ambiguous test lifecycle: both `setup()` and `beforeEach()` are declared — they are the same hook; keep only one``. Order-independent; the check runs only when `testHarnessMode` and the unit has tests, so `kof build`/`kof run` are untouched. `desugarTests` gained a `DiagnosticCollector` parameter (the "tests" desugar step passes `driver.currentDiagnostics`).
+
+**Proof (RED-first):** new `TestTagsE2ETest` cases — `setupAndBeforeEachDeclaredTogetherAreRefusedNamed` (TEST001 + names both hooks), `beforeEachThenSetupIsRefusedRegardlessOfOrder` (order does not matter), `teardownAndAfterEachDeclaredTogetherAreRefusedNamed` (TEST001 for the teardown aliases), `aSingleAliasStillCompilesAndRuns` (one alias keeps the §4.2 contract). Pre-fix the three refusal tests fail (`expected false but was true` — the file compiled); post-fix `TestTagsE2ETest` 22/22. Non-regression battery 64/64 compiler (`KofTestingE2ETest` 7, `GenericEqualityE2ETest` 16, `PropertyTestIdiomE2ETest` 7, `StructuredTestE2ETest` 12) + 19/19 CLI (`CmdTestSuiteTest` 7, `CmdTestTagTest` 4, `CmdTestTimeoutTest` 3, `KofSourceDiscoveryTest` 5); Q2 rc=0.
+
+**Boundary:** lifecycle ambiguity detection only; no parser/typer/codegen/runtime change, no new syntax, no per-target divergence.
+
+<!-- pt-switch --> **PT:** [§577 (pt_BR)](known-bugs.pt_BR.md#577--ciclo-de-vida-do-kof-test-declarar-setup-e-beforeeach-juntos-ou-teardown-e-aftereach-rodava-em-silencio-so-o-ultimo---corrigido-0210-dona--19216815309093-encontrado-no-runner-do-kof-testing-platform)

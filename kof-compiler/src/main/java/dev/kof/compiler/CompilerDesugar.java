@@ -15,12 +15,16 @@ public final class CompilerDesugar {
     static CompilationUnitNode desugarTests(CompilationUnitNode unit,
                                             List<CompilerDriver.TestInfo> discoveredTests,
                                             boolean testHarnessMode,
-                                            String currentSourceName) {
+                                            String currentSourceName,
+                                            DiagnosticCollector diagnostics) {
         discoveredTests.clear();
         java.util.List<AstNode> decls = new ArrayList<>();
         java.util.List<TestHarnessBuilder.Entry> harnessEntries = new ArrayList<>();
         String setupName = null, teardownName = null;
         String beforeAllName = null, afterAllName = null;
+        AstNode setupAliasConflict = null, teardownAliasConflict = null;
+        boolean sawSetup = false, sawBeforeEach = false;
+        boolean sawTeardown = false, sawAfterEach = false;
         int ti = 0;
         for (AstNode d : unit.declarations()) {
             if (d instanceof TestDeclarationNode t) {
@@ -34,10 +38,40 @@ public final class CompilerDesugar {
             }
             if (d instanceof FunctionDeclarationNode f && f.parameters().isEmpty()
                     && "void".equals(f.returnType())) {
-                if ("setup".equals(f.name()) || "beforeEach".equals(f.name())) setupName = f.name();
-                if ("teardown".equals(f.name()) || "afterEach".equals(f.name())) teardownName = f.name();
+                if ("setup".equals(f.name())) {
+                    if (sawBeforeEach) setupAliasConflict = d;
+                    sawSetup = true;
+                    setupName = f.name();
+                }
+                if ("beforeEach".equals(f.name())) {
+                    if (sawSetup) setupAliasConflict = d;
+                    sawBeforeEach = true;
+                    setupName = f.name();
+                }
+                if ("teardown".equals(f.name())) {
+                    if (sawAfterEach) teardownAliasConflict = d;
+                    sawTeardown = true;
+                    teardownName = f.name();
+                }
+                if ("afterEach".equals(f.name())) {
+                    if (sawTeardown) teardownAliasConflict = d;
+                    sawAfterEach = true;
+                    teardownName = f.name();
+                }
                 if ("beforeAll".equals(f.name())) beforeAllName = f.name();
                 if ("afterAll".equals(f.name())) afterAllName = f.name();
+            }
+        }
+        if (testHarnessMode && !discoveredTests.isEmpty() && diagnostics != null) {
+            if (setupAliasConflict != null) {
+                diagnostics.error(setupAliasConflict,
+                        "ambiguous test lifecycle: both `setup()` and `beforeEach()` are declared "
+                                + "— they are the same hook; keep only one", "TEST001");
+            }
+            if (teardownAliasConflict != null) {
+                diagnostics.error(teardownAliasConflict,
+                        "ambiguous test lifecycle: both `teardown()` and `afterEach()` are declared "
+                                + "— they are the same hook; keep only one", "TEST001");
             }
         }
         if (testHarnessMode && !discoveredTests.isEmpty()) {
