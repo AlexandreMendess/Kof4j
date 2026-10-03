@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Q3: cobre "." / ".." / separador duplo / barra final / raiz "/" / resultado
  * vazio relativo ("").
  */
-class NativeIoNormalizeCrossTest extends NativeCrossSupport {
+class NativeIoNormalizeCrossTest extends NativeIoJvmOracleSupport {
 
     private static final String PROGRAM = """
             main() {
@@ -40,9 +40,14 @@ class NativeIoNormalizeCrossTest extends NativeCrossSupport {
         return src;
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
-        assertEquals(EXPECTED, runJvm(driver, writeProgram(tempDir), tempDir.resolve("jvm-out")));
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
+        return writeProgram(tempDir);
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

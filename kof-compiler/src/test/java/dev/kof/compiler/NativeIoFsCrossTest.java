@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * no MESMO programa (caminhos distintos por alvo) e o cross tem de ser
  * byte-identico. createDirectories/bytes/list seguem com gate NAT006 (§427).
  */
-class NativeIoFsCrossTest extends NativeCrossSupport {
+class NativeIoFsCrossTest extends NativeIoJvmOracleSupport {
 
     // create=1, exists=1, isDirectory=1, create again=0 (EEXIST),
     // writeText=1, delete=1, exists=0, delete missing=0.
@@ -39,11 +39,16 @@ class NativeIoFsCrossTest extends NativeCrossSupport {
                 + "}\n";
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, program(tempDir.resolve("jvmd"), tempDir.resolve("jvmf.txt")));
-        assertEquals(EXPECTED, runJvm(driver, src, tempDir.resolve("jvm-out")));
+        return src;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

@@ -608,6 +608,19 @@ declarations) and the other cross-target families (`main`, `assumeToolchain`,
 `copyLibrary`, `stopServer`) — a design increment, deferred to keep this slice
 zero-risk.
 
+**Second Phase 5 slice LANDED (03/10):** the 13 byte-identical `jvmOracle`
+`@Test` methods (12 `NativeIo*CrossTest` + `NativeCrossWideArgsE2ETest`) moved
+to a new `NativeIoJvmOracleSupport` base — the subclass supplies
+`jvmOracleSource(tempDir)` + `jvmOracleExpected()`, the base owns the `@Test`.
+Each subclass keeps its own source/golden, so no per-target or per-face
+assertion is hidden. Proof: **54/54** `NativeIo*CrossTest` +
+`NativeCrossWideArgsE2ETest` green (cross riscv64/aarch64 executed); the
+`dupname jvmOracle` ratchet key is **eliminated** (baseline 131→130). The 3
+classes with a non-standard JVM shape (`copy`/`move`/`text`) keep their
+own `@Test` on `NativeCrossSupport`. Remaining: `main` (mostly Kof source in
+text blocks, a false lead), `assumeToolchain` (26 divergent signatures) and
+`copyLibrary` (35 classes, two shapes) — each needs its own bounded increment.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.

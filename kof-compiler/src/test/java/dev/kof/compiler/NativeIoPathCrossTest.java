@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Q3: cobre com/sem extensao nao (dotfile fica de fora: x86 e JVM divergem
  * pre-existente em ".hidden" — nao e escopo desta fatia).
  */
-class NativeIoPathCrossTest extends NativeCrossSupport {
+class NativeIoPathCrossTest extends NativeIoJvmOracleSupport {
 
     private static final String PROGRAM = """
             main() {
@@ -42,9 +42,14 @@ class NativeIoPathCrossTest extends NativeCrossSupport {
         return src;
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
-        assertEquals(EXPECTED, runJvm(driver, writeProgram(tempDir), tempDir.resolve("jvm-out")));
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
+        return writeProgram(tempDir);
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

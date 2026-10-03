@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * e comparado ao JVM aqui por divergir na forma do valor nulo do array (nao
  * determinamos println de array nulo no cross); fica para a fatia de dir list.
  */
-class NativeIoBytesCrossTest extends NativeCrossSupport {
+class NativeIoBytesCrossTest extends NativeIoJvmOracleSupport {
 
     private static String program(Path file) {
         return "main() {\n"
@@ -49,11 +49,16 @@ class NativeIoBytesCrossTest extends NativeCrossSupport {
 
     private static final String EXPECTED = "true\n4\n65\n0\n255\ntrue\n8";
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, program(tempDir.resolve("jvm.bin")));
-        assertEquals(EXPECTED, runJvm(driver, src, tempDir.resolve("jvm-out")));
+        return src;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

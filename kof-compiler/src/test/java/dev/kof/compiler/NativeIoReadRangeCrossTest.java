@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * o range (1,3), exigindo os 3 bytes do meio como Int[] (openat + pread64).
  * Q3: cobre offset != 0 e len parcial (leitura curta deterministica).
  */
-class NativeIoReadRangeCrossTest extends NativeCrossSupport {
+class NativeIoReadRangeCrossTest extends NativeIoJvmOracleSupport {
 
     private static String program(Path file) {
         return "main() {\n"
@@ -40,11 +40,16 @@ class NativeIoReadRangeCrossTest extends NativeCrossSupport {
 
     private static final String EXPECTED = "true\n3\n20\n30\n40";
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, program(tempDir.resolve("jvm.bin")));
-        assertEquals(EXPECTED, runJvm(driver, src, tempDir.resolve("jvm-out")));
+        return src;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

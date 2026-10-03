@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * ORDENADA (como o JVM: {@code Files.list().sorted()}), pulando "." e "..".
  * Q3: cobre ordenacao, filtro de "."/".." e o tamanho da lista.
  */
-class NativeIoDirListCrossTest extends NativeCrossSupport {
+class NativeIoDirListCrossTest extends NativeIoJvmOracleSupport {
 
     private static String program(Path dir) {
         return "main() {\n"
@@ -34,11 +34,16 @@ class NativeIoDirListCrossTest extends NativeCrossSupport {
 
     private static final String EXPECTED = "true\ntrue\ntrue\n2\na.txt\nb.txt";
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, program(tempDir.resolve("jvmdir")));
-        assertEquals(EXPECTED, runJvm(driver, src, tempDir.resolve("jvm-out")));
+        return src;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

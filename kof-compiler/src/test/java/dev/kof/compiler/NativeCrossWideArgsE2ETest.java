@@ -3,6 +3,7 @@ package dev.kof.compiler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,7 +28,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * função 9-arg, método de instância com 8 params explícitos (>8 contando
  * `this`) e record de 8 campos (ctor com `this`).
  */
-class NativeCrossWideArgsE2ETest extends KofStringsSupport {
+class NativeCrossWideArgsE2ETest extends NativeIoJvmOracleSupport {
 
     private static final String PROGRAM = """
             Int f9(Int a, Int b, Int c, Int d, Int e, Int f, Int g, Int h, Int i) {
@@ -52,9 +53,16 @@ class NativeCrossWideArgsE2ETest extends KofStringsSupport {
             """;
     private static final String GOLDEN = "45\n1036\n36";
 
-    @Test
-    void jvmOracle(@TempDir Path t) throws Exception {
-        runJvm(t, PROGRAM, GOLDEN);
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, PROGRAM);
+        return file;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return GOLDEN;
     }
 
     @Test

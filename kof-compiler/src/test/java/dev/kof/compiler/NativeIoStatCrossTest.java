@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Golden = oraculo JVM medido no MESMO programa, byte-identico no cross.
  * As demais faces de kof.io seguem com gate honesto NAT006 (§427).
  */
-class NativeIoStatCrossTest extends NativeCrossSupport {
+class NativeIoStatCrossTest extends NativeIoJvmOracleSupport {
 
     // file: exists=true, isFile=true, isDir=false
     // dir : exists=true, isFile=false, isDir=true
@@ -48,13 +48,18 @@ class NativeIoStatCrossTest extends NativeCrossSupport {
         Files.writeString(tempDir.resolve("d/f.txt"), "x");
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
         prepare(tempDir);
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, program(tempDir.resolve("d/f.txt"), tempDir.resolve("d"),
                 tempDir.resolve("nope")));
-        assertEquals(EXPECTED, runJvm(driver, src, tempDir.resolve("jvm-out")));
+        return src;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Q3: cobre path ja absoluto, relativo simples e relativo com ".." (nao
  * normalizado — so resolve contra o cwd, como o x86/JVM).
  */
-class NativeIoToAbsoluteCrossTest extends NativeCrossSupport {
+class NativeIoToAbsoluteCrossTest extends NativeIoJvmOracleSupport {
 
     private static final String PROGRAM = """
             main() {
@@ -41,9 +41,14 @@ class NativeIoToAbsoluteCrossTest extends NativeCrossSupport {
         return src;
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
-        assertEquals(expected(), runJvm(driver, writeProgram(tempDir), tempDir.resolve("jvm-out")));
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
+        return writeProgram(tempDir);
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return expected();
     }
 
     @Test

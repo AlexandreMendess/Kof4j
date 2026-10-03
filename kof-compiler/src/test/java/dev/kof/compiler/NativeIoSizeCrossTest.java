@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Miss: LANÇA `file not found: ` como o JVM (D-IO-SIZE-JVM-LAW, §494 FIXED
  * 27/09 — antes o cross espelhava o prefixo `size: ` do x86).
  */
-class NativeIoSizeCrossTest extends NativeCrossSupport {
+class NativeIoSizeCrossTest extends NativeIoJvmOracleSupport {
 
     private static String sizeProgram(Path file) {
         return "main() {\n"
@@ -42,12 +42,17 @@ class NativeIoSizeCrossTest extends NativeCrossSupport {
         return f;
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
         Path f = seed(tempDir, "jvm.txt", "hello");
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, sizeProgram(f));
-        assertEquals("5", runJvm(driver, src, tempDir.resolve("jvm-out")));
+        return src;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return "5";
     }
 
     @Test

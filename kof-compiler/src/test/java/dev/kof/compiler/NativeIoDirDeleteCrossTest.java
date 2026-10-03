@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Q3: cobre dir nao-vazio recursivo (sucesso), pos-condicao exists=false e
  * dir inexistente -> false.
  */
-class NativeIoDirDeleteCrossTest extends NativeCrossSupport {
+class NativeIoDirDeleteCrossTest extends NativeIoJvmOracleSupport {
 
     private static final String EXPECTED = "true\nfalse\nfalse";
 
@@ -43,9 +43,14 @@ class NativeIoDirDeleteCrossTest extends NativeCrossSupport {
         return src;
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
-        assertEquals(EXPECTED, runJvm(driver, writeProgram(tempDir, "jvm"), tempDir.resolve("jvm-out")));
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
+        return writeProgram(tempDir, "jvm");
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

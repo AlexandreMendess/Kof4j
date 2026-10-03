@@ -615,6 +615,19 @@ JVM compartilhado (`jvmOracle`, 13 declarações) e as demais famílias cross-ta
 (`main`, `assumeToolchain`, `copyLibrary`, `stopServer`) — incremento de design,
 adiado para manter esta fatia de risco zero.
 
+**Segunda fatia da Fase 5 ENTREGUE (03/10):** os 13 `@Test` `jvmOracle`
+byte-idênticos (12 `NativeIo*CrossTest` + `NativeCrossWideArgsE2ETest`) foram
+para uma nova base `NativeIoJvmOracleSupport` — a subclasse fornece
+`jvmOracleSource(tempDir)` + `jvmOracleExpected()`, a base tem o `@Test`. Cada
+subclasse mantém o seu fonte/golden, então nenhuma asserção por alvo ou por face
+fica escondida. Prova: **54/54** `NativeIo*CrossTest` +
+`NativeCrossWideArgsE2ETest` verdes (o cross riscv64/aarch64 executou); a chave
+`dupname jvmOracle` do ratchet foi **eliminada** (baseline 131→130). As 3 classes
+com shape JVM não-padrão (`copy`/`move`/`text`) mantêm o seu próprio `@Test` em
+`NativeCrossSupport`. Restante: `main` (em sua maioria fonte Kof em text blocks,
+pista falsa), `assumeToolchain` (26 assinaturas divergentes) e `copyLibrary` (35
+classes, dois shapes) — cada uma exige o seu próprio incremento limitado.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.

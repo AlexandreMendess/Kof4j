@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * de disco; oraculo JVM medido no mesmo programa.
  * Q3: cobre child relativo (base com/sem '/' final) e child absoluto.
  */
-class NativeIoResolveCrossTest extends NativeCrossSupport {
+class NativeIoResolveCrossTest extends NativeIoJvmOracleSupport {
 
     private static final String PROGRAM = """
             main() {
@@ -35,9 +35,14 @@ class NativeIoResolveCrossTest extends NativeCrossSupport {
         return src;
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
-        assertEquals(EXPECTED, runJvm(driver, writeProgram(tempDir), tempDir.resolve("jvm-out")));
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
+        return writeProgram(tempDir);
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

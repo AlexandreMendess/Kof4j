@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * de ser byte-identico ao oraculo JVM medido no MESMO programa (caminhos
  * distintos por alvo). size/bytes/listing seguem gated (NAT006, §427).
  */
-class NativeIoMkdirsCrossTest extends NativeCrossSupport {
+class NativeIoMkdirsCrossTest extends NativeIoJvmOracleSupport {
 
     private static String program(Path deep) {
         return "main() {\n"
@@ -33,11 +33,16 @@ class NativeIoMkdirsCrossTest extends NativeCrossSupport {
 
     private static final String EXPECTED = "true\ntrue\ntrue\ntrue";
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, program(tempDir.resolve("jvm-x/y/z")));
-        assertEquals(EXPECTED, runJvm(driver, src, tempDir.resolve("jvm-out")));
+        return src;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test
