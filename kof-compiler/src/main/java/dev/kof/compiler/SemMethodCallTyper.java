@@ -37,6 +37,27 @@ public final class SemMethodCallTyper {
                 return qcs.type();
             }
         }
+        // §583 (03/10, KofShare C2/C3): o lado SEM NUNCA conheceu o namespace
+        // `json` — `json.decode<T>(...)` inferia UNKNOWN aqui enquanto o emit
+        // (MethodCallNamespaces + ExpressionJsonCallLowerer) conhecia T. O
+        // assignability SEM012 de `var e = 0; e = now + req.ttlMs` (req vindo
+        // de decode) era pulado porque `!Type.isUnknown(valueType)` era falso
+        // — compilava limpo e o JVM morreria com VerifyError no primeiro
+        // dispatch (slot Int recebendo store Long). Este ramo espelha o do
+        // emit, com o toType analyzer-aware do §582 para tipos de pacote.
+        if (mc.receiver() instanceof IdentifierExpr rid && "json".equals(rid.name())
+                && !SemExpressionTyper.isLocalName(scope, "json")) {
+            for (ExpressionNode arg : mc.arguments()) {
+                SemExpressionTyper.inferType(sa, arg, scope);
+            }
+            if ("encode".equals(mc.methodName())) {
+                return BuiltinTypes.STRING;
+            }
+            if ("decode".equals(mc.methodName()) && !mc.typeArguments().isEmpty()) {
+                return CompilerTypes.toType(mc.typeArguments().get(0), sa.unit(), sa);
+            }
+            return Type.UnknownType.UNKNOWN;
+        }
         // F10: métodos de instância do handle de process.spawn
         Type recv = null;
         if (mc.receiver() != null) {
