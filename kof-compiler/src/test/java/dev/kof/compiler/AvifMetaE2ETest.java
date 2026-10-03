@@ -24,13 +24,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * End-to-end coverage for AVIF slice 2g (image-vision front, plan §34):
  * the pure-Kof OBU_METADATA payload walk {@code libs/image/AvifMeta.kf}
- * parses metadata_obu per the AV1 Bitstream Specification §5.8.1–§5.8.4 +
- * the §6.4.1 metadata_type table (quoted from the spec PDF read on the dev
- * host 02/10): leb128 type, ITUT-T35 country/extension/payload size, HDR
- * CLL numbers, HDR MDCV's ten values, and honest name+size enumeration for
- * scalability/timecode/private types. Fixtures are hand-built byte-exactly
- * to the spec (no AVIF encoder exists on the host — measured); METADATA
- * ONLY — {@code decodeRaster} keeps refusing AVIF.
+ * parses metadata_obu per the AV1 Bitstream Specification §5.8.1–§5.8.7 +
+ * the §6.4.1 metadata_type table (quoted from the spec source and the AOM
+ * {@code aom_codec.h} enum): leb128 type, ITUT-T35 country/extension/payload
+ * size (type 4), HDR CLL numbers (type 1), HDR MDCV's ten values (type 2),
+ * the metadata_timecode() bitfields (type 5, §5.8.7 syntax + §6.7.7
+ * semantics), and honest name+size enumeration for scalability/private/
+ * reserved types. Fixtures are hand-built byte-exactly to the spec (no AVIF
+ * encoder exists on the host — measured); METADATA ONLY —
+ * {@code decodeRaster} keeps refusing AVIF.
  */
 class AvifMetaE2ETest {
 
@@ -40,15 +42,19 @@ class AvifMetaE2ETest {
     private final CompilerDriver driver = new CompilerDriver();
 
     private static final String GOLDEN = String.join("\n",
-            "t35 5 itutT35 pb=5 cc=181 ext=0 t35=4",
-            "t35x 5 itutT35 pb=4 cc=65281 ext=1 t35=2",
+            "t35 4 itutT35 pb=5 cc=181 ext=0 t35=4",
+            "t35x 4 itutT35 pb=4 cc=65281 ext=1 t35=2",
             "cll 1 hdrCll pb=4 cll=1000 fall=400",
             "mdcv 2 hdrMdcv pb=24 mdcv=,13252,34591,22413,60000,3596,7146,15635,16450,10000000,1",
-            "mixed 5 itutT35 pb=3 cc=16 ext=0 t35=2",
+            "tc 5 timecode pb=5 tc=,3,1,0,1,24,45,59,23,0",
+            "tcf 5 timecode pb=4 tc=,1,0,1,0,0,-1,-1,-1,9",
+            "mixed 4 itutT35 pb=3 cc=16 ext=0 t35=2",
             "mixed 3 scalability pb=5",
-            "mixed 7 private pb=2");
+            "mixed 7 private pb=2",
+            "mixed 32 reserved pb=1");
 
     private static final String REFUSALS = String.join("\n",
+            "IMAGE: truncated avif metadata obu",
             "IMAGE: truncated avif metadata obu",
             "IMAGE: truncated avif metadata obu",
             "IMAGE: truncated avif metadata obu",
@@ -127,6 +133,8 @@ class AvifMetaE2ETest {
                 "t35x " + String.join("\nt35x ", javaMetaFacts(dir.resolve("t35x.avif"))),
                 "cll " + String.join("\ncll ", javaMetaFacts(dir.resolve("cll.avif"))),
                 "mdcv " + String.join("\nmdcv ", javaMetaFacts(dir.resolve("mdcv.avif"))),
+                "tc " + String.join("\ntc ", javaMetaFacts(dir.resolve("tc.avif"))),
+                "tcf " + String.join("\ntcf ", javaMetaFacts(dir.resolve("tcf.avif"))),
                 "mixed " + String.join("\nmixed ", javaMetaFacts(dir.resolve("mixed.avif"))));
         assertEquals(GOLDEN, java);
 
@@ -135,6 +143,7 @@ class AvifMetaE2ETest {
                 javaMetaFactsError(errDir.resolve("mtrunc.avif")),
                 javaMetaFactsError(errDir.resolve("mdcvshort.avif")),
                 javaMetaFactsError(errDir.resolve("t35short.avif")),
+                javaMetaFactsError(errDir.resolve("tcshort.avif")),
                 javaMetaFactsError(errDir.resolve("obutrun.avif")));
         assertEquals(REFUSALS, javaErrors);
     }
