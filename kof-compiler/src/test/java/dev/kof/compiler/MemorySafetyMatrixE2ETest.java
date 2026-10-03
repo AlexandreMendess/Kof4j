@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,6 +18,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * frontend analysis. Precedent: Phase 4 (#658/#659/#662) "the pin is the product".
  */
 class MemorySafetyMatrixE2ETest {
+    private static final String WEB_LEAK = """
+            main() {
+                var app = web.app()
+                println("up")
+            }
+            """;
+
+    private static final String DB_LEAK = """
+            main() {
+                var conn = db.connect("sqlite::memory:")
+                println("up")
+            }
+            """;
+
+
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -56,6 +72,30 @@ class MemorySafetyMatrixE2ETest {
                 println(s.length)
             }
             """;
+
+
+    @Test
+    void mem014WebLeakSurfacePinnedOnScriptWarnings(@TempDir Path tempDir) throws IOException {
+        Path kf = tempDir.resolve("mem014-web-script-" + System.nanoTime() + ".kf");
+        Files.writeString(kf, WEB_LEAK);
+        KofInterpreter.Result ir = driver.interpret(java.util.List.of(kf), tempDir, new String[0]);
+        assertEquals(0, ir.exitCode(), "warning nao bloqueia a interpretacao: " + ir.stderr());
+        String warns = ir.warnings().toString();
+        assertTrue(warns.contains("MEM014"),
+                "D-SCRIPT-WARN-SURFACE: Result.warnings() deve carregar MEM014 — veio [" + warns + "]");
+    }
+
+    @Test
+    void mem014DbLeakSurfacePinnedOnScriptWarnings(@TempDir Path tempDir) throws IOException {
+        Path kf = tempDir.resolve("mem014-db-script-" + System.nanoTime() + ".kf");
+        Files.writeString(kf, DB_LEAK);
+        KofInterpreter.Result ir = driver.interpret(java.util.List.of(kf), tempDir, new String[0]);
+        assertEquals(0, ir.exitCode(), "db.connect roda no interpretador; warning nao bloqueia: " + ir.stderr());
+        assertEquals("up" + System.lineSeparator(), ir.stdout(), "bytes do script verdes");
+        String warns = ir.warnings().toString();
+        assertTrue(warns.contains("MEM014"),
+                "face db.connect: Result.warnings() deve carregar MEM014 — veio [" + warns + "]");
+    }
 
     @Test
     void nullDerefRefusesSem049OnAllFourBackends(@TempDir Path tempDir) throws IOException {

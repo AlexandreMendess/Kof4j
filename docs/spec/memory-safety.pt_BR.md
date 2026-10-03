@@ -247,9 +247,9 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | Use-after-move | Nulagem explícita na transferência | `MEM002` (compile-time) | Todos |
 | Data race por aliasing mutável | Disciplina do programador + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` compile (#668) **e runtime** (#668 + `D-MEM030-BORROW-RUNTIME`, 30/09) | Todos alcançáveis (Script: `extern`/`Buffer` recusado `FFI001`; JS: `spawn` cooperativo ⇒ negativo N/A estrutural) |
 | Null deref | Nulabilidade + estreitamento | `SEM049` (compile-time) | Todos — **pinado nos 4 backends** (`MemorySafetyMatrixE2ETest` 3/3, unidade 1 da fase-6, 02/10: recusa + as duas formas de estreitamento; mudança de comportamento ZERO — a paridade já era verdadeira, o pin é o produto, precedente #658/#659/#662) |
-| Resource leak | Close explícito | `MEM014` (compile-time; WARNING) | Todos (o Script o expõe via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
+| Resource leak | Close explícito | `MEM014` (compile-time; WARNING) | Todos — **pinado nos 4 backends** (fase-6 unidade 2, 02/10: web `ResourceLeakE2ETest` 5/5 + db `DbResourceLeakE2ETest` 4/4 em JVM/Native/JS + Script: `Result.warnings()` carrega `MEM014` nas duas faces, `MemorySafetyMatrixE2ETest` +2 pins; `D-SCRIPT-WARN-SURFACE`) |
 | Confusão de propriedade FFI | Arena confinada por chamada (não existe superfície de release — `kof_ffi_release` é conceito do modelo, spec §7, medido 28/09) | `MEM005` — regra do modelo, sem superfície de emissão hoje | JVM + Native |
-| Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time; WARNING) | Todos (o Script o expõe via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
+| Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time; WARNING) | mesmas faces da linha acima — a linha duplicada existe porque a matriz cresceu por criador; ambas agora compartilham o pin executado da unidade 2 (02/10) |
 
 > **Diagnósticos de classe WARNING no Script:** `MEM014`/`MEM022` disparam no frontend compartilhado em todos os alvos. No Script, o `interpret()` descartava WARNINGs (só ERRORS escapavam) — medido 29/09, pedido de decisão #678; **RESOLVIDO 29/09 (`D-SCRIPT-WARN-SURFACE`, opção A): o interpretador agora os expõe via `KofInterpreter.Result.warnings()` e o CLI/`KofScript` os imprimem em stderr como o caminho de compilação.**
 

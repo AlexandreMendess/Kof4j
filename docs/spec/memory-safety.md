@@ -255,9 +255,9 @@ The following matrix maps each bug class to its prevention mechanism:
 | Use-after-move | Explicit nulling on transfer | `MEM002` (compile-time) | All |
 | Mutable aliasing data race | Programmer discipline + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` compile (#668) **and runtime** (#668 + `D-MEM030-BORROW-RUNTIME`, 30/09) | All reachable (Script: `extern`/`Buffer` refused `FFI001`; JS: cooperative `spawn` ⇒ negative is structural N/A) |
 | Null deref | Nullability + narrowing | `SEM049` (compile-time) | All — **pinned on the 4 backends** (`MemorySafetyMatrixE2ETest` 3/3, phase-6 unit 1, 02/10: refusal + both narrowing forms; behavior change zero — parity was already true, the pin is the product, precedent #658/#659/#662) |
-| Resource leak | Explicit close | `MEM014` (compile-time; WARNING) | All (Script surfaces it via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
+| Resource leak | Explicit close | `MEM014` (compile-time; WARNING) | All — **pinned on the 4 backends** (phase-6 unit 2, 02/10: web `ResourceLeakE2ETest` 5/5 + db `DbResourceLeakE2ETest` 4/4 JVM/Native/JS + Script `Result.warnings()` carries `MEM014` on both faces, `MemorySafetyMatrixE2ETest` 2 new pins; `D-SCRIPT-WARN-SURFACE`) |
 | FFI ownership confusion | Confined arena per call (no release surface exists — `kof_ffi_release` is a model concept, spec §7, measured 28/09) | `MEM005` — model rule, no emission surface today | JVM + Native |
-| Resource leak (DB/Web) | Explicit close | `MEM014` (compile-time; WARNING) | All (Script surfaces it via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
+| Resource leak (DB/Web) | Explicit close | `MEM014` (compile-time; WARNING) | same faces as the row above — the duplicate row exists because the matrix grew per-creator; both rows now share the unit-2 executed pin (02/10) |
 
 > **WARNING-class diagnostics on Script:** `MEM014`/`MEM022` fire in the shared frontend on all targets. On Script, `interpret()` used to discard WARNINGs (only ERRORS escaped) — measured 29/09, decision request #678; **RESOLVED 29/09 (`D-SCRIPT-WARN-SURFACE`, option A): the interpreter now exposes them via `KofInterpreter.Result.warnings()` and the CLI/`KofScript` print them to stderr like the compile path.**
 
