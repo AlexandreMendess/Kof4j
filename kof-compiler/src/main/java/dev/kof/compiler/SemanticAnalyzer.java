@@ -25,6 +25,18 @@ public class SemanticAnalyzer {
         return target;
     }
 
+    // D-INTEROP-ERR-TYPE: interpretacao roda o frontend com target=JVM; o gate
+    // da face precisa distinguir (Script nao tem ffi estrangeira).
+    private boolean interpreting;
+
+    void setInterpreting(boolean b) {
+        this.interpreting = b;
+    }
+
+    boolean interpreting() {
+        return interpreting;
+    }
+
     void setExternalTypes(ExternalClasspath cp) {
         this.externalTypes = cp;
     }

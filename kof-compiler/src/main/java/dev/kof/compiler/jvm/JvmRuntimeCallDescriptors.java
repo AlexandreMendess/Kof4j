@@ -537,6 +537,8 @@ public final class JvmRuntimeCallDescriptors {
                     -> "(Ljava/lang/String;Ldev/kof/runtime/KofRuntime$KeyHandle;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_sec_secret_reveal", "kof_sec_secret_redacted"
                     -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
+            case "kof_interop_error_message", "kof_interop_error_code"
+                    -> "(Ldev/kof/runtime/KofRuntime$InteropError;)Ljava/lang/String;";
             default -> "(Ljava/lang/String;)Ljava/lang/Object;";
         };
     }

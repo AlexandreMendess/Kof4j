@@ -425,6 +425,11 @@ if (mc.receiver() != null) {
                 KofSecurity.instanceMethod(recvType, mc.methodName(), secretArgs.size());
         if (secretCall != null) return secretCall.returnType();
     }
+    if (KofInteropError.isInteropErrorType(recvType)) {
+        KofInteropError.InteropCall ioeCall =
+                KofInteropError.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
+        if (ioeCall != null) return ioeCall.returnType();
+    }
     if (KofIo.isIoType(recvType)) {
         KofIo.IoCall ioCall = KofIo.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
         if (ioCall != null) return ioCall.returnType();

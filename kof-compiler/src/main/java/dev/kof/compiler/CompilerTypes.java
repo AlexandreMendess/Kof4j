@@ -125,6 +125,11 @@ public final class CompilerTypes {
         // §243: a exceção de Kof é String — mas um `class String` do usuário
         // (DECISIONS §4) vence o builtin.
         if ("String".equals(typeName) && !unitDeclaresType(currentUnit, typeName)) return BuiltinTypes.STRING;
+        // D-INTEROP-ERR-TYPE: builtin do idioma — o nome no `catch` precisa
+        // chegar QUALIFICADO (pkg "kof") ao lowerer/typer (mesma forma dos
+        // constates Secret/KeyHandle); via toType o pacote ficaria vazio.
+        Type ioe = KofInteropError.typeByName(typeName);
+        if (ioe != null && !unitDeclaresType(currentUnit, typeName)) return ioe;
         Type t = toType(typeName, currentUnit);
         if (t instanceof Type.ClassType ct && ct.packageName().isEmpty()
                 && JAVA_LANG_THROWABLES.contains(ct.name())) {
@@ -281,6 +286,8 @@ public final class CompilerTypes {
         if (net != null) return net;
         Type sec = KofSecurity.typeByName(name);
         if (sec != null) return sec;
+        Type ioe = KofInteropError.typeByName(name);
+        if (ioe != null) return ioe;
         return BuiltinTypes.declaredCollectionType(name);
     }
 

@@ -140,6 +140,7 @@ final class SemFieldAccessTyper {
                 // → NoSuchFieldError no runtime (Handle: o idioma é `await h`).
                 if ((KofIo.isIoType(recvType) || KofBuffer.isBufferType(recvType)
                         || KofSecurity.isSecretType(recvType) || KofSecurity.isKeyHandleType(recvType)
+                        || KofInteropError.isInteropErrorType(recvType)
                         || BuiltinTypes.isChannel(recvType) || TypeChecker.isConcurrentHandle(recvType))
                         && sa.diagnostics() != null) {
                     boolean handle = TypeChecker.isConcurrentHandle(recvType);
@@ -147,7 +148,8 @@ final class SemFieldAccessTyper {
                             : KofIo.isPath(recvType) ? "Path"
                             : KofIo.isFile(recvType) ? "File"
                             : KofBuffer.isBufferType(recvType) ? "Buffer"
-                            : (KofSecurity.isSecretType(recvType) ? "Secret"
+                            : (KofInteropError.isInteropErrorType(recvType) ? "InteropError"
+                            : KofSecurity.isSecretType(recvType) ? "Secret"
                             : BuiltinTypes.isChannel(recvType) ? "Channel"
                             : (KofSecurity.isKeyHandleType(recvType) ? "KeyHandle" : "Handle"));
                     sa.diagnostics().error(fa,

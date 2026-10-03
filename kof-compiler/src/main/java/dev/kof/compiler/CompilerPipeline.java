@@ -360,6 +360,7 @@ public final class CompilerPipeline {
         }
         driver.semanticAnalyzer = new SemanticAnalyzer();
         driver.semanticAnalyzer.setTarget(driver.target);
+        driver.semanticAnalyzer.setInterpreting(driver.interpreting);
         driver.semanticAnalyzer.setExternalTypes(driver.externalClasspath);
         driver.semanticAnalyzer.setDeclarationPackageLookup(d -> driver.declarationPackages.get(d));
         driver.semanticAnalyzer.analyze(unit, diagnostics);

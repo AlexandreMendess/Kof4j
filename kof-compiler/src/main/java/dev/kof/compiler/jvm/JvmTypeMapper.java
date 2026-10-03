@@ -111,6 +111,9 @@ public final class JvmTypeMapper {
         }
         // D-SECRETS P3: `KeyHandle` apaga para KofRuntime$KeyHandle (mesmo
         // padrao do Secret).
+        if ("kof".equals(c.packageName()) && "InteropError".equals(c.name())) {
+            return "Ldev/kof/runtime/KofRuntime$InteropError;";
+        }
         if ("kof".equals(c.packageName()) && "KeyHandle".equals(c.name())) {
             return "Ldev/kof/runtime/KofRuntime$KeyHandle;";
         }
@@ -217,6 +220,7 @@ public final class JvmTypeMapper {
         if ("kof".equals(packageName) && "Buffer".equals(simpleName)) return "dev/kof/runtime/KofRuntime$Buffer";
         if ("kof".equals(packageName) && "Secret".equals(simpleName)) return "dev/kof/runtime/KofRuntime$Secret";
         if ("kof".equals(packageName) && "KeyHandle".equals(simpleName)) return "dev/kof/runtime/KofRuntime$KeyHandle";
+        if ("kof".equals(packageName) && "InteropError".equals(simpleName)) return "dev/kof/runtime/KofRuntime$InteropError";
         if (packageName.isEmpty()) return simpleName;
         return packageName.replace('.', '/') + "/" + simpleName;
     }

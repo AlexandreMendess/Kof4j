@@ -202,6 +202,9 @@ public final class ExpressionInstanceCallLowerer {
     if (KofSecurity.isSecretType(recvType) || KofSecurity.isKeyHandleType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerSecret(driver, mc, ops, owner, localIdx, locals, recvType);
     }
+    if (KofInteropError.isInteropErrorType(recvType)) {
+        return ExpressionBuiltinInstanceCalls.lowerInteropError(driver, mc, ops, owner, localIdx, locals, recvType);
+    }
     if (KofIo.isIoType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerIo(driver, mc, ops, owner, localIdx, locals, recvType);
     }

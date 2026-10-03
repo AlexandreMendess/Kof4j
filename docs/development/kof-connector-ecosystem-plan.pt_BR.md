@@ -888,10 +888,10 @@ autorizada e suas questões de design travadas no `DECISIONS.md`:
 * **Segundo connector oficial depois do Java** — **C ABI** (Fase 2, §5.2).
 * **Roteiro de promoção** — `future/` → `docs/development/` **FEITO 29/09/2026** (`D-CONNECTORS-GO`).
 
-**Falta pousar:** somente a Fatia B (tipo de erro de interop) — **superfície DECIDIDA 02/10 por
-`D-INTEROP-ERR-TYPE`** (builtin `InteropError` com `.message`/`.code` (INTEROP00x),
-`catch (InteropError e)`, contrato de exceções String intocado, nunca engolido — R6); implementação =
-próxima unidade da lane, RED-first. O construto `foreign module` na gramática **POUSOU 01/10**
+**Falta pousar:** NENHUMA das peças rule-6 — **Fatias A, B, C, D todas POUSADAS** (A: gramática
+`foreign module` 01/10; C: metade declarativa C-ABI 29/09; D: tabela de tiers transcrita 02/10;
+B: tipo `InteropError` POUSADO 02/10, `InteropErrorE2ETest` 6/6). Próximo passo: determinação da
+mantenedora sobre encerramento/promoção do plano para `docs/stdlib/`. O construto `foreign module` na gramática **POUSOU 01/10**
 (Fatia A, `ForeignModuleGrammarE2ETest` 5/5 reverificado no tip 02/10 pela lane dona
 `192.168.15.15:9092`). **Fatia D FECHADA 02/10** — tiers transcritos por `D-ABI-TIER-TABLE` (escala do
 stdlib; primeiro estável = 1.0.0; promoção pelo DoD R5).
@@ -920,11 +920,14 @@ fatia medir-antes: nomeia as âncoras reais, divide o trabalho e não implementa
   módulo chamando símbolos reais da libm (`fmod`/`sqrt`/`pow`) na JVM, a sobreposição de library por
   `extern`, os dois diagnósticos honestos e a retrocompat dos identificadores. Toca lexer/parser →
   frontend; sem mudança de ABI/runtime.
-* **Fatia B — tipo de erro de interop** (sistema de tipos). **Superfície DECIDIDA 02/10 por
-  `D-INTEROP-ERR-TYPE`:** builtin `InteropError` com `.message`/`.code` (INTEROP00x),
-  `catch (InteropError e)`, convivendo com o contrato congelado de exceções String; prova = um erro
-  estrangeiro surge como esse tipo e nunca é engolido (R6). Toca o sistema de tipos → lane compilador;
-  implementação é a próxima unidade da lane (RED-first).
+* **Fatia B — tipo de erro de interop** (sistema de tipos). **POUSADA 02/10 (`D-INTEROP-ERR-TYPE`, `InteropErrorE2ETest` 6/6 VERDE)**:
+  o erro estrangeiro é um tipo REAL catchável builtin `InteropError` (mesmo padrão §179/`typeByName`
+  de `Secret`/`KeyHandle`; `KofInteropError.java` + `JvmInteropErrorRuntime.java`); acesso via
+  **métodos** `e.message()` / `e.code()` (padrão de builtins da casa, propriedade desconhecida dá
+  `SEM102`); falhas de downcall FFI lançam com código `INTEROP010`; contrato congelado de `catch (String)`
+  intocado (vê a falha com código nomeado); catch aninhado prova que o catch tipado nunca engole
+  exceções String comuns; alvos fora da JVM (Script/JS/Native/Android) recusam no compile com gap
+  nomeado `INTEROP009` (nunca stub silencioso; R6). Bateria completa do compilador sem regressões.
 * **Fatia C — connector C-ABI, metade declarativa** (library-first, começa já). Compõe as peças do
   Core: `ForeignModule` (library+símbolos+ABI+posse) + `InteropCost` (custos visíveis declarados) +
   `InteropCompatibility` (tier de estabilidade) + `InteropLibrary` (`.so`/`.dylib`/`.dll`/`.a`/`.lib`);
