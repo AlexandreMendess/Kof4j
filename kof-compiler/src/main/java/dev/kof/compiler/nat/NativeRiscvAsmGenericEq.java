@@ -12,7 +12,7 @@ public final class NativeRiscvAsmGenericEq {
 
     private NativeRiscvAsmGenericEq() {}
 
-    static final String RISCV_RUNTIME_ASM_GENERIC_EQ = """
+    static String RISCV_RUNTIME_ASM_GENERIC_EQ = """
             # §553 / D-EQ-UNBOUNDED-T: `==` sobre type variable SEM bound.
             # a0=a, a1=b -> a0 1/0. Caixa de erasure (MAGIC §284) ->
             # kof_box_equals; String/record/classe -> kof_obj_equals
