@@ -204,8 +204,15 @@ public final class ExpressionJsonCallLowerer {
             // tipo do VALOR: classe de usuário → object_map (binda cada
             // valor); escalável/string → map (HashMap cru do parser).
             Type vt = BuiltinTypes.mapValue(targetType);
+            // issue #735: `Object` é o tipo DINÂMICO, não uma classe de bind.
+            // Sem esta exclusão, decode<Map<String,Object>> chamava
+            // kof_json_decode_object_map(..., "java.lang.Object") e o binder
+            // instanciava um `new Object()` opaco para cada objeto aninhado
+            // (imprimia java.lang.Object@...; cast para Map dava CCE). O valor
+            // fica como o parser o produziu (LinkedHashMap/List), exatamente o
+            // que já ocorre dentro de uma lista.
             boolean valueIsClass = vt instanceof Type.ClassType vct
-                    && !BuiltinTypes.isString(vct)
+                    && !BuiltinTypes.isString(vct) && !BuiltinTypes.isObject(vct)
                     && !BuiltinTypes.isList(vct) && !BuiltinTypes.isMap(vct);
             if (driver.target.isNative()) {
                 // Gap honesto (R6): o runtime nativo não tem decoder de mapa
