@@ -14258,3 +14258,17 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Fronteira:** só a detecção de ambiguidade de ciclo de vida; sem mudança de parser/typer/codegen/runtime, sem sintaxe nova, sem divergência por alvo.
 
 <!-- en-switch --> **EN:** [§577 (EN)](known-bugs.md#577--kof-test-lifecycle-declaring-both-setup-and-beforeeach-or-teardown-and-aftereach-silently-ran-only-the-last-one---fixed-0210-owner--19216815309093-found-in-the-kof-testing-platform-runner)
+
+## §578 — `kof test`: um arquivo só-programa (`main`, sem `test`) rodava mas seu stdout era DESCARTADO em silêncio no JVM/Native (o JS mostrava) — ✅ CORRIGIDO 02/10 (dona = 192.168.15.30:9093); encontrado no runner do `kof-testing-platform`
+
+**Sintoma (medido 02/10, tip `e17ca2b45`):** `kof test Prog.kf` onde `Prog.kf` é um programa normal (`main() { println("hello from program") }`, sem `test`) reporta `PASS Prog.kf` / `1 passed, 0 failed` mas **nunca imprime `hello from program`** no JVM nem no Native. No JS o mesmo arquivo imprime `hello from program` e depois `PASS Prog.kf`. Ou seja, um arquivo só-programa rodava corretamente e era contado como aprovado, mas toda a sua saída observável era jogada fora em dois dos três alvos — divergência entre alvos (regra 5) e perda silenciosa de dados (um CI que depende do stdout do programa não vê nada).
+
+**Causa (leitura):** no `CmdTest`, o ramo de sucesso de um arquivo sem testes descobertos era `if (driver.discoveredTests().isEmpty()) System.out.println("PASS " + f); else System.out.print(output);` — isto é, o `output` capturado do processo (o stdout do programa para JVM/Native, coletado por `boundedRun`) era impresso **só quando o arquivo tinha testes**. Um arquivo só-programa, portanto, descartava o `output`. O JS não era afetado porque a perna JS roda in-process e escreve direto no `System.out`, sem passar pela captura.
+
+**Correção (só CLI, zero mudança de linguagem):** o ramo de sucesso de só-programa agora imprime o `output` capturado antes do `PASS`: `if (output.length() > 0) System.out.print(output); System.out.println("PASS " + f);`. Isso casa a ordem do JS (saída do programa, depois `PASS`) e preserva inalterado o caminho de arquivo com testes. Um programa que falha já imprimia o `output` (ramo `!ok`), então só o caminho de sucesso perdia dados.
+
+**Prova (RED-first):** novo caso em `CmdTestSuiteTest` — `programOnlyFileKeepsItsStdoutOnJvmAndJs` (JVM e JS têm de mostrar `hello from program` e sair 0) + o caso existente `fileWithMainAndNoTestsStillRunsAsAProgram` estendido com a asserção de saída. Pré-correção os dois falham na perna JVM (`expected true but was false`; o stdout do programa estava ausente); pós-correção `CmdTestSuiteTest` 8/8. Bateria 64/64 compilador + 20/20 CLI (`CmdTestTagTest` 4, `CmdTestTimeoutTest` 3, `KofSourceDiscoveryTest` 5, `TestTagsE2ETest` 22, `StructuredTestE2ETest` 12, `KofTestingE2ETest` 7, `GenericEqualityE2ETest` 16, `PropertyTestIdiomE2ETest` 7); Q2 rc=0.
+
+**Fronteira:** só o encanamento de saída do runner (o caminho de sucesso de só-programa); sem mudança de parser/typer/codegen/runtime, sem sintaxe nova, sem mudança no caminho de suíte de testes nem no `kof run`.
+
+<!-- en-switch --> **EN:** [§578 (EN)](known-bugs.md#578--kof-test-a-program-only-file-main-no-test-ran-but-its-stdout-was-silently-discarded-on-jvmnative-js-showed-it---fixed-0210-owner--19216815309093-found-in-the-kof-testing-platform-runner)

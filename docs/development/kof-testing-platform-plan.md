@@ -434,9 +434,10 @@ integrate with `kof test` (`CmdTest`)/the compiler test pipeline.
 nor a top-level `main` is an **auxiliary module** (shared helpers), not a suite. `kof test` skips it
 with `SKIP <file> (no tests, no main)` and counts it as skipped — never as pass/fail. A run where
 every file is an auxiliary module exits 1 (`no runnable test or program file found`); zero runnable
-files is not a success. A file with `main` and no tests still runs as a program (contract preserved).
-This requires the compiler to expose `CompilerDriver.hasMainEntryPoint()`, set once per unit by the
-tests desugar step.
+files is not a success. A file with `main` and no tests still runs as a program (contract preserved),
+and the program's stdout is kept — printed before `PASS`, matching the JS leg (measured defect
+`known-bugs` §578, FIXED 02/10). This requires the compiler to expose `CompilerDriver.hasMainEntryPoint()`,
+set once per unit by the tests desugar step.
 
 ## 7.1 Tagging
 

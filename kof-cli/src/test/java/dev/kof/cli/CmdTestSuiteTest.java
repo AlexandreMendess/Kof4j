@@ -127,6 +127,26 @@ class CmdTestSuiteTest {
         assertEquals(0, r.exit(), "programa sem testes roda:\n" + r.out());
         assertTrue(r.out().contains("PASS " + f), "roda como programa:\n" + r.out());
         assertFalse(r.out().contains("SKIP"), "não é skip: tem main:\n" + r.out());
+        // §578: a saída do programa não pode sumir — o modo JVM/Native captura
+        // o stdout do processo; sem testes ele era descartado (o JS mostrava).
+        assertTrue(r.out().contains("programa normal"),
+                "a saída do programa tem de aparecer:\n" + r.out());
+    }
+
+    @Test
+    void programOnlyFileKeepsItsStdoutOnJvmAndJs(@TempDir Path dir) throws Exception {
+        // §578: paridade de alvos (regra 5) — um arquivo só-programa deve
+        // imprimir o MESMO stdout no JVM e no JS, e PASSAR nos dois.
+        Path f = dir.resolve("Prog.kf");
+        Files.writeString(f, "main() {\n    println(\"hello from program\")\n}\n");
+        Cli jvm = cli(dir, "test", f.toString(), "--target", "jvm");
+        assertEquals(0, jvm.exit(), "programa JVM roda:\n" + jvm.out());
+        assertTrue(jvm.out().contains("hello from program"),
+                "JVM deve mostrar o stdout do programa:\n" + jvm.out());
+        Cli js = cli(dir, "test", f.toString(), "--target", "js");
+        assertEquals(0, js.exit(), "programa JS roda:\n" + js.out());
+        assertTrue(js.out().contains("hello from program"),
+                "JS deve mostrar o stdout do programa:\n" + js.out());
     }
 
     @Test

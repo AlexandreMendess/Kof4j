@@ -287,8 +287,16 @@ final class CmdTest {
             }
             if (ok) {
                 passed++;
-                if (driver.discoveredTests().isEmpty()) System.out.println("PASS " + f);
-                else System.out.print(output);
+                if (driver.discoveredTests().isEmpty()) {
+                    // §578: arquivo só-programa (main, sem teste) — o stdout do
+                    // processo é a SAÍDA do programa, não um diagnóstico do
+                    // runner. JVM/Native o capturavam e o descartavam (o JS já
+                    // o mostrava); imprimir antes do PASS dá paridade de alvos.
+                    if (output.length() > 0) System.out.print(output);
+                    System.out.println("PASS " + f);
+                } else {
+                    System.out.print(output);
+                }
             } else {
                 failed++;
                 System.out.println("FAIL " + f);

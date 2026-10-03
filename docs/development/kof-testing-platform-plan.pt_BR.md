@@ -420,8 +420,10 @@ nem um `main` top-level é um **módulo auxiliar** (helpers compartilhados), nã
 `kof test` o pula com `SKIP <arquivo> (no tests, no main)` e conta como skip — nunca como
 pass/fail. Uma corrida em que todo arquivo é módulo auxiliar sai 1 (`no runnable test or program
 file found`); zero arquivos executáveis não é sucesso. Um arquivo com `main` e sem testes segue
-rodando como programa (contrato preservado). Isso exige que o compilador exponha
-`CompilerDriver.hasMainEntryPoint()`, setado uma vez por unidade pelo passo de desugar de testes.
+rodando como programa (contrato preservado), e o stdout do programa é mantido — impresso antes do
+`PASS`, casando a perna JS (defeito medido, `known-bugs` §578, CORRIGIDO 02/10). Isso exige que o
+compilador exponha `CompilerDriver.hasMainEntryPoint()`, setado uma vez por unidade pelo passo de
+desugar de testes.
 
 ## 7.1 Tagging
 

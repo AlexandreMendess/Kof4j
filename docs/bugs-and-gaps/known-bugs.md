@@ -16707,3 +16707,17 @@ plan "Phase 5 slices".
 **Boundary:** lifecycle ambiguity detection only; no parser/typer/codegen/runtime change, no new syntax, no per-target divergence.
 
 <!-- pt-switch --> **PT:** [§577 (pt_BR)](known-bugs.pt_BR.md#577--ciclo-de-vida-do-kof-test-declarar-setup-e-beforeeach-juntos-ou-teardown-e-aftereach-rodava-em-silencio-so-o-ultimo---corrigido-0210-dona--19216815309093-encontrado-no-runner-do-kof-testing-platform)
+
+## §578 — `kof test`: a program-only file (`main`, no `test`) ran but its stdout was silently DISCARDED on JVM/Native (JS showed it) — ✅ FIXED 02/10 (owner = 192.168.15.30:9093); found in the `kof-testing-platform` runner
+
+**Symptom (measured 02/10, tip `e17ca2b45`):** `kof test Prog.kf` where `Prog.kf` is a normal program (`main() { println("hello from program") }`, no `test`) reports `PASS Prog.kf` / `1 passed, 0 failed` but **never prints `hello from program`** on JVM or Native. On JS the same file prints `hello from program` then `PASS Prog.kf`. So a program-only file ran correctly and was counted as passing, but its entire observable output was thrown away on two of the three targets — a cross-target divergence (rule 5) and silent data loss (a CI relying on the program's stdout sees nothing).
+
+**Root (read):** in `CmdTest`, the success branch for a file with no discovered tests was `if (driver.discoveredTests().isEmpty()) System.out.println("PASS " + f); else System.out.print(output);` — i.e. the captured process `output` (the program's stdout for JVM/Native, collected by `boundedRun`) was printed **only when the file had tests**. A program-only file therefore dropped `output` on the floor. JS was unaffected because the JS leg runs in-process and writes straight to `System.out`, bypassing the capture.
+
+**Fix (CLI only, zero language change):** the program-only success branch now prints the captured `output` before `PASS`: `if (output.length() > 0) System.out.print(output); System.out.println("PASS " + f);`. This matches the JS ordering (program output, then `PASS`) and preserves the test-file path unchanged. A failing program already printed `output` (the `!ok` branch), so only the success path was lossy.
+
+**Proof (RED-first):** new `CmdTestSuiteTest` case `programOnlyFileKeepsItsStdoutOnJvmAndJs` (JVM and JS both must show `hello from program` and exit 0) + the existing `fileWithMainAndNoTestsStillRunsAsAProgram` extended with the output assertion. Pre-fix both fail on the JVM leg (`expected true but was false`; the program's stdout was absent); post-fix `CmdTestSuiteTest` 8/8. Battery 64/64 compiler + 20/20 CLI (`CmdTestTagTest` 4, `CmdTestTimeoutTest` 3, `KofSourceDiscoveryTest` 5, `TestTagsE2ETest` 22, `StructuredTestE2ETest` 12, `KofTestingE2ETest` 7, `GenericEqualityE2ETest` 16, `PropertyTestIdiomE2ETest` 7); Q2 rc=0.
+
+**Boundary:** runner output plumbing only (the program-only success path); no parser/typer/codegen/runtime change, no new syntax, no change to the test-suite path or to `kof run`.
+
+<!-- pt-switch --> **PT:** [§578 (pt_BR)](known-bugs.pt_BR.md#578--kof-test-um-arquivo-so-programa-main-sem-test-rodava-mas-seu-stdout-era-descartado-em-silencio-no-jvmnative-o-js-mostrava---corrigido-0210-dona--19216815309093-encontrado-no-runner-do-kof-testing-platform)
