@@ -17,9 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
  * aceita o Secret privado OU um de 64-hex público via `secrets.of(hex)`.
  * JS/Native/cross recusam com o gap nomeado SECN013.
  */
-class CryptoSignE2ETest {
-
-    private final CompilerDriver driver = new CompilerDriver();
+class CryptoSignE2ETest extends TargetGapRefusalSupport {
 
     private static String program() {
         return """
@@ -90,16 +88,18 @@ class CryptoSignE2ETest {
         assertGolden(r.stdout());
     }
 
-    @Test
-    @DisplayName("D-KOF-SIGN: JS/Native/cross refuse the signing face with the named SECN013 gap")
-    void targetGapRefusal(@TempDir Path dir) throws Exception {
-        Path s = dir.resolve("gap.kf");
-        Files.writeString(s, program());
-        for (Target t : new Target[]{Target.JS, Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = driver.compile(s, dir.resolve("out-" + t), t);
-            assertFalse(r.success(), t + " must refuse the Ed25519 face for now");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("SECN013"),
-                    t + " must name SECN013: " + r.diagnostics().getDiagnostics());
-        }
+    @Override
+    protected String gapProgram() {
+        return program();
+    }
+
+    @Override
+    protected String gapCode() {
+        return "SECN013";
+    }
+
+    @Override
+    protected String gapLabel() {
+        return "Ed25519 face";
     }
 }

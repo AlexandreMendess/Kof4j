@@ -622,6 +622,14 @@ family) was also moved onto `NativeCrossSupport` (4/4 green). Remaining: `main` 
 text blocks, a false lead), `assumeToolchain` (26 divergent signatures) and
 `copyLibrary` (35 classes, two shapes) — each needs its own bounded increment.
 
+**Phase 5 slice 3 LANDED (03/10):** the duplicate `targetGapRefusal` `@Test`
+(`CryptoSignE2ETest` × `KeyExchangeE2ETest`, same name/different named code —
+introduced by the D-KOF-SIGN lane's `9d2f5c81e`, which had left the hygiene gate
+RED) was consolidated into a new `TargetGapRefusalSupport` base: the subclass
+supplies `gapProgram()`/`gapCode()`/`gapLabel()`, the base owns the `@Test`.
+`CryptoSignE2ETest` 3/3 + `KeyExchangeE2ETest` 6/6 green; `check_test_hygiene`
+back to rc=0 (130 keys, 0 new debt).
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.

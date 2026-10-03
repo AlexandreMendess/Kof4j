@@ -629,6 +629,14 @@ foi movida para `NativeCrossSupport` (4/4 verdes). Restante: `main` (em sua maio
 pista falsa), `assumeToolchain` (26 assinaturas divergentes) e `copyLibrary` (35
 classes, dois shapes) — cada uma exige o seu próprio incremento limitado.
 
+**Fatia 3 da Fase 5 ENTREGUE (03/10):** o `@Test` `targetGapRefusal` duplicado
+(`CryptoSignE2ETest` × `KeyExchangeE2ETest`, mesmo nome/código nomeado diferente
+— introduzido pela lane D-KOF-SIGN em `9d2f5c81e`, que deixou o gate de higiene
+RED) foi consolidado numa nova base `TargetGapRefusalSupport`: a subclasse
+fornece `gapProgram()`/`gapCode()`/`gapLabel()`, a base tem o `@Test`.
+`CryptoSignE2ETest` 3/3 + `KeyExchangeE2ETest` 6/6 verdes; `check_test_hygiene`
+de volta a rc=0 (130 chaves, 0 dívida nova).
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.

@@ -20,9 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
  * never silent (R6). Proves the Alice/Bob agreement, the RFC 5869 case-1
  * golden, and the redaction of the shared secret.
  */
-class KeyExchangeE2ETest {
-
-    private final CompilerDriver driver = new CompilerDriver();
+class KeyExchangeE2ETest extends TargetGapRefusalSupport {
 
     private static final String HKDF_CASE1 =
             "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865";
@@ -151,16 +149,18 @@ class KeyExchangeE2ETest {
         assertEquals("32", lines[1], "16 derived bytes = 32 hex chars: " + lines[1]);
     }
 
-    @Test
-    @DisplayName("D-KOF-X25519: JS/Native/cross refuse the face with the named SECN012 gap until ported")
-    void targetGapRefusal(@TempDir Path dir) throws Exception {
-        Path s = dir.resolve("gap.kf");
-        Files.writeString(s, agreementProgram());
-        for (Target t : new Target[]{Target.JS, Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = driver.compile(s, dir.resolve("out-" + t), t);
-            assertFalse(r.success(), t + " must refuse the X25519 face for now");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("SECN012"),
-                    t + " must name SECN012: " + r.diagnostics().getDiagnostics());
-        }
+    @Override
+    protected String gapProgram() {
+        return agreementProgram();
+    }
+
+    @Override
+    protected String gapCode() {
+        return "SECN012";
+    }
+
+    @Override
+    protected String gapLabel() {
+        return "X25519 face";
     }
 }
