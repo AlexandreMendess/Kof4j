@@ -244,8 +244,9 @@ resources have explicit lifecycle:
   and the summary is printed with a non-zero exit code.
 - If `beforeEach()` / `setup()` fails: that specific test is marked `SKIP` and does not run.
 - `afterEach()` / `teardown()` always runs via `finally` for every test that setup allowed to execute.
+- If `afterEach()` / `teardown()` throws, it is a **named failure, counted, and the run continues** (`teardown failed: <e>`) — never an uncaught throw that aborts the harness after the first test (measured defect, `known-bugs` §570, FIXED 02/10). Same contract as `afterAll()`.
 
-Proof: `TestTagsE2ETest` (16/16 green).
+Proof: `TestTagsE2ETest` (18/18 green).
 
 ## 4.4 Parameterized tests
 

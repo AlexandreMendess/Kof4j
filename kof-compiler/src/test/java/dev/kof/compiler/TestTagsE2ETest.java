@@ -159,6 +159,58 @@ class TestTagsE2ETest {
     }
 
     @Test
+    void teardownFailureIsReportedCountedAndRunContinues() throws Exception {
+        // §4.2/§4.3: a teardown() that THROWS must not abort the harness
+        // (uncaught exception used to kill main after the first test, so the
+        // remaining tests never ran and no summary was printed). It is a
+        // named failure, counted, and the run continues — same contract as
+        // afterAll().
+        Run r = compileAndRunJvm("""
+            void teardown() {
+                throw "down-boom"
+            }
+            test "one" {
+                assert(true)
+            }
+            test "two" {
+                assert(true)
+            }
+            """);
+        assertTrue(!r.diags().contains("exit=2"), "must COMPILE (exit=2 means load error): "
+                + r.diags());
+        assertTrue(r.output().contains("PASS one") && r.output().contains("PASS two"),
+                "both tests must run despite the teardown throw: " + r.output());
+        assertTrue(r.output().contains("teardown failed: down-boom"),
+                "teardown throw must be reported by name: " + r.output());
+        assertTrue(r.output().contains("2 failed of 2 tests"),
+                "each teardown throw counts as a failure: " + r.output());
+        assertTrue(r.diags().contains("exit=1"), "suite with teardown failure must exit 1: "
+                + r.diags());
+    }
+
+    @Test
+    void afterEachFailureIsReportedCountedAndRunContinues() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterEach() {
+                throw "each-boom"
+            }
+            test "one" {
+                assert(true)
+            }
+            """);
+        assertTrue(!r.diags().contains("exit=2"), "must COMPILE (exit=2 means load error): "
+                + r.diags());
+        assertTrue(r.output().contains("PASS one"),
+                "the test must still PASS (its own assertion held): " + r.output());
+        assertTrue(r.output().contains("teardown failed: each-boom"),
+                "afterEach throw must be reported by name: " + r.output());
+        assertTrue(r.output().contains("1 failed of 1 tests"),
+                "afterEach throw counts as a failure: " + r.output());
+        assertTrue(r.diags().contains("exit=1"), "suite with afterEach failure must exit 1: "
+                + r.diags());
+    }
+
+    @Test
     void setupOkThenTeardownRunsAfter() throws Exception {
         Run r = compileAndRunJvm("""
             void setup() {

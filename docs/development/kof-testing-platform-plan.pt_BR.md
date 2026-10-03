@@ -208,7 +208,7 @@ argumentos:
 - `beforeEach()`: alias §4.2 do `setup()` existente (executa antes de cada teste; uma falha gera um `SKIP` nomeado)
 - `afterEach()`: alias §4.2 do `teardown()` existente (executa via `finally` depois de cada teste)
 
-Prova: `TestTagsE2ETest` (16/16 verde). Mantém o isolamento dos testes — nunca um mecanismo de estado global.
+Prova: `TestTagsE2ETest` (18/18 verde). Mantém o isolamento dos testes — nunca um mecanismo de estado global.
 
 ## 4.3 Isolamento
 
@@ -228,8 +228,9 @@ recursos têm lifecycle explícito:
   e o resumo é impresso com código de saída não-zero.
 - Se `beforeEach()` / `setup()` falhar: aquele teste específico é marcado `SKIP` e não roda.
 - `afterEach()` / `teardown()` sempre roda via `finally` para todo teste que o setup deixou executar.
+- Se `afterEach()` / `teardown()` lançar, é **falha nomeada, contada, e a corrida continua** (`teardown failed: <e>`) — nunca um throw sem catch que aborta o harness após o primeiro teste (defeito medido, `known-bugs` §570, CORRIGIDO 02/10). Mesmo contrato do `afterAll()`.
 
-Prova: `TestTagsE2ETest` (16/16 verde).
+Prova: `TestTagsE2ETest` (18/18 verde).
 
 ## 4.4 Testes parametrizados
 
