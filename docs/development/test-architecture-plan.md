@@ -10,8 +10,8 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, **132 keys, rc=0** — the 30/09
-measurement; the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+over the frozen `scripts/test-hygiene-baseline.txt`, **131 keys, rc=0** — 132 at the
+30/09 measurement, tightened by the 02/10 Phase-3 extraction; the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
 citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
@@ -68,6 +68,16 @@ poll: both became bounded `TestServerFixture.awaitTrue` polls (wait for ≥3 fir
 interval; then assert no fire in the 80 ms after `cancel`), and `TickCounter.n` is now `volatile`
 (read across the scheduler thread). Baseline 171→170 keys (1 file leaves the sleep set);
 `KofTimeE2ETest` 44/44 (0 skip), focused test 4/4 runs.
+**Phase 3 extraction slice (02/10):** `DepsRegistryTest` (509 lines, an `oversized` ratchet key)
+gave its shared harness to a new `DepsRegistrySupport` (fake GitHub-Releases server, D2-A package
+builder, CLI subprocess runner) — the established Phase 3 pattern (`abstract class …Support`, the
+test class `extends` it). `DepsRegistryTest` 509→303, `DepsRegistrySupport` 230; the 4 neighbor
+classes that `import static dev.kof.cli.DepsRegistryTest.*` keep resolving via inheritance (zero
+citation drift). Proof: `DepsRegistryTest` 13/13 + `DepsRegistryTrustTest` 5/5 +
+`DepsSourceModuleTest` 8/8 + `CmdDeploySourcesTest` 5/5 = **31/31 green**; ratchet baseline
+132→**131** keys (oversized 19→18). (Orphan `DepsRegistryTest$*.class` from the old nested layout
+had to be purged from `target/test-classes` before the focused run — maven's incremental compiler
+does not delete them.)
 **Phase 3 cost found (29/09):** the giant-test split is NOT a cheap increment — test class names
 are cited as proof across `docs/` (e.g. `TranslateTest` in `known-bugs`, `audits/`,
 `future/TRANSLATOR`), so splitting or renaming a class requires a reference sweep and risks doc
@@ -678,7 +688,7 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
    shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
-   authority = **132** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
+   authority = **131** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -704,4 +714,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→19; harness ratchet 146→132, zero identical pairs remain) — the only open work is Phase 5 (target-parameterized cross-target harness), which needs a decision.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→131, zero identical pairs remain) — the only open work is Phase 5 (target-parameterized cross-target harness), which needs a decision.
