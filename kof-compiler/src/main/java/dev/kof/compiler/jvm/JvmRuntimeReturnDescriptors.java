@@ -251,7 +251,8 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_buffer_bytes" -> "[B";
             // D-SECRETS face 1: tipo Secret.
             case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_from_bytes",
-                    "kof_sec_x25519_private_key", "kof_sec_x25519_shared" -> "Ldev/kof/runtime/KofRuntime$Secret;";
+                    "kof_sec_x25519_private_key", "kof_sec_x25519_shared",
+                    "kof_sec_ed25519_private_key" -> "Ldev/kof/runtime/KofRuntime$Secret;";
             case "kof_sec_secret_reveal", "kof_sec_secret_redacted" -> "Ljava/lang/String;";
             case "kof_interop_error_message", "kof_interop_error_code" -> "Ljava/lang/String;";
             // D-SECRETS P3 (KeyHandle).

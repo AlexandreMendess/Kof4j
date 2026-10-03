@@ -333,7 +333,7 @@ public final class StdCatalog {
                     Map.entry("spanEnd", List.of("spanEnd(String id) -> String")),
                     Map.entry("exportSpans", List.of("exportSpans() -> String")))),
             Map.entry("keyExchange", java.util.Map.ofEntries(
-                    Map.entry("privateKey", List.of("privateKey() -> Secret")),
+                    Map.entry("privateKey", List.of("privateKey() -> Secret", "privateKey(String alg) -> Secret")),
                     Map.entry("publicKey", List.of("publicKey(Secret priv) -> String")),
                     Map.entry("shared", List.of("shared(Secret priv, Secret peerPublicHex) -> Secret")),
                     Map.entry("hkdfSha256", List.of("hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String")))),
@@ -353,6 +353,8 @@ public final class StdCatalog {
                     Map.entry("decryptAesGcm", List.of("decryptAesGcm(String cipher, String keyHex64) -> String", "decryptAesGcm(String cipher, KeyHandle key) -> String")),
                     Map.entry("encryptChacha20", List.of("encryptChacha20(String plain, String keyHex) -> String", "encryptChacha20(String plain, KeyHandle key) -> String")),
                     Map.entry("decryptChacha20", List.of("decryptChacha20(String cipher, String keyHex) -> String", "decryptChacha20(String cipher, KeyHandle key) -> String")),
+                    Map.entry("sign", List.of("sign(Secret priv, Byte[] msg) -> String")),
+                    Map.entry("verify", List.of("verify(Secret key, Byte[] msg, String sigHex) -> Bool")),
                     Map.entry("randomHex", List.of("randomHex(Int n) -> String")),
                     Map.entry("randomInt", List.of("randomInt(Int max) -> Int")))),
             Map.entry("jwt", java.util.Map.ofEntries(

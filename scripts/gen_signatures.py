@@ -300,7 +300,7 @@ EXTRA_FATIAS = {
         ("exportSpans", ["exportSpans() -> String"]),
     ],
     "keyExchange": [
-        ("privateKey", ["privateKey() -> Secret"]),
+        ("privateKey", ["privateKey() -> Secret", "privateKey(String alg) -> Secret"]),
         ("publicKey", ["publicKey(Secret priv) -> String"]),
         ("shared", ["shared(Secret priv, Secret peerPublicHex) -> Secret"]),
         ("hkdfSha256", ["hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String"]),
@@ -327,6 +327,8 @@ EXTRA_FATIAS = {
                              "encryptChacha20(String plain, KeyHandle key) -> String"]),
         ("decryptChacha20", ["decryptChacha20(String cipher, String keyHex) -> String",
                              "decryptChacha20(String cipher, KeyHandle key) -> String"]),
+        ("sign", ["sign(Secret priv, Byte[] msg) -> String"]),
+        ("verify", ["verify(Secret key, Byte[] msg, String sigHex) -> Bool"]),
         ("randomHex", ["randomHex(Int n) -> String"]),
         ("randomInt", ["randomInt(Int max) -> Int"]),
     ],

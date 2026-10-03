@@ -158,7 +158,11 @@ public final class ExpressionJsonCallLowerer {
         List<Type> decodeParams = List.of(BuiltinTypes.STRING);
         if (BuiltinTypes.isList(targetType)
                 && driver.listElementType(targetType) instanceof Type.ClassType ect
-                && !BuiltinTypes.isString(ect)) {
+                && !BuiltinTypes.isString(ect)
+                // #735 sibling: `List<Object>` must NOT bind each element to a
+                // `new Object()` — keep the raw parsed list (kof_json_decode_list).
+                && !BuiltinTypes.isObject(ect)
+                && !"Object".equals(ect.name())) {
             if (BuiltinTypes.isList(ect) || BuiltinTypes.isMap(ect) || BuiltinTypes.isSet(ect)) {
                 // decode<List<List<T>>>: o className do elemento seria o nome
                 // do builtin ("kof.List") → Class.forName crasha em runtime
@@ -204,16 +208,17 @@ public final class ExpressionJsonCallLowerer {
             // tipo do VALOR: classe de usuário → object_map (binda cada
             // valor); escalável/string → map (HashMap cru do parser).
             Type vt = BuiltinTypes.mapValue(targetType);
-            // issue #735: `Object` é o tipo DINÂMICO, não uma classe de bind.
-            // Sem esta exclusão, decode<Map<String,Object>> chamava
-            // kof_json_decode_object_map(..., "java.lang.Object") e o binder
-            // instanciava um `new Object()` opaco para cada objeto aninhado
-            // (imprimia java.lang.Object@...; cast para Map dava CCE). O valor
-            // fica como o parser o produziu (LinkedHashMap/List), exatamente o
-            // que já ocorre dentro de uma lista.
+            // #735: `Object` is NOT a user class — routing it through
+            // kof_json_decode_object_map made the JVM binder build a `new
+            // Object()` (no fields copied) instead of returning the parsed
+            // map, so a nested JSON object came back opaque and a cast to
+            // `Map<String,Object>` threw ClassCastException. `Object` (bare or
+            // java.lang) keeps the raw parsed structure via kof_json_decode_map.
             boolean valueIsClass = vt instanceof Type.ClassType vct
-                    && !BuiltinTypes.isString(vct) && !BuiltinTypes.isObject(vct)
-                    && !BuiltinTypes.isList(vct) && !BuiltinTypes.isMap(vct);
+                    && !BuiltinTypes.isString(vct)
+                    && !BuiltinTypes.isList(vct) && !BuiltinTypes.isMap(vct)
+                    && !BuiltinTypes.isObject(vct)
+                    && !"Object".equals(vct.name());
             if (driver.target.isNative()) {
                 // Gap honesto (R6): o runtime nativo não tem decoder de mapa
                 // (nem escalável nem de classes). Sem este ramo, Map<String,T>

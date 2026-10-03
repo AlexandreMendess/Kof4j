@@ -86,7 +86,7 @@ public final class KofSecurity {
     static java.util.Map<String, List<String>> functions() {
         return java.util.Map.of(
                 "passwords", List.of("hash", "verify", "needsRehash"),
-                "crypto", List.of("sha256", "sha512", "sha256Bytes", "hmacSha256Bytes", "hmacSha256", "encryptAesGcm", "decryptAesGcm", "encryptChacha20", "decryptChacha20", "randomHex", "randomInt"),
+                "crypto", List.of("sha256", "sha512", "sha256Bytes", "hmacSha256Bytes", "hmacSha256", "encryptAesGcm", "decryptAesGcm", "encryptChacha20", "decryptChacha20", "sign", "verify", "randomHex", "randomInt"),
                 "jwt", List.of("create", "verify", "secret"),
                 "secrets", List.of("get", "redact", "of", "secret", "fromBytes", "keyFromHex", "keyFromPem", "keyFromKeystore"),
                 "security", List.of("constantTimeEquals", "randomHex", "redact", "randomInt", "csrfToken", "csrfValid", "corsAllowed", "cspHeader", "hstsHeader", "contentTypeOptionsHeader", "frameHeader", "referrerHeader", "rateLimit", "sessionCreate", "sessionGet", "sessionDestroy", "apiKeyGenerate", "apiKeyValid", "cookieSet", "cookieGet"),
@@ -137,6 +137,14 @@ public final class KofSecurity {
                 case "decryptChacha20" -> argc == 2
                         ? new SecCall(isKeyHandleType(argTypes.get(1)) ? "kof_sec_chacha20_decrypt_key" : "kof_sec_chacha20_decrypt",
                                 STR, isKeyHandleType(argTypes.get(1)) ? List.of(STR, KEY_HANDLE) : List.of(STR, STR)) : null;
+                // D-KOF-SIGN (C1): Ed25519 sobre primitiva do JDK. sign exige o
+                // Secret privado (184-hex PKCS8||SPKI); verify aceita privado OU
+                // so-público (64-hex via secrets.of(hex)). Hex é o formato da casa.
+                case "sign" -> argc == 2
+                        ? new SecCall("kof_sec_ed25519_sign", STR, List.of(SECRET, BYTE_ARRAY)) : null;
+                case "verify" -> argc == 3
+                        ? new SecCall("kof_sec_ed25519_verify", BOOL,
+                                List.of(SECRET, BYTE_ARRAY, STR)) : null;
                 case "randomHex" -> argc == 1
                         ? new SecCall("kof_sec_random_hex", STR, List.of(INT)) : null;
                 case "randomInt" -> argc == 1
@@ -150,9 +158,11 @@ public final class KofSecurity {
             // Real arg non-Secret/len na cara errada: SECN014 (argTypeViolation).
             case "keyExchange" -> switch (name) {
                 case "privateKey" -> argc == 0
-                        ? new SecCall("kof_sec_x25519_private_key", SECRET, List.of()) : null;
+                        ? new SecCall("kof_sec_x25519_private_key", SECRET, List.of())
+                        : argc == 1 && isStringish(argTypes.get(0))
+                        ? new SecCall("kof_sec_ed25519_private_key", SECRET, List.of(STR)) : null;
                 case "publicKey" -> argc == 1
-                        ? new SecCall("kof_sec_x25519_public_key", STR, List.of(SECRET)) : null;
+                        ? new SecCall("kof_sec_public_key_any", STR, List.of(SECRET)) : null;
                 case "shared" -> argc == 2
                         ? new SecCall("kof_sec_x25519_shared", SECRET, List.of(SECRET, SECRET)) : null;
                 case "hkdfSha256" -> argc == 4
@@ -384,6 +394,9 @@ public final class KofSecurity {
             // (a face Secret ja e jvmLike; sem primitivas nos outros runtimes).
             case "kof_sec_x25519_private_key", "kof_sec_x25519_public_key",
                     "kof_sec_x25519_shared", "kof_sec_hkdf_sha256" -> jvmLike(target);
+            // D-KOF-SIGN: mesma casa do X25519 — JVM/Android/Script; JS/Native/cross = SECN013.
+            case "kof_sec_ed25519_private_key", "kof_sec_ed25519_public_key",
+                    "kof_sec_ed25519_sign", "kof_sec_ed25519_verify" -> jvmLike(target);
             case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_reveal",
                     "kof_sec_secret_redacted", "kof_sec_secret_from_bytes" -> jvmLike(target);
             // D-SECRETS P3 (KeyHandle): JVM + Android; os demais alvos
@@ -412,7 +425,10 @@ public final class KofSecurity {
             case "kof_sec_cookie_set", "kof_sec_cookie_set_opts", "kof_sec_cookie_get" -> "SECN006";
             case "kof_sec_auth_resource_server", "kof_sec_auth_resource_server_verify" -> "SECN007";
             case "kof_sec_x25519_private_key", "kof_sec_x25519_public_key",
-                    "kof_sec_x25519_shared", "kof_sec_hkdf_sha256" -> "SECN012";
+                    "kof_sec_x25519_shared", "kof_sec_hkdf_sha256",
+                    "kof_sec_public_key_any" -> "SECN012";
+            case "kof_sec_ed25519_private_key", "kof_sec_ed25519_public_key",
+                    "kof_sec_ed25519_sign", "kof_sec_ed25519_verify" -> "SECN013";
             case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_reveal",
                     "kof_sec_secret_redacted", "kof_sec_secret_from_bytes",
                     "kof_sec_key_from_hex", "kof_sec_key_from_pem", "kof_sec_key_from_keystore",

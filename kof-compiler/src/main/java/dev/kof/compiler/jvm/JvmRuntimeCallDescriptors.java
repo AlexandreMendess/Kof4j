@@ -508,6 +508,11 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_sec_secret_of", "kof_sec_secret"
                     -> "(Ljava/lang/String;)Ldev/kof/runtime/KofRuntime$Secret;";
             case "kof_sec_x25519_private_key" -> "()Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_ed25519_private_key" -> "(Ljava/lang/String;)Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_public_key_any" -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
+            case "kof_sec_ed25519_sign" -> "(Ldev/kof/runtime/KofRuntime$Secret;[B)Ljava/lang/String;";
+            case "kof_sec_ed25519_verify"
+                    -> "(Ldev/kof/runtime/KofRuntime$Secret;[BLjava/lang/String;)Z";
             case "kof_sec_x25519_public_key"
                     -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
             case "kof_sec_x25519_shared"
