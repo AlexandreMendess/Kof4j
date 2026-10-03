@@ -12,7 +12,7 @@ public final class ExpressionTyper {
     private ExpressionTyper() {}
 
     static Type inferExprType(CompilerDriver driver, ExpressionNode expr, List<IRLocalVariable> locals) {
-        return switch (expr) {
+        return qualifyBareModuleType(driver, switch (expr) {
             case LiteralExpr lit -> switch (lit.kind()) {
                 case ConcreteLiteralKind.INT -> Type.PrimitiveType.INT;
                 case ConcreteLiteralKind.LONG -> Type.PrimitiveType.LONG;
@@ -265,7 +265,27 @@ public final class ExpressionTyper {
                         : Type.UnknownType.UNKNOWN;
             }
             default -> Type.UnknownType.UNKNOWN;
-        };
+        });
+    }
+
+    // §571 (KofShare control/check.kf 02/10): o tipo inferido de um local pode
+    // chegar sem pacote quando vem de uma via que não qualifica (ex.: o retorno
+    // de `json.decode<Record>`, cujo namespace o typer runtime não conhece). O
+    // dono do getfield/invokevirtual saía `DeviceInfo` (bare) → o Main linkava
+    // classe inexistente → NoClassDefFoundError no LOAD. Chokepoint único: se o
+    // NOME resolve num símbolo do módulo COM pacote, o tipo apaga qualificado.
+    // Classe legítima de pacote padrão (símbolo com pkg vazio, ex.: Pair do
+    // harness) NÃO é tocada.
+    private static Type qualifyBareModuleType(CompilerDriver driver, Type t) {
+        if (!(t instanceof Type.ClassType ct) || !ct.packageName().isEmpty()
+                || ct.name().indexOf('.') >= 0 || driver.semanticAnalyzer == null) {
+            return t;
+        }
+        var cs = driver.semanticAnalyzer.getClass(ct.name());
+        if (cs == null || cs.packageName() == null || cs.packageName().isEmpty()) {
+            return t;
+        }
+        return new Type.ClassType(cs.packageName(), ct.name(), ct.typeArguments());
     }
 
     /**

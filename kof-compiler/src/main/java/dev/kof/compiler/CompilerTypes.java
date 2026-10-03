@@ -191,6 +191,16 @@ public final class CompilerTypes {
             if (pkg.isEmpty() && !name.contains(".") && !name.contains("<")) {
                 String via = simpleNamePackage(name, unit, sa);
                 if (via != null) pkg = via;
+                // #627-twin (KofShare control/check.kf 02/10): tipo DECLARADO na
+                // própria unidade de um pacote — nem import, nem SymbolTable do
+                // sa (records do arquivo atual não chegam lá) — carrega o pacote
+                // do cabeçalho da unidade. Sem isto, `json.decode<Record>` de um
+                // record empacotado mangelava sem pacote (NoSuchMethodError no
+                // runtime, que define o decoder pelo nome qualificado).
+                if (pkg.isEmpty() && unit != null && unitDeclaresType(unit, name)
+                        && unit.packageName() != null && !unit.packageName().isEmpty()) {
+                    pkg = unit.packageName();
+                }
             }
             // 2b) §179 (D-BACKEND-SEMANTICS #4): tipo kof.ui/kof.media DECLARADO
             // (var/param/campo/retorno) que nada mais resolveu → builtin. Sem
