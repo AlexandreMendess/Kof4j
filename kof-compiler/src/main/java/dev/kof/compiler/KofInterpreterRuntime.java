@@ -135,6 +135,15 @@ public final class KofInterpreterRuntime {
         Class<?> rt = interp.runtimeClass();
         for (Method m : rt.getMethods()) {
             if (!m.getName().equals(name) || m.getParameterCount() != args.length) continue;
+            // §574: um handler de rota web é KofObj (closure IR), e o dispatch
+            // do runtime gerado o chama por reflexão host ("invoke") — sem a
+            // ponte o lookup falha e a rota morre em HTTP 500 no interpretador.
+            if (name.equals("kof_web_route") || name.equals("kof_web_route_opts")) {
+                args = args.clone();
+                for (int i = 0; i < args.length; i++) {
+                    if (args[i] instanceof KofInterpreter.KofObj ko) args[i] = new InterpretedCallable(interp, ko);
+                }
+            }
             Object[] coerced = coerceArgs(m.getParameterTypes(), args);
             try {
                 Object r = m.invoke(null, coerced);
