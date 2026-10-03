@@ -102,26 +102,22 @@ final class AvifMetadataSupport {
     }
 
     // av1C record: byte0 0x81 (marker+version), byte1 = profile<<5|level,
-    // byte2 = tier<<7|high<<6|twelve<<5|mono<<4|subX<<3|subY<<2|reserved(1)+
-    // chroma_present... (the 2-bit tail carries chroma_sample_position when
-    // not mono; 0 here — 4:2:0 unspecified), byte3 reserved=0, then
-    // configOBUsLength(4) + obu.
+    // byte2 = tier<<7|high<<6|twelve<<5|mono<<4|subX<<3|subY<<2, byte3 = the
+    // chroma_sample_position(2)+reserved(3)+initial_presentation_delay(3),
+    // then configOBUs[] DIRECTLY (AV1-ISOBMFF 2.3.3) — no length prefix. The
+    // array may be empty.
     static byte[] av1c(int profile, int level, boolean tier, boolean high,
                                boolean twelve, boolean mono, boolean subX, boolean subY,
                                byte[] obu) {
         int b2 = ((tier ? 1 : 0) << 7) | ((high ? 1 : 0) << 6)
                 | ((twelve ? 1 : 0) << 5) | ((mono ? 1 : 0) << 4)
                 | ((subX ? 1 : 0) << 3) | ((subY ? 1 : 0) << 2);
-        byte[] rec = new byte[12 + obu.length];
+        byte[] rec = new byte[4 + obu.length];
         rec[0] = (byte) 0x81;
         rec[1] = (byte) ((profile << 5) | (level & 31));
         rec[2] = (byte) b2;
         rec[3] = 0;
-        rec[4] = (byte) (obu.length >>> 24);
-        rec[5] = (byte) (obu.length >>> 16);
-        rec[6] = (byte) (obu.length >>> 8);
-        rec[7] = (byte) obu.length;
-        System.arraycopy(obu, 0, rec, 8, obu.length);
+        System.arraycopy(obu, 0, rec, 4, obu.length);
         return box("av1C", rec);
     }
 
@@ -159,8 +155,12 @@ final class AvifMetadataSupport {
     }
 
     static byte[] iprp(List<byte[]> children, List<byte[]> entries) {
-        // ipma v0: ver+flags(4) entry_count(2) + item_id(2) assoc_count(1) idx(1)*
-        byte[] head = new byte[]{0, 0, 0, 0, (byte) (entries.size() >>> 8), (byte) entries.size()};
+        // ipma v0: ver+flags(4) entry_count(4) + item_id(2) assoc_count(1) idx(1)*
+        // entry_count is 32-bit (ISO 14496-12 8.11.4; cross-checked against
+        // FFmpeg mov_read_iprp) — a 16-bit field here was a shared blind spot.
+        int n = entries.size();
+        byte[] head = new byte[]{0, 0, 0, 0, (byte) (n >>> 24), (byte) (n >>> 16),
+                (byte) (n >>> 8), (byte) n};
         byte[] ipma = box("ipma", concatWith(head, entries));
         return box("iprp", concat(List.of(box("ipco", concat(children)), ipma)));
     }
@@ -179,23 +179,26 @@ final class AvifMetadataSupport {
         return box("meta", body);
     }
 
-    // version 0: ver+flags(4) entry_count(2) then: type(4) from(2) count(2)
-    // to(2*count) aux_urn\0
-    static byte[] irefAuxc(int auxItem, int primary, String urn) {
+    // iref is a FullBox (ver+flags) whose payload is a LIST of reference
+    // boxes (ISO 14496-12 8.11.12): size(4) type(4) from_id(2) ref_count(2)
+    // to_id(2*ref_count). AVIF 4.1 uses an `auxl` entry from the aux item to
+    // the primary; the aux type lives in the auxC property.
+    static byte[] irefAuxl(int auxItem, int primary) {
+        byte[] refBody = new byte[2 + 2 + 2];
+        refBody[0] = (byte) (auxItem >>> 8);
+        refBody[1] = (byte) auxItem;
+        refBody[2] = 0;
+        refBody[3] = 1; // reference_count
+        refBody[4] = (byte) (primary >>> 8);
+        refBody[5] = (byte) primary;
+        return box("iref", concatWith(new byte[]{0, 0, 0, 0}, List.of(box("auxl", refBody))));
+    }
+
+    // AuxiliaryTypeProperty ('auxC'): FullBox(ver+flags) then the
+    // NUL-terminated aux_type URN.
+    static byte[] auxc(String urn) {
         byte[] u = (urn + "\0").getBytes(StandardCharsets.US_ASCII);
-        byte[] body = new byte[4 + 2 + 4 + 2 + 2 + 2 + u.length];
-        body[4] = 0;
-        body[5] = 1; // entry_count
-        byte[] t = "auxc".getBytes(StandardCharsets.US_ASCII);
-        System.arraycopy(t, 0, body, 6, 4);
-        body[10] = (byte) (auxItem >>> 8);
-        body[11] = (byte) auxItem;
-        body[12] = 0;
-        body[13] = 1; // reference_count
-        body[14] = (byte) (primary >>> 8);
-        body[15] = (byte) primary;
-        System.arraycopy(u, 0, body, 16, u.length);
-        return box("iref", body);
+        return box("auxC", concatWith(new byte[]{0, 0, 0, 0}, List.of(u)));
     }
 
     static byte[] container(String major, List<byte[]> metaChildren) {
@@ -263,15 +266,26 @@ final class AvifMetadataSupport {
                 iprp(List.of(av1c(0, 2, false, false, false, true, false, false, obu0), ispe(8, 8)), List.of(ipmaEntry(1, 1, 2)))));
         Files.write(dir.resolve("flat.avif"), flat);
 
+        // Two av1C properties (colour + alpha), two ispe, an auxC and an
+        // `auxl` iref: the primary selects {ispe, colour av1C}, the alpha item
+        // selects {auxC, alpha av1C, ispe}. A reader that ignores ipma and
+        // requires a unique av1C must refuse this file.
         byte[] obu1 = configObu(1, 4, true, false, false);
+        byte[] obuA = configObu(0, 2, false, false, true);
         byte[] alpha = container("avif", List.of(
                 av1c(1, 4, false, true, false, false, true, true, obu1),
                 ispe(16, 16),
                 pitm(1),
                 iinf(2, List.of(infe(1, "av01"), infe(2, "av01"))),
                 hdlr(),
-                irefAuxc(2, 1, "urn:mpeg:hevc:2015:auxid:1"),
-                iprp(List.of(av1c(1, 4, false, true, false, false, true, true, obu1), ispe(16, 16)), List.of(ipmaEntry(1, 1, 2), ipmaEntry(2, 1, 2)))));
+                irefAuxl(2, 1),
+                iprp(List.of(
+                                ispe(16, 16),
+                                av1c(1, 4, false, true, false, false, true, true, obu1),
+                                auxc("urn:mpeg:mpegB:cicp:systems:auxiliary:alpha"),
+                                av1c(0, 2, false, false, false, true, false, false, obuA),
+                                ispe(16, 16)),
+                        List.of(ipmaEntry(1, 1, 2), ipmaEntry(2, 3, 4, 5)))));
         Files.write(dir.resolve("alpha.avif"), alpha);
 
         byte[] obu2 = configObu(2, 0, true, true, false);
@@ -318,48 +332,6 @@ final class AvifMetadataSupport {
         out[1] = (byte) payload.length;
         System.arraycopy(payload, 0, out, 2, payload.length);
         return out;
-    }
-
-    static String javaFacts(Path file) throws Exception {
-        byte[] b = Files.readAllBytes(file);
-        int meta = findBox(b, 0, b.length, "meta");
-        assertTrue(meta >= 0, "meta");
-        int metaEnd = boxEnd(b, meta);
-        int pitm = be16(b, findBox(b, meta + 12, metaEnd, "pitm") + 12);
-        int iinf = findBox(b, meta + 12, metaEnd, "iinf");
-        int items = be16(b, iinf + 12);
-        int iprpAt = findBox(b, meta + 12, metaEnd, "iprp");
-        int ipcoAt = findBox(b, iprpAt + 8, boxEnd(b, iprpAt), "ipco");
-        int ispe = findBox(b, ipcoAt + 8, boxEnd(b, ipcoAt), "ispe");
-        int width = be32(b, ispe + 12);
-        int height = be32(b, ispe + 16);
-        int av1 = findBox(b, ipcoAt + 8, boxEnd(b, ipcoAt), "av1C");
-        assertTrue((b[av1 + 8] & 255) == 0x81, "av1C marker");
-        int b1 = b[av1 + 9] & 255, b2 = b[av1 + 10] & 255;
-        int profile = b1 >> 5, level = b1 & 31;
-        int high = (b2 >> 6) & 1, twelve = (b2 >> 5) & 1, mono = (b2 >> 4) & 1;
-        int subX = (b2 >> 3) & 1, subY = (b2 >> 2) & 1, tier = b2 >> 7;
-        int depth = (high == 0) ? 8 : (twelve == 1 ? 12 : 10);
-        int iref = findBox(b, meta + 12, metaEnd, "iref");
-        boolean alpha = iref >= 0
-                && new String(b, iref + 14, 4, StandardCharsets.US_ASCII).equals("auxc")
-                && be16(b, iref + 22) == pitm;
-        String brand = new String(b, 8, 4, StandardCharsets.US_ASCII);
-        if (!brand.equals("avif") && !brand.equals("avis")) {
-            brand = "";
-            for (int i = 16; i + 4 <= be32(b, 0); i += 4) {
-                String cb = new String(b, i, 4, StandardCharsets.US_ASCII);
-                if (cb.equals("avif") || cb.equals("avis")) {
-                    brand = cb;
-                    break;
-                }
-            }
-        }
-        return brand + " " + width + "x" + height
-                + " items=" + items + " primary=" + pitm
-                + " alpha=" + (alpha ? 1 : 0) + " profile=" + profile
-                + " level=" + level + " tier=" + tier + " mono=" + mono
-                + " sub=" + subX + "/" + subY + " depth=" + depth + "/" + depth;
     }
 
     static String probe(Path dir) {

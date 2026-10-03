@@ -13,8 +13,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
+import static dev.kof.compiler.AvifMetadataJavaSupport.javaFacts;
 import static dev.kof.compiler.AvifMetadataSupport.fixtures;
-import static dev.kof.compiler.AvifMetadataSupport.javaFacts;
 import static dev.kof.compiler.AvifMetadataSupport.probe;
 import static dev.kof.compiler.AvifMetadataSupport.errorProbe;
 import static dev.kof.compiler.AvifMetadataSupport.errorFixtures;

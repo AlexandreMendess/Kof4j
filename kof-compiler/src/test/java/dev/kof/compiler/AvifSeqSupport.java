@@ -117,8 +117,9 @@ final class AvifSeqSupport {
             av1At = AvifMetadataSupport.findBox(b, AvifMetadataSupport.boxEnd(b, iprp) - 8 + 0, iprp, "av1C");
         }
         int rec = av1At + 8;
-        int ext = (b[rec + 8] >> 2) & 1;
-        int p = rec + 9 + ext;
+        // configOBUs[] follow the 4-byte record directly (AV1-ISOBMFF 2.3.3).
+        int ext = (b[rec + 4] >> 2) & 1;
+        int p = rec + 5 + ext;
         int size = 0;
         for (int i = 0; i < 8; i++) {
             int x = b[p] & 255;
@@ -271,6 +272,11 @@ final class AvifSeqSupport {
         Files.write(dir.resolve("flat.avif"),
                 containerWith(AvifMetadataSupport.configObu(0, 2, false, false, true),
                         0, 2, false, false, true, false, false, 8, 8));
+        // empty configOBUs: a legal AVIF still image whose sequence header is
+        // in the item data — the av1C face refuses it explicitly (the item
+        // path is readAvifItemObus).
+        Files.write(dir.resolve("noconf.avif"),
+                containerWith(new byte[0], 0, 2, false, false, true, false, false, 8, 8));
         return dir;
     }
 
@@ -346,6 +352,11 @@ final class AvifSeqSupport {
                 }
                 try {
                     readAvifSeqHeader(base + "/prof3.avif")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    readAvifSeqHeader(base + "/noconf.avif")
                 } catch (String e) {
                     println(e)
                 }

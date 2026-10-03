@@ -103,7 +103,8 @@ class AvifSeqE2ETest {
         String goldens = String.join("\n",
                 "IMAGE: avif decoder model info not covered",
                 "IMAGE: avif film grain not covered",
-                "IMAGE: avif sequence profile not covered");
+                "IMAGE: avif sequence profile not covered",
+                "IMAGE: avif config obu absent");
         assertEquals(goldens, runJvm(errorProbe(dir)));
     }
 
