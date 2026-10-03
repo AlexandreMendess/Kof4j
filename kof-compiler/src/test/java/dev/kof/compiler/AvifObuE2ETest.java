@@ -38,7 +38,8 @@ class AvifObuE2ETest {
 
     private static final String GOLDEN = String.join("\n",
             "mix t=4 d=1 s=1 fh=0 rf=0 tg=0 tl=0 m=1 f=0 p=1 r=0 seq p=0 r=1 w=32 h=32 mono=1 sub=1/1 depth=8 still=1",
-            "red t=8 d=1 s=1 fh=1 rf=1 tg=1 tl=1 m=0 f=1 p=0 r=1 seq p=2 r=0 w=8 h=8 mono=1 sub=1/1 depth=12 still=0");
+            "red t=8 d=1 s=1 fh=1 rf=1 tg=1 tl=1 m=0 f=1 p=0 r=1 seq p=2 r=0 w=8 h=8 mono=1 sub=1/1 depth=12 still=0",
+            "big t=4 d=1 s=1 fh=0 rf=0 tg=0 tl=0 m=1 f=0 p=1 r=0 seq p=0 r=1 w=32 h=32 mono=1 sub=1/1 depth=8 still=1");
 
     @Test
     void avifItemObusOnJvm() throws Exception {
@@ -118,7 +119,8 @@ class AvifObuE2ETest {
         String kof = runJvm(probe(dir));
         String java = String.join("\n",
                 "mix " + javaObuFacts(dir.resolve("mix.avif")),
-                "red " + javaObuFacts(dir.resolve("red.avif")));
+                "red " + javaObuFacts(dir.resolve("red.avif")),
+                "big " + javaObuFacts(dir.resolve("big.avif")));
         assertEquals(kof, java);
         assertEquals(GOLDEN, java);
     }

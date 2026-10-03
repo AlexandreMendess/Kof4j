@@ -9,6 +9,19 @@ final class AvifObuSupport {
 
     private AvifObuSupport() {}
 
+    /** AV1 obu_size is LEB128, little-endian (AV1 4.10.5): low 7 bits first. */
+    static byte[] leb128(int v) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        int x = v;
+        do {
+            int b = x & 127;
+            x >>>= 7;
+            if (x != 0) b |= 128;
+            out.write(b);
+        } while (x != 0);
+        return out.toByteArray();
+    }
+
     static byte[] obuRaw(int type, byte[] payload, boolean hasSize, boolean reservedBit,
                          boolean forbidden) {
         int head = ((forbidden ? 1 : 0) << 7) | (type << 3) | ((hasSize ? 1 : 0) << 1)
@@ -19,10 +32,11 @@ final class AvifObuSupport {
             System.arraycopy(payload, 0, out, 1, payload.length);
             return out;
         }
-        byte[] out = new byte[2 + payload.length];
+        byte[] size = leb128(payload.length);
+        byte[] out = new byte[1 + size.length + payload.length];
         out[0] = (byte) head;
-        out[1] = (byte) payload.length;
-        System.arraycopy(payload, 0, out, 2, payload.length);
+        System.arraycopy(size, 0, out, 1, size.length);
+        System.arraycopy(payload, 0, out, 1 + size.length, payload.length);
         return out;
     }
 
@@ -50,10 +64,21 @@ final class AvifObuSupport {
                 obuRaw(6, new byte[]{0x03}, true, false, false)));
     }
 
+    /** Multi-byte LEB128 size: a 200-byte padding OBU, then a metadata OBU —
+     *  the walk must land exactly after the big payload (AV1 4.10.5). */
+    static byte[] bigStream() {
+        return AvifMetadataSupport.concat(List.of(
+                AvifSeqSupport.delimiter(),
+                AvifMetadataSupport.configObu(0, 2, false, false, true),
+                obuRaw(15, new byte[200], true, false, false),
+                obuRaw(5, new byte[]{0x2A, 0x01}, true, false, false)));
+    }
+
     static byte[] streamBytes(String name) {
         switch (name) {
             case "mix.avif": return mixStream();
             case "red.avif": return redStream();
+            case "big.avif": return bigStream();
             case "nodelim.avif":
                 return AvifMetadataSupport.concat(List.of(
                         AvifMetadataSupport.configObu(0, 2, false, false, true),
@@ -106,7 +131,7 @@ final class AvifObuSupport {
 
     static Path fixtures(Path dir) throws Exception {
         Files.createDirectories(dir);
-        for (String name : List.of("mix.avif", "red.avif", "nodelim.avif", "noseq.avif")) {
+        for (String name : List.of("mix.avif", "red.avif", "big.avif", "nodelim.avif", "noseq.avif")) {
             Files.write(dir.resolve(name), containerWithItem(streamBytes(name)));
         }
         return dir;
@@ -149,6 +174,7 @@ final class AvifObuSupport {
                 var base = "%s"
                 println("mix " + facts(readAvifItemObus(base + "/mix.avif")))
                 println("red " + facts(readAvifItemObus(base + "/red.avif")))
+                println("big " + facts(readAvifItemObus(base + "/big.avif")))
             }
             """.formatted(base);
     }
@@ -213,10 +239,12 @@ final class AvifObuSupport {
             if (total == 0 && type != 2) throw new AssertionError("nodelim");
             int p = pos + 1 + ext;
             int size = 0;
+            int mult = 1;
             for (int i = 0; i < 8; i++) {
                 int x = item[p] & 255;
                 p++;
-                size = (size << 7) | (x & 127);
+                size = size + (x & 127) * mult;
+                mult *= 128;
                 if ((x & 128) == 0) break;
             }
             int limit = p + size;

@@ -92,12 +92,14 @@ AvifFrameHeader avifItemFrameHeader(Int[] item) {
             throw "IMAGE: avif obu truncated"
         }
         var size = 0
+        var mult = 1
         var loop = 0
         var sized = false
         while (loop < 8) {
             var x = u8(item, p)
             p = p + 1
-            size = (size << 7) | (x & 127)
+            size = size + (x & 127) * mult
+            mult = mult * 128
             if ((x & 128) == 0) {
                 sized = true
                 loop = 8

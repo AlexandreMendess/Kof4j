@@ -135,7 +135,7 @@ final class AvifFrameSupport {
      *  needs >= 65 coded samples per axis (spec 5.9.15 loops). */
     static byte[] redSeq128() {
         AvifMetadataSupport.Bits w = new AvifMetadataSupport.Bits();
-        w.bits(0, 2);                       // seq_profile
+        w.bits(0, 3);                       // seq_profile
         w.bits(1, 1);                       // still_picture
         w.bits(1, 1);                       // reduced_still_picture_header
         w.bits(2, 5);                       // seq_level_idx

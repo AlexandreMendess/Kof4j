@@ -42,7 +42,7 @@ final class AvifFrameJavaSupport {
             if (limit > n) throw new AssertionError("obutrunc");
             if (type == 1 && !haveSeq) {
                 int bits = p * 8;
-                int profile = AvifSeqSupport.readBits(item, bits, 2); bits += 2;
+                int profile = AvifSeqSupport.readBits(item, bits, 3); bits += 3;
                 if (profile > 2) throw new AssertionError("prof3");
                 bits += 1;                                  // still_picture
                 reduced = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
@@ -54,7 +54,7 @@ final class AvifFrameJavaSupport {
                     int delay = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
                     int cnt = AvifSeqSupport.readBits(item, bits, 5); bits += 5;
                     for (int i = 0; i <= cnt; i++) {
-                        bits += 16;                         // op idc
+                        bits += 12;                         // op idc (f(12))
                         int lv = AvifSeqSupport.readBits(item, bits, 5); bits += 5;
                         if (lv > 7) bits += 1;              // seq_tier
                         if (delay == 1) bits += 1;          // per-op delay flag

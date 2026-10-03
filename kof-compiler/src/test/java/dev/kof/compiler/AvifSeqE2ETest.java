@@ -38,7 +38,8 @@ class AvifSeqE2ETest {
     private static final String GOLDEN = String.join("\n",
             "nr8 p=0 r=0 w=8 h=8 mono=1 sub=1/1 depth=8 still=0",
             "nr12t p=2 r=0 w=32 h=24 mono=1 sub=1/1 depth=12 still=0",
-            "flat p=0 r=1 w=32 h=32 mono=1 sub=1/1 depth=8 still=1");
+            "flat p=0 r=1 w=32 h=32 mono=1 sub=1/1 depth=8 still=1",
+            "r1 p=1 r=1 w=32 h=32 mono=0 sub=0/0 depth=8 still=1");
 
     @Test
     void avifSeqHeaderOnJvm() throws Exception {
@@ -117,7 +118,8 @@ class AvifSeqE2ETest {
         String java = String.join("\n",
                 "nr8 " + javaSeqFacts(dir.resolve("nr8.avif")),
                 "nr12t " + javaSeqFacts(dir.resolve("nr12t.avif")),
-                "flat " + javaSeqFacts(dir.resolve("flat.avif")));
+                "flat " + javaSeqFacts(dir.resolve("flat.avif")),
+                "r1 " + javaSeqFacts(dir.resolve("r1.avif")));
         assertEquals(kof, java);
         assertEquals(GOLDEN, java);
     }

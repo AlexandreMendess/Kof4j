@@ -22,7 +22,7 @@ final class AvifMetadataSupport {
 
     // OBU_SEQUENCE_HEADER (type 1), header 0x0A (no ext, size field set,
     // no padding) + LEB size + payload whose first bytes carry:
-    // seq_profile(2) seq_level_idx(5) [seq_tier(1)] show_existing_frame(1)
+    // seq_profile(3) seq_level_idx(5) [seq_tier(1)] show_existing_frame(1)
     // reduced_frame_header(1) + still picture(1, reduced form) +
     // operating_points_cnt_minus_1(5) = 0 + op level/tier + 32-bit timing
     // zeros. The remaining fields (colour config, frame sizes, ...) are NOT
@@ -56,13 +56,13 @@ final class AvifMetadataSupport {
         }
     }
 
-    /** REDUCED form per AV1 5.5.1: profile(2) still(1) reduced(1) level(5)
+    /** REDUCED form per AV1 5.5.1: profile(3) still(1) reduced(1) level(5)
      *  then color_config (5.5.2) + superres/cdef/restoration + film grain
      *  (absent=0) + trailing one bit. */
     static byte[] configObu(int profile, int level, boolean high, boolean twelve,
                             boolean mono) {
         Bits w = new Bits();
-        w.bits(profile, 2);
+        w.bits(profile, 3);
         w.bits(1, 1);           // still_picture (conformance for reduced)
         w.bits(1, 1);           // reduced_still_picture_header
         w.bits(level, 5);
@@ -302,13 +302,13 @@ final class AvifMetadataSupport {
 
     static byte[] configObuNotReduced() {
         Bits w = new Bits();
-        w.bits(0, 2);       // seq_profile
+        w.bits(0, 3);       // seq_profile
         w.bits(0, 1);       // still_picture = 0
         w.bits(0, 1);       // reduced_still_picture_header = 0  -> slice 1 refuses
         w.bits(0, 1);       // timing_info_present_flag = 0
         w.bits(0, 1);       // initial_display_delay_present = 0
         w.bits(0, 5);       // operating_points_cnt_minus_1
-        w.bits(0, 16);      // operating_point_idc[0]
+        w.bits(0, 12);      // operating_point_idc[0] (f(12), AV1 5.5.1)
         w.bits(2, 5);       // seq_level_idx[0]
         w.bits(0, 4);       // frame_width_bits_minus_1
         w.bits(0, 4);       // frame_height_bits_minus_1

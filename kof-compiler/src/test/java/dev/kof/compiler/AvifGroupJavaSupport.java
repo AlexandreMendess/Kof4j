@@ -139,7 +139,7 @@ final class AvifGroupJavaSupport {
     // --- sequence header prefix (5.5.1): capture what the frame needs ---
     private static int[] walkSeq(byte[] b, int p, int limit) {
         int bits = p * 8;
-        int profile = AvifSeqSupport.readBits(b, bits, 2); bits += 2;
+        int profile = AvifSeqSupport.readBits(b, bits, 3); bits += 3;
         if (profile > 2) throw new AssertionError("IMAGE: avif sequence profile 3 not covered");
         bits += 1;
         int reduced = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
@@ -151,7 +151,7 @@ final class AvifGroupJavaSupport {
             int delay = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
             int cnt = AvifSeqSupport.readBits(b, bits, 5); bits += 5;
             for (int i = 0; i <= cnt; i++) {
-                bits += 16;
+                bits += 12;
                 int lv = AvifSeqSupport.readBits(b, bits, 5); bits += 5;
                 if (lv > 7) bits += 1;
                 if (delay == 1) bits += 1;

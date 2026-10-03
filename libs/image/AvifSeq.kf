@@ -8,7 +8,9 @@ import image.Avif
 // sequence header OBU syntax), 5.5.2 (color config), 5.5.3 (timing info),
 // 5.5.4 (decoder model info) — the PDF was read on the dev host 01/10
 // (pdftotext); field order and f(n) widths are quoted from it, never from
-// memory.
+// memory. Two widths that a fabricated fixture had shared a wrong value with
+// (both fixed 03/10 against the spec + a real .avif): seq_profile is f(3)
+// (not 2) and operating_point_idc is f(12) (not 16).
 //
 // `readAvifSeqHeader(path)` locates the av1C configuration record through
 // the same container walk as slice 1 and walks the OBU_SEQUENCE_HEADER
@@ -73,11 +75,13 @@ AvifSeqHeader avifSeqHeader(Int[] b) {
     var ext = (obuHead >> 2) & 1
     var p = rec + 5 + ext
     var size = 0
+    var mult = 1
     var loop = 0
     while (loop < 8) {
         var x = u8(b, p)
         p = p + 1
-        size = (size << 7) | (x & 127)
+        size = size + (x & 127) * mult
+        mult = mult * 128
         if ((x & 128) == 0) {
             loop = 8
         }
@@ -98,8 +102,8 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
         throw "IMAGE: truncated avif sequence header"
     }
     var bits = p * 8
-    var profile = seqRead(b, bits, 2)
-    bits = bits + 2
+    var profile = seqRead(b, bits, 3)
+    bits = bits + 3
     if (profile > 2) {
         throw "IMAGE: avif sequence profile not covered"
     }
@@ -139,7 +143,7 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
         bits = bits + 5
         var i = 0
         while (i <= opCount) {
-            bits = bits + 16
+            bits = bits + 12
             var level = seqRead(b, bits, 5)
             bits = bits + 5
             if (level > 7) {

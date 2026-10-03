@@ -183,7 +183,7 @@ AvifMetadata avifMetadata(Int[] b) {
 }
 
 // Reduced form only (AV1 spec §5.5.1, field order verified against the
-// spec PDF 01/10): sequence_header_obu begins with seq_profile f(2),
+// spec PDF 01/10): sequence_header_obu begins with seq_profile f(3),
 // still_picture f(1), reduced_still_picture_header f(1), then
 // seq_level_idx[0] f(5). The reduced form requires still_picture == 1
 // (conformance). Anything else is refused by the caller.
@@ -204,9 +204,9 @@ Bool seqHeaderReduced(Int[] b, Int obuAt, Int seqProfile) {
         return false
     }
     var b0 = u8(b, p)
-    var profile = (b0 >> 6) & 3
-    var still = (b0 >> 5) & 1
-    var reduced = (b0 >> 4) & 1
+    var profile = (b0 >> 5) & 7
+    var still = (b0 >> 4) & 1
+    var reduced = (b0 >> 3) & 1
     if (profile != seqProfile) {
         return false
     }
