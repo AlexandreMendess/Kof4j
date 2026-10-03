@@ -46,7 +46,8 @@ record AvifSeqHeader(Int seqProfile, Bool stillPicture, Bool reduced,
                     Bool frameIdNumbersPresent, Bool enableSuperres, Bool enableOrderHint, Bool use128x128Superblock, Bool enableRefFrameMvs,
                     Int forceScreenContentTools, Int forceIntegerMv,
                     Int orderHintBits, Int widthBitsMinus1, Int heightBitsMinus1,
-                    Int deltaFrameIdLengthMinus2, Int additionalFrameIdLengthMinus1)
+                    Int deltaFrameIdLengthMinus2, Int additionalFrameIdLengthMinus1,
+                    Bool enableCdef, Bool enableRestoration)
 
 AvifSeqHeader readAvifSeqHeader(String path) {
     return avifSeqHeader(File(path).readRange(0, 4096))
@@ -219,7 +220,9 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
     }
     var enableSuperres = seqRead(b, bits, 1)
     bits = bits + 1
+    var enableCdef = seqRead(b, bits, 1)
     bits = bits + 1
+    var enableRestoration = seqRead(b, bits, 1)
     bits = bits + 1
     var mono = 0
     var subX = 1
@@ -310,7 +313,8 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
                          mono == 1, subX == 1, subY == 1, depth, csp,
                          separate == 1, frameIds == 1, enableSuperres == 1,
                          orderHint == 1, use128 == 1, refMvs == 1, forceSct, forceMv, orderHintBits,
-                         wBits, hBits, deltaIdLen, addIdLen)
+                         wBits, hBits, deltaIdLen, addIdLen,
+                         enableCdef == 1, enableRestoration == 1)
 }
 
 // Locate the PRIMARY item's av1C configuration record through the same
@@ -375,6 +379,18 @@ Int seqRead(Int[] b, Int bitPos, Int n) {
         var octet = u8(b, p >> 3)
         v = (v << 1) | ((octet >> (7 - (p & 7))) & 1)
         i = i + 1
+    }
+    return v
+}
+
+// su(n): signed integer from the bottom n bits of an f(n) value, sign bit =
+// the MSB of those n bits (AV1 4.10.3). Used by the uncompressed_header tail
+// (read_delta_q su(1+6), loop-filter ref/mode deltas su(1+6)).
+Int seqSu(Int[] b, Int bitPos, Int n) {
+    var v = seqRead(b, bitPos, n)
+    var m = 1 << (n - 1)
+    if ((v & m) != 0) {
+        return v - 2 * m
     }
     return v
 }

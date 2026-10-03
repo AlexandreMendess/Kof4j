@@ -56,7 +56,16 @@ final class AvifGroupJavaSupport {
                 tileBits = t[2];
                 tsb = t[3];
                 haveFrame = true;
-                if (type == 6) throw new AssertionError("IMAGE: avif frame obu tile group not covered");
+                if (type == 6) {
+                    // ONE inline tile group after the byte-aligned header
+                    String line = groupFacts(item, p + t[4], limit, tiles * trows,
+                                              tileBits, tsb, totalTileNum);
+                    if (out.length() > 0) out.append("\n");
+                    out.append(line);
+                    totalTileNum = tiles * trows;
+                    lastTgEnd = tiles * trows - 1;
+                    groups++;
+                }
             } else if (type == 4) {
                 if (!haveFrame) throw new AssertionError("IMAGE: avif tile group without frame header");
                 String line = groupFacts(item, p, limit, tiles * trows, tileBits, tsb,
@@ -112,7 +121,6 @@ final class AvifGroupJavaSupport {
         if (bits > limit * 8) throw new AssertionError("IMAGE: truncated avif tile group");
         int q = bits / 8;
         int count = tgEnd + 1 - tgStart;
-        int sz = limit - q;
         StringBuilder sizes = new StringBuilder();
         int total = 0;
         for (int i = 0; i + 1 < count; i++) {
@@ -121,13 +129,13 @@ final class AvifGroupJavaSupport {
             for (int k = 0; k < tsb; k++) {
                 v = (v << 8) | (b[q++] & 255);
             }
-            sz -= tsb;
             int t = v + 1;
-            if (t > sz) throw new AssertionError("IMAGE: truncated avif tile group");
+            q += t;                                   // skip this tile's bytes
+            if (q > limit) throw new AssertionError("IMAGE: truncated avif tile group");
             sizes.append(",").append(t);
             total += t;
-            sz -= t;
         }
+        int sz = limit - q;
         if (sz < 0) throw new AssertionError("IMAGE: truncated avif tile group");
         StringBuilder sb = new StringBuilder();
         sb.append(tgStart).append("..").append(tgEnd).append(" n=").append(count)
@@ -194,10 +202,12 @@ final class AvifGroupJavaSupport {
                 ohBits = AvifSeqSupport.readBits(b, bits, 3) + 1; bits += 3;
             }
         }
-        boolean superres = AvifSeqSupport.readBits(b, bits, 1) == 1; bits += 3;
+        boolean superres = AvifSeqSupport.readBits(b, bits, 1) == 1; bits += 1;
+        boolean enableCdef = AvifSeqSupport.readBits(b, bits, 1) == 1; bits += 1;
+        boolean enableRestoration = AvifSeqSupport.readBits(b, bits, 1) == 1; bits += 1;
         return new int[]{reduced, maxW, maxH, wB, hB, frameIds ? 1 : 0, delta, add,
                          use128 ? 1 : 0, superres ? 1 : 0, ohBits, forceSct, forceMv,
-                         refMvs ? 1 : 0};
+                         refMvs ? 1 : 0, enableCdef ? 1 : 0, enableRestoration ? 1 : 0};
     }
 
     // --- frame prefix (5.9.2/5.9.10/5.9.15): return the tile-grid context
@@ -316,7 +326,51 @@ final class AvifGroupJavaSupport {
         for (int start = 0; start < sbCols; start += tileWidthSb) cols++;
         int rows = 0;
         for (int start = 0; start < sbRows; start += tileHeightSb) rows++;
-        return new int[]{cols, rows, tileBits, tsb};
+        // uncompressed_header tail (5.9.2), mono fixtures -> numPlanes = 1
+        boolean enableCdef = sq[14] == 1, enableRestoration = sq[15] == 1;
+        int baseQ = AvifSeqSupport.readBits(b, bits, 8); bits += 8;
+        bits += 1;                                        // DeltaQYDc coded flag
+        bits += 1;                                        // using_qmatrix
+        int segEnabled = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
+        boolean codedLossless = baseQ == 0 && segEnabled == 0;
+        if (baseQ > 0) {
+            int dqp = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
+            if (dqp == 1) bits += 2;                      // delta_q_res
+        }
+        if (!codedLossless) {
+            int lf0 = AvifSeqSupport.readBits(b, bits, 6); bits += 6;
+            int lf1 = AvifSeqSupport.readBits(b, bits, 6); bits += 6;
+            if (lf0 != 0 || lf1 != 0) bits += 12;         // mono: no UV
+            bits += 3;                                    // sharpness
+            int lfDelta = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
+            if (lfDelta == 1) {
+                int upd = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
+                if (upd == 1) {
+                    for (int k = 0; k < 10; k++) {
+                        int u = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
+                        if (u == 1) bits += 7;
+                    }
+                }
+            }
+            if (enableCdef) {
+                bits += 2;                                // damping_minus_3
+                int cdefBits = AvifSeqSupport.readBits(b, bits, 2); bits += 2;
+                bits += 6 * (1 << cdefBits);              // mono: Y only
+            }
+            if (enableRestoration) {
+                int lr = AvifSeqSupport.readBits(b, bits, 2); bits += 2;
+                if (lr != 0) {
+                    int lrUnitShift = AvifSeqSupport.readBits(b, bits, 1); bits += 1;
+                    if (!use128 && lrUnitShift != 0) bits += 1;
+                }
+            }
+            bits += 1;                                    // tx_mode_select
+        }
+        bits += 1;                                        // reduced_tx_set
+        if (bits > limit * 8) throw new AssertionError("IMAGE: truncated avif frame header");
+        while ((bits & 7) != 0) bits++;
+        int headerBytes = (bits - p * 8) / 8;
+        return new int[]{cols, rows, tileBits, tsb, headerBytes};
     }
 
     private static int lz(int u, int v) {

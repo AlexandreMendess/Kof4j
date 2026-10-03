@@ -13,11 +13,18 @@ final class AvifGroupSupport {
     /** frameReduced prefix bits for a type-6 inline payload (same tile_info
      *  bits as tile4; returns raw bytes WITHOUT the OBU wrapper). */
     private static byte[] tile4PrefixBytes() {
-        byte[] obu = AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 6, 1, 1, 0, 1, 0);
+        byte[] obu = AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 6, 1, 1, 1, 2, 2, 0);
         // obuType prepends head+size: payload starts after them
         int p = 2;
         byte[] out = new byte[obu.length - p];
         System.arraycopy(obu, p, out, 0, out.length);
+        return out;
+    }
+
+    private static byte[] concat(byte[] a, byte[] b) {
+        byte[] out = new byte[a.length + b.length];
+        System.arraycopy(a, 0, out, 0, a.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
         return out;
     }
 
@@ -53,11 +60,11 @@ final class AvifGroupSupport {
                 AvifMetadataSupport.concat(java.util.List.of(
                         AvifSeqSupport.delimiter(),
                         AvifMetadataSupport.configObu(0, 2, false, false, true),
-                        AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 1, 0, 1),
+                        AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 1, 1, 0),
                         AvifSeqSupport.obuType(4, new byte[]{0x07, 0x07})))));
         // split: OBU_FRAME_HEADER (3) + two sibling OBU_TILE_GROUP (4):
         // g1 [0..1] size 5 + 3 filler; g2 [2..3] size 4 + 2 filler
-        byte[] hdr3 = AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 1, 0, 1, 0);
+        byte[] hdr3 = AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 1, 1, 2, 2, 0);
         Files.write(dir.resolve("tg-split.avif"), AvifObuSupport.containerWithItem(
                 AvifMetadataSupport.concat(java.util.List.of(
                         AvifSeqSupport.delimiter(),
@@ -65,17 +72,21 @@ final class AvifGroupSupport {
                         hdr3,
                         AvifSeqSupport.obuType(4, groupBytes(1, 0, 1, new int[]{5}, 3)),
                         AvifSeqSupport.obuType(4, groupBytes(1, 2, 3, new int[]{4}, 2))))));
+        // inline: OBU_FRAME (6) with the SAME header bytes and ONE inline
+        // group after the header byte_alignment (full range -> flag=0):
+        // sizes ,5,4,3 + 1 filler -> last=1 total=13
+        Files.write(dir.resolve("tg-inline.avif"), AvifObuSupport.containerWithItem(
+                AvifMetadataSupport.concat(java.util.List.of(
+                        AvifSeqSupport.delimiter(),
+                        AvifFrameSupport.redSeq128(),
+                        AvifSeqSupport.obuType(6, concat(tile4PrefixBytes(),
+                                groupBytes(0, 0, 0, new int[]{5, 4, 3}, 1)))))));
         return dir;
     }
 
     static Path groupErrorFixtures(Path dir) throws Exception {
         Files.createDirectories(dir);
-        byte[] hdr3 = AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 1, 0, 1, 0);
-        // OBU_FRAME (6): inline group needs the FULL header walk — refused
-        Files.write(dir.resolve("frame6.avif"), AvifObuSupport.containerWithItem(
-                AvifMetadataSupport.concat(java.util.List.of(
-                        AvifSeqSupport.delimiter(), AvifFrameSupport.redSeq128(),
-                        AvifSeqSupport.obuType(6, tile4PrefixBytes())))));
+        byte[] hdr3 = AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 1, 1, 2, 2, 0);
         // full range with the flag set
         Files.write(dir.resolve("full.avif"), AvifObuSupport.containerWithItem(
                 AvifMetadataSupport.concat(java.util.List.of(
@@ -144,6 +155,10 @@ final class AvifGroupSupport {
                 for (var g in sp) {
                     println("split " + gfacts(g))
                 }
+                var inl = readAvifTileGroups(base + "/tg-inline.avif")
+                for (var g in inl) {
+                    println("inline " + gfacts(g))
+                }
             }
             """.formatted(base);
     }
@@ -158,11 +173,6 @@ final class AvifGroupSupport {
 
             main() {
                 var base = "%s"
-                try {
-                    readAvifTileGroups(base + "/frame6.avif")
-                } catch (String e) {
-                    println(e)
-                }
                 try {
                     readAvifTileGroups(base + "/full.avif")
                 } catch (String e) {

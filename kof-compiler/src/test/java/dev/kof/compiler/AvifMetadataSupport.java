@@ -61,6 +61,15 @@ final class AvifMetadataSupport {
      *  (absent=0) + trailing one bit. */
     static byte[] configObu(int profile, int level, boolean high, boolean twelve,
                             boolean mono) {
+        return configObuCap(profile, level, high, twelve, mono, false, false, false);
+    }
+
+    /** configObu with the superres/cdef/restoration capability bits explicit
+     *  (a non-lossless frame header needs cdef/restoration enabled to reach
+     *  those tail branches). */
+    static byte[] configObuCap(int profile, int level, boolean high, boolean twelve,
+                               boolean mono, boolean superres, boolean cdef,
+                               boolean restoration) {
         Bits w = new Bits();
         w.bits(profile, 3);
         w.bits(1, 1);           // still_picture (conformance for reduced)
@@ -72,7 +81,9 @@ final class AvifMetadataSupport {
         w.bits(31, 5);          // max_frame_width_minus_1  (32)
         w.bits(31, 5);          // max_frame_height_minus_1 (32)
         w.bits(0, 3);           // use_128x128/filter_intra/intra_edge
-        w.bits(0, 3);           // superres/cdef/restoration
+        w.bits(superres ? 1 : 0, 1);
+        w.bits(cdef ? 1 : 0, 1);
+        w.bits(restoration ? 1 : 0, 1);
         w.bits(high ? 1 : 0, 1);
         if (profile == 2 && high) {
             w.bits(twelve ? 1 : 0, 1);

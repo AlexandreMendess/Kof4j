@@ -19,6 +19,7 @@ final class AvifFrameJavaSupport {
         int reduced = 0, maxW = 0, maxH = 0, wB = 0, hB = 0, ohBits = 0;
         int forceSct = 2, forceMv = 2, delta = 0, add = 0;
         boolean frameIds = false, superres = false, use128 = false, refMvs = false;
+        boolean enableCdef = false, enableRestoration = false;
         while (pos < n) {
             int head = item[pos] & 255;
             if ((head >> 7) != 0) throw new AssertionError("forbidden");
@@ -103,7 +104,9 @@ final class AvifFrameJavaSupport {
                     }
                 }
                 superres = AvifSeqSupport.readBits(item, bits, 1) == 1;
-                bits += 3;                                  // + cdef/restoration
+                bits += 1;                                  // superres
+                enableCdef = AvifSeqSupport.readBits(item, bits, 1) == 1; bits += 1;
+                enableRestoration = AvifSeqSupport.readBits(item, bits, 1) == 1; bits += 1;
                 haveSeq = true;
             } else if ((type == 3 || type == 6) && haveSeq) {
                 int bits = p * 8;
@@ -161,10 +164,11 @@ final class AvifFrameJavaSupport {
                     rH = AvifSeqSupport.readBits(item, bits, 16) + 1; bits += 16;
                 }
                 if (bits > limit * 8) throw new AssertionError("trunc");
+                int intrabc = 0;
                 if (sct == 1 && codedW == maxW) {
-                    int ibc = AvifSeqSupport.readBits(item, bits, 1);
+                    intrabc = AvifSeqSupport.readBits(item, bits, 1);
                     bits += 1;
-                    if (ibc == 1) {
+                    if (intrabc == 1) {
                         throw new AssertionError("intrabc");
                     }
                 }
@@ -220,9 +224,68 @@ final class AvifFrameJavaSupport {
                 for (int start = 0; start < sbCols; start += tileWidthSb) tiles++;
                 int trows = 0;
                 for (int start = 0; start < sbRows; start += tileHeightSb) trows++;
+                // uncompressed_header tail (5.9.2), after tile_info: mono
+                // fixtures -> numPlanes = 1; CodedLossless is derived.
+                int numPlanes = 1;
+                int baseQ = AvifSeqSupport.readBits(item, bits, 8); bits += 8;
+                bits += 1;                                  // DeltaQYDc coded flag
+                bits += 1;                                  // using_qmatrix
+                int segEnabled = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                boolean codedLossless = baseQ == 0 && segEnabled == 0;
+                int lf0Out = 0, cdefBitsOut = 0;
+                if (baseQ > 0) {
+                    int dqp = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                    if (dqp == 1) {
+                        bits += 2;                          // delta_q_res
+                        if (intrabc == 0) {
+                            int dflp = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                            if (dflp == 1) bits += 3;
+                        }
+                    }
+                }
+                if (!codedLossless && intrabc == 0) {
+                    int lf0 = AvifSeqSupport.readBits(item, bits, 6); bits += 6;
+                    int lf1 = AvifSeqSupport.readBits(item, bits, 6); bits += 6;
+                    lf0Out = lf0;
+                    if ((lf0 != 0 || lf1 != 0) && numPlanes > 1) bits += 12; // UV
+                    bits += 3;                              // sharpness
+                    int lfDelta = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                    if (lfDelta == 1) {
+                        int upd = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                        if (upd == 1) {
+                            for (int k = 0; k < 10; k++) {
+                                int u = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                                if (u == 1) bits += 7;
+                            }
+                        }
+                    }
+                }
+                if (!codedLossless && intrabc == 0 && enableCdef) {
+                    bits += 2;                              // damping_minus_3
+                    int cdefBits = AvifSeqSupport.readBits(item, bits, 2); bits += 2;
+                    cdefBitsOut = cdefBits;
+                    for (int c = 0; c < (1 << cdefBits); c++) {
+                        bits += 6;                          // mono: Y only
+                    }
+                }
+                if (!codedLossless && intrabc == 0 && enableRestoration) {
+                    int lr = AvifSeqSupport.readBits(item, bits, 2); bits += 2;
+                    if (lr != 0) {
+                        int lrUnitShift = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                        if (!use128 && lrUnitShift != 0) bits += 1;
+                    }
+                }
+                if (!codedLossless) bits += 1;              // tx_mode_select
+                bits += 1;                                  // reduced_tx_set
+                if (bits > limit * 8) throw new AssertionError("trunc");
+                int hb = bits;
+                while ((hb & 7) != 0) hb++;
+                int headerBytes = (hb - p * 8) / 8;
                 return "t=" + frameType + " show=" + show + " err=" + err + " ov=" + ov
                         + " w=" + codedW + " h=" + codedH + " rd=" + rd
-                        + " rw=" + rW + " rh=" + rH + " tiles=" + tiles + "x" + trows;
+                        + " rw=" + rW + " rh=" + rH + " tiles=" + tiles + "x" + trows
+                        + " hb=" + headerBytes + " bq=" + baseQ
+                        + " lf=" + lf0Out + " cd=" + cdefBitsOut;
             }
             pos = limit;
         }

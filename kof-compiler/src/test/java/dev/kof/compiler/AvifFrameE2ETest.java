@@ -28,20 +28,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * End-to-end coverage for AVIF slice 2d/2e/2l (image-vision front, plan §34):
- * the pure-Kof frame-header prefix walk {@code libs/image/AvifFrame.kf}
- * parses {@code frame_header_obu}/{@code uncompressed_header} per the AV1
- * Bitstream Specification §5.9.2/§5.9.5/§5.9.6 (quoted from the spec PDF
+ * End-to-end coverage for AVIF slices 2d/2e/2l/2m (image-vision front, plan
+ * §34): the pure-Kof frame-header walk {@code libs/image/AvifFrame.kf} parses
+ * {@code frame_header_obu}/{@code uncompressed_header} per the AV1 Bitstream
+ * Specification §5.9.2/§5.9.5/§5.9.6/§5.9.8-§5.9.20 (quoted from the spec PDF
  * read on the dev host 02/10): frame type (spec numbering KEY=0/INTER=1/
- * INTRA_ONLY=2/SWITCH=3), show flag, screen-content and force-mv
- * signalling, frame-id width, size override + coded size, superres refusal,
- * render size and the allow_intrabc stop point. Slice 2l measured on the
- * real host file that the intra path must NOT read read_interpolation_filter
- * / is_motion_mode_switchable (5.9.2 has them only off-intra). Fixtures
- * are hand-built byte-exactly to the spec (no AVIF encoder exists on the
- * host — measured); METADATA ONLY — {@code decodeRaster} keeps refusing
- * AVIF, and the tile-group/loop-filter/quantization syntax past
- * allow_intrabc is a documented refusal frontier, not a silent pass.
+ * INTRA_ONLY=2/SWIT), show flag, screen-content and force-mv signalling,
+ * frame-id width, size override + coded size, superres refusal, render size,
+ * allow_intrabc, the 5.9.15 uniform tile grid, and the 5.9.2 header tail
+ * (quantization, segmentation, delta_q/lf, loop filter, cdef, restoration, tx
+ * mode, reduced_tx_set) through byte_alignment. Slice 2l measured on the real
+ * host file that the intra path must NOT read read_interpolation_filter /
+ * is_motion_mode_switchable (5.9.2 has them only off-intra); slice 2m
+ * located the OBU_FRAME inline tile group at the aligned header size and
+ * enumerated it on the real file. Fixtures are hand-built byte-exactly to the
+ * spec (no AVIF encoder exists on the host — measured); METADATA ONLY —
+ * {@code decodeRaster} keeps refusing AVIF, and the coefficient syntax and
+ * tile payloads past the header are a documented refusal frontier, not a
+ * silent pass.
  */
 class AvifFrameE2ETest {
 
@@ -50,11 +54,12 @@ class AvifFrameE2ETest {
     @TempDir Path tmp;
 
     private static final String GOLDEN = String.join("\n",
-            "red-k t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1",
-            "nr-k t=0 show=1 err=1 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1",
-            "rend t=0 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6 tiles=1x1",
-            "tile4 t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2",
-            "intra t=2 show=1 err=0 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1");
+            "red-k t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=3 bq=0 lf=0 cd=0",
+            "nr-k t=0 show=1 err=1 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1 hb=4 bq=0 lf=0 cd=0",
+            "rend t=0 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6 tiles=1x1 hb=7 bq=0 lf=0 cd=0",
+            "tile4 t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2 hb=3 bq=0 lf=0 cd=0",
+            "intra t=2 show=1 err=0 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1 hb=5 bq=0 lf=0 cd=0",
+            "q32 t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=6 bq=32 lf=7 cd=0");
 
     @Test
     void avifFrameHeaderOnJvm() throws Exception {
@@ -137,7 +142,8 @@ class AvifFrameE2ETest {
                 "nr-k " + javaFrameFacts(dir.resolve("nr-k.avif")),
                 "rend " + javaFrameFacts(dir.resolve("rend.avif")),
                 "tile4 " + javaFrameFacts(dir.resolve("tile4.avif")),
-                "intra " + javaFrameFacts(dir.resolve("intra.avif")));
+                "intra " + javaFrameFacts(dir.resolve("intra.avif")),
+                "q32 " + javaFrameFacts(dir.resolve("q32.avif")));
         assertEquals(kof, java);
         assertEquals(GOLDEN, java);
 
@@ -163,10 +169,10 @@ class AvifFrameE2ETest {
     private static final String GOLDEN_GROUPS = String.join("\n",
             "one 0..0 n=1 sizes= last=2 total=2",
             "split 0..1 n=2 sizes=,5 last=3 total=8",
-            "split 2..3 n=2 sizes=,4 last=2 total=6");
+            "split 2..3 n=2 sizes=,4 last=2 total=6",
+            "inline 0..3 n=4 sizes=,5,4,3 last=1 total=13");
 
     private static final String GROUP_REFUSALS = String.join("\n",
-            "IMAGE: avif frame obu tile group not covered",
             "IMAGE: avif tile group full range flag set",
             "IMAGE: avif tile group order invalid",
             "IMAGE: avif tile group range invalid",
@@ -243,14 +249,17 @@ class AvifFrameE2ETest {
         Path dir = groupFixtures(tmp.resolve("gxcheck-fixtures"));
         String[] one = javaGroupFacts(dir.resolve("tg-one.avif")).split("\n");
         String[] sp = javaGroupFacts(dir.resolve("tg-split.avif")).split("\n");
+        String[] inl = javaGroupFacts(dir.resolve("tg-inline.avif")).split("\n");
         assertEquals(1, one.length);
         assertEquals(2, sp.length);
+        assertEquals(1, inl.length);
         String java = String.join("\n",
-                "one " + one[0], "split " + sp[0], "split " + sp[1]);
+                "one " + one[0], "split " + sp[0], "split " + sp[1],
+                "inline " + inl[0]);
         assertEquals(GOLDEN_GROUPS, java);
 
         Path errDir = groupErrorFixtures(tmp.resolve("gxcheck-errors"));
-        String[] names = {"frame6", "full", "order", "range", "incomplete", "trunc", "nogroup", "before"};
+        String[] names = {"full", "order", "range", "incomplete", "trunc", "nogroup", "before"};
         StringBuilder javaErrors = new StringBuilder();
         for (int i = 0; i < names.length; i++) {
             javaErrors.append(javaGroupFactsError(errDir.resolve(names[i] + ".avif")));
