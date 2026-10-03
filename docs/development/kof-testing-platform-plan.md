@@ -429,6 +429,14 @@ The runner must understand discovery, filtering, lifecycle, parallelism, timeout
 artifacts, reports and exit codes. **Do not reinvent what the current runner already has** —
 integrate with `kof test` (`CmdTest`)/the compiler test pipeline.
 
+**Discovery (LANDED 02/10, `known-bugs` §576):** a discovered `.kf` that declares neither `test`
+nor a top-level `main` is an **auxiliary module** (shared helpers), not a suite. `kof test` skips it
+with `SKIP <file> (no tests, no main)` and counts it as skipped — never as pass/fail. A run where
+every file is an auxiliary module exits 1 (`no runnable test or program file found`); zero runnable
+files is not a success. A file with `main` and no tests still runs as a program (contract preserved).
+This requires the compiler to expose `CompilerDriver.hasMainEntryPoint()`, set once per unit by the
+tests desugar step.
+
 ## 7.1 Tagging
 
 Categorize tests: `unit`, `integration`, `e2e`, `slow`, `browser`, `network`, `database`,

@@ -414,6 +414,14 @@ O runner deve entender descoberta, filtragem, lifecycle, paralelismo, timeouts, 
 artefatos, relatórios e exit codes. **Não reinventar o que o runner atual já tem** — integrar
 com o `kof test` (`CmdTest`)/pipeline de teste do compilador.
 
+**Descoberta (ENTREGUE 02/10, `known-bugs` §576):** um `.kf` descoberto que não declara `test`
+nem um `main` top-level é um **módulo auxiliar** (helpers compartilhados), não uma suíte. O
+`kof test` o pula com `SKIP <arquivo> (no tests, no main)` e conta como skip — nunca como
+pass/fail. Uma corrida em que todo arquivo é módulo auxiliar sai 1 (`no runnable test or program
+file found`); zero arquivos executáveis não é sucesso. Um arquivo com `main` e sem testes segue
+rodando como programa (contrato preservado). Isso exige que o compilador exponha
+`CompilerDriver.hasMainEntryPoint()`, setado uma vez por unidade pelo passo de desugar de testes.
+
 ## 7.1 Tagging
 
 Categorizar testes: `unit`, `integration`, `e2e`, `slow`, `browser`, `network`, `database`,

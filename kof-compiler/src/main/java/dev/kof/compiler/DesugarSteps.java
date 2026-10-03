@@ -37,6 +37,13 @@ final class DesugarSteps {
 
                     @Override
                     public CompilationUnitNode apply(CompilationUnitNode unit, CompilerDriver driver) {
+                        // §576: o runner precisa saber se o arquivo tem um
+                        // `main` executável. A detecção vive aqui porque o
+                        // `discoveredTests` é limpo a cada compilação e este
+                        // passo roda uma vez por unidade.
+                        driver.hasMainEntryPoint = unit.declarations().stream()
+                                .anyMatch(d -> d instanceof FunctionDeclarationNode f
+                                        && "main".equals(f.name()));
                         return CompilerDesugar.desugarTests(unit, driver.discoveredTests,
                                 driver.testHarnessMode, driver.currentSourceName);
                     }

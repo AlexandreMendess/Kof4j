@@ -232,6 +232,15 @@ IRModule currentModule;
 
     final java.util.List<CompilerDriver.TestInfo> discoveredTests = new java.util.ArrayList<>();
 
+    /**
+     * §576: o módulo declara uma função top-level {@code main} (o ponto de
+     * entrada que {@code kof run}/{@code kof test} procuram). Setado no passo
+     * "tests" do desugar (uma vez por compilação), para que o runner possa
+     * distinguir "arquivo sem testes mas com programa" de "arquivo sem nada
+     * executável" — um arquivo só de funções auxiliares não é uma suíte.
+     */
+    boolean hasMainEntryPoint = false;
+
     boolean testHarnessMode = false;
 
     int lambdaCounter = 0;
@@ -247,6 +256,11 @@ IRModule currentModule;
 
     public java.util.List<CompilerDriver.TestInfo> discoveredTests() {
         return CompilerPipeline.discoveredTests((CompilerDriver) this);
+    }
+
+    /** §576: o último arquivo compilado declara um {@code main} executável. */
+    public boolean hasMainEntryPoint() {
+        return hasMainEntryPoint;
     }
 
     public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target) {

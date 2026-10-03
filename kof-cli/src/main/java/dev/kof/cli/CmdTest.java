@@ -138,6 +138,7 @@ final class CmdTest {
         }
         int passed = 0;
         int failed = 0;
+        int skipped = 0;   // §576: arquivos sem teste e sem main (módulos auxiliares)
         // X8 fatia 3 ("named suites by directory"): em modo diretório cada
         // subdiretório é uma suíte nomeada (nome = caminho relativo; "." = raiz);
         // os contadores por suíte são somados ao total no fim.
@@ -158,6 +159,20 @@ final class CmdTest {
             // arquivos sem testes compilam idênticos ao modo normal
             CompilationResult result = driver.compileForTests(f, tmp, target, testsRoot);
             boolean ok = result.success();
+            // §576: um arquivo que não declara `test` nem `main` não é uma
+            // suíte nem um programa — é um módulo auxiliar (funções puras que
+            // outro arquivo de teste importa). Compilar e tentar executá-lo
+            // produzia "could not resolve main([String])" (ou, no alvo JS, um
+            // "PASS" fantasma). Pular com nota honesta; se NENHUM arquivo for
+            // executável, o runner falha — zero não é sucesso (#708).
+            boolean hasTests = !driver.discoveredTests().isEmpty();
+            boolean hasMain = driver.hasMainEntryPoint();
+            if (ok && !hasTests && !hasMain) {
+                System.out.println("SKIP " + f + " (no tests, no main)");
+                skipped++;
+                KofCliSupport.cleanup(tmp);
+                continue;
+            }
             StringBuilder output = new StringBuilder();
             if (ok) {
                 for (Diagnostic d : result.diagnostics().getDiagnostics()) output.append(d.format()).append('\n');
@@ -287,8 +302,17 @@ final class CmdTest {
                         + " passed, " + e.getValue()[1] + " failed");
             }
         }
-        System.out.println(passed + " passed, " + failed + " failed");
+        String summary = passed + " passed, " + failed + " failed";
+        if (skipped > 0) summary += ", " + skipped + " skipped (no tests, no main)";
+        System.out.println(summary);
         if (failed > 0) System.exit(1);
+        // §576: nenhum arquivo executável (todos auxiliares) não é sucesso —
+        // espelha o #708 ("zero discovered tests is not a success").
+        if (skipped > 0 && passed == 0 && failed == 0) {
+            System.err.println("test: no runnable test or program file found ("
+                    + skipped + " source(s) have neither `test` nor `main`)");
+            System.exit(1);
+        }
     }
 
     /**
