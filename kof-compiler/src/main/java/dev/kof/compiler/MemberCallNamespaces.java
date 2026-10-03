@@ -328,11 +328,20 @@ final class MemberCallNamespaces {
 
     private static Type securityArgRefused(SemanticAnalyzer sa, String ns, String method, String code) {
         if (sa.diagnostics() != null) {
+            String why = switch (code) {
+                case "SECN013" -> "the binary digest faces take Byte[] only (D-KOF-DIGEST-BYTES"
+                        + "; §563 keeps the plain names on the String/Int face)"
+                        + " (SECN013: non-Byte[] actual on sha256Bytes/hmacSha256Bytes)";
+                case "SECN014" -> "the session-key face takes Secret only (D-KOF-X25519"
+                        + "; R8: private material never travels as a raw String)"
+                        + " (SECN014: non-Secret actual on keyExchange)";
+                default -> "this form is not silently digested per target"
+                        + " (SECN011: non-String/Int actual reaches an identity digest on Script"
+                        + " and a VerifyError on the JVM; §563)";
+            };
             sa.diagnostics().error("", 0, 0, 0,
-                    "Argument type must match the declared String/Int face of '" + method
-                            + "' on '" + ns + "' — this form is not silently digested per target"
-                            + " (SECN011: non-String/Int actual reaches an identity digest on Script"
-                            + " and a VerifyError on the JVM; §563)",
+                    "Argument type must match the declared face of '" + method
+                            + "' on '" + ns + "' — " + why,
                     code);
         }
         return Type.UnknownType.UNKNOWN;

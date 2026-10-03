@@ -42,7 +42,7 @@ final class AvifFrameJavaSupport {
             if (limit > n) throw new AssertionError("obutrunc");
             if (type == 1 && !haveSeq) {
                 int bits = p * 8;
-                int profile = AvifSeqSupport.readBits(item, bits, 2); bits += 2;
+                int profile = AvifSeqSupport.readBits(item, bits, 3); bits += 3;
                 if (profile > 2) throw new AssertionError("prof3");
                 bits += 1;                                  // still_picture
                 reduced = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
@@ -54,7 +54,7 @@ final class AvifFrameJavaSupport {
                     int delay = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
                     int cnt = AvifSeqSupport.readBits(item, bits, 5); bits += 5;
                     for (int i = 0; i <= cnt; i++) {
-                        bits += 16;                         // op idc
+                        bits += 12;                         // op idc (f(12))
                         int lv = AvifSeqSupport.readBits(item, bits, 5); bits += 5;
                         if (lv > 7) bits += 1;              // seq_tier
                         if (delay == 1) bits += 1;          // per-op delay flag
@@ -107,17 +107,17 @@ final class AvifFrameJavaSupport {
                 haveSeq = true;
             } else if ((type == 3 || type == 6) && haveSeq) {
                 int bits = p * 8;
-                int frameType = 1, show = 1, err = 1, sct = forceSct, ov = 0;
+                int frameType = 0, show = 1, err = 1, sct = forceSct, ov = 0;
                 if (reduced == 0) {
                     if (AvifSeqSupport.readBits(item, bits, 1) == 1) {
                         throw new AssertionError("showexisting");
                     }
                     bits += 1;
                     frameType = AvifSeqSupport.readBits(item, bits, 2); bits += 2;
-                    if (frameType == 0 || frameType == 3) throw new AssertionError("inter");
+                    if (frameType == 1 || frameType == 3) throw new AssertionError("inter");
                     show = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
                     if (show == 0) bits += 1;
-                    if (frameType == 1 && show == 1) {
+                    if (frameType == 0 && show == 1) {
                         err = 1;
                     } else {
                         err = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
@@ -137,13 +137,12 @@ final class AvifFrameJavaSupport {
                     ov = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
                 }
                 bits += ohBits;                             // order_hint
-                if (reduced == 0 && !(frameType == 1 && show == 1)) {
+                if (reduced == 0 && !(frameType == 0 && show == 1)) {
                     if (AvifSeqSupport.readBits(item, bits, 8) != 255) {
                         throw new AssertionError("refrefresh");
                     }
                     bits += 8;                              // refresh (allFrames)
                 }
-                if (ov == 1 && err == 0) throw new AssertionError("sizerefs");
                 int codedW = maxW, codedH = maxH;
                 if (ov == 1) {
                     codedW = AvifSeqSupport.readBits(item, bits, wB) + 1; bits += wB;
@@ -169,12 +168,9 @@ final class AvifFrameJavaSupport {
                         throw new AssertionError("intrabc");
                     }
                 }
-                if (AvifSeqSupport.readBits(item, bits, 1) == 0) {
-                    throw new AssertionError("interp");     // frame-level filter selection
-                }
-                bits += 1;                                  // is_filter_switchable
-                bits += 1;                                  // is_motion_mode_switchable
-                if (reduced == 0 && err == 0 && refMvs) bits += 1;
+                // read_interpolation_filter / is_motion_mode_switchable /
+                // use_ref_frame_mvs are read only off-intra (5.9.2); intra
+                // frames (the only ones this reader accepts) skip them.
                 if (reduced == 0 && cdfv == 0) bits += 1;   // disable_frame_end_update_cdf
                 // tile_info() uniform path (5.9.15), counts per the loops
                 int sbShift = use128 ? 5 : 4;

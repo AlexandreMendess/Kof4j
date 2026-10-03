@@ -3,15 +3,15 @@
 # 🧪 Plano de Refatoração — Arquitetura e Modularização de Testes do Kof
 
 **Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
-**Dono:** lane issues/tooling (esta sessão)
+**Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, **132 chaves, rc=0** — a medição de 30/09; a
-cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
+`scripts/test-hygiene-baseline.txt`, **131 chaves, rc=0** — 132 na medição de
+30/09, apertado pela extração da Fase 3 de 02/10; a cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
 de doc, e o cluster `dupname` restante exige o harness da Fase 5). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
@@ -68,6 +68,16 @@ poll de scheduler: ambos viraram polls limitados `TestServerFixture.awaitTrue` (
 num intervalo de 20 ms; depois assegura nenhum disparo nos 80 ms após `cancel`), e `TickCounter.n`
 agora é `volatile` (lido de outra thread do scheduler). Baseline 171→170 chaves (1 arquivo sai do
 conjunto sleep); `KofTimeE2ETest` 44/44 (0 skip), teste focado 4/4 execuções.
+**Extração da Fase 3 (02/10):** o `DepsRegistryTest` (509 linhas, uma chave `oversized` do ratchet)
+cedeu seu harness compartilhado a um novo `DepsRegistrySupport` (fake server do GitHub Releases,
+construtor do pacote D2-A, runner de subprocesso CLI) — o padrão consagrado da Fase 3 (`abstract
+class …Support`, a classe de teste o `extends`). `DepsRegistryTest` 509→303, `DepsRegistrySupport`
+230; as 4 classes vizinhas que fazem `import static dev.kof.cli.DepsRegistryTest.*` continuam
+resolvendo por herança (zero drift de citação). Prova: `DepsRegistryTest` 13/13 +
+`DepsRegistryTrustTest` 5/5 + `DepsSourceModuleTest` 8/8 + `CmdDeploySourcesTest` 5/5 = **31/31
+verdes**; baseline do ratchet 132→**131** chaves (oversized 19→18). (Os `DepsRegistryTest$*.class`
+órfãos do layout aninhado antigo tiveram de ser purgados do `target/test-classes` antes da corrida
+focada — o compilador incremental do maven não os apaga.)
 **Custo da Fase 3 encontrado (29/09):** a divisão de teste gigante NÃO é incremento barato — nomes de
 classe de teste são citados como prova em `docs/` (ex.: `TranslateTest` em `known-bugs`, `audits/`,
 `future/TRANSLATOR`), então dividir/renomear uma classe exige varredura de referências e arrisca drift
@@ -684,7 +694,7 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho =
    encolher `scripts/test-hygiene-baseline.txt` via remoções quick-win — autoridade
-   atual = **132** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
+   atual = **131** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
@@ -709,4 +719,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→132, zero pares idênticos restantes) — o único trabalho aberto é a Fase 5 (harness cross-target parametrizado por alvo), que precisa de decisão.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→131, zero pares idênticos restantes) — o único trabalho aberto é a Fase 5 (harness cross-target parametrizado por alvo), que precisa de decisão.

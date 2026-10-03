@@ -91,11 +91,12 @@ O objetivo é implementar **Kof**, não transformar Kof em uma variante de JavaS
 
 Formatos diferentes devem seguir conceitos comuns quando existir uma abstração real compartilhável.
 
-Conceitualmente, a API pode permitir operações como:
+Conceitualmente, a API pode permitir operações como (estilo instância — não há
+forma estática `File.…`, `D-FILE-STATIC`):
 
 ```kof
-var file = File.open("users.json")
-var data = file.read()
+var file = File("users.json")
+var data = file.readText()
 ```
 
 e posteriormente interpretar os dados:
@@ -213,11 +214,12 @@ Fornecer operações fundamentais:
 * remover diretórios;
 * trabalhar com paths.
 
-Exemplo conceitual, usando a sintaxe correta do Kof:
+Exemplo conceitual, usando a sintaxe correta do Kof (estilo instância — não há
+forma estática `File.…`, `D-FILE-STATIC`):
 
 ```kof
-var file = File.open("data.txt")
-var content = file.read()
+var file = File("data.txt")
+var content = file.readText()
 ```
 
 A implementação real deve seguir as APIs e convenções já existentes.
@@ -272,16 +274,16 @@ Não assumir silenciosamente que todo arquivo textual é UTF-8 se isso puder pro
 
 Fornecer abstrações para dados binários.
 
-Conceitualmente:
+Conceitualmente (estilo instância — não há forma estática `File.…`, `D-FILE-STATIC`):
 
 ```kof
-var bytes = File.readBytes("image.bin")
+var bytes = File("image.bin").readBytes()
 ```
 
 e:
 
 ```kof
-File.writeBytes("output.bin", bytes)
+File("output.bin").writeBytes(bytes)
 ```
 
 A API deve permitir trabalhar com:

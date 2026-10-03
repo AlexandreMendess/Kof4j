@@ -332,6 +332,11 @@ public final class StdCatalog {
                     Map.entry("spanStart", List.of("spanStart(String name) -> String")),
                     Map.entry("spanEnd", List.of("spanEnd(String id) -> String")),
                     Map.entry("exportSpans", List.of("exportSpans() -> String")))),
+            Map.entry("keyExchange", java.util.Map.ofEntries(
+                    Map.entry("privateKey", List.of("privateKey() -> Secret")),
+                    Map.entry("publicKey", List.of("publicKey(Secret priv) -> String")),
+                    Map.entry("shared", List.of("shared(Secret priv, Secret peerPublicHex) -> Secret")),
+                    Map.entry("hkdfSha256", List.of("hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String")))),
             Map.entry("tetris", java.util.Map.ofEntries(
                     Map.entry("run", List.of("run() -> void")))),
             Map.entry("passwords", java.util.Map.ofEntries(

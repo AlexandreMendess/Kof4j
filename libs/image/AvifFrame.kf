@@ -4,12 +4,13 @@ import image.Avif
 import image.AvifItems
 import image.AvifSeq
 
-// kof.image — AV1 frame header prefix walk, slices 2d/2e of the AVIF front
-// (plan §34). The bit widths and branch structure are quoted from the AV1
-// Bitstream & Decoding Process Specification read on the dev host 02/10:
+// kof.image — AV1 frame header prefix walk, slices 2d/2e/2l of the AVIF
+// front (plan §34). The bit widths and branch structure are quoted from the
+// AV1 Bitstream & Decoding Process Specification read on the dev host 02/10:
 // 5.9.2 (uncompressed header syntax) up to and including frame_size/
-// render_size/allow_intrabc, then the 5.9.10 interpolation-filter flag and
-// motion-mode flag and the 5.9.15 tile_info() UNIFORM path (the
+// render_size/allow_intrabc (the intra path — read_interpolation_filter and
+// is_motion_mode_switchable belong to the non-intra branch and are NOT read
+// here), then the 5.9.15 tile_info() UNIFORM path (the
 // increment_tile_cols/rows_log2 loops, context_update_tile_id and
 // tile_size_bytes), with the 5.9.5/5.9.6 size rules and the
 // SELECT_SCREEN_CONTENT_TOOLS / SELECT_INTEGER_MV constant = 2 from the
@@ -28,17 +29,17 @@ import image.AvifSeq
 // Documented subset (the `Avif.kf` policy):
 //   * show_existing_frame == 1 -> refused (`IMAGE: avif frame show-existing
 //     not covered`) — it replays a reference buffer, a video-stream face;
-//   * non-intra frames (INTER 0 / SWITCH 3) -> refused
+//   * non-intra frames (INTER 1 / SWITCH 3) -> refused
 //     (`IMAGE: avif inter frame not covered`) — reference signaling and
-//     motion vectors are decode-chain work;
+//     motion vectors are decode-chain work (read_interpolation_filter and
+//     is_motion_mode_switchable live in this non-intra branch, so they are
+//     not read on the intra path);
 //   * allow_intrabc == 1 -> refused (`IMAGE: avif intra block copy not
 //     covered`);
 //   * superres (seq enable_superres + frame frame_use_superres == 1) ->
 //     refused (`IMAGE: avif superres not covered`);
 //   * uniform_tile_spacing_flag == 0 -> refused (`IMAGE: avif tile size
 //     list not covered`) — the ns() per-tile tables are their own slice;
-//   * is_filter_switchable == 0 (frame-level interpolation filter) ->
-//     refused (`IMAGE: avif frame interp not covered`);
 //   * a frame id present on a stream whose sequence header skipped the id
 //     lengths, and any read past the OBU payload end -> refused.
 //
@@ -92,12 +93,14 @@ AvifFrameHeader avifItemFrameHeader(Int[] item) {
             throw "IMAGE: avif obu truncated"
         }
         var size = 0
+        var mult = 1
         var loop = 0
         var sized = false
         while (loop < 8) {
             var x = u8(item, p)
             p = p + 1
-            size = (size << 7) | (x & 127)
+            size = size + (x & 127) * mult
+            mult = mult * 128
             if ((x & 128) == 0) {
                 sized = true
                 loop = 8
@@ -124,7 +127,7 @@ AvifFrameHeader avifItemFrameHeader(Int[] item) {
     throw "IMAGE: avif item has no frame header"
 }
 
-// uncompressed_header() prefix per 5.9.2 + 5.9.10 + 5.9.15; returns after
+// uncompressed_header() prefix per 5.9.2 + 5.9.15; returns after
 // tile_info's uniform path (the documented stop point above).
 AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     var bits = p * 8
@@ -132,7 +135,7 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     if (seq.reduced) {
         reduced = 1
     }
-    var frameType = 1
+    var frameType = 0
     var showFrame = 1
     var errorResilient = 1
     if (reduced == 0) {
@@ -142,7 +145,7 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
         bits = bits + 1
         frameType = seqRead(b, bits, 2)
         bits = bits + 2
-        if (frameType == 0 || frameType == 3) {
+        if (frameType == 1 || frameType == 3) {
             throw "IMAGE: avif inter frame not covered"
         }
         showFrame = seqRead(b, bits, 1)
@@ -150,7 +153,7 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
         if (showFrame == 0) {
             bits = bits + 1
         }
-        if (frameType == 1 && showFrame == 1) {
+        if (frameType == 0 && showFrame == 1) {
             errorResilient = 1
         } else {
             errorResilient = seqRead(b, bits, 1)
@@ -187,7 +190,7 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
         bits = bits + 1
     }
     bits = bits + seq.orderHintBits
-    if (reduced == 0 && !(frameType == 1 && showFrame == 1)) {
+    if (reduced == 0 && !(frameType == 0 && showFrame == 1)) {
         var refresh = seqRead(b, bits, 8)
         bits = bits + 8
         if (refresh != 255) {
@@ -200,9 +203,6 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     }
     if (bits > limit * 8) {
         throw "IMAGE: truncated avif frame header"
-    }
-    if (sizeOverride == 1 && errorResilient == 0) {
-        throw "IMAGE: avif frame size-with-refs not covered"
     }
     var codedW = seq.maxWidth
     var codedH = seq.maxHeight
@@ -241,15 +241,6 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
         if (allowIntrabc == 1) {
             throw "IMAGE: avif intra block copy not covered"
         }
-    }
-    if (seqRead(b, bits, 1) == 0) {
-        bits = bits + 3
-        throw "IMAGE: avif frame interp not covered"
-    }
-    bits = bits + 1
-    bits = bits + 1
-    if (reduced == 0 && errorResilient == 0 && seq.enableRefFrameMvs) {
-        bits = bits + 1
     }
     if (reduced == 0 && cdf == 0) {
         bits = bits + 1

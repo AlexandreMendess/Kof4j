@@ -2,6 +2,7 @@
 
 # Plataforma de Testes Kof — Unit / Integração / Frontend E2E
 
+**Dono:** `192.168.15.30:9093` (lane issues/tooling — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 **Status:** EM DESENVOLVIMENTO — promovido de `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
 **Local:** `docs/development/`
 **Natureza:** plano de implementação — estado real + como terminar (registro de design mantido abaixo)
@@ -12,7 +13,9 @@ linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJ
 **Plano companheiro:** `test-architecture-plan.md` (refatoração da **suíte Java do próprio
 compilador** — camadas L0–L5, perfis, performance). Este documento é a **plataforma de testes do
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
-**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10 — superfície primitiva do §4.1 completa a menos do par genérico (§553).
+**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**.
+
+> **Fatia 6 (POUSADA 02/10).** A última face do §4.1: o par genérico `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` em `dev/kof/test.kf`. Ficou deliberadamente adiado (não entregue quebrado) até o `known-bugs` §553 ser resolvido: a resposta regra-6 da mantenedora `D-EQ-UNBOUNDED-T` (02/10) fixa `==` sobre um `T` não-limitado como **igualdade estrutural de conteúdo** em todo alvo, então o helper é correto para qualquer `T` (Int, String, record, …). O label stringifica `expected`/`actual` via `+` — sem primitiva nova, sem runtime por alvo. Prova RED-first: novo `GenericEqualityE2ETest` **16/16** (o par genérico verde em JVM/Script/JS/Nativo e lançando em mismatch real; o golden de semântica de `==` byte-idêntico ao oráculo JVM em JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. O §4.1 está completo; as faces restantes são regra-6/decisão (§4.4 parametrizado, §4.6 doubles, §5 harness, §6 provider de browser).
 
 > **Fatia 5 (POUSADA 01/10).** A superfície escalar restante do §4.1: `assertEqualByte`/`assertNotEqualByte`,
 > `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, mais o
@@ -192,7 +195,7 @@ assertThrows(...)
 As assertions devem produzir diagnósticos úteis — `expected`, `actual`, `test`, `source` —
 nunca um `test failed` seco.
 
-**Estado (01/10):** os helpers primitivos pousaram incrementalmente — fatia 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), fatia 2 (`assertThrows`), fatia 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), fatia 4 (`Long`/`Double`/`Float`), fatia 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`). O par genérico `assertEqual`/`assertNotEqual` segue adiado pelo `known-bugs` §553. Prova: `KofTestingE2ETest` 7/7 em JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
+**Estado (02/10):** os helpers primitivos pousaram incrementalmente — fatia 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), fatia 2 (`assertThrows`), fatia 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), fatia 4 (`Long`/`Double`/`Float`), fatia 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`), fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`, desbloqueado pela correção do `known-bugs` §553 / `D-EQ-UNBOUNDED-T`). O §4.1 está **completo**. Prova: `KofTestingE2ETest` 7/7 + `GenericEqualityE2ETest` 16/16 em JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
 
 ## 4.2 Lifecycle
 
@@ -205,7 +208,7 @@ argumentos:
 - `beforeEach()`: alias §4.2 do `setup()` existente (executa antes de cada teste; uma falha gera um `SKIP` nomeado)
 - `afterEach()`: alias §4.2 do `teardown()` existente (executa via `finally` depois de cada teste)
 
-Prova: `TestTagsE2ETest` (16/16 verde). Mantém o isolamento dos testes — nunca um mecanismo de estado global.
+Prova: `TestTagsE2ETest` (18/18 verde). Mantém o isolamento dos testes — nunca um mecanismo de estado global.
 
 ## 4.3 Isolamento
 
@@ -225,8 +228,10 @@ recursos têm lifecycle explícito:
   e o resumo é impresso com código de saída não-zero.
 - Se `beforeEach()` / `setup()` falhar: aquele teste específico é marcado `SKIP` e não roda.
 - `afterEach()` / `teardown()` sempre roda via `finally` para todo teste que o setup deixou executar.
+- Se `afterEach()` / `teardown()` lançar, é **falha nomeada, contada, e a corrida continua** (`teardown failed: <e>`) — nunca um throw sem catch que aborta o harness após o primeiro teste (defeito medido, `known-bugs` §570, CORRIGIDO 02/10). Mesmo contrato do `afterAll()`.
+- Declarar **os dois** `setup()` e `beforeEach()` (ou `teardown()` e `afterEach()`) é **recusado em compile-time** com o erro nomeado `TEST001` (`ambiguous test lifecycle: … they are the same hook; keep only one`). Os dois nomes são aliases de um hook, então manter ambos rodaria em silêncio só o último (defeito medido, `known-bugs` §577, CORRIGIDO 02/10).
 
-Prova: `TestTagsE2ETest` (16/16 verde).
+Prova: `TestTagsE2ETest` (22/22 verde).
 
 ## 4.4 Testes parametrizados
 
@@ -409,6 +414,29 @@ disponível.
 O runner deve entender descoberta, filtragem, lifecycle, paralelismo, timeouts, retries,
 artefatos, relatórios e exit codes. **Não reinventar o que o runner atual já tem** — integrar
 com o `kof test` (`CmdTest`)/pipeline de teste do compilador.
+
+**Descoberta (ENTREGUE 02/10, `known-bugs` §576):** um `.kf` descoberto que não declara `test`
+nem um `main` top-level é um **módulo auxiliar** (helpers compartilhados), não uma suíte. O
+`kof test` o pula com `SKIP <arquivo> (no tests, no main)` e conta como skip — nunca como
+pass/fail. Uma corrida em que todo arquivo é módulo auxiliar sai 1 (`no runnable test or program
+file found`); zero arquivos executáveis não é sucesso. Um arquivo com `main` e sem testes segue
+rodando como programa (contrato preservado), e o stdout do programa é mantido — impresso antes do
+`PASS`, casando a perna JS (defeito medido, `known-bugs` §578, CORRIGIDO 02/10). Isso exige que o
+compilador exponha `CompilerDriver.hasMainEntryPoint()`, setado uma vez por unidade pelo passo de
+desugar de testes.
+
+**Validação da declaração:** a declaração `test` recusa um NOME vazio e uma TAG vazia com
+`PARSE010` (`test name must not be empty` / `test tag must not be empty`) — um teste sem nome
+rodaria como `PASS ` sem identidade (defeito medido, `known-bugs` §579, CORRIGIDO 03/10).
+
+**Sondagens negativas medidas (03/10, sem defeito — não re-sondar):** (a) um alias `.kf`
+**simbolizado** (`alias.kf -> real.kf`) é descoberto e rodado como arquivo próprio, então o mesmo
+teste reporta duas vezes — é descoberta duplicada por caminho, não violação de contrato, e o
+`Files.walk` não segue symlinks de diretório (um loop `self -> .` / `up -> ..` não trava). (b) Nomes
+de teste **duplicados** num arquivo rodam ambos e são ambos reportados (`PASS same` / `FAIL same:
+assertion failed`); são declarações distintas, não sobrescrita silenciosa. (c) Um **corpo de teste
+vazio** passa (`PASS nothing`). (d) Um `test` **aninhado dentro de uma função** é recusado `SEM011`
+(`Undefined variable or type: 'test'`) — declarações de teste são só top-level, como pretendido.
 
 ## 7.1 Tagging
 

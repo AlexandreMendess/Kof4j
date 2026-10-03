@@ -4,6 +4,7 @@
 
 **Status:** UNDER DEVELOPMENT — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
 **Location:** `docs/development/`
+**Owner:** `192.168.15.30:9093` (lane issues/tooling — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 **Nature:** implementation plan — real state + how to finish (design record kept below)
 **Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface
@@ -12,7 +13,9 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10 — §4.1 primitive surface complete modulo the generic pair (§553).
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**.
+
+> **Slice 6 (LANDED 02/10).** The last §4.1 face: the generic pair `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` in `dev/kof/test.kf`. It was deliberately deferred (not shipped broken) until `known-bugs` §553 was resolved: the maintainer's rule-6 answer `D-EQ-UNBOUNDED-T` (02/10) fixes `==` on an unbounded `T` as **structural content equality** on every target, so the helper is correct for any `T` (Int, String, record, …). The label stringifies `expected`/`actual` via `+` — no new primitive, no per-target runtime. Proof RED-first: new `GenericEqualityE2ETest` **16/16** (the generic pair green on JVM/Script/JS/Native and throwing on a real mismatch; the `==` semantics golden byte-identical to the JVM oracle on JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. §4.1 is complete; the remaining faces are rule-6/decision-gated (§4.4 parameterized, §4.6 test doubles, §5 harness, §6 browser provider).
 
 > **Slice 5 (LANDED 01/10).** The remaining §4.1 scalar surface: `assertEqualByte`/`assertNotEqualByte`,
 > `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, plus the missing
@@ -208,7 +211,7 @@ assertThrows(...)
 Assertions must produce useful diagnostics — `expected`, `actual`, `test`, `source` — never a
 bare `test failed`.
 
-**Status (01/10):** the primitive helpers landed incrementally — slice 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), slice 2 (`assertThrows`), slice 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), slice 4 (`Long`/`Double`/`Float`), slice 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`). The generic `assertEqual`/`assertNotEqual` pair is deferred by `known-bugs` §553. Proof: `KofTestingE2ETest` 7/7 across JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
+**Status (02/10):** the primitive helpers landed incrementally — slice 1 (`assertTrue`/`assertFalse`/`assertEqualInt`/`assertEqualString`/`assertNotEqualInt`/`fail`), slice 2 (`assertThrows`), slice 3 (`assertNotEqualString`/`assertEqualBool`/`assertNull`/`assertNotNull`), slice 4 (`Long`/`Double`/`Float`), slice 5 (`Byte`/`Short`/`Char` + `assertNotEqualBool`), slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>`, unblocked by the `known-bugs` §553 fix / `D-EQ-UNBOUNDED-T`). §4.1 is **complete**. Proof: `KofTestingE2ETest` 7/7 + `GenericEqualityE2ETest` 16/16 across JVM + JS + Script + Native x86-64 + riscv64/aarch64(qemu).
 
 ## 4.2 Lifecycle
 
@@ -241,8 +244,10 @@ resources have explicit lifecycle:
   and the summary is printed with a non-zero exit code.
 - If `beforeEach()` / `setup()` fails: that specific test is marked `SKIP` and does not run.
 - `afterEach()` / `teardown()` always runs via `finally` for every test that setup allowed to execute.
+- If `afterEach()` / `teardown()` throws, it is a **named failure, counted, and the run continues** (`teardown failed: <e>`) — never an uncaught throw that aborts the harness after the first test (measured defect, `known-bugs` §570, FIXED 02/10). Same contract as `afterAll()`.
+- Declaring **both** `setup()` and `beforeEach()` (or both `teardown()` and `afterEach()`) is **refused at compile time** with the named error `TEST001` (`ambiguous test lifecycle: … they are the same hook; keep only one`). The two names are aliases of one hook, so keeping both would silently run only the last one (measured defect, `known-bugs` §577, FIXED 02/10).
 
-Proof: `TestTagsE2ETest` (16/16 green).
+Proof: `TestTagsE2ETest` (22/22 green).
 
 ## 4.4 Parameterized tests
 
@@ -424,6 +429,28 @@ available.
 The runner must understand discovery, filtering, lifecycle, parallelism, timeouts, retries,
 artifacts, reports and exit codes. **Do not reinvent what the current runner already has** —
 integrate with `kof test` (`CmdTest`)/the compiler test pipeline.
+
+**Discovery (LANDED 02/10, `known-bugs` §576):** a discovered `.kf` that declares neither `test`
+nor a top-level `main` is an **auxiliary module** (shared helpers), not a suite. `kof test` skips it
+with `SKIP <file> (no tests, no main)` and counts it as skipped — never as pass/fail. A run where
+every file is an auxiliary module exits 1 (`no runnable test or program file found`); zero runnable
+files is not a success. A file with `main` and no tests still runs as a program (contract preserved),
+and the program's stdout is kept — printed before `PASS`, matching the JS leg (measured defect
+`known-bugs` §578, FIXED 02/10). This requires the compiler to expose `CompilerDriver.hasMainEntryPoint()`,
+set once per unit by the tests desugar step.
+
+**Declaration validation:** the `test` declaration refuses an empty NAME and an empty TAG with
+`PARSE010` (`test name must not be empty` / `test tag must not be empty`) — an unnamed test would
+run as `PASS ` with no identity (measured defect `known-bugs` §579, FIXED 03/10).
+
+**Measured negative probes (03/10, no defect — do not re-probe):** (a) a **symlinked** `.kf` alias
+(`alias.kf -> real.kf`) is discovered and run as its own file, so the same test reports twice — this
+is duplicate discovery by path, not a contract violation, and `Files.walk` does not follow directory
+symlinks (a `self -> .` / `up -> ..` loop does not hang). (b) **Duplicate test names** in one file
+both run and are both reported (`PASS same` / `FAIL same: assertion failed`); they are distinct
+declarations, not a silent overwrite. (c) An **empty test body** passes (`PASS nothing`). (d) A
+`test` **nested inside a function** is rejected `SEM011` (`Undefined variable or type: 'test'`) —
+test declarations are top-level only, as intended.
 
 ## 7.1 Tagging
 

@@ -47,6 +47,21 @@ degrade per target — Script digested the array IDENTITY, the JVM died
 refuse with the SECN000 gap until ported). Pinning bytes to a deterministic
 hex-String AAD stays legal where the face is unavailable.
 
+## Session keys — X25519 + HKDF, never hand-assembled
+
+```kof
+var mine = keyExchange.privateKey()                      // Secret (R8: never printable)
+var myPub = keyExchange.publicKey(mine)                  // 64-hex String — send it
+var shared = keyExchange.shared(mine, secrets.of(peerPub))
+var txKey = keyExchange.hkdfSha256(shared, saltHex, "0001", 32)  // AES key per direction
+```
+
+D-KOF-X25519: private material ONLY moves inside `Secret` (wrong actual =
+`SECN014`); the public value is the sole export. JVM/Android/Script real
+(RFC 7748 + RFC 5869); JS/Native/cross refuse `SECN012` until ported.
+Derive per-direction keys with HKDF over the shared secret — never reuse
+one raw scalar as an app key.
+
 ## Encryption — AES-GCM; args are `(plain, keyHex)`, key = 32 bytes
 
 ```kof

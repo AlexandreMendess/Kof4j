@@ -8,7 +8,9 @@ import image.Avif
 // sequence header OBU syntax), 5.5.2 (color config), 5.5.3 (timing info),
 // 5.5.4 (decoder model info) — the PDF was read on the dev host 01/10
 // (pdftotext); field order and f(n) widths are quoted from it, never from
-// memory.
+// memory. Two widths that a fabricated fixture had shared a wrong value with
+// (both fixed 03/10 against the spec + a real .avif): seq_profile is f(3)
+// (not 2) and operating_point_idc is f(12) (not 16).
 //
 // `readAvifSeqHeader(path)` locates the av1C configuration record through
 // the same container walk as slice 1 and walks the OBU_SEQUENCE_HEADER
@@ -52,7 +54,15 @@ AvifSeqHeader readAvifSeqHeader(String path) {
 
 AvifSeqHeader avifSeqHeader(Int[] b) {
     var rec = av1cPayload(b)
-    var obuHead = u8(b, rec + 8)
+    // configOBUs[] follow the 4-byte AV1CodecConfigurationRecord directly
+    // (AV1-ISOBMFF 2.3.3). The array is OPTIONAL: an AVIF still image carries
+    // its sequence header in the item data, so an empty configOBUs is honest
+    // and explicit here — the item-data path (readAvifItemObus) is the one
+    // that yields the sequence header for such files.
+    if (boxSize(b, rec - 8) <= 12) {
+        throw "IMAGE: avif config obu absent"
+    }
+    var obuHead = u8(b, rec + 4)
     if ((obuHead >> 7) != 0) {
         throw "IMAGE: avif config obu forbidden bits"
     }
@@ -63,13 +73,15 @@ AvifSeqHeader avifSeqHeader(Int[] b) {
         throw "IMAGE: avif config obu missing size field"
     }
     var ext = (obuHead >> 2) & 1
-    var p = rec + 9 + ext
+    var p = rec + 5 + ext
     var size = 0
+    var mult = 1
     var loop = 0
     while (loop < 8) {
         var x = u8(b, p)
         p = p + 1
-        size = (size << 7) | (x & 127)
+        size = size + (x & 127) * mult
+        mult = mult * 128
         if ((x & 128) == 0) {
             loop = 8
         }
@@ -90,8 +102,8 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
         throw "IMAGE: truncated avif sequence header"
     }
     var bits = p * 8
-    var profile = seqRead(b, bits, 2)
-    bits = bits + 2
+    var profile = seqRead(b, bits, 3)
+    bits = bits + 3
     if (profile > 2) {
         throw "IMAGE: avif sequence profile not covered"
     }
@@ -131,7 +143,7 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
         bits = bits + 5
         var i = 0
         while (i <= opCount) {
-            bits = bits + 16
+            bits = bits + 12
             var level = seqRead(b, bits, 5)
             bits = bits + 5
             if (level > 7) {
@@ -301,8 +313,9 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
                          wBits, hBits, deltaIdLen, addIdLen)
 }
 
-// Locate the av1C configuration record payload through the same box walk
-// policy as slice 1 (returns the index of the record's first byte).
+// Locate the PRIMARY item's av1C configuration record through the same
+// ipma-based property selection as slice 1 (Avif.kf), so a second av1C (the
+// alpha item's) no longer refuses the file. Returns the record's first byte.
 Int av1cPayload(Int[] b) {
     if (b.length < 12) {
         throw "IMAGE: file too short for a valid header"
@@ -325,7 +338,8 @@ Int av1cPayload(Int[] b) {
     if (metaAt < 0) {
         throw "IMAGE: avif has no meta box"
     }
-    var av1At = -1
+    var pitm = -1
+    var iprp = AvifIprp(listOf<AvifProp>(), listOf<Int>(), listOf<List<Int>>(), false)
     var child = metaAt + 12
     var metaEnd = boxEnd(b, metaAt)
     while (child + 8 <= metaEnd) {
@@ -333,32 +347,21 @@ Int av1cPayload(Int[] b) {
         if (size < 8 || child + size > metaEnd) {
             throw "IMAGE: malformed avif meta child"
         }
-        if (matchesAscii(b, child + 4, "iprp")) {
-            var ipco = findBox(b, child + 8, child + size, "ipco")
-            if (ipco >= 0) {
-                var c = ipco + 8
-                var ie = boxEnd(b, ipco)
-                while (c + 8 <= ie) {
-                    var cs = boxSize(b, c)
-                    if (cs < 8 || c + cs > ie) {
-                        throw "IMAGE: malformed avif ipco child"
-                    }
-                    if (matchesAscii(b, c + 4, "av1C")) {
-                        if (av1At >= 0) {
-                            throw "IMAGE: avif has two av1C boxes"
-                        }
-                        av1At = c
-                    }
-                    c = c + cs
-                }
-            }
+        if (matchesAscii(b, child + 4, "pitm")) {
+            pitm = readPitm(b, child)
+        } else if (matchesAscii(b, child + 4, "iprp")) {
+            iprp = readAvifIprp(b, child)
         }
         child = child + size
     }
+    if (pitm < 0) {
+        throw "IMAGE: avif has no primary item"
+    }
+    var av1At = selectAvifProp(iprp, pitm, 1)
     if (av1At < 0) {
         throw "IMAGE: avif has no av1C"
     }
-    if (boxSize(b, av1At) < 20) {
+    if (boxSize(b, av1At) < 12) {
         throw "IMAGE: truncated avif av1C"
     }
     return av1At + 8

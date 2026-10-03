@@ -9,17 +9,10 @@ final class AvifFrameSupport {
     private AvifFrameSupport() {}
 
     /**
-     * Reduced-frame prefix per AV1 5.9.2/5.9.5/5.9.6 (writer mirrors the
-     * spec bit order): disable_cdf, allow_sct, [force_mv], [size override +
-     * coded sizes], [superres], render flag [+16+16], [intrabc], trailing.
-     * configObu(0,2,...) is 32x32 with wBits=4; sizes stay at max here.
-     */
-    /**
-     * Reduced-frame prefix per AV1 5.9.2/5.9.5/5.9.6/5.9.10/5.9.15 (writer
-     * mirrors the spec bit order, no guards where the spec has none):
+     * Reduced-frame prefix per AV1 5.9.2/5.9.5/5.9.6/5.9.15 (writer mirrors
+     * the spec bit order, no guards where the spec has none):
      * disable_cdf, allow_sct, [force_mv], [size override + coded sizes],
-     * render flag [+16+16], [intrabc], is_filter_switchable,
-     * is_motion_mode_switchable, uniform_tile_spacing_flag,
+     * render flag [+16+16], [intrabc], uniform_tile_spacing_flag,
      * [inc_tile_cols_log2, inc_tile_rows_log2], trailing one bit.
      * configObu(0,2,...) is 32x32 (sbCols=sbRows=1 -> maxCols=maxRows=1,
      * minCols=0, minTiles=0): the single loop iteration reads a STOP bit;
@@ -46,8 +39,6 @@ final class AvifFrameSupport {
         if (sct == 1) {
             w.bits(intrabc, 1);
         }
-        w.bits(1, 1);                       // is_filter_switchable (5.9.10)
-        w.bits(1, 1);                       // is_motion_mode_switchable
         if (uniform >= 0) {
             w.bits(uniform, 1);
             if (uniform == 1) {
@@ -77,8 +68,10 @@ final class AvifFrameSupport {
      * Non-reduced prefix over nrMonoObuType(8x8, SELECT sct/mv, order hint
      * off, ref-frame-MV off): show_existing, frame_type, show, [showable],
      * [error_resilient], disable_cdf, allow_sct, [force_mv], [ids], ov,
-     * [refresh], [4+4 coded], render [+16+16], [intrabc], switchable,
-     * motion, [frame-end cdf], uniform [+incs], trailing.
+     * [refresh], [4+4 coded], render [+16+16], [intrabc], [frame-end cdf],
+     * uniform [+incs], trailing. The interp/motion bits (5.9.10) are NOT
+     * written: they are read only on the non-intra path, which this reader
+     * refuses before reaching them.
      * nr8: sbCols=sbRows=2 -> minCols=0, maxCols=maxRows=1, minTiles=0.
      */
     static byte[] frameNr(int type2Bits, int show, int err, int cdf, int sct, int mv,
@@ -91,7 +84,7 @@ final class AvifFrameSupport {
         if (show == 0) {
             w.bits(1, 1);                   // showable_frame
         }
-        if (!(type2Bits == 1 && show == 1)) {
+        if (!(type2Bits == 0 && show == 1)) {
             w.bits(err, 1);                 // error_resilient_mode
         }
         w.bits(cdf, 1);
@@ -100,7 +93,7 @@ final class AvifFrameSupport {
             w.bits(mv, 1);
         }
         w.bits(ov, 1);
-        if (!(type2Bits == 1 && show == 1)) {
+        if (!(type2Bits == 0 && show == 1)) {
             w.bits(255, 8);                 // refresh_frame_flags (allFrames)
         }
         if (ov == 1) {
@@ -115,8 +108,6 @@ final class AvifFrameSupport {
         if (sct == 1 && (ov == 0 || codedW == 8)) {
             w.bits(intrabc, 1);
         }
-        w.bits(1, 1);                       // is_filter_switchable (5.9.10)
-        w.bits(1, 1);                       // is_motion_mode_switchable
         if (cdf == 0) {
             w.bits(0, 1);                   // disable_frame_end_update_cdf = 0
         }
@@ -135,7 +126,7 @@ final class AvifFrameSupport {
      *  needs >= 65 coded samples per axis (spec 5.9.15 loops). */
     static byte[] redSeq128() {
         AvifMetadataSupport.Bits w = new AvifMetadataSupport.Bits();
-        w.bits(0, 2);                       // seq_profile
+        w.bits(0, 3);                       // seq_profile
         w.bits(1, 1);                       // still_picture
         w.bits(1, 1);                       // reduced_still_picture_header
         w.bits(2, 5);                       // seq_level_idx
@@ -175,7 +166,7 @@ final class AvifFrameSupport {
                 AvifMetadataSupport.concat(java.util.List.of(
                         AvifSeqSupport.delimiter(),
                         nrSeq(),
-                        frameNr(1, 1, 1, 1, 1, 1, 1, 5, 3, 0, 0, 0, 0, 1, 0)))));
+                        frameNr(0, 1, 1, 1, 1, 1, 1, 5, 3, 0, 0, 0, 0, 1, 0)))));
         Files.write(dir.resolve("rend.avif"), AvifObuSupport.containerWithItem(
                 AvifMetadataSupport.concat(java.util.List.of(
                         AvifSeqSupport.delimiter(),
@@ -186,6 +177,14 @@ final class AvifFrameSupport {
                         AvifSeqSupport.delimiter(),
                         redSeq128(),
                         frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 1, 0, 1, 0)))));
+        // INTRA_ONLY (type 2), show=1, error_resilient=0, size override
+        // (coded 5x3 vs max 8x8): the non-reduced intra path with the
+        // interp/motion bits absent (AV1 5.9.2 has them only off-intra).
+        Files.write(dir.resolve("intra.avif"), AvifObuSupport.containerWithItem(
+                AvifMetadataSupport.concat(java.util.List.of(
+                        AvifSeqSupport.delimiter(),
+                        nrSeq(),
+                        frameNr(2, 1, 0, 1, 1, 1, 1, 5, 3, 0, 0, 0, 0, 1, 0)))));
         return dir;
     }
 
@@ -202,10 +201,10 @@ final class AvifFrameSupport {
                         AvifSeqSupport.delimiter(),
                         nrSeq(),
                         AvifSeqSupport.obuType(3, se.bytes())))));
-        // inter frame: type bits = 0
+        // inter frame: frame_type bits = 1 (INTER, AV1 5.9.2)
         AvifMetadataSupport.Bits it = new AvifMetadataSupport.Bits();
         it.bits(0, 1);
-        it.bits(0, 2);
+        it.bits(1, 2);
         it.bits(1, 1);
         it.bits(0, 1);
         it.bits(1, 1);
@@ -221,12 +220,6 @@ final class AvifFrameSupport {
                         AvifSeqSupport.delimiter(),
                         AvifMetadataSupport.configObu(0, 2, false, false, true),
                         frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 3, 1, 0, 1, 0, 1)))));
-        // size-with-refs: INTRA_ONLY, show=1, err=0, ov=1
-        Files.write(dir.resolve("sizerefs.avif"), AvifObuSupport.containerWithItem(
-                AvifMetadataSupport.concat(java.util.List.of(
-                        AvifSeqSupport.delimiter(),
-                        nrSeq(),
-                        frameNr(2, 1, 0, 1, 0, 0, 1, 5, 3, 0, 0, 0, 0, 1, 0)))));
         // truncated: reduced render=1 claims 32 bits in a 1-byte payload,
         // padding OBU behind keeps the reads inside the item
         AvifMetadataSupport.Bits tr = new AvifMetadataSupport.Bits();
@@ -247,21 +240,6 @@ final class AvifFrameSupport {
                         AvifSeqSupport.delimiter(),
                         AvifMetadataSupport.configObu(0, 2, false, false, true),
                         frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0)))));
-        // frame-level interpolation filter: is_filter_switchable = 0
-        AvifMetadataSupport.Bits ip = new AvifMetadataSupport.Bits();
-        ip.bits(1, 1);                      // disable_cdf
-        ip.bits(1, 1);                      // allow_sct
-        ip.bits(1, 1);                      // force_integer_mv
-        ip.bits(0, 1);                      // render = same
-        ip.bits(0, 1);                      // allow_intrabc = 0
-        ip.bits(0, 1);                      // is_filter_switchable = 0
-        ip.bits(0, 2);                      // interpolation_filter (refused)")
-        ip.bits(0, 0);
-        Files.write(dir.resolve("interp.avif"), AvifObuSupport.containerWithItem(
-                AvifMetadataSupport.concat(java.util.List.of(
-                        AvifSeqSupport.delimiter(),
-                        AvifMetadataSupport.configObu(0, 2, false, false, true),
-                        AvifSeqSupport.obuType(3, ip.bytes())))));
         // no frame at all
         Files.write(dir.resolve("noframe.avif"), AvifObuSupport.containerWithItem(
                 AvifMetadataSupport.concat(java.util.List.of(
@@ -297,6 +275,7 @@ final class AvifFrameSupport {
                 println("nr-k " + facts(readAvifFrameHeader(base + "/nr-k.avif")))
                 println("rend " + facts(readAvifFrameHeader(base + "/rend.avif")))
                 println("tile4 " + facts(readAvifFrameHeader(base + "/tile4.avif")))
+                println("intra " + facts(readAvifFrameHeader(base + "/intra.avif")))
             }
             """.formatted(base);
     }
@@ -324,11 +303,6 @@ final class AvifFrameSupport {
                     println(e)
                 }
                 try {
-                    readAvifFrameHeader(base + "/sizerefs.avif")
-                } catch (String e) {
-                    println(e)
-                }
-                try {
                     readAvifFrameHeader(base + "/trunc.avif")
                 } catch (String e) {
                     println(e)
@@ -340,11 +314,6 @@ final class AvifFrameSupport {
                 }
                 try {
                     readAvifFrameHeader(base + "/sizelist.avif")
-                } catch (String e) {
-                    println(e)
-                }
-                try {
-                    readAvifFrameHeader(base + "/interp.avif")
                 } catch (String e) {
                     println(e)
                 }

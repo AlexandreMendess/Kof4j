@@ -8,6 +8,7 @@ next: fatia-3.1 (window/frame/input)
 location: docs/development
 state: UNDER DEVELOPMENT
 
+**Dono:** SEM DONO / ABERTO — reivindicar de novo. Os claims do spike-3.0 trazem `192.168.15.30:9093`, que é dona de `kof-testing-platform-plan` (violação de `D-PLAN-ONE-OWNER`). Uma identidade = um plano.
 **Status:** **EM DESENVOLVIMENTO** — promovido 30/09 de `future/` por `D-GRAPHICS-SPIKE` (spike 3.0 = medição + stack apenas, sem API) sob `D-FUTURE-PROMOTION`.
 **Dona:** lane UI.
 **Fonte normativa:** `DECISIONS.md` §D-GRAPHICS-GAMING + adendos da mantenedora + §D-GRAPHICS-SPIKE.

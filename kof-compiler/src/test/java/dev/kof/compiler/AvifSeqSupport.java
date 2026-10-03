@@ -52,7 +52,7 @@ final class AvifSeqSupport {
                             boolean timing, boolean model, boolean film,
                             int frameW, int frameH) {
         AvifMetadataSupport.Bits w = new AvifMetadataSupport.Bits();
-        w.bits(profile, 2);
+        w.bits(profile, 3);
         w.bits(0, 1);                       // still_picture
         w.bits(0, 1);                       // reduced_still_picture_header
         w.bits(timing ? 1 : 0, 1);
@@ -73,7 +73,7 @@ final class AvifSeqSupport {
         }
         w.bits(0, 1);                       // initial_display_delay_present_flag
         w.bits(0, 5);                       // operating_points_cnt_minus_1
-        w.bits(0, 16);                      // operating_point_idc[0]
+        w.bits(0, 12);                      // operating_point_idc[0] (f(12), AV1 5.5.1)
         w.bits(level, 5);                   // seq_level_idx[0]
         if (level > 7) {
             w.bits(0, 1);                   // seq_tier
@@ -117,8 +117,9 @@ final class AvifSeqSupport {
             av1At = AvifMetadataSupport.findBox(b, AvifMetadataSupport.boxEnd(b, iprp) - 8 + 0, iprp, "av1C");
         }
         int rec = av1At + 8;
-        int ext = (b[rec + 8] >> 2) & 1;
-        int p = rec + 9 + ext;
+        // configOBUs[] follow the 4-byte record directly (AV1-ISOBMFF 2.3.3).
+        int ext = (b[rec + 4] >> 2) & 1;
+        int p = rec + 5 + ext;
         int size = 0;
         for (int i = 0; i < 8; i++) {
             int x = b[p] & 255;
@@ -133,7 +134,7 @@ final class AvifSeqSupport {
 
     static String javaSeqCore(byte[] b, int p, int limit) {
         int bits = p * 8;
-        int profile = readBits(b, bits, 2); bits += 2;
+        int profile = readBits(b, bits, 3); bits += 3;
         if (profile > 2) throw new AssertionError("prof3");
         int still = readBits(b, bits, 1); bits += 1;
         int reduced = readBits(b, bits, 1); bits += 1;
@@ -151,7 +152,7 @@ final class AvifSeqSupport {
             int delay = readBits(b, bits, 1); bits += 1;
             int cnt = readBits(b, bits, 5); bits += 5;
             for (int i = 0; i <= cnt; i++) {
-                bits += 16;
+                bits += 12; // operating_point_idc[i] (f(12), AV1 5.5.1)
                 int lv = readBits(b, bits, 5); bits += 5;
                 if (lv > 7) bits += 1;
                 if (delay == 1) {
@@ -271,6 +272,16 @@ final class AvifSeqSupport {
         Files.write(dir.resolve("flat.avif"),
                 containerWith(AvifMetadataSupport.configObu(0, 2, false, false, true),
                         0, 2, false, false, true, false, false, 8, 8));
+        // reduced profile 1 (the form real AVIF stills use: 4:2:0, no mono
+        // bit, no chroma_sample_position) — the 3-bit seq_profile regression.
+        byte[] obu5 = AvifMetadataSupport.configObu(1, 2, false, false, false);
+        Files.write(dir.resolve("r1.avif"),
+                containerWith(obu5, 1, 2, false, false, false, false, false, 32, 32));
+        // empty configOBUs: a legal AVIF still image whose sequence header is
+        // in the item data — the av1C face refuses it explicitly (the item
+        // path is readAvifItemObus).
+        Files.write(dir.resolve("noconf.avif"),
+                containerWith(new byte[0], 0, 2, false, false, true, false, false, 8, 8));
         return dir;
     }
 
@@ -323,6 +334,12 @@ final class AvifSeqSupport {
                     + " mono=" + of(f.monochrome) + " sub=" + of(f.subsamplingX)
                     + "/" + of(f.subsamplingY) + " depth=" + f.bitDepth
                     + " still=" + of(f.stillPicture))
+                var r1 = readAvifSeqHeader(base + "/r1.avif")
+                println("r1 p=" + r1.seqProfile + " r=" + of(r1.reduced)
+                    + " w=" + r1.maxWidth + " h=" + r1.maxHeight
+                    + " mono=" + of(r1.monochrome) + " sub=" + of(r1.subsamplingX)
+                    + "/" + of(r1.subsamplingY) + " depth=" + r1.bitDepth
+                    + " still=" + of(r1.stillPicture))
             }
             """.formatted(base);
     }
@@ -346,6 +363,11 @@ final class AvifSeqSupport {
                 }
                 try {
                     readAvifSeqHeader(base + "/prof3.avif")
+                } catch (String e) {
+                    println(e)
+                }
+                try {
+                    readAvifSeqHeader(base + "/noconf.avif")
                 } catch (String e) {
                     println(e)
                 }

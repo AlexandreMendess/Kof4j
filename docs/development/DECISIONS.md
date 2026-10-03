@@ -4613,6 +4613,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Broadcast/multicast:** NOT in v1 (unicast only). A later face needs its own rule-6 decision.
 - **Security/policy:** network endpoints obey the existing `app.security`/policy model — no new policy face is invented here. The key-exchange face (`SECN005`, `D-KOFSHARE-100KOF`'s other requirement) remains a separate surface decision.
 - **Surface (contract, to be compile-validated during slice 1):** `net.listen(port) -> Listener`, `listener.accept() -> Conn`, `net.connect(host, port) -> Conn`, `conn.send(Byte[]) -> Int`, `conn.receive(maxBytes) -> Byte[]`, `conn.close()`, `listener.close()`; `net.bind(port) -> Endpoint`, `endpoint.send(addr, Byte[])`, `endpoint.receive(maxBytes) -> (Byte[], String)`-shape, `endpoint.close()`. Names/types are frozen by this decision; the exact return-shape for receive-with-source is the first design question to compile-probe (tuple absence in Kof ⇒ likely a `record Datagram(Byte[] bytes, String from)` — the maintainer's `Byte[]`/no-new-record preference is honored on the SEND side; the RECEIVE side may need the source carrier: decide via RED-first probe, keep the decision note updated).
+- **AMENDED 02/10 (§574, connector/KofShare lane):** the front's web-sibling surface proved to have a target divergence — `web` route handlers answered HTTP 500 under Script (the generated runtime reflects `invoke()` on the handler; an interpreted lambda is a `KofObj` with no host method). Fixed same day at the interpreter boundary: `InterpretedCallable` (compiler-side adapter exposing exactly `invoke()`/`invoke(String×5)`, delegating to `KofInterpreter.invokeLambda`) wraps route-lambda arguments of `kof_web_route`/`kof_web_route_opts`; the frozen contract is UNCHANGED (no surface addition), and `ScriptWebRouteE2ETest` + KofShare `HTTPCHECK-OK` (14/14, JVM+Script in all three server/client combos) are the proof. Residual named as §575 (phantom `kof.web.App` capture in a closure = lambda-field CNFE at JVM LOAD); SSE/WS handler bridging NOT covered by the amendment.
 - **Relationships:** `Depends on: D-KOF-FIRST-IMPL (library-first), D-UDP (subsumed here), §559 (catalogued gap this closes), D-KOFSHARE-100KOF (product blocked on this)`; `Resolves-questions: D-UDP plan §5 (1,2,3,4,5,6 — historical numbering, plan now a pointer)`
 
 ---
@@ -4666,13 +4667,13 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-EQ-UNBOUNDED-T — `==` on an unbounded type parameter `T` means STRUCTURAL content equality (maintainer 02/10/2026, chat rule-6 answer; catalogued `known-bugs` §553)
 
-**State:** DECIDED (maintainer) — option **A: structural equality**, matching the concrete `String`/`record` content-equality contract. Implementation pending.
+**State:** DECIDED (maintainer) — option **A: structural equality**, matching the concrete `String`/`record` content-equality contract. **IMPLEMENTED 02/10** (lane `192.168.15.30:9092`; `known-bugs` §553 ✅ FIXED): the `==`/`!=` lowering routes an unbounded `T`/`T?` to content equality on every target (`Objects.equals` JVM/Script, `kofRecordEq` JS, new `kof_eq_generic` Native x86-64/riscv64), bypassing the erased `Object` fallback and the `if_acmp` comparison shortcut; a bounded `T: Bound` keeps the bound's contract. Proof: `GenericEqualityE2ETest` **16/16** (JVM+Script+JS+Native x86-64+riscv64/aarch64 qemu), RED-first. The `kof.test` generic `assertEqual<T>`/`assertNotEqual<T>` pair landed in `dev/kof/test.kf`.
 
 - **Question (resolved):** what must `==` mean on an unbounded `T` — structural content equality (like the concrete `String`/`record` contract), or an honest compile-time refusal (like `NAT004` for `toString` on unbounded `T`, §358)? **Chosen: structural equality.**
 - **Measured divergence (01/10, catalogued §553):** JS compares structurally (`===` on the erased value); JVM/Script/Native compare by reference (JVM `if_acmp` / native pointer compare); literal caching masks the JVM/Script face (`eq(1,1)`/`eq("a","a")` true) while Native has no cache (false). Concrete-type `==` is correct on every target.
 - **Consequence:** the `kof.test` §4.1 `assertEqual`/`assertNotEqual` generic pair (deferred, not shipped broken) is unblocked once the semantics are implemented per-target. This aligns an implementation divergence with the frozen `content ==` contract — a bug fix, not a new operator; no version bump for the operator itself.
-- **Not authorized:** shipping the generic `assertEqual` pair before the per-target `==` is proven byte-identical.
-- **Relationships:** `Related: §553, §358 (NAT004 precedent), content == (frozen), D-KOF-FIRST, rule 5, rule 6, rule 11`; owner = issues/tooling lane.
+- **Authorization satisfied:** the generic `assertEqual` pair shipped only after the per-target `==` was proven byte-identical (`GenericEqualityE2ETest` 16/16).
+- **Relationships:** `Related: §553, §358 (NAT004 precedent), content == (frozen), D-KOF-FIRST, rule 5, rule 6, rule 11`; implemented by lane `192.168.15.30:9092`.
 
 ---
 
@@ -4702,6 +4703,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Decision:** a handshake/derive face (shape `KeyExchange.privateKey()` → `publicValue` → `sharedSecret(peerPublic)` sealed as `Secret`, with HKDF-SHA256 expansion into per-direction AES keys) is authorized as a `kof.security` stdlib surface. Rejected: deferring v1 to chunk-HMAC only (option b) — the maintainer wants the confidential-transfer envelope.
 - **What it unblocks:** (1) KofShare envelope: per-session AES-GCM on top of the proven `transfer.kf` framing/resume + `SECN005`-derived keys; (2) any other app needing forward secrets over `kof.net`.
 - **Boundary:** this decides the ALGORITHM family and the face's existence; the exact names/signatures are the implementation unit's surface contract (proposed EN/PT corpus review at promotion). KeyHandle rotation semantics (`SECN010`) unchanged.
+- **Implemented 02/10 (lane docs/development):** surface frozen as `keyExchange.privateKey() -> Secret`, `keyExchange.publicKey(Secret) -> String` (64-hex export), `keyExchange.shared(Secret, Secret peerPublicHex) -> Secret`, `keyExchange.hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String` (RFC 5869 EXPAND, len 1..8160). Private material NEVER leaves `Secret` (R8); wrong actual = `SECN014`. JVM/Android/Script real via JCA; JS/Native/cross refuse `SECN012` (free code slot — 009/010/011/013/014 have owners). Proof RED-first: `KeyExchangeE2ETest` **5/5** (Alice/Bob agreement + per-direction HKDF equality, RFC 5869 case-1 42-byte golden, redaction (`*** `), SECN014/SECN012 named refusals; HEAD 5/5 red). Corpus: `learn/36-security.md`(+PT) + `training/idioms/security.md`(+PT) + stdlib/security matrix & code list (+PT) + backend-parity gap row (+PT).
 - **Relationships:** `Depends on: D-KOF-NET (transport), D-KOFSHARE-100KOF (product), SECN005 (the face this approves), §559`; `Related: D-KOF-NET frozen policy clause "key exchange remains a separate decision" — that decision is THIS one`.
 
 ## D-NET-JS-V1 — `kof.net` is OUT of `Target.JS` in v1: a named compile-time refusal, no browser/Node sub-target (maintainer 02/10/2026, rule-6 multi-choice vote "(c) kof.net fora do JS no v1")
@@ -4759,3 +4761,57 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **If `lab` is not stable:** the cut **slips** to the next weekend — it is not forced through with a waiver, and no stage is skipped. A failed promotion returns to `lab` (`BLOCKED → LAB`), never sideways.
 - **What this does NOT authorize:** weakening a check, dropping a test, hiding a red, or declaring stable without executed proof (`implemented` != `verified`).
 - **Relationships:** `Enforces: D-QUALITY-PIPELINE-2609 (100% mandatory checks)`, `Related: D-RELEASE-CADENCE, D-RELEASE-1.0, D-1.0-EDGES, D-BRANCH-PIPELINE`; machine `scripts/pipeline/pipeline_state.py`, `scripts/pipeline/promotion_gate.py`.
+
+---
+
+## D-PLAN-ONE-OWNER — one plan = one unique owner identity (`IP:PORTA`); no lane owns multiple plans (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — operational rule.
+- **Law:** every plan in `docs/development/` (and the universal-platform tracking in `docs/architecture/`) carries an explicit `**Owner:** <local-ipv4>:<opencode-port>` in its header. A bare IP, "this session", or a lane label without IP:PORT is INVALID (same absolute-identity rule as `D-AGENT-IDENTITY-IPPORT`).
+- **Uniqueness:** **no single identity (`IP:PORTA`) may own more than one active plan**. An agent assigned to one plan does not pick up slices from another plan; doing so creates confusion, mixed claims and unverified handoffs (measured 02/10: `.101:9092` owned memory-safety but also landed image-vision AVIF and connector slices; `.30:9093` owned testing-platform but also touched graphics and test-architecture).
+- **Handoff / orphan:** a plan that loses its owner or has its claim revoked must declare `**Owner:** SEM DONO / OPEN` in its header, until re-claimed with a fresh, unique `IP:PORTA` that does not already hold another plan. A plan without an exclusive owner cannot be advanced under a shared/silent identity.
+- **Authority / enforcement:** `scripts/check_plan_owners.sh` (scans all plan headers, fails on duplicate IPs, missing owner fields, or unanchored lane names).
+- **Relationships:** `Extends: D-AGENT-IDENTITY-IPPORT (identity granularity)`, `Complements: AGENTS.md §Multi-agent state (claim discipline)`.
+
+---
+
+## D-INTEROP-ERR-TYPE — the interop error is a REAL catchable language type `InteropError` (maintainer 02/10/2026, chat multiple-choice — connectors slice B)
+
+**State:** DECIDED (maintainer) — completes `D-CONNECTORS` ("it is a language type") with the concrete surface.
+- **Law:** a failing `extern`/`foreign module` call throws the builtin **`InteropError`**; user code catches it by type: `catch (InteropError e)`; the type carries `e.message` (String) and `e.code` (String, the existing `INTEROP00x` diagnostics vocabulary). It **coexists** with the frozen String-exceptions contract — `catch (String s)` keeps working for every non-interop throw; a foreign error is NEVER swallowed (R6): if the user catches nothing the `InteropError` propagates and names itself.
+- **Why:** the alternative (type-marker minimum: name in the type system, runtime keeps throwing Strings) was REJECTED by the maintainer — decision (a) complete catchable type.
+- **Implementation:** compiler slice — type-system arm + mapping from the FFI throw path to the new type + per-target E2E RED-first (JVM/Script real; JS/Native/cross follow the existing per-target interop matrix or a named gap). `ForeignModuleGrammarE2ETest` neighbors must stay green.
+- **Landed 02/10 (compiler Slice B, `InteropErrorE2ETest` 6/6 GREEN):** accessors are **methods** `e.message()`/`e.code()` (house-builtin standard, same as `Secret.reveal()`; field access yields `SEM102` — transcription refinement: the decision's `.message`/`.code` means these accessors); FFI downcall failures throw code `INTEROP010` with the `INTEROP010: ` message prefix so the frozen `catch (String)` sees the named failure byte-for-byte; nested catch proves ordinary string throws are never swallowed; off-JVM targets (Script/JS/Native/Android) refuse typed catch at compile time with named gap `INTEROP009` (R6, never a silent stub).
+- **Relationships:** `Completes: D-CONNECTORS`, `Affects: §9.16 Slice B of docs/development/kof-connector-ecosystem-plan.md`, `Frozen-boundary: catch(String) contract unchanged`.
+
+---
+
+## D-ABI-TIER-TABLE — connector ABI tiers REUSE the stdlib scale; first stable connector ABI = 1.0.0 (maintainer 02/10/2026, chat multiple-choice — connectors slice D)
+
+**State:** DECIDED (maintainer) — transcribes what `D-CONNECTORS` called "defined but not transcribed".
+- **Table:** `experimental` → `beta` → `stable` — THE SAME three tiers and names as `scripts/stdlib_boundary.txt` / `scripts/check_stdlib_boundary.sh` (no parallel vocabulary, rule 11 simplicity).
+- **First stable version:** the first ABI a connector may declare `stable` is **`1.0.0`**; anything below is `experimental` or `beta`.
+- **Promotion rule:** a tier move requires the R5 DoD — per-target parity proof (the `BackendParityTest`/E2E discipline) recorded in the connector's own test; `ConnectorManifest.stability` carries the declared tier and the Core's `InteropCompatibility` validates it (mechanism landed as promoted slices 11/14).
+- **What this closes:** the plan's §13 documentation gap ("never to be invented by an agent") — transcribed here, in `DECISIONS.md`, and in `kof-connector-ecosystem-plan.md` EN+PT in the same commit.
+- **Relationships:** `Completes: D-CONNECTORS (ABI tiers row)`, `Closes: kof-connector-ecosystem-plan §13 gap / §9.16 Slice D`.
+
+---
+
+## D-JSON-MISSING-PRIMITIVE — a missing/JSON-null PRIMITIVE record component fails with a named `JSN004`, never the JDK-internal NPE (maintainer 03/10/2026, chat multiple-choice — §565)
+
+**State:** DECIDED (maintainer) — resolves the rule-6 contract question recorded in `known-bugs` §565.
+- **Contract:** `json.decode<Record>` where the JSON object is missing a key (or carries JSON-`null`) for a component whose declared type is PRIMITIVE (`Int`/`Long`/`Byte`/`Short`/`Float`/`Double`/`Bool`/`Char`) fails with the honest named diagnostic **`JSN004`**: `JSN004: missing field '<name>' for <Record>`. It is thrown as a runtime error, so the frozen `catch (String e)` sees the named message; it is NOT a silent zero-fill and NOT a compile-time refusal (the absence is only knowable at decode time).
+- **Reference components unchanged:** a missing/`null` component of a REFERENCE type (`String`, records, `List<T>`, …) still decodes to `null` (nullable by construction) — only primitives, which have no null, are refused.
+- **Why:** before, the `null` reached the record constructor MethodHandle with a primitive target type and died in `sun.invoke.util.ValueConversions.primitiveConversion` — a JDK-internal NPE leaking into user `catch (String)`, violating R6 (honest diagnostics) and the "no silent fallback" constraint.
+- **Implementation:** JVM binder `kof_json_bind` record arm (`JvmRuntimeJson`), shared by `json.decode<T>` and the typed ORM read path; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 refusals + reference-null control + complete-decode control), ORM/DB neighbours green.
+- **Relationships:** `Closes: known-bugs §565 (rule-6)`, `Related: D-1.0-EDGES (#565 1.0-blocks), §564 (ORM sibling, fixed 02/10)`, `Frozen-boundary: catch(String) contract unchanged; reference-null semantics unchanged`.
+## D-KOF-SIGN — Ed25519 signing/verification as a new stdlib crypto face (maintainer vote D1=A 03/10, chat)
+
+**Question (rule-6):** KofShare's device identity (§6/§12 of the product spec) needs signatures; the compiler today has ZERO signing face (measured 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = empty). Options were (A) new stdlib face, (B) ship v1 LAN-trust and defer, (C) route through interop `java.security` (breaks `D-KOFSHARE-100KOF`).
+
+**Decision:** **A** — a first-party `crypto.sign`/`crypto.verify` family built on the JDK primitive (no home-grown crypto: Kof encodes, `java.security.Signature` "Ed25519" executes, same placement as X25519 under D-KOF-X25519).
+
+**Proposed contract (to freeze at implementation, slice C1):** keys live as `Secret` (existing holder, R8 redaction); `crypto.keyPair("Ed25519")`-style generation or the existing secrets path (locate at implementation — do NOT invent a second key holder); `sign(Secret, Byte[]) -> Byte[]`, `verify(Secret, Byte[], Byte[]) -> Bool` are the stable core; public-key export as raw 32-byte hex (`Byte[]`) for wire hello; target refusals named and honest: JS/Native `SECN013` (sibling of `SECN012`) — never silent.
+
+**Relationships:** `Related: D-KOF-X25519 (same placement), D-KOF-NET (wire consumers), D-KOFSHARE-100KOF (satisfied: face is Kof, primitive is JDK), rule 6`.
+

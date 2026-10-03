@@ -532,6 +532,14 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
             ops.add(new KofBinary(KofBinaryOp.EQ, Type.PrimitiveType.INT));
         }
         accType = Type.PrimitiveType.BOOL;
+    } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
+            && !driver.isNullLiteral(be.left()) && !driver.isNullLiteral(be.right())
+            && (ExpressionBinaryPredicates.isUnboundedTypeVar(accType)
+                || ExpressionBinaryPredicates.isUnboundedTypeVar(rightType))) {
+        // §553 / D-EQ-UNBOUNDED-T: igualdade de CONTEÚDO p/ type var sem bound
+        // (o lado esquerdo já está na pilha). Corpo em ExpressionGenericEquality.
+        localIdx = ExpressionGenericEquality.emit(driver, be, ops, owner, localIdx, locals);
+        accType = Type.PrimitiveType.BOOL;
     } else {
         // Unknown/Nullable(Unknown) vs primitivo (get de mapOf() sem pin
         // vs int): o lado nullable só pode ser null (miss) → referência

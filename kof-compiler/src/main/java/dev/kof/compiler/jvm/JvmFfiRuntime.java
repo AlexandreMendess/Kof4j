@@ -33,7 +33,7 @@ final class JvmFfiRuntime {
                                         java.lang.foreign.ValueLayout.JAVA_INT));
                         return (int) handle.invoke(a);
                     } catch (Throwable t) {
-                        throw new RuntimeException("kof_ffi_i: " + lib + "::" + name + " failed: "
+                        throw new InteropError("kof_ffi_i: " + lib + "::" + name + " failed: "
                                 + t.getMessage(), t);
                     } finally {
                         arena.close();
@@ -55,7 +55,7 @@ final class JvmFfiRuntime {
                         java.lang.foreign.MemorySegment seg = arena.%1$s(a);
                         return (int) handle.invoke(seg);
                     } catch (Throwable t) {
-                        throw new RuntimeException("kof_ffi_si: " + lib + "::" + name + " failed: "
+                        throw new InteropError("kof_ffi_si: " + lib + "::" + name + " failed: "
                                 + t.getMessage(), t);
                     } finally {
                         arena.close();
@@ -76,7 +76,7 @@ final class JvmFfiRuntime {
                                         java.lang.foreign.ValueLayout.JAVA_DOUBLE));
                         return (double) handle.invoke(a);
                     } catch (Throwable t) {
-                        throw new RuntimeException("kof_ffi_dd: " + lib + "::" + name + " failed: "
+                        throw new InteropError("kof_ffi_dd: " + lib + "::" + name + " failed: "
                                 + t.getMessage(), t);
                     } finally {
                         arena.close();
@@ -200,7 +200,7 @@ final class JvmFfiRuntime {
                         }
                         return r;
                     } catch (Throwable t) {
-                        throw new RuntimeException("kof_ffi: " + lib + "::" + name + " (" + sig + ") failed: "
+                        throw new InteropError("kof_ffi: " + lib + "::" + name + " (" + sig + ") failed: "
                                 + t.getMessage(), t);
                     } finally {
                         for (Buffer bh : borrowHolds) kof_buffer_borrow_release(bh);
@@ -436,7 +436,7 @@ final class JvmFfiRuntime {
                         }
                     }
                     if (m == null) {
-                        throw new RuntimeException("kof_ffi: callback "
+                        throw new InteropError("kof_ffi: callback "
                                 + closure.getClass().getName()
                                 + " has no arity-" + arity + " invoke()");
                     }

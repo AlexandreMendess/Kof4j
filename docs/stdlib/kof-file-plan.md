@@ -87,11 +87,12 @@ variant.
 Different formats must follow common concepts when a real shareable
 abstraction exists.
 
-Conceptually, the API may allow operations like:
+Conceptually, the API may allow operations like (instance style — no static
+`File.…` form, `D-FILE-STATIC`):
 
 ```kof
-var file = File.open("users.json")
-var data = file.read()
+var file = File("users.json")
+var data = file.readText()
 ```
 
 and later interpret the data:
@@ -162,11 +163,12 @@ Provide fundamental operations: open, create, read, write, append,
 copy, move, delete, existence check, size, metadata, timestamps, type
 check, directories (work/list/create/remove), paths.
 
-Conceptual example, using correct Kof syntax:
+Conceptual example, using correct Kof syntax (instance style — there is no static
+`File.…` form, `D-FILE-STATIC`):
 
 ```kof
-var file = File.open("data.txt")
-var content = file.read()
+var file = File("data.txt")
+var content = file.readText()
 ```
 
 The real implementation must follow the APIs and conventions that
@@ -202,16 +204,16 @@ data corruption.
 
 Provide abstractions for binary data.
 
-Conceptually:
+Conceptually (instance style — no static `File.…` form, `D-FILE-STATIC`):
 
 ```kof
-var bytes = File.readBytes("image.bin")
+var bytes = File("image.bin").readBytes()
 ```
 
 and:
 
 ```kof
-File.writeBytes("output.bin", bytes)
+File("output.bin").writeBytes(bytes)
 ```
 
 The API must allow working with: bytes, buffers, streams, offsets,

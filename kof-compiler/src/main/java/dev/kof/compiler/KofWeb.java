@@ -40,6 +40,18 @@ public final class KofWeb {
         return APP.equals(t);
     }
 
+    /**
+     * §575 — phantom handle types: they exist only at COMPILE time; at runtime
+     * the value is a String handle in the web registry. Any JVM position that
+     * materializes a class descriptor or owner name (lambda capture field,
+     * getfield/putfield, checkcast) MUST erase them to {@code java.lang.String}
+     * or the class load dies {@code NoClassDefFoundError: kof/web/App}. Public
+     * so the JVM type mapper (subpackage) can consult the single registry.
+     */
+    public static boolean isPhantomHandleType(Type t) {
+        return APP.equals(t);
+    }
+
     static boolean isSseConnectionType(Type t) {
         return SSE_CONNECTION.equals(t);
     }

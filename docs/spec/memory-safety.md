@@ -248,16 +248,21 @@ The following matrix maps each bug class to its prevention mechanism:
 
 | Bug Class | Prevention | Diagnostic | Backend |
 |---|---|---|---|
-| Use-after-free | GC (conservative on Native) | `MEM011` (runtime) | All |
-| Double-free | GC / single `kof_free` | `MEM012` (runtime) | All |
-| Dangling reference | GC (conservative) | `MEM010` (runtime) | All |
+| Use-after-free | GC (conservative on Native) | `MEM011` — **model rule, no emission surface** (measured 02/10: no Kof user surface reaches `kof_free` — `NativeRiscvAsmRtB42.java:15` “NENHUMA peça riscv chama kof_free”; prevention is by GC construction, the `MEM005` precedent) | All |
+| Double-free | GC / single `kof_free` (internal only) | `MEM012` — **model rule, no emission surface** (same measured absence as `MEM011`, 02/10) | All |
+| Dangling reference | GC (conservative) | `MEM010` — **model rule, no emission surface** (same measured absence as `MEM011`, 02/10) | All |
 | Invalid lifetime escape | Escape analysis at boundaries | `MEM013` (compile-time) | All |
 | Use-after-move | Explicit nulling on transfer | `MEM002` (compile-time) | All |
+| Ownership violation (O-01) | `OwnershipPass` transfer/borrow checks | `MEM001` (compile-time; emitted at `OwnershipPass.java:319`) | All (shared frontend) |
+| Container ownership (O-03) | `clear()` nulls every slot at runtime (`D-MEMORY-CLEAR`, option a, O-03(a)) | `MEM003` — **model rule, no emission surface** (the guarantee is delivered by the runtime clear, never a diagnostic invented — precedent O-03/`D-MEMORY-CLEAR`, `MEM005`) | All (JVM/Native x86-64/riscv64/aarch64 faces tested: `MemoryClearE2ETest`, `NativeX86MemClearTest`, `NativeRiscvMemClearTest`) |
+| Closure ownership (O-04) | Lowering boxes every mutated capture (unconstructible forbidden shape) | `MEM004` — **model rule, no emission surface** (same proof family as `MEM023`: structural guarantee, `LambdaE2ETest`/`SpawnE2ETest`) | All |
 | Mutable aliasing data race | Programmer discipline + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` compile (#668) **and runtime** (#668 + `D-MEM030-BORROW-RUNTIME`, 30/09) | All reachable (Script: `extern`/`Buffer` refused `FFI001`; JS: cooperative `spawn` ⇒ negative is structural N/A) |
-| Null deref | Nullability + narrowing | `SEM049` (compile-time) | All |
-| Resource leak | Explicit close | `MEM014` (compile-time; WARNING) | All (Script surfaces it via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
+| Null deref | Nullability + narrowing | `SEM049` (compile-time) | All — **pinned on the 4 backends** (`MemorySafetyMatrixE2ETest` 3/3, phase-6 unit 1, 02/10: refusal + both narrowing forms; behavior change zero — parity was already true, the pin is the product, precedent #658/#659/#662) |
+| Resource leak | Explicit close | `MEM014` (compile-time; WARNING) | All — **pinned on the 4 backends** (phase-6 unit 2, 02/10: web `ResourceLeakE2ETest` 5/5 + db `DbResourceLeakE2ETest` 4/4 JVM/Native/JS + Script `Result.warnings()` carries `MEM014` on both faces, `MemorySafetyMatrixE2ETest` 2 new pins; `D-SCRIPT-WARN-SURFACE`) |
 | FFI ownership confusion | Confined arena per call (no release surface exists — `kof_ffi_release` is a model concept, spec §7, measured 28/09) | `MEM005` — model rule, no emission surface today | JVM + Native |
-| Resource leak (DB/Web) | Explicit close | `MEM014` (compile-time; WARNING) | All (Script surfaces it via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
+| Resource leak (DB/Web) | Explicit close | `MEM014` (compile-time; WARNING) | same faces as the row above — the duplicate row exists because the matrix grew per-creator; both rows now share the unit-2 executed pin (02/10) |
+| Mutation during iteration (B-05) | Runtime guard + compile WARNING | `MEM022` (compile-time; WARNING) | All — 4-backend pinned in `MemorySafetyE2ETest` (rows added 02/10 by the phase-6 unit-3 audit; the row lived only in prose until measured) |
+| Stale capture after move (B-06) | Lowering boxes every mutated capture — the forbidden shape is unconstructible | `MEM023` — **model rule, no emission surface** (spec prose, 28/09 `D-MEMORY-CLEAR` precedent; guarantee proven by `LambdaE2ETest`/`SpawnE2ETest`, never invented) | All |
 
 > **WARNING-class diagnostics on Script:** `MEM014`/`MEM022` fire in the shared frontend on all targets. On Script, `interpret()` used to discard WARNINGs (only ERRORS escaped) — measured 29/09, decision request #678; **RESOLVED 29/09 (`D-SCRIPT-WARN-SURFACE`, option A): the interpreter now exposes them via `KofInterpreter.Result.warnings()` and the CLI/`KofScript` print them to stderr like the compile path.**
 
@@ -276,8 +281,8 @@ The following matrix maps each bug class to its prevention mechanism:
 | **2** Compiler infrastructure | Ownership/Lifetime/Borrow/Escape internal representations (`dev.kof.compiler.memory`) | ✅ CLOSED 26/09 (slices 1–4; BT success `9bcddfe90`; emission = Fase 3, unlocked) |
 | **3** First guarantees | Use-after-move, dangling, escape, mutable aliasing | ✅ CLOSED — slices 3.1→4 landed (MEM001/002/013/014/021/022); see `memory-safety-plan.md` |
 | **4** Closures & async | Capture semantics, async boundaries | ✅ CLOSED 28/09 — 4.1 capture (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iterators/generators = measured absence |
-| **5** Native & FFI | Pointer/alloc/free, C ABI ownership table | 🔓 IN PROGRESS — ownership table landed (#670); unit 1 pinned (#666); unit 2 landed (#667/#668); unit 3 pinned (`Buffer(U8)` INOUT × spawn/await); `#651` B cross pending |
-| **6** Cross-target | same memory-safety semantics on the **four backends that exist** — JVM, Native (x86-64 + cross riscv64/aarch64), JS, Script. WASM is not a gap of this front: it re-enters the contract only when a real WASM backend lands (`D-MEM-PHASE6-4BACKENDS`, 30/09) | ⏳ WAITING |
+| **5** Native & FFI | Pointer/alloc/free, C ABI ownership table | 🔓 IN PROGRESS — ownership table landed (#670); unit 1 pinned (#666); unit 2 landed (#667/#668); unit 3 pinned (`Buffer(U8)` INOUT × spawn/await); `#651` B LANDED 29/09 + `D-MEM-FFI-CROSS-FULL` faces 1-3 landed 30/09, callbacks = rule-6 STOP |
+| **6** Cross-target | same memory-safety semantics on the **four backends that exist** — JVM, Native (x86-64 + cross riscv64/aarch64), JS, Script. WASM is not a gap of this front: it re-enters the contract only when a real WASM backend lands (`D-MEM-PHASE6-4BACKENDS`, 30/09) | 🔓 IN PROGRESS — unit 1 landed 02/10: §11 matrix audited per class × per backend + the `SEM049` row pinned on the 4 backends (`MemorySafetyMatrixE2ETest` 3/3) + rows `MEM010/011/012` doc-truthed to the measured `MEM005` precedent (model rules, no emission surface — `kof_free` has no user-facing surface); unit 2 (next) = audit the `MEM014` per-backend row |
 
 > **Phase-6 scope (corrected 30/09, `D-MEM-PHASE6-4BACKENDS`):** the original roadmap named "JVM / JS / WASM", but the tree has **no WASM backend** (`docs/backend-parity.md` = JVM × Native × KofJS; absence measured 28/09, #671). Phase-6 parity is therefore defined over the backends that exist (the four above). WASM leaves the contract until a real backend lands — it is **not** an accepted gap of this front.
 

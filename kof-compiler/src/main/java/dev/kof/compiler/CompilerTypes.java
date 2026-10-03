@@ -125,6 +125,11 @@ public final class CompilerTypes {
         // §243: a exceção de Kof é String — mas um `class String` do usuário
         // (DECISIONS §4) vence o builtin.
         if ("String".equals(typeName) && !unitDeclaresType(currentUnit, typeName)) return BuiltinTypes.STRING;
+        // D-INTEROP-ERR-TYPE: builtin do idioma — o nome no `catch` precisa
+        // chegar QUALIFICADO (pkg "kof") ao lowerer/typer (mesma forma dos
+        // constates Secret/KeyHandle); via toType o pacote ficaria vazio.
+        Type ioe = KofInteropError.typeByName(typeName);
+        if (ioe != null && !unitDeclaresType(currentUnit, typeName)) return ioe;
         Type t = toType(typeName, currentUnit);
         if (t instanceof Type.ClassType ct && ct.packageName().isEmpty()
                 && JAVA_LANG_THROWABLES.contains(ct.name())) {
@@ -186,6 +191,16 @@ public final class CompilerTypes {
             if (pkg.isEmpty() && !name.contains(".") && !name.contains("<")) {
                 String via = simpleNamePackage(name, unit, sa);
                 if (via != null) pkg = via;
+                // #627-twin (KofShare control/check.kf 02/10): tipo DECLARADO na
+                // própria unidade de um pacote — nem import, nem SymbolTable do
+                // sa (records do arquivo atual não chegam lá) — carrega o pacote
+                // do cabeçalho da unidade. Sem isto, `json.decode<Record>` de um
+                // record empacotado mangelava sem pacote (NoSuchMethodError no
+                // runtime, que define o decoder pelo nome qualificado).
+                if (pkg.isEmpty() && unit != null && unitDeclaresType(unit, name)
+                        && unit.packageName() != null && !unit.packageName().isEmpty()) {
+                    pkg = unit.packageName();
+                }
             }
             // 2b) §179 (D-BACKEND-SEMANTICS #4): tipo kof.ui/kof.media DECLARADO
             // (var/param/campo/retorno) que nada mais resolveu → builtin. Sem
@@ -279,6 +294,10 @@ public final class CompilerTypes {
         if ("ImageData".equals(name)) return KofMedia.IMAGE_DATA;
         Type net = KofNet.typeByName(name);
         if (net != null) return net;
+        Type sec = KofSecurity.typeByName(name);
+        if (sec != null) return sec;
+        Type ioe = KofInteropError.typeByName(name);
+        if (ioe != null) return ioe;
         return BuiltinTypes.declaredCollectionType(name);
     }
 
@@ -346,12 +365,6 @@ public final class CompilerTypes {
             }
         }
         return null;
-    }
-
-    /** Nome JVM da entidade: as classes top-level do programa ficam sem
-     *  pacote (User.class); o Main é Default/Main. */
-    static String classNameFor(String simpleName) {
-        return simpleName;
     }
 
     static Type ownerTypeFromInternal(String internalName, SemanticAnalyzer semanticAnalyzer) {

@@ -52,6 +52,18 @@ final class ExpressionBinaryPredicates {
                 && ("int".equals(pt.name()) || "Int".equals(pt.name()));
     }
 
+    /**
+     * §553 / D-EQ-UNBOUNDED-T (mantenedora 02/10, regra 6): type variable SEM
+     * bound (apaga p/ {@code Object}) — o {@code ==} sobre ela é igualdade de
+     * CONTEÚDO (Objects.equals), nunca identidade de referência. Um type var
+     * COM bound ({@code T: Animal}) mantém o contrato do bound (referência),
+     * pois o bound dá a semântica de comparação.
+     */
+    static boolean isUnboundedTypeVar(Type t) {
+        Type u = t instanceof Type.NullableType nt ? nt.inner() : t;
+        return u instanceof Type.TypeVariable tv && tv.bound() == null;
+    }
+
     /** §262(b): `Point?` (Nullable(record)) É record p/ o caminho de conteúdo. */
     static boolean isRecordLike(Type t, CompilerDriver driver) {
         Type u = t instanceof Type.NullableType nt ? nt.inner() : t;

@@ -142,7 +142,13 @@ public final class ExpressionJsonCallLowerer {
             }
             return localIdx;
         }
-        Type targetType = CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit);
+        // #627-twin (KofShare control/check.kf, 02/10): o decode usava o toType de
+        // 2 args (sem SymbolTable) → record DECLARADO EM UNIDADE EMPACOTADA voltava
+        // ClassType("", "DeviceInfo") → mangle sem pacote → NoSuchMethodError na
+        // hora (a classe gerada é kof_json_decode_<pkg>_<Nome>). qualifyDeep via
+        // sa.getClass resolve o pacote do símbolo, como o typer já faz.
+        Type targetType = CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit,
+                driver.semanticAnalyzer);
         if (!driver.jsonSupported(targetType, true)) {
             return localIdx;
         }

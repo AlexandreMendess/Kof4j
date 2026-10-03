@@ -101,6 +101,9 @@ public class Parser {
         SourcePosition p = ctx.pos();
         ctx.advance(); // consome 'test'
         Token nameToken = ctx.expect(TokenType.STRING_LITERAL, "Expected test name string", "PARSE010");
+        if (nameToken.value().isEmpty()) {
+            ctx.error("test name must not be empty", "PARSE010");
+        }
         java.util.List<String> tags = new java.util.ArrayList<>();
         while (ctx.peek().type() == TokenType.COMMA) {
             ctx.advance();

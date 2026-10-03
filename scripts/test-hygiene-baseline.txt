@@ -108,7 +108,6 @@ dupname	writeOversizedFrameHeader
 dupname	wrongArityRejectedOnAllArtifactTargets
 dupname	x86AndJsMatchJvmOutput
 oversized	kof-cli/src/test/java/dev/kof/cli/DecompileTest.java
-oversized	kof-cli/src/test/java/dev/kof/cli/DepsRegistryTest.java
 oversized	kof-cli/src/test/java/dev/kof/cli/LspServerTest.java
 oversized	kof-cli/src/test/java/dev/kof/cli/TranslateTest.java
 oversized	kof-compiler/src/test/java/dev/kof/compiler/AndroidInteropE2ETest.java

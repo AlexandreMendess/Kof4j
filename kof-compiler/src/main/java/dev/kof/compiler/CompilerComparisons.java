@@ -39,6 +39,15 @@ public final class CompilerComparisons {
             if (KofSecurity.isSecretType(leftU) || KofSecurity.isSecretType(rightU)) {
                 return false;
             }
+            // §553 / D-EQ-UNBOUNDED-T (mantenedora 02/10): `==`/`!=` sobre um
+            // type variable SEM bound é igualdade ESTRUTURAL — desativa o
+            // shortcut (if_acmp cru) e deixa o caminho de VALOR
+            // (ExpressionBinaryLowerer -> Objects.equals) assumir; o chamador
+            // salta sobre o BOOL resultante.
+            if (ExpressionBinaryPredicates.isUnboundedTypeVar(left)
+                    || ExpressionBinaryPredicates.isUnboundedTypeVar(right)) {
+                return false;
+            }
             // enum == enum: D-ENUM207 — as constantes são INSTÂNCIAS (singletons
             // de <clinit>), então a igualdade é por IDENTIDADE (if_acmp), não por
             // conteúdo String. Deixa o caminho de referência assumir.

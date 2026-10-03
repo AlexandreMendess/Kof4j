@@ -9,7 +9,6 @@ location: docs/development
 state: UNDER DEVELOPMENT
 
 **Status:** **UNDER DEVELOPMENT** — promoted 30/09 from `future/` by `D-GRAPHICS-SPIKE` (spike 3.0 = measurement + stack only, no API) under `D-FUTURE-PROMOTION`.
-**Owner:** lane UI.
 **Normative source:** `DECISIONS.md` §D-GRAPHICS-GAMING + maintainer addenda + §D-GRAPHICS-SPIKE.
 **Deps:** R3/FFI-ABI, runtime, capability matrix, stdlib boundary, conformance suite
 

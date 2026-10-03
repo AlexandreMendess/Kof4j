@@ -137,7 +137,19 @@ Raster pngRaster(String path) {
     } else {
         pixels = pngUnpackSub(packed, width, height, srcChannels, bitDepth, colorType != 3)
     }
-    return expand(pixels, width, height, srcChannels, outChannels, colorType, plte, plteLen, trns, trnsLen)
+    return expand(pixels, width, height, srcChannels, outChannels, colorType, bitDepth, plte, plteLen, trns, trnsLen)
+}
+
+// Maps a raw tRNS component (always a 16-bit big-endian value per PNG spec
+// §11.3.2, whatever the image bit depth) into the same 8-bit space the decoded
+// samples use: the high byte for 16-bit images (the `pngUnpack16` rule), a
+// 255/maxval scaling for sub-byte gray, and the byte itself for 8-bit.
+Int pngTrnsKey(Int raw16, Int bitDepth) {
+    if (bitDepth == 16) {
+        return (raw16 >> 8) & 255
+    }
+    var maxval = (1 << bitDepth) - 1
+    return (raw16 * 255) / maxval
 }
 
 // Allowed bit-depth/color-type combinations (PNG spec §4.3), returning the
@@ -399,7 +411,7 @@ Int paeth(Int a, Int b, Int c) {
     return c
 }
 
-Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChannels, Int colorType, Int[] plte, Int plteLen, Int[] trns, Int trnsLen) {
+Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChannels, Int colorType, Int bitDepth, Int[] plte, Int plteLen, Int[] trns, Int trnsLen) {
     var count = width * height * outChannels
     var samples = new Int[count]
     var px = 0
@@ -422,7 +434,7 @@ Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChann
         } else if (colorType == 0 && trnsLen > 0) {
             samples[px * 2] = pixels[px]
             var tval = (trns[0] << 8) | trns[1]
-            if (trnsLen == 2 && pixels[px] == (tval & 255)) {
+            if (trnsLen == 2 && pixels[px] == pngTrnsKey(tval, bitDepth)) {
                 samples[px * 2 + 1] = 0
             } else {
                 samples[px * 2 + 1] = 255
@@ -434,8 +446,9 @@ Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChann
             var tr = (trns[0] << 8) | trns[1]
             var tg = (trns[2] << 8) | trns[3]
             var tb = (trns[4] << 8) | trns[5]
-            if (trnsLen == 6 && pixels[px * 3] == (tr & 255)
-                    && pixels[px * 3 + 1] == (tg & 255) && pixels[px * 3 + 2] == (tb & 255)) {
+            if (trnsLen == 6 && pixels[px * 3] == pngTrnsKey(tr, bitDepth)
+                    && pixels[px * 3 + 1] == pngTrnsKey(tg, bitDepth)
+                    && pixels[px * 3 + 2] == pngTrnsKey(tb, bitDepth)) {
                 samples[px * 4 + 3] = 0
             } else {
                 samples[px * 4 + 3] = 255

@@ -4603,6 +4603,7 @@ individuais:
 - **Broadcast/multicast:** NÃO no v1 (só unicast). Uma face posterior exige decisão regra-6 própria.
 - **Segurança/política:** endpoints de rede obedecem ao modelo `app.security`/política existente — nenhuma face nova de política é inventada aqui. A face de troca de chaves (`SECN005`, o outro requisito do `D-KOFSHARE-100KOF`) permanece decisão de superfície separada.
 - **Superfície (contrato, a validar por compilação na fatia 1):** `net.listen(port) -> Listener`, `listener.accept() -> Conn`, `net.connect(host, port) -> Conn`, `conn.send(Byte[]) -> Int`, `conn.receive(maxBytes) -> Byte[]`, `conn.close()`, `listener.close()`; `net.bind(port) -> Endpoint`, `endpoint.send(addr, Byte[])`, `endpoint.receive(maxBytes)` com origem, `endpoint.close()`. Nomes/tipos congelados por esta decisão; a forma exata do receive-com-origem é a primeira questão de projeto a sonda-de-compilação (ausência de tupla no Kof ⇒ provável `record Datagram(Byte[] bytes, String from)` — a preferência Byte[]/sem-record nova é honrada no ENVIO; o LADO RECEBEDOR pode exigir o portador da origem: decidir via sonda RED-first, mantendo esta nota atualizada).
+- **EMENDADO 02/10 (§574, lane conectores/KofShare):** a superfície irmã web do front provou ter divergência de alvo — handlers de rota `web` respondiam HTTP 500 sob Script (o runtime gerado reflete `invoke()` no handler; um lambda interpretado é um `KofObj` sem método host). Corrigido no mesmo dia na fronteira do interpretador: `InterpretedCallable` (adaptador lado-compilador que expõe exatamente `invoke()`/`invoke(String×5)`, delegando a `KofInterpreter.invokeLambda`) empacota os argumentos-lambda de rota de `kof_web_route`/`kof_web_route_opts`; o contrato congelado NÃO mudou (nenhuma face nova), e `ScriptWebRouteE2ETest` + `HTTPCHECK-OK` do KofShare (14/14, JVM+Script nas três combinações servidor/cliente) são a prova. Residual nomeado como §575 (captura do `kof.web.App` fantasma num closure = CNFE de campo do lambda no LOAD do JVM); a ponte de handlers SSE/WS NÃO é coberta pela emenda.
 - **Relações:** `Depende de: D-KOF-FIRST-IMPL (library-first), D-UDP (subsumido aqui), §559 (gap catalogado que isto fecha), D-KOFSHARE-100KOF (produto bloqueado nisto)`; `Resolve-questoes: D-UDP plano §5 (1,2,3,4,5,6 — numeração histórica, plano agora é ponteiro)`
 
 ---
@@ -4656,7 +4657,7 @@ individuais:
 
 ## D-EQ-UNBOUNDED-T — `==` num parâmetro de tipo `T` sem limite significa igualdade ESTRUTURAL de conteúdo (mantenedora 02/10/2026, resposta regra-6 no chat; catalogado `known-bugs` §553)
 
-**Estado:** DECIDIDO (mantenedora) — opção **A: igualdade estrutural**, casando com o contrato de igualdade de conteúdo do `String`/`record` concreto. Implementação pendente.
+**Estado:** DECIDIDO (mantenedora) — opção **A: igualdade estrutural**, casando com o contrato de igualdade de conteúdo do `String`/`record` concreto. **IMPLEMENTADO 02/10** (lane `192.168.15.30:9092`; `known-bugs` §553 ✅ CORRIGIDO): o rebaixamento de `==`/`!=` roteia um `T`/`T?` não-limitado para igualdade de conteúdo em todo alvo (`Objects.equals` JVM/Script, `kofRecordEq` JS, novo `kof_eq_generic` Nativo x86-64/riscv64), contornando o fallback apagado para `Object` e o atalho de comparação `if_acmp`; um `T: Bound` limitado mantém o contrato do bound. Prova: `GenericEqualityE2ETest` **16/16** (JVM+Script+JS+Native x86-64+riscv64/aarch64 qemu), RED-first. O par genérico `assertEqual<T>`/`assertNotEqual<T>` do `kof.test` pousou em `dev/kof/test.kf`.
 
 - **Pergunta (resolvida):** o que `==` deve significar num `T` sem limite — igualdade estrutural de conteúdo (como o contrato concreto de `String`/`record`) ou recusa honesta em compile-time (como `NAT004` para `toString` em `T` sem limite, §358)? **Escolhido: igualdade estrutural.**
 - **Divergência medida (01/10, catalogado §553):** JS compara estruturalmente (`===` sobre o valor apagado); JVM/Script/Nativo comparam por referência (`if_acmp` na JVM / comparação de ponteiro no nativo); o cache de literais mascara a face JVM/Script (`eq(1,1)`/`eq("a","a")` true) enquanto o Nativo não tem cache (false). O `==` de tipo concreto está correto em todos os alvos.
@@ -4692,6 +4693,7 @@ individuais:
 - **Decisão:** uma face handshake/derive (formato `KeyExchange.privateKey()` → `publicValue` → `sharedSecret(pubDoPar)` selada como `Secret`, com expansão HKDF-SHA256 em chaves AES por direção) está autorizada como superfície do `kof.security`. Rejeitado: adiar o v1 para só HMAC-por-chunk (opção b) — a mantenedora quer o envelope de transferência confidencial.
 - **O que destrava:** (1) envelope KofShare: AES-GCM por sessão sobre o framing/resume provado de `transfer.kf` + chaves derivadas via `SECN005`; (2) qualquer app que precise de segredos forward sobre `kof.net`.
 - **Fronteira:** isto decide a FAMÍLIA de algoritmo e a existência da face; nomes/assinaturas exatos são o contrato de superfície da unidade de implementação (revisão EN/PT do corpus na promoção). A semântica de rotação de KeyHandle (`SECN010`) é inalterada.
+- **Implementado 02/10 (lane docs/development):** superfície congelada como `keyExchange.privateKey() -> Secret`, `keyExchange.publicKey(Secret) -> String` (exportação 64-hex), `keyExchange.shared(Secret, Secret pubHexDoPar) -> Secret`, `keyExchange.hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String` (EXPAND RFC 5869, len 1..8160). Material privado NUNCA sai de `Secret` (R8); argumento errado = `SECN014`. JVM/Android/Script reais via JCA; JS/Native/cross recusam `SECN012` (vaga livre — 009/010/011/013/014 têm dono). Prova RED-first: `KeyExchangeE2ETest` **5/5** (acordo Alice/Bob + igualdade do HKDF por direção, golden de 42 bytes do caso 1 da RFC 5869, redação (`*** `), recusas nomeadas SECN014/SECN012; HEAD 5/5 vermelho). Corpus: `learn/36-security.md`(+PT) + `training/idioms/security.md`(+PT) + matriz e lista de códigos do stdlib/security (+PT) + linha de gap do backend-parity (+PT).
 - **Relações:** `Depende de: D-KOF-NET (transporte), D-KOFSHARE-100KOF (produto), SECN005 (a face aprovada aqui), §559`; `Relacionado: cláusula congelada do D-KOF-NET "key exchange continua decisão separada" — essa decisão É esta`.
 
 ## D-NET-JS-V1 — `kof.net` está FORA do `Target.JS` no v1: recusa nomeada em compile-time, sem sub-alvo browser/Node (mantenedora 02/10/2026, voto múltiplo da regra 6 "(c) kof.net fora do JS no v1")
@@ -4749,3 +4751,57 @@ individuais:
 - **Se o `lab` não estiver estável:** o corte **escorrega** para o próximo fim de semana — não é forçado com waiver, e nenhum estágio é pulado. Uma promoção que falha retorna ao `lab` (`BLOCKED → LAB`), nunca lateralmente.
 - **O que isto NÃO autoriza:** enfraquecer um check, remover um teste, esconder um vermelho, ou declarar estável sem prova executada (`implemented` != `verified`).
 - **Relações:** `Impõe: D-QUALITY-PIPELINE-2609 (100% dos checks obrigatórios)`, `Relacionado: D-RELEASE-CADENCE, D-RELEASE-1.0, D-1.0-EDGES, D-BRANCH-PIPELINE`; máquina `scripts/pipeline/pipeline_state.py`, `scripts/pipeline/promotion_gate.py`.
+
+---
+
+## D-PLAN-ONE-OWNER — um plano = uma identidade de dona única (`IP:PORTA`); nenhuma lane é dona de múltiplos planos (mantenedora 02/10/2026, diretriz no chat)
+
+**Estado:** DECIDIDO (mantenedora) — regra operacional.
+- **Lei:** todo plano em `docs/development/` (e o rastreamento de plataforma-universal em `docs/architecture/`) leva um `**Dono:** <local-ipv4>:<opencode-port>` explícito no cabeçalho. IP solto, "esta sessão" ou rótulo de lane sem IP:PORTA é INVÁLIDO (mesma lei de identidade absoluta de `D-AGENT-IDENTITY-IPPORT`).
+- **Unicidade:** **nenhuma identidade única (`IP:PORTA`) pode ser dona de mais de um plano ativo**. Um agente atribuído a um plano não pega fatias de outro; fazer isso gera confusão, claims cruzados e handoffs não-verificados (medido 02/10: `.101:9092` era dona de memory-safety mas também pousou slices de AVIF em image-vision e de connector; `.30:9093` era dona de testing-platform mas também tocou graphics e test-architecture).
+- **Handoff / órfão:** um plano que perde a dona ou cujo claim é revogado deve declarar `**Dono:** SEM DONO / ABERTO` no cabeçalho, até nova reivindicação com `IP:PORTA` fresco e exclusivo que não detenha outro plano. Plano sem dona exclusiva não pode ser avançado sob identidade compartilhada/silenciosa.
+- **Autoridade / execução:** `scripts/check_plan_owners.sh` (varre todos os cabeçalhos de plano, falha em IPs duplicados, campos ausentes ou nomes de lane sem âncora).
+- **Relações:** `Estende: D-AGENT-IDENTITY-IPPORT (granularidade de identidade)`, `Complementa: AGENTS.md §Multi-agent state (disciplina de claims)`.
+
+---
+
+## D-INTEROP-ERR-TYPE — o erro de interop é um TIPO REAL da linguagem, catchável: `InteropError` (mantenedora 02/10/2026, múltipla escolha no chat — fatia B de connectors)
+
+**Estado:** DECIDIDO (mantenedora) — completa `D-CONNECTORS` ("é um tipo da linguagem") com a superfície concreta.
+- **Lei:** uma chamada `extern`/`foreign module` que falha lança o builtin **`InteropError`**; o código do usuário captura por tipo: `catch (InteropError e)`; o tipo carrega `e.message` (String) e `e.code` (String, o vocabulário `INTEROP00x` já existente). Ele **convive** com o contrato congelado de exceções String — `catch (String s)` continua valendo para todo throw não-interop; um erro foreign NUNCA é engolido (R6): sem catch, o `InteropError` propaga e se nomeia.
+- **Porquê:** a alternativa (tipo-marcador mínimo: nome no type system, runtime segue lançando String) foi REJEITADA pela mantenedora — decisão (a) type completo catchável.
+- **Implementação:** fatia compiler — braço de type-system + mapeamento do caminho de throw da FFI para o tipo novo + E2E por alvo RED-first (JVM/Script reais; JS/Native/cross seguem a matriz de interop por alvo existente ou gap nomeado). Vizinhos de `ForeignModuleGrammarE2ETest` continuam verdes.
+- **Pousado 02/10 (fatia de compilador B, `InteropErrorE2ETest` 6/6 VERDE):** os acessores são **métodos** `e.message()`/`e.code()` (padrão de builtins da casa, como `Secret.reveal()`; acesso por campo dá `SEM102` — refinamento da transcrição: o `.message`/`.code` da decisão são estes acessores); falhas de downcall FFI lançam código `INTEROP010` com prefixo `INTEROP010: ` na mensagem, e o `catch (String)` congelado vê a falha nomeada byte a byte; catch aninhado prova que throw String comum nunca é engolido; alvos fora da JVM (Script/JS/Native/Android) recusam o catch tipado no compile com gap nomeado `INTEROP009` (R6, nunca stub silencioso).
+- **Relações:** `Completa: D-CONNECTORS`, `Afeta: §9.16 Fatia B de docs/development/kof-connector-ecosystem-plan.md`, `Fronteira-congelada: contrato catch(String) inalterado`.
+
+---
+
+## D-ABI-TIER-TABLE — os tiers de ABI de connector REAPROVEITAM a escala do stdlib; primeiro ABI estável = 1.0.0 (mantenedora 02/10/2026, múltipla escolha no chat — fatia D de connectors)
+
+**Estado:** DECIDIDO (mantenedora) — transcreve o que `D-CONNECTORS` chamou de "definidos, nunca transcritos".
+- **Tabela:** `experimental` → `beta` → `stable` — as MESMAS três camadas e nomes de `scripts/stdlib_boundary.txt` / `scripts/check_stdlib_boundary.sh` (sem vocabulário paralelo, simplicidade regra 11).
+- **Primeira versão estável:** o primeiro ABI que um connector pode declarar `stable` é **`1.0.0`**; abaixo disso é `experimental` ou `beta`.
+- **Regra de promoção:** mover de camada exige o DoD R5 — prova de paridade por alvo registrada no teste do próprio connector; `ConnectorManifest.stability` carrega a camada declarada e o `InteropCompatibility` do Core a valida (mecanismo pousado nas fatias promovidas 11/14).
+- **O que fecha:** o gap de documentação do §13 do plano ("nunca inventados por um agente") — transcrito aqui, em `DECISIONS.md`, e em `kof-connector-ecosystem-plan.md` EN+PT no mesmo commit.
+- **Relações:** `Completa: D-CONNECTORS (linha dos tiers ABI)`, `Fecha: gap §13 / §9.16 Fatia D do plano de connectors`.
+
+---
+
+## D-JSON-MISSING-PRIMITIVE — um componente PRIMITIVO ausente/JSON-null falha com `JSN004` nomeado, nunca o NPE interno do JDK (mantenedora 03/10/2026, múltipla escolha no chat — §565)
+
+**Estado:** DECIDIDO (mantenedora) — resolve a questão de contrato rule-6 registrada em `known-bugs` §565.
+- **Contrato:** `json.decode<Record>` cujo objeto JSON não tem uma chave (ou traz JSON-`null`) para um componente de tipo PRIMITIVO (`Int`/`Long`/`Byte`/`Short`/`Float`/`Double`/`Bool`/`Char`) falha com o diagnóstico nomeado honesto **`JSN004`**: `JSN004: missing field '<nome>' for <Record>`. É lançado como erro de runtime, então o `catch (String e)` congelado vê a mensagem nomeada; NÃO é preenchimento silencioso com zero nem recusa em compile-time (a ausência só é conhecível no decode).
+- **Componentes de referência inalterados:** um componente ausente/`null` de tipo REFERÊNCIA (`String`, records, `List<T>`, …) continua decodificando para `null` (nullable por construção) — só primitivos, que não têm null, são recusados.
+- **Porquê:** antes, o `null` chegava ao MethodHandle do construtor do record com alvo primitivo e morria em `sun.invoke.util.ValueConversions.primitiveConversion` — um NPE interno do JDK vazando para o `catch (String)` do usuário, violando R6 (diagnósticos honestos) e a restrição "sem fallback silencioso".
+- **Implementação:** braço de record do binder JVM `kof_json_bind` (`JvmRuntimeJson`), compartilhado por `json.decode<T>` e pelo read path tipado do ORM; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 recusas + controle de referência-null + controle de decode completo), vizinhos ORM/DB verdes.
+- **Relações:** `Fecha: known-bugs §565 (rule-6)`, `Relacionado: D-1.0-EDGES (#565 1.0-blocks), §564 (irmão ORM, corrigido 02/10)`, `Fronteira-congelada: contrato catch(String) inalterado; semântica de referência-null inalterada`.
+## D-KOF-SIGN — assinatura/verificação Ed25519 como nova face de crypto da stdlib (voto da mantenedora D1=A 03/10, chat)
+
+**Pergunta (regra-6):** a identidade de dispositivo do KofShare (§6/§12 do spec do produto) precisa de assinatura; o compilador hoje tem ZERO face de assinatura (medido 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = vazio). As opções eram (A) face nova da stdlib, (B) embarcar v1 LAN-trust e adiar, (C) rotear por interop `java.security` (quebra `D-KOFSHARE-100KOF`).
+
+**Decisão:** **A** — família `crypto.sign`/`crypto.verify` first-party construída sobre a primitiva do JDK (criptografia caseira proibida: Kof codifica, `java.security.Signature` "Ed25519" executa, mesmo posicionamento do X25519 sob D-KOF-X25519).
+
+**Contrato proposto (a congelar na implementação, fatia C1):** chaves vivem como `Secret` (detentor existente, redação R8); geração estilo `crypto.keyPair("Ed25519")` ou o caminho de secrets já existente (localizar na implementação — NÃO inventar um segundo detentor de chave); o núcleo estável é `sign(Secret, Byte[]) -> Byte[]`, `verify(Secret, Byte[], Byte[]) -> Bool`; export da chave pública como 32 bytes raw em hex (`Byte[]`) para o hello do fio; recusas de alvo nomeadas e honestas: JS/Native `SECN013` (irmã da `SECN012`) — nunca silencioso.
+
+**Relações:** `Related: D-KOF-X25519 (mesmo posicionamento), D-KOF-NET (consumidores no fio), D-KOFSHARE-100KOF (satisfeita: a face é Kof, a primitiva é JDK), regra 6`.
+

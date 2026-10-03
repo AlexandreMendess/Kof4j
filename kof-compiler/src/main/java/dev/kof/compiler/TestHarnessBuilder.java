@@ -115,8 +115,24 @@ final class TestHarnessBuilder {
                             new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
             List<StatementNode> finalizers = new ArrayList<>();
             if (hasTeardown) {
-                finalizers.add(new ExpressionStmt(p,
-                        new MethodCallExpr(p, null, teardownName, List.of(), List.of())));
+                // §4.2/§4.3: teardown()/afterEach() runs via finally, but a THROW
+                // from it must NOT escape uncaught — that aborted the whole
+                // harness after the first test (remaining tests never ran, no
+                // summary). Same contract as afterAll(): report by name, count
+                // the failure, continue.
+                List<StatementNode> teardownCatch = List.of(
+                        new ExpressionStmt(p, callPrintln(p, concat(p,
+                                new LiteralExpr(p, ConcreteLiteralKind.STRING,
+                                        "teardown failed: "),
+                                new IdentifierExpr(p, "e")))),
+                        new ExpressionStmt(p, new AssignmentExpr(p, failedVar, "=",
+                                new BinaryExpr(p, "+", failedVar,
+                                        new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
+                finalizers.add(new TryStmt(p,
+                        List.of(new ExpressionStmt(p,
+                                new MethodCallExpr(p, null, teardownName, List.of(), List.of()))),
+                        List.of(new CatchClause(p, "String", "e", teardownCatch)),
+                        List.of()));
             }
             List<StatementNode> runInner = List.of(
                     new TryStmt(p, runBody, List.of(new CatchClause(p, "String", "e", catchBody)),

@@ -2,6 +2,8 @@
 
 # Implementação — Kof como Plataforma Universal
 
+**Dono:** maintainer (Mel Santos) — nenhuma lane `IP:PORTA` atribuída; última atividade de lane nomeada 21/09. Reativação exige diretriz da mantenedora (`D-AGENT-IDENTITY-IPPORT`, `D-PLAN-ONE-OWNER`).
+
 **Tipo:** rastreamento de implementação — **EM DESENVOLVIMENTO** desde 17/09/2026
 (promovido de `future/` por decisão da mantenedora; o portão R12 está
 **sobreposto** — ver `DECISIONS.md` §D-UNIVERSAL)

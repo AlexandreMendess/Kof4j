@@ -55,6 +55,9 @@ jobs:
       - name: Gate R1 fronteira stdlib (D-UNIVERSAL; ledger nao cresce em silencio)
         run: scripts/check_stdlib_boundary.sh --selftest && scripts/check_stdlib_boundary.sh
 
+      - name: Gate LSP-A catalogo de assinaturas (§568 — gen_signatures.py == StdCatalog; deriva nunca silenciosa)
+        run: python3 scripts/gen_signatures.py --selftest && python3 scripts/gen_signatures.py check
+
       - name: Gate automacao de agentes (Onda 1 — gate de despacho, watcher, auto-loop; fakes, sem rede)
         run: bash scripts/tests/run-agent-tests.sh
 
