@@ -172,10 +172,15 @@ public final class KofInterpreterMembers {
         throw new NoSuchFieldError("static " + gs.ownerType() + "." + gs.name());
     }
 
-    void putStatic(KofPutStatic ps, Object v) {
+    void putStatic(KofPutStatic ps, Object v) throws Throwable {
         if (ps.ownerType() instanceof Type.ClassType ct) {
             IRClass c = kofClasses.get(ct.internalName());
             if (c != null) {
+                // Semântica JVM: `putstatic` dispara a inicialização da classe
+                // ANTES de escrever. Sem isto, uma escrita antes da primeira
+                // leitura era sobrescrita pelo seed de `initialValue()` do
+                // `ensureInit` (ex.: `G.x = 7` antes de ler `G.x` → 5).
+                ensureInit(c);
                 kofStatics(c.name()).put(ps.name(), v);
                 return;
             }

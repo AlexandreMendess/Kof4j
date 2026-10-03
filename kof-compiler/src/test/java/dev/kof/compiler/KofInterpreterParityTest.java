@@ -296,6 +296,23 @@ class KofInterpreterParityTest extends KofInterpreterParitySupport {
     }
 
     @Test
+    void staticFieldWriteBeforeRead() throws IOException {
+        // Regressão #739 (REPL): `putstatic` não inicializava a classe, então
+        // uma escrita ANTES da primeira leitura era sobrescrita pelo seed de
+        // `initialValue()` no `ensureInit` posterior — o interpretador lia o
+        // valor inicial (5) em vez do escrito (7); o JVM lia 7.
+        parity("static-write-before-read", """
+                class G {
+                    static Int x = 5
+                }
+                main() {
+                    G.x = 7
+                    println(G.x)
+                }
+                """);
+    }
+
+    @Test
     void jsonEncode() throws IOException {
         parity("json", """
                 import kof.json
