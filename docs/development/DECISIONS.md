@@ -4805,6 +4805,17 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Why:** before, the `null` reached the record constructor MethodHandle with a primitive target type and died in `sun.invoke.util.ValueConversions.primitiveConversion` — a JDK-internal NPE leaking into user `catch (String)`, violating R6 (honest diagnostics) and the "no silent fallback" constraint.
 - **Implementation:** JVM binder `kof_json_bind` record arm (`JvmRuntimeJson`), shared by `json.decode<T>` and the typed ORM read path; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 refusals + reference-null control + complete-decode control), ORM/DB neighbours green.
 - **Relationships:** `Closes: known-bugs §565 (rule-6)`, `Related: D-1.0-EDGES (#565 1.0-blocks), §564 (ORM sibling, fixed 02/10)`, `Frozen-boundary: catch(String) contract unchanged; reference-null semantics unchanged`.
+
+---
+
+## D-TEST-ARCHITECTURE-PHASES — `test-architecture-plan` Phases 5–7 AUTHORIZED (maintainer 03/10/2026, chat multiple-choice — "liberar todas")
+
+**State:** DECIDED (maintainer) — lifts the decision gate that had stopped the plan at Phase 4.
+- **Phase 5 (target-parameterized cross-target harness):** build the shared cross-target test harness (`CrossTargetSupport`: the JVM-oracle + riscv64/aarch64-qemu execution helpers and the shared oracle `@Test`), migrating the duplicated per-class harness cluster; each target stays a real, separately-named execution (never hidden under an abstraction that loses the per-target counts).
+- **Phase 6 (conformance/equivalence suite):** build the official equivalence suite over the harness.
+- **Phase 7 (integration):** wire the suite into the integration lifecycle (`mvn verify` or equivalent).
+- **Constraint unchanged:** purely test infrastructure; the compiler is not touched (plan golden rule). The harness ratchet only improves; `D-PLAN-ONE-OWNER` still holds (this plan stays owned by `192.168.15.30:9092`; `graphics-gaming-plan` stays SEM DONO).
+- **Relationships:** `Completes: D-TEST-ARCHITECTURE-GO (gate)`, `Affects: docs/development/test-architecture-plan.md Phases 5–7`, `Frozen-boundary: none (test-only)`.
 ## D-KOF-SIGN — Ed25519 signing/verification as a new stdlib crypto face (maintainer vote D1=A 03/10, chat)
 
 **Question (rule-6):** KofShare's device identity (§6/§12 of the product spec) needs signatures; the compiler today has ZERO signing face (measured 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = empty). Options were (A) new stdlib face, (B) ship v1 LAN-trust and defer, (C) route through interop `java.security` (breaks `D-KOFSHARE-100KOF`).

@@ -590,6 +590,24 @@ JS
 Script
 ```
 
+**First Phase 5 slice LANDED (03/10, `D-TEST-ARCHITECTURE-PHASES`):** the
+byte-identical cross-target harness of the `NativeIo*CrossTest` family
+(15 classes: bytes/dir-delete/dir-list/fs/mkdirs/copy/move/normalize/path/
+read-range/resolve/size/stat/text/to-absolute) was consolidated into a
+target-parameterized `NativeCrossSupport` base — `has` (toolchain guard),
+`capture`, `runJvm` (JVM oracle) and `runCross` (compile + qemu, parameterized
+by `Target`), plus the instance conveniences `runJvm`/`runCross`/`runNative`
+and `base` used by copy/move. ~716 duplicated helper lines removed (family
+1995→1172, plus the 107-line base; `NativeIoCopyCrossTest` 147→75). **Each target stays a real,
+separately-named `@Test`** (JVM / riscv64 / aarch64): only the execution
+mechanism is shared, the per-target counts are preserved. Proof: **54/54**
+`NativeIo*CrossTest` + `NativeCrossWideArgsE2ETest` green (cross riscv64/aarch64
+actually executed, not skipped); harness ratchet stays at **131** keys with zero
+new debt. Remaining Phase 5 work: the shared JVM-oracle `@Test` (`jvmOracle`, 13
+declarations) and the other cross-target families (`main`, `assumeToolchain`,
+`copyLibrary`, `stopServer`) — a design increment, deferred to keep this slice
+zero-risk.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.
@@ -714,4 +732,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→131, zero identical pairs remain) — the only open work is Phase 5 (target-parameterized cross-target harness), which needs a decision.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→131, zero identical pairs remain). **Phase 5 is now AUTHORIZED and its first slice LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport`, 54/54 green); Phases 5–7 remain open work, with the remaining Phase 5 families (`jvmOracle`, `main`, `assumeToolchain`, `copyLibrary`, `stopServer`) as the next increment.

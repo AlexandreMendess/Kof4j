@@ -4795,6 +4795,17 @@ individuais:
 - **Porquê:** antes, o `null` chegava ao MethodHandle do construtor do record com alvo primitivo e morria em `sun.invoke.util.ValueConversions.primitiveConversion` — um NPE interno do JDK vazando para o `catch (String)` do usuário, violando R6 (diagnósticos honestos) e a restrição "sem fallback silencioso".
 - **Implementação:** braço de record do binder JVM `kof_json_bind` (`JvmRuntimeJson`), compartilhado por `json.decode<T>` e pelo read path tipado do ORM; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 recusas + controle de referência-null + controle de decode completo), vizinhos ORM/DB verdes.
 - **Relações:** `Fecha: known-bugs §565 (rule-6)`, `Relacionado: D-1.0-EDGES (#565 1.0-blocks), §564 (irmão ORM, corrigido 02/10)`, `Fronteira-congelada: contrato catch(String) inalterado; semântica de referência-null inalterada`.
+
+---
+
+## D-TEST-ARCHITECTURE-PHASES — Fases 5–7 do `test-architecture-plan` AUTORIZADAS (mantenedora 03/10/2026, múltipla escolha no chat — "liberar todas")
+
+**Estado:** DECIDIDO (mantenedora) — remove o gate de decisão que parava o plano na Fase 4.
+- **Fase 5 (harness parametrizado cross-target):** construir o harness compartilhado de cross-target (`CrossTargetSupport`: os helpers de execução oráculo-JVM + riscv64/aarch64-qemu e o `@Test` de oráculo compartilhado), migrando o cluster duplicado de harness por classe; cada alvo continua uma execução real e nomeada (nunca escondido sob abstração que perca as contagens por alvo).
+- **Fase 6 (suíte de conformidade/equivalência):** construir a suíte de equivalência oficial sobre o harness.
+- **Fase 7 (integração):** ligar a suíte ao ciclo de integração (`mvn verify` ou equivalente).
+- **Restrição inalterada:** puramente infraestrutura de teste; o compilador não é tocado (regra de ouro do plano). O ratchet de harness só melhora; `D-PLAN-ONE-OWNER` continua valendo (este plano segue com dona `192.168.15.30:9092`; `graphics-gaming-plan` segue SEM DONO).
+- **Relações:** `Completa: D-TEST-ARCHITECTURE-GO (gate)`, `Afeta: docs/development/test-architecture-plan.md Fases 5–7`, `Fronteira-congelada: nenhuma (só teste)`.
 ## D-KOF-SIGN — assinatura/verificação Ed25519 como nova face de crypto da stdlib (voto da mantenedora D1=A 03/10, chat)
 
 **Pergunta (regra-6):** a identidade de dispositivo do KofShare (§6/§12 do spec do produto) precisa de assinatura; o compilador hoje tem ZERO face de assinatura (medido 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = vazio). As opções eram (A) face nova da stdlib, (B) embarcar v1 LAN-trust e adiar, (C) rotear por interop `java.security` (quebra `D-KOFSHARE-100KOF`).

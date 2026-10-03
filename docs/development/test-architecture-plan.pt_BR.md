@@ -597,6 +597,24 @@ JS
 Script
 ```
 
+**Primeira fatia da Fase 5 ENTREGUE (03/10, `D-TEST-ARCHITECTURE-PHASES`):** o
+harness cross-target byte-idêntico da família `NativeIo*CrossTest` (15 classes:
+bytes/dir-delete/dir-list/fs/mkdirs/copy/move/normalize/path/read-range/resolve/
+size/stat/text/to-absolute) foi consolidado numa base parametrizada por alvo
+`NativeCrossSupport` — `has` (guard de toolchain), `capture`, `runJvm` (oráculo
+JVM) e `runCross` (compila + qemu, parametrizado por `Target`), mais as
+conveniências de instância `runJvm`/`runCross`/`runNative` e `base` usadas por
+copy/move. ~716 linhas de helper duplicadas removidas (família 1995→1172, mais a
+base de 107; `NativeIoCopyCrossTest` 147→75). **Cada alvo continua um `@Test`
+real e nomeado por alvo** (JVM / riscv64 / aarch64): só o mecanismo de execução é
+compartilhado, as contagens por alvo são preservadas. Prova: **54/54**
+`NativeIo*CrossTest` + `NativeCrossWideArgsE2ETest` verdes (o cross
+riscv64/aarch64 realmente executou, não pulou); ratchet do harness fica em **131**
+chaves com zero dívida nova. Trabalho restante da Fase 5: o `@Test` de oráculo
+JVM compartilhado (`jvmOracle`, 13 declarações) e as demais famílias cross-target
+(`main`, `assumeToolchain`, `copyLibrary`, `stopServer`) — incremento de design,
+adiado para manter esta fatia de risco zero.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.
@@ -719,4 +737,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→131, zero pares idênticos restantes) — o único trabalho aberto é a Fase 5 (harness cross-target parametrizado por alvo), que precisa de decisão.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→131, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e sua primeira fatia ENTREGUE** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport`, 54/54 verdes); as Fases 5–7 seguem trabalho aberto, com as famílias restantes da Fase 5 (`jvmOracle`, `main`, `assumeToolchain`, `copyLibrary`, `stopServer`) como o próximo incremento.
