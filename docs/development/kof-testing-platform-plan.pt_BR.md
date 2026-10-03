@@ -429,6 +429,15 @@ desugar de testes.
 `PARSE010` (`test name must not be empty` / `test tag must not be empty`) — um teste sem nome
 rodaria como `PASS ` sem identidade (defeito medido, `known-bugs` §579, CORRIGIDO 03/10).
 
+**Sondagens negativas medidas (03/10, sem defeito — não re-sondar):** (a) um alias `.kf`
+**simbolizado** (`alias.kf -> real.kf`) é descoberto e rodado como arquivo próprio, então o mesmo
+teste reporta duas vezes — é descoberta duplicada por caminho, não violação de contrato, e o
+`Files.walk` não segue symlinks de diretório (um loop `self -> .` / `up -> ..` não trava). (b) Nomes
+de teste **duplicados** num arquivo rodam ambos e são ambos reportados (`PASS same` / `FAIL same:
+assertion failed`); são declarações distintas, não sobrescrita silenciosa. (c) Um **corpo de teste
+vazio** passa (`PASS nothing`). (d) Um `test` **aninhado dentro de uma função** é recusado `SEM011`
+(`Undefined variable or type: 'test'`) — declarações de teste são só top-level, como pretendido.
+
 ## 7.1 Tagging
 
 Categorizar testes: `unit`, `integration`, `e2e`, `slow`, `browser`, `network`, `database`,

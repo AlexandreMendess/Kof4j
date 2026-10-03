@@ -443,6 +443,15 @@ set once per unit by the tests desugar step.
 `PARSE010` (`test name must not be empty` / `test tag must not be empty`) — an unnamed test would
 run as `PASS ` with no identity (measured defect `known-bugs` §579, FIXED 03/10).
 
+**Measured negative probes (03/10, no defect — do not re-probe):** (a) a **symlinked** `.kf` alias
+(`alias.kf -> real.kf`) is discovered and run as its own file, so the same test reports twice — this
+is duplicate discovery by path, not a contract violation, and `Files.walk` does not follow directory
+symlinks (a `self -> .` / `up -> ..` loop does not hang). (b) **Duplicate test names** in one file
+both run and are both reported (`PASS same` / `FAIL same: assertion failed`); they are distinct
+declarations, not a silent overwrite. (c) An **empty test body** passes (`PASS nothing`). (d) A
+`test` **nested inside a function** is rejected `SEM011` (`Undefined variable or type: 'test'`) —
+test declarations are top-level only, as intended.
+
 ## 7.1 Tagging
 
 Categorize tests: `unit`, `integration`, `e2e`, `slow`, `browser`, `network`, `database`,
