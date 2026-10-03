@@ -615,9 +615,10 @@ to a new `NativeIoJvmOracleSupport` base — the subclass supplies
 Each subclass keeps its own source/golden, so no per-target or per-face
 assertion is hidden. Proof: **54/54** `NativeIo*CrossTest` +
 `NativeCrossWideArgsE2ETest` green (cross riscv64/aarch64 executed); the
-`dupname jvmOracle` ratchet key is **eliminated** (baseline 131→130). The 3
-classes with a non-standard JVM shape (`copy`/`move`/`text`) keep their
-own `@Test` on `NativeCrossSupport`. Remaining: `main` (mostly Kof source in
+`dupname jvmOracle` ratchet key is **eliminated** (baseline 131→130). The 4
+classes with a non-standard JVM shape (`copy`/`move`/`text`/`metadata`) keep
+their own `@Test` on `NativeCrossSupport`; `NativeIoMetadataE2ETest` (same
+family) was also moved onto `NativeCrossSupport` (4/4 green). Remaining: `main` (mostly Kof source in
 text blocks, a false lead), `assumeToolchain` (26 divergent signatures) and
 `copyLibrary` (35 classes, two shapes) — each needs its own bounded increment.
 
