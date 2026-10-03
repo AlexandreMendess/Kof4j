@@ -240,13 +240,13 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 
 | Classe de Bug | Prevenção | Diagnóstico | Backend |
 |---|---|---|---|
-| Use-after-free | GC (conservativo no Native) | `MEM011` (runtime) | Todos |
-| Double-free | GC / único `kof_free` | `MEM012` (runtime) | Todos |
-| Dangling reference | GC (conservativo) | `MEM010` (runtime) | Todos |
+| Use-after-free | GC (conservativo no Native) | `MEM011` — **regra de modelo, sem superfície de emissão** (medido 02/10: nenhuma superfície de usuário Kof chega a `kof_free` — `NativeRiscvAsmRtB42.java:15` “NENHUMA peça riscv chama kof_free”; a prevenção é por construção do GC, o precedente de `MEM005`) | Todos |
+| Double-free | GC / único `kof_free` (só interno) | `MEM012` — **regra de modelo, sem superfície de emissão** (mesma ausência medida de `MEM011`, 02/10) | Todos |
+| Dangling reference | GC (conservativo) | `MEM010` — **regra de modelo, sem superfície de emissão** (mesma ausência medida de `MEM011`, 02/10) | Todos |
 | Escape de tempo de vida inválido | Análise de escape nas fronteiras | `MEM013` (compile-time) | Todos |
 | Use-after-move | Nulagem explícita na transferência | `MEM002` (compile-time) | Todos |
 | Data race por aliasing mutável | Disciplina do programador + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` compile (#668) **e runtime** (#668 + `D-MEM030-BORROW-RUNTIME`, 30/09) | Todos alcançáveis (Script: `extern`/`Buffer` recusado `FFI001`; JS: `spawn` cooperativo ⇒ negativo N/A estrutural) |
-| Null deref | Nulabilidade + estreitamento | `SEM049` (compile-time) | Todos |
+| Null deref | Nulabilidade + estreitamento | `SEM049` (compile-time) | Todos — **pinado nos 4 backends** (`MemorySafetyMatrixE2ETest` 3/3, unidade 1 da fase-6, 02/10: recusa + as duas formas de estreitamento; mudança de comportamento ZERO — a paridade já era verdadeira, o pin é o produto, precedente #658/#659/#662) |
 | Resource leak | Close explícito | `MEM014` (compile-time; WARNING) | Todos (o Script o expõe via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
 | Confusão de propriedade FFI | Arena confinada por chamada (não existe superfície de release — `kof_ffi_release` é conceito do modelo, spec §7, medido 28/09) | `MEM005` — regra do modelo, sem superfície de emissão hoje | JVM + Native |
 | Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time; WARNING) | Todos (o Script o expõe via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
@@ -268,8 +268,8 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | **2** Infraestrutura do compilador | Representações internas de Ownership/Lifetime/Borrow/Escape (`dev.kof.compiler.memory`) | ✅ FECHADA 26/09 (fatias 1–4; BT success `9bcddfe90`; emissão = Fase 3, destravada) |
 | **3** Primeiras garantias | Use-after-move, dangling, escape, aliasing mutável | ✅ FECHADA — fatias 3.1→4 pousadas (MEM001/002/013/014/021/022); ver `memory-safety-plan.md` |
 | **4** Closures & async | Semântica de captura, fronteiras async | ✅ FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores = ausência medida |
-| **5** Native & FFI | Ponteiro/alloc/free, tabela de propriedade C ABI | 🔓 EM PROGRESSO — tabela de ownership pousada (#670); unidade 1 pinada (#666); unidade 2 pousada (#667/#668); unidade 3 pinada (`Buffer(U8)` INOUT × spawn/await); `#651` B cross pendente |
-| **6** Cross-target | mesma semântica de memory-safety nos **quatro backends que existem** — JVM, Native (x86-64 + cross riscv64/aarch64), JS, Script. WASM não é gap desta frente: só reentra no contrato quando um backend WASM real pousar (`D-MEM-PHASE6-4BACKENDS`, 30/09) | ⏳ AGUARDANDO |
+| **5** Native & FFI | Ponteiro/alloc/free, tabela de propriedade C ABI | 🔓 EM PROGRESSO — tabela de ownership pousada (#670); unidade 1 pinada (#666); unidade 2 pousada (#667/#668); unidade 3 pinada (`Buffer(U8)` INOUT × spawn/await); `#651` B POUSADO 29/09 + faces 1-3 de `D-MEM-FFI-CROSS-FULL` pousadas 30/09, callbacks = STOP rule-6 |
+| **6** Cross-target | mesma semântica de memory-safety nos **quatro backends que existem** — JVM, Native (x86-64 + cross riscv64/aarch64), JS, Script. WASM não é gap desta frente: só reentra no contrato quando um backend WASM real pousar (`D-MEM-PHASE6-4BACKENDS`, 30/09) | 🔓 EM PROGRESSO — unidade 1 pousada 02/10: matriz §11 auditada por classe × por backend + linha `SEM049` pinada nos 4 backends (`MemorySafetyMatrixE2ETest` 3/3) + linhas `MEM010/011/012` corrigidas para o precedente medido de `MEM005` (regras de modelo, sem superfície de emissão — `kof_free` não tem superfície de usuário); unidade 2 (próxima) = auditar a linha `MEM014` por backend |
 
 > **Escopo da fase 6 (corrigido 30/09, `D-MEM-PHASE6-4BACKENDS`):** o roadmap original nomeava "JVM / JS / WASM", mas a árvore **não tem backend WASM** (`docs/backend-parity.md` = JVM × Native × KofJS; ausência medida 28/09, #671). A paridade da fase 6 define-se, portanto, sobre os backends que existem (os quatro acima). WASM sai do contrato até um backend real pousar — **não** é gap aceito desta frente.
 
