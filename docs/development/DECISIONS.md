@@ -4805,3 +4805,13 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Why:** before, the `null` reached the record constructor MethodHandle with a primitive target type and died in `sun.invoke.util.ValueConversions.primitiveConversion` — a JDK-internal NPE leaking into user `catch (String)`, violating R6 (honest diagnostics) and the "no silent fallback" constraint.
 - **Implementation:** JVM binder `kof_json_bind` record arm (`JvmRuntimeJson`), shared by `json.decode<T>` and the typed ORM read path; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 refusals + reference-null control + complete-decode control), ORM/DB neighbours green.
 - **Relationships:** `Closes: known-bugs §565 (rule-6)`, `Related: D-1.0-EDGES (#565 1.0-blocks), §564 (ORM sibling, fixed 02/10)`, `Frozen-boundary: catch(String) contract unchanged; reference-null semantics unchanged`.
+## D-KOF-SIGN — Ed25519 signing/verification as a new stdlib crypto face (maintainer vote D1=A 03/10, chat)
+
+**Question (rule-6):** KofShare's device identity (§6/§12 of the product spec) needs signatures; the compiler today has ZERO signing face (measured 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = empty). Options were (A) new stdlib face, (B) ship v1 LAN-trust and defer, (C) route through interop `java.security` (breaks `D-KOFSHARE-100KOF`).
+
+**Decision:** **A** — a first-party `crypto.sign`/`crypto.verify` family built on the JDK primitive (no home-grown crypto: Kof encodes, `java.security.Signature` "Ed25519" executes, same placement as X25519 under D-KOF-X25519).
+
+**Proposed contract (to freeze at implementation, slice C1):** keys live as `Secret` (existing holder, R8 redaction); `crypto.keyPair("Ed25519")`-style generation or the existing secrets path (locate at implementation — do NOT invent a second key holder); `sign(Secret, Byte[]) -> Byte[]`, `verify(Secret, Byte[], Byte[]) -> Bool` are the stable core; public-key export as raw 32-byte hex (`Byte[]`) for wire hello; target refusals named and honest: JS/Native `SECN013` (sibling of `SECN012`) — never silent.
+
+**Relationships:** `Related: D-KOF-X25519 (same placement), D-KOF-NET (wire consumers), D-KOFSHARE-100KOF (satisfied: face is Kof, primitive is JDK), rule 6`.
+

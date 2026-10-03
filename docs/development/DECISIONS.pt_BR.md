@@ -4795,3 +4795,13 @@ individuais:
 - **Porquê:** antes, o `null` chegava ao MethodHandle do construtor do record com alvo primitivo e morria em `sun.invoke.util.ValueConversions.primitiveConversion` — um NPE interno do JDK vazando para o `catch (String)` do usuário, violando R6 (diagnósticos honestos) e a restrição "sem fallback silencioso".
 - **Implementação:** braço de record do binder JVM `kof_json_bind` (`JvmRuntimeJson`), compartilhado por `json.decode<T>` e pelo read path tipado do ORM; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 recusas + controle de referência-null + controle de decode completo), vizinhos ORM/DB verdes.
 - **Relações:** `Fecha: known-bugs §565 (rule-6)`, `Relacionado: D-1.0-EDGES (#565 1.0-blocks), §564 (irmão ORM, corrigido 02/10)`, `Fronteira-congelada: contrato catch(String) inalterado; semântica de referência-null inalterada`.
+## D-KOF-SIGN — assinatura/verificação Ed25519 como nova face de crypto da stdlib (voto da mantenedora D1=A 03/10, chat)
+
+**Pergunta (regra-6):** a identidade de dispositivo do KofShare (§6/§12 do spec do produto) precisa de assinatura; o compilador hoje tem ZERO face de assinatura (medido 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = vazio). As opções eram (A) face nova da stdlib, (B) embarcar v1 LAN-trust e adiar, (C) rotear por interop `java.security` (quebra `D-KOFSHARE-100KOF`).
+
+**Decisão:** **A** — família `crypto.sign`/`crypto.verify` first-party construída sobre a primitiva do JDK (criptografia caseira proibida: Kof codifica, `java.security.Signature` "Ed25519" executa, mesmo posicionamento do X25519 sob D-KOF-X25519).
+
+**Contrato proposto (a congelar na implementação, fatia C1):** chaves vivem como `Secret` (detentor existente, redação R8); geração estilo `crypto.keyPair("Ed25519")` ou o caminho de secrets já existente (localizar na implementação — NÃO inventar um segundo detentor de chave); o núcleo estável é `sign(Secret, Byte[]) -> Byte[]`, `verify(Secret, Byte[], Byte[]) -> Bool`; export da chave pública como 32 bytes raw em hex (`Byte[]`) para o hello do fio; recusas de alvo nomeadas e honestas: JS/Native `SECN013` (irmã da `SECN012`) — nunca silencioso.
+
+**Relações:** `Related: D-KOF-X25519 (mesmo posicionamento), D-KOF-NET (consumidores no fio), D-KOFSHARE-100KOF (satisfeita: a face é Kof, a primitiva é JDK), regra 6`.
+
