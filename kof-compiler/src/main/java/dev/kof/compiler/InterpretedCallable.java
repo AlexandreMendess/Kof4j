@@ -22,6 +22,15 @@ public final class InterpretedCallable {
         return interp.invokeLambda(handler, new Object[0]);
     }
 
+    // A2 (§574 residual): the SSE dispatch reflects getMethod("invoke",
+    // SseConnection.class); the connection also arrives through the runtime's
+    // KOF_SSE_SENDER ThreadLocal, so the interpreted arm accepts the object
+    // and forwards it as a positional arg (0-param handlers ignore it — the
+    // sse.send()/event() context functions are the supported form).
+    public Object invoke(Object conn) throws Throwable {
+        return interp.invokeLambda(handler, new Object[]{conn});
+    }
+
     public Object invoke(String method, String path, String body, String query, String headers)
             throws Throwable {
         return interp.invokeLambda(handler, new Object[]{method, path, body, query, headers});

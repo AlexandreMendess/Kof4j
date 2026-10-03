@@ -390,8 +390,22 @@ public final class JvmRuntimeWebDispatch {
                 }
 
                 private static Object kof_web_invoke(Object target, SseConnection sse) throws Exception {
-                    return target.getClass().getMethod("invoke", SseConnection.class)
-                            .invoke(target, sse);
+                    try {
+                        return target.getClass().getMethod("invoke", SseConnection.class)
+                                .invoke(target, sse);
+                    } catch (NoSuchMethodException e) {
+                        // A2: non-compiled handlers (e.g. the interpreter's
+                        // InterpretedCallable under --target script) expose a
+                        // generic single-parameter invoke arm — scan for it
+                        // instead of requiring the exact generated type.
+                        for (java.lang.reflect.Method m : target.getClass().getMethods()) {
+                            if (m.getName().equals("invoke") && m.getParameterCount() == 1
+                                    && m.getParameterTypes()[0].isInstance(sse)) {
+                                return m.invoke(target, sse);
+                            }
+                        }
+                        throw e;
+                    }
                 }
 
                 // ── WS/SSE context (kof_web_ws_message/wsSend/sse) ──
