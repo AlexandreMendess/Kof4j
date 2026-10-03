@@ -178,6 +178,9 @@ fi
 if touches '^docs/bugs-and-gaps/known-bugs'; then
     run_gate ledger_anchors "${AGENT_VERIFY_LEDGERSANCH:-bash scripts/check_ledger_anchors.sh}"
 fi
+if touches 'MemRule\.java|^docs/spec/memory-safety'; then
+    run_gate matrix_inventory "${AGENT_VERIFY_MATRIXINV:-bash scripts/check_matrix_inventory.sh}"
+fi
 if touches '^docs/development/'; then
     run_gate live_records "${AGENT_VERIFY_LIVERECORDS:-bash scripts/check_live_records.sh}"
     run_gate plan_owners "${AGENT_VERIFY_PLANOWNERS:-bash scripts/check_plan_owners.sh}"
