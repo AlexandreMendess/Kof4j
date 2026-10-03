@@ -113,6 +113,20 @@ class TestTagsE2ETest {
     }
 
     @Test
+    void emptyTestNameIsRejectedAtParseTime() throws Exception {
+        // §579: uma tag vazia é recusada; o NOME do teste também não pode ser
+        // vazio — senão o runner imprime `PASS ` sem identidade nenhuma.
+        Run r = compileAndRunJvm("""
+                test "" {
+                    assert(true)
+                }
+                """);
+        assertFalse(r.success(), "empty test name must not compile");
+        assertTrue(r.diags().contains("PARSE010") && r.diags().contains("must not be empty"),
+                "expected PARSE010 naming the empty test name, was: " + r.diags());
+    }
+
+    @Test
     void trailingCommaWithoutStringIsRejected() throws Exception {
         Run r = compileAndRunJvm("""
                 test "a", {

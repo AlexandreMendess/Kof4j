@@ -425,6 +425,10 @@ rodando como programa (contrato preservado), e o stdout do programa é mantido �
 compilador exponha `CompilerDriver.hasMainEntryPoint()`, setado uma vez por unidade pelo passo de
 desugar de testes.
 
+**Validação da declaração:** a declaração `test` recusa um NOME vazio e uma TAG vazia com
+`PARSE010` (`test name must not be empty` / `test tag must not be empty`) — um teste sem nome
+rodaria como `PASS ` sem identidade (defeito medido, `known-bugs` §579, CORRIGIDO 03/10).
+
 ## 7.1 Tagging
 
 Categorizar testes: `unit`, `integration`, `e2e`, `slow`, `browser`, `network`, `database`,

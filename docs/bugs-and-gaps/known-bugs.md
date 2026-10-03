@@ -16721,3 +16721,17 @@ plan "Phase 5 slices".
 **Boundary:** runner output plumbing only (the program-only success path); no parser/typer/codegen/runtime change, no new syntax, no change to the test-suite path or to `kof run`.
 
 <!-- pt-switch --> **PT:** [§578 (pt_BR)](known-bugs.pt_BR.md#578--kof-test-um-arquivo-so-programa-main-sem-test-rodava-mas-seu-stdout-era-descartado-em-silencio-no-jvmnative-o-js-mostrava---corrigido-0210-dona--19216815309093-encontrado-no-runner-do-kof-testing-platform)
+
+## §579 — `test ""` (an empty test NAME) was accepted and ran as `PASS ` with no identity; an empty TAG was already refused `PARSE010` — ✅ FIXED 03/10 (owner = 192.168.15.30:9093); found in the `kof-testing-platform` runner
+
+**Symptom (measured 03/10, tip `e17ca2b45`):** `kof test Empty.kf` where `Empty.kf` is `test "" { assert(true) }` compiles, runs, and prints `SUITE Empty.kf (1 tests)` / `PASS ` / `0 failed of 1 tests` — a passing test with an empty name, so nothing identifies which test ran. The parser already refuses an empty TAG (`test "a", ""` → `PARSE010 test tag must not be empty`) but had no equivalent guard on the test NAME: `parseTestDeclaration` read the name string and never checked it.
+
+**Root (read):** `Parser.parseTestDeclaration` validated each tag string (`if (tag.value().isEmpty()) ctx.error("test tag must not be empty", "PARSE010")`) but accepted an empty name token unconditionally.
+
+**Fix (parser only, zero language change):** after reading the name token, refuse an empty name with the same code and shape as the tag guard: `if (nameToken.value().isEmpty()) ctx.error("test name must not be empty", "PARSE010")`. Valid names are untouched; the tag guard is unchanged.
+
+**Proof (RED-first):** new `TestTagsE2ETest#emptyTestNameIsRejectedAtParseTime` (must not compile; `PARSE010` + `must not be empty`). Pre-fix it fails (`expected false but was true` — the file compiled); post-fix `TestTagsE2ETest` 23/23. Non-regression battery 373/0 (`CompilerDriverTest`, `FunctionSyntaxTest`, `InfraSyntaxE2ETest`, `ParserGarbageTypePrefixE2ETest`, `StringAsParseRejectTest`, `NestedGenericParseTest`, `TripleQuotedStringLexTest`, `KofStringParseTest`, `StructuredTestE2ETest`, `KofTestingE2ETest`, `GenericEqualityE2ETest`, `PropertyTestIdiomE2ETest`); Q2 rc=0.
+
+**Boundary:** test-declaration validation only; no typer/codegen/runtime change, no new syntax, no change to valid test declarations or to `kof build`/`kof run`.
+
+<!-- pt-switch --> **PT:** [§579 (pt_BR)](known-bugs.pt_BR.md#579--test--um-nome-de-teste-vazio-era-aceito-e-rodava-como-pass--sem-identidade-uma-tag-vazia-ja-era-recusada-parse010---corrigido-0310-dona--19216815309093-encontrado-no-runner-do-kof-testing-platform)

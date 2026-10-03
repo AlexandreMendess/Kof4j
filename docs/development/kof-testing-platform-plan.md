@@ -439,6 +439,10 @@ and the program's stdout is kept — printed before `PASS`, matching the JS leg 
 `known-bugs` §578, FIXED 02/10). This requires the compiler to expose `CompilerDriver.hasMainEntryPoint()`,
 set once per unit by the tests desugar step.
 
+**Declaration validation:** the `test` declaration refuses an empty NAME and an empty TAG with
+`PARSE010` (`test name must not be empty` / `test tag must not be empty`) — an unnamed test would
+run as `PASS ` with no identity (measured defect `known-bugs` §579, FIXED 03/10).
+
 ## 7.1 Tagging
 
 Categorize tests: `unit`, `integration`, `e2e`, `slow`, `browser`, `network`, `database`,

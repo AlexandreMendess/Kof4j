@@ -14272,3 +14272,17 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Fronteira:** só o encanamento de saída do runner (o caminho de sucesso de só-programa); sem mudança de parser/typer/codegen/runtime, sem sintaxe nova, sem mudança no caminho de suíte de testes nem no `kof run`.
 
 <!-- en-switch --> **EN:** [§578 (EN)](known-bugs.md#578--kof-test-a-program-only-file-main-no-test-ran-but-its-stdout-was-silently-discarded-on-jvmnative-js-showed-it---fixed-0210-owner--19216815309093-found-in-the-kof-testing-platform-runner)
+
+## §579 — `test ""` (um NOME de teste vazio) era aceito e rodava como `PASS ` sem identidade; uma TAG vazia já era recusada `PARSE010` — ✅ CORRIGIDO 03/10 (dona = 192.168.15.30:9093); encontrado no runner do `kof-testing-platform`
+
+**Sintoma (medido 03/10, tip `e17ca2b45`):** `kof test Empty.kf` onde `Empty.kf` é `test "" { assert(true) }` compila, roda e imprime `SUITE Empty.kf (1 tests)` / `PASS ` / `0 failed of 1 tests` — um teste que passa com nome vazio, então nada identifica qual teste rodou. O parser já recusa uma TAG vazia (`test "a", ""` → `PARSE010 test tag must not be empty`) mas não tinha guarda equivalente no NOME do teste: `parseTestDeclaration` lia a string do nome e nunca a checava.
+
+**Causa (leitura):** o `Parser.parseTestDeclaration` validava cada string de tag (`if (tag.value().isEmpty()) ctx.error("test tag must not be empty", "PARSE010")`) mas aceitava o token de nome vazio incondicionalmente.
+
+**Correção (só parser, zero mudança de linguagem):** após ler o token do nome, recusar um nome vazio com o mesmo código e forma da guarda de tag: `if (nameToken.value().isEmpty()) ctx.error("test name must not be empty", "PARSE010")`. Nomes válidos ficam intactos; a guarda de tag não muda.
+
+**Prova (RED-first):** novo `TestTagsE2ETest#emptyTestNameIsRejectedAtParseTime` (não pode compilar; `PARSE010` + `must not be empty`). Pré-correção ele falha (`expected false but was true` — o arquivo compilava); pós-correção `TestTagsE2ETest` 23/23. Bateria de não-regressão 373/0 (`CompilerDriverTest`, `FunctionSyntaxTest`, `InfraSyntaxE2ETest`, `ParserGarbageTypePrefixE2ETest`, `StringAsParseRejectTest`, `NestedGenericParseTest`, `TripleQuotedStringLexTest`, `KofStringParseTest`, `StructuredTestE2ETest`, `KofTestingE2ETest`, `GenericEqualityE2ETest`, `PropertyTestIdiomE2ETest`); Q2 rc=0.
+
+**Fronteira:** só a validação da declaração de teste; sem mudança de typer/codegen/runtime, sem sintaxe nova, sem mudança em declarações de teste válidas nem no `kof build`/`kof run`.
+
+<!-- en-switch --> **EN:** [§579 (EN)](known-bugs.md#579--test--an-empty-test-name-was-accepted-and-ran-as-pass--with-no-identity-an-empty-tag-was-already-refused-parse010---fixed-0310-owner--19216815309093-found-in-the-kof-testing-platform-runner)
