@@ -24,9 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * End-to-end coverage for AVIF slice 2a (image-vision front, plan §34):
  * the pure-Kof item-location reader {@code libs/image/AvifItems.kf}
  * extracts a stored item's bytes through the ISOBMFF {@code iloc} box
- * (construction 0 = file offsets, 1 = {@code idat} payload). Fixtures are
- * built byte-exactly to ISO 14496-12 (the host has no AVIF encoder —
- * measured 01/10); the oracle is a SECOND independent Java reader
+ * (ISO 14496-12 §8.7.4; version 0 and 1, base_offset_size 0/4/8, one or
+ * more extents, construction 0 = file offsets and 1 = {@code idat}
+ * payload). Fixtures are built byte-exactly to the spec, which was
+ * cross-checked against FFmpeg {@code mov_read_iloc}, the mp4parser
+ * {@code ItemLocationBox} javadoc and a real AVIF file measured 03/10; the
+ * oracle is a SECOND independent Java reader
  * ({@link AvifItemsSupport#readItemJava}) plus spec-computed goldens.
  * Pixel decoding is NOT part of this slice.
  */
@@ -39,7 +42,9 @@ class AvifItemsE2ETest {
     private static final String GOLDEN = String.join("\n",
             "mdat1 len=40 first=0 last=22 sum=4456",
             "mdat2 len=20 first=200 last=143 sum=3430",
-            "idat1 len=40 first=0 last=22 sum=4456");
+            "idat1 len=40 first=0 last=22 sum=4456",
+            "v01 len=40 first=0 last=22 sum=4456",
+            "multi1 len=60 first=0 last=143 sum=7886");
 
     @Test
     void avifItemBytesOnJvm() throws Exception {
@@ -116,7 +121,9 @@ class AvifItemsE2ETest {
         String java = String.join("\n",
                 "mdat1 " + fact(readItemJava(dir.resolve("mdat.avif"), 1)),
                 "mdat2 " + fact(readItemJava(dir.resolve("mdat.avif"), 2)),
-                "idat1 " + fact(readItemJava(dir.resolve("idat.avif"), 1)));
+                "idat1 " + fact(readItemJava(dir.resolve("idat.avif"), 1)),
+                "v01 " + fact(readItemJava(dir.resolve("v0.avif"), 1)),
+                "multi1 " + fact(readItemJava(dir.resolve("multi.avif"), 1)));
         assertEquals(kof, java);
         assertEquals(GOLDEN, java);
     }
