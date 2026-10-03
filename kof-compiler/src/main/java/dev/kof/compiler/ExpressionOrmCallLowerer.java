@@ -102,7 +102,7 @@ public final class ExpressionOrmCallLowerer {
             params.add(BuiltinTypes.STRING); // schema
         }
         if (needsClassName) {
-            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, CompilerTypes.classNameFor(entityName)));
+            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, CompilerOrmSupport.classNameFor(driver, entityName)));
             params.add(BuiltinTypes.STRING); // className
         }
         Type retType = ormCall.returnType();
@@ -112,9 +112,11 @@ public final class ExpressionOrmCallLowerer {
             if ("all".equals(mc.methodName()) || "page".equals(mc.methodName())
                     || "where".equals(mc.methodName())) {
                 retType = new Type.ClassType("kof", "List",
-                        List.of(CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit)));
+                        List.of(CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit,
+                                driver.semanticAnalyzer)));
             } else if ("find".equals(mc.methodName())) {
-                retType = CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit);
+                retType = CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit,
+                        driver.semanticAnalyzer);
             }
         }
         ops.add(new KofCall(new Type.ClassType("kof.orm", "Orm", List.of()),
@@ -198,7 +200,8 @@ public final class ExpressionOrmCallLowerer {
             ops.add(new KofStoreLocal(flagType, flagIdx));
         }
 
-        Type entityType = CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit);
+        Type entityType = CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit,
+                driver.semanticAnalyzer);
         Type listType = new Type.ClassType("kof", "List", List.of(entityType));
         IdentifierExpr ormRecv = new IdentifierExpr(pos, "orm");
         // orm.page<T>(db, windowBounds(limit, offset), offset) -> List<T>;

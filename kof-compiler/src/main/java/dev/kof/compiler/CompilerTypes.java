@@ -357,12 +357,6 @@ public final class CompilerTypes {
         return null;
     }
 
-    /** Nome JVM da entidade: as classes top-level do programa ficam sem
-     *  pacote (User.class); o Main é Default/Main. */
-    static String classNameFor(String simpleName) {
-        return simpleName;
-    }
-
     static Type ownerTypeFromInternal(String internalName, SemanticAnalyzer semanticAnalyzer) {
         // #639 face 2 (D-DECISION-BATCH-2709B): o nome INTERNO carrega o pacote
         // ("p1/Item"). Antes a busca era por nome simples (`getClass`), que
