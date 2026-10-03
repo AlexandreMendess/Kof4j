@@ -16739,3 +16739,19 @@ MEASURED 03/10 (lane memory-safety/native-cross): the shape is stable RED at onl
 **Boundary:** test-declaration validation only; no typer/codegen/runtime change, no new syntax, no change to valid test declarations or to `kof build`/`kof run`.
 
 <!-- pt-switch --> **PT:** [§579 (pt_BR)](known-bugs.pt_BR.md#579--test--um-nome-de-teste-vazio-era-aceito-e-rodava-como-pass--sem-identidade-uma-tag-vazia-ja-era-recusada-parse010---corrigido-0310-dona--19216815309093-encontrado-no-runner-do-kof-testing-platform)
+
+## §580 — `json.decode<Map<String,Record>>` in a package: the VALUE type argument stayed UNQUALIFIED, so a following `get` lowered `checkcast DeviceInfo` (bare owner) and the JVM died `NoClassDefFoundError: DeviceInfo` at Main LOAD (Script runs it) — ✅ FIXED 03/10 (owner = 192.168.15.15:9092; residual of §571/#733, found while measuring the KofShare A1 registry-persistence decode)
+
+**Symptom (measured 03/10, tip `de1030455`):** a packaged record `package pk; record R(String x, Int n)` plus `var m = json.decode<Map<String, R>>("{\"a\":{\"x\":\"hello\",\"n\":7}}")` / `var r: R? = m.get("a")` compiles clean on `--target jvm`; at launch the JVM dies `NoClassDefFoundError: DeviceInfo` (`ClassNotFoundException: DeviceInfo`). `javap` showed the `Map.get` result cast as `checkcast DeviceInfo` (constant-pool `Class #N // DeviceInfo`), while the emitted class is `pk/R.class`; the same program runs green under `--target script` (the interpreter resolves names reflectively) — exactly the silent JVM/Script divergence R6 forbids.
+
+**Root (read):** the §571 chokepoint `ExpressionTyper.qualifyBareModuleType` qualified only the OUTER `ClassType`; when the inferred type was `Map<String, R>` the outer package was already non-empty (`kof.Map`), so the method returned early and the nested bare `ClassType("", "R")` survived. The `get` call is typed from that nested value type, so `JvmOpMap.emitNullablyBoxedMapResult` emitted `toInternalName("", "R")` → bare `R` (the descriptor path was already correct, which is why `size`/`decode` alone worked).
+
+**Fix (recursive chokepoint, zero language change):** `qualifyBareModuleType` now descends through `NullableType`, `ArrayType` and every `ClassType.typeArguments()` entry, qualifying each bare reference whose simple name resolves in the module (records declared in the default package stay untouched). One place, additive.
+
+**Proof (RED-first):** new `JsonDecodePackagedMapValueE2ETest` 2/2 — `mapValueRecordQualifiesOnJvm` (prints `x=hello` / `n=7` / `size=1`) + `mapValueRecordRunsInterpreted`. Pre-fix (fix reverted via `git checkout HEAD -- ExpressionTyper.java`, re-measured after the RED-first discipline) the JVM leg fails with `NoClassDefFoundError: DeviceInfo`; post-fix both green. Non-regression 50/50: `JsonDecodePackagedRecordE2ETest` 2, `PackagedJsonDecodeE2ETest` 2, `PackageRecordGenericListE2ETest` 4, `NestedMapRecordDecodeE2ETest` 2, `JsonE2ETest` 18, `JsonCompleteE2ETest` 10, `GenericJsonDecodeRefusalTest` 5, `JsonMissingPrimitiveE2ETest` 4, `MapParamErasureE2ETest` 1.
+
+**Boundary:** type qualification only; no syntax, no descriptor change, no runtime change. The default-package class path (e.g. the test harness `Pair`) is explicitly preserved.
+
+<!-- pt-switch --> **PT:** [§580 (pt_BR)](known-bugs.pt_BR.md#580--jsondecodemapstringrecord-em-pacote-o-argumento-de-tipo-valor-ficava-sem-qualificacao-entao-um-get-seguinte-baixava-checkcast-deviceinfo-dono-bare-e-o-jvm-morria-noclassdeffounderror-deviceinfo-no-load-do-main-script-roda---corrigido-0310-dona--19216815159092-residual-do-571733-achado-ao-medir-o-decode-da-persistencia-a1-do-kofshare)
+
+

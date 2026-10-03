@@ -2,6 +2,8 @@
 
 # Graphics, Games and Media — Kof's Intent Surface
 
+**Owner:** SEM DONO / OPEN — re-claim freely. spike-3.0 claims carry `192.168.15.30:9093` (runner/tooling, historical). This lane (.15) wrote the file in a lost window and DECLINES ownership: content is the graphics/media neighborhood, not connectors (re-routed to `check_plan_owners` compliance 03/10).
+
 last: spike-delta-02/10 (SDL2/FFmpeg -dev + C probes; raylib/SDL3/GLFW/miniaudio/cross still ?)
 doing: spike-3.0 (infra+report, no API)
 next: slice-3.1 (window/frame/input)

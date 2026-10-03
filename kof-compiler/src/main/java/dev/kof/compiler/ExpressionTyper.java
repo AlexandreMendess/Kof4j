@@ -277,15 +277,50 @@ public final class ExpressionTyper {
     // Classe legítima de pacote padrão (símbolo com pkg vazio, ex.: Pair do
     // harness) NÃO é tocada.
     private static Type qualifyBareModuleType(CompilerDriver driver, Type t) {
-        if (!(t instanceof Type.ClassType ct) || !ct.packageName().isEmpty()
-                || ct.name().indexOf('.') >= 0 || driver.semanticAnalyzer == null) {
+        if (t == null) {
+            return null;
+        }
+        // #733 residual: a bare module type can hide INSIDE a type argument
+        // (`Map<String, DeviceInfo>`) — the §571 chokepoint qualified only the
+        // outer name, so the following `get` lowered a `checkcast DeviceInfo`
+        // with a bare owner and the JVM died at Main LOAD. Recurse through the
+        // type-argument tree (and the nullable/array wrappers) so every
+        // reference is qualified.
+        if (t instanceof Type.NullableType nt) {
+            Type inner = qualifyBareModuleType(driver, nt.inner());
+            return inner == nt.inner() ? t : new Type.NullableType(inner);
+        }
+        if (t instanceof Type.ArrayType at) {
+            Type comp = qualifyBareModuleType(driver, at.componentType());
+            return comp == at.componentType() ? t : new Type.ArrayType(comp);
+        }
+        if (!(t instanceof Type.ClassType ct)) {
             return t;
         }
-        var cs = driver.semanticAnalyzer.getClass(ct.name());
-        if (cs == null || cs.packageName() == null || cs.packageName().isEmpty()) {
-            return t;
+        Type base = t;
+        if (ct.packageName().isEmpty() && ct.name().indexOf('.') < 0 && driver.semanticAnalyzer != null) {
+            var cs = driver.semanticAnalyzer.getClass(ct.name());
+            if (cs != null && cs.packageName() != null && !cs.packageName().isEmpty()) {
+                base = new Type.ClassType(cs.packageName(), ct.name(), ct.typeArguments());
+            }
         }
-        return new Type.ClassType(cs.packageName(), ct.name(), ct.typeArguments());
+        Type.ClassType bct = (Type.ClassType) base;
+        if (bct.typeArguments().isEmpty()) {
+            return base;
+        }
+        boolean changed = false;
+        List<Type> qualified = new ArrayList<>(bct.typeArguments().size());
+        for (Type arg : bct.typeArguments()) {
+            Type q = qualifyBareModuleType(driver, arg);
+            if (q != arg) {
+                changed = true;
+            }
+            qualified.add(q);
+        }
+        if (!changed) {
+            return base;
+        }
+        return new Type.ClassType(bct.packageName(), bct.name(), List.copyOf(qualified));
     }
 
     /**
