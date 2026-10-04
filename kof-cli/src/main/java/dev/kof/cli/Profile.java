@@ -151,6 +151,7 @@ public final class Profile {
         if (target == Target.JVM) {
             Path gcLog = outDir.resolve("gc.log");
             command.add(System.getProperty("java.home") + "/bin/java");
+            command.addAll(KofStdio.capturedJvmFlags());
             command.add("-Xlog:gc:" + gcLog);
             if (methods) {
                 // In-house method-level sampling: the JVM's own JFR records
@@ -158,14 +159,13 @@ public final class Profile {
                 command.add("-XX:StartFlightRecording=filename=" + outDir.resolve("profile.jfr")
                         + ",settings=profile,dumponexit=true");
             }
-            command.add("-cp");
-            command.add(outDir.toString());
             String mainClass = findMainClass(outDir);
             if (mainClass == null) {
                 System.err.println("kof profile: no main class found");
                 return null;
             }
-            command.add(mainClass);
+            // §556: wrapper de diagnóstico também no kof profile.
+            KofCliSupport.appendJvmLaunch(command, outDir.toString(), mainClass);
         } else {
             Path bin = outDir.resolve("Default/Main");
             if (!Files.isExecutable(bin)) {

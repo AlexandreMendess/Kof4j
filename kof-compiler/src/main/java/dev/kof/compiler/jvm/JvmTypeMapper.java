@@ -2,6 +2,7 @@ package dev.kof.compiler.jvm;
 import dev.kof.compiler.BuiltinTypes;
 import dev.kof.compiler.KofMedia;
 import dev.kof.compiler.KofUi;
+import dev.kof.compiler.KofWeb;
 import dev.kof.compiler.Type;
 import dev.kof.compiler.TypeMetrics;
 
@@ -111,8 +112,23 @@ public final class JvmTypeMapper {
         }
         // D-SECRETS P3: `KeyHandle` apaga para KofRuntime$KeyHandle (mesmo
         // padrao do Secret).
+        if ("kof".equals(c.packageName()) && "InteropError".equals(c.name())) {
+            return "Ldev/kof/runtime/KofRuntime$InteropError;";
+        }
         if ("kof".equals(c.packageName()) && "KeyHandle".equals(c.name())) {
             return "Ldev/kof/runtime/KofRuntime$KeyHandle;";
+        }
+        // §575 — phantom handle types: `kof.web.App` exists only at compile
+        // time; at runtime an app is a String handle in the web registry. If a
+        // closure CAPTURES the app handle, the capture becomes a lambda field
+        // and its descriptor would be `Lkof/web/App;` → NoClassDefFoundError at
+        // Main LOAD (Script runs it: the interpreter has no descriptors). The
+        // registry is `KofWeb.isPhantomHandleType` so this erasure lives at the
+        // single JVM chokepoint (field/param/return/local descriptor), not in
+        // the lowering — the Kof type must stay `kof.web.App` for `app.close()`
+        // to keep dispatching to `kof_web_*` (KofWeb.isAppType).
+        if (KofWeb.isPhantomHandleType(c)) {
+            return "Ljava/lang/String;";
         }
         // enum: D-ENUM207 — o valor é uma INSTÂNCIA de enum (classe real
         // emitida por CompilerEnumLowering), não a String do nome. Descriptor
@@ -210,6 +226,18 @@ public final class JvmTypeMapper {
         if ("kof.concurrent".equals(packageName) && "Channel".equals(simpleName)) return "java/util/concurrent/LinkedBlockingQueue";
         if ("kof.concurrent".equals(packageName) && "Handle".equals(simpleName)) return "java/util/concurrent/CompletableFuture";
         if ("kof.process".equals(packageName) && "Result".equals(simpleName)) return "dev/kof/runtime/KofRuntime$ProcessResult";
+        // Same erasure family as `classDescriptor`: these nominal runtime types
+        // must map in OWNER position (checkcast/anewarray/getfield) too, or a
+        // value crossing a generic container emits the non-existent class
+        // (`kof/Buffer`, `kof/Secret`, `kof/KeyHandle`) → NoClassDefFoundError.
+        if ("kof".equals(packageName) && "Buffer".equals(simpleName)) return "dev/kof/runtime/KofRuntime$Buffer";
+        if ("kof".equals(packageName) && "Secret".equals(simpleName)) return "dev/kof/runtime/KofRuntime$Secret";
+        if ("kof".equals(packageName) && "KeyHandle".equals(simpleName)) return "dev/kof/runtime/KofRuntime$KeyHandle";
+        if ("kof".equals(packageName) && "InteropError".equals(simpleName)) return "dev/kof/runtime/KofRuntime$InteropError";
+        // §575 — phantom handle in OWNER position (getfield/putfield/checkcast/
+        // invoke): the app handle is a String at runtime, so a captured-app
+        // lambda field reads/writes `java/lang/String`, never `kof/web/App`.
+        if ("kof.web".equals(packageName) && "App".equals(simpleName)) return "java/lang/String";
         if (packageName.isEmpty()) return simpleName;
         return packageName.replace('.', '/') + "/" + simpleName;
     }

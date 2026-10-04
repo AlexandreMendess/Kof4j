@@ -205,6 +205,12 @@ public final class KofInterpreterOps {
                 case "float" -> new float[size];
                 case "char" -> new char[size];
                 case "bool" -> new boolean[size];
+                // D-KOF-NET fatia 5 (02/10): `byte`/`short` caiam no default
+                // int[] — o primeiro consumidor real de Byte[] (kof_net_send/
+                // sendTo) morria "argument type mismatch" no reflection do
+                // interpretador. Mesma regra dos demais: primitiva -> primitiva JVM.
+                case "byte" -> new byte[size];
+                case "short" -> new short[size];
                 default -> new int[size];
             };
         }
@@ -228,6 +234,8 @@ public final class KofInterpreterOps {
                 case "float" -> float.class;
                 case "char" -> char.class;
                 case "bool" -> boolean.class;
+                case "byte" -> byte.class;
+                case "short" -> short.class;
                 default -> int.class;
             };
         } else if (baseType instanceof Type.ClassType ct) {

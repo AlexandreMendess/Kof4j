@@ -1,0 +1,1116 @@
+[English](image-vision-plan.md) | [Português](image-vision-plan.pt_BR.md)
+
+# Strategic plan — Kof Image & Vision
+
+**Owner:** `192.168.15.21:9092` (lane pipeline/image-vision — ONE plan, ONE owner per `D-PLAN-ONE-OWNER`). ⚠️ AVIF slices 2a–2g (01–02/10) were written by `192.168.15.101:9092`, which owns `memory-safety-plan` — a `D-PLAN-ONE-OWNER` violation recorded 02/10; the owner lane MUST re-verify that state at tip (re-review order, DOING 02/10).
+> **AVIF slice 3a LANDED 04/10 (pure Kof, AV1 SYMBOL / ENTROPY DECODER — `libs/image/Av1Symbol.kf`, new):** the first stage of the decode chain. Implements the AV1 spec §9.2/§9.3 range coder verbatim: `init_symbol(sz)` (seed `Min(sz*8,15)` bits, `SymbolValue=((1<<15)-1)^padded`, `SymbolRange=1<<15`, `SymbolMaxBits=8*sz-15`), `read_symbol(cdf)` (`cur = ((SymbolRange>>8)*(f>>6))>>1 + 4*(N-symbol-1)`, renorm, then the spec's adaptation `rate = 3 + (cdf[N]>15) + (cdf[N]>31) + Min(FloorLog2(N),2)`, `cdf[i] += (tmp-cdf[i])>>rate`, `cdf[N] += (count<32)`), `read_bool()` = `read_symbol` over the fixed equiprobable `[1<<14,1<<15,0]` with adaptation suppressed, `read_literal(n)` MSB-first, `exit_symbol()`, `position()`. The class also carries `av1FloorLog2`/`av1Bool`. **Oracle:** byte streams produced by libaom's entropy encoder (`aom_dsp/entenc.c`) for six chosen (CDF, symbol-sequence) cases, round-tripped by libaom's own decoder (`entdec.c`), built on the dev host 04/10 (not committed); the pinned golden is the symbol sequence (`literal20`/`literal12`/`sym4fixed`/`sym5adapt`/`sym2adapt`/`sym8adapt`). **Real-file proof:** the host `.avif`'s primary tile payload (slice 2n `readAvifTilePayloads`, 42132 bytes) decodes its first 64 booleans + 8 literals to `BOOLS 1 0 0 1 0 1 1 1 1 1 0 1 0 0 0 0 0 0 0 1 1 1 1 1 0 1 1 1 1 1 0 0 1 1 1 0 0 1 0 0 1 0 1 0 1 1 0 0 0 1 1 0 1 1 0 0 1 0 1 1 1 1 0 0 LIT 236 22 144 184 174 78 131 116`, matching libaom's `od_ec_decode_bool_q15` on the same bytes (note: the literals continue the stream after the 64 bools; a fresh-decoder measurement gives a different byte run). The second independent Java reader (`Av1SymbolSupport.javaDecode`, a plain-Java spec walk) agrees fact-for-fact on all six fixtures AND the real tile. Proof RED-first: `Av1SymbolE2ETest` **8/8** on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu) + JS (compile AND run — the decoder is pure arithmetic with no `kof.io`, so JS does not refuse `IOJS001`; that is the correct behavior for this slice) + the two agreement tests. Bug caught: the dev-host oracle printed the encoder buffer AFTER `od_ec_enc_clear` freed it (use-after-free corrupted the first fixture's bytes) — fixed by `memcpy` before the clear; a reminder that fixtures are re-measured, never remembered. No compiler change, no new gap, no decision required. Next: tile coefficient walk → loop filter → quantization → `decodeRaster` AVIF.
+> **AVIF slice 2o LANDED 03/10 (pure Kof, NON-UNIFORM tile_info — `libs/image/AvifFrame.kf` + `AvifSeq.kf`):** the tile_info walk (2e) refused `IMAGE: avif tile size list not covered` when `uniform_tile_spacing_flag == 0`; this slice implements the spec's non-uniform branch (AV1 5.9.15): the per-axis `ns()` size lists `width_in_sbs_minus_1` (bounded by `Min(sbCols - startSb, maxTileWidthSb)`) and `height_in_sbs_minus_1` (bounded by `Min(sbRows - startSb, maxTileHeightSb)`, where `maxTileHeightSb` uses the spec's `widestTileSb` area rule and the `minLog2Tiles` adjustment), then derives `TileCols`/`TileRows` and their `tile_log2` values (so `context_update_tile_id`/`tile_size_bytes` are read with the right width). New helper `seqNs(b, bitPos, n)` implements the AV1 4.10.6 non-symmetric descriptor (`w = FloorLog2(n)+1`, `m = (1<<w)-n`, one extra bit when `v >= m`). The uniform path is byte-identical (the real file's 1x1 still parses). **Proof RED-first:** new `nonuni.avif` fixture (uniform flag 0, col sizes {1,1} + row size {2} over the 128x128 `redSeq128`, 2x1 tiles) — pre-fix the walk refused `IMAGE: avif tile size list not covered`; post-fix `nonuni t=0 ... tiles=2x1 hb=3`. The second Java reader (`AvifFrameJavaSupport`) gained its own independent `ns()` walk; the old `sizelist` refusal fixture (non-uniform, no longer a refusal) is removed. `AvifFrameE2ETest` **16/16** + AVIF battery **56/56** on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`. Next: tile payload/coefficient walk → loop filter → quantization → `decodeRaster` AVIF.
+> **AVIF slice 2n LANDED 03/10 (pure Kof, TILE PAYLOADS — real-file `readAvifTilePayloads`; `libs/image/AvifGroup.kf`):** the tile-group walk (2f/2m) enumerates each tile's byte size but discards its position, so the byte range the AV1 coefficient decoder consumes was not yet addressable. This slice records each tile's interleaved start offset (`AvifTileGroup.tileOffsets`) at the exact 6.10.1 position (`sz -= tileSize + TileSizeBytes`, so the offset is `p` AFTER the `le(TileSizeBytes)` field and BEFORE the tile's bytes) and adds `avifTilePayload(item, group, i)` (bounds-checked `Int[]` copy), `avifItemTilePayloads(item)` (all tiles in tile order across the frame's groups) and `readAvifTilePayloads(path)` (the file-level composition over `avifItemBytes`). Still a payload EXTRACTION, not a decode: the coefficient walk, loop filter and quantization ride the next decode slices, and `decodeRaster` keeps refusing AVIF. **Real-file proof (executed):** `readAvifTilePayloads` on the host `.avif` → `tile 0 len=42132 first=151 last=136 h=4094`, matching the 2m group walk (`total=42132`) and `iloc` item1 length. Fixtures/readers made byte-DISTINCT per tile (the old uniform `0x07` filler masked a wrong offset): `groupBytes` now writes an increasing seed, and both the Kof probe and the second Java reader hash each tile's bytes (`avifTilePayload` vs `javaTileFacts`) — agreement is the proof. Proof RED-first: `AvifFrameE2ETest` **16/16** and the whole AVIF battery **56/56** (JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, second-reader agreement). Next: tile payload/coefficient walk → loop filter → quantization → `decodeRaster` AVIF.
+> **AVIF slice 2m LANDED 03/10 (pure Kof, HEADER TAIL + OBU_FRAME INLINE TILE GROUP — real-file `readAvifTileGroups`; `libs/image/AvifFrame.kf`, `AvifGroup.kf`, `AvifSeq.kf`):** slice 2l left the real OBU_FRAME (type 6) honestly refused because the inline tile group sits AFTER the full `uncompressed_header`, whose tail (quantization/segmentation/delta_q/delta_lf/loop-filter/cdef/restoration/tx-mode/reduced_tx_set) was not walked. This slice walks that 5.9.2 tail to the `byte_alignment()` and locates the inline group exactly. `AvifSeq.kf` now CAPTURES `enable_cdef`/`enable_restoration` into `AvifSeqHeader` (previously read and discarded — the exact bits that guard the `cdef_params`/`lr_params` branches); `AvifFrame.frameTailWalk` implements `quantization_params` (5.9.9, `read_delta_q` su(1+6) via the new `seqSu`), `segmentation_params` (5.9.11, `seg_id`/`seg_alt_q` with `CodedLossless` derived per the spec's `LosslessArray` loop), `delta_q_params`/`delta_lf_params` (5.9.12/13), `loop_filter_params` (5.9.8), `cdef_params` (5.9.14), `lr_params` (5.9.16), `read_tx_mode` (5.9.17) and `reduced_tx_set`, with `frame_reference_mode`/`skip_mode_params` inferred for the intra-only frames this face admits (`film_grain_params` refused earlier by `seqWalk`). `AvifFrameHeader.headerBytes` is now the ALIGNED header size RELATIVE to the OBU payload start (was absolute — a real bug the OBU_FRAME fixture exposed), and the record gains `baseQIdx`/`loopFilterLevel0`/`cdefBits`. `AvifGroup.avifItemTileGroups` reads the OBU_FRAME's single inline group at `p + headerBytes` instead of refusing, and `tileGroupWalk` was corrected to the 6.10.1 interleaved layout (`sz -= tileSize + TileSizeBytes`: each tile's payload is skipped before the NEXT size field) — the old contiguous-size-table shape only worked for ≤2 tiles and mis-decoded a 4-tile group. **Real-file proof:** `readAvifFrameHeader` → `t=0 480x410 tiles=1x1 hb=11 bq=32 lf=7 cd=0` (base_q_idx 32, loop_filter_level[0] 7, cdef disabled — matches the spec-parser measurement); `readAvifTileGroups` → `group 0..0 n=1 sizes=0 last=42132 total=42132` (the single tile takes the remaining payload). Fixtures/readers made spec-faithful: `frameReduced` now computes the uniform tile grid from the real `sbCols`/`sbRows` (the old writer wrote a fixed 2-bit `context_update_tile_id`, wrong for 2x2), new non-lossless `q32.avif` exercises the cdef branch and the lf-delta skip, new `tg-inline.avif` OBU_FRAME positive golden, and both second readers (`AvifFrameJavaSupport`, `AvifGroupJavaSupport`) walk the same tail independently. Proof: `AvifFrameE2ETest` **16/16** and the whole AVIF battery **56/56** (JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, second-reader agreement). Next: tile payload/coefficient walk → loop filter → quantization → `decodeRaster` AVIF.
+> **AVIF slice 2l LANDED 03/10 (pure Kof, FRAME-HEADER INTRA-BRANCH SPEC ALIGNMENT — real-file `readAvifFrameHeader`; `libs/image/AvifFrame.kf`):** composing the slice-2k item chain to the frame header on the REAL host `.avif` refused with `IMAGE: avif tile size list not covered`, although that file's `tile_info()` is uniform 1x1. Root cause: the intra path read `is_filter_switchable` + `is_motion_mode_switchable` (AV1 5.9.10) although the spec reads them ONLY in the non-intra branch (5.9.2:766-777); on a reduced/intra frame those two bits do not exist, so the walk consumed two spurious bits and desynced `tile_info` (measured by a Python spec parser: the code started `tile_info` at bit 6, the spec at bit 3). The same two deviations were shared by all three hand-built fixtures and both second readers — the shared-blind-spot lesson again. Corrected to spec: the interp/motion bits are not read on the intra path; `frame_type` uses the spec numbering (KEY=0 / INTER=1 / INTRA_ONLY=2 / SWITCH=3 — the old code treated 0 as INTER and 1 as KEY, so the non-reduced path also threw on a valid INTRA_ONLY frame); and the unreachable `IMAGE: avif frame size-with-refs not covered` refusal is removed (`frame_size_with_refs` is non-intra only, 5.9.2:760). **Real-file proof:** pre-fix `readAvifFrameHeader` → `IMAGE: avif tile size list not covered`; post-fix → `t=0 480x410 render=480x410 tiles=1x1 tileSizeBytes=0 hb=18`, matching the `ispe`/`av1C` facts; the inline tile group is then honestly refused (`IMAGE: avif frame obu tile group not covered`, the next slice — the real frame is OBU_FRAME type 6). Fixtures made spec-faithful (`AvifFrameSupport.frameReduced`/`frameNr` drop the intra interp bits, KEY `error_resilient` is now inferred; new non-reduced INTRA_ONLY `intra.avif`; the fabricated `sizerefs`/`interp` refusals removed) and both second readers (`AvifFrameJavaSupport`, `AvifGroupJavaSupport`) aligned. Proof: `AvifFrameE2ETest` **16/16** and the whole AVIF battery **56/56** (JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, second-reader agreement). Next: inline OBU_FRAME tile group → tile payload/coefficient walk → loop filter → quantization → `decodeRaster` AVIF.
+> **AVIF slice 2k LANDED 03/10 (pure Kof, REAL-FILE ITEM-DATA CHAIN — `seq_profile` f(3) + `operating_point_idc` f(12) + LEB128 `obu_size`):** running the COMPOSED item chain (`readAvifItemObus`) on the REAL AVIF file (slice 2i host file) threw `IMAGE: truncated avif sequence header`. Root cause: `seqWalk` read `seq_profile` as **f(2)** but AV1 §5.5.1 is **f(3)**; the wrong profile selected the profile-0 `color_config` branch and consumed two spurious `chroma_sample_position` bits. The same §5.5.1 sweep found `operating_point_idc` skipped as **16 bits** but the spec is **f(12)** — invisible because the fabricated non-reduced fixtures and the second reader shared the same wrong width (the shared-blind-spot lesson of 2h/2i/2j again). After the profile fix the walk hit `IMAGE: avif obu truncated`: `obu_size` was accumulated big-endian (`(size<<7)|…`) but AV1 §4.10.5 is **LEB128 little-endian** (`value |= (b&0x7f) << (i*7)`), which only diverges for sizes ≥128 bytes — exactly the real frame OBU (42143 bytes). Fixed in all six sites (`Avif.kf` `seqHeaderReduced`, `AvifSeq.kf` config-OBU + `seqWalk`, `AvifObu.kf`, `AvifFrame.kf`, `AvifGroup.kf`, `AvifMeta.kf` OBU size **and** `metadata_type`). **Real-file proof:** `readAvifItemObus` now returns `total=3 seq=1 frames=1`, sequence header `480x410 depth=8 profile=1` — matching `ispe` 480x410, `av1C` profile 1 and `ffprobe yuv444p`; `readAvifMetadata` reports `480x410 items=2 primary=1 alpha=true profile=1 depth=8`. Fixtures made spec-faithful (`seq_profile` f(3), `operating_point_idc` f(12)) in `AvifSeqSupport`/`AvifMetadataSupport`/`AvifFrameSupport` and all three second readers (`AvifSeqSupport.javaSeqCore`, `AvifFrameJavaSupport`, `AvifGroupJavaSupport`); new reduced profile-1 fixture `r1.avif` (the real-file form) and a >127-byte-OBU fixture `big.avif` (200-byte padding then metadata, LEB128 writer+reader). Proof: `AvifSeqE2ETest` **8/8**, `AvifObuE2ETest` **8/8** (+`big`), `AvifFrameE2ETest` **16/16**, `AvifMetaE2ETest` **8/8**, `AvifItemsE2ETest` **8/8**, `AvifMetadataE2ETest` **8/8** — JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, second-reader agreement (AVIF battery 56/56). Next: tile-group payload/coefficient walk → loop filter → quantization → `decodeRaster` AVIF.
+> **AVIF slice 2j LANDED 03/10 (pure Kof, REAL-FILE CONFORMANCE — `ipma` property selection + `av1C` record layout + `iref`/`auxl` alpha; `libs/image/Avif.kf`, `AvifSeq.kf`):** continuing the D-PLAN-ONE-OWNER re-review against the REAL AVIF file (slice 2i), running the COMPOSED chain on it surfaced THREE more real container bugs the hand-built fixtures could not catch because the fixtures and the readers shared the same assumptions: (1) the primary item's properties were read as "exactly one `ispe` and one `av1C` in `ipco`" — the real file has TWO `av1C` (colour + alpha) and two `ispe`, so the whole reader refused `IMAGE: avif av1C property not covered`; the fix parses `iprp/ipma` (ISO 14496-12 §8.11.4, `entry_count` **32-bit**, version-0 16-bit item ids, per-association essential bit) and selects the PRIMARY item's properties, and `AvifSeq.av1cPayload` shares the same selection so the whole AVIF chain stops refusing two-`av1C` files. (2) The `av1C` record was modelled with a 4-byte `configOBUsLength` prefix that DOES NOT EXIST: AV1-ISOBMFF §2.3.3 is `AV1CodecConfigurationRecord` = 4 fixed bytes then `configOBUs[]` directly (the real record is `81 21 00 00`, 4 bytes, empty array); the length prefix was a fixture/reader shared blind spot. (3) `iref` was modelled as a FullBox with a top-level `entry_count` and an inline HEVC `auxc` URN; the real file uses the ISO 14496-12 §8.11.12 child-box list with an `auxl` entry from the alpha item to the primary, and the alpha type lives in the `auxC` AuxiliaryTypeProperty URN `urn:mpeg:mpegB:cicp:systems:auxiliary:alpha` (AVIF §4.1). All three syntaxes are quoted from the spec sources read on the dev host (AV1-ISOBMFF v1.3.0 §2.3.3; AVIF v1.2.0 §4.1) and cross-checked against FFmpeg (`mov_read_iprp`) and the real file. Also honest: `avifSeqHeader` now refuses an EMPTY `configOBUs` with `IMAGE: avif config obu absent` (a legal AVIF still image carries its sequence header in the item data — `readAvifItemObus` is the path that yields it), instead of reading the item bytes as if they were the config OBU. Proof RED-first: on the real file the pre-fix library refused at `readAvifMetadata` with `IMAGE: avif av1C property not covered` (measured); post-fix it reports `avif 480x410 items=2 primary=1 alpha=1 profile=1 level=1 tier=0 mono=0 sub=0/0 depth=8/8`, matching `ffprobe` (`yuv444p`, AV1 profile 1, 480x410). `AvifMetadataE2ETest` **8/8** (the `alpha.avif` fixture rewritten to the real two-`av1C` + `auxl` + `auxC` shape; the second Java reader now parses `ipma`/`auxl`/`auxC` independently) and `AvifSeqE2ETest` **8/8** (new empty-`configOBUs` refusal) on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`; the whole AVIF battery **56/56** unchanged. NEXT: the AVIF decode chain (item-data sequence-header walk — the real header is reduced profile 0 but `seqWalk` diverges on it; tile-group payload/coefficient walk), then AVIF `decodeRaster`.
+> **AVIF slice 2i LANDED 03/10 (pure Kof, `iloc` VERSION 0 + multi-extent + a REAL-FILE proof — `libs/image/AvifItems.kf`):** re-verifying the slice-2a state (D-PLAN-ONE-OWNER re-review) against a REAL AVIF file found on the dev host (a `.avif` shipped inside a browser-extension bundle — the fixture-host gap the plan recorded 01/10 is closed for this slice) surfaced a REAL misalignment: the slice-2a `iloc` parser read `item_count` at the wrong offset (one byte late), skipped the index_size/reserved byte, and put `construction_method` at `(word>>5)&7` instead of the spec's low nibble. The reader AND the second Java reader shared the same off-by-one, so the slice-2a oracle had a blind spot (the lesson of slice 2h). The syntax is now quoted from ISO 14496-12 §8.7.4 and cross-checked against TWO independent implementations read on the dev host 03/10 (FFmpeg `mov_read_iloc` and the mp4parser `ItemLocationBox` javadoc, which carries the spec text verbatim) AND validated byte-for-byte against the real file. Changes: `iloc` VERSION 0 (16-bit item ids, no construction word) is decoded instead of refused; VERSION 1 keeps the 12-bit-reserved + 4-bit-construction word at the correct offset; offset_size/length_size in {4,8} and base_offset_size in {0,4,8} are honored as measured field sizes (the real file is offset=4/length=4/base=0); an item with MORE THAN ONE extent is concatenated in order (AVIF §2.3); construction 0/1 unchanged, 2 refused; v2 still refused. Proof RED-first: `AvifItemsE2ETest` **8/8** — five item facts (mdat 2 items, idat, a v0/base-0 fixture matching the real-file shape, a TWO-extent concatenation) on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, 4 named refusals, and the second independent Java reader (rewritten spec-faithful) agreeing fact-for-fact; the pre-fix library reads the real file's `item_count` as 512 and refuses with `IMAGE: avif iloc item list not covered` (measured), and a Python spec parser independently confirms the real item1 range [14723,56883) len=42160 and item2 [430,14723) len=14293. Docs EN+PT: this line + the slice-2a description below, CHANGELOG, status, README 0f. No compiler change, no new gap, no decision required. NEXT: the AVIF decode chain (tile-group payload/coefficient walk), then AVIF `decodeRaster`.
+> **AVIF slice 1 LANDED 01/10 (pure Kof, container facts — `D-WEBP-LOSSY-PURE-KOF` chain: 'AVIF follows after VP8'):** `libs/image/Avif.kf` reads the ISOBMFF/AVIF CONTAINER from a bounded 4 KiB prefix — ftyp brand (`avif`/`avis`, major or compatible), `meta` (full box) children walk, `pitm` primary id, `iinf` item count (v0), `iprp/ipco` exactly-one `ispe` dimensions + exactly-one `av1C` configuration record (AVIF §3.1.1): seq_profile/level/tier/high_bitdepth/twelve_bit→bit depths (AV1 §5.1 index tables), monochrome, subsampling (monochrome consistency checked; profile/depth consistency checked), config OBU = forbidden-bits-zero OBU_SEQUENCE_HEADER with size field set AND the REDUCED-form flag — non-reduced forms REFUSED explicitly (`IMAGE: avif sequence header form not covered`; the full non-reduced field walk is its own later slice). `iref`/`auxc` alpha association to the primary (`urn:mpeg:hevc:2015:auxid:1`), version-0 boxes only (v1 = explicit refusal). Pixel decode NOT touched: `decodeRaster` keeps refusing AVIF. **Fixtures:** hand-built byte-exact per spec (no encoder exists on the test host: ffmpeg/avifenc/pip measured ABSENT 01/10; the libheif .so has no headers for an honest ABI pin — recorded as the front's TOOLING GAP; real-file goldens ride a later slice with a fixture host). **Oracle:** a SECOND, independent reader written in plain Java inside the test harness agrees byte-for-byte with the Kof library on every fact (`secondJavaReaderAgreesWithKofLibrary`). Proof: `AvifMetadataE2ETest` **8/8** — JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu) goldens, JS = `IOJS001` compile refusal (`readRange`), 5 explicit refusal messages, second-reader agreement; `AvifMetadataSupport` carries builders + second reader (test-hygiene ratchet split). Next slice candidates (plan §34): non-reduced sequence header + full item-location (iloc/idat) facts, then the AV1 intra decode chain. **Superseded by slice 2j (03/10, above): the exactly-one-`av1C`/exactly-one-`ispe` rule, the inline `iref/auxc` alpha and the length-prefixed `av1C` record were real-file bugs — `ipma` selection, the 4-byte record + `configOBUs[]` layout and the `iref/auxl`+`auxC` alpha are the spec-faithful behavior now.**
+> **AVIF slice 2a LANDED 01/10 (pure Kof, ITEM LOCATION — the mechanism every later AVIF slice needs):** `libs/image/AvifItems.kf` extracts the bytes of ONE stored item through the ISOBMFF `iloc` box (ISO 14496-12 §8.7.4): VERSION 1 only (v0/v2 = explicit refusals — the v0 bit-packing is measured against real files in its own slice), offset_size == length_size == 4, base_offset_size 4/8 (zero high word), reserved nibbles/bit + data_reference_index + index_size must be zero, construction_method 0 (file-absolute, e.g. `mdat`) and 1 (`idat` payload-relative); 2 = refused; the targeted item must carry EXACTLY one extent (multi-extent = refused, its own slice); a single `idat` at most; the extracted range must live inside the bounded 64 KiB prefix (beyond = refusal, never a truncated answer). `readAvifItemBytes(path, id)`/`avifItemBytes(bytes, id)`. No pixel decoding. Proof: `AvifItemsE2ETest` **8/8** — spec-golden byte facts (len/first/last/sum) on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS = `IOJS001` compile refusal, 4 explicit refusal messages, and a SECOND independent Java reader (`AvifItemsSupport.readItemJava`) byte-for-byte on every item; image battery `AvifMetadataE2ETest` 8/8 + `ImageMetadataE2ETest` 7/7 + `RasterDecodeE2ETest` 26/26 (1 env-skip) unchanged. Next slice candidates: non-reduced `OBU_SEQUENCE_HEADER` field walk, multi-extent/v0 iloc against real encoder files (fixture host), then the AV1 intra decode chain. **Superseded by slice 2i (03/10, above): the v1-only and one-extent limits were a parser offset bug; v0 and multi-extent now decode, and the parser is spec-faithful.**
+> **AVIF slice 2b LANDED 02/10 (pure Kof, SEQUENCE HEADER field walk — reduced AND non-reduced forms):** `libs/image/AvifSeq.kf` walks the full `OBU_SEQUENCE_HEADER` — every width quoted from the AV1 spec PDF read line-by-line on the dev host (5.5.1/5.5.2, not from memory): profile(2)/still(1)/reduced(1); reduced = level(5) only; non-reduced = timing branch (64-bit tick/scale, equal-picture uvlc consumed; decoder model info REFUSED), initial display delay, operating-point loop (idc 16, level 5, tier when level>7, per-op delay 4), frame width/height bits + max frame size, frame id numbers (4+3), capability block (128x128/filter/intra-edge, inter block/order hint/screen-content/integer-MV), superres/cdef/restoration, color_config: high/twelve bit depths, monochrome, color description (8+8+8), per-profile subsampling, chroma sample position, separate-UV delta-Q, film-grain flag. Refusals: profile 3 (`IMAGE: avif sequence profile not covered`), decoder model info, film grain, truncated config OBU. OBU wrapper: forbidden bits 0, type 1, size field, LEB128 size bounded by the av1C record. `readAvifSeqHeader(path)`/`avifSeqHeader(bytes)` -> `AvifSeqHeader` record (profile, still, reduced, max frame size, mono, subsampling, bit depth, chroma position, separate UV). `Avif.kf` container metadata face and `decodeRaster` unchanged. Proof RED-first: `AvifSeqE2ETest` **8/8** — reduced + non-reduced spec-fact goldens (profile 0 8-bit 8x8; profile 2 12-bit 32x24 with timing) on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), 3 refusal messages, SECOND independent Java reader (`AvifSeqSupport.javaSeqFacts`) fact-for-fact on all three forms; image battery `AvifMetadataE2ETest` 8/8 + `AvifItemsE2ETest` 8/8 unchanged (slice-1 `configObu` rewritten spec-exact: it had been missing the reduced frame-size/capability bits). Bugs the RED-first caught before green: config OBU end bound checked against the box header instead of the record; OBU extension flag read from the size byte; reserved identifier `byte` in Kof; `separate_uv_delta_q` mispositioned on the sRGB color path. Next slice candidates: item OBU-stream walk (delimiter/frame OBU types over the located item bytes), multi-extent/v0 iloc against real encoder files (fixture host), then the AV1 intra decode chain.
+> **AVIF slice 2c LANDED 02/10 (pure Kof, ITEM OBU-STREAM WALK — enumeration, not decode):** `libs/image/AvifObu.kf` walks the primary AV1 item's bytes (located by slices 1+2a) OBU by OBU with every rule quoted from the AV1 spec PDF read on the dev host (5.2/5.3.1/5.3.2/6.2): header byte forbidden(1)=0/type(4)/extension(1)/size-present(1)/reserved(1)=0, extension header 8 bits, LEB128 `obu_size` ("the size in bytes of the OBU not including the bytes within obu_header or the obu_size syntax element", §6.2.2); low-overhead streams — the AVIF item form — REQUIRE the size field on every OBU (§5.2: "When using this format, obu_has_size_field must be equal to 1") — a missing size field is REFUSED, never guessed; the stream must BEGIN with a temporal delimiter; the first sequence header is parsed by the slice-2b `seqWalk` (extracted bit-range function, behavior identical); types counted per the §6.2 table (delimiter/seq/frame header/redundant/tile group/tile list/metadata/frame/padding/reserved — reserved 0/9..14 skipped per "shall be ignored by AV1 decoder" §6.2). Refusals: `IMAGE: avif obu truncated`, `IMAGE: avif item obu missing size field`, `IMAGE: avif item obu reserved bit set`, `IMAGE: avif item obu forbidden bits`, `IMAGE: avif item does not begin with a temporal delimiter`, `IMAGE: avif item has no sequence header`, `IMAGE: empty avif item`. ENUMERATION only — frame/tile payloads are not decoded, `decodeRaster` keeps refusing AVIF. `readAvifItemObus(path)` composes container→pitm→iloc→walk; `avifItemObus(item)` is the pure-bytes face. Proof RED-first: `AvifObuE2ETest` **8/8** — mixed-stream spec-fact goldens (4-OBUs delimiter+seq+metadata+padding; 8-OBUs covering frame header/redundant/tile group/tile list/reserved/frame counts + reduced and non-reduced seq facts) on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), 6 refusal messages, SECOND independent Java reader (`AvifObuSupport.javaObuFacts` + `AvifSeqSupport.javaSeqCore`) fact-for-fact; image battery `AvifMetadataE2ETest` 8/8 + `AvifItemsE2ETest` 8/8 + `AvifSeqE2ETest` 8/8 + `ImageMetadataE2ETest` 7/7 + `RasterDecodeE2ETest` 26/26 (1 env-skip) unchanged. Bugs RED-first caught: a trunc fixture that claimed less than the item held read zeros instead of refusing (fixture corrected to a size past the end); `Bits` dedup for the ratchet. Next slice candidates: frame-header/tile-group payload walks (the AV1 intra decode chain), multi-extent/v0 iloc against real encoder files (fixture host).
+> **AVIF slice 2e LANDED 02/10 (pure Kof, TILE_INFO EXTENSION — uniform-spacing counts, still no decode):** the slice-2d frame walk extends through the 5.9.10 flags and the 5.9.15 `tile_info()` uniform path: `is_filter_switchable` (frame-level filter selection refused as `IMAGE: avif frame interp not covered`), `is_motion_mode_switchable`, `disable_frame_end_update_cdf` (read only when the prefix allowed it), then the uniform flag, the `increment_tile_cols_log2`/`increment_tile_rows_log2` loops (the spec's BREAK keeps the current log2 — a fixture initially invented stop bits past the cap and the harness caught it), `context_update_tile_id` + `tile_size_bytes_minus_1` (f(2)) when either log2 is > 0. Non-uniform spacing is refused by name (`IMAGE: avif tile size list not covered`) — the `ns()` per-tile tables are their own slice. `AvifFrameHeader` gains `tileColumns`/`tileRows` (the derived sb-grid counts); `AvifSeqHeader` grows the frame-context further with `use128x128Superblock` and `enableRefFrameMvs` captured as values (the walk consumes the same bits as before — the 2b/2c/2d suites stayed green). `frameWalk` now ends its documented stop at tile_info; loop filter/quantization/coefficient syntax ride the decode slices. Proof RED-first: `AvifFrameE2ETest` **8/8** — goldens now carry exact tile counts (32x32 uniform 1x1; 128x128 with two col + two row increments 2x2), JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, the refusal list grows to 8 named messages, and the SECOND independent Java reader agrees fact-for-fact on the goldens AND on all eight refusals (it diverged three real times during the loop: a missing allow_intrabc advance, a duplicated uniform advance, and stop bits written past the cap — each caught by the agreement test before green). Bugs RED-first caught here first: the walk read the motion bit twice in the draft; the `1x1` uniform tile at sbCols=1 does NOT read any increment (max=0) and the fixture needed a 128x128 sequence header to exercise a real multi-tile. Next: tile-group OBU header (§6.4.2 `tg_start`/`tg_end` + tile size column — "how many tiles, what sizes" without decode)
+> **AVIF slice 2f LANDED 02/10 (pure Kof, TILE-GROUP HEADER — tile byte sizes without decode, `libs/image/AvifGroup.kf`):** the tile_group_obu() header prefix per 5.11.1 + the 6.10.1 conformance rules, in its own file (split by responsibility): range flag when NumTiles>1, tg_start/tg_end f(tileBits), `byte_alignment()` (zero bits to the next byte, 5.3.5), the le(TileSizeBytes) per non-last tile with the LAST tile taking the remaining payload bytes. Named refusals for every conformance violation: full-range-with-flag, inverted range, out-of-order tg_start (`tg_start == TileNum` rule), last group not ending at NumTiles-1, OBU_TILE_LIST (8), redundant frame header (7), truncation anywhere — and an honest limit: an OBU_FRAME (6) places its inline group AFTER the full uncompressed_header (quantization/segmentation/loop-filter syntax between tile_info and the end depend on decode-chain values), so type 6 is refused (`IMAGE: avif frame obu tile group not covered`), never a guessed offset. `AvifFrameHeader` gained tileBits/tileSizeBytes/headerBytes (tileWalk now CONSUMES the tile_size_bytes value — spec-faithful); `AvifTileGroup(tgStart, tgEnd, tileCount, tileSizes, lastTileSize, totalBytes)`; `avifItemTileGroups(item)` + `readAvifTileGroups(path)`. Proof RED-first: `AvifFrameE2ETest` **16/16** — goldens `one 0..0 n=1 sizes= last=2 total=2` + `split 0..1 n=2 sizes=,5 last=3 total=8` / `split 2..3 n=2 sizes=,4 last=2 total=6` on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, 8 named refusals, and the second independent Java reader (`AvifGroupJavaSupport`, fresh 5.9/5.11 walk with its own tileBits capture) agreeing fact-for-fact on goldens AND on all eight refusal strings. Bugs the agreement loop caught: the fixture writer emitted only the size field WITHOUT the per-tile payload bytes (both readers refused trunc identically → writer bug, proof the two implementations were live), and the trunc fixture's 200-byte claim overflowed the single-byte OBU size field (hand-encoded instead). Suite note: the 8 red `NETN001` JS-net tests measured on the OLDER rebase base were already fixed upstream by `6395dbafc` (D-NET-JS-V1 vote (c)); §567 closed the same day with green proof on tip (`KofNetTest` 4/4, `NetJsV1RefusalE2ETest` 3/3, `ConformanceMatrixTest` 14/14). Next: multi-extent/v0 iloc against real encoder files (fixture host), the tile-group PAYLOAD/coefficient walk (decode chain), then AVIF decodeRaster., multi-extent/v0 iloc against real encoder files (fixture host).
+> **AVIF slice 2g LANDED 02/10 (pure Kof, METADATA OBU — OBU_METADATA payload walk, `libs/image/AvifMeta.kf`):** metadata_obu() per 5.8.1–5.8.4 + the 6.4.1 metadata_type table read from the spec corpus on the dev host (0 reserved for AOM use, 1 hdrCll, 2 hdrMdcv, 3 scalability, 4 itutT35, 5 timecode, 6–31 unregistered private, 32+ reserved for AOM use — the table is the contract, memory is not; a first landing had swapped 4/5 and mislabelled 32+ as user private, corrected 02/10 in slice 2h): leb128 metadata_type; T35 = country f(8) + optional extension byte when country==0xFF + raw payload byte count (the "last non-zero byte" content rule NOT applied — honest raw count reported); CLL = max_cll/max_fall f(16) exact numbers; MDCV = 8×f(16) chromaticities + 2×f(32) luminances as ten values; scalability and the private/reserved types are ENUMERATED with name + payload size, their sub-syntax not walked (structured/opaque video faces — documented frontier, never guessed). An unknown type never refuses (enumeration is the policy); only truncated reads throw `IMAGE:`. `AvifObuMetadata(type,name,payloadBytes,country,extended,t35Bytes,maxCll,maxFall,mdcv)`; `avifItemMetadataObus(item)` + `readAvifMetadataObus(path)` reuse the slice 2a/2c OBU framing and `Avif.kf` u8/be16/be32 (the new file imports the package helpers instead of redefining them). Proof RED-first: `AvifMetaE2ETest` **8/8** — goldens over t35/t35x/cll/mdcv/mixed fixtures (mixed stream carries T35 + scalability + unregistered-private metadata OBUs and a padding OBU in between) on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS refusal `IOJS001`, 4 honest truncation refusals, and a second independent Java reader (`AvifMetaJavaSupport`) agreeing fact-for-fact INCLUDING the refusal strings. The agreement loop caught a bad fixture: y=71241 chromaticity exceeds f(16) (both readers wrapped to 5705 identically → fixture bug, fixed to 60000). Suite note: the `NetJsE2ETest` red that reappeared was a STALE compiled class in the shared `target/test-classes` after upstream `6395dbafc` renamed the source to `NetJsV1RefusalE2ETest` — environmental, purged; net tests green 4/4 + 3/3 on the current tree. Next: slice 2h = metadata_timecode() (5.8.7 bitfields + 6.7.7 semantics) on `libs/image/AvifMeta.kf` reusing the 2d bit-reader; scalability(3) stays name+size (scalability_structure is deep video syntax — separate frontier); then multi-extent/v0 iloc against real encoder files (fixture host), then the tile-group payload/coefficient walk (decode chain), then AVIF decodeRaster.
+> **AVIF slice 2h LANDED 02/10 (pure Kof, METADATA TIMECODE — `metadata_timecode()` walk + the 6.4.1 table correction, `libs/image/AvifMeta.kf`):** the metadata_type table was measured wrong in the slice-2g landing (4/5 swapped, 32+ mislabelled as user private); the contract was re-read from the AV1 spec source (`07.bitstream.semantics.md`) AND cross-checked against the AOM `aom/aom_codec.h` `OBU_METADATA_TYPE_*` enum (0 reserved for AOM use, 1 hdrCll, 2 hdrMdcv, 3 scalability, 4 itutT35, 5 timecode, 6–31 unregistered private, 32+ reserved for AOM use) — the two independent sources agree. The timecode payload (5.8.7 syntax + 6.7.7 semantics) is now walked: counting_type f(5), full_timestamp_flag f(1), discontinuity_flag f(1), cnt_dropped_flag f(1), n_frames f(9); when full_timestamp_flag is set, seconds f(6)/minutes f(6)/hours f(5); otherwise the seconds/minutes/hours flags gate their values (a value not present is reported as -1 — the spec's “inferred from the previous set” is stream-level state this metadata-only walk does not carry); then time_offset_length f(5) and, when > 0, time_offset_value f(time_offset_length), all read MSB-first with the 2d `seqRead` bit-reader. `AvifObuMetadata` gains `timecode: List<Int>` ([countingType, fullTimestamp, discontinuity, cntDropped, nFrames, seconds, minutes, hours, timeOffset]). Proof RED-first: `AvifMetaE2ETest` **8/8** — two new fixtures (`tc`: full timestamp, counting 3, n_frames 24, 23:59:45, offset 0; `tcf`: partial timestamp, every flag 0, time_offset_length 4/offset 9) plus the corrected T35 fixtures (type 4) and the mixed stream (now t35(4)+scalability(3)+private(7)+reserved(32)) on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, 5 honest truncation refusals (incl. a 2-byte timecode payload), and the second independent Java reader agreeing fact-for-fact on goldens AND refusals. The pre-fix library compiles the probe as `SEM025 Cannot resolve field 'timecode'` (measured); a table-only revert would print `4 timecode` and fail the golden. Bugs the correction caught: the first landing's table was wrong AND the agreement loop had a shared blind spot (both readers carried the same bad table), which is why 56/56 was green — the fixtures now anchor to the spec, not to a shared assumption.
+> **AVIF slice 2d LANDED 02/10 (pure Kof, FRAME HEADER PREFIX — parse-and-stop, not decode):** `libs/image/AvifFrame.kf` parses `frame_header_obu`/`uncompressed_header` (AV1 spec §5.9.2, quoted from the PDF read on the dev host) over the located item bytes, carrying the context the slice-2b `seqWalk` now exposes on `AvifSeqHeader` (frame-id lengths, order-hint bits, frame size bit widths, SELECT screen-content/integer-MV markers): show_existing_frame, frame_type, show/showable, error_resilient (forced 1 for a shown KEY), disable_cdf_update, allow_screen_content_tools/force_integer_mv (SELECT vs seq-forced), current_frame_id (delta+additional+3 widths), frame_size_override_flag, order_hint, refresh_frame_flags + ref_order_hint loop, coded size (override widths `wBits+1`/`hBits+1`), superres refusal, render_size (the 5.9.6 flag has NO reduced guard — measured, corrected in-walk) and the allow_intrabc stop point. Refusals (named, never silent): `IMAGE: avif frame show-existing not covered`, `IMAGE: avif inter frame not covered`, `IMAGE: avif intra block copy not covered`, `IMAGE: avif frame size-with-refs not covered`, `IMAGE: avif superres not covered`, `IMAGE: truncated avif frame header`, `IMAGE: avif item has no frame header`. `readAvifFrameHeader(path)` composes container→pitm→iloc→OBU framing→this walk; `avifItemFrameHeader(item)` is the pure-bytes face; `AvifFrameHeader` reports frame type, show/error-resilient flags, size override, coded and render sizes. METADATA ONLY — tile info, loop filter and quantization syntax past allow_intrabc ride the decode slices; `decodeRaster` keeps refusing AVIF. Proof RED-first: `AvifFrameE2ETest` **8/8** — reduced-key, non-reduced KEY with size override (coded 5x3 vs max 8x8) and render-size goldens on JVM + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu), JS `IOJS001`, 6 refusal messages, SECOND independent Java reader (full 5.5/5.9 prefix parse in `AvifFrameSupport.javaFrameFacts`) fact-for-fact on the goldens AND on all six refusals; image battery unchanged (Metadata 8/8, Items 8/8, Seq 8/8, Obu 8/8, ImageMetadata 7/7, RasterDecode 26+1-skip); full kof-compiler suite 4361/0F. Bugs RED-first caught: a first-draft walk read the size bits before the order-hint/refresh and treated render_size as reduced-skipped (spec has no such guard); the frame-id width was a hardcoded 4 instead of the seq's delta+additional+3; the java reader desynced on the per-operating-point display-delay bit. Next slice candidates: tile-group payload walk (the AV1 intra decode chain), multi-extent/v0 iloc against real encoder files (fixture host).
+
+
+> **State (29/09): UNDER DEVELOPMENT — promoted `future/` → `docs/development/` by `D-FUTURE-PROMOTION` + `D-IMAGE-VISION-GO` (maintainer 29/09), library-first (`D-KOF-FIRST-IMPL`).**
+> **Slice 1 LANDED 29/09:** pure-Kof `libs/image/` — `Image(path).format()/.width()/.height()` read the **format + pixel dimensions** from the leading bytes (`PNG`/`GIF`/`BMP` info+core/`JPEG` SOF/`WEBP` VP8·VP8L·VP8X + `TIFF` + `ICO`/`CUR` + `PNM` P1–P6 + `QOI` + `PSD`/`DDS`/`farbfeld`/`AVIF`-`HEIF`) and the `Bool isImage(path)` helper, over a bounded 4 KiB prefix of `kof.io.readRange`; no codec, no pixels, no new syntax. Golden measured on JVM + Native x86-64 + riscv64 (qemu) + Script, JS gap `IOJS001` — `ImageMetadataE2ETest` 7/7.
+> Heavy per R1/R9: `kof.image`/`kof.vision` are **official packages** (born `experimental`); codecs and algorithms come from mature libraries isolated behind the Kof API (imageio/turbojpeg/OpenCV/ONNX, evaluated per license/target). Pixels/filters and `kof.vision` remain future slices; a measured native-lane finding is catalogued as `known-bugs` **§540** (cross natives fail a single ≥64 Ki Int allocation).
+> **How to finish:** pixel decode + `Image` data → `resize`/`crop`/`rotate` (interop slice), then Phase 2 processing, Phase 3 `kof.vision`; each slice additive, with docs + all-target golden. Rule 6: any new operator/semantics is a maintainer decision; real syntax is `var`/`val` (never `let`/`const`).
+> **Decision RESOLVED 29/09 (`D-IMAGE-SURFACE`, maintainer):** the pixel surface **reuses `Raster`** (no new `Image`/`Pixel`/`Color`); codecs are pure Kof wherever feasible and ride JVM **imageio** (through the `kof.image` builtin `image.decode`, an explicit JVM-only commitment) only where a pure-Kof decoder is infeasible, with an honest `IMG001` gap elsewhere — see §34. JPEG interop landed 29/09 (`RasterDecodeE2ETest#jpegDecodesOnJvmViaInterop`). (The original decision request follows for history.)
+> **Slice 2a LANDED 29/09 (Kof-first half of the pixel slice):** `decodeRaster(path)` returns a provisional `Raster(format, width, height, channels, samples)` for **uncompressed** formats — PNM `P5`/`P6` and farbfeld — bounded to ≤16384 samples (one read, under the then-open §540 cross-native cap; later raised to 262144, §5); compressed formats stay interop-first behind the decision. Proof: `RasterDecodeE2ETest` 7/7 (PNM/farbfeld golden + unsupported/oversized; JVM + Native x86-64/riscv64 + Script; JS `IOJS001`).
+> **Slice 2b LANDED 29/09:** pure-Kof raster operations over the provisional `Raster` — `cropRaster(r,x,y,w,h)` and `resizeNearest(r,w,h)` (nearest-neighbour), output bounded by the same cap; smooth filtering waits for the interop slice. Proof: `RasterDecodeE2ETest` 7/7.
+> **Slice 3g LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8lTransforms.kf` (new) + `libs/image/Vp8l.kf` — VP8L **predictor** (14 modes, §3.5.1) and **color** (§3.5.2, `ColorTransformDelta = (s8(t)*s8(c))>>5`) inverse transforms, applied in reverse order; the transform loop now reads `size_bits`/subresolution grids for both and the entropy decode was factored into `vp8lDecodeImage(r,w,h,metaAllowed)` so transform sub-images never read the ARGB-only meta-prefix bit (§3.8.3). Color-indexing transform and meta-Huffman groups still refused with explicit `IMAGE:` diagnostics. Proof: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. a new 8x8 libwebp-generated predictor+color stream **byte-validated against libwebp**, JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP predictor transform is not supported yet`).
+> **Slice 3h LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8lTransforms.kf` + `libs/image/Vp8l.kf` — VP8L **COLOR_INDEXING transform** (§3.5.4): the palette sub-image (`num_colors = ReadBits(8)+1`, colors delta-coded left-to-right and expanded to `1 << (8 >> bits)` entries) is applied to the entropy image, whose green channel packs `1 << bits` indices of `8 >> bits` bits, least significant first, at the reduced width `ceil(w / 2^bits)`. Fixed a latent **`max_symbol`** bug in `vp8lReadNormal` (`ReadHuffmanCodeLengths` caps the number of decoded code-length *symbols*, not the resulting array length — RFC 9649 §3.6.2.1); the bug only surfaced when the "use length" flag reduced `max_symbol` below the alphabet and desynced the bitstream. Meta-Huffman groups still refused with an explicit `IMAGE:` diagnostic. Proof: `RasterDecodeE2ETest` 19/19 (new 8x8 libwebp-generated 8-color indexing stream, byte-validated against libwebp; JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP color-indexing transform is not supported yet`).
+> **VP8 lossy slice 2 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Frame.kf` + `libs/image/Vp8Probs.kf` (new) — RIFF/`WEBP` walk + full `VP8 ` frame header (RFC 6386 §9/§19): key-frame tag/start code/dimensions, segmentation, loop filter, token-partition count, the six dequant indices and the 1056-entry coefficient-probability table (defaults + updates). `Vp8Bool` gained `signedOrZero`/`bytePosition`. Proof: `Vp8FrameE2ETest` 4/4 vs an independent RFC §19.2 oracle on JVM + Native x86-64 + riscv64(qemu) + Script. Modeled as a class (not a wide record) because the cross backend corrupted calls with ≥9 arguments (`known-bugs` §546, issue #703 — **FIXED 30/09**, `NativeCrossWideArgsE2ETest` 3/3).
+> **VP8 lossy slice 3 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Frame.kf` now decodes the key-frame macroblock prediction records (RFC 6386 §10/§11): per-macroblock segment id (when `update_mb_segmentation_map`), `mb_skip_coeff` (when `mb_no_skip_coeff`), the luma 16x16 mode, the 16 context-coded luma subblock modes when the mode is `B_PRED` (the 10×10×9 `kf_bmode_prob` indexed by the subblock modes above/left, across macroblock boundaries) and the chroma mode. New `libs/image/Vp8ModeProbs.kf` carries the three fixed tables (`kf_ymode_prob`, `kf_uv_mode_prob`, `kf_bmode_prob`). Proof: `Vp8ModeE2ETest` 4/4 vs an independent RFC §7.3/§10/§11 oracle over three libwebp lossy files (4×4 segment map + `mb_skip_coeff`; all-`B_PRED` 2×2; mixed luma/chroma modes) on JVM + Native x86-64 + riscv64(qemu) + Script — every segment id, skip flag and mode identical. Next slices: DCT coefficient decoding (§13), intra prediction + inverse DCT/WHT (§12/§14), the loop filter (§15).
+> **VP8 lossy slice 4 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Coeffs.kf` (new) — the token-partition DCT/WHT **coefficient decoder** (RFC 6386 §13.2/§13.3): for every macroblock not marked `mb_skip_coeff`, the Y2/16 Y/4 U/4 V 4×4 blocks are read from the block tree (end-of-block, zero, 1, 2 and 3–4 branches, the three context-coded value nodes and the six category tokens with their fixed extra-bit probabilities `Pcat1..Pcat6`) into `mb*400 + block*16 + zig-zagIndex`, with the end-of-block position per block; the above/left non-zero predictors cross macroblock boundaries and are cleared for a skipped macroblock. `vp8TokenPartition` builds the single token-partition bool decoder and refuses a multi-partition frame with an explicit diagnostic (libwebp always emits one) rather than mis-decoding. Proof: `Vp8CoeffE2ETest` **4/4** vs an independent RFC §7.3/§13 oracle over four real libwebp lossy files (DC-only 16×16, all-`B_PRED` 32×32, a 64×64 with `mb_no_skip_coeff` + skips, and a 64×64 mixing every coefficient category), reproducing the non-empty-block count and signed/absolute coefficient sums of every macroblock on JVM + Native x86-64 + riscv64(qemu) + Script. The oracle's per-position band lookup was cross-checked against the RFC §20.16 reference `tokens.c` (`prob += bands_x[c]`, a single mapping). Next slices: intra prediction + inverse DCT/WHT (§12/§14), the loop filter (§15).
+> **VP8 lossy slice 5a LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Residual.kf` (new) — **dequantization + inverse transforms** (RFC 6386 §14). Every macroblock's quantized coefficients are dequantized with its frame/segment factors (`dc_qlookup`/`ac_qlookup` §14.1; Y2 DC `×2`, Y2 AC `×155/100` min 8, UV DC clamped to 132), the Y2 block is inverted with the inverse Walsh-Hadamard transform (§14.3) and its 4×4 output becomes the DC term of the 16 luma subblocks, then every luma/chroma subblock is inverted with the inverse DCT (§14.4, `20091`/`35468`). The two 128-entry quant tables are built **once** into a `Vp8QuantTables` object (holding them alive across macroblocks — rebuilding the `listOf` per call triggered a riscv64 GC mark race that corrupted the residue; the object form is stable across all targets). Proof: `Vp8ResidualE2ETest` **4/4** vs an independent RFC §14 oracle over four real libwebp lossy files (one `B_PRED` DC-only, a 2×2 all-`B_PRED`, a segmented/skip frame, a frame mixing every category) — the signed/absolute luma/chroma sums of every macroblock identical on JVM + Native x86-64 + riscv64(qemu) + Script. Next: intra prediction (§12) + reconstruction (add the residue to the predicted pixels), then the loop filter (§15).
+> **VP8 lossy slice 5 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Reconstruct.kf` (new, `vp8Reconstruct`) turns the quantized coefficients into the three reconstructed **pre-loop-filter** planes (RFC 6386 §12/§14) — the residue — per-segment dequantization §14.1, inverse Walsh-Hadamard transform of the Y2 DC block §14.3 and inverse 4×4 DCT §14.4, all in `libs/image/Vp8Residual.kf` (landed as slice 5a) — then 16×16 luma (DC/V/H/TM) + the ten `B_PRED` 4×4 subblock modes §12.3 (`libs/image/Vp8Predict4.kf`) + 8×8 chroma modes §12.2 and the saturating prediction+residue sum §14.5, into padded planes. The `B_PRED` above/right pixels replicate the macroblock top-right pixels down the row (libwebp `top_right[BPS]=…`), the Y-block DC uses the Y2 `(dc[0]+3)>>3` shortcut when only the DC is non-zero, and U/V are predicted independently from their own planes. **Oracle = libwebp itself** decoded with the loop filter disabled (`ffmpeg -skip_loop_filter all`): slice 5 stops before §15, so the exact pre-filter planes are the golden. Proof: `Vp8ReconstructE2ETest` **4/4** — four real libwebp files (`flat16` 16×16 V_PRED + DC-only Y2, `diag32` all-`B_PRED` 32×32, `skip64` mixed 16×16 + skipped MBs, `cat64` mixed modes + every residual) reproduce libwebp's per-plane sample sum and a rolling hash for Y, U and V on JVM + Native x86-64 + riscv64(qemu) + Script. Next slice: the loop filter (§15), after which the full decoder is byte-identical to libwebp.
+> **VP8 lossy slice 6 LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8Filter.kf` (new, `vp8LoopFilter`) — the in-loop **deblocking filter** (RFC 6386 §15), the last stage of key-frame reconstruction. Per macroblock it derives the strength from the frame level and the segment override (§15.4: `interior_limit`, `hev_threshold`, the `+4` inter-macroblock edge limit), then filters the left vertical, internal vertical, top horizontal and internal horizontal edges in that order: the 4-tap adjustment (`DoFilter4`/`common_adjust` without outer taps) on inter-sub-block edges, the 6-tap one (`DoFilter6`/`MBfilter`) on inter-macroblock edges, and the simple 2-tap adjustment on high edge variance; chroma is left untouched by the simple filter type. Internal edges are skipped for a macroblock that is neither `B_PRED` nor carries coefficients (§15.1). **Oracle = libwebp itself** with its default filter enabled (plain `ffmpeg` decode): `Vp8FilterE2ETest` **4/4** — the four slice-5 fixtures reproduce libwebp's filtered per-plane sample sum and 24-bit rolling hash (`skip64`/`cat64` are the ones whose planes the filter changes), on JVM + Native x86-64 + riscv64(qemu) + Script; the two pre-filter fixtures are unchanged, matching libwebp. With this slice the pure-Kof VP8 key-frame decoder reproduces libwebp end-to-end.
+> **VP8 lossy slice 7 LANDED 01/10 (pure Kof, all targets):** `libs/image/Vp8Raster.kf` (new, `vp8Raster`) routes a lossy WebP to the `Raster` view — the honest boundary is closed. `decodeRaster(path)` now dispatches a `VP8 ` chunk through the whole key-frame chain (frame header → modes → coefficients → dequantization + intra prediction → `vp8LoopFilter`) and converts the filtered YUV 4:2:0 planes to interleaved RGB (BT.601 limited range, nearest chroma: `clip((298*(Y-16) + 409*(V-128) + 128) >> 8)`, the arithmetic shift matching libwebp's fixed point). The planes are read through the reconstruction's own `yAt/uAt/vAt` accessors, so the macroblock-padded stride (`mbCols*16+1`) is handled — the naive `width+1` stride silently corrupts a frame whose width is not a multiple of 16. Proof: `Vp8RasterE2ETest` **4/4** — five real libwebp files (`flat16`, `diag32`, `skip64`, `cat64`, `odd20x28` 20×28) reproduce libwebp's Y/U/V (slice 6) through the documented limited-range matrix; the formula was validated against libwebp's RGB output on solid chroma; JVM + Native x86-64 + riscv64(qemu) + Script, RED-first (`PKG006 import 'image.Vp8Raster' not found`).
+> **VP8 lossy slice 8 LANDED 01/10 (pure Kof, all targets):** `libs/image/Vp8Coeffs.kf` (`vp8TokenPartitions`) decodes the **multi-token-partition** key frames (RFC 6386 §9.5) instead of refusing them — the first data partition holds the 3-byte size of each of the first `n-1` partitions and macroblock row `r` uses partition `r % n` (2, 4 or 8 partitions). Fixtures are real libvpx 1.14 encodes (`VP8E_SET_TOKEN_PARTITIONS`) of a 16x128 frame. Proof: `Vp8CoeffE2ETest` **4/4** (eight fixtures: `np2`/`np4`/`np8` reproduce the single-partition coefficient golden), RED-first on JVM + Native x86-64 + riscv64(qemu) + Script.
+> **`kof.vision` region descriptors LANDED 30/09 (pure Kof, all targets):** `libs/vision/Regions.kf` (new) adds `componentBoxes(labels, width)` (exact axis-aligned bounding box per component label), `componentAreas(labels)` (pixel count per label) and `labelComponents(labels, width)` (the `List<Component>` object form) — the §12 "regions" / §14 "contour extraction" descriptors, built on `componentLabels`. Proof: `VisionAnalysisE2ETest` **4/4** (the 6×4 two-blob PGM yields `areas=3,4`, `box1=0,0,1,1`, `box2=3,1,4,2`, `regions=2 r1=1@0,0 a3`) on JVM + Native x86-64 + riscv64(qemu) + Script.
+> **Slice 3i LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L **meta-Huffman groups** (RFC 9649 §3.7.2.2): `prefix_bits = ReadBits(3)+2`; the entropy image `ceil(w/2^bits) × ceil(h/2^bits)` is entropy-decoded, each pixel's red/green bytes give its group index, one prefix-code group is read per distinct value, and each pixel selects its group by `entropy[(y>>bits)*xw + (x>>bits)]` (the LZ77 copy is not clamped to group blocks, matching libwebp). This was the last VP8L refusal — the whole VP8L lossless path now decodes. Proof: `RasterDecodeE2ETest` 19/19 (new 8x8 two-group libwebp-generated stream, byte-validated against libwebp; JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP meta-Huffman groups are not supported yet`).
+> **Slice 3f LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L **color cache** (RFC 9649 §3.6.2.3: `color_cache_code_bits` 1..11, slot `(0x1e35a7bd * argb) >> (32 - bits)`, every literal/copied pixel inserted in stream order, `S >= 256+24` reads the cache). The green prefix code alphabet is now `256+24+cache_size`. Decodes subtract-green/color-cache/single-group streams. Predictor/color/indexing transforms and meta-Huffman still refused with explicit `IMAGE:` diagnostics. Proof: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. a new 8x8 color-cache stream **generated by libwebp and byte-validated against it**, JVM + Native x86-64 + riscv64(qemu) + Script); RED measured on the pre-slice decoder (`IMAGE: WebP color cache is not supported yet`).
+> **Slice 3e LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L **normal (code-length) Huffman codes** + **LZ77 backward references** (length/distance prefix extra bits + the §3.6.2.2.1 distance map). Decodes the subtract-green/no-cache/single-group subset that real libwebp emits. Predictor/color/indexing transforms, color cache and meta-Huffman still refused with explicit `IMAGE:` diagnostics. Proof: `RasterDecodeE2ETest` 19/19 (`webpVp8lDecodesOn*` incl. a hand-built normal-Huffman+LZ77 stream, libwebp-validated, JVM + Native x86-64 + riscv64(qemu) + Script). Re-test of the VP8L native face after the §541/§543 fixes.
+> **Slice 3d LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L transform loop + **SUBTRACT_GREEN** inverse; predictor/color/indexing, cache, meta and LZ77 still refused with explicit `IMAGE:` diagnostics.
+> **Slice 3c LANDED 29/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` — VP8L core (bit reader + simple Huffman + literals); transforms/cache/meta/LZ77 refused with explicit `IMAGE:` diagnostics. Proof: `RasterDecodeE2ETest` 19 run/0F (`webpVp8lDecodesOn*` on JVM + Native x86-64/riscv64 + Script).
+> **Slice 3b LANDED 29/09 (pure Kof, all targets):** `libs/image/Gif.kf` decodes the first GIF frame (Kof LZW, global/local palette, interlaced) to RGB. Proof: `RasterDecodeE2ETest` 15 run/0F (`gifDecodesOn*` on JVM + Native x86-64/riscv64 + Script).
+> **Slice 2f LANDED 29/09 (pure Kof, parity — no gap):** `decodeRaster` decodes **QOI** (all chunks: RGB/RGBA/diff/luma/run/index) in Kof, so a compressed-format decode ships on every target. Decision `D-IMAGE-SURFACE` (reuse `Raster`; pure Kof when feasible, JVM imageio only where infeasible) + §34 TODO recorded. Proof: `RasterDecodeE2ETest` 7/7 (QOI golden incl. a RUN chunk; JVM + Native x86-64 + riscv64 + Script).
+> **Slice 2c LANDED 29/09:** `flipHorizontal`, `flipVertical` and `rotate90` (clockwise, dimensions swap) over the provisional `Raster`. Proof: `RasterDecodeE2ETest` 7/7.
+> **Slice 2d LANDED 29/09:** `decodeRaster` also decodes uncompressed **BMP** 24/32-bit (BGR rows padded to 4 bytes, bottom-up or top-down, alpha dropped). Proof: `RasterDecodeE2ETest` 7/7.
+> **Slice 2e LANDED 29/09 (processing overlap):** `grayscale` (BT.601), `threshold(level)` and `boxBlur` (3x3, clamped borders) over the `Raster`. Proof: `RasterDecodeE2ETest` 7/7.
+
+## Objective
+
+Create native Kof support for **image manipulation and computer
+vision**, through own idiomatic APIs, integrated with the language and
+stdlib architecture.
+
+The project splits conceptually into:
+
+```text
+kof.image  → image manipulation and processing
+kof.vision → computer vision and visual analysis
+```
+
+`kof.file` remains responsible for files and storage formats.
+
+The responsibility of `kof.image` and `kof.vision` starts from the
+already-loaded image data.
+
+---
+
+# FUNDAMENTAL RULE — KOF IS KOF
+
+Before implementing anything:
+
+1. Read the current Kof grammar.
+2. Read real examples in the project.
+3. Consult existing stdlib APIs.
+4. Consult the type system.
+5. Consult the current arrays/buffers model.
+6. Consult the memory model.
+7. Consult the existing targets.
+8. Consult the module system.
+9. Run the current tests.
+
+Do not invent syntax.
+
+Kof uses `var`.
+
+Do not use: `let`, `const`, JavaScript variations, Python syntax, Kotlin
+syntax.
+
+Do not turn the API into a DSL inspired by another language.
+
+All examples in this document are conceptual and must be adapted to the
+real Kof syntax before being implemented.
+
+---
+
+# 1. Architecture
+
+The desired architecture is:
+
+```text
+kof.file
+    │  bytes / stream / file
+    ▼
+kof.image
+    ├── Image  ├── Pixel  ├── Color  ├── ImageBuffer
+    ├── ImageIO  ├── Transform  └── Processing
+    ▼
+kof.vision
+    ├── Detection  ├── Features  ├── Segmentation
+    ├── Tracking   ├── Geometry  ├── OCR  └── ML integration
+```
+
+The final structure must follow Kof's existing architecture.
+
+Do not create modules just to reproduce this tree literally.
+
+---
+
+# 2. `kof.image`
+
+`kof.image` must provide its own abstraction for images.
+
+Conceptually:
+
+```text
+Image
+├── width
+├── height
+├── format
+├── channels
+├── pixels
+└── metadata
+```
+
+The internal representation must be efficient and adequate to the
+targets.
+
+---
+
+# 3. Image formats
+
+Progressively support common formats: PNG, JPEG, WebP, GIF, BMP, TIFF.
+
+The first implementation does not need to support all of them.
+
+Prioritize the most-used formats and those with mature libraries
+available.
+
+---
+
+# 4. Reading and writing
+
+Integrate with `kof.file`.
+
+Conceptually:
+
+```text
+arquivo → kof.file → bytes/stream → kof.image → Image
+Image → kof.image → encoder → kof.file → arquivo
+```
+
+The image API must not need to know filesystem details.
+
+---
+
+# 5. Pixels
+
+Provide pixel access when needed.
+
+Support representations like: RGB, RGBA, Grayscale.
+
+Evaluate later: BGR, BGRA, YUV, HSV, Lab.
+
+Do not create dozens of pixel formats in the first version.
+
+---
+
+# 6. Basic operations
+
+Implement progressively:
+
+* resize; crop; rotate; flip; transpose; scale; padding;
+* composition; format conversion; channel conversion; grayscale;
+* brightness; contrast; saturation; alpha; normalization.
+
+The API should favor composable operations.
+
+---
+
+# 7. Image processing
+
+Add classic processing operations:
+
+```text
+Blur / Gaussian Blur / Median Blur / Sharpen
+Threshold / Adaptive Threshold / Edge Detection
+Morphology / Convolution / Histogram / Equalization
+```
+
+Prioritize classic, well-defined algorithms.
+
+Do not add algorithms just to increase the feature count.
+
+---
+
+# 8. Geometry
+
+Create own types when needed:
+
+```text
+Point  Size  Rect  Circle  Line  Polygon  Contour
+```
+
+These structures must be reusable by `kof.image` and `kof.vision`.
+
+---
+
+# 9. Masks
+
+Support image masks.
+
+Conceptual example:
+
+```text
+Image + Mask → Operation → Image
+```
+
+Enable: selection; composition; cropping; mathematical operations;
+localized processing.
+
+---
+
+# 10. Histograms
+
+Provide histogram infrastructure.
+
+Allow: per-channel histograms; grayscale; distribution; equalization;
+statistical analysis.
+
+This is useful for both processing and computer vision.
+
+---
+
+# 11. `kof.vision`
+
+`kof.vision` must be responsible for computer-vision algorithms.
+
+The API must work over `Image` and the geometric structures of
+`kof.image`.
+
+---
+
+# 12. Detection
+
+Support progressively: edges; lines; circles; contours; regions;
+objects; features.
+
+The first implementation must prioritize classic algorithms.
+
+---
+
+# 13. Feature detection
+
+Evaluate support for:
+
+```text
+Corners  Keypoints  Descriptors  Feature Matching
+```
+
+Possible algorithms:
+
+```text
+Harris  FAST  ORB  SIFT
+```
+
+The choice must consider: license; performance; maturity; real need;
+availability per target.
+
+Do not implement everything simultaneously.
+
+---
+
+# 14. Segmentation
+
+Add progressively:
+
+* thresholding; binary segmentation; connected components; region
+  growing; contour extraction; watershed when appropriate.
+
+The API must produce structures reusable by other operations.
+
+---
+
+# 15. Tracking
+
+Evaluate support for tracking objects/regions in image sequences.
+
+Possible components:
+
+```text
+Tracker  Frame  Region  Object  Trajectory
+```
+
+Do not implement tracking before there is adequate infrastructure for
+frames and incremental processing.
+
+---
+
+# 16. Camera
+
+Create an abstraction for frame capture when the target allows it.
+
+Conceptually:
+
+```text
+Camera → Frame stream → Image → Vision pipeline
+```
+
+It must support: open; close; resolution; FPS; capture; streaming;
+resource control.
+
+Do not block the main thread unnecessarily.
+
+Do not create naive infinite loops.
+
+A target without adequate support: document the limitation (gap
+`XXX00x`, R6) instead of a fake implementation.
+
+---
+
+# 17. Pipelines
+
+One of the important features of `kof.vision` must be operation
+composition.
+
+Conceptually:
+
+```text
+Camera → Frame → Resize → Grayscale → Blur → Edge Detection → Contour Detection → Result
+```
+
+The model must allow efficient pipelines without creating unnecessary
+image copies.
+
+Evaluate:
+
+* reusable buffers;
+* in-place operations when safe;
+* lazy processing;
+* operation fusion;
+* streaming.
+
+Do not implement complex optimizations before having benchmarks.
+
+---
+
+# 18. OCR
+
+Evaluate integration with OCR.
+
+The first version does not need to implement its own OCR.
+
+It may use a mature external engine, isolated behind a Kof API.
+
+Conceptually:
+
+```text
+Image → OCR → Text
+```
+
+Future possibilities:
+
+* bounding boxes; confidence; lines; words; characters; language.
+
+---
+
+# 19. QR Code
+
+`kofqrcode` must remain a specific module.
+
+But there must be natural integration with `kof.image` and, in the
+future, `kof.vision`.
+
+Architecture:
+
+```text
+kof.image → Image → kofqrcode → QR Result
+```
+
+Do not duplicate image decoder/encoder inside `kofqrcode`.
+
+---
+
+# 20. Machine Learning
+
+`kof.vision` must leave room for future integration with ML models.
+
+Do not create an entire ML framework inside this module.
+
+The initial responsibility may be:
+
+```text
+Image → Tensor/Buffer → Model → Inference → Detection/Classification/Segmentation
+```
+
+Evaluate later integration with runtimes such as:
+
+* ONNX Runtime;
+* TensorFlow Lite;
+* other adequate runtimes.
+
+The public API must remain independent of the runtime used.
+
+---
+
+# 21. Object detection
+
+In the future:
+
+```text
+Image → Object Detector → Detection[]
+```
+
+Each detection may conceptually have:
+
+```text
+class  confidence  boundingBox
+```
+
+The data model must be simple and reusable.
+
+---
+
+# 22. Classification
+
+Support in the future:
+
+```text
+Image → Classifier → Classification[]
+```
+
+With: class; confidence; optional metadata.
+
+---
+
+# 23. Semantic segmentation
+
+Plan future support for:
+
+```text
+Image → Segmentation Model → Mask
+```
+
+Reusing the mask abstractions that already exist.
+
+---
+
+# 24. Performance
+
+Computer vision can be extremely intensive.
+
+Design considering:
+
+* SIMD; reusable buffers; contiguous memory; in-place operations;
+  zero-copy when possible; parallel processing; GPU when available;
+  specific accelerators; WASM SIMD; Native SIMD.
+
+Do not sacrifice the clean API in the name of micro-optimizations.
+
+---
+
+# 25. Targets
+
+Evaluate progressively:
+
+```text
+JVM  Native  JS  WASM
+```
+
+### JVM
+
+May use mature libraries when needed.
+
+### Native
+
+Prioritize performance and efficient memory access.
+
+### JS
+
+Support operations compatible with the browser.
+
+### WASM
+
+Explore:
+
+* WASM SIMD;
+* local processing;
+* image pipelines;
+* inference when there is an adequate runtime.
+
+Do not promise artificial parity between targets.
+
+Document clearly the support of each API.
+
+---
+
+# 26. Security
+
+Consider:
+
+* malformed images; giant files; decompression bombs; dimension
+  overflow; invalid buffers; corrupted formats; excessive memory
+  consumption; untrusted models; camera input; processing of external
+  data.
+
+Do not trust images received from external sources.
+
+---
+
+# 27. Dependencies
+
+Do not implement complex codecs or algorithms from scratch when there
+are mature, adequate libraries.
+
+But:
+
+**the dependency must not leak into Kof's public API.**
+
+For example, the user must not need to know a specific class of an
+external library to work with `Image`.
+
+The external library is an implementation detail.
+
+Evaluate:
+
+* license; maturity; security; maintenance; performance; size;
+  compatibility with targets.
+
+---
+
+# 28. Tests
+
+Create tests for:
+
+## Image
+
+* open; save; resize; crop; rotate; grayscale; conversion; channels; pixels; metadata.
+
+## Processing
+
+* blur; threshold; edge detection; morphology; histogram.
+
+## Vision
+
+* contours; lines; circles; features; segmentation.
+
+## Camera
+
+* open; capture; lifecycle; close.
+
+## OCR
+
+* recognition; bounding boxes; errors.
+
+## QR Code
+
+* integration with `kof.image`; read; generate.
+
+---
+
+# 29. Integration tests
+
+Create real pipelines.
+
+Conceptual examples:
+
+```text
+Image file → kof.file → kof.image → grayscale → threshold → kof.vision → contours → result
+Camera → Image → Vision → Detection
+Image → QR Code Reader → Text
+```
+
+---
+
+# 30. Benchmarks
+
+Add benchmarks for critical operations:
+
+* decode; encode; resize; grayscale; blur; edge detection;
+  convolution; segmentation; feature detection.
+
+Compare:
+
+* image size; time; memory; throughput.
+
+Do not make performance claims without a benchmark.
+
+---
+
+# 31. Incremental implementation
+
+Do not try to create the whole computer-vision stack at once.
+
+### Phase 1
+
+```text
+kof.image
+├── Image
+├── Pixel
+├── Color
+├── ImageIO
+└── resize/crop/rotate
+```
+
+### Phase 2
+
+```text
+processing
+├── grayscale
+├── blur
+├── threshold
+├── histogram
+└── edges
+```
+
+### Phase 3
+
+```text
+kof.vision
+├── contours
+├── lines
+├── circles
+├── geometry
+└── segmentation
+```
+
+### Phase 4
+
+```text
+camera  tracking  features  OCR
+```
+
+### Phase 5
+
+```text
+ML  object detection  classification  semantic segmentation  GPU acceleration
+```
+
+The order may change according to the architecture and the existing
+targets.
+
+---
+
+# 32. Architecture criteria
+
+Do not turn `kof.image` into:
+
+* an OpenCV clone;
+* an ML framework;
+* a graphics library;
+* an image editor;
+* a giant wrapper of external libraries.
+
+`kof.image` must handle **images**.
+
+`kof.vision` must handle **computer vision**.
+
+External runtimes must remain implementation details.
+
+---
+
+---
+
+# 34. TODO — what is missing (implementation plan, 29/09)
+
+Decision **`D-IMAGE-SURFACE`** (maintainer 29/09): the value surface **reuses
+`Raster`** (no new `Image`/`Pixel`/`Color` types); the codecs are **pure Kof
+whenever feasible** (full cross-target parity, zero gaps) and fall back to the
+JVM **imageio** interop only where a pure-Kof decoder is technically
+infeasible. No gap is added "just to add one" — it exists only where the
+ability genuinely does not exist on a target.
+
+**Done (pure Kof, all targets):**
+- metadata for 17 formats (`Image.kf`);
+- raw decode: PNM `P5`/`P6`, farbfeld, BMP 24/32-bit, **QOI** (all chunks);
+- ops: `cropRaster`, `resizeNearest`, `flipHorizontal`/`flipVertical`,
+  `rotate90`, `grayscale`, `threshold`, `boxBlur`;
+- encode: `encodeRaster`/`writeRaster` for PNM/farbfeld/BMP/QOI;
+- vision: `histogram`/`normalizedHistogram`/`otsuLevel`/`otsuBinarize`, `equalizationLut`/`equalizeRaster`, `sobelMagnitude`, `componentLabels`/`componentCount`, `erode`/`dilate`/`openRaster`/`closeRaster`.
+
+**Missing — ordered by cost:**
+
+1. **PNG decode (pure Kof) — LANDED 29/09 on JVM/riscv64/Script/x86-64 (`known-bugs` §541, fixed 29/09: x86 heap returned dirty reused memory, now zeroed).**
+   - Files: `libs/image/Png.kf` (new), `libs/image/Raster.kf` (`decodeRaster`
+     dispatch `fmt == "PNG"`).
+   - Work: `IHDR` parse (color type 0/2/3/4/6, bit depth 8), `IDAT`
+     concatenation, **zlib inflate** (DEFLATE: stored/fixed/dynamic Huffman)
+     in pure Kof, per-scanline filters 0–4 (None/Sub/Up/Average/Paeth),
+     de-palette (`PLTE`) and expand to the `Raster` channels.
+   - Proof: `RasterDecodeE2ETest#pngDecodesOnJvm` (known-good PNG bytes → golden samples) on JVM +
+     Native x86-64 + riscv64 + Script; JS `IOJS001` (the library still uses
+     `readRange`). No new gap: the decoder is target-independent.
+   - Risk: inflate correctness; mitigate with a fixed/dynamic-block golden and
+     the zlib Adler-32 check (ignore trailing, must not crash).
+2. **JPEG decode (infeasible pure Kof → JVM imageio interop) — LANDED 29/09.**
+   - `kof.image` platform builtin `image.decode(path): Int[]` (layout
+     `[w,h,samples…]`) + JVM runtime `JvmImageRuntime` via
+     `javax.imageio.ImageIO`; `libs/image/Jpeg.kf` wraps it as
+     `decodeJpegRaster(path): Raster` (JPEG, RGB/RGBA); the wrapper binds the
+     result to an explicit `Int[]` local (`var` on the call inferred an
+     `Unknown[]` element in the emit — measured, harmless once typed). Other targets:
+     honest **`IMG001`** compile-time gap in the namespace lowering
+     (`ExpressionMethodCallLowerer`), never a silent fallback. Because the
+     builtin exists only on the JVM, importing `image.Jpeg` is the explicit
+     JVM-only commitment; the gap-free pure-Kof formats in `Raster.kf` stay
+     untouched. Registered in the stdlib ledger (`platform`,
+     `experimental`) and pinned in the parity matrix.
+   - Proof: `RasterDecodeE2ETest#jpegDecodesOnJvmViaInterop` (JVM golden ==
+     an ImageIO-decoded fixture) + `#jpegOnNonJvmIsImg001` (JS refuses with
+     `IMG001`) + `DomainGapCodesTest#imageDecodeOnJsIsImg001`.
+3. **GIF — LANDED 29/09 (pure Kof, all targets).** `libs/image/Gif.kf` decodes the first frame with a Kof LZW (variable width 2–12, KwKwK), global/local palette and interlaced rows, RGB output.
+   **WebP VP8L — slices A–I LANDED 30/09 (pure Kof, all targets):** `libs/image/Vp8l.kf` + `libs/image/Vp8lTransforms.kf` decode the full VP8L lossless path: **simple and normal (code-length) Huffman**, **LZ77 backward references**, the **color cache**, the **predictor + color inverse transforms** (14 predictor modes and the §3.5.2 color delta, applied in reverse order), the **COLOR_INDEXING transform** (§3.5.4) and **meta-Huffman groups** (§3.7.2.2; RFC 9649 §3.5/§3.6.2.1/§3.6.2.2/§3.7). Fixtures are libwebp-validated (the hand-built normal-Huffman+LZ77 stream, a libwebp-generated 8x8 color-cache stream, a libwebp-generated 8x8 predictor+color stream, a libwebp-generated 8x8 8-color indexing stream and a libwebp-generated 8x8 two-group meta-Huffman stream, all byte-matched by PIL); the VP8L native face was re-tested green after the §541/§543 native fixes. No VP8L machinery remains refused. Next: WebP lossy (`VP8 `) and AVIF still pending (interop/gap).
+4. **Encode/write — LANDED 30/09 (pure Kof, all targets).** `libs/image/Encode.kf`
+   adds `encodeRaster(r, format): Int[]` and `writeRaster(path, r, format): Bool`
+   for **PNM `P5`/`P6`**, **farbfeld**, **BMP** 24-bit and **QOI** (full
+   encoder: RUN/INDEX/DIFF/LUMA/RGB/RGBA + end marker), so a raster can be
+   written back on every target. Proof: `RasterEncodeE2ETest` **4/4** — a
+   decode → encode → decode round-trip is byte-identical on JVM + Native x86-64
+   + riscv64(qemu) + Script, the emitted BMP is independently read by
+   `javax.imageio`, and the re-decoded QOI/PNM/farbfeld match the source
+   samples. No new gap: pure Kof, full parity (JS inherits `IOJS001` through
+   the `kof.io` write).
+5. **Larger rasters — LANDED 30/09 (post-`§540`/`§542`).** The cap that was
+   deliberately held at 16384 samples until the native allocation fixes landed
+   is raised to **262144** (a 1 MiB `Int` array, fitting the cross-native
+   16 MiB arena of `known-bugs` §540 and the x86-64 contiguous arena of §542).
+   Proof: `RasterDecodeE2ETest#largeRasterAboveOldCapDecodes` (JVM) and
+   `#largeRasterAboveOldCapDecodesOnNativeRiscv64` (riscv64/qemu) decode a
+   200×200 P6 (120 000 samples, far past both the old 16384 cap and the old
+   256 KiB cross arena) plus the bumped `#oversizedRasterThrows` (400×400).
+   The VP8L path now shares the same guard (`libs/image/Vp8l.kf` calls
+   `guardRaster(pixels * 4)` instead of its own 16384-pixel cap), verified on
+   JVM and Native x86-64 with a libwebp-generated 160×120 lossless WebP
+   (`#largeWebpAboveOldPixelCapDecodesOnJvm`/`...OnNativeX86`); Native riscv64
+   and aarch64 now decode the same fixture correctly — §544 FIXED 03/10
+   (owner = native/GC lane `192.168.15.101:9092`, issue #700); the cross tests
+   are `#largeWebpOnNativeRiscv64Decodes` / `#largeWebpOnNativeAarch64Decodes`.
+
+6. **`kof.vision` slice 1 — LANDED 30/09 (pure Kof, all targets).** New
+   `libs/vision/` package opens the vision front: `histogram(r): Int[256]`
+   (BT.601 luminance bins, same rule as `image.grayscale`),
+   `normalizedHistogram(r): Double[256]` (bins as probabilities) and
+   `otsuLevel(r): Int` + `otsuBinarize(r): Raster` (Otsu 1979 optimal global
+   threshold and its black/white raster, alpha preserved — §14's first
+   segmentation primitive). Built on the shared `image.Raster`
+   (`D-IMAGE-SURFACE`); deterministic, O(256) after the histogram, no interop,
+   no ML. Proof: `VisionAnalysisE2ETest` **4/4** — a hand-built bimodal PGM
+   (10×30, 6×220) yields `hist=6,10`, `norm=375`, `otsu=30`,
+   `bw=0,0,255` byte-identically on JVM + Native x86-64 + riscv64(qemu) +
+   Script. Next vision slices (edges/contours, §12) are additive.
+
+7. **`kof.vision` slice 2a — Sobel edges — LANDED 30/09 (pure Kof, all targets).**
+   `libs/vision/Edges.kf` adds `sobelMagnitude(r): Raster` (a single-channel
+   `"SOBEL"` raster) and `sobelValues(r): Double[]` — the classic Sobel
+   gradient magnitude of the BT.601 luminance, borders 0. The square root is a
+   deterministic Newton iteration (no libm), so the result is byte-identical on
+   every target. §12's first detection primitive. Proof: `VisionAnalysisE2ETest`
+   **4/4** — a 5×5 PGM with a single interior 255 and a 5×5 "cross" ramp give
+   the exact magnitudes (`edge=98`, centre `0`, borders `0`) on JVM + Native
+   x86-64 + riscv64(qemu) + Script.
+
+8. **`kof.vision` slice 2b — connected components — LANDED 30/09 (pure Kof,
+   all targets).** `libs/vision/Components.kf` adds `componentLabels(r): Int[]`
+   (4-connected labeling of the non-zero luminance, 0 = background, iterative
+   LIFO flood fill — no recursion) and `componentCount(labels): Int` (§14's
+   "connected components"). Proof: `VisionAnalysisE2ETest` **4/4** — a 6×4 PGM
+   with two disjoint blobs gives `comp=2 a=1 b=2 bg=0` on JVM + Native x86-64 +
+   riscv64(qemu) + Script.
+
+9. **`kof.vision` processing slice — morphology — LANDED 30/09 (pure Kof, all
+   targets).** `libs/vision/Morphology.kf` adds `erode(r)`/`dilate(r)` (3x3
+   square element, minimum/maximum over every channel, alpha preserved, borders
+   clamped), plus the compositions `openRaster(r)` (erode→dilate) and
+   `closeRaster(r)` (dilate→erode) — plan §Processing. Proof:
+   `VisionAnalysisE2ETest` **4/4** — a 5×5 PGM with one isolated 255 gives
+   `erode=0 dilate=255,255`, `open=0 close=255` on JVM + Native x86-64 +
+   riscv64(qemu) + Script.
+
+10. **`kof.vision` processing slice — histogram equalization — LANDED 30/09
+    (pure Kof, all targets).** `libs/vision/Histogram.kf` adds
+    `equalizationLut(r): Int[256]` (the cumulative-distribution remap) and
+    `equalizeRaster(r): Raster` (applies it to every colour channel, alpha
+    preserved; a uniform raster maps to all-0). Proof: `VisionAnalysisE2ETest`
+    **4/4** — a 16-pixel low-contrast PGM (60/200) stretches to `eqLow=0,255`,
+    `out=0,255`, and a 64-pixel six-level ramp maps to `eqSix=47,94,141,188`,
+    on JVM + Native x86-64 + riscv64(qemu) + Script.
+
+11. **VP8 lossy slice 1 — boolean range decoder — LANDED 30/09 (pure Kof,
+    all targets).** `libs/image/Vp8.kf` adds `Vp8Bool`, the entropy decoder
+    shared by every VP8 partition (RFC 6386 §7.3): `bit(prob)` (one bool at
+    `prob/256`) and `literal(n)` (an `n`-bit value at 1/2). All arithmetic stays
+    within 17 bits, so a 32-bit `Int` is exact on every backend. Proof:
+    `Vp8BoolE2ETest` **4/4** — an **independent RFC §7.3 encoder** (offline
+    Python) writes 64 bools at a fixed seed over an 8-probability pattern into a
+    20-byte partition, and the Kof decoder reproduces the exact sequence
+    (`vp8bool=1101…0010`) byte-for-byte on JVM + Native x86-64 + riscv64(qemu) +
+    Script (no compiler change). Next slices: RIFF/`VP8 ` container + frame
+    header, then per-macroblock modes/coefficients, intra prediction + inverse
+    DCT, and the loop filter.
+
+12. **VP8 lossy slice 2 — RIFF/`VP8 ` container + frame header — LANDED 30/09
+    (pure Kof, all targets).** `libs/image/Vp8Frame.kf` (new) walks the RIFF/
+    `WEBP` envelope, extracts the `VP8 ` chunk and parses the uncompressed
+    chunk (§9.1: frame tag, key-frame start code, 14-bit dimensions) plus the
+    whole frame header (§9.2–§9.11): color space/clamp, segmentation, loop
+    filter type/level/sharpness and per-macroblock delta groups, token-partition
+    count, the six dequant indices, `refresh_entropy`, the full `[4][8][3][11]`
+    coefficient-probability table (defaults + per-frame updates) and
+    `mb_no_skip_coeff`/`prob_skip_false`. `libs/image/Vp8Probs.kf` (new) carries
+    the two RFC tables (`§13.4` update probs, `§13.5` defaults); `Vp8Bool` gained
+    `signedOrZero(n)` (RFC `bool_maybe_get_int`) and `bytePosition()`. Modeled
+    as a **single-argument-constructor class** rather than a wide record: the
+    riscv64/aarch64 cross backend corrupted calls with ≥9 arguments (measured,
+    catalogued as `known-bugs` **§546** / issue **#703**; **FIXED 30/09** — the
+    parser was kept inside the verified arity at the time, and a wide record may
+    now be revisited), so the parser stayed green on every target. Proof:
+    `Vp8FrameE2ETest` **4/4** against an **independent RFC §19.2 parser**
+    (offline Python) over a real libwebp 8×8 lossy file — identical
+    `w=8,h=8,lf=3,qi=9,parts=1,pos=13,sum=174173` (the 1056-entry table sum,
+    including the 3 per-frame updates) on JVM + Native x86-64 + riscv64(qemu) +
+    Script (no compiler change). Next slices: per-macroblock modes/coefficients
+    (§11/§13), intra prediction + inverse DCT/WHT (§12/§14), the loop filter
+    (§15).
+
+13. **VP8 lossy slice 3 — key-frame macroblock prediction records — LANDED
+    30/09 (pure Kof, all targets).** `libs/image/Vp8Frame.kf` parses the first
+    data-partition macroblock records (RFC 6386 §10/§11): the per-macroblock
+    segment id when `update_mb_segmentation_map` is set (3-probability tree),
+    `mb_skip_coeff` when `mb_no_skip_coeff` is set, the luma 16x16 mode
+    (`kf_ymode_tree`), and when it is `B_PRED` the 16 luma subblock modes using
+    the context-dependent 10×10×9 `kf_bmode_prob` (context from the subblocks
+    above and to the left, including the neighbouring macroblocks, with the
+    16x16 mode mapped to a constant subblock mode), then the chroma mode
+    (`uv_mode_tree`). New `libs/image/Vp8ModeProbs.kf` carries `kf_ymode_prob`,
+    `kf_uv_mode_prob` and `kf_bmode_prob`; `vp8Tree` walks any RFC bool tree.
+    Proof: `Vp8ModeE2ETest` **4/4** against an **independent RFC §7.3/§10/§11
+    parser** (offline Python) over three real libwebp lossy files — a 4×4
+    segment-mapped frame with `mb_no_skip_coeff=1` (`seg64`), a 2×2 all-`B_PRED`
+    frame whose subblock modes are context-coded (`diag32`) and a 4×4 frame
+    mixing every luma/chroma mode (`mix`) — reproducing every segment id, skip
+    flag, luma mode, subblock mode and chroma mode on JVM + Native x86-64 +
+    riscv64(qemu) + Script (no compiler change). Next slices: intra prediction
+    + inverse DCT/WHT (§12/§14), the loop filter (§15).
+
+14. **VP8 lossy slice 4 — DCT/WHT coefficient decoder — LANDED 30/09 (pure
+    Kof, all targets).** `libs/image/Vp8Coeffs.kf` (new) walks the token
+    partition(s) and decodes the quantized residue of every macroblock that was
+    not `mb_skip_coeff` (RFC 6386 §13.2/§13.3). The block tree is read with the
+    three context-coded value nodes and the six category tokens, each category
+    carrying its fixed extra-bit probabilities (`Pcat1..Pcat6`) and a trailing
+    sign bit; the result lands in `coeffs` at `mb*400 + block*16 + zigzag` with
+    the end-of-block position stored per block. The above/left non-zero
+    predictors are indexed by `left_context_index`/`above_context_index` (the
+    Y2 predictor keeps the most recent macroblock that has a Y2 block) and are
+    cleared for a skipped macroblock. `vp8TokenPartition` builds the single
+    token-partition bool decoder; a frame that splits its residue across more
+    than one partition is refused with an explicit diagnostic (the available
+    libwebp encoders always emit one) instead of a silent wrong decode. Proof:
+    `Vp8CoeffE2ETest` **4/4** against an **independent RFC §7.3/§13 coefficient
+    decoder** (offline Python) over four real libwebp lossy files — a DC-only
+    16×16, an all-`B_PRED` 32×32, a 64×64 with `mb_no_skip_coeff=1` and many
+    skipped macroblocks, and a 64×64 mixing every coefficient category —
+    reproducing the non-empty-block count and the signed/absolute coefficient
+    sums of every macroblock on JVM + Native x86-64 + riscv64(qemu) + Script
+    (no compiler change). The oracle's per-position band lookup was cross-checked
+    against the RFC §20.16 reference `tokens.c` (`prob += bands_x[c]`, a single
+    mapping; the Kof decoder applies it once). Next slice: intra prediction +
+    inverse DCT/WHT (§12/§14), then the loop filter (§15).
+
+15. **VP8 lossy slice 5a — dequantization + inverse transforms — LANDED 30/09
+    (pure Kof, all targets).** `libs/image/Vp8Residual.kf` (new) converts the
+    quantized residue produced by slice 4 into the prediction-free residue of
+    every macroblock (RFC 6386 §14). For each macroblock it derives the six
+    dequantization factors from its frame quantizer and segment quantizer
+    (§14.1): the `dc_qlookup`/`ac_qlookup` tables feed Y DC/AC, Y2 DC (`×2`) and
+    AC (`×155/100`, minimum 8), and the chroma DC/AC (DC clamped to 132). The Y2
+    block is inverted with the inverse Walsh-Hadamard transform (§14.3) and its
+    4×4 output becomes the DC coefficient of each of the 16 luma subblocks;
+    every luma and chroma subblock is then inverted with the inverse DCT (§14.4,
+    fixed-point `20091`/`35468`). Results are stored as `y` (16×16 per
+    macroblock) and `u`/`v` (8×8), with `B_PRED` macroblocks taking their DC
+    directly from the coefficient stream (no Y2). The two 128-entry quant tables
+    are built **once** inside a `Vp8QuantTables` object shared by the decode:
+    rebuilding the `listOf` on each dequantization call left a deep-live
+    temporary that the riscv64 collector marked race-collected and corrupted the
+    working arrays (a native GC finding, worked around structurally in pure
+    Kof). Proof: `Vp8ResidualE2ETest` **4/4** against an **independent RFC §14
+    oracle** (offline Python) over four real libwebp lossy files — a DC-only
+    `B_PRED` frame, an all-`B_PRED` 32×32, a segment-mapped/skip 64×64, and a
+    64×64 mixing every coefficient category — reproducing the signed and
+    absolute sums of the luma and chroma residue planes of every macroblock on
+    JVM + Native x86-64 + riscv64(qemu) + Script (no compiler change). Next
+    slice: intra prediction (§12) + reconstruction (add the residue to the
+    predicted pixels), then the loop filter (§15).
+16. **`kof.vision` slice 2c — connected-component regions — LANDED 30/09 (pure
+    Kof, all targets).** `libs/vision/Regions.kf` adds the reusable region
+    descriptors of §12 ("regions") / §14 ("contour extraction"):
+    `componentBoxes(labels, width): List<ComponentBox>` (one exact axis-aligned
+    bounding box per component label, index 0 = background),
+    `componentAreas(labels): Int[]` (pixel count per label) and
+    `labelComponents(labels, width): List<Component>` (the object form — a
+    `Component(label, box, area)` per region, in label order). Built on
+    `componentLabels`; deterministic, no interop, all targets. Proof:
+    `VisionAnalysisE2ETest` **4/4** — the 6×4 two-blob PGM yields
+    `areas=3,4`, `box1=0,0,1,1`, `box2=3,1,4,2` and `regions=2 r1=1@0,0 a3`
+    on JVM + Native x86-64 + riscv64(qemu) + Script (same class extends the
+    histogram/Otsu/Sobel/components/morphology golden).
+
+17. **VP8 lossy slice 5 — intra prediction + inverse DCT/WHT — LANDED 30/09
+    (pure Kof, all targets).** `libs/image/Vp8Reconstruct.kf` (`vp8Reconstruct`)
+    reconstructs the three **pre-loop-filter** key-frame planes from the
+    coefficients of slice 4 (RFC 6386 §12/§14). Split by responsibility: it builds on the slice-5a residue
+    `libs/image/Vp8Residual.kf` (§14.1 dequantization + §14.3/§14.4 inverse
+    WHT/DCT) and adds `libs/image/Vp8Predict4.kf` (the ten `B_PRED` 4×4 modes,
+    §12.3) and the reconstruction driver (16×16 DC/V/H/TM §12.3, 8×8 chroma
+    §12.2, prediction+residue sum §14.5). The `B_PRED` above/right samples
+    replicate the macroblock's top-right pixels down the row (libwebp
+    `top_right[BPS] = top_right[2*BPS] = …`), the `B_PRED` cells read the row
+    above the subblock / the column to its left in the frame buffer, the Y-block
+    DC is the inverse-WHT output (or the `(dc[0]+3)>>3` shortcut when only the
+    Y2 DC is non-zero), and U/V predict independently from their own planes.
+    **Oracle = libwebp itself**, decoded with the loop filter disabled
+    (`ffmpeg -skip_loop_filter all`): slice 5 stops at §14.5, so libwebp's exact
+    pre-filter planes are the golden. Proof: `Vp8ReconstructE2ETest` **4/4** —
+    four real libwebp files (`flat16` 16×16 V_PRED + DC-only Y2, `diag32`
+    all-`B_PRED` 32×32, `skip64` mixed 16×16 + skipped macroblocks, `cat64`
+    mixed modes + every residual) match libwebp's per-plane sample sum and a
+    24-bit rolling hash for Y, U and V on JVM + Native x86-64 + riscv64(qemu) +
+    Script; RED-first (`PKG006 import 'image.Vp8Reconstruct' not found`) on the
+    pre-slice tree. Next slice: the loop filter (§15), which completes the
+    byte-exact VP8 decoder.
+
+18. **VP8 lossy slice 6 — loop filter — LANDED 30/09 (pure Kof, all targets).**
+    `libs/image/Vp8Filter.kf` (`vp8LoopFilter`) applies the in-loop **deblocking
+    filter** (RFC 6386 §15) to the reconstructed planes, the final key-frame
+    stage. Per macroblock it derives the strength from the frame
+    `loop_filter_level` plus the segment override when segmentation is absolute
+    or delta (§15.4, `interior_limit`, the `hev_threshold` key-frame ladder and
+    the `+4` inter-macroblock edge limit), then filters the left vertical,
+    internal vertical, top horizontal and internal horizontal edges in that
+    order: the 4-tap `DoFilter4` (simple adjustment without outer taps, plus the
+    two inner pixels moved half as far) on inter-sub-block edges, the 6-tap
+    `DoFilter6` (`MBfilter`) on inter-macroblock edges, and the 2-tap
+    `common_adjust` on high edge variance; the simple filter type only touches
+    luma, and internal edges are skipped for a macroblock that is neither
+    `B_PRED` nor carries coefficients (§15.1). **Oracle = libwebp itself** with
+    its default filter enabled (plain `ffmpeg` decode). Proof:
+    `Vp8FilterE2ETest` **4/4** — the four slice-5 fixtures reproduce libwebp's
+    filtered per-plane sample sum and 24-bit rolling hash on JVM + Native
+    x86-64 + riscv64(qemu) + Script (`flat16`/`diag32` are unchanged by the
+    filter, matching libwebp; `skip64`/`cat64` change), RED-first
+    (`PKG006 import 'image.Vp8Filter' not found`). This completes the pure-Kof
+    VP8 key-frame decoder end-to-end against libwebp.
+
+19. **VP8 lossy slice 7 — `decodeRaster` route — LANDED 01/10 (pure Kof, all
+    targets).** `libs/image/Vp8Raster.kf` (new, `vp8Raster`) closes the honest
+    boundary: `decodeRaster(path)` dispatches a `VP8 ` chunk through the full
+    key-frame chain and returns a bounded `Raster` (RGB, 3 channels) — frame
+    header (`vp8FrameFromWebp`) → `Vp8Coeffs` → `Vp8Reconstruct` →
+    `vp8LoopFilter` → YUV 4:2:0 to RGB (BT.601 limited range, nearest chroma).
+    The conversion reads the reconstruction's `yAt/uAt/vAt` (macroblock-padded
+    stride) so a width that is not a multiple of 16 is correct. Proof:
+    `Vp8RasterE2ETest` **4/4** — five real libwebp files including a 20×28
+    partial frame, golden from libwebp's own Y/U/V plus the documented
+    limited-range matrix validated against libwebp's RGB on solid chroma, on
+    JVM + Native x86-64 + riscv64(qemu) + Script.
+
+20. **VP8 lossy slice 8 — multi-token-partition decode — LANDED 01/10 (pure
+    Kof, all targets).** `libs/image/Vp8Coeffs.kf` (`vp8TokenPartitions`) now
+    decodes frames whose residue is split across 2, 4 or 8 token partitions
+    (RFC 6386 §9.5), replacing the `IMAGE: VP8 multiple token partitions are
+    not supported yet` refusal. When the frame header declares more than one
+    token partition, the first data partition carries the sizes of the first
+    `n-1` partitions as 3 little-endian bytes each (the last takes the
+    remainder); macroblock row `r` is read with partition `r % n`. The
+    single-partition path is unchanged (the residue still follows the first
+    partition directly). The previous decoder already threaded the entropy
+    decoder per macroblock, so only the partition selection and offset table
+    were added. Fixtures are real libvpx 1.14 encodes
+    (`VP8E_SET_TOKEN_PARTITIONS`) of a 16x128 frame (8 macroblock rows) at 2, 4
+    and 8 partitions — `libvpx` is the only available encoder that emits
+    multiple partitions (libwebp and ffmpeg's WebP muxer always emit one) — and
+    each decodes to exactly the single-partition coefficient golden. Proof:
+    `Vp8CoeffE2ETest` **4/4** (eight fixtures now: the five prior plus
+    `np2`/`np4`/`np8`), RED-first on the pre-slice tree
+    (`IMAGE: VP8 multiple token partitions are not supported yet`, 4/4 red), on
+    JVM + Native x86-64 + riscv64(qemu) + Script.
+
+21. **PNG Adam7 interlace — LANDED 01/10 (pure Kof, all targets).**
+    `libs/image/Png.kf` de-interlaces the seven Adam7 passes (PNG spec §9),
+    replacing the `IMAGE: interlaced PNG is not supported` refusal. The whole
+    IDAT stream is inflated once to the pass-summed raw length
+    (`pngAdam7RawLen`); each pass is an independent sub-image with its own
+    scanline filters, reversed by the existing `unfilter` (now offset-based)
+    and scattered into the full `width x height` buffer (`unfilterAdam7`).
+    Empty passes (sub-image width/height zero) and passes exactly one pixel
+    wide/tall are handled, matching the spec's pass geometry. Bit-depth-8 color
+    types 0/2/3/4/6 on the non-interlaced path are unchanged. Fixtures are real
+    ImageMagick interlaced PNGs (RGB 20x13 covering every pass, RGBA 13x9,
+    grayscale 17x11 with empty and one-pixel passes), each independently
+    byte-validated by Java `ImageIO` and PIL. Proof: `PngInterlaceE2ETest`
+    **4/4** (sample sum + 24-bit rolling hash against the PIL/ImageIO pixels),
+    RED-first (`IMAGE: interlaced PNG is not supported` with the old decoder),
+    on JVM + Native x86-64 + riscv64(qemu) + Script; the existing
+    `RasterDecodeE2ETest` PNG tests stay 4/4.
+
+22. **PNG bit depths 1/2/4/16 — LANDED 01/10 (pure Kof, all targets).**
+    `libs/image/Png.kf` now decodes every spec-allowed bit depth instead of
+    refusing `IMAGE: unsupported PNG bit depth`. The decoder is generalized to
+    bits-per-pixel: `pngSampleChannels` validates the depth/color-type
+    combination, `pngRawLen`/`pngAdam7RawLen` size the inflated stream, and
+    `unfilter`/`unfilterAdam7` move sub-byte samples as bit-fields and 8/16-bit
+    samples as bytes. After unfiltering, `pngUnpackSub` scales 1/2/4-bit gray by
+    `255/maxval` (palette indices are kept raw) and `pngUnpack16` takes the high
+    byte of 16-bit samples (the `farbfeld` rule). The 8-bit path is unchanged.
+    Fixtures cover every new combination — 1/2/4-bit gray, 16-bit gray, 16-bit
+    RGB, 2/4-bit palette — plus two Adam7-interlaced sub-byte files (4-bit gray
+    19x11, 4-bit palette 18x10) that exercise the sub-byte scatter; the sub-byte
+    gray and 16-bit files are hand-built (zlib) and all are independently
+    readable by PIL and Java `ImageIO`. Proof: `PngBitDepthE2ETest` **4/4**
+    (sample sum + 24-bit rolling hash) on JVM + Native x86-64 + riscv64(qemu) +
+    Script, RED-first (`IMAGE: unsupported PNG bit depth 1` with the old decoder,
+    measured); neighbors `RasterDecodeE2ETest` PNG 4/4 and `PngInterlaceE2ETest`
+    4/4 unchanged.
+
+23. **PNG `tRNS` transparency — LANDED 01/10 (pure Kof, all targets).**
+    `libs/image/Png.kf` now reads the `tRNS` chunk (previously ignored). For
+    grayscale (color type 0) the output becomes gray+alpha with alpha 0 where the
+    sample equals the tRNS gray key (else 255); for RGB (color type 2) it
+    becomes RGBA with alpha 0 on the exact color-key match (else 255); for
+    palette (color type 3) it becomes RGBA with the per-color alpha, entries past
+    the tRNS length being opaque. A `tRNS` on a color type that cannot carry
+    transparency (4/6) is refused with an explicit `IMAGE:` diagnostic. The tRNS
+    component is always a 16-bit big-endian value (PNG spec §11.3.2) regardless
+    of the image bit depth, so the key is mapped into the same 8-bit space the
+    decoded samples use (`pngTrnsKey`): the high byte for 16-bit images (the
+    `pngUnpack16` rule), a `255/maxval` scaling for sub-byte gray, and the byte
+    itself for 8-bit — a 16-bit sample sharing its high byte with the key but not
+    its low byte stays opaque. Fixtures are a gray 12x6, an RGB 10x5, a palette
+    11x7, a 16-bit gray 4x1, a 16-bit RGB 4x1 and a 4-bit gray 4x2 PNG, each
+    independently readable by PIL and Java `ImageIO`. Proof:
+    `PngTransparencyE2ETest` **4/4** (sample sum + 24-bit rolling hash) on JVM +
+    Native x86-64 + riscv64(qemu) + Script, RED-first (the pre-slice decoder
+    ignored `tRNS`, measured; the depth-aware key was added after the first
+    landing measured a wrong alpha on the 16-bit and sub-byte fixtures);
+    neighbors `RasterDecodeE2ETest` PNG 4/4, `PngInterlaceE2ETest` 4/4 and
+    `PngBitDepthE2ETest` 4/4 unchanged.
+
+**DECIDED 30/09 (`D-WEBP-LOSSY-PURE-KOF`, option C): WebP lossy `VP8 ` + AVIF
+as a pure-Kof decoder on all targets.** The measured finding that forced the
+decision: the JPEG escape hatch does not extend — OpenJDK 25 `javax.imageio`
+has **no** WebP or AVIF reader (`ImageIO.getImageReadersByFormatName("webp"/
+"avif")` empty), so `image.decode` cannot back either format without a
+third-party plugin (TwelveMonkeys / an AVIF lib), a dependency the maintainer
+rejected. The route is a pure-Kof VP8 lossy decoder (RFC 6386), library-first,
+same shape as the VP8L slices, with the same slice discipline (each one a
+complete, tested unit; no interim half-decode). Slice chain: (1) RIFF/`VP8 `
+parser + frame header + boolean range decoder (§7); (2) per-macroblock mode/
+segment header + coefficient probability tables; (3) dequantization + inverse
+DCT/WHT (§14, slice 5a LANDED) then intra prediction + reconstruction (§12);
+(4) in-loop deblocking filter; (5) the adaptive (non-keyframe) path. The
+key-frame chain is complete and routed (slice 7 LANDED 01/10): `decodeRaster`
+now decodes a lossy WebP through `libs/image/Vp8Raster.kf` (no silent wrong
+decode); AVIF follows after VP8. Multi-token-partition key frames now decode
+(slice 8 LANDED 01/10, `libs/image/Vp8Coeffs.kf`); the adaptive (non-keyframe)
+path remains an explicit `IMAGE:` refusal, not a half-decode. The AVIF decode
+chain is in progress: slice 3a LANDED 04/10 (`libs/image/Av1Symbol.kf`, the AV1
+symbol/entropy range decoder §9.2/§9.3, proven against libaom's encoder/decoder
+on six fixtures and on the host `.avif`'s real tile payload); next are the tile
+coefficient walk, the loop filter and the quantization, then `decodeRaster`
+AVIF (still refused until the chain closes).
+
+## PT
+[Português](image-vision-plan.pt_BR.md)
+
+# 33. Final rule
+
+The goal is for Kof to evolve from:
+
+```text
+arquivo → imagem → processamento → visão computacional → resultado
+```
+
+with own, consistent, cross-platform APIs.
+
+The Kof developer must not need to abandon the language to do:
+
+* image processing;
+* camera reading;
+* detection;
+* OCR;
+* QR Code;
+* visual analysis;
+* model inference.
+
+Everything must be built incrementally, preserving the existing base
+and following the philosophy of Kof:
+
+**less accidental complexity, small APIs, clear intention and control
+over the implementation.**

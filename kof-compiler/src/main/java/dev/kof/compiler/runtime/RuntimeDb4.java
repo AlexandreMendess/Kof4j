@@ -39,7 +39,7 @@ public final class RuntimeDb4 {
                 testq %rax, %rax
                 je .Ldb_close_ret
                 movq %rax, %rdi
-                call kof_net_close
+                call kof_plat_close
             .Ldb_close_ret:
                 popq %r12
                 popq %rbx

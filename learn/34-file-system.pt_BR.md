@@ -60,12 +60,12 @@ Path("data").resolve("users")    // data/users (ou data\users no Windows)
 | `delete()` | remove (arquivo ou diretório vazio) |
 | `name()` / `path()` | nome do arquivo / caminho |
 
-Formas estáticas equivalentes:
+Não existem formas estáticas `File.…` — sempre construa o handle primeiro:
 
 ```kof
-File.exists("x.txt")
-File.readText("x.txt")
-File.writeText("x.txt", "conteúdo")
+var f = File("x.txt")
+if (f.exists()) { println(f.readText()) }
+f.writeText("conteúdo")
 ```
 
 ## Directory

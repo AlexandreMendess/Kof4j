@@ -33,7 +33,7 @@ final class JvmFfiRuntime {
                                         java.lang.foreign.ValueLayout.JAVA_INT));
                         return (int) handle.invoke(a);
                     } catch (Throwable t) {
-                        throw new RuntimeException("kof_ffi_i: " + lib + "::" + name + " failed: "
+                        throw new InteropError("kof_ffi_i: " + lib + "::" + name + " failed: "
                                 + t.getMessage(), t);
                     } finally {
                         arena.close();
@@ -55,7 +55,7 @@ final class JvmFfiRuntime {
                         java.lang.foreign.MemorySegment seg = arena.%1$s(a);
                         return (int) handle.invoke(seg);
                     } catch (Throwable t) {
-                        throw new RuntimeException("kof_ffi_si: " + lib + "::" + name + " failed: "
+                        throw new InteropError("kof_ffi_si: " + lib + "::" + name + " failed: "
                                 + t.getMessage(), t);
                     } finally {
                         arena.close();
@@ -76,7 +76,7 @@ final class JvmFfiRuntime {
                                         java.lang.foreign.ValueLayout.JAVA_DOUBLE));
                         return (double) handle.invoke(a);
                     } catch (Throwable t) {
-                        throw new RuntimeException("kof_ffi_dd: " + lib + "::" + name + " failed: "
+                        throw new InteropError("kof_ffi_dd: " + lib + "::" + name + " failed: "
                                 + t.getMessage(), t);
                     } finally {
                         arena.close();
@@ -85,6 +85,7 @@ final class JvmFfiRuntime {
 
                 public static Object kof_ffi(String lib, String name, String sig, Object[] args) {
                     java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined();
+                    java.util.ArrayList<Buffer> borrowHolds = new java.util.ArrayList<>();
                     try {
                         java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
                                 ? java.lang.foreign.SymbolLookup.loaderLookup()
@@ -130,7 +131,11 @@ final class JvmFfiRuntime {
                                 char e = sig.charAt(cur + 1);
                                 cur += 2;
                                 pl[i] = java.lang.foreign.ValueLayout.ADDRESS;
-                                real[i] = kof_ffi_copy_in(arena, args[i], e);
+                                // D-MEM-FFI-CROSS-FULL face 2: `String[]` -> `char**`
+                                // (cada elemento vira um cstr NUL-terminado na arena).
+                                real[i] = (e == 'S')
+                                        ? kof_ffi_copy_in_strings(arena, args[i])
+                                        : kof_ffi_copy_in(arena, args[i], e);
                             } else if (c == 'B') {
                                 // D6-3 / D-R3-BUFFER: Buffer(U8) INOUT — copy-in
                                 // para a arena da chamada; o copy-back acontece
@@ -142,6 +147,10 @@ final class JvmFfiRuntime {
                                         kof_ffi_buffer_in(arena, args[i]);
                                 real[i] = bseg;
                                 copybacks.add(new Object[] { args[i], bseg });
+                                // MEM020 runtime: exclusive writable borrow for
+                                // the duration of the FFI call.
+                                kof_buffer_borrow_acquire((Buffer) args[i]);
+                                borrowHolds.add((Buffer) args[i]);
                             } else {
                                 cur++;
                                 pl[i] = kof_ffi_layout(c);
@@ -191,9 +200,10 @@ final class JvmFfiRuntime {
                         }
                         return r;
                     } catch (Throwable t) {
-                        throw new RuntimeException("kof_ffi: " + lib + "::" + name + " (" + sig + ") failed: "
+                        throw new InteropError("kof_ffi: " + lib + "::" + name + " (" + sig + ") failed: "
                                 + t.getMessage(), t);
                     } finally {
+                        for (Buffer bh : borrowHolds) kof_buffer_borrow_release(bh);
                         arena.close();
                     }
                 }
@@ -340,6 +350,24 @@ final class JvmFfiRuntime {
                     return seg;
                 }
 
+                // D-MEM-FFI-CROSS-FULL face 2: `String[]` -> `char**`. Cada String
+                // vira um cstr NUL-terminado na arena da chamada (mesma forma do
+                // escalar 'S') e um array de ADDRESS recebe os ponteiros; null -> 0.
+                static java.lang.foreign.MemorySegment kof_ffi_copy_in_strings(
+                        java.lang.foreign.Arena arena, Object arr) {
+                    int n = java.lang.reflect.Array.getLength(arr);
+                    java.lang.foreign.MemorySegment seg = arena.allocate(
+                            java.lang.foreign.ValueLayout.ADDRESS, n == 0 ? 1 : n);
+                    for (int i = 0; i < n; i++) {
+                        String s = (String) java.lang.reflect.Array.get(arr, i);
+                        if (s != null) {
+                            seg.setAtIndex(java.lang.foreign.ValueLayout.ADDRESS, i,
+                                    arena.%1$s(s));
+                        }
+                    }
+                    return seg;
+                }
+
                 // D6-3 / D-R3-BUFFER: Buffer(U8) como param INOUT de um extern.
                 // copy-in: os bytes do buffer viram memoria nativa na arena da
                 // chamada; copy-back: apos o retorno, a memoria volta para o
@@ -408,7 +436,7 @@ final class JvmFfiRuntime {
                         }
                     }
                     if (m == null) {
-                        throw new RuntimeException("kof_ffi: callback "
+                        throw new InteropError("kof_ffi: callback "
                                 + closure.getClass().getName()
                                 + " has no arity-" + arity + " invoke()");
                     }

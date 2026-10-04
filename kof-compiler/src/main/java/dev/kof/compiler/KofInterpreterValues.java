@@ -141,7 +141,13 @@ public final class KofInterpreterValues {
                     : v instanceof Number n ? (char) n.intValue() : v;
             case "bool" -> v instanceof Boolean b ? b
                     : v instanceof Number n ? n.intValue() != 0 : v;
-            case "int", "byte", "short" -> v instanceof Number n ? n.intValue() : v;
+            case "int" -> v instanceof Number n ? n.intValue() : v;
+            // D-KOF-NET fatia 5 (02/10): byte/short nao podem agrupar com int —
+            // Array.set em byte[]/short[] so ALARGA; um Integer no slot morria
+            // "argument type mismatch" (o agrupado so parecia verde enquanto
+            // newArray materializava byte[] como int[] — o bug gemeo abaixo).
+            case "byte" -> v instanceof Number n ? n.byteValue() : v;
+            case "short" -> v instanceof Number n ? n.shortValue() : v;
             default -> v;
         };
     }

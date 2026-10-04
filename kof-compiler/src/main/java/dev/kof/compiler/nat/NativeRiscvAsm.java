@@ -29,6 +29,7 @@ public final class NativeRiscvAsm {
     private static String runtimeStrn() {
         return new StringBuilder()
                 .append(NativeRiscvAsmStrn0.RISCV_STRN002_ASM_0)
+                .append(NativeRiscvAsmCase.RISCV_STRCASE_ASM)
                 .append(NativeRiscvAsmStrn1.RISCV_STRN002_ASM_1)
                 .toString();
     }
@@ -117,6 +118,9 @@ public final class NativeRiscvAsm {
                 // §284 (18/09): box de erasure — kof_box_*/unbox/box_to_string
                 // (port RuntimeErasureBox x86; aarch64 herda via tradutor).
                 .append(NativeRiscvAsmRtB49.RISCV_RUNTIME_ASM_B_49)
+                // §553 / D-EQ-UNBOUNDED-T (02/10): peça própria do
+                // kof_eq_generic (== sobre type variable sem bound).
+                .append(NativeRiscvAsmGenericEq.RISCV_RUNTIME_ASM_GENERIC_EQ)
                 // DB-3/DB-1 cross slice A (22/09): ORM F1a no riscv64 —
                 // kof_orm_delete_all + kof_orm_count (port RuntimeOrm1) sobre
                 // o kof.db SQLite de RtB46/RtB47; aarch64 herda via tradutor.
@@ -333,6 +337,10 @@ public final class NativeRiscvAsm {
                 // 16-bit) do kof.media no cross — port de RuntimeMediaWav
                 // (aarch64 herda via tradutor); Image/Mic seguem MEDIA001/003.
                 .append(NativeRiscvAsmMediaWav.RISCV_ASM_MEDIA_WAV)
+                // #651 fatia B (lane memory-safety/paridade, 29/09): Buffer(U8)
+                // no cross — alloc/bytes/to_string com o layout x86-64 (header
+                // 24, cap@16, payload@24); aarch64 herda via tradutor.
+                .append(NativeRiscvAsmBuffer.RISCV_ASM_BUFFER)
                 .toString();
     }
     static final String RISCV_MAPSET_ASM = runtimeMapset();
@@ -342,6 +350,15 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmMapset1.RISCV_MAPSET_ASM_1)
                 .append(NativeRiscvAsmMapset2.RISCV_MAPSET_ASM_2)
                 .append(NativeRiscvAsmLookups0.RISCV_LOOKUPS_ASM_0)
+                .append(NativeRiscvAsmSlices.RISCV_SLICES_ASM)
+                .append(NativeRiscvAsmQuantifiers.RISCV_QUANTIFIERS_ASM)
+                .append(NativeRiscvAsmGroupBy.RISCV_GROUPBY_ASM)
+                // STDLIB S7a-ext: kof_time addMonths riscv64 (split da B33).
+                .append(NativeRiscvAsmRtB82.RISCV_RUNTIME_ASM_B_82)
+                // STDLIB S7a-ext3: kof_time startOf/endOf riscv64 (composicao
+                // dos primitivos ja provados — paridade byte-a-byte).
+                .append(NativeRiscvAsmRtB83.RISCV_RUNTIME_ASM_B_83)
+                .append(NativeRiscvAsmRtB84.RISCV_RUNTIME_ASM_B_84)
                 .toString();
     }
 }

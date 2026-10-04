@@ -162,8 +162,15 @@ public final class ExpressionLowerer {
                 yield ExpressionAssignmentLowerer.lower(driver, ae, ops, owner, localIdx, locals);
             }
             case NewExpr ne -> {
-                Type type = CompilerTypes.toType(ne.typeName(), driver.currentUnit,
-                        driver.externalClasspath);
+                // §582: a bare ctor name of a PACKAGED record inside an IMPORTED
+                // module resolves here against the merged MAIN unit (the caller),
+                // which does not declare the type — the owner reached the emitter
+                // BARE and the JVM died at LOAD (NoClassDefFoundError: <Name>),
+                // while Script died interpreting the same bare owner. Requalify
+                // through the §571/§573 analyzer chokepoint (idempotent elsewhere).
+                Type type = ExpressionTyper.qualifyBareModuleType(driver,
+                        CompilerTypes.toType(ne.typeName(), driver.currentUnit,
+                                driver.externalClasspath));
                 Type collBuiltin = CompilerTypes.builtinCollectionType(ne.typeName(), driver.currentUnit, driver.semanticAnalyzer);
                 if (collBuiltin == BuiltinTypes.LIST) {
                     type = BuiltinTypes.LIST;

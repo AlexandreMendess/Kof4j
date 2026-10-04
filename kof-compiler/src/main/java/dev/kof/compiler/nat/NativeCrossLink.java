@@ -46,6 +46,12 @@ public final class NativeCrossLink {
             "fopen", "fclose", "fwrite", "fread", "memcpy", "memset",
             "strlen", "strcmp", "strncmp", "open", "read", "write", "execvp");
 
+   static final Set<String> LIBM_SYMBOLS = Set.of(
+            "pow", "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+            "sinh", "cosh", "tanh", "log", "log10", "exp",
+            "floor", "ceil", "round", "hypot"
+    );
+
     /** true se o texto asm (pós-poda) chama algum símbolo de libc. */
     static boolean needsLibc(String asmText) {
         for (String line : asmText.split("\n", -1)) {
@@ -89,7 +95,8 @@ public final class NativeCrossLink {
             if (t.startsWith("#")) continue;
             int hash = t.indexOf('#');
             if (hash > 0) t = t.substring(0, hash).stripTrailing();
-            if (t.startsWith("call ") && t.substring(5).strip().equals("pow")) return true;
+            if (!t.startsWith("call ")) continue;
+            if (LIBM_SYMBOLS.contains(t.substring(5).strip())) return true;
         }
         return false;
     }
@@ -233,7 +240,17 @@ public final class NativeCrossLink {
         a.add("-lc");
         if (sqlite) a.add(sqliteLinkArg(arch));
         if (libm) a.add("-lm");
-        for (String lib : ffiLibs) a.add(ffiLinkArg(lib));
+        for (String lib : ffiLibs) {
+            // Um caminho absoluto precisa do seu diretório no search path: o
+            // `ffiLinkArg` reduz ao basename (`-l:<base>`), então sem o `-L` o
+            // ld do sysroot não acha a lib. Libs relativas (ex. `libc.so.6`)
+            // seguem inalteradas — aditivo.
+            if (lib.startsWith("/")) {
+                int slash = lib.lastIndexOf('/');
+                if (slash > 0) a.add("-L" + lib.substring(0, slash));
+            }
+            a.add(ffiLinkArg(lib));
+        }
         return a.toArray(new String[0]);
     }
 }

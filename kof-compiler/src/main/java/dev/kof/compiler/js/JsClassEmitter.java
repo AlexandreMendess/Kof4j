@@ -1,5 +1,6 @@
 package dev.kof.compiler.js;
 import dev.kof.compiler.AccessFlags;
+import dev.kof.compiler.BuiltinTypes;
 import dev.kof.compiler.IRClass;
 import dev.kof.compiler.IRField;
 import dev.kof.compiler.IRMethod;
@@ -245,7 +246,7 @@ public final class JsClassEmitter {
         body.add(new JsIr.JsVarDecl("p", parsed, true));
         List<JsIr.JsExpression> ctorArgs = new ArrayList<>();
         for (IRField field : clazz.fields()) {
-            ctorArgs.add(new JsIr.JsMember(new JsIr.JsIdentifier("p"), JsTypeMapper.sanitizeName(field.name())));
+            ctorArgs.add(decodeFieldValue(field));
         }
         JsIr.JsExpression instance = new JsIr.JsNew(new JsIr.JsIdentifier(jsName), ctorArgs);
         if (isRecord) {
@@ -255,11 +256,101 @@ public final class JsClassEmitter {
             for (IRField field : clazz.fields()) {
                 body.add(new JsIr.JsExprStmt(new JsIr.JsBinary(
                         new JsIr.JsMember(new JsIr.JsIdentifier("o"), JsTypeMapper.sanitizeName(field.name())), "=",
-                        new JsIr.JsMember(new JsIr.JsIdentifier("p"), JsTypeMapper.sanitizeName(field.name())))));
+                        decodeFieldValue(field))));
             }
         }
         body.add(new JsIr.JsReturn(new JsIr.JsIdentifier("o")));
         return new JsIr.JsFunction("__kof_decode_" + jsName, List.of("json"), body, false, false, true);
+    }
+
+    /**
+     * #740 slice 2: a record field must be converted by its DECLARED type, not
+     * copied raw. The old helper assigned `p.field` verbatim, so a nested
+     * record stayed a plain JS object (`o.inner.z` read `_z` on `{z:4}` →
+     * undefined) and a `List<Record>`/`Map<..,Record>` kept raw objects —
+     * silent divergence from the JVM/Script paths. Primitives/Strings/Object
+     * are unchanged; the nested class decoders are registered transitively so
+     * the helper is emitted. `null`/missing stays `null` (JVM reference
+     * semantics; the `== null` guard also catches a missing key = undefined).
+     */
+    private JsIr.JsExpression decodeFieldValue(IRField field) {
+        JsIr.JsExpression raw = new JsIr.JsMember(
+                new JsIr.JsIdentifier("p"), JsTypeMapper.sanitizeName(field.name()));
+        Type t = field.type() instanceof Type.NullableType nt ? nt.inner() : field.type();
+        if (BuiltinTypes.isList(t)) {
+            Type elem = BuiltinTypes.listElement(t);
+            Type inner = elem instanceof Type.NullableType nt2 ? nt2.inner() : elem;
+            if (inner instanceof Type.ClassType e2
+                    && p.lc.classMethodNames.containsKey(e2.internalName())) {
+                String nested = JsTypeMapper.jsClassName(e2.internalName());
+                p.lc.decodeHelpers.add(nested);
+                JsIr.JsExpression mapper = new JsIr.JsCall(
+                        new JsIr.JsIdentifier("__kof_decode_" + nested),
+                        List.of(new JsIr.JsIdentifier("o")));
+                JsIr.JsExpression mapped = new JsIr.JsCall(
+                        new JsIr.JsMember(raw, "map"), List.of(new JsIr.JsArrow(List.of("o"), mapper)));
+                return nullGuard(raw, mapped);
+            }
+            return raw;
+        }
+        if (BuiltinTypes.isMap(t)) {
+            Type mv = BuiltinTypes.mapValue(t);
+            Type inner = mv instanceof Type.NullableType nt3 ? nt3.inner() : mv;
+            if (inner instanceof Type.ClassType mvct
+                    && p.lc.classMethodNames.containsKey(mvct.internalName())) {
+                String nested = JsTypeMapper.jsClassName(mvct.internalName());
+                p.lc.decodeHelpers.add(nested);
+                p.lc.registerRuntime("kofJsonDecodeObjectMap");
+                return nullGuard(raw, new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonDecodeObjectMap"),
+                        List.of(raw, new JsIr.JsIdentifier("__kof_decode_" + nested))));
+            }
+            p.lc.registerRuntime("kofJsonDecodeMap");
+            return nullGuard(raw, new JsIr.JsCall(
+                    new JsIr.JsIdentifier("kofJsonDecodeMap"), List.of(raw)));
+        }
+        if (BuiltinTypes.isObject(t)) {
+            p.lc.registerRuntime("kofJsonDeep");
+            return nullGuard(raw, new JsIr.JsCall(
+                    new JsIr.JsIdentifier("kofJsonDeep"), List.of(raw)));
+        }
+        if (t instanceof Type.ClassType ct && p.lc.classMethodNames.containsKey(ct.internalName())) {
+            String nested = JsTypeMapper.jsClassName(ct.internalName());
+            p.lc.decodeHelpers.add(nested);
+            return nullGuard(raw, new JsIr.JsCall(
+                    new JsIr.JsIdentifier("__kof_decode_" + nested), List.of(raw)));
+        }
+        return raw;
+    }
+
+    /**
+     * #740 slice 2: the class decoders referenced by this class's fields
+     * (nested record, {@code List<Record>} element, {@code Map<_,Record>}
+     * value). Used by {@code JsBackend} to close the decode-helper set
+     * transitively BEFORE emitting, so a nested helper whose class sorts
+     * before the parent is still emitted.
+     */
+    java.util.Set<String> nestedDecoderNames(IRClass clazz) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        for (IRField field : clazz.fields()) {
+            Type t = field.type() instanceof Type.NullableType nt ? nt.inner() : field.type();
+            Type target;
+            if (BuiltinTypes.isList(t)) target = BuiltinTypes.listElement(t);
+            else if (BuiltinTypes.isMap(t)) target = BuiltinTypes.mapValue(t);
+            else target = t;
+            if (target instanceof Type.NullableType nt2) target = nt2.inner();
+            if (target instanceof Type.ClassType ct && p.lc.classMethodNames.containsKey(ct.internalName())) {
+                out.add(JsTypeMapper.jsClassName(ct.internalName()));
+            }
+        }
+        return out;
+    }
+
+    /** `raw == null ? null : expr` — loose equality also catches a missing key (undefined). */
+    private static JsIr.JsExpression nullGuard(JsIr.JsExpression raw, JsIr.JsExpression expr) {
+        return new JsIr.JsConditional(
+                new JsIr.JsBinary(raw, "==", new JsIr.JsNull()),
+                new JsIr.JsNull(),
+                expr);
     }
 
     /**

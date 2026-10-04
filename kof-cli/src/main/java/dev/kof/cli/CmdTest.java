@@ -3,6 +3,7 @@ package dev.kof.cli;
 import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.KofProjectConfig;
 import dev.kof.compiler.Target;
 
 import java.io.IOException;
@@ -26,16 +27,41 @@ final class CmdTest {
             + " [--tag <tag>]";
 
     static void run(String[] args) {
-        if (args.length < 2) { System.err.println(USAGE); System.exit(1); return; }
-        if (args[1].equals("--help") || args[1].equals("-h")) {
+        if (args.length >= 2 && (args[1].equals("--help") || args[1].equals("-h"))) {
             System.out.println(USAGE);
             return;
         }
-        Path src = Path.of(args[1]);
+        // #708: raiz de testes declarada em [sources] test permite `kof test`
+        // sem argumento posicional; a raiz de app ([sources] app, ou o pai do
+        // diretório do teste) entra como source path para resolver imports.
+        boolean flagMode = args.length < 2 || args[1].startsWith("-");
+        Path src = null;
+        Path appRoot = null;
+        int argStart = 2;
+        if (flagMode) {
+            Path projectRoot = KofCliSupport.projectRootOf(Path.of("."));
+            KofProjectConfig cfg = KofCliSupport.configOf(projectRoot);
+            // src pode ficar ausente (sem [sources] test): o erro é decidido
+            // DEPOIS de parsear as flags, para que um typo de flag seja
+            // reportado como flag desconhecida (R6), não como "sem raiz".
+            src = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceTest(), null);
+            appRoot = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceApp(), null);
+            argStart = 1;
+        } else {
+            src = Path.of(args[1]);
+            // Sem [sources]: se o teste vive sob um kof.toml, a raiz do app
+            // (se declarada) ainda é oferecida como source path — aditivo, o
+            // modo posicional de hoje não tinha imports cross-root.
+            Path projectRoot = KofCliSupport.projectRootOf(src);
+            if (projectRoot != null) {
+                KofProjectConfig cfg = KofCliSupport.configOf(projectRoot);
+                appRoot = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceApp(), null);
+            }
+        }
         Target target = Target.JVM;
         long timeoutSec = 0;   // 0 = sem limite (comportamento histórico, aditivo)
         String tag = null;     // X8 fatia 3: filtro por tag (compile-time, único p/ 4 alvos)
-        for (int i = 2; i < args.length; i++) {
+        for (int i = argStart; i < args.length; i++) {
             if (args[i].startsWith("--target=")) {
                 target = KofCliSupport.parseTarget(args[i].substring("--target=".length()));
             } else if (args[i].equals("--target") && i + 1 < args.length) {
@@ -74,6 +100,12 @@ final class CmdTest {
                 return;
             }
         }
+        if (src == null) {
+            System.err.println("test: no test root given and no [sources] test"
+                    + " declared in kof.toml (see 'kof test --help')");
+            System.exit(1);
+            return;
+        }
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
         // android é empacotamento (APK/AAB), não um alvo de execução: `kof test`
         // não produz binário standalone. Recusa honesta e cedo (R6) em vez do
@@ -88,10 +120,26 @@ final class CmdTest {
         }
         boolean dirMode = Files.isDirectory(src);
         List<Path> files = dirMode ? collectTests(src) : List.of(src);
-        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
+        if (files.isEmpty()) {
+            // R6 (#708): a test root with no Kof source used to print this and
+            // exit 0 — indistinguishable from "all tests passed". Fail
+            // explicitly (zero discovered tests is not a success).
+            System.err.println("test: no .kf/.kof files found in " + src
+                    + " (discovery is recursive; run from the directory that"
+                    + " holds the test sources)");
+            System.exit(1);
+            return;
+        }
         CompilerDriver driver = new CompilerDriver();
+        // #708: a raiz de app entra como source path — `import exemplo.Calculo`
+        // resolve de src/main/kof sem cópia nem arquivo de entrada gerado.
+        if (appRoot != null && Files.isDirectory(appRoot)) {
+            driver.setDependencySourceRoots(java.util.List.of(appRoot));
+        }
         int passed = 0;
         int failed = 0;
+        int skipped = 0;   // §576: arquivos sem teste e sem main (módulos auxiliares)
+        int skippedByTag = 0;   // §587: arquivos cujo filtro --tag não casa nenhum teste
         // X8 fatia 3 ("named suites by directory"): em modo diretório cada
         // subdiretório é uma suíte nomeada (nome = caminho relativo; "." = raiz);
         // os contadores por suíte são somados ao total no fim.
@@ -100,18 +148,44 @@ final class CmdTest {
         // independente com seu próprio main() — NUNCA agrupar irmãos num
         // módulo só (PKG002: 2 main()). Cross-file é domínio de kof build.
         if (tag != null) System.setProperty("kof.test.tag", tag);
+        // #708: a raiz de testes é a base dos pacotes por diretório. Em modo
+        // diretório é o próprio `src` (fonte em exemplo/CalcTest.kf declara
+        // `package exemplo`); em modo arquivo, o diretório do arquivo.
+        Path testsRoot = dirMode ? src : src.getParent();
         for (Path f : files) {
             Path tmp;
             try { tmp = Files.createTempDirectory("kof-test-"); }
             catch (IOException e) { System.err.println("failed to create temp dir: " + e.getMessage()); System.exit(1); return; }
             // modo harness: `test "nome" { }` vira função + runner sintetizado;
             // arquivos sem testes compilam idênticos ao modo normal
-            CompilationResult result = driver.compileForTests(f, tmp, target);
+            CompilationResult result = driver.compileForTests(f, tmp, target, testsRoot);
             boolean ok = result.success();
+            // §576: um arquivo que não declara `test` nem `main` não é uma
+            // suíte nem um programa — é um módulo auxiliar (funções puras que
+            // outro arquivo de teste importa). Compilar e tentar executá-lo
+            // produzia "could not resolve main([String])" (ou, no alvo JS, um
+            // "PASS" fantasma). Pular com nota honesta; se NENHUM arquivo for
+            // executável, o runner falha — zero não é sucesso (#708).
+            boolean hasTests = !driver.discoveredTests().isEmpty();
+            boolean hasMain = driver.hasMainEntryPoint();
+            if (ok && !hasTests && !hasMain) {
+                System.out.println("SKIP " + f + " (no tests, no main)");
+                skipped++;
+                KofCliSupport.cleanup(tmp);
+                continue;
+            }
+            // §587: um arquivo cujos testes NENHUM casa o filtro --tag não é uma
+            // suíte verde — o harness gera um main vazio e sai 0, então contar
+            // `ok` como passed imprimia `2 passed, 0 failed` para uma corrida em
+            // que 1 dos 2 arquivos rodou zero testes (falso verde). O arquivo é
+            // SKIP nomeado (o exit continua 0 — nada falhou, como o no-op de tag
+            // já contrata); a checagem vem DEPOIS do run para preservar a saída
+            // do harness (`kof test: tag 'x' (0 of N)` / `no tests with tag ...`).
+            boolean tagMatch = tag == null || !hasTests || hasTagMatch(driver.discoveredTests(), tag);
             StringBuilder output = new StringBuilder();
             if (ok) {
                 for (Diagnostic d : result.diagnostics().getDiagnostics()) output.append(d.format()).append('\n');
-                if (!driver.discoveredTests().isEmpty()) {
+                if (!driver.discoveredTests().isEmpty() && tagMatch) {
                     System.out.println("SUITE " + f + " (" + driver.discoveredTests().size() + " tests)");
                 }
                 if (target == Target.JVM) {
@@ -121,7 +195,13 @@ final class CmdTest {
                         output.append("no main class found\n");
                     } else {
                         try {
-                            ProcessBuilder pb = new ProcessBuilder(KofCliSupport.javaExecutable(), "-cp", tmp.toString(), className);
+                            List<String> cmd = new java.util.ArrayList<>();
+                            cmd.add(KofCliSupport.javaExecutable());
+                            cmd.addAll(KofStdio.capturedJvmFlags());
+                            // §556: sem o wrapper de diagnóstico, uma falha de
+                            // load/link do runner vira a mensagem falsa do launcher.
+                            KofCliSupport.appendJvmLaunch(cmd, tmp.toString(), className);
+                            ProcessBuilder pb = new ProcessBuilder(cmd);
                             pb.redirectErrorStream(true);
                             Integer ec = boundedRun(pb, timeoutSec, output);
                             if (ec == null) {
@@ -151,7 +231,8 @@ final class CmdTest {
                             Thread js = new Thread(() -> {
                                 try {
                                     code[0] = dev.kof.runtime.KofJsRunner.run(java.nio.file.Path.of(entry),
-                                            System.out, System.in, System.err, false, new String[0]);
+                                            KofStdio.fromUtf8(System.out), System.in,
+                                            KofStdio.fromUtf8(System.err), false, new String[0]);
                                 } catch (IOException e) {
                                     code[0] = 1;
                                 }
@@ -209,14 +290,31 @@ final class CmdTest {
                 for (Diagnostic d : result.diagnostics().getDiagnostics()) output.append(d.format()).append('\n');
             }
             KofCliSupport.cleanup(tmp);
+            if (ok && !tagMatch) {
+                // §587: o arquivo compilou e rodou, mas ZERO testes casaram o
+                // filtro. Não é uma suíte verde — SKIP nomeado, fora de passed
+                // e de failed (não entra no tally de suíte verde).
+                System.out.print(output);
+                System.out.println("SKIP " + f + " (no tests with tag '" + tag + "')");
+                skippedByTag++;
+                continue;
+            }
             if (dirMode) {
                 int[] c = suites.computeIfAbsent(suiteOf(src, f), k -> new int[2]);
                 if (ok) c[0]++; else c[1]++;
             }
             if (ok) {
                 passed++;
-                if (driver.discoveredTests().isEmpty()) System.out.println("PASS " + f);
-                else System.out.print(output);
+                if (driver.discoveredTests().isEmpty()) {
+                    // §578: arquivo só-programa (main, sem teste) — o stdout do
+                    // processo é a SAÍDA do programa, não um diagnóstico do
+                    // runner. JVM/Native o capturavam e o descartavam (o JS já
+                    // o mostrava); imprimir antes do PASS dá paridade de alvos.
+                    if (output.length() > 0) System.out.print(output);
+                    System.out.println("PASS " + f);
+                } else {
+                    System.out.print(output);
+                }
             } else {
                 failed++;
                 System.out.println("FAIL " + f);
@@ -230,8 +328,30 @@ final class CmdTest {
                         + " passed, " + e.getValue()[1] + " failed");
             }
         }
-        System.out.println(passed + " passed, " + failed + " failed");
+        int totalSkipped = skipped + skippedByTag;
+        String summary = passed + " passed, " + failed + " failed";
+        if (totalSkipped > 0) {
+            summary += ", " + totalSkipped + " skipped";
+            // Preserva o texto histórico exato quando só há skip de auxiliar
+            // (§576): CmdTestSuiteTest assere "1 skipped (no tests, no main)".
+            if (skippedByTag == 0) {
+                summary += " (no tests, no main)";
+            } else if (skipped > 0) {
+                summary += " (" + skipped + " no tests, no main / "
+                        + skippedByTag + " no tests with tag '" + tag + "')";
+            } else {
+                summary += " (no tests with tag '" + tag + "')";
+            }
+        }
+        System.out.println(summary);
         if (failed > 0) System.exit(1);
+        // §576: nenhum arquivo executável (todos auxiliares) não é sucesso —
+        // espelha o #708 ("zero discovered tests is not a success").
+        if (skipped > 0 && passed == 0 && failed == 0) {
+            System.err.println("test: no runnable test or program file found ("
+                    + skipped + " source(s) have neither `test` nor `main`)");
+            System.exit(1);
+        }
     }
 
     /**
@@ -252,6 +372,19 @@ final class CmdTest {
         } catch (IOException e) { System.err.println("error: " + e.getMessage()); }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
+    }
+
+    /**
+     * §587: algum teste descoberto no arquivo carrega a tag do filtro? O harness
+     * só filtra em compile-time (propriedade {@code kof.test.tag}), então o
+     * runner precisa saber disso antes para não contar um arquivo sem match como
+     * passed. As tags vêm de {@link CompilerDriver.TestInfo#tags()}.
+     */
+    private static boolean hasTagMatch(List<CompilerDriver.TestInfo> tests, String tag) {
+        for (CompilerDriver.TestInfo t : tests) {
+            if (t.tags().contains(tag)) return true;
+        }
+        return false;
     }
 
     /** Nome da suíte de um arquivo: diretório-pai relativo à raiz ("." = raiz). */

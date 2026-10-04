@@ -229,7 +229,7 @@ Namespaces de intenção (compilados, mesmo padrão de `kof.io`/`kof.web`):
 ```text
 kof.security
 ├── passwords        → hash/verify/needsRehash (PBKDF2-HMAC-SHA256, secure by default)
-├── crypto           → sha256/sha512, hmacSha256, aesGcm (encrypt/decrypt), randomHex/randomInt
+├── crypto           → sha256/sha512, sha256Bytes, hmacSha256/hmacSha256Bytes, aesGcm (encrypt/decrypt), randomHex/randomInt
 ├── jwt              → create/verify (HS256, exp/iss/aud, sem confusão de algoritmo)
 ├── secrets          → get (env, String cru), redact, of/secret/fromBytes (→ tipo valor Secret),
 │                      keyFromHex/keyFromPem/keyFromKeystore (→ KeyHandle, chave crua nunca exposta)
@@ -247,6 +247,9 @@ Suporte por target (estado atual — `KofSecurity.supportedOn`):
 | `passwords.hash/verify/needsRehash` | SIM (javax.crypto PBKDF2) | SIM (asm PBKDF2-HMAC-SHA256) | SIM (PBKDF2 platform-delegated) |
 | `crypto.sha256/sha512` | SIM | SIM (asm, FIPS 180-4) | SIM (JS) |
 | `crypto.hmacSha256` | SIM | SIM (asm) | SIM (JS) |
+| `keyExchange.privateKey/publicKey/shared/hkdfSha256` (D-KOF-X25519) | SIM (JCA X25519/HKDF) | gap SECN012 (port asm na fila) | gap SECN012 (a ponte de host não carrega escalares Secret) |
+| `crypto.sha256Bytes` | SIM | SIM (alias asm de layout-compatível de sha256) | gap SECN000 (D-KOF-DIGEST-BYTES, 02/10) |
+| `crypto.hmacSha256Bytes` | SIM | SIM (alias asm de hmacSha256) | gap SECN000 |
 | `crypto.aesGcm` encrypt/decrypt | SIM | SIM (asm, GCM) | SIM (JS puro, 01/09) |
 | `crypto.randomHex/randomInt` | SIM (SecureRandom) | SIM (getrandom) | SIM (kof_platform) |
 | `jwt.create/verify/secret` | SIM | SIM (asm: base64url + HMAC) | SIM |
@@ -378,6 +381,15 @@ diagnostics de target gap (SECN001/002/003). Casos adversariais incluídos (§18
   e depois logar) são limitação declarada do lint.
 - `SECN010` — usar um `KeyHandle` após `rotate()` falha em runtime nomeando a
   revogação (`IllegalStateException`), então uma chave rotacionada nunca é reusada.
+
+- `SECN011` — argumento não-String/Int nos nomes de digest simples (§563; a
+  forma degradava por alvo antes do guard).
+- `SECN012` — a face `keyExchange` (X25519/HKDF, D-KOF-X25519) em alvos sem
+  runtime (JS/Native/cross) — recusa no compile até o port.
+- `SECN013` — argumento não-`Byte[]` nas faces de digest binário
+  (`sha256Bytes`/`hmacSha256Bytes`, D-KOF-DIGEST-BYTES).
+- `SECN014` — argumento não-`Secret` na face de chave de sessão (D-KOF-X25519;
+  material privado é tipado, nunca String crua).
 
 ## 7.6 Correções de bugs descobertas durante a implementação
 
