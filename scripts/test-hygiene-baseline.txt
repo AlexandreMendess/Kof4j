@@ -4,7 +4,6 @@
 # Linhas com '#' e vazias sao ignoradas; a comparacao e por conjunto (sorted -u).
 dupname	append
 dupname	assertAllTargets
-dupname	assertBoth
 dupname	assertCompiles
 dupname	assertGap
 dupname	assertJvmJsParity
