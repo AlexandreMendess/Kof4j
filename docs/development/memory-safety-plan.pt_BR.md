@@ -5,9 +5,9 @@
 
 dona: `192.168.15.101:9092` (parity lane — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: unidade-8 reconciliação de decisão fantasma/§9 FFI POUSADA 04/10 SHA `efed9c422` (dona `192.168.15.101:9092`; nenhum `D-MEM-FFI-CALLBACKS` fantasma permanece; §9 agora casa com §7 para `Buffer(U8)` Native)
-doing: unidade 9 issue #742 — verdade de doc do README de desenvolvimento (0b/0f/0h/§559 reconciliados com planos/testes/decisões autoritativos)
-next: Q2 + gates docs/governança rc=0, commitar/push, fechar #742; depois STOP rule-6 para float/HFA cross + callbacks
+last: unidade-9 verdade de doc do README de desenvolvimento POUSADA 04/10 SHA `897a54305` issue #742 (dona `192.168.15.101:9092`; linhas 0b/0f/0h/§559 casam com planos/testes/decisões autoritativos)
+doing: sem unidade aberta — aguardando chamada rule-6 da mantenedora
+next: direção da mantenedora para float/HFA cross ou callbacks; caso contrário parar/auditar bugs-and-gaps
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -101,6 +101,7 @@ Passe + wiring + `MemorySafetyE2ETest` por alvo (JVM/Script/JS/Native mesmas fon
 - **Unidade 6 POUSADA 04/10 (esta sessão)** — verdade de doc FFI após #651 B / `D-MEM-FFI-CROSS-FULL`. Corrigiu alegações cross defasadas em `docs/ffi-abi-structs.md`+`.pt_BR.md`, roadmap `2.1.6` EN+PT e este plano: `Buffer(U8)` no cross pousou na fatia B do #651 (29/09); `T[]` escalar, `String[]`→`char**`, struct return/sret por memória e param by-value >16 B pousaram 30/09 nas faces 1–3. Faces FFI cross restantes são float/HFA (`FFI001`) e callbacks (ambas exigem direção da mantenedora; nenhum `D-*` registrado), rule-6 STOP. Zero mudança de comportamento do compilador.
 - **Unidade 7 POUSADA 04/10 (esta sessão)** — verdade de doc da tabela de ownership FFI. Corrigiu `docs/spec/memory-safety.md`+PT §7 e a linha C-FFI de `docs/backend-parity.md`+PT: as faces #651 `Buffer(U8)` x86+cross estão pousadas, as pontes JS de struct/array/Buffer estão pousadas, o binding `String[]` JVM/Native x86/cross está registrado, e os gaps atuais são estreitados a float/HFA, callbacks e marshal host opaco/não-escalar no JS (`String[]`→`char**` segue `FFI002`). Zero mudança de comportamento.
 - **Unidade 8 POUSADA 04/10 SHA `efed9c422`** — reconciliação de decisão fantasma/§9 FFI. Removeu a redação `D-MEM-FFI-CALLBACKS` (nenhuma decisão registrada) dos registros FFI/status/plano atuais e corrigiu §9 em `docs/spec/memory-safety.md`+PT para declarar que `Buffer(U8)` x86-64 + cross pousou; §7 e §9 já não se contradizem. Prova: Q2 rc=0 + 13 gates docs/governança rc=0. Zero mudança de comportamento.
+- **Unidade 9 POUSADA 04/10 SHA `897a54305` issue #742** — verdade de doc do README de desenvolvimento. Corrigiu as linhas 0b/0f/0h/§559 de `docs/development/README.md`+PT contra planos/testes/decisões autoritativos: seis fatias Fase-5/127 chaves, estado do spike `-dev` de SDL2+FFmpeg, pouso C1 de `D-KOF-SIGN` e `RasterDecodeE2ETest` 27/27 + goldens aarch64. Só docs; nenhuma mudança de comportamento.
 
 ## Definition of done (frente inteira)
 

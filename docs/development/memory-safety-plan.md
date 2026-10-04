@@ -5,9 +5,9 @@
 
 owner: `192.168.15.101:9092` (parity lane — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: unit-8 FFI ghost-decision/§9 reconciliation LANDED 04/10 SHA `efed9c422` (owner `192.168.15.101:9092`; no phantom `D-MEM-FFI-CALLBACKS` remains; §9 now matches §7 for Native `Buffer(U8)`)
-doing: unit 9 issue #742 — development README doc-truth (0b/0f/0h/§559 reconciled with authoritative plans/tests/decisions)
-next: Q2 + doc/governance gates rc=0, commit/push, close #742; then rule-6 STOP for cross float/HFA + callbacks
+last: unit-9 development README doc-truth LANDED 04/10 SHA `897a54305` issue #742 (owner `192.168.15.101:9092`; rows 0b/0f/0h/§559 match authoritative plans/tests/decisions)
+doing: no open unit — waiting rule-6 maintainer call
+next: maintainer direction for cross float/HFA or callbacks; otherwise stop/bugs-and-gaps audit
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -100,6 +100,7 @@ Pass + wiring + `MemorySafetyE2ETest` per target (JVM/Script/JS/Native same sour
 - **Unit 6 LANDED 04/10 (this session) — FFI doc-truth after #651 B / `D-MEM-FFI-CROSS-FULL`.** Corrected stale cross-face claims in `docs/ffi-abi-structs.md`+`.pt_BR.md`, roadmap `2.1.6` EN+PT, and this plan: cross `Buffer(U8)` landed #651 fatia B (29/09); cross scalar `T[]`, `String[]`→`char**`, memory-path struct return/sret and >16 B by-value param landed 30/09 faces 1–3. Remaining cross FFI faces are float/HFA (`FFI001`) and callbacks (both require maintainer direction; no `D-*` is recorded), rule-6 STOP. No compiler behavior changed.
 - **Unit 7 LANDED 04/10 (this session) — FFI ownership-table doc-truth.** Corrected `docs/spec/memory-safety.md`+PT §7 and the `docs/backend-parity.md`+PT C-FFI row: #651 `Buffer(U8)` x86+cross faces are landed, JS struct/array/Buffer bridges are landed, `String[]` JVM/Native x86/cross binding is recorded, and current gaps are narrowed to float/HFA, callbacks, and JS opaque/non-scalar host marshal (`String[]`→`char**` stays `FFI002`). No behavior change.
 - **Unit 8 LANDED 04/10 SHA `efed9c422` — FFI ghost-decision/§9 reconciliation.** Removed unrecorded `D-MEM-FFI-CALLBACKS` wording from current FFI/status/plan records and corrected `docs/spec/memory-safety.md`+PT §9 to state that Native x86-64 + cross `Buffer(U8)` are landed; §7 and §9 no longer contradict each other. Proved: Q2 rc=0 + 13 doc/governance gates rc=0. No behavior change.
+- **Unit 9 LANDED 04/10 SHA `897a54305` issue #742 — development README doc-truth.** Corrected `docs/development/README.md`+PT rows 0b/0f/0h/§559 against authoritative plans/tests/decisions: six Phase-5 test-architecture slices/127 keys, SDL2+FFmpeg `-dev` spike state, `D-KOF-SIGN` C1 landing, and lifted `RasterDecodeE2ETest` 27/27 + aarch64 goldens. Docs only; no behavior change.
 
 ## Definition of done (whole front)
 
