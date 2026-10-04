@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * constantes. Vive fora da classe de teste para mantê-la abaixo do limite de 500
  * linhas de teste (Fase 3 da arquitetura de testes, {@code D-TEST-ARCHITECTURE-GO}).
  */
-abstract class KofWebPrograms {
+abstract class KofWebPrograms extends ServerProcessSupport {
 
     static final String WEB_APP = """
             record User(String name, Int age)

@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -9,7 +8,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -20,22 +18,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * T2: parse METHOD+PATH + match literal → 200/404 (commit 6ad63f8)
  * T3 (em andamento): dispatch do handler lambda via trampolim invoke().
  */
-class KofWebNativeE2ETest {
+class KofWebNativeE2ETest extends ServerProcessSupport {
 
-    private Process serverProcess;
     private int serverPort = -1;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(3, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) { }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private static final String SERVER_T1 = """
             main() {

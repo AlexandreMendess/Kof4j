@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -16,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -39,7 +37,6 @@ class KofMediaE2ETest extends KofMediaSupport {
             System.getProperty("java.home"), "bin", "java").toString();
 
     private final CompilerDriver driver = new CompilerDriver();
-    private Process serverProcess;
 
     @org.junit.jupiter.api.io.TempDir
     Path appDir;
@@ -59,18 +56,6 @@ class KofMediaE2ETest extends KofMediaSupport {
                 ":root { --accent: #8be9fd; }\nbody { background: var(--accent); }\n");
     }
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private int startServer(Path tempDir, String kofSource) throws IOException {
         int port = freePort();

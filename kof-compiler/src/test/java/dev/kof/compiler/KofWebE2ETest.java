@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -12,7 +11,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -30,20 +28,7 @@ class KofWebE2ETest extends KofWebPrograms {
             System.getProperty("java.home"), "bin", "java").toString();
 
     private final CompilerDriver driver = new CompilerDriver();
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
 
     private int startServer(Path tempDir) throws IOException {

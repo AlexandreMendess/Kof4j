@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -10,7 +9,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,26 +20,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * (compiled Kof code using {@code http.get/post/status}) talks to it over
  * real sockets. No external servers, no Docker.
  */
-class KofHttpE2ETest {
+class KofHttpE2ETest extends ServerProcessSupport {
 
     private static final String JAVA_BIN = java.nio.file.Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
 
     private final CompilerDriver driver = new CompilerDriver();
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private static final String SERVER = """
             main() {

@@ -98,7 +98,6 @@ dupname	spawnEchoReadsStdoutLineByLine
 dupname	spawnMissingProgramIsHonestDeadHandle
 dupname	stepsRunInRegistrationOrder
 dupname	stop
-dupname	stopServer
 dupname	typedCallsRoundTripOnJvm
 dupname	visit
 dupname	visitMethodInsn

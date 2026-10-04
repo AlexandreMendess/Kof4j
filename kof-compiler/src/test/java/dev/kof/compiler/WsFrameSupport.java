@@ -9,7 +9,7 @@ import java.io.OutputStream;
  * delas (Fase 4/harness, {@code D-TEST-ARCHITECTURE-GO}); os testes e os nomes
  * das classes seguem nos dois arquivos — zero drift de citação.
  */
-abstract class WsFrameSupport {
+abstract class WsFrameSupport extends ServerProcessSupport {
 
     protected static final byte[] MASK = {0x12, 0x34, 0x56, 0x78};
 

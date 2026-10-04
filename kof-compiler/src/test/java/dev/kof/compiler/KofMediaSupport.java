@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
  * testes e o nome da classe seguem no {@code KofMediaE2ETest} — zero drift de
  * citação.
  */
-abstract class KofMediaSupport {
+abstract class KofMediaSupport extends ServerProcessSupport {
 
     protected static byte[] makeWav(int sampleRate, int channels, int framesOfSine) {
         byte[] pcm = new byte[framesOfSine * channels * 2];

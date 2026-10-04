@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -12,7 +11,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -20,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * End-to-end tests for {@code app.sse} e {@code app.ws} — Server-Sent Events
  * e WebSocket (handshake + frames) sobre sockets reais no target JVM.
  */
-class KofWebStreamE2ETest {
+class KofWebStreamE2ETest extends ServerProcessSupport {
 
     private static final String JAVA_BIN = java.nio.file.Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
@@ -28,20 +26,7 @@ class KofWebStreamE2ETest {
     private static final String MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
     private final CompilerDriver driver = new CompilerDriver();
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private static final String STREAM_APP = """
             main() {

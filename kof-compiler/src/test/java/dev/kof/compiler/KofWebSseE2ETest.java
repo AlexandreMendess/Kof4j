@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,25 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * E2E tests for the Kof-native SSE stack ({@code app.sse(...)}).
  */
-class KofWebSseE2ETest {
+class KofWebSseE2ETest extends ServerProcessSupport {
 
     private static final String JAVA_BIN = Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
 
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private static final String SSE_APP = """
             main() {

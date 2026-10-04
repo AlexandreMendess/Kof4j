@@ -10,9 +10,9 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, **131 chaves, rc=0** — 132 na medição de
+`scripts/test-hygiene-baseline.txt`, **129 chaves, rc=0** — 132 na medição de
 30/09, apertado pela extração da Fase 3 de 02/10; a cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
-de doc, e o cluster `dupname` restante exige o harness da Fase 5). **Fatia quick-win 1 (28/09):**
+de doc, e o cluster `dupname` restante exige o harness da Fase 5; as fatias da Fase 5 de 03/10 apertaram `jvmOracle` 131→130 e `stopServer` 130→129). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -637,6 +637,24 @@ fornece `gapProgram()`/`gapCode()`/`gapLabel()`, a base tem o `@Test`.
 `CryptoSignE2ETest` 3/3 + `KeyExchangeE2ETest` 6/6 verdes; `check_test_hygiene`
 de volta a rc=0 (130 chaves, 0 dívida nova).
 
+**Fatia 4 da Fase 5 ENTREGUE (03/10):** o teardown duplicado de processo-filho
+(`private Process serverProcess;` + `@AfterEach stopServer()` — destroy → wait 5s
+→ destroyForcibly) copiado em 11 classes E2E que sobem servidor
+(`KofHttp*`/`KofWeb*`/`PaginationPageRequestE2ETest`/`KofMediaE2ETest`) foi
+consolidado numa nova base `ServerProcessSupport`, que possui o campo e o único
+`@AfterEach`. As 7 classes sem outra base estendem-na direto; as 4 que já
+estendem `WsFrameSupport`/`KofWebPrograms`/`KofMediaSupport` agora a alcançam por
+esses suportes (cada um re-baseado em `ServerProcessSupport`) — então o nome do
+método `stopServer` vive em exatamente UMA classe. O `@AfterEach` in-process do
+`KofHttpServerTest` (fecha um `KofHttpServer`, não um `Process` filho) foi
+renomeado `closeServer` para permanecer distinto; o comportamento é inalterado.
+Nenhum corpo de teste, contagem de alvo ou asserção mudou. Prova: as 12 baterias
+afetadas **118/118** verdes (web/http/media/paginação + `KofHttpServerTest`); a
+chave `dupname stopServer` do ratchet foi **eliminada** — baseline re-congelada
+130→**129**. O `cleanup()` do `KofOAuthResourceServerTest` (mesma parada de
+processo mais um `jwksServer.stop`) foi deliberadamente deixado como está: não é
+duplicata de `stopServer` e dobrá-lo exigiria um segundo gancho de teardown.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.
@@ -734,7 +752,7 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho =
    encolher `scripts/test-hygiene-baseline.txt` via remoções quick-win — autoridade
-   atual = **131** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
+   atual = **129** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
@@ -759,4 +777,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→131, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e sua primeira fatia ENTREGUE** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport`, 54/54 verdes); as Fases 5–7 seguem trabalho aberto, com as famílias restantes da Fase 5 (`jvmOracle`, `main`, `assumeToolchain`, `copyLibrary`, `stopServer`) como o próximo incremento.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→129, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e quatro fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport` e `ServerProcessSupport` (chave `stopServer` eliminada, 118/118)); as Fases 5–7 seguem trabalho aberto, com as famílias restantes da Fase 5 (`main`, `assumeToolchain`, `copyLibrary`) como o próximo incremento.

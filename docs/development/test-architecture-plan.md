@@ -10,8 +10,8 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, **131 keys, rc=0** — 132 at the
-30/09 measurement, tightened by the 02/10 Phase-3 extraction; the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+over the frozen `scripts/test-hygiene-baseline.txt`, **129 keys, rc=0** — 132 at the
+30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
 citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
@@ -630,6 +630,24 @@ supplies `gapProgram()`/`gapCode()`/`gapLabel()`, the base owns the `@Test`.
 `CryptoSignE2ETest` 3/3 + `KeyExchangeE2ETest` 6/6 green; `check_test_hygiene`
 back to rc=0 (130 keys, 0 new debt).
 
+**Phase 5 slice 4 LANDED (03/10):** the duplicated child-process teardown
+(`private Process serverProcess;` + `@AfterEach stopServer()` — destroy → wait 5s
+→ destroyForcibly) copied across 11 server-spawning E2E classes
+(`KofHttp*`/`KofWeb*`/`PaginationPageRequestE2ETest`/`KofMediaE2ETest`) was
+consolidated into a new `ServerProcessSupport` base that owns the field and the
+single `@AfterEach`. The 7 classes with no other base extend it directly; the 4
+that already extend `WsFrameSupport`/`KofWebPrograms`/`KofMediaSupport` now reach
+it through those supports (each re-based on `ServerProcessSupport`) — so the
+`stopServer` method name lives in exactly ONE class. `KofHttpServerTest`'s
+in-process `@AfterEach` (it closes a `KofHttpServer`, not a child `Process`) was
+renamed `closeServer` to keep it distinct; its behaviour is unchanged. No test
+body, target count or assertion moved. Proof: the 12 affected batteries
+**118/118** green (web/http/media/pagination + `KofHttpServerTest`); the
+`dupname stopServer` ratchet key is **eliminated** — baseline re-frozen
+130→**129**. `KofOAuthResourceServerTest`'s `cleanup()` (same process stop plus a
+`jwksServer` stop) was deliberately left as-is: it is not a `stopServer` duplicate
+and folding it would need a second teardown hook.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.
@@ -728,7 +746,7 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
    shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
-   authority = **131** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
+   authority = **129** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -754,4 +772,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→131, zero identical pairs remain). **Phase 5 is now AUTHORIZED and its first slice LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport`, 54/54 green); Phases 5–7 remain open work, with the remaining Phase 5 families (`jvmOracle`, `main`, `assumeToolchain`, `copyLibrary`, `stopServer`) as the next increment.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→129, zero identical pairs remain). **Phase 5 is now AUTHORIZED and four slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, and `ServerProcessSupport` (stopServer key eliminated, 118/118)); Phases 5–7 remain open work, with the remaining Phase 5 families (`main`, `assumeToolchain`, `copyLibrary`) as the next increment.

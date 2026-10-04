@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -25,26 +24,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * mais profundo vence, listas ({@code publicPaths}/{@code roles}) somam.
  * Cada teste compila um programa Kof e o dirige por sockets reais.
  */
-class KofHttpPoliciesE2ETest {
+class KofHttpPoliciesE2ETest extends ServerProcessSupport {
 
     private static final String JAVA_BIN = java.nio.file.Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
 
     private final CompilerDriver driver = new CompilerDriver();
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private int startServer(Path tempDir, String kofSource) throws IOException {
         int port = freePort();
