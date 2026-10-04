@@ -9,8 +9,8 @@
 > funciona em ALGUNS alvos e é gap nomeado/diagnosticado em outros. **A
 > `0.5.0` não corta enquanto este ledger tiver QUALQUER linha aberta.**
 >
-> Regra do ledger (três estados, verificado por máquina via
-> `check_release_050_gate.sh` → `full_parity`):
+> Regra do ledger (três estados; o gate da 0.5.0 `check_release_050_gate.sh`
+> foi aposentado por `D-RELEASE-0.5.0-CLOSED` — autoridade viva: `scripts/check_live_records.sh`):
 > - uma linha sai SOMENTE quando a funcionalidade compila E roda com paridade
 >   byte/golden em TODOS os alvos (teste de prova nomeado, runner registrado);
 > - fechos parciais movem as células de alvo da linha (nunca marcar uma linha
