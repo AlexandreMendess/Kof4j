@@ -165,6 +165,20 @@ public class JsBackend implements Backend {
             if (JsLoweringContext.skipClass(clazz) || JsLoweringContext.isMainClass(clazz)) continue;
             classes.add(classEmitter.lowerClass(clazz));
         }
+        // #740 slice 2: close the decode-helper set transitively (a nested
+        // record field pulls in its own decoder) BEFORE emitting, so a nested
+        // helper whose class sorts before the parent is not lost.
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            for (IRClass clazz : effClasses) {
+                if (JsLoweringContext.skipClass(clazz) || JsLoweringContext.isMainClass(clazz)) continue;
+                if (!lc.decodeHelpers.contains(JsTypeMapper.jsClassName(clazz.name()))) continue;
+                for (String nested : classEmitter.nestedDecoderNames(clazz)) {
+                    if (lc.decodeHelpers.add(nested)) grew = true;
+                }
+            }
+        }
         for (IRClass clazz : effClasses) {
             if (JsLoweringContext.skipClass(clazz) || JsLoweringContext.isMainClass(clazz)) continue;
             if (lc.decodeHelpers.contains(JsTypeMapper.jsClassName(clazz.name()))) {
