@@ -139,6 +139,7 @@ final class CmdTest {
         int passed = 0;
         int failed = 0;
         int skipped = 0;   // §576: arquivos sem teste e sem main (módulos auxiliares)
+        int skippedByTag = 0;   // §587: arquivos cujo filtro --tag não casa nenhum teste
         // X8 fatia 3 ("named suites by directory"): em modo diretório cada
         // subdiretório é uma suíte nomeada (nome = caminho relativo; "." = raiz);
         // os contadores por suíte são somados ao total no fim.
@@ -173,10 +174,18 @@ final class CmdTest {
                 KofCliSupport.cleanup(tmp);
                 continue;
             }
+            // §587: um arquivo cujos testes NENHUM casa o filtro --tag não é uma
+            // suíte verde — o harness gera um main vazio e sai 0, então contar
+            // `ok` como passed imprimia `2 passed, 0 failed` para uma corrida em
+            // que 1 dos 2 arquivos rodou zero testes (falso verde). O arquivo é
+            // SKIP nomeado (o exit continua 0 — nada falhou, como o no-op de tag
+            // já contrata); a checagem vem DEPOIS do run para preservar a saída
+            // do harness (`kof test: tag 'x' (0 of N)` / `no tests with tag ...`).
+            boolean tagMatch = tag == null || !hasTests || hasTagMatch(driver.discoveredTests(), tag);
             StringBuilder output = new StringBuilder();
             if (ok) {
                 for (Diagnostic d : result.diagnostics().getDiagnostics()) output.append(d.format()).append('\n');
-                if (!driver.discoveredTests().isEmpty()) {
+                if (!driver.discoveredTests().isEmpty() && tagMatch) {
                     System.out.println("SUITE " + f + " (" + driver.discoveredTests().size() + " tests)");
                 }
                 if (target == Target.JVM) {
@@ -281,6 +290,15 @@ final class CmdTest {
                 for (Diagnostic d : result.diagnostics().getDiagnostics()) output.append(d.format()).append('\n');
             }
             KofCliSupport.cleanup(tmp);
+            if (ok && !tagMatch) {
+                // §587: o arquivo compilou e rodou, mas ZERO testes casaram o
+                // filtro. Não é uma suíte verde — SKIP nomeado, fora de passed
+                // e de failed (não entra no tally de suíte verde).
+                System.out.print(output);
+                System.out.println("SKIP " + f + " (no tests with tag '" + tag + "')");
+                skippedByTag++;
+                continue;
+            }
             if (dirMode) {
                 int[] c = suites.computeIfAbsent(suiteOf(src, f), k -> new int[2]);
                 if (ok) c[0]++; else c[1]++;
@@ -310,8 +328,21 @@ final class CmdTest {
                         + " passed, " + e.getValue()[1] + " failed");
             }
         }
+        int totalSkipped = skipped + skippedByTag;
         String summary = passed + " passed, " + failed + " failed";
-        if (skipped > 0) summary += ", " + skipped + " skipped (no tests, no main)";
+        if (totalSkipped > 0) {
+            summary += ", " + totalSkipped + " skipped";
+            // Preserva o texto histórico exato quando só há skip de auxiliar
+            // (§576): CmdTestSuiteTest assere "1 skipped (no tests, no main)".
+            if (skippedByTag == 0) {
+                summary += " (no tests, no main)";
+            } else if (skipped > 0) {
+                summary += " (" + skipped + " no tests, no main / "
+                        + skippedByTag + " no tests with tag '" + tag + "')";
+            } else {
+                summary += " (no tests with tag '" + tag + "')";
+            }
+        }
         System.out.println(summary);
         if (failed > 0) System.exit(1);
         // §576: nenhum arquivo executável (todos auxiliares) não é sucesso —
@@ -341,6 +372,19 @@ final class CmdTest {
         } catch (IOException e) { System.err.println("error: " + e.getMessage()); }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
+    }
+
+    /**
+     * §587: algum teste descoberto no arquivo carrega a tag do filtro? O harness
+     * só filtra em compile-time (propriedade {@code kof.test.tag}), então o
+     * runner precisa saber disso antes para não contar um arquivo sem match como
+     * passed. As tags vêm de {@link CompilerDriver.TestInfo#tags()}.
+     */
+    private static boolean hasTagMatch(List<CompilerDriver.TestInfo> tests, String tag) {
+        for (CompilerDriver.TestInfo t : tests) {
+            if (t.tags().contains(tag)) return true;
+        }
+        return false;
     }
 
     /** Nome da suíte de um arquivo: diretório-pai relativo à raiz ("." = raiz). */

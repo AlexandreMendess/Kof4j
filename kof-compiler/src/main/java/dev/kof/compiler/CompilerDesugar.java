@@ -29,7 +29,7 @@ public final class CompilerDesugar {
         for (AstNode d : unit.declarations()) {
             if (d instanceof TestDeclarationNode t) {
                 String fn = "kof_test_" + ti++;
-                discoveredTests.add(new CompilerDriver.TestInfo(t.name(), fn));
+                discoveredTests.add(new CompilerDriver.TestInfo(t.name(), fn, List.copyOf(t.tags())));
                 harnessEntries.add(new TestHarnessBuilder.Entry(t.name(), fn, t.tags()));
                 decls.add(new FunctionDeclarationNode(t.position(), List.of(), "void", fn,
                         List.of(), List.of(), List.of(), t.body()));

@@ -457,6 +457,20 @@ test declarations are top-level only, as intended.
 Categorize tests: `unit`, `integration`, `e2e`, `slow`, `browser`, `network`, `database`,
 `native`, `jvm`, `js`, `wasm`, `security` — enabling efficient filters.
 
+**Status:** LANDED 26/09 (X8 fatia 3) — tags are declared in the primitive
+(`test "name", "smoke" { }`) and `kof test --tag <t>` filters at COMPILE TIME (system property
+`kof.test.tag`; the synthesized harness is generated once and every target runs the same filtered
+catalog, rule-5 parity by construction). A filter that matches **nothing** in a file is an honest
+no-op (exit 0, the harness prints `kof test: tag '<t>' (0 of N)` / `no tests with tag '<t>' (of N)`)
+— a tag filter is not a gate that fails the build.
+
+**Zero-match files are SKIPPED, never passed (measured defect `known-bugs` §587, FIXED 04/10):**
+`CmdTest` used to count every file whose harness exited 0 as `passed`, so a file whose tests all
+failed the tag filter printed `suite b: 1 passed, 0 failed` / `2 passed, 0 failed` — a false green
+indistinguishable from a real pass. `CompilerDriver.TestInfo` now exposes the declared `tags`, and a
+zero-match file is `SKIP <file> (no tests with tag '<t>')` counted in `skippedByTag`, excluded from
+`passed`. Single-tag exact match only; multi-tag/negation remain future work.
+
 ## 7.2 Parallelism
 
 Unit: parallel by default when isolated. Integration: controlled. E2E: per browser/context/project

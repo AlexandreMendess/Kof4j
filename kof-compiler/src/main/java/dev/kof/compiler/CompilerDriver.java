@@ -142,8 +142,19 @@ public dev.kof.compiler.nat.NativeProfile nativeProfile() {
 
 
 
-    /** Um caso `test "nome" { }` descoberto em compile-time. */
-    public record TestInfo(String name, String functionName) {
+    /**
+     * Um caso `test "nome" { }` descoberto em compile-time.
+     *
+     * <p>{@code tags} são as tags opcionais declaradas (`test "n", "a", "b" { }`),
+     * expostas para que o runner (`kof test --tag`) saiba quantos testes de um
+     * arquivo casam o filtro ANTES de executá-lo — um arquivo com zero matches
+     * é um SKIP honesto, nunca um PASS (medido: era contado como passed).
+     * Construtor de 2 args mantido para compatibilidade dos consumidores.</p>
+     */
+    public record TestInfo(String name, String functionName, List<String> tags) {
+        public TestInfo(String name, String functionName) {
+            this(name, functionName, List.of());
+        }
     }
 
     /** Testes descobertos na última compilação (ordem de declaração). */
