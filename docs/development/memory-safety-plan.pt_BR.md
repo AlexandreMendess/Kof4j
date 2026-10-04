@@ -5,7 +5,7 @@
 
 dona: `192.168.15.101:9092` (parity lane — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: unidade-8 reconciliação de decisão fantasma/§9 FFI POUSADA 04/10 (dona `192.168.15.101:9092`; nenhum `D-MEM-FFI-CALLBACKS` fantasma permanece; §9 agora casa com §7 para `Buffer(U8)` Native)
+last: unidade-8 reconciliação de decisão fantasma/§9 FFI POUSADA 04/10 SHA `efed9c422` (dona `192.168.15.101:9092`; nenhum `D-MEM-FFI-CALLBACKS` fantasma permanece; §9 agora casa com §7 para `Buffer(U8)` Native)
 doing: sem unidade aberta — aguardando chamada rule-6 da mantenedora
 next: direção da mantenedora para float/HFA cross ou callbacks; caso contrário parar/auditar bugs-and-gaps
 location: memory-safety-plan
@@ -100,7 +100,7 @@ Passe + wiring + `MemorySafetyE2ETest` por alvo (JVM/Script/JS/Native mesmas fon
 - **Unidade 5 POUSADA 03/10 (esta sessão)** — o gate mecânico de inventário FFI (`scripts/check_ffi_inventory.sh`, ligado em `scripts/agent-verify.sh` nos toques `"FFI[0-9]`/`docs/ffi-abi-structs*`, `--selftest` planta drift): todo literal `FFIxxx` emitido em `kof-compiler/src/main/java/` precisa de linha em `docs/ffi-abi-structs.md`+`docs/ffi-abi-structs.pt_BR.md` E de pin em `kof-compiler/src/test/java/`; a cobertura reversa pega códigos obsoletos/inventados. Execução real: 2 códigos FFI001/FFI002 emitidos, documentados EN+PT, pinados → OK. Previne a classe de drift silencioso do §544 (R6 "cada código de gap tem significado documentado + pin") sem exigir `D-*`. FFI-callbacks continua rule-6 STOP; este gate é higiene de processo ortogonal.
 - **Unidade 6 POUSADA 04/10 (esta sessão)** — verdade de doc FFI após #651 B / `D-MEM-FFI-CROSS-FULL`. Corrigiu alegações cross defasadas em `docs/ffi-abi-structs.md`+`.pt_BR.md`, roadmap `2.1.6` EN+PT e este plano: `Buffer(U8)` no cross pousou na fatia B do #651 (29/09); `T[]` escalar, `String[]`→`char**`, struct return/sret por memória e param by-value >16 B pousaram 30/09 nas faces 1–3. Faces FFI cross restantes são float/HFA (`FFI001`) e callbacks (ambas exigem direção da mantenedora; nenhum `D-*` registrado), rule-6 STOP. Zero mudança de comportamento do compilador.
 - **Unidade 7 POUSADA 04/10 (esta sessão)** — verdade de doc da tabela de ownership FFI. Corrigiu `docs/spec/memory-safety.md`+PT §7 e a linha C-FFI de `docs/backend-parity.md`+PT: as faces #651 `Buffer(U8)` x86+cross estão pousadas, as pontes JS de struct/array/Buffer estão pousadas, o binding `String[]` JVM/Native x86/cross está registrado, e os gaps atuais são estreitados a float/HFA, callbacks e marshal host opaco/não-escalar no JS (`String[]`→`char**` segue `FFI002`). Zero mudança de comportamento.
-- **Unidade 8 POUSADA 04/10** — reconciliação de decisão fantasma/§9 FFI. Removeu a redação `D-MEM-FFI-CALLBACKS` (nenhuma decisão registrada) dos registros FFI/status/plano atuais e corrigiu §9 em `docs/spec/memory-safety.md`+PT para declarar que `Buffer(U8)` x86-64 + cross pousou; §7 e §9 já não se contradizem. Prova: Q2 rc=0 + 13 gates docs/governança rc=0. Zero mudança de comportamento.
+- **Unidade 8 POUSADA 04/10 SHA `efed9c422`** — reconciliação de decisão fantasma/§9 FFI. Removeu a redação `D-MEM-FFI-CALLBACKS` (nenhuma decisão registrada) dos registros FFI/status/plano atuais e corrigiu §9 em `docs/spec/memory-safety.md`+PT para declarar que `Buffer(U8)` x86-64 + cross pousou; §7 e §9 já não se contradizem. Prova: Q2 rc=0 + 13 gates docs/governança rc=0. Zero mudança de comportamento.
 
 ## Definition of done (frente inteira)
 
