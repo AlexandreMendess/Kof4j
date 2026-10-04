@@ -117,7 +117,8 @@ veja abaixo). Prova:
 `FfiStructLayoutTest.crossIntReturnIsBindableOnlyForIntegerRegisterPath`.
 `T[]`/`Buffer` (faces 1–2, `D-MEM-FFI-CROSS-FULL`) e o struct **retorno** por caminho
 de memória (face 3, abaixo) pousaram desde então; o **param** struct > 16 B pousou
-na mesma face; callbacks ficam `FFI001`/`FFI002` até `D-MEM-FFI-CALLBACKS`.
+na mesma face; callbacks ficam `FFI001`/`FFI002` aguardando direção da mantenedora
+(nenhum `D-*` registrado ainda).
 **Pousou 22/09 (3.7 fatia 4 · struct PARAM no cross, register path INTEGER):** os
 emissores riscv64/aarch64 agora bindam um struct `record` de campos escalares
 INTEGER **por valor como argumento** — o gate `nativeExternBound` aceita params
@@ -364,6 +365,6 @@ vertical completo (nenhum caminho meio-ligado, R6):
     `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` — shim `.so`
     cross-compilado, golden JVM == riscv64 == aarch64 byte-idêntico para as 5
     larguras de elemento; gate pinado por
-    `FfiNativeCrossE2ETest#riscv64ScalarArrayAndStringArrayBind`. Face restante
-    de `D-MEM-FFI-CROSS-FULL`: callbacks (`D-MEM-FFI-CALLBACKS`, decisão da
-    mantenedora).
+     `FfiNativeCrossE2ETest#riscv64ScalarArrayAndStringArrayBind`. Faces restantes
+     de `D-MEM-FFI-CROSS-FULL`: float/HFA e callbacks (ambas exigem direção da
+     mantenedora; nenhum `D-*` registrado).

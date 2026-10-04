@@ -113,8 +113,8 @@ struct **parameter** path on the cross LANDED 30/09 (`D-MEM-FFI-CROSS-FULL` face
 `FfiStructLayoutTest.crossIntReturnIsBindableOnlyForIntegerRegisterPath`.
 `T[]`/`Buffer` (faces 1–2, `D-MEM-FFI-CROSS-FULL`) and the memory-path struct
 RETURN (face 3, below) have since landed; the >16 B by-value struct **param**
-landed in the same face; callbacks stay an honest `FFI001`/`FFI002` pending
-`D-MEM-FFI-CALLBACKS`.
+landed in the same face; callbacks stay an honest `FFI001`/`FFI002` pending a
+maintainer decision (no `D-*` is recorded yet).
 **Landed 22/09 (3.7 fatia 4 · cross struct PARAM, INTEGER register path):** the
 riscv64/aarch64 emitters now bind a `record` scalar-INTEGER-fields struct **by
 value as an argument** — gate `nativeExternBound` accepts struct params on the
@@ -372,4 +372,4 @@ complete vertical (no half-bound path, R6):
       (#651 fatia B, 29/09); `String[]` landed as `char**` on JVM/x86-64/riscv64/aarch64
       (`D-MEM-FFI-CROSS-FULL` face 2, 30/09; JS stays `FFI002`).
 
-  4. **✅ DONE (30/09) — scalar `T[]`→`ptr` on the CROSS (riscv64/aarch64), `D-MEM-FFI-CROSS-FULL` face 1.** The x86-64 pack path is ported: `CompilerFfiBinding` no longer restricts scalar arrays to x86-64, `FfiStructLayout.crossBindable` counts an array-ptr as one INTEGER ordinal, and `NativeFfiCallRiscv` packs using the new `kof_ffi_pack_array` riscv helper (per-program, `NativeArchEmitter`, aarch64 via the line-by-line translator). `String[]` later landed the same day as face 2. Proof: `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` — a cross-compiled `.so` shim, golden JVM == riscv64 == aarch64 byte-identical for all 5 element widths; gate pinned by `FfiNativeCrossE2ETest#riscv64ScalarArrayAndStringArrayBind`. Remaining `D-MEM-FFI-CROSS-FULL` face: callbacks (`D-MEM-FFI-CALLBACKS`, maintainer decision).
+  4. **✅ DONE (30/09) — scalar `T[]`→`ptr` on the CROSS (riscv64/aarch64), `D-MEM-FFI-CROSS-FULL` face 1.** The x86-64 pack path is ported: `CompilerFfiBinding` no longer restricts scalar arrays to x86-64, `FfiStructLayout.crossBindable` counts an array-ptr as one INTEGER ordinal, and `NativeFfiCallRiscv` packs using the new `kof_ffi_pack_array` riscv helper (per-program, `NativeArchEmitter`, aarch64 via the line-by-line translator). `String[]` later landed the same day as face 2. Proof: `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` — a cross-compiled `.so` shim, golden JVM == riscv64 == aarch64 byte-identical for all 5 element widths; gate pinned by `FfiNativeCrossE2ETest#riscv64ScalarArrayAndStringArrayBind`. Remaining `D-MEM-FFI-CROSS-FULL` faces: float/HFA and callbacks (both require maintainer direction; no `D-*` is recorded).

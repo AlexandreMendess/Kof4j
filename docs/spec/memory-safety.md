@@ -224,7 +224,7 @@ Everything that crosses a language boundary is a VALUE COPY with a confined life
 | `Web` server | Process or explicit `kof_web_close` | Yes | `MEM014` |
 | `DB` connection | Process or explicit `kof_db_close` | Yes | `MEM014` |
 | `File` handle | Per-call (whole file) | Auto per-call | — |
-| `FFI` buffer | Confined arena (JVM/JS); Native has no buffer face yet (`FFI001`, §7) | Yes | `MEM005` |
+| `FFI` buffer | Confined arena on JVM/JS; Native x86-64 + cross pass the inline `Buffer(U8)` payload as the INOUT pointer (§7; #651 fatias A2/B) | Yes | `MEM005` |
 
 > No finalizers, no `Cleaner`, no finalizers. Leaking `close()` leaks the
 > underlying OS resource for the process lifetime.

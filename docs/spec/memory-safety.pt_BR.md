@@ -216,7 +216,7 @@ Tudo que cruza uma fronteira de linguagem é CÓPIA DE VALOR com lifetime confin
 | `Web` server | Processo ou `kof_web_close` explícito | Sim | `MEM014` |
 | `DB` conexão | Processo ou `kof_db_close` explícito | Sim | `MEM014` |
 | `File` handle | Por chamada (arquivo inteiro) | Auto por chamada | — |
-| `FFI` buffer | Arena confined (JVM/JS); Native ainda não tem face de buffer (`FFI001`, §7) | Sim | `MEM005` |
+| `FFI` buffer | Arena confined no JVM/JS; Native x86-64 + cross passam o payload inline do `Buffer(U8)` como ponteiro INOUT (§7; #651 fatias A2/B) | Sim | `MEM005` |
 
 > Nenhum finalizer, nenhum `Cleaner`, nenhum finalizador. Vazar `close()` vaza o
 > recurso de SO subjacente pelo tempo de vida do processo.
