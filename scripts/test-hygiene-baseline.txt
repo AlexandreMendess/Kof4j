@@ -82,7 +82,6 @@ dupname	runEchoPathResolutionAndArgs
 dupname	runJavac
 dupname	runJs
 dupname	runJvm
-dupname	runKof
 dupname	runLargeStdoutDrainsWithoutDeadlock
 dupname	runNative
 dupname	runQemu

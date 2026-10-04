@@ -1,9 +1,7 @@
 package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -19,11 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * IDENTICAL bytes. Quoted values keep their quotes so the inferred type
  * survives (§11.7).
  */
-class KofmdRoundTripE2ETest {
+class KofmdRoundTripE2ETest extends KofmdRunSupport {
 
-    private final CompilerDriver driver = new CompilerDriver();
 
-    @TempDir Path tmp;
 
     @Test
     void canonicalTextRoundTripsByteIdentical() throws Exception {
@@ -202,32 +198,9 @@ class KofmdRoundTripE2ETest {
             """);
     }
 
-    private void runKof(String code) throws Exception {
-        Path installRoot = tmp.resolve("kof-install");
-        copyLibrary(installRoot.resolve("lib/kof-libs"));
-        Path source = tmp.resolve("Main.kf");
-        Files.writeString(source, code);
-        Path out = Files.createTempDirectory(tmp, "kofmd-out-");
-        String previousInstallDir = System.getProperty("kof.install.dir");
-        CompilationResult result;
-        System.setProperty("kof.install.dir", installRoot.toString());
-        try {
-            result = driver.compile(source, out, Target.JVM);
-        } finally {
-            if (previousInstallDir == null) System.clearProperty("kof.install.dir");
-            else System.setProperty("kof.install.dir", previousInstallDir);
-        }
-        assertTrue(result.success(), () -> result.diagnostics().getDiagnostics().toString());
-
-        try (var loader = new URLClassLoader(
-                new java.net.URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
-            Class.forName("Default.Main", true, loader)
-                    .getMethod("main", String[].class)
-                    .invoke(null, (Object) new String[0]);
-        }
-    }
-
-    private static void copyLibrary(Path destinationRoot) throws Exception {
+    
+    @Override
+    protected void copyLibrary(Path destinationRoot) throws Exception {
         Path sourceRoot = findLibraryRoot();
         try (var files = Files.walk(sourceRoot)) {
             for (Path source : files.filter(Files::isRegularFile).toList()) {
