@@ -21,6 +21,7 @@ import static dev.kof.compiler.AvifGroupSupport.groupProbe;
 import static dev.kof.compiler.AvifGroupSupport.groupErrorProbe;
 import static dev.kof.compiler.AvifGroupJavaSupport.javaGroupFacts;
 import static dev.kof.compiler.AvifGroupJavaSupport.javaGroupFactsError;
+import static dev.kof.compiler.AvifGroupJavaSupport.javaTileFacts;
 import static dev.kof.compiler.AvifFrameJavaSupport.javaFrameFacts;
 import static dev.kof.compiler.AvifFrameJavaSupport.javaFrameFactsError;
 import static dev.kof.compiler.AvifFrameSupport.probe;
@@ -172,6 +173,20 @@ class AvifFrameE2ETest {
             "split 2..3 n=2 sizes=,4 last=2 total=6",
             "inline 0..3 n=4 sizes=,5,4,3 last=1 total=13");
 
+    // slice 2n: per-tile payload facts (length + rolling hash) in tile order,
+    // from the tg-inline (4 tiles) and tg-split (two sibling groups) fixtures.
+    private static final String GOLDEN_TILES = String.join("\n",
+            "tile len=5 h=31810",
+            "tile len=4 h=54943",
+            "tile len=3 h=8970",
+            "tile len=1 h=12",
+            "stile len=5 h=31810",
+            "stile len=3 h=4998",
+            "stile len=4 h=1026",
+            "stile len=2 h=129");
+
+    private static final String GOLDEN_GROUP_ALL = GOLDEN_GROUPS + "\n" + GOLDEN_TILES;
+
     private static final String GROUP_REFUSALS = String.join("\n",
             "IMAGE: avif tile group full range flag set",
             "IMAGE: avif tile group order invalid",
@@ -184,7 +199,7 @@ class AvifFrameE2ETest {
     @Test
     void avifTileGroupsOnJvm() throws Exception {
         Path dir = groupFixtures(tmp.resolve("group-jvm"));
-        assertEquals(GOLDEN_GROUPS, runJvm(groupProbe(dir)));
+        assertEquals(GOLDEN_GROUP_ALL, runJvm(groupProbe(dir)));
     }
 
     @Test
@@ -196,14 +211,14 @@ class AvifFrameE2ETest {
         KofInterpreter.Result result = withLibrary(root,
                 () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
         assertEquals(0, result.exitCode(), "script output: " + result.stdout());
-        assertEquals(GOLDEN_GROUPS, result.stdout().strip());
+        assertEquals(GOLDEN_GROUP_ALL, result.stdout().strip());
     }
 
     @Test
     void avifTileGroupsOnNativeX86() throws Exception {
         Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
         Path dir = groupFixtures(tmp.resolve("group-native"));
-        assertEquals(GOLDEN_GROUPS, runNativeX86(groupProbe(dir)));
+        assertEquals(GOLDEN_GROUP_ALL, runNativeX86(groupProbe(dir)));
     }
 
     @Test
@@ -211,7 +226,7 @@ class AvifFrameE2ETest {
         Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
         Path dir = groupFixtures(tmp.resolve("group-riscv"));
-        assertEquals(GOLDEN_GROUPS, runCrossCode("riscv64", Target.NATIVE_RISCV64, groupProbe(dir)));
+        assertEquals(GOLDEN_GROUP_ALL, runCrossCode("riscv64", Target.NATIVE_RISCV64, groupProbe(dir)));
     }
 
     @Test
@@ -219,7 +234,7 @@ class AvifFrameE2ETest {
         Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
                 "cross aarch64 + qemu absent — skipping (NATIVE002)");
         Path dir = groupFixtures(tmp.resolve("group-aarch"));
-        assertEquals(GOLDEN_GROUPS, runCrossCode("aarch64", Target.NATIVE_AARCH64, groupProbe(dir)));
+        assertEquals(GOLDEN_GROUP_ALL, runCrossCode("aarch64", Target.NATIVE_AARCH64, groupProbe(dir)));
     }
 
     @Test
@@ -255,8 +270,10 @@ class AvifFrameE2ETest {
         assertEquals(1, inl.length);
         String java = String.join("\n",
                 "one " + one[0], "split " + sp[0], "split " + sp[1],
-                "inline " + inl[0]);
-        assertEquals(GOLDEN_GROUPS, java);
+                "inline " + inl[0],
+                javaTileFacts(dir.resolve("tg-inline.avif"), "tile"),
+                javaTileFacts(dir.resolve("tg-split.avif"), "stile"));
+        assertEquals(GOLDEN_GROUP_ALL, java);
 
         Path errDir = groupErrorFixtures(tmp.resolve("gxcheck-errors"));
         String[] names = {"full", "order", "range", "incomplete", "trunc", "nogroup", "before"};

@@ -379,6 +379,91 @@ final class AvifGroupJavaSupport {
         return k;
     }
 
+    // --- slice 2n: independent tile PAYLOAD extraction. Walks the item,
+    //     records each tile's (offset,size) at the interleaved 6.10.1
+    //     position, then hashes the bytes in tile order. ---
+    static String javaTileFacts(Path file, String prefix) throws Exception {
+        byte[] item = itemOf(file);
+        int n = item.length;
+        int pos = 0;
+        int tiles = 0, trows = 0, tileBits = 0, tsb = 0;
+        boolean haveSeq = false, haveFrame = false;
+        int[] sq = null;
+        int totalTileNum = 0, groups = 0;
+        StringBuilder out = new StringBuilder();
+        while (pos < n) {
+            int head = item[pos] & 255;
+            int type = (head >> 3) & 15;
+            int ext = (head >> 2) & 1;
+            int p = pos + 1 + ext;
+            int size = 0;
+            for (int i = 0; i < 8; i++) {
+                int x = item[p++] & 255;
+                size = (size << 7) | (x & 127);
+                if ((x & 128) == 0) break;
+            }
+            int limit = p + size;
+            if (type == 1 && !haveSeq) {
+                sq = walkSeq(item, p, limit);
+                haveSeq = true;
+            } else if (type == 3 || type == 6) {
+                int[] t = walkFrameTileInfo(item, p, limit, sq);
+                tiles = t[0];
+                trows = t[1];
+                tileBits = t[2];
+                tsb = t[3];
+                haveFrame = true;
+                if (type == 6) {
+                    tilePayloads(item, p + t[4], limit, tiles * trows, tileBits, tsb, prefix, out);
+                    groups++;
+                }
+            } else if (type == 4) {
+                if (!haveFrame) throw new AssertionError("tile group without frame header");
+                tilePayloads(item, p, limit, tiles * trows, tileBits, tsb, prefix, out);
+                groups++;
+            }
+            pos = limit;
+        }
+        if (!haveFrame) throw new AssertionError("no frame header");
+        if (groups == 0) throw new AssertionError("no tile group");
+        return out.toString();
+    }
+
+    private static void tilePayloads(byte[] b, int p0, int limit, int numTiles,
+                                     int tileBits, int tsb, String prefix, StringBuilder out) {
+        int bits = p0 * 8;
+        int tgStart = 0, tgEnd = numTiles - 1;
+        if (numTiles > 1) {
+            if (AvifSeqSupport.readBits(b, bits, 1) == 1) {
+                bits += 1;
+                tgStart = AvifSeqSupport.readBits(b, bits, tileBits);
+                bits += tileBits;
+                tgEnd = AvifSeqSupport.readBits(b, bits, tileBits);
+                bits += tileBits;
+            } else {
+                bits += 1;
+            }
+        }
+        while ((bits & 7) != 0) bits++;
+        int q = bits / 8;
+        int count = tgEnd + 1 - tgStart;
+        for (int i = 0; i < count; i++) {
+            int size;
+            if (i + 1 < count) {
+                int v = 0;
+                for (int k = 0; k < tsb; k++) v = (v << 8) | (b[q++] & 255);
+                size = v + 1;
+            } else {
+                size = limit - q;
+            }
+            int hash = 0;
+            for (int k = 0; k < size; k++) hash = (hash * 31 + (b[q + k] & 255)) % 100003;
+            if (out.length() > 0) out.append("\n");
+            out.append(prefix).append(" len=").append(size).append(" h=").append(hash);
+            q += size;
+        }
+    }
+
     static String javaGroupFactsError(Path file) {
         try {
             javaGroupFacts(file);

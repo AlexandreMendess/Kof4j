@@ -29,7 +29,9 @@ final class AvifGroupSupport {
     }
 
     /** group header bytes: optional flag/range, byte align, le(sizeBytes=1)
-     *  per explicit size, then payload filler bytes. */
+     *  per explicit size, then payload filler bytes. Payload bytes are
+     *  DISTINCT per tile (an increasing seed) so a wrong payload offset is
+     *  caught by the per-tile hash, not masked by uniform filler. */
     private static byte[] groupBytes(int flag, int tgS, int tgE, int[] explicitSizes, int filler) {
         AvifMetadataSupport.Bits w = new AvifMetadataSupport.Bits();
         w.bits(flag, 1);
@@ -40,14 +42,15 @@ final class AvifGroupSupport {
         while ((w.n & 7) != 0) {
             w.bits(0, 1);
         }
+        int seed = 0;
         for (int s : explicitSizes) {
             w.bits(s - 1, 8);
             for (int i = 0; i < s; i++) {
-                w.bits(7, 8);
+                w.bits(seed++ & 255, 8);
             }
         }
         for (int i = 0; i < filler; i++) {
-            w.bits(7, 8);
+            w.bits(seed++ & 255, 8);
         }
         return w.bytes();
     }
@@ -61,7 +64,7 @@ final class AvifGroupSupport {
                         AvifSeqSupport.delimiter(),
                         AvifMetadataSupport.configObu(0, 2, false, false, true),
                         AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 1, 1, 0),
-                        AvifSeqSupport.obuType(4, new byte[]{0x07, 0x07})))));
+                        AvifSeqSupport.obuType(4, new byte[]{0x11, 0x22})))));
         // split: OBU_FRAME_HEADER (3) + two sibling OBU_TILE_GROUP (4):
         // g1 [0..1] size 5 + 3 filler; g2 [2..3] size 4 + 2 filler
         byte[] hdr3 = AvifFrameSupport.frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 1, 1, 1, 2, 2, 0);
@@ -145,6 +148,14 @@ final class AvifGroupSupport {
                     + " total=" + g.totalBytes
             }
 
+            String pay(Int[] p) {
+                var s = 0
+                for (var x in p) {
+                    s = (s * 31 + x) %% 100003
+                }
+                return "len=" + p.length + " h=" + s
+            }
+
             main() {
                 var base = "%s"
                 var one = readAvifTileGroups(base + "/tg-one.avif")
@@ -158,6 +169,14 @@ final class AvifGroupSupport {
                 var inl = readAvifTileGroups(base + "/tg-inline.avif")
                 for (var g in inl) {
                     println("inline " + gfacts(g))
+                }
+                var pays = readAvifTilePayloads(base + "/tg-inline.avif")
+                for (var p in pays) {
+                    println("tile " + pay(p))
+                }
+                var spays = readAvifTilePayloads(base + "/tg-split.avif")
+                for (var p in spays) {
+                    println("stile " + pay(p))
                 }
             }
             """.formatted(base);

@@ -6,7 +6,8 @@ import image.AvifItems
 import image.AvifSeq
 
 record AvifTileGroup(Int tgStart, Int tgEnd, Int tileCount,
-                     List<Int> tileSizes, Int lastTileSize, Int totalBytes)
+                     List<Int> tileSizes, Int lastTileSize, Int totalBytes,
+                     List<Int> tileOffsets)
 
 List<AvifTileGroup> readAvifTileGroups(String path) {
     var bytes = File(path).readRange(0, 65536)
@@ -14,20 +15,68 @@ List<AvifTileGroup> readAvifTileGroups(String path) {
     return avifItemTileGroups(avifItemBytes(bytes, md.primaryId))
 }
 
-// kof.image — AV1 tile_group_obu() header prefix walk, slice 2f/2m of the
+// slice 2n: the tile PAYLOAD bytes, in tile order. Each tile's size comes
+// from the 5.11.1 size table (the last from the remaining payload), and its
+// start offset is the interleaved 6.10.1 position recorded by the walk. This
+// is the byte range the AV1 coefficient decoder consumes; the loop filter and
+// quantization ride the decode slices. The item bytes are the caller's
+// (`avifItemBytes`), so no file is re-read.
+Int[] avifTilePayload(Int[] item, AvifTileGroup g, Int i) {
+    if (i < 0 || i >= g.tileCount) {
+        throw "IMAGE: avif tile index out of range"
+    }
+    var size = g.lastTileSize
+    if (i + 1 < g.tileCount) {
+        size = g.tileSizes.get(i)
+    }
+    var at = g.tileOffsets.get(i)
+    if (at < 0 || at + size > item.length) {
+        throw "IMAGE: avif tile payload beyond item"
+    }
+    var out = new Int[size]
+    var k = 0
+    while (k < size) {
+        out[k] = item[at + k]
+        k = k + 1
+    }
+    return out
+}
+
+// all tile payloads of the item's frame, flattened in tile order across its
+// groups.
+List<Int[]> avifItemTilePayloads(Int[] item) {
+    var groups = avifItemTileGroups(item)
+    var out = listOf<Int[]>()
+    for (var g in groups) {
+        var i = 0
+        while (i < g.tileCount) {
+            out.add(avifTilePayload(item, g, i))
+            i = i + 1
+        }
+    }
+    return out
+}
+
+List<Int[]> readAvifTilePayloads(String path) {
+    var bytes = File(path).readRange(0, 65536)
+    var md = avifMetadata(bytes)
+    return avifItemTilePayloads(avifItemBytes(bytes, md.primaryId))
+}
+
+// kof.image — AV1 tile_group_obu() header prefix walk, slice 2f/2m/2n of the
 // AVIF front (plan §34). AV1 spec 5.11.1 + 6.10.1 read on the dev host: the
 // range flag, tg_start/tg_end (f(tileBits)), byte_alignment(), and the
 // le(TileSizeBytes) per-tile size table with the last tile taking the
 // remaining payload bytes. Groups ride an OBU_FRAME (6, ONE inline group
 // after the full byte-aligned uncompressed_header) or sibling OBU_TILE_GROUP
-// (4) payloads after an OBU_FRAME_HEADER (3). The tile PAYLOADS are skipped
-// by size — enumerated, never decoded; loop filter, quantization,
-// coefficients and the frame_end CDF update ride the AV1 decode slices, and
-// `Avif.kf` policy keeps `decodeRaster` refusing AVIF. Conformance refusals
-// (named, never silent): range flag inside an OBU_FRAME, full range with the
-// flag set, inverted or out-of-order tg ranges, a last group that does not
-// end at NumTiles-1, OBU_REDUNDANT_FRAME_HEADER (7), OBU_TILE_LIST (8), and
-// truncation anywhere.
+// (4) payloads after an OBU_FRAME_HEADER (3). Slice 2n exposes each tile's
+// PAYLOAD bytes at its exact interleaved offset (`avifTilePayload`), the byte
+// range the coefficient decoder consumes; the loop filter, quantization and
+// coefficients themselves ride the decode slices, and `Avif.kf` policy keeps
+// `decodeRaster` refusing AVIF. Conformance refusals (named, never silent):
+// range flag inside an OBU_FRAME, full range with the flag set, inverted or
+// out-of-order tg ranges, a last group that does not end at NumTiles-1,
+// OBU_REDUNDANT_FRAME_HEADER (7), OBU_TILE_LIST (8), and truncation anywhere.
 
 // slice 2f/2m: tile_group_obu() header prefix facts for the item's frame
 // (AV1 5.11.1). OBU_FRAME_HEADER (3) is followed by sibling OBU_TILE_GROUP
@@ -184,6 +233,7 @@ AvifTileGroup tileGroupWalk(Int[] b, Int p0, Int limit, AvifFrameHeader frame,
     var tsb = frame.tileSizeBytes
     var count = tgEnd + 1 - tgStart
     var sizes = listOf<Int>()
+    var offsets = listOf<Int>()
     var total = 0
     var i = 0
     while (i + 1 < count) {
@@ -198,6 +248,7 @@ AvifTileGroup tileGroupWalk(Int[] b, Int p0, Int limit, AvifFrameHeader frame,
             k = k + 1
         }
         var size = v + 1
+        offsets.add(p)
         p = p + size
         if (p > limit) {
             throw "IMAGE: truncated avif tile group"
@@ -210,7 +261,8 @@ AvifTileGroup tileGroupWalk(Int[] b, Int p0, Int limit, AvifFrameHeader frame,
     if (last < 0) {
         throw "IMAGE: truncated avif tile group"
     }
-    return AvifTileGroup(tgStart, tgEnd, count, sizes, last, total + last)
+    offsets.add(p)
+    return AvifTileGroup(tgStart, tgEnd, count, sizes, last, total + last, offsets)
 }
 
 AvifFrameHeader avifFrameSentinel() {
