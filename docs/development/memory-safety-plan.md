@@ -6,8 +6,8 @@
 owner: `192.168.15.101:9092` (parity lane — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
 last: unit-8 FFI ghost-decision/§9 reconciliation LANDED 04/10 SHA `efed9c422` (owner `192.168.15.101:9092`; no phantom `D-MEM-FFI-CALLBACKS` remains; §9 now matches §7 for Native `Buffer(U8)`)
-doing: no open unit — waiting rule-6 maintainer call
-next: maintainer direction for cross float/HFA or callbacks; otherwise stop/bugs-and-gaps audit
+doing: unit 9 issue #742 — development README doc-truth (0b/0f/0h/§559 reconciled with authoritative plans/tests/decisions)
+next: Q2 + doc/governance gates rc=0, commit/push, close #742; then rule-6 STOP for cross float/HFA + callbacks
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety

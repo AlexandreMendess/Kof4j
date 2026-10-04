@@ -6,8 +6,8 @@
 dona: `192.168.15.101:9092` (parity lane — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
 last: unidade-8 reconciliação de decisão fantasma/§9 FFI POUSADA 04/10 SHA `efed9c422` (dona `192.168.15.101:9092`; nenhum `D-MEM-FFI-CALLBACKS` fantasma permanece; §9 agora casa com §7 para `Buffer(U8)` Native)
-doing: sem unidade aberta — aguardando chamada rule-6 da mantenedora
-next: direção da mantenedora para float/HFA cross ou callbacks; caso contrário parar/auditar bugs-and-gaps
+doing: unidade 9 issue #742 — verdade de doc do README de desenvolvimento (0b/0f/0h/§559 reconciliados com planos/testes/decisões autoritativos)
+next: Q2 + gates docs/governança rc=0, commitar/push, fechar #742; depois STOP rule-6 para float/HFA cross + callbacks
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
