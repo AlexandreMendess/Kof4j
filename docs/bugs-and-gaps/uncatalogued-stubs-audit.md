@@ -352,7 +352,10 @@ edit.
 3. **Doc/code drift:** features marked done in `docs/` whose code is partial
    (cross-check the parity matrices and the tracker against the code). —
    **partially done** (slices 2 and 3 found 3 drifts); continue over the
-   per-function gates.
+   per-function gates. **Extended 04/10 (`§589` lane):** the ratchet now also
+   pins `KofImage` (the `kof.image` interop namespace created 30/09, after the
+   21/09 sweep — JVM-only, `IMG001` on the other six targets);
+   `StdParityGapAuditTest` **17/17**.
 4. **`.kf` host files** — **DONE (slice 4, negative): 0 undocumented stubs.**
 5. **Close UI-JS-1** — **DONE (slice 4): closed by measurement, by design.**
 

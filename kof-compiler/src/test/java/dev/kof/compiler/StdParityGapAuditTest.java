@@ -63,6 +63,18 @@ class StdParityGapAuditTest {
     }
 
     @Test
+    @DisplayName("image: JVM-only (IMG001) — interop javax.imageio; demais alvos gated")
+    void imageGatesToJvm() {
+        // D-IMAGE-SURFACE (30/09): kof.image.decode é o escape interop JVM
+        // (javax.imageio); os decoders puros cobrem o resto em libs/image/.
+        // O namespace nasceu depois deste ratchet (21/09) e ficou sem pin.
+        assertEquals(Set.of(Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
+                Target.JS, Target.ANDROID, Target.SCRIPT), unsupported(KofImage::supportedOn));
+        assertTrue(KofImage.supportedOn(Target.JVM));
+        assertEquals("IMG001", KofImage.gapCode());
+    }
+
+    @Test
     @DisplayName("log: SCRIPT + ANDROID gated (LOG001)")
     void logGatesScriptAndAndroid() {
         assertEquals(Set.of(Target.ANDROID, Target.SCRIPT), unsupported(KofLog::supportedOn));

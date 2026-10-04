@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * issue #710 — a lambda PARAMETER declared with a {@code kof.ui} type
@@ -86,6 +85,5 @@ class UiLambdaParameterTypeE2ETest extends ComponentCoreSupport {
         Path source = tempDir.resolve("shadowparam.kf");
         Files.writeString(source, program);
         runJvm(source, tempDir.resolve("jvm3"), "meu");
-        assertTrue(true);
     }
 }
