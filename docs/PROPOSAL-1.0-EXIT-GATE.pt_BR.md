@@ -66,9 +66,12 @@ Este é o **contrato ratificado do exit gate 1.0** (`D-RELEASE-1.0`). Leia:
   `docs/development/`, `docs/development/future/` ou `docs/bugs-and-gaps/`,
   com a paridade cross-target MEDIDA (provada, nunca alegada).
 
-O estado vivo é medido mecanicamente por `scripts/check_release_050_gate.sh`
-(as condições do 0.5.0) e `scripts/check_release_blockers.sh` (a fila EG /
-`--rc-gate`), nunca a olho.
+O estado vivo é medido mecanicamente por `scripts/check_release_blockers.sh`
+(classificação das issues + `--rc-gate`), `scripts/check_live_records.sh`
+(contagem viva/paridade DECISIONS), `scripts/target-matrix.sh` (paridade EG-5) e
+os gates atuais de inventário de diagnóstico (`scripts/check_matrix_inventory.sh`,
+`scripts/check_ffi_inventory.sh`), nunca a olho. `scripts/check_release_050_gate.sh`
+foi aposentado com a 0.5.0 (`D-RELEASE-0.5.0-CLOSED`) e não é mais autoridade viva.
 
 ---
 
@@ -595,8 +598,9 @@ RED-first offline para a suíte de agentes: `scripts/tests/target-matrix-test.sh
 PASSA; alvo core divergente FALHA nomeando-o; preflight sem JDK sai alto) —
 registrado no `run-agent-tests.sh`. A **rodada do dia do RC na mesma candidata**
 continua sendo o que satisfaz este item; o harness só torna essa rodada um comando.
-O **gate de release 0.5.0** (`scripts/check_release_050_gate.sh`, condição 1)
-auto-executa este harness e lê sua linha `PARITY: 100%`, então a paridade é
+O **gate de release 0.5.0, agora aposentado** (`scripts/check_release_050_gate.sh`,
+condição 1) auto-executava este harness e lia sua linha `PARITY: 100%`; a evidência
+atual do RC usa `scripts/target-matrix.sh` (EG-5), então a paridade é
 MEDIDA, nunca a olho.
 
 ---
@@ -1913,6 +1917,10 @@ Tips medidos: `beta-0.5.0 = 9ee038f7`, `beta-0.4.0 = 4ee3a5c9` (ambos mudam a ca
 
 - O site público (`koflang.github.io`) está em **v0.4.1-beta**, marca **KofC "Disponível"** e **KofJS "Em desenvolvimento"**. Diverge do checklist de targets e da `VERSION`.
 - `docs/distribution/release-naming.md` e `INSTALL.md` ainda dizem "Current version: 0.4.0-beta".
+
+## 37.3 Fontes externas
+
+| Fonte | Resultzem "Current version: 0.4.0-beta".
 
 ## 37.3 Fontes externas
 

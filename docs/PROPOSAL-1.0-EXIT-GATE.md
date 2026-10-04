@@ -65,9 +65,12 @@ This is the **ratified 1.0 exit-gate contract** (`D-RELEASE-1.0`). Read:
   `docs/development/future/` or `docs/bugs-and-gaps/`, with the full
   cross-target parity MEASURED (proven, never claimed).
 
-Live status is measured mechanically by `scripts/check_release_050_gate.sh`
-(the 0.5.0 conditions) and `scripts/check_release_blockers.sh` (the EG queue /
-`--rc-gate`), never by eye.
+Live status is measured mechanically by `scripts/check_release_blockers.sh`
+(the issue classification + `--rc-gate`), `scripts/check_live_records.sh`
+(live-record/DECISIONS parity), `scripts/target-matrix.sh` (EG-5 parity) and
+the current diagnostic-inventory gates (`scripts/check_matrix_inventory.sh`,
+`scripts/check_ffi_inventory.sh`), never by eye. `scripts/check_release_050_gate.sh`
+was retired with 0.5.0 (`D-RELEASE-0.5.0-CLOSED`) and is no longer a live authority.
 
 ---
 
@@ -1923,3 +1926,4 @@ the normative decision is `D-RELEASE-1.0` in `docs/development/DECISIONS.md`.
 The `[? MEL]` reinforcement candidates of §35 are **closed** by `D-1.0-EDGES`
 (09/20/2026): all nine became mandatory gates — the §32 markers read
 `[RATIFIED]`; they are no longer open edges.
+                                                                             
