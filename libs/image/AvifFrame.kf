@@ -512,14 +512,15 @@ Int[] frameDeltaQ(Int[] b, Int bits) {
     return out
 }
 
-// tile_info() uniform-spacing path per 5.9.15: the flag plus the
-// increment_tile_cols_log2 / increment_tile_rows_log2 loops, then
-// context_update_tile_id (TileColsLog2 + TileRowsLog2 bits, skipped as a
-// value — the CDF update rides decode) and tile_size_bytes_minus_1 (f(2),
-// TileSizeBytes = value + 1) when either log2 is > 0.
-// Non-uniform spacing (per-tile ns() size lists) is a named refusal —
-// its own later slice. Returns {nextBitPos, tileCols, tileRows, tileBits,
-// tileSizeBytes} (the per-axis superblock count loops of the spec).
+// tile_info() per 5.9.15: the uniform-spacing path (the flag plus the
+// increment_tile_cols_log2 / increment_tile_rows_log2 loops) and the
+// NON-uniform path (the per-axis ns() size lists: width_in_sbs_minus_1 /
+// height_in_sbs_minus_1, with the spec's widestTileSb and maxTileHeightSb
+// area rule), then context_update_tile_id (TileColsLog2 + TileRowsLog2 bits,
+// skipped as a value — the CDF update rides decode) and
+// tile_size_bytes_minus_1 (f(2), TileSizeBytes = value + 1) when either log2
+// is > 0. Returns {nextBitPos, tileCols, tileRows, tileBits, tileSizeBytes}
+// (the per-axis superblock count loops of the spec).
 Int[] tileWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq, Int codedW, Int codedH) {
     var sbShift = 4
     if (seq.use128x128Superblock) {
@@ -536,35 +537,87 @@ Int[] tileWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq, Int codedW, Int 
     var maxCols = tlog2(1, tmin(sbCols, 64))
     var maxRows = tlog2(1, tmin(sbRows, 64))
     var minTiles = tmax(minCols, tlog2(maxTileAreaSb, sbRows * sbCols))
-    if (seqRead(b, bits, 1) == 0) {
-        throw "IMAGE: avif tile size list not covered"
-    }
-    bits = bits + 1
-    var colsLog2 = minCols
-    var stop = 0
-    while (colsLog2 < maxCols && stop == 0) {
-        if (bits > limit * 8) {
-            throw "IMAGE: truncated avif frame header"
-        }
-        if (seqRead(b, bits, 1) == 0) {
-            stop = 1
-        } else {
-            colsLog2 = colsLog2 + 1
-        }
+    var colsLog2 = 0
+    var rowsLog2 = 0
+    var cols = 0
+    var rows = 0
+    if (seqRead(b, bits, 1) == 1) {
         bits = bits + 1
-    }
-    var rowsLog2 = tmax(minTiles - colsLog2, 0)
-    stop = 0
-    while (rowsLog2 < maxRows && stop == 0) {
-        if (bits > limit * 8) {
-            throw "IMAGE: truncated avif frame header"
+        colsLog2 = minCols
+        var stop = 0
+        while (colsLog2 < maxCols && stop == 0) {
+            if (bits > limit * 8) {
+                throw "IMAGE: truncated avif frame header"
+            }
+            if (seqRead(b, bits, 1) == 0) {
+                stop = 1
+            } else {
+                colsLog2 = colsLog2 + 1
+            }
+            bits = bits + 1
         }
-        if (seqRead(b, bits, 1) == 0) {
-            stop = 1
-        } else {
-            rowsLog2 = rowsLog2 + 1
+        rowsLog2 = tmax(minTiles - colsLog2, 0)
+        stop = 0
+        while (rowsLog2 < maxRows && stop == 0) {
+            if (bits > limit * 8) {
+                throw "IMAGE: truncated avif frame header"
+            }
+            if (seqRead(b, bits, 1) == 0) {
+                stop = 1
+            } else {
+                rowsLog2 = rowsLog2 + 1
+            }
+            bits = bits + 1
         }
+        var tileWidthSb = (sbCols + (1 << colsLog2) - 1) >> colsLog2
+        var tileHeightSb = (sbRows + (1 << rowsLog2) - 1) >> rowsLog2
+        var start = 0
+        while (start < sbCols) {
+            cols = cols + 1
+            start = start + tileWidthSb
+        }
+        start = 0
+        while (start < sbRows) {
+            rows = rows + 1
+            start = start + tileHeightSb
+        }
+    } else {
         bits = bits + 1
+        var widest = 0
+        var start = 0
+        while (start < sbCols) {
+            if (bits > limit * 8) {
+                throw "IMAGE: truncated avif frame header"
+            }
+            var maxWidth = tmin(sbCols - start, maxTileWidthSb)
+            var ns = seqNs(b, bits, maxWidth)
+            var sizeSb = ns[0] + 1
+            bits = ns[1]
+            if (sizeSb > widest) {
+                widest = sizeSb
+            }
+            start = start + sizeSb
+            cols = cols + 1
+        }
+        var areaSb = sbRows * sbCols
+        if (minTiles > 0) {
+            areaSb = areaSb >> (minTiles + 1)
+        }
+        var maxHeight = tmax(areaSb / widest, 1)
+        start = 0
+        while (start < sbRows) {
+            if (bits > limit * 8) {
+                throw "IMAGE: truncated avif frame header"
+            }
+            var mh = tmin(sbRows - start, maxHeight)
+            var ns2 = seqNs(b, bits, mh)
+            var sizeSb2 = ns2[0] + 1
+            bits = ns2[1]
+            start = start + sizeSb2
+            rows = rows + 1
+        }
+        colsLog2 = tlog2(1, cols)
+        rowsLog2 = tlog2(1, rows)
     }
     var tileBits = 0
     var tileSizeBytes = 0
@@ -573,20 +626,6 @@ Int[] tileWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq, Int codedW, Int 
         bits = bits + tileBits
         tileSizeBytes = seqRead(b, bits, 2) + 1
         bits = bits + 2
-    }
-    var tileWidthSb = (sbCols + (1 << colsLog2) - 1) >> colsLog2
-    var tileHeightSb = (sbRows + (1 << rowsLog2) - 1) >> rowsLog2
-    var cols = 0
-    var start = 0
-    while (start < sbCols) {
-        cols = cols + 1
-        start = start + tileWidthSb
-    }
-    var rows = 0
-    start = 0
-    while (start < sbRows) {
-        rows = rows + 1
-        start = start + tileHeightSb
     }
     var out = new Int[5]
     out[0] = bits

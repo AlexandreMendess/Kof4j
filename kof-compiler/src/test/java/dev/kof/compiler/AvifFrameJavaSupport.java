@@ -187,43 +187,77 @@ final class AvifFrameJavaSupport {
                 int maxCols = tileLog2(1, Math.min(sbCols, 64));
                 int maxRows = tileLog2(1, Math.min(sbRows, 64));
                 int minTiles = Math.max(minCols, tileLog2(4096 * 2304 >> (2 * sbSize), sbRows * sbCols));
-                if (AvifSeqSupport.readBits(item, bits, 1) == 0) {
-                    throw new AssertionError("sizelist");
-                }
-                bits += 1;
-                int colsLog2 = minCols;
-                boolean stop = false;
-                while (colsLog2 < maxCols && !stop) {
-                    if (bits > limit * 8) throw new AssertionError("trunc");
-                    if (AvifSeqSupport.readBits(item, bits, 1) == 0) {
-                        stop = true;
-                    } else {
-                        colsLog2 += 1;
-                    }
+                int colsLog2;
+                int rowsLog2;
+                int tiles;
+                int trows;
+                if (AvifSeqSupport.readBits(item, bits, 1) == 1) {
                     bits += 1;
-                }
-                int rowsLog2 = Math.max(minTiles - colsLog2, 0);
-                stop = false;
-                while (rowsLog2 < maxRows && !stop) {
-                    if (bits > limit * 8) throw new AssertionError("trunc");
-                    if (AvifSeqSupport.readBits(item, bits, 1) == 0) {
-                        stop = true;
-                    } else {
-                        rowsLog2 += 1;
+                    colsLog2 = minCols;
+                    boolean stop = false;
+                    while (colsLog2 < maxCols && !stop) {
+                        if (bits > limit * 8) throw new AssertionError("trunc");
+                        if (AvifSeqSupport.readBits(item, bits, 1) == 0) {
+                            stop = true;
+                        } else {
+                            colsLog2 += 1;
+                        }
+                        bits += 1;
                     }
+                    rowsLog2 = Math.max(minTiles - colsLog2, 0);
+                    stop = false;
+                    while (rowsLog2 < maxRows && !stop) {
+                        if (bits > limit * 8) throw new AssertionError("trunc");
+                        if (AvifSeqSupport.readBits(item, bits, 1) == 0) {
+                            stop = true;
+                        } else {
+                            rowsLog2 += 1;
+                        }
+                        bits += 1;
+                    }
+                    int tileWidthSb = (sbCols + (1 << colsLog2) - 1) >> colsLog2;
+                    int tileHeightSb = (sbRows + (1 << rowsLog2) - 1) >> rowsLog2;
+                    tiles = 0;
+                    for (int start = 0; start < sbCols; start += tileWidthSb) tiles++;
+                    trows = 0;
+                    for (int start = 0; start < sbRows; start += tileHeightSb) trows++;
+                } else {
                     bits += 1;
+                    int widest = 0;
+                    tiles = 0;
+                    for (int start = 0; start < sbCols; ) {
+                        if (bits > limit * 8) throw new AssertionError("trunc");
+                        int maxWidth = Math.min(sbCols - start, 4096 >> sbSize);
+                        int[] ns = readNs(item, bits, maxWidth);
+                        int sizeSb = ns[0] + 1;
+                        bits = ns[1];
+                        widest = Math.max(sizeSb, widest);
+                        start += sizeSb;
+                        tiles++;
+                    }
+                    int areaSb = sbRows * sbCols;
+                    if (minTiles > 0) {
+                        areaSb = areaSb >> (minTiles + 1);
+                    }
+                    int maxHeight = Math.max(areaSb / widest, 1);
+                    trows = 0;
+                    for (int start = 0; start < sbRows; ) {
+                        if (bits > limit * 8) throw new AssertionError("trunc");
+                        int mh = Math.min(sbRows - start, maxHeight);
+                        int[] ns = readNs(item, bits, mh);
+                        int sizeSb = ns[0] + 1;
+                        bits = ns[1];
+                        start += sizeSb;
+                        trows++;
+                    }
+                    colsLog2 = tileLog2(1, tiles);
+                    rowsLog2 = tileLog2(1, trows);
                 }
                 if (colsLog2 > 0 || rowsLog2 > 0) {
                     bits += colsLog2 + rowsLog2;
                     bits += 2;                              // tile_size_bytes_minus_1
                 }
                 if (bits > limit * 8) throw new AssertionError("trunc");
-                int tileWidthSb = (sbCols + (1 << colsLog2) - 1) >> colsLog2;
-                int tileHeightSb = (sbRows + (1 << rowsLog2) - 1) >> rowsLog2;
-                int tiles = 0;
-                for (int start = 0; start < sbCols; start += tileWidthSb) tiles++;
-                int trows = 0;
-                for (int start = 0; start < sbRows; start += tileHeightSb) trows++;
                 // uncompressed_header tail (5.9.2), after tile_info: mono
                 // fixtures -> numPlanes = 1; CodedLossless is derived.
                 int numPlanes = 1;
@@ -295,6 +329,30 @@ final class AvifFrameJavaSupport {
     private static int tileLog2(int u, int v) {
         int k = 0;
         while ((u << k) < v) k++;
+        return k;
+    }
+
+    // ns(n) per AV1 4.10.6, returning {value, nextBitPos}.
+    private static int[] readNs(byte[] b, int bits, int n) {
+        int w = floorLog2(n) + 1;
+        int m = (1 << w) - n;
+        int v = AvifSeqSupport.readBits(b, bits, w - 1);
+        bits += w - 1;
+        if (v < m) {
+            return new int[]{v, bits};
+        }
+        int extra = AvifSeqSupport.readBits(b, bits, 1);
+        bits += 1;
+        return new int[]{(v << 1) - m + extra, bits};
+    }
+
+    private static int floorLog2(int n) {
+        int k = 0;
+        int v = 1;
+        while (v <= n / 2) {
+            v <<= 1;
+            k++;
+        }
         return k;
     }
 

@@ -129,6 +129,56 @@ final class AvifFrameSupport {
         return k;
     }
 
+    /** ns(n) writer (AV1 4.10.6): w = FloorLog2(n)+1, m = (1<<w)-n; value < m
+     *  is written as f(w-1), otherwise v = (value+m)>>1 in f(w-1) then the
+     *  low bit as the extra bit. */
+    static void writeNs(AvifMetadataSupport.Bits w, int n, int value) {
+        int wbits = floorLog2(n) + 1;
+        int m = (1 << wbits) - n;
+        if (value < m) {
+            w.bits(value, wbits - 1);
+        } else {
+            int v = (value + m) >> 1;
+            int extra = (value + m) & 1;
+            w.bits(v, wbits - 1);
+            w.bits(extra, 1);
+        }
+    }
+
+    private static int floorLog2(int n) {
+        int k = 0;
+        int v = 1;
+        while (v <= n / 2) {
+            v <<= 1;
+            k++;
+        }
+        return k;
+    }
+
+    /**
+     * Reduced mono KEY frame with a NON-uniform tile_info() (AV1 5.9.15):
+     * disable_cdf=1, allow_sct=0, render=0, uniform_tile_spacing_flag=0, the
+     * col size list {1,1} over sbCols=2 and the row size list {2} over
+     * sbRows=2 (redSeq128 is 128x128, 16px superblocks -> 2x2), so TileCols=2,
+     * TileRows=1, colsLog2=1 -> a 1-bit context_update_tile_id and a 1-byte
+     * tile size field; lossless tail.
+     */
+    static byte[] frameNonUniform() {
+        AvifMetadataSupport.Bits w = new AvifMetadataSupport.Bits();
+        w.bits(1, 1);                       // disable_cdf
+        w.bits(0, 1);                       // allow_sct = 0
+        w.bits(0, 1);                       // render_and_frame_size_different = 0
+        w.bits(0, 1);                       // uniform_tile_spacing_flag = 0
+        writeNs(w, 2, 0);                   // width_in_sbs_minus_1 = 0 (size 1)
+        writeNs(w, 1, 0);                   // width_in_sbs_minus_1 = 0 (size 1)
+        writeNs(w, 2, 1);                   // height_in_sbs_minus_1 = 1 (size 2)
+        w.bits(0, 1);                       // context_update_tile_id (1 bit)
+        w.bits(0, 2);                       // tile_size_bytes_minus_1 = 0
+        tailLossless(w, 0, 1);
+        w.bits(1, 1);                       // frame_header_obu trailing one bit
+        return AvifSeqSupport.obuType(3, w.bytes());
+    }
+
     /**
      * uncompressed_header tail per AV1 5.9.2 with CodedLossless = 1 (base_q_idx
      * = 0): quantization_params (base_q_idx f(8), the per-plane read_delta_q
@@ -280,6 +330,13 @@ final class AvifFrameSupport {
                         AvifMetadataSupport.configObuCap(0, 2, false, false, true,
                                                          false, true, false),
                         frameQ32()))));
+        // NON-uniform tile_info (uniform_tile_spacing_flag=0): the ns() col
+        // size list {4,4} + row list {8} over redSeq128 -> 2x1 tiles.
+        Files.write(dir.resolve("nonuni.avif"), AvifObuSupport.containerWithItem(
+                AvifMetadataSupport.concat(java.util.List.of(
+                        AvifSeqSupport.delimiter(),
+                        redSeq128(),
+                        frameNonUniform()))));
         return dir;
     }
 
@@ -329,12 +386,6 @@ final class AvifFrameSupport {
                         AvifMetadataSupport.configObu(0, 2, false, false, true),
                         AvifSeqSupport.obuType(3, tr.bytes()),
                         AvifObuSupport.obuRaw(15, new byte[8], true, false, false)))));
-        // tile size list: reduced KEY, uniform_tile_spacing_flag = 0
-        Files.write(dir.resolve("sizelist.avif"), AvifObuSupport.containerWithItem(
-                AvifMetadataSupport.concat(java.util.List.of(
-                        AvifSeqSupport.delimiter(),
-                        AvifMetadataSupport.configObu(0, 2, false, false, true),
-                        frameReduced(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 1, 1, 0)))));
         // no frame at all
         Files.write(dir.resolve("noframe.avif"), AvifObuSupport.containerWithItem(
                 AvifMetadataSupport.concat(java.util.List.of(
@@ -374,6 +425,7 @@ final class AvifFrameSupport {
                 println("tile4 " + facts(readAvifFrameHeader(base + "/tile4.avif")))
                 println("intra " + facts(readAvifFrameHeader(base + "/intra.avif")))
                 println("q32 " + facts(readAvifFrameHeader(base + "/q32.avif")))
+                println("nonuni " + facts(readAvifFrameHeader(base + "/nonuni.avif")))
             }
             """.formatted(base);
     }
@@ -407,11 +459,6 @@ final class AvifFrameSupport {
                 }
                 try {
                     readAvifFrameHeader(base + "/noframe.avif")
-                } catch (String e) {
-                    println(e)
-                }
-                try {
-                    readAvifFrameHeader(base + "/sizelist.avif")
                 } catch (String e) {
                     println(e)
                 }

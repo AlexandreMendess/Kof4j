@@ -395,6 +395,40 @@ Int seqSu(Int[] b, Int bitPos, Int n) {
     return v
 }
 
+// ns(n): non-symmetric unsigned integer in [0, n) (AV1 4.10.6). w =
+// FloorLog2(n) + 1, m = (1 << w) - n; read f(w - 1); if v < m the value is v,
+// otherwise read one extra bit and return (v << 1) - m + extra_bit. Returns
+// [value, nextBitPos]. Used by the non-uniform tile_info() size lists
+// (width_in_sbs_minus_1 / height_in_sbs_minus_1).
+Int[] seqNs(Int[] b, Int bitPos, Int n) {
+    var w = seqFloorLog2(n) + 1
+    var m = (1 << w) - n
+    var v = seqRead(b, bitPos, w - 1)
+    var bits = bitPos + w - 1
+    if (v < m) {
+        var out = new Int[2]
+        out[0] = v
+        out[1] = bits
+        return out
+    }
+    var extra = seqRead(b, bits, 1)
+    bits = bits + 1
+    var out2 = new Int[2]
+    out2[0] = (v << 1) - m + extra
+    out2[1] = bits
+    return out2
+}
+
+Int seqFloorLog2(Int n) {
+    var k = 0
+    var v = 1
+    while (v <= n / 2) {
+        v = v << 1
+        k = k + 1
+    }
+    return k
+}
+
 Int skipUvlc(Int[] b, Int bits) {
     var zeros = 0
     var done = false

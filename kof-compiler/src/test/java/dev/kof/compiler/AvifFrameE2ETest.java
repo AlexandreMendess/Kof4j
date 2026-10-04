@@ -60,7 +60,8 @@ class AvifFrameE2ETest {
             "rend t=0 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6 tiles=1x1 hb=7 bq=0 lf=0 cd=0",
             "tile4 t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2 hb=3 bq=0 lf=0 cd=0",
             "intra t=2 show=1 err=0 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1 hb=5 bq=0 lf=0 cd=0",
-            "q32 t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=6 bq=32 lf=7 cd=0");
+            "q32 t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=6 bq=32 lf=7 cd=0",
+            "nonuni t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x1 hb=3 bq=0 lf=0 cd=0");
 
     @Test
     void avifFrameHeaderOnJvm() throws Exception {
@@ -127,8 +128,7 @@ class AvifFrameE2ETest {
                 "IMAGE: avif inter frame not covered",
                 "IMAGE: avif intra block copy not covered",
                 "IMAGE: truncated avif frame header",
-                "IMAGE: avif item has no frame header",
-                "IMAGE: avif tile size list not covered");
+                "IMAGE: avif item has no frame header");
         assertEquals(goldens, runJvm(errorProbe(dir)));
     }
 
@@ -144,7 +144,8 @@ class AvifFrameE2ETest {
                 "rend " + javaFrameFacts(dir.resolve("rend.avif")),
                 "tile4 " + javaFrameFacts(dir.resolve("tile4.avif")),
                 "intra " + javaFrameFacts(dir.resolve("intra.avif")),
-                "q32 " + javaFrameFacts(dir.resolve("q32.avif")));
+                "q32 " + javaFrameFacts(dir.resolve("q32.avif")),
+                "nonuni " + javaFrameFacts(dir.resolve("nonuni.avif")));
         assertEquals(kof, java);
         assertEquals(GOLDEN, java);
 
@@ -154,15 +155,13 @@ class AvifFrameE2ETest {
                 "inter:" + javaFrameFactsError(errDir.resolve("inter.avif")),
                 "intrabc:" + javaFrameFactsError(errDir.resolve("intrabc.avif")),
                 "trunc:" + javaFrameFactsError(errDir.resolve("trunc.avif")),
-                "noframe:" + javaFrameFactsError(errDir.resolve("noframe.avif")),
-                "sizelist:" + javaFrameFactsError(errDir.resolve("sizelist.avif")));
+                "noframe:" + javaFrameFactsError(errDir.resolve("noframe.avif")));
         String expectedErrors = String.join("\n",
                 "showexisting:REFUSED:showexisting",
                 "inter:REFUSED:inter",
                 "intrabc:REFUSED:intrabc",
                 "trunc:REFUSED:trunc",
-                "noframe:REFUSED:noframe",
-                "sizelist:REFUSED:sizelist");
+                "noframe:REFUSED:noframe");
         assertEquals(expectedErrors, javaErrors);
     }
 
