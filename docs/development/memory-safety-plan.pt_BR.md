@@ -5,7 +5,7 @@
 
 dona: `192.168.15.101:9092` (parity lane — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: unidade-6-doc-truth-FFI 04/10 (corrigiu faces cross defasadas em `docs/ffi-abi-structs.md`+PT e roadmap 2.1.6: cross `T[]`, `String[]`→`char**`, `Buffer(U8)` fatia B, structs por memória e params >16B pousaram 29–30/09; restante = float/HFA + callbacks)
+last: unidade-7-doc-truth-tabela-ownership-FFI 04/10 (`docs/spec/memory-safety.md`+PT §7 e `docs/backend-parity.md`+PT linha C-FFI: face #651 Buffer x86+cross completa; pontes JS struct/array/Buffer completas; gaps atuais = float/HFA, callbacks e marshal host opaco/`String[]` no JS)
 doing: sem unidade aberta — aguardando chamada rule-6 da mantenedora
 next: chamada da mantenedora — ou reabre a unidade de callbacks FFI OU uma promoção de `future/` levanta `D-FUTURE-FREEZE`; o gate mecânico R6 para FFI já está no lugar
 location: memory-safety-plan
@@ -99,6 +99,7 @@ Passe + wiring + `MemorySafetyE2ETest` por alvo (JVM/Script/JS/Native mesmas fon
 - **Unidade 4 POUSADA 02/10** — fechamento do DoD: §11 verde × 4 backends totalmente medido/pinado/verdade-de-doc; `scripts/check_matrix_inventory.sh` (ligado em `scripts/agent-verify.sh` nos toques `MemRule.java`/`docs/spec/memory-safety*`) tranca a matriz mecanicamente. Registrado e parado pela regra de fallback.
 - **Unidade 5 POUSADA 03/10 (esta sessão)** — o gate mecânico de inventário FFI (`scripts/check_ffi_inventory.sh`, ligado em `scripts/agent-verify.sh` nos toques `"FFI[0-9]`/`docs/ffi-abi-structs*`, `--selftest` planta drift): todo literal `FFIxxx` emitido em `kof-compiler/src/main/java/` precisa de linha em `docs/ffi-abi-structs.md`+`docs/ffi-abi-structs.pt_BR.md` E de pin em `kof-compiler/src/test/java/`; a cobertura reversa pega códigos obsoletos/inventados. Execução real: 2 códigos FFI001/FFI002 emitidos, documentados EN+PT, pinados → OK. Previne a classe de drift silencioso do §544 (R6 "cada código de gap tem significado documentado + pin") sem exigir `D-*`. FFI-callbacks continua rule-6 STOP; este gate é higiene de processo ortogonal.
 - **Unidade 6 POUSADA 04/10 (esta sessão)** — verdade de doc FFI após #651 B / `D-MEM-FFI-CROSS-FULL`. Corrigiu alegações cross defasadas em `docs/ffi-abi-structs.md`+`.pt_BR.md`, roadmap `2.1.6` EN+PT e este plano: `Buffer(U8)` no cross pousou na fatia B do #651 (29/09); `T[]` escalar, `String[]`→`char**`, struct return/sret por memória e param by-value >16 B pousaram 30/09 nas faces 1–3. Faces FFI cross restantes são float/HFA (`FFI001`) e callbacks (`D-MEM-FFI-CALLBACKS`, rule-6 STOP). Zero mudança de comportamento do compilador.
+- **Unidade 7 POUSADA 04/10 (esta sessão)** — verdade de doc da tabela de ownership FFI. Corrigiu `docs/spec/memory-safety.md`+PT §7 e a linha C-FFI de `docs/backend-parity.md`+PT: as faces #651 `Buffer(U8)` x86+cross estão pousadas, as pontes JS de struct/array/Buffer estão pousadas, o binding `String[]` JVM/Native x86/cross está registrado, e os gaps atuais são estreitados a float/HFA, callbacks e marshal host opaco/não-escalar no JS (`String[]`→`char**` segue `FFI002`). Zero mudança de comportamento.
 
 ## Definition of done (frente inteira)
 

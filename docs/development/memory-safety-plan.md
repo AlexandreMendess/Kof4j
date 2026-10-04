@@ -5,7 +5,7 @@
 
 owner: `192.168.15.101:9092` (parity lane — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: unit-6-FFI-doc-truth 04/10 (corrected stale cross faces in `docs/ffi-abi-structs.md`+PT and roadmap row 2.1.6: cross `T[]`, `String[]`→`char**`, `Buffer(U8)` fatia B, memory-path structs and >16B params landed 29–30/09; remaining = float/HFA + callbacks)
+last: unit-7-FFI-ownership-doc-truth 04/10 (`docs/spec/memory-safety.md`+PT §7 and `docs/backend-parity.md`+PT C-FFI row: #651 Buffer face is x86+cross complete; JS struct bridge is complete; current gaps are float/HFA, callbacks, opaque/`String[]` JS marshal)
 doing: no open unit — waiting rule-6 maintainer call
 next: maintainer call — either reopens the FFI callbacks unit OR a `future/` promotion lifts `D-FUTURE-FREEZE`; the mechanical R6 gate for FFI is now in place
 location: memory-safety-plan
@@ -98,6 +98,7 @@ Pass + wiring + `MemorySafetyE2ETest` per target (JVM/Script/JS/Native same sour
 - **Unit 4 LANDED 02/10 — the DoD close-out: §11 green × 4 backends is now fully measured/pinned/doc-truthed; `scripts/check_matrix_inventory.sh` (wired into `scripts/agent-verify.sh` on `MemRule.java`/`docs/spec/memory-safety*` touches) locks the matrix mechanically. Recorded and stopped per fallback rule.
 - **Unit 5 LANDED 03/10 (this session) — the mechanical FFI inventory gate** (`scripts/check_ffi_inventory.sh`, wired into `scripts/agent-verify.sh` on `"FFI[0-9]`/`docs/ffi-abi-structs*` touches, `--selftest` plants drift): every `FFIxxx` string literal emitted in `kof-compiler/src/main/java/` must have a row in `docs/ffi-abi-structs.md`+`docs/ffi-abi-structs.pt_BR.md` AND a pin under `kof-compiler/src/test/java/`; reverse-coverage catches stale/invented codes. Real run: 2 codes FFI001/FFI002 emitted, doc'd EN+PT, pinned → OK. Prevents the §544-class of silent drift (R6 "every gap code has a documented meaning + a pin") without needing a `D-*`. FFI-callbacks stays rule-6 STOP; this gate is orthogonal process hygiene.
 - **Unit 6 LANDED 04/10 (this session) — FFI doc-truth after #651 B / `D-MEM-FFI-CROSS-FULL`.** Corrected stale cross-face claims in `docs/ffi-abi-structs.md`+`.pt_BR.md`, roadmap `2.1.6` EN+PT, and this plan: cross `Buffer(U8)` landed #651 fatia B (29/09); cross scalar `T[]`, `String[]`→`char**`, memory-path struct return/sret and >16 B by-value param landed 30/09 faces 1–3. Remaining cross FFI faces are float/HFA (`FFI001`) and callbacks (`D-MEM-FFI-CALLBACKS`, rule-6 STOP). No compiler behavior changed.
+- **Unit 7 LANDED 04/10 (this session) — FFI ownership-table doc-truth.** Corrected `docs/spec/memory-safety.md`+PT §7 and the `docs/backend-parity.md`+PT C-FFI row: #651 `Buffer(U8)` x86+cross faces are landed, JS struct/array/Buffer bridges are landed, `String[]` JVM/Native x86/cross binding is recorded, and current gaps are narrowed to float/HFA, callbacks, and JS opaque/non-scalar host marshal (`String[]`→`char**` stays `FFI002`). No behavior change.
 
 ## Definition of done (whole front)
 
