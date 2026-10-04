@@ -1176,17 +1176,17 @@ aceitação foi para `docs/distribution/release-beta-0.5.0.md` e o gate foi
 aposentado — a promoção agora é regida pelo TIER 14 (`D-QUALITY-PIPELINE-2609`).
 
 
-### TIER 14 — Migração do quality-pipeline (DECIDIDO 26/09 `D-QUALITY-PIPELINE-2609`; execução gated POST-0.5.0)
+### TIER 14 — Migração do quality-pipeline (DECIDIDO 26/09 `D-QUALITY-PIPELINE-2609`; execução ABERTA desde 28/09 — 14.1/14.2/14.3 pousaram, 14.4 próxima, 14.5 resolvido)
 
 A esteira `lab → testing → prerelease → stable → release/x.y.z → tag` está
 fechada no design. **O ciclo 0.5.0 fechou 28/09 (`D-RELEASE-0.5.0-CLOSED`) e o
 `D-BRANCH-0.5.0` está `SUPERSEDED` — a branch ativa de desenvolvimento é `lab`
-(`D-BRANCH-PIPELINE`).** Quando a mantenedora abrir esta frente, as unidades são:
+(`D-BRANCH-PIPELINE`).** A frente está ABERTA; estado por unidade (mantenedora 28/09):
 
-| # | Unidade | Gate/prova |
-|---|---|---|
-| 14.1 | Piloto: branch temporária `release/0.5.0` (bump de versão, changelog, artefatos, checksums) cortada de stable-candidate; publicar; encerrar branch | GitHub Release + tag `v0.5.0`; nada novo adicionado no meio do piloto |
-| 14.2 | Cutover atômico (UMA mudança): criar `lab`/`testing`/`prerelease`/`stable`; workflows de CI (`codeql.yml` branches+schedule, gates, jobs cross) re-apontados; `scripts/sync-push.sh` + gate de tip §NNN + crons heartbeat/watcher re-apontados; `AGENTS.md` (`D-BRANCH` substituído), `DOING.md`, `DECISIONS.md` atualizados | build após o cutover: toda automação resolve o mesmo estágio; zero agente pousando em branch aposentada |
-| 14.3 | Ferramental de promoção: `lab→testing` roda a suíte completa como primeiro gate formal; checagens de promoção codificam 80% (testing→prerelease) / 100% (prerelease→stable + CLOSEALL/docs) mecanicamente (estender `check_release_050_gate.sh` por estágio) | prova scriptada por promoção, não opinião |
-| 14.4 | Proteções de branch: sem force-push + checks requeridos em `testing`/`prerelease`/`stable`; caminho de hotfix (PR + backport + revalidação) documentado em `AGENTS.md` | GitHub settings + espelho nos docs |
-| 14.5 | Ponto aberto a fechar com a mantenedora neste plano: o `lab` mantém o piso de zero-regressão (regra 8) sem CI a cada push? | registrado em `D-QUALITY-PIPELINE-2609` §OPEN POINT |
+| # | Unidade | Gate/prova | Estado |
+|---|---|---|---|
+| 14.1 | Piloto: branch temporária `release/0.5.0` (bump de versão, changelog, artefatos, checksums) cortada de stable-candidate; publicar; encerrar branch | GitHub Release + tag `v0.5.0`; nada novo adicionado no meio do piloto | ✅ EXECUTADO 28/09 (`D-RELEASE-0.5.0-CLOSED`; `#619` mergeado na `main`, tags `kof-0.5.0-beta*`) |
+| 14.2 | Cutover atômico (UMA mudança): criar `lab`/`testing`/`prerelease`/`stable`; workflows de CI (`codeql.yml` branches+schedule, gates, jobs cross) re-apontados; `scripts/sync-push.sh` + gate de tip §NNN + crons heartbeat/watcher re-apontados; `AGENTS.md` (`D-BRANCH` substituído), `DOING.md`, `DECISIONS.md` atualizados | build após o cutover: toda automação resolve o mesmo estágio; zero agente pousando em branch aposentada | ✅ EXECUTADO 28/09 a partir de `origin/main` (`317d9f6b1`); `beta-*` congelado; broadcast #647 |
+| 14.3 | Ferramental de promoção: `lab→testing` roda a suíte completa como primeiro gate formal; checagens de promoção codificam 100% por estágio (o denominador ≥80% foi DESCARTADO) mecanicamente | prova scriptada por promoção, não opinião | ✅ POUSOU 28/09 (#657): `scripts/pipeline/{promotion_evidence,promotion_gate,pipeline_state}.py` + `promote.yml` gate de suíte completa + contagens de issues scriptadas (a forma `check_release_050_gate.sh` foi aposentada com `D-RELEASE-0.5.0-CLOSED`) |
+| 14.4 | Proteções de branch: sem force-push + checks requeridos em `testing`/`prerelease`/`stable`; caminho de hotfix (PR + backport + revalidação) documentado em `AGENTS.md` | GitHub settings + espelho nos docs | ⏳ PRÓXIMA — mantenedora (`D-QUALITY-PIPELINE-2609`; ruleset GitHub `pipeline-stages`) |
+| 14.5 | Ponto aberto a fechar com a mantenedora neste plano: o `lab` mantém o piso de zero-regressão (regra 8) sem CI a cada push? | registrado em `D-QUALITY-PIPELINE-2609` §OPEN POINT | ✅ RESOLVIDO 28/09 — o `lab` MANTÉM o piso de zero-regressão mesmo sem CI a cada push |

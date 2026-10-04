@@ -1171,17 +1171,17 @@ the cut landed (`main` merged `#619`, tags `kof-0.5.0-beta*`); the acceptance
 record moved to `docs/distribution/release-beta-0.5.0.md` and the gate was
 retired — promotion is now governed by TIER 14 (`D-QUALITY-PIPELINE-2609`).
 
-### TIER 14 — Quality-pipeline migration (DECIDED 26/09 `D-QUALITY-PIPELINE-2609`; execution gated POST-0.5.0)
+### TIER 14 — Quality-pipeline migration (DECIDED 26/09 `D-QUALITY-PIPELINE-2609`; execution OPEN since 28/09 — 14.1/14.2/14.3 landed, 14.4 next, 14.5 resolved)
 
 The `lab → testing → prerelease → stable → release/x.y.z → tag` pipeline is
 design-closed. **The 0.5.0 cycle closed 28/09 (`D-RELEASE-0.5.0-CLOSED`) and
 `D-BRANCH-0.5.0` is `SUPERSEDED` — the active development branch is `lab`
-(`D-BRANCH-PIPELINE`).** When the maintainer opens this front, the units are:
+(`D-BRANCH-PIPELINE`).** The front is OPEN; state per unit (maintainer 28/09):
 
-| # | Unit | Gate/proof |
-|---|---|---|
-| 14.1 | Pilot: `release/0.5.0` temporary branch (version bump, changelog, artifacts, checksums) cut from stable-candidate; publish; end branch | GitHub Release + tag `v0.5.0`; nothing new added mid-pilot |
-| 14.2 | Atomic cutover (ONE change): create `lab`/`testing`/`prerelease`/`stable`; CI workflows (`codeql.yml` branches+schedule, gates, cross jobs) re-pointed; `scripts/sync-push.sh` + §NNN-tip gate + heartbeat/watcher crons re-pointed; `AGENTS.md` (`D-BRANCH` superseded), `DOING.md`, `DECISIONS.md` updated | build after cutover: every automation resolves the same stage; zero agent left pushing to a retired branch |
-| 14.3 | Promotion tooling: `lab→testing` runs the full suite as first formal gate; promotion checks encode 80% (testing→prerelease) / 100% (prerelease→stable + CLOSEALL/docs) mechanically (extend `check_release_050_gate.sh` per stage) | scripted proof per promotion, not opinion |
-| 14.4 | Branch protections: no force-push + required checks on `testing`/`prerelease`/`stable`; hotfix path (PR + backport + revalidation) documented in `AGENTS.md` | GitHub settings + docs mirror |
-| 14.5 | Open point to settle with the maintainer in this plan: does `lab` keep the zero-regression floor (rule 8) without per-push CI? | recorded in `D-QUALITY-PIPELINE-2609` §OPEN POINT |
+| # | Unit | Gate/proof | State |
+|---|---|---|---|
+| 14.1 | Pilot: `release/0.5.0` temporary branch (version bump, changelog, artifacts, checksums) cut from stable-candidate; publish; end branch | GitHub Release + tag `v0.5.0`; nothing new added mid-pilot | ✅ EXECUTED 28/09 (`D-RELEASE-0.5.0-CLOSED`; `#619` merged to `main`, tags `kof-0.5.0-beta*`) |
+| 14.2 | Atomic cutover (ONE change): create `lab`/`testing`/`prerelease`/`stable`; CI workflows (`codeql.yml` branches+schedule, gates, cross jobs) re-pointed; `scripts/sync-push.sh` + §NNN-tip gate + heartbeat/watcher crons re-pointed; `AGENTS.md` (`D-BRANCH` superseded), `DOING.md`, `DECISIONS.md` updated | build after cutover: every automation resolves the same stage; zero agent left pushing to a retired branch | ✅ EXECUTED 28/09 from `origin/main` (`317d9f6b1`); `beta-*` frozen; #647 broadcast |
+| 14.3 | Promotion tooling: `lab→testing` runs the full suite as first formal gate; promotion checks encode 100% per stage (the ≥80% denominator was DROPPED) mechanically | scripted proof per promotion, not opinion | ✅ LANDED 28/09 (#657): `scripts/pipeline/{promotion_evidence,promotion_gate,pipeline_state}.py` + `promote.yml` full-suite gate + scripted issue counts (the `check_release_050_gate.sh` shape was retired with `D-RELEASE-0.5.0-CLOSED`) |
+| 14.4 | Branch protections: no force-push + required checks on `testing`/`prerelease`/`stable`; hotfix path (PR + backport + revalidation) documented in `AGENTS.md` | GitHub settings + docs mirror | ⏳ NEXT — maintainer (`D-QUALITY-PIPELINE-2609`; GitHub ruleset `pipeline-stages`) |
+| 14.5 | Open point to settle with the maintainer in this plan: does `lab` keep the zero-regression floor (rule 8) without per-push CI? | recorded in `D-QUALITY-PIPELINE-2609` §OPEN POINT | ✅ RESOLVED 28/09 — `lab` KEEPS the zero-regression floor even without per-push CI |
