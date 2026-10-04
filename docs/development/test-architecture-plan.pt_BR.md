@@ -10,9 +10,9 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, **129 chaves, rc=0** — 132 na medição de
+`scripts/test-hygiene-baseline.txt`, **128 chaves, rc=0** — 132 na medição de
 30/09, apertado pela extração da Fase 3 de 02/10; a cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
-de doc, e o cluster `dupname` restante exige o harness da Fase 5; as fatias da Fase 5 de 03/10 apertaram `jvmOracle` 131→130 e `stopServer` 130→129). **Fatia quick-win 1 (28/09):**
+de doc, e o cluster `dupname` restante exige o harness da Fase 5; as fatias da Fase 5 de 03/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129 e `assertRuns` 129→128). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -655,6 +655,19 @@ chave `dupname stopServer` do ratchet foi **eliminada** — baseline re-congelad
 processo mais um `jwksServer.stop`) foi deliberadamente deixado como está: não é
 duplicata de `stopServer` e dobrá-lo exigiria um segundo gancho de teardown.
 
+**Fatia 5 da Fase 5 ENTREGUE (03/10):** o helper de execução JVM `assertRuns` era
+byte-idêntico em 7 classes E2E core (`FnTypeInGenericDeclaredTypeTest`,
+`HeterogeneousListInferTest`, `ReduceStringCastTest`, `NestedFnTypeArityTest`,
+`LambdaFieldCaptureTest`, `FnTypeFieldCallTest`, `PrimitiveStringEqTest`) — tanto
+a sobrecarga de 3 argumentos quanto a de 2. Agora vive uma vez numa nova base
+`JvmRunSupport` (que possui `runJvmMain` + as duas sobrecargas `assertRuns`);
+cada uma das 7 classes estende-a. O helper homônimo do `KofCacheE2ETest` tem
+forma diferente (`(Path, String, String, Target, String)`, compila e roda o alvo
+escolhido) e foi renomeado `assertTargetRuns` para que o nome `assertRuns` não
+fique sobrecarregado entre classes por acidente. Nenhum corpo de teste, alvo ou
+asserção mudou. Prova: as 8 baterias afetadas **38/38** verdes; a chave `dupname
+assertRuns` do ratchet foi **eliminada** — baseline re-congelada 129→**128**.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.
@@ -752,7 +765,7 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho =
    encolher `scripts/test-hygiene-baseline.txt` via remoções quick-win — autoridade
-   atual = **129** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
+   atual = **128** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
@@ -777,4 +790,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→129, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e quatro fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport` e `ServerProcessSupport` (chave `stopServer` eliminada, 118/118)); as Fases 5–7 seguem trabalho aberto, com as famílias restantes da Fase 5 (`main`, `assumeToolchain`, `copyLibrary`) como o próximo incremento.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→128, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e cinco fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118) e `JvmRunSupport` (chave `assertRuns` eliminada, 38/38)); as Fases 5–7 seguem trabalho aberto, com as famílias restantes da Fase 5 (`main`, `assumeToolchain`, `copyLibrary`) como o próximo incremento.
