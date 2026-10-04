@@ -239,14 +239,44 @@ final class KofRepl {
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             char n = i + 1 < text.length() ? text.charAt(i + 1) : '\0';
-            if (inLine) { if (c == '\n') inLine = false; continue; }
-            if (inBlock) { if (c == '*' && n == '/') { inBlock = false; i++; } continue; }
-            if (inStr) { if (c == '\\') i++; else if (c == '"') inStr = false; continue; }
-            if (inChar) { if (c == '\\') i++; else if (c == '\'') inChar = false; continue; }
-            if (c == '/' && n == '/') { inLine = true; continue; }
-            if (c == '/' && n == '*') { inBlock = true; i++; continue; }
-            if (c == '"') { inStr = true; continue; }
-            if (c == '\'') { inChar = true; continue; }
+            if (inLine) {
+                if (c == '\n') inLine = false;
+                continue;
+            }
+            if (inBlock) {
+                if (c == '*' && n == '/') {
+                    inBlock = false;
+                    i++;
+                }
+                continue;
+            }
+            if (inStr) {
+                if (c == '\\') i++;
+                else if (c == '"') inStr = false;
+                continue;
+            }
+            if (inChar) {
+                if (c == '\\') i++;
+                else if (c == '\'') inChar = false;
+                continue;
+            }
+            if (c == '/' && n == '/') {
+                inLine = true;
+                continue;
+            }
+            if (c == '/' && n == '*') {
+                inBlock = true;
+                i++;
+                continue;
+            }
+            if (c == '"') {
+                inStr = true;
+                continue;
+            }
+            if (c == '\'') {
+                inChar = true;
+                continue;
+            }
             if (c == '{') depth++;
             else if (c == '}') depth--;
         }
