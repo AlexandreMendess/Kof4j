@@ -5,9 +5,9 @@
 
 dona: `192.168.15.101:9092` (parity lane — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: unidade-9 reconciliação de colisão POUSADA 04/10 SHA `6019d26d1` issue #742 (dona `192.168.15.101:9092`; o `b51babe2a` concorrente é dono da correção do README, autoridade mais recente de sete fatias/126 chaves preservada)
-doing: sem unidade aberta — aguardando chamada rule-6 da mantenedora
-next: direção da mantenedora para float/HFA cross ou callbacks; caso contrário parar/auditar bugs-and-gaps
+last: follow-through da unidade-9 POUSADO 04/10 SHA `c196d9b2d` issue #742 (dona `192.168.15.101:9092`; autoridade do README `b51babe2a`, comentário da issue corrigido para os SHAs pós-rebase)
+doing: unidade-10 verdade de doc dos estados de fase EM PROGRESSO 04/10 issue #743 (linhas Fase 3/5/6 do plano/spec)
+next: pousar unidade 10 + fechar #743; devolver ao STOP rule-6 para float/HFA cross e callbacks
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -35,9 +35,9 @@ Critério de sucesso: o compilador consegue provar que um programa não pode pro
 | 0 Investigação | `docs/spec/memory-safety-investigation.md` (EN+PT): estado, riscos, varredura do § ledger, proposta, alternativas, compatibilidade, plano incremental; 20 perguntas respondidas com file:line | fechada 25/09 |
 | 1 Especificação | `docs/spec/memory-safety.md` (EN+PT): Ownership/Lifetime/Borrowing/Aliasing/Mutability/Move/Copy/Clone/Drop/Escape/Closure Capture/Concurrency/FFI/Unsafe Boundaries, cada um classificado permitido/proibido/requer-sync/compile-time/runtime/dependente-de-tipo | fechada 25/09 (opção A da mantenedora) |
 | 2 Infraestrutura do compilador | `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` em `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; zero mudança de comportamento | fechada 26/09 (`9bcddfe90`, fila exausta) |
-| 3 Primeiras garantias | use-after-move; dangling; escapes inválidos; mutable aliasing; dupla ownership/destruição | em curso (fatias abaixo) |
+| 3 Primeiras garantias | use-after-move; dangling; escapes inválidos; mutable aliasing; dupla ownership/destruição | FECHADA 28/09 — fatias 1–5 pousadas (O-03 corrigido 27/09), fatia 3.2 pousada 28/09; nenhuma fatia aberta restante |
 | 4 Closures & async | captura de closure; callbacks; async/futures; iteradores/geradores | FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores: veredito de ausencia medido (#659) |
-| 5 Native & FFI | ponteiros/alocação/C ABI; tabela de ownership Kof↔C↔Rust↔JVM↔Python | em progresso — tabela de ownership POUSADA 28/09 (#670, spec §7); ponteiros/alocação: unidade 1 pinada (#666), **unidade 2 POUSADA 29/09** (#667 Script×extern recusado `FFI001` na linha da declaração; #668 face de compilação `MEM020`), **unidade 3 pinada 29/09** (paridade runtime de `Buffer(U8)` INOUT × `spawn`/`await` medida); **unidade 4 POUSADA 30/09** — face runtime de B-03 = opção B **ESCOLHIDA** (`D-MEM030-BORROW-RUNTIME`) em todas as faces alcançáveis (JVM/JS/Native x86-64 + cross riscv64/aarch64; o negativo cross, antes bloqueado pelo §545, agora está provado — §545 CORRIGIDO 30/09) |
+| 5 Native & FFI | ponteiros/alocação/C ABI; tabela de ownership Kof↔C↔Rust↔JVM↔Python | PARADA rule-6 — tabela de ownership POUSADA 28/09 (#670, spec §7); unidades 1–4 e faces cross 1–3 POUSADAS (`Buffer(U8)` x86/cross, `MEM020` compile/runtime, arrays escalares, `String[]`, structs memory-path). As faces restantes float/HFA e callbacks não têm decisão `D-*`; não é unidade aberta de agente |
 | 6 JVM / JS / Script / Native | mesma semântica em todo backend que existe | **FECHADA 02/10 — unidades 1–4 da fase-6 POUSADAS (suíte completa 5117 run/0F/0E no fechamento):** unidade 1 `SEM049` pinado nos 4 backends + `MEM010/011/012` corrigidos para verdade-de-modelo; unidade 2 `MEM014` pinado web+db via medição probe-first no Script; unidade 3 completude da §11 (linhas `MEM022`/`MEM023`; códigos inventados `MEM015/016/017` corrigidos por medição no mesmo dia); unidade 4 `check_matrix_inventory.sh` engatado no `agent-verify.sh` expondo+trancando `MEM001/003/004` — a matriz está trancada mecanicamente EN+PT. Única face restante: callbacks FFI **PARADA regra 6/12** (nenhum trampoline nativo; decisão da mantenedora). | (histórico) escopo resolvido 30/09 por `D-MEM-PHASE6-4BACKENDS`: a árvore NÃO tem backend WASM (`docs/backend-parity.md` = "Kof JVM × Native × KofJS", sem coluna WASM), então a fase 6 significa **JVM/Script/JS/Native×3** (os quatro backends reais); WASM sai do contrato até um backend real pousar — nunca antes, e nunca gap aceito |
 
 ## Fatias da Fase 3 (superfície de emissão = o que existe na superfície do usuário)
@@ -102,6 +102,7 @@ Passe + wiring + `MemorySafetyE2ETest` por alvo (JVM/Script/JS/Native mesmas fon
 - **Unidade 7 POUSADA 04/10 (esta sessão)** — verdade de doc da tabela de ownership FFI. Corrigiu `docs/spec/memory-safety.md`+PT §7 e a linha C-FFI de `docs/backend-parity.md`+PT: as faces #651 `Buffer(U8)` x86+cross estão pousadas, as pontes JS de struct/array/Buffer estão pousadas, o binding `String[]` JVM/Native x86/cross está registrado, e os gaps atuais são estreitados a float/HFA, callbacks e marshal host opaco/não-escalar no JS (`String[]`→`char**` segue `FFI002`). Zero mudança de comportamento.
 - **Unidade 8 POUSADA 04/10 SHA `efed9c422`** — reconciliação de decisão fantasma/§9 FFI. Removeu a redação `D-MEM-FFI-CALLBACKS` (nenhuma decisão registrada) dos registros FFI/status/plano atuais e corrigiu §9 em `docs/spec/memory-safety.md`+PT para declarar que `Buffer(U8)` x86-64 + cross pousou; §7 e §9 já não se contradizem. Prova: Q2 rc=0 + 13 gates docs/governança rc=0. Zero mudança de comportamento.
 - **Unidade 9 POUSADA 04/10 SHA `6019d26d1` issue #742** — reconciliação de colisão. O `b51babe2a` concorrente já corrigira as linhas 0b/0f/0h/§559 do README; a autoridade mais recente de sete fatias Fase-5/126 chaves, spike de graphics, `D-KOF-SIGN` e `RasterDecodeE2ETest` 27/27+aarch64 foi preservada. Só docs; nenhuma mudança de comportamento.
+- **Unidade 10 POUSADA 04/10 issue #743 — verdade de doc dos estados de fase.** A Fase 3 do plano está FECHADA (fatias 1–5 + 3.2 pousadas); Fase 5 do plano e a Fase 5 da spec §12 estão PARADAS rule-6 (faces pousadas versus float/HFA/callbacks sem decisão); a Fase 6 da spec está FECHADA com unidades 1–4 e o gate de inventário da matriz. Só docs; nenhuma mudança de comportamento.
 
 ## Definition of done (frente inteira)
 
