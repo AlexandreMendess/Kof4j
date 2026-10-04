@@ -137,12 +137,13 @@ public final class NativeRiscvAsmRtB43 {
                 addi sp, sp, 48
                 ret
 
-            # kof_gc_mark(): marca raízes DE PILHA (sp..s11, fallback 4KB) e
-            # ESTÁTICAS (.Lkof_heap_root_start../.Lkof_heap_root_end, emitidos
-            # pelo NativeArchEmitter no .data do programa) chamando
-            # mark_transitive. Salva s0-s11 num buffer local para que
-            # ponteiros guardados em registrador apareçam na varredura de
-            # pilha (mesma intenção do pushq %rbx,%r12-15,%rbp do x86).
+            # kof_gc_mark(): marca raízes DE PILHA e ESTÁTICAS. §544/§552: a
+            # thread principal varre [sp..kof_main_stack_bottom] (cap 64MB,
+            # gate kof_plat_thread_id == kof_main_tid); workers de spawn ficam
+            # no caminho histórico [sp..s11] cap 1MB / fallback 4096. O mark
+            # derrama s0-s11 para que ponteiros em registrador apareçam na
+            # varredura. ESTÁTICAS: .Lkof_heap_root_start../.Lkof_heap_root_end
+            # (emitidos pelo NativeArchEmitter no .data do programa).
             .globl kof_gc_mark
             kof_gc_mark:
                 addi sp, sp, -128
@@ -159,8 +160,22 @@ public final class NativeRiscvAsmRtB43 {
                 sd   s9, 40(sp)
                 sd   s10, 32(sp)
                 sd   s11, 24(sp)
-                mv   s2, sp              # loop ptr (limite baixo)
-                mv   s1, s11             # frame pointer do caller (limite alto)
+                call kof_plat_thread_id
+                la   t0, kof_main_tid
+                ld   t1, 0(t0)
+                bne  a0, t1, .Lgm_worker
+                la   s1, kof_main_stack_bottom
+                ld   s1, 0(s1)
+                mv   s2, sp
+                beqz s1, .Lgm_fallback
+                bgeu s2, s1, .Lgm_fallback
+                sub  t0, s1, s2
+                li   t1, 67108864
+                bltu t1, t0, .Lgm_fallback
+                j    .Lgm_stack
+            .Lgm_worker:
+                mv   s2, sp
+                ld   s1, 24(sp)
                 beqz s1, .Lgm_fallback
                 bgeu s2, s1, .Lgm_fallback
                 sub  t0, s1, s2

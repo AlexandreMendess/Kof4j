@@ -154,6 +154,12 @@ final class NativeArchEmitter {
         String mainEntry = mainClass != null ? nb.sanitizeName(mainClass.name()) + "_main" : "kof_main";
         sb.append("\n.globl _start\n");
         sb.append("_start:\n");
+        sb.append("    la   t0, kof_main_stack_bottom\n");
+        sb.append("    sd   sp, 0(t0)\n");
+        sb.append("    li   a7, 178\n");
+        sb.append("    ecall\n");
+        sb.append("    la   t0, kof_main_tid\n");
+        sb.append("    sd   a0, 0(t0)\n");
         sb.append("    andi sp, sp, -16\n");
         emitClinitCallsRiscv(sb, module);
         sb.append("    call ").append(mainEntry).append("\n");
@@ -356,6 +362,12 @@ final class NativeArchEmitter {
         String mainEntry = mainClass != null ? nb.sanitizeName(mainClass.name()) + "_main" : "kof_main";
         riscvSb.append("\n.globl _start\n");
         riscvSb.append("_start:\n");
+        riscvSb.append("    la   t0, kof_main_stack_bottom\n");
+        riscvSb.append("    sd   sp, 0(t0)\n");
+        riscvSb.append("    li   a7, 178\n");
+        riscvSb.append("    ecall\n");
+        riscvSb.append("    la   t0, kof_main_tid\n");
+        riscvSb.append("    sd   a0, 0(t0)\n");
         riscvSb.append("    andi sp, sp, -16\n");
         emitClinitCallsRiscv(riscvSb, module);
         riscvSb.append("    call ").append(mainEntry).append("\n");

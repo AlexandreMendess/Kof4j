@@ -285,11 +285,21 @@ class RasterDecodeE2ETest {
     }
 
     @Test
-    void largeWebpOnNativeRiscv64QuarantinedBy544() {
-        Assumptions.abort("known-bugs §544: riscv64-native VP8L decode of a 160x120 lossless WebP "
-                + "(19200 px, LZ77-heavy) aborts with 'Runtime error: array index out of bounds'; "
-                + "JVM and Native x86-64 decode the same fixture correctly — quarantined until the "
-                + "native/compiler fix lands");
+    void largeWebpOnNativeRiscv64Decodes() throws Exception {
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross riscv64 + qemu absent — skipping (NATIVE002)");
+        Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("riscv64-large-webp"));
+        assertEquals("WEBP:160x120 ch=3\nfirst=0,0,0 last=84,141,128",
+                runCrossCode("riscv64", Target.NATIVE_RISCV64, RasterDecodeFixtures.largeWebpProbe(dir)));
+    }
+
+    @Test
+    void largeWebpOnNativeAarch64Decodes() throws Exception {
+        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
+                "cross aarch64 + qemu absent — skipping (NATIVE002)");
+        Path dir = RasterDecodeFixtures.rasterFixtures(tmp.resolve("aarch64-large-webp"));
+        assertEquals("WEBP:160x120 ch=3\nfirst=0,0,0 last=84,141,128",
+                runCrossCode("aarch64", Target.NATIVE_AARCH64, RasterDecodeFixtures.largeWebpProbe(dir)));
     }
 
     @Test

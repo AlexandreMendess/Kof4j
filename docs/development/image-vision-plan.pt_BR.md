@@ -888,8 +888,9 @@ capacidade realmente não existe no alvo.
    `guardRaster(pixels * 4)` em vez do próprio teto de 16384 px), verificado na
    JVM e no Native x86-64 com um WebP lossless 160×120 gerado no libwebp
    (`#largeWebpAboveOldPixelCapDecodesOnJvm`/`...OnNativeX86`); o Native riscv64
-   aborta na mesma fixture e fica em quarentena pelo novo `known-bugs` **§544**
-   (dona = lane native/GC, issue #700).
+   e o aarch64 agora decodificam a mesma fixture corretamente — §544 CORRIGIDO 03/10
+   (dona = lane native/GC `192.168.15.101:9092`, issue #700); os testes cross são
+   `#largeWebpOnNativeRiscv64Decodes` / `#largeWebpOnNativeAarch64Decodes`.
 
 6. **Fatia 1 do `kof.vision` — LANDED 30/09 (Kof puro, todos os alvos).** Novo
    pacote `libs/vision/` abre a frente de visão: `histogram(r): Int[256]`

@@ -746,8 +746,9 @@ ability genuinely does not exist on a target.
    `guardRaster(pixels * 4)` instead of its own 16384-pixel cap), verified on
    JVM and Native x86-64 with a libwebp-generated 160×120 lossless WebP
    (`#largeWebpAboveOldPixelCapDecodesOnJvm`/`...OnNativeX86`); Native riscv64
-   aborts on the same fixture and is quarantined by new `known-bugs` **§544**
-   (owner = native/GC lane, issue #700).
+   and aarch64 now decode the same fixture correctly — §544 FIXED 03/10
+   (owner = native/GC lane `192.168.15.101:9092`, issue #700); the cross tests
+   are `#largeWebpOnNativeRiscv64Decodes` / `#largeWebpOnNativeAarch64Decodes`.
 
 6. **`kof.vision` slice 1 — LANDED 30/09 (pure Kof, all targets).** New
    `libs/vision/` package opens the vision front: `histogram(r): Int[256]`
