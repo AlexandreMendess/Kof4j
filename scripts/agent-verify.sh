@@ -181,6 +181,9 @@ fi
 if touches 'MemRule\.java|^docs/spec/memory-safety'; then
     run_gate matrix_inventory "${AGENT_VERIFY_MATRIXINV:-bash scripts/check_matrix_inventory.sh}"
 fi
+if touches '"FFI[0-9]|^docs/ffi-abi-structs'; then
+    run_gate ffi_inventory "${AGENT_VERIFY_FFIINV:-bash scripts/check_ffi_inventory.sh}"
+fi
 if touches '^docs/development/'; then
     run_gate live_records "${AGENT_VERIFY_LIVERECORDS:-bash scripts/check_live_records.sh}"
     run_gate plan_owners "${AGENT_VERIFY_PLANOWNERS:-bash scripts/check_plan_owners.sh}"
