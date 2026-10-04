@@ -10,8 +10,8 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, **128 keys, rc=0** — 132 at the
-30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+over the frozen `scripts/test-hygiene-baseline.txt`, **127 keys, rc=0** — 132 at the
+30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
 citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
@@ -661,6 +661,15 @@ overloaded across classes by accident. No test body, target or assertion moved.
 Proof: the 8 affected batteries **38/38** green; the `dupname assertRuns` ratchet
 key is **eliminated** — baseline re-frozen 129→**128**.
 
+**Phase 5 slice 6 LANDED (03/10):** the multi-source run helpers were
+byte-identical across 4 core E2E classes — `runScript(Path root, List<Path> sources, String expected)`
+in `SealedTypeE2ETest`/`TypeVarianceE2ETest`/`UseSiteVarianceE2ETest`/`InteropSchemaE2ETest` and
+`runJs(Path root, List<Path> sources, String expected)` in 3 of them. They now live once in a new
+`MultiSourceRunSupport` base (which also owns the shared `driver`), which the 4 classes extend.
+No test body, target or assertion moved. Proof: the 4 affected batteries **47/47** green; the
+`dupname runScript` ratchet key is **eliminated** — baseline re-frozen 128→**127**. (`runJs` stays a
+key: `KofRandomTest`/`KofStringsIndentDedentTest` define different-shape `runJs` helpers, left as-is.)
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.
@@ -759,7 +768,7 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
    shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
-   authority = **128** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
+   authority = **127** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -785,4 +794,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→128, zero identical pairs remain). **Phase 5 is now AUTHORIZED and five slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), and `JvmRunSupport` (assertRuns key eliminated, 38/38)); Phases 5–7 remain open work, with the remaining Phase 5 families (`main`, `assumeToolchain`, `copyLibrary`) as the next increment.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→127, zero identical pairs remain). **Phase 5 is now AUTHORIZED and six slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), and `MultiSourceRunSupport` (runScript key eliminated, 47/47)); Phases 5–7 remain open work, with the remaining Phase 5 families (`main`, `assumeToolchain`, `copyLibrary`) as the next increment.

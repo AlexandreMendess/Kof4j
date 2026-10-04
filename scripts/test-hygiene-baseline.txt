@@ -87,7 +87,6 @@ dupname	runLargeStdoutDrainsWithoutDeadlock
 dupname	runNative
 dupname	runQemu
 dupname	runQemuE
-dupname	runScript
 dupname	send
 dupname	set
 dupname	setValue
