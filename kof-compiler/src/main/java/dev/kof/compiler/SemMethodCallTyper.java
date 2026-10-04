@@ -50,13 +50,18 @@ public final class SemMethodCallTyper {
             for (ExpressionNode arg : mc.arguments()) {
                 SemExpressionTyper.inferType(sa, arg, scope);
             }
-            if ("encode".equals(mc.methodName())) {
+            // Só as formas VÁLIDAS (encode(x) 1 arg; decode<T>(s) 1 arg +
+            // type-argument) retornam cedo com o tipo concreto. Aridade errada
+            // ou método inexistente NÃO retorna: cai no caminho normal, onde
+            // `MemberCallNamespaces.inferStatic` emite o SEM025 da aridade
+            // (#126) — o ramo §583 não pode engolir esse guard.
+            if ("encode".equals(mc.methodName()) && mc.arguments().size() == 1) {
                 return BuiltinTypes.STRING;
             }
-            if ("decode".equals(mc.methodName()) && !mc.typeArguments().isEmpty()) {
+            if ("decode".equals(mc.methodName()) && mc.arguments().size() == 1
+                    && !mc.typeArguments().isEmpty()) {
                 return CompilerTypes.toType(mc.typeArguments().get(0), sa.unit(), sa);
             }
-            return Type.UnknownType.UNKNOWN;
         }
         // F10: métodos de instância do handle de process.spawn
         Type recv = null;
