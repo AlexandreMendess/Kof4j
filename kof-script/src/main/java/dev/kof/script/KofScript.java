@@ -447,31 +447,12 @@ public final class KofScript {
     }
 
     /**
-     * Simple REPL: reads lines from stdin, evals until "exit".
-     * Incremental: each line is appended to the history and re-evaluated
-     * as a whole program (MVP — future will be incremental IR).
+     * REPL incremental (#739): cada linha é avaliada UMA vez, com os globais
+     * de topo vivendo entre avaliações; o valor da última expressão é ecoado.
+     * A implementação vive em {@link KofRepl} (gate 500).
      */
     public static void repl(InputStream in, PrintStream out) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-        StringBuilder history = new StringBuilder();
-        out.println("KofScript REPL 0.1.2-beta — type 'exit' to quit");
-        while (true) {
-            out.print("kof> ");
-            out.flush();
-            String line = reader.readLine();
-            if (line == null || "exit".equals(line.trim())) break;
-            if (line.isBlank()) continue;
-            history.append(line).append("\n");
-            RunResult r = eval(history.toString());
-            if (!r.success()) {
-                out.println("error: " + r.stderr().trim());
-                // rollback last line on error
-                int lastNl = history.lastIndexOf(line);
-                if (lastNl >= 0) history.setLength(lastNl);
-            } else {
-                out.print(r.stdout());
-            }
-        }
+        KofRepl.run(in, out);
     }
 
     private static void deleteRecursively(Path dir) {

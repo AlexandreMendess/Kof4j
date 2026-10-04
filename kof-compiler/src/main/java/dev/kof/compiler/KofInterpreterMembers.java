@@ -24,13 +24,25 @@ public final class KofInterpreterMembers {
     // concorrente dá HB (read-after-write) por campo de static, honrando a
     // borda 5 do modelo (statics sequentialmente consistentes) no
     // interpretador; o backend JVM compilado usa vars estáticas JVM (JMM).
-    private final Map<String, Map<String, Object>> staticFields = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, Map<String, Object>> staticFields;
     private final Map<String, Boolean> initialized = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, Object> initLocks = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, Boolean> claimed = new java.util.concurrent.ConcurrentHashMap<>();
 
     KofInterpreterMembers(KofInterpreter interp, List<IRClass> classes) {
+        this(interp, classes, new java.util.concurrent.ConcurrentHashMap<>());
+    }
+
+    /**
+     * REPL incremental (#739): o chamador pode passar um mapa de estáticos
+     * COMPARTILHADO entre avaliações sucessivas, para que os globais de topo
+     * (`KofScriptGlobals`) sobrevivam de uma linha para a outra sem reexecutar
+     * o histórico. O modo one-shot continua usando o mapa interno.
+     */
+    KofInterpreterMembers(KofInterpreter interp, List<IRClass> classes,
+                          Map<String, Map<String, Object>> sharedStatics) {
         this.interp = interp;
+        this.staticFields = sharedStatics;
         for (IRClass c : classes) kofClasses.put(c.name(), c);
     }
 

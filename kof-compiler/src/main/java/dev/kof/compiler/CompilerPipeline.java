@@ -399,8 +399,8 @@ public final class CompilerPipeline {
      * otimização) e entrega a IR pronta para o KofInterpreter executar.
      * Mesma pipeline do compileSources — paridade por construção.
      */
-    static IRModule prepareForInterpretation(CompilerDriver driver, java.util.List<Path> sources,
-                                             Path moduleRoot) {
+    public static IRModule prepareForInterpretation(CompilerDriver driver, java.util.List<Path> sources,
+                                                    Path moduleRoot) {
         DiagnosticCollector diagnostics = new DiagnosticCollector();
         driver.moduleRoot = moduleRoot;
         driver.target = Target.JVM;

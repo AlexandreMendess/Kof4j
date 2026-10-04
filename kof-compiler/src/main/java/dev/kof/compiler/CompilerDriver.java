@@ -100,6 +100,20 @@ public class CompilerDriver extends CompilerDriverState {
     }
 
     /**
+     * #739 — REPL incremental: entrega a IR do frontend compartilhado SEM
+     * executar, para que o chamador (KofScript) possa reusar os estáticos
+     * entre linhas. Os WARNING do frontend ficam em {@link #interpreterWarnings()}.
+     */
+    public IRModule prepareRepl(java.util.List<Path> sources, Path moduleRoot) {
+        return CompilerPipeline.prepareForInterpretation(this, sources, moduleRoot);
+    }
+
+    /** WARNING do frontend da última preparação (paridade de diagnósticos, #678). */
+    public java.util.List<Diagnostic> interpreterWarnings() {
+        return interpreterWarnings;
+    }
+
+    /**
      * Fase 1/2 (plataforma): module root para {@code sources} — raiz do
      * projeto (kof.toml) quando existe, senão LCA (comportamento atual).
      * Única fonte da regra; CLI (run/serve) deve passar ESTE root.

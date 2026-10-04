@@ -90,12 +90,20 @@ public final class KofInterpreter {
     final KofInterpreterBuiltins builtins;
     private final KofInterpreterMembers members;
     private final KofInterpreterFrame frames;
+    // #739: workDir fixo + estáticos compartilhados quando em sessão de REPL.
+    private final Path sharedWorkDir;
 
-    KofInterpreter(IRModule module, PrintStream out, PrintStream err) {
+    KofInterpreter(IRModule module, PrintStream out, PrintStream err) { this(module, out, err, null, null); }
+
+    KofInterpreter(IRModule module, PrintStream out, PrintStream err, Path sharedWorkDir,
+                   Map<String, Map<String, Object>> sharedStatics) {
         this.module = module;
         this.out = out;
         this.err = err;
-        this.members = new KofInterpreterMembers(this, module.classes());
+        this.sharedWorkDir = sharedWorkDir;
+        this.members = sharedStatics == null
+                ? new KofInterpreterMembers(this, module.classes())
+                : new KofInterpreterMembers(this, module.classes(), sharedStatics);
         this.frames = new KofInterpreterFrame(this);
         this.builtins = new KofInterpreterBuiltins(this);
     }
@@ -165,13 +173,17 @@ public final class KofInterpreter {
         return t.getClass().getName();
     }
 
-    private void ensureRuntimeForModule() throws Exception {
+    void ensureRuntimeForModule() throws Exception {
         // #125 (seguranca): createTempDirectory = 700 + nome aleatorio;
         // Path.of(tmp, "kof-interp-" + nanoTime) era previsivel (nanoTime
         // chutavel) e o mkdirs posterior herdava 755 -> outro usuario local
         // podia pre-criar ou ler o dir. Nao e so teste: o interpretador roda
         // o codigo do USUARIO aqui.
-        Path workDir = java.nio.file.Files.createTempDirectory("kof-interp-");
+        // #739: no REPL incremental o workDir é fixo (um por sessão) — evita
+        // vazar um diretório temporário a cada linha avaliada.
+        Path workDir = sharedWorkDir != null
+                ? sharedWorkDir
+                : java.nio.file.Files.createTempDirectory("kof-interp-");
         builtins.prepareRuntime(workDir, usesVk());
     }
 
@@ -191,7 +203,7 @@ public final class KofInterpreter {
         return false;
     }
 
-    private void execute(String[] args) throws Throwable {
+    void execute(String[] args) throws Throwable {
         IRClass main = null;
         IRMethod mainMethod = null;
         for (IRClass c : module.classes()) {
