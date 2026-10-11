@@ -6,7 +6,7 @@
 **Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
 
-**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it is **53 cases / 212 checks** (slices 1–28), and further cases are ordinary additive maintenance, not plan work. No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
+**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it is **54 cases / 216 checks** (slices 1–29), and further cases are ordinary additive maintenance, not plan work. No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
@@ -1230,6 +1230,31 @@ value measured on the Script target first, cross-checked byte-for-byte on jvm/na
 (all four agree), then frozen; `tests/run-golden.sh` **212/212** (53 cases × 4 targets),
 exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
 `check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 29 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **54 total** — pinning the last uncovered deterministic members of `kof.math`:
+the `pow` face (S1b.2) and the three constants `pi()`/`e()`/`tau()`. The new case
+`tests/golden/math-pow-constants` pins `math.pow(2.0,10.0)`→1024.0, `math.pow(3.0,2.0)`→9.0,
+`math.pow(9.0,0.5)`→3.0, `math.pow(4.0,0.5)`→2.0, `math.pow(2.0,20.0)`→1048576.0,
+`math.pow(10.0,3.0)`→1000.0, `math.pow(5.0,1.0)`→5.0, the identity `math.pow(2.0,0.0)`→1.0,
+`math.pow(0.0,0.0)`→1.0 (libm `pow` convention, matching `Math.pow`), `math.pow(2.0,-1.0)`→0.5,
+the negative base with an odd exponent `math.pow(-2.0,3.0)`→-8.0, and the constants
+`math.pi()`→3.141592653589793, `math.e()`→2.718281828459045, `math.tau()`→6.283185307179586,
+plus the identities `math.tau() == 2.0 * math.pi()`→true, `math.pi() > math.e()`→true,
+`math.e() > math.tau()`→false. All four targets agree byte-for-byte. **Scope note (measured,
+honest):** the pinned `pow` values are EXACTLY representable (small integer powers of 2/3/10
+and the exact `sqrt` of 4/9), so they are identical across any correct libm — the x86-64
+native links `pow@PLT` by use while JVM/JS/Script use `Math.pow`/`**`; a non-exact `pow`
+(e.g. `2.0^0.5`) was deliberately NOT frozen because libm and `Math.pow` may differ by 1 ulp.
+The three constants are 4-target clean since `known-bugs` §651 folds them to a
+`KofLoadLiteral.ofDouble` (this lane) — before that fix `pi()`/`e()` died at the native link
+(`COMP001`) and could not be pinned. `toRadians`/`toDegrees` + the nine trig functions stay
+EXCLUDED (they refuse honestly on native, `MATH001`, so cannot be a 4-target pin).
+Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
+Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
+frozen; `tests/run-golden.sh` **216/216** (54 cases × 4 targets), exit 0; `mvn -o -pl
+kof-compiler -am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/
+`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
 ### Phase 7 — Integration
 
