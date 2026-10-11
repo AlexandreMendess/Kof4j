@@ -206,5 +206,142 @@ public final class NativeRiscvAsmStrn1 {
                 ld   ra, 72(sp)
                 addi sp, sp, 80
                 ret
+
+            # §655: kof_string_split_limit(str@a0, sep@a1, limit@a2) — o
+            # contrato JDK da sobrecarga (String, Int): limit>0 = no máximo
+            # `limit` pieces e a ÚLTIMA é o resto não dividido (sem a poda
+            # §111), limit==0 = ilimitado COM a poda §111, limit<0 =
+            # ilimitado SEM a poda. Input vazio → [""] para TODO limit.
+            # Espelha kof_string_split peça a peça e REUSA o .Lsk_emit
+            # (só t-regs/a-regs — o limit vive em s8, callee-saved, que o
+            # emit não toca; o GC conserva callee-saved como os s0-s7 vivos
+            # do irmão). aarch64 herda via tradução (s8 → x27).
+            .globl kof_string_split_limit
+            kof_string_split_limit:
+                addi sp, sp, -96
+                sd   ra, 88(sp)
+                sd   s0, 80(sp)
+                sd   s1, 72(sp)
+                sd   s2, 64(sp)
+                sd   s3, 56(sp)
+                sd   s4, 48(sp)
+                sd   s5, 40(sp)
+                sd   s6, 32(sp)
+                sd   s7, 24(sp)
+                sd   s8, 16(sp)
+                mv   s0, a0
+                mv   s1, a1
+                mv   s8, a2
+                lw   s2, 16(s0)
+                lw   t0, 16(s1)
+                li   s3, 0
+                beqz t0, .Lskl_count
+                addi s3, s1, 24
+                lbu  s3, 0(s3)
+            .Lskl_count:
+                li   s4, 1
+                li   s5, 0
+            .Lskl_cloop:
+                bge  s5, s2, .Lskl_cap
+                addi t1, s0, 24
+                add  t1, t1, s5
+                lbu  t1, 0(t1)
+                bne  t1, s3, .Lskl_cnext
+                addi s4, s4, 1
+            .Lskl_cnext:
+                addi s5, s5, 1
+                j    .Lskl_cloop
+            .Lskl_cap:
+                blez s8, .Lskl_alloc
+                bge  s4, s8, .Lskl_capped
+                j    .Lskl_alloc
+            .Lskl_capped:
+                mv   s4, s8
+            .Lskl_alloc:
+                mv   a0, s4
+                li   a1, 8
+                call kof_array_alloc
+                mv   s6, a0
+                li   s7, 0
+                li   s5, 0
+                li   s4, 0
+            .Lskl_outer:
+                bge  s5, s2, .Lskl_last
+                blez s8, .Lskl_norm
+                addi t2, s8, -1
+                bne  s7, t2, .Lskl_norm
+                mv   s5, s2
+                call .Lskl_emit
+                j    .Lskl_done
+            .Lskl_norm:
+                addi t1, s0, 24
+                add  t1, t1, s5
+                lbu  t1, 0(t1)
+                bne  t1, s3, .Lskl_onext
+                call .Lskl_emit
+                addi s4, s5, 1
+                addi s5, s5, 1
+                j    .Lskl_outer
+            .Lskl_onext:
+                addi s5, s5, 1
+                j    .Lskl_outer
+            .Lskl_last:
+                mv   s5, s2
+                call .Lskl_emit
+            .Lskl_done:
+                beqz s2, .Lskl_empty
+                beqz s8, .Lskl_trimstart
+                j    .Lskl_setcount
+            .Lskl_trimstart:
+                mv   t1, s7
+            .Lskl_trim:
+                addi t1, t1, -1
+                bltz t1, .Lskl_set0
+                addi t2, s6, 24
+                slli t3, t1, 3
+                add  t2, t2, t3
+                ld   t2, 0(t2)
+                lw   t3, 16(t2)
+                beqz t3, .Lskl_trim
+                addi t1, t1, 1
+                sw   t1, 16(s6)
+                mv   a0, s6
+                j    .Lskl_ret
+            .Lskl_set0:
+                sw   zero, 16(s6)
+                mv   a0, s6
+                j    .Lskl_ret
+            .Lskl_setcount:
+                sw   s7, 16(s6)
+                mv   a0, s6
+                j    .Lskl_ret
+            .Lskl_empty:
+                li   a0, 32
+                call kof_alloc
+                li   t2, 1
+                sw   t2, 0(a0)
+                sw   zero, 4(a0)
+                sd   zero, 8(a0)
+                sw   zero, 16(a0)
+                sw   zero, 20(a0)
+                sb   zero, 24(a0)
+                sd   a0, 24(s6)
+                li   t0, 1
+                sw   t0, 16(s6)
+                mv   a0, s6
+                j    .Lskl_ret
+            .Lskl_ret:
+                ld   s8, 16(sp)
+                ld   s7, 24(sp)
+                ld   s6, 32(sp)
+                ld   s5, 40(sp)
+                ld   s4, 48(sp)
+                ld   s3, 56(sp)
+                ld   s2, 64(sp)
+                ld   s1, 72(sp)
+                ld   s0, 80(sp)
+                ld   ra, 88(sp)
+                addi sp, sp, 96
+                ret
             """;
 }

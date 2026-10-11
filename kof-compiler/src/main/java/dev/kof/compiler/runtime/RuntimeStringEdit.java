@@ -322,4 +322,163 @@ public final class RuntimeStringEdit {
                 popq %rbx
                 ret
             """);
+    }
+
+    // §655: kof_string_split_limit(str@rdi, sep_char@esi, limit@edx) — o
+    // contrato JDK da sobrecarga (String, Int): limit>0 = no máximo `limit`
+    // pieces e a ÚLTIMA é o resto não dividido (sem a poda §111),
+    // limit==0 = ilimitado COM a poda §111 (o mesmo que kof_string_split),
+    // limit<0 = ilimitado SEM a poda. Input vazio → [""] para TODO limit.
+    // Espelha kof_string_split peça a peça; o scratch próprio (subq $48)
+    // mantém os spills do caminho de peça nos MESMOS offsets 0-31(%rsp).
+    public static void emitStringSplitLimit(StringBuilder sb) {
+        sb.append("""
+            .globl kof_string_split_limit
+            .type kof_string_split_limit, @function
+            kof_string_split_limit:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                pushq %r8
+                pushq %r9
+                pushq %r10
+                pushq %r11
+                subq $48, %rsp
+                movq %rdi, %rbx
+                movl %esi, %r12d
+                movl %edx, 40(%rsp)
+                movl 16(%rbx), %r13d
+                movl $1, %r14d
+                xorl %ecx, %ecx
+            .Lkof_splitl_count:
+                cmpl %r13d, %ecx
+                jge .Lkof_splitl_cap
+                movzbl 24(%rbx,%rcx), %eax
+                cmpl %r12d, %eax
+                jne .Lkof_splitl_count_next
+                incl %r14d
+            .Lkof_splitl_count_next:
+                incq %rcx
+                jmp .Lkof_splitl_count
+            .Lkof_splitl_cap:
+                movl 40(%rsp), %eax
+                testl %eax, %eax
+                jle .Lkof_splitl_alloc
+                cmpl %eax, %r14d
+                jle .Lkof_splitl_alloc
+                movl %eax, %r14d
+            .Lkof_splitl_alloc:
+                movl %r14d, %edi
+                movq $8, %rsi
+                call kof_array_alloc
+                movq %rax, %r15
+                xorl %r8d, %r8d
+                xorl %ecx, %ecx
+                xorl %r9d, %r9d
+            .Lkof_splitl_outer:
+                cmpl %r13d, %ecx
+                jge .Lkof_splitl_lastpiece
+                movl 40(%rsp), %eax
+                testl %eax, %eax
+                jle .Lkof_splitl_norm
+                leal -1(%rax), %eax
+                cmpl %eax, %r8d
+                jne .Lkof_splitl_norm
+                movl %r13d, %ecx
+                jmp .Lkof_splitl_piece
+            .Lkof_splitl_norm:
+                movzbl 24(%rbx,%rcx), %eax
+                cmpl %r12d, %eax
+                jne .Lkof_splitl_outer_next
+            .Lkof_splitl_piece:
+                movl %ecx, %eax
+                subl %r9d, %eax
+                movl %eax, %r10d
+                movq %rcx, 0(%rsp)
+                movq %r9, 8(%rsp)
+                movq %r10, 16(%rsp)
+                movq %r8, 24(%rsp)
+                leal 25(%r10), %edi
+                call kof_alloc
+                movq %rax, %r11
+                movq 24(%rsp), %r8
+                movq 16(%rsp), %r10
+                movq 8(%rsp), %r9
+                movl $1, (%r11)
+                movl $0, 4(%r11)
+                movq $0, 8(%r11)
+                movl %r10d, 16(%r11)
+                movl $0, 20(%r11)
+                leaq 24(%r11), %rdi
+                leaq 24(%rbx), %rsi
+                addq %r9, %rsi
+                movl %r10d, %edx
+                call kof_memcpy
+                movb $0, 24(%r11,%r10)
+                movq %r11, %rax
+                movq %r8, %rcx
+                shlq $3, %rcx
+                movq %rax, 24(%r15,%rcx)
+                movq 0(%rsp), %rcx
+                incl %r8d
+                cmpl %r13d, %ecx
+                jge .Lkof_splitl_done
+                incl %ecx
+                movq %rcx, %r9
+                jmp .Lkof_splitl_outer
+            .Lkof_splitl_outer_next:
+                incq %rcx
+                jmp .Lkof_splitl_outer
+            .Lkof_splitl_lastpiece:
+                movl %r13d, %ecx
+                jmp .Lkof_splitl_piece
+            .Lkof_splitl_done:
+                cmpl $0, %r13d
+                jne .Lkof_splitl_may_trim
+                movq $25, %rdi
+                call kof_alloc
+                movl $1, (%rax)
+                movl $0, 4(%rax)
+                movq $0, 8(%rax)
+                movl $0, 16(%rax)
+                movl $0, 20(%rax)
+                movb $0, 24(%rax)
+                movq %rax, 24(%r15)
+                movl $1, 16(%r15)
+                movq %r15, %rax
+                jmp .Lkof_splitl_ret
+            .Lkof_splitl_may_trim:
+                movl %r8d, %ecx
+                movl 40(%rsp), %eax
+                testl %eax, %eax
+                jne .Lkof_splitl_setcount
+            .Lkof_splitl_trim_dec:
+                decl %ecx
+                js .Lkof_splitl_set0
+                movslq %ecx, %rax
+                movq 24(%r15,%rax,8), %rsi
+                cmpl $0, 16(%rsi)
+                je .Lkof_splitl_trim_dec
+                incl %ecx
+                jmp .Lkof_splitl_setcount
+            .Lkof_splitl_set0:
+                xorl %ecx, %ecx
+            .Lkof_splitl_setcount:
+                movl %ecx, 16(%r15)
+                movq %r15, %rax
+            .Lkof_splitl_ret:
+                addq $48, %rsp
+                popq %r11
+                popq %r10
+                popq %r9
+                popq %r8
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            """);
     }}

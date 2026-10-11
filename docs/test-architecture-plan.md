@@ -1335,7 +1335,9 @@ divergence frozen in `development/future/kof-expr-plan.md` Q8). **BUG FOUND + CA
 instead of 2) and **native x86-64 SIGSEGVs** (exit 139; `NativeX86StringCalls` pops only one
 arg for split, so the `limit` operand corrupts the stack). Recorded as `known-bugs` **§655**
 EN+PT with the measured 4-target repro; NOT fixed here (the fix spans native x86 asm +
-riscv/aarch + the JS `kofSplit` runtime — a dedicated cross-backend unit). Test-infrastructure
+riscv/aarch + the JS `kofSplit` runtime — a dedicated cross-backend unit) — ✅ FIXED 11/10
+across all four targets by lane flatt `192.168.100.14:0` (`StringSplitLimitCrossTest`
+6 run / 0F / 2 named NATIVE002 skips, byte-for-byte on JVM + Script + JS + x86-64). Test-infrastructure
 only, no compiler change. Proof (executed): every value measured on the Script target first,
 cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
 `tests/run-golden.sh` **232/232** (58 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am

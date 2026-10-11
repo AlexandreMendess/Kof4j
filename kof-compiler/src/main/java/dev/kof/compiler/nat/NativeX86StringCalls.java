@@ -259,6 +259,26 @@ public final class NativeX86StringCalls {
             int seq = nb.inlineSeq++;
             String empty = ".Lkof_split_empty_sep" + seq;
             String call = ".Lkof_split_call" + seq;
+            if (kc.parameterTypes().size() == 2) {
+                // §655: a sobrecarga (String, Int) tem UM operando a mais na
+                // pilha (o limit) — a sequência de 1 arg o deixava empilhado
+                // (desequilíbrio → SIGSEGV no runtime). Desempilha os TRÊS
+                // (limit, sep, receiver) e chama o helper consciente do limit.
+                sb.append("    popq %rdx\n");
+                sb.append("    popq %rsi\n");
+                sb.append("    movl 16(%rsi), %ecx\n");
+                sb.append("    testl %ecx, %ecx\n");
+                sb.append("    jz " + empty + "\n");
+                sb.append("    movzbl 24(%rsi), %esi\n");
+                sb.append("    jmp " + call + "\n");
+                sb.append(empty + ":\n");
+                sb.append("    xorl %esi, %esi\n");
+                sb.append(call + ":\n");
+                sb.append("    popq %rdi\n");
+                sb.append("    call kof_string_split_limit\n");
+                sb.append("    pushq %rax\n");
+                return true;
+            }
             sb.append("    popq %rsi\n");
             sb.append("    movl 16(%rsi), %ecx\n");
             sb.append("    testl %ecx, %ecx\n");

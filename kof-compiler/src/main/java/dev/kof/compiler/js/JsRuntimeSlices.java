@@ -20,7 +20,7 @@ final class JsRuntimeSlices {
     record Selection(String coreText, String ioText, List<String> notes, int units, int total) {}
 
     static final List<Block> BLOCKS = List.of(
-            new Block("core", JsRuntimeCore.CORE_RUNTIME, false),
+            new Block("core", JsRuntimeCore.CORE_RUNTIME + JsRuntimeStringSplit.SPLIT_RUNTIME, false),
             new Block("equality", JsRuntimeEquality.EQUALITY_RUNTIME, false),
             new Block("ui-components", JsRuntimeUiComponents.UI_COMPONENT_RUNTIME, false),
             new Block("ui-link-image-icon", JsRuntimeUiLinkImageIcon.UI_LINK_IMAGE_ICON_RUNTIME, false),

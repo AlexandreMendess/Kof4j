@@ -14,6 +14,7 @@ class JsRuntimeSliceRegistryTest {
     private static String legacyCoreRuntime() {
         return new StringBuilder()
                 .append(JsRuntimeCore.CORE_RUNTIME)
+                .append(JsRuntimeStringSplit.SPLIT_RUNTIME)  // §655: kofSplit vive no bloco "core" (REFACTOR-500)
                 .append(JsRuntimeEquality.EQUALITY_RUNTIME)  // #518: kofValEq por conteudo (registro posicao 2)
                 .append(JsRuntimeUiComponents.UI_COMPONENT_RUNTIME)
                 .append(JsRuntimeUiLinkImageIcon.UI_LINK_IMAGE_ICON_RUNTIME)

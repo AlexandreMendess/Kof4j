@@ -1339,7 +1339,9 @@ no JVM/Script — está QUEBRADO em dois alvos: **o JS ignora o limite** (`"a,b,
 desempilha só um arg para o split, então o operando `limit` corrompe a pilha). Registrado
 como `known-bugs` **§655** EN+PT com o repro medido de 4 alvos; NÃO corrigido aqui (o fix
 abrange asm nativo x86 + riscv/aarch + o runtime JS `kofSplit` — uma unidade cross-backend
-dedicada). Apenas infraestrutura de teste, sem mudança de compilador. Prova (executada): cada
+dedicada) — ✅ CORRIGIDO 11/10 nos quatro alvos pela lane flatt `192.168.100.14:0`
+(`StringSplitLimitCrossTest` 6 run / 0F / 2 skips nomeados NATIVE002, byte-a-byte em JVM +
+Script + JS + x86-64). Apenas infraestrutura de teste, sem mudança de compilador. Prova (executada): cada
 valor medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro
 concordam), então congelado; `tests/run-golden.sh` **232/232** (58 casos × 4 alvos), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/
