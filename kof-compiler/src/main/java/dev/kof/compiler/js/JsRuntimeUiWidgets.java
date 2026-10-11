@@ -48,6 +48,32 @@ public final class JsRuntimeUiWidgets {
                 if (n) n.disabled = disabled ? true : false;
             }
 
+            // D-UI-A11Y (issue #789): superfície de acessibilidade intent-based.
+            // O Kof diz "esta é a descrição acessível desta coisa"; o runtime faz
+            // o mapeamento ARIA. Um widget com nome acessível deixa de ser
+            // decorativo (aria-hidden passa a "false") e um Icon nomeado ganha
+            // semântica de imagem. Real só no KofJS (no-op JVM/Native).
+            export function kofUiWidgetSetAccessibleName(widget, name) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (!n) return;
+                n.setAttribute("aria-label", name);
+                if (n.hasAttribute && n.hasAttribute("aria-hidden")) {
+                    n.setAttribute("aria-hidden", "false");
+                }
+                if (n.dataset && n.dataset.kofIcon && n.getAttribute && !n.getAttribute("role")) {
+                    n.setAttribute("role", "img");
+                }
+            }
+
+            // Região "live": atualizações relevantes são anunciadas com polidez
+            // (aria-live="polite"). O conteúdo real vem do fluxo normal do app.
+            export function kofUiWidgetSetAnnounce(widget, on) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (!n) return;
+                if (on) n.setAttribute("aria-live", "polite");
+                else if (n.removeAttribute) n.removeAttribute("aria-live");
+            }
+
             // issue #78: primitivas visuais além do Style(bg/fg/padding/radius).
             // Real só no JS (no-op JVM/Native, como setId/setDisabled). Color é
             // o Int empacotado RGBA do runtime (kofUiColorToCss); style inline
@@ -387,6 +413,10 @@ public final class JsRuntimeUiWidgets {
                 canvas.width = w;
                 canvas.height = h;
                 canvas.className = "kof-canvas";
+                // D-UI-A11Y (#789): um canvas é uma imagem sem texto alternativo;
+                // role="img" + o nome acessível (setAccessibleName) dão a
+                // alternativa textual a leitores de tela.
+                canvas.setAttribute("role", "img");
                 canvas.style.display = "block";
                 const ctx = canvas.getContext("2d");
                 if (typeof window.__kofNodes === "undefined") window.__kofNodes = {};

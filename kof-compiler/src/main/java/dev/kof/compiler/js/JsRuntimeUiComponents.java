@@ -158,6 +158,10 @@ public final class JsRuntimeUiComponents {
                 }
                 oldEl._kofDomListeners = [];
                 oldEl._kofHandlers = {};
+                // D-UI-A11Y (#789): o listener de teclado foi removido junto com
+                // os demais; libera o guard p/ kofUiRehomeWidgetHandlers
+                // recriá-lo no nó sobrevivente.
+                oldEl._kofKeyboardWired = false;
                 for (const k of oldEl._kofStaleForms || []) {
                     if (window.__kofFormSubmits) delete window.__kofFormSubmits[k];
                 }
@@ -522,6 +526,42 @@ public final class JsRuntimeUiComponents {
                 };
                 wrapper.__kofWidgetWrapper = true;
                 kofUiOnDom(node, domType, wrapper);
+                if (domType === "click") kofUiMakeKeyboardOperable(node);
+            }
+
+            // D-UI-A11Y (#789): um alvo de clique que NÃO é um controle nativo
+            // (<button>/<a>/<input>…) precisa ser alcançável e acionável por
+            // teclado. Recebe papel de botão, entra na ordem de tabulação e
+            // ativa com Enter/Espaço. NUNCA converte widget decorativo: só roda
+            // quando um handler de clique foi registrado (kofUiWidgetOnHandle).
+            function kofUiMakeKeyboardOperable(node) {
+                const tag = node.tagName ? String(node.tagName).toUpperCase() : "";
+                if (tag === "BUTTON" || tag === "A" || tag === "INPUT" || tag === "TEXTAREA"
+                        || tag === "SELECT" || tag === "OPTION") {
+                    return;
+                }
+                if (node.getAttribute && !node.getAttribute("role")) {
+                    node.setAttribute("role", "button");
+                }
+                if (node.getAttribute && node.getAttribute("tabindex") === null) {
+                    node.setAttribute("tabindex", "0");
+                }
+                if (!node._kofKeyboardWired) {
+                    node._kofKeyboardWired = true;
+                    const keyFn = function (ev) {
+                        const k = ev && typeof ev.key === "string" ? ev.key : "";
+                        if (k === "Enter" || k === " " || k === "Spacebar") {
+                            if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
+                            if (typeof node.click === "function") node.click();
+                        }
+                    };
+                    // marcado como wrapper de widget: na reutilização de raiz (B)
+                    // o listener é RE-CRIADO no nó sobrevivente por
+                    // kofUiRehomeWidgetHandlers, não movido (fecharia sobre o nó
+                    // descartado).
+                    keyFn.__kofWidgetWrapper = true;
+                    kofUiOnDom(node, "keydown", keyFn);
+                }
             }
 
             export function kofUiNodesLive() {

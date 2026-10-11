@@ -114,6 +114,10 @@ public final class JsRuntimeUiLinkImageIcon {
                 svg.setAttribute("viewBox", "0 0 24 24");
                 svg.setAttribute("width", size);
                 svg.setAttribute("height", size);
+                // D-UI-A11Y (#789): um Icon é decorativo por PADRÃO (aria-hidden);
+                // setAccessibleName() o promove a imagem nomeada. Assim um ícone
+                // puramente visual não é anunciado como gráfico sem nome.
+                svg.setAttribute("aria-hidden", "true");
                 const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
                 p.setAttribute("d", d);
                 p.setAttribute("fill", "currentColor");
