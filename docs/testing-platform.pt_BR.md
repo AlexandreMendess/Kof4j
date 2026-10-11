@@ -584,6 +584,24 @@ A fiação Kof-facing (faces de browser chamáveis de testes `.kf`) segue o meio
 namespaces são intrínsecos do compilador e a capacidade vive no kof-cli; uma fatia futura decide
 esse mecanismo.
 
+Mapa de fiação (medido 11/10, o spike de dimensionamento): namespaces são intrínsecos do
+compilador — `KofHttp` é tipado em `MethodCallNamespaces`, baixado por `ExpressionHttpCallLowerer`
+em ops de IR e executado por runtimes que vivem DENTRO do kof-compiler; não existe ponto de
+injeção host no runtime (o host de interop é escrito EM Kof e injetado como resource,
+`D-INTEROP-REFLECT` — não é SPI Java), e o `check_stdlib_boundary.sh` escaneia todos os módulos,
+obrigando qualquer literal novo `kof.browser` a entrar na ledger. Três mecanismos candidatos,
+dimensionados: **(1) intrínseco puro** — arrastaria a Playwright para dentro do kof-compiler,
+direção errada (a fronteira existe para manter domínios pesados fora do compilador);
+**(2) intrínseco + registro de capacidade no runtime** — o kof-compiler define a interface do seam
+e os runtimes JVM/Script das ops de browser despacham para o que o módulo embedador registrou (o
+kof-cli registra o provider Playwright no startup); runtime sem registro recusa com diagnóstico
+honesto de gap (a regra XXX00x) — o menor mecanismo por `D-KOF-FIRST`, mas uma superfície de
+núcleo NOVA (namespace + registro + códigos de gap + linhas de paridade), então é chamada de
+desenho da mantenedora, enfileirada aqui, sem `D-*` inventado; **(3) gancho de harness dirigido
+pelo manifesto** — passos de browser executados pelo CLI fora da linguagem transformam testes em
+dados, não em código — contra `D-KOF-FIRST`. Recomendação em registro: (2), pendente de decisão
+da mantenedora/triagem antes de qualquer implementação.
+
 ## 6.6 Assertions web
 
 Conceitualmente `expect(locator).toBeVisible()`, `toHaveText`, `toHaveValue`,

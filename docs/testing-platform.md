@@ -595,6 +595,22 @@ The Kof-facing wiring (browser faces callable from `.kf` tests) is still the mis
 namespaces are compiler intrinsics and the capability lives in kof-cli; a later slice decides
 that mechanism.
 
+Wiring map (measured 11/10, the sizing spike): namespaces are compiler intrinsics — `KofHttp` is
+typed in `MethodCallNamespaces`, lowered by `ExpressionHttpCallLowerer` into IR ops, and executed
+by runtimes that live INSIDE kof-compiler; there is no host-injection point in the runtime (the
+interop host is written IN Kof and injected as a resource, `D-INTEROP-REFLECT` — not a Java SPI),
+and `check_stdlib_boundary.sh` scans every module, forcing any new `kof.browser` literal into the
+ledger. Three candidate mechanisms, sized: **(1) plain intrinsic** — drags Playwright into
+kof-compiler, wrong direction (the boundary exists to keep heavy domains out of the compiler);
+**(2) intrinsic + runtime capability registry** — kof-compiler defines the seam interface and the
+JVM/Script runtimes of the browser ops dispatch to whatever the embedding module registered
+(kof-cli registers the Playwright-backed provider at startup); an unregistered runtime refuses
+with an honest gap diagnostic (the XXX00x rule) — the smallest mechanism per `D-KOF-FIRST`, but a
+NEW core surface (namespace + registry + gap codes + parity rows), so it is a maintainer-design
+call queued here, no `D-*` invented; **(3) manifest-driven harness hook** — browser steps
+executed by the CLI outside the language makes tests data, not code — against `D-KOF-FIRST`.
+Recommendation on record: (2), pending the maintainer/triage decision before any implementation.
+
 ## 6.6 Web assertions
 
 Conceptually `expect(locator).toBeVisible()`, `toHaveText`, `toHaveValue`,
