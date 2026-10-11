@@ -18107,3 +18107,15 @@ EAD
 **Boundary:** the silent-overload family is now CLOSED across every arity-only table found (math/http/time/web-context). The captured-arg box typing (§666 Boundary) remains the known false-positive source for STRICT guards — the capture-machinery unit (JVM-01/03 family). `JSN-01` and the JVM-01+JVM-03 pair are the remaining decision-free fronts.
 
 <!-- pt-switch --> **PT:** [§669 (pt_BR)](known-bugs.pt_BR.md#669--a-ultima-superficie-silenciosa-pequena-da-fronteira-do-667-o-kofwebcontextcall-checava-so-aridade--statusa-b-cru-ligava-kof_web_statusint-string-com-duas-strings---corrigido-1110-lane-flatt-192168100140)
+
+## §670 — audit JSN-01, the JS face: json.decode's missing/JSON-null PRIMITIVE component silently yielded undefined on JS while the JVM threw the named JSN004 (§565's decided contract) — ✅ FIXED 11/10 for JS (lane flatt 192.168.100.14:0; the NATIVE asm zero-fill is JSN-01's remaining face)
+
+**Symptom (measured 11/10, tip `7293d4084`; audit 0.6.0 item `JSN-01`):** `record Pedido(String nome, Int clienteId)` + `json.decode<Pedido>("{\"nome\":\"a\"}")` on JS printed `a` / `undefined` — the §565 contract (`D-JSON-MISSING-PRIMITIVE`, maintainer 03/10: a missing/JSON-null PRIMITIVE component fails with the named `JSN004: missing field '<name>' for <Record>`) was landed for the JVM binder only; the generated JS `__kof_decode_<Class>` helper read `p.field` raw and yielded `undefined` silently.
+
+**The change (landed 11/10):** the decode-helper body emits a presence guard per NON-nullable primitive field (`p.f === undefined || p.f === null` → `throw new Error("JSN004: missing field 'f' for Class")` — the established JsThrow(Error) pattern, so the frozen `catch (String e)` face sees the named message). Nullable/reference fields keep the null semantics (no guard).
+
+**Proof (RED-first, executed):** new `JsonMissingPrimitiveJsE2ETest` (4 faces): pre-fix the two JSN004 faces compiled-and-ran clean (2/4 RED measured — missing key and explicit JSON `null`), the controls green; post-fix **4 run / 0F** — both faces now carry `JSN004` in the run output with no `undefined` leak, the nullable control stays error-free, and the complete decode still works. Non-regression: the JSON battery (`*Json*` incl. the JVM §565 `JsonMissingPrimitiveE2ETest`) **77 run / 0F / 2 named skips**.
+
+**Boundary:** the NATIVE face (the asm decoder zero-fills a missing Int to `0`) is JSN-01's remaining face — the asm decoder needs a presence check + the named throw, a separate unit in the native runtime. What a missing `Int?` yields on JS today (the ctor default) is pre-existing behavior out of this unit's scope (only the no-JSN004 part is pinned).
+
+<!-- pt-switch --> **PT:** [§670 (pt_BR)](known-bugs.pt_BR.md#670--auditoria-jsn-01-a-face-js-o-componente-primitivo-ausentejson-null-do-jsondecode-devolvia-undefined-em-silencio-no-js-enquanto-o-jvm-lancava-o-jsn004-nomeado-contrato-decidido-do-565---corrigido-1110-para-js-lane-flatt-192168100140-o-zero-fill-asm-nativo-e-a-face-restante-do-jsn-01)
