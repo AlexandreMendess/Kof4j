@@ -23,7 +23,13 @@ name: auto-cascade
 on:
   push:
     branches: [lab]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      attempt:
+        description: "internal re-drive counter (stale-tip retries, max 3)"
+        type: string
+        required: false
+        default: "1"
 
 permissions:
   contents: read
@@ -115,4 +121,18 @@ jobs:
           echo "SUITE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: cascade the promotion PRs (+ conditional publish)
-        run: scripts/pipeline/auto_cascade.sh cascade
+        env:
+          ATTEMPT: ${{ inputs.attempt || '1' }}
+        run: |
+          set -u
+          scripts/pipeline/auto_cascade.sh cascade
+          rc=$?
+          if [ "$rc" = "42" ] && [ "$ATTEMPT" -lt 3 ]; then
+            # Stale tip: upstream landed while the suite ran. Re-dispatch to
+            # measure the NEW tip; bounded at 3 attempts per push (the next
+            # push re-triggers anyway). Fail-closed: nothing was promoted.
+            gh workflow run auto-promote.yml --ref lab -f attempt=$((ATTEMPT + 1))
+            echo "auto-cascade: STALE_TIP re-drive queued (attempt $((ATTEMPT + 1))/3) — nothing was promoted"
+            exit 0
+          fi
+          exit "$rc"

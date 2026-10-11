@@ -138,8 +138,17 @@ cmd_cascade() {
     [ -n "${SUITE_VERDICT:-}" ] || die "SUITE_VERDICT required (the 14.3 suite measurement)"
     [ "$SUITE_VERDICT" = "success" ] || die "suite verdict is failure — the cut slips (D-LAB-STABILITY)"
     git fetch origin lab testing stable prerelease --quiet
-    local measured
+    local measured now_tip
     measured="${SUITE_SHA:-$(origin_tip lab)}"
+    now_tip="$(origin_tip lab)"
+    if [ "$now_tip" != "$measured" ]; then
+        # The suite measured $measured but lab moved to $now_tip while it ran
+        # (measured on live run 38131510159, 11/10: the 40-min suite finished
+        # AFTER upstream landed). Promoting an unmeasured tip is refused; the
+        # workflow re-dispatches to measure the new tip (exit 42 = STALE_TIP).
+        say "STALE_TIP — lab moved while measuring: measured $measured, current $now_tip"
+        exit 42
+    fi
     local hops
     hops="$(needed_hops)" || die "cannot resolve stages"
     if [ -z "$hops" ]; then say "no divergence — nothing to do"; exit 0; fi
