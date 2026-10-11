@@ -97,4 +97,42 @@ class KofLocatorTest {
         assertEquals("a b c",
                 KofLocator.parseLocator("role=button[name=\"a b c\"]").name());
     }
+
+    @Test
+    void parsesFlowStepsClassifyingActionVersusAssertion() {
+        KofLocator.Step click = KofLocator.parseStep("css=#go :: click");
+        assertEquals(new KofLocator.Parsed("css", "#go", null), click.locator());
+        assertEquals("click", click.right());
+        assertTrue(!click.assertion());
+        KofLocator.Step fill = KofLocator.parseStep("role=button[name=\"Save\"] :: fill=Kof");
+        assertEquals("fill=Kof", fill.right());
+        assertTrue(!fill.assertion());
+        KofLocator.Step text = KofLocator.parseStep("css=#out :: text");
+        assertTrue(text.assertion());
+        KofLocator.Step attr = KofLocator.parseStep("css=#docs :: attr=href");
+        assertTrue(attr.assertion());
+    }
+
+    @Test
+    void refusesMalformedFlowStepsWithNamedDiagnostics() {
+        // sem separador
+        assertThrows(IllegalArgumentException.class,
+                () -> KofLocator.parseStep("css=#go click"));
+        // lado direito desconhecido — nomeia ações E asserções suportadas
+        IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class,
+                () -> KofLocator.parseStep("css=#go :: hover"));
+        assertTrue(e.getMessage().contains("hover")
+                        && e.getMessage().contains("click")
+                        && e.getMessage().contains("visible"),
+                "a recusa nomeia o passo errado E as suportadas: "
+                        + e.getMessage());
+        // lado direito vazio (fill=/press= sem valor não é ação nem asserção)
+        assertThrows(IllegalArgumentException.class,
+                () -> KofLocator.parseStep("css=#go :: fill="));
+        assertThrows(IllegalArgumentException.class,
+                () -> KofLocator.parseStep("  "));
+        assertThrows(IllegalArgumentException.class,
+                () -> KofLocator.parseStep(null));
+    }
 }

@@ -568,9 +568,21 @@ Gramática parseada pura na `KofLocator` (ex. `role=button[name="Save"]`, `text=
 `attr=href`). Semântica medida (pinada pela `PlaywrightLocatorE2ETest` no Chromium real):
 `visible` lê o PRIMEIRO match imediatamente (ausente/escondido = `"false"`, sem espera);
 `enabled`/`text`/`value`/`attr` auto-esperam 5s e elemento ausente é ERRO nomeado com o locator
-(nunca `"false"` falso); `attr` de atributo ausente devolve `"null"`. A fiação Kof-facing
-(faces de browser chamáveis de testes `.kf`) segue o meio desaparecido — namespaces são
-intrínsecos do compilador e a capacidade vive no kof-cli; uma fatia futura decide esse mecanismo.
+(nunca `"false"` falso); `attr` de atributo ausente devolve `"null"`.
+
+Pousado (11/10, a metade de interação): a SPI ganha `interact(url, locator, action)` (`click`,
+`fill=<texto>`, `press=<tecla>` — a linha click/fill/keyboard da §6.4 fica VERDADEIRA no
+Playwright para click/fill e press de tecla única; a API completa de teclado segue não
+reivindicada) com a mesma recusa honesta default nos outros providers, e
+`PlaywrightLibProvider.flow(kind, url, steps)` — passos `locator :: ação|asserção` numa ÚNICA
+vida de página, o ÚLTIMO passo é asserção cujo valor medido é o retorno (fluxo que termina em
+ação é recusado: desfecho não medido não é teste). MEDIDO (a primeira run da
+`PlaywrightInteractE2ETest` foi VERMELHA com exatamente este achado): cada face avulsa abre e
+fecha o próprio browser, então estado NÃO atravessa chamadas — preencher-e-afirmar-em-duas-
+chamadas mediu vazio; o fluxo é a unidade com estado do E2E.
+A fiação Kof-facing (faces de browser chamáveis de testes `.kf`) segue o meio desaparecido —
+namespaces são intrínsecos do compilador e a capacidade vive no kof-cli; uma fatia futura decide
+esse mecanismo.
 
 ## 6.6 Assertions web
 

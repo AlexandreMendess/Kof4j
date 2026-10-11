@@ -42,6 +42,17 @@ public final class KofLocator {
     /** Asserção parseada: kind e (só no attr) o nome do atributo. */
     public record Assert(String kind, String attrName) {}
 
+    /** Passo de fluxo (§6.5): locator + o lado direito, que é AÇÃO
+     *  (`click`, `fill=<texto>`, `press=<tecla>`) ou ASSERÇÃO
+     *  (`visible`, `enabled`, `text`, `value`, `attr=<name>`). */
+    public record Step(Parsed locator, String right, boolean assertion) {}
+
+    /** O separador do passo de fluxo. */
+    public static final String STEP_SEP = " :: ";
+
+    private static final java.util.List<String> ASSERTION_KINDS =
+            java.util.List.of("visible", "enabled", "text", "value");
+
     private KofLocator() {}
 
     public static Parsed parseLocator(String locator) {
@@ -106,5 +117,34 @@ public final class KofLocator {
         throw new IllegalArgumentException(
                 "unknown assertion '" + assertion + "' (assertions: "
                         + ASSERTIONS + ")");
+    }
+
+    /** Um passo `locator :: ação|asserção` (o corte é no PRIMEIRO
+     *  separador; o lado direito é classificado — ação ou asserção, com
+     *  recusa nomeada quando não é nenhum dos dois). */
+    public static Step parseStep(String step) {
+        if (step == null || step.isBlank()) {
+            throw new IllegalArgumentException("empty flow step");
+        }
+        int sep = step.indexOf(STEP_SEP);
+        if (sep <= 0) {
+            throw new IllegalArgumentException(
+                    "flow step needs a `locator" + STEP_SEP + "action` form: "
+                            + step);
+        }
+        Parsed locator = parseLocator(step.substring(0, sep).trim());
+        String right = step.substring(sep + STEP_SEP.length()).trim();
+        boolean isAssertion = ASSERTION_KINDS.contains(right)
+                || right.startsWith("attr=");
+        boolean isAction = "click".equals(right)
+                || (right.startsWith("fill=") && right.length() > "fill=".length())
+                || (right.startsWith("press=") && right.length() > "press=".length());
+        if (!isAssertion && !isAction) {
+            throw new IllegalArgumentException(
+                    "unknown flow step action/assertion '" + right
+                            + "' (actions: click, fill=<texto>, press=<tecla>"
+                            + "; assertions: " + ASSERTIONS + ")");
+        }
+        return new Step(locator, right, isAssertion);
     }
 }

@@ -581,6 +581,16 @@ hatches). Grammar parsed pure in `KofLocator` (e.g. `role=button[name="Save"]`, 
 `visible` reads the FIRST match immediately (absent/hidden = `"false"`, no wait);
 `enabled`/`text`/`value`/`attr` auto-wait 5s and a missing element is a NAMED error carrying
 the locator (never a false `"false"`); `attr` of an absent attribute returns `"null"`.
+
+Landed (11/10, the interaction half): the SPI gains `interact(url, locator, action)` (`click`,
+`fill=<texto>`, `press=<tecla>` — the §6.4 row click/fill/keyboard becomes TRUE on Playwright
+for click/fill and single-key press; the full keyboard API stays unclaimed) with the same
+honest default refusal on the other providers, and `PlaywrightLibProvider.flow(kind, url,
+steps)` — steps `locator :: action|assertion` on ONE page lifecycle, the LAST step an assertion
+whose measured value is the return (an action-ending flow is refused: an unmeasured outcome is
+not a test). MEASURED (the first `PlaywrightInteractE2ETest` run was RED with this exact
+finding): each standalone face opens and closes its own browser, so state does NOT cross calls
+— fill-then-assert-in-two-calls measured empty; the flow is the stateful unit of E2E.
 The Kof-facing wiring (browser faces callable from `.kf` tests) is still the missing middle —
 namespaces are compiler intrinsics and the capability lives in kof-cli; a later slice decides
 that mechanism.

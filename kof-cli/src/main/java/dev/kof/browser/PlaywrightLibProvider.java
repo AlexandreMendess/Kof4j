@@ -172,7 +172,7 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         try {
             return withPage(kind, url, page -> {
                 page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
-                return measure(resolve(page, parsed), want, locator);
+                return measure(resolve(page, parsed), want);
             });
         } catch (TimeoutError e) {
             throw new IllegalStateException(
@@ -214,8 +214,7 @@ public final class PlaywrightLibProvider implements BrowserProvider {
     }
 
     /** A asserção medida sobre o locator vivo (primeiro match). */
-    private static String measure(Locator l, KofLocator.Assert want,
-                                  String locator) {
+    private static String measure(Locator l, KofLocator.Assert want) {
         return switch (want.kind()) {
             case "visible" -> String.valueOf(l.isVisible());
             case "enabled" -> String.valueOf(l.isEnabled());
@@ -226,5 +225,100 @@ public final class PlaywrightLibProvider implements BrowserProvider {
                     "unknown assertion kind '" + want.kind()
                             + "' (assertions: " + KofLocator.ASSERTIONS + ")");
         };
+    }
+
+    /** A ação de interação sobre o locator vivo (o lado direito da ação). */
+    private static void applyAction(Locator l, String right) {
+        if ("click".equals(right)) {
+            l.click();
+        } else if (right.startsWith("fill=")) {
+            l.fill(right.substring("fill=".length()));
+        } else {
+            l.press(right.substring("press=".length()));
+        }
+    }
+
+    /** Ações de interação suportadas (§6.4 "click / fill / keyboard"). */
+    static final String ACTIONS = "click, fill=<texto>, press=<tecla>";
+
+    @Override
+    public void interact(String url, String locator, String action)
+            throws Exception {
+        interact("chromium", url, locator, action);
+    }
+
+    /** §6.5/§6.2: a interação AVULSA sobre o engine escolhido. Semântica
+     *  MEDIDA: o elemento é auto-esperado até {@link #ASSERT_TIMEOUT_MS}
+     *  (falha = erro nomeado com locator+ação) e o parse da ação é ANTES do
+     *  launch. O efeito de uma interação avulsa NÃO atravessa chamadas —
+     *  cada face abre e fecha o próprio browser, então preencher/clicar com
+     *  estado pertence a {@link #flow} (mesma vida de página). */
+    public void interact(String kind, String url, String locator,
+                         String action) throws Exception {
+        KofLocator.Step step =
+                KofLocator.parseStep(locator + KofLocator.STEP_SEP + action);
+        if (step.assertion()) {
+            throw new IllegalArgumentException(
+                    "interact takes an ACTION (actions: " + ACTIONS
+                            + "), not the assertion '" + action
+                            + "' — use assertOn for measurements");
+        }
+        try {
+            withPage(kind, url, page -> {
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                applyAction(resolve(page, step.locator()), step.right());
+                return null;
+            });
+        } catch (TimeoutError e) {
+            throw new IllegalStateException(
+                    "element not found within " + ASSERT_TIMEOUT_MS + "ms for `"
+                            + action + "`: " + locator, e);
+        }
+    }
+
+    /** §6.5: um FLUXO de passos `locator :: ação|asserção` numa ÚNICA vida de
+     *  página — o preenchimento e o clique vivem dentro do fluxo e a
+     *  asserção final mede o efeito REAL no mesmo DOM. Todos os passos são
+     *  parseados ANTES do launch (erro nomeado sem navegador); o ÚLTIMO
+     *  passo é a asserção cujo valor medido é o retorno — um fluxo que
+     *  termina em ação é recusado: desfecho que ninguém mede não é teste. */
+    public String flow(String kind, String url, java.util.List<String> steps)
+            throws Exception {
+        if (steps == null || steps.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "empty flow (steps have the `locator" + KofLocator.STEP_SEP
+                            + "action` form)");
+        }
+        java.util.List<KofLocator.Step> parsed = new java.util.ArrayList<>();
+        for (String s : steps) {
+            parsed.add(KofLocator.parseStep(s));
+        }
+        KofLocator.Step last = parsed.get(parsed.size() - 1);
+        if (!last.assertion()) {
+            throw new IllegalArgumentException(
+                    "a flow ends in an ASSERTION — the last step `"
+                            + steps.get(steps.size() - 1)
+                            + "` is an action (actions: " + ACTIONS + ")");
+        }
+        try {
+            return withPage(kind, url, page -> {
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                String out = null;
+                for (int i = 0; i < parsed.size(); i++) {
+                    KofLocator.Step s = parsed.get(i);
+                    Locator l = resolve(page, s.locator());
+                    if (s.assertion()) {
+                        out = measure(l, KofLocator.parseAssertion(s.right()));
+                    } else {
+                        applyAction(l, s.right());
+                    }
+                }
+                return out;
+            });
+        } catch (TimeoutError e) {
+            throw new IllegalStateException(
+                    "element not found within " + ASSERT_TIMEOUT_MS
+                            + "ms in the flow: " + steps, e);
+        }
     }
 }
