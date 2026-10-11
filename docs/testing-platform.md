@@ -591,25 +591,36 @@ whose measured value is the return (an action-ending flow is refused: an unmeasu
 not a test). MEASURED (the first `PlaywrightInteractE2ETest` run was RED with this exact
 finding): each standalone face opens and closes its own browser, so state does NOT cross calls
 — fill-then-assert-in-two-calls measured empty; the flow is the stateful unit of E2E.
-The Kof-facing wiring (browser faces callable from `.kf` tests) is still the missing middle —
-namespaces are compiler intrinsics and the capability lives in kof-cli; a later slice decides
-that mechanism.
+The Kof-facing wiring of THESE faces is the missing middle — the stateless
+`browserContent`/`browserScreenshot` landed 10/10 in the `kof.test.browser` virtual package
+(see the wiring map below), but a one-shot process cannot express locator/assert/interaction.
 
-Wiring map (measured 11/10, the sizing spike): namespaces are compiler intrinsics — `KofHttp` is
-typed in `MethodCallNamespaces`, lowered by `ExpressionHttpCallLowerer` into IR ops, and executed
-by runtimes that live INSIDE kof-compiler; there is no host-injection point in the runtime (the
-interop host is written IN Kof and injected as a resource, `D-INTEROP-REFLECT` — not a Java SPI),
-and `check_stdlib_boundary.sh` scans every module, forcing any new `kof.browser` literal into the
-ledger. Three candidate mechanisms, sized: **(1) plain intrinsic** — drags Playwright into
-kof-compiler, wrong direction (the boundary exists to keep heavy domains out of the compiler);
-**(2) intrinsic + runtime capability registry** — kof-compiler defines the seam interface and the
-JVM/Script runtimes of the browser ops dispatch to whatever the embedding module registered
-(kof-cli registers the Playwright-backed provider at startup); an unregistered runtime refuses
-with an honest gap diagnostic (the XXX00x rule) — the smallest mechanism per `D-KOF-FIRST`, but a
-NEW core surface (namespace + registry + gap codes + parity rows), so it is a maintainer-design
-call queued here, no `D-*` invented; **(3) manifest-driven harness hook** — browser steps
-executed by the CLI outside the language makes tests data, not code — against `D-KOF-FIRST`.
-Recommendation on record: (2), pending the maintainer/triage decision before any implementation.
+Wiring map (measured 11/10, corrected same day — doc-truth on the original note): **the
+Kof-facing browser API is NOT missing for the stateless faces** — `kof.test.browser` LANDED
+10/10 as a virtual package WRITTEN IN KOF (`dev/kof/testbrowser.kf`, injected flat on the
+explicit `import kof.test.browser`, the `CompilerTestWeb` precedent, owner lane
+security/connectors): `browserContent(url)` and `browserScreenshot(url, path)` drive the real
+Chrome CLI via `shell.run` (`--headless --dump-dom` / `--screenshot`), the binary swept PATH +
+playwright cache; its E2E re-executed GREEN on 11/10 (`KofTestBrowserPackageE2ETest` 1/1). That
+precedent is the wiring map's mechanism (0), missed by the original three-mechanism note: the
+virtual package covers the STATELESS faces (a one-shot chrome process can dump/screenshot), and
+the Java SPI stays with ZERO production consumers — both facts reconciled: the Kof package
+shells out, it does not touch `BrowserProvider`. The remaining missing middle is precisely the
+SEMANTIC/STATEFUL faces (`assertOn`/`interact`/`flow`, this section): a one-shot dump cannot
+click/fill/auto-wait/resolve roles — those need a persistent engine session, so the sized
+mechanisms below stand for them. Three mechanisms, sized: **(1) plain intrinsic** — drags
+Playwright into kof-compiler, wrong direction (the boundary exists to keep heavy domains out of
+the compiler); **(2) intrinsic + runtime capability registry** — kof-compiler defines the seam
+interface and the JVM/Script runtimes of the browser ops dispatch to whatever the embedding
+module registered (kof-cli registers the Playwright-backed provider at startup); an unregistered
+runtime refuses with an honest gap diagnostic (the XXX00x rule) — the smallest mechanism per
+`D-KOF-FIRST`, but a NEW core surface (namespace + registry + gap codes + parity rows), so it is
+a maintainer-design call queued here, no `D-*` invented; **(3) manifest-driven harness hook** —
+browser steps executed by the CLI outside the language makes tests data, not code — against
+`D-KOF-FIRST`. Recommendation on record: (2), pending the maintainer/triage decision before any
+implementation. Portability note for the package owner: the Kof sweep pins `chromium-1248`
+while the Java SPI sweeps every `chromium-*` dir — a host with only another pinned build would
+refuse; measured harmless here (both 1243 and 1248 present).
 
 ## 6.6 Web assertions
 
@@ -890,6 +901,22 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
 | 8 · Advanced | visual regression, accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
+
+Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
+compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the
+`KofJsBrowserE2ETest` precedent — ESM modules do not load via file://) and drives it with the
+§6.5 semantic faces: the flow fills the input, performs a REAL click on the rendered button
+(the seed proved only the programmatic `f.submit()`) and asserts the placeholder the KofJS
+handler mutated (`"antes"` → `"depois"`, isolated by a no-click control assertion). The full
+loop is proven: Kof source → KofJS → real DOM → real interaction → real Kof handler → semantic
+assertion. The KofWasm half of phase 6 belongs to the WASI lane (`#776` scope).
+
+Cross-browser (11/10, same day): the SAME real-app proof runs on **Firefox** — `flow` +
+`assertOn` with `kind="firefox"` (the §6.4 rule is per-kind discovery; the faces are
+kind-parameterized and chromium alone proved nothing about the rest of the matrix). Firefox
+real (playwright-managed): fill → real click → the KofJS handler mutates the DOM → semantic
+assertion, 3/3 green. WebKit stays launch-blocked on the current host (missing system libs —
+the standing named environmental skip).
 
 The companion plan (`test-architecture-plan.md`) may advance the **internal suite** axis in
 parallel; neither blocks the other, and both share §13.

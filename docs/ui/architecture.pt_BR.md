@@ -17,6 +17,14 @@ coleção de widgets.**
 
 ## 1. O que é kof.ui hoje
 
+> **⚠️ Histórico — snapshot de inspeção da Fase 1 (12/09).** Esta seção registra
+> o estado encontrado pela inspeção original (antes das Fases 2–7). Suas
+> tabelas de "não existe" estão **superadas** pelos pilares implementados: ver
+> §2.x para o estado real de cada pilar (Component Core §2.2, Router/Navegação
+> §2.4, a família de layout `Stack`/`Grid`/`Wrap`/`Center`/`Align` §2.3,
+> propagação de eventos e acessibilidade `D-UI-A11Y` §2.5). Mantida como o
+> diagnóstico que motivou a fundação.
+
 `kof.ui` é uma **stdlib intrinsic** do compilador: os tipos de UI não existem
 como classes Kof no source — são **descritos no compilador** e baixados para
 funções de runtime `kof_ui_*`. A renderização é **KofJS only**: widgets viram
@@ -137,28 +145,31 @@ Backend
 | 8 | Renderização | construção, scheduling, invalidation, partial update | 9 |
 | 9 | Design system | Theme + tokens (Color/Type/Spacing/Border/Radius/Elevation) | 10 |
 
-### 2.2 O Component Core (Fase 2) — o que será implementado
+### 2.2 O Component Core (Fase 2) — implementado
 
 **Um `Component` é um nó na árvore de UI.** Todo widget é um componente. O
 core entrega a espinha: árvore + estado reativo + invalidação + renderização
 + lifecycle + events + efeitos com cleanup automático.
 
-Modelo (idiomático Kof, API pequena, sem boilerplate):
+Modelo (idiomático Kof, API pequena, sem boilerplate) — **compila no `lab`**
+(verificado 11/10; a API é `Component(inicial)`, `stateSet`/`state` para
+escrever/ler, `view`, `onMount`/`onDispose`/`effect`, `bind`):
 
 ```kof
 // estado reativo de componente + view builder + lifecycle + effects
-var app = Component("App")
-app.state(0)                                  // estado inicial (Int)
-app.view { s ->                               // view: re-executado a cada mudança de estado
-    Column([
+var app = Component(0)                        // estado inicial (Int)
+app.view((s: Int) -> {                        // view: re-executado a cada mudança de estado
+    return Column(listOf(
         Label("count: " + s),
-        Button("+1", () -> { app.state(s + 1) })   // set estado => invalida => re-render
-    ])
-}
-app.onMount { /* roda 1x ao montar */ }
-app.onDispose { /* roda 1x ao desmontar */ }
-app.effect { /* registro de listener/timer/subscription; cleanup automático no dispose */ }
-window.bind(app)                              // monta
+        Button("+1", () -> { app.stateSet(s + 1) })   // set estado => invalida => re-render
+    ))
+})
+app.onMount(() -> { })                        // roda 1x ao montar
+app.onDispose(() -> { })                      // roda 1x ao desmontar
+app.effect(() -> { })                         // registro de listener/timer/subscription; cleanup automático no dispose
+var win = Window("App")
+win.bind(app)                                 // monta
+win.show()
 ```
 
 Regras que o core garante:
@@ -166,9 +177,9 @@ Regras que o core garante:
 - **Árvore rastreada.** O framework conhece parent/child de cada nó (fonte da
   verdade), não só o DOM.
 - **Composição.** `bind`/filhos formam a árvore; um componente compõe outros.
-- **Estado encapsulado.** estado vive no componente; `state(...)` é o único
+- **Estado encapsulado.** estado vive no componente; `stateSet(...)` é o único
   caminho de mutação (sem 5 formas de guardar estado).
-- **Invalidação mínima.** `state(...)` marca **só o componente** como dirty e
+- **Invalidação mínima.** `stateSet(...)` marca **só o componente** como dirty e
   agenda re-render (scheduling), sem tocar a aplicação inteira.
 - **Re-render por reconstrução + poda (atual); reconciliação (Fase 9,
   pendente).** hoje o builder da view reexecuta e a subárvore nova substitui a
@@ -208,11 +219,11 @@ Window (raiz/host)
 
 1. **Construção:** `view { s -> ... }` executa → devolve a raiz da view (um nó
    de layout/folha com a árvore de filhos).
-2. **Quando renderiza:** na montagem (1x) e a cada `state(...)`/`text(...)`/
+2. **Quando renderiza:** na montagem (1x) e a cada `stateSet(...)`/`text(...)`/
    `flag(...)` (invalidação agendada, em lote — *batching* via fila de dirty).
 3. **Como as mudanças são detectadas:** a mutação de estado **é** a detecção —
-   o próprio `state(...)` é o ponto de invalidação (sem polling, sem reflexão).
-4. **Invalidation:** `state(...)` marca o componente dirty na fila; um flush
+   o próprio `stateSet(...)` é o ponto de invalidação (sem polling, sem reflexão).
+4. **Invalidation:** `stateSet(...)` marca o componente dirty na fila; um flush
    (agendado, não síncrono) reconcilia só os componentes dirty.
 5. **Updates aplicados:** o builder da view reexecuta e a subárvore nova
    substitui a anterior — a subárvore antiga é podada do DOM **e** do registro
@@ -318,11 +329,11 @@ kof-ui/  (conceitual — hoje vive no compilador; o motor é o CORE_RUNTIME JS)
 
 - **Renderização é KofJS.** JVM/Native continuam no-op para UI (gap
   documentado, como hoje). O core roda e é testado no alvo JS (GraalJS).
-- **API pode evoluir.** o `view { ... }` + `state(...)` é a forma atual; o
+- **API pode evoluir.** o `view { ... }` + `stateSet(...)` é a forma atual; o
   formato final do "componente declarativo" pode mudar, mas a **arquitetura**
   (árvore, composição, estado, invalidação, lifecycle) é estável.
 - **Sem mágica de reatividade.** Kof não tem observer de propriedade; a
-  detecção de mudança de estado **é** a chamada a `state(...)`. Isso é
+  detecção de mudança de estado **é** a chamada a `stateSet(...)`. Isso é
   explícito mas mínimo (um método), encapsulado e automático (sem
   invalidate manual, sem cleanup manual).
 - **Não reescrever o que funciona.** `Color`/`Palette`/`Theme`, os widgets

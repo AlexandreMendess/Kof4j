@@ -6,7 +6,7 @@
 **Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 
-**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**). Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
+**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**). Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
@@ -1295,6 +1295,28 @@ também guarda o fix §653 do `verify` JS ponta-a-ponta. Apenas infraestrutura d
 mudança de compilador. Prova (executada): cada valor medido primeiro no alvo Script, cruzado
 byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh`
 **224/224** (56 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Fase 6 fatia 32 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **57 total** — pinando o núcleo determinístico do `kof.jwt`, um namespace não
+pinado por NENHUM caso de equivalência até agora. O novo caso `tests/golden/jwt-namespace`
+pina `jwt.verify` contra tokens HS256 FIXOS (montados offline com o segredo fixo `s3cret`):
+o token válido devolve seu payload JSON (`jwt.verify(token, "s3cret")`→`{"sub":"u1",
+"iss":"kof","aud":"api","exp":4102444800}`), um segredo ERRADO é rejeitado, o verify com
+`iss`/`aud` vinculados devolve o payload, um `iss` errado e um `aud` errado são rejeitados,
+um token malformado (`"not-a-token"`) é rejeitado, um token EXPIRADO é rejeitado, e um token
+de confusão de algoritmo `alg=none` é rejeitado. Os quatro alvos concordam byte-a-byte.
+**Nota de escopo (medida, honesta):** `jwt.create` é deliberadamente EXCLUÍDO — injeta
+`iat`/`exp` do relógio de parede, então a string do token NÃO é um pin determinístico de 4
+alvos; `jwt.verify` de um token FIXO é totalmente determinístico (a checagem de expiração lê
+o próprio `exp` do token, `4102444800` = ano 2100). `jwt.verify` é 4-alvos limpo
+(`KofSecurity.supportedOn` aceita `jvmLike || JS || isNative`; os arcos cross
+riscv64/aarch64 são o gap `SECN004`/`SECN000`, então o alvo golden `native` roda em x86_64
+aqui). Esta fatia também guarda a rejeição de confusão de algoritmo ponta-a-ponta. Apenas
+infraestrutura de teste, sem mudança de compilador. Prova (executada): cada valor medido
+primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então
+congelado; `tests/run-golden.sh` **228/228** (57 casos × 4 alvos), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
 ### Fase 7 — Integração

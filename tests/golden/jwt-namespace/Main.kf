@@ -1,0 +1,25 @@
+main() {
+    var token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1MSIsImlzcyI6ImtvZiIsImF1ZCI6ImFwaSIsImV4cCI6NDEwMjQ0NDgwMH0.t1rB9wng-JIoCdXWZPuNhTUxiRIhYml4uTMjmUSIDBs"
+    var expired = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1MSIsImV4cCI6MTAwMDAwMDAwMH0.ZTlPOXUhhh-aTp2sOYIxziVEWCClkTDsED5x-NriIVw"
+    var none = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1MSIsImV4cCI6MTAwMDAwMDAwMH0."
+    println(jwt.verify(token, "s3cret"))
+    var r1 = "no-throw"
+    try { var x = jwt.verify(token, "wrong") } catch (String e) { r1 = "rejected" }
+    println(r1)
+    println(jwt.verify(token, "s3cret", "kof", "api"))
+    var r2 = "no-throw"
+    try { var y = jwt.verify(token, "s3cret", "other", "api") } catch (String e) { r2 = "rejected" }
+    println(r2)
+    var r3 = "no-throw"
+    try { var z = jwt.verify(token, "s3cret", "kof", "other") } catch (String e) { r3 = "rejected" }
+    println(r3)
+    var r4 = "no-throw"
+    try { var w = jwt.verify("not-a-token", "s3cret") } catch (String e) { r4 = "rejected" }
+    println(r4)
+    var r5 = "no-throw"
+    try { var e1 = jwt.verify(expired, "s3cret") } catch (String e) { r5 = "rejected" }
+    println(r5)
+    var r6 = "no-throw"
+    try { var e2 = jwt.verify(none, "s3cret") } catch (String e) { r6 = "rejected" }
+    println(r6)
+}
