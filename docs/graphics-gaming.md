@@ -68,14 +68,8 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
   the SDL3 `?` in the matrix below. It also surfaced and fixed the parity blocker
   `known-bugs` §606 (a stateful C library lost its globals between `extern` calls
   on JVM/JS because the lookup arena was closed per call); the stack cannot be
-  used until that fix. Cross (riscv64/aarch64) stays `?`: the picked stack must
-  ship its libs+headers in the cross sysroot.
-- **Cross (riscv64/aarch64): not measurable yet.** No candidate `.so`/headers
-  are in the distro cross sysroot, and the project's cross toolchain
-  (`scripts/setup-cross-toolchain.sh`, default `/tmp/kof-cross`) was not set up
-  in this environment (**still absent 02/10** — `/tmp/kof-cross` does not
-  exist). **Any picked stack must ship its cross libs in that
-  sysroot** — a concrete, testable requirement for slice 3.1, not a promise.
+  used until that fix. **Cross (riscv64/aarch64) CLOSED 06/10:** the picked stack (SDL3) now ships its libs+headers in the cross sysroot (`scripts/provision-cross-sdl3.sh`), and the raw ABI is proven on all four targets — `Sdl3FfiCrossE2ETest` 5/5 (JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true / driver=dummy / title=kof`).
+- **Cross (riscv64/aarch64): PROVEN 06/10 (this bullet superseded the earlier "not measurable yet").** `scripts/provision-cross-sdl3.sh` vendors SDL3 `3.4.16` + its measured runtime closure + a forward-compatible glibc into `$KOF_CROSS_SYSROOT`, and `Sdl3FfiCrossE2ETest` **5/5** drives the same SDL3 shape headless (`SDL_VIDEODRIVER=dummy`) on JVM + Native x86-64 + riscv64 + aarch64 (qemu), identical golden, the cross pair pinned to agree (rule 5). The remaining open item is the backend `Window`/`frame` host and the loop semantics (maintainer's call, `D-GRAPHICS-WINDOW-FORM`).
 - **R3/FFI substrate present** (this is the dependency the plan §3 names):
   `FfiSignature`, `AbiLayout`, `FfiStructLayout`, `CompilerFfiBinding`,
   `JvmFfiRuntime`, `NativeFfiCall`, `ExternalClasspath`, `KofProcess`
@@ -89,7 +83,7 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
 
 | Candidate | Domain | License (`?` = confirm upstream) | Runs on host | Headless | Cross (riscv64/aarch64) | Axis |
 |---|---|---|---|---|---|---|
-| SDL3 / SDL2 | window+input+audio | zlib/libpng + permissive (distro `copyright`) | SDL2 `2.30.0` runtime `.so` **+ `-dev` (02/10)**; SDL3 `3.4.16` RPMs extracted to a local prefix **05/10**; C compile+link OK for both | SDL3 + SDL2 dummy driver **measured OK**; **Kof FFI drives SDL3 init/window/title/quit on JVM+Native (05/10)** | `?` | one lib, many targets |
+| SDL3 / SDL2 | window+input+audio | zlib/libpng + permissive (distro `copyright`) | SDL2 `2.30.0` runtime `.so` **+ `-dev` (02/10)**; SDL3 `3.4.16` RPMs extracted to a local prefix **05/10**; C compile+link OK for both | SDL3 + SDL2 dummy driver **measured OK**; **Kof FFI drives SDL3 init/window/title/quit on JVM+Native (05/10) and on the CROSS riscv64+aarch64 (06/10, `Sdl3FfiCrossE2ETest` 5/5)** | ✅ **proven 06/10** (`provision-cross-sdl3.sh` + `Sdl3FfiCrossE2ETest` 5/5 under qemu) | one lib, many targets |
 | raylib | 2D/3D+audio | zlib (`?`) | not present | `?` | `?` | batteries-included 2D |
 | GLFW + GL API | window+context | zlib (`?`) | not present | offscreen ctx (`?`) | `?` | thin, GL expertise needed |
 | miniaudio | audio | public-domain/MIT-0 (`?`) | not present (header-only, drop-in) | offline mix yes (`?`) | `?` | single-header audio |
