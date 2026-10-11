@@ -126,6 +126,12 @@ public class ParseContext {
         return tokens.get(Math.min(pos, tokens.size() - 1));
     }
 
+    /** O token em {@code pos + off} (EOF ao sair da faixa) — lookahead de leitura. */
+    public Token peekOffset(int off) {
+        int k = Math.min(pos + off, tokens.size() - 1);
+        return tokens.get(Math.max(k, 0));
+    }
+
     public Token advance() {
         if (!atEnd()) pos++;
         return tokens.get(pos - 1);

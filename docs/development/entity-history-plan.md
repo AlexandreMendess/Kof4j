@@ -1,13 +1,21 @@
 [English](entity-history-plan.md) | [Português](entity-history-plan.pt_BR.md)
 
-# Entity History — temporal audit for `kof.orm` (specification, plan only, zero code)
+# Entity History — temporal audit for `kof.orm` (**UNDER DEVELOPMENT** — promoted 11/10, `D-FUTURE-UNFREEZE`)
 
-**Status:** proposal, zero code — `docs/development/future/`
+state:
+last: PROMOTED 11/10 from `docs/development/future/` (D-FUTURE-UNFREEZE, maintainer 11/10) — the plan with ALL decisions closed (D-ENTITY-HISTORY authorized 28/09 + Q1–Q15 answered in D-FUTURE-BATCH-2809B)
+doing: Phase 2 slice 2a LANDED 11/10 — the `audited` declaration modifier (AUDITED token + KofKeywords + the Portukof pair `auditado`, gated to ENTITY declarations; `AuditedEntityParseE2ETest` 3/3: `audited entity` compiles+migrates+saves+queries identically to a plain entity on h2, `audited class` stays an error, plain entities unchanged; ORM battery 138/0F)
+next: Phase 2 slice 2b — the recording: `orm.save/update/delete` write the history tables (per-entity revision sequence, snapshot-per-revision) when the entity is audited, inside `transaction { … }`; RED-first E2E (a save on an audited entity creates revision 1; a plain entity creates none)
+location: docs/development/entity-history-plan.md
+owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
+state: under-development
+
+**Status:** UNDER DEVELOPMENT (Phase 2 of 6; the rollout queue is §24 below)
 **Requested by:** maintainer (26/09/2026)
 **Rule 6 gate:** the declaration/query surfaces were **resolved** by the maintainer
 in `DECISIONS.md` §`D-ENTITY-HISTORY` (28/09, authorized; Q1–Q15 answered in
-`D-FUTURE-BATCH-2809B`). This document is the specification; promotion to
-current work is one-at-a-time per `D-FUTURE-PROMOTION`.
+`D-FUTURE-BATCH-2809B`). Spec sections below are the locked contract; `file:line`
+anchors were measured on the promotion-day tip unless re-measured in a slice.
 **Snapshot:** branch `beta-0.5.0`, tip `12bacc39e`. Every `file:line` below was
 measured on that tip.
 

@@ -30,6 +30,7 @@ public final class KofKeywords {
         k.put("entity", TokenType.ENTITY);
         k.put("extern", TokenType.EXTERN);
         k.put("generated", TokenType.GENERATED);
+        k.put("audited", TokenType.AUDITED);
         k.put("unique", TokenType.UNIQUE);
         k.put("extends", TokenType.EXTENDS);
         k.put("implements", TokenType.IMPLEMENTS);

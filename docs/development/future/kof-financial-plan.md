@@ -39,7 +39,7 @@ profiles.
 - `KofUuid.java` — `uuid.v4()`/`uuid.v7()` for idempotency keys.
 - `KofTime.java` — `time.now()` epoch millis; ISO date strings.
 - `KofObservability.java` — correlation/request ids (webhook retries, recon).
-- `docs/development/future/entity-history-plan.md` — temporal audit, the same
+- `docs/development/entity-history-plan.md` — temporal audit (PROMOTED 11/10, `D-FUTURE-UNFREEZE`), the same
   append-only instinct the ledger needs; `audited entity` may host ledger rows.
 
 ---

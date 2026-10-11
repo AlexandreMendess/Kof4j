@@ -1068,7 +1068,24 @@ rule 6).
 | 2.8.5 | **X6 interop reflection** (`D-INTEROP-REFLECT` = **A, compile-time intrinsic**) | ✅ **DONE 21–22/09** — surface frozen: `interop.schema(R)` → immutable `List<Field>`, zero runtime reflection, all targets, boundary-only; X6.0–X6.3 (intrinsic+fold, diagnostics `INTEROP001`/`INTEROP002`, `interopschema` cell + Arrow/Parquet binding E2E `InteropSchemaE2ETest` 18/18); **plan CONCLUDED + moved to `docs/` 22/09** | ✅ |
 | 2.8.6 | **X2 interop engine — Python/R** (`D-COMPLETE-FIRST` item 2) | ✅ **COMPLETE 27/09 — fatia 4 cross LANDED** (lane issues, maintainer order: `InteropTimeoutE2ETest` +3 timeout007/deadline-reuse/idle-cancel + `InteropRE2ETest` R-happy, riscv64≡aarch64≡JVM under qemu; R gated on Rscript presence; 008 JVM-only by design) — fatias 1–3+5 already landed/certified; session-state stays declared cut-out; plan promoted | X2 closed |
 
-**Spec plan (X5 + X6):** [`type-system-extensions-plan.md`](../type-system-extensions-plan.md) — **APPROVED 21/09 (D-TYPE-VARIANCE/INTEROP-REFLECT)**; **CONCLUDED + MOVED to `docs/` 22/09** (all slices X5.0–X5.5, X6.0–X6.3 landed with proof).
+**Spec plan (X5 + X6):** [`type-system-extensions-plan.md`](../type-system-extensions-plan.md) — **APPROVED 21/09 (D-TYP
+
+### TIER 2.9 — Entity history — temporal audit for `kof.orm` (PROMOTED 11/10, `D-FUTURE-UNFREEZE`; decisions CLOSED — `D-ENTITY-HISTORY` + Q1–Q15)
+
+> Spec = [`entity-history-plan.md`](../entity-history-plan.md)(+PT) — moved from `future/` on promotion.
+> Surface LOCKED by the Q1–Q15 answers: `audited entity` (PT `auditado entidade`), query entity-static
+> (`User.history(db, id)`), known `Revision`/`FieldChange` records, one revision per `save`, per-entity
+> sequence, ORM paths only, `atTime` = at-or-before, FK values only, snapshot-per-revision, `not audited`
+> exclusion, the `HIST0xx` diagnostic block.
+
+| # | Step | Scope (one line) | Status |
+|---|------|------------------|--------|
+| 2.9.1 | **`audited entity` front-end** | the `AUDITED` token + Portukof pair `auditado` (gated to ENTITY declarations); parse-only, zero behavior change | ✅ **LANDED 11/10** (`AuditedEntityParseE2ETest` 3/3; ORM battery 138/0F) |
+| 2.9.2 | **Recording** | `orm.save/update/delete` write the history tables (per-entity revision, snapshot-per-revision) for audited entities, inside `transaction { … }`; RED-first E2E | OPEN |
+| 2.9.3 | **Historical queries** | `history`/`at`/`atTime`/`changes` + pagination, E2E goldens | OPEN |
+| 2.9.4 | **Context** | real actor resolution + request-bound correlation id | OPEN (depends on the observability fix) |
+| 2.9.5 | **Native backend** | the same contract in the native ORM runtime | OPEN |
+| 2.9.6 | **Advanced** | retention/archival, typed accessors, field exclusion, tamper-evidence — each with its own decision | OPEN |E-VARIANCE/INTEROP-REFLECT)**; **CONCLUDED + MOVED to `docs/` 22/09** (all slices X5.0–X5.5, X6.0–X6.3 landed with proof).
 
 ### TIER 3–5 — Legacy migration platform (Phases A–H) ✅ code+tests
 

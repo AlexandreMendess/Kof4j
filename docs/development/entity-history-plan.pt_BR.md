@@ -1,13 +1,23 @@
 [English](entity-history-plan.md) | [Português](entity-history-plan.pt_BR.md)
 
-# Histórico de Entidades — auditoria temporal para `kof.orm` (especificação, plano apenas, zero código)
+# Histórico de Entidades — auditoria temporal para `kof.orm` (**EM DESENVOLVIMENTO** — promovido 11/10, `D-FUTURE-UNFREEZE`)
 
-**Status:** proposta, zero código — `docs/development/future/`
+state:
+last: PROMOVIDO 11/10 de `docs/development/future/` (D-FUTURE-UNFREEZE, mantenedora 11/10) — o plano com TODAS as decisões fechadas (D-ENTITY-HISTORY autorizada 28/09 + Q1–Q15 respondidas em D-FUTURE-BATCH-2809B)
+doing: Fase 2 fatia 2a POUSADA 11/10 — o modificador de declaração `audited` (token AUDITED + KofKeywords + o par Portukof `auditado`, restrito a declarações ENTITY; `AuditedEntityParseE2ETest` 3/3: `audited entity` compila+migra+salva+consulta idêntico a uma entity simples no h2, `audited class` segue erro, entities simples inalteradas; bateria ORM 138/0F)
+next: Fase 2 fatia 2b — a gravação: `orm.save/update/delete` escrevem as tabelas de histórico (sequência de revisão por entity, snapshot-por-revisão) quando a entity é audited, dentro de `transaction { … }`; E2E RED-first (um save em entity audited cria a revisão 1; uma entity simples não cria nada)
+location: docs/development/entity-history-plan.pt_BR.md
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
+state: under-development
+
+
+**Status:** EM DESENVOLVIMENTO (Fase 2 de 6; a fila de rollout é a §24 abaixo)
 **Solicitado por:** mantenedora (26/09/2026)
 **Trava da regra 6:** as superfícies de declaração/consulta foram **resolvidas**
 pela mantenedora em `DECISIONS.md` §`D-ENTITY-HISTORY` (28/09, autorizada;
-Q1–Q15 respondidas em `D-FUTURE-BATCH-2809B`). Este documento é a especificação;
-a promoção a trabalho corrente é uma-por-vez por `D-FUTURE-PROMOTION`.
+Q1–Q15 respondidas em `D-FUTURE-BATCH-2809B`). As seções da spec abaixo são o
+contrato travado; âncoras `file:line` foram medidas no tip do dia da promoção,
+salvo re-medidas numa fatia.
 **Snapshot:** branch `beta-0.5.0`, tip `12bacc39e`. Todo `file:line` abaixo foi
 medido nesse tip.
 
