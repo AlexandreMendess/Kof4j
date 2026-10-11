@@ -1088,12 +1088,16 @@ sistemas embarcados/edge, HPC local, forense.
 - **O que já tem:** ELF x86_64, syscalls, `spawn` (pthread), FP real (XMM),
   GC free-list, SQLite `.so` direto, MySQL wire protocol, crypto em asm.
 - **O que precisaria (classificado):** (a) **GC mark-sweep** completo (hoje
-  free-list; auto-GC desligado) — **C** (necessário para pipelines longos);
+  free-list; auto-GC desligado) — **C** (necessário para pipelines longos) [**atualizado 11/10:**
+  o GC do x86-64/native tem mark-sweep desde 03/09 e auto-collect LIGADO desde 19/09
+  (`KofGcE2ETest`); o resíduo são as faces de GC do cross/native, `known-bugs` §602];
   (b) **FFI formalizado** (declarar `.so` sem asm manual) — **C**;
   (c) **SIMD / vectorização** — **D**; (d) **event-loop/async** (hoje
   pthread bloqueante) — **D** (necessário para servidores HPC/edge);
-  (e) **codegen RISC/ARM** (hoje placeholder via qemu) — **C** (já em
-  andamento); (f) **GPU** (Vulkan por FFI; CUDA por FFI) — **D/A**.
+  (e) **codegen RISC/ARM** — **C** (já em andamento) [**atualizado 11/10:**
+  o codegen riscv64 + aarch64 está COMPLETO desde 03/09 (tradução linha-a-linha,
+  `NativeAarch64E2ETest` verde sob qemu); o resíduo é a paridade total com o x86 em
+  JSON/DB/HTTP/concorrência/UI/net, `NATIVE002`]; (f) **GPU** (Vulkan por FFI; CUDA por FFI) — **D/A**.
   **(g) bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — ver
   `PLAN-BAREMETAL-BOOT.md` (diretiva da mantenedora 15/09): uma **costura de
   plataforma (`kof_plat_*`) + perfil de link freestanding**, não outra

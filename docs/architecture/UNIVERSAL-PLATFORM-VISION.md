@@ -1088,12 +1088,16 @@ embedded/edge systems, local HPC, forensics.
 - **What it already has:** ELF x86_64, syscalls, `spawn` (pthread), real FP (XMM),
   free-list GC, direct SQLite `.so`, MySQL wire protocol, crypto in asm.
 - **What it would need (classified):** (a) complete **GC mark-sweep** (today
-  free-list; auto-GC off) — **C** (necessary for long pipelines);
+  free-list; auto-GC off) — **C** (necessary for long pipelines) [**updated 11/10:**
+  the x86-64/native GC has mark-sweep since 03/09 and auto-collect ON since 19/09
+  (`KofGcE2ETest`); the residual is the cross/native GC faces, `known-bugs` §602];
   (b) **formalized FFI** (declare `.so` without manual asm) — **C**;
   (c) **SIMD / vectorization** — **D**; (d) **event-loop/async** (today
   blocking pthread) — **D** (necessary for HPC/edge servers);
-  (e) **RISC/ARM codegen** (today placeholder via qemu) — **C** (already
-  in progress); (f) **GPU** (Vulkan via FFI; CUDA via FFI) — **D/A**.
+  (e) **RISC/ARM codegen** — **C** (already in progress) [**updated 11/10:**
+  riscv64 + aarch64 codegen is COMPLETE since 03/09 (line-by-line translation,
+  `NativeAarch64E2ETest` green under qemu); the residual is total x86 parity on
+  JSON/DB/HTTP/concurrency/UI/net, `NATIVE002`]; (f) **GPU** (Vulkan via FFI; CUDA via FFI) — **D/A**.
   **(g) bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — see
   `PLAN-BAREMETAL-BOOT.md` (15/09 maintainer directive): a **platform seam
   (`kof_plat_*`) + freestanding link profile**, not a new language. Classified
