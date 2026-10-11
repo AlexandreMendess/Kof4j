@@ -29,7 +29,7 @@ final class WasmLowering {
 
     static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
             boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments,
-            Map<String, ClassLayout> records, int recordDepth) {
+            Map<String, ClassLayout> records, int recordDepth, DataCursor dataCursor) {
         List<Integer> params = new ArrayList<>();
         Map<Integer, Integer> slotMap = new LinkedHashMap<>();
         int jvmSlot = 0;
@@ -130,7 +130,7 @@ final class WasmLowering {
             }
         }
 
-        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments, records);
+        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments, records, dataCursor);
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
         ctx.objIdx = objIdx;
@@ -178,7 +178,7 @@ final class WasmLowering {
         final Map<String, Integer> stringPool;
         final List<WasmData> dataSegments;
         final Map<String, ClassLayout> records;
-        int dataNext = DATA_BASE;
+        final DataCursor data;
         int wIdx = -1, sIdx = -1;
         int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         int eqAccIdx = -1, eqEqIdx = -1, eqCmpIdx = -1, eqDblIdx = -1, eqAndIdx = -1;
@@ -192,7 +192,7 @@ final class WasmLowering {
         Ctx(Map<Integer, Integer> slotMap, int pcIdx,
                 Map<Integer, Integer> labelToBlock, String funcName,
                 Map<String, Integer> stringPool, List<WasmData> dataSegments,
-                Map<String, ClassLayout> records) {
+                Map<String, ClassLayout> records, DataCursor data) {
             this.slotMap = slotMap;
             this.pcIdx = pcIdx;
             this.labelToBlock = labelToBlock;
@@ -200,6 +200,7 @@ final class WasmLowering {
             this.stringPool = stringPool;
             this.dataSegments = dataSegments;
             this.records = records;
+            this.data = data;
         }
 
         /** record IR alcancado nesta fatia (15.3d); null = fora do subset. */
@@ -208,15 +209,7 @@ final class WasmLowering {
             return records.get(ct.name());
         }
         int internString(String str) {
-            Integer a = stringPool.get(str);
-            if (a != null) return a;
-            byte[] bs = str.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            int addr = dataNext;
-            stringPool.put(str, addr);
-            dataSegments.add(new WasmData(addr, bs));
-            dataNext += bs.length + 1; // +1 reserva o byte do '\n'
-            dataNext = (dataNext + 3) & ~3;
-            return addr;
+            return data.intern(str, stringPool, dataSegments);
         }
 
         int internLen(String str) {
@@ -540,6 +533,31 @@ final class WasmLowering {
         out.add(new WasmInstr.Const(0, block));
         out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.pcIdx, "pc"));
         out.add(new WasmInstr.Branch("dispatch", depth));
+    }
+
+    /**
+     * #796 — o cursor do pool de dados e de escopo de MODULO (um por
+     * {@code WasmBackend.emit}), nao por funcao: antes vivia no {@code Ctx}, que e
+     * criado a cada funcao, entao {@code internString} devolvia {@code DATA_BASE}
+     * de novo em toda funcao e os segmentos de dados se sobrepunham (saida errada
+     * em silencio). Com o cursor de modulo o pool pode passar de {@code HEAP_BASE};
+     * a base do heap passa a ser derivada do fim dos dados
+     * ({@code WasmBackend}), entao o pool nunca e alcancado pelo bump heap.
+     */
+    static final class DataCursor {
+        int next = DATA_BASE;
+
+        int intern(String str, Map<String, Integer> stringPool, List<WasmData> dataSegments) {
+            Integer a = stringPool.get(str);
+            if (a != null) return a;
+            byte[] bs = str.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            int addr = next;
+            stringPool.put(str, addr);
+            dataSegments.add(new WasmData(addr, bs));
+            next += bs.length + 1; // +1 reserva o byte do '\n'
+            next = (next + 3) & ~3;
+            return addr;
+        }
     }
 
 }
