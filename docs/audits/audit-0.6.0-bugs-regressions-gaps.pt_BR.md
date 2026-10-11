@@ -106,7 +106,7 @@ Legenda: **Tag** = comportamento em `0.6.0`; **Lab** = comportamento no `lab` at
 | `RB-05` | `kof.ui` | método de UI inexistente → `SEM025` | OK | OK | — | corrigido #711/§547 | `CompilerUiEmitter.java:274-285` | `UiUnknownMethodDiagnosticE2ETest` | pin count==1 | nenhuma |
 | `JSN-01` | JSON cross-target | componente primitivo ausente em JS/Native | silencioso | silencioso | **Alta** | decoders sem checagem de presença | `CompilerTypeSupport.java`, `NativeJsonSchema.java`, `js/JsRuntimeOps.java` | nenhum (só JVM) | `JSN004` em JS/Native ou lacuna declarada | espelhar a recusa da JVM |
 | `JVM-01` | backend JVM | reatribuir local de tipo lambda → `VerifyError` | quebrado | quebrado | **Alta** | `LambdaN` concreta no tipo do local | `StatementLowererLocalBoxing.java:70-81`, `ExpressionAssignmentLowerer.java:262-296`, `ExpressionBareCallLowerer.java:156-157` | nenhum | `lambdaLocalReassignJvm` | unificar na interface SAM (precedente §156) |
-| `JVM-02` | backend JVM | local de tipo função sem inicializador → `VerifyError` | quebrado | quebrado | Média-Alta | default sem-init é `0`, não `null` | `StatementLowererLocalBoxing.java:130-133`, `CompilerTypeSupport.java:89-92` | nenhum | `functionTypeLocalWithoutInitializerJvm` | tratar `FunctionType` como referência no predicado |
+| `JVM-02` | backend JVM | local de tipo função sem inicializador → `VerifyError` | quebrado | quebrado | Média-Alta | default sem-init é `0`, não `null` | `StatementLowererLocalBoxing.java:130-133`, `CompilerTypeSupport.java:89-92` | nenhum | `functionTypeLocalWithoutInitializerJvm` | tratar `FunctionType` como referência no predicado — ✅ CORRIGIDO 11/10 no `lab` como `known-bugs` §664 (lane flatt `192.168.100.14:0`; o caminho SIMPLES — o gêmeo capturado anda com a unidade lambda-box do JVM-01/03, registrado na Fronteira do §664) |
 | `JVM-03` | backend JVM | if/switch-expr com ramos lambda → `VerifyError` (+ `invokestatic` fantasma) | quebrado | quebrado | **Alta** | junção de ramos dá `Object` / `LambdaN` do 1º ramo | `ExpressionTyper.java:255-277,350-358`, `HierarchyResolver.java:132-152`, `ExpressionBareCallLowerer.java:252-253` | nenhum | `ifExprLambdaBranchesUnifyToSamInterfaceJvm` + gêmeo switch | unificar ramos lambda de mesma assinatura na interface SAM |
 | `HTTP-01` | HTTP / web | `http.status(401)` / `status(401)` cru passam o `check` | quebrado | quebrado | **Alta** | dispatch só por aridade, sem checagem de tipo; sem diagnóstico na divergência | `KofHttp.java:98-99`, `MethodCallNamespaces.java:72-78`, `ExpressionHttpCallLowerer.java:17`, `ExpressionBareCallLowerer.java:252` | `StdCatalogSignaturesTest` (só o dispatcher) | `http.status(401)`/`get(401)`/`timeout("abc")` devem falhar no `check` | checagem de tipo ao lado da de aridade; `SEM025`/`HTTP00x` dedicado |
 | `MATH-01` | `kof.math` | `math.abs(Double)` | `SEM025` | `SEM025` | — | honesto (só-Int, com guarda) | `KofMath.java:48-49`, `StdCatalog.java:207` | `StdCatalogSignaturesTest:184` | — | nenhuma (LACUNA: sobrecargas Double?) |
@@ -375,7 +375,11 @@ bateria relevante não regredida. Nada abaixo é implementado nesta auditoria.
 **P1 — `check` limpo, classe não-carregável**
 
 4. `JVM-02` — tratar `FunctionType` como referência no default sem-init. *Teste:*
-   `functionTypeLocalWithoutInitializerJvm`. *Risco:* baixo.
+   `functionTypeLocalWithoutInitializerJvm`. *Risco:* baixo. — **FEITO 11/10:** pousado como
+   `known-bugs` §664 (lane flatt `192.168.100.14:0`): o default sem-init carrega null para slot
+   `FunctionType` (caminho simples); `FunctionTypeNoInitDefaultE2ETest` mediu VERMELHO (VerifyError
+   no load, a face verbatim do audit) pré, imprime `6` pós; bateria lambda 98/0F. O gêmeo CAPTURADO
+   segue aberto com a unidade do JVM-01/03 (box + dispatch, Fronteira do §664).
 5. `JVM-01` + `JVM-03` — tipar lambdas em posição de valor como a interface SAM;
    unificar junções de ramos if/switch. *Testes:* `lambdaLocalReassignJvm` (#284
    verbatim), `ifExprLambdaBranchesUnifyToSamInterfaceJvm` + gêmeo switch. *Risco:* médio

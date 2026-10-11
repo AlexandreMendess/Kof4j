@@ -15533,3 +15533,17 @@ EAD
 **Fronteira:** só TEXTO de mensagem — sem codegen, sem severidade, sem mudança de código de diagnóstico; a renderização PT mantém seus templates (a localização lê o código, não o texto interpolado); SEM010/SEM014-método/SEM036 já exibiam e estão intocados. `DIAG-01` (o dedup de emissão duplicada, §661) é outra preocupação e pousou antes no mesmo dia.
 
 <!-- en-switch --> **EN:** [§663 (en)](known-bugs.md#663--audit-diag-02-sem012sem021ctor-sem014-leaked-the-raw-type-representation-cannot-assign-classtypepackagename-nameb-typearguments-to-classtype---fixed-1110-lane-flatt-192168100140)
+
+## §664 — auditoria JVM-02: local de tipo função sem inicializador era default `iconst_0` no JVM (`iconst_0; astore_1` → VerifyError no load da classe) — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0; o caminho simples)
+
+**Sintoma (medido 11/10, tip `df103f4cc`; auditoria 0.6.0 item `JVM-02`):** `main() { var f: (Int) -> Int  f = (x: Int) -> x + 1  println(f(5)) }` passava no `check` e morria no load da classe: `VerifyError: Bad type on operand stack ... Type integer is not assignable to reference type` — `javap` mostrava `iconst_0; astore_1` (o default sem-init guardava um INT num slot de referência). Medido RED-first: o repro exato da auditoria dá VerifyError no load, byte-a-byte o sintoma do audit.
+
+**Raiz:** `CompilerTypeSupport.erasesToReference` não conhece `Type.FunctionType`, então o default sem-init em `StatementLowererLocalBoxing.emitLocalDeclaration` pegava o ramo primitivo `0` para um slot de tipo função — que guarda uma classe sintética de lambda (referência).
+
+**A mudança (pousada 11/10):** o default sem-init carrega `null` quando o slot é `FunctionType` (espelhando os ramos existentes de referência/nullable). O caminho capturado-inicializado já andava em `createBoxClass(FunctionType)` (bug 8), então nenhuma maquinaria de box mudou.
+
+**Prova (RED-first, executada):** novo `FunctionTypeNoInitDefaultE2ETest` — pré-correção o repro exato da auditoria dá erro com `VerifyError` no load; pós-correção **1 rodado / 0F** imprimindo `6`. Não-regressão: a bateria `*Lambda*` + `ComponentCoreE2ETest` + `StatementLowerer*` **98 rodados / 0F / 3 skips nomeados**.
+
+**Fronteira:** isto corrige o caminho SIMPLES (não capturado) — a face do audit. O gêmeo CAPTURADO (local de tipo função mutado e também capturado por closure) passa por `CapturedVarBox`, cujo box sem init ainda hardcodifica `INT`; um fix só do box foi tentado e medido INSUFICIENTE — expõe a lacuna mais funda do dispatch de chamada capturada (`Object` na pilha vs o retorno `Int` declarado dentro do `invoke` da closure), que é a família lambda/box do audit `JVM-01`/`JVM-03` (risco médio, bateria de inferência compartilhada) — deixada para aquela unidade, não meio-corrigida aqui. O `erasesToReference` em si está intocado (8 outros call sites dependem do gate de hoje).
+
+<!-- en-switch --> **EN:** [§664 (en)](known-bugs.md#664--audit-jvm-02-a-function-type-local-without-an-initializer-was-defaulted-to-iconst_0-on-the-jvm-iconst_0-astore_1--verifyerror-at-class-load---fixed-1110-lane-flatt-192168100140-the-plain-path)

@@ -105,7 +105,7 @@ reproducibility (`always` unless noted).
 | `RB-05` | `kof.ui` | unknown UI method → `SEM025` | OK | OK | — | fixed #711/§547 | `CompilerUiEmitter.java:274-285` | `UiUnknownMethodDiagnosticE2ETest` | count==1 pin | none |
 | `JSN-01` | JSON cross-target | missing primitive component on JS/Native | silent | silent | **High** | decoders have no presence check | `CompilerTypeSupport.java`, `NativeJsonSchema.java`, `js/JsRuntimeOps.java` | none (JVM-only) | JS/Native `JSN004` or declared gap | mirror the JVM refusal |
 | `JVM-01` | JVM backend | reassigning a lambda-typed local → `VerifyError` | broken | broken | **High** | concrete `LambdaN` in the local's type | `StatementLowererLocalBoxing.java:70-81`, `ExpressionAssignmentLowerer.java:262-296`, `ExpressionBareCallLowerer.java:156-157` | none | `lambdaLocalReassignJvm` | unify to SAM interface (§156 precedent) |
-| `JVM-02` | JVM backend | function-type local with no initializer → `VerifyError` | broken | broken | Med-High | no-init default is `0`, not `null` | `StatementLowererLocalBoxing.java:130-133`, `CompilerTypeSupport.java:89-92` | none | `functionTypeLocalWithoutInitializerJvm` | treat `FunctionType` as reference in the default predicate |
+| `JVM-02` | JVM backend | function-type local with no initializer → `VerifyError` | broken | broken | Med-High | no-init default is `0`, not `null` | `StatementLowererLocalBoxing.java:130-133`, `CompilerTypeSupport.java:89-92` | none | `functionTypeLocalWithoutInitializerJvm` | treat `FunctionType` as reference in the default predicate — ✅ FIXED 11/10 on `lab` as `known-bugs` §664 (lane flatt `192.168.100.14:0`; the PLAIN path — the captured twin rides the JVM-01/03 lambda-box unit, recorded in the §664 Boundary) |
 | `JVM-03` | JVM backend | if/switch-expr with lambda branches → `VerifyError` (+ phantom `invokestatic`) | broken | broken | **High** | branch join yields `Object` / first-branch `LambdaN` | `ExpressionTyper.java:255-277,350-358`, `HierarchyResolver.java:132-152`, `ExpressionBareCallLowerer.java:252-253` | none | `ifExprLambdaBranchesUnifyToSamInterfaceJvm` + switch twin | unify same-signature lambda branches to the SAM interface |
 | `HTTP-01` | HTTP / web | `http.status(401)` / bare `status(401)` pass `check` silently | broken | broken | **High** | arity-only dispatch, no type check; no diagnostic on mismatch | `KofHttp.java:98-99`, `MethodCallNamespaces.java:72-78`, `ExpressionHttpCallLowerer.java:17`, `ExpressionBareCallLowerer.java:252` | `StdCatalogSignaturesTest` (dispatcher only) | `http.status(401)`/`get(401)`/`timeout("abc")` must fail `check` | add a type check beside the arity check; emit `SEM025`/dedicated `HTTP00x` |
 | `MATH-01` | `kof.math` | `math.abs(Double)` | `SEM025` | `SEM025` | — | honest (Int-only, guarded) | `KofMath.java:48-49`, `StdCatalog.java:207` | `StdCatalogSignaturesTest:184` | — | none (SPEC GAP: Double overloads?) |
@@ -372,7 +372,11 @@ relevant battery non-regressed. Nothing below is implemented in this audit.
 **P1 — clean `check`, unloadable class**
 
 4. `JVM-02` — treat `FunctionType` as reference in the no-init default. *Test:*
-   `functionTypeLocalWithoutInitializerJvm`. *Risk:* low.
+   `functionTypeLocalWithoutInitializerJvm`. *Risk:* low. — **DONE 11/10:** landed as `known-bugs`
+   §664 (lane flatt `192.168.100.14:0`): the no-init default loads null for a `FunctionType` slot
+   (plain path); `FunctionTypeNoInitDefaultE2ETest` measured RED (VerifyError at load, the audit's
+   verbatim face) pre-fix, prints `6` post; lambda battery 98/0F. The CAPTURED twin stays open with
+   the JVM-01/03 unit (box + dispatch, §664 Boundary).
 5. `JVM-01` + `JVM-03` — type value-position lambdas as the SAM interface; unify
    if/switch branch joins. *Tests:* `lambdaLocalReassignJvm` (#284 verbatim),
    `ifExprLambdaBranchesUnifyToSamInterfaceJvm` + switch twin. *Risk:* medium (shared

@@ -128,7 +128,11 @@ final class StatementLowererLocalBoxing {
         // verdade (Commit B) → default null, espelhando `String? s;`
         // (unassigned ≠ 0). Native não chega aqui com o wrapper.
         if (vdInit == null) {
+            // audit 0.6.0 JVM-02 (ledger §664): slot de FunctionType é
+            // referência (classe sintética da lambda) — default null, não
+            // iconst_0 (iconst_0; astore_1 = VerifyError no load).
             ops.add(driver.erasesToReference(varType) || nullablePrimSlot
+                    || varType instanceof Type.FunctionType
                     ? new KofLoadLiteral(varType, null)
                     : new KofLoadLiteral(varType, 0));
         }
