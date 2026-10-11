@@ -7,7 +7,7 @@ owner: `192.168.15.130:9093` (lane docs/lab — re-claimed 10/10 after the `192.
 
 last: M1 UNIDADE-4 slice 2 LANDED 10/10 (lane docs/lab `192.168.15.130:9093`) — FFI callbacks bind on Native **x86-64** for **Int/Long/Double/Float** ABIs: the generated trampoline (`kof_cb_tramp_<desc>`) now maps FP args (C `xmm0..` → the raw bits in the Kof integer-register convention) and the FP return (`rax` bits → `xmm0`); `FfiNativeCallbackE2ETest` covers Int/Long/Double/mixed/Float param + return, JVM==Native byte-for-byte. Only a `String`-return callback stays FFI001. Before: slice 1 (integer ABIs) + UNIDADE-3 (VF-on-x86-64)
 doing: M1 unidade-4 slice 2 LANDED 10/10 (callbacks on Native x86-64: Int/Long/Double/Float) — remaining: the String-return callback face + the cross callback trampoline
-next: M1 callbacks slice 3 — the cross callback trampoline (riscv64/aarch64) + the String-return face; mixed float+int and HFA>2 remain honest FFI001 (gap-catalogued in spec §12)
+next: M1 callbacks slice 3 — the cross callback trampoline (riscv64/aarch64) + the String-return face; **UNBLOCKED 11/10**: the cross toolchain is now installed locally (binutils+gcc+qemu-user-static under `~/.local/toolchain/cross`, `KOF_CROSS_SYSROOT`; the broad cross FFI battery 34/0F/0E, 0 skipped), so this face is buildable+testable here. mixed float+int and HFA>2 remain honest FFI001 (gap-catalogued in spec §12)
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
