@@ -311,6 +311,15 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
                     KofStd.gapCode(sCall, driver.target));
             return localIdx;
         }
+        // The math constants are compile-time doubles: fold to a literal rather
+        // than emit kof_math_pi/e/tau, a symbol only the JVM runtime defines —
+        // a call that type-checked everywhere but died at ld on every native
+        // target (mislabeled COMP001). Byte-identical, reuses the literal path.
+        Double mathConst = KofMath.constantValue(sCall.function());
+        if (mathConst != null) {
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.DOUBLE, mathConst));
+            return localIdx;
+        }
         localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), sCall.parameterTypes(), ops, owner, localIdx, locals);
         ops.add(new KofCall(new Type.ClassType(sCall.ownerPackage(), sCall.ownerClass(), List.of()),
                 sCall.function(), sCall.parameterTypes(), sCall.returnType(),
