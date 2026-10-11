@@ -7,7 +7,7 @@ construct with minimal verifiable examples. The **formal rules** are in
 [grammar.md](grammar.md); the **tokens** in [lexical-structure.md](lexical-structure.md);
 the **semantics** in the domain documents. It does not repeat — it references.
 
-> Every example here **compiles** in `kof-compiler` 0.5.0-beta (verified by
+> Every example here **compiles** in `kof-compiler` 0.6.0 (verified by
 > probe/suite). Examples that *look* valid but do not compile are listed
 > in [lexical-structure.md](lexical-structure.md) §5.3 and
 > [specification-gaps.md](../bugs-and-gaps/specification-gaps.md).

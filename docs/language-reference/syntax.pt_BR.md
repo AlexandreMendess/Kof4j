@@ -7,7 +7,7 @@ construção com exemplos mínimos verificáveis. As **regras formais** estão e
 [grammar.md](grammar.md); os **tokens** em [lexical-structure.md](lexical-structure.md);
 a **semântica** nos documentos de domínio. Não repete — referencia.
 
-> Todo exemplo aqui **compila** no `kof-compiler` 0.5.0-beta (verificado por
+> Todo exemplo aqui **compila** no `kof-compiler` 0.6.0 (verificado por
 > probe/suíte). Exemplos que *parecem* válidos mas não compila estão listados
 > em [lexical-structure.md](lexical-structure.md) §5.3 e
 > [specification-gaps.md](../bugs-and-gaps/specification-gaps.md).

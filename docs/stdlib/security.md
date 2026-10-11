@@ -3,7 +3,7 @@
 # Kof Standard Library — Security + Enterprise Capability Audit
 
 **Last updated:** September 12, 2026
-**Version:** 0.5.0-beta (free-list + riscv64; `kof.http` JVM+JS + retry/circuit)
+**Version:** 0.6.0 (free-list + riscv64; `kof.http` JVM+JS + retry/circuit)
 
 > Permanent architectural document.
 >
@@ -328,7 +328,7 @@ jwt:         RFC 7519 HS256 (alg fixed, never accepted from the token)
 
 # 7. IMPLEMENTATION STATE (0.5.0-beta, re-synced 17/09/2026 — `VERSION` 0.5.0-beta, 2218 tests, free-list + mark-sweep + riscv64)
 
-## 7.1 Implemented (0.5.0-beta)
+## 7.1 Implemented (0.6.0)
 
 | API | JVM | Native x86_64 (+ riscv64) | JS | Format |
 |-----|-----|---------------------------|----|---------|

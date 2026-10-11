@@ -3,7 +3,7 @@
 # stdlib database — Banco de Dados Nativo do Kof
 
 **Última atualização:** 18 de setembro de 2026
-**Versão:** 0.5.0-beta
+**Versão:** 0.6.0
 **Status:** implementado (Fase 5 do plano de independência do Spring) — JVM (JDBC) + Native (SQLite via `.so` direto + MySQL wire real no x86-64, F2d1–F2d7 22/09) + `kof.orm` (JVM + MongoDB); JS nao-tipado ✅ (16/09), tipado `query<T>` ✅ (18/09, `DB002` fechado), `kof.orm` ✅ no JS (18/09, `ORM001` fechado); `ORM001` segue só no Native cross riscv64/aarch64
 
 ---
@@ -105,7 +105,7 @@ Native:
   detectado em compile-time). Handshake completo, query e prepared statements
   ainda em progresso (P3).
 
-## 6. Targets (0.5.0-beta)
+## 6. Targets (0.6.0)
 
 | Target | Estado | Notas |
 |--------|--------|-------|
@@ -114,7 +114,7 @@ Native:
 | Native riscv64 | ✅ SQLite (riscv64) | `li a7` syscalls |
 | JS | ✅ nao-tipado (16/09); `query<T>` tipado = `DB002` FECHADO 18/09 | `connect/execute/query/close/transaction` via `kof_platform.db*` no host GraalJS; query tipado: FECHADO 18/09; `orm.*` FECHADO 18/09 (`ORM001` — `KofJsOrmBridge`, mesmo SQL do JVM, E2E byte-parity) |
 
-## 7. Testes (0.5.0-beta)
+## 7. Testes (0.6.0)
 
 `KofDbE2ETest` 8 + `KofOrmE2ETest` 16 (inclui MariaDB/PostgreSQL/MongoDB com skip condicional + SQLite native) — execute + query JSON,
 query tipada com bind, transação com commit, rollback em exceção,

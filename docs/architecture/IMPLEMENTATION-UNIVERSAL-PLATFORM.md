@@ -10,7 +10,7 @@
 **Companion (vision/architecture):** [`docs/architecture/UNIVERSAL-PLATFORM-VISION.md`](../architecture/UNIVERSAL-PLATFORM-VISION.md)
 — philosophy, domain map, architectural model, stdlib/interop strategy, risks
 and non-goals that justify these steps.
-**Base:** real state 0.5.0-beta — 7 targets (jvm stable, native x86_64 stable,
+**Base:** real state 0.6.0 — 7 targets (jvm stable, native x86_64 stable,
 native.risc/native.arm toolchain+qemu, js alpha GraalJS, kofc native-only,
 android Phases 1–4), stdlib as **compile-time dispatch tables** with diagnosed
 gaps, real FFI (SQLite `.so`, FFM Vulkan compute, Java + GraalJS interop).
