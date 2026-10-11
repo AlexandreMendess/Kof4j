@@ -187,7 +187,7 @@ nota em contrário.
 | `channel<T>` send/receive | ✅ (fila de objetos) | ✅ 23/09 (FIFO futex portado — fatia `RtB61`, §423: `kof_channel_new/send/receive`, lock `amoswap.w` + futex 128/129 + sleep 1 ms no receive vazio) | ✅ 23/09 (mesma fonte via tradutor) | `KofConcurrency2Test.channelNative` (x86) + `channelWithSpawnCrossArch` (duas arches), `BareCollectionPrimitiveArgE2ETest` (nu `1` + tipado `11` rodam sob qemu nos dois cross) |
 | supervisor | ✅ | ✅ (×3 — §129 port cross 19/09) | ✅ | `KofSupervisorE2ETest` |
 | scheduler `every`/`at` | ✅ | ✅ | ✅ | `KofTimeE2ETest`; `at(cron)` = CRON001 em TODOS os native (não é por arco) |
-| math (MATH001 fechado; `pow`) | ✅ (`pow` via libm) | ✅ FP; `pow` recusa MATH001 | ✅ FP; `pow` recusa MATH001 | `KofMathTest`, `KofMath.supportedOn` |
+| math (MATH001 fechado; `pow`; trig) | ✅ (`pow` via libm; trig completa + `pi`/`e`/`tau`) | ✅ FP; **`pow` + as 9 trig (`sin`/`cos`/`tan`/`asin`/`acos`/`atan`/`atan2`/`toRadians`/`toDegrees`) recusam `MATH001`** (§621); `pi`/`e`/`tau` bindam (dobradas para literal double, §651) | ✅ FP; mesmas recusas `MATH001` do x86 | `KofMathTest`, `KofMath.supportedOn` |
 | db (SQLite) | ✅ SQLite + MySQL/MariaDB wire | ✅ SQLite (`RtB46`/`RtB47`); MySQL/MariaDB só x86 (`mariadb://` = alias mysql, S1 23/09) | ✅ SQLite | `KofDbE2ETest` incl. `crossNativeSqliteRoundtrip` + `nativeMariadbAliasWireProtocol`; `NativeCrossLink` |
 | security | ✅ asm (faces SECN002/006) | 🔴 SECN000 | 🔴 SECN000 | `KofSecurity.supportedOn` |
 | rng | ✅ (X8 fatia 2) | 🔴 RNG001 | 🔴 RNG001 | `KofRngTest` |

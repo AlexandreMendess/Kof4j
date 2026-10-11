@@ -1088,12 +1088,16 @@ sistemas embarcados/edge, HPC local, forense.
 - **O que já tem:** ELF x86_64, syscalls, `spawn` (pthread), FP real (XMM),
   GC free-list, SQLite `.so` direto, MySQL wire protocol, crypto em asm.
 - **O que precisaria (classificado):** (a) **GC mark-sweep** completo (hoje
-  free-list; auto-GC desligado) — **C** (necessário para pipelines longos);
+  free-list; auto-GC desligado) — **C** (necessário para pipelines longos) [**atualizado 11/10:**
+  o GC do x86-64/native tem mark-sweep desde 03/09 e auto-collect LIGADO desde 19/09
+  (`KofGcE2ETest`); o resíduo são as faces de GC do cross/native, `known-bugs` §602];
   (b) **FFI formalizado** (declarar `.so` sem asm manual) — **C**;
   (c) **SIMD / vectorização** — **D**; (d) **event-loop/async** (hoje
   pthread bloqueante) — **D** (necessário para servidores HPC/edge);
-  (e) **codegen RISC/ARM** (hoje placeholder via qemu) — **C** (já em
-  andamento); (f) **GPU** (Vulkan por FFI; CUDA por FFI) — **D/A**.
+  (e) **codegen RISC/ARM** — **C** (já em andamento) [**atualizado 11/10:**
+  o codegen riscv64 + aarch64 está COMPLETO desde 03/09 (tradução linha-a-linha,
+  `NativeAarch64E2ETest` verde sob qemu); o resíduo é a paridade total com o x86 em
+  JSON/DB/HTTP/concorrência/UI/net, `NATIVE002`]; (f) **GPU** (Vulkan por FFI; CUDA por FFI) — **D/A**.
   **(g) bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — ver
   `PLAN-BAREMETAL-BOOT.md` (diretiva da mantenedora 15/09): uma **costura de
   plataforma (`kof_plat_*`) + perfil de link freestanding**, não outra
@@ -1135,7 +1139,7 @@ de erros do `kof check`).
 
 | Tool | Estado | O que precisaria para a plataforma universal |
 |------|--------|---------------------------------------------|
-| **CLI** | 26 comandos (build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/deps/editor/init/new/version) | + **`kof infra plan/apply/destroy`** (orquestração de infra — *tooling*, não linguagem); + **`kof workflow run`** (executar pipelines/jobs); + **`kof deploy`** (build + package + publicar — sobre o packager existente). *Todos consomem o frontend.* |
+| **CLI** | 31 comandos (build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version) | + **`kof infra plan/apply/destroy`** (orquestração de infra — *tooling*, não linguagem); + **`kof workflow run`** (executar pipelines/jobs); + **`kof deploy`** (build + package + publicar — sobre o packager existente). *Todos consomem o frontend.* |
 | **LSP** | mínimo (hover/completion + diagnostics) | + completion/diagnostics **sensíveis ao domínio** (recurso `infra`, `entity`, `df`); go-to-definition em pacotes oficiais; semantic tokens por domínio. *Mesmo frontend → sem parser paralelo.* |
 | **Package manager** | MVP landado (`kof deps` + resolução transitiva + lock; registry pendente ⛔) | **obrigatório** para as camadas 4/5 (pacotes oficiais + ecossistema): resolução, versionamento, **capability/link por uso**, audit. É o que permite a plataforma crescer sem inchar o core. (Dependência arquitetural, §13.) |
 | **Debugger** | MVP JVM (DAP + JDWP) | + Native (DWARF) + JS (source maps) — fases 4-7; **debug de pipelines/jobs** (ver estado de um job a execução). |

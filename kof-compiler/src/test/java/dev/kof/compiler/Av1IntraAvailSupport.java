@@ -15,14 +15,16 @@ import java.util.zip.GZIPInputStream;
  * ({@code av1/common/reconintra.c}) — the {@code extend_modes} mode gating, the
  * filter-intra override, the directional {@code pAngle} override,
  * {@code scale_chroma_bsize} and the {@code has_top_right}/{@code has_bottom_left}
- * calls — driven over 2500 deterministic cases, dumped as one
- * {@code C ...} / {@code R tr bl ntop nleft} pair per case.
+ * calls — driven over 2500 deterministic cases (the coverage prologue also
+ * drives the off-origin `mi_row`/`mi_col` grid, which pins the
+ * `mb_to_right_edge = (mi_cols - bw - mi_col) * MI_SIZE * 8` position term),
+ * dumped as one {@code C ...} / {@code R tr bl ntop nleft} pair per case.
  */
 final class Av1IntraAvailSupport {
 
     private static final String RESOURCE = "/av1_intra_avail_golden.txt.b64";
     private static final String GOLDEN_SHA256 =
-            "3c106491559b49a0b0fc13c97cc236a35545d3b752f46a62362acc0e92b76b07";
+            "af05d4e6f4eff76b8bd8399118678a4c6e7b7a8709aceddebe46e59edd67fd36";
 
     private Av1IntraAvailSupport() {
     }

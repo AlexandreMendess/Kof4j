@@ -118,6 +118,7 @@ public final class CompilerUiEmitter {
 
     static int emitUiInstance(CompilerDriver driver, Type recvType, MethodCallExpr mc, List<KofOperation> ops,
                                 String owner, int localIdx, List<IRLocalVariable> locals) {
+        KofUiIcons.checkSetName(driver, recvType, mc);
         if (KofUi.isComponent(recvType) || KofUi.isStore(recvType)) {
             KofUi.UiCall cc = KofUi.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
             if (cc != null) {

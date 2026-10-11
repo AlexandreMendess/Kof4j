@@ -168,7 +168,6 @@ final class CmdTest {
         int failed = 0;
         int skipped = 0;   // §576: arquivos sem teste e sem main (módulos auxiliares)
         int skippedByTag = 0;   // §587: arquivos cujo filtro --tag não casa nenhum teste
-        int skippedByProvider = 0;   // §6: arquivos browser tagados sem provider/binário
         java.util.Map<String, String> fileLevel = new java.util.LinkedHashMap<>();
         java.util.Map<String, Boolean> fileResult = new java.util.LinkedHashMap<>();
         boolean browserTagged = tag != null && java.util.Arrays.stream(tag.split(","))

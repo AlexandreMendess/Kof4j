@@ -66,7 +66,7 @@ app.get("/users") {
 |--------|--------|-------|
 | JVM | ✅ completo | `KofRuntime` gerado, JSON + correlation ID |
 | Native x86_64 | ✅ completo (asm, 27/08) | `kof_log_*` asm próprio (data civil Hinnant, env scan), timestamp UTC; `KOF_LOG_JSON` sem efeito ainda |
-| Native riscv64/aarch64 | ✅/placeholder | riscv64 `li a7`; aarch64 placeholder |
+| Native riscv64/aarch64 | ✅ riscv64 / herda no aarch64 | riscv64 `li a7`; o aarch64 herda o runtime `kof_log_*` do riscv via tradutor linha-a-linha (sem teste de log dedicado ao aarch64 — o core aarch64 geral está completo desde 03/09; o antigo "aarch64 placeholder" era da era 0.2.6) |
 | JS | ✅ 01/09 (LOG001 fechado) | `kofLog*` console.* com `KOF_LOG_LEVEL`; warn→console.warn, error→console.error |
 
 ## 6. Testes
