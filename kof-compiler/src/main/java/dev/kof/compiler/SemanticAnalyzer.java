@@ -296,7 +296,16 @@ public class SemanticAnalyzer {
                 inferType(field.initializer(), classScope);
             }
         }
-        for (int pass = 0; pass < 4; pass++) {
+        // #785 (opcao C): o fixpoint NAO converge em 4 passadas quando uma cadeia
+        // de inferencia e declarada na ordem "dependente-primeiro"
+        // (f4 -> f3 -> ... -> f0): cada passada resolve UM nivel, e um programa
+        // VALIDO era recusado com SEM033 — com o resultado dependendo da ordem de
+        // declaracao. O limite passa a ser derivado do numero de membros (uma
+        // cadeia aciclica tem no maximo `members().size()` niveis) + margem, entao
+        // converge sempre. A ultima passada ainda `changed` PRESERVA os tipos
+        // (opcao A) em vez de descarta-los (Face 1).
+        int maxPasses = Math.max(8, cls.members().size() + 4);
+        for (int pass = 0; pass < maxPasses; pass++) {
             boolean changed = false;
             beginExpressionTypeGroup();
             for (AstNode member : cls.members()) {
@@ -316,7 +325,14 @@ public class SemanticAnalyzer {
                 discardExpressionTypeGroup();
                 break;
             }
-            clearExpressionTypes();
+            // a limpeza existe para nao vazar tipos STALE para a proxima passada;
+            // na ULTIMA passada nao ha proxima — limpar aqui deixava a classe SEM
+            // tipos de expressao (Face 1), entao PRESERVA o que a ultima gravou.
+            if (pass + 1 < maxPasses) {
+                clearExpressionTypes();
+            } else {
+                discardExpressionTypeGroup();
+            }
         }
         for (AstNode member : cls.members()) {
             if (member instanceof MethodDeclarationNode method && method.modifiers().contains("abstract")
