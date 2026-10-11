@@ -735,6 +735,13 @@ saudável só porque o retry passou → relatório **Flaky Test Detection**.
 Em falha de E2E, coletar automaticamente quando possível: screenshot, vídeo, trace, console,
 network, HTML, logs — para `CI falhou → abrir artefato → ver exatamente o que aconteceu`.
 
+Nota de dependência (medido 11/10): a SPI de browser (`dev/kof/browser/BrowserProvider` —
+`name`/`probe`/`dumpDom`/`screenshot`) **não tem nenhum call site de produção fora do próprio
+pacote** — as faces são consumidas só por testes E2E JUnit. O gancho de harness desta seção
+precisa primeiro da superfície de execução de browser chamável por Kof (a API de
+locator/assert do §6.5); pousar a 8.1 antes disso seria infraestrutura sem consumidor (Q7).
+Ordem: superfície §6.5 → gancho 8.1 no caminho de falha dela.
+
 ## 8.2 Screenshots e regressão visual
 
 Permitir screenshot de página/elemento/falha. Avaliar comparação de screenshot como capacidade

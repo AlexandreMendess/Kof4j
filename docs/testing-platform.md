@@ -743,6 +743,13 @@ merely because a retry passed → **Flaky Test Detection** report.
 On E2E failure, automatically collect when possible: screenshot, video, trace, console, network,
 HTML, logs — so `CI failed → open artifact → see exactly what happened`.
 
+Dependency note (measured 11/10): the browser SPI (`dev/kof/browser/BrowserProvider` —
+`name`/`probe`/`dumpDom`/`screenshot`) has **no production call site outside its package** — the
+faces are consumed by JUnit E2E tests only. The harness hook this section describes needs the
+Kof-facing browser execution surface first (the §6.5 locator/assert API); landing 8.1 before it
+would be infrastructure without a consumer (Q7). Order: §6.5 surface → 8.1 hook on its failure
+path.
+
 ## 8.2 Screenshots and visual regression
 
 Allow page/element/failure screenshots. Evaluate screenshot comparison as a **future**
