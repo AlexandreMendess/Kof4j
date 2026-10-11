@@ -62,9 +62,15 @@ class Av1DecodeReconBlockE2ETest implements LibraryInstallSupport {
      * deterministically, while the unmodified ELF diverges. x86-64, JVM, Script
      * and JS are exact on the identical program (they are asserted above).
      *
+     * <p>Re-measured 11/10 on the rebased tip AFTER the upstream three-root §602
+     * fix (`586003372`, lane native/GC: the bump base, the free-list mark and the
+     * size sanity): that fix closed the AV1 CDF/ModeBody/deep-graph faces but NOT
+     * this one — the two cross faces still fail here (2F, the same intra-plane
+     * reclaim of the live plane buffer), so §602 stays OPEN for this face.
+     *
      * <p>These faces therefore SKIP with the reason named, rather than pass
      * falsely. Remove the assumption (set {@link #BLOCKED_BY_602} to false) once
-     * §602 is fixed.
+     * §602 is fixed for this face.
      */
     private static final boolean BLOCKED_BY_602 = true;
 
