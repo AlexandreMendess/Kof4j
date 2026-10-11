@@ -1111,9 +1111,13 @@ um caso — **47 no total** — pinando a família de parse numérico do `math` 
 default, sem wrap); `parseLongOrDefault("bad",-9)`=-9 / `("9000000000",-9)`=9000000000;
 `parseDoubleOrDefault("bad",-2.5)`=-2.5 / `("2.5",-2.5)`=2.5. **Nota de escopo (medida,
 honesta):** `math.pi()`/`math.e()`/`math.tau()` e `toRadians`/`toDegrees` são a família §621 —
-`toRadians`/`toDegrees` recusam honestamente no nativo (`MATH001`) e `pi()`/`e()` morrem no link
-nativo (`COMP001`, sem símbolo `kof_math_pi`), então não podem ser pinados por um caso de
-equivalência de 4 alvos; o golden pina só a família `parse*` (limpa nos 4 alvos). Apenas
+`toRadians`/`toDegrees` recusam honestamente no nativo (`MATH001`) e `pi()`/`e()` morriam no link
+nativo (`COMP001`, sem símbolo `kof_math_pi`), então no corte desta fatia não podiam ser pinados por um caso de
+equivalência de 4 alvos; o golden pina só a família `parse*` (limpa nos 4 alvos).
+**Corrigido 11/10:** `known-bugs` §651 (lane compilador/JVM/nativo) consertou as três constantes —
+o lowering agora dobra `pi()`/`e()`/`tau()` para um `KofLoadLiteral.ofDouble`, então elas bindam em
+todo alvo (sem precisar do símbolo `kof_math_pi`) e PODEM ser pinadas por um caso de 4 alvos;
+`toRadians`/`toDegrees` ainda recusam honestamente no nativo (`MATH001`). Apenas
 infraestrutura de teste, sem mudança de compilador. Prova (executada): cada valor medido
 primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então
 congelado; `tests/run-golden.sh` **188/188** (47 casos × 4 alvos), exit 0.

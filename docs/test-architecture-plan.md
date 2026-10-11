@@ -1109,9 +1109,13 @@ OVERFLOW `("99999999999999",-1)`=-1 (falls back to the default, no wrap);
 `parseLongOrDefault("bad",-9)`=-9 / `("9000000000",-9)`=9000000000;
 `parseDoubleOrDefault("bad",-2.5)`=-2.5 / `("2.5",-2.5)`=2.5. **Scope note (measured,
 honest):** `math.pi()`/`math.e()`/`math.tau()` and `toRadians`/`toDegrees` are the §621
-family — `toRadians`/`toDegrees` refuse honestly on native (`MATH001`) and `pi()`/`e()` die
-at native link (`COMP001`, no `kof_math_pi` symbol), so they cannot be pinned by a 4-target
-equivalence case; the golden pins only the `parse*` family (4-target clean).
+family — `toRadians`/`toDegrees` refuse honestly on native (`MATH001`) and `pi()`/`e()` died
+at native link (`COMP001`, no `kof_math_pi` symbol), so at this slice's cut they could not be
+pinned by a 4-target equivalence case; the golden pins only the `parse*` family (4-target clean).
+**Corrected 11/10:** `known-bugs` §651 (lane compiler/JVM/native) fixed the three constants —
+the lowering now folds `pi()`/`e()`/`tau()` to a `KofLoadLiteral.ofDouble`, so they bind on
+every target (no `kof_math_pi` symbol needed) and CAN be pinned by a 4-target case;
+`toRadians`/`toDegrees` still refuse honestly on native (`MATH001`).
 Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
 Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
 frozen; `tests/run-golden.sh` **188/188** (47 cases × 4 targets), exit 0.
