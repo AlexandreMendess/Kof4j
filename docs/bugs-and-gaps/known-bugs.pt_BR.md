@@ -15454,3 +15454,24 @@ EAD
 **Fronteira:** as faces Int (`math.min(1, 2)`, `math.clamp(5, 0, 10)`, `math.isEven(2)`) inalteradas; `abs`/`sign` intocados; as faces Double mantêm as próprias guardas. Os itens restantes do plano de correção da auditoria são unidades separadas (`JVM-01/02/03`, `HTTP-01`, `DIAG-01/02`, `JSN-01`; `ORM-01`/`MEM-01`/`CLI-01` precisam de decisão da mantenedora). Se `math.abs(<literal Long>)` liga pelo caminho compartilhado é pergunta do §657, não desta entrada.
 
 <!-- en-switch --> **EN:** [§658 (en)](known-bugs.md#658--audit-math-02-mathminmaxclamp-and-the-isevenisoddispositiveisnegativeiszero-family-accepted-any-argument-type-arity-only-binding-mathmin1-25-passed-check--jvm-verifyerror-native-silently-printed-0---fixed-1110-lane-flatt-192168100140)
+
+## §659 — o `json.encode` de um record diverge entre alvos: um campo `Bool` emitido como `1`/`0` no Script (§659a, CORRIGIDO 11/10), um campo `Long` derruba o JS (§659b), um campo `Double`/`Float` emite lixo no nativo (§659c) — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
+
+**Sintoma (medido 11/10, tip `9c057eaac`):** codificar um record cujo campo é um primitivo não-`Int` diverge entre os quatro alvos. Três faces, uma por tipo de campo:
+
+- **§659a (Script `Bool` → `1`/`0`) — CORRIGIDO neste commit.** `record Flag(Bool ok)`; `json.encode(Flag(true))` → **Script `{"ok":1}`** enquanto JVM/JS/nativo → **`{"ok":true}`**; idem `json.encode(listOf(Flag(true), Flag(false)))` → Script `[{"ok":1},{"ok":0}]` vs os outros três `[{"ok":true},{"ok":false}]`.
+- **§659b (JS `Long` → `TypeError`) — OPEN.** `record L(Long v)`; `json.encode(L(9000000000))` → **JS `TypeError: Do not know how to serialize a BigInt`** (exit 1) enquanto Script/JVM/nativo → `{"v":9000000000}`.
+- **§659c (nativo `Double`/`Float` → lixo) — OPEN.** `record Real(Double d, Float f)`; `json.encode(Real(2.5, 1.5))` → **nativo x86-64 `{"d":2.0546950501119882E-81,"f":1.593292E-10}`** (os bits do campo reinterpretados, não o valor) enquanto Script/JVM/JS → `{"d":2.5,"f":1.5}`.
+
+**Raiz (lida da árvore):**
+- §659a: o interpretador guarda um campo `Bool` primitivo como `Integer` 0/1 na pilha (§108); `KofInterpreterRuntime.encodeKof` lia o slot cru e entregava `Integer` ao `kof_json_encode`, que emite um número puro — o tipo declarado do campo nunca era consultado. Corrigido consultando o tipo declarado e, para um primitivo `bool`, roteando o valor por `kof_json_encode_bool` (a mesma normalização que o `normalizeReturn` aplica em outros lugares).
+- §659b: o backend JS baixa `json.encode(obj)` para `JSON.stringify(obj)`; um campo `Long` do Kof é um `BigInt` do JS, que o `JSON.stringify` recusa.
+- §659c: `json.encode(obj)` no nativo passa por `CompilerTypeSupport.fieldOk` (usado por `CompilerDriver.nativeObjJsonFieldsOk`), que retorna `true` para **todo** `Type.PrimitiveType` incluindo `double`/`float`, então o record é admitido sem schema. O gate irmão `nativeRecordWalkerOk` (usado por `json.encode(List<T>)`) **rejeita** corretamente `float`/`double` com `JSN002`. Os dois gates discordam: o MESMO record de campo `Double` é erro de compilação `JSN002` via `json.encode(listOf(Real(...)))` mas emite lixo silenciosamente via `json.encode(Real(...))`.
+
+**Contrato:** `json.encode` de um record deve ser byte-idêntico nos quatro alvos (o invariante da suíte golden), ou o alvo deve recusar o tipo de campo com um diagnóstico explícito — nunca aceitar-e-divergir. `no-silent-fallback` + `honest-cross-target` + `zero-regression`.
+
+**Caminho de correção (NÃO pousado aqui para §659b/§659c):** §659b precisa que o encoder JS serialize um campo `BigInt` como o inteiro decimal (igual ao JVM/nativo) em vez de delegar ao `JSON.stringify`; §659c precisa que o `fieldOk` concorde com o `nativeRecordWalkerOk` (rejeitar `float`/`double` com `JSN002`, ou adicionar o schema ausente) para que os caminhos de record-direto e record-em-lista recusem identicamente. Ambos são unidades específicas de backend.
+
+**Fronteira:** o caso golden `tests/golden/json-records` pina SÓ as faces limpas nos 4 alvos (encode/decode de record, record aninhado, `List<Record>`, `List<String>`, campo string escapado, decode tolerante a espaços, decode tolerante a chave extra); as faces `Long`/`Double`/`Float` ficam de fora até §659b/§659c serem reparados. A face `Bool` está incluída porque o §659a é corrigido neste commit. Lane dona compilador/JVM/nativo `192.168.15.30:9092` (achado ao aprofundar a cobertura golden de json).
+
+<!-- en-switch --> **EN:** [§659 (en)](known-bugs.md#659--jsonencode-of-a-record-diverges-across-targets-a-bool-field-emitted-as-10-on-script-659a-fixed-1110-a-long-field-crashes-js-659b-a-doublefloat-field-emits-garbage-on-native-659c---open-found-1110-by-lane-compilerjvmnative-19216815309092)

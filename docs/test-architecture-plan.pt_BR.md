@@ -6,7 +6,7 @@
 **Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 
-**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**; a fatia 34, `config-namespace`, a **59 / 236**). Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
+**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**; a fatia 34, `config-namespace`, a **59 / 236**; a fatia 35, `json-records`, a **60 / 240**). Sem decisão aberta, sem fatia enfileirada. As fatias anteriores eram apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano); a fatia 35 é a exceção, pareando o caso golden com a correção de compilador de baixo risco e unidade única §659a que ele revelou (ver o bloco da fatia abaixo).
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
@@ -1371,6 +1371,39 @@ Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então conge
 `tests/run-golden.sh` **236/236** (59 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am
 compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
 `docs-lang`/`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records` rc=0.
+
+**Fase 6 fatia 35 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **60 no total** — pinando as faces de record do `json.encode`/`json.decode`, uma área
+de linguagem-núcleo que o caso `json` existente cobria só trivialmente (3 faces:
+`encode(List<Int>)`, `decode<List<Int>>`, `encode(true)`; NENHUM encode/decode de record). O novo
+caso `tests/golden/json-records` pina `json.encode(Point(3,4))`→`{"x":3,"y":4}`, um record
+`String`+`Int` (`User("ada",36)`→`{"name":"ada","age":36}`), round-trip `json.decode<Point>` (→15),
+round-trip `json.decode<User>` (→`grace/45`), `json.encode(List<Point>)`, `json.encode(List<String>)`,
+`json.encode(Flag(true))`→`{"ok":true}`, `json.encode(List<Flag>)`, um record com campo string
+escapado (`"a\"b\nc"`), decode tolerante a espaços (`"  {  \"x\" : 5 , \"y\" : 6 }  "`→11) e
+decode tolerante a chave extra (`z` desconhecido ignorado→3). As 11 faces concordam byte-a-byte nos
+quatro alvos. **Nota de escopo (medida, honesta):** campos `Long`/`Double`/`Float` de record são
+EXCLUÍDOS — não podem ser um pin de 4 alvos até §659b/§659c serem reparados (ver abaixo). **BUG
+ACHADO + CORRIGIDO (Q4/Q0):** escrever o caso revelou **§659** — o `json.encode` de um record
+diverge entre alvos por tipo de campo: (§659a) um campo `Bool` emitido `1`/`0` no Script vs
+`true`/`false` no JVM/JS/nativo, (§659b) um campo `Long` derruba o JS (`TypeError: Do not know how
+to serialize a BigInt`), (§659c) um campo `Double`/`Float` emite lixo no nativo
+(`{"d":2.0546950501119882E-81}` — o `CompilerTypeSupport.fieldOk` aceita todo primitivo enquanto o
+`nativeRecordWalkerOk` recusa corretamente `float`/`double` com `JSN002`, então o mesmo record é
+erro de compilação via `encode(List<T>)` mas lixo silencioso via `encode(obj)`). **O §659a é
+CORRIGIDO aqui** — a face de unidade única e baixo risco: o `KofInterpreterRuntime.encodeKof`
+agora consulta o tipo declarado do campo e roteia um campo `bool` por `kof_json_encode_bool` (o
+interpretador guarda `Bool` como `Integer` 0/1, §108, e o slot cru chegava ao encoder sem
+normalização). §659b/§659c ficam registrados OPEN (unidades específicas de backend). Prova
+(executada): cada valor medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os
+quatro concordam), então congelado; a divergência §659a medida pré-correção nos quatro alvos
+(Script `{"ok":1}` vs os outros três `{"ok":true}`) e VERDE pós-correção; regressão
+`JsonE2ETest`/`JsonCompleteE2ETest`/`JsonNativeRecordListE2ETest`/`JsonMissingPrimitiveE2ETest`/
+`KofInterpreterParityTest` 65 rodadas / 0F, mais o novo teste de paridade
+`jsonEncodeRecordBoolField`; `tests/run-golden.sh` **240/240** (60 casos × 4 alvos), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records` rc=0.
 
 ### Fase 7 — Integração
 
