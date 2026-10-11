@@ -902,6 +902,15 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
 | 8 · Advanced | visual regression, accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
 
+Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
+compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the
+`KofJsBrowserE2ETest` precedent — ESM modules do not load via file://) and drives it with the
+§6.5 semantic faces: the flow fills the input, performs a REAL click on the rendered button
+(the seed proved only the programmatic `f.submit()`) and asserts the placeholder the KofJS
+handler mutated (`"antes"` → `"depois"`, isolated by a no-click control assertion). The full
+loop is proven: Kof source → KofJS → real DOM → real interaction → real Kof handler → semantic
+assertion. The KofWasm half of phase 6 belongs to the WASI lane (`#776` scope).
+
 The companion plan (`test-architecture-plan.md`) may advance the **internal suite** axis in
 parallel; neither blocks the other, and both share §13.
 

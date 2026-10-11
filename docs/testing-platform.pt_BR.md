@@ -901,6 +901,15 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
 | 8 · Avançado | regressão visual, acessibilidade, mocking de rede, WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
 
+Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
+compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o
+precedente `KofJsBrowserE2ETest` — módulos ESM não carregam via file://) e dirige com as faces
+semânticas do §6.5: o fluxo preenche o input, executa um CLIQUE REAL no botão renderizado (o
+seed provava só o `f.submit()` programático) e afirma o placeholder que o handler KofJS mutou
+(`"antes"` → `"depois"`, isolado por uma asserção de controle sem clique). O laço inteiro fica
+provado: fonte Kof → KofJS → DOM real → interação real → handler Kof real → asserção
+semântica. A metade KofWasm da fase 6 é da lane WASI (escopo `#776`).
+
 O plano companheiro (`test-architecture-plan.md`) pode avançar o eixo da **suíte interna** em
 paralelo; nenhum bloqueia o outro, e ambos compartilham o §13.
 
