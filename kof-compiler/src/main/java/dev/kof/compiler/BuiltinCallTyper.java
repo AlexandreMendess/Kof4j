@@ -194,10 +194,22 @@ public final class BuiltinCallTyper {
         if (mc.receiver() == null && "readLine".equals(mc.methodName()) && mc.arguments().isEmpty()) {
             return BuiltinTypes.STRING;
         }
-        if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
-                && KofWeb.contextCall(mc.methodName(), mc.arguments().size()) != null) {
+        if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())) {
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-            return KofWeb.contextCall(mc.methodName(), mc.arguments().size()).returnType();
+            KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), mc.arguments().size());
+            if (webCtx != null) return webCtx.returnType();
+            // §665 Boundary item 1 (ledger §668): nome de contexto conhecido
+            // sem aridade casando NÃO pode cair em silêncio — o
+            // isTopLevelCandidate exclui esses nomes da resolução top-level
+            // (e do SEM015), então sem este diagnóstico a chamada some em
+            // todos os caminhos (status(401) cru compilava limpo).
+            if (sa.diagnostics() != null) {
+                sa.diagnostics().error(mc,
+                        "Cannot resolve function '" + mc.methodName()
+                                + "' on the web request context (arity mismatch)",
+                        "SEM025");
+            }
+            return Type.UnknownType.UNKNOWN;
         }
         if ((mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName()))
                 || (mc.receiver() instanceof IdentifierExpr rid2 && KofScheduler.isSchedulerNamespace(rid2.name())
