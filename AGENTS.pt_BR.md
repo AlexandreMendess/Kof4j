@@ -6,7 +6,7 @@ last: protocolo 0.6.0 + GATE WASI (07/10 ordem da mantenedora `D-WEB-WASI-DEFAUL
 
 doing: #772+#773 FECHADAS 06-07/10 (§612 re-escopado `aa67a2acb`; bateria 166/0F, linhas fora do ledger) + M1 unidade-1 POUSADA 07/10 (param HFA struct cross, `2d933828c`) + WASI 15.1+15.2+15.3-fatia1+15.3b+15.3c-fatiaA+15.3c-fatiaB+15.3d-inc1 POUSADAS 07-08/10 (#776 topologia + backend ESCALAR + host de stdout WASI-preview1 + `println(String)` de literal via DATA segments + VARIAVEIS/concat de String num bump heap `global 0`@16384 `kof.strLit`/`kof.strConcat`/`kof.writeStr` + `args` via `kof.readArgs` (`args_sizes_get`/`args_get`, trap explicito de limites, argv[0] descartado = paridade JVM); `WasmWasiE2ETest` 7/7 sob wasmtime com paridade de oráculo JVM `…/ab/xyz` + `alpha/beta/alpha-beta` + record `Point(1,2).x/.y` -> `1/2` (15.3d inc1 alloc + leitura de campo Int/Long via `Mem.LOAD64/STORE64` no bump heap; toString/equals/concat + campos nao-i64 seguem `WASM002` sem artefatos ate o lowering de metodo de instancia; entao colecoes pousam o resto da 15.3; flip 15.4 por último) + regressão EXTERNA native/cross catalogada `known-bugs` §625 (`Av1CoeffsE2ETest` aarch64+riscv64 no tip remoto, bisect `a2f69d2f7`, lane dona .30:9092) — CORRIGIDA 08/10 (prologue cross/x86 zera slots acima de `paramSlotMax`; `PrologueSlotInitTest`) + familia #770 FECHADA (§609 desempacotar arg std + §610 narrowing do IfExpr + `emitErasureUnboxSoft` + SEM025 honesto; issue fechada 05/10) + correcao §612 (MAGIC-box nativo) landed mas REGREDIU 5 faces nativas -> #772 REABERTA + #773 criada + §614 RED (auditoria de prontidao do corte + bisect 06/10, dona lane .30:9092 nativa; CORTE ESCORREGA) + §613 return-no-catch-finally SIGSEGV CORRIGIDO + §615 recusa honesta cross + §616/#774 shell-args-vazios FECHADO + graphics destravado (semantica de laco A1-A3 DECIDIDA; SDL3 vendorizado + ABI cross provada `Sdl3FfiCrossE2ETest` 5/5; fatia 3.1 = lane .15) + testing-platform §4.4 LANDADA (`testRows` 7/7 cross) + §554 DECIDIDO (batch C, lane compiler/interop) + memory-safety M1 AUTORIZADO (#769) + heartbeat/issue-watcher registrados MORTOS (medido, DB recuperado) + tooling de sobrevivencia: `scripts/opencode-db-vacuum.sh` (69.3->2.94 GiB provado; causa-raiz das mortes = OOM provado pelo kernel)
 
-next: 0.6.0 PUBLICADA 11/10 (tags `kof-0.6.0-<target>`, `main` mergeada `#806`, run de release VERDE) — o gate pré-0.6.0 `#776` aparece FECHADO no GitHub, porém MEDIDO o flip do frontend-padrao WASI (unidade 15.4) nao esta no codigo (ver `last:`; `docs/wasm-wasi-plan.md` segue EM DESENVOLVIMENTO), e há **0 `1.0-blocks` abertas** (`check_release_blockers`); o próximo minor é cortado de um `lab` verde (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`), conduzido pelo auto-cascade por commit (`.github/workflows/auto-promote.yml`); 14.4-rulesets + promotion-sweep ficam com a mantenedora; `docs/development/future/` CONGELADO (`D-FUTURE-FREEZE`).
+next: 0.6.0 PUBLICADA 11/10 (tags `kof-0.6.0-<target>`, `main` mergeada `#806`, run de release VERDE) — o gate pré-0.6.0 `#776` aparece FECHADO no GitHub, porém MEDIDO o flip do frontend-padrao WASI (unidade 15.4) nao esta no codigo (ver `last:`; `docs/wasm-wasi-plan.md` segue EM DESENVOLVIMENTO), e há **0 `1.0-blocks` abertas** (`check_release_blockers`); o próximo minor é cortado de um `lab` verde (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`), conduzido pelo auto-cascade por commit (`.github/workflows/auto-promote.yml`); 14.4-rulesets + promotion-sweep ficam com a mantenedora; `docs/development/future/` DESCONGELADO (`D-FUTURE-UNFREEZE`, mantenedora 11/10) — promover UM plano futuro por vez, lanes ativas primeiro.
 
 location: repositório
 
@@ -46,7 +46,7 @@ decision:
 * D-KOFMD-ON-EDIT: todo documento editado por um agente é comprimido em Kofmd no mesmo commit
 * D-KOFMD-OPERATING-STANDARD: todo agente pensa, raciocina, responde, executa e documenta em Kofmd — uniforme, sem variante por agente
 * D-FUTURE-PROMOTION: antes de começar trabalho novo, migrar para `lab` com TODO o trabalho atual, então promover o plano MAIS FÁCIL de implementar de `docs/development/future/` para `docs/development/` e implementá-lo — nunca o mais interessante, nunca um plano de semântica congelada
-* D-FUTURE-FREEZE: a promoção de `docs/development/future/` está CONGELADA até segunda ordem — nenhum agente promove um plano futuro; a frente ativa é bugs-and-gaps + o protocolo de release (mantenedora 02/10)
+* D-FUTURE-UNFREEZE: o congelamento de `docs/development/future/` está LEVANTADO — agentes podem promover + implementar planos futuros de novo, um por vez (MAIS FÁCIL primeiro), lanes ativas terminando primeiro; o `D-FUTURE-FREEZE` está supersedido (mantenedora 11/10)
 * D-RELEASE-CADENCE: cadência semanal de minors até `0.9.0`; se a `0.9.0` for atingida sem o exit gate completo, a linha continua como `1.0.0-RC-1`, `1.0.0-RC-2`, … (cada RC um minor), até estabilizar, então a `1.0.0` de verdade; o número da versão no corte é chamada da mantenedora (mantenedora 02/10)
 * D-LAB-STABILITY: um minor só é cortado de um `lab` ESTÁVEL (suíte completa verde, gates rc=0, 0 bloqueantes, nenhum `1.0-blocks` aberto); senão o corte escorrega para o próximo fim de semana (mantenedora 02/10)
 
@@ -64,7 +64,7 @@ loop:
 * ler docs/status.md
 * inspecionar git log e a suíte
 * garantir que a branch ativa é `lab` — migrar todo o trabalho atual para `lab` ANTES de começar; `beta-*` está congelada (`D-BRANCH-PIPELINE`)
-* se não houver tarefa viva sem dono, trabalhar a frente bugs-and-gaps + o protocolo de release; a promoção de `docs/development/future/` está CONGELADA (`D-FUTURE-FREEZE`)
+* se não houver tarefa viva sem dono, trabalhar a frente bugs-and-gaps + o protocolo de release, ou promover UM plano de `docs/development/future/` por `D-FUTURE-PROMOTION` — o congelamento está levantado (`D-FUTURE-UNFREEZE`, mantenedora 11/10); lanes ativas terminam primeiro
 * escolher a tarefa não atribuída de maior valor
 * reivindicá-la em DOING.md com `dona = <ipv4-local>:<porta-opencode>` (PT) / `owner = <ipv4-local>:<porta-opencode>` (EN) — a **regra absoluta de identidade** (`D-AGENT-IDENTITY-IPPORT`, 01/10); um claim sem IP:PORT é INVÁLIDO (gate `scripts/check_owner_identity.sh`)
 * executar um escopo completo
@@ -337,7 +337,7 @@ kofmd:
 
 intent: futuro-não-é-trabalho-atual-sem-promoção
 
-**CONGELADO até segunda ordem (`D-FUTURE-FREEZE`, mantenedora 02/10):** nenhum agente promove um plano de `docs/development/future/`. A frente ativa é bugs-and-gaps + o protocolo de release. Os critérios abaixo descrevem como é um bom plano futuro; o *ato* de promover está suspenso até a mantenedora levantar o congelamento.
+**LEVANTADO 11/10 (`D-FUTURE-UNFREEZE`, mantenedora):** o congelamento de `docs/development/future/` (`D-FUTURE-FREEZE`) está levantado — agentes podem promover UM plano de `docs/development/future/` e implementá-lo, pelos critérios abaixo. Um agente com lane ATIVA termina ela primeiro; a promoção nunca atropela trabalho vivo.
 
 rule:
 

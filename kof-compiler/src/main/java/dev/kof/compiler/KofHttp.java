@@ -52,6 +52,14 @@ public final class KofHttp {
 
     record HttpCall(String function, Type returnType, List<Type> parameterTypes) {}
 
+    private static boolean isStr(Type t) {
+        return STR.equals(t) || "String".equals(t.toString());
+    }
+
+    private static boolean isInt(Type t) {
+        return t == INT || "Int".equals(t.toString()) || "int".equals(t.toString());
+    }
+
     /** kof.http: JVM + JS (JS via Java HttpClient interop / fetch),
      *  Native via HTTP/1.1 puro em asm (HTTP002 parcial — http somente,
      *  https em TLS gap; DNS host≠IPv4 cai em 127.0.0.1). */
@@ -82,29 +90,37 @@ public final class KofHttp {
      *  sem body) ou 2 (com body). */
     static HttpCall staticCall(String name, List<Type> argTypes) {
         if (!isHttpMethod(name)) return null;
+        // audit 0.6.0 HTTP-01 (ledger §665): a ligação era SÓ POR ARIDADE —
+        // http.status(401) ligava kof_http_status(String) com um Int e o JVM
+        // morria no VerifyError. Guarda de tipo em cada overload (espelho
+        // KofMath isInt/isStr, R6): sem casa tipada, devolve null e o SEM
+        // emite o "Cannot resolve method" (SEM025) já existente.
         return switch (name) {
             case "get", "delete", "options" -> switch (argTypes.size()) {
-                case 1 -> new HttpCall("kof_http_" + name, STR, List.of(STR));
-                default -> argTypes.size() >= 2
+                case 1 -> isStr(argTypes.get(0))
+                        ? new HttpCall("kof_http_" + name, STR, List.of(STR)) : null;
+                default -> argTypes.size() >= 2 && isStr(argTypes.get(0)) && isStr(argTypes.get(1))
                         ? new HttpCall("kof_http_" + name + "_headers", STR, List.of(STR, STR))
                         : null;
             };
             case "post", "put", "patch" -> switch (argTypes.size()) {
-                case 2 -> new HttpCall("kof_http_" + name, STR, List.of(STR, STR));
-                default -> argTypes.size() >= 3
+                case 2 -> isStr(argTypes.get(0)) && isStr(argTypes.get(1))
+                        ? new HttpCall("kof_http_" + name, STR, List.of(STR, STR)) : null;
+                default -> argTypes.size() >= 3 && isStr(argTypes.get(0))
+                        && isStr(argTypes.get(1)) && isStr(argTypes.get(2))
                         ? new HttpCall("kof_http_" + name + "_headers", STR, List.of(STR, STR, STR))
                         : null;
             };
-            case "status" -> argTypes.size() == 1
+            case "status" -> argTypes.size() == 1 && isStr(argTypes.get(0))
                     ? new HttpCall("kof_http_status", INT, List.of(STR))
                     : null;
-            case "timeout" -> argTypes.size() == 1
+            case "timeout" -> argTypes.size() == 1 && isInt(argTypes.get(0))
                     ? new HttpCall("kof_http_timeout_set", VOID, List.of(INT))
                     : null;
-            case "retry" -> argTypes.size() == 1
+            case "retry" -> argTypes.size() == 1 && isInt(argTypes.get(0))
                     ? new HttpCall("kof_http_retry_set", VOID, List.of(INT))
                     : null;
-            case "circuit" -> argTypes.size() == 1
+            case "circuit" -> argTypes.size() == 1 && isInt(argTypes.get(0))
                     ? new HttpCall("kof_http_circuit_set", VOID, List.of(INT))
                     : null;
             default -> null;
