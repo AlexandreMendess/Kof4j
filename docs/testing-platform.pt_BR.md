@@ -559,6 +559,19 @@ visível/habilitado/texto/valor/atributo.
 Auto-wait é fundamental: preferir `wait until visible/enabled/text/network idle/URL/condition` a
 `sleep(1000)`. **Sleeps arbitrários não são estratégia normal de sincronização.**
 
+Pousado (11/10, a face na camada de provider): a SPI ganha `assertOn(url, locator, assertion)` —
+recusa honesta default `capability unsupported: locator/assert` (a matriz §6.4 marca
+locator/assertion só no Playwright); a `PlaywrightLibProvider` implementa (parametrizada por
+kind, default chromium) resolvendo cada esquema semântico para o engine nativo do backend
+(`getByRole`/`getByText`/`getByLabel`/`getByPlaceholder`/`getByTestId`, css/xpath como escape).
+Gramática parseada pura na `KofLocator` (ex. `role=button[name="Save"]`, `text=Hello`,
+`attr=href`). Semântica medida (pinada pela `PlaywrightLocatorE2ETest` no Chromium real):
+`visible` lê o PRIMEIRO match imediatamente (ausente/escondido = `"false"`, sem espera);
+`enabled`/`text`/`value`/`attr` auto-esperam 5s e elemento ausente é ERRO nomeado com o locator
+(nunca `"false"` falso); `attr` de atributo ausente devolve `"null"`. A fiação Kof-facing
+(faces de browser chamáveis de testes `.kf`) segue o meio desaparecido — namespaces são
+intrínsecos do compilador e a capacidade vive no kof-cli; uma fatia futura decide esse mecanismo.
+
 ## 6.6 Assertions web
 
 Conceitualmente `expect(locator).toBeVisible()`, `toHaveText`, `toHaveValue`,
@@ -736,11 +749,13 @@ Em falha de E2E, coletar automaticamente quando possível: screenshot, vídeo, t
 network, HTML, logs — para `CI falhou → abrir artefato → ver exatamente o que aconteceu`.
 
 Nota de dependência (medido 11/10): a SPI de browser (`dev/kof/browser/BrowserProvider` —
-`name`/`probe`/`dumpDom`/`screenshot`) **não tem nenhum call site de produção fora do próprio
-pacote** — as faces são consumidas só por testes E2E JUnit. O gancho de harness desta seção
-precisa primeiro da superfície de execução de browser chamável por Kof (a API de
-locator/assert do §6.5); pousar a 8.1 antes disso seria infraestrutura sem consumidor (Q7).
-Ordem: superfície §6.5 → gancho 8.1 no caminho de falha dela.
+`name`/`probe`/`dumpDom`/`screenshot`/`assertOn`) **não tem nenhum call site de produção fora do
+próprio pacote** — as faces são consumidas só por testes E2E JUnit. A face §6.5 na camada de
+provider (locator semântico + assert) pousou em 11/10, mas o gancho de harness desta seção
+ainda precisa da superfície de execução KOF-facing (faces de browser chamáveis de testes `.kf`
+— namespaces são intrínsecos do compilador e a capacidade vive no kof-cli); pousar a 8.1 antes
+dessa fiação seria infraestrutura sem consumidor (Q7). Ordem: fiação Kof-facing → gancho 8.1 no
+caminho de falha dela.
 
 ## 8.2 Screenshots e regressão visual
 

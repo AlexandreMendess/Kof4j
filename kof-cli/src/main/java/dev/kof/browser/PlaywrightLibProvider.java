@@ -2,11 +2,15 @@ package dev.kof.browser;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.TimeoutError;
+import com.microsoft.playwright.options.AriaRole;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 
 /**
  * §6.2 Playwright provider (the testing-platform plan, `D-TESTING-PLATFORM`):
@@ -142,5 +146,85 @@ public final class PlaywrightLibProvider implements BrowserProvider {
             page.screenshot(new Page.ScreenshotOptions().setPath(Path.of(path)));
             return null;
         });
+    }
+
+    /** Timeout das asserções que auto-esperam (text/value/attr/enabled sobre
+     *  elemento ausente): 5s — falha de teste não pode custar os 30s default. */
+    static final long ASSERT_TIMEOUT_MS = 5_000;
+
+    @Override
+    public String assertOn(String url, String locator, String assertion)
+            throws Exception {
+        return assertOn("chromium", url, locator, assertion);
+    }
+
+    /** §6.5: o find + assert sobre o engine escolhido. Semântica MEDIDA:
+     *  `visible` é a leitura imediata do PRIMEIRO match (elemento ausente ou
+     *  escondido = "false", sem espera); `enabled`/`text`/`value`/`attr`
+     *  auto-esperam até {@link #ASSERT_TIMEOUT_MS} e um elemento ausente é
+     *  erro nomeado com o locator (nunca falso "false"); `value` só existe
+     *  em elementos de formulário (o Playwright recusa os outros);
+     *  `attr` devolve "null" quando o atributo não existe no elemento. */
+    public String assertOn(String kind, String url, String locator,
+                           String assertion) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        try {
+            return withPage(kind, url, page -> {
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                return measure(resolve(page, parsed), want, locator);
+            });
+        } catch (TimeoutError e) {
+            throw new IllegalStateException(
+                    "element not found within " + ASSERT_TIMEOUT_MS + "ms: "
+                            + locator, e);
+        }
+    }
+
+    /** §6.5: o locator semântico → o engine equivalente do Playwright
+     *  (role/text/label/placeholder/test-id nativos; css/xpath como escape). */
+    private static Locator resolve(Page page, KofLocator.Parsed p) {
+        return switch (p.scheme()) {
+            case "role" -> {
+                AriaRole role;
+                try {
+                    role = AriaRole.valueOf(
+                            p.target().trim().toUpperCase(Locale.ROOT)
+                                    .replace('-', '_'));
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                            "unknown ARIA role '" + p.target()
+                                    + "' in the `role=` locator");
+                }
+                yield p.name() == null
+                        ? page.getByRole(role)
+                        : page.getByRole(role,
+                                new Page.GetByRoleOptions().setName(p.name()));
+            }
+            case "text" -> page.getByText(p.target());
+            case "label" -> page.getByLabel(p.target());
+            case "placeholder" -> page.getByPlaceholder(p.target());
+            case "test-id" -> page.getByTestId(p.target());
+            case "css" -> page.locator(p.target());
+            case "xpath" -> page.locator("xpath=" + p.target());
+            default -> throw new IllegalArgumentException(
+                    "unknown locator scheme '" + p.scheme()
+                            + "' (schemes: " + KofLocator.SCHEMES + ")");
+        };
+    }
+
+    /** A asserção medida sobre o locator vivo (primeiro match). */
+    private static String measure(Locator l, KofLocator.Assert want,
+                                  String locator) {
+        return switch (want.kind()) {
+            case "visible" -> String.valueOf(l.isVisible());
+            case "enabled" -> String.valueOf(l.isEnabled());
+            case "text" -> String.valueOf(l.textContent());
+            case "value" -> String.valueOf(l.inputValue());
+            case "attr" -> String.valueOf(l.getAttribute(want.attrName()));
+            default -> throw new IllegalArgumentException(
+                    "unknown assertion kind '" + want.kind()
+                            + "' (assertions: " + KofLocator.ASSERTIONS + ")");
+        };
     }
 }
