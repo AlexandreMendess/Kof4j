@@ -100,7 +100,10 @@ jobs:
           SAFE_SUITE_LOG: ${{ runner.temp }}/suite.log
         run: |
           set -uo pipefail
-          bash scripts/safe-suite.sh || true
+          # ONLINE (no -o): a fresh runner's .m2 is empty — offline mvn dies at
+          # the start and the log carries ZERO tests (measured on the first
+          # live run, 11/10; stability-report now refuses tests=0).
+          bash scripts/safe-suite.sh test -Dmaven.test.failure.ignore=true || true
           # fail-closed: the verdict is CERTIFIED from the log by the same
           # machine the release gate uses — never from the mvn exit code.
           if scripts/stability-report.sh --suite-log "$SAFE_SUITE_LOG" \

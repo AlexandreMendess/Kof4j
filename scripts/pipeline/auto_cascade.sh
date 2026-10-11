@@ -152,16 +152,22 @@ cmd_cascade() {
         elif trees_equal "$fsha" "$measured"; then note="tree-identical to measured tip $measured"
         else die "hop head $from ($fsha) is not tree-identical to the measured tip — refusing (fail-closed)"
         fi
+        local url
         pr="$(gh pr list --repo "$REPO" --head "$from" --base "$to" --state open \
               --json number --jq '.[0].number' 2>/dev/null || true)"
         if [ -z "$pr" ]; then
-            do_ gh pr create --repo "$REPO" --head "$from" --base "$to" \
+            url="$(do_ gh pr create --repo "$REPO" --head "$from" --base "$to" \
                 --title "promote: $from → $to (auto-cascade)" \
-                --body "Per-commit auto-cascade (automation-enforcement; maintainer live order 11/10). Suite verdict **$SUITE_VERDICT** measured on \`$measured\` (14.3 measurement — stability-report.sh over the safe-suite log)."
-            pr="$(gh pr list --repo "$REPO" --head "$from" --base "$to" --state open --json number --jq '.[0].number')"
+                --body "Per-commit auto-cascade (automation-enforcement; maintainer live order 11/10). Suite verdict **$SUITE_VERDICT** measured on \`$measured\` (14.3 measurement — stability-report.sh over the safe-suite log).")"
+            if [ -n "$DRY" ]; then pr="0"; else
+                pr="$(sed -nE 's|.*/pull/([0-9]+).*|\1|p' <<<"${url:-}")"
+            fi
         else
             say "adopting open promotion PR #$pr ($from → $to)"
         fi
+        case "$pr" in
+            ''|*[!0-9]*) die "no promotion PR number for $from → $to (create said: ${url:-<empty>}) — refusing to merge blind (fail-closed)" ;;
+        esac
         # The ruleset-required status checks, posted with the MEASURED verdict
         # and its provenance (direct on the measured tip; tree-identity on the
         # downstream merge commits — never an unmeasured claim).
@@ -169,12 +175,13 @@ cmd_cascade() {
             "safe-suite verdict $SUITE_VERDICT certified on $measured; $note."
         post_check "Structural quality gates" "$fsha" "auto-cascade: $SUITE_VERDICT" \
             "structural sweep rc=0 certified on $measured; $note."
+        local merged=0
         for try in 1 2 3; do
-            if [ -n "$DRY" ]; then echo "DRY: gh pr merge $pr --repo $REPO --merge"; break; fi
-            gh pr merge "$pr" --repo "$REPO" --merge 2>/dev/null && break
+            if [ -n "$DRY" ]; then echo "DRY: gh pr merge $pr --repo $REPO --merge"; merged=1; break; fi
+            if gh pr merge "$pr" --repo "$REPO" --merge 2>/dev/null; then merged=1; break; fi
             sleep 5
-            [ "$try" = "3" ] && die "merge of PR #$pr refused 3× — leaving it open (fail-closed, auditable)"
         done
+        [ "$merged" = "1" ] || die "merge of PR #$pr refused 3× — leaving it open (fail-closed, auditable)"
         git fetch origin "$to" --quiet
         say "promoted $from → $to (PR #$pr)"
     done
