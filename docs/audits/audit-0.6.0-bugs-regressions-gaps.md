@@ -105,9 +105,9 @@ reproducibility (`always` unless noted).
 | `RB-05` | `kof.ui` | unknown UI method → `SEM025` | OK | OK | — | fixed #711/§547 | `CompilerUiEmitter.java:274-285` | `UiUnknownMethodDiagnosticE2ETest` | count==1 pin | none |
 | `JSN-01` | JSON cross-target | missing primitive component on JS/Native | silent | silent | **High** | decoders have no presence check | `CompilerTypeSupport.java`, `NativeJsonSchema.java`, `js/JsRuntimeOps.java` | none (JVM-only) | JS/Native `JSN004` or declared gap | mirror the JVM refusal |
 | `JVM-01` | JVM backend | reassigning a lambda-typed local → `VerifyError` | broken | broken | **High** | concrete `LambdaN` in the local's type | `StatementLowererLocalBoxing.java:70-81`, `ExpressionAssignmentLowerer.java:262-296`, `ExpressionBareCallLowerer.java:156-157` | none | `lambdaLocalReassignJvm` | unify to SAM interface (§156 precedent) |
-| `JVM-02` | JVM backend | function-type local with no initializer → `VerifyError` | broken | broken | Med-High | no-init default is `0`, not `null` | `StatementLowererLocalBoxing.java:130-133`, `CompilerTypeSupport.java:89-92` | none | `functionTypeLocalWithoutInitializerJvm` | treat `FunctionType` as reference in the default predicate |
+| `JVM-02` | JVM backend | function-type local with no initializer → `VerifyError` | broken | broken | Med-High | no-init default is `0`, not `null` | `StatementLowererLocalBoxing.java:130-133`, `CompilerTypeSupport.java:89-92` | none | `functionTypeLocalWithoutInitializerJvm` | treat `FunctionType` as reference in the default predicate — ✅ FIXED 11/10 on `lab` as `known-bugs` §664 (lane flatt `192.168.100.14:0`; the PLAIN path — the captured twin rides the JVM-01/03 lambda-box unit, recorded in the §664 Boundary) |
 | `JVM-03` | JVM backend | if/switch-expr with lambda branches → `VerifyError` (+ phantom `invokestatic`) | broken | broken | **High** | branch join yields `Object` / first-branch `LambdaN` | `ExpressionTyper.java:255-277,350-358`, `HierarchyResolver.java:132-152`, `ExpressionBareCallLowerer.java:252-253` | none | `ifExprLambdaBranchesUnifyToSamInterfaceJvm` + switch twin | unify same-signature lambda branches to the SAM interface |
-| `HTTP-01` | HTTP / web | `http.status(401)` / bare `status(401)` pass `check` silently | broken | broken | **High** | arity-only dispatch, no type check; no diagnostic on mismatch | `KofHttp.java:98-99`, `MethodCallNamespaces.java:72-78`, `ExpressionHttpCallLowerer.java:17`, `ExpressionBareCallLowerer.java:252` | `StdCatalogSignaturesTest` (dispatcher only) | `http.status(401)`/`get(401)`/`timeout("abc")` must fail `check` | add a type check beside the arity check; emit `SEM025`/dedicated `HTTP00x` |
+| `HTTP-01` | HTTP / web | `http.status(401)` / bare `status(401)` pass `check` silently | broken | broken | **High** | arity-only dispatch, no type check; no diagnostic on mismatch | `KofHttp.java:98-99`, `MethodCallNamespaces.java:72-78`, `ExpressionHttpCallLowerer.java:17`, `ExpressionBareCallLowerer.java:252` | `StdCatalogSignaturesTest` (dispatcher only) | `http.status(401)`/`get(401)`/`timeout("abc")` must fail `check` | add a type check beside the arity check; emit `SEM025`/dedicated `HTTP00x` — ✅ FIXED 11/10 on `lab` as `known-bugs` §665 (lane flatt `192.168.100.14:0`; the guards make the EXISTING SEM025 namespace diagnostic fire; bare `status(401)` + `time.sleep` recorded in the §665 Boundary) |
 | `MATH-01` | `kof.math` | `math.abs(Double)` | `SEM025` | `SEM025` | — | honest (Int-only, guarded) | `KofMath.java:48-49`, `StdCatalog.java:207` | `StdCatalogSignaturesTest:184` | — | none (SPEC GAP: Double overloads?) |
 | `MATH-02` | `kof.math` | `min`/`max`/`clamp`/`isEven`/`isOdd`/`isPositive`/`isNegative`/`isZero` accept any type | broken | broken | **High** | **no type guard** (arity only) | `KofMath.java:52-59` | `KofMathTest` (Int happy path only) | non-Int arg must be `SEM025` | add the `isInt` guard, mirroring `abs`/`sign` — ✅ FIXED 11/10 on `lab` as `known-bugs` §658 (lane flatt `192.168.100.14:0`, `KofMathTypeGuardTest` RED-first) |
 | `DIAG-01` | diagnostics | one error emitted twice on the `VarDeclStmt` path | 2× | 2× | Low-Med | `Unknown` never cached + redundant re-inference | `SemExpressionTyper.java:15-28`, `StatementAnalyzer.java:151,162,166` | none | count==1 pin | cache `Unknown` or dedup at the sink — ✅ FIXED 11/10 on `lab` as `known-bugs` §661 (lane flatt `192.168.100.14:0`, exact-duplicate dedup at `DiagnosticCollector.report`, `DiagnosticSinkDedupTest` RED-first) |
@@ -372,7 +372,11 @@ relevant battery non-regressed. Nothing below is implemented in this audit.
 **P1 — clean `check`, unloadable class**
 
 4. `JVM-02` — treat `FunctionType` as reference in the no-init default. *Test:*
-   `functionTypeLocalWithoutInitializerJvm`. *Risk:* low.
+   `functionTypeLocalWithoutInitializerJvm`. *Risk:* low. — **DONE 11/10:** landed as `known-bugs`
+   §664 (lane flatt `192.168.100.14:0`): the no-init default loads null for a `FunctionType` slot
+   (plain path); `FunctionTypeNoInitDefaultE2ETest` measured RED (VerifyError at load, the audit's
+   verbatim face) pre-fix, prints `6` post; lambda battery 98/0F. The CAPTURED twin stays open with
+   the JVM-01/03 unit (box + dispatch, §664 Boundary).
 5. `JVM-01` + `JVM-03` — type value-position lambdas as the SAM interface; unify
    if/switch branch joins. *Tests:* `lambdaLocalReassignJvm` (#284 verbatim),
    `ifExprLambdaBranchesUnifyToSamInterfaceJvm` + switch twin. *Risk:* medium (shared
@@ -381,7 +385,13 @@ relevant battery non-regressed. Nothing below is implemented in this audit.
    fall-through. *Tests:* `http.status(401)`, `http.get(401)`, `http.timeout("abc")`,
    bare `status(401)` fail; `status(401,"body")` still compiles. *Risk:* medium (the
    fall-through at `ExpressionBareCallLowerer.java:252` is shared with legitimate
-   top-level calls — gate only on known namespace/context members).
+   top-level calls — gate only on known namespace/context members). — **DONE 11/10 (the
+   qualified faces):** landed as `known-bugs` §665 (lane flatt `192.168.100.14:0`): measured
+   root = `KofHttp.staticCall` bound by ARITY ALONE (no phantom call needed); type guards on
+   every overload make the existing SEM025 namespace diagnostic fire;
+   `HttpNamespaceOverloadDiagnosticTest` 3/3 RED pre-fix, 4/0F post; Http/Web batteries
+   127/0F; the server `status(401,"body")` face is kof.web and stays green. The BARE face
+   and `time.sleep("abc")` are the §665 Boundary (separate units).
 
 **P2 — cross-target parity**
 
