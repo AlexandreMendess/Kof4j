@@ -33,6 +33,8 @@ class FfiNativeCallbackE2ETest {
             double kof_cb_mixed(int a, double b, id_d cb) { return cb(a,b); }
             typedef float (*ff)(float,float);
             float kof_cb_addf(float a, float b, ff cb) { return cb(a,b); }
+            typedef int (*i6)(int,int,int,int,int,int);
+            int kof_cb_sum6(int a, int b, int c, int d, int e, int f, i6 cb) { return cb(a,b,c,d,e,f); }
             """;
 
     private final CompilerDriver driver = new CompilerDriver();
@@ -67,6 +69,7 @@ class FfiNativeCallbackE2ETest {
             extern "%1$s" kof_cb_addd(Double a, Double b, (Double, Double) -> Double cb): Double
             extern "%1$s" kof_cb_mixed(Int a, Double b, (Int, Double) -> Double cb): Double
             extern "%1$s" kof_cb_addf(Float a, Float b, (Float, Float) -> Float cb): Float
+            extern "%1$s" kof_cb_sum6(Int a, Int b, Int c, Int d, Int e, Int f, (Int, Int, Int, Int, Int, Int) -> Int cb): Int
 
             main() {
                 println(kof_cb_add(20, 22, (x: Int, y: Int) -> x + y))
@@ -75,6 +78,7 @@ class FfiNativeCallbackE2ETest {
                 println(kof_cb_addd(2.0, 3.0, (x: Double, y: Double) -> x * y))
                 println(kof_cb_mixed(3, 2.5, (i: Int, d: Double) -> i * d))
                 println(kof_cb_addf(1.5 as Float, 2.0 as Float, (x: Float, y: Float) -> x + y))
+                println(kof_cb_sum6(1, 2, 3, 4, 5, 6, (a: Int, b: Int, c: Int, d: Int, e: Int, f: Int) -> a+b+c+d+e+f))
             }
             """;
 
@@ -89,7 +93,7 @@ class FfiNativeCallbackE2ETest {
         CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
         assertTrue(rj.success(), () -> "JVM oracle compile: " + rj.diagnostics().getDiagnostics());
         String jvm = runJvm(jvmOut);
-        assertEquals("42\n42\n42\n6.0\n7.5\n3.5", jvm, "JVM golden (callbacks escalares)");
+        assertEquals("42\n42\n42\n6.0\n7.5\n3.5\n21", jvm, "JVM golden (callbacks escalares + arity 6)");
 
         Path src = dir.resolve("cb-native.kf");
         Files.writeString(src, kof);
