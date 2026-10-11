@@ -4818,7 +4818,7 @@ individuais:
 - **Fase 6 (suíte de conformidade/equivalência):** construir a suíte de equivalência oficial sobre o harness.
 - **Fase 7 (integração):** ligar a suíte ao ciclo de integração (`mvn verify` ou equivalente).
 - **Restrição inalterada:** puramente infraestrutura de teste; o compilador não é tocado (regra de ouro do plano). O ratchet de harness só melhora; `D-PLAN-ONE-OWNER` continua valendo (este plano segue com dona `192.168.15.30:9092`; `graphics-gaming` segue SEM DONO).
-- **Relações:** `Completa: D-TEST-ARCHITECTURE-GO (gate)`, `Afeta: docs/development/test-architecture-plan.md Fases 5–7`, `Fronteira-congelada: nenhuma (só teste)`.
+- **Relações:** `Completa: D-TEST-ARCHITECTURE-GO (gate)`, `Afeta: docs/test-architecture-plan.md Fases 5–7`, `Fronteira-congelada: nenhuma (só teste)`.
 ## D-KOF-SIGN — assinatura/verificação Ed25519 como nova face de crypto da stdlib (voto da mantenedora D1=A 03/10, chat)
 
 **Pergunta (regra-6):** a identidade de dispositivo do KofShare (§6/§12 do spec do produto) precisa de assinatura; o compilador hoje tem ZERO face de assinatura (medido 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = vazio). As opções eram (A) face nova da stdlib, (B) embarcar v1 LAN-trust e adiar, (C) rotear por interop `java.security` (quebra `D-KOFSHARE-100KOF`).

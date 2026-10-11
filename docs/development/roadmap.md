@@ -948,7 +948,7 @@ science) **without** destroying the language's simplicity.
 > [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md).
 > **OPEN (3rd front):** `test-architecture` — promoted 28/09
 > (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`) to
-> [`test-architecture-plan.md`](test-architecture-plan.md); first slice = Phase 1
+> [`test-architecture-plan.md`](../test-architecture-plan.md); first slice = Phase 1
 > profiling (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
 > pure test infrastructure. **OPEN (4th front):** `pagination` — promoted 28/09
 > (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) to
