@@ -1170,7 +1170,7 @@ the https byte4 test to `.Lv_url_false`), guarded RED-first by the new
 **Scope note (measured, honest):** `validation.matches` is deliberately EXCLUDED — its
 JVM/JS/Script regex vs Native literal-substring divergence is a known, documented issue
 frozen in `development/future/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
-(`future/` is FROZEN). Proof (executed): every value measured on the Script target first,
+(`future/` is now UNFROZEN, `D-FUTURE-UNFREEZE` 11/10, but the `D-KOF-EXPR` decision is still pending). Proof (executed): every value measured on the Script target first,
 cross-checked byte-for-byte on jvm/native/js, then frozen; `tests/run-golden.sh`
 **200/200** (50 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0;
 gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang`

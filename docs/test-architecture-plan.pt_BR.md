@@ -1170,7 +1170,7 @@ de byte4 do https para `.Lv_url_false`), guardado RED-first pelo novo
 **Nota de escopo (medida, honesta):** `validation.matches` fica deliberadamente EXCLUÍDO —
 sua divergência JVM/JS/Script regex vs Native substring-literal é um problema conhecido e
 documentado, congelado em `development/future/kof-expr-plan.md` Q8 aguardando a decisão da mantenedora
-`D-KOF-EXPR` (`future/` CONGELADO). Prova (executada): cada valor medido primeiro no alvo
+`D-KOF-EXPR` (`future/` agora DESTRAVADO, `D-FUTURE-UNFREEZE` 11/10, mas a decisão `D-KOF-EXPR` segue pendente). Prova (executada): cada valor medido primeiro no alvo
 Script, cruzado byte-a-byte em jvm/nativo/js, então congelado; `tests/run-golden.sh`
 **200/200** (50 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
