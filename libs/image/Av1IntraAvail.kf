@@ -1,0 +1,197 @@
+package image
+
+import image.Av1Avail
+import image.Av1Block
+import image.Av1Intra
+import image.Av1IntraDr
+import image.Av1Quant
+import image.Av1Tx
+
+// kof.image — AV1 intra prediction availability derivation (slice 3ab of the
+// AVIF front, plan §34). The stage libaom runs inside `av1_predict_intra_block`
+// (`av1/common/reconintra.c`) BEFORE the edge construction of the intra
+// prediction process: from the block geometry, the mode, the transform block's
+// offset within the mode-info block and the neighbour/tile availability, it
+// derives the four flags the §7.11.2 prediction process consumes —
+// `haveAboveRight`/`haveBelowLeft` (via the slice-3aa `has_top_right`/
+// `has_bottom_left`) and the `nTopPx`/`nLeftPx` edge-read limits.
+//
+// `av1IntraAvail` returns `[haveAboveRight, haveBelowLeft, nTopPx, nLeftPx]`:
+//   - `haveAboveRight`/`haveBelowLeft` are tri-state: `-1` = not needed by the
+//     mode, `0` = needed but unavailable, `1` = needed and available (libaom's
+//     `have_top_right`/`have_bottom_left`).
+//   - `nTopPx`/`nLeftPx` are the number of valid above/left pixels for the
+//     non-directional edge read (`n_top_px`/`n_left_px`).
+//
+// The mode gating is libaom's exactly: `extend_modes[mode]` selects the
+// `NEED_ABOVERIGHT`/`NEED_BOTTOMLEFT` bits (only D45/D67 and D203 carry them),
+// the filter-intra path forces both off, and a directional mode overrides them
+// from its prediction angle (`pAngle < 90` / `pAngle > 180`). The chroma block
+// size is `scale_chroma_bsize(bsize, ssX, ssY)`.
+//
+// Pure Kof, all targets: no I/O, no compiler change. `decodeRaster` still
+// refuses AVIF until the chain closes.
+
+// `scale_chroma_bsize(bsize, subsampling_x, subsampling_y)` (`reconintra.c`):
+// the chroma block size for a subsampled plane — the four smallest sizes are
+// remapped (4x4 -> 8x8/8x4/4x8, 4x8/8x4 -> 8x8, 4x16 -> 8x16, 16x4 -> 16x8);
+// every other size is unchanged. The `bsize` index is BLOCK_SIZES_ALL.
+Int av1ScaleChromaBsize(Int bsize, Int ssX, Int ssY) {
+    if (bsize == 0) {                       // BLOCK_4X4
+        if (ssX == 1 && ssY == 1) { return 3 }   // BLOCK_8X8
+        if (ssX == 1) { return 2 }               // BLOCK_8X4
+        if (ssY == 1) { return 1 }               // BLOCK_4X8
+        return 0
+    }
+    if (bsize == 1) {                       // BLOCK_4X8
+        if (ssX == 1) { return 3 }               // BLOCK_8X8
+        if (ssY == 1) { return 1 }               // BLOCK_4X8
+        return 1
+    }
+    if (bsize == 2) {                       // BLOCK_8X4
+        if (ssY == 1) { return 3 }               // BLOCK_8X8
+        if (ssX == 1) { return 2 }               // BLOCK_8X4
+        return 2
+    }
+    if (bsize == 16) {                      // BLOCK_4X16
+        if (ssX == 1) { return 4 }               // BLOCK_8X16
+        if (ssY == 1) { return 16 }              // BLOCK_4X16
+        return 16
+    }
+    if (bsize == 17) {                      // BLOCK_16X4
+        if (ssY == 1) { return 5 }               // BLOCK_16X8
+        if (ssX == 1) { return 17 }              // BLOCK_16X4
+        return 17
+    }
+    return bsize
+}
+
+// `extend_modes[mode] & NEED_ABOVERIGHT` (`reconintra.c`): nonzero only for
+// D45_PRED (3) and D67_PRED (8). Returns 0/1.
+Int av1IntraModeNeedAboveRight(Int mode) {
+    if (mode == 3) {
+        return 1
+    }
+    if (mode == 8) {
+        return 1
+    }
+    return 0
+}
+
+// `extend_modes[mode] & NEED_BOTTOMLEFT` (`reconintra.c`): nonzero only for
+// D203_PRED (7). Returns 0/1.
+Int av1IntraModeNeedBottomLeft(Int mode) {
+    if (mode == 7) {
+        return 1
+    }
+    return 0
+}
+
+// The `av1_predict_intra_block` availability derivation (`reconintra.c`).
+//
+// Parameters:
+//   - `sbSize`: the sequence superblock size index (64x64 or 128x128).
+//   - `bsize`: the mode-info block size index (BLOCK_SIZES_ALL).
+//   - `partition`: the block's partition type.
+//   - `txSz`: the transform size index.
+//   - `ssX`/`ssY`: the plane's chroma subsampling.
+//   - `rowOff`/`colOff`: the transform block's offset within the mode-info
+//     block, in 4x4 units.
+//   - `mode`: the intra prediction mode (0..12).
+//   - `angleDelta`: the angle delta in ANGLE_STEP units (§7.11.2.4).
+//   - `useFilterIntra`: 1 for the recursive filter-intra predictor (which
+//     needs neither the above-right nor the below-left extension).
+//   - `haveTop`/`haveLeft`: the resolved neighbour availability (`row_off ||
+//     up_available` / `col_off || left_available`).
+//   - `miRow`/`miCol`: the mode-info block's position in 4x4 units.
+//   - `tileMiColEnd`/`tileMiRowEnd`: the tile's extent in 4x4 units (the
+//     `right_available`/`bottom_available` bounds).
+//   - `frameW`/`frameH`: the plane's frame extent in samples (for `xr`/`yd`).
+//
+// Returns `[haveAboveRight, haveBelowLeft, nTopPx, nLeftPx]`.
+Int[] av1IntraAvail(Int sbSize, Int bsize, Int partition, Int txSz,
+                    Int ssX, Int ssY, Int rowOff, Int colOff,
+                    Int mode, Int angleDelta, Int useFilterIntra,
+                    Int haveTop, Int haveLeft,
+                    Int miRow, Int miCol,
+                    Int tileMiColEnd, Int tileMiRowEnd,
+                    Int frameW, Int frameH) {
+    var isDr = av1IntraIsDirectional(mode)
+    var txwpx = av1TxWidth(txSz)
+    var txhpx = av1TxHeight(txSz)
+    var x = colOff << 2
+    var y = rowOff << 2
+    var wpx = av1BlockWidth(bsize) >> ssX
+    var hpx = av1BlockHeight(bsize) >> ssY
+    var mbRight = (frameW - wpx) << 3
+    var mbBottom = (frameH - hpx) << 3
+
+    // xr/yd: distance from the block's right/bottom edge to the plane edge.
+    var xr = (mbRight >> (3 + ssX)) + wpx - x - txwpx
+    var yd = (mbBottom >> (3 + ssY)) + hpx - y - txhpx
+
+    var nTopPx = 0
+    if (haveTop == 1) {
+        nTopPx = av1Clip3(0, txwpx, xr + txwpx)
+    }
+    var nLeftPx = 0
+    if (haveLeft == 1) {
+        nLeftPx = av1Clip3(0, txhpx, yd + txhpx)
+    }
+
+    var txw = txwpx >> 2
+    var txh = txhpx >> 2
+    var rightAvail = 0
+    if (miCol + ((colOff + txw) << ssX) < tileMiColEnd) {
+        rightAvail = 1
+    }
+    var bottomAvail = 0
+    if (yd > 0 && miRow + ((rowOff + txh) << ssY) < tileMiRowEnd) {
+        bottomAvail = 1
+    }
+
+    var bsize2 = bsize
+    if (ssX == 1 || ssY == 1) {
+        bsize2 = av1ScaleChromaBsize(bsize, ssX, ssY)
+    }
+
+    var needTr = av1IntraModeNeedAboveRight(mode)
+    var needBl = av1IntraModeNeedBottomLeft(mode)
+    if (useFilterIntra == 1) {
+        needTr = 0
+        needBl = 0
+    }
+    if (isDr) {
+        var pAngle = av1IntraModeToAngle(mode) + angleDelta * 3
+        if (pAngle < 90) {
+            needTr = 1
+        } else {
+            needTr = 0
+        }
+        if (pAngle > 180) {
+            needBl = 1
+        } else {
+            needBl = 0
+        }
+    }
+
+    var haveTr = -1
+    if (needTr == 1) {
+        haveTr = av1HasTopRight(sbSize, bsize2, miRow, miCol, haveTop,
+                                rightAvail, partition, txSz, rowOff, colOff,
+                                ssX, ssY)
+    }
+    var haveBl = -1
+    if (needBl == 1) {
+        haveBl = av1HasBottomLeft(sbSize, bsize2, miRow, miCol, bottomAvail,
+                                  haveLeft, partition, txSz, rowOff, colOff,
+                                  ssX, ssY)
+    }
+
+    var out = new Int[4]
+    out[0] = haveTr
+    out[1] = haveBl
+    out[2] = nTopPx
+    out[3] = nLeftPx
+    return out
+}

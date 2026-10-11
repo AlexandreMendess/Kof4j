@@ -315,6 +315,12 @@ public final class FfiStructLayout {
                 nInt++;
                 continue;
             }
+            if (isCbPtr(t)) {
+                // M1 callbacks cross: ponteiro de função C = um INTEGER.
+                if (nInt >= 8) return false;
+                nInt++;
+                continue;
+            }
             if (isArrayPtr(t)) {
                 // D-MEM-FFI-CROSS-FULL: array escalar `T[]`→ptr é um ponteiro
                 // INTEGER (um ordinal) — mesma forma do buffer-ptr no LP64/AAPCS64.

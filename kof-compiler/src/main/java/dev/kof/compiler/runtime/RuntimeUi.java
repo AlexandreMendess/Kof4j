@@ -340,6 +340,11 @@ public final class RuntimeUi {
                 ret
             kof_ui_widget_set_disabled:
                 ret
+            // D-UI-A11Y (#789): acessibilidade intent-based — no-op Native (real
+            // só no KofJS), mesma família de setId/setDisabled.
+            kof_ui_widget_set_accessible_name:
+            kof_ui_widget_set_announce:
+                ret
             // issue #78: primitivas visuais — no-op Native (real só no JS).
             kof_ui_widget_set_border:
             kof_ui_widget_set_shadow:

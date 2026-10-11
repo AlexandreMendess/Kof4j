@@ -157,6 +157,7 @@ SEED = {
     "resolve": "resolver", "parent": "pai", "fileName": "nomeArquivo",
     "extension": "extensao", "path": "caminho", "bytes": "bytes",
     "setId": "definirId", "setClass": "definirClasse", "setDisabled": "definirDesabilitado",
+    "setAccessibleName": "definirNomeAcessivel", "setAnnounce": "anunciar",
     "on": "ao", "setBorder": "definirBorda", "setShadow": "definirSombra",
     "setGradient": "definirGradiente", "setFlexBasis": "definirBaseFlex",
     "setMaxWidth": "definirLarguraMax", "setStyle": "definirEstilo",

@@ -40,6 +40,8 @@ final class NativeFfiCallRiscv {
         boolean[] isHfa = new boolean[n];
         boolean[] isMemStruct = new boolean[n];
         boolean[] isBuf = new boolean[n];
+        boolean[] isCb = new boolean[n];
+        String[] cbDescs = new String[n];
         boolean[] isArray = new boolean[n];
         char[] arrayElem = new char[n];
         Type[] structTypes = new Type[n];
@@ -66,6 +68,10 @@ final class NativeFfiCallRiscv {
                 // (mesma forma do String/'S' abaixo; o buffer cross é memória
                 // contígua como no x86, então a escrita da C é o copy-back).
                 isBuf[i] = true;
+            } else if (FfiStructLayout.isCbPtr(pt)) {
+                // M1 callbacks cross: ponteiro de função C para o trampolim gerado.
+                isCb[i] = true;
+                cbDescs[i] = FfiStructLayout.cbPtrDesc(pt);
             } else {
                 cls[i] = FfiSignature.charOfType(pt);
             }
@@ -111,6 +117,8 @@ final class NativeFfiCallRiscv {
                 for (int e = 0; e < w; e++) sOrd[i][e] = nInt++;
             } else if (isArray[i]) {
                 ord[i] = nInt++;   // T[]→ptr: um ponteiro INTEGER (D-MEM-FFI-CROSS-FULL)
+            } else if (isCb[i]) {
+                ord[i] = nInt++;   // callback→fn ptr: um ponteiro INTEGER (M1 cross)
             } else if (isFloatClass(cls[i])) {
                 ord[i] = nFlt++;
             } else {
@@ -205,6 +213,17 @@ final class NativeFfiCallRiscv {
                     FfiStructLayout.emitRiscvIntEightbyte(sb, structTypes[i], e,
                             "t4", intRegs[sOrd[i][e]], "t5");
                 }
+                continue;
+            }
+            if (isCb[i]) {
+                // M1 callbacks cross: guarda a lambda no global da closure e passa
+                // o ENDEREÇO do trampolim à C (o trampolim lê a closure e roda
+                // vtable[0]=invoke).
+                if (ord[i] >= 8) continue;   // gate limita arity ≤ 7
+                sb.append("    ld t4, ").append(8 * (n - 1 - i)).append("(t0)\n");
+                sb.append("    la t5, kof_cb_closure_").append(cbDescs[i]).append("\n");
+                sb.append("    sd t4, 0(t5)\n");
+                sb.append("    la ").append(intRegs[ord[i]]).append(", kof_cb_tramp_").append(cbDescs[i]).append("\n");
                 continue;
             }
             char c = cls[i];
@@ -475,5 +494,63 @@ final class NativeFfiCallRiscv {
                     li a0, 0
                     ret
                 """);
+    }
+
+    /**
+     * M1 callbacks no cross (riscv64/aarch64): trampolim de upcall de um
+     * descritor {@code desc}. O C chama com os args na ABI cruzada (int a0..,
+     * FP fa0..). O trampolim salva `ra` (senao o `ret` salta para lixo — o hang
+     * medido), remonta para o `invoke` Kof (soft-float-safe: a0=closure, args em
+     * a1..) e chama vtable[0]. Só-inteiros/FP escalar (mesmo do x86).
+     */
+    static void emitRiscvCallbackTrampoline(StringBuilder sb, String desc) {
+        int arity = desc.length() - 1;
+        char rc = desc.charAt(0);
+        sb.append("kof_cb_tramp_").append(desc).append(":\n");
+        sb.append("    addi sp, sp, -16\n");
+        sb.append("    sd ra, 8(sp)\n");
+        int ip = 0, fp = 0;
+        String[] src = new String[arity];
+        boolean[] isFp = new boolean[arity];
+        for (int i = 0; i < arity; i++) {
+            char c = desc.charAt(i + 1);
+            boolean f = (c == 'f' || c == 'd');
+            isFp[i] = f;
+            src[i] = f ? "fa" + (fp++) : "a" + (ip++);
+        }
+        // Empilha os args (do último p/ o 1º; FP via bits crus em t0).
+        for (int i = arity - 1; i >= 0; i--) {
+            if (isFp[i]) {
+                sb.append(desc.charAt(i + 1) == 'f'
+                        ? "    fmv.x.w t0, " + src[i] + "\n"
+                        : "    fmv.x.d t0, " + src[i] + "\n");
+                sb.append("    addi sp, sp, -8\n    sd t0, 0(sp)\n");
+            } else {
+                sb.append("    addi sp, sp, -8\n    sd ").append(src[i]).append(", 0(sp)\n");
+            }
+        }
+        // Desempilha em a1..a7 (a0 = closure).
+        for (int k = 0; k < arity; k++) {
+            sb.append("    ld a").append(k + 1).append(", 0(sp)\n    addi sp, sp, 8\n");
+        }
+        sb.append("    la t0, kof_cb_closure_").append(desc).append("\n");
+        sb.append("    ld a0, 0(t0)\n");
+        sb.append("    ld t0, 8(a0)\n");
+        sb.append("    ld t0, 0(t0)\n");
+        sb.append("    jalr t0\n");
+        sb.append("    ld ra, 8(sp)\n");
+        sb.append("    addi sp, sp, 16\n");
+        if (rc == 'f') sb.append("    fmv.w.x fa0, a0\n");
+        else if (rc == 'd') sb.append("    fmv.d.x fa0, a0\n");
+        sb.append("    ret\n");
+    }
+
+    /** O global da closure (uma vez por programa). */
+    static void emitRiscvCallbackClosure(StringBuilder sb, String desc) {
+        sb.append(".section .bss\n");
+        sb.append(".align 3\n");
+        sb.append("kof_cb_closure_").append(desc).append(":\n");
+        sb.append(".quad 0\n");
+        sb.append(".section .text\n");
     }
 }

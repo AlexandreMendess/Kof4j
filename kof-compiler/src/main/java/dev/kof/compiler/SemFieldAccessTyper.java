@@ -15,7 +15,7 @@ final class SemFieldAccessTyper {
     static Type infer(SemanticAnalyzer sa, FieldAccessExpr fa, SymbolTable scope) {
 
                 if (fa.receiver() instanceof IdentifierExpr pId && KofUi.isPalette(pId.name())) {
-                    if (KofUi.paletteColor(fa.fieldName()) != null) return KofUi.COLOR;
+                    if (KofUiColors.paletteColor(fa.fieldName()) != null) return KofUi.COLOR;
                     // §498: `Palette.bogus` caía no caminho genérico e o emit
                     // gerava `getfield "?".bogus` (NoClassDefFoundError: "?" no
                     // load, compilado limpo). Paleta é CONSTANTE — membro
