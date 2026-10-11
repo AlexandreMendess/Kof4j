@@ -20,6 +20,7 @@
 | `registry-live-roundtrip-2026-09-20.md` | Registry 1.5.3 live GitHub round-trip smoke (20/09) | **RED** — publish OK, pull blocked by #564; re-run phases C–E after the fix |
 | `supply-chain-trust-boundary-2026-09-20.md` | KOF supply-chain trust boundary v1 — read-only baseline (release workflow, tested×published SHA, actions/permissions, source governance, provenance) | **alive** — lab results (Onda 2) and the maintainer's answers to §5 land here |
 | `size-baseline.md` | D-SIZE-BUDGET Phase 1 — distribution weight baseline (module/shaded/thin/packed jars, top-package attribution, hello-world per target) | **alive** — regenerate with `scripts/size/measure-size.sh` at each size-relevant change; diff with `compare-size.sh` |
+| `audit-0.6.0-bugs-regressions-gaps.md` | 0.6.0 bugs/regressions/gaps — 20 items reproduced on the published tag vs `lab` (`VER-01` release hygiene, the silent-overload family, the lambda `VerifyError` family, ORM name mapping) | **alive** — each pending item must be claimed in `known-bugs`/`development`/`DECISIONS` |
 
 ## How to use
 

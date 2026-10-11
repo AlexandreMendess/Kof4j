@@ -181,7 +181,7 @@ public final class SemExpressionTyper {
                                 && !strConcat
                                 && !TypeChecker.isAssignable(sa, valueType, targetType)) {
                             sa.diagnostics().error(ae,
-                                    "Type mismatch: cannot assign " + valueType + " to " + targetType, "SEM012");
+                                    "Type mismatch: cannot assign " + Type.display(valueType) + " to " + Type.display(targetType), "SEM012");
                         }
                     }
                 } else if (ae.target() instanceof FieldAccessExpr fa) {

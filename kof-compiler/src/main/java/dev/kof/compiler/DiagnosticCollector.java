@@ -9,6 +9,10 @@ public class DiagnosticCollector {
     private final List<Diagnostic> diagnostics = new ArrayList<>();
 
     void report(Diagnostic d) {
+        // audit 0.6.0 DIAG-01 (ledger §659): o MESMO defeito — a tupla completa
+        // (severidade, posição, código, mensagem, args) idêntica — não se repete.
+        // Diagnósticos distintos (posição/código/mensagem diferentes) passam sempre.
+        if (diagnostics.contains(d)) return;
         diagnostics.add(d);
     }
 

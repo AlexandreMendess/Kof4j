@@ -156,6 +156,23 @@ i.text()                            // reads the current value
 i.remove()
 ```
 
+### Icon
+
+```kof
+var del = Icon("trash")             // 24px
+var small = Icon("star", 16)        // size in px
+del.name()                          // "trash"
+del.setName("edit")                 // swaps the glyph
+```
+
+Names: `home`, `star`, `heart`, `search`, `settings`, `user`, `menu`, `close`, `check`, `plus`, `minus`, `trash`, `edit`, `share`, `download`, `upload`, `mail`, `phone`, `calendar`, `clock`, `eye`, `lock`.
+
+An unknown name is never a silent substitution. A literal one is a compile
+error (`SEM079`, listing the valid names); a computed one reports
+`[kof] Icon: '<name>' is not a kof.ui icon` at runtime, draws nothing, and
+`setName` keeps the previous glyph. Rendering is KofJS; JVM/Native compile and
+run the same calls as no-ops.
+
 ### Composition: Column, Row, View and Style
 
 ```kof

@@ -75,9 +75,20 @@ public final class NativeRiscvAsmRtB43 {
                 # nunca limpa no sweep) e a varredura conservadora de estáticas
                 # aceita word-lixo do .data como ponteiro: sem isto, um bloco
                 # fantasma anda o mark_transitive para FORA da arena (SIGSEGV).
+                # §602-causa-raiz-dos-travamentos: o piso é 48, não 64 — o
+                # menor bloco real que o alocador produz é align16(1)+32 = 48
+                # (pedido de ≤16 bytes: o backing array de 16 bytes de todo
+                # `listOf`/`kof_list_new`). Com piso 64, try_mark RECUSAVA
+                # todo bloco vivo de 48 bytes, o sweep liberava o array de
+                # uma lista VIVA, o próximo kof_alloc reutilizava a memória
+                # e os elementos da lista viravam lixo — uso-após-livre que
+                # travava os laços dependentes de dados do AV1 (medido no
+                # gdb: a carga do size devolvia 0x30 saudável; o gatilho
+                # era a sanidade, não corrupção). O piso 48 + o teto da
+                # arena + flags==0 preservam a proteção contra blocos-fantasma.
                 ld   t4, 0(t2)           # size total do bloco candidato
-                li   t5, 64
-                bltu t4, t5, .Ltm_zero   # lixo: bloco do alocador nunca é < 64
+                li   t5, 48
+                bltu t4, t5, .Ltm_zero   # lixo: bloco do alocador nunca é < 48
                 la   t5, _kof_heap_end
                 sub  t5, t5, t0          # t0 ainda = _kof_heap (guarda acima)
                 bgeu t4, t5, .Ltm_zero   # lixo: size maior que a arena inteira

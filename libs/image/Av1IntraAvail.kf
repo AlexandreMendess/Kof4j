@@ -106,7 +106,8 @@ Int av1IntraModeNeedBottomLeft(Int mode) {
 //   - `miRow`/`miCol`: the mode-info block's position in 4x4 units.
 //   - `tileMiColEnd`/`tileMiRowEnd`: the tile's extent in 4x4 units (the
 //     `right_available`/`bottom_available` bounds).
-//   - `frameW`/`frameH`: the plane's frame extent in samples (for `xr`/`yd`).
+//   - `frameW`/`frameH`: the LUMA frame extent in samples (`mi_cols * 4`); the
+//     `xr`/`yd` edge distances subtract the block's `miCol`/`miRow`.
 //
 // Returns `[haveAboveRight, haveBelowLeft, nTopPx, nLeftPx]`.
 Int[] av1IntraAvail(Int sbSize, Int bsize, Int partition, Int txSz,
@@ -123,8 +124,15 @@ Int[] av1IntraAvail(Int sbSize, Int bsize, Int partition, Int txSz,
     var y = rowOff << 2
     var wpx = av1BlockWidth(bsize) >> ssX
     var hpx = av1BlockHeight(bsize) >> ssY
-    var mbRight = (frameW - wpx) << 3
-    var mbBottom = (frameH - hpx) << 3
+    // libaom `set_mi_row_col`: `mb_to_right_edge = (mi_cols - bw - mi_col) *
+    // MI_SIZE * 8`, so the distance runs from the BLOCK's right edge to the
+    // frame edge — the block's position `miCol`/`miRow` is part of it, NOT just
+    // the frame size. `frameW`/`frameH` are the LUMA frame extent in samples
+    // (`mi_cols * 4`), `av1BlockNum4x4Wide/High(bsize)` the block's LUMA 4x4
+    // extent (`bw`/`bh`). Dropping `miCol`/`miRow` here under-counted the
+    // available above/left pixels for every block not at the plane origin.
+    var mbRight = ((frameW >> 2) - av1BlockNum4x4Wide(bsize) - miCol) << 5
+    var mbBottom = ((frameH >> 2) - av1BlockNum4x4High(bsize) - miRow) << 5
 
     // xr/yd: distance from the block's right/bottom edge to the plane edge.
     var xr = (mbRight >> (3 + ssX)) + wpx - x - txwpx
