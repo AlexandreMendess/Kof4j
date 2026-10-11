@@ -112,7 +112,7 @@ Legenda: **Tag** = comportamento em `0.6.0`; **Lab** = comportamento no `lab` at
 | `MATH-01` | `kof.math` | `math.abs(Double)` | `SEM025` | `SEM025` | — | honesto (só-Int, com guarda) | `KofMath.java:48-49`, `StdCatalog.java:207` | `StdCatalogSignaturesTest:184` | — | nenhuma (LACUNA: sobrecargas Double?) |
 | `MATH-02` | `kof.math` | `min`/`max`/`clamp`/`isEven`/`isOdd`/`isPositive`/`isNegative`/`isZero` aceitam qualquer tipo | quebrado | quebrado | **Alta** | **sem guarda de tipo** (só aridade) | `KofMath.java:52-59` | `KofMathTest` (só o caminho Int) | argumento não-Int deve dar `SEM025` | adicionar a guarda `isInt`, espelhando `abs`/`sign` — ✅ CORRIGIDO 11/10 no `lab` como `known-bugs` §658 (lane flatt `192.168.100.14:0`, `KofMathTypeGuardTest` RED-first) |
 | `DIAG-01` | diagnósticos | um erro emitido duas vezes no caminho `VarDeclStmt` | 2× | 2× | Baixa-Média | `Unknown` nunca cacheado + re-inferência redundante | `SemExpressionTyper.java:15-28`, `StatementAnalyzer.java:151,162,166` | nenhum | pin count==1 | cachear `Unknown` ou deduplicar no sink — ✅ CORRIGIDO 11/10 no `lab` como `known-bugs` §661 (lane flatt `192.168.100.14:0`, dedup de duplicatas exatas em `DiagnosticCollector.report`, `DiagnosticSinkDedupTest` RED-first) |
-| `DIAG-02` | diagnósticos | `ClassType[...]`/`PrimitiveType[...]` crus em `SEM012`/`SEM021`/`SEM014` de construtor | vaza | vaza | Baixa-Média | `toString()` cru do record em vez de `Type.display` | `SemAssignmentAnalyzer.java:54,140-142,159`, `SemExpressionTyper.java:184`, `StatementAnalyzer.java:173-175`, `TypeChecker.java:163-167` | `QualifiedTypeDiagE2ETest` (só SEM010) | assegurar ausência de `*Type[` nas mensagens | usar `Type.display(...)` nesses seis pontos |
+| `DIAG-02` | diagnósticos | `ClassType[...]`/`PrimitiveType[...]` crus em `SEM012`/`SEM021`/`SEM014` de construtor | vaza | vaza | Baixa-Média | `toString()` cru do record em vez de `Type.display` | `SemAssignmentAnalyzer.java:54,140-142,159`, `SemExpressionTyper.java:184`, `StatementAnalyzer.java:173-175`, `TypeChecker.java:163-167` | `QualifiedTypeDiagE2ETest` (só SEM010) | assegurar ausência de `*Type[` nas mensagens | usar `Type.display(...)` nesses seis pontos — ✅ CORRIGIDO 11/10 no `lab` como `known-bugs` §663 (lane flatt `192.168.100.14:0`, `TypeDisplayDiagnosticTest` RED-first 3/0F, bateria 347/0F) |
 | `MEM-01` | analisador de memória | `MEM014` em `web.app()` (lifetime de servidor) | avisa | avisa | Baixa | regra por escopo ignora `listen`/lifetime de processo | `memory/ResourceLeakAnalysis.java:52-73,111-171` | `ResourceLeakE2ETest` (sem caso servidor) | pin de lifetime de servidor | **LACUNA** — tratar `listen` como estabelecedor de lifetime (decisão da mantenedora) |
 | `PARSE-01` | lexer/parser | expressão `1..3` | `PARSE039` | `PARSE039` | — | não há operador de range, por projeto | `parser/Lexer.java:437`, `parser/ExpressionParser.java:182-211` | sonda em `lexical-structure.md` | — | nenhuma (só nota de qualidade do diagnóstico) |
 | `CLI-01` | CLI `serve` | `kof serve --deps` | rejeitado | rejeitado | Baixa | `serve` não tem fiação de `--deps` | `kof-cli/…/CmdServe.java:41-86` | nenhum | pin se `--deps` for adicionado | **LACUNA** — decidir se `serve` suporta deps |
@@ -403,7 +403,10 @@ bateria relevante não regredida. Nada abaixo é implementado nesta auditoria.
    analisador 82/0F.
 9. `DIAG-02` — trocar as interpolações cruas por `Type.display(...)` nos seis pontos.
    *Teste:* SEM012/SEM021/ctor-SEM014 nunca contêm `ClassType[`/`PrimitiveType[`/`NullableType[`.
-   *Risco:* baixo (só texto de mensagem).
+   *Risco:* baixo (só texto de mensagem). — **FEITO 11/10:** pousado como `known-bugs` §663 (lane
+   flatt `192.168.100.14:0`): os seis pontos exibem; `TypeDisplayDiagnosticTest` mediu VERMELHO 3/3
+   pré (o vazamento ClassType verbatim da auditoria), 3/0F pós; bateria #324 + varredura de
+   diagnóstico 347/0F.
 
 **P4 — exige decisão da mantenedora antes de qualquer código**
 

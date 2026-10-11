@@ -15519,3 +15519,17 @@ EAD
 **Dona e próximo passo:** a lane nativa/UEFI (compilador/JVM/nativo `192.168.15.30:9092`) — bisectar contra a última suíte completa verde conhecida, então decidir correção de codegen vs waiver de toolchain do host. Registrado pela lane flatt para que a frota leia as 11F como pré-existentes, não como regressão do §659.
 
 <!-- en-switch --> **EN:** [§662 (en)](known-bugs.md#662--the-uefi-build-path-dies-at-objcopy-on-this-host-formato-de-ficheiro-nao-reconhecido-on-the-produced-mainelf-nativeuefie2etest-7f--ringprivilegee2etest-4f-deterministic-at-tip-6fdef8b09---open-found-1110-by-lane-flatt-192168100140-owner--the-nativeuefi-lane-compilerjvmnative-19216815309092)
+
+## §663 — auditoria DIAG-02: SEM012/SEM021/ctor-SEM014 vazavam a representação crua de tipo (`cannot assign ClassType[packageName=, name=B, typeArguments=[]] to ClassType[...]`) — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0)
+
+**Sintoma (medido 11/10, tip `7822c6f0b`; auditoria 0.6.0 item `DIAG-02`):** `main() { var a: A = A()  var b: B = B()  a = b }` imprimia `Type mismatch: cannot assign ClassType[packageName=, name=B, typeArguments=[]] to ClassType[packageName=, name=A, typeArguments=[]] [SEM012]` — o contrato do #324 (SEM010/SEM014-método/SEM036 renderizam `Type.display(...)`) nunca foi aplicado a seis sites: SEM012 ×3 (`SemExpressionTyper:184`, `SemAssignmentAnalyzer:54/159`), SEM021 ×2 (`SemAssignmentAnalyzer:140`, `StatementAnalyzer:173`) e o SEM014 de sobrecarga de construtor (`TypeChecker:165`, que imprimia `expected PrimitiveType[name=int, sort=10] but got ClassType[packageName=java.lang, name=String, ...]`).
+
+**Raiz:** os sites interpolavam `Type.toString()` — o auto-toString do record — em vez de `Type.display(...)`; cada um foi escrito antes do contrato de exibição do #324 existir e nenhum foi varrido quando ele pousou.
+
+**A mudança (pousada 11/10):** `Type.display(...)` envolve cada tipo interpolado nos seis sites — `cannot assign B to A`, `cannot assign Int to 's: String'`, `expected Int but got String (no constructor matches the argument types)`.
+
+**Prova (RED-first, executada):** novo `TypeDisplayDiagnosticTest` (3 faces — o repro exato de ClassType da auditoria, a face PrimitiveType do SEM021 de declaração, a face do ctor-SEM014): pré-correção **3/3 VERMELHO** com o vazamento verbatim da auditoria, pós-correção **3 rodados / 0F**; a bateria #324 `typeMismatchDiagnosticsAreHumanReadable` e a varredura completa de diagnóstico/analisador (`CompilerDriverTest`+`*Diagnostic*`+`*Sem*`+`SemanticResolutionTest`) **347 rodados / 0F** — nenhum teste pinava a forma crua.
+
+**Fronteira:** só TEXTO de mensagem — sem codegen, sem severidade, sem mudança de código de diagnóstico; a renderização PT mantém seus templates (a localização lê o código, não o texto interpolado); SEM010/SEM014-método/SEM036 já exibiam e estão intocados. `DIAG-01` (o dedup de emissão duplicada, §661) é outra preocupação e pousou antes no mesmo dia.
+
+<!-- en-switch --> **EN:** [§663 (en)](known-bugs.md#663--audit-diag-02-sem012sem021ctor-sem014-leaked-the-raw-type-representation-cannot-assign-classtypepackagename-nameb-typearguments-to-classtype---fixed-1110-lane-flatt-192168100140)
