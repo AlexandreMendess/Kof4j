@@ -1,0 +1,9 @@
+record Point(Int x, Int y)
+main() {
+    println(json.encode(mapOf("b", 2, "a", 1, "c", 3)))
+    println(json.encode(mapOf("z", "hi", "y", "lo")))
+    println(json.encode(mapOf("k", Point(3, 4))))
+    println(json.encode(mapOf("only", 7)))
+    println(json.encode(mapOf("t", true, "f", false)))
+    println(json.encode(mapOf("", 0)))
+}
