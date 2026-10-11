@@ -910,6 +910,13 @@ seed provava só o `f.submit()` programático) e afirma o placeholder que o hand
 provado: fonte Kof → KofJS → DOM real → interação real → handler Kof real → asserção
 semântica. A metade KofWasm da fase 6 é da lane WASI (escopo `#776`).
 
+Cross-browser (11/10, mesmo dia): a MESMA prova de app real roda no **Firefox** — `flow` +
+`assertOn` com `kind="firefox"` (a regra da §6.4 é descoberta por kind; as faces são
+parametrizadas por kind e o chromium sozinho não prova nada sobre o resto da matriz). Firefox
+real (gerenciado pelo playwright): preencher → clique real → o handler KofJS muta o DOM →
+asserção semântica, 3/3 verde. O WebKit segue impedido de lançar no host atual (libs de
+sistema ausentes — o skip ambiental nomeado de praxe).
+
 O plano companheiro (`test-architecture-plan.md`) pode avançar o eixo da **suíte interna** em
 paralelo; nenhum bloqueia o outro, e ambos compartilham o §13.
 

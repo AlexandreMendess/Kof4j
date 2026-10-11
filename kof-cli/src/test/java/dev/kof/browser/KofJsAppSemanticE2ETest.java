@@ -130,4 +130,31 @@ class KofJsAppSemanticE2ETest {
             server.stop(0);
         }
     }
+
+    // §6.11/§6.4: as faces semânticas são kind-parameterizadas e a regra do
+    // plano é DESCOBERTA por kind — o chromium sozinho não prova a matriz.
+    // O MESMO app real KofJS no Firefox real: preencher → clique → handler.
+    @Test
+    void theSameRealAppAnswersARealClickOnFirefox(@TempDir Path tempDir)
+            throws Exception {
+        assumeTrue(new PlaywrightLibProvider().probe("firefox") != null,
+                "sem o Firefox gerenciado do Playwright — rode npx playwright install firefox");
+        PlaywrightLibProvider p = new PlaywrightLibProvider();
+        HttpServer server = serve(realApp(tempDir));
+        try {
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/index.html";
+            String placeholder = p.flow("firefox", url, java.util.List.of(
+                    "css=.kof-input :: fill=Kof",
+                    "role=button[name=\"enviar\"] :: click",
+                    "css=.kof-input :: attr=placeholder"));
+            assertEquals("depois", placeholder,
+                    "o handler do onSubmit não rodou no FIREFOX a partir do "
+                            + "CLIQUE REAL (o placeholder ficou '" + placeholder + "')");
+            assertEquals("antes", p.assertOn("firefox", url, "css=.kof-input",
+                    "attr=placeholder"),
+                    "o assertOnfirefox deve medir o estado inicial num app novo");
+        } finally {
+            server.stop(0);
+        }
+    }
 }

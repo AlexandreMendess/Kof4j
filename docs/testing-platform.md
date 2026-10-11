@@ -911,6 +911,13 @@ handler mutated (`"antes"` → `"depois"`, isolated by a no-click control assert
 loop is proven: Kof source → KofJS → real DOM → real interaction → real Kof handler → semantic
 assertion. The KofWasm half of phase 6 belongs to the WASI lane (`#776` scope).
 
+Cross-browser (11/10, same day): the SAME real-app proof runs on **Firefox** — `flow` +
+`assertOn` with `kind="firefox"` (the §6.4 rule is per-kind discovery; the faces are
+kind-parameterized and chromium alone proved nothing about the rest of the matrix). Firefox
+real (playwright-managed): fill → real click → the KofJS handler mutates the DOM → semantic
+assertion, 3/3 green. WebKit stays launch-blocked on the current host (missing system libs —
+the standing named environmental skip).
+
 The companion plan (`test-architecture-plan.md`) may advance the **internal suite** axis in
 parallel; neither blocks the other, and both share §13.
 
