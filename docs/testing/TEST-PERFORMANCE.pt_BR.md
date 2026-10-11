@@ -14,7 +14,7 @@ constraint:
   - measured-not-remembered
 decision: D-TEST-ARCHITECTURE-GO
 
-Fase 1 (profiling) de [`docs/development/test-architecture-plan.md`](../development/test-architecture-plan.md).
+Fase 1 (profiling) de [`docs/test-architecture-plan.md`](../test-architecture-plan.md).
 Os números abaixo são **medidos**, nunca lembrados: vêm dos relatórios Surefire
 já presentes na árvore, parseados por `scripts/test-suite-profile.sh` (read-only
 — nunca re-executa a suíte).

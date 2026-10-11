@@ -2,9 +2,11 @@
 
 # 🧪 Plano de Refatoração — Arquitetura e Modularização de Testes do Kof
 
-**Status:** `UNDER DEVELOPMENT` — promovido de `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
+**Status:** `CONCLUDED` 11/10/2026 — promovido de `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`); movido para `docs/` pela regra de 3 estados (toda fase finita pousou)
 **Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
+
+**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento são **53 casos / 212 checagens** (fatias 1–28), e novos casos são manutenção aditiva comum, não trabalho de plano. Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
@@ -1163,7 +1165,7 @@ de byte4 do https para `.Lv_url_false`), guardado RED-first pelo novo
 `KofValidationUrlParityTest` (RED pré-fix → GREEN 35/35 nas duas classes de validação).
 **Nota de escopo (medida, honesta):** `validation.matches` fica deliberadamente EXCLUÍDO —
 sua divergência JVM/JS/Script regex vs Native substring-literal é um problema conhecido e
-documentado, congelado em `future/kof-expr-plan.md` Q8 aguardando a decisão da mantenedora
+documentado, congelado em `development/future/kof-expr-plan.md` Q8 aguardando a decisão da mantenedora
 `D-KOF-EXPR` (`future/` CONGELADO). Prova (executada): cada valor medido primeiro no alvo
 Script, cruzado byte-a-byte em jvm/nativo/js, então congelado; `tests/run-golden.sh`
 **200/200** (50 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates

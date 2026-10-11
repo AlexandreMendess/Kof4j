@@ -1,0 +1,266 @@
+package image
+
+import image.Av1Block
+import image.Av1Tx
+
+// kof.image — AV1 intra transform-block availability (slice 3z+ of the AVIF
+// front, plan §34). The per-block availability the intra prediction process
+// consumes: `haveAbove`/`haveLeft` (the plane-edge flags) plus
+// `haveAboveRight`/`haveBelowLeft` (`has_top_right`/`has_bottom_left` in libaom
+// `av1/common/reconintra.c`), which decide whether the directional/`2*w`/`2*h`
+// edge reads reach past the transform block.
+//
+// The two geometry functions and all of their lookup tables are the pinned
+// libaom source revision value-for-value (`av1/common/reconintra.c`:
+// `has_top_right`, `has_bottom_left`, the `has_tr_*`/`has_tr_vert_*` and
+// `has_bl_*`/`has_bl_vert_*` tables, `get_has_tr_table`/`get_has_bl_table`),
+// with the block/tx size tables from `av1/common/common_data.h`. The big tables
+// are comma-separated strings parsed with `split`/`toInt` (the `Av1CoeffCdf`
+// idiom) so the whole surface stays pure Kof on every target.
+//
+// `MI_SIZE_LOG2` = 2, `MAX_MIB_SIZE_LOG2` = 5 (`av1/common/enums.h`; a 128x128
+// superblock is 32 4x4 units wide).
+
+// Parses a comma-separated int table into a flat Int[].
+Int[] av1AvailParse(String s) {
+    var parts = s.split(",")
+    var out = new Int[parts.size]
+    var i = 0
+    while (i < parts.size) {
+        out[i] = parts[i].toInt()
+        i = i + 1
+    }
+    return out
+}
+
+// `has_tr_tables[BLOCK_SIZES_ALL]` (`reconintra.c`), BLOCK_SIZES_ALL order.
+Int[] av1HasTrTable(Int bsize) {
+    return av1AvailParse(listOf(
+        "255,255,255,255,85,85,85,85,119,119,119,119,85,85,85,85,127,127,127,127,85,85,85,85,119,119,119,119,85,85,85,85,255,127,255,127,85,85,85,85,119,119,119,119,85,85,85,85,127,127,127,127,85,85,85,85,119,119,119,119,85,85,85,85,255,255,255,127,85,85,85,85,119,119,119,119,85,85,85,85,127,127,127,127,85,85,85,85,119,119,119,119,85,85,85,85,255,127,255,127,85,85,85,85,119,119,119,119,85,85,85,85,127,127,127,127,85,85,85,85,119,119,119,119,85,85,85,85",
+        "255,255,255,255,119,119,119,119,127,127,127,127,119,119,119,119,255,127,255,127,119,119,119,119,127,127,127,127,119,119,119,119,255,255,255,127,119,119,119,119,127,127,127,127,119,119,119,119,255,127,255,127,119,119,119,119,127,127,127,127,119,119,119,119",
+        "255,255,0,0,85,85,0,0,119,119,0,0,85,85,0,0,127,127,0,0,85,85,0,0,119,119,0,0,85,85,0,0,255,127,0,0,85,85,0,0,119,119,0,0,85,85,0,0,127,127,0,0,85,85,0,0,119,119,0,0,85,85,0,0",
+        "255,255,85,85,119,119,85,85,127,127,85,85,119,119,85,85,255,127,85,85,119,119,85,85,127,127,85,85,119,119,85,85",
+        "255,255,119,119,127,127,119,119,255,127,119,119,127,127,119,119",
+        "255,0,85,0,119,0,85,0,127,0,85,0,119,0,85,0",
+        "255,85,119,85,127,85,119,85",
+        "255,119,127,119",
+        "15,5,7,5",
+        "95,87",
+        "127",
+        "19",
+        "7",
+        "3",
+        "1",
+        "1",
+        "255,255,255,255,127,127,127,127,255,127,255,127,127,127,127,127,255,255,255,127,127,127,127,127,255,127,255,127,127,127,127,127",
+        "255,0,0,0,85,0,0,0,119,0,0,0,85,0,0,0,127,0,0,0,85,0,0,0,119,0,0,0,85,0,0,0",
+        "255,255,127,127,255,127,127,127",
+        "15,0,5,0,7,0,5,0",
+        "255,127",
+        "3,1"
+    ).get(bsize))
+}
+
+// `has_tr_vert_tables[BLOCK_SIZES]` (`reconintra.c`): only the square sizes
+// >= 8x8 have a vertical-order table; `BLOCK_128X128` reuses the non-vert one
+// (`has_tr_128x128`), and every other entry is NULL (never reached for a valid
+// PARTITION_VERT_A/B, which apply to square blocks only).
+Int[] av1HasTrVertTable(Int bsize) {
+    if (bsize == 3) {
+        return av1AvailParse("255,255,0,0,119,119,0,0,127,127,0,0,119,119,0,0,255,127,0,0,119,119,0,0,127,127,0,0,119,119,0,0")
+    }
+    if (bsize == 6) {
+        return av1AvailParse("255,0,119,0,127,0,119,0")
+    }
+    if (bsize == 9) {
+        return av1AvailParse("15,7")
+    }
+    if (bsize == 12) {
+        return av1AvailParse("3")
+    }
+    return av1HasTrTable(bsize)
+}
+
+// `has_bl_tables[BLOCK_SIZES_ALL]` (`reconintra.c`), BLOCK_SIZES_ALL order.
+Int[] av1HasBlTable(Int bsize) {
+    return av1AvailParse(listOf(
+        "84,85,85,85,16,17,17,17,84,85,85,85,0,1,1,1,84,85,85,85,16,17,17,17,84,85,85,85,0,0,1,0,84,85,85,85,16,17,17,17,84,85,85,85,0,1,1,1,84,85,85,85,16,17,17,17,84,85,85,85,0,0,0,0,84,85,85,85,16,17,17,17,84,85,85,85,0,1,1,1,84,85,85,85,16,17,17,17,84,85,85,85,0,0,1,0,84,85,85,85,16,17,17,17,84,85,85,85,0,1,1,1,84,85,85,85,16,17,17,17,84,85,85,85,0,0,0,0",
+        "16,17,17,17,0,1,1,1,16,17,17,17,0,0,1,0,16,17,17,17,0,1,1,1,16,17,17,17,0,0,0,0,16,17,17,17,0,1,1,1,16,17,17,17,0,0,1,0,16,17,17,17,0,1,1,1,16,17,17,17,0,0,0,0",
+        "254,255,84,85,254,255,16,17,254,255,84,85,254,255,0,1,254,255,84,85,254,255,16,17,254,255,84,85,254,255,0,0,254,255,84,85,254,255,16,17,254,255,84,85,254,255,0,1,254,255,84,85,254,255,16,17,254,255,84,85,254,255,0,0",
+        "84,85,16,17,84,85,0,1,84,85,16,17,84,85,0,0,84,85,16,17,84,85,0,1,84,85,16,17,84,85,0,0",
+        "16,17,0,1,16,17,0,0,16,17,0,1,16,17,0,0",
+        "254,84,254,16,254,84,254,0,254,84,254,16,254,84,254,0",
+        "84,16,84,0,84,16,84,0",
+        "16,0,16,0",
+        "78,14,78,14",
+        "4,4",
+        "0",
+        "34",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0,1,1,1,0,0,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,1,0,0,1,1,1,0,0,0,0",
+        "254,254,254,84,254,254,254,16,254,254,254,84,254,254,254,0,254,254,254,84,254,254,254,16,254,254,254,84,254,254,254,0",
+        "0,1,0,0,0,1,0,0",
+        "238,78,238,14,238,78,238,14",
+        "0,0",
+        "42,42"
+    ).get(bsize))
+}
+
+// `has_bl_vert_tables[BLOCK_SIZES]` (`reconintra.c`): the square sizes >= 8x8
+// with vertical-order tables; `BLOCK_128X128` reuses `has_bl_128x128`.
+Int[] av1HasBlVertTable(Int bsize) {
+    if (bsize == 3) {
+        return av1AvailParse("254,255,16,17,254,255,0,1,254,255,16,17,254,255,0,0,254,255,16,17,254,255,0,1,254,255,16,17,254,255,0,0")
+    }
+    if (bsize == 6) {
+        return av1AvailParse("254,16,254,0,254,16,254,0")
+    }
+    if (bsize == 9) {
+        return av1AvailParse("14,14")
+    }
+    if (bsize == 12) {
+        return av1AvailParse("2")
+    }
+    return av1HasBlTable(bsize)
+}
+// `get_has_tr_table(partition, bsize)` (`reconintra.c`): a mixed vertical
+// partition (PARTITION_VERT_A = 6, PARTITION_VERT_B = 7) selects the vertical
+// order table; otherwise the ordinary one.
+Int[] av1HasTrTableSel(Int partition, Int bsize) {
+    if (partition == 6 || partition == 7) {
+        return av1HasTrVertTable(bsize)
+    }
+    return av1HasTrTable(bsize)
+}
+
+// `get_has_bl_table(partition, bsize)` (`reconintra.c`).
+Int[] av1HasBlTableSel(Int partition, Int bsize) {
+    if (partition == 6 || partition == 7) {
+        return av1HasBlVertTable(bsize)
+    }
+    return av1HasBlTable(bsize)
+}
+
+// `has_top_right` (`reconintra.c`): whether the transform block's top-right
+// reference pixels are available for intra prediction. `sbSize`/`bsize` are the
+// superblock and block size indices, `miRow`/`miCol` the block's position in 4x4
+// units, `topAvailable`/`rightAvailable` the neighbour availability, `partition`
+// the partition type, `txSz` the transform size, `rowOff`/`colOff` the transform
+// block's offset within the block (in 4x4 units), `ssX`/`ssY` the chroma
+// subsampling. Returns 0 or 1.
+Int av1HasTopRight(Int sbSize, Int bsize, Int miRow, Int miCol,
+                   Int topAvailable, Int rightAvailable,
+                   Int partition, Int txSz, Int rowOff, Int colOff,
+                   Int ssX, Int ssY) {
+    if (topAvailable == 0 || rightAvailable == 0) {
+        return 0
+    }
+    var bwUnit = av1BlockNum4x4Wide(bsize)
+    var planeBwUnit = bwUnit >> ssX
+    if (planeBwUnit < 1) {
+        planeBwUnit = 1
+    }
+    var topRightCountUnit = av1TxWidth(txSz) >> 2
+    if (rowOff > 0) {
+        if (av1BlockWidth(bsize) > 64) {
+            if (rowOff == (16 >> ssY) && colOff + topRightCountUnit == (16 >> ssX)) {
+                return 1
+            }
+            var planeBwUnit64 = 16 >> ssX
+            var colOff64 = colOff % planeBwUnit64
+            if (colOff64 + topRightCountUnit < planeBwUnit64) {
+                return 1
+            }
+            return 0
+        }
+        if (colOff + topRightCountUnit < planeBwUnit) {
+            return 1
+        }
+        return 0
+    }
+    if (colOff + topRightCountUnit < planeBwUnit) {
+        return 1
+    }
+    var bwInMiLog2 = av1BlockMiWidthLog2(bsize)
+    var bhInMiLog2 = av1BlockMiHeightLog2(bsize)
+    var sbMiSize = av1BlockNum4x4High(sbSize)
+    var blkRowInSb = (miRow & (sbMiSize - 1)) >> bhInMiLog2
+    var blkColInSb = (miCol & (sbMiSize - 1)) >> bwInMiLog2
+    if (blkRowInSb == 0) {
+        return 1
+    }
+    if (((blkColInSb + 1) << bwInMiLog2) >= sbMiSize) {
+        return 0
+    }
+    var thisBlkIndex = (blkRowInSb << (5 - bwInMiLog2)) + blkColInSb
+    var idx1 = thisBlkIndex / 8
+    var idx2 = thisBlkIndex % 8
+    var hasTrTable = av1HasTrTableSel(partition, bsize)
+    return (hasTrTable[idx1] >> idx2) & 1
+}
+
+// `has_bottom_left` (`reconintra.c`): whether the transform block's bottom-left
+// reference pixels are available for intra prediction. Parameters as
+// `av1HasTopRight`; `bottomAvailable`/`leftAvailable` are the neighbour
+// availability. Returns 0 or 1.
+Int av1HasBottomLeft(Int sbSize, Int bsize, Int miRow, Int miCol,
+                     Int bottomAvailable, Int leftAvailable,
+                     Int partition, Int txSz, Int rowOff, Int colOff,
+                     Int ssX, Int ssY) {
+    if (bottomAvailable == 0 || leftAvailable == 0) {
+        return 0
+    }
+    var txhUnit = av1TxHeight(txSz) >> 2
+    if (av1BlockWidth(bsize) > 64 && colOff > 0) {
+        var planeBwUnit64 = 16 >> ssX
+        var colOff64 = colOff % planeBwUnit64
+        if (colOff64 == 0) {
+            var planeBhUnit64 = 16 >> ssY
+            var rowOff64 = rowOff % planeBhUnit64
+            var planeBhUnit = av1BlockNum4x4High(bsize) >> ssY
+            if (planeBhUnit64 < planeBhUnit) {
+                planeBhUnit = planeBhUnit64
+            }
+            if (rowOff64 + txhUnit < planeBhUnit) {
+                return 1
+            }
+            return 0
+        }
+    }
+    if (colOff > 0) {
+        return 0
+    }
+    var bhUnit = av1BlockNum4x4High(bsize)
+    var planeBhUnit0 = bhUnit >> ssY
+    if (planeBhUnit0 < 1) {
+        planeBhUnit0 = 1
+    }
+    if (rowOff + txhUnit < planeBhUnit0) {
+        return 1
+    }
+    var bwInMiLog2 = av1BlockMiWidthLog2(bsize)
+    var bhInMiLog2 = av1BlockMiHeightLog2(bsize)
+    var sbMiSize = av1BlockNum4x4High(sbSize)
+    var blkRowInSb = (miRow & (sbMiSize - 1)) >> bhInMiLog2
+    var blkColInSb = (miCol & (sbMiSize - 1)) >> bwInMiLog2
+    if (blkColInSb == 0) {
+        var blkStartRowOff = (blkRowInSb << bhInMiLog2) >> ssY
+        var rowOffInSb = blkStartRowOff + rowOff
+        var sbHeightUnit = sbMiSize >> ssY
+        if (rowOffInSb + txhUnit < sbHeightUnit) {
+            return 1
+        }
+        return 0
+    }
+    if (((blkRowInSb + 1) << bhInMiLog2) >= sbMiSize) {
+        return 0
+    }
+    var thisBlkIndex = (blkRowInSb << (5 - bwInMiLog2)) + blkColInSb
+    var idx1 = thisBlkIndex / 8
+    var idx2 = thisBlkIndex % 8
+    var hasBlTable = av1HasBlTableSel(partition, bsize)
+    return (hasBlTable[idx1] >> idx2) & 1
+}

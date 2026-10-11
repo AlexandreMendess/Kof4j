@@ -3,8 +3,9 @@
 # Plataforma de Testes Kof — Unit / Integração / Frontend E2E
 
 **Dono:** `192.168.15.15:9092` (lane security/connectors — REASSUMIDO 10/10 por ordem da mantenedora: a dona anterior lane issues/tooling `192.168.15.30:9093` ativa pela última vez 09/10, órfão >1 dia; claims DEVEM carregar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
-**Status:** EM DESENVOLVIMENTO — promovido de `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
-**Local:** `docs/development/`
+**Status:** EM DESENVOLVIMENTO — promovido de `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`); **NÚCLEO PROMOVIDO para `docs/` 10/10**
+**Local:** `docs/testing-platform.pt_BR.md` (promovido de `docs/development/` 10/10)
+**Escopo 0.6.0 (mantenedora 11/10 — "todos os planos em reta final ja libera a tag 0.6.0"):** as fases 1–7 do núcleo SÃO a face da 0.6.0 (fase 5 Cypress + fase 7 cross-browser pousadas 11/10); **a fase 8 (avançado: regressão visual/acessibilidade/network-mocking/traces) e a face KofWasm do §6.10 estão explicitamente FORA do escopo da 0.6.0** — fatias futuras, nunca bloqueadoras de corte.
 **Natureza:** plano de implementação — estado real + como terminar (registro de design mantido abaixo)
 **Fonte normativa:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, autorizada — `D-FUTURE-BATCH-2809`/`B`); a promoção a trabalho corrente é uma-por-vez por `D-FUTURE-PROMOTION`
 **Dependências principais:** o comando `kof test` existente (`CmdTest`), a superfície de teste da
@@ -613,8 +614,8 @@ Firefox verde** (`contentRendersOnFirefox`, 3.9s) + Chromium verde (`navigates�
 build fallback ubuntu24.04 pina; o `install-deps` exige sudo que a lane não tem) → o skip
 explícito e nomeado (`contentRendersOnWebkit` + o loop de screenshot), a convenção de skip
 ambiental — nunca falso verde, nunca skip escondido. Fronteiras medidas da ordem do §11 neste
-host: fase 5 (Cypress) INVIÁVEL (sem node/npm — Cypress é ferramenta npm; a fatia segue ABERTA);
-a face KofJS da fase 6 já provada pela semente `KofJsBrowserE2ETest` (22 faces), a face KofWasm
+host: fase 5 (Cypress) NÚCLEO POUSADO no mesmo dia (a mantenedora destravou node/npm — §6.3
+acima); a face KofJS da fase 6 já provada pela semente `KofJsBrowserE2ETest` (22 faces), a face KofWasm
 segue barrada pelo #776 (frente da lane WASI); os perfis (`Fast Browser`/`Full Browser Matrix`)
 seguem sendo a face do §11 depois da matriz de engines. Prova (executada): `PlaywrightLibProviderTest`
 + `BrowserProviderTest` **11 executados / 0F / 0E / 2 skips nomeados** (o par webkit de deps do host).
@@ -882,7 +883,7 @@ Java interna**. Não duplicar o trabalho de profiling — referenciá-lo.
 
 # 14. Relação com outros planos
 
-* `docs/development/test-architecture-plan.md` — suíte Java interna (L0–L5, perfis,
+* `docs/test-architecture-plan.md` — suíte Java interna (L0–L5, perfis,
   performance). **Complementar, não duplicado.**
 * `docs/wasm-wasi-plan.md` — KofWasm; o E2E cross-target/WASM da plataforma
   depende dele (`WASM001` até então).
