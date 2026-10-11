@@ -6,7 +6,7 @@
 **Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
 
-**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**; slice 32, `jwt-namespace`, to **57 / 228**; slice 33, `string-methods-extended`, to **58 / 232**). No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
+**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**; slice 32, `jwt-namespace`, to **57 / 228**; slice 33, `string-methods-extended`, to **58 / 232**; slice 34, `config-namespace`, to **59 / 236**). No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
@@ -1341,6 +1341,30 @@ cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
 `tests/run-golden.sh` **232/232** (58 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
 compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
 `docs-lang`/`check_known_bugs_status`/`check_ledger_anchors` rc=0.
+
+**Phase 6 slice 34 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **59 total** — pinning the deterministic core of `kof.config`, a whole stdlib
+namespace with ZERO golden coverage until now. The new case `tests/golden/config-namespace`
+pins `config.get` on a missing key (→`null`), `config.has` (false), `config.str(key, "demo")`
+→`demo` + the empty-string default, `config.int(key, 8080)`/`(key, 2147483647)`/`(key, -1)`,
+`config.long(key, 9000000000)`/`(key, 9223372036854775807)`, `config.bool(key, false)`/
+`(key, true)`, and `config.get("k") == null`→true. All 14 faces agree byte-for-byte on all four
+targets. **Scope note (measured, honest):** `config.required` on a missing key THROWS, but with
+a host-specific unhandled-exception rendering (JVM stack trace / JS `Error` / native `CONF001`),
+so it is EXCLUDED — it cannot be a 4-target pin. **BUG FOUND + CATALOGUED (Q4):** authoring the
+case with the decimal `Int.MIN_VALUE` default `-2147483648` made JVM emit `VerifyError` (masked
+by the JDK launcher as the never-benign "JavaFX runtime components not found") and JS `TypeError:
+Cannot mix BigInt and other types`, while Script/native truncate to `-2147483648`. Root: a `Long`
+value is ACCEPTED where a builtin signature declares an `Int` parameter (no `SEM014`), unlike a
+user function which correctly refuses it (`f(5000000000)` → `expected 'Int' but got 'Long'
+[SEM014]`); `strings.repeat("ab", 5000000000)` is likewise accepted. Recorded as `known-bugs`
+**§657** EN+PT; NOT repaired here (it touches the builtin call-lowering shared by every
+namespace — a dedicated unit). The golden case pins only the 4-target-clean `Int` faces.
+Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
+Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **236/236** (59 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`docs-lang`/`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records` rc=0.
 
 ### Phase 7 — Integration
 

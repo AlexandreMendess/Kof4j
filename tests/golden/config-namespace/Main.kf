@@ -1,0 +1,16 @@
+main() {
+    println("[" + config.get("app.name") + "]")
+    println(config.has("app.name"))
+    println(config.str("app.name", "demo"))
+    println("[" + config.str("empty", "") + "]")
+    println(config.int("server.port", 8080))
+    println(config.int("n", 2147483647))
+    println(config.int("n", -1))
+    println(config.long("big", 9000000000))
+    println(config.long("n", 9223372036854775807))
+    println(config.bool("debug", false))
+    println(config.bool("flag", true))
+    println(config.get("app.name") == null)
+    println(config.has(""))
+    println("[" + config.get("") + "]")
+}

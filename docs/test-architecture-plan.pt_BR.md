@@ -6,7 +6,7 @@
 **Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 
-**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**). Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
+**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**; a fatia 34, `config-namespace`, a **59 / 236**). Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
@@ -1344,6 +1344,31 @@ valor medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os q
 concordam), então congelado; `tests/run-golden.sh` **232/232** (58 casos × 4 alvos), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/
 `check_doc_refs`/`check_500`/`docs-lang`/`check_known_bugs_status`/`check_ledger_anchors` rc=0.
+
+**Fase 6 fatia 34 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **59 total** — pinando o núcleo determinístico do `kof.config`, um namespace inteiro
+com ZERO cobertura golden até agora. O novo caso `tests/golden/config-namespace` pina
+`config.get` numa chave ausente (→`null`), `config.has` (false), `config.str(key, "demo")`→`demo`
++ o default de string vazia, `config.int(key, 8080)`/`(key, 2147483647)`/`(key, -1)`,
+`config.long(key, 9000000000)`/`(key, 9223372036854775807)`, `config.bool(key, false)`/
+`(key, true)`, e `config.get("k") == null`→true. As 14 faces concordam byte-a-byte nos quatro
+alvos. **Nota de escopo (medida, honesta):** `config.required` numa chave ausente LANÇA, mas com
+uma renderização de exceção não-tratada específica do host (stack trace no JVM / `Error` no JS /
+`CONF001` no nativo), então é EXCLUÍDO — não pode ser um pin de 4 alvos. **BUG ACHADO +
+CATALOGADO (Q4):** escrever o caso com o default decimal `Int.MIN_VALUE` `-2147483648` fez o JVM
+emitir `VerifyError` (mascarado pelo launcher da JDK como o nunca-benigno "JavaFX runtime
+components not found") e o JS `TypeError: Cannot mix BigInt and other types`, enquanto
+Script/nativo truncam para `-2147483648`. Raiz: um valor `Long` é ACEITO onde a assinatura de um
+builtin declara um parâmetro `Int` (sem `SEM014`), ao contrário de uma função de usuário que
+recusa corretamente (`f(5000000000)` → `expected 'Int' but got 'Long' [SEM014]`);
+`strings.repeat("ab", 5000000000)` também é aceito. Registrado como `known-bugs` **§657** EN+PT;
+NÃO reparado aqui (toca o lowering de chamada de builtin compartilhado por todo namespace — uma
+unidade dedicada). O caso golden pina só as faces `Int` limpas nos 4 alvos. Apenas infraestrutura
+de teste, sem mudança de compilador. Prova (executada): cada valor medido primeiro no alvo
+Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado;
+`tests/run-golden.sh` **236/236** (59 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`docs-lang`/`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records` rc=0.
 
 ### Fase 7 — Integração
 
