@@ -250,8 +250,13 @@ class Av1ModeInfo {
     List<Int[]> palUvSizeStore
     List<Int[]> steps
 
-    constructor(Int[] data, Int miCols, Int miRows) {
-        this.sym = Av1Symbol(data)
+    // The symbol decoder is the CALLER's: the tile walk (slice 3af) reads the
+    // mode info, the transform size and the transform type from ONE entropy
+    // stream, so the caller owns the decoder and hands it in already positioned
+    // at the block. A standalone caller wraps its bytes:
+    // `Av1ModeInfo(Av1Symbol(data), w, h)`.
+    constructor(Av1Symbol sym, Int miCols, Int miRows) {
+        this.sym = sym
         this.modes = Av1ModeCdf()
         this.miCols = miCols
         this.miRows = miRows
@@ -371,6 +376,27 @@ class Av1ModeInfo {
             while (j < bw) {
                 this.yModeMap[(r + i) * this.miCols + (c + j)] = yMode
                 this.uvModeMap[(r + i) * this.miCols + (c + j)] = uvMode
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+
+    // Broadcasts the block's skip flag and segment id over its whole 4x4
+    // footprint. libaom stores one `MB_MODE_INFO` per mode-info block and
+    // aliases every mi cell of the block to it, so a NEIGHBOUR lookup
+    // (`xd->mi[-stride]` / `xd->mi[-1]`) finds the block's value from any cell
+    // it covers. `readSkip`/`readSegmentId` write only the block's origin cell;
+    // this restores the block-shared semantics the skip/segment contexts read.
+    void setSkipSeg(Int r, Int c, Int bs, Int skip, Int seg) {
+        var bw = av1BlockNum4x4Wide(bs)
+        var bh = av1BlockNum4x4High(bs)
+        var i = 0
+        while (i < bh) {
+            var j = 0
+            while (j < bw) {
+                this.skipMap[(r + i) * this.miCols + (c + j)] = skip
+                this.segMap[(r + i) * this.miCols + (c + j)] = seg
                 j = j + 1
             }
             i = i + 1

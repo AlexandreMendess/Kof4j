@@ -89,6 +89,7 @@ final class Av1ModeBodySupport {
     private static final String PROBE = """
 import image.Av1Block
 import image.Av1ModeInfo
+import image.Av1Symbol
 
 main() {
     runBody(6, 5, 0, 1, 1, 3, listOf(81,95,202,249,49,99,149,76,120,76))
@@ -107,7 +108,7 @@ void runBody(Int w, Int h, Int lossless, Int hasChroma, Int enableFilterIntra, I
         k = k + 1
     }
     println("C " + w + " " + h + " " + lossless + " " + hasChroma + " " + enableFilterIntra + " " + bs)
-    var m = Av1ModeInfo(data, w, h)
+    var m = Av1ModeInfo(Av1Symbol(data), w, h)
     var bw = av1BlockNum4x4Wide(bs)
     var bh = av1BlockNum4x4High(bs)
     var r = 0

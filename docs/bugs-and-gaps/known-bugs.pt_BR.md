@@ -15493,6 +15493,37 @@ EAD
 **Fronteira:** escopo luma, tile único, `PARTITION_NONE` da frente AVIF atual; o fix é exato para todo `miRow`/`miCol`. Sem mudança de compilador, sem superfície de linguagem.
 
 <!-- en-switch --> **EN:** [§660 (en)](known-bugs.md#660--av1intraavail-avif-slice-3ab-derived-the-intra-prediction-edge-distances-from-the-frame-size-alone-ignoring-the-blocks-own-position-so-ntoppxnleftpx-were-under-counted-for-every-block-not-at-the-plane-origin---fixed-1110-lane-pipelineimage-vision-19216815210-flatt-cli-caught-by-the-slice-3ae-heterogeneous-plane-driver)
+
+## §671 — dois construtores da mesma classe com a MESMA ARIDADE, diferindo só no TIPO de um parâmetro, colidem no backend nativo: o mangler os chaveia por aridade, então ambos emitem `Classe_init_N` e o assembler falha com `symbol ... is already defined` — 🟡 OPEN (achado 11/10 pela lane pipeline/image-vision `192.168.15.21:0`, flatt CLI, ao compor a fatia AVIF 3af)
+
+**Sintoma (medido 11/10):** uma classe com dois construtores de aridade igual, por exemplo
+
+```kof
+class A {
+    Int x
+    constructor(Int a, Int b) { this.x = a + b }
+    constructor(String s, Int a) { this.x = a }
+    Int get() { return this.x }
+}
+main() { var a = A(1, 2); var b = A("s", 7); println("" + a.get() + " " + b.get()) }
+```
+
+roda no JVM/Script (`3 7`), mas `kof build --target native` FALHA ao montar:
+
+```text
+build/classes/Default/Main.s:3039: Erro: symbol `A_init_2' is already defined
+build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defined
+```
+
+**Raiz (lida do `.s` gerado):** o backend nativo mangleia todo construtor da classe para o MESMO símbolo por aridade (`A_init_<aridade>`), então dois construtores de mesma aridade emitem duas definições de um símbolo. Construtores de aridade DIFERENTE (o caso comum) não são afetados — por isso a lacuna passou despercebida: as classes pousadas com vários construtores (`Av1Coeffs`, `Inflate`, `Vp8l`, `Vp8Residual`) todas diferem em aridade. O backend JVM desambigua pelo descritor completo e o interpretador pela assinatura resolvida, então só o nativo é afetado.
+
+**Impacto:** um programa Kof válido que compila e roda em dois alvos não pode ser construído para o nativo — violação de honest-cross-target / no-silent-fallback (o usuário vê um erro de assembler, não um diagnóstico Kof). Também restringe o design de bibliotecas Kof: qualquer classe que precise de dois construtores de mesma aridade deve ser escrita com um único construtor (foi o que a fatia 3af fez para ficar limpa no nativo — `Av1ModeInfo`/`Av1TxSize` agora recebem o `Av1Symbol` do chamador direto em vez de sobrecarregar em `Int[]` vs `Av1Symbol`).
+
+**Caminho de correção (NÃO pousado aqui — frente do compilador, não desta lane):** chavear a mangling de construtor pelo descritor completo de parâmetros (ou por um índice dentro da classe) para que sobrecargas de mesma aridade recebam símbolos distintos, exatamente como o backend JVM já faz.
+
+**Fronteira:** só nativo (x86-64; os alvos cross compartilham o mangler). Sem mudança de superfície de linguagem; o fix é no mangler de símbolos do nativo. `known-bugs` §661 está sem dono até ser reclamado.
+
+<!-- en-switch --> **EN:** [§661 (en)](known-bugs.md#671--two-class-constructors-with-the-same-arity-differing-only-in-a-parameter-type-collide-on-the-native-backend-the-mangler-keys-them-by-arity-so-both-emit-class_init_n-and-the-assembler-fails-with-symbol--is-already-defined---open-found-1110-by-lane-pipelineimage-vision-19216815210-flatt-cli-while-composing-avif-slice-3af)
 <!-- en-switch --> **EN:** [§658 (en)](known-bugs.md#658--audit-math-02-mathminmaxclamp-and-the-isevenisoddispositiveisnegativeiszero-family-accepted-any-argument-type-arity-only-binding-mathmin1-25-passed-check--jvm-verifyerror-native-silently-printed-0---fixed-1110-lane-flatt-192168100140)
 
 ## §661 — auditoria DIAG-01: o sink de diagnósticos acrescentava sem dedup — o MESMO SEM011 impresso duas vezes (errorCount=2 para `var x = nope`) — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0)

@@ -1,0 +1,168 @@
+package image
+
+import image.Av1Block
+import image.Av1ModeCdf
+import image.Av1ModeInfo
+import image.Av1Symbol
+import image.Av1Tx
+import image.Av1TxSize
+
+// kof.image — AV1 intra MODE-INFO + TX-SIZE BLOCK WALK (slice 3af of the AVIF
+// front, plan §34). The stage libaom runs as `decode_mbmi_block` +
+// `read_tx_size` for every block of a tile (`av1/decoder/decodeframe.c`):
+// given the tile's entropy bytes and the ordered list of mode-info blocks the
+// slice-3o partition walk produced, it reads each block's complete mode info
+// and transform size from ONE shared stream, in the spec order.
+//
+// Per block `(r, c, bs)`, in the order libaom reads them:
+//
+//   1. the prefix  — segment id and skip flag (slice 3p `readPrefix`),
+//   2. the tail    — CDEF strength, delta-Q and delta-LF (slice 3r),
+//   3. the body    — Y/UV mode, angle deltas, CFL alphas, palette and
+//                    filter-intra (slice 3q `readBodyBd`),
+//   4. the transform size (slice 3s `readTxSize`).
+//
+// That is exactly `read_intra_frame_mode_info` followed by `read_tx_size`,
+// which is the order `parse_decode_block` runs them in. The blocks share one
+// `Av1Symbol` (the range decoder), so a block's decisions depend on the CDF
+// adaptations and neighbour maps the previous blocks left behind — the
+// cross-block coupling a real tile has.
+//
+// The transform TYPE is NOT read here: libaom reads it inside
+// `av1_read_coeffs_txb` (`av1_read_tx_type`, only when the block has a
+// residual), so it belongs to the coefficient path, not the mode-info walk.
+//
+// Pure Kof, all targets: no I/O, no compiler change. `decodeRaster` still
+// refuses AVIF until the chain closes.
+
+// Reads the mode info + transform size of every block of a tile.
+//
+//   - `data`: the tile's entropy bytes.
+//   - `miCols`/`miRows`: the tile's extent in 4x4 units (the maps' stride).
+//   - `blocks`: a flat list of `(r, c, bs)` triples, one per mode-info block,
+//     in decode order (`r`/`c` the block origin in 4x4 units, `bs` the
+//     BLOCK_SIZE index).
+//   - `cfg`: the frame-level mode-info tail parameters (slice 3r).
+//   - `lossless`/`hasChroma`/`enableFilterIntra`/`palettePossible`: the body
+//     guards (slice 3q).
+//   - `bitDepth`: 8, 10 or 12 (the palette color reads).
+//   - `txMode`: the frame `TxMode` (§5.9.17).
+//   - `baseQIndex`: the frame base quantizer index the delta-Q walk accumulates
+//     from (libaom `xd->current_base_qindex`).
+//   - `segEnabled`: 1 when the frame has segmentation enabled (`cm->seg.enabled`);
+//     when 0 libaom's `read_intra_segment_id` returns 0 WITHOUT reading, so the
+//     driver must not consume a symbol for it.
+//   - `segIdPreSkip`/`lastActiveSegId`/`segSkipActive`: the segmentation state.
+//
+// Returns a flat list of 17 ints per block, in block order:
+// `[ skip, segId, cdef, qIndex, txSz, yMode, angleY, uvMode, angleUV, cflU,
+//    cflV, useFilterIntra, filterIntraMode, deltaLf0, deltaLf1, deltaLf2,
+//    deltaLf3 ]` — `cdef` is the strength of the block's 64x64 CDEF UNIT
+// (libaom's `read_cdef` broadcasts the strength over the unit from the first
+// non-skip block that touches it, so every block of the unit reports the same
+// value), `qIndex` is the running `current_base_qindex` clamped to [1,255]
+// (libaom `read_delta_q_params`), and the four delta-LF slots are 0 when the
+// reader is gated out.
+List<Int> av1DecodeTileBlocks(Int[] data, Int miCols, Int miRows,
+                              List<Int> blocks, Av1ModeTail cfg,
+                              Int lossless, Int hasChroma, Int enableFilterIntra,
+                              Int palettePossible, Int bitDepth, Int txMode,
+                              Int baseQIndex, Int segEnabled,
+                              Int segIdPreSkip, Int lastActiveSegId,
+                              Int segSkipActive) {
+    var sym = Av1Symbol(data)
+    var modeInfo = Av1ModeInfo(sym, miCols, miRows)
+    var txSize = Av1TxSize(sym, miCols, miRows)
+    var out = listOf<Int>()
+    var cur = listOf(0, 0, 0, 0)
+    var qIndex = baseQIndex
+    // The 64x64 CDEF-unit strengths, keyed by the unit's origin (row*miCols+col);
+    // the unit is read once and its strength is reported by every block of it.
+    var cdefUnits = new Int[miCols * miRows]
+    var ci = 0
+    while (ci < cdefUnits.size) {
+        cdefUnits[ci] = -1
+        ci = ci + 1
+    }
+    var nb = blocks.size / 3
+    var b = 0
+    while (b < nb) {
+        var base = b * 3
+        var r = blocks.get(base)
+        var c = blocks.get(base + 1)
+        var bs = blocks.get(base + 2)
+
+        // 1. Prefix: segment id + skip (slice 3p). With segmentation disabled
+        //    libaom reads no segment symbol, so only the skip is consumed.
+        var skip = 0
+        var segId = 0
+        if (segEnabled == 1) {
+            var pre = modeInfo.readPrefix(r, c, segIdPreSkip, lastActiveSegId,
+                                          segSkipActive)
+            skip = pre[0]
+            segId = pre[1]
+        } else {
+            skip = modeInfo.readSkip(r, c, 0, 0)
+        }
+        // Broadcast the flag/id over the block's 4x4 footprint so the NEXT
+        // block's neighbour context finds them from any covered cell (libaom
+        // aliases the whole block to one `MB_MODE_INFO`).
+        modeInfo.setSkipSeg(r, c, bs, skip, segId)
+
+        // 2. Tail: CDEF + delta-Q + delta-LF (slice 3r).
+        var cdef = modeInfo.readCdef(r, c, bs, skip, cfg)
+        var r0 = r - (r % 16)
+        var c0 = c - (c % 16)
+        var uidx = r0 * miCols + c0
+        if (cdef >= 0) {
+            cdefUnits[uidx] = cdef
+        }
+        var cdefUnit = cdefUnits[uidx]
+        var deltaQ = modeInfo.readDeltaQ(r, c, bs, skip, cfg)
+        // libaom `read_delta_q_params`: accumulate then clamp to [1,255].
+        qIndex = av1ModeInfoClip3(1, 255, qIndex + deltaQ)
+        var deltaLf = modeInfo.readDeltaLf(r, c, bs, skip, cur, cfg)
+        if (deltaLf.size > 0) {
+            cur = deltaLf
+        }
+
+        // 3. Body: Y/UV mode, angles, CFL, palette, filter-intra (slice 3q). + " lf=" + modeInfo.yModeAt(r, c - 1))
+        var body = modeInfo.readBodyBd(r, c, bs, lossless, hasChroma,
+                                       enableFilterIntra, palettePossible,
+                                       bitDepth)
+
+        // 4. Transform size (slice 3s).
+        var txSz = txSize.readTxSize(r, c, bs, skip, txMode, 0, lossless)
+        // libaom `parse_decode_block` then calls `set_txfm_ctxs(tx_size,
+        // xd->width, xd->height, skip_txfm && is_inter_block(mbmi), xd)`: the
+        // block's transform footprint is broadcast into the per-4x4 above/left
+        // transform context, which the NEXT block's `get_tx_size_context` reads.
+        // For an intra block `skip_txfm && is_inter_block` is 0.
+        txSize.setTxfmCtxs(r, c, bs, txSz, 0)
+
+        out.add(skip)
+        out.add(segId)
+        out.add(cdefUnit)
+        out.add(qIndex)
+        out.add(txSz)
+        out.add(body[0])
+        out.add(body[1])
+        out.add(body[2])
+        out.add(body[3])
+        out.add(body[4])
+        out.add(body[5])
+        out.add(body[6])
+        out.add(body[7])
+        var k = 0
+        while (k < 4) {
+            var v = 0
+            if (k < deltaLf.size) {
+                v = deltaLf.get(k)
+            }
+            out.add(v)
+            k = k + 1
+        }
+        b = b + 1
+    }
+    return out
+}
