@@ -16,6 +16,13 @@
 
 ## 2. API
 
+> **Name precedence (`#786`, `D-MAINT-BATCH-1110`):** a local/parameter named
+> `db` whose type is a **user class** (anything other than the String handle of
+> `db.connect`) is an ordinary receiver — its instance calls are preserved and
+> never enter the db namespace. A local named `db` holding the **handle** keeps
+> the namespace winning, so the idiom below is untouched. A call that matches
+> no db function is a hard `SEM025` error — never a silent drop.
+
 ```kof
 main() {
     var db = db.connect("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
@@ -141,6 +148,7 @@ main() {
     var adultos = orm.where<User>(db, "age", ">", 30)      // operators
     orm.saveAll<User>(db, l)                               // batch (upsert by PK)
     var pg = orm.page<User>(db, 20, 40)                    // pagination
+    var win = orm.window<User>(db, 20, 0)                  // Window<User> (import kof.pagination)
     println(orm.count<User>(db))
     orm.delete<User>(db, 1)
     orm.migrate(db, "add-phone", "ALTER TABLE user ADD phone VARCHAR")
@@ -154,7 +162,8 @@ main() {
 | `orm.find<T>(db, pk)` / `orm.all<T>(db)` | by PK / all |
 | `orm.where<T>(db, field, value[, op])` | filter (op: `=` `>` `<` `>=` `<=` `!=` `LIKE`) |
 | `orm.count<T>(db[, field, value])` | count (with optional filter) |
-| `orm.page<T>(db, limit, offset)` | pagination |
+| `orm.page<T>(db, limit, offset)` | pagination (rows only) |
+| `orm.window<T>(db, limit, offset[, total])` | `Window<T>` rows + nav flags; `total=true` adds a lazy `COUNT(*)` (needs `import kof.pagination`) |
 | `orm.delete<T>(db, pk)` / `orm.deleteAll<T>(db)` | deletion |
 | `orm.migrate(db, name, sql)` | versioned migration (runs once) |
 

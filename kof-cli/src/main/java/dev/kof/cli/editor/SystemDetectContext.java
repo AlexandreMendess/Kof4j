@@ -35,16 +35,35 @@ final class SystemDetectContext implements DetectContext {
     public String readVersion(String exe) {
         String path = whichPath(exe);
         if (path == null) return "unknown";
+        return runVersion(path, 5000, null);
+    }
+
+    static String runVersion(String path, long timeoutMs, Path tmpDir) {
+        Path out = null;
+        Process p = null;
         try {
+            out = tmpDir == null
+                    ? Files.createTempFile("kof-editor-version", ".txt")
+                    : Files.createTempFile(tmpDir, "kof-editor-version", ".txt");
             ProcessBuilder pb = new ProcessBuilder(path, "--version");
             pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String out = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-            p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
-            return out;
+            pb.redirectInput(ProcessBuilder.Redirect.from(new java.io.File(
+                    System.getProperty("os.name", "").toLowerCase().contains("win") ? "NUL" : "/dev/null")));
+            pb.redirectOutput(out.toFile());
+            p = pb.start();
+            if (!p.waitFor(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) return "unknown";
+            return Files.readString(out, java.nio.charset.StandardCharsets.UTF_8);
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return "unknown";
+        } finally {
+            if (p != null && p.isAlive()) p.destroyForcibly();
+            if (out != null) {
+                try {
+                    Files.deleteIfExists(out);
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
 
@@ -76,5 +95,26 @@ final class SystemDetectContext implements DetectContext {
         if (os.contains("mac") || os.contains("darwin")) return "mac";
         if (os.contains("linux")) return "linux";
         return "other";
+    }
+
+    /**
+     * Diretório de instalação da distribuição (onde {@code editor/} viaja). O
+     * launcher instalado injeta {@code -Dkof.install.dir}; sem ele, resolve o
+     * diretório do jar (mesma lógica do {@code kof info}) e, em último caso, o
+     * cwd. Devolver {@code null} — o default da interface — fazia a grammar
+     * TextMate da distribuição nunca ser instalada (issue #767).
+     */
+    @Override
+    public Path installDir() {
+        String prop = System.getProperty("kof.install.dir", "");
+        if (!prop.isEmpty()) return Path.of(prop);
+        try {
+            Path jar = Path.of(SystemDetectContext.class.getProtectionDomain()
+                    .getCodeSource().getLocation().toURI());
+            Path parent = jar.getParent();
+            return parent != null ? parent : Path.of("").toAbsolutePath();
+        } catch (Exception e) {
+            return Path.of("").toAbsolutePath();
+        }
     }
 }
