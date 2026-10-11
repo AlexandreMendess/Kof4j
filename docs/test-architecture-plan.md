@@ -2,9 +2,11 @@
 
 # 🧪 Refactoring Plan — Kof Test Architecture and Modularization
 
-**Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
+**Status:** `CONCLUDED` 11/10/2026 — promoted from `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`); moved to `docs/` per the 3-state rule (every finite phase landed)
 **Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
+
+**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it is **53 cases / 212 checks** (slices 1–28), and further cases are ordinary additive maintenance, not plan work. No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
@@ -1163,7 +1165,7 @@ the https byte4 test to `.Lv_url_false`), guarded RED-first by the new
 `KofValidationUrlParityTest` (RED pre-fix → GREEN 35/35 across both validation classes).
 **Scope note (measured, honest):** `validation.matches` is deliberately EXCLUDED — its
 JVM/JS/Script regex vs Native literal-substring divergence is a known, documented issue
-frozen in `future/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
+frozen in `development/future/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
 (`future/` is FROZEN). Proof (executed): every value measured on the Script target first,
 cross-checked byte-for-byte on jvm/native/js, then frozen; `tests/run-golden.sh`
 **200/200** (50 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0;

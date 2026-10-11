@@ -882,7 +882,7 @@ Java interna**. Não duplicar o trabalho de profiling — referenciá-lo.
 
 # 14. Relação com outros planos
 
-* `docs/development/test-architecture-plan.md` — suíte Java interna (L0–L5, perfis,
+* `docs/test-architecture-plan.md` — suíte Java interna (L0–L5, perfis,
   performance). **Complementar, não duplicado.**
 * `docs/wasm-wasi-plan.md` — KofWasm; o E2E cross-target/WASM da plataforma
   depende dele (`WASM001` até então).

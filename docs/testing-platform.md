@@ -886,7 +886,7 @@ work — reference it.
 
 # 14. Relation to other plans
 
-* `docs/development/test-architecture-plan.md` — internal Java suite (L0–L5, profiles,
+* `docs/test-architecture-plan.md` — internal Java suite (L0–L5, profiles,
   performance). **Complementary, not duplicated.**
 * `docs/wasm-wasi-plan.md` — KofWasm; the platform's cross-target/WASM E2E
   depends on it (`WASM001` until then).

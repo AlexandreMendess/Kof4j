@@ -953,7 +953,7 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md). **ABERTO (3ª frente):**
 > `test-architecture` — promovido 28/09 (`D-TEST-ARCHITECTURE-GO`,
 > `D-FUTURE-BATCH-2809`) para
-> [`test-architecture-plan.md`](test-architecture-plan.md); primeira fatia =
+> [`test-architecture-plan.md`](../test-architecture-plan.md); primeira fatia =
 > profiling da Fase 1 (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
 > infraestrutura pura de testes. **ABERTA (4ª frente):** `pagination` — promovida
 > 28/09 (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) para
