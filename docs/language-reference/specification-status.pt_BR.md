@@ -2,7 +2,7 @@
 
 # Status da Especificação
 
-**Versão:** 0.6.0 · **Data:** 06/09/2026 · **Re-sincronizado 17/09/2026** contra os SG-00x aplicados (`docs/bugs-and-gaps/specification-gaps.md`) e os fixes #322/#330.
+**Versão:** 0.6.1 · **Data:** 06/09/2026 · **Re-sincronizado 17/09/2026** contra os SG-00x aplicados (`docs/bugs-and-gaps/specification-gaps.md`) e os fixes #322/#330.
 
 Classificação de cada feature da linguagem. **Nada aqui é "estável" por
 cortesia** — Stable exige semântica congelada (regra 0.2.6-beta) **e** teste
