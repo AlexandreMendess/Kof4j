@@ -17955,7 +17955,7 @@ EAD
 
 **Boundary:** the Int faces (`math.min(1, 2)`, `math.clamp(5, 0, 10)`, `math.isEven(2)`) are unchanged; `abs`/`sign` untouched; the Double faces keep their own guards. The audit's remaining fix-plan items are separate units (`JVM-01/02/03`, `HTTP-01`, `DIAG-01/02`, `JSN-01`; `ORM-01`/`MEM-01`/`CLI-01` need a maintainer decision). Whether `math.abs(<Long literal>)` binds through the shared call path is §657's question, not this entry's.
 
-<!-- pt-switch --> **PT:** [§658 (pt_BR)](known-bugs.pt_BR.md#658--auditoria-math-02-mathminmaxclamp-e-a-familia-isevenisoddispositiveisnegativeiszero-aceitavam-qualquer-tipo-de-argumento-ligacao-so-por-aridade-mathmin1-25-passava-no-check--verifyerror-no-jvm-o-nativo-imprimia-0-em-silencio---corrigido-1110-lane-flatt-192168100140)
+<!-- pt-switch --> **PT:** [§660 (pt_BR)](known-bugs.pt_BR.md#658--auditoria-math-02-mathminmaxclamp-e-a-familia-isevenisoddispositiveisnegativeiszero-aceitavam-qualquer-tipo-de-argumento-ligacao-so-por-aridade-mathmin1-25-passava-no-check--verifyerror-no-jvm-o-nativo-imprimia-0-em-silencio---corrigido-1110-lane-flatt-192168100140)
 
 ## §659 — `json.encode` of a record diverges across targets: a `Bool` field emitted as `1`/`0` on Script (§659a, FIXED 11/10), a `Long` field crashes JS (§659b), a `Double`/`Float` field emits garbage on native (§659c) — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
 
@@ -17977,3 +17977,16 @@ EAD
 **Boundary:** the golden case `tests/golden/json-records` pins ONLY the 4-target-clean record faces (record encode/decode, nested record, `List<Record>`, `List<String>`, escaped-string field, whitespace-tolerant decode, extra-key-tolerant decode); the `Long`/`Double`/`Float` faces are excluded until §659b/§659c are repaired. The `Bool` face is included because §659a is fixed in this commit. Owner lane compiler/JVM/native `192.168.15.30:9092` (found while deepening the json golden coverage).
 
 <!-- pt-switch --> **PT:** [§659 (pt_BR)](known-bugs.pt_BR.md#659--o-jsonencode-de-um-record-diverge-entre-alvos-um-campo-bool-emitido-como-10-no-script-659a-corrigido-1110-um-campo-long-derruba-o-js-659b-um-campo-doublefloat-emite-lixo-no-nativo-659c---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+## §660 — `av1IntraAvail` (AVIF slice 3ab) derived the intra-prediction edge distances from the frame size alone, ignoring the block's own position, so `nTopPx`/`nLeftPx` were under-counted for every block not at the plane origin — ✅ FIXED 11/10 (lane pipeline/image-vision `192.168.15.21:0`, flatt CLI; caught by the slice-3ae heterogeneous plane driver)
+
+**Symptom (measured):** `av1IntraAvail` (`libs/image/Av1IntraAvail.kf`) computed `xr`/`yd` from `frameW - wpx` / `frameH - hpx` WITHOUT subtracting the block's own `miCol`/`miRow`. libaom's `set_mi_row_col` (`av1/common/av1_common_int.h`) sets `mb_to_right_edge = (mi_cols - bw - mi_col) * MI_SIZE * 8` (and the bottom analogue), i.e. the distance runs from the BLOCK's right/bottom edge to the frame edge — the position term is part of it. For a block at `mi_col == 0` the two agree, which is why the slice-3ab golden (2500 cases, all with `miRow == miCol`) never exposed it; for any block placed further right/bottom the driver returned `nTopPx`/`nLeftPx` too LARGE, so the intra predictor read reference pixels past the block's available edge.
+
+**Root (read from the tree):** the `xr`/`yd` derivation in `av1IntraAvail` had been transcribed from the `av1_predict_intra_block` availability block with `mb_to_right_edge` folded to `(frameW - wpx) << 3` — correct only at the plane origin. The 3ab oracle had mirrored that assumption, so the golden encoded the defect.
+
+**Fix:** `var mbRight = ((frameW >> 2) - av1BlockNum4x4Wide(bsize) - miCol) << 5` and the bottom analogue (the `MI_SIZE * 8 == 32` shift). No other change; `has_top_right`/`has_bottom_left` already received `miRow`/`miCol` and were correct.
+
+**Proof (executed, RED-first):** the 3ab oracle's coverage prologue now also drives the off-origin `mi_row`/`mi_col` grid (`MIS[]` × `MIS[]`, asymmetric), which re-derives **379 of the 5000** dump rows differently from the old golden; the regenerated golden (`SHA256 af05d4e6…`) makes `Av1IntraAvailE2ETest` **6/7 FAIL** on the pre-fix code (the 7th, the golden-pin test, passes on both) and **7/7 GREEN** with the fix. The new slice-3ae `Av1DecodeTilePlaneE2ETest` (7 run / 0F / 2 skipped) additionally exercises the multi-block plane end-to-end against the REAL libaom path.
+
+**Boundary:** luma, single-tile, `PARTITION_NONE` scope of the current AVIF front; the fix is exact for every `miRow`/`miCol`. No compiler change, no language surface.
+
+<!-- pt-switch --> **PT:** [§660 (pt_BR)](known-bugs.pt_BR.md#660--av1intraavail-fatia-avif-3ab-derivava-as-distancias-de-borda-da-predicao-intra-so-do-tamanho-do-frame-ignorando-a-posicao-do-proprio-bloco-entao-ntoppxnleftpx-eram-sub-contados-para-todo-bloco-fora-da-origem-do-plano---corrigido-1110-lane-pipelineimage-vision-19216815210-flatt-cli-pego-pelo-driver-de-plano-heterogeneo-da-fatia-3ae)
