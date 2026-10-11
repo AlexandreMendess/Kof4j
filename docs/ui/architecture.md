@@ -5,7 +5,7 @@
 > **Status:** Phase 1 (inspection) completed; Phases 2-7 implemented (Component
 > Core + Navigation/Router — `go/replace/back/forward/param/current/depth`,
 > real in JS, no-op in the JVM — 30-31/08); Phases 8-11 in progress.
-> **Last updated:** September 12, 2026
+> **Last updated:** October 11, 2026
 > **Version:** 0.6.0
 
 This document is the map of the `kof.ui` architecture: the real state found in
@@ -214,10 +214,10 @@ Window (root/host)
 
 ### 2.4 Rendering
 
-1. **Construction:** `view { s -> ... }` executes → returns the view root (a
+1. **Construction:** `view((s: Int) -> { ... })` executes → returns the view root (a
    layout/leaf node with the child tree).
-2. **When it renders:** on mount (once) and on every `stateSet(...)`/`text(...)`/
-   `flag(...)` (scheduled invalidation, in batch — *batching* via dirty queue).
+2. **When it renders:** on mount (once) and on every `stateSet(...)`
+   (scheduled invalidation, in batch — *batching* via dirty queue).
 3. **How changes are detected:** the state mutation **is** the detection —
    `stateSet(...)` itself is the invalidation point (no polling, no reflection).
 4. **Invalidation:** `stateSet(...)` marks the component dirty in the queue; a flush
@@ -329,7 +329,7 @@ kof-ui/  (conceptual — today it lives in the compiler; the engine is the JS CO
 
 - **Rendering is KofJS.** JVM/Native remain no-op for UI (documented
   gap, as today). The core runs and is tested on the JS target (GraalJS).
-- **API may evolve.** `view { ... }` + `stateSet(...)` is the current form; the
+- **API may evolve.** `view((s: Int) -> { ... })` + `stateSet(...)` is the current form; the
   final format of the "declarative component" may change, but the **architecture**
   (tree, composition, state, invalidation, lifecycle) is stable.
 - **No reactivity magic.** Kof has no property observer; the
