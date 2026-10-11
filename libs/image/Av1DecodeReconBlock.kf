@@ -1,0 +1,188 @@
+package image
+
+import image.Av1Block
+import image.Av1DecodeBlock
+import image.Av1IntraAvail
+import image.Av1IntraBlock
+import image.Av1Quant
+import image.Av1ReconBlock
+import image.Av1Tx
+
+// kof.image — AV1 intra predict+reconstruct transform-block driver (slice 3ac of
+// the AVIF front, plan §34). The stage libaom runs as the intra loop of
+// `decode_token_recon_block` (`av1/decoder/decodeframe.c:908`): for every
+// transform block of a plane, in the enumeration order, it
+//
+//   1. derives the block's availability with the slice-3ab `av1IntraAvail`
+//      (the `have_top_right`/`have_bottom_left` tri-state and the `n_top_px`/
+//      `n_left_px` edge-read limits),
+//   2. predicts the block with the slice-3u `av1IntraPredictBlock`,
+//   3. dequantizes + inverse-transforms the block's decoded levels and adds the
+//      result into the plane with the slice-3z `av1ReconBlockInto`.
+//
+// The interleaving is the point: because each block is reconstructed before the
+// next is predicted, a later transform block of the mode-info block predicts
+// from samples the earlier ones already reconstructed — exactly libaom's
+// `read_coeffs_tx_intra_block` → `predict_and_reconstruct_intra_block` pairing.
+//
+// The enumeration is the slice-3y `av1DecodeBlockGridOrder`. The decoded levels
+// are the deterministic `blockLevels` pattern the slice-3x/3y probes use
+// (`culLevel = (i % 4) + 1`, `dcCategory = i % 3`, every fifth block skipped) so
+// the coefficient walk's decode is not re-run here: this slice is the driver
+// that composes the already-landed primitives, and its oracle is the REAL libaom
+// predictor + inverse-transform path over the same levels.
+//
+// Pure Kof, all targets: no I/O, no compiler change. `decodeRaster` still
+// refuses AVIF until the chain closes.
+
+// The raster position of scan element 1 (`default_scan_*[1]`,
+// `av1/common/scan.c`), i.e. where the single non-zero AC coefficient sits.
+// Valid for the sizes `blockLevels` produces (4x4 / 4x8 / 8x4 / 8x8 / 4x16).
+Int av1ReconScanPos1(Int txSz) {
+    if (txSz == 0) { return 4 }      // TX_4X4
+    if (txSz == 5) { return 8 }      // TX_4X8
+    if (txSz == 6) { return 1 }      // TX_8X4
+    if (txSz == 1) { return 8 }      // TX_8X8
+    if (txSz == 13) { return 16 }    // TX_4X16
+    return 1
+}
+
+// The deterministic quantized levels of one transform block, mirroring
+// libaom's `av1_get_txb_entropy_context` inputs the slice-3x/3y probes encode:
+//   - `cul == 0`          -> an all-zero block (`eob = 0`),
+//   - `dcCat == 0`        -> DC zero and one AC coefficient equal to `cul`
+//                            (`eob = 2`),
+//   - otherwise           -> a DC-only block, negative for `dcCat == 1`
+//                            (`eob = 1`).
+//
+// Returns the `tw * th` levels (`tw = Min(32, w)`, `th = Min(32, h)`), the
+// layout `av1Dequant` consumes.
+Int[] av1ReconBlockLevels(Int txSz, Int cul, Int dcCat) {
+    var tw = av1TxWidth(txSz)
+    if (tw > 32) {
+        tw = 32
+    }
+    var th = av1TxHeight(txSz)
+    if (th > 32) {
+        th = 32
+    }
+    var levels = new Int[tw * th]
+    if (cul == 0) {
+        return levels
+    }
+    if (dcCat == 0) {
+        levels[av1ReconScanPos1(txSz)] = cul
+        return levels
+    }
+    if (dcCat == 1) {
+        levels[0] = -cul
+    } else {
+        levels[0] = cul
+    }
+    return levels
+}
+
+// The intra loop of `decode_token_recon_block` over ONE plane: enumerate the
+// transform blocks (slice-3y order), and for each derive its availability
+// (slice 3ab), predict it (slice 3u), then dequantize + inverse-transform +
+// reconstruct it into `frame` (slice 3z) so the next block predicts from it.
+//
+// Parameters:
+//   - `frame`: the flat plane buffer, `stride` samples per row, with a
+//     one-sample border (the block at `(x, y)` reads `frame[(y-1)*stride + ...]`
+//     and `frame[... + (x-1)]`, so the caller offsets by the border).
+//   - `stride`: the plane row stride (the caller's `frameW + 2`).
+//   - `frameW`/`frameH`: the plane extent in samples.
+//   - `bsize`: the plane mode-info block size (its width/height ARE the plane
+//     extent; the availability's `xr`/`yd` are zero at the plane edges).
+//   - `txSz`/`txType`: the plane's transform size and type.
+//   - `mode`/`angleDelta`/`useFilterIntra`/`filterIntraMode`: the intra
+//     prediction mode of the block.
+//   - `bitDepth`: 8, 10 or 12.
+//   - `disableEdgeFilter`/`intraEdgeFilterType`: the §7.11.2.8-§7.11.2.12
+//     edge-filter controls (`disableEdgeFilter` is `!enable_intra_edge_filter`).
+//   - `maxBlocksWide`/`maxBlocksHigh`: the plane's 4x4-unit extents.
+//   - `dcQuant`/`acQuant`: the dequantization factors (slice 3f).
+//
+// Returns the reconstructed plane, flat row-major of size `frameW * frameH`.
+Int[] av1DecodeReconBlockPlane(Int[] frame, Int stride, Int frameW, Int frameH,
+                               Int bsize, Int txSz, Int txType,
+                               Int mode, Int angleDelta,
+                               Int useFilterIntra, Int filterIntraMode,
+                               Int bitDepth, Int disableEdgeFilter,
+                               Int intraEdgeFilterType,
+                               Int maxBlocksWide, Int maxBlocksHigh,
+                               Int dcQuant, Int acQuant) {
+    var order = av1DecodeBlockGridOrder(txSz, 0, 0, maxBlocksWide, maxBlocksHigh)
+    var w = av1TxWidth(txSz)
+    var h = av1TxHeight(txSz)
+    // The frame carries a one-sample border, so the plane's interior lives at
+    // `[1 .. frameW] x [1 .. frameH]` and the largest valid coordinate is
+    // `frameW`/`frameH` (the predictor reads `frame[(y-1)*stride + ...]`).
+    var maxX = frameW
+    var maxY = frameH
+    var edgeFilter = true
+    if (disableEdgeFilter == 1) {
+        edgeFilter = false
+    }
+    var n = order.size / 2
+    var bi = 0
+    while (bi < n) {
+        var br = order.get(bi * 2)
+        var bc = order.get(bi * 2 + 1)
+        var x = bc << 2
+        var y = br << 2
+        var haveTop = 0
+        if (br != 0) {
+            haveTop = 1
+        }
+        var haveLeft = 0
+        if (bc != 0) {
+            haveLeft = 1
+        }
+
+        // 1. Availability (slice 3ab): haveAboveRight/haveBelowLeft + nTopPx/nLeftPx.
+        //    `sbSize` is BLOCK_64X64 (12) and the partition PARTITION_NONE (0),
+        //    matching the oracle's `has_top_right`/`has_bottom_left` call.
+        var avail = av1IntraAvail(12, bsize, 0, txSz, 0, 0, br, bc, mode,
+                                  angleDelta, useFilterIntra, haveTop, haveLeft,
+                                  0, 0, maxBlocksWide, maxBlocksHigh,
+                                  frameW, frameH)
+        var haveAboveRight = avail[0]
+        var haveBelowLeft = avail[1]
+
+        // 2. Prediction (slice 3u) from the already reconstructed neighbours.
+        //    The block origin is the border-offset `(x + 1, y + 1)`.
+        var pred = av1IntraPredictBlock(frame, stride, x + 1, y + 1, w, h,
+                                        maxX, maxY,
+                                        haveLeft, haveTop, haveAboveRight,
+                                        haveBelowLeft, mode, angleDelta,
+                                        useFilterIntra, filterIntraMode,
+                                        bitDepth, intraEdgeFilterType, edgeFilter)
+
+        // 3. Dequantize + inverse transform + reconstruct (slices 3f/3g/3i/3z).
+        //    Every fifth block is skipped (`eob = 0`), so it stays prediction-only.
+        var cul = (bi % 4) + 1
+        if (bi % 5 == 4) {
+            cul = 0
+        }
+        var levels = av1ReconBlockLevels(txSz, cul, bi % 3)
+        av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, txSz,
+                          txType, bitDepth, false, dcQuant, acQuant)
+
+        bi = bi + 1
+    }
+
+    // Copy the interior (border stripped) into a flat `frameW * frameH` plane.
+    var out = new Int[frameW * frameH]
+    var r = 0
+    while (r < frameH) {
+        var c = 0
+        while (c < frameW) {
+            out[r * frameW + c] = frame[(r + 1) * stride + (c + 1)]
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
