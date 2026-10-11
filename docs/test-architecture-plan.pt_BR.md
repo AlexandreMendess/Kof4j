@@ -1394,7 +1394,7 @@ erro de compilação via `encode(List<T>)` mas lixo silencioso via `encode(obj)`
 CORRIGIDO aqui** — a face de unidade única e baixo risco: o `KofInterpreterRuntime.encodeKof`
 agora consulta o tipo declarado do campo e roteia um campo `bool` por `kof_json_encode_bool` (o
 interpretador guarda `Bool` como `Integer` 0/1, §108, e o slot cru chegava ao encoder sem
-normalização). §659b/§659c ficam registrados OPEN (unidades específicas de backend). Prova
+normalização). A face nativa **§659c foi CORRIGIDA no mesmo dia** (o `ExpressionJsonCallLowerer` agora usa o `kof_json_encode_double`/`_float` registrado na ABI do caminho escalar; nativo `json.encode(R(2.5,1.5))` → `{"d":2.5,"f":1.5}` ≡ JVM). §659b (campo `Long` no JS → `TypeError`) e §659d (o JS perde o `.0` de um `Double` inteiro, escalar e campo igualmente) seguem OPEN (unidades do backend JS). Prova
 (executada): cada valor medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os
 quatro concordam), então congelado; a divergência §659a medida pré-correção nos quatro alvos
 (Script `{"ok":1}` vs os outros três `{"ok":true}`) e VERDE pós-correção; regressão

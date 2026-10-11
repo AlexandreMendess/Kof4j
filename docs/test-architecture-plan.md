@@ -1389,7 +1389,7 @@ refuses `float`/`double` with `JSN002`, so the same record is a compile error vi
 but silent garbage via `encode(obj)`). **§659a is FIXED here** — the single-unit, low-risk face:
 `KofInterpreterRuntime.encodeKof` now consults the declared field type and routes a `bool` field
 through `kof_json_encode_bool` (the interpreter stores `Bool` as `Integer` 0/1, §108, and the raw
-slot reached the encoder unnormalized). §659b/§659c are recorded OPEN (backend-specific units).
+slot reached the encoder unnormalized). The native face **§659c was FIXED the same day** (`ExpressionJsonCallLowerer` now uses the scalar path's ABI-registered `kof_json_encode_double`/`_float`; native `json.encode(R(2.5,1.5))` → `{"d":2.5,"f":1.5}` ≡ JVM). §659b (JS `Long` field → `TypeError`) and §659d (JS drops a whole `Double`'s `.0`, scalar and field alike) stay OPEN (JS-backend units).
 Proof (executed): every value measured on the Script target first, cross-checked byte-for-byte on
 jvm/native/js (all four agree), then frozen; the §659a divergence measured pre-fix on all four
 targets (Script `{"ok":1}` vs the other three `{"ok":true}`) and GREEN post-fix; regression

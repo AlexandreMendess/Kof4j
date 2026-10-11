@@ -96,12 +96,18 @@ public final class ExpressionJsonCallLowerer {
                                 KofCallKind.FUNCTION));
                         break;
                     case "double":
-                        ops.add(new KofCall(BuiltinTypes.STRING, "kof_double_to_string",
+                        // §659c: o valor JSON de um double de campo usa o MESMO
+                        // kof_json_encode_double do caminho escalar (e do JVM/JS/
+                        // Script) — ABI registrada (xmm0) e NaN/±Inf → null. O
+                        // kof_double_to_string anterior era um KofCall cru: o
+                        // emissor genérico punha os bits em %rdi, a função lia
+                        // xmm0 e o campo saía lixo (memória não inicializada).
+                        ops.add(new KofCall(BuiltinTypes.STRING, "kof_json_encode_double",
                                 List.of(Type.PrimitiveType.DOUBLE), BuiltinTypes.STRING,
                                 KofCallKind.FUNCTION));
                         break;
                     case "float":
-                        ops.add(new KofCall(BuiltinTypes.STRING, "kof_float_to_string",
+                        ops.add(new KofCall(BuiltinTypes.STRING, "kof_json_encode_float",
                                 List.of(Type.PrimitiveType.FLOAT), BuiltinTypes.STRING,
                                 KofCallKind.FUNCTION));
                         break;
