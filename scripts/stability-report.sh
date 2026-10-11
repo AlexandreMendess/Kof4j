@@ -56,6 +56,14 @@ verdict_from_log() {
     echo "STABILITY: RED sha=$(short "${lsha:-$want}") tests=$t failures=$f errors=$e skipped=$s"
     return 1
   fi
+  if [ "$t" -eq 0 ]; then
+    # Corrida que rodou NENHUM teste nunca é GREEN: mvn morto na largada
+    # (ex.: -o offline em runner com .m2 vazio) produzia 0F/0E vazio e o
+    # veredito saía verde falso (medido no 1º run vivo do auto-cascade,
+    # 11/10). Fail-closed: unknown, re-meça.
+    echo "STABILITY: unknown — TOTAL com tests=0 (nenhum teste rodou) — re-meça"
+    return 3
+  fi
   if [ -z "$lsha" ]; then
     echo "STABILITY: unknown — log sem SUITE-SHA (corrida anterior a estampa); re-rode scripts/safe-suite.sh"; return 3
   fi
@@ -84,6 +92,8 @@ if [ "$SELFTEST" = true ]; then
     printf 'x\nTOTAL: tests=100 failures=0 errors=0 skipped=5\n'; } > "$ST/othersha"
   { printf 'SUITE-SHA: %s\n' "$HEAD_SHA"; printf 'SUITE-DIRTY: 3\n'
     printf 'x\nTOTAL: tests=100 failures=0 errors=0 skipped=5\n'; } > "$ST/dirty"
+  { printf 'SUITE-SHA: %s\n' "$HEAD_SHA"; printf 'SUITE-DIRTY: 0\n'
+    printf 'x\nTOTAL: tests=0 failures=0 errors=0 skipped=0\n'; } > "$ST/zerotests"
   out="$(verdict_from_log "$ST/green")" || fail "log verde reprovado (falso vermelho): $out"
   grep -q "STABILITY: GREEN" <<<"$out" || fail "log verde nao deu GREEN"
   verdict_from_log "$ST/redf" >/dev/null && fail "failures=1 aceito (falso verde)"
@@ -94,7 +104,9 @@ if [ "$SELFTEST" = true ]; then
   out="$(verdict_from_log "$ST/othersha")" && fail "log de OUTRO sha aceito (falso verde): $out"
   grep -q "STABILITY: unknown" <<<"$out" || fail "log de outro sha nao deu unknown: $out"
   out="$(verdict_from_log "$ST/dirty")" && fail "log de arvore SUJA aceito (falso verde): $out"
-  echo "SELFTEST: ok — GREEN so com 0F/0E + SUITE-SHA do tip + SUITE-DIRTY=0; outro sha / sujo / sem-stamp / sem-TOTAL reprovados"
+  out="$(verdict_from_log "$ST/zerotests")" && fail "log com tests=0 aceito (falso verde — mvn morto na largada): $out"
+  grep -q "STABILITY: unknown" <<<"$out" || fail "log tests=0 nao deu unknown: $out"
+  echo "SELFTEST: ok — GREEN so com 0F/0E + tests>0 + SUITE-SHA do tip + SUITE-DIRTY=0; outro sha / sujo / sem-stamp / sem-TOTAL / tests=0 reprovados"
   exit 0
 fi
 

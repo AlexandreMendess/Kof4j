@@ -299,6 +299,24 @@ public final class FfiSignature {
         return desc;
     }
 
+    /** M1 callbacks no cross (riscv64/aarch64): face escalar, orçamento da ABI
+     *  cruzada (int a0..a7, FP fa0..fa7) e arity ≤ 7 (o `invoke` Kof usa a0 à
+     *  closure). */
+    public static String crossCallbackDesc(String desc) {
+        if (desc == null) return null;
+        int nInt = 0, nFp = 0;
+        for (int i = 0; i < desc.length(); i++) {
+            char c = desc.charAt(i);
+            if (c != 'i' && c != 'j' && c != 'b' && c != 'f' && c != 'd' && c != 'v') return null;
+            if (i == 0) continue;
+            if (c == 'f' || c == 'd') nFp++;
+            else nInt++;
+        }
+        if (nInt > 8 || nFp > 8) return null;
+        if (desc.length() - 1 > 7) return null;
+        return desc;
+    }
+
     /** Descritor de callback ("r" + chars dos params) ou null se não for bindável. */
     static String callbackDescriptor(String t) {
         if (!isFunctionType(t)) return null;

@@ -36,7 +36,12 @@
           digests" verification — see scripts/check-reproducible-build.sh.
         -->
         <project.build.outputTimestamp>2020-01-01T00:00:00Z</project.build.outputTimestamp>
-        <asm.version>9.11</asm.version>
+        <!-- 9.10.1 PINNED (#805): asm 9.11 (the #793 minor-patch bump) added
+             ComputeLimits that refuse large generated methods
+             (LimitExceededException "Too many operations" in COMPUTE_FRAMES) —
+             measured RED on the dense-file regression (largeDenseFileLoadsOnJvm)
+             and on CI. Re-bump only after an upstream release lifts the limit. -->
+        <asm.version>9.10.1</asm.version>
         <junit.version>6.1.3</junit.version>
         <graaljs.version>25.4.4.1.1</graaljs.version>
     </properties>

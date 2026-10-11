@@ -93,7 +93,12 @@ public final class JsRuntimeUiConfig {
                     // arquivo kof.config no diretório de trabalho (precedência 4)
                     if (!globalThis.__kofConfigFile) {
                         globalThis.__kofConfigFile = {};
-                        if (typeof kof_platform !== 'undefined' && kof_platform.readFile) {
+                        // Presença por "in" (não `kof_platform.readFile` truthy): o
+                        // shim #104 devolve função lançadora p/ prop ausente, então
+                        // `kof_platform.readFile` seria truthy fora do host e a
+                        // chamada lançaria (engolida pelo catch → config vazia
+                        // silenciosa; §653).
+                        if (typeof kof_platform !== 'undefined' && ("readFile" in kof_platform)) {
                             const text = kof_platform.readFile('kof.config');
                             if (text) {
                                 for (const line of String(text).split('\\n')) {

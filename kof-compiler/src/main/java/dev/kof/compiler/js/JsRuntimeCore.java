@@ -203,9 +203,18 @@ public final class JsRuntimeCore {
                 if (!node) return "";
                 const tag = (node.tagName ? node.tagName.toLowerCase() : "div");
                 let attrs = "";
-                if (node.id) attrs += ' id="' + kofEscapeHtml(node.id) + '"';
-                if (node.className) attrs += ' class="' + kofEscapeHtml(node.className) + '"';
-                if (node.src) attrs += ' src="' + kofEscapeHtml(node.src) + '"';
+                const seen = {};
+                if (node.id) { attrs += ' id="' + kofEscapeHtml(node.id) + '"'; seen["id"] = true; }
+                if (node.className) { attrs += ' class="' + kofEscapeHtml(node.className) + '"'; seen["class"] = true; }
+                if (node.src) { attrs += ' src="' + kofEscapeHtml(node.src) + '"'; seen["src"] = true; }
+                // D-UI-A11Y (#789): atributos definidos via setAttribute (role,
+                // tabindex, aria-*) não eram serializados — o HTML exportado não
+                // refletia a semântica acessível. Emite os que ainda não saíram.
+                const extra = node._attrs || {};
+                for (const k in extra) {
+                    if (seen[k]) continue;
+                    attrs += ' ' + k + '="' + kofEscapeHtml(extra[k]) + '"';
+                }
                 const kids = Array.from(node.children || []);
                 const inner = kids.map(kofSerialize).join("");
                 if (tag === "hr" || tag === "iframe" || tag === "br" || tag === "img") {
@@ -446,6 +455,10 @@ public final class JsRuntimeCore {
                 const id = Object.keys(window.__kofWindows).length + 1;
                 const winEl = document.createElement("div");
                 winEl.className = "kof-window";
+                // D-UI-A11Y (#789): a PRIMEIRA janela é o marco "main" da
+                // aplicação (um documento tem no máximo UMA landmark main);
+                // janelas adicionais não a duplicam.
+                if (id === 1) winEl.setAttribute("role", "main");
                 window.__kofWindows[id] = winEl;
                 document.title = title;
                 root.appendChild(winEl);

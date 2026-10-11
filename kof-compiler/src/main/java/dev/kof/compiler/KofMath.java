@@ -169,6 +169,22 @@ public final class KofMath {
         return "MATH001";
     }
 
+    /** The three math constants are COMPILE-TIME doubles — the lowering site
+     *  folds them to a {@code KofLoadLiteral.ofDouble} instead of emitting a
+     *  {@code kof_math_pi/e/tau} call. The native runtime has NO such symbol
+     *  (only the JVM defines it), so a call type-checked everywhere but died at
+     *  {@code ld} with a mislabeled {@code COMP001}; folding reuses the tested
+     *  double-literal path and makes them work on every target, byte-identical
+     *  (the value is the exact IEEE-754 constant). */
+    static Double constantValue(String function) {
+        return switch (function) {
+            case "kof_math_pi" -> Math.PI;
+            case "kof_math_e" -> Math.E;
+            case "kof_math_tau" -> 2.0 * Math.PI;
+            default -> null;
+        };
+    }
+
     private static boolean isInt(Type t) {
         return t == INT || "int".equals(t.toString()) || "Int".equals(t.toString());
     }
