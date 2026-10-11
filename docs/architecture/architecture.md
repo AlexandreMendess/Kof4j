@@ -7,7 +7,7 @@
 ## Status: Accepted
 
 **Last updated:** September 13, 2026
-**Version:** 0.5.0-beta
+**Version:** 0.6.0
 
 > **Visual improvement 13/09 (issue #109):** the ASCII diagrams of this ADR
 > (Pipeline, Type Representation, IR, backends and stdlib dispatch) became
@@ -202,7 +202,7 @@ client with **retry/circuit breaker** (`KOF_HTTP_RETRIES`/`KOF_HTTP_TRIPS`/
 
 ## Native Backend
 
-The native backend generates ELF binaries (0.5.0-beta).
+The native backend generates ELF binaries (0.6.0).
 
 ```mermaid
 flowchart TD
@@ -237,7 +237,7 @@ Runtime functions (x86-64, `NativeRuntime.java:1`):
 - Generates ES Modules, executed by embedded GraalJS (`KofJsRunner`) — no Node.js required
 - Supports pattern matching (`case String s` + `Point(x,y)` via `typeof` + destructuring), `String?` basic, `kof.http` via `Java HttpClient` interop (+ fetch fallback; retry/circuit in parity with the JVM, 30/08), `List map/filter/reduce`, `Box<T>` via `substituteTypeVariable`
 - Scheduler `kof.time` via `setInterval` (27/08); `spawn`/`await` with real async/await/Promise (statement/expression; CONC003 closed 03/09)
-- Status alpha (0.5.0-beta)
+- Status alpha (0.6.0)
 
 ## KofCCompiler
 
@@ -247,7 +247,7 @@ Runtime functions (x86-64, `NativeRuntime.java:1`):
 
 KofScript is a **direct execution target**: pure Kof executed by the
 IR interpreter, with no compilation step and no JVM fork
-(0.5.0-beta). **It is not JavaScript** — `let`/`const`/`async`/`fn` do not
+(0.6.0). **It is not JavaScript** — `let`/`const`/`async`/`fn` do not
 exist; they fail with the normal Kof parser diagnostic.
 
 ```bash

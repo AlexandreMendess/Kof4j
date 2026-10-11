@@ -571,6 +571,30 @@ visible/enabled/text/value/attribute.
 Auto-wait is fundamental: prefer `wait until visible/enabled/text/network idle/URL/condition`
 over `sleep(1000)`. **Arbitrary sleeps are not a normal synchronization strategy.**
 
+Landed (11/10, the provider-layer face): the SPI gains `assertOn(url, locator, assertion)` —
+default honest `capability unsupported: locator/assert` refusal (the §6.4 matrix marks
+locator/assertion only on Playwright); `PlaywrightLibProvider` implements it (kind-parameterized,
+default chromium) by resolving each semantic scheme to the backend's native engine
+(`getByRole`/`getByText`/`getByLabel`/`getByPlaceholder`/`getByTestId`, css/xpath as escape
+hatches). Grammar parsed pure in `KofLocator` (e.g. `role=button[name="Save"]`, `text=Hello`,
+`attr=href`). Measured semantics (pinned by `PlaywrightLocatorE2ETest` on real Chromium):
+`visible` reads the FIRST match immediately (absent/hidden = `"false"`, no wait);
+`enabled`/`text`/`value`/`attr` auto-wait 5s and a missing element is a NAMED error carrying
+the locator (never a false `"false"`); `attr` of an absent attribute returns `"null"`.
+
+Landed (11/10, the interaction half): the SPI gains `interact(url, locator, action)` (`click`,
+`fill=<texto>`, `press=<tecla>` — the §6.4 row click/fill/keyboard becomes TRUE on Playwright
+for click/fill and single-key press; the full keyboard API stays unclaimed) with the same
+honest default refusal on the other providers, and `PlaywrightLibProvider.flow(kind, url,
+steps)` — steps `locator :: action|assertion` on ONE page lifecycle, the LAST step an assertion
+whose measured value is the return (an action-ending flow is refused: an unmeasured outcome is
+not a test). MEASURED (the first `PlaywrightInteractE2ETest` run was RED with this exact
+finding): each standalone face opens and closes its own browser, so state does NOT cross calls
+— fill-then-assert-in-two-calls measured empty; the flow is the stateful unit of E2E.
+The Kof-facing wiring (browser faces callable from `.kf` tests) is still the missing middle —
+namespaces are compiler intrinsics and the capability lives in kof-cli; a later slice decides
+that mechanism.
+
 ## 6.6 Web assertions
 
 Conceptually `expect(locator).toBeVisible()`, `toHaveText`, `toHaveValue`,
@@ -742,6 +766,15 @@ merely because a retry passed → **Flaky Test Detection** report.
 
 On E2E failure, automatically collect when possible: screenshot, video, trace, console, network,
 HTML, logs — so `CI failed → open artifact → see exactly what happened`.
+
+Dependency note (measured 11/10): the browser SPI (`dev/kof/browser/BrowserProvider` —
+`name`/`probe`/`dumpDom`/`screenshot`/`assertOn`) has **no production call site outside its
+package** — the faces are consumed by JUnit E2E tests only. The §6.5 provider-layer face
+(semantic locator + assert) landed 11/10, but the harness hook this section describes still
+needs the KOF-facing execution surface (browser faces callable from `.kf` tests — namespaces
+are compiler intrinsics and the capability lives in kof-cli); landing 8.1 before that wiring
+would be infrastructure without a consumer (Q7). Order: Kof-facing wiring → 8.1 hook on its
+failure path.
 
 ## 8.2 Screenshots and visual regression
 

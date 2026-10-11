@@ -287,7 +287,13 @@ public final class JsRuntimeUiSecurity {
                 const saltBytes = kofSecHexToBytes(saltHex);
                 // The embedded runner delegates PBKDF2 to the platform (fast);
                 // standalone JS engines fall back to the pure-JS implementation.
-                const dkHex = (typeof kof_platform.pbkdf2Hex === "function")
+                // Detecção por PRESENÇA ("in"), não por `typeof ... === "function"`:
+                // o shim #104 de kof_platform devolve uma função lançadora para
+                // QUALQUER prop ausente, o que torna `typeof kof_platform.pbkdf2Hex
+                // === "function"` verdadeiro fora do host — o fallback puro-JS
+                // nunca era alcançado (verify de um hash válido dava `false`
+                // silencioso; §653). `in` não dispara o trap `get` do shim.
+                const dkHex = (typeof kof_platform !== "undefined" && "pbkdf2Hex" in kof_platform)
                         ? kof_platform.pbkdf2Hex(password, saltHex, 600000)
                         : kofSecBytesToHex(kofSecPbkdf2Raw(kofSecUtf8(password), saltBytes, 600000, 32));
                 const dk = kofSecHexToBytes(dkHex);
@@ -315,7 +321,7 @@ public final class JsRuntimeUiSecurity {
                     const saltBytes = kofSecB64Decode(parts[3]);
                     const expected = kofSecB64Decode(parts[4]);
                     const saltHex = kofSecBytesToHex(saltBytes);
-                    const actualHex = (typeof kof_platform.pbkdf2Hex === "function")
+                    const actualHex = (typeof kof_platform !== "undefined" && "pbkdf2Hex" in kof_platform)
                             ? kof_platform.pbkdf2Hex(password, saltHex, iterations)
                             : kofSecBytesToHex(kofSecPbkdf2Raw(kofSecUtf8(password), saltBytes, iterations, expected.length));
                     const actual = kofSecHexToBytes(actualHex);

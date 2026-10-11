@@ -3,7 +3,7 @@
 # stdlib database — Kof Native Database
 
 **Last updated:** September 18, 2026
-**Version:** 0.5.0-beta
+**Version:** 0.6.0
 **Status:** implemented (Phase 5 of the Spring independence plan) — JVM (JDBC) + Native (SQLite via direct `.so` + MySQL wire real on x86-64, F2d1–F2d7 22/09) + `kof.orm` (JVM + MongoDB); JS untyped ✅ (16/09), typed `query<T>` ✅ (18/09, `DB002` closed), `kof.orm` ✅ on JS (18/09, `ORM001` closed); `ORM001` remains only on Native cross riscv64/aarch64
 
 ---
@@ -104,7 +104,7 @@ Native:
   detected at compile-time). Full handshake, query and prepared statements
   still in progress (P3).
 
-## 6. Targets (0.5.0-beta)
+## 6. Targets (0.6.0)
 
 | Target | Status | Notes |
 |--------|--------|-------|
@@ -113,7 +113,7 @@ Native:
 | Native riscv64 | ✅ SQLite (riscv64) | `li a7` syscalls |
 | JS | ✅ untyped (16/09); typed `query<T>` = `DB002` CLOSED 18/09 | `connect/execute/query/close/transaction` via `kof_platform.db*` on the GraalJS host; typed `orm.*` CLOSED 18/09 (`ORM001` — `KofJsOrmBridge`, same SQL as JVM, byte-parity E2E) |
 
-## 7. Tests (0.5.0-beta)
+## 7. Tests (0.6.0)
 
 `KofDbE2ETest` 8 + `KofOrmE2ETest` 16 (includes MariaDB/PostgreSQL/MongoDB with conditional skip + native SQLite) — execute + JSON query,
 typed query with bind, transaction with commit, rollback on exception,

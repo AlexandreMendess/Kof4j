@@ -48,6 +48,31 @@ public final class JsRuntimeUiWidgets {
                 if (n) n.disabled = disabled ? true : false;
             }
 
+            // D-UI-A11Y (issue #789): superfície de acessibilidade intent-based.
+            // O Kof diz "esta é a descrição acessível desta coisa"; o runtime faz
+            // o mapeamento ARIA. A INTENÇÃO (nome / live / clicável) é gravada no
+            // nó e TODOS os atributos gerenciados são recomputados por
+            // kofUiSyncA11y — assim a ordem das chamadas não muda o resultado e o
+            // estado obsoleto é descartado na reutilização de raiz (#807). Real só
+            // no KofJS (no-op JVM/Native).
+            export function kofUiWidgetSetAccessibleName(widget, name) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (!n) return;
+                n._kofA11y = n._kofA11y || {};
+                n._kofA11y.name = name;
+                kofUiSyncA11y(n);
+            }
+
+            // Região "live": atualizações relevantes são anunciadas com polidez
+            // (aria-live="polite"). O conteúdo real vem do fluxo normal do app.
+            export function kofUiWidgetSetAnnounce(widget, on) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (!n) return;
+                n._kofA11y = n._kofA11y || {};
+                n._kofA11y.announce = !!on;
+                kofUiSyncA11y(n);
+            }
+
             // issue #78: primitivas visuais além do Style(bg/fg/padding/radius).
             // Real só no JS (no-op JVM/Native, como setId/setDisabled). Color é
             // o Int empacotado RGBA do runtime (kofUiColorToCss); style inline
@@ -387,6 +412,10 @@ public final class JsRuntimeUiWidgets {
                 canvas.width = w;
                 canvas.height = h;
                 canvas.className = "kof-canvas";
+                // D-UI-A11Y (#789): um canvas é uma imagem sem texto alternativo;
+                // role="img" + o nome acessível (setAccessibleName) dão a
+                // alternativa textual a leitores de tela.
+                canvas.setAttribute("role", "img");
                 canvas.style.display = "block";
                 const ctx = canvas.getContext("2d");
                 if (typeof window.__kofNodes === "undefined") window.__kofNodes = {};

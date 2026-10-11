@@ -20,7 +20,7 @@ TIER 3–5 marked DEPRIORITIZED by the maintainer 15/09 — trio back to `future
 implementation plan (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`);
 migration cluster consolidated — `LEGACY_IR`+`DIFFERENTIAL_TESTING` merged into
 `LEGACY_MIGRATION.md`)
-**Version:** 0.5.0-beta (active development branch `lab`)
+**Version:** 0.6.0 (active development branch `lab`)
 
 ---
 
@@ -788,7 +788,7 @@ Kof is a distributable platform, not just a JAR:
 
 - self-contained distribution (compiler, CLI, runtime, stdlib, tooling, editor support, embedded JDK 25);
 - OpenJDK embedded in the official package (Temurin 25, tooling API level 21);
-- centralized versioning (`VERSION` 0.5.0-beta → pom/properties via `scripts/bump-version.sh`);
+- centralized versioning (`VERSION` 0.6.0 → pom/properties via `scripts/bump-version.sh`);
 - releases by 2 jobs (`release.yml`: `test-and-bump` exports `bump_sha` → `package-and-release` checks the bump commit + version sanity check) on push to `main`, per platform linux-x86_64 / macos-arm64 / windows-x86_64 (tests 819 → bump → package 3 platforms → GitHub Release);
 - `scripts/package.sh` PASS (dist layout + tar.gz/zip + SHA256SUMS + jars), golden 16/16, integration 9/9;
 - official editor support: TextMate grammar + LSP (hover/completion + real diagnostics) + `kof editor install` (VS Code/Neovim/Vim/Emacs/Geany/Nano + honest step-10 IntelliJ 13/09: filetype XML + External Tools + LSP4IJ README, no plugin — issue #1);
@@ -1005,7 +1005,7 @@ domain (`INFRA00x`/`DATA00x`/`SCI00x`/`BIO00x`/`SECPQ`) + parity matrix;
 | 2.1.1–2.1.3 | `extern` syntax + type-check + gaps `FFI001`/`FFI002` (never silent drop) | ✅ `Parser.java:192` (PARSE090), `ExternalFunctionNode`, `FfiE2ETest` |
 | 2.1.4 | **JVM** binding (FFM `java.lang.foreign`) | ✅ **generalized 18/09 (`.18`, R3):** any scalar signature, arbitrary arity, `void`/`String` returns — measured `fmod`→1.5, `ldexp`→12.0, `strncmp`→-1, `puts(void)`, `getenv`→String (`syntax.md`) |
 | 2.1.5 | **Native** binding | ✅ **20/09 (#431 slices 1–2, §369)** — the raw binary binds scalars **direct** (`call sym@PLT`, link-by-use), which **supersedes `dlopen`/`dlsym`**; §61 closed. The old `dlopen` segfault was the reason for the switch, not an open gap |
-| 2.1.6 | struct/array marshalling | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` by value as arg/return + scalar `T[]`→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landed 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **Native/cross struct sret + by-value param LANDED 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan.md` — the roadmap row was stale); **JS struct bridge ✅ COMPLETE 21/09** (struct param + return, scalar array copy-in, `Buffer(U8)` INOUT — all byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; this row's "remaining = JS struct bridge" was stale). Remaining = cross HFA struct RETURN + callbacks (HFA PARAM landed 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); float/HFA-param (honest `FFI001`/`FFI002`, R6; cross `T[]`, `Buffer(U8)`, `String[]`→`char**`, memory-path structs and >16 B params landed 29–30/09). D6 ✅ decided 20/09 |
+| 2.1.6 | struct/array marshalling | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` by value as arg/return + scalar `T[]`→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landed 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **Native/cross struct sret + by-value param LANDED 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan.md` — the roadmap row was stale); **JS struct bridge ✅ COMPLETE 21/09** (struct param + return, scalar array copy-in, `Buffer(U8)` INOUT — all byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; this row's "remaining = JS struct bridge" was stale). Remaining = cross HFA struct RETURN (HFA PARAM landed 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); **callbacks LANDED 11/10 on x86-64 AND cross riscv64/aarch64** (M1 unidade-4, `FfiNativeCallbackE2ETest` — only a `String`-return callback stays honest `FFI001`); float/HFA-param (honest `FFI001`/`FFI002`, R6; cross `T[]`, `Buffer(U8)`, `String[]`→`char**`, memory-path structs and >16 B params landed 29–30/09). D6 ✅ decided 20/09 |
 | 2.1.7 | JS: gap `FFI002` | ✅ honest gap + **scalar parity CLOSED 18/09 (`d3598c2d`, slices 3.6.F1–F3):** host runner binds via `KofJsFfiBridge`, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS; browser = runtime R7; non-scalar keeps `FFI002` |
 | 2.2.1 | Inventory of implicit codegen (4 points: runtime `.source()`, `desugarTests`, `desugarApplication`, entity→record+schema) | ✅ the 4 exist (`CompilerPipeline:295-296`) |
 | 2.2.2 | **Formal `CodegenStep` hook** | ✅ **LANDED 21/09 (R4, `D-CODEGEN-STEP`)** — `CodegenStep`/`CodegenStepPipeline` (additive; empty registry = identity, zero behavior change; `CodegenStepPipelineTest` 6/6). The old `d1c56bad` "✅" was an over-claim from the `planning-future` branch; R4 is the real landing |

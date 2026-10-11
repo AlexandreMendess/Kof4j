@@ -33,4 +33,28 @@ public interface BrowserProvider {
         throw new UnsupportedOperationException(
                 "capability unsupported: screenshot on " + name());
     }
+
+    /** §6.5: resolve um locator semântico sobre a página renderizada e mede
+     *  UMA asserção (`visible`, `enabled`, `text`, `value`, `attr=<name>`),
+     *  devolvendo o valor medido ("true"/"false", o texto, o valor do input,
+     *  o atributo — "null" quando o atributo não existe). O default é a
+     *  recusa honesta da capacidade — a matriz §6.4 marca locator/assertion
+     *  só no Playwright; os outros backends nunca fingem equivalência. */
+    default String assertOn(String url, String locator, String assertion)
+            throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: locator/assert on " + name());
+    }
+
+    /** §6.5/§6.2: resolve um locator semântico sobre a página renderizada e
+     *  EXECUTA uma interação (`click`, `fill=<texto>`, `press=<tecla>`) — o
+     *  retorno vazio é o contrato: a chamada auto-espera o elemento e só
+     *  volta quando a ação aconteceu (falha = exceção nomeada). O default é
+     *  a recusa honesta da capacidade — a matriz §6.4 marca click/fill só no
+     *  Playwright; os outros backends nunca fingem equivalência. */
+    default void interact(String url, String locator, String action)
+            throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: interact on " + name());
+    }
 }

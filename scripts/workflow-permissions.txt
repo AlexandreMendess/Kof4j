@@ -14,3 +14,6 @@ allow kof-quality-bot.yml security-gate pull-requests comentario do codeql-gate 
 allow kof-security-bot.yml codeql-security security-events upload do SARIF filtrado (#563) da suite security-extended
 allow pr-base-guard.yml guard-main pull-requests comenta uma vez no PR que mira main sem ser codeowner
 allow promote.yml gate pull-requests abre o PR de promocao auditavel (idempotente) quando o Promotion Gate passa; nunca faz push direto em estagio protegido
+allow auto-promote.yml cascade pull-requests abre e mergea os PRs de promocao do auto-cascade por commit (automation-enforcement; ordem viva da mantenedora 11/10); nunca toca main
+allow auto-promote.yml cascade checks publica os status checks obrigatorios com o veredito MEDIDO da suite + proveniencia no head de cada salto (nunca veredito nao-medido)
+allow auto-promote.yml cascade actions despacha o release.yml na prerelease quando a VERSION e fresca (publicacao do candidato)

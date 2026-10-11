@@ -39,7 +39,7 @@ final class ExpressionFieldAccessTyper {
             return KofUi.COLOR;
         }
         if (fa.receiver() instanceof IdentifierExpr pId && KofUi.isPalette(pId.name())
-                && KofUi.paletteColor(fa.fieldName()) != null) {
+                && KofUiColors.paletteColor(fa.fieldName()) != null) {
             return KofUi.COLOR;
         }
         if (fa.receiver() instanceof IdentifierExpr tid && KofUiTokens.isTokenNamespace(tid.name())
