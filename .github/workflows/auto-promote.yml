@@ -120,6 +120,14 @@ jobs:
           fi
           echo "SUITE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
+      - name: upload the suite log when the verdict is not green (flake diagnosis)
+        if: env.SUITE_VERDICT != 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: suite-log-${{ github.sha }}
+          path: ${{ runner.temp }}/suite.log
+          retention-days: 14
+
       - name: cascade the promotion PRs (+ conditional publish)
         env:
           ATTEMPT: ${{ inputs.attempt || '1' }}
