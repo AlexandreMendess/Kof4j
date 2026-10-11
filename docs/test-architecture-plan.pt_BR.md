@@ -6,7 +6,7 @@
 **Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 
-**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento são **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano. Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
+**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**). Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
@@ -1275,6 +1275,27 @@ medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro 
 então congelado; `tests/run-golden.sh` **220/220** (55 casos × 4 alvos), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/
 `check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Fase 6 fatia 31 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **56 total** — pinando o núcleo determinístico do `kof.passwords`, um namespace
+não pinado por NENHUM caso de equivalência até agora. O novo caso
+`tests/golden/passwords-namespace` pina a face `verify` (`passwords.verify("hunter2", h1)`
+→`true`, a senha errada `passwords.verify("wrong", h1)`→`false`, o hash de 600 000 iterações
+`passwords.verify("hunter2", h6)`→`true`, e o malformado `passwords.verify("hunter2",
+"not-a-hash")`→`false`) e a face `needsRehash` (`passwords.needsRehash(h1)`→`true` para um
+hash de 1000 iterações, `passwords.needsRehash(h6)`→`false` para um hash de 600 000
+iterações, e `passwords.needsRehash("not-a-hash")`→`true`). Os hashes são strings
+`pbkdf2$sha256$<iters>$<salt>$<dk>` FIXAS (salt `00112233445566778899aabbccddeeff`, a chave
+derivada de `"hunter2"` congelada em cada contagem de iterações), então o pin é
+determinístico. Os quatro alvos concordam byte-a-byte. **Nota de escopo (medida, honesta):**
+`passwords.hash` é deliberadamente EXCLUÍDO — sorteia um salt aleatório novo a cada chamada
+e não pode ser um pin determinístico de 4 alvos; `passwords.verify`/`needsRehash` são
+4-alvos limpos (`KofSecurity.supportedOn` aceita `jvmLike || JS || isNative`), e esta fatia
+também guarda o fix §653 do `verify` JS ponta-a-ponta. Apenas infraestrutura de teste, sem
+mudança de compilador. Prova (executada): cada valor medido primeiro no alvo Script, cruzado
+byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh`
+**224/224** (56 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
 ### Fase 7 — Integração
 

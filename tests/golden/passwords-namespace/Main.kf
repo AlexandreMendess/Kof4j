@@ -1,0 +1,11 @@
+main() {
+    var h1 = "pbkdf2$sha256$1000$ABEiM0RVZneImaq7zN3u/w==$dWX01m72z6r8MAgI5bdcNsMgEkSUhpes+9NJriHBDWM="
+    var h6 = "pbkdf2$sha256$600000$ABEiM0RVZneImaq7zN3u/w==$6zIcLyeOhS9pGj4gc8fw+0WBE53Purz7+rf2A7ACjdQ="
+    println(passwords.verify("hunter2", h1))
+    println(passwords.verify("wrong", h1))
+    println(passwords.verify("hunter2", h6))
+    println(passwords.verify("hunter2", "not-a-hash"))
+    println(passwords.needsRehash(h1))
+    println(passwords.needsRehash(h6))
+    println(passwords.needsRehash("not-a-hash"))
+}
