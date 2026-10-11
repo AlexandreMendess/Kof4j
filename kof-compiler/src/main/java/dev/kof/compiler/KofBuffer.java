@@ -120,11 +120,13 @@ public final class KofBuffer {
                 || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64;
     }
 
-    /** Per-function supportedOn: `peek*` is a raw-memory read — the JS host has
-     *  no address space (the JS Buffer is emulated), so peek stays an honest gap
-     *  there; Android/Script gap for the whole namespace (existing rule). */
+    /** Per-function supportedOn: `peek*`/`poke*` touch raw memory — the JS host has
+     *  no address space (the JS Buffer is emulated), so they stay an honest gap
+     *  there; Android/Script gap for the whole namespace (existing rule). The
+     *  argument is the emitted SYMBOL (`kof_buffer_peek8`, `kof_buffer_poke64_buf`),
+     *  not the bare Kof name, so the test is a substring on the symbol. */
     static boolean supportedOn(String function, Target target) {
-        if (function.startsWith("peek") || function.startsWith("poke")) {
+        if (function.contains("peek") || function.contains("poke")) {
             return target == Target.JVM
                     || target == Target.NATIVE
                     || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64;
