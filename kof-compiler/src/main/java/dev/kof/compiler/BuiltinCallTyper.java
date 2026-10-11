@@ -194,7 +194,14 @@ public final class BuiltinCallTyper {
         if (mc.receiver() == null && "readLine".equals(mc.methodName()) && mc.arguments().isEmpty()) {
             return BuiltinTypes.STRING;
         }
-        if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())) {
+        if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
+                && !isCallableLocal(scope, mc.methodName())) {
+            // um local CHAMÁVEL com o mesmo nome (ex.: o parâmetro-lambda `body`
+            // do helper `withDb` de kof.test.db) VENCE o nome de contexto — a
+            // chamada é um lambda comum, não a função web (regressão 0.6.2).
+            // Um local NÃO-chamável (ex.: o parâmetro sintético `sse` do handler)
+            // NÃO vence: o `sse("...")` nu continua sendo a função de contexto.
+        
             List<Type> webArgTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) webArgTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), webArgTypes);
@@ -323,6 +330,13 @@ public final class BuiltinCallTyper {
             return true;
         }
         return scope.resolve(name) != null;
+    }
+
+
+    /** local/parâmetro CHAMÁVEL (lambda) — vence o nome de contexto web (regressão 0.6.2). */
+    private static boolean isCallableLocal(SymbolTable scope, String name) {
+        SymbolTable.Symbol sym = scope != null ? scope.resolve(name) : null;
+        return sym != null && sym.type() instanceof Type.FunctionType;
     }
 
     static Type inferTail(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
