@@ -3,7 +3,7 @@
 # `kof.workflow` — jobs, pipelines, retry, checkpoints, dead-letter (design plan · Stage 2 · TIER 2.1)
 
 > **Status: CONCLUDED 19/09 — all five slices (2.1.0–2.1.4) landed with proof
-> (`WorkflowE2ETest` 20/20, byte-parity JVM==JS, Native real face); promoted from
+> (`WorkflowE2ETest` 24/24, byte-parity JVM==JS, Native real face); promoted from
 > `docs/development/` per the 3-state rule.** Originally SIGNED-OFF (19/09, maintainer
 > poll) — front opened, owner lane `.18`.** Q1–Q4
 > answered: **stdlib composition ✓ / MVP minimal (job/dag/after/run/Report) ✓ / retry as an
@@ -187,12 +187,12 @@ Owner: **lane `.18`** (assigned by the 19/09 maintainer greenlight).
   former rule-6 question ("how is a one-shot job expressed as a worker?") was ANSWERED by
   the maintainer 19/09 ("pode ir pra fatia 3") — the answer is exactly the core's
   `!falhou && politica != permanent` clean-stop idiom, so no new surface beyond the
-  composing function. Proof: `WorkflowE2ETest` 20/20 (JVM==JS byte-parity + Native pin).
+  composing function. Proof: `WorkflowE2ETest` 24/24 (JVM==JS byte-parity + Native pin).
 - **2.1.4 [docs]** ✅ DONE 19/09 (same session as 2.1.2) — idiom doc
   `docs/stdlib/workflow.md` (+PT), `backend-parity` matrix row + 19/09(2) delta (EN+PT),
   tracker 2.1 `🔵→🟡` and 2.5/2.6 `🔵→⏳` (EN+PT), this file promoted out of `future/`
   (`a71a4f51`). Plan queue **CLOSED 19/09**: 2.1.3 landed in full (all five faces,
-`WorkflowE2ETest` 20/20) — what remains are only the catalogued honest gaps (Native
+`WorkflowE2ETest` 24/24) — what remains are only the catalogued honest gaps (Native
 `CRON001`/`ORM001`) and the `kof workflow run` surface decision (§2.6, maintainer).
 
 ## 6. Open questions (maintainer decisions — do NOT resolve in code)

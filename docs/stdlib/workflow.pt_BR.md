@@ -184,7 +184,7 @@ vazia.
 
 ## 6. Prova
 
-`WorkflowE2ETest` 20/20 (goldens exatos de stdout, paridade byte JVM==JS): ordem
+`WorkflowE2ETest` 24/24 (goldens exatos de stdout, paridade byte JVM==JS): ordem
 linear, cascata de falha, throw com motivo, mensagem de ciclo, conjunto de
 guardas, corpos reais via lista capturada, retry (recupera na 3ª + esgota com
 motivo + exponential), fire-count do schedule, restore do checkpoint entre runs,

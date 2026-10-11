@@ -3,7 +3,7 @@
 # `kof.workflow` — jobs, pipelines, retry, checkpoints, dead-letter (plano de design · Estágio 2 · TIER 2.1)
 
 > **Estado: CONCLUÍDO 19/09 — as cinco fatias (2.1.0–2.1.4) landaram com prova
-> (`WorkflowE2ETest` 20/20, paridade byte JVM==JS, face real no Native); promovido de
+> (`WorkflowE2ETest` 24/24, paridade byte JVM==JS, face real no Native); promovido de
 > `docs/development/` pela regra dos 3 estados.** Originalmente APROVADO (19/09, enquete
 > da mantenedora) — frente aberta, dono lane `.18`.**
 > Q1–Q4 respondidos: **stdlib de composição ✓ / MVP mínimo (job/dag/after/run/Report) ✓ /
@@ -168,12 +168,12 @@ Dono: **lane `.18`** (atribuído pelo greenlight da mantenedora em 19/09).
   job one-shot como worker?") foi RESPONDIDA pela mantenedora 19/09 ("pode ir pra
   fatia 3") — a resposta é exatamente o idioma de parada limpa do núcleo (`!falhou &&
   politica != permanent`), sem superfície nova além da função de composição. Prova:
-  `WorkflowE2ETest` 20/20 (paridade byte JVM==JS + pin Native).
+  `WorkflowE2ETest` 24/24 (paridade byte JVM==JS + pin Native).
 - **2.1.4 [docs]** ✅ FEITO 19/09 (mesma sessão do 2.1.2) — doc de idiomática
   `docs/stdlib/workflow.pt_BR.md` (+EN), linha na matriz `backend-parity` + delta 19/09(2)
   (EN+PT), tracker 2.1 `🔵→🟡` e 2.5/2.6 `🔵→⏳` (EN+PT), este arquivo promovido para fora
   de `future/` (`a71a4f51`). Fila do plano **ENCERRADA 19/09**: 2.1.3 landou por completo (as cinco
-faces, `WorkflowE2ETest` 20/20) — sobram só os gaps honestos catalogados (Native `CRON001`/`ORM001`)
+faces, `WorkflowE2ETest` 24/24) — sobram só os gaps honestos catalogados (Native `CRON001`/`ORM001`)
 e a decisão de superfície do `kof workflow run` (§2.6, mantenedora).
 
 ## 6. Questões abertas (decisões da mantenedora — NÃO resolver em código)

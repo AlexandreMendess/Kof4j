@@ -180,7 +180,7 @@ null dependency, self-dependency, duplicate names in one dag, empty dag.
 
 ## 6. Proof
 
-`WorkflowE2ETest` 20/20 (exact stdout goldens, JVM==JS byte-parity): linear order,
+`WorkflowE2ETest` 24/24 (exact stdout goldens, JVM==JS byte-parity): linear order,
 failure cascade, throw-with-reason, cycle message, guard set, real bodies through a
 captured list, retry (recover-on-3rd + exhaust-with-reason + exponential), schedule
 fire-count, checkpoint restore across runs, supervised happy path, one_for_one
