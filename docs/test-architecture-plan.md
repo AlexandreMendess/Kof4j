@@ -6,7 +6,7 @@
 **Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
 
-**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**). No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
+**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**; slice 32, `jwt-namespace`, to **57 / 228**). No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
@@ -1292,6 +1292,27 @@ accepts `jvmLike || JS || isNative`), and this slice also guards the §653 JS `v
 end-to-end. Test-infrastructure only, no compiler change. Proof (executed): every value
 measured on the Script target first, cross-checked byte-for-byte on jvm/native/js (all four
 agree), then frozen; `tests/run-golden.sh` **224/224** (56 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 32 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **57 total** — pinning the deterministic core of `kof.jwt`, a namespace pinned
+by NO equivalence case until now. The new case `tests/golden/jwt-namespace` pins `jwt.verify`
+against FIXED HS256 tokens (built offline with the pinned secret `s3cret`): the valid token
+returns its payload JSON (`jwt.verify(token, "s3cret")`→`{"sub":"u1","iss":"kof","aud":"api",
+"exp":4102444800}`), a WRONG secret is rejected, the `iss`/`aud` bound verify returns the
+payload, a wrong `iss` and a wrong `aud` are rejected, a malformed token (`"not-a-token"`) is
+rejected, an EXPIRED token is rejected, and an `alg=none` algorithm-confusion token is
+rejected. All four targets agree byte-for-byte. **Scope note (measured, honest):**
+`jwt.create` is deliberately EXCLUDED — it injects `iat`/`exp` from the wall clock, so the
+token string is NOT a deterministic 4-target pin; `jwt.verify` of a FIXED token is fully
+deterministic (the expiry check reads the token's own `exp`, `4102444800` = year 2100).
+`jwt.verify` is 4-target clean (`KofSecurity.supportedOn` accepts `jvmLike || JS || isNative`;
+the cross arches riscv64/aarch64 are the `SECN004`/`SECN000` gap, so the golden `native`
+target runs on x86_64 here). This slice also guards the algorithm-confusion rejection
+end-to-end. Test-infrastructure only, no compiler change. Proof (executed): every value
+measured on the Script target first, cross-checked byte-for-byte on jvm/native/js (all four
+agree), then frozen; `tests/run-golden.sh` **228/228** (57 cases × 4 targets), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; gates
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
