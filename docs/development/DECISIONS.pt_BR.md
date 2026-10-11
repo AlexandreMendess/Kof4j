@@ -74,7 +74,8 @@ Auxílio de navegação, não é uma decisão por si só. Ordenado como neste ar
 - **D-DEBT-SCOUT** — ferramenta de escoteiro de dívida técnica autorizada, só Wave 1, sem capacidade de publicar Issue
 - **D-DEBT-SCOUT-W2** — Wave 2 autorizada (qualificação de evidência, clustering, SARIF); ainda shadow, ainda sem publicar Issue
 - **D-KOF-IS-KOF** — código Kof nunca embute HTML/CSS/JS (regra absoluta)
-- **D-FUTURE-FREEZE** — a promoção de `docs/development/future/` está CONGELADA até segunda ordem (mantenedora 02/10)
+- **D-FUTURE-FREEZE** — a promoção de `docs/development/future/` está CONGELADA até segunda ordem (mantenedora 02/10) *(SUPERSEDIDA 11/10 por D-FUTURE-UNFREEZE)*
+- **D-FUTURE-UNFREEZE** — o congelamento de `future/` está LEVANTADO: agentes promovem/implementam planos futuros de novo, um por vez, lanes ativas terminando primeiro (mantenedora 11/10)
 - **D-RELEASE-CADENCE** — cadência semanal de minors até `0.9.0`; linha de contingência `1.0.0-RC-n`; `1.0.0` só no exit gate completo (mantenedora 02/10)
 - **D-LAB-STABILITY** — um minor só é cortado de um `lab` ESTÁVEL (todos os checks obrigatórios PASS, 0 bloqueantes); senão o corte escorrega (mantenedora 02/10)
 - **D-MAINT-BATCH-1110** — lote da mantenedora 11/10: sombra do local `db` (#786), fixpoint da inferência de retorno (#785), acessibilidade do `kof.ui` (#789)
@@ -5003,3 +5004,16 @@ A mantenedora aprovou a superfície de foco proposta na #811 (pilar 5), mantendo
 **Implementação:** delegada ao contribuidor @ViniAguiar1 (PR contra a `lab`, em fatias com testes RED-first cobrindo root reuse, rebuild+prune e compile+run em JVM/Native). A issue #811 permanece ABERTA até o PR pousar.
 
 **Relações:** `Related: D-UI-A11Y (o precedente intent-based que isto espelha), D-UI-DIFF (a regra de identidade que a restauração reusa), D-KOF-FIRST (superfície intent-based, o runtime faz o mapeamento), regra 11 (a superfície permanece simples), regra 6 (este registro É a decisão).`
+
+---
+
+## D-FUTURE-UNFREEZE — o congelamento de `docs/development/future/` está LEVANTADO: agentes podem promover e implementar planos futuros de novo, um por vez, lanes ativas terminando primeiro (mantenedora 11/10/2026, diretiva de chat)
+
+**Data:** 2026-10-11 · **Estado:** `DECIDED` (mantenedora) — o `D-FUTURE-FREEZE` está LEVANTADO e o `D-FUTURE-PROMOTION` volta integralmente.
+
+- **Diretiva:** a mantenedora autoriza promover planos de `docs/development/future/` e continuar o desenvolvimento, exatamente como o `D-FUTURE-PROMOTION` descreve — **um plano por vez**, o **MAIS FÁCIL de implementar** primeiro (nunca o mais interessante, nunca o maior), sem exigir decisão `D-*`, aditivo e library-first, e com um caminho de teste RED-first claro.
+- **Divulgação:** pelo `DOING.md`(+PT), **NÃO** por issue do GitHub (instrução explícita da mantenedora).
+- **Sequenciamento:** um agente com lane ATIVA (um claim `IN PROGRESS`) TERMINA ela primeiro, depois pega um plano futuro — a promoção nunca atropela trabalho vivo (`D-PLAN-ONE-OWNER`: um dono por plano).
+- **O que isto NÃO autoriza:** apagar ou reescrever planos futuros; pular o gate de elegibilidade do `D-FUTURE-PROMOTION` (sem stub, sem asserção enfraquecida, sem trabalho inventado); ou dois agentes no mesmo plano.
+- **Histórico do levantamento:** isto supersede o `D-FUTURE-FREEZE` (mantenedora 02/10, diretiva de chat), cuja própria condição de levantamento ("só a mantenedora levanta este congelamento, por diretiva posterior explícita registrada como `D-*` superador") agora se cumpre.
+- **Relações:** `Supersedes: D-FUTURE-FREEZE`, `Reativa: D-FUTURE-PROMOTION`, `Related: D-PLAN-ONE-OWNER, D-LAB-STABILITY, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, rule 6`.
