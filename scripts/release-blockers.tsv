@@ -4,3 +4,4 @@ issue	category	reason	owner
 809	1.0-outside	kof.ui Icon with an unknown name silently renders the close glyph (setName inconsistent with drawing) — UI library surface, outside the 1.0 language scope; kof-ui lane follow-up.	triage 192.168.15.134
 810	1.0-outside	docs/ui/architecture.md teaches app.state(n) (now SEM025) and stale §1 claims — docs drift on the new kof.ui docs; kof-ui lane follow-up.	triage 192.168.15.134
 811	1.0-outside	[Feature] kof.ui focus management (pillar 5) — feature request on the UI surface; kof-ui lane follow-up.	unassigned (triage 192.168.15.134)
+814	1.0-outside	[Packaging] o artifact 0.6.0 publicado saiu com version.properties stale (0.5.0-beta) — a árvore já está correta (bump-version.sh sincroniza) e os guards §655/§656 (pousados 11/10) travam a classe; verificação final no artifact 0.6.1.	deploy-flow lane 192.168.15.134 (triage 11/10)
