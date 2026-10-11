@@ -76,7 +76,8 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-DEBT-SCOUT** — technical-debt scout tooling authorized, Wave 1 only, no Issue-publish capability
 - **D-DEBT-SCOUT-W2** — Wave 2 authorized (evidence qualification, clustering, SARIF); still shadow, still no Issue-publish
 - **D-KOF-IS-KOF** — Kof source never embeds HTML/CSS/JS (absolute rule)
-- **D-FUTURE-FREEZE** — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10)
+- **D-FUTURE-FREEZE** — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10) *(SUPERSEDED 11/10 by D-FUTURE-UNFREEZE)*
+- **D-FUTURE-UNFREEZE** — the `future/` freeze is LIFTED: agents promote/implement future plans again, one at a time, active lanes finishing first (maintainer 11/10)
 - **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
 - **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
 - **D-MAINT-BATCH-1110** — maintainer batch 11/10: `db` local shadow (#786), return-inference fixpoint (#785), `kof.ui` accessibility (#789)
@@ -5013,3 +5014,16 @@ The maintainer approved the focus surface proposed in #811 (pillar 5), keeping i
 **Implementation:** delegated to the contributor @ViniAguiar1 (PR against `lab`, in slices with RED-first tests covering root reuse, rebuild+prune and JVM/Native compile+run). Issue #811 stays OPEN until the PR lands.
 
 **Relationships:** `Related: D-UI-A11Y (the intent-based precedent this mirrors), D-UI-DIFF (the identity rule the restoration reuses), D-KOF-FIRST (intent-based surface, runtime does the mapping), rule 11 (surface stays simple), rule 6 (this record IS the decision).`
+
+---
+
+## D-FUTURE-UNFREEZE — the `docs/development/future/` freeze is LIFTED: agents may promote and implement future plans again, one at a time, active lanes finishing first (maintainer 11/10/2026, chat directive)
+
+**Date:** 2026-10-11 · **State:** `DECIDED` (maintainer) — `D-FUTURE-FREEZE` is LIFTED and `D-FUTURE-PROMOTION` resumes in full.
+
+- **Directive:** the maintainer authorizes promoting plans out of `docs/development/future/` and continuing development, exactly as `D-FUTURE-PROMOTION` describes — **one plan at a time**, the **EASIEST-to-implement** first (never the most interesting, never the largest), with no `D-*` decision required, additive and library-first, and a clear RED-first test path.
+- **Broadcast:** via `DOING.md`(+PT), **NOT** via a GitHub issue (the maintainer's explicit instruction).
+- **Sequencing:** an agent holding an ACTIVE lane (an `IN PROGRESS` claim) FINISHES it first, then takes a future plan — the promotion never preempts live work (`D-PLAN-ONE-OWNER`: one owner per plan).
+- **What this does NOT authorize:** deleting or rewriting future plans; skipping the `D-FUTURE-PROMOTION` eligibility gate (no stub, no weakened assertion, no invented work); or two agents on one plan.
+- **Lift history:** this supersedes `D-FUTURE-FREEZE` (maintainer 02/10, chat directive), whose own lift condition ("only the maintainer lifts this freeze, by an explicit later directive recorded as a superseding `D-*`") is now satisfied.
+- **Relationships:** `Supersedes: D-FUTURE-FREEZE`, `Reactivates: D-FUTURE-PROMOTION`, `Related: D-PLAN-ONE-OWNER, D-LAB-STABILITY, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, rule 6`.

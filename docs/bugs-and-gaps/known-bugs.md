@@ -18035,3 +18035,41 @@ EAD
 **Boundary:** message TEXT only — no codegen, no severity, no code-id change; diagnostics rendered in PT keep their templates (the localized rendering reads the code, not the interpolated text); SEM010/SEM014-method/SEM036 were already display and are untouched. `DIAG-01` (the duplicate-emission dedup, §661) is a separate concern and landed earlier the same day.
 
 <!-- pt-switch --> **PT:** [§663 (pt_BR)](known-bugs.pt_BR.md#663--auditoria-diag-02-sem012sem021ctor-sem014-vazavam-a-representacao-crua-de-tipo-cannot-assign-classtypepackagename-nameb-typearguments-to-classtype---corrigido-1110-lane-flatt-192168100140)
+
+## §664 — audit JVM-02: a function-type local without an initializer was defaulted to `iconst_0` on the JVM (`iconst_0; astore_1` → VerifyError at class load) — ✅ FIXED 11/10 (lane flatt 192.168.100.14:0; the plain path)
+
+**Symptom (measured 11/10, tip `df103f4cc`; audit 0.6.0 item `JVM-02`):** `main() { var f: (Int) -> Int  f = (x: Int) -> x + 1  println(f(5)) }` passed `check` and died at class load: `VerifyError: Bad type on operand stack ... Type integer is not assignable to reference type` — `javap` showed `iconst_0; astore_1` (the no-init default stored an INT into a reference slot). Measured RED-first: the audit's exact repro VerifyErrors at load, byte-for-byte the audit's symptom.
+
+**Root:** `CompilerTypeSupport.erasesToReference` misses `Type.FunctionType`, so the no-init default in `StatementLowererLocalBoxing.emitLocalDeclaration` took the primitive `0` branch for a function-typed slot — which holds a synthetic lambda class (a reference).
+
+**The change (landed 11/10):** the no-init default loads `null` when the slot is a `FunctionType` (mirroring the existing reference/nullable branches). The initialized-capture path already rode `createBoxClass(FunctionType)` (bug 8), so no box machinery changed.
+
+**Proof (RED-first, executed):** new `FunctionTypeNoInitDefaultE2ETest` — pre-fix the audit's exact repro Errors with `VerifyError` at load; post-fix **1 run / 0F** printing `6`. Non-regression: the `*Lambda*` battery + `ComponentCoreE2ETest` + `StatementLowerer*` **98 run / 0F / 3 named skips**.
+
+**Boundary:** this fixes the PLAIN (non-captured) path — the audit's face. The CAPTURED twin (a mutated function-type local also captured by a closure) routes through `CapturedVarBox`, whose uninitialized box still hardcodes `INT`; a box-only fix there was attempted and measured INSUFFICIENT — it exposes the deeper captured-call dispatch gap (`Object` on the stack vs the declared `Int` return inside the closure's `invoke`), which is the lambda/box machinery family of audit `JVM-01`/`JVM-03` (medium risk, shared inference battery) — left for that unit, not half-fixed here. `erasesToReference` itself is untouched (8 other call sites rely on today's gate).
+
+<!-- pt-switch --> **PT:** [§664 (pt_BR)](known-bugs.pt_BR.md#664--auditoria-jvm-02-local-de-tipo-funcao-sem-inicializador-era-default-iconst_0-no-jvm-iconst_0-astore_1--verifyerror-no-load-da-classe---corrigido-1110-lane-flatt-192168100140-o-caminho-simples)
+
+## §665 — audit HTTP-01: KofHttp.staticCall bound by ARITY ALONE — http.status(401) bound kof_http_status(String) with an Int and died as a JVM VerifyError — ✅ FIXED 11/10 (lane flatt 192.168.100.14:0)
+
+**Symptom (measured 11/10, tip `c57722a40`; audit 0.6.0 item `HTTP-01`):** `main() { var s = http.status(401)  println(s) }` passed `check` with "no errors" and died on the JVM (`VerifyError: integer ... not assignable to 'java/lang/String'`). Measured root (the audit's phantom-call hypothesis refined): `KofHttp.staticCall` bound by ARITY ALONE — `status(401)` matched `kof_http_status(String)` (arity 1, no type check), `http.get(401)` bound `kof_http_get(String)`, `http.timeout("abc")` bound `kof_http_timeout_set(Int)` — every overload in the table, the same shape as the MATH-02 binding hole.
+
+**The change (landed 11/10):** type guards on every `KofHttp.staticCall` overload (`isStr` for the URL/body/header params, `isInt` for timeout/retry/circuit — R6, mirroring `KofMath`): a known member whose overloads match nothing now returns null and the EXISTING namespace-resolution diagnostic fires — `Cannot resolve method 'status' on namespace 'http'` (SEM025, the #126/§583 family).
+
+**Proof (RED-first, executed):** new `HttpNamespaceOverloadDiagnosticTest` (4 faces): pre-fix `http.status(401)`/`http.get(401)`/`http.timeout("abc")` compiled CLEAN (3/3 RED measured), the valid faces green; post-fix **4 run / 0F**. Non-regression: the `*Http*`+`*Web*` batteries **127 run / 0F / 4 named skips** (the server `status(401, "body")` face is kof.web's `KofWeb.staticCall` — a different table, untouched, still green).
+
+**Boundary (measured, the silent-overload family is wider than this unit):** (1) BARE `status(401)` (no receiver) still compiles silently — the bare-call fall-through never consults namespace catalogs, it invents a top-level call; gating it is the audit's "shared fall-through" risk and stays a separate unit. (2) `time.sleep("abc")` still compiles silently — `KofTime.staticCall` carries the same arity-only hole (the guard pattern landed here replicates there in one small unit). (3) `db.query(401)` already diagnoses (SEM025) — KofDb checks arg types. The guard pattern is proven in KofHttp; the remaining namespaces are mechanical replication.
+
+<!-- pt-switch --> **PT:** [§665 (pt_BR)](known-bugs.pt_BR.md#665--auditoria-http-01-kofhttpstaticcall-ligava-so-por-aridade--httpstatus401-ligava-kof_http_statusstring-com-um-int-e-morria-como-verifyerror-no-jvm---corrigido-1110-lane-flatt-192168100140)
+
+## §666 — §665 Boundary item 2: KofTime.staticCall bound sleep/interval/cancel/daysInMonth/dayOfWeek/daysBetween/age by ARITY ALONE — time.sleep("abc") compiled silently — ✅ FIXED 11/10 (lane flatt 192.168.100.14:0)
+
+**Symptom (measured 11/10 during the §665 cycle):** `main() { time.sleep("abc") }` passed `check` silently — `KofTime.staticCall` bound by ARITY ALONE while `isLeapYear`/`isWeekend`/`addDays` in the SAME table already carried `== INT`/`== STR` guards. Every unguarded member had the MATH-02/HTTP-01 shape: `time.cancel(401)`, `time.daysInMonth("a", 1)`, `time.dayOfWeek("x", 1, 2)`, `time.daysBetween(...)` with non-Int args all bound their `kof_time_*` runtime fns with mismatched operands.
+
+**The change (landed 11/10):** the guards completed on the unguarded members (`sleep` INT, `interval` first-arg INT, `daysInMonth`/`dayOfWeek`/`daysBetween`/`age` all-INT) — `cancel` accepts STR **or any non-primitive reference** (a test-pinned real form: the self-referencing interval id captured by its own closure arrives at the typer as the captured-box ClassType, not STR; the guard therefore refuses exactly the clearly-wrong PRIMITIVE case and preserves the pre-guard behavior for references). A known member with no matching overload falls to the EXISTING namespace diagnostic (SEM025 `Cannot resolve method ... on namespace 'time'`), and the bare `sleep(...)` alias (#108) falls to the EXISTING honest SEM015 `Undefined function: 'sleep'` — no phantom.
+
+**Proof (RED-first, executed):** new `TimeNamespaceOverloadDiagnosticTest` (5 faces): pre-fix the four bad faces compiled CLEAN (4/5 RED measured — `time.sleep("abc")`, `time.cancel(401)`, `time.daysInMonth("a", 1)`, bare `sleep("abc")`), the valid faces green; post-fix **5 run / 0F**. Non-regression: `KofTimeE2ETest` **62 run / 0F / 11 named skips** — its `selfReferencingIntervalHandleCancelsItself` face CAUGHT the first strict `cancel` guard (the captured-box ref form) and forced the non-primitive widening above; the battery is the proof the widening is right.
+
+**Boundary:** the captured-arg typing itself (a mutated local read as the box ClassType instead of its value type) is a pre-existing shape — it also affects the already-guarded `isLeapYear`/`isWeekend`/`addDays` today — and its fix is the capture-machinery/box-read typing unit (the lambda-box family of audit JVM-01/03). The bare `status(401)` fall-through (§665 Boundary item 1) is unchanged.
+
+<!-- pt-switch --> **PT:** [§666 (pt_BR)](known-bugs.pt_BR.md#666--item-2-da-fronteira-do-665-o-koftimestaticcall-ligava-sleepintervalcanceldaysinmonthdayofweekdaysbetweenage-so-por-aridade--timesleepabc-compilava-em-silencio---corrigido-1110-lane-flatt-192168100140)

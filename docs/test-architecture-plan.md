@@ -6,7 +6,7 @@
 **Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
 
-**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**; slice 32, `jwt-namespace`, to **57 / 228**; slice 33, `string-methods-extended`, to **58 / 232**; slice 34, `config-namespace`, to **59 / 236**; slice 35, `json-records`, to **60 / 240**). No open decision, no queued slice. Prior slices were purely test infrastructure — the compiler was never touched (plan golden rule); slice 35 is the one exception, pairing the golden case with the low-risk single-unit compiler fix §659a it surfaced (see the slice block below).
+**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**; slice 32, `jwt-namespace`, to **57 / 228**; slice 33, `string-methods-extended`, to **58 / 232**; slice 34, `config-namespace`, to **59 / 236**; slice 35, `json-records`, to **60 / 240**; slice 36, `json-maps`, to **61 / 244**). No open decision, no queued slice. Prior slices were purely test infrastructure — the compiler was never touched (plan golden rule); slice 35 is the one exception, pairing the golden case with the low-risk single-unit compiler fix §659a it surfaced (see the slice block below).
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
@@ -1170,7 +1170,7 @@ the https byte4 test to `.Lv_url_false`), guarded RED-first by the new
 **Scope note (measured, honest):** `validation.matches` is deliberately EXCLUDED — its
 JVM/JS/Script regex vs Native literal-substring divergence is a known, documented issue
 frozen in `development/future/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
-(`future/` is FROZEN). Proof (executed): every value measured on the Script target first,
+(`future/` is now UNFROZEN, `D-FUTURE-UNFREEZE` 11/10, but the `D-KOF-EXPR` decision is still pending). Proof (executed): every value measured on the Script target first,
 cross-checked byte-for-byte on jvm/native/js, then frozen; `tests/run-golden.sh`
 **200/200** (50 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0;
 gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang`
@@ -1398,6 +1398,25 @@ targets (Script `{"ok":1}` vs the other three `{"ok":true}`) and GREEN post-fix;
 `tests/run-golden.sh` **240/240** (60 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
 compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
 `docs-lang`/`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records` rc=0.
+
+**Phase 6 slice 36 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **61 total** — pinning `json.encode(Map<K,V>)`, the §106 "chaves SORTED"
+decision (determinism > insertion order) that no golden case covered. The new case
+`tests/golden/json-maps` pins `json.encode(mapOf("b",2,"a",1,"c",3))`→`{"a":1,"b":2,"c":3}`
+(the sorted-key face), a `Map<String,String>` (`{"y":"lo","z":"hi"}`), a
+`Map<String,Record>` (`{"k":{"x":3,"y":4}}` — nested record via the map walker), a
+single-entry map, a `Map<String,Bool>`, and the empty-key face (`{"":0}`). All 6 faces agree
+byte-for-byte on all four targets. **Scope note (measured, honest):** `json.encode` of a
+`Map<String,Long>` is EXCLUDED — it hits the OPEN §659b (JS crashes on `BigInt`);
+`Map<String,Double>` is excluded by the §659d JS whole-number divergence (the same reason the
+`json-records` slice excluded its FP faces); `List<Map<…>>` and `decode<Map<String,T>>` are
+EXCLUDED — both are refused on native (`JSN002` nested-collection-element, `JSN004` Map
+decode). Test-infrastructure only, no compiler change. Proof (executed): every value measured
+on the Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
+frozen; `tests/run-golden.sh` **244/244** (61 cases × 4 targets), exit 0; `mvn -o -pl
+kof-compiler -am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_500`/`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/
+`check_changelog_ledger` rc=0.
 
 ### Phase 7 — Integration
 
