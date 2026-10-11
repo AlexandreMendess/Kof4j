@@ -17885,3 +17885,22 @@ EAD
 <!-- pt-switch --> **PT:** [§654 (pt_BR)](known-bugs.pt_BR.md#654--o-runtime-do-d-ui-a11y-789-mapeava-os-atributos-de-acessibilidade-so-no-local-da-chamada-entao-um-icon-clicavel-seguia-aria-hiddentrue-um-nome-definido-antes-de-onclick-vencia-o-papel-de-botao-setaccessiblename-deixava-uma-imagem-exposta-de-nome-vazio-a-reutilizacao-de-raiz-mantinha-atributos-a11y-obsoletos-enter-dentro-de-um-descendente-acionava-o-container-clicavel-e-componentonclick-nao-era-operavel-por-teclado---corrigido-1110-lane-issuestooling-19216815309093-issue-807)
 
 
+
+## §655 — the 2-arg `String.split(String, Int)` is ACCEPTED but BROKEN on two targets: JS ignores the limit and native x86-64 SIGSEGVs — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+
+**Symptom (measured 11/10, tip `977aaabdb`):** `StringMethodRegistry` accepts `split(String, Int)` (the JDK `String.split(regex, limit)` overload) and it is CORRECT on JVM and Script, but diverges on two targets for the SAME source `"a,b,c".split(",", 2)`:
+- **JVM / Script** → `["a", "b,c"]` (2 parts — the JDK contract).
+- **JS** → `["a", "b", "c"]` (3 parts — the `limit` is IGNORED).
+- **native x86-64** → **SIGSEGV** (exit 139, empty stdout) — no output at all.
+
+**Root (read from the tree):**
+- **JS:** `JsCallEmitter` lowers every `split` to the runtime helper `kofSplit(receiver, sep)` (`JsRuntimeCore`), which takes only TWO parameters and never sees a third `limit` argument — `String(s).split(sep)` runs the JS `String.prototype.split` with no limit, then only strips trailing empties. The 2-arg overload is silently degraded to the 1-arg behavior.
+- **native x86-64:** `NativeX86StringCalls` emits the split sequence popping only ONE argument (`popq %rsi` = the separator) before `call kof_string_split`; when the source passed TWO arguments, the `limit` operand is left on the operand stack, so the pushed/popped balance is wrong and the generated code corrupts the stack → SIGSEGV at runtime. `kof_string_split(str, sep)` (`RuntimeStringEdit`) itself has no limit parameter.
+
+**Contract:** `String.split(String, Int)` is a registered Kof String method (`StringMethodRegistry.stringMethodSignature`, `argCount == 2`), so accepting it and then ignoring the limit (JS) or crashing (native) violates the Kof contract — a silent wrong answer and a hard crash where JVM/Script are correct.
+
+**Fix path (NOT landed here):** the JS helper must take the `limit` (`kofSplit(s, sep, limit)` honoring `0` = drop trailing empties, `> 0` = at most `limit` parts, `< 0` = keep all) and the native x86 path must pop BOTH operands and route to a limit-aware split (a new `kof_string_split_limit` in `RuntimeStringEdit`), with the riscv64/aarch64 cross equivalents (`NativeRiscvCrossOps` / `NativeRiscvAsmStrn1`). That spans two backends' runtimes + the shared `StringMethodRegistry` dispatch — a dedicated cross-backend unit, NOT the golden slice that found it.
+
+**Boundary:** the 1-arg `split(String)` is CORRECT on all four targets (pinned by `string-parts-valueof`); this is only the 2-arg overload. `known-bugs` §655 is owner-less until claimed (lane compiler/JVM/native `192.168.15.30:9092` found it while authoring the `string-methods-extended` golden case, which deliberately does NOT include the broken face).
+
+<!-- pt-switch --> **PT:** [§655 (pt_BR)](known-bugs.pt_BR.md#655--o-stringsplitstring-int-de-2-args-e-aceito-mas-quebrado-em-dois-alvos-o-js-ignora-o-limite-e-o-nativo-x86-64-da-sigsegv---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)

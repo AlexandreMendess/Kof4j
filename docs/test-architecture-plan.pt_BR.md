@@ -6,7 +6,7 @@
 **Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 
-**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**). Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
+**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**). Sem decisão aberta, sem fatia enfileirada. Apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano).
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
@@ -1318,6 +1318,32 @@ primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concord
 congelado; `tests/run-golden.sh` **228/228** (57 casos × 4 alvos), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; gates
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Fase 6 fatia 33 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **58 total** — pinando a superfície de métodos de `String` que tinha quase NENHUMA
+cobertura golden. Os casos `strings-methods`/`string-parts-valueof` cobrem só
+trim/length/substring(1-arg)/startsWith(1-arg)/endsWith/indexOf(1-arg)/toUpperCase/
+toLowerCase/charAt/equals/split(1-arg)/toCharArray/equalsIgnoreCase/valueOf. O novo caso
+`tests/golden/string-methods-extended` pina `isEmpty` (""→true, "x"→false), `contains`
+(acerto/erro), `lastIndexOf` (1-arg acerto/erro + o clamp `fromIndex` `lastIndexOf("l",0)`
+→-1), `concat`, `replace(String,String)` + `replace(Char,Char)`, `substring(1,3)`,
+`startsWith(str, fromIndex)` (acerto + erro), `indexOf(str, fromIndex)`, `compareTo` (−1/0),
+`compareToIgnoreCase` (0), e as conversões numéricas `toInt`/`toLong`/`toDouble`. As 23 faces
+concordam byte-a-byte nos quatro alvos. **Nota de escopo (medida, honesta):** `getBytes()` é
+EXCLUÍDO — gap `STR003` JVM-only (recusado em nativo E js em compile-time);
+`matches`/`replaceAll`/`replaceFirst` são EXCLUÍDOS (a divergência regex JVM/JS/Script vs
+literal-no-Native congelada em `development/future/kof-expr-plan.md` Q8). **BUG ACHADO + CATALOGADO
+(Q4):** o `String.split(String, Int)` de 2 args — aceito pelo `StringMethodRegistry`, correto
+no JVM/Script — está QUEBRADO em dois alvos: **o JS ignora o limite** (`"a,b,c".split(",", 2)`
+→ 3 partes em vez de 2) e o **nativo x86-64 SIGSEGV** (exit 139; o `NativeX86StringCalls`
+desempilha só um arg para o split, então o operando `limit` corrompe a pilha). Registrado
+como `known-bugs` **§655** EN+PT com o repro medido de 4 alvos; NÃO corrigido aqui (o fix
+abrange asm nativo x86 + riscv/aarch + o runtime JS `kofSplit` — uma unidade cross-backend
+dedicada). Apenas infraestrutura de teste, sem mudança de compilador. Prova (executada): cada
+valor medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro
+concordam), então congelado; `tests/run-golden.sh` **232/232** (58 casos × 4 alvos), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/
+`check_doc_refs`/`check_500`/`docs-lang`/`check_known_bugs_status`/`check_ledger_anchors` rc=0.
 
 ### Fase 7 — Integração
 

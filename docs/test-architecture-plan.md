@@ -6,7 +6,7 @@
 **Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
 
-**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**; slice 32, `jwt-namespace`, to **57 / 228**). No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
+**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**; slice 32, `jwt-namespace`, to **57 / 228**; slice 33, `string-methods-extended`, to **58 / 232**). No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
@@ -1315,6 +1315,32 @@ measured on the Script target first, cross-checked byte-for-byte on jvm/native/j
 agree), then frozen; `tests/run-golden.sh` **228/228** (57 cases × 4 targets), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; gates
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 33 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **58 total** — pinning the core `String` member-method surface that had almost
+NO golden coverage. The existing `strings-methods`/`string-parts-valueof` cases cover only
+trim/length/substring(1-arg)/startsWith(1-arg)/endsWith/indexOf(1-arg)/toUpperCase/
+toLowerCase/charAt/equals/split(1-arg)/toCharArray/equalsIgnoreCase/valueOf. The new case
+`tests/golden/string-methods-extended` pins `isEmpty` (""→true, "x"→false), `contains`
+(hit/miss), `lastIndexOf` (1-arg hit/miss + the 2-arg `fromIndex` clamp `lastIndexOf("l",0)`
+→-1), `concat`, `replace(String,String)` + `replace(Char,Char)`, `substring(1,3)`,
+`startsWith(str, fromIndex)` (hit + miss), `indexOf(str, fromIndex)`, `compareTo` (−1/0),
+`compareToIgnoreCase` (0), and the numeric conversions `toInt`/`toLong`/`toDouble`. All 23
+faces agree byte-for-byte on all four targets. **Scope note (measured, honest):** `getBytes()`
+is EXCLUDED — a JVM-only `STR003` gap (refused on native AND js at compile time);
+`matches`/`replaceAll`/`replaceFirst` are EXCLUDED (the regex JVM/JS/Script vs Native-literal
+divergence frozen in `development/future/kof-expr-plan.md` Q8). **BUG FOUND + CATALOGUED (Q4):** the
+2-arg `String.split(String, Int)` — accepted by `StringMethodRegistry`, correct on JVM/Script
+— is BROKEN on two targets: **JS ignores the limit** (`"a,b,c".split(",", 2)` → 3 parts
+instead of 2) and **native x86-64 SIGSEGVs** (exit 139; `NativeX86StringCalls` pops only one
+arg for split, so the `limit` operand corrupts the stack). Recorded as `known-bugs` **§655**
+EN+PT with the measured 4-target repro; NOT fixed here (the fix spans native x86 asm +
+riscv/aarch + the JS `kofSplit` runtime — a dedicated cross-backend unit). Test-infrastructure
+only, no compiler change. Proof (executed): every value measured on the Script target first,
+cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **232/232** (58 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`docs-lang`/`check_known_bugs_status`/`check_ledger_anchors` rc=0.
 
 ### Phase 7 — Integration
 
