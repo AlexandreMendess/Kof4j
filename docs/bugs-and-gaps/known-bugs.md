@@ -17990,3 +17990,32 @@ EAD
 **Boundary:** luma, single-tile, `PARTITION_NONE` scope of the current AVIF front; the fix is exact for every `miRow`/`miCol`. No compiler change, no language surface.
 
 <!-- pt-switch --> **PT:** [§660 (pt_BR)](known-bugs.pt_BR.md#660--av1intraavail-fatia-avif-3ab-derivava-as-distancias-de-borda-da-predicao-intra-so-do-tamanho-do-frame-ignorando-a-posicao-do-proprio-bloco-entao-ntoppxnleftpx-eram-sub-contados-para-todo-bloco-fora-da-origem-do-plano---corrigido-1110-lane-pipelineimage-vision-19216815210-flatt-cli-pego-pelo-driver-de-plano-heterogeneo-da-fatia-3ae)
+<!-- pt-switch --> **PT:** [§658 (pt_BR)](known-bugs.pt_BR.md#658--auditoria-math-02-mathminmaxclamp-e-a-familia-isevenisoddispositiveisnegativeiszero-aceitavam-qualquer-tipo-de-argumento-ligacao-so-por-aridade-mathmin1-25-passava-no-check--verifyerror-no-jvm-o-nativo-imprimia-0-em-silencio---corrigido-1110-lane-flatt-192168100140)
+
+## §661 — audit DIAG-01: the diagnostic sink appended without dedup — the SAME SEM011 printed twice (errorCount=2 for `var x = nope`) — ✅ FIXED 11/10 (lane flatt 192.168.100.14:0)
+
+**Symptom (measured 11/10, tip `6fdef8b09`; audit 0.6.0 item `DIAG-01`):** `main() { var x = nope }` passed to `kof check` printed the identical line `Main.kf:1:18: error: Undefined variable or type: 'nope' [SEM011]` TWICE (`errorCount=2` in `--json`). Measured wider: two DIFFERENT undefined names produced errorCount=4 — every SEM011 face doubled (the undefined-name lookup fires once as a variable resolution failure and once as a type resolution failure).
+
+**Root:** `DiagnosticCollector.report(Diagnostic)` appended unconditionally — the two analyzer passes that both fail on the same unresolved name each reported, and nothing downstream deduplicated.
+
+**The change (landed 11/10):** `report()` now collapses EXACT duplicates only — the full record tuple (severity, file, line, column, length, message, code, args) must match; a different position, code, message or arg set passes untouched. The rule is severity-agnostic (warnings dedup by the same key, without touching `errorCount`).
+
+**Proof (RED-first, executed):** new `DiagnosticSinkDedupTest` (3 tests): pre-fix 3/3 FAILED — the sink-level pair (2 kept), the audit's exact repro (errorCount 2) and the two-defects case (4); post-fix **3 run / 0F**. Non-regression: the diagnostic/analyzer battery (`*Diagnostic*`+`*Sem*`+`*Analyzer*`+`SemanticResolutionTest`) **82 run / 0F**, plus the full suite via `scripts/safe-suite.sh` (shared-infrastructure scope) and the golden suite — see the cycle's DOING tick for the executed numbers.
+
+**Boundary:** only byte-identical diagnostics collapse — a repeated code at a DIFFERENT position (the `twoDistinctDefectsStayTwo` face) and a different code at the same position both survive; rendering/PT translation is untouched; `hasErrors`/`errorCount` semantics change only where the same defect was counted twice. `DIAG-02` (raw `ClassType[`/`PrimitiveType[` interpolations in SEM012/SEM021/ctor-SEM014 messages) is a separate unit.
+
+<!-- pt-switch --> **PT:** [§661 (pt_BR)](known-bugs.pt_BR.md#661--auditoria-diag-01-o-sink-de-diagnosticos-acrescentava-sem-dedup--o-mesmo-sem011-impresso-duas-vezes-errorcount2-para-var-x--nope---corrigido-1110-lane-flatt-192168100140)
+
+## §662 — the UEFI build path dies at `objcopy` on this host (`formato de ficheiro não reconhecido` on the produced `Main.elf`): `NativeUefiE2ETest` 7F + `RingPrivilegeE2ETest` 4F deterministic at tip `6fdef8b09` — 🟡 OPEN (found 11/10 by lane flatt 192.168.100.14:0; owner = the native/UEFI lane, compiler/JVM/native 192.168.15.30:9092)
+
+**Symptom (measured 11/10, full suite at tip `6fdef8b09`):** every `NativeUefiE2ETest` (7/8) and `RingPrivilegeE2ETest` (4/5) face fails at BUILD time with `COMP001: objcopy failed (exit 1): objcopy: .../Main.elf: formato de ficheiro não reconhecido` — the assembler/linker produced an ELF that this host's `objcopy` refuses before any OVMF boot. Full-suite context: **5945 tests / 11F / 0E / 801 named skips**, ALL 11 failures are these two classes.
+
+**Measured (three runs, controlled):** (1) in the full suite, (2) both classes in isolation — same 11F, so it is deterministic, NOT load flake; (3) with the cycle's §659 dedup stashed (bare `6fdef8b09` tree) — `NativeUefiE2ETest` still 7F, so the red is PRE-EXISTING and independent of that unit. NOT the §511 face: §511 was the OVMF boot freeze under load (fixed 27/09 with retries); this dies at build, before boot.
+
+**Root (as far as this lane measured):** unknown — either an ELF-emission change landed between the last green full-suite evidence and `6fdef8b09`, or a host-binutils behavior (this host's `objcopy` rejecting a valid-for-target ELF). Distinguishing the two needs the native/UEFI lane's toolchain data — outside this lane's front.
+
+**Faces:** the 11 failing methods span sleep/wall-clock, PE32+ artifact shape, and the RING privilege boot — all blocked behind the same build step; the non-UEFI native faces (linux x86-64) are green in the same suite.
+
+**Owner and next step:** the native/UEFI lane (compiler/JVM/native `192.168.15.30:9092`) — bisect against the last known-green full suite, then decide codegen fix vs host-toolchain waiver. Recorded by the flatt lane so the fleet reads the 11F as pre-existing, not as a §659 regression.
+
+<!-- pt-switch --> **PT:** [§662 (pt_BR)](known-bugs.pt_BR.md#662--o-caminho-de-build-uefi-morre-no-objcopy-neste-host-formato-de-ficheiro-nao-reconhecido-no-mainelf-produzido-nativeuefie2etest-7f--ringprivilegee2etest-4f-deterministico-no-tip-6fdef8b09---aberto-achado-1110-pela-lane-flatt-192168100140-dona--a-lane-nativauefi-compiladorjvmnativo-19216815309092)

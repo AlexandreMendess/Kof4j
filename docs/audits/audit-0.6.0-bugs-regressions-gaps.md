@@ -110,7 +110,7 @@ reproducibility (`always` unless noted).
 | `HTTP-01` | HTTP / web | `http.status(401)` / bare `status(401)` pass `check` silently | broken | broken | **High** | arity-only dispatch, no type check; no diagnostic on mismatch | `KofHttp.java:98-99`, `MethodCallNamespaces.java:72-78`, `ExpressionHttpCallLowerer.java:17`, `ExpressionBareCallLowerer.java:252` | `StdCatalogSignaturesTest` (dispatcher only) | `http.status(401)`/`get(401)`/`timeout("abc")` must fail `check` | add a type check beside the arity check; emit `SEM025`/dedicated `HTTP00x` |
 | `MATH-01` | `kof.math` | `math.abs(Double)` | `SEM025` | `SEM025` | — | honest (Int-only, guarded) | `KofMath.java:48-49`, `StdCatalog.java:207` | `StdCatalogSignaturesTest:184` | — | none (SPEC GAP: Double overloads?) |
 | `MATH-02` | `kof.math` | `min`/`max`/`clamp`/`isEven`/`isOdd`/`isPositive`/`isNegative`/`isZero` accept any type | broken | broken | **High** | **no type guard** (arity only) | `KofMath.java:52-59` | `KofMathTest` (Int happy path only) | non-Int arg must be `SEM025` | add the `isInt` guard, mirroring `abs`/`sign` — ✅ FIXED 11/10 on `lab` as `known-bugs` §658 (lane flatt `192.168.100.14:0`, `KofMathTypeGuardTest` RED-first) |
-| `DIAG-01` | diagnostics | one error emitted twice on the `VarDeclStmt` path | 2× | 2× | Low-Med | `Unknown` never cached + redundant re-inference | `SemExpressionTyper.java:15-28`, `StatementAnalyzer.java:151,162,166` | none | count==1 pin | cache `Unknown` or dedup at the sink |
+| `DIAG-01` | diagnostics | one error emitted twice on the `VarDeclStmt` path | 2× | 2× | Low-Med | `Unknown` never cached + redundant re-inference | `SemExpressionTyper.java:15-28`, `StatementAnalyzer.java:151,162,166` | none | count==1 pin | cache `Unknown` or dedup at the sink — ✅ FIXED 11/10 on `lab` as `known-bugs` §661 (lane flatt `192.168.100.14:0`, exact-duplicate dedup at `DiagnosticCollector.report`, `DiagnosticSinkDedupTest` RED-first) |
 | `DIAG-02` | diagnostics | raw `ClassType[...]`/`PrimitiveType[...]` in `SEM012`/`SEM021`/ctor `SEM014` | leak | leak | Low-Med | raw record `toString()` instead of `Type.display` | `SemAssignmentAnalyzer.java:54,140-142,159`, `SemExpressionTyper.java:184`, `StatementAnalyzer.java:173-175`, `TypeChecker.java:163-167` | `QualifiedTypeDiagE2ETest` (SEM010 only) | assert no `*Type[` in messages | use `Type.display(...)` at those six sites |
 | `MEM-01` | memory analyzer | `MEM014` on `web.app()` (server lifetime) | warns | warns | Low | per-scope rule ignores `listen`/process lifetime | `memory/ResourceLeakAnalysis.java:52-73,111-171` | `ResourceLeakE2ETest` (no server case) | server-lifetime pin | **SPEC GAP** — treat `listen` as lifetime-establishing (maintainer call) |
 | `PARSE-01` | lexer/parser | expression `1..3` | `PARSE039` | `PARSE039` | — | no range operator by design | `parser/Lexer.java:437`, `parser/ExpressionParser.java:182-211` | probe in `lexical-structure.md` | — | none (diagnostic-quality note only) |
@@ -392,7 +392,10 @@ relevant battery non-regressed. Nothing below is implemented in this audit.
 **P3 — diagnostics quality**
 
 8. `DIAG-01` — dedup at the diagnostic sink by `(position, code, message)`. *Test:*
-   `errorCount() == 1` for `var x = nope`. *Risk:* low-medium.
+   `errorCount() == 1` for `var x = nope`. *Risk:* low-medium. — **DONE 11/10:** landed as
+   `known-bugs` §661 (lane flatt `192.168.100.14:0`): exact-duplicate dedup (the full record tuple,
+   args included) at `DiagnosticCollector.report`; `DiagnosticSinkDedupTest` measured RED 3/3
+   pre-fix (the audit repro ×2, two defects ×4), 3/0F post-fix; diagnostic/analyzer battery 82/0F.
 9. `DIAG-02` — replace the raw interpolations with `Type.display(...)` at the six sites.
    *Test:* SEM012/SEM021/ctor-SEM014 never contain `ClassType[`/`PrimitiveType[`/`NullableType[`.
    *Risk:* low (message text only).
