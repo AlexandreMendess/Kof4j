@@ -525,6 +525,22 @@ Do not assume Cypress's execution model equals Playwright's. Expose only capabil
 compatible semantics; a backend-specific capability that is missing yields a **clear
 `capability unsupported` diagnostic** — never pretend equivalence.
 
+**PHASE 5 CORE LANDED 11/10 (lane `192.168.100.14:0`, flatt CLI; the maintainer unlocked the
+host — root granted to install node 24.18.1/npm 11.16.0 after the phase had been measured
+infeasible without npm; Cypress 16.1.1 lives in the Kof testing cache `~/.cache/kof-testing/
+cypress` and the repo still bundles NOTHING):** `CypressProvider` joins the SPI — an honest
+`probe()` (Kof cache → PATH → project `node_modules`, version printed; null = the named skip)
+and the two compatible-semantics faces, `dumpDom(url)` and `screenshot(url, path)`, delivered
+through GENERATED minimal scaffolding (a config without `require('cypress')`, a one-spec
+project) executed by the REAL `cypress run --headless` over a swept Chromium (Electron as the
+fallback — measured: `cy.screenshot` stalls on GPU-less headless Electron on this class of
+host). **E2E REAL green:** `CypressProviderTest` 4/4 — the rendered DOM from a served page and
+a real PNG. The interactive faces (click/fill/locate) stay `capability unsupported` on this
+backend — per-call spec generation is the documented boundary (the §6.3 rule above). The
+manifest gate accepts `provider: cypress` (`CmdTest.providerProbe`). The maintainer's
+direction recorded: the END USER assembles none of this — the toolchain is the platform's own
+environment; a Kof project declares `provider: cypress` in `kof-test.kofmd` and nothing else.
+
 ## 6.4 Browser capability matrix
 
 ```text
