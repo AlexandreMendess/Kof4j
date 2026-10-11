@@ -128,7 +128,11 @@ public final class KofTime {
     static TimeCall staticCall(String name, List<Type> argTypes) {
         if (!isTimeMethod(name)) return null;
         return switch (name) {
-            case "sleep" -> argTypes.size() == 1
+            // §665 Boundary item 2 (ledger §666): guardas de tipo nos
+            // membros que ligavam SÓ POR ARIDADE (time.sleep("abc") ligava
+            // kof_time_sleep(Int) com uma String → VerifyError). isLeapYear/
+            // isWeekend/addDays já eram guardados — o padrão da própria tabela.
+            case "sleep" -> argTypes.size() == 1 && argTypes.get(0) == INT
                     ? new TimeCall("kof_time_sleep", VOID, List.of(INT))
                     : null;
             case "now" -> argTypes.size() == 0
@@ -137,32 +141,35 @@ public final class KofTime {
             case "collect" -> argTypes.size() == 0
                     ? new TimeCall("kof_gc_collect_now", VOID, List.of())
                     : null;
-            case "interval" -> argTypes.size() == 2
+            case "interval" -> argTypes.size() == 2 && argTypes.get(0) == INT
                     ? new TimeCall("kof_time_interval", STR, List.of(INT, OBJ))
                     : null;
-            case "cancel" -> argTypes.size() == 1
+            case "cancel" -> argTypes.size() == 1 && (argTypes.get(0) == STR
+                    || !(argTypes.get(0) instanceof Type.PrimitiveType))
                     ? new TimeCall("kof_time_cancel", VOID, List.of(STR))
                     : null;
             // STDLIB S7-wedge — calendário civil (só mnemônicos aritméticos;
             // year >= 1 => nada negativo; paridade byte-a-byte JVM/JS/Native).
             case "isLeapYear" -> argTypes.size() == 1 && argTypes.get(0) == INT
                     ? new TimeCall("kof_time_isLeapYear", BOOL, List.of(INT)) : null;
-            case "daysInMonth" -> argTypes.size() == 2
+            case "daysInMonth" -> argTypes.size() == 2 && argTypes.get(0) == INT
+                    && argTypes.get(1) == INT
                     ? new TimeCall("kof_time_daysInMonth", INT, List.of(INT, INT)) : null;
-            case "dayOfWeek" -> argTypes.size() == 3
+            case "dayOfWeek" -> argTypes.size() == 3 && argTypes.get(0) == INT
+                    && argTypes.get(1) == INT && argTypes.get(2) == INT
                     ? new TimeCall("kof_time_dayOfWeek", INT, List.of(INT, INT, INT)) : null;
             // S7-ext (STDLIB): isWeekend — dayOfWeek>=6 (ISO 1=seg..7=dom).
             // Data inválida => dayOfWeek 0 => false (gating automático, paridade 4).
             case "isWeekend" -> argTypes.size() == 3 && argTypes.get(0) == INT
                     ? new TimeCall("kof_time_isWeekend", BOOL, List.of(INT, INT, INT)) : null;
-            case "daysBetween" -> argTypes.size() == 6
+            case "daysBetween" -> argTypes.size() == 6 && argTypes.stream().allMatch(t -> t == INT)
                     ? new TimeCall("kof_time_daysBetween", INT,
                             List.of(INT, INT, INT, INT, INT, INT)) : null;
             // S7-wedge ext — idade: anos COMPLETOS entre a data de nascimento e a
             // data de referência (subtrai 1 quando o aniversário ainda não ocorreu
             // na referência). Mesma política "data inválida => 0" do wedge; aritmética
             // 100% inteira => paridade byte-a-byte nos 5 alvos (sem asm de String).
-            case "age" -> argTypes.size() == 6
+            case "age" -> argTypes.size() == 6 && argTypes.stream().allMatch(t -> t == INT)
                     ? new TimeCall("kof_time_age", INT,
                             List.of(INT, INT, INT, INT, INT, INT)) : null;
             // STDLIB S7a — data ISO (String) add/diff. JVM/SCRIPT via
