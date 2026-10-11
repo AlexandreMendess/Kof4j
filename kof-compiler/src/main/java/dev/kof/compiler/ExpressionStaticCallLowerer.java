@@ -79,7 +79,9 @@ if (mc.receiver() == null && "readLine".equals(mc.methodName()) && mc.arguments(
     return localIdx;
 }
 if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())) {
-    KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), mc.arguments().size());
+    List<Type> webCtxArgTypes = new ArrayList<>();
+    for (ExpressionNode arg : mc.arguments()) webCtxArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), webCtxArgTypes);
     if (webCtx != null) {
         // #102 item 3: o runtime nativo só tem o T1 (listen/route + body/
         // method/path); as demais funções de contexto não são emitidas e a

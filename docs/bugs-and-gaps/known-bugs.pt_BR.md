@@ -15588,6 +15588,18 @@ EAD
 
 **Prova (executada):** novo `WebContextNoMatchDiagnosticTest` (3 faces): pós-correção **3 rodados / 0F**; o experimento de stash (a mudança revertida in-place) mediu a face `bareStatusWithIntArgIsDiagnosed` **VERMELHA pré-correção** — a face exata do audit. Não-regressão: as baterias `*Web*`+`*Context*` **79 rodados / 0F** (as rotas reais de servidor seguem verdes).
 
-**Fronteira:** isto fecha o item 1 da Fronteira do §665. A superfície de sobrecarga-silenciosa conhecida após §665/§666/§667: o `KofWeb.contextCall` checa SÓ ARIDADE (não os TIPOS dos argumentos — `status("a", "b")` liga e morre em runtime do mesmo jeito que `http.status(401)` antes do §665); o mesmo padrão de guarda (isStr/isInt) se aplica lá como uma pequena unidade mecânica.
+**Fronteira:** isto fecha o item 1 da Fronteira do §665. A superfície de sobrecarga-silenciosa conhecida após §665/§666/§667: o `KofWeb.contextCall` checava SÓ ARIDADE — ✅ CORRIGIDO 11/10 como §669 (as guardas de tipo pousaram; a família está fechada em math/http/time/web-context).
 
 <!-- en-switch --> **EN:** [§668 (en)](known-bugs.md#668--665-boundary-item-1-bare-status401-compiled-silently--web-context-function-names-are-excluded-from-the-top-level-resolution-and-from-sem015-and-the-context-branch-only-typed-on-an-exact-arity-match---fixed-1110-lane-flatt-192168100140)
+
+## §669 — a última superfície silenciosa pequena da Fronteira do §667: o KofWeb.contextCall checava SÓ ARIDADE — status("a", "b") cru ligava kof_web_status(Int, String) com duas Strings — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0)
+
+**Sintoma (medido 11/10, tip `2c19afdd9`):** `main() { status("a", "b") }` compilava em silêncio — o `KofWeb.contextCall` casava SÓ POR ARIDADE, então `status("a","b")` ligava `kof_web_status(Int, String)` com duas Strings (VerifyError no JVM) e `param(401)` ligava `kof_web_param(String)` com um Int — a última tabela só-aridade da família de sobrecarga silenciosa (§658 math, §665 http, §666 time, §668 web-context-sem-match).
+
+**A mudança (pousada 11/10):** o `contextCall` agora recebe os TIPOS dos args (`List<Type>`) e guarda cada membro com o helper `isString` da própria tabela (`param`/`query`/`header`/`sse`/`wsSend`/`stats`/`headerSet`/`setHeader` args STR; `status` INT+STR); os três chamadores (`BuiltinCallTyper`, `ExpressionStaticCallLowerer`, `MethodCallTyper`) passam os tipos inferidos. Membro de contexto conhecido sem overload casando cai no diagnóstico SEM025 do §667.
+
+**Prova (RED-first, executada):** novo `WebContextTypeGuardDiagnosticTest` (3 faces — `status("a","b")`, `param(401)`, `sse(401)`): pré-correção 3/3 VERMELHO (compilavam limpos), pós-correção **3 rodados / 0F**. Não-regressão: a bateria `*Web*` **82 rodados / 0F** (as rotas reais de servidor seguem verdes). Nota de processo (honesta): a primeira aplicação PERDEU o `wsMessage` (ficava entre `wsSend` e `stats` no switch, então o patch de bloco não casou) e as atualizações dos chamadores aplicaram pela metade — a classe velha do `MethodCallTyper` produziu um compile falso-verde (o pipe comia o exit code do mvn); ambos pegos e corrigidos antes do push (compile rc medido honestamente depois).
+
+**Fronteira:** a família de sobrecarga silenciosa está agora FECHADA em todas as tabelas só-aridade encontradas (math/http/time/web-context). A tipagem de box de arg capturado (Fronteira do §666) segue a fonte conhecida de falso-positivo para guardas estritas — a unidade de maquinaria de captura (família JVM-01/03). `JSN-01` e o par JVM-01+JVM-03 são as frentes sem decisão restantes.
+
+<!-- en-switch --> **EN:** [§669 (en)](known-bugs.md#669--the-667-boundarys-last-small-silent-surface-kofwebcontextcall-checked-arity-only--bare-statusa-b-bound-kof_web_statusint-string-with-two-strings---fixed-1110-lane-flatt-192168100140)

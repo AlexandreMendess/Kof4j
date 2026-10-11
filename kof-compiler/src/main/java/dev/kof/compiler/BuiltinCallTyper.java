@@ -195,8 +195,9 @@ public final class BuiltinCallTyper {
             return BuiltinTypes.STRING;
         }
         if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())) {
-            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-            KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), mc.arguments().size());
+            List<Type> webArgTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) webArgTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), webArgTypes);
             if (webCtx != null) return webCtx.returnType();
             // §665 Boundary item 1 (ledger §668): nome de contexto conhecido
             // sem aridade casando NÃO pode cair em silêncio — o

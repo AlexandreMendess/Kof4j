@@ -18092,6 +18092,18 @@ EAD
 
 **Proof (executed):** new `WebContextNoMatchDiagnosticTest` (3 faces): post-fix **3 run / 0F**; the stash experiment (the change reverted in-place) measured the `bareStatusWithIntArgIsDiagnosed` face **RED pre-fix** — the exact audit face. Non-regression: the `*Web*`+`*Context*` batteries **79 run / 0F** (the real server-handler routes stay green).
 
-**Boundary:** this closes §665 Boundary item 1. The remaining known silent-overload surface after §665/§666/§667: `KofWeb.contextCall` checks ARITY only (not argument TYPES — `status("a", "b")` binds and dies at runtime the same way `http.status(401)` did before §665); the same guard pattern (isStr/isInt) applies there as a small mechanical unit.
+**Boundary:** this closes §665 Boundary item 1. The remaining known silent-overload surface after §665/§666/§667: `KofWeb.contextCall` checked ARITY only — ✅ FIXED 11/10 as §669 (the type guards landed; the family is closed across math/http/time/web-context).
 
 <!-- pt-switch --> **PT:** [§668 (pt_BR)](known-bugs.pt_BR.md#668--item-1-da-fronteira-do-665-status401-cru-compilava-em-silencio--nomes-context-function-do-web-sao-excluidos-da-resolucao-top-level-e-do-sem015-e-o-ramo-context-so-tipava-com-aridade-exata---corrigido-1110-lane-flatt-192168100140)
+
+## §669 — the §667 Boundary's last small silent surface: KofWeb.contextCall checked ARITY only — bare status("a", "b") bound kof_web_status(Int, String) with two Strings — ✅ FIXED 11/10 (lane flatt 192.168.100.14:0)
+
+**Symptom (measured 11/10, tip `2c19afdd9`):** `main() { status("a", "b") }` compiled silently — `KofWeb.contextCall` matched by ARITY ONLY, so `status("a","b")` bound `kof_web_status(Int, String)` with two Strings (JVM VerifyError) and `param(401)` bound `kof_web_param(String)` with an Int — the last arity-only table of the silent-overload family (§658 math, §665 http, §666 time, §668 web-context-no-match).
+
+**The change (landed 11/10):** `contextCall` now takes the arg TYPES (`List<Type>`) and guards every member with the table's own `isString` helper (`param`/`query`/`header`/`sse`/`wsSend`/`stats`/`headerSet`/`setHeader` STR args; `status` INT+STR); the three callers (`BuiltinCallTyper`, `ExpressionStaticCallLowerer`, `MethodCallTyper`) pass the inferred types. A known context name with no matching overload falls to the §667 SEM025 diagnostic.
+
+**Proof (RED-first, executed):** new `WebContextTypeGuardDiagnosticTest` (3 faces — `status("a","b")`, `param(401)`, `sse(401)`): pre-fix 3/3 RED (compiled clean), post-fix **3 run / 0F**. Non-regression: the `*Web*` battery **82 run / 0F** (the real server-handler routes stay green). One process note (honest): the first guard application MISSED `wsMessage` (sat between `wsSend` and `stats` in the switch, so the block patch didn't match) and the caller updates initially half-applied — the `MethodCallTyper` stale class produced a false-green compile (the pipe ate mvn's exit code); both caught and fixed before push (compile rc measured honestly afterwards).
+
+**Boundary:** the silent-overload family is now CLOSED across every arity-only table found (math/http/time/web-context). The captured-arg box typing (§666 Boundary) remains the known false-positive source for STRICT guards — the capture-machinery unit (JVM-01/03 family). `JSN-01` and the JVM-01+JVM-03 pair are the remaining decision-free fronts.
+
+<!-- pt-switch --> **PT:** [§669 (pt_BR)](known-bugs.pt_BR.md#669--a-ultima-superficie-silenciosa-pequena-da-fronteira-do-667-o-kofwebcontextcall-checava-so-aridade--statusa-b-cru-ligava-kof_web_statusint-string-com-duas-strings---corrigido-1110-lane-flatt-192168100140)

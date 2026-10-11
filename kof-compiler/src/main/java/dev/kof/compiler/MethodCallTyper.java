@@ -175,9 +175,12 @@ if ("readLine".equals(mc.methodName()) && mc.receiver() == null) {
 if ("readFile".equals(mc.methodName()) && mc.receiver() == null) {
     return new Type.NullableType(BuiltinTypes.STRING);
 }
-if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
-        && KofWeb.contextCall(mc.methodName(), mc.arguments().size()) != null) {
-    return BuiltinTypes.STRING;
+if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())) {
+    List<Type> webCtxArgTypes = new ArrayList<>();
+    for (ExpressionNode arg : mc.arguments()) webCtxArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    if (KofWeb.contextCall(mc.methodName(), webCtxArgTypes) != null) {
+        return BuiltinTypes.STRING;
+    }
 }
 if ("writeFile".equals(mc.methodName()) && mc.receiver() == null) {
     return Type.PrimitiveType.INT;
