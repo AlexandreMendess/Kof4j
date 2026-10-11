@@ -16,6 +16,13 @@
 
 ## 2. API
 
+> **Name precedence (`#786`, `D-MAINT-BATCH-1110`):** a local/parameter named
+> `db` whose type is a **user class** (anything other than the String handle of
+> `db.connect`) is an ordinary receiver — its instance calls are preserved and
+> never enter the db namespace. A local named `db` holding the **handle** keeps
+> the namespace winning, so the idiom below is untouched. A call that matches
+> no db function is a hard `SEM025` error — never a silent drop.
+
 ```kof
 main() {
     var db = db.connect("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")

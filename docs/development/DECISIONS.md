@@ -4959,3 +4959,19 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **Proof:** `PortuKofSurfaceE2ETest` (normalization identity vs primary table; script-target parity; JVM compile parity), `PortuKofFormatterProfileE2ETest` (verbatim + idempotent), `PortuKofToolingSurfaceE2ETest` (completion offers `diga`/`diz`, no canonical leak; hover resolves `diga` to the primary `escrevaln`/`println` identity), gate `scripts/check_portukof_parity.sh` §3b.
 
 **Relationships:** `Related: D-PORTUKOF (one surface, one compiler), D-KOF-FIRST (library/vocabulary, not new primitives), rule 11 (surface stays extremely simple — the sugar is 2 words).`
+
+---
+
+## D-MAINT-BATCH-1110 — maintainer multiple-choice batch (11/10/2026, chat poll): the last 1.0-blocks fronts resolved — the 0.6.0 cut unblocked
+
+**Decision (maintainer 11/10, in the release-protocol chat):** three rule-6 fronts resolved in one batch:
+
+* **#779 (ASM COMPUTE_FRAMES crash, external report) = CLOSED not-reproducible** — the reporter's exact artifact compiles clean on every distribution held (0.4.4-beta, 0.4.5, 0.5.0, tip; embedded JDK 25.0.4.1 measured); re-open with a minimized repro.
+* **#786 (`db`-named local of a user type) = option B** — a local/parameter named `db` whose type is a user class is an ORDINARY RECEIVER (the instance call must survive in the IR); a local holding the db handle (the String of `db.connect`) keeps the namespace winning (the 196-use idiom). LANDED: `b8648b8f8` (the typed `shadowsDbNamespaceWithForeignLocal` guard; no-match stays `SEM025`).
+* **#785 (return-type inference fixpoint) = option C, LANDED** — the chat decision on this lane was option B (keep last-pass types + honest diagnostic), and the issues/tooling lane's separate poll sanctioned option C: the pass limit is now **derived from the class's member count** (`max(8, members + 4)`), so an acyclic inference chain always converges order-independently and the last pass's types are preserved. C subsumes B — convergence is guaranteed by construction, so the non-convergence diagnostic is never needed. LANDED: `cbb9f2069`.
+
+With #776 closed upstream (10/10) and #785/#786/#779 resolved, **0 open `1.0-blocks` remain**.
+
+**Working method:** the release pipeline (`D-LAB-STABILITY`) takes over from here: full suite green + gates rc=0 + 0 blocking → the auditable promotion (`promote.yml`, now on `main`).
+
+**Relationships:** `Related: D-LAB-STABILITY, D-RELEASE-CADENCE, D-QUALITY-PIPELINE-2609, rule 6 (this record IS the decision).`

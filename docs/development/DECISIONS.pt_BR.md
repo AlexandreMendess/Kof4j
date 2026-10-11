@@ -4949,3 +4949,19 @@ individuais:
 **Prova:** `PortuKofSurfaceE2ETest` (identidade de normalização vs tabela primária; paridade no alvo script; paridade de compilação JVM), `PortuKofFormatterProfileE2ETest` (verbatim + idempotente), `PortuKofToolingSurfaceE2ETest` (completion oferece `diga`/`diz`, sem vazamento canônico; hover resolve `diga` para a identidade primária `escrevaln`/`println`), gate `scripts/check_portukof_parity.sh` §3b.
 
 **Relações:** `Related: D-PORTUKOF (uma superfície, um compilador), D-KOF-FIRST (biblioteca/vocabulário, não novas primitivas), rule 11 (a superfície continua extremamente simples — o açúcar são 2 palavras).`
+
+---
+
+## D-MAINT-BATCH-1110 — lote de múltipla escolha da mantenedora (11/10/2026, enquete no chat): as últimas frentes 1.0-blocks resolvidas — o corte 0.6.0 destravado
+
+**Decisão (mantenedora 11/10, no chat do protocolo de release):** três frentes da regra 6 resolvidas num lote:
+
+* **#779 (crash ASM COMPUTE_FRAMES, relato externo) = FECHADA não-reproduzível** — o artefato exato do repórter compila limpo em toda distribuição em mãos (0.4.4-beta, 0.4.5, 0.5.0, tip; JDK embutido 25.0.4.1 medido); reabrir com um repro minimizado.
+* **#786 (local chamado `db` de tipo do usuário) = opção B** — um local/parâmetro chamado `db` cujo tipo é uma classe do usuário é um RECEIVER COMUM (a chamada de instância precisa sobreviver no IR); um local segurando o handle de db (o String de `db.connect`) mantém o namespace vencendo (o idioma dos 196 usos). POUSADA: `b8648b8f8` (o guard tipado `shadowsDbNamespaceWithForeignLocal`; sem-casamento continua `SEM025`).
+* **#785 (fixpoint da inferência de retorno) = opção C, POUSADA** — a decisão no chat desta lane foi a opção B (manter os tipos do último passe + diagnóstico honesto), e a enquete separada da lane issues/tooling sancionou a opção C: o limite de passes agora é **derivado da contagem de membros da classe** (`max(8, members + 4)`), então uma cadeia de inferência acíclica sempre converge, independente da ordem, e os tipos do último passe são preservados. C subsume B — a convergência é garantida por construção, então o diagnóstico de não-convergência nunca é necessário. POUSADA: `cbb9f2069`.
+
+Com a #776 fechada a montante (10/10) e #785/#786/#779 resolvidas, **restam 0 `1.0-blocks` abertas**.
+
+**Método de trabalho:** daqui em diante o pipeline de release (`D-LAB-STABILITY`) assume: suíte completa verde + gates rc=0 + 0 bloqueadoras → a promoção auditável (`promote.yml`, agora na `main`).
+
+**Relacionamentos:** `Relacionadas: D-LAB-STABILITY, D-RELEASE-CADENCE, D-QUALITY-PIPELINE-2609, regra 6 (este registro É a decisão).`

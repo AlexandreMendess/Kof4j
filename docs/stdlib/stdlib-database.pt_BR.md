@@ -16,6 +16,14 @@
 
 ## 2. API
 
+> **Precedência de nome (`#786`, `D-MAINT-BATCH-1110`):** um local/parâmetro
+> chamado `db` cujo tipo é uma **classe do usuário** (qualquer coisa diferente
+> do handle String de `db.connect`) é um receiver comum — as chamadas de
+> instância dele são preservadas e nunca entram no namespace db. Um local
+> chamado `db` segurando o **handle** mantém o namespace vencendo, então o
+> idioma abaixo fica intacto. Uma chamada que não casa com nenhuma função de db
+> é erro `SEM025` — nunca um drop silencioso.
+
 ```kof
 main() {
     var db = db.connect("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
