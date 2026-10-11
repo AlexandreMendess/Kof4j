@@ -63,9 +63,11 @@ f(x: Int, s: String) { }    // anotado (idiomático p/ main)
 - Tipo de retorno **antes do nome** ou **depois de `:`** após os parênteses.
 - **Sem tipo declarado → `void`** (default).
 - **Inferência de retorno**: uma função declarada `void` cujo corpo tem
-  `return <valor>` tem o retorno **inferido** no fixpoint (≤4 passes,
-  `analyzeMethodBody:470-477`). `Int f() { return 1 }` e `f() { return 1 }`
-  (void declarado, inferido Int) — o segundo é **Implementation-defined**.
+  `return <valor>` tem o retorno **inferido** no fixpoint. O limite de passes é
+  **derivado da contagem de membros da classe** (`max(8, members + 4)`), então
+  uma cadeia de inferência acíclica sempre converge — independente da ordem —
+  e os tipos de expressão do último passe são preservados (`#785`). Declarar
+  tipos de retorno explícitos segue sendo a forma determinística.
 - `return` sem valor em função não-void → valor default do tipo (ver
   [statements.md](statements.md) §3).
 

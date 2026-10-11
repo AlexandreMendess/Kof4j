@@ -1,0 +1,11 @@
+main() {
+    println(crypto.sha256("abc"))
+    println(crypto.sha256(""))
+    println(crypto.sha512("abc"))
+    println(crypto.hmacSha256("key", "msg"))
+    println(security.constantTimeEquals("abc", "abc"))
+    println(security.constantTimeEquals("abc", "abd"))
+    println(security.constantTimeEquals("", ""))
+    println("[" + security.redact("a") + "]")
+    println("[" + security.redact("verylongsecret") + "]")
+}
