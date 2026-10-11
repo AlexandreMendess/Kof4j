@@ -4818,7 +4818,7 @@ individuais:
 - **Fase 6 (suíte de conformidade/equivalência):** construir a suíte de equivalência oficial sobre o harness.
 - **Fase 7 (integração):** ligar a suíte ao ciclo de integração (`mvn verify` ou equivalente).
 - **Restrição inalterada:** puramente infraestrutura de teste; o compilador não é tocado (regra de ouro do plano). O ratchet de harness só melhora; `D-PLAN-ONE-OWNER` continua valendo (este plano segue com dona `192.168.15.30:9092`; `graphics-gaming` segue SEM DONO).
-- **Relações:** `Completa: D-TEST-ARCHITECTURE-GO (gate)`, `Afeta: docs/development/test-architecture-plan.md Fases 5–7`, `Fronteira-congelada: nenhuma (só teste)`.
+- **Relações:** `Completa: D-TEST-ARCHITECTURE-GO (gate)`, `Afeta: docs/test-architecture-plan.md Fases 5–7`, `Fronteira-congelada: nenhuma (só teste)`.
 ## D-KOF-SIGN — assinatura/verificação Ed25519 como nova face de crypto da stdlib (voto da mantenedora D1=A 03/10, chat)
 
 **Pergunta (regra-6):** a identidade de dispositivo do KofShare (§6/§12 do spec do produto) precisa de assinatura; o compilador hoje tem ZERO face de assinatura (medido 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = vazio). As opções eram (A) face nova da stdlib, (B) embarcar v1 LAN-trust e adiar, (C) rotear por interop `java.security` (quebra `D-KOFSHARE-100KOF`).
@@ -4877,7 +4877,7 @@ individuais:
 | A3 (semântica do loop — pause/minimized/focus) | **`pause()`/`resume()` explícitos; `minimized` suspende o render; perder foco NÃO pausa** | fecha os TBDs `pause`/`minimized`/`focus`; `graphics-gaming` §6 |
 | B (#763 FFI) | **overload por assinatura, completo** — um símbolo C bindado com mais de uma assinatura, resolvido por aridade/tipos (sem a forma alias de símbolo) | fila: superfície FFI do compilador; issue #763 (`post-1.0`) |
 | C (#753 residual / §554) | **estreitar + nomear o handle** — recusar o mismatch builtin→builtin em `TypeChecker.isAssignable` E tornar nomeável em fonte o handle `process.spawn`/`process.run` (`kof.process.Result`) | lane compiler/interop; issue #753 residual + `known-bugs` §554 |
-| D (testing-platform) | **§4.4 testes parametrizados primeiro** — tabelas `input → expected`; §4.6 doubles / §5 harness depois | `kof-testing-platform-plan` §4.4 |
+| D (testing-platform) | **§4.4 testes parametrizados primeiro** — tabelas `input → expected`; §4.6 doubles / §5 harness depois | `testing-platform` §4.4 |
 | E (Q1 branch protections) | **ativar agora** em `testing`/`prerelease`/`stable` (sem force-push + required checks) | `quality-pipeline` 14.4 (mantenedora aplica as configurações no GitHub) |
 | F (G2 FFmpeg) | **vendorizar o build LGPL agora** — o build GPL da distro NÃO é tomado como está | fatia 3.4 (vídeo); empacotamento/licença da lane graphics |
 | G (#761 contrato) | **permanente — nunca bloqueia corte** — sua categoria `1.0-blocks` é aposentada para `tracking/contract`; um contrato vivo não é um defeito aberto | remove o `CUT: SLIPS` estrutural do `check_lab_stability.sh`; #761 segue ABERTA por desenho |
@@ -4890,13 +4890,13 @@ individuais:
 
 ## D-MAINT-BATCH-0610B — lote de múltipla escolha da mantenedora (06/10/2026, segundo poll no chat): superfícies do testing-platform resolvidas
 
-**Data:** 2026-10-06 · **Estado:** `DECIDED` (lote) · **Evidência:** as respostas de múltipla escolha da mantenedora no poll do chat de 06/10/2026 (o poll listou as opções reais do `kof-testing-platform-plan` §4.6/§5/§6). **Efeito:** as três superfícies abaixo ficam AUTORIZADAS para implementação; este registro AUTORIZA, não implementa. Estende `D-MAINT-BATCH-0610`/D (§4.4 primeiro).
+**Data:** 2026-10-06 · **Estado:** `DECIDED` (lote) · **Evidência:** as respostas de múltipla escolha da mantenedora no poll do chat de 06/10/2026 (o poll listou as opções reais do `testing-platform` §4.6/§5/§6). **Efeito:** as três superfícies abaixo ficam AUTORIZADAS para implementação; este registro AUTORIZA, não implementa. Estende `D-MAINT-BATCH-0610`/D (§4.4 primeiro).
 
 | # | Frente (opção) | Desbloqueia / fila |
 |---|---|---|
-| A (§4.6 test doubles) | **apenas seams de clock/random** — injetar um clock determinístico e uma fonte aleatória reprodutível; sem framework de mock/stub/spy (usar o comportamento real quando for barato e determinístico) | `kof-testing-platform-plan` §4.6; superfície de helpers `kof.test` |
-| B (§5 integration harness) | **biblioteca Kof (`kof.test`)** — a superfície do harness vive na biblioteca Kof (ciclo de temp dir / server / db com cleanup via `try/finally`), injetada flat no `import kof.test` explícito; sem superfície só-Java | `kof-testing-platform-plan` §5; library-first (`D-KOF-FIRST` item 12) |
-| C (§6 browser provider) | **opt-in por projeto, a CLI não empacota** — Playwright/Cypress são declarados por projeto e a CLI não os carrega (interop-first R9, sem dependência pesada por padrão) | `kof-testing-platform-plan` §6; fatia do provider  — **REFINADO 10/10 (terceiro chat poll): a declaração vive num ARQUIVO DE MANIFESTO do projeto** (um arquivo de config `kof-test` declarando o browser provider + sua versão; a CLI lê e gateia — explícito e versionado, sem flags no comando); o formato do arquivo é `kof-test.kofmd` (o formato próprio de docs comprimidos do repo, zero dependência de parser externo) salvo ordem da mantenedora posterior . **QUARTO REFINAMENTO 10/10 (quarto chat poll): a lib JAVA do Playwright entra no pom do kof-cli como dependência NORMAL (não-optional) — todo usuário do CLI carrega a lib (~10 MB); a decisão da mantenedora supera a metade 'não empacota' para o jar da lib (os browsers em si ficam de fora: `npx playwright install` segue opt-in por projeto) |
+| A (§4.6 test doubles) | **apenas seams de clock/random** — injetar um clock determinístico e uma fonte aleatória reprodutível; sem framework de mock/stub/spy (usar o comportamento real quando for barato e determinístico) | `testing-platform` §4.6; superfície de helpers `kof.test` |
+| B (§5 integration harness) | **biblioteca Kof (`kof.test`)** — a superfície do harness vive na biblioteca Kof (ciclo de temp dir / server / db com cleanup via `try/finally`), injetada flat no `import kof.test` explícito; sem superfície só-Java | `testing-platform` §5; library-first (`D-KOF-FIRST` item 12) |
+| C (§6 browser provider) | **opt-in por projeto, a CLI não empacota** — Playwright/Cypress são declarados por projeto e a CLI não os carrega (interop-first R9, sem dependência pesada por padrão) | `testing-platform` §6; fatia do provider  — **REFINADO 10/10 (terceiro chat poll): a declaração vive num ARQUIVO DE MANIFESTO do projeto** (um arquivo de config `kof-test` declarando o browser provider + sua versão; a CLI lê e gateia — explícito e versionado, sem flags no comando); o formato do arquivo é `kof-test.kofmd` (o formato próprio de docs comprimidos do repo, zero dependência de parser externo) salvo ordem da mantenedora posterior . **QUARTO REFINAMENTO 10/10 (quarto chat poll): a lib JAVA do Playwright entra no pom do kof-cli como dependência NORMAL (não-optional) — todo usuário do CLI carrega a lib (~10 MB); a decisão da mantenedora supera a metade 'não empacota' para o jar da lib (os browsers em si ficam de fora: `npx playwright install` segue opt-in por projeto) |
 
 **Limite:** as três são infraestrutura de teste aditiva — sem mudança de linguagem/semântica. A é a única superfície implementada até agora (`fixedClock`/`scriptedClock`/`seededRandom`); B e C estão AUTORIZADAS e na fila. Nada aqui enfraquece o quality gate ou descongela `future/`.
 
@@ -4949,3 +4949,19 @@ individuais:
 **Prova:** `PortuKofSurfaceE2ETest` (identidade de normalização vs tabela primária; paridade no alvo script; paridade de compilação JVM), `PortuKofFormatterProfileE2ETest` (verbatim + idempotente), `PortuKofToolingSurfaceE2ETest` (completion oferece `diga`/`diz`, sem vazamento canônico; hover resolve `diga` para a identidade primária `escrevaln`/`println`), gate `scripts/check_portukof_parity.sh` §3b.
 
 **Relações:** `Related: D-PORTUKOF (uma superfície, um compilador), D-KOF-FIRST (biblioteca/vocabulário, não novas primitivas), rule 11 (a superfície continua extremamente simples — o açúcar são 2 palavras).`
+
+---
+
+## D-MAINT-BATCH-1110 — lote de múltipla escolha da mantenedora (11/10/2026, enquete no chat): as últimas frentes 1.0-blocks resolvidas — o corte 0.6.0 destravado
+
+**Decisão (mantenedora 11/10, no chat do protocolo de release):** três frentes da regra 6 resolvidas num lote:
+
+* **#779 (crash ASM COMPUTE_FRAMES, relato externo) = FECHADA não-reproduzível** — o artefato exato do repórter compila limpo em toda distribuição em mãos (0.4.4-beta, 0.4.5, 0.5.0, tip; JDK embutido 25.0.4.1 medido); reabrir com um repro minimizado.
+* **#786 (local chamado `db` de tipo do usuário) = opção B** — um local/parâmetro chamado `db` cujo tipo é uma classe do usuário é um RECEIVER COMUM (a chamada de instância precisa sobreviver no IR); um local segurando o handle de db (o String de `db.connect`) mantém o namespace vencendo (o idioma dos 196 usos). POUSADA: `b8648b8f8` (o guard tipado `shadowsDbNamespaceWithForeignLocal`; sem-casamento continua `SEM025`).
+* **#785 (fixpoint da inferência de retorno) = opção C, POUSADA** — a decisão no chat desta lane foi a opção B (manter os tipos do último passe + diagnóstico honesto), e a enquete separada da lane issues/tooling sancionou a opção C: o limite de passes agora é **derivado da contagem de membros da classe** (`max(8, members + 4)`), então uma cadeia de inferência acíclica sempre converge, independente da ordem, e os tipos do último passe são preservados. C subsume B — a convergência é garantida por construção, então o diagnóstico de não-convergência nunca é necessário. POUSADA: `cbb9f2069`.
+
+Com a #776 fechada a montante (10/10) e #785/#786/#779 resolvidas, **restam 0 `1.0-blocks` abertas**.
+
+**Método de trabalho:** daqui em diante o pipeline de release (`D-LAB-STABILITY`) assume: suíte completa verde + gates rc=0 + 0 bloqueadoras → a promoção auditável (`promote.yml`, agora na `main`).
+
+**Relacionamentos:** `Relacionadas: D-LAB-STABILITY, D-RELEASE-CADENCE, D-QUALITY-PIPELINE-2609, regra 6 (este registro É a decisão).`

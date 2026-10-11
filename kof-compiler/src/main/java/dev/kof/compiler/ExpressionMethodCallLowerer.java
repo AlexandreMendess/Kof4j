@@ -19,15 +19,6 @@ public final class ExpressionMethodCallLowerer {
                 p != null ? p.line() : 0, p != null ? p.column() : 0, 0, msg, code);
     }
 
-    /** Emite todos os argumentos da chamada, devolvendo o localIdx atualizado. */
-    private static int emitArgs(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
-            String owner, int localIdx, List<IRLocalVariable> locals) {
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        return localIdx;
-    }
-
     /**
      * #403 — o nome do receiver sombreia um CAMPO da classe corrente? A
      * semântica já resolve `log` como campo (SemExpressionTyper:63, antes da
@@ -47,118 +38,32 @@ public final class ExpressionMethodCallLowerer {
                 instanceof SymbolTable.FieldSymbol;
     }
 
+    /**
+     * #786: `db` is both the KofDb namespace and a name the documented idiom
+     * `var db = db.connect(...)` / `db.execute(db, ...)` binds — the handle is a
+     * String (`KofDb.staticCall` returns `STR`). A local/parameter named `db` of
+     * ANY OTHER type is an ordinary receiver (`db.next()` on a user class), and
+     * routing it to the db namespace made the call vanish: `KofDb.staticCall`
+     * returns null and `ExpressionDbCallLowerer` emits nothing (R6/Q7 silent
+     * drop → frame crash). Only a handle-typed local keeps the namespace, so the
+     * idiom is untouched.
+     */
+    static boolean shadowsDbNamespaceWithForeignLocal(CompilerDriver driver, String name,
+                                                      List<IRLocalVariable> locals) {
+        IRLocalVariable lv = driver.findLocalVar(name, locals);
+        return lv != null && !BuiltinTypes.STRING.equals(lv.type());
+    }
+
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                         String owner, int localIdx, List<IRLocalVariable> locals) {
 // User-defined classes take precedence over builtin helpers
 int handledStatic = ExpressionStaticCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 if (handledStatic >= 0) return handledStatic;
 if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName())) {
-        // #763: mesmo-nome = overloads; a assinatura vem do typer (1 resolução, sem 2º oracle).
-    ExternalFunctionNode ext = driver.semanticAnalyzer != null
-            ? driver.semanticAnalyzer.getExternChoice(mc) : null;
-    if (ext == null) {
-        List<ExternalFunctionNode> cands = driver.externSignatures.get(mc.methodName());
-        if (cands.size() == 1) {
-            ext = cands.get(0);
-        } else {
-            gapError(driver, mc, "extern '" + mc.methodName() + "' has " + cands.size()
-                    + " overloads; this call did not resolve one (FFI001)", "FFI001");
-            return localIdx;
-        }
-    }
-    if (CompilerFfiBinding.isExternBound(driver, ext)) {
-        // #431/§61 (Native): ABI escalar DIRETA — os args ficam crus na pilha de
-        // operandos (mesma convenção push dos calls internos) e o backend emite o
-        // marshaling SysV + `call sym@PLT` (precedente: consumidor SQLite/DB001).
-        // O KofCall carrega owner=kof.ffi + methodName "lib::simbolo" como
-        // metadado — nenhum lowering de usuário gera "::" num nome de método.
-        if (driver.target.isNative()) {
-            // #431 fatia 2: o mesmo KofCall "lib::simbolo" serve as 3 archs —
-            // o backend escolhe o shim (x86 SysV / riscv LP64 / aarch AAPCS64
-            // via tradução do texto riscv).
-            List<Type> ffiParams = new java.util.ArrayList<>();
-            for (var p : ext.parameters()) {
-                Type scalar = FfiSignature.paramType(p.type());
-                if (scalar != null) {
-                    ffiParams.add(scalar);
-                } else {
-                    // 3.7: `record` por valor — o Type carrega os campos p/ o
-                    // backend montar os registradores sem precisar do driver.
-                    String fc = FfiSignature.structFieldChars(p.type(), driver);
-                    if (fc != null) {
-                        ffiParams.add(FfiStructLayout.structTypeOfChars(fc));
-                    } else {
-                        // D6-2/3.7: array escalar `T[]`→`ptr` (marker kof.ffi/array).
-                        Character ae = FfiSignature.arrayElemChar(p.type());
-                        if (ae != null) {
-                            ffiParams.add(FfiStructLayout.arrayPtrType(ae));
-                        } else if (FfiSignature.isStringArray(p.type())) {
-                            // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**`
-                            // (marker arrayPtrType('S')).
-                            ffiParams.add(FfiStructLayout.arrayPtrType('S'));
-                        } else if (FfiSignature.isBufferParam(p.type())) {
-                            // D6-3/D-R3-BUFFER (fatia A2): Buffer(U8) INOUT — o
-                            // backend x86-64 passa o payload (obj+24) direto.
-                            ffiParams.add(FfiStructLayout.bufferPtrType());
-                        } else {
-                            ffiParams.add(null);
-                        }
-                    }
-                }
-            }
-            for (int i = 0; i < mc.arguments().size(); i++) {
-                ExpressionNode arg = mc.arguments().get(i);
-                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-                // #549/§370: o marshaling SysV lê os bits pela classe do SLOT — o
-                // argumento chega já convertido ao tipo declarado (regra comum).
-                ExternArgumentCoercion.coerce(driver, arg, i < ffiParams.size() ? ffiParams.get(i) : null, ops, locals);
-            }
-            // 3.7 fatia 2: retorno `record` por valor — o KofCall carrega o
-            // ClassType REAL do record (resolução de `.campo()` a jusante e o
-            // backend materializa o objeto a partir do registrador/scratch).
-            Type ffiRet = FfiSignature.returnType(ext.returnType());
-            if (FfiSignature.returnChar(ext.returnType()) == null) {
-                Type st = FfiSignature.structReturnType(ext.returnType(), driver);
-                if (st != null) ffiRet = st;
-            }
-            ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()),
-                    ext.library() + "::" + ext.name(), ffiParams,
-                    ffiRet, KofCallKind.FUNCTION));
-            return localIdx;
-        }
-        // FFI (R3, generalizado): kof_ffi(lib, nome, sig, Object[] args).
-        Type object = new Type.ClassType("java.lang", "Object", List.of());
-        Type objectArray = new Type.ArrayType(object);
-        ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
-                ext.library() != null ? ext.library() : ""));
-        ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ext.name()));
-        ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
-                FfiSignature.signature(driver, ext)));
-        int n = mc.arguments().size();
-        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, n));
-        ops.add(new KofNewArray(object));
-        for (int i = 0; i < n; i++) {
-            ops.add(new KofDup());
-            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, i));
-            ExpressionNode arg = mc.arguments().get(i);
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-            Type argType = ExpressionTyper.inferExprType(driver, arg, locals);
-            // #549/§370: `Double→Float`/`Int→Float`… viram a conversão real ANTES do
-            // box — o `kof_ffi` faz cast pelo wrapper do slot (Float), nunca reinterpreta.
-            Type slot = i < ext.parameters().size() ? FfiSignature.paramType(ext.parameters().get(i).type()) : null;
-            if (ExternArgumentCoercion.coerce(driver, arg, slot, ops, locals)) argType = slot;
-            if (argType instanceof Type.PrimitiveType) {
-                TypeEmitter.boxPrimitive(ops, argType);
-            }
-            ops.add(new KofArrayStore(object));
-        }
-        String ffiHelper = FfiSignature.isVoidFFI(ext.returnType())
-                ? "kof_ffi_void" : "kof_ffi";
-        ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()), ffiHelper,
-                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING, BuiltinTypes.STRING, objectArray),
-                FfiSignature.callReturnType(driver, ext), KofCallKind.FUNCTION));
-        return localIdx;
-    }
+    // Face extern/FFI extraída (ExpressionExternCallLowerer); -1 = binding
+    // inativo — cai no resto da cadeia exatamente como o corpo original caía.
+    int handledExtern = ExpressionExternCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
+    if (handledExtern >= 0) return handledExtern;
 }
 if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && driver.semanticAnalyzer != null
@@ -318,6 +223,9 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return ExpressionJsonCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && KofDb.isDbNamespace(rid.name())
         && !shadowsFieldOfCurrentClass(driver, owner, rid.name())) {
+    if (shadowsDbNamespaceWithForeignLocal(driver, rid.name(), locals)) {
+        return ExpressionInstanceCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
+    }
     return ExpressionDbCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && KofOrm.isOrmNamespace(rid.name())
@@ -347,22 +255,7 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return ExpressionTimeCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofScheduler.isSchedulerNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofScheduler.SchedulerCall schedCall = KofScheduler.staticCall(mc.methodName(), argTypes);
-    if (schedCall != null) {
-        if (!KofScheduler.supportedOn(schedCall.function(), driver.target)) {
-            String code = KofScheduler.gapCode(schedCall.function());
-            gapError(driver, mc, rid.name() + "." + mc.methodName()
-                    + ": not available on the " + driver.target
-                    + " driver.target yet (" + code + ")", code);
-            return localIdx;
-        }
-        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
-        ops.add(new KofCall(KofScheduler.SCHEDULER, schedCall.function(), schedCall.parameterTypes(),
-                schedCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionNamespaceCallLowerer.lowerScheduler(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName())) {
     return ExpressionSchedulerCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
     // #108 (opção 1, 13/09): `sleep(ms)` sem receiver = `time.sleep(ms)`.
@@ -388,81 +281,13 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return ExpressionCacheCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofGpu.isGpuNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    if (System.getProperty("kof.trace") != null) {
-        System.err.println("GPU call " + mc.methodName() + " argTypes=" + argTypes);
-    }
-    // Unknown (var sem tipo inferido no lowering) casa com
-    // qualquer array: o staticCall exige tipos concretos, mas
-    // o `var a = new Long[4]` pode chegar como Unknown quando
-    // o local foi registrado antes do NewArray. Substitui
-    // Unknown por Long[]/Int[] conforme o nome do método.
-    List<Type> candidate = new ArrayList<>();
-    boolean hasUnknown = false;
-    for (Type t : argTypes) {
-        if (t instanceof Type.UnknownType) { hasUnknown = true; break; }
-    }
-    if (hasUnknown) {
-        Type arrType = "dispatchMatmul64".equals(mc.methodName())
-                ? new Type.ArrayType(Type.PrimitiveType.LONG)
-                : new Type.ArrayType(Type.PrimitiveType.INT);
-        for (Type t : argTypes) {
-            candidate.add(t instanceof Type.UnknownType ? arrType : t);
-        }
-        argTypes = candidate;
-    }
-    KofGpu.GpuCall gpuCall = KofGpu.staticCall(mc.methodName(), argTypes);
-    if (gpuCall != null) {
-        if (!KofGpu.supportedOn(driver.target)) {
-            gapError(driver, mc, rid.name() + "." + mc.methodName()
-                    + ": not available on the " + driver.target
-                    + " driver.target yet (GPU001)", "GPU001");
-            return localIdx;
-        }
-        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
-        ops.add(new KofCall(KofGpu.GPU, gpuCall.function(), gpuCall.parameterTypes(),
-                gpuCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionNamespaceCallLowerer.lowerGpu(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofSecurity.isSecurityNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofSecurity.SecCall secCall = KofSecurity.staticMethod(rid.name(), mc.methodName(), argTypes);
-    if (secCall != null) {
-        if (!KofSecurity.supportedOn(secCall.function(), driver.target)) {
-            gapError(driver, mc, rid.name() + "." + mc.methodName()
-                    + ": not available on the " + driver.target
-                    + " driver.target yet (" + KofSecurity.gapCode(secCall.function()) + ")",
-                    KofSecurity.gapCode(secCall.function()));
-            return localIdx;
-        }
-        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
-        ops.add(new KofCall(new Type.ClassType("kof.security", "Security", List.of()),
-                secCall.function(), secCall.parameterTypes(), secCall.returnType(),
-                KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionNamespaceCallLowerer.lowerSecurity(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofValidation.isValidationNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofValidation.ValidationCall vCall = KofValidation.staticMethod(rid.name(), mc.methodName(), argTypes);
-    if (vCall != null) {
-        if (!KofValidation.supportedOn(vCall.function(), driver.target)) {
-            gapError(driver, mc, rid.name() + "." + mc.methodName()
-                    + ": not available on the " + driver.target
-                    + " driver.target yet (" + KofValidation.gapCode(vCall.function()) + ")",
-                    KofValidation.gapCode(vCall.function()));
-            return localIdx;
-        }
-        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
-        ops.add(new KofCall(new Type.ClassType("kof.validation", "Validation", List.of()),
-                vCall.function(), vCall.parameterTypes(), vCall.returnType(),
-                KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionNamespaceCallLowerer.lowerValidation(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && KofStd.isStdNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
@@ -500,59 +325,13 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && KofObservability.isObservabilityNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofObservability.ObservabilityCall oCall = KofObservability.staticMethod(rid.name(), mc.methodName(), argTypes);
-    if (oCall != null) {
-        if (!KofObservability.supportedOn(oCall.function(), driver.target)) {
-            gapError(driver, mc, rid.name() + "." + mc.methodName()
-                    + ": not available on the " + driver.target
-                    + " driver.target yet (" + KofObservability.gapCode(oCall.function()) + ")",
-                    KofObservability.gapCode(oCall.function()));
-            return localIdx;
-        }
-        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
-        ops.add(new KofCall(new Type.ClassType("kof.observability", "Observability", List.of()),
-                oCall.function(), oCall.parameterTypes(), oCall.returnType(),
-                KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionNamespaceCallLowerer.lowerObservability(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofTetris.isTetrisNamespace(rid.name())) {
-    KofTetris.TetrisCall tetrisCall = KofTetris.staticMethod(rid.name(), mc.methodName(),
-            mc.arguments().size());
-    if (tetrisCall != null) {
-        if (!KofTetris.supportedOn(driver.target)) {
-            gapError(driver, mc, rid.name() + "." + mc.methodName()
-                    + ": not available on the " + driver.target
-                    + " driver.target yet (" + KofTetris.gapCode() + ")",
-                    KofTetris.gapCode());
-            return localIdx;
-        }
-        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
-        ops.add(new KofCall(new Type.ClassType("kof.tetris", "Tetris", List.of()),
-                tetrisCall.function(), tetrisCall.parameterTypes(), tetrisCall.returnType(),
-                KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionNamespaceCallLowerer.lowerTetris(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && KofImage.isImageNamespace(rid.name())) {
-    KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
-            mc.arguments().size());
-    if (imageCall != null) {
-        if (!KofImage.supportedOn(driver.target)) {
-            gapError(driver, mc, rid.name() + "." + mc.methodName()
-                    + ": no image codec runtime on the " + driver.target
-                    + " target yet (" + KofImage.gapCode() + ")",
-                    KofImage.gapCode());
-            return localIdx;
-        }
-        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
-        ops.add(new KofCall(new Type.ClassType("kof.image", "Image", List.of()),
-                imageCall.function(), imageCall.parameterTypes(), imageCall.returnType(),
-                KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionNamespaceCallLowerer.lowerImage(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofWeb.isWebNamespace(rid.name())) {
     if ("app".equals(mc.methodName()) && mc.arguments().isEmpty()) {

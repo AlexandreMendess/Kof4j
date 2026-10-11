@@ -45,7 +45,10 @@ final class SemDeclarationAnalyzer {
                 sa.inferType(field.initializer(), classScope);
             }
         }
-        for (int pass = 0; pass < 4; pass++) {
+        // #785 (opcao C): limite derivado do numero de membros — ver
+        // `SemanticAnalyzer.analyzeClass` (convergencia independente da ordem).
+        int maxPasses = Math.max(8, rec.members().size() + 4);
+        for (int pass = 0; pass < maxPasses; pass++) {
             boolean changed = false;
             sa.beginExpressionTypeGroup();
             for (AstNode member : rec.members()) {
@@ -63,7 +66,14 @@ final class SemDeclarationAnalyzer {
                 sa.discardExpressionTypeGroup();
                 break;
             }
-            sa.clearExpressionTypes();
+            // #785 (opcao A) — na ultima passada ainda `changed` os tipos da
+            // ultima passada sao PRESERVADOS (limpar deixava o record sem tipos
+            // de expressao). Mesmo fix do laco de classe.
+            if (pass + 1 < maxPasses) {
+                sa.clearExpressionTypes();
+            } else {
+                sa.discardExpressionTypeGroup();
+            }
         }
         sa.setCurrentScope(prevScope);
         sa.setCurrentClassName(prevClass);
@@ -100,7 +110,10 @@ final class SemDeclarationAnalyzer {
         // #213: corpos de métodos default de interface precisam ser analisados
         // (resolução de `greet(name)` como this.greet, tipos de retorno) — antes
         // eram ignorados e a chamada nua virava função hoisted.
-        for (int pass = 0; pass < 4; pass++) {
+        // #785 (opcao C): limite derivado do numero de membros — ver
+        // `SemanticAnalyzer.analyzeClass` (convergencia independente da ordem).
+        int maxPasses = Math.max(8, iface.members().size() + 4);
+        for (int pass = 0; pass < maxPasses; pass++) {
             boolean changed = false;
             sa.beginExpressionTypeGroup();
             for (AstNode member : iface.members()) {
@@ -117,7 +130,14 @@ final class SemDeclarationAnalyzer {
                 sa.discardExpressionTypeGroup();
                 break;
             }
-            sa.clearExpressionTypes();
+            // #785 (opcao A) — na ultima passada ainda `changed` os tipos da
+            // ultima passada sao PRESERVADOS (limpar deixava a interface sem
+            // tipos de expressao). Mesmo fix do laco de classe.
+            if (pass + 1 < maxPasses) {
+                sa.clearExpressionTypes();
+            } else {
+                sa.discardExpressionTypeGroup();
+            }
         }
         sa.setCurrentScope(prevScope);
         sa.setCurrentClassName(prevClass);

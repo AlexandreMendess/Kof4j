@@ -51,6 +51,9 @@ public class WasmBackend implements Backend {
         Map<String, Integer> stringPool = new LinkedHashMap<>();
         List<Integer> globals = List.of();
         List<WasmData> dataSegments = new ArrayList<>();
+        // #796: cursor do pool de dados UNICO por modulo (nao por funcao).
+        WasmLowering.DataCursor dataCursor = new WasmLowering.DataCursor();
+        boolean usesHeap = false;
         List<IRMethod> entries = new ArrayList<>();
         java.util.Map<String, IRMethod> decls = new java.util.LinkedHashMap<>();
         IRMethod mainDecl = null;
@@ -171,7 +174,7 @@ public class WasmBackend implements Backend {
 
         List<WasmFunc> funcs = new ArrayList<>();
         List<WasmFunc> lowered = new ArrayList<>();
-        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments, records, recDepth));
+        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments, records, recDepth, dataCursor));
         IRMethod startM = null;
         boolean usesArgs = false;
         if (wasi) {
@@ -209,18 +212,25 @@ public class WasmBackend implements Backend {
                         funcs.add(kofStrEq());   // campo String do fold de == (15.3d inc2 fatia C2)
                     }
                     if (usesStringConcat(scanAll) || usesRecords) funcs.add(kofStrConcat());
-                    globals = java.util.List.of(HEAP_BASE); // bump pointer global 0
+                    usesHeap = true; // bump pointer global 0
                 }
             if (usesArgs) {
                 funcs.add(kofReadArgs());
-                globals = java.util.List.of(HEAP_BASE); // heap p/ handles de args
+                usesHeap = true; // heap p/ handles de args
             }
             if (usesRecords) {
-                globals = java.util.List.of(HEAP_BASE); // heap p/ blocos de record (15.3d)
+                usesHeap = true; // heap p/ blocos de record (15.3d)
             }
         }
         funcs.addAll(lowered);
-        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, usesArgs, stringPool, dataSegments, records, recDepth));
+        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, usesArgs, stringPool, dataSegments, records, recDepth, dataCursor));
+        // #796: o heap comeca DEPOIS do ultimo byte de dados (nunca em cima do
+        // pool de literais). Com o cursor de modulo o pool pode passar de
+        // HEAP_BASE; `DataCursor.intern` ja recusou um literal que nao caiba, aqui
+        // so deslocamos a base do heap para nao sobrepor o que coube.
+        if (usesHeap) {
+            globals = java.util.List.of(Math.max(HEAP_BASE, (dataCursor.next + 7) & ~7));
+        }
         List<WasmImport> imports;
         if (!wasi) {
             imports = List.of();

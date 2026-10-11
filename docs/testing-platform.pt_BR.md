@@ -1,10 +1,11 @@
-[English](kof-testing-platform-plan.md) | [Português](kof-testing-platform-plan.pt_BR.md)
+[English](../testing-platform.md) | [Português](kof-testing-platform-plan.pt_BR.md)
 
 # Plataforma de Testes Kof — Unit / Integração / Frontend E2E
 
 **Dono:** `192.168.15.15:9092` (lane security/connectors — REASSUMIDO 10/10 por ordem da mantenedora: a dona anterior lane issues/tooling `192.168.15.30:9093` ativa pela última vez 09/10, órfão >1 dia; claims DEVEM carregar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
-**Status:** EM DESENVOLVIMENTO — promovido de `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
-**Local:** `docs/development/`
+**Status:** EM DESENVOLVIMENTO — promovido de `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`); **NÚCLEO PROMOVIDO para `docs/` 10/10**
+**Local:** `docs/testing-platform.pt_BR.md` (promovido de `docs/development/` 10/10)
+**Escopo 0.6.0 (mantenedora 11/10 — "todos os planos em reta final ja libera a tag 0.6.0"):** as fases 1–7 do núcleo SÃO a face da 0.6.0 (fase 5 Cypress + fase 7 cross-browser pousadas 11/10); **a fase 8 (avançado: regressão visual/acessibilidade/network-mocking/traces) e a face KofWasm do §6.10 estão explicitamente FORA do escopo da 0.6.0** — fatias futuras, nunca bloqueadoras de corte.
 **Natureza:** plano de implementação — estado real + como terminar (registro de design mantido abaixo)
 **Fonte normativa:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, autorizada — `D-FUTURE-BATCH-2809`/`B`); a promoção a trabalho corrente é uma-por-vez por `D-FUTURE-PROMOTION`
 **Dependências principais:** o comando `kof test` existente (`CmdTest`), a superfície de teste da
@@ -13,7 +14,7 @@ linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJ
 **Plano companheiro:** `test-architecture-plan.md` (refatoração da **suíte Java do próprio
 compilador** — camadas L0–L5, perfis, performance). Este documento é a **plataforma de testes do
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
-**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**; §5 harness — fatia 1 (temp dir + poll de prontidão) POUSADA 06/10, fatia 2 (ciclo de vida de banco `withDb` no opt-in `kof.test.db`) POUSADA 07/10, fatia 3 (ciclo de vida de servidor `withServer` no opt-in `kof.test.web`, `spawn`+prontidão+close no `finally`) POUSADA 08/10 — completo no JVM; os alvos cross reportam o gap pré-existente `app.close`/`WEB001` honestamente (sem fallback silencioso); política do provider de browser do §6 REGISTRADA 08/10 (só docs — opt-in por projeto `C`, todos os alvos `T1`, `kof.test` compilador/CLI `T2`; a fatia do provider em si segue gated pela decisão aberta da regra 6 sobre declaração de provider); medição de duração do runner do §8.5 (tempo por arquivo + arquivo mais lento) POUSADA 08/10; faces `processo`/`config`/`variáveis de ambiente` do §5.1 REGISTRADAS 08/10 como fronteiras medidas (handle não nomeável + sem varargs-de-lista; sem primitiva setenv, config só-leitura — regra 6).
+**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**; §5 harness — fatia 1 (temp dir + poll de prontidão) POUSADA 06/10, fatia 2 (ciclo de vida de banco `withDb` no opt-in `kof.test.db`) POUSADA 07/10, fatia 3 (ciclo de vida de servidor `withServer` no opt-in `kof.test.web`, `spawn`+prontidão+close no `finally`) POUSADA 08/10 — completo no JVM; os alvos cross reportam o gap pré-existente `app.close`/`WEB001` honestamente (sem fallback silencioso); política do provider de browser do §6 REGISTRADA 08/10 (só docs — opt-in por projeto `C`, todos os alvos `T1`, `kof.test` compilador/CLI `T2`; a fatia do provider em si segue gated pela decisão aberta da regra 6 sobre declaração de provider); medição de duração do runner do §8.5 (tempo por arquivo + arquivo mais lento) POUSADA 08/10; faces `processo`/`config`/`variáveis de ambiente` do §5.1 REGISTRADAS 08/10 como fronteiras medidas (handle não nomeável + sem varargs-de-lista; sem primitiva setenv, config só-leitura — regra 6).; §8.5 medição de duração POUSADA 08/10, breakdown por nível POUSADA 10/10 (a linha `levels:`: `unit: N passed / M failed` — o nível derivado honestamente dos tags declarados; corrida pura unit mantém a saída histórica), o stack do §6 provider POUSADO 10/10 (o manifesto `kof-test.kofmd` + o gate `kof test --tag browser` + a SPI de browser + dois providers: ChromeHeadless zero-dep e PlaywrightLib full-capability — **E2E REAL: Chromium 156 renderiza + PNG real**; a API de browser no nível Kof `kof.test.browser` POUSADA 10/10 — **E2E REAL: `browserContent` via o pacote virtual, o Chromium REAL renderiza o dump-dom** — o marco do §6 COMPLETO em todos os níveis)
 
 > **Fatia 6 (POUSADA 02/10).** A última face do §4.1: o par genérico `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` em `dev/kof/test.kf`. Ficou deliberadamente adiado (não entregue quebrado) até o `known-bugs` §553 ser resolvido: a resposta regra-6 da mantenedora `D-EQ-UNBOUNDED-T` (02/10) fixa `==` sobre um `T` não-limitado como **igualdade estrutural de conteúdo** em todo alvo, então o helper é correto para qualquer `T` (Int, String, record, …). O label stringifica `expected`/`actual` via `+` — sem primitiva nova, sem runtime por alvo. Prova RED-first: novo `GenericEqualityE2ETest` **16/16** (o par genérico verde em JVM/Script/JS/Nativo e lançando em mismatch real; o golden de semântica de `==` byte-idêntico ao oráculo JVM em JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. O §4.1 está completo; as faces restantes são regra-6/decisão (§4.4 parametrizado, §4.6 doubles, §5 harness). O **provider de browser** (§6) não está mais barrado: `D-MAINT-BATCH-0510`/`T1` decide que ele deve servir **todos os alvos** (JVM + JS + Native), e `/T2` decide que o `kof.test` continua **feature do compilador/CLI** (não namespace da stdlib) — ver §12.
 
@@ -513,6 +514,22 @@ Não assumir que o modelo de execução do Cypress é igual ao do Playwright. Ex
 capacidades com semântica compatível; capacidade ausente em um backend gera um **diagnóstico
 claro `capability unsupported`** — nunca fingir equivalência.
 
+**NÚCLEO DA FASE 5 POUSADO 11/10 (lane `192.168.100.14:0`, flatt CLI; a mantenedora destravou
+o host — root concedido para instalar node 24.18.1/npm 11.16.0 depois da fase ter sido medida
+inviável sem npm; o Cypress 16.1.1 vive no cache de teste do Kof `~/.cache/kof-testing/cypress`
+e o repo continua sem embutir NADA):** o `CypressProvider` entra no SPI — `probe()` honesto
+(cache do Kof → PATH → `node_modules` do projeto, versão impressa; null = o skip nomeado) e as
+duas faces de semântica compatível, `dumpDom(url)` e `screenshot(url, path)`, entregues por
+scaffolding mínimo GERADO (uma config sem `require('cypress')`, um projeto de um spec)
+executado pelo `cypress run --headless` REAL sobre um Chromium varrido (Electron como fallback
+— medido: o `cy.screenshot` trava em Electron headless sem GPU nesta classe de host).
+**E2E REAL verde:** `CypressProviderTest` 4/4 — o DOM renderizado de uma página servida e um
+PNG real. As faces interativas (click/fill/locate) seguem `capability unsupported` neste
+backend — a geração de spec por chamada é a fronteira documentada (a regra do §6.3 acima). O
+gate do manifesto aceita `provider: cypress` (`CmdTest.providerProbe`). A direção da
+mantenedora fica registrada: o USUÁRIO FINAL não monta nada disso — o toolchain é ambiente da
+própria plataforma; um projeto Kof declara `provider: cypress` no `kof-test.kofmd` e nada mais.
+
 ## 6.4 Matriz de capacidades de browser
 
 ```text
@@ -584,6 +601,24 @@ KofWasm é futuro (`WASM001`, `wasm-wasi-plan.md`); a plataforma não deve prome
 Rodar a mesma suíte em Chromium/Firefox/WebKit quando o backend suportar; nunca todos os
 browsers em todo PR por padrão. Perfis: `Fast Browser` e `Full Browser Matrix`. Suportar
 desktop/tablet/mobile via viewport, emulação de dispositivo, toque e orientação quando suportado.
+
+**NÚCLEO DA FASE 7 POUSADO 11/10 (lane `192.168.100.14:0`, flatt CLI — a fila assumida da
+security/connectors):** o `PlaywrightLibProvider` é parametrizado por kind — `KINDS =
+chromium/firefox/webkit`, os faces sem kind seguem chromium (aditivo, zero mudança de
+comportamento); o `probe(kind)` por kind é o `executablePath` pinado pelo DRIVER (a única fonte
+honesta: o cache do usuário pode ter builds que o driver não pina) e o caminho de launch é
+`withPage(kind, …)`/`content(kind, …)`/`screenshot(kind, …)`. Os MESMOS faces de
+content+screenshot rodam por engine com gate honesto por kind: **E2E real de renderização no
+Firefox verde** (`contentRendersOnFirefox`, 3.9s) + Chromium verde (`navigates…` + magic PNG);
+**WebKit está bloqueado no launch neste host** (o openSUSE Tumbleweed não tem os sonames que o
+build fallback ubuntu24.04 pina; o `install-deps` exige sudo que a lane não tem) → o skip
+explícito e nomeado (`contentRendersOnWebkit` + o loop de screenshot), a convenção de skip
+ambiental — nunca falso verde, nunca skip escondido. Fronteiras medidas da ordem do §11 neste
+host: fase 5 (Cypress) NÚCLEO POUSADO no mesmo dia (a mantenedora destravou node/npm — §6.3
+acima); a face KofJS da fase 6 já provada pela semente `KofJsBrowserE2ETest` (22 faces), a face KofWasm
+segue barrada pelo #776 (frente da lane WASI); os perfis (`Fast Browser`/`Full Browser Matrix`)
+seguem sendo a face do §11 depois da matriz de engines. Prova (executada): `PlaywrightLibProviderTest`
++ `BrowserProviderTest` **11 executados / 0F / 0E / 2 skips nomeados** (o par webkit de deps do host).
 
 ## 6.12 WebSocket / SSE
 
@@ -821,11 +856,18 @@ Ainda abertas (regra 6):
 * **D-TESTING-PLATFORM** — abrir a frente e seu escopo ordenado.
 * A **sintaxe exata da API de testes** (assertions, lifecycle, parametrização, locators) — aditiva
   ao `test`/`assert` existente; sem sintaxe estrangeira.
-* **Política de providers**: Playwright/Cypress são dependências externas pesadas — como são
-  declaradas, versionadas e barradas (interop-first, R9). **A metade "vêm com a CLI ou são
-  opt-in" está resolvida** pelo `D-MAINT-BATCH-0610B`/C (opt-in por projeto, a CLI não empacota);
-  o mecanismo de declaração/versionamento/gate segue aberto e barra a fatia do provider do §6.
-* Promoção: `future/` → `docs/development/` quando a primeira fatia landar (três estados + R12).
+* **Política de providers**: **RESOLVIDA 10/10 pelo terceiro chat poll (refinando
+  `D-MAINT-BATCH-0610B`/C):** a declaração vive num **arquivo de manifesto do projeto**
+  (`kof-test.kofmd` — o formato próprio do repo, zero parser externo) declarando o provider de
+  browser + sua versão; a CLI lê e gateia. A fatia do provider do §6 está DESBLOQUEADA. **A lib
+  JAVA do Playwright entra como dependência NORMAL do kof-cli (o quarto chat poll, 10/10 — a
+  decisão da mantenedora supera a metade 'não empacota' para o jar da lib; os browsers ficam por
+  projeto via `npx playwright install`).**
+* **Todos os outros itens RESOLVIDOS por execução (10/10, dona lane security/connectors):**
+  `D-TESTING-PLATFORM` abriu a frente (o plano pousou as fatias 1-6 + o harness §5 + o stack §6);
+  a sintaxe da API de testes está FIXADA pelas fatias pousadas (aditiva, sem sintaxe estrangeira —
+  os quatro chat polls confirmaram); a promoção para `docs/development/` aconteceu 30/09 (a regra
+  da primeira fatia). **Nenhuma decisão aberta resta — o plano avança pela ordem §11 confirmada.**
 
 ---
 
@@ -841,7 +883,7 @@ Java interna**. Não duplicar o trabalho de profiling — referenciá-lo.
 
 # 14. Relação com outros planos
 
-* `docs/development/test-architecture-plan.md` — suíte Java interna (L0–L5, perfis,
+* `docs/test-architecture-plan.md` — suíte Java interna (L0–L5, perfis,
   performance). **Complementar, não duplicado.**
 * `docs/wasm-wasi-plan.md` — KofWasm; o E2E cross-target/WASM da plataforma
   depende dele (`WASM001` até então).

@@ -48,28 +48,10 @@ public class SemanticAnalyzer {
 
 
 
-    private final Map<String, SymbolTable.ClassSymbol> knownClasses = new HashMap<>();
-    /**
-     * #639 face 2 (D-DECISION-BATCH-2709B): índice ADITIVO por
-     * {@code pkg.Type}. {@code knownClasses} continua por nome simples
-     * (last-write-wins — a face 1, ainda aberta); este mapa preserva TODOS os
-     * tipos por caminho qualificado, sem alterar nenhuma consulta existente.
-     */
-    private final Map<String, SymbolTable.ClassSymbol> classesByFqn = new HashMap<>();
-    private final java.util.Set<String> interfaceNames = new java.util.HashSet<>();
-    /** SG-017 (SEM041): classes declaradas `abstract` — `new A()` vira erro compile-time. */
-    private final java.util.Set<String> abstractClasses = new java.util.HashSet<>();
-    /** #339 (SEM070): classes declaradas `final` — `class D extends F` vira erro compile-time. */
-    private final java.util.Set<String> finalClasses = new java.util.HashSet<>();
-    /** X5.1 (D-X5-SURFACE): tipos `sealed` — nome simples → unidade de
-     *  compilação (arquivo) que os declara. O conjunto de subtipos é fechado:
-     *  um subtipo declarado fora dessa unidade é SEM080. */
-    private final Map<String, String> sealedTypes = new HashMap<>();
-    /** X5.3 (D-TYPE-VARIANCE): variância declaration-site por tipo genérico —
-     *  nome simples → lista de variâncias ("out"/"in"/"") na ordem dos
-     *  type-params. Ausente = invariante (compatibilidade total com o que
-     *  já existia, §270). */
-    private final Map<String, java.util.List<String>> genericVariance = new HashMap<>();
+    // REFACTOR-500 (higiene de gate check_500): os índices de classes/nomes e o
+    // estado sealed/variance vivem em ClassTypeRegistry; os delegados
+    // package-private abaixo preservam TODAS as assinaturas — nenhum satélite muda.
+    private final ClassTypeRegistry typeRegistry = new ClassTypeRegistry();
     private final Map<ExpressionNode, Type> expressionTypes = new IdentityHashMap<>();
     private final Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods = new IdentityHashMap<>();
     private final Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors = new IdentityHashMap<>();
@@ -225,17 +207,11 @@ public class SemanticAnalyzer {
         return resolvedConstructors.get(ne);
     }
 
-    SymbolTable.ClassSymbol getClass(String name) {
-        return knownClasses.get(name);
-    }
+    SymbolTable.ClassSymbol getClass(String name) { return typeRegistry.getClass(name); }
 
-    Map<String, SymbolTable.ClassSymbol> allClasses() {
-        return java.util.Collections.unmodifiableMap(knownClasses);
-    }
+    Map<String, SymbolTable.ClassSymbol> allClasses() { return typeRegistry.allClasses(); }
 
-    boolean isInterfaceType(String name) {
-        return interfaceNames.contains(name);
-    }
+    boolean isInterfaceType(String name) { return typeRegistry.isInterfaceType(name); }
 
 
     SymbolTable.Symbol resolveInHierarchy(String className, String memberName) {
@@ -296,7 +272,16 @@ public class SemanticAnalyzer {
                 inferType(field.initializer(), classScope);
             }
         }
-        for (int pass = 0; pass < 4; pass++) {
+        // #785 (opcao C): o fixpoint NAO converge em 4 passadas quando uma cadeia
+        // de inferencia e declarada na ordem "dependente-primeiro"
+        // (f4 -> f3 -> ... -> f0): cada passada resolve UM nivel, e um programa
+        // VALIDO era recusado com SEM033 — com o resultado dependendo da ordem de
+        // declaracao. O limite passa a ser derivado do numero de membros (uma
+        // cadeia aciclica tem no maximo `members().size()` niveis) + margem, entao
+        // converge sempre. A ultima passada ainda `changed` PRESERVA os tipos
+        // (opcao A) em vez de descarta-los (Face 1).
+        int maxPasses = Math.max(8, cls.members().size() + 4);
+        for (int pass = 0; pass < maxPasses; pass++) {
             boolean changed = false;
             beginExpressionTypeGroup();
             for (AstNode member : cls.members()) {
@@ -316,7 +301,14 @@ public class SemanticAnalyzer {
                 discardExpressionTypeGroup();
                 break;
             }
-            clearExpressionTypes();
+            // a limpeza existe para nao vazar tipos STALE para a proxima passada;
+            // na ULTIMA passada nao ha proxima — limpar aqui deixava a classe SEM
+            // tipos de expressao (Face 1), entao PRESERVA o que a ultima gravou.
+            if (pass + 1 < maxPasses) {
+                clearExpressionTypes();
+            } else {
+                discardExpressionTypeGroup();
+            }
         }
         for (AstNode member : cls.members()) {
             if (member instanceof MethodDeclarationNode method && method.modifiers().contains("abstract")
@@ -354,11 +346,11 @@ public class SemanticAnalyzer {
     String currentFunctionName() { return currentFunctionName; }
     String currentPackage() { return currentPackage; }
     DiagnosticCollector diagnostics() { return diagnostics; }
-    java.util.Set<String> interfaceNames() { return java.util.Collections.unmodifiableSet(interfaceNames); }
+    java.util.Set<String> interfaceNames() { return typeRegistry.interfaceNames(); }
 
-    java.util.Set<String> abstractClasses() { return java.util.Collections.unmodifiableSet(abstractClasses); }
+    java.util.Set<String> abstractClasses() { return typeRegistry.abstractClasses(); }
     /** #339 (SEM070): nomes simples das classes `final` do programa. */
-    java.util.Set<String> finalClasses() { return java.util.Collections.unmodifiableSet(finalClasses); }
+    java.util.Set<String> finalClasses() { return typeRegistry.finalClasses(); }
     Map<ExpressionNode, Type> expressionTypes() { return java.util.Collections.unmodifiableMap(expressionTypes); }
     Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods() { return java.util.Collections.unmodifiableMap(resolvedMethods); }
     Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors() { return java.util.Collections.unmodifiableMap(resolvedConstructors); }
@@ -389,78 +381,43 @@ public class SemanticAnalyzer {
     void putCtorScope(ConstructorDeclarationNode ctor, SymbolTable scope) { ctorScopes.put(ctor, scope); }
     void putMethodScope(MethodDeclarationNode method, SymbolTable scope) { methodScopes.put(method, scope); }
     void putMethodSymbol(MethodDeclarationNode method, SymbolTable.MethodSymbol sym) { methodSymbols.put(method, sym); }
-    void putClass(String name, SymbolTable.ClassSymbol sym) {
-        knownClasses.put(name, sym);
-        putClassFqn(name, sym);
-    }
+    void putClass(String name, SymbolTable.ClassSymbol sym) { typeRegistry.putClass(name, sym); }
 
-    /**
-     * #639 face 2: registra o índice por caminho qualificado. Aditivo —
-     * nenhuma consulta por nome simples é afetada.
-     */
-    void putClassFqn(String name, SymbolTable.ClassSymbol sym) {
-        String pkg = sym.packageName();
-        classesByFqn.put((pkg == null || pkg.isEmpty() ? "" : pkg + ".") + name, sym);
-    }
+    /** #639 face 2: registra o índice por caminho qualificado (aditivo, em ClassTypeRegistry). */
+    void putClassFqn(String name, SymbolTable.ClassSymbol sym) { typeRegistry.putClassFqn(name, sym); }
 
-    /**
-     * #639 face 2 (D-DECISION-BATCH-2709B): resolve `pkg.Type` pelo caminho
-     * completo, preservando colisões de nome simples. Retorna null quando o
-     * caminho não identifica um tipo do módulo.
-     */
+    /** #639 face 2: resolve `pkg.Type` pelo caminho completo, preservando colisões de nome simples. */
     SymbolTable.ClassSymbol findQualifiedClass(String qualified) {
-        return qualified == null ? null : classesByFqn.get(qualified);
+        return typeRegistry.findQualifiedClass(qualified);
     }
 
-    /**
-     * #639 face 2 (D-DECISION-BATCH-2709B): símbolo do tipo por DECLARAÇÃO
-     * (identidade). {code knownClasses} é por nome simples (colide); aqui cada
-     * declaração guarda o SEU ClassSymbol, para que os membros sejam definidos
-     * no símbolo certo (sem isto a 2ª package de mesmo nome ficava sem membros).
-     */
-    private final Map<AstNode, SymbolTable.ClassSymbol> symbolByDecl =
-            new java.util.IdentityHashMap<>();
-    private final java.util.Set<AstNode> memberDeclsDefined =
-            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    void registerSymbol(AstNode decl, SymbolTable.ClassSymbol sym) { typeRegistry.registerSymbol(decl, sym); }
 
-    void registerSymbol(AstNode decl, SymbolTable.ClassSymbol sym) {
-        if (decl != null && sym != null) symbolByDecl.put(decl, sym);
-    }
+    SymbolTable.ClassSymbol symbolForDecl(AstNode decl) { return typeRegistry.symbolForDecl(decl); }
 
-    SymbolTable.ClassSymbol symbolForDecl(AstNode decl) {
-        return decl == null ? null : symbolByDecl.get(decl);
-    }
+    boolean membersDefined(AstNode decl) { return typeRegistry.membersDefined(decl); }
 
-    boolean membersDefined(AstNode decl) {
-        return decl != null && memberDeclsDefined.contains(decl);
-    }
-
-    void markMembersDefined(AstNode decl) {
-        if (decl != null) memberDeclsDefined.add(decl);
-    }
-    void addInterface(String name) { interfaceNames.add(name); }
-    void addAbstractClass(String name) { abstractClasses.add(name); }
-    void addFinalClass(String name) { finalClasses.add(name); }
+    void markMembersDefined(AstNode decl) { typeRegistry.markMembersDefined(decl); }
+    void addInterface(String name) { typeRegistry.addInterface(name); }
+    void addAbstractClass(String name) { typeRegistry.addAbstractClass(name); }
+    void addFinalClass(String name) { typeRegistry.addFinalClass(name); }
 
     /** X5.1: registra um tipo `sealed` com a unidade de compilação que o declara. */
-    void addSealedType(String name, String file) { sealedTypes.put(name, file); }
+    void addSealedType(String name, String file) { typeRegistry.addSealedType(name, file); }
 
     /** X5.1: o tipo (nome simples) foi declarado `sealed`? */
-    boolean isSealedType(String name) { return sealedTypes.containsKey(name); }
+    boolean isSealedType(String name) { return typeRegistry.isSealedType(name); }
 
     /** X5.1: unidade de compilação (arquivo) do tipo `sealed`, ou {@code null}. */
-    String sealedTypeUnit(String name) { return sealedTypes.get(name); }
+    String sealedTypeUnit(String name) { return typeRegistry.sealedTypeUnit(name); }
 
-    /** X5.3: registra a variância declaration-site dos type-params de um tipo
-     *  genérico (entradas cruas `"out T"`/`"in T"`/`"T"`). */
+    /** X5.3: registra a variância declaration-site dos type-params de um tipo genérico. */
     void registerTypeParameters(String name, java.util.List<String> typeParameters) {
-        if (name == null || typeParameters == null || typeParameters.isEmpty()) return;
-        genericVariance.put(name, typeParameters.stream().map(TypeParams::variance).toList());
+        typeRegistry.registerTypeParameters(name, typeParameters);
     }
 
-    /** X5.3: variâncias declaradas do tipo (índice = posição do type-param),
-     *  ou {@code null} quando o tipo não declara type-params no módulo. */
-    java.util.List<String> varianceOf(String name) { return genericVariance.get(name); }
+    /** X5.3: variâncias declaradas do tipo, ou {@code null} sem type-params no módulo. */
+    java.util.List<String> varianceOf(String name) { return typeRegistry.varianceOf(name); }
     // REFACTOR-500 (split p/ SemDeclarationAnalyzer): mutadores de ESTADO DE
     // CONTEXTO — a mutacao acontece no dono do estado (mesmo padrao da fase 6);
     // os satellites dirigem via estes setters.
@@ -484,7 +441,7 @@ public class SemanticAnalyzer {
         trackedExpressionTypes = null;
     }
 
-    boolean knowsClass(String name) { return knownClasses.containsKey(name); }
+    boolean knowsClass(String name) { return typeRegistry.knowsClass(name); }
 
     private void analyzeConstructorBody(ConstructorDeclarationNode ctor) {
         SymbolTable ctorScope = ctorScopes.get(ctor);

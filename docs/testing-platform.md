@@ -1,10 +1,11 @@
-[English](kof-testing-platform-plan.md) | [Português](kof-testing-platform-plan.pt_BR.md)
+[English](../testing-platform.md) | [Português](kof-testing-platform-plan.pt_BR.md)
 
 # Kof Testing Platform — Unit / Integration / Frontend E2E
 
-**Status:** UNDER DEVELOPMENT — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
-**Location:** `docs/development/`
-**Owner:** `192.168.15.15:9092` (lane security/connectors — REASSUMED 10/10 per the maintainer's order: the prior owner lane issues/tooling `192.168.15.30:9093` last active 09/10, orphaned >1 day; claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
+**Status:** `UNDER DEVELOPMENT` — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`); **CORE PROMOTED to `docs/` 10/10** — the maintainer's order: "pode finalizar o plano então, ja promover e vida que segue"
+**Location:** `docs/testing-platform.md` (promoted from `docs/development/` 10/10 — the maintainer's order: the core phases implemented+validated; the remaining §11 phases 5-8 are future slices, documented as the boundary)
+**Owner:** reference contract — the implementation core is COMPLETE; future slices (§11 phases 5-8: Cypress, KofJS/Wasm E2E, cross-browser, advanced) start from `docs/development/` on a new claim (`D-PLAN-ONE-OWNER`)
+**0.6.0 scope (maintainer 11/10 — "todos os planos em reta final ja libera a tag 0.6.0"):** phases 1–7 core ARE the 0.6.0 face (5 Cypress + 7 cross-browser landed 11/10); **phase 8 (advanced: visual regression/accessibility/network-mocking/traces) and the §6.10 KofWasm face are explicitly OUT of the 0.6.0 scope** — future slices, never cut blockers.
 **Nature:** implementation plan — real state + how to finish (design record kept below)
 **Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface
@@ -13,7 +14,7 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10, slice 3 (server lifecycle `withServer` in the opt-in `kof.test.web`, `spawn`+readiness+`finally` close) LANDED 08/10 — JVM-complete; the cross targets report the pre-existing `app.close`/`WEB001` gap honestly (no silent fallback); §6 browser-provider policy RECORDED 08/10 (docs-only — opt-in per project `C`, all targets `T1`, `kof.test` compiler/CLI `T2`; the provider slice itself stays gated by the open rule-6 provider-declaration decision); §8.5 runner duration measurement (per-file wall time + slowest file) LANDED 08/10; §5.1 `process`/`config`/`environment variables` faces RECORDED 08/10 as measured boundaries (handle not nameable + no list-varargs; no setenv primitive, config read-only — rule 6).
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10, slice 3 (server lifecycle `withServer` in the opt-in `kof.test.web`, `spawn`+readiness+`finally` close) LANDED 08/10 — JVM-complete; the cross targets report the pre-existing `app.close`/`WEB001` gap honestly (no silent fallback); §6 browser-provider policy RECORDED 08/10 (docs-only — opt-in per project `C`, all targets `T1`, `kof.test` compiler/CLI `T2`; the provider slice itself stays gated by the open rule-6 provider-declaration decision); §8.5 runner duration measurement (per-file wall time + slowest file) LANDED 08/10, per-level breakdown LANDED 10/10 (the `levels:` line: `unit: N passed / M failed` — the level derived honestly from the declared tags; a pure-unit run keeps the historical output), the §6 provider stack LANDED 10/10 (the `kof-test.kofmd` manifest + the `kof test --tag browser` gate + the browser SPI + two providers: ChromeHeadless zero-dep and PlaywrightLib full-capability — **E2E REAL: Chromium 156 renders + real PNG**; the Kof-level browser API `kof.test.browser` LANDED 10/10 — **E2E REAL: `browserContent` via the virtual package, the REAL Chromium renders the dump-dom** — the §6 milestone COMPLETE at all levels); §5.1 `process`/`config`/`environment variables` faces RECORDED 08/10 as measured boundaries (handle not nameable + no list-varargs; no setenv primitive, config read-only — rule 6).
 
 > **Slice 6 (LANDED 02/10).** The last §4.1 face: the generic pair `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` in `dev/kof/test.kf`. It was deliberately deferred (not shipped broken) until `known-bugs` §553 was resolved: the maintainer's rule-6 answer `D-EQ-UNBOUNDED-T` (02/10) fixes `==` on an unbounded `T` as **structural content equality** on every target, so the helper is correct for any `T` (Int, String, record, …). The label stringifies `expected`/`actual` via `+` — no new primitive, no per-target runtime. Proof RED-first: new `GenericEqualityE2ETest` **16/16** (the generic pair green on JVM/Script/JS/Native and throwing on a real mismatch; the `==` semantics golden byte-identical to the JVM oracle on JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. §4.1 is complete; the remaining faces are rule-6/decision-gated (§4.4 parameterized, §4.6 test doubles, §5 harness). The **browser provider** (§6) is no longer gated: `D-MAINT-BATCH-0510`/`T1` decides it must serve **all targets** (JVM + JS + Native), and `/T2` decides `kof.test` stays a **compiler/CLI feature** (not a stdlib namespace) — see §12.
 
@@ -525,6 +526,22 @@ Do not assume Cypress's execution model equals Playwright's. Expose only capabil
 compatible semantics; a backend-specific capability that is missing yields a **clear
 `capability unsupported` diagnostic** — never pretend equivalence.
 
+**PHASE 5 CORE LANDED 11/10 (lane `192.168.100.14:0`, flatt CLI; the maintainer unlocked the
+host — root granted to install node 24.18.1/npm 11.16.0 after the phase had been measured
+infeasible without npm; Cypress 16.1.1 lives in the Kof testing cache `~/.cache/kof-testing/
+cypress` and the repo still bundles NOTHING):** `CypressProvider` joins the SPI — an honest
+`probe()` (Kof cache → PATH → project `node_modules`, version printed; null = the named skip)
+and the two compatible-semantics faces, `dumpDom(url)` and `screenshot(url, path)`, delivered
+through GENERATED minimal scaffolding (a config without `require('cypress')`, a one-spec
+project) executed by the REAL `cypress run --headless` over a swept Chromium (Electron as the
+fallback — measured: `cy.screenshot` stalls on GPU-less headless Electron on this class of
+host). **E2E REAL green:** `CypressProviderTest` 4/4 — the rendered DOM from a served page and
+a real PNG. The interactive faces (click/fill/locate) stay `capability unsupported` on this
+backend — per-call spec generation is the documented boundary (the §6.3 rule above). The
+manifest gate accepts `provider: cypress` (`CmdTest.providerProbe`). The maintainer's
+direction recorded: the END USER assembles none of this — the toolchain is the platform's own
+environment; a Kof project declares `provider: cypress` in `kof-test.kofmd` and nothing else.
+
 ## 6.4 Browser capability matrix
 
 ```text
@@ -595,6 +612,23 @@ KofWasm is future (`WASM001`, `wasm-wasi-plan.md`); the platform must not promis
 Run the same suite on Chromium/Firefox/WebKit when the backend supports it; never all browsers
 on every PR by default. Profiles: `Fast Browser` and `Full Browser Matrix`. Support
 desktop/tablet/mobile through viewport, device emulation, touch and orientation when supported.
+
+**PHASE 7 CORE LANDED 11/10 (lane `192.168.100.14:0`, flatt CLI — the assumed security/connectors
+queue):** `PlaywrightLibProvider` is kind-parameterized — `KINDS = chromium/firefox/webkit`, the
+no-kind faces stay chromium (additive, zero behavior change); the per-kind `probe(kind)` is the
+DRIVER's pinned `executablePath` (the only honest source: the user cache may hold builds the
+driver doesn't pin) and the launch path is `withPage(kind, …)`/`content(kind, …)`/`screenshot(kind,
+…)`. The SAME content+screenshot faces run per engine with a per-kind honest gate: **real Firefox
+render E2E green** (`contentRendersOnFirefox`, 3.9s) + Chromium green (`navigates…` + PNG magic);
+**WebKit is launch-blocked on the current host** (openSUSE Tumbleweed lacks the sonames the
+ubuntu24.04 fallback build pins; `install-deps` needs sudo the lane doesn't have) → the explicit
+named skip (`contentRendersOnWebkit` + the screenshot loop), the environmental-skip convention —
+never a false green, never a hidden skip. Measured boundaries of the §11 order on this host:
+phase 5 (Cypress) CORE LANDED the same day (the maintainer unlocked node/npm — §6.3 above);
+phase 6's KofJS face already proven by the seed `KofJsBrowserE2ETest` (22 faces), the KofWasm
+face stays gated by #776 (the WASI lane's front); profiles (`Fast Browser`/`Full Browser Matrix`)
+remain the §11 face after the engine matrix. Proof (executed): `PlaywrightLibProviderTest` +
+`BrowserProviderTest` **11 run / 0F / 0E / 2 named skips** (the webkit host-dep pair).
 
 ## 6.12 WebSocket / SSE
 
@@ -825,15 +859,18 @@ parallel; neither blocks the other, and both share §13.
 
 Still open (rule 6):
 
-* **D-TESTING-PLATFORM** — opening the front and its ordered scope.
-* The exact **test API syntax** (assertions, lifecycle, parameterization, locators) — additive
-  to the existing `test`/`assert`; no foreign syntax.
 * **Provider policy**: **RESOLVED 10/10 by the third chat poll (refining `D-MAINT-BATCH-0610B`/C):**
   the declaration lives in a **project manifest file** (`kof-test.kofmd` — the repo's own
   compressed-doc format, zero external parser dependency) declaring the browser provider + its
   version; the CLI reads it and gates (explicit and versioned, no command flags). The §6 provider
-  slice is UNLOCKED.
-* Promotion: `future/` → `docs/development/` when the first slice lands (three-states + R12).
+  slice is UNLOCKED. **The Playwright JAVA lib lands as a NORMAL kof-cli dependency (the fourth
+  chat poll, 10/10 — the maintainer's call supersedes the 'does not bundle' half for the lib jar;
+  browsers stay per-project via `npx playwright install`).**
+* **All other items RESOLVED by execution (10/10, owner lane security/connectors):**
+  `D-TESTING-PLATFORM` opened the front (the plan landed slices 1-6 + §5 harness + the §6 stack);
+  the test API syntax is FIXED by the landed slices (additive, no foreign syntax — the four chat
+  polls confirmed it); promotion to `docs/development/` happened 30/09 (the first-slice rule).
+  **No open decisions remain — the plan advances by the confirmed §11 order.**
 
 ---
 
@@ -850,7 +887,7 @@ work — reference it.
 
 # 14. Relation to other plans
 
-* `docs/development/test-architecture-plan.md` — internal Java suite (L0–L5, profiles,
+* `docs/test-architecture-plan.md` — internal Java suite (L0–L5, profiles,
   performance). **Complementary, not duplicated.**
 * `docs/wasm-wasi-plan.md` — KofWasm; the platform's cross-target/WASM E2E
   depends on it (`WASM001` until then).

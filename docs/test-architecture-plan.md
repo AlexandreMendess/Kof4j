@@ -2,9 +2,11 @@
 
 # 🧪 Refactoring Plan — Kof Test Architecture and Modularization
 
-**Status:** `UNDER DEVELOPMENT` — promoted from `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`)
+**Status:** `CONCLUDED` 11/10/2026 — promoted from `future/` 28/09/2026 (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`, `D-FUTURE-PROMOTION`); moved to `docs/` per the 3-state rule (every finite phase landed)
 **Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
+
+**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it is **53 cases / 212 checks** (slices 1–28), and further cases are ordinary additive maintenance, not plan work. No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
@@ -1093,6 +1095,137 @@ exact `2026-10-01` vs expected `""`; after the fix `timeStartEndOf{Native,CrossA
 + riscv64 + aarch64 under qemu) are 5/5, 0 skipped. Native asm only — no Kof semantics
 change. Proof (executed): `tests/run-golden.sh` **184/184** (46 cases × 4 targets), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; `check_500` rc=0.
+
+**Phase 6 slice 22 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **47 total** — pinning the `math` numeric-parse family (`parseInt`/`parseLong`/
+`parseDouble` + the `…OrDefault` fallbacks, S13a/b/c), a pure-Kof namespace surface (parity
+✅ on all four targets) that slice 16 did NOT cover (it stopped at `roundTo`/`sqrt`/`lerp`):
+`math-parse-namespace` exercises the JDK-with-trim contract — `parseInt("42")`=42, the TRIM
+`parseInt(" 42 ")`=42, sign `parseInt("-7")`=-7 / `parseInt("+7")`=7, `parseLong("9000000000")`
+=9000000000 (beyond Int), `parseDouble("3.14")`=3.14 / `parseDouble("1e3")`=1000.0
+(scientific) / `parseDouble("-0.5")`=-0.5 — and the never-throw fallbacks:
+`parseIntOrDefault("bad",-1)`=-1, `("42",-1)`=42, `("",-1)`=-1, `("  ",-1)`=-1, and the
+OVERFLOW `("99999999999999",-1)`=-1 (falls back to the default, no wrap);
+`parseLongOrDefault("bad",-9)`=-9 / `("9000000000",-9)`=9000000000;
+`parseDoubleOrDefault("bad",-2.5)`=-2.5 / `("2.5",-2.5)`=2.5. **Scope note (measured,
+honest):** `math.pi()`/`math.e()`/`math.tau()` and `toRadians`/`toDegrees` are the §621
+family — `toRadians`/`toDegrees` refuse honestly on native (`MATH001`) and `pi()`/`e()` die
+at native link (`COMP001`, no `kof_math_pi` symbol), so they cannot be pinned by a 4-target
+equivalence case; the golden pins only the `parse*` family (4-target clean).
+Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
+Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
+frozen; `tests/run-golden.sh` **188/188** (47 cases × 4 targets), exit 0.
+
+**Phase 6 slice 23 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **48 total** — pinning the rest of the `kof.strings` escaping+indentation
+family (S3.1/S3.3) that slice 15 did NOT cover (it stopped at `escapeHtml`):
+`strings-escape-indent` pins `escapeJson` (`a\"b\\c`→`a\"b\\c`, a real newline→`\n`, a
+tab→`\t`, `plain`→`plain`, `""`→``), `unescapeHtml` (named `&lt;a&gt;&amp;`→`<a>&`,
+numeric `&#65;&#66;`→`AB`, no-op `plain`), `indent` (`"a\nb",2`→`  a\n  b`; `"a\n\nb",2`
+→`  a\n\n  b` — the EMPTY line is NOT indented; `n=0` = identity), `dedent`
+(`"  a\n  b"`→`a\nb`; `"a\n  b"` unchanged — min common indent 0), and `padRight`
+(`"7",3,"0"`→`700`). All four targets agree byte-for-byte. **Scope note (measured,
+honest):** `kof.strings` `capitalize`/`reverse`/`pad*` are Unicode/byte-divergent on
+native (the NAT-STR01 gap, ASCII-only pinned) — this case uses only ASCII inputs, so it
+stays 4-target clean. Test-infrastructure only, no compiler change. Proof (executed):
+every value measured on the Script target first, cross-checked byte-for-byte on
+jvm/native/js (all four agree), then frozen; `tests/run-golden.sh` **192/192** (48 cases
+× 4 targets), exit 0.
+
+**Phase 6 slice 24 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **49 total** — pinning `kof.rng`, the seedable xorshift128 PRNG (X8) that was
+pinned by NO equivalence case. It is the STRONGEST cross-target determinism pin in the
+stdlib: the contract is "same seed → same sequence on ANY backend" (only xor/shift/mul
+mod 2^32 + a splitmix32 seed), so jvm/native-x86_64/js/script MUST agree byte-for-byte.
+`rng-namespace` pins `rng.seed(42)` then `rng.int(100)`=67/90/54, `rng.boolean()`
+=true/false, `rng.double()`=0.07631878219634403 (52-bit mantissa, exact IEEE-754 in both
+backends), `rng.string(8,"abc")`=acbaccab, and the lenient edges `rng.int(0)`=0,
+`rng.int(-5)`=0 (bound<=0 => 0), `rng.string(0,"abc")`="" and `rng.string(5,"")`="" (n<=0
+or empty alphabet => ""). **Scope note (measured, honest):** `kof.rng` is `RNG001` on the
+CROSS arches riscv64/aarch64 (`KofRng.supportedOn`) — the golden `native` target runs on
+the x86_64 host, so the case is 4-target clean here; the cross arches stay owned by the
+RNG001 gap. Test-infrastructure only, no compiler change. Proof (executed): the sequence
+measured TWICE on the Script target (byte-identical → determinism confirmed),
+cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **196/196** (49 cases × 4 targets), exit 0.
+
+**Phase 6 slice 25 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **50 total** — pinning the remaining deterministic `kof.validation`
+predicates: `validation-predicates` pins `isEmail` (`a@b.com`→true, `bad`→false), `isUrl`
+(`https://kof.dev`/`http://a.b`/`https://example.com/path?q=1`→true, `ftp://x`→false),
+`isInt` (`42`→true, `4.2`→false), `isLong("9000000000")`→true, `inRange` (5 in 1..10→true,
+11→false), `required` (`x`→true, `""`→false), `notBlank` (`x`→true, `"   "`→false),
+`minLength`/`maxLength`/`lengthBetween`, `creditCardBrand` (`4242…`→Visa, `5555…`→
+Mastercard), `last4`→`4242`, and `max`(5,10)→true / `min`(5,10)→false. **This case found a
+REAL x86-only native parity bug:** the x86 asm `kof_validation_isUrl` tested `byte4==':'`
+with `jne .Lv_url_false` BEFORE the https branch was reachable, so `https://…` (byte4='s')
+and every URL with a path/query fell straight to false; the riscv asm was already correct.
+Fixed in `RuntimeValidation.java` (the second `jne` retargeted to `.Lv_url_check_https`,
+the https byte4 test to `.Lv_url_false`), guarded RED-first by the new
+`KofValidationUrlParityTest` (RED pre-fix → GREEN 35/35 across both validation classes).
+**Scope note (measured, honest):** `validation.matches` is deliberately EXCLUDED — its
+JVM/JS/Script regex vs Native literal-substring divergence is a known, documented issue
+frozen in `development/future/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
+(`future/` is FROZEN). Proof (executed): every value measured on the Script target first,
+cross-checked byte-for-byte on jvm/native/js, then frozen; `tests/run-golden.sh`
+**200/200** (50 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0;
+gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang`
+rc=0.
+
+**Phase 6 slice 26 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **51 total** — pinning the URL-safe base64 face of `kof.encoding`.
+`encoding.base64UrlEncode`/`base64UrlDecode` (RFC 4648 §5, the `-_` alphabet, NO padding on
+encode) are in the public API but were pinned by NO equivalence case — slice 17's
+`encoding-namespace` covers `hexEncode`/`hexDecode`/`base64Encode`/`base64Decode`/
+`urlEncode`/`urlDecode` but not the `base64Url*` pair, leaving the only uncovered
+`kof.encoding` surface. The new case `tests/golden/encoding-base64url` pins
+`base64UrlEncode` (`"Hi"`→`SGk`, `"fb&O->f"`→`ZmImTy0-Zg`, `"zÿ"`→`esO_` — the `_` is the
+URL-safe stand-in for the standard `/+` alphabet, `"café"`→`Y2Fmw6k`, `""`→`` empty) and
+`base64UrlDecode` (`"SGk"`→`Hi`, `"ZmImTy0-Zg"`→`fb&O->f`, `"esO_"`→`zÿ`, the TOLERANT
+`"SGk="`→`Hi` padded form, `"Y2Fmw6k"`→`café` — non-ASCII round-trip through UTF-8 bytes).
+Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
+Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
+frozen; `tests/run-golden.sh` **204/204** (51 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
+`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 27 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **52 total** — pinning the deterministic core of `kof.observability`, a
+namespace pinned by NO equivalence case until now. The new case
+`tests/golden/observability-namespace` pins `health()`→`UP`, `readiness()`→true,
+`liveness()`→true, the metrics store `counter("hits")`→1 then (after `increment("hits",3)`)
+→5, `gauge("temp",42)` + `histogram("latency",7)`/`histogram("latency",13)`, and the
+Prometheus `metrics()` render (the `# TYPE … counter`/`gauge` lines with `hits 5`,
+`temp 42`, `latency_count 2`, `latency_sum 20`). All four targets agree byte-for-byte.
+**Scope note (measured, honest):** two faces are deliberately EXCLUDED because they cannot
+be a 4-target pin — (a) `exportSpans` is a documented native gap (`OBS003`: the OTLP/JSON
+span serialization exists on JVM/JS only, a clean refusal on native, never a stub), and
+(b) `spanStart`/`spanEnd` plus the id generators `requestId`/`correlationId`/`traceId`/
+`spanId` are NON-deterministic (a fresh random value per run, and `spanEnd` needs the
+`spanStart` handle). Test-infrastructure only, no compiler change. Proof (executed): every
+value measured on the Script target first, cross-checked byte-for-byte on jvm/native/js
+(all four agree), then frozen; `tests/run-golden.sh` **208/208** (52 cases × 4 targets),
+exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
+`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 28 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **53 total** — pinning the deterministic digest and constant-time faces of the
+security namespaces (`kof.crypto` + `kof.security`), pinned by NO equivalence case until
+now. The new case `tests/golden/security-crypto-namespace` pins `crypto.sha256("abc")`→
+`ba7816bf…20015ad` (the NIST FIPS 180-4 vector), `crypto.sha256("")`→`e3b0c442…b855` (the
+empty-string SHA-256), `crypto.sha512("abc")`→`ddaf35a1…ca49f` (NIST), `crypto.hmacSha256
+("key","msg")`→`2d93cbc1…b8c628` (RFC 4231-style HMAC-SHA256), `security.constantTimeEquals`
+(`"abc"`/`"abc"`→true, `"abc"`/`"abd"`→false, `""`/`""`→true), and `security.redact`
+(`"a"`→`********` all-masked, `"verylongsecret"`→`very********cret` — first 4 + last 4
+kept). All four targets agree byte-for-byte. **Scope note (measured, honest):** the
+`security.*Header` family (`cspHeader`/`hstsHeader`/`contentTypeOptionsHeader`/`frameHeader`/
+`referrerHeader`) is a documented JVM-only gap (`SECN000`: it refuses on native/JS) so it
+is EXCLUDED — it cannot be a 4-target pin; `security.csrfToken`/`apiKeyGenerate`/`randomHex`
+are NON-deterministic. Test-infrastructure only, no compiler change. Proof (executed): every
+value measured on the Script target first, cross-checked byte-for-byte on jvm/native/js
+(all four agree), then frozen; `tests/run-golden.sh` **212/212** (53 cases × 4 targets),
+exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
+`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
 ### Phase 7 — Integration
 

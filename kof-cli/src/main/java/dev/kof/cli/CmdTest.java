@@ -531,6 +531,9 @@ final class CmdTest {
      *  false green). `npx playwright --version` é a semente; novos providers
      *  entram aqui por nome declarado (nunca um heurístico). */
     private static String providerProbe(String provider) {
+        if ("cypress".equals(provider)) {
+            return new dev.kof.browser.CypressProvider().probe();
+        }
         if (!"playwright".equals(provider)) return null;
         try {
             ProcessBuilder pb = new ProcessBuilder("npx", "playwright", "--version");

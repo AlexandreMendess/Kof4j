@@ -4828,7 +4828,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Phase 6 (conformance/equivalence suite):** build the official equivalence suite over the harness.
 - **Phase 7 (integration):** wire the suite into the integration lifecycle (`mvn verify` or equivalent).
 - **Constraint unchanged:** purely test infrastructure; the compiler is not touched (plan golden rule). The harness ratchet only improves; `D-PLAN-ONE-OWNER` still holds (this plan stays owned by `192.168.15.30:9092`; `graphics-gaming` stays SEM DONO).
-- **Relationships:** `Completes: D-TEST-ARCHITECTURE-GO (gate)`, `Affects: docs/development/test-architecture-plan.md Phases 5–7`, `Frozen-boundary: none (test-only)`.
+- **Relationships:** `Completes: D-TEST-ARCHITECTURE-GO (gate)`, `Affects: docs/test-architecture-plan.md Phases 5–7`, `Frozen-boundary: none (test-only)`.
 ## D-KOF-SIGN — Ed25519 signing/verification as a new stdlib crypto face (maintainer vote D1=A 03/10, chat)
 
 **Question (rule-6):** KofShare's device identity (§6/§12 of the product spec) needs signatures; the compiler today has ZERO signing face (measured 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = empty). Options were (A) new stdlib face, (B) ship v1 LAN-trust and defer, (C) route through interop `java.security` (breaks `D-KOFSHARE-100KOF`).
@@ -4887,7 +4887,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 | A3 (loop semantics — pause/minimized/focus) | **explicit `pause()`/`resume()`; `minimized` suspends the render; losing focus does NOT pause** | closes the `pause`/`minimized`/`focus` TBDs; `graphics-gaming` §6 |
 | B (#763 FFI) | **overload by signature, complete** — one C symbol bound with more than one signature, resolved by arity/types (no symbol-alias form) | slice/queue: FFI compiler surface; issue #763 (`post-1.0`) |
 | C (#753 residual / §554) | **tighten + name the handle** — refuse the builtin→builtin mismatch in `TypeChecker.isAssignable` AND make the `process.spawn`/`process.run` handle (`kof.process.Result`) nameable in source | compiler/interop lane; issue #753 residual + `known-bugs` §554 |
-| D (testing-platform) | **§4.4 parameterized tests first** — `input → expected` tables; §4.6 doubles / §5 harness follow | `kof-testing-platform-plan` §4.4 |
+| D (testing-platform) | **§4.4 parameterized tests first** — `input → expected` tables; §4.6 doubles / §5 harness follow | `testing-platform` §4.4 |
 | E (Q1 branch protections) | **activate now** on `testing`/`prerelease`/`stable` (no force-push + required checks) | `quality-pipeline` 14.4 (maintainer applies the GitHub settings) |
 | F (G2 FFmpeg) | **vendor the LGPL build now** — the distro's GPL build is NOT taken as-is | slice 3.4 (video); packaging/licensing owned by the graphics lane — **ORDERED 08/10 (maintainer, chat decision): vendor the upstream LGPL-2.1+ build (from source, no `--enable-gpl`); unlock 3.4 backend (FFI probe + frame readback via avcodec); the probe license must NOT be GPLv3+ before any decode lands** |
 | G (#761 contract) | **permanent — never a cut blocker** — its `1.0-blocks` category is retired to `tracking/contract`; a living contract is not an open defect | removes the structural `CUT: SLIPS` of `check_lab_stability.sh`; #761 stays OPEN by design |
@@ -4900,13 +4900,13 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-MAINT-BATCH-0610B — maintainer multiple-choice batch (06/10/2026, second chat poll): testing-platform surfaces resolved
 
-**Date:** 2026-10-06 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 06/10/2026 (the poll listed the real options from `kof-testing-platform-plan` §4.6/§5/§6). **Effect:** the three surfaces below are AUTHORIZED for implementation; this record AUTHORIZES, it does not implement. It extends `D-MAINT-BATCH-0610`/D (§4.4 first).
+**Date:** 2026-10-06 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 06/10/2026 (the poll listed the real options from `testing-platform` §4.6/§5/§6). **Effect:** the three surfaces below are AUTHORIZED for implementation; this record AUTHORIZES, it does not implement. It extends `D-MAINT-BATCH-0610`/D (§4.4 first).
 
 | # | Front (option) | Unblocks / queue |
 |---|---|---|
-| A (§4.6 test doubles) | **clock/random seams only** — inject a deterministic clock and a reproducible random source; no mock/stub/spy framework (use the real behavior when it is cheap and deterministic) | `kof-testing-platform-plan` §4.6; `kof.test` helper surface |
-| B (§5 integration harness) | **Kof library (`kof.test`)** — the harness surface lives in the Kof library (temp dir / server / db lifecycle with `try/finally` cleanup), injected flat on the explicit `import kof.test`; no Java-only surface | `kof-testing-platform-plan` §5; library-first (`D-KOF-FIRST` item 12) |
-| C (§6 browser provider) | **opt-in per project, CLI does not bundle** — Playwright/Cypress are declared per project and the CLI does not carry them (interop-first R9, no heavyweight default dependency) | `kof-testing-platform-plan` §6; provider slice  — **REFINED 10/10 (third chat poll): the declaration lives in a PROJECT MANIFEST file** (a `kof-test` config file declaring the browser provider + its version; the CLI reads it and gates — explicit and versioned, no command flags); the file format is `kof-test.kofmd` (the repo's own compressed-doc format, zero external parser dependency) unless a maintainer order later says otherwise. **FOURTH REFINEMENT 10/10 (fourth chat poll): the Playwright JAVA lib lands on kof-cli's pom as a NORMAL dependency (non-optional) — every CLI user carries the lib (~10 MB); the maintainer's call supersedes the 'does not bundle' half for the lib jar (the browsers themselves stay out: `npx playwright install` is still per-project opt-in) |
+| A (§4.6 test doubles) | **clock/random seams only** — inject a deterministic clock and a reproducible random source; no mock/stub/spy framework (use the real behavior when it is cheap and deterministic) | `testing-platform` §4.6; `kof.test` helper surface |
+| B (§5 integration harness) | **Kof library (`kof.test`)** — the harness surface lives in the Kof library (temp dir / server / db lifecycle with `try/finally` cleanup), injected flat on the explicit `import kof.test`; no Java-only surface | `testing-platform` §5; library-first (`D-KOF-FIRST` item 12) |
+| C (§6 browser provider) | **opt-in per project, CLI does not bundle** — Playwright/Cypress are declared per project and the CLI does not carry them (interop-first R9, no heavyweight default dependency) | `testing-platform` §6; provider slice  — **REFINED 10/10 (third chat poll): the declaration lives in a PROJECT MANIFEST file** (a `kof-test` config file declaring the browser provider + its version; the CLI reads it and gates — explicit and versioned, no command flags); the file format is `kof-test.kofmd` (the repo's own compressed-doc format, zero external parser dependency) unless a maintainer order later says otherwise. **FOURTH REFINEMENT 10/10 (fourth chat poll): the Playwright JAVA lib lands on kof-cli's pom as a NORMAL dependency (non-optional) — every CLI user carries the lib (~10 MB); the maintainer's call supersedes the 'does not bundle' half for the lib jar (the browsers themselves stay out: `npx playwright install` is still per-project opt-in) |
 
 **Boundary:** all three are additive test infrastructure — no language/semantics change. A is the only surface implemented so far (`fixedClock`/`scriptedClock`/`seededRandom`); B and C are AUTHORIZED and queued. Nothing here weakens the quality gate or unfreezes `future/`.
 
@@ -4959,3 +4959,19 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **Proof:** `PortuKofSurfaceE2ETest` (normalization identity vs primary table; script-target parity; JVM compile parity), `PortuKofFormatterProfileE2ETest` (verbatim + idempotent), `PortuKofToolingSurfaceE2ETest` (completion offers `diga`/`diz`, no canonical leak; hover resolves `diga` to the primary `escrevaln`/`println` identity), gate `scripts/check_portukof_parity.sh` §3b.
 
 **Relationships:** `Related: D-PORTUKOF (one surface, one compiler), D-KOF-FIRST (library/vocabulary, not new primitives), rule 11 (surface stays extremely simple — the sugar is 2 words).`
+
+---
+
+## D-MAINT-BATCH-1110 — maintainer multiple-choice batch (11/10/2026, chat poll): the last 1.0-blocks fronts resolved — the 0.6.0 cut unblocked
+
+**Decision (maintainer 11/10, in the release-protocol chat):** three rule-6 fronts resolved in one batch:
+
+* **#779 (ASM COMPUTE_FRAMES crash, external report) = CLOSED not-reproducible** — the reporter's exact artifact compiles clean on every distribution held (0.4.4-beta, 0.4.5, 0.5.0, tip; embedded JDK 25.0.4.1 measured); re-open with a minimized repro.
+* **#786 (`db`-named local of a user type) = option B** — a local/parameter named `db` whose type is a user class is an ORDINARY RECEIVER (the instance call must survive in the IR); a local holding the db handle (the String of `db.connect`) keeps the namespace winning (the 196-use idiom). LANDED: `b8648b8f8` (the typed `shadowsDbNamespaceWithForeignLocal` guard; no-match stays `SEM025`).
+* **#785 (return-type inference fixpoint) = option C, LANDED** — the chat decision on this lane was option B (keep last-pass types + honest diagnostic), and the issues/tooling lane's separate poll sanctioned option C: the pass limit is now **derived from the class's member count** (`max(8, members + 4)`), so an acyclic inference chain always converges order-independently and the last pass's types are preserved. C subsumes B — convergence is guaranteed by construction, so the non-convergence diagnostic is never needed. LANDED: `cbb9f2069`.
+
+With #776 closed upstream (10/10) and #785/#786/#779 resolved, **0 open `1.0-blocks` remain**.
+
+**Working method:** the release pipeline (`D-LAB-STABILITY`) takes over from here: full suite green + gates rc=0 + 0 blocking → the auditable promotion (`promote.yml`, now on `main`).
+
+**Relationships:** `Related: D-LAB-STABILITY, D-RELEASE-CADENCE, D-QUALITY-PIPELINE-2609, rule 6 (this record IS the decision).`
