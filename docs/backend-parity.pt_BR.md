@@ -178,7 +178,7 @@ nota em contrário.
 | Domínio | x86_64 | riscv64 | aarch64 | Evidência |
 |---|---|---|---|---|
 | Linguagem core (classes/arrays/List/strings/FP/switch/try-catch/pattern/recursion, multi-dim §113, busca UTF-16 §43/§102/§111) | ✅ | ✅ | ✅ | `NativeE2ETest`, `NativeRiscv64E2ETest`/`NativeAarch64E2ETest` sob qemu (CI `cross-native`) |
-| GC mark-sweep + AUTO-COLLECT | ✅ gatilho ON 19/09 (G-6(a): 1x por programa, gate `spawn_count==0`; MT = comportamento antigo, face worker-stack catalogada) | ✅ tick-collect no alloc (G-4/B44) | ✅ herda G-4 (G-5) | `KofGcE2ETest` 4/4 incl. cap-test no repo; `NativeRiscvGcSweepTest` roda os dois arcos |
+| GC mark-sweep + AUTO-COLLECT | ✅ gatilho ON 19/09 (G-6(a): 1x por programa, gate `spawn_count==0`; MT = comportamento antigo, face worker-stack catalogada) | ✅ tick-collect no alloc (G-4/B44) | ✅ herda G-4 (G-5) | `KofGcE2ETest` 8/8 (medido 11/10) incl. cap-test no repo; `NativeRiscvGcSweepTest` roda os dois arcos |
 | `println(<coleção>)` §107 — escalares | ✅ | ✅ | ✅ | três goldens byte-idênticos ao oracle JVM medido (x86 `f3b3821c` + cross B39) |
 | … record / coleções aninhadas | ✅ descritor recursivo `.rodata` 19/09 | ✅ 19/09 (face (4): mesma gramática de descritor na fatia `B39` — 8=toString na vtable via `jalr`, 9/10=aninhado, null→"null") | ✅ (tradutor; novo `lhu`→`ldrh`) | `NativeE2ETest.execCollectionPrintRecordNestedJvmGolden` + `nativeCollectionPrintRecordNestedMatchesJvmGolden` nos DOIS arcos cross (46/46 cada sob qemu, golden = o oracle JVM medido; a face de concat exigiu ramo `valueOf(record)` vtable no `NativeRiscvCrossOps`) |
 | Map/Set + boxes de erasure (§284/§284-map) | ✅ | ✅ (`RtB49`/`RtB46`) | ✅ (tradutor) | `NativeErasureBoxE2ETest` 6/6 (md5 igual nos 3), `KofMapSetTest` |

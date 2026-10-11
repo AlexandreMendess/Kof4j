@@ -189,7 +189,7 @@ unless a dedicated note says otherwise.
 | Domain | x86_64 | riscv64 | aarch64 | Evidence |
 |---|---|---|---|---|
 | Core language (classes/arrays/List/strings/FP/switch/try-catch/pattern/recursion, multi-dim §113, UTF-16 search §43/§102/§111) | ✅ | ✅ | ✅ | `NativeE2ETest`, `NativeRiscv64E2ETest`/`NativeAarch64E2ETest` under qemu (CI `cross-native`) |
-| GC mark-sweep + AUTO-COLLECT | ✅ trigger ON 19/09 (G-6(a): once/program, gate `spawn_count==0`; MT = old behavior, worker-stack face catalogued) | ✅ tick-collect at alloc (G-4/B44) | ✅ inherits G-4 (G-5) | `KofGcE2ETest` 4/4 incl. in-repo cap test; `NativeRiscvGcSweepTest` runs both arches |
+| GC mark-sweep + AUTO-COLLECT | ✅ trigger ON 19/09 (G-6(a): once/program, gate `spawn_count==0`; MT = old behavior, worker-stack face catalogued) | ✅ tick-collect at alloc (G-4/B44) | ✅ inherits G-4 (G-5) | `KofGcE2ETest` 8/8 (measured 11/10) incl. in-repo cap test; `NativeRiscvGcSweepTest` runs both arches |
 | `println(<collection>)` §107 — scalar elements | ✅ | ✅ | ✅ | three byte-identical goldens vs the measured JVM oracle (x86 `f3b3821c` + cross B39) |
 | … record / nested collections | ✅ recursive `.rodata` descriptor 19/09 | ✅ 19/09 (face (4): same descriptor grammar in slice `B39` — 8=vtable `toString` via `jalr`, 9/10=nested, null→"null") | ✅ (translator; new `lhu`→`ldrh`) | `NativeE2ETest.execCollectionPrintRecordNestedJvmGolden` + `nativeCollectionPrintRecordNestedMatchesJvmGolden` on BOTH cross arches (46/46 each under qemu, golden = the measured JVM oracle; concat face needed a `valueOf(record)` vtable branch in `NativeRiscvCrossOps`) |
 | Map/Set + erasure boxes (§284/§284-map) | ✅ | ✅ (`RtB49`/`RtB46`) | ✅ (translator) | `NativeErasureBoxE2ETest` 6/6 (md5 equal across the 3), `KofMapSetTest` |
