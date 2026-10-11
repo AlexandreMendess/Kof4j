@@ -1,0 +1,115 @@
+name: auto-cascade
+
+# Per-commit promotion automation (quality-pipeline, automation-enforcement).
+# Maintainer live order 11/10: "era pra cada commit na lab avaliar se iria ter
+# promoção automatica e merge com as proximas". On every push to `lab`:
+#
+#   1. evaluate  — cheap, fail-closed gates on the exact tip (the CI structural
+#      steps + rc-gate + 0 open bug issues + divergence). Any RED = honest skip.
+#   2. suite     — `safe-suite.sh` on the exact tip, certified by
+#      `stability-report.sh` (the 14.3 measurement: the suite is the verdict;
+#      lab has no per-push CI by design, so this IS the measurement).
+#   3. cascade   — the demonstrated flow (PRs #799-#801 / #802-#804):
+#      lab→testing→stable→prerelease, idempotent per hop, tree-identity guard,
+#      required status checks posted with the measured verdict + provenance.
+#   4. publish   — `release.yml` dispatched on `prerelease` ONLY when
+#      `kof-${VERSION}*` tags don't exist yet; a published version waits for
+#      the next bump (honest skip).
+#
+# `main` is NEVER touched: the `main-gate` ruleset keeps it human-only
+# (AGENTS.md — AI does not merge into main); the date-less final release stays
+# the maintainer's merge + dispatch.
+
+on:
+  push:
+    branches: [lab]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-cascade
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    name: Evaluate the lab tip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      promote: ${{ steps.ev.outputs.promote }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: lab
+          fetch-depth: 0
+
+      - name: Set up JDK 25 (Tooling API baseline)
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: evaluate (cheap gates + divergence)
+        id: ev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if scripts/pipeline/auto_cascade.sh evaluate; then
+            echo "promote=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "promote=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: plan (audit trail, always)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/pipeline/auto_cascade.sh plan || true
+
+  cascade:
+    name: Suite + cascade
+    needs: evaluate
+    if: needs.evaluate.outputs.promote == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: lab
+          fetch-depth: 0
+
+      - name: Set up JDK 25 (Tooling API baseline)
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: full suite on the exact tip (the 14.3 measurement)
+        timeout-minutes: 90
+        env:
+          SAFE_SUITE_LOG: ${{ runner.temp }}/suite.log
+        run: |
+          set -uo pipefail
+          bash scripts/safe-suite.sh || true
+          # fail-closed: the verdict is CERTIFIED from the log by the same
+          # machine the release gate uses — never from the mvn exit code.
+          if scripts/stability-report.sh --suite-log "$SAFE_SUITE_LOG" \
+              --sha "$(git rev-parse HEAD)"; then
+            echo "SUITE_VERDICT=success" >> "$GITHUB_ENV"
+          else
+            echo "SUITE_VERDICT=failure" >> "$GITHUB_ENV"
+          fi
+          echo "SUITE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: cascade the promotion PRs (+ conditional publish)
+        run: scripts/pipeline/auto_cascade.sh cascade
