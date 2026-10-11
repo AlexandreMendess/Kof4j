@@ -1,10 +1,14 @@
 package dev.kof.compiler.js;
 
-/** kof-runtime.mjs — Component Core + Link/Image/Icon. */
+/** kof-runtime.mjs — Component Core + Link/Image/Icon + acessibilidade ({@link JsRuntimeUiA11y}). */
 public final class JsRuntimeUiComponents {
     private JsRuntimeUiComponents() {
     }
 
+    // O bloco a11y (D-UI-A11Y) vive em JsRuntimeUiA11y só para caber no alvo de
+    // linhas/classe (REFACTOR-500); concatenado aqui, é UM bloco "ui-components"
+    // e as funções compartilham o escopo de módulo (kofUiSyncA11y chama
+    // kofUiOnDom e é chamada por kofUiCopyValueProps/kofUiWidgetOnHandle).
     static  String UI_COMPONENT_RUNTIME = """
             // ── Component Core (docs/ui/architecture.md) ─────────────
             // A UI is a tree of components. A Component node carries: identity,
@@ -127,6 +131,12 @@ public final class JsRuntimeUiComponents {
                 }
                 if (typeof newEl.value === "string" && newEl.value !== "") oldEl.value = newEl.value;
                 if (newEl.checked) oldEl.checked = true;
+                // D-UI-A11Y (#789/#807): a semântica acessível também é uma
+                // propriedade do render corrente. O nó sobrevivente ADOTA a
+                // intenção do nó fresco (inclusive a ausência dela) e o estado
+                // obsoleto — nome, live, papel de botão — é descartado.
+                oldEl._kofA11y = newEl._kofA11y ? Object.assign({}, newEl._kofA11y) : {};
+                kofUiSyncA11y(oldEl);
             }
 
             function kofUiRehomeWidgetHandlers(oldEl, oldId, newEl) {
@@ -501,6 +511,10 @@ public final class JsRuntimeUiComponents {
                         kofUiDispatchEvent(c, domType, ev);
                     });
                 }
+                // D-UI-A11Y (#789/#807): o host do componente é um <div>; um
+                // .on("click") nele precisa entrar na ordem de tabulação e
+                // ativar com Enter/Espaço, como qualquer outro alvo de clique.
+                if (domType === "click") kofUiMakeComponentKeyboardOperable(c, n.el);
             }
 
 
@@ -529,41 +543,6 @@ public final class JsRuntimeUiComponents {
                 if (domType === "click") kofUiMakeKeyboardOperable(node);
             }
 
-            // D-UI-A11Y (#789): um alvo de clique que NÃO é um controle nativo
-            // (<button>/<a>/<input>…) precisa ser alcançável e acionável por
-            // teclado. Recebe papel de botão, entra na ordem de tabulação e
-            // ativa com Enter/Espaço. NUNCA converte widget decorativo: só roda
-            // quando um handler de clique foi registrado (kofUiWidgetOnHandle).
-            function kofUiMakeKeyboardOperable(node) {
-                const tag = node.tagName ? String(node.tagName).toUpperCase() : "";
-                if (tag === "BUTTON" || tag === "A" || tag === "INPUT" || tag === "TEXTAREA"
-                        || tag === "SELECT" || tag === "OPTION") {
-                    return;
-                }
-                if (node.getAttribute && !node.getAttribute("role")) {
-                    node.setAttribute("role", "button");
-                }
-                if (node.getAttribute && node.getAttribute("tabindex") === null) {
-                    node.setAttribute("tabindex", "0");
-                }
-                if (!node._kofKeyboardWired) {
-                    node._kofKeyboardWired = true;
-                    const keyFn = function (ev) {
-                        const k = ev && typeof ev.key === "string" ? ev.key : "";
-                        if (k === "Enter" || k === " " || k === "Spacebar") {
-                            if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
-                            if (typeof node.click === "function") node.click();
-                        }
-                    };
-                    // marcado como wrapper de widget: na reutilização de raiz (B)
-                    // o listener é RE-CRIADO no nó sobrevivente por
-                    // kofUiRehomeWidgetHandlers, não movido (fecharia sobre o nó
-                    // descartado).
-                    keyFn.__kofWidgetWrapper = true;
-                    kofUiOnDom(node, "keydown", keyFn);
-                }
-            }
-
             export function kofUiNodesLive() {
                 return kofUiComponents.size;
             }
@@ -580,6 +559,7 @@ public final class JsRuntimeUiComponents {
                 return ev || "";
             }
 
-            """;
+            """
+            + JsRuntimeUiA11y.uiA11yRuntime();
 
 }

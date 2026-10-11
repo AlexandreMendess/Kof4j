@@ -1,5 +1,6 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
   - **Image/Vision — AVIF slice 3ac: the interleaved intra predict+reconstruct transform-block driver (`libs/image/Av1DecodeReconBlock.kf`, new; lane pipeline/image-vision `192.168.15.21:0`, flatt CLI, 11/10).** `av1DecodeReconBlockPlane(frame, stride, frameW, frameH, bsize, txSz, txType, mode, angleDelta, useFilterIntra, filterIntraMode, bitDepth, disableEdgeFilter, intraEdgeFilterType, maxBlocksWide, maxBlocksHigh, dcQuant, acQuant)` reproduces the intra loop of libaom's `decode_token_recon_block` (`av1/decoder/decodeframe.c:908`): for every transform block of a plane, in the slice-3y enumeration order, it derives the block's availability (slice 3ab `av1IntraAvail`), predicts it (slice 3u `av1IntraPredictBlock`), then dequantizes + inverse-transforms + reconstructs it into the plane (slice 3z `av1ReconBlockInto`) — the `read_coeffs_tx_intra_block` → `predict_and_reconstruct_intra_block` interleaving, so a later block predicts from samples the earlier ones already reconstructed. `av1ReconBlockLevels(txSz, cul, dcCat)`/`av1ReconScanPos1(txSz)` are the deterministic level pattern the slice-3x/3y probes use. **Oracle = the REAL libaom path:** `highbd_build_non_directional_intra_predictors` / `highbd_build_directional_and_filter_intra_predictors` (`av1/common/reconintra.c`, the builders `av1_predict_intra_block` dispatches) driven over the enumeration with the spec §7.12.2 dequantization feeding the REAL `av1_highbd_inv_txfm_add_c` (`av1/common/idct.c`) into the plane, over 12 `(txSz, mode, angleDelta, filterIntra, txType, blockSize)` cases, zero mismatches, pinned gzip+base64 (`SHA256 8be02528…`). **Proof:** `Av1DecodeReconBlockE2ETest` **7 run / 0F / 2 skipped** — JVM + Script + Native x86-64 + JS assert the full golden; the riscv64(qemu)/aarch64(qemu) faces SKIP with the reason named. **Cross-native finding (measured, /tmp harness):** a single plane decode is this slice's unit of work and a 16-block plane already crosses the `kof_gc_collect` alloc-tick 4096 (hardware-trap-proven on the riscv64 ELF), so the mid-loop collect reclaims the still-live `frame` plane buffer for 9 of the 12 cases — `known-bugs` §602 (SIXTH FACE recorded EN+PT), which the sibling per-process split cannot work around (the corruption is intra-plane). The driver is proven exact on riscv64/aarch64 by three zero-injection isolations (tick-collect disabled → exact; `kof_gc_collect_now` → `ret` → exact; collect only at tick 0 → exact while only at tick ≥4096 → corrupt). Re-measured on the rebased tip after the upstream three-root §602 fix `586003372`: still fails for this face (2F), §602 OPEN for it. Non-regression: `Av1DecodeBlockE2ETest` 7/7, `Av1ReconBlockE2ETest` 7/7, `Av1IntraAvailE2ETest` 7/7, `Av1ReconE2ETest` 6/6, `Av1InvTxE2ETest` 6/6, `Av1QuantE2ETest` 6/6, `Av1IntraBlockE2ETest` 4/4. No compiler change, no new gap, no decision. `decodeRaster` AVIF still refused until the chain closes.
+  - **Compiler (JS runtime) — `known-bugs` §654 FIXED: the `D-UI-A11Y` runtime (#789) is now INTENT-BASED instead of call-site-imperative, closing all six defects of issue #807 (lane issues/tooling `192.168.15.30:9093`, 11/10).** The a11y attributes were written imperatively where the Kof call happened and never reconciled: a clickable `Icon` kept `aria-hidden="true"` (focusable but silent to assistive technology), `role` depended on call order (`setAccessibleName` before `on("click")` left `role="img"`), `setAccessibleName("")` produced an exposed empty-named image, root reuse never REMOVED a stale `aria-label`/`aria-live`/`role="button"`, an `Enter` whose target was a descendant activated the clickable container, and `Component.on("click")` left the host unreachable by keyboard. The intent (`name`/`announce`/`clickable`) is now recorded on the node (`_kofA11y`) and every managed attribute is recomputed from it by one `kofUiSyncA11y(node)` — so call order cannot matter, `clickable` wins over the named-image role, `""` restores the decorative state, and the automatic type defaults (first `Window` = `main`, `Canvas` = `img`) are preserved by `kofUiA11yBaseRole`. `kofUiCopyValueProps` adopts the fresh render's intent onto the survivor, making semantics follow the current render; the keydown guard is `ev.target === node`; `kofUiMakeComponentKeyboardOperable` gives the component host the same contract. The a11y block moved to `JsRuntimeUiA11y` (concatenated into the same `ui-components` slice) to stay under the 500-line target. Proof RED-first: `UiA11yRuntimeE2ETest` **10/10** (8 RED pre-fix), plus the explicitly-named `rebuild+prune` and single-`main` paths; non-regression 177/177 over the UI + JS DOM families.
   - **Testing — test-architecture Phase 6 slice 30: the official equivalence suite grows to 55 cases with `cache-namespace` (lane compiler/JVM/native `192.168.15.30:9092`, 11/10).** The new case `tests/golden/cache-namespace` pins the deterministic core of `kof.cache`, a namespace pinned by NO equivalence case until now — the set/get round-trip and miss (`cache.get`→`null`), overwrite, `delete`/`clear`, and the `ttl` boundary (`-1` for a no-TTL key and a missing key). The TTL-expiry face (`time.sleep`) is deliberately EXCLUDED (clock-dependent, not a deterministic pin; `KofCacheE2ETest.ttlValueAndExpiry` covers it). All four targets agree byte-for-byte. Proof: `tests/run-golden.sh` **220/220** (55 × 4). Test-infrastructure only, no compiler change.
   - **Testing — test-architecture Phase 6 slice 29: the official equivalence suite grows to 54 cases with `math-pow-constants` (lane compiler/JVM/native `192.168.15.30:9092`, 11/10).** The new case `tests/golden/math-pow-constants` pins the last uncovered deterministic `kof.math` members — the `pow` face (`math.pow(2.0,10.0)`→1024.0 … `math.pow(0.0,0.0)`→1.0, the negative-base `math.pow(-2.0,3.0)`→-8.0) and the three constants `math.pi()`/`math.e()`/`math.tau()` (4-target clean since `known-bugs` §651 folds them to a `KofLoadLiteral.ofDouble`). All four targets agree byte-for-byte; the `pow` values are exactly representable, so identical across any correct libm. Proof: `tests/run-golden.sh` **216/216** (54 × 4). Test-infrastructure only, no compiler change.
   - **Compiler (JVM backend) — the dependabot ASM 9.10.1→9.11 bump introduced `ComputeLimits` and `CoreRegressionE2ETest.largeDenseFileLoadsOnJvm` now dies `LimitExceededException: Too many operations` in COMPUTE_FRAMES (`known-bugs` §652, recorded; lane nativa/GC `192.168.15.117:9092`, 11/10)**: measured deterministic RED on the clean tip and with the §602 fix applied; ASM 9.11 added `org.objectweb.asm.ComputeLimits` (frame computation counts operations/bytes; defaults 10 MiB / 100M operations) and the 60-nested-try/finally dense method blows past the operation budget; ASM 9.10.1 has no such class. Fix path named in the ASM API: `ClassWriter.setComputeLimits(int, long)`. Owner: the JVM-backend lane.
@@ -3092,7 +3093,6 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     no C fixture): `FfiNativeCrossE2ETest` 10/10 under qemu — riscv == aarch == JVM
     (`3\n1`); floats/HFA, > 16 B and the struct param path stay an honest FFI001 (R6).
 
-
   - **§268 FIXED — user class `extends <JDK class>` by simple name wrote a RAW superclass (`NoClassDefFoundError` at load)**
     (22/09, lane 9093, maintainer vote `D-RULE6-BATCH` option (A)): `class Worker extends Thread`,
     `extends Object` and `implements Runnable` (no import) compiled clean and the class died at
@@ -3156,20 +3156,17 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     (21/09, lane bugs-and-gaps, voto (A) da mantenedora; prova `StringAsParseRejectTest`
     4/4, RED 3/3 no código antigo): `as` = cast, nunca parse implícito.
 
-
   - **§400 fixed — função nomeada como valor agora diagnostica a regra real**
     (21/09, lane bugs-and-gaps, voto (A) da mantenedora): `print(probe)` agora
     diz "`probe` is a top-level function, not a value in argument position —
     pass the call wrapped in a lambda: () -> probe()" (SEM011 com posição real;
     `NamedFunctionValueDiagnosticE2ETest` 4/4, RED 2/2 no código antigo).
 
-
   - **§334 CLOSED — `kof_box_equals` NaN (batch CLOSEALL da mantenedora 21/09):** probe
     medido nos 2 alvos — `0.0 / 0.0` imprime `NaN` (ARITH001 só pega INT), a face
     box-vs-box imprime `NaN / false / false / false` IDÊNTICO JVM==native; a
     divergência de bits só exigiria dois NaN payloads exóticos (inalcançável do
     fonte hoje) → informativo, guard (b) pronto se um produtor exótico chegar.
-
 
   - **§440 FIXED — `record.x++`/`--` was accepted by `check` and died at runtime**
     (21/09, compiler lane): `p.x++` on a record component type-checked clean but
@@ -3580,7 +3577,6 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     (`String[]`/`List<Int>` → `FFI001`, `Buffer(Int)` → `SEM096`), assertion not
     relaxed; `CompilerDriverTest` 259/0F/0E.
 
-
   - **deps — `kof deps resolve` gains the provenance verification POLICY (D-ARTIFACT-TRUST queue (c)), in observe mode**
     (21/09, platform-cli/security lane): before extracting/installing a registry package the downloaded tar.gz is checked against
     the REQUESTED identity (owner/repo@version — never what the release claims): digest, source repo, signing workflow, tag ref
@@ -3625,7 +3621,6 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     (positive + negative twin — SEM049 still fires without a guaranteed exit).
     Related: §400 catalogued (named function as a value -> SEM011; pre-existing,
     measured identical on 0.4.7; routed to the maintainer, rule 6).
-
 
   - **`kof workflow run --target js` supported (residual slice of 2.6 / R7)** (20/09,
     `.18`): the CLI now compiles the `pipeline(): KofWfDag` for JS and runs it
@@ -4055,7 +4050,6 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `MakealiveE2ETest.failedApplyKeepsStateAndNamesTheResource`, preservation
     batteries 142/0F/0E + 61/0F/0E; full suite green at push.
 
-
   - **EXIT GATE 1.0 — EG-3: `scripts/test-package-outside-repo.sh`** (20/09, `.18`):
     the §12/§23-9 condition became one repeatable command — the REAL tar.gz extracted
     to a clean directory under `$HOME` (repo rule 9), repo env unexported; `kof
@@ -4248,7 +4242,6 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     JVM, Native and JS host print identically (`FfiExternTypeConversionTest` 11/11; the
     10-class FFI battery is 94/0/0/0 before AND after).
 
-
   - **X7-5 — `kof debug --dap --attach <pid>` is REAL on JVM and Native (20/09)** —
     JVM attach breaks into a live VM over raw JDWP (the debuggee survives the
     disconnect); Native attach drives `gdb -p <pid>` and never kills a foreign
@@ -4336,7 +4329,6 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     clean baseline: bare local add, bare field add, bare set, wide Long/Double; typed/Set/Map controls green both
     sides), plus the Native x86-64 face of the same program and neighbors `BareCollectionFieldE2ETest` 5/5,
     `CollectionMethodsStdlibE2ETest` 47/47, `KofChannelTest` 14/14.
-
 
   - **`kof debug --dap --target native` — the DAP<->GDB/MI bridge for the editor (X7-4, roadmap §19.5 phase 7)**
     — the editor speaks one protocol with every target: DAP requests (setBreakpoints,

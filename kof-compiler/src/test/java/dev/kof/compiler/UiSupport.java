@@ -69,4 +69,39 @@ abstract class UiSupport extends UiPrograms {
         runJvm(source, tempDir.resolve("jvm"), expected);
         runNative(source, tempDir.resolve("native"), expected);
     }
+
+    /** Compila para JS, roda no engine embutido e devolve o stdout. */
+    protected String runJs(Path tempDir, String name, String program) throws IOException {
+        Path source = tempDir.resolve(name + "-js.kf");
+        Files.writeString(source, program);
+        CompilationResult js = driver.compile(source, tempDir.resolve("js-" + name), Target.JS);
+        assertTrue(js.success(), "JS compilation should succeed: " + js.diagnostics().getDiagnostics());
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        int code = dev.kof.runtime.KofJsRunner.run(
+                tempDir.resolve("js-" + name).resolve("Default.mjs"), out,
+                new java.io.ByteArrayInputStream(new byte[0]), out);
+        assertEquals(0, code, "JS run should succeed: " + out);
+        return out.toString().trim();
+    }
+
+    /**
+     * Compila para JS e ANEXA um probe ao módulo gerado (o probe re-roda `main`
+     * e lê o estado de runtime — `window.__kofNodes` etc.), devolvendo o stdout.
+     * Mesmo harness de {@code ComponentCoreSupport.runJsProbe}.
+     */
+    protected String runJsProbe(Path tempDir, String name, String program,
+                                String probeJs) throws IOException {
+        Path source = tempDir.resolve(name + "-js.kf");
+        Files.writeString(source, program);
+        CompilationResult js = driver.compile(source, tempDir.resolve("js-" + name), Target.JS);
+        assertTrue(js.success(), "JS compilation should succeed: " + js.diagnostics().getDiagnostics());
+        Path module = tempDir.resolve("js-" + name).resolve("Default.mjs");
+        Files.writeString(module, Files.readString(module) + "\n" + probeJs + "\n");
+        dev.kof.compiler.js.JsRuntimeTestSupport.includeImportsOf(module.getParent(), probeJs);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        int code = dev.kof.runtime.KofJsRunner.run(module, out,
+                new java.io.ByteArrayInputStream(new byte[0]), out);
+        assertEquals(0, code, "JS probe run should succeed: " + out);
+        return out.toString().trim();
+    }
 }

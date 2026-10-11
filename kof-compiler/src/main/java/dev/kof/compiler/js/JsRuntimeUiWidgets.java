@@ -50,19 +50,17 @@ public final class JsRuntimeUiWidgets {
 
             // D-UI-A11Y (issue #789): superfície de acessibilidade intent-based.
             // O Kof diz "esta é a descrição acessível desta coisa"; o runtime faz
-            // o mapeamento ARIA. Um widget com nome acessível deixa de ser
-            // decorativo (aria-hidden passa a "false") e um Icon nomeado ganha
-            // semântica de imagem. Real só no KofJS (no-op JVM/Native).
+            // o mapeamento ARIA. A INTENÇÃO (nome / live / clicável) é gravada no
+            // nó e TODOS os atributos gerenciados são recomputados por
+            // kofUiSyncA11y — assim a ordem das chamadas não muda o resultado e o
+            // estado obsoleto é descartado na reutilização de raiz (#807). Real só
+            // no KofJS (no-op JVM/Native).
             export function kofUiWidgetSetAccessibleName(widget, name) {
                 const n = window.__kofNodes && window.__kofNodes[widget];
                 if (!n) return;
-                n.setAttribute("aria-label", name);
-                if (n.hasAttribute && n.hasAttribute("aria-hidden")) {
-                    n.setAttribute("aria-hidden", "false");
-                }
-                if (n.dataset && n.dataset.kofIcon && n.getAttribute && !n.getAttribute("role")) {
-                    n.setAttribute("role", "img");
-                }
+                n._kofA11y = n._kofA11y || {};
+                n._kofA11y.name = name;
+                kofUiSyncA11y(n);
             }
 
             // Região "live": atualizações relevantes são anunciadas com polidez
@@ -70,8 +68,9 @@ public final class JsRuntimeUiWidgets {
             export function kofUiWidgetSetAnnounce(widget, on) {
                 const n = window.__kofNodes && window.__kofNodes[widget];
                 if (!n) return;
-                if (on) n.setAttribute("aria-live", "polite");
-                else if (n.removeAttribute) n.removeAttribute("aria-live");
+                n._kofA11y = n._kofA11y || {};
+                n._kofA11y.announce = !!on;
+                kofUiSyncA11y(n);
             }
 
             // issue #78: primitivas visuais além do Style(bg/fg/padding/radius).
