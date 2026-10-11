@@ -63,9 +63,11 @@ f(x: Int, s: String) { }    // annotated (idiomatic for main)
 - Return type **before the name** or **after `:`** after the parentheses.
 - **No declared type → `void`** (default).
 - **Return inference**: a function declared `void` whose body has
-  `return <value>` has its return **inferred** in the fixpoint (≤4 passes,
-  `analyzeMethodBody:470-477`). `Int f() { return 1 }` and `f() { return 1 }`
-  (declared void, inferred Int) — the second is **Implementation-defined**.
+  `return <value>` has its return **inferred** in the fixpoint. The pass limit
+  is **derived from the class's member count** (`max(8, members + 4)`), so an
+  acyclic inference chain always converges — order-independently — and the last
+  pass's expression types are preserved (`#785`). Declaring explicit return
+  types stays the deterministic form.
 - `return` without a value in a non-void function → the type's default value (see
   [statements.md](statements.md) §3).
 

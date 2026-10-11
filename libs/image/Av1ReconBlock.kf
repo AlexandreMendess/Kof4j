@@ -1,0 +1,70 @@
+package image
+
+import image.Av1Quant
+import image.Av1Recon
+import image.Av1Tx
+
+// AVIF slice 3z: the AV1 per-block reconstruction composition
+// (`libs/image/Av1ReconBlock.kf`), the frame-level glue that turns a decoded
+// transform block's quantized levels into reconstructed plane samples.
+//
+// It composes the already-landed stages in the exact order the AV1 decoding
+// process (and libaom's `decode_reconstruct_tx` /
+// `inverse_transform_block`, `av1/decoder/decodeframe.c`) applies them:
+//
+//   1. Dequantization   (slice 3f, `av1Dequant`, AV1 §7.12.2)
+//   2. Inverse transform (slice 3g, `av1InvTx2d` via `av1Reconstruct`, §7.13)
+//   3. Residual + prediction with the FLIPADST flips and `Clip1`
+//      (slice 3i, `av1ReconAddPred`, §7.11.4 step 3)
+//
+// `av1ReconstructBlock` returns the reconstructed block (flat row-major,
+// `w * h`); `av1ReconBlockInto` writes it into a plane buffer at `(x, y)`.
+//
+// Pure Kof, all targets: no I/O, no compiler change. Prediction (slice 3u) and
+// the coefficient read (slices 3e/3x/3y) are the caller's; this slice is the
+// per-block reconstruction the tile walk runs after `read_coeffs_txb`.
+
+// §7.11.4 steps 1-3 for one transform block: dequantize the decoded levels,
+// inverse-transform them to the residual, then add the prediction with the
+// FLIPADST flips and `Clip1`.
+//
+// Parameters:
+//   - `levels`: the signed quantized coefficients (the `Quant` raster from the
+//     slice-3e/3x/3y coefficient walk), sized `tw * th` (`tw = Min(32, w)`).
+//   - `pred`: the prediction block, flat row-major of size `w * h`.
+//   - `txSz`, `txType`: the block's transform size and type.
+//   - `bitDepth`: bit depth (8, 10 or 12).
+//   - `lossless`: the frame's `lossless` flag (drives the inverse-transform
+//     shifts, §7.13.3).
+//   - `dcQuant`, `acQuant`: the dequantization factors (slice 3f
+//     `av1DcQ`/`av1AcQ` at the block's `qindex`).
+//
+// Returns the reconstructed block, flat row-major of size `w * h`.
+Int[] av1ReconstructBlock(Int[] levels, Int[] pred, Int txSz, Int txType,
+                          Int bitDepth, Bool lossless,
+                          Int dcQuant, Int acQuant) {
+    var dequant = av1Dequant(levels, txSz, bitDepth, dcQuant, acQuant)
+    return av1Reconstruct(dequant, pred, txSz, txType, bitDepth, lossless)
+}
+
+// Writes a reconstructed block into a plane buffer at `(x, y)`, row-major with
+// the given `stride`. The block's own `w = av1TxWidth(txSz)` columns are
+// copied; the destination positions are `plane[(y+i)*stride + x+j]`.
+void av1ReconBlockInto(Int[] plane, Int stride, Int x, Int y,
+                       Int[] levels, Int[] pred, Int txSz, Int txType,
+                       Int bitDepth, Bool lossless,
+                       Int dcQuant, Int acQuant) {
+    var rec = av1ReconstructBlock(levels, pred, txSz, txType, bitDepth,
+                                  lossless, dcQuant, acQuant)
+    var w = av1TxWidth(txSz)
+    var h = av1TxHeight(txSz)
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            plane[(y + i) * stride + (x + j)] = rec[i * w + j]
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
