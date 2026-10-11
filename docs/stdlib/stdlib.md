@@ -120,7 +120,7 @@ Executive summary (0.5.0-beta, re-synced 17/09):
 
 # 6. NEXT STEPS (residual post-0.2.0)
 
-1. Complete Native aarch64 codegen (placeholder today)
+1. ~~Complete Native aarch64 codegen~~ ✅ 03/09 (complete core, line-by-line riscv64 translation; `NativeAarch64E2ETest` green under qemu — the "placeholder" was 0.2.6-era; total x86 parity on JSON/DB/HTTP/concurrency/UI/net is the residual, tracked as `NATIVE002`)
 2. ~~Complete GC mark-sweep~~ ✅ 03/09 (KofGcE2ETest 3/3)
 3. ~~Complete native MySQL/MariaDB~~ — ✅ x86-64 closed 22/09 (scramble + lenenc + handshake/query/prepared + the 13 ORM faces, F2d1–F2d7; cross riscv64/aarch64 open)
 4. Typed query DSL `User.query { where age > 18 }` (level 3 DATABASE_VISION)
