@@ -365,7 +365,7 @@ main() {
 ## Infraestrutura de distribuição
 
 - `VERSION` fonte única; `<revision>` no Maven; `KofVersion` + `version.properties`; `scripts/bump-version.sh`.
-- CLI (26 commands): `build, run, serve, check, test, script, repl, c, fmt, config gen, bench, profile, inspect, decompile, translate, compare, migrate, debug, info, lsp, install, deps, editor, new, init, version`.
+- CLI (31 comandos, medidos no `Main.java`): `build, run, serve, check, md, test, bench, profile, inspect, decompile, translate, compare, migrate, debug, info, lsp, install, script, repl, init, new, connector, deps, deploy, workflow, makealive, c, fmt, editor, config gen, version`.
 - `kof lsp` via stdio (diagnostics do frontend real, hover, completion, references + rename; `LspServerTest` 4/4).
 - `bin/kof` / `bin/kof.bat` com JDK embutido (Temurin 25; Kof emite bytecode V21, piso JVM 21+). `scripts/package.sh` (layout dist, `--jdk`, SHA256SUMS).
 - CI: `ci.yml` (PR — testes/golden/integração/multiplatform), `release.yml` (main → bump → package 3 plataformas → changelog → GitHub Release).
