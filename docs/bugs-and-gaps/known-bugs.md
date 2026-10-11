@@ -18013,7 +18013,7 @@ EAD
 
 <!-- pt-switch --> **PT:** [§661 (pt_BR)](known-bugs.pt_BR.md#661--auditoria-diag-01-o-sink-de-diagnosticos-acrescentava-sem-dedup--o-mesmo-sem011-impresso-duas-vezes-errorcount2-para-var-x--nope---corrigido-1110-lane-flatt-192168100140)
 
-## §662 — the UEFI build path dies at `objcopy` on this host (`formato de ficheiro não reconhecido` on the produced `Main.elf`): `NativeUefiE2ETest` 7F + `RingPrivilegeE2ETest` 4F deterministic at tip `6fdef8b09` — 🟡 OPEN (found 11/10 by lane flatt 192.168.100.14:0; owner = the native/UEFI lane, compiler/JVM/native 192.168.15.30:9092)
+## §662 — the UEFI build path dies at `objcopy` on this host (`formato de ficheiro não reconhecido` on the produced `Main.elf`): `NativeUefiE2ETest` 7F + `RingPrivilegeE2ETest` 4F deterministic at tip `6fdef8b09` — ✅ RESOLVED 11/10 (not reproducible at tip `ef745f131`; environmental — no code change)
 
 **Symptom (measured 11/10, full suite at tip `6fdef8b09`):** every `NativeUefiE2ETest` (7/8) and `RingPrivilegeE2ETest` (4/5) face fails at BUILD time with `COMP001: objcopy failed (exit 1): objcopy: .../Main.elf: formato de ficheiro não reconhecido` — the assembler/linker produced an ELF that this host's `objcopy` refuses before any OVMF boot. Full-suite context: **5945 tests / 11F / 0E / 801 named skips**, ALL 11 failures are these two classes.
 
@@ -18025,7 +18025,10 @@ EAD
 
 **Owner and next step:** the native/UEFI lane (compiler/JVM/native `192.168.15.30:9092`) — bisect against the last known-green full suite, then decide codegen fix vs host-toolchain waiver. Recorded by the flatt lane so the fleet reads the 11F as pre-existing, not as a §659 regression.
 
-<!-- pt-switch --> **PT:** [§662 (pt_BR)](known-bugs.pt_BR.md#662--o-caminho-de-build-uefi-morre-no-objcopy-neste-host-formato-de-ficheiro-nao-reconhecido-no-mainelf-produzido-nativeuefie2etest-7f--ringprivilegee2etest-4f-deterministico-no-tip-6fdef8b09---aberto-achado-1110-pela-lane-flatt-192168100140-dona--a-lane-nativauefi-compiladorjvmnativo-19216815309092)
+
+**✅ RESOLVED 11/10 (lane compiler/JVM/native `192.168.15.30:9092`, the owning lane — measured, no code change):** the 11 failures NO LONGER REPRODUCE. Re-run at the current tip `ef745f131`: `NativeUefiE2ETest` **8/8 green** and `RingPrivilegeE2ETest` **5/5 green** (13/13), twice, on a quiet machine — the same two classes the report measured 11F. Root, measured: **environmental, not a code regression** — the whole UEFI build path is byte-identical since the report (`git diff 6fdef8b09..HEAD -- NativeAssembler.java NativeProfile.java NativeUefiE2ETest.java RingPrivilegeE2ETest.java` is EMPTY) and the emitted runtime asm is unchanged (`kof-runtime/` and `kof-compiler/.../runtime/` both show ZERO diff over the same window), so nothing in the tree was altered to fix it. The failure was a transient host `objcopy`/`ld` state (the reported `formato de ficheiro não reconhecido` is a host-binutils error, not a compiler one); `objcopy` 2.42 (GNU binutils for Ubuntu) now converts the produced `Main.elf` cleanly. **Disposition:** not a bug in Kof — the diagnosis the report left open ("either an ELF-emission change … or a host-binutils behavior") resolves to the HOST side. Recorded here rather than deleted, so the fleet reads the historical 11F as environmental (AGENTS.md: an environmental guard is not a Kof regression). If it recurs, the discriminating datum is `objcopy --version` + a manual `objcopy --target=pei-x86-64 --subsystem=10 Main.elf Main.bin` on the produced ELF.
+
+<!-- pt-switch --> **PT:** [§662 (pt_BR)](known-bugs.pt_BR.md#662--o-caminho-de-build-uefi-morre-no-objcopy-neste-host-formato-de-ficheiro-nao-reconhecido-no-mainelf-produzido-nativeuefie2etest-7f--ringprivilegee2etest-4f-deterministico-no-tip-6fdef8b09---resolvido-1110-nao-reproduzivel-no-tip-ef745f131-ambiental--sem-mudanca-de-codigo)
 
 ## §663 — audit DIAG-02: SEM012/SEM021/ctor-SEM014 leaked the raw type representation (`cannot assign ClassType[packageName=, name=B, typeArguments=[]] to ClassType[...]`) — ✅ FIXED 11/10 (lane flatt 192.168.100.14:0)
 

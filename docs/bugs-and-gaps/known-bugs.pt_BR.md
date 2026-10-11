@@ -15509,7 +15509,7 @@ EAD
 
 <!-- en-switch --> **EN:** [§661 (en)](known-bugs.md#661--audit-diag-01-the-diagnostic-sink-appended-without-dedup--the-same-sem011-printed-twice-errorcount2-for-var-x--nope---fixed-1110-lane-flatt-192168100140)
 
-## §662 — o caminho de build UEFI morre no `objcopy` neste host (`formato de ficheiro não reconhecido` no `Main.elf` produzido): `NativeUefiE2ETest` 7F + `RingPrivilegeE2ETest` 4F determinístico no tip `6fdef8b09` — 🟡 ABERTO (achado 11/10 pela lane flatt 192.168.100.14:0; dona = a lane nativa/UEFI, compilador/JVM/nativo 192.168.15.30:9092)
+## §662 — o caminho de build UEFI morre no `objcopy` neste host (`formato de ficheiro não reconhecido` no `Main.elf` produzido): `NativeUefiE2ETest` 7F + `RingPrivilegeE2ETest` 4F determinístico no tip `6fdef8b09` — ✅ RESOLVIDO 11/10 (não reproduzível no tip `ef745f131`; ambiental — sem mudança de código)
 
 **Sintoma (medido 11/10, suíte completa no tip `6fdef8b09`):** toda face do `NativeUefiE2ETest` (7/8) e do `RingPrivilegeE2ETest` (4/5) falha em tempo de BUILD com `COMP001: objcopy failed (exit 1): objcopy: .../Main.elf: formato de ficheiro não reconhecido` — o assembler/linker produziu um ELF que o `objcopy` deste host recusa antes de qualquer boot OVMF. Contexto da suíte: **5945 testes / 11F / 0E / 801 skips nomeados**, todos as 11 falhas são essas duas classes.
 
@@ -15521,7 +15521,10 @@ EAD
 
 **Dona e próximo passo:** a lane nativa/UEFI (compilador/JVM/nativo `192.168.15.30:9092`) — bisectar contra a última suíte completa verde conhecida, então decidir correção de codegen vs waiver de toolchain do host. Registrado pela lane flatt para que a frota leia as 11F como pré-existentes, não como regressão do §659.
 
-<!-- en-switch --> **EN:** [§662 (en)](known-bugs.md#662--the-uefi-build-path-dies-at-objcopy-on-this-host-formato-de-ficheiro-nao-reconhecido-on-the-produced-mainelf-nativeuefie2etest-7f--ringprivilegee2etest-4f-deterministic-at-tip-6fdef8b09---open-found-1110-by-lane-flatt-192168100140-owner--the-nativeuefi-lane-compilerjvmnative-19216815309092)
+
+**✅ RESOLVIDO 11/10 (lane compilador/JVM/nativo `192.168.15.30:9092`, a lane dona — medido, sem mudança de código):** as 11 falhas NÃO REPRODUZEM mais. Re-execução no tip atual `ef745f131`: `NativeUefiE2ETest` **8/8 verde** e `RingPrivilegeE2ETest` **5/5 verde** (13/13), duas vezes, em máquina ociosa — as mesmas duas classes que o relato mediu 11F. Raiz, medida: **ambiental, não regressão de código** — todo o caminho de build UEFI está byte-idêntico desde o relato (`git diff 6fdef8b09..HEAD -- NativeAssembler.java NativeProfile.java NativeUefiE2ETest.java RingPrivilegeE2ETest.java` está VAZIO) e o asm do runtime emitido está inalterado (`kof-runtime/` e `kof-compiler/.../runtime/` mostram ZERO diff na mesma janela), então nada na árvore foi alterado para consertá-lo. A falha era um estado transitório do `objcopy`/`ld` do host (o `formato de ficheiro não reconhecido` relatado é erro de binutils do host, não do compilador); o `objcopy` 2.42 (GNU binutils for Ubuntu) agora converte o `Main.elf` produzido sem problema. **Disposição:** não é bug do Kof — o diagnóstico que o relato deixou em aberto ("ou uma mudança de emissão de ELF … ou um comportamento de binutils do host") resolve-se para o lado do HOST. Registrado aqui em vez de apagado, para a frota ler os 11F históricos como ambientais (AGENTS.md: uma guarda ambiental não é regressão do Kof). Se recorrer, o dado discriminante é `objcopy --version` + um `objcopy --target=pei-x86-64 --subsystem=10 Main.elf Main.bin` manual no ELF produzido.
+
+<!-- en-switch --> **EN:** [§662 (en)](known-bugs.md#662--the-uefi-build-path-dies-at-objcopy-on-this-host-formato-de-ficheiro-nao-reconhecido-on-the-produced-mainelf-nativeuefie2etest-7f--ringprivilegee2etest-4f-deterministic-at-tip-6fdef8b09---resolved-1110-not-reproducible-at-tip-ef745f131-environmental--no-code-change)
 
 ## §663 — auditoria DIAG-02: SEM012/SEM021/ctor-SEM014 vazavam a representação crua de tipo (`cannot assign ClassType[packageName=, name=B, typeArguments=[]] to ClassType[...]`) — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0)
 
