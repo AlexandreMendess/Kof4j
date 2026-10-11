@@ -1,0 +1,14 @@
+[null]
+false
+demo
+[]
+8080
+2147483647
+-1
+9000000000
+9223372036854775807
+false
+true
+true
+false
+[null]

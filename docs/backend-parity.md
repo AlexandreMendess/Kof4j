@@ -200,7 +200,7 @@ unless a dedicated note says otherwise.
 | `kof.web` T1 (listen/route) | ✅ | ✅ x86_64 real | 🟡 NAT007 — `NativeWebRuntime` is x86_64-only (§427; honest refusal) | `DomainGapCodesTest.webT1OnCrossIsNat007` + `ioAndWebT1OnX86AndJsHaveNoGap` |
 | supervisor | ✅ | ✅ (×3 — §129 cross port 19/09) | ✅ | `KofSupervisorE2ETest` |
 | scheduler `every`/`at` | ✅ | ✅ | ✅ | `KofTimeE2ETest`; `at(cron)` = CRON001 on ALL natives (not per-arch) |
-| math (MATH001 closed; `pow`) | ✅ (`pow` via libm) | ✅ FP; `pow` refuses MATH001 | ✅ FP; `pow` refuses MATH001 | `KofMathTest`, `KofMath.supportedOn` |
+| math (MATH001 closed; `pow`; trig) | ✅ (`pow` via libm; full trig + `pi`/`e`/`tau`) | ✅ FP; **`pow` + the 9 trig (`sin`/`cos`/`tan`/`asin`/`acos`/`atan`/`atan2`/`toRadians`/`toDegrees`) refuse `MATH001`** (§621); `pi`/`e`/`tau` bind (folded to a double literal, §651) | ✅ FP; same `MATH001` refusals as x86 | `KofMathTest`, `KofMath.supportedOn` |
 | db (SQLite) | ✅ SQLite + MySQL/MariaDB wire | ✅ SQLite (`RtB46`/`RtB47`); MySQL/MariaDB x86-only (`mariadb://` = mysql wire alias, S1 23/09) | ✅ SQLite | `KofDbE2ETest` incl. `crossNativeSqliteRoundtrip` + `nativeMariadbAliasWireProtocol`; `NativeCrossLink` |
 | security | ✅ asm (SECN002/006 faces) | 🔴 SECN000 | 🔴 SECN000 | `KofSecurity.supportedOn` |
 | rng | ✅ (X8 fatia 2) | 🔴 RNG001 | 🔴 RNG001 | `KofRngTest` |

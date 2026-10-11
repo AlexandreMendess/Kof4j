@@ -20,6 +20,7 @@
 | `registry-live-roundtrip-2026-09-20.pt_BR.md` | smoke real do round-trip do Registry 1.5.3 no GitHub (20/09) | **VERMELHO** — publish OK, pull bloqueado pela #564; rodar de novo as fases C–E após o fix |
 | `supply-chain-trust-boundary-2026-09-20.pt_BR.md` | fronteira de confiança da cadeia de suprimentos do KOF v1 — baseline somente leitura (workflow de release, SHA testado×publicado, actions/permissões, governança da fonte, proveniência) | **viva** — resultados do laboratório (Onda 2) e as respostas da mantenedora à §5 entram aqui |
 | `size-baseline.pt_BR.md` | D-SIZE-BUDGET Fase 1 — baseline do peso da distribuição (jars dos módulos/shaded/fino/empacotado, atribuição por pacote de topo, hello-world por alvo) | **viva** — regerar com `scripts/size/measure-size.sh` a cada mudança relevante de tamanho; diff com `compare-size.sh` |
+| `audit-0.6.0-bugs-regressions-gaps.pt_BR.md` | bugs/regressões/lacunas da 0.6.0 — 20 itens reproduzidos na tag publicada vs `lab` (`VER-01` higiene de release, a família de sobrecarga silenciosa, a família de `VerifyError` de lambda, mapeamento de nomes do ORM) | **viva** — cada item pendente deve ser reivindicado em `known-bugs`/`development`/`DECISIONS` |
 
 ## Como usar
 

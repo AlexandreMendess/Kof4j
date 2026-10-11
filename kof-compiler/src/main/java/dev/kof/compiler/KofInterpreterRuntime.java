@@ -213,11 +213,29 @@ public final class KofInterpreterRuntime {
             Object v = e.getValue();
             if (v instanceof KofInterpreter.KofObj) {
                 sb.append(encodeKof((KofInterpreter.KofObj) v));
+            } else if (v instanceof Number n && isBoolField(ko.clazz, e.getKey())) {
+                // §658a: campo Bool primitivo guarda Integer 0/1 na pilha do
+                // interpretador (§108); no wire JSON é true/false (paridade
+                // JVM/JS/nativo). Sem esta normalização o Script emitia
+                // {"ok":1} enquanto os outros três alvos emitiam {"ok":true}.
+                sb.append(runtimeFn("kof_json_encode_bool", new Object[]{n.intValue()}));
             } else {
                 sb.append(runtimeFn("kof_json_encode", new Object[]{v}));
             }
         }
         return sb.append('}').toString();
+    }
+
+    /**
+     * §658a: o campo declarado como {@code Bool} primitivo guarda Integer 0/1
+     * na pilha do interpretador (§108), não Boolean — o encode precisa saber
+     * o tipo declarado para normalizar 1/0 → true/false no wire.
+     */
+    private static boolean isBoolField(IRClass clazz, String name) {
+        for (IRField f : clazz.fields()) {
+            if (f.name().equals(name)) return KofInterpreterValues.isBoolPrimitiveType(f.type());
+        }
+        return false;
     }
 
     /** Classe Kof cujo nome simples sanitizado casa `kof_json_decode_<X>`. */

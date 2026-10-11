@@ -91,6 +91,35 @@ class JsonNativeEncodeFpE2ETest {
     }
 
     /**
+     * §659c — o encode JSON de um CAMPO Double/Float de record (caminho
+     * direto `json.encode(record)`, distinto do walker de lista) emitia lixo
+     * no nativo: o lowerer escrevia um {@code KofCall} cru para
+     * {@code kof_double_to_string} (que lê xmm0), mas o emissor genérico punha
+     * os bits em %rdi — o campo saía da memória não inicializada
+     * ({@code {"d":2.0546950501119882E-81}}). Corrigido para o MESMO
+     * {@code kof_json_encode_double}/{@code _float} do caminho escalar (ABI
+     * registrada + NaN/±Inf → null). Oráculo = JVM medido.
+     */
+    @Test
+    void doubleFloatRecordFieldEncodeMatchesJvmOracle() throws Exception {
+        Path src = tmp.resolve("recfp.kf");
+        Files.writeString(src, """
+                record R(Double d, Float f)
+                record S(Double a, Double b)
+                main() {
+                    println(json.encode(R(2.5, 1.5)))
+                    println(json.encode(R(0.0, -1.25)))
+                    println(json.encode(S(1.0, 2.0)))
+                }
+                """);
+        String jvm = runJvm(src, tmp.resolve("o-jvm-rec"));
+        String nat = runNative(src, tmp.resolve("o-nat-rec"));
+        assertEquals("{\"d\":2.5,\"f\":1.5}\n{\"d\":0.0,\"f\":-1.25}\n{\"a\":1.0,\"b\":2.0}\n", jvm,
+                "oráculo JVM do encode de campo Double/Float de record (§659c)");
+        assertEquals(jvm, nat, "x86≡JVM no encode JSON de campo Double/Float de record (§659c)");
+    }
+
+    /**
      * §514 — os encoders JSON de Double/Long de elemento nunca chegaram ao
      * cross (símbolo {@code kof_json_encode_double} ausente; tags 3/5 caíam em
      * {@code encode_int}). Aqui o MESMO programa do §512 roda em riscv64 e

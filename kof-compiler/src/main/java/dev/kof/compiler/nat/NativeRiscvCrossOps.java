@@ -417,6 +417,15 @@ public final class NativeRiscvCrossOps {
                 other.pushRiscv(sb, "a0");
                 return;
             }
+            // §655: split(sep, limit) -> String[] — o helper consciente do
+            // limit (contrato JDK: limit>0 = o RESTO no último elemento);
+            // antes desta face a sobrecarga de 2 args caía no path genérico.
+            if ("split".equals(mn) && kc.parameterTypes().size() == 2) {
+                sb.append("    pop a2\n    pop a1\n    pop a0\n");
+                sb.append("    call kof_string_split_limit\n");
+                other.pushRiscv(sb, "a0");
+                return;
+            }
         }
 
         // kof_string_equals / concat como FUNCTION (frontend emite assim)
