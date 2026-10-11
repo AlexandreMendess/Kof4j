@@ -5,6 +5,7 @@
 **Status:** `UNDER DEVELOPMENT` — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`); **CORE PROMOTED to `docs/` 10/10** — the maintainer's order: "pode finalizar o plano então, ja promover e vida que segue"
 **Location:** `docs/testing-platform.md` (promoted from `docs/development/` 10/10 — the maintainer's order: the core phases implemented+validated; the remaining §11 phases 5-8 are future slices, documented as the boundary)
 **Owner:** reference contract — the implementation core is COMPLETE; future slices (§11 phases 5-8: Cypress, KofJS/Wasm E2E, cross-browser, advanced) start from `docs/development/` on a new claim (`D-PLAN-ONE-OWNER`)
+**0.6.0 scope (maintainer 11/10 — "todos os planos em reta final ja libera a tag 0.6.0"):** phases 1–7 core ARE the 0.6.0 face (5 Cypress + 7 cross-browser landed 11/10); **phase 8 (advanced: visual regression/accessibility/network-mocking/traces) and the §6.10 KofWasm face are explicitly OUT of the 0.6.0 scope** — future slices, never cut blockers.
 **Nature:** implementation plan — real state + how to finish (design record kept below)
 **Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface
@@ -623,7 +624,7 @@ render E2E green** (`contentRendersOnFirefox`, 3.9s) + Chromium green (`navigate
 ubuntu24.04 fallback build pins; `install-deps` needs sudo the lane doesn't have) → the explicit
 named skip (`contentRendersOnWebkit` + the screenshot loop), the environmental-skip convention —
 never a false green, never a hidden skip. Measured boundaries of the §11 order on this host:
-phase 5 (Cypress) INFEASIBLE (no node/npm — Cypress is an npm tool; the slice stays OPEN);
+phase 5 (Cypress) CORE LANDED the same day (the maintainer unlocked node/npm — §6.3 above);
 phase 6's KofJS face already proven by the seed `KofJsBrowserE2ETest` (22 faces), the KofWasm
 face stays gated by #776 (the WASI lane's front); profiles (`Fast Browser`/`Full Browser Matrix`)
 remain the §11 face after the engine matrix. Proof (executed): `PlaywrightLibProviderTest` +
