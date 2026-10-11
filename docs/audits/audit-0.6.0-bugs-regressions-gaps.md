@@ -109,7 +109,7 @@ reproducibility (`always` unless noted).
 | `JVM-03` | JVM backend | if/switch-expr with lambda branches → `VerifyError` (+ phantom `invokestatic`) | broken | broken | **High** | branch join yields `Object` / first-branch `LambdaN` | `ExpressionTyper.java:255-277,350-358`, `HierarchyResolver.java:132-152`, `ExpressionBareCallLowerer.java:252-253` | none | `ifExprLambdaBranchesUnifyToSamInterfaceJvm` + switch twin | unify same-signature lambda branches to the SAM interface |
 | `HTTP-01` | HTTP / web | `http.status(401)` / bare `status(401)` pass `check` silently | broken | broken | **High** | arity-only dispatch, no type check; no diagnostic on mismatch | `KofHttp.java:98-99`, `MethodCallNamespaces.java:72-78`, `ExpressionHttpCallLowerer.java:17`, `ExpressionBareCallLowerer.java:252` | `StdCatalogSignaturesTest` (dispatcher only) | `http.status(401)`/`get(401)`/`timeout("abc")` must fail `check` | add a type check beside the arity check; emit `SEM025`/dedicated `HTTP00x` |
 | `MATH-01` | `kof.math` | `math.abs(Double)` | `SEM025` | `SEM025` | — | honest (Int-only, guarded) | `KofMath.java:48-49`, `StdCatalog.java:207` | `StdCatalogSignaturesTest:184` | — | none (SPEC GAP: Double overloads?) |
-| `MATH-02` | `kof.math` | `min`/`max`/`clamp`/`isEven`/`isOdd`/`isPositive`/`isNegative`/`isZero` accept any type | broken | broken | **High** | **no type guard** (arity only) | `KofMath.java:52-59` | `KofMathTest` (Int happy path only) | non-Int arg must be `SEM025` | add the `isInt` guard, mirroring `abs`/`sign` |
+| `MATH-02` | `kof.math` | `min`/`max`/`clamp`/`isEven`/`isOdd`/`isPositive`/`isNegative`/`isZero` accept any type | broken | broken | **High** | **no type guard** (arity only) | `KofMath.java:52-59` | `KofMathTest` (Int happy path only) | non-Int arg must be `SEM025` | add the `isInt` guard, mirroring `abs`/`sign` — ✅ FIXED 11/10 on `lab` as `known-bugs` §658 (lane flatt `192.168.100.14:0`, `KofMathTypeGuardTest` RED-first) |
 | `DIAG-01` | diagnostics | one error emitted twice on the `VarDeclStmt` path | 2× | 2× | Low-Med | `Unknown` never cached + redundant re-inference | `SemExpressionTyper.java:15-28`, `StatementAnalyzer.java:151,162,166` | none | count==1 pin | cache `Unknown` or dedup at the sink |
 | `DIAG-02` | diagnostics | raw `ClassType[...]`/`PrimitiveType[...]` in `SEM012`/`SEM021`/ctor `SEM014` | leak | leak | Low-Med | raw record `toString()` instead of `Type.display` | `SemAssignmentAnalyzer.java:54,140-142,159`, `SemExpressionTyper.java:184`, `StatementAnalyzer.java:173-175`, `TypeChecker.java:163-167` | `QualifiedTypeDiagE2ETest` (SEM010 only) | assert no `*Type[` in messages | use `Type.display(...)` at those six sites |
 | `MEM-01` | memory analyzer | `MEM014` on `web.app()` (server lifetime) | warns | warns | Low | per-scope rule ignores `listen`/process lifetime | `memory/ResourceLeakAnalysis.java:52-73,111-171` | `ResourceLeakE2ETest` (no server case) | server-lifetime pin | **SPEC GAP** — treat `listen` as lifetime-establishing (maintainer call) |
@@ -360,7 +360,9 @@ relevant battery non-regressed. Nothing below is implemented in this audit.
 **P0 — silently wrong data / broken published artifact**
 
 1. `MATH-02` — add the `isInt` guard to `KofMath.java:52-59`. *Test:* `math.min(Double,Double)`,
-   `math.clamp(Double,…)`, `math.isEven(Double)` → `SEM025`. *Risk:* low.
+   `math.clamp(Double,…)`, `math.isEven(Double)` → `SEM025`. *Risk:* low. — **DONE 11/10:** landed
+   as `known-bugs` §658 (lane flatt `192.168.100.14:0`): `KofMathTypeGuardTest` measured RED at the
+   audit's exact repro pre-fix, 2/0F post-fix; `*Math*`+`StdCatalogSignaturesTest` 53/0F; golden 236/236.
 2. `VER-01` — already fixed at the source on `lab`; add a test that
    `KofVersion.version()` equals `VERSION`, and have the maintainer decide on a
    **re-publish** (tags are immutable). *Risk:* none to code.

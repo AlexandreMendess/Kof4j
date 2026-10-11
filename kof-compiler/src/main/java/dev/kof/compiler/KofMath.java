@@ -49,13 +49,19 @@ public final class KofMath {
                     ? new MathCall("kof_math_abs", INT, List.of(INT)) : null;
             case "sign" -> argc == 1 && isInt(argTypes.get(0))
                     ? new MathCall("kof_math_sign", INT, List.of(INT)) : null;
-            case "clamp" -> argc == 3
+            // audit 0.6.0 MATH-02 (ledger §658): a familia S1 Int exige a
+            // guarda isInt como abs/sign — sem ela, math.min(1, 2.5) passava
+            // no check e morria como VerifyError no JVM / 0 silencioso no
+            // nativo. Número não alarga em silêncio (SEM025, R6).
+            case "clamp" -> argc == 3 && isInt(argTypes.get(0))
+                    && isInt(argTypes.get(1)) && isInt(argTypes.get(2))
                     ? new MathCall("kof_math_clamp", INT, List.of(INT, INT, INT)) : null;
-            case "min" -> argc == 2
+            case "min" -> argc == 2 && isInt(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new MathCall("kof_math_min", INT, List.of(INT, INT)) : null;
-            case "max" -> argc == 2
+            case "max" -> argc == 2 && isInt(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new MathCall("kof_math_max", INT, List.of(INT, INT)) : null;
-            case "isEven", "isOdd", "isPositive", "isNegative", "isZero" -> argc == 1
+            case "isEven", "isOdd", "isPositive", "isNegative", "isZero" ->
+                argc == 1 && isInt(argTypes.get(0))
                     ? new MathCall("kof_math_" + name, BOOL, List.of(INT)) : null;
             // S1b wedge: sqrt = PRIMEIRO Double em kof.math (x86 sqrtsd — FLT
             // fechado 31/08 via XMM). NaN em <0 paridade JVM/JS (Math.sqrt).
