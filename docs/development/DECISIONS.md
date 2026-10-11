@@ -4828,7 +4828,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Phase 6 (conformance/equivalence suite):** build the official equivalence suite over the harness.
 - **Phase 7 (integration):** wire the suite into the integration lifecycle (`mvn verify` or equivalent).
 - **Constraint unchanged:** purely test infrastructure; the compiler is not touched (plan golden rule). The harness ratchet only improves; `D-PLAN-ONE-OWNER` still holds (this plan stays owned by `192.168.15.30:9092`; `graphics-gaming` stays SEM DONO).
-- **Relationships:** `Completes: D-TEST-ARCHITECTURE-GO (gate)`, `Affects: docs/development/test-architecture-plan.md Phases 5–7`, `Frozen-boundary: none (test-only)`.
+- **Relationships:** `Completes: D-TEST-ARCHITECTURE-GO (gate)`, `Affects: docs/test-architecture-plan.md Phases 5–7`, `Frozen-boundary: none (test-only)`.
 ## D-KOF-SIGN — Ed25519 signing/verification as a new stdlib crypto face (maintainer vote D1=A 03/10, chat)
 
 **Question (rule-6):** KofShare's device identity (§6/§12 of the product spec) needs signatures; the compiler today has ZERO signing face (measured 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = empty). Options were (A) new stdlib face, (B) ship v1 LAN-trust and defer, (C) route through interop `java.security` (breaks `D-KOFSHARE-100KOF`).
