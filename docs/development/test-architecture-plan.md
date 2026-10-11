@@ -1206,6 +1206,25 @@ value measured on the Script target first, cross-checked byte-for-byte on jvm/na
 exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
 `check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
+**Phase 6 slice 28 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **53 total** — pinning the deterministic digest and constant-time faces of the
+security namespaces (`kof.crypto` + `kof.security`), pinned by NO equivalence case until
+now. The new case `tests/golden/security-crypto-namespace` pins `crypto.sha256("abc")`→
+`ba7816bf…20015ad` (the NIST FIPS 180-4 vector), `crypto.sha256("")`→`e3b0c442…b855` (the
+empty-string SHA-256), `crypto.sha512("abc")`→`ddaf35a1…ca49f` (NIST), `crypto.hmacSha256
+("key","msg")`→`2d93cbc1…b8c628` (RFC 4231-style HMAC-SHA256), `security.constantTimeEquals`
+(`"abc"`/`"abc"`→true, `"abc"`/`"abd"`→false, `""`/`""`→true), and `security.redact`
+(`"a"`→`********` all-masked, `"verylongsecret"`→`very********cret` — first 4 + last 4
+kept). All four targets agree byte-for-byte. **Scope note (measured, honest):** the
+`security.*Header` family (`cspHeader`/`hstsHeader`/`contentTypeOptionsHeader`/`frameHeader`/
+`referrerHeader`) is a documented JVM-only gap (`SECN000`: it refuses on native/JS) so it
+is EXCLUDED — it cannot be a 4-target pin; `security.csrfToken`/`apiKeyGenerate`/`randomHex`
+are NON-deterministic. Test-infrastructure only, no compiler change. Proof (executed): every
+value measured on the Script target first, cross-checked byte-for-byte on jvm/native/js
+(all four agree), then frozen; `tests/run-golden.sh` **212/212** (53 cases × 4 targets),
+exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
+`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:

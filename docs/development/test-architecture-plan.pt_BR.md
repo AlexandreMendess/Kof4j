@@ -1205,6 +1205,26 @@ jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **2
 (52 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
+**Fase 6 fatia 28 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **53 total** — pinando as faces determinísticas de digest e tempo-constante dos
+namespaces de segurança (`kof.crypto` + `kof.security`), não pinadas por NENHUM caso de
+equivalência até agora. O novo caso `tests/golden/security-crypto-namespace` pina
+`crypto.sha256("abc")`→`ba7816bf…20015ad` (o vetor NIST FIPS 180-4), `crypto.sha256("")`→
+`e3b0c442…b855` (o SHA-256 da string vazia), `crypto.sha512("abc")`→`ddaf35a1…ca49f` (NIST),
+`crypto.hmacSha256("key","msg")`→`2d93cbc1…b8c628` (HMAC-SHA256 estilo RFC 4231),
+`security.constantTimeEquals` (`"abc"`/`"abc"`→true, `"abc"`/`"abd"`→false, `""`/`""`→true),
+e `security.redact` (`"a"`→`********` todo mascarado, `"verylongsecret"`→`very********cret`
+— primeiros 4 + últimos 4 mantidos). Os quatro alvos concordam byte-a-byte. **Nota de escopo
+(medida, honesta):** a família `security.*Header` (`cspHeader`/`hstsHeader`/
+`contentTypeOptionsHeader`/`frameHeader`/`referrerHeader`) é gap documentado só-JVM
+(`SECN000`: recusa no nativo/JS), então fica EXCLUÍDA — não pode ser pino de 4 alvos;
+`security.csrfToken`/`apiKeyGenerate`/`randomHex` são NÃO-determinísticos. Apenas
+infraestrutura de teste, sem mudança de compilador. Prova (executada): cada valor medido
+primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então
+congelado; `tests/run-golden.sh` **212/212** (53 casos × 4 alvos), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
+`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:
