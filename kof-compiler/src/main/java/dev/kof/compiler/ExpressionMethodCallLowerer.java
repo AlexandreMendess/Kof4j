@@ -47,6 +47,22 @@ public final class ExpressionMethodCallLowerer {
                 instanceof SymbolTable.FieldSymbol;
     }
 
+    /**
+     * #786: `db` is both the KofDb namespace and a name the documented idiom
+     * `var db = db.connect(...)` / `db.execute(db, ...)` binds — the handle is a
+     * String (`KofDb.staticCall` returns `STR`). A local/parameter named `db` of
+     * ANY OTHER type is an ordinary receiver (`db.next()` on a user class), and
+     * routing it to the db namespace made the call vanish: `KofDb.staticCall`
+     * returns null and `ExpressionDbCallLowerer` emits nothing (R6/Q7 silent
+     * drop → frame crash). Only a handle-typed local keeps the namespace, so the
+     * idiom is untouched.
+     */
+    static boolean shadowsDbNamespaceWithForeignLocal(CompilerDriver driver, String name,
+                                                      List<IRLocalVariable> locals) {
+        IRLocalVariable lv = driver.findLocalVar(name, locals);
+        return lv != null && !BuiltinTypes.STRING.equals(lv.type());
+    }
+
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                         String owner, int localIdx, List<IRLocalVariable> locals) {
 // User-defined classes take precedence over builtin helpers
@@ -319,6 +335,9 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return ExpressionJsonCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && KofDb.isDbNamespace(rid.name())
         && !shadowsFieldOfCurrentClass(driver, owner, rid.name())) {
+    if (shadowsDbNamespaceWithForeignLocal(driver, rid.name(), locals)) {
+        return ExpressionInstanceCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
+    }
     return ExpressionDbCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && KofOrm.isOrmNamespace(rid.name())
