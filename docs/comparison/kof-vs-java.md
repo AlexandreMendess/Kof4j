@@ -3,7 +3,7 @@
 # Kof vs Java — Technical Comparison
 
 **Last updated:** September 12, 2026
-**Version:** 0.5.0-beta (7 targets; pattern matching + `String?` + Native spawn)
+**Version:** 0.6.0 (7 targets; pattern matching + `String?` + Native spawn)
 
 ---
 
@@ -11,7 +11,7 @@
 
 | Aspect | Java | Kof |
 |---------|------|-----|
-| Typing | Strong, static | Strong, static (0.5.0-beta) |
+| Typing | Strong, static | Strong, static (0.6.0) |
 | OO | Classes, interfaces, records | Classes, interfaces, records + `enum` + pattern matching `case String s`/`Point(x,y)` |
 | Inheritance | Single + interfaces | Single + interfaces (3 levels) |
 | GC | Automatic | JVM: automatic / Native: free-list `kof_free_head` (mark-sweep implemented 03/09, manual; auto-collect on exhaustion ✅ 19/09 — D1-A, §260 CLOSED) |
@@ -165,7 +165,7 @@ Generics by erasure (classes and functions). Bounds: planned.
 
 ---
 
-## Collections (0.5.0-beta)
+## Collections (0.6.0)
 
 ### Java
 
@@ -318,7 +318,7 @@ file > env > profile > default; CONF001 closed).
 
 ## Summary (0.5.0-beta, re-synced 17/09/2026 — `VERSION` 0.5.0-beta, `mvn test` 2218, 7 targets)
 
-| Feature | Java | Kof 0.5.0-beta | Kof Future |
+| Feature | Java | Kof 0.6.0 | Kof Future |
 |---------|------|---------------|------------|
 | Classes / Records / Inheritance / Interfaces / Virtual dispatch | ✅ | ✅ (JVM/Native x86_64 + riscv64 + JS `kof.http`) | ✅ |
 | Null safety `String?` | ✅ (via `Optional`/checker) | ✅ basic `String?` (`Type?`) 27/08 | advanced checks |

@@ -109,16 +109,21 @@ public final class JsRuntimeUiLinkImageIcon {
             export function kofUiIconNew(name) { return kofUiIconNewSize(name, 24); }
             export function kofUiIconNewSize(name, size) {
                 if (typeof document === "undefined") return -1;
-                const d = KOF_ICONS[name] || KOF_ICONS["close"];
+                const d = KOF_ICONS[name];
+                if (!d) kofUiReportError("Icon", "'" + name + "' is not a kof.ui icon");
                 const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
                 svg.setAttribute("viewBox", "0 0 24 24");
                 svg.setAttribute("width", size);
                 svg.setAttribute("height", size);
+                // D-UI-A11Y (#789): um Icon é decorativo por PADRÃO (aria-hidden);
+                // setAccessibleName() o promove a imagem nomeada. Assim um ícone
+                // puramente visual não é anunciado como gráfico sem nome.
+                svg.setAttribute("aria-hidden", "true");
                 const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                p.setAttribute("d", d);
+                p.setAttribute("d", d || "");
                 p.setAttribute("fill", "currentColor");
                 svg.appendChild(p);
-                svg.dataset.kofIcon = name;
+                svg.dataset.kofIcon = d ? name : "";
                 if (typeof window.__kofNodes === "undefined") window.__kofNodes = {};
                 const id = ++kofNodeSeq;
                 window.__kofNodes[id] = svg;
@@ -128,7 +133,11 @@ public final class JsRuntimeUiLinkImageIcon {
                 const n = window.__kofNodes && window.__kofNodes[icon];
                 if (!n) return;
                 const d = KOF_ICONS[name];
-                if (d) n.querySelector("path").setAttribute("d", d);
+                if (!d) {
+                    kofUiReportError("Icon.setName", "'" + name + "' is not a kof.ui icon");
+                    return;
+                }
+                n.querySelector("path").setAttribute("d", d);
                 n.dataset.kofIcon = name;
             }
             export function kofUiIconName(icon) {

@@ -2,9 +2,9 @@
 
 # Quality pipeline — executable branch policy
 
-last: 14.3-promotion-tooling (suite gate + scripted counts, #657)
-doing: automation-enforcement
-next: 14.4-rulesets+dispatch-on-main (mantenedora)
+last: automation-enforcement — the per-commit auto-cascade LANDED (auto-promote.yml + auto_cascade.sh, 11/10)
+doing: 14.4-rulesets+dispatch-on-main (mantenedora)
+next: first-week live observation of the auto-cascade; the canonical windowed path stays promote.yml (maintainer)
 location: docs/development
 state: active
 
@@ -73,6 +73,43 @@ version, timestamp, blocking/related issues, reasons, and the action
   promotion PR only when it PASSES. It never pushes to a stage, and the counts
   are never defaulted — omitting them is refused (opinion is forbidden).
 * Concurrency is grouped per target stage; duplicate runs are no-ops.
+
+## The per-commit auto-cascade (automation-enforcement, 11/10)
+
+Maintainer live order: *"era pra cada commit na lab avaliar se iria ter promoção
+automatica e merge com as proximas"*. Workflow `.github/workflows/auto-promote.yml`
+(on every push to `lab`; `scripts/pipeline/auto_cascade.sh` is the driver):
+
+1. **evaluate** — cheap, fail-closed gates on the exact tip: the five CI
+   structural steps verbatim (version-sources + `bump-version.sh`, `check_500`,
+   stdlib boundary, signature catalog, agent tests), the release rc-gate, 0 open
+   `bug` issues, and divergence (tree-equality per hop). Any RED = honest skip;
+   the cut slips (`D-LAB-STABILITY`).
+2. **suite** — `safe-suite.sh` on the exact tip, certified by
+   `stability-report.sh` (`STABILITY: GREEN`, SHA-stamped). `lab` has no
+   per-push CI by design, so this run IS the measurement; no retry machinery —
+   a red suite never cascades.
+3. **cascade** — the flow the maintainer demonstrated by hand twice on 11/10
+   (PRs #799–#801 and #802–#804): `lab→testing→stable→prerelease`, one
+   idempotent promotion PR per hop (tree-equality guard, fail-closed), each
+   merged only after the measured verdict. This compressed order is a recorded
+   maintainer decision of 11/10 — the state machine's canonical windowed path
+   (`lab→testing→prerelease→stable`) remains available through `promote.yml`
+   for a maintainer-driven cut with the 7-day observation window.
+4. **publish** — `release.yml` dispatched on `prerelease` ONLY when
+   `kof-${VERSION}*` has no tags yet; an already-published version waits for
+   the next bump (honest skip, recorded in the run log).
+
+`main` is NEVER touched by the automation: the `main-gate` ruleset (11/10)
+carries main's protections unchanged — PR + the two required checks + 1 review
+— with no relaxation, so the date-less final release stays the maintainer's
+merge + dispatch. `pipeline-stages` now covers `testing/prerelease/stable/release/*`
+with the two status checks still REQUIRED: the automation posts them with the
+measured verdict and its provenance (direct on the measured tip;
+tree-identical merge commits carry the note), and the never-used human-review
+requirement is dropped there (every stage merge to date was a human `--admin`
+bypass; the review requirement had never once been satisfied normally). The
+bot's write scopes are job-level and justified in `scripts/workflow-permissions.txt`.
 
 ## Issue linkage
 

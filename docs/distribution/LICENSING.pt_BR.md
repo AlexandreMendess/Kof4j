@@ -3,7 +3,7 @@
 # Licenciamento do Kof
 
 **Última atualização:** 17 de setembro de 2026
-**Versão:** 0.5.0-beta (7 targets; free-list + pthread spawn + FP XMM)
+**Versão:** 0.6.0 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 
@@ -17,7 +17,7 @@ O arquivo `LICENSE` na raiz do repositório contém o texto completo da GPLv3.
 
 ---
 
-## 2. JDK embutido na distribuição oficial (0.5.0-beta, JDK 25)
+## 2. JDK embutido na distribuição oficial (0.6.0, JDK 25)
 
 O pacote oficial do Kof embarca um **OpenJDK Eclipse Temurin 25** (binários da
 Adoptium; tooling API level 21), distribuído sob a **GPLv2 com Classpath Exception**. O JDK
@@ -29,9 +29,9 @@ e executa. `scripts/package.sh` gera layout dist + tar.gz/zip + SHA256SUMS, `rel
 
 ---
 
-## 2.1 Compilador (0.5.0-beta)
+## 2.1 Compilador (0.6.0)
 
-O compilador Kof (módulos `kof-compiler`, `kof-script` e `kof-c-compiler`; contagens de teste atuais em `docs/status.md`, `VERSION` 0.5.0-beta) é GPLv3.
+O compilador Kof (módulos `kof-compiler`, `kof-script` e `kof-c-compiler`; contagens de teste atuais em `docs/status.md`, `VERSION` 0.6.0) é GPLv3.
 
 Ele contém:
 - Lexer / Parser (`case String s` + `Point(x,y)` + `String?`)
@@ -56,7 +56,7 @@ O backend JVM delega para as facilities da JVM (java.lang.String, arrays nativos
 
 ### Runtime Nativo
 
-O backend Nativo gera funções de runtime em assembly durante a compilação (0.5.0-beta: free-list `kof_free_head` com reuso `mmap` + `spawn`/`await` via `pthread_create`/`pthread_join` com allocator thread-safe (futex) + FP real em XMM + JSON objetos/arrays). Essas funções são:
+O backend Nativo gera funções de runtime em assembly durante a compilação (0.6.0: free-list `kof_free_head` com reuso `mmap` + `spawn`/`await` via `pthread_create`/`pthread_join` com allocator thread-safe (futex) + FP real em XMM + JSON objetos/arrays). Essas funções são:
 
 - `kof_alloc` / `kof_free_head` — alocação com reuso `mmap` (GC mark-sweep implementado 03/09, manual `kof_gc_collect_now`; auto-collect sob exaustão ✅ 19/09 — D1-A, §260 FECHADO)
 - `kof_print`, `kof_println`, `kof_print_int`, `kof_int_to_string` — saída

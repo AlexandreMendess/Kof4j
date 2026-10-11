@@ -162,7 +162,7 @@ public final class TypeChecker {
             if (!emitCtorPairCompatible(formal, arg)) {
                 sa.diagnostics().error(node,
                         "Argument " + (i + 1) + " of '" + typeName + "': expected "
-                                + formal + " but got " + arg
+                                + Type.display(formal) + " but got " + Type.display(arg)
                                 + " (no constructor matches the argument types)",
                         "SEM014");
                 return;

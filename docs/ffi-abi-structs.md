@@ -2,7 +2,7 @@
 
 [English](ffi-abi-structs.md) | [Português](ffi-abi-structs.pt_BR.md)
 
-**Status:** **COMPLETE — D6 DECIDED (09/20) + all slices landed (23/09) — moved to `docs/` per three-states rule.** Post-D6 cross closure 29–30/09 landed `Buffer(U8)` cross (#651 fatia B) and `D-MEM-FFI-CROSS-FULL` faces 1–3 (cross scalar `T[]`, `String[]`→`char**`, memory-path structs + >16 B by-value params); remaining cross faces are float/HFA and callbacks. `docs/development/DECISIONS.md`
+**Status:** **COMPLETE — D6 DECIDED (09/20) + all slices landed (23/09) — moved to `docs/` per three-states rule.** Post-D6 cross closure 29–30/09 landed `Buffer(U8)` cross (#651 fatia B) and `D-MEM-FFI-CROSS-FULL` faces 1–3 (cross scalar `T[]`, `String[]`→`char**`, memory-path structs + >16 B by-value params); remaining cross faces are float/HFA and the `String`-return callback (callbacks themselves landed 11/10). `docs/development/DECISIONS.md`
 §D-FFI-STRUCT. D6-1 = B (`D-FFI-STRUCT-B`, 21/09: new mutable `struct` by-ref;
 `record`s stay by-value read-only, `Buffer(U8)` already covers the out-buffer) ·
 D6-2 = only `new T[n]` · D6-3 = `Buffer(U8, INOUT)`, no new syntax · D6-4 =
@@ -126,8 +126,7 @@ struct **parameter** path on the cross LANDED 30/09 (`D-MEM-FFI-CROSS-FULL` face
 `FfiStructLayoutTest.crossIntReturnIsBindableOnlyForIntegerRegisterPath`.
 `T[]`/`Buffer` (faces 1–2, `D-MEM-FFI-CROSS-FULL`) and the memory-path struct
 RETURN (face 3, below) have since landed; the >16 B by-value struct **param**
-landed in the same face; callbacks stay an honest `FFI001`/`FFI002` pending a
-maintainer decision (no `D-*` is recorded yet).
+landed in the same face; callbacks have since landed too (11/10, M1 unidade-4 — a generated trampoline on x86-64 + cross riscv64/aarch64, `FfiNativeCallbackE2ETest`); only a `String`-return callback stays honest `FFI001`.
 **Landed 22/09 (3.7 fatia 4 · cross struct PARAM, INTEGER register path):** the
 riscv64/aarch64 emitters now bind a `record` scalar-INTEGER-fields struct **by
 value as an argument** — gate `nativeExternBound` accepts struct params on the
@@ -173,7 +172,7 @@ the nested token `(<ret><params>)`. Anything the map does not cover is a
 | Surface | JVM | Native | JS |
 |---|---|---|---|
 | scalar downcall | ✅ `kof_ffi` FFM (`JvmFfiRuntime.java:142+`) | ✅ **direct `call sym@PLT` on x86-64/riscv64/aarch64** (#431 slices 1–2, 20/09, §369 — link-by-use, no `dlopen`) | ✅ host bridge `KofJsFfiBridge` (browser degrades honestly, R7) |
-| callbacks/upcalls (3.4) | ✅ `Linker.upcallStub` | ❌ `FFI001` (no mechanism) | ✅ host |
+| callbacks/upcalls (3.4) | ✅ `Linker.upcallStub` | ✅ **generated trampoline (x86-64 + cross riscv64/aarch64, 11/10); String-return → `FFI001`** | ✅ host |
 | String = `char*` | ✅ in + out | ✅ in (payload off 24) + out (boundary copy) | ✅ |
 | **struct (record, scalar fields)** | ✅ **by value in + out** (`@` token, 3.8b fatias 1–2, 20–21/09) | ◐ **by value param + return, register path *and* sret x86-64** (3.7 fatias 1–2b, 21/09); cross **return** INTEGER ≤ 16 B binds (fatia 3, 22/09) and **memory-path return/sret** binds (30/09 face 3, `D-MEM-FFI-CROSS-FULL`); cross `T[]`/`String[]`/`Buffer` bind (faces 1–2 + `#651` B) and the >16 B by-value **param** binds (30/09 face 3, BYREF pointer `a0`/`x0`, `FfiCrossStructParamE2ETest`); float/HFA on riscv64/aarch64 → `FFI001` (3.7) | ✅ **by value IN + OUT** (IN: `@<n><chars>` + `__kof_ffi_fields`; OUT: `@<n><chars>` return + `__kof_ffi_from`; bridges 21/09) |
 | **array `T[]`→`ptr` / `String[]`→`char**`** | ✅ **scalar copy-in per call** (`p<elem>` token, 3.8b fatia 3, 21/09; no write-back) and ✅ **`String[]`→`char**`** (30/09 face 2, `kof_ffi_copy_in_strings`, `FfiNativeStringArrayE2ETest`) | ✅ **copy-in** for `Long[]`/`Double[]`/`Int[]`/`Float[]`/`Bool[]` — x86-64 (3.7 steps 1–2, 22/09) AND cross riscv64/aarch64 (30/09, `D-MEM-FFI-CROSS-FULL` face 1, `kof_ffi_pack_array`); `FfiNativeArrayE2ETest` (JVM==riscv64==aarch64); `String[]` binds as `char**` copy-in on x86-64/riscv64/aarch64 (30/09 face 2, `kof_ffi_pack_str_array`, `FfiNativeStringArrayE2ETest`) | ✅ **scalar copy-in per call** (`packArray` bridge, 21/09; no write-back); `String[]`→`FFI002` (no host `char**` marshal) |
@@ -385,4 +384,4 @@ complete vertical (no half-bound path, R6):
       (#651 fatia B, 29/09); `String[]` landed as `char**` on JVM/x86-64/riscv64/aarch64
       (`D-MEM-FFI-CROSS-FULL` face 2, 30/09; JS stays `FFI002`).
 
-  4. **✅ DONE (30/09) — scalar `T[]`→`ptr` on the CROSS (riscv64/aarch64), `D-MEM-FFI-CROSS-FULL` face 1.** The x86-64 pack path is ported: `CompilerFfiBinding` no longer restricts scalar arrays to x86-64, `FfiStructLayout.crossBindable` counts an array-ptr as one INTEGER ordinal, and `NativeFfiCallRiscv` packs using the new `kof_ffi_pack_array` riscv helper (per-program, `NativeArchEmitter`, aarch64 via the line-by-line translator). `String[]` later landed the same day as face 2. Proof: `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` — a cross-compiled `.so` shim, golden JVM == riscv64 == aarch64 byte-identical for all 5 element widths; gate pinned by `FfiNativeCrossE2ETest#riscv64ScalarArrayAndStringArrayBind`. Remaining `D-MEM-FFI-CROSS-FULL` faces: float/HFA and callbacks (both require maintainer direction; no `D-*` is recorded).
+  4. **✅ DONE (30/09) — scalar `T[]`→`ptr` on the CROSS (riscv64/aarch64), `D-MEM-FFI-CROSS-FULL` face 1.** The x86-64 pack path is ported: `CompilerFfiBinding` no longer restricts scalar arrays to x86-64, `FfiStructLayout.crossBindable` counts an array-ptr as one INTEGER ordinal, and `NativeFfiCallRiscv` packs using the new `kof_ffi_pack_array` riscv helper (per-program, `NativeArchEmitter`, aarch64 via the line-by-line translator). `String[]` later landed the same day as face 2. Proof: `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` — a cross-compiled `.so` shim, golden JVM == riscv64 == aarch64 byte-identical for all 5 element widths; gate pinned by `FfiNativeCrossE2ETest#riscv64ScalarArrayAndStringArrayBind`. Remaining `D-MEM-FFI-CROSS-FULL` faces: float/HFA and the `String`-return callback (callbacks themselves landed 11/10, M1 unidade-4 — x86-64 + cross).

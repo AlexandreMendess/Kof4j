@@ -1,10 +1,14 @@
 package dev.kof.compiler.js;
 
-/** kof-runtime.mjs — Component Core + Link/Image/Icon. */
+/** kof-runtime.mjs — Component Core + Link/Image/Icon + acessibilidade ({@link JsRuntimeUiA11y}). */
 public final class JsRuntimeUiComponents {
     private JsRuntimeUiComponents() {
     }
 
+    // O bloco a11y (D-UI-A11Y) vive em JsRuntimeUiA11y só para caber no alvo de
+    // linhas/classe (REFACTOR-500); concatenado aqui, é UM bloco "ui-components"
+    // e as funções compartilham o escopo de módulo (kofUiSyncA11y chama
+    // kofUiOnDom e é chamada por kofUiCopyValueProps/kofUiWidgetOnHandle).
     static  String UI_COMPONENT_RUNTIME = """
             // ── Component Core (docs/ui/architecture.md) ─────────────
             // A UI is a tree of components. A Component node carries: identity,
@@ -127,6 +131,12 @@ public final class JsRuntimeUiComponents {
                 }
                 if (typeof newEl.value === "string" && newEl.value !== "") oldEl.value = newEl.value;
                 if (newEl.checked) oldEl.checked = true;
+                // D-UI-A11Y (#789/#807): a semântica acessível também é uma
+                // propriedade do render corrente. O nó sobrevivente ADOTA a
+                // intenção do nó fresco (inclusive a ausência dela) e o estado
+                // obsoleto — nome, live, papel de botão — é descartado.
+                oldEl._kofA11y = newEl._kofA11y ? Object.assign({}, newEl._kofA11y) : {};
+                kofUiSyncA11y(oldEl);
             }
 
             function kofUiRehomeWidgetHandlers(oldEl, oldId, newEl) {
@@ -158,6 +168,10 @@ public final class JsRuntimeUiComponents {
                 }
                 oldEl._kofDomListeners = [];
                 oldEl._kofHandlers = {};
+                // D-UI-A11Y (#789): o listener de teclado foi removido junto com
+                // os demais; libera o guard p/ kofUiRehomeWidgetHandlers
+                // recriá-lo no nó sobrevivente.
+                oldEl._kofKeyboardWired = false;
                 for (const k of oldEl._kofStaleForms || []) {
                     if (window.__kofFormSubmits) delete window.__kofFormSubmits[k];
                 }
@@ -497,6 +511,10 @@ public final class JsRuntimeUiComponents {
                         kofUiDispatchEvent(c, domType, ev);
                     });
                 }
+                // D-UI-A11Y (#789/#807): o host do componente é um <div>; um
+                // .on("click") nele precisa entrar na ordem de tabulação e
+                // ativar com Enter/Espaço, como qualquer outro alvo de clique.
+                if (domType === "click") kofUiMakeComponentKeyboardOperable(c, n.el);
             }
 
 
@@ -522,6 +540,7 @@ public final class JsRuntimeUiComponents {
                 };
                 wrapper.__kofWidgetWrapper = true;
                 kofUiOnDom(node, domType, wrapper);
+                if (domType === "click") kofUiMakeKeyboardOperable(node);
             }
 
             export function kofUiNodesLive() {
@@ -540,6 +559,7 @@ public final class JsRuntimeUiComponents {
                 return ev || "";
             }
 
-            """;
+            """
+            + JsRuntimeUiA11y.uiA11yRuntime();
 
 }

@@ -2,7 +2,7 @@
 
 [English](ffi-abi-structs.md) | [Português](ffi-abi-structs.pt_BR.md)
 
-**Status:** **CONCLUÍDO — D6 DECIDIDO (20/09) + todas as fatias pousadas (23/09) — movido para `docs/` pela regra dos três estados.** Fechamento cross pós-D6 em 29–30/09: `Buffer(U8)` no cross (#651 fatia B) e faces 1–3 de `D-MEM-FFI-CROSS-FULL` (scalar `T[]` no cross, `String[]`→`char**`, structs por caminho de memória + params por valor >16 B) pousaram; faces cross restantes são float/HFA e callbacks. `docs/development/DECISIONS.md`
+**Status:** **CONCLUÍDO — D6 DECIDIDO (20/09) + todas as fatias pousadas (23/09) — movido para `docs/` pela regra dos três estados.** Fechamento cross pós-D6 em 29–30/09: `Buffer(U8)` no cross (#651 fatia B) e faces 1–3 de `D-MEM-FFI-CROSS-FULL` (scalar `T[]` no cross, `String[]`→`char**`, structs por caminho de memória + params por valor >16 B) pousaram; faces cross restantes são float/HFA e o callback com retorno `String` (os callbacks em si pousaram 11/10). `docs/development/DECISIONS.md`
 §D-FFI-STRUCT. D6-1 = B (`D-FFI-STRUCT-B`, 21/09: novo `struct` mutável por
 referência; `record`s ficam por valor read-only, `Buffer(U8)` já cobre o
 out-buffer) · D6-2 = só `new T[n]` · D6-3 = `Buffer(U8, INOUT)`, sem sintaxe
@@ -130,7 +130,7 @@ veja abaixo). Prova:
 `FfiStructLayoutTest.crossIntReturnIsBindableOnlyForIntegerRegisterPath`.
 `T[]`/`Buffer` (faces 1–2, `D-MEM-FFI-CROSS-FULL`) e o struct **retorno** por caminho
 de memória (face 3, abaixo) pousaram desde então; o **param** struct > 16 B pousou
-na mesma face; callbacks ficam `FFI001`/`FFI002` aguardando direção da mantenedora
+na mesma face; callbacks também pousaram (11/10, M1 unidade-4 — trampolim gerado no x86-64 + cross riscv64/aarch64, `FfiNativeCallbackE2ETest`); só um callback com retorno `String` segue `FFI001` honesto
 (nenhum `D-*` registrado ainda).
 **Pousou 22/09 (3.7 fatia 4 · struct PARAM no cross, register path INTEGER):** os
 emissores riscv64/aarch64 agora bindam um struct `record` de campos escalares
@@ -157,7 +157,7 @@ tempo de compilação**: `FFI001` (JVM/Native não bindável) / `FFI002` (JS) �
 | Superfície | JVM | Native | JS |
 |---|---|---|---|
 | downcall escalar | ✅ `kof_ffi` FFM (`JvmFfiRuntime.java:142+`) | ✅ **`call sym@PLT` direto em x86-64/riscv64/aarch64** (#431 fatias 1–2, 20/09, §369 — link-by-use, sem `dlopen`) | ✅ bridge do host `KofJsFfiBridge` (browser degrada honesto, R7) |
-| callbacks/upcalls (3.4) | ✅ `Linker.upcallStub` | ❌ `FFI001` (sem mecanismo) | ✅ host |
+| callbacks/upcalls (3.4) | ✅ `Linker.upcallStub` | ✅ **trampolim gerado (x86-64 + cross riscv64/aarch64, 11/10); retorno String → `FFI001`** | ✅ host |
 | String = `char*` | ✅ entrada + saída | ✅ entrada (payload off 24) + saída (cópia na fronteira) | ✅ |
 | **struct (record, campos escalares)** | ✅ **por valor entrada + retorno** (token `@`, 3.8b fatias 1–2, 20–21/09) | ◐ **por valor param + retorno, caminho de registradores *e* sret x86-64** (3.7 fatias 1–2b, 21/09); **retorno** INTEGER ≤ 16 B no cross binda (fatia 3, 22/09) e **retorno memory-path/sret** binda (30/09 face 3, `D-MEM-FFI-CROSS-FULL`); `T[]`/`String[]`/`Buffer` no cross bindam (faces 1–2 + `#651` B); **param** struct >16 B binda (30/09 face 3, BYREF ponteiro `a0`/`x0`, `FfiCrossStructParamE2ETest`); float/HFA em riscv64/aarch64 → `FFI001` (3.7) | ✅ **por valor ENTRADA + RETORNO** (IN: `@<n><chars>` + `__kof_ffi_fields`; OUT: retorno `@<n><chars>` + `__kof_ffi_from`, bridges 21/09) |
 | **array `T[]`→`ptr` / `String[]`→`char**`** | ✅ **copy-in escalar por chamada** (token `p<elem>`, 3.8b fatia 3, 21/09; sem write-back) e ✅ **`String[]`→`char**`** (30/09 face 2, `kof_ffi_copy_in_strings`, `FfiNativeStringArrayE2ETest`) | ✅ **copy-in** para `Long[]`/`Double[]`/`Int[]`/`Float[]`/`Bool[]` — x86-64 (3.7 passos 1–2, 22/09) E cross riscv64/aarch64 (30/09, face 1 de `D-MEM-FFI-CROSS-FULL`, `kof_ffi_pack_array`); `FfiNativeArrayE2ETest` (JVM==riscv64==aarch64); `String[]` binda como `char**` copy-in no x86-64/riscv64/aarch64 (30/09 face 2, `kof_ffi_pack_str_array`, `FfiNativeStringArrayE2ETest`) | ✅ **copy-in por chamada** (`packArray` bridge, 21/09; sem write-back); `String[]`→`FFI002` (sem marshal `char**` no host) |

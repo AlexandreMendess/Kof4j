@@ -3,7 +3,7 @@
 # stdlib log — Kof Native Logging
 
 **Last updated:** September 3, 2026
-**Version:** 0.5.0-beta (test counts in `docs/status.md`)
+**Version:** 0.6.0 (test counts in `docs/status.md`)
 **Status:** implemented (Phase 4 of the Spring independence plan) — JVM+Native (Native asm UTC `kof_log_*`, 27/08); JS `console.*` (LOG001 closed 01/09)
 
 ---
@@ -60,13 +60,13 @@ app.get("/users") {
 }
 ```
 
-## 5. Targets (0.5.0-beta)
+## 5. Targets (0.6.0)
 
 | Target | Status | Notes |
 |--------|--------|-------|
 | JVM | ✅ complete | `KofRuntime` generated, JSON + correlation ID |
 | Native x86_64 | ✅ complete (asm, 27/08) | own `kof_log_*` asm (Hinnant civil date, env scan), UTC timestamp; `KOF_LOG_JSON` has no effect yet |
-| Native riscv64/aarch64 | ✅/placeholder | riscv64 `li a7`; aarch64 placeholder |
+| Native riscv64/aarch64 | ✅ riscv64 / inherits on aarch64 | riscv64 `li a7`; aarch64 inherits the riscv `kof_log_*` runtime via the line-by-line translator (no dedicated aarch64 log test — the general aarch64 core is complete since 03/09; the old "aarch64 placeholder" was 0.2.6-era) |
 | JS | ✅ 01/09 (LOG001 closed) | `kofLog*` console.* with `KOF_LOG_LEVEL`; warn→console.warn, error→console.error |
 
 ## 6. Tests

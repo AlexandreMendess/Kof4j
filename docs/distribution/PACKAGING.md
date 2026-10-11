@@ -42,7 +42,7 @@ kof-0.5.0-beta-macos-arm64.tar.gz
 kof-0.5.0-beta-windows-x86_64.zip
 ```
 
-> The name carries the **release version** (e.g.: `0.5.0-beta`). The user does
+> The name carries the **release version** (e.g.: `0.6.0`). The user does
 > not need to memorize the version: the installation guide uses the
 > `kof-*-<os>-<arch>.tar.gz` glob.
 

@@ -124,15 +124,12 @@ public final class NativeRiscvAsmRtB42 {
             .Lkof_alloc_bok:
                 sd   s0, 0(t0)           # size total
                 sd   zero, 8(t0)         # free_next = 0
-                mv   a0, t0              # §540: registra início-de-bloco
-                call kof_bm_set          #        no bitmap O(1) do GC
-                mv   t0, a0              # a0 preservado por kof_bm_set
+                sd   zero, 24(t0)        # flags = 0 (bit0 mark, bit1 free-list)
                 # G-2: entra na gc-list global (LIFO) com flags=0.
                 la   t2, .Lkof_gc_head
                 ld   t3, 0(t2)
                 sd   t3, 16(t0)          # gc_next = cabeca antiga
                 sd   t0, 0(t2)           # head = bloco novo
-                sd   zero, 24(t0)        # flags = 0 (bit0 mark, bit1 free-list)
                 la   t4, .Lkof_alloc_count
                 ld   t2, 0(t4)
                 addi t2, t2, 1
@@ -141,7 +138,17 @@ public final class NativeRiscvAsmRtB42 {
                 ld   t2, 0(t4)
                 add  t2, t2, s0
                 sd   t2, 0(t4)
-                addi a0, t0, 32
+                # §602: o retorno é blk+32, não blk — o header do array/string
+                # do usuário (rel. 0/4/8/16/20) sobrescrevia os metadados do
+                # bloco (size/free_next/gc_next/flags em blk+0/8/16/24) e o
+                # sweep liberava vivos (x86 e o caminho found sempre devol-
+                # veram blk+32; só o bok divergia). a1 guarda a base através
+                # do call (kof_bm_set clobbera t0-t6, não a1).
+                addi a1, t0, 32
+                mv   a0, t0              # §542: registra o início-de-bloco no bitmap
+                call kof_bm_set
+                mv   a0, a1              # retorno = base
+                j    .Lkof_alloc_unlock
             .Lkof_alloc_unlock:
                 sw   zero, 0(s1)         # unlock
                 ld   s0, 48(sp)
@@ -157,7 +164,9 @@ public final class NativeRiscvAsmRtB42 {
             # no bitmap global (_kof_block_bm, 1 bit por 16B), para o GC achar
             # um bloco em O(1) (antes: varredura linear da gc-list capada em
             # 10000 -> use-after-free). Não escreve a0 (o chamador o recupera).
-            # Clobbers apenas t0-t6.
+            # Clobbers apenas t0-t6. §602: o índice é o offset do BLOCO (a0 =
+            # blk); o getter (kof_gc_try_mark) consulta (p-32)-heap — setter
+            # e getter batem no mesmo bit por construção (paridade x86).
             .globl kof_bm_set
             kof_bm_set:
                 la   t0, _kof_heap

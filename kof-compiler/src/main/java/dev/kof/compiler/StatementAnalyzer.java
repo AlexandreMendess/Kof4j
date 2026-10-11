@@ -170,8 +170,8 @@ public final class StatementAnalyzer {
                             && !TypeChecker.isAssignable(sa, initType, varType)
                             && !(ftIssue && TypeChecker.functionTypesConform(initType, varType))) {
                         sa.diagnostics().error(vds,
-                                "type mismatch: cannot assign " + initType
-                                        + " to '" + vds.name() + ": " + varType + "'",
+                                "type mismatch: cannot assign " + Type.display(initType)
+                                        + " to '" + vds.name() + ": " + Type.display(varType) + "'",
                                 "SEM021");
                     }
                 }

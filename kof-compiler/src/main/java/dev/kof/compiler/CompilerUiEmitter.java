@@ -118,6 +118,7 @@ public final class CompilerUiEmitter {
 
     static int emitUiInstance(CompilerDriver driver, Type recvType, MethodCallExpr mc, List<KofOperation> ops,
                                 String owner, int localIdx, List<IRLocalVariable> locals) {
+        KofUiIcons.checkSetName(driver, recvType, mc);
         if (KofUi.isComponent(recvType) || KofUi.isStore(recvType)) {
             KofUi.UiCall cc = KofUi.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
             if (cc != null) {
@@ -240,11 +241,11 @@ public final class CompilerUiEmitter {
                     LabelId endLabel = LabelId.create();
                     ops.add(new KofConditionalJump(KofComparison.NE, lightLabel, darkLabel));
                     ops.add(new KofLabel(lightLabel));
-                    Integer light = KofUi.themeColor(mc.methodName(), 0);
+                    Integer light = KofUiColors.themeColor(mc.methodName(), 0);
                     ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, light));
                     ops.add(new KofJump(endLabel));
                     ops.add(new KofLabel(darkLabel));
-                    Integer dark = KofUi.themeColor(mc.methodName(), 1);
+                    Integer dark = KofUiColors.themeColor(mc.methodName(), 1);
                     ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, dark));
                     ops.add(new KofLabel(endLabel));
                     return localIdx;

@@ -15,7 +15,7 @@ final class ExpressionFieldAccessLowerer {
     static int emit(CompilerDriver driver, FieldAccessExpr fa, List<KofOperation> ops, String owner,
                     int localIdx, List<IRLocalVariable> locals) {
         if (fa.receiver() instanceof IdentifierExpr pId && KofUi.isPalette(pId.name())) {
-            Integer color = KofUi.paletteColor(fa.fieldName());
+            Integer color = KofUiColors.paletteColor(fa.fieldName());
             if (color != null) {
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, color));
                 return localIdx;

@@ -57,12 +57,7 @@ Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
   dummy — compila+linka+inicializa, mais forte que a sonda ctypes. OpenAL
   inalterado (só runtime, sem headers para compilar).
 - **Delta SDL3 (medido 05/10, G1):** a SDL3 não está instalada no host, mas os RPMs `SDL3-devel` + `libSDL3-0` do repo Tumbleweed foram extraídos num prefixo local e medidos: `gcc probe.c -lSDL3` compila+linka, e `SDL_Init(VIDEO)` + `SDL_CreateWindow` + `SDL_GetWindowTitle` + `SDL_DestroyWindow` + `SDL_Quit` rodam sob `SDL_VIDEODRIVER=dummy` (`driver=dummy`, `title=kof`, rc=0). O **binding FFI do Kof para a mesma forma também foi medido** — a primeira vez que a SDL3 é dirigida a partir do Kof — na JVM e no Native x86-64 (headless), imprimindo `init=true / driver=dummy / title=kof`. Isso fecha o `?` da SDL3 na matriz abaixo. Também revelou e corrigiu o bloqueador de paridade `known-bugs` §606 (uma biblioteca C com estado perdia seus globais entre chamadas `extern` na JVM/JS porque a arena do lookup era fechada por chamada); a stack não é utilizável sem essa correção. O cross (riscv64/aarch64) segue `?`: a stack escolhida precisa entregar suas libs+headers no sysroot cross.
-- **Cross (riscv64/aarch64): ainda não mensurável.** Nenhum `.so`/header candidato
-  está no sysroot cross da distro, e a toolchain cross do projeto
-  (`scripts/setup-cross-toolchain.sh`, padrão `/tmp/kof-cross`) não foi montada
-  neste ambiente (**segue ausente em 02/10** — `/tmp/kof-cross` não existe).
-  **Qualquer stack escolhida precisa entregar suas libs cross
-  nesse sysroot** — requisito concreto e testável para a fatia 3.1, não promessa.
+- **Cross (riscv64/aarch64): PROVADO 06/10 (este bullet superou o "ainda não mensurável" anterior).** O `scripts/provision-cross-sdl3.sh` vendeora SDL3 `3.4.16` + seu fecho de runtime medido + uma glibc forward-compatible em `$KOF_CROSS_SYSROOT`, e o `Sdl3FfiCrossE2ETest` **5/5** dirige a mesma forma SDL3 headless (`SDL_VIDEODRIVER=dummy`) na JVM + Native x86-64 + riscv64 + aarch64 (qemu), golden idêntico, o par cross pinado para concordar (regra 5). O item restante é o host backend `Window`/`frame` e a semântica de loop (chamada da mantenedora, `D-GRAPHICS-WINDOW-FORM`).
 - **Substrato R3/FFI presente** (a dependência nomeada no §3): `FfiSignature`,
   `AbiLayout`, `FfiStructLayout`, `CompilerFfiBinding`, `JvmFfiRuntime`,
   `NativeFfiCall`, `ExternalClasspath`, `KofProcess` (ver `docs/ffi-abi-structs.md`).
@@ -75,7 +70,7 @@ Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
 
 | Candidata | Domínio | Licença (`?` = confirmar upstream) | Roda no host | Headless | Cross (riscv64/aarch64) | Eixo |
 |---|---|---|---|---|---|---|
-| SDL3 / SDL2 | janela+input+áudio | zlib/libpng + permissiva (`copyright` da distro) | `.so` de runtime SDL2 `2.30.0` **+ `-dev` (02/10)**; RPMs da SDL3 `3.4.16` extraídos para um prefixo local **05/10**; compila+linka em C para ambas | dummy driver SDL3 + SDL2 **medido OK**; **o FFI do Kof dirige init/janela/título/quit da SDL3 em JVM+Native (05/10)** | `?` | uma lib, muitos alvos |
+| SDL3 / SDL2 | janela+input+áudio | zlib/libpng + permissiva (`copyright` da distro) | `.so` de runtime SDL2 `2.30.0` **+ `-dev` (02/10)**; RPMs da SDL3 `3.4.16` extraídos para um prefixo local **05/10**; compila+linka em C para ambas | dummy driver SDL3 + SDL2 **medido OK**; **o FFI do Kof dirige init/janela/título/quit da SDL3 em JVM+Native (05/10) e no CROSS riscv64+aarch64 (06/10, `Sdl3FfiCrossE2ETest` 5/5)** | ✅ **provado 06/10** (`provision-cross-sdl3.sh` + `Sdl3FfiCrossE2ETest` 5/5 sob qemu) | uma lib, muitos alvos |
 | raylib | 2D/3D+áudio | zlib (`?`) | ausente | `?` | `?` | 2D batteries-included |
 | GLFW + API GL | janela+contexto | zlib (`?`) | ausente | contexto offscreen (`?`) | `?` | fina, exige expertise GL |
 | miniaudio | áudio | public-domain/MIT-0 (`?`) | ausente (header-only, drop-in) | mix offline sim (`?`) | `?` | áudio single-header |

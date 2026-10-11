@@ -79,6 +79,9 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-FUTURE-FREEZE** — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10)
 - **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
 - **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
+- **D-MAINT-BATCH-1110** — maintainer batch 11/10: `db` local shadow (#786), return-inference fixpoint (#785), `kof.ui` accessibility (#789)
+- **D-UI-A11Y** — `kof.ui` accessibility is intent-based (`setAccessibleName`/`setAnnounce` + automatic defaults); real on KofJS, JVM/Native no-ops (maintainer 11/10)
+- **D-UI-FOCUS** — `kof.ui` focus management (pillar 5): `focus()` on widgets + `setAutoFocus(Bool)` on containers + focus restoration across rebuild+prune; real on KofJS, JVM/Native no-ops (maintainer 11/10)
 
 ---
 
@@ -4975,3 +4978,38 @@ With #776 closed upstream (10/10) and #785/#786/#779 resolved, **0 open `1.0-blo
 **Working method:** the release pipeline (`D-LAB-STABILITY`) takes over from here: full suite green + gates rc=0 + 0 blocking → the auditable promotion (`promote.yml`, now on `main`).
 
 **Relationships:** `Related: D-LAB-STABILITY, D-RELEASE-CADENCE, D-QUALITY-PIPELINE-2609, rule 6 (this record IS the decision).`
+
+---
+
+## D-UI-A11Y — `kof.ui` accessibility: intent-based surface, automatic per-widget defaults (maintainer 11/10/2026, issue #789)
+
+**Date:** 2026-10-11 · **State:** `DECIDED`
+
+The maintainer approved an accessibility surface for `kof.ui` that stays intent-based: Kof code never carries ARIA/HTML vocabulary, and the runtime maps the intent to each target.
+
+- **`setAccessibleName(String)`** — the accessible **name** of a widget, distinct from a description (`setDescription` was explicitly rejected). On KofJS it maps to `aria-label` and clears `aria-hidden`.
+- **`setAnnounce(Bool)`** — marks a region whose relevant updates are announced politely (KofJS `aria-live="polite"`).
+- **Automatic defaults** do the right thing by widget kind: a decorative `Icon` (no accessible name) is hidden from assistive technology (`aria-hidden="true"`); the first `Window` establishes the `main` landmark; a `Canvas` gets image semantics (`role="img"`); a non-`Button` widget with a click handler becomes keyboard-operable (`role="button"` + `tabindex="0"`, Enter/Space activate it).
+- **Cross-target contract:** real on **KofJS**; **JVM** and **Native** are no-ops, exactly like the rest of the `kof.ui` surface (`setId`/`setDisabled`). The Kof surface is identical on every target — no silent divergence, no per-target API.
+
+**Proof:** `UiAccessibilityE2ETest` (2/2) — `accessibilityLinksOnAllTargets` compiles+runs the same program on JVM and Native; `accessibilityAttributesRenderedInKofJs` compiles `Target.JS` and asserts the rendered DOM carries `aria-label` (Icon/Canvas/Input), `role="img"` (Canvas), `aria-live="polite"` (announce region), `role="button"`+`tabindex="0"` (clickable View), `role="main"` (Window), and `aria-hidden` true/false for decorative vs. named `Icon`. RED-first: both tests fail on the pre-fix tree with `SEM025` (`'Icon' does not have method 'setAccessibleName'`).
+
+**Relationships:** `Related: D-MAINT-BATCH-1110 (the batch this belongs to), D-UI-SCOPE, D-KOF-FIRST (intent-based surface, runtime does the mapping), rule 11 (surface stays simple), rule 6 (this record IS the decision).`
+
+---
+
+## D-UI-FOCUS — `kof.ui` focus management: `focus()` + `setAutoFocus` + restoration across rebuild (maintainer 11/10/2026, issue #811)
+
+**Date:** 2026-10-11 · **State:** `DECIDED`
+
+The maintainer approved the focus surface proposed in #811 (pillar 5), keeping it intent-based like D-UI-A11Y: Kof code carries the intent, the runtime does the DOM work.
+
+- **`focus()`** on every DOM widget — moves focus there. If called before mount, it is applied on mount, so it works inside `view`.
+- **`setAutoFocus(Bool)`** on a container — focuses the first focusable descendant when mounted.
+- **Restoration:** when a render replaces the focused node, the runtime refocuses the node at the **same position and kind** in the new subtree (the same identity rule as D-UI-DIFF); focus never silently drops to `<body>`.
+- **Out of scope for the first slice:** custom Tab order (the DOM order is already correct) and modal focus traps (they arrive with a `Dialog` widget).
+- **Cross-target contract:** real on **KofJS**; **JVM** and **Native** are no-ops, exactly like the rest of the `kof.ui` surface (`setId`/`setDisabled`/`setAccessibleName`). The Kof surface is identical on every target — no silent divergence, no per-target API.
+
+**Implementation:** delegated to the contributor @ViniAguiar1 (PR against `lab`, in slices with RED-first tests covering root reuse, rebuild+prune and JVM/Native compile+run). Issue #811 stays OPEN until the PR lands.
+
+**Relationships:** `Related: D-UI-A11Y (the intent-based precedent this mirrors), D-UI-DIFF (the identity rule the restoration reuses), D-KOF-FIRST (intent-based surface, runtime does the mapping), rule 11 (surface stays simple), rule 6 (this record IS the decision).`

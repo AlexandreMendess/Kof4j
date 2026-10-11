@@ -71,9 +71,33 @@ public final class NativeRiscvAsmRtB43 {
                 srl  t6, t6, t1
                 andi t6, t6, 1
                 beqz t6, .Ltm_zero
-                lbu  t0, 24(t2)
-                andi t1, t0, 1
-                bnez t1, .Ltm_zero       # já marcado (ou sendo) — não re-marca
+                # §602: SANIDADE DO TAMANHO — o bit pode ser STALE (o bitmap
+                # nunca limpa no sweep) e a varredura conservadora de estáticas
+                # aceita word-lixo do .data como ponteiro: sem isto, um bloco
+                # fantasma anda o mark_transitive para FORA da arena (SIGSEGV).
+                # §602-causa-raiz-dos-travamentos: o piso é 48, não 64 — o
+                # menor bloco real que o alocador produz é align16(1)+32 = 48
+                # (pedido de ≤16 bytes: o backing array de 16 bytes de todo
+                # `listOf`/`kof_list_new`). Com piso 64, try_mark RECUSAVA
+                # todo bloco vivo de 48 bytes, o sweep liberava o array de
+                # uma lista VIVA, o próximo kof_alloc reutilizava a memória
+                # e os elementos da lista viravam lixo — uso-após-livre que
+                # travava os laços dependentes de dados do AV1 (medido no
+                # gdb: a carga do size devolvia 0x30 saudável; o gatilho
+                # era a sanidade, não corrupção). O piso 48 + o teto da
+                # arena + flags==0 preservam a proteção contra blocos-fantasma.
+                ld   t4, 0(t2)           # size total do bloco candidato
+                li   t5, 48
+                bltu t4, t5, .Ltm_zero   # lixo: bloco do alocador nunca é < 48
+                la   t5, _kof_heap_end
+                sub  t5, t5, t0          # t0 ainda = _kof_heap (guarda acima)
+                bgeu t4, t5, .Ltm_zero   # lixo: size maior que a arena inteira
+                lbu  t0, 24(t2)          # flags = blk+24
+                # §602-paridade-x86 (`cmpb $0,24(%rbx); jne done`): QUALQUER
+                # flags != 0 recusa. O teste antigo era só bit0: um bloco na
+                # free-list (flags=2) entrava na lista cinza e o link em
+                # 8(blk) sobrescrevia o free_next — a free-list apodrecia.
+                bnez t0, .Ltm_zero
                 ori  t0, t0, 1
                 sb   t0, 24(t2)
                 addi a0, t2, 0           # retorna o bloco recém-marcado
@@ -105,7 +129,7 @@ public final class NativeRiscvAsmRtB43 {
                 # empilha a raiz: link[blk] = cabeca; cabeca = blk
                 la   t0, .Lkof_gc_gray
                 ld   t1, 0(t0)
-                sd   t1, 8(a0)
+                sd   t1, 8(a0)           # gray link em blk+8 (free_next: ocioso num bloco vivo, payload começa em 32)
                 sd   a0, 0(t0)
             .Lmt_drain:
                 la   t0, .Lkof_gc_gray
@@ -119,6 +143,14 @@ public final class NativeRiscvAsmRtB43 {
                 addi t0, t0, -32         # payload size
                 addi s1, s0, 32          # cur = payload start
                 add  s2, s1, t0          # end = payload + payload size
+                # §602: TETO DO WALK — o `size` de um bloco fantasma (word-lixo
+                # aceito pelo bitmap) ou de um elo corrompido manda o scan para
+                # fora da arena => SIGSEGV. Um bloco real nunca passa da
+                # bitmap (_kof_block_bm = fim da arena); o teto é conservador.
+                la   t1, _kof_block_bm
+                bltu s2, t1, .Lmt_keep
+                mv   s2, t1
+            .Lmt_keep:
                 beqz t0, .Lmt_drain
             .Lmt_fields:
                 bgeu s1, s2, .Lmt_drain

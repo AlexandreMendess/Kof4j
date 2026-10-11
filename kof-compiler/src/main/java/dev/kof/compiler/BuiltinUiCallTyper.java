@@ -83,6 +83,10 @@ final class BuiltinUiCallTyper {
         if (mc.receiver() == null && "Icon".equals(mc.methodName())
                 && (mc.arguments().size() == 1 || mc.arguments().size() == 2)) {
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            String badIcon = KofUiIcons.unknownLiteral(mc.arguments().get(0));
+            if (badIcon != null && sa.diagnostics() != null) {
+                sa.diagnostics().error(mc, KofUiIcons.unknownMessage(badIcon), "SEM079");
+            }
             return KofUi.ICON;
         }
         if (mc.receiver() == null && "Font".equals(mc.methodName())

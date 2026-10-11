@@ -6,7 +6,7 @@
 **Owner:** `192.168.15.30:9092` (lane compiler/JVM — hygiene split + R6 parity-matrix claims; ONE plan, ONE owner per `D-PLAN-ONE-OWNER`)
 **Decision:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promotion authorized "profiling → integration".
 
-**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it is **53 cases / 212 checks** (slices 1–28), and further cases are ordinary additive maintenance, not plan work. No open decision, no queued slice. Purely test infrastructure — the compiler was never touched (plan golden rule).
+**Close-out (11/10/2026):** the refactoring is COMPLETE — every phase with a finite scope landed and its ratchet is exhausted. Phase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Phase 3 modularization (oversized 43→18; pure extraction exhausted), Phase 4 harness (identical-pair consolidation 146→117; **zero identical pairs remain**), Phase 5 targets (fifteen slices; `dupname` ratchet 131→117, **EXHAUSTED** — the `main` cluster is a confirmed false lead: Kof `main()` inside test-source text blocks, not a Java helper), Phase 7 integration (`mvn verify -Pintegration`; golden + CLI integration in the `verify` phase). **Phase 6 (Conformance) is not a finite task but the plan's standing outcome** — the official equivalence suite (`tests/run-golden.sh`, four targets: jvm/native/js/script) is a permanent regression net that grows **one case per slice**; at close-out it was **55 cases / 220 checks** (slices 1–30), and further cases are ordinary additive maintenance, not plan work (slice 31, `passwords-namespace`, brought it to **56 / 224**; slice 32, `jwt-namespace`, to **57 / 228**; slice 33, `string-methods-extended`, to **58 / 232**; slice 34, `config-namespace`, to **59 / 236**; slice 35, `json-records`, to **60 / 240**). No open decision, no queued slice. Prior slices were purely test infrastructure — the compiler was never touched (plan golden rule); slice 35 is the one exception, pairing the golden case with the low-risk single-unit compiler fix §659a it surfaced (see the slice block below).
 **Real state (updated 30/09/2026):** the suite is thousands of
 `*Test.java` files with no layers/harness; the plan is now under way. **Landed:**
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
@@ -1109,9 +1109,13 @@ OVERFLOW `("99999999999999",-1)`=-1 (falls back to the default, no wrap);
 `parseLongOrDefault("bad",-9)`=-9 / `("9000000000",-9)`=9000000000;
 `parseDoubleOrDefault("bad",-2.5)`=-2.5 / `("2.5",-2.5)`=2.5. **Scope note (measured,
 honest):** `math.pi()`/`math.e()`/`math.tau()` and `toRadians`/`toDegrees` are the §621
-family — `toRadians`/`toDegrees` refuse honestly on native (`MATH001`) and `pi()`/`e()` die
-at native link (`COMP001`, no `kof_math_pi` symbol), so they cannot be pinned by a 4-target
-equivalence case; the golden pins only the `parse*` family (4-target clean).
+family — `toRadians`/`toDegrees` refuse honestly on native (`MATH001`) and `pi()`/`e()` died
+at native link (`COMP001`, no `kof_math_pi` symbol), so at this slice's cut they could not be
+pinned by a 4-target equivalence case; the golden pins only the `parse*` family (4-target clean).
+**Corrected 11/10:** `known-bugs` §651 (lane compiler/JVM/native) fixed the three constants —
+the lowering now folds `pi()`/`e()`/`tau()` to a `KofLoadLiteral.ofDouble`, so they bind on
+every target (no `kof_math_pi` symbol needed) and CAN be pinned by a 4-target case;
+`toRadians`/`toDegrees` still refuse honestly on native (`MATH001`).
 Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
 Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
 frozen; `tests/run-golden.sh` **188/188** (47 cases × 4 targets), exit 0.
@@ -1226,6 +1230,174 @@ value measured on the Script target first, cross-checked byte-for-byte on jvm/na
 (all four agree), then frozen; `tests/run-golden.sh` **212/212** (53 cases × 4 targets),
 exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
 `check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 29 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **54 total** — pinning the last uncovered deterministic members of `kof.math`:
+the `pow` face (S1b.2) and the three constants `pi()`/`e()`/`tau()`. The new case
+`tests/golden/math-pow-constants` pins `math.pow(2.0,10.0)`→1024.0, `math.pow(3.0,2.0)`→9.0,
+`math.pow(9.0,0.5)`→3.0, `math.pow(4.0,0.5)`→2.0, `math.pow(2.0,20.0)`→1048576.0,
+`math.pow(10.0,3.0)`→1000.0, `math.pow(5.0,1.0)`→5.0, the identity `math.pow(2.0,0.0)`→1.0,
+`math.pow(0.0,0.0)`→1.0 (libm `pow` convention, matching `Math.pow`), `math.pow(2.0,-1.0)`→0.5,
+the negative base with an odd exponent `math.pow(-2.0,3.0)`→-8.0, and the constants
+`math.pi()`→3.141592653589793, `math.e()`→2.718281828459045, `math.tau()`→6.283185307179586,
+plus the identities `math.tau() == 2.0 * math.pi()`→true, `math.pi() > math.e()`→true,
+`math.e() > math.tau()`→false. All four targets agree byte-for-byte. **Scope note (measured,
+honest):** the pinned `pow` values are EXACTLY representable (small integer powers of 2/3/10
+and the exact `sqrt` of 4/9), so they are identical across any correct libm — the x86-64
+native links `pow@PLT` by use while JVM/JS/Script use `Math.pow`/`**`; a non-exact `pow`
+(e.g. `2.0^0.5`) was deliberately NOT frozen because libm and `Math.pow` may differ by 1 ulp.
+The three constants are 4-target clean since `known-bugs` §651 folds them to a
+`KofLoadLiteral.ofDouble` (this lane) — before that fix `pi()`/`e()` died at the native link
+(`COMP001`) and could not be pinned. `toRadians`/`toDegrees` + the nine trig functions stay
+EXCLUDED (they refuse honestly on native, `MATH001`, so cannot be a 4-target pin).
+Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
+Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
+frozen; `tests/run-golden.sh` **216/216** (54 cases × 4 targets), exit 0; `mvn -o -pl
+kof-compiler -am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/
+`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 30 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **55 total** — pinning the deterministic core of `kof.cache`, a namespace pinned
+by NO equivalence case until now. The new case `tests/golden/cache-namespace` pins the
+round-trip `cache.set("name","Mel")`/`cache.get("name")`→`Mel`, the miss `cache.get("missing")`
+→`null`, overwrite `cache.set("k","v1")`/`cache.set("k","v2")`→`v2`, `cache.delete` (the
+deleted key reads `null`, the sibling survives), `cache.clear` (the whole store reads `null`),
+the no-TTL boundary `cache.ttl("noexp")`→`-1`, the missing-key `cache.ttl("missing")`→`-1`,
+and the idempotence of `cache.delete`/`cache.clear` on absent keys (no error, no change). All
+four targets agree byte-for-byte. **Scope note (measured, honest):** the TTL-EXPIRY face
+(`cache.set("t","x",1)` + `time.sleep(1300)` → `null`) is deliberately EXCLUDED — it depends
+on wall-clock timing and cannot be a deterministic 4-target pin; the existing unit test
+`KofCacheE2ETest.ttlValueAndExpiry` already covers it. `kof.cache` is 4-target clean
+(`KofCache.supportedOn` = true on every target). Test-infrastructure only, no compiler
+change. Proof (executed): every value measured on the Script target first, cross-checked
+byte-for-byte on jvm/native/js (all four agree), then frozen; `tests/run-golden.sh` **220/220**
+(55 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 31 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **56 total** — pinning the deterministic core of `kof.passwords`, a namespace
+pinned by NO equivalence case until now. The new case `tests/golden/passwords-namespace`
+pins the `verify` face (`passwords.verify("hunter2", h1)`→`true`, the wrong password
+`passwords.verify("wrong", h1)`→`false`, the 600 000-iteration hash
+`passwords.verify("hunter2", h6)`→`true`, and the malformed `passwords.verify("hunter2",
+"not-a-hash")`→`false`) and the `needsRehash` face (`passwords.needsRehash(h1)`→`true` for a
+1000-iteration hash, `passwords.needsRehash(h6)`→`false` for a 600 000-iteration hash, and
+`passwords.needsRehash("not-a-hash")`→`true`). The hashes are FIXED
+`pbkdf2$sha256$<iters>$<salt>$<dk>` strings (salt `00112233445566778899aabbccddeeff`, the
+`"hunter2"` derived key frozen at each iteration count), so the pin is deterministic. All
+four targets agree byte-for-byte. **Scope note (measured, honest):** `passwords.hash` is
+deliberately EXCLUDED — it draws a fresh random salt per call and cannot be a deterministic
+4-target pin; `passwords.verify`/`needsRehash` are 4-target clean (`KofSecurity.supportedOn`
+accepts `jvmLike || JS || isNative`), and this slice also guards the §653 JS `verify` fix
+end-to-end. Test-infrastructure only, no compiler change. Proof (executed): every value
+measured on the Script target first, cross-checked byte-for-byte on jvm/native/js (all four
+agree), then frozen; `tests/run-golden.sh` **224/224** (56 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 32 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **57 total** — pinning the deterministic core of `kof.jwt`, a namespace pinned
+by NO equivalence case until now. The new case `tests/golden/jwt-namespace` pins `jwt.verify`
+against FIXED HS256 tokens (built offline with the pinned secret `s3cret`): the valid token
+returns its payload JSON (`jwt.verify(token, "s3cret")`→`{"sub":"u1","iss":"kof","aud":"api",
+"exp":4102444800}`), a WRONG secret is rejected, the `iss`/`aud` bound verify returns the
+payload, a wrong `iss` and a wrong `aud` are rejected, a malformed token (`"not-a-token"`) is
+rejected, an EXPIRED token is rejected, and an `alg=none` algorithm-confusion token is
+rejected. All four targets agree byte-for-byte. **Scope note (measured, honest):**
+`jwt.create` is deliberately EXCLUDED — it injects `iat`/`exp` from the wall clock, so the
+token string is NOT a deterministic 4-target pin; `jwt.verify` of a FIXED token is fully
+deterministic (the expiry check reads the token's own `exp`, `4102444800` = year 2100).
+`jwt.verify` is 4-target clean (`KofSecurity.supportedOn` accepts `jvmLike || JS || isNative`;
+the cross arches riscv64/aarch64 are the `SECN004`/`SECN000` gap, so the golden `native`
+target runs on x86_64 here). This slice also guards the algorithm-confusion rejection
+end-to-end. Test-infrastructure only, no compiler change. Proof (executed): every value
+measured on the Script target first, cross-checked byte-for-byte on jvm/native/js (all four
+agree), then frozen; `tests/run-golden.sh` **228/228** (57 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
+**Phase 6 slice 33 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **58 total** — pinning the core `String` member-method surface that had almost
+NO golden coverage. The existing `strings-methods`/`string-parts-valueof` cases cover only
+trim/length/substring(1-arg)/startsWith(1-arg)/endsWith/indexOf(1-arg)/toUpperCase/
+toLowerCase/charAt/equals/split(1-arg)/toCharArray/equalsIgnoreCase/valueOf. The new case
+`tests/golden/string-methods-extended` pins `isEmpty` (""→true, "x"→false), `contains`
+(hit/miss), `lastIndexOf` (1-arg hit/miss + the 2-arg `fromIndex` clamp `lastIndexOf("l",0)`
+→-1), `concat`, `replace(String,String)` + `replace(Char,Char)`, `substring(1,3)`,
+`startsWith(str, fromIndex)` (hit + miss), `indexOf(str, fromIndex)`, `compareTo` (−1/0),
+`compareToIgnoreCase` (0), and the numeric conversions `toInt`/`toLong`/`toDouble`. All 23
+faces agree byte-for-byte on all four targets. **Scope note (measured, honest):** `getBytes()`
+is EXCLUDED — a JVM-only `STR003` gap (refused on native AND js at compile time);
+`matches`/`replaceAll`/`replaceFirst` are EXCLUDED (the regex JVM/JS/Script vs Native-literal
+divergence frozen in `development/future/kof-expr-plan.md` Q8). **BUG FOUND + CATALOGUED (Q4):** the
+2-arg `String.split(String, Int)` — accepted by `StringMethodRegistry`, correct on JVM/Script
+— is BROKEN on two targets: **JS ignores the limit** (`"a,b,c".split(",", 2)` → 3 parts
+instead of 2) and **native x86-64 SIGSEGVs** (exit 139; `NativeX86StringCalls` pops only one
+arg for split, so the `limit` operand corrupts the stack). Recorded as `known-bugs` **§655**
+EN+PT with the measured 4-target repro; NOT fixed here (the fix spans native x86 asm +
+riscv/aarch + the JS `kofSplit` runtime — a dedicated cross-backend unit) — ✅ FIXED 11/10
+across all four targets by lane flatt `192.168.100.14:0` (`StringSplitLimitCrossTest`
+6 run / 0F / 2 named NATIVE002 skips, byte-for-byte on JVM + Script + JS + x86-64). Test-infrastructure
+only, no compiler change. Proof (executed): every value measured on the Script target first,
+cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **232/232** (58 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`docs-lang`/`check_known_bugs_status`/`check_ledger_anchors` rc=0.
+
+**Phase 6 slice 34 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **59 total** — pinning the deterministic core of `kof.config`, a whole stdlib
+namespace with ZERO golden coverage until now. The new case `tests/golden/config-namespace`
+pins `config.get` on a missing key (→`null`), `config.has` (false), `config.str(key, "demo")`
+→`demo` + the empty-string default, `config.int(key, 8080)`/`(key, 2147483647)`/`(key, -1)`,
+`config.long(key, 9000000000)`/`(key, 9223372036854775807)`, `config.bool(key, false)`/
+`(key, true)`, and `config.get("k") == null`→true. All 14 faces agree byte-for-byte on all four
+targets. **Scope note (measured, honest):** `config.required` on a missing key THROWS, but with
+a host-specific unhandled-exception rendering (JVM stack trace / JS `Error` / native `CONF001`),
+so it is EXCLUDED — it cannot be a 4-target pin. **BUG FOUND + CATALOGUED (Q4):** authoring the
+case with the decimal `Int.MIN_VALUE` default `-2147483648` made JVM emit `VerifyError` (masked
+by the JDK launcher as the never-benign "JavaFX runtime components not found") and JS `TypeError:
+Cannot mix BigInt and other types`, while Script/native truncate to `-2147483648`. Root: a `Long`
+value is ACCEPTED where a builtin signature declares an `Int` parameter (no `SEM014`), unlike a
+user function which correctly refuses it (`f(5000000000)` → `expected 'Int' but got 'Long'
+[SEM014]`); `strings.repeat("ab", 5000000000)` is likewise accepted. Recorded as `known-bugs`
+**§657** EN+PT; NOT repaired here (it touches the builtin call-lowering shared by every
+namespace — a dedicated unit). The golden case pins only the 4-target-clean `Int` faces.
+Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
+Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **236/236** (59 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`docs-lang`/`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records` rc=0.
+
+**Phase 6 slice 35 LANDED (11/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **60 total** — pinning the record faces of `json.encode`/`json.decode`, a
+core-language area the existing `json` case covered only trivially (3 faces: `encode(List<Int>)`,
+`decode<List<Int>>`, `encode(true)`; NO record encode/decode at all). The new case
+`tests/golden/json-records` pins `json.encode(Point(3,4))`→`{"x":3,"y":4}`, a `String`+`Int`
+record (`User("ada",36)`→`{"name":"ada","age":36}`), `json.decode<Point>` round-trip (→15),
+`json.decode<User>` round-trip (→`grace/45`), `json.encode(List<Point>)`, `json.encode(List<String>)`,
+`json.encode(Flag(true))`→`{"ok":true}`, `json.encode(List<Flag>)`, a record with an escaped-string
+field (`"a\"b\nc"`), whitespace-tolerant decode (`"  {  \"x\" : 5 , \"y\" : 6 }  "`→11), and
+extra-key-tolerant decode (unknown `z` ignored→3). All 11 faces agree byte-for-byte on all four
+targets. **Scope note (measured, honest):** `Long`/`Double`/`Float` record fields are EXCLUDED —
+they cannot be a 4-target pin until §659b/§659c are repaired (see below). **BUG FOUND + FIXED
+(Q4/Q0):** authoring the case surfaced **§659** — `json.encode` of a record diverges across
+targets by field type: (§659a) a `Bool` field emitted `1`/`0` on Script vs `true`/`false` on
+JVM/JS/native, (§659b) a `Long` field crashes JS (`TypeError: Do not know how to serialize a
+BigInt`), (§659c) a `Double`/`Float` field emits garbage on native (`{"d":2.0546950501119882E-81}`
+— `CompilerTypeSupport.fieldOk` accepts every primitive while `nativeRecordWalkerOk` correctly
+refuses `float`/`double` with `JSN002`, so the same record is a compile error via `encode(List<T>)`
+but silent garbage via `encode(obj)`). **§659a is FIXED here** — the single-unit, low-risk face:
+`KofInterpreterRuntime.encodeKof` now consults the declared field type and routes a `bool` field
+through `kof_json_encode_bool` (the interpreter stores `Bool` as `Integer` 0/1, §108, and the raw
+slot reached the encoder unnormalized). The native face **§659c was FIXED the same day** (`ExpressionJsonCallLowerer` now uses the scalar path's ABI-registered `kof_json_encode_double`/`_float`; native `json.encode(R(2.5,1.5))` → `{"d":2.5,"f":1.5}` ≡ JVM). §659b (JS `Long` field → `TypeError`) and §659d (JS drops a whole `Double`'s `.0`, scalar and field alike) stay OPEN (JS-backend units).
+Proof (executed): every value measured on the Script target first, cross-checked byte-for-byte on
+jvm/native/js (all four agree), then frozen; the §659a divergence measured pre-fix on all four
+targets (Script `{"ok":1}` vs the other three `{"ok":true}`) and GREEN post-fix; regression
+`JsonE2ETest`/`JsonCompleteE2ETest`/`JsonNativeRecordListE2ETest`/`JsonMissingPrimitiveE2ETest`/
+`KofInterpreterParityTest` 65 run / 0F, plus the new `jsonEncodeRecordBoolField` parity test;
+`tests/run-golden.sh` **240/240** (60 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`docs-lang`/`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records` rc=0.
 
 ### Phase 7 — Integration
 

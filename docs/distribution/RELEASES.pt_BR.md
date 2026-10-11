@@ -14,7 +14,7 @@ test-and-bump
    ├─ mvn clean package (gate)
    ├─ tests/run-golden.sh (jvm + native)
    ├─ tests/run-integration.sh (CLI + serve + kof test)
-   ├─ version bump (scripts/bump-version.sh) — ex.: 0.4.7-beta → 0.5.0-beta
+   ├─ version bump (scripts/bump-version.sh) — ex.: 0.4.7-beta → 0.6.0
    ├─ seção do changelog → CHANGELOG.md
    └─ commit + push do bump ([skip ci])
       ↓
@@ -50,7 +50,7 @@ Dois jobs:
    - `tests/run-golden.sh` (8 casos × jvm+native) e
      `tests/run-integration.sh` (CLI + serve + kof test);
    - lê `VERSION` (ex.: `0.3.22-beta`), calcula a próxima
-     (`0.5.0-beta`), roda `scripts/bump-version.sh`;
+     (`0.6.0`), roda `scripts/bump-version.sh`;
    - insere a seção do changelog no `CHANGELOG.md`;
    - commita e faz push do bump (`[skip ci]` para não re-disparar);
    - exporta o **SHA do commit de bump** (`bump_sha`).

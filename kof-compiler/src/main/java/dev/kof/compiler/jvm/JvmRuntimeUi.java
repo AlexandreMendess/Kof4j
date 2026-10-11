@@ -131,6 +131,14 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_widget_set_disabled(int widget, int disabled) {
                 }
 
+                // D-UI-A11Y (#789): acessibilidade intent-based — real só no
+                // KofJS (no-op JVM, como setId/setDisabled — kof.ui é KofJS).
+                public static void kof_ui_widget_set_accessible_name(int widget, String name) {
+                }
+
+                public static void kof_ui_widget_set_announce(int widget, int on) {
+                }
+
                 // issue #78: primitivas visuais — no-op JVM/Native (real só no JS,
                 // como setId/setClass/setDisabled — kof.ui é KofJS). Color empacotado.
                 public static void kof_ui_widget_set_border(int widget, int color, int width) { }

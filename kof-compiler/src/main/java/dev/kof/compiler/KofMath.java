@@ -49,13 +49,19 @@ public final class KofMath {
                     ? new MathCall("kof_math_abs", INT, List.of(INT)) : null;
             case "sign" -> argc == 1 && isInt(argTypes.get(0))
                     ? new MathCall("kof_math_sign", INT, List.of(INT)) : null;
-            case "clamp" -> argc == 3
+            // audit 0.6.0 MATH-02 (ledger §658): a familia S1 Int exige a
+            // guarda isInt como abs/sign — sem ela, math.min(1, 2.5) passava
+            // no check e morria como VerifyError no JVM / 0 silencioso no
+            // nativo. Número não alarga em silêncio (SEM025, R6).
+            case "clamp" -> argc == 3 && isInt(argTypes.get(0))
+                    && isInt(argTypes.get(1)) && isInt(argTypes.get(2))
                     ? new MathCall("kof_math_clamp", INT, List.of(INT, INT, INT)) : null;
-            case "min" -> argc == 2
+            case "min" -> argc == 2 && isInt(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new MathCall("kof_math_min", INT, List.of(INT, INT)) : null;
-            case "max" -> argc == 2
+            case "max" -> argc == 2 && isInt(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new MathCall("kof_math_max", INT, List.of(INT, INT)) : null;
-            case "isEven", "isOdd", "isPositive", "isNegative", "isZero" -> argc == 1
+            case "isEven", "isOdd", "isPositive", "isNegative", "isZero" ->
+                argc == 1 && isInt(argTypes.get(0))
                     ? new MathCall("kof_math_" + name, BOOL, List.of(INT)) : null;
             // S1b wedge: sqrt = PRIMEIRO Double em kof.math (x86 sqrtsd — FLT
             // fechado 31/08 via XMM). NaN em <0 paridade JVM/JS (Math.sqrt).
@@ -167,6 +173,22 @@ public final class KofMath {
 
     static String gapCode(String function) {
         return "MATH001";
+    }
+
+    /** The three math constants are COMPILE-TIME doubles — the lowering site
+     *  folds them to a {@code KofLoadLiteral.ofDouble} instead of emitting a
+     *  {@code kof_math_pi/e/tau} call. The native runtime has NO such symbol
+     *  (only the JVM defines it), so a call type-checked everywhere but died at
+     *  {@code ld} with a mislabeled {@code COMP001}; folding reuses the tested
+     *  double-literal path and makes them work on every target, byte-identical
+     *  (the value is the exact IEEE-754 constant). */
+    static Double constantValue(String function) {
+        return switch (function) {
+            case "kof_math_pi" -> Math.PI;
+            case "kof_math_e" -> Math.E;
+            case "kof_math_tau" -> 2.0 * Math.PI;
+            default -> null;
+        };
     }
 
     private static boolean isInt(Type t) {

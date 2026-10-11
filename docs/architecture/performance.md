@@ -8,7 +8,7 @@ next: none
 location: docs/architecture
 state: normative
 
-**Version:** 0.5.0-beta (37 benchmarks; `kof bench` + `benchmark.yml` threshold 1.20)
+**Version:** 0.6.0 (37 benchmarks; `kof bench` + `benchmark.yml` threshold 1.20)
 Permanent principles, not suggestions: type system, IR, backends, runtime, stdlib and tooling obey them.
 
 # 1. Core
@@ -20,7 +20,7 @@ Permanent principles, not suggestions: type system, IR, backends, runtime, stdli
 # 2. Targets
 
 - **JVM:** excellent HotSpot bytecode (concrete types, direct access, no useless boxing/allocs/reflection, efficient loops, correct StackMapTable). `for (x in values)` must seek the direct loop, never auto-Iterator+box.
-- **Native:** more aggressive (startup/memory/allocs/calls/syscalls/cache/stack/lean binaries). State 0.5.0-beta: free-list `kof_free_head`, FP in XMM, dtoa via `snprintf`, `spawn` on pthreads. May surpass equivalents where control allows.
+- **Native:** more aggressive (startup/memory/allocs/calls/syscalls/cache/stack/lean binaries). State 0.6.0: free-list `kof_free_head`, FP in XMM, dtoa via `snprintf`, `spawn` on pthreads. May surpass equivalents where control allows.
 - **JS:** natural efficient ECMAScript (no wrappers/temporaries/closures/boxing/indirect-dispatch/giant runtime); direct construct mapping.
 - **Script:** same frontend/type-system/IR, no second compiler; fast startup, low latency, minimal runtime. Script ≠ slow.
 

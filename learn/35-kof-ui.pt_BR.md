@@ -156,6 +156,23 @@ i.text()                            // lê o valor atual
 i.remove()
 ```
 
+### Icon
+
+```kof
+var del = Icon("trash")             // 24px
+var small = Icon("star", 16)        // tamanho em px
+del.name()                          // "trash"
+del.setName("edit")                 // troca o desenho
+```
+
+Nomes: `home`, `star`, `heart`, `search`, `settings`, `user`, `menu`, `close`, `check`, `plus`, `minus`, `trash`, `edit`, `share`, `download`, `upload`, `mail`, `phone`, `calendar`, `clock`, `eye`, `lock`.
+
+Um nome desconhecido nunca é trocado em silêncio. Um nome literal é erro de
+compilação (`SEM079`, com a lista de nomes válidos); um nome calculado reporta
+`[kof] Icon: '<nome>' is not a kof.ui icon` em tempo de execução, não desenha
+nada, e o `setName` mantém o desenho anterior. A renderização é KofJS;
+JVM/Native compilam e rodam as mesmas chamadas como no-op.
+
 ### Composição: Column, Row, View e Style
 
 ```kof

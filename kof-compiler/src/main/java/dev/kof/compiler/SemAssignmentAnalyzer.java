@@ -51,7 +51,7 @@ public final class SemAssignmentAnalyzer {
                         && !stringConcat
                         && !TypeChecker.isAssignable(sa, valueType, targetType)) {
                     sa.diagnostics().error(ae,
-                            "Type mismatch: cannot assign " + valueType + " to " + targetType,
+                            "Type mismatch: cannot assign " + Type.display(valueType) + " to " + Type.display(targetType),
                             "SEM012");
                 }
             } else {
@@ -137,8 +137,8 @@ public final class SemAssignmentAnalyzer {
                     if (sa.diagnostics() != null && fieldType instanceof Type.FunctionType
                             && !TypeChecker.functionTypesConform(valueType, fieldType)) {
                         sa.diagnostics().error(fa,
-                                "type mismatch: cannot assign " + valueType
-                                        + " to field '" + fa.fieldName() + ": " + fieldType + "'",
+                                "type mismatch: cannot assign " + Type.display(valueType)
+                                        + " to field '" + fa.fieldName() + ": " + Type.display(fieldType) + "'",
                                 "SEM021");
                     }
                     // §368: a store de campo deve passar pelo MESMO gate de
@@ -156,7 +156,7 @@ public final class SemAssignmentAnalyzer {
                             && !(fieldType instanceof Type.FunctionType)
                             && !TypeChecker.isAssignable(sa, valueType, fieldType)) {
                         sa.diagnostics().error(fa,
-                                "Type mismatch: cannot assign " + valueType + " to " + fieldType,
+                                "Type mismatch: cannot assign " + Type.display(valueType) + " to " + Type.display(fieldType),
                                 "SEM012");
                     }
                 }

@@ -571,6 +571,57 @@ visible/enabled/text/value/attribute.
 Auto-wait is fundamental: prefer `wait until visible/enabled/text/network idle/URL/condition`
 over `sleep(1000)`. **Arbitrary sleeps are not a normal synchronization strategy.**
 
+Landed (11/10, the provider-layer face): the SPI gains `assertOn(url, locator, assertion)` —
+default honest `capability unsupported: locator/assert` refusal (the §6.4 matrix marks
+locator/assertion only on Playwright); `PlaywrightLibProvider` implements it (kind-parameterized,
+default chromium) by resolving each semantic scheme to the backend's native engine
+(`getByRole`/`getByText`/`getByLabel`/`getByPlaceholder`/`getByTestId`, css/xpath as escape
+hatches). Grammar parsed pure in `KofLocator` (e.g. `role=button[name="Save"]`, `text=Hello`,
+`attr=href`). Measured semantics (pinned by `PlaywrightLocatorE2ETest` on real Chromium):
+`visible` reads the FIRST match immediately (absent/hidden = `"false"`, no wait);
+`enabled`/`text`/`value`/`attr` auto-wait 5s and a missing element is a NAMED error carrying
+the locator (never a false `"false"`); `attr` of an absent attribute returns `"null"`.
+
+Landed (11/10, the interaction half): the SPI gains `interact(url, locator, action)` (`click`,
+`fill=<texto>`, `press=<tecla>` — the §6.4 row click/fill/keyboard becomes TRUE on Playwright
+for click/fill and single-key press; the full keyboard API stays unclaimed) with the same
+honest default refusal on the other providers, and `PlaywrightLibProvider.flow(kind, url,
+steps)` — steps `locator :: action|assertion` on ONE page lifecycle, the LAST step an assertion
+whose measured value is the return (an action-ending flow is refused: an unmeasured outcome is
+not a test). MEASURED (the first `PlaywrightInteractE2ETest` run was RED with this exact
+finding): each standalone face opens and closes its own browser, so state does NOT cross calls
+— fill-then-assert-in-two-calls measured empty; the flow is the stateful unit of E2E.
+The Kof-facing wiring of THESE faces is the missing middle — the stateless
+`browserContent`/`browserScreenshot` landed 10/10 in the `kof.test.browser` virtual package
+(see the wiring map below), but a one-shot process cannot express locator/assert/interaction.
+
+Wiring map (measured 11/10, corrected same day — doc-truth on the original note): **the
+Kof-facing browser API is NOT missing for the stateless faces** — `kof.test.browser` LANDED
+10/10 as a virtual package WRITTEN IN KOF (`dev/kof/testbrowser.kf`, injected flat on the
+explicit `import kof.test.browser`, the `CompilerTestWeb` precedent, owner lane
+security/connectors): `browserContent(url)` and `browserScreenshot(url, path)` drive the real
+Chrome CLI via `shell.run` (`--headless --dump-dom` / `--screenshot`), the binary swept PATH +
+playwright cache; its E2E re-executed GREEN on 11/10 (`KofTestBrowserPackageE2ETest` 1/1). That
+precedent is the wiring map's mechanism (0), missed by the original three-mechanism note: the
+virtual package covers the STATELESS faces (a one-shot chrome process can dump/screenshot), and
+the Java SPI stays with ZERO production consumers — both facts reconciled: the Kof package
+shells out, it does not touch `BrowserProvider`. The remaining missing middle is precisely the
+SEMANTIC/STATEFUL faces (`assertOn`/`interact`/`flow`, this section): a one-shot dump cannot
+click/fill/auto-wait/resolve roles — those need a persistent engine session, so the sized
+mechanisms below stand for them. Three mechanisms, sized: **(1) plain intrinsic** — drags
+Playwright into kof-compiler, wrong direction (the boundary exists to keep heavy domains out of
+the compiler); **(2) intrinsic + runtime capability registry** — kof-compiler defines the seam
+interface and the JVM/Script runtimes of the browser ops dispatch to whatever the embedding
+module registered (kof-cli registers the Playwright-backed provider at startup); an unregistered
+runtime refuses with an honest gap diagnostic (the XXX00x rule) — the smallest mechanism per
+`D-KOF-FIRST`, but a NEW core surface (namespace + registry + gap codes + parity rows), so it is
+a maintainer-design call queued here, no `D-*` invented; **(3) manifest-driven harness hook** —
+browser steps executed by the CLI outside the language makes tests data, not code — against
+`D-KOF-FIRST`. Recommendation on record: (2), pending the maintainer/triage decision before any
+implementation. Portability note for the package owner: the Kof sweep pins `chromium-1248`
+while the Java SPI sweeps every `chromium-*` dir — a host with only another pinned build would
+refuse; measured harmless here (both 1243 and 1248 present).
+
 ## 6.6 Web assertions
 
 Conceptually `expect(locator).toBeVisible()`, `toHaveText`, `toHaveValue`,
@@ -743,6 +794,15 @@ merely because a retry passed → **Flaky Test Detection** report.
 On E2E failure, automatically collect when possible: screenshot, video, trace, console, network,
 HTML, logs — so `CI failed → open artifact → see exactly what happened`.
 
+Dependency note (measured 11/10): the browser SPI (`dev/kof/browser/BrowserProvider` —
+`name`/`probe`/`dumpDom`/`screenshot`/`assertOn`) has **no production call site outside its
+package** — the faces are consumed by JUnit E2E tests only. The §6.5 provider-layer face
+(semantic locator + assert) landed 11/10, but the harness hook this section describes still
+needs the KOF-facing execution surface (browser faces callable from `.kf` tests — namespaces
+are compiler intrinsics and the capability lives in kof-cli); landing 8.1 before that wiring
+would be infrastructure without a consumer (Q7). Order: Kof-facing wiring → 8.1 hook on its
+failure path.
+
 ## 8.2 Screenshots and visual regression
 
 Allow page/element/failure screenshots. Evaluate screenshot comparison as a **future**
@@ -841,6 +901,22 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
 | 8 · Advanced | visual regression, accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
+
+Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
+compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the
+`KofJsBrowserE2ETest` precedent — ESM modules do not load via file://) and drives it with the
+§6.5 semantic faces: the flow fills the input, performs a REAL click on the rendered button
+(the seed proved only the programmatic `f.submit()`) and asserts the placeholder the KofJS
+handler mutated (`"antes"` → `"depois"`, isolated by a no-click control assertion). The full
+loop is proven: Kof source → KofJS → real DOM → real interaction → real Kof handler → semantic
+assertion. The KofWasm half of phase 6 belongs to the WASI lane (`#776` scope).
+
+Cross-browser (11/10, same day): the SAME real-app proof runs on **Firefox** — `flow` +
+`assertOn` with `kind="firefox"` (the §6.4 rule is per-kind discovery; the faces are
+kind-parameterized and chromium alone proved nothing about the rest of the matrix). Firefox
+real (playwright-managed): fill → real click → the KofJS handler mutates the DOM → semantic
+assertion, 3/3 green. WebKit stays launch-blocked on the current host (missing system libs —
+the standing named environmental skip).
 
 The companion plan (`test-architecture-plan.md`) may advance the **internal suite** axis in
 parallel; neither blocks the other, and both share §13.

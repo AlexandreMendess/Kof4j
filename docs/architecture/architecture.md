@@ -7,7 +7,7 @@
 ## Status: Accepted
 
 **Last updated:** September 13, 2026
-**Version:** 0.5.0-beta
+**Version:** 0.6.0
 
 > **Visual improvement 13/09 (issue #109):** the ASCII diagrams of this ADR
 > (Pipeline, Type Representation, IR, backends and stdlib dispatch) became
@@ -202,7 +202,7 @@ client with **retry/circuit breaker** (`KOF_HTTP_RETRIES`/`KOF_HTTP_TRIPS`/
 
 ## Native Backend
 
-The native backend generates ELF binaries (0.5.0-beta).
+The native backend generates ELF binaries (0.6.0).
 
 ```mermaid
 flowchart TD
@@ -237,7 +237,7 @@ Runtime functions (x86-64, `NativeRuntime.java:1`):
 - Generates ES Modules, executed by embedded GraalJS (`KofJsRunner`) — no Node.js required
 - Supports pattern matching (`case String s` + `Point(x,y)` via `typeof` + destructuring), `String?` basic, `kof.http` via `Java HttpClient` interop (+ fetch fallback; retry/circuit in parity with the JVM, 30/08), `List map/filter/reduce`, `Box<T>` via `substituteTypeVariable`
 - Scheduler `kof.time` via `setInterval` (27/08); `spawn`/`await` with real async/await/Promise (statement/expression; CONC003 closed 03/09)
-- Status alpha (0.5.0-beta)
+- Status alpha (0.6.0)
 
 ## KofCCompiler
 
@@ -247,7 +247,7 @@ Runtime functions (x86-64, `NativeRuntime.java:1`):
 
 KofScript is a **direct execution target**: pure Kof executed by the
 IR interpreter, with no compilation step and no JVM fork
-(0.5.0-beta). **It is not JavaScript** — `let`/`const`/`async`/`fn` do not
+(0.6.0). **It is not JavaScript** — `let`/`const`/`async`/`fn` do not
 exist; they fail with the normal Kof parser diagnostic.
 
 ```bash
@@ -288,7 +288,7 @@ flowchart TD
 Target gaps produce **clear compile-time diagnostics** (SECN00x,
 CONC001, JSN00x, DB001, CONF001, LOG001) — never silently different behavior.
 
-Modules (0.5.0-beta, re-synced 17/09): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objects/records + arrays on the 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (routes/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequential), `kof.test`, `kof.cli` (18 commands: `build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/debug/info/lsp/install/version`), `kof.db`/`kof.orm` (native SQLite `.so` + MySQL wire x86-64 real (13 ORM faces, F2d1–F2d7)), `kof.config`/`kof.log`. Full state in docs/stdlib/stdlib.md and docs/status.md (current suite count).
+Modules (0.5.0-beta, re-synced 17/09): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objects/records + arrays on the 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (routes/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequential), `kof.test`, `kof.cli` (31 commands, measured in `Main.java`: `build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version`), `kof.db`/`kof.orm` (native SQLite `.so` + MySQL wire x86-64 real (13 ORM faces, F2d1–F2d7)), `kof.config`/`kof.log`. Full state in docs/stdlib/stdlib.md and docs/status.md (current suite count).
 
 ## Diagnostics
 

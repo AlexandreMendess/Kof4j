@@ -61,7 +61,7 @@ public final class NativeRiscvAsmRtB44 {
                 ld   s1, 0(t0)
             .Lg4sw_loop:
                 beqz s1, .Lg4sw_done
-                lbu  t0, 24(s1)
+                lbu  t0, 24(s1)          # flags blk+24 (§602: usuario em blk+32+)
                 andi t1, t0, 1
                 beqz t1, .Lg4sw_free
                 andi t0, t0, -2          # limpa bit0 (mark)

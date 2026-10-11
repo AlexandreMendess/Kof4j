@@ -10,7 +10,7 @@
 **Companion (visão/arquitetura):** [`docs/architecture/UNIVERSAL-PLATFORM-VISION.pt_BR.md`](../architecture/UNIVERSAL-PLATFORM-VISION.pt_BR.md)
 — filosofia, mapa de domínios, modelo arquitetural, estratégia de
 stdlib/interop, riscos e não-objetivos que justificam estes passos.
-**Base:** estado real 0.5.0-beta — 7 targets (jvm estável, native x86_64 estável,
+**Base:** estado real 0.6.0 — 7 targets (jvm estável, native x86_64 estável,
 native.risc/native.arm toolchain+qemu, js alpha GraalJS, kofc native-only,
 android Fases 1–4), stdlib como **tabelas de dispatch em compile-time** com
 gaps diagnosticados, FFI real (SQLite `.so`, FFM Vulkan compute, interop Java +
@@ -369,7 +369,7 @@ objeto-`invoke`); os carriers primitivos passam por `asInt`/`asLong`/`asFloat`/`
 `Linker.upcallStub` → de volta ao `Value.invoke`) roda na mesma thread; provado byte-a-byte
 JVM↔JS (`jvmAndJsCallbacksMatchByteForByte`: `42/42/6.0/7.5`; `stringCallbackArgsBindAndMatchJvmJs`: `5/104/2026`). O browser não tem host → degrade
 honesto em runtime (R7); um callback não-bindável (ex. **retorno** `String`) ainda falha em
-compilação no JS (`FFI002`). **Native**: §61 (3.7).
+compilação no JS (`FFI002`). **Native**: §61 (3.7) para a rota escalar; **os callbacks no Native POUSARAM 11/10 (M1 unidade-4)** — trampolim gerado no x86-64 + cross riscv64/aarch64 (`FfiNativeCallbackE2ETest`), só o callback com retorno `String` segue `FFI001` honesto.
 
 **Fatias (espelham a disciplina F1→F3 da 3.6).** **C1** = pin do mecanismo no nível do
 host (`JvmFfiCallbackTest`: upcallStub + ponte de closure `.asType` + rooting por

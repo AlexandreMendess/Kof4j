@@ -77,6 +77,9 @@ Auxílio de navegação, não é uma decisão por si só. Ordenado como neste ar
 - **D-FUTURE-FREEZE** — a promoção de `docs/development/future/` está CONGELADA até segunda ordem (mantenedora 02/10)
 - **D-RELEASE-CADENCE** — cadência semanal de minors até `0.9.0`; linha de contingência `1.0.0-RC-n`; `1.0.0` só no exit gate completo (mantenedora 02/10)
 - **D-LAB-STABILITY** — um minor só é cortado de um `lab` ESTÁVEL (todos os checks obrigatórios PASS, 0 bloqueantes); senão o corte escorrega (mantenedora 02/10)
+- **D-MAINT-BATCH-1110** — lote da mantenedora 11/10: sombra do local `db` (#786), fixpoint da inferência de retorno (#785), acessibilidade do `kof.ui` (#789)
+- **D-UI-A11Y** — a acessibilidade do `kof.ui` é intent-based (`setAccessibleName`/`setAnnounce` + defaults automáticos); real no KofJS, no-ops em JVM/Native (mantenedora 11/10)
+- **D-UI-FOCUS** — gestão de foco do `kof.ui` (pilar 5): `focus()` nos widgets + `setAutoFocus(Bool)` nos containers + restauração de foco no rebuild+prune; real no KofJS, no-ops em JVM/Native (mantenedora 11/10)
 
 ---
 
@@ -4965,3 +4968,38 @@ Com a #776 fechada a montante (10/10) e #785/#786/#779 resolvidas, **restam 0 `1
 **Método de trabalho:** daqui em diante o pipeline de release (`D-LAB-STABILITY`) assume: suíte completa verde + gates rc=0 + 0 bloqueadoras → a promoção auditável (`promote.yml`, agora na `main`).
 
 **Relacionamentos:** `Relacionadas: D-LAB-STABILITY, D-RELEASE-CADENCE, D-QUALITY-PIPELINE-2609, regra 6 (este registro É a decisão).`
+
+---
+
+## D-UI-A11Y — acessibilidade do `kof.ui`: superfície intent-based, defaults automáticos por widget (mantenedora 11/10/2026, issue #789)
+
+**Data:** 2026-10-11 · **Estado:** `DECIDIDO`
+
+A mantenedora aprovou uma superfície de acessibilidade para o `kof.ui` que permanece intent-based: o código Kof nunca carrega vocabulário ARIA/HTML, e o runtime mapeia a intenção para cada alvo.
+
+- **`setAccessibleName(String)`** — o **nome** acessível do widget, distinto de uma descrição (`setDescription` foi explicitamente rejeitado). No KofJS mapeia para `aria-label` e limpa `aria-hidden`.
+- **`setAnnounce(Bool)`** — marca uma região cujas atualizações relevantes são anunciadas com polidez (`aria-live="polite"` no KofJS).
+- **Defaults automáticos** fazem o certo por tipo de widget: um `Icon` decorativo (sem nome acessível) é escondido da tecnologia assistiva (`aria-hidden="true"`); a primeira `Window` estabelece o marco `main`; um `Canvas` ganha semântica de imagem (`role="img"`); um widget não-`Button` com handler de clique fica operável por teclado (`role="button"` + `tabindex="0"`, Enter/Espaço o acionam).
+- **Contrato cross-target:** real no **KofJS**; **JVM** e **Native** são no-ops, exatamente como o resto da superfície `kof.ui` (`setId`/`setDisabled`). A superfície Kof é idêntica em todo alvo — sem divergência silenciosa, sem API por alvo.
+
+**Prova:** `UiAccessibilityE2ETest` (2/2) — `accessibilityLinksOnAllTargets` compila+roda o mesmo programa em JVM e Native; `accessibilityAttributesRenderedInKofJs` compila `Target.JS` e verifica que o DOM renderizado carrega `aria-label` (Icon/Canvas/Input), `role="img"` (Canvas), `aria-live="polite"` (região announce), `role="button"`+`tabindex="0"` (View clicável), `role="main"` (Window) e `aria-hidden` true/false para `Icon` decorativo vs. nomeado. RED-first: ambos os testes falham na árvore pré-fix com `SEM025` (`'Icon' does not have method 'setAccessibleName'`).
+
+**Relações:** `Related: D-MAINT-BATCH-1110 (o lote a que pertence), D-UI-SCOPE, D-KOF-FIRST (superfície intent-based, o runtime faz o mapeamento), regra 11 (a superfície permanece simples), regra 6 (este registro É a decisão).`
+
+---
+
+## D-UI-FOCUS — gestão de foco do `kof.ui`: `focus()` + `setAutoFocus` + restauração no rebuild (mantenedora 11/10/2026, issue #811)
+
+**Data:** 2026-10-11 · **Estado:** `DECIDED`
+
+A mantenedora aprovou a superfície de foco proposta na #811 (pilar 5), mantendo-a intent-based como a D-UI-A11Y: o código Kof carrega a intenção, o runtime faz o trabalho de DOM.
+
+- **`focus()`** em todo widget DOM — move o foco para lá. Se chamado antes do mount, é aplicado no mount, então funciona dentro de `view`.
+- **`setAutoFocus(Bool)`** num container — foca o primeiro descendente focável ao montar.
+- **Restauração:** quando um render substitui o nó focado, o runtime refoca o nó na **mesma posição e tipo** no subtree novo (a mesma regra de identidade do D-UI-DIFF); o foco nunca cai silenciosamente em `<body>`.
+- **Fora do escopo da primeira fatia:** ordem de Tab customizada (a ordem do DOM já está correta) e focus traps de modal (chegam com um widget `Dialog`).
+- **Contrato cross-target:** real no **KofJS**; **JVM** e **Native** são no-ops, exatamente como o resto da superfície `kof.ui` (`setId`/`setDisabled`/`setAccessibleName`). A superfície Kof é idêntica em todo alvo — sem divergência silenciosa, sem API por alvo.
+
+**Implementação:** delegada ao contribuidor @ViniAguiar1 (PR contra a `lab`, em fatias com testes RED-first cobrindo root reuse, rebuild+prune e compile+run em JVM/Native). A issue #811 permanece ABERTA até o PR pousar.
+
+**Relações:** `Related: D-UI-A11Y (o precedente intent-based que isto espelha), D-UI-DIFF (a regra de identidade que a restauração reusa), D-KOF-FIRST (superfície intent-based, o runtime faz o mapeamento), regra 11 (a superfície permanece simples), regra 6 (este registro É a decisão).`

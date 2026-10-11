@@ -5,8 +5,8 @@
 > **Status:** Phase 1 (inspection) completed; Phases 2-7 implemented (Component
 > Core + Navigation/Router — `go/replace/back/forward/param/current/depth`,
 > real in JS, no-op in the JVM — 30-31/08); Phases 8-11 in progress.
-> **Last updated:** September 12, 2026
-> **Version:** 0.5.0-beta
+> **Last updated:** October 11, 2026
+> **Version:** 0.6.0
 
 This document is the map of the `kof.ui` architecture: the real state found in
 the inspection, the problems, and the foundation the UI needs before any new
@@ -16,6 +16,14 @@ a collection of widgets.**
 ---
 
 ## 1. What kof.ui is today
+
+> **⚠️ Historical — Phase 1 inspection snapshot (12/09).** This section records
+> the state found by the original inspection (before Phases 2–7). Its
+> "does not exist" tables are **superseded** by the implemented pillars: see
+> §2.x for each pillar's real state (`Component` Core §2.2, Router/Navigation
+> §2.4, the `Stack`/`Grid`/`Wrap`/`Center`/`Align` layout family §2.3, event
+> propagation and `D-UI-A11Y` accessibility §2.5). Kept as the diagnosis that
+> motivated the foundation.
 
 `kof.ui` is a **stdlib intrinsic** of the compiler: the UI types do not exist
 as Kof classes in the source — they are **described in the compiler** and lowered to
@@ -137,28 +145,31 @@ Backend
 | 8 | Rendering | construction, scheduling, invalidation, partial update | 9 |
 | 9 | Design system | Theme + tokens (Color/Type/Spacing/Border/Radius/Elevation) | 10 |
 
-### 2.2 The Component Core (Phase 2) — what will be implemented
+### 2.2 The Component Core (Phase 2) — implemented
 
 **A `Component` is a node in the UI tree.** Every widget is a component. The
 core delivers the backbone: tree + reactive state + invalidation + rendering
 + lifecycle + events + effects with automatic cleanup.
 
-Model (idiomatic Kof, small API, no boilerplate):
+Model (idiomatic Kof, small API, no boilerplate) — **compiles on `lab`**
+(verified 11/10; the API is `Component(initial)`, `stateSet`/`state` to write/read,
+`view`, `onMount`/`onDispose`/`effect`, `bind`):
 
 ```kof
 // component reactive state + view builder + lifecycle + effects
-var app = Component("App")
-app.state(0)                                  // initial state (Int)
-app.view { s ->                               // view: re-executed on every state change
-    Column([
+var app = Component(0)                        // initial state (Int)
+app.view((s: Int) -> {                        // view: re-executed on every state change
+    return Column(listOf(
         Label("count: " + s),
-        Button("+1", () -> { app.state(s + 1) })   // set state => invalidates => re-render
-    ])
-}
-app.onMount { /* runs once on mount */ }
-app.onDispose { /* runs once on unmount */ }
-app.effect { /* registration of listener/timer/subscription; automatic cleanup on dispose */ }
-window.bind(app)                              // mounts
+        Button("+1", () -> { app.stateSet(s + 1) })   // set state => invalidates => re-render
+    ))
+})
+app.onMount(() -> { })                        // runs once on mount
+app.onDispose(() -> { })                      // runs once on unmount
+app.effect(() -> { })                         // listener/timer/subscription registration; auto cleanup on dispose
+var win = Window("App")
+win.bind(app)                                 // mounts
+win.show()
 ```
 
 Rules the core guarantees:
@@ -166,9 +177,9 @@ Rules the core guarantees:
 - **Tracked tree.** The framework knows the parent/child of each node (source of
   truth), not just the DOM.
 - **Composition.** `bind`/children form the tree; one component composes others.
-- **Encapsulated state.** state lives in the component; `state(...)` is the only
+- **Encapsulated state.** state lives in the component; `stateSet(...)` is the only
   mutation path (no 5 ways to store state).
-- **Minimal invalidation.** `state(...)` marks **only the component** as dirty and
+- **Minimal invalidation.** `stateSet(...)` marks **only the component** as dirty and
   schedules a re-render (scheduling), without touching the whole application.
 - **Re-render by rebuild + prune (current); reconciliation (Phase 9, pending).**
   today the view builder re-runs and the fresh subtree replaces the previous
@@ -203,13 +214,13 @@ Window (root/host)
 
 ### 2.4 Rendering
 
-1. **Construction:** `view { s -> ... }` executes → returns the view root (a
+1. **Construction:** `view((s: Int) -> { ... })` executes → returns the view root (a
    layout/leaf node with the child tree).
-2. **When it renders:** on mount (once) and on every `state(...)`/`text(...)`/
-   `flag(...)` (scheduled invalidation, in batch — *batching* via dirty queue).
+2. **When it renders:** on mount (once) and on every `stateSet(...)`
+   (scheduled invalidation, in batch — *batching* via dirty queue).
 3. **How changes are detected:** the state mutation **is** the detection —
-   `state(...)` itself is the invalidation point (no polling, no reflection).
-4. **Invalidation:** `state(...)` marks the component dirty in the queue; a flush
+   `stateSet(...)` itself is the invalidation point (no polling, no reflection).
+4. **Invalidation:** `stateSet(...)` marks the component dirty in the queue; a flush
    (scheduled, not synchronous) reconciles only the dirty components.
 5. **Updates applied:** the view builder re-runs and the fresh subtree
    replaces the previous one — the old subtree is pruned from the DOM **and**
@@ -318,11 +329,11 @@ kof-ui/  (conceptual — today it lives in the compiler; the engine is the JS CO
 
 - **Rendering is KofJS.** JVM/Native remain no-op for UI (documented
   gap, as today). The core runs and is tested on the JS target (GraalJS).
-- **API may evolve.** `view { ... }` + `state(...)` is the current form; the
+- **API may evolve.** `view((s: Int) -> { ... })` + `stateSet(...)` is the current form; the
   final format of the "declarative component" may change, but the **architecture**
   (tree, composition, state, invalidation, lifecycle) is stable.
 - **No reactivity magic.** Kof has no property observer; the
-  state change detection **is** the call to `state(...)`. This is
+  state change detection **is** the call to `stateSet(...)`. This is
   explicit but minimal (one method), encapsulated and automatic (no
   manual invalidate, no manual cleanup).
 - **Don't rewrite what works.** `Color`/`Palette`/`Theme`, the existing

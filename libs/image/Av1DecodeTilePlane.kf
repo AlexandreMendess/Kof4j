@@ -1,0 +1,149 @@
+package image
+
+import image.Av1Block
+import image.Av1CoeffPlane
+import image.Av1Coeffs
+import image.Av1DecodeBlock
+import image.Av1IntraAvail
+import image.Av1IntraBlock
+import image.Av1ReconBlock
+import image.Av1Symbol
+import image.Av1Tx
+
+// kof.image — AV1 intra HETEROGENEOUS plane driver (slice 3ae of the AVIF front,
+// plan §34). Slice 3ad drove ONE mode-info block per plane with a single uniform
+// mode, transform size and transform type. This slice is the composition libaom
+// runs for the blocks of a real tile: a plane made of SEVERAL mode-info blocks,
+// each with its OWN block size, transform size, transform type and intra mode,
+// decoded in tile order over ONE shared entropy stream (one reader, one adapting
+// coefficient-CDF store, one above/left entropy-context pair).
+//
+// Per mode-info block, in the caller's order:
+//
+//   1. for each of the block's transform blocks (slice 3y enumeration, offset by
+//      the block's origin), decode the coefficients (slices 3e/3x), derive the
+//      block's availability from its ABSOLUTE position (slice 3ab), predict from
+//      the already reconstructed neighbours (slice 3u) with THIS block's mode,
+//      and dequantize + inverse-transform + reconstruct into the plane (slice 3z)
+//      with THIS block's transform size/type;
+//   2. the next block decodes against the CDFs the previous ones adapted and
+//      predicts from the samples they reconstructed — the cross-block
+//      interleaving of libaom's `decode_partition` -> `decode_block` ->
+//      `decode_token_recon_block`.
+//
+// `blocks` is a flat list of `(r, c, bs, tx, tt, mode)` per mode-info block (6
+// ints each, in decode order): `r`/`c` the block origin in 4x4 units, `bs` the
+// BLOCK_SIZE, `tx`/`tt` the transform size/type, `mode` the intra mode. All
+// blocks are LUMA (plane 0), which is the scope of this slice.
+//
+// Pure Kof, all targets: no I/O, no compiler change. `decodeRaster` still
+// refuses AVIF until the chain closes (the mode-info reader supplies `blocks`
+// from the tile bitstream; chroma planes land after).
+
+// The heterogeneous intra plane driver. `frame`/`stride` carry the plane's
+// one-sample border (the interior lives at `[1 .. frameW] x [1 .. frameH]`);
+// `frameW`/`frameH` are the plane's extent in samples. `above`/`left` are the
+// plane's entropy-context arrays (4x4 units). `levelsOut` receives the decoded
+// signed coefficient array of every transform block, in enumeration order.
+// Returns the reconstructed plane, flat row-major of size `frameW * frameH`.
+Int[] av1DecodeTilePlaneRecon(Int[] frame, Int stride, Int frameW, Int frameH,
+                              List<Int> blocks,
+                              Int bitDepth, Int disableEdgeFilter,
+                              Int intraEdgeFilterType,
+                              Int dcQuant, Int acQuant,
+                              Av1Symbol reader, Av1CoeffCdfStore store,
+                              Int[] above, Int[] left, List<Int[]> levelsOut) {
+    var maxX = frameW
+    var maxY = frameH
+    var edgeFilter = true
+    if (disableEdgeFilter == 1) {
+        edgeFilter = false
+    }
+    var nb = blocks.size / 6
+    var b = 0
+    while (b < nb) {
+        var base = b * 6
+        var r0 = blocks.get(base)
+        var c0 = blocks.get(base + 1)
+        var bs = blocks.get(base + 2)
+        var txSz = blocks.get(base + 3)
+        var txType = blocks.get(base + 4)
+        var mode = blocks.get(base + 5)
+
+        // The plane residual block size (libaom `get_plane_block_size(bsize, 0, 0)`
+        // for luma) and the block's 4x4 extents.
+        var planeBsize = bs
+        var bw = av1BlockNum4x4Wide(bs)
+        var bh = av1BlockNum4x4High(bs)
+
+        // The block's transform-block enumeration (slice 3y), in the block's
+        // own 4x4 units.
+        var order = av1DecodeBlockGridOrder(txSz, 0, 0, bw, bh)
+        var w = av1TxWidth(txSz)
+        var h = av1TxHeight(txSz)
+        var n = order.size / 2
+        var bi = 0
+        while (bi < n) {
+            var br = r0 + order.get(bi * 2)
+            var bc = c0 + order.get(bi * 2 + 1)
+            var x = bc << 2
+            var y = br << 2
+            var haveTop = 0
+            if (br != 0) {
+                haveTop = 1
+            }
+            var haveLeft = 0
+            if (bc != 0) {
+                haveLeft = 1
+            }
+
+            // 1. Decode the block's coefficients with THIS block's transform size
+            //    and type (slices 3e/3x). The neighbour context comes from the
+            //    plane's shared above/left store, so it sees the previous blocks.
+            var levels = av1DecodeCoeffsBlockEdge(reader, store, planeBsize, 0,
+                    br, bc, txSz, txType, above, left, 0, 0)
+            levelsOut.add(levels)
+
+            // 2. Availability (slice 3ab) from the block's ABSOLUTE position:
+            //    `miRow`/`miCol` are the transform block's origin in 4x4 units,
+            //    `rowOff`/`colOff` its offset within the mode-info block, and the
+            //    tile ends are the plane's own 4x4 extents (`frameW/4`, `frameH/4`).
+            var avail = av1IntraAvail(12, bs, 0, txSz, 0, 0,
+                    order.get(bi * 2), order.get(bi * 2 + 1), mode,
+                    0, 0, haveTop, haveLeft, br, bc, frameW >> 2, frameH >> 2,
+                    frameW, frameH)
+            var haveAboveRight = avail[0]
+            var haveBelowLeft = avail[1]
+
+            // 3. Prediction (slice 3u) with THIS block's mode, from the already
+            //    reconstructed neighbours.
+            var pred = av1IntraPredictBlock(frame, stride, x + 1, y + 1, w, h,
+                                            maxX, maxY,
+                                            haveLeft, haveTop, haveAboveRight,
+                                            haveBelowLeft, mode, 0,
+                                            0, 0,
+                                            bitDepth, intraEdgeFilterType, edgeFilter)
+
+            // 4. Dequantize + inverse transform + reconstruct (slices 3f/3g/3i/3z)
+            //    with THIS block's transform size/type.
+            av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, txSz,
+                              txType, bitDepth, false, dcQuant, acQuant)
+
+            bi = bi + 1
+        }
+        b = b + 1
+    }
+
+    // Copy the interior (border stripped) into a flat `frameW * frameH` plane.
+    var out = new Int[frameW * frameH]
+    var r = 0
+    while (r < frameH) {
+        var c = 0
+        while (c < frameW) {
+            out[r * frameW + c] = frame[(r + 1) * stride + (c + 1)]
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}

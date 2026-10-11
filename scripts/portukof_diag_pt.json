@@ -1542,6 +1542,11 @@
     },
     {
       "arity": 2,
+      "en": "'{0}' is not a kof.ui icon — Icon has: {1}",
+      "pt": "'{0}' não é um ícone do kof.ui — Icon tem: {1}"
+    },
+    {
+      "arity": 2,
       "en": "token '{0}' has no methods — it holds constants: {1}",
       "pt": "o token '{0}' não tem métodos — ele guarda constantes: {1}"
     },
