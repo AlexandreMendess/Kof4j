@@ -5,9 +5,9 @@
 
 owner: `192.168.15.130:9093` (lane docs/lab — re-claimed 10/10 after the `192.168.15.101:9092` claim was revoked 09/10 under `D-PLAN-ONE-OWNER`; M1 unidade-3 VF-on-x86-64 landed 10/10)
 
-last: M1 UNIDADE-4 slice 2 LANDED 10/10 (lane docs/lab `192.168.15.130:9093`) — FFI callbacks bind on Native **x86-64** for **Int/Long/Double/Float** ABIs: the generated trampoline (`kof_cb_tramp_<desc>`) now maps FP args (C `xmm0..` → the raw bits in the Kof integer-register convention) and the FP return (`rax` bits → `xmm0`); `FfiNativeCallbackE2ETest` covers Int/Long/Double/mixed/Float param + return, JVM==Native byte-for-byte. Only a `String`-return callback stays FFI001. Before: slice 1 (integer ABIs) + UNIDADE-3 (VF-on-x86-64)
-doing: M1 unidade-4 slice 2 LANDED 10/10 (callbacks on Native x86-64: Int/Long/Double/Float) — remaining: the String-return callback face + the cross callback trampoline
-next: M1 callbacks slice 3 — the cross callback trampoline (riscv64/aarch64) + the String-return face; **UNBLOCKED 11/10**: the cross toolchain is now installed locally (binutils+gcc+qemu-user-static under `~/.local/toolchain/cross`, `KOF_CROSS_SYSROOT`; the broad cross FFI battery 34/0F/0E, 0 skipped), so this face is buildable+testable here. mixed float+int and HFA>2 remain honest FFI001 (gap-catalogued in spec §12)
+last: M1 UNIDADE-4 slice 3 LANDED 10/10 (lane docs/lab `192.168.15.130:9093`) — FFI callbacks bind on Native **x86-64 AND cross riscv64/aarch64**. The cross trampoline (`NativeFfiCallRiscv.emitRiscvCallbackTrampoline`) mirrors the x86-64 design (vtable[0] invoke, soft-float-safe arg remount a0=closure/a1..) and SAVES `ra` (the missing `ra` save was the measured hang); the call-site stashes the lambda in `kof_cb_closure_<desc>` and passes `kof_cb_tramp_<desc>`. `FfiNativeCallbackE2ETest` runs the SAME source on JVM (host `.so`) and both cross (riscv64/aarch64 `.so` under qemu) byte-for-byte, incl. arity>5. Only a `String`-return callback stays FFI001. Before: slice 2 (Float/Double x86-64) + UNIDADE-3
+doing: M1 unidade-4 COMPLETE on x86-64 + cross (Int/Long/Double/mixed/Float, arity>5) — remaining: only the String-return callback face (honest FFI001)
+next: M1 callbacks — only the String-return face remains (honest FFI001; `char*` ownership not observable in the synchronous contract). mixed float+int and HFA>2 remain honest FFI001 (spec §12).
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety

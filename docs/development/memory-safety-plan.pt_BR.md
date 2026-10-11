@@ -5,9 +5,9 @@
 
 dona: `192.168.15.130:9093` (lane docs/lab — reivindicado 10/10 depois do claim `192.168.15.101:9092` ser revogado 09/10 sob `D-PLAN-ONE-OWNER`; M1 unidade-3 VF-no-x86-64 pousada 10/10)
 
-last: M1 UNIDADE-4 fatia 2 POUSADA 10/10 (lane docs/lab `192.168.15.130:9093`) — callbacks FFI bindam no Native **x86-64** para ABIs **Int/Long/Double/Float**: o trampolim gerado (`kof_cb_tramp_<desc>`) agora mapeia args FP (C `xmm0..` → os bits crus na convenção de registradores inteiros do Kof) e o retorno FP (bits em `rax` → `xmm0`); `FfiNativeCallbackE2ETest` cobre Int/Long/Double/misto/Float param + retorno, byte-a-byte JVM==Native. Só um callback com retorno `String` segue FFI001. Antes: fatia 1 (ABIs inteiras) + UNIDADE-3 (VF-no-x86-64)
-doing: M1 unidade-4 fatia 2 POUSADA 10/10 (callbacks no Native x86-64: Int/Long/Double/Float) — restante: a face de callback com retorno String + o trampolim cross
-next: M1 callbacks fatia 3 — o trampolim cross (riscv64/aarch64) + a face de retorno String; **DESBLOQUEADO 11/10**: o toolchain cross agora está instalado localmente (binutils+gcc+qemu-user-static em `~/.local/toolchain/cross`, `KOF_CROSS_SYSROOT`; a bateria cross ampla de FFI 34/0F/0E, 0 pulados), então esta face é construível+testável aqui. misto float+int e HFA>2 permanecem FFI001 honesto (gap catalogado na spec §12)
+last: M1 UNIDADE-4 fatia 3 POUSADA 10/10 (lane docs/lab `192.168.15.130:9093`) — callbacks FFI bindam no Native **x86-64 E cross riscv64/aarch64**. O trampolim cross (`NativeFfiCallRiscv.emitRiscvCallbackTrampoline`) espelha o design x86-64 (invoke em vtable[0], remonte soft-float-safe a0=closure/a1..) e SALVA `ra` (o `ra` não salvo era o hang medido); o call-site guarda a lambda em `kof_cb_closure_<desc>` e passa `kof_cb_tramp_<desc>`. `FfiNativeCallbackE2ETest` roda o MESMO fonte na JVM (`.so` do host) e nos dois cross (`.so` riscv64/aarch64 sob qemu) byte-a-byte, incl. aridade>5. Só um callback com retorno `String` segue FFI001. Antes: fatia 2 (Float/Double x86-64) + UNIDADE-3
+doing: M1 unidade-4 COMPLETA no x86-64 + cross (Int/Long/Double/misto/Float, aridade>5) — restante: só a face de callback com retorno String (FFI001 honesto)
+next: M1 callbacks — só resta a face de retorno String (FFI001 honesto; ownership do `char*` não observável no contrato síncrono). misto float+int e HFA>2 permanecem FFI001 honesto (spec §12).
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety

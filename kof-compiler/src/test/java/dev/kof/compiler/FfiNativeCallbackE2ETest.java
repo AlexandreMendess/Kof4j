@@ -130,4 +130,60 @@ class FfiNativeCallbackE2ETest {
             throw new IOException("interrupted", e);
         }
     }
+
+    private static String cc(String... candidates) {
+        for (String c : candidates) {
+            try {
+                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
+                p.getInputStream().readAllBytes();
+                if (p.waitFor(15, TimeUnit.SECONDS) && p.exitValue() == 0) return c;
+            } catch (Exception ignored) { /* tenta o próximo */ }
+        }
+        return null;
+    }
+
+    @Test
+    void nativeCallbacksComputeAcrossIntegerAbisCross(@TempDir Path dir) throws Exception {
+        // M1 face 4 cross: os MESMOS callbacks escalares no Native riscv64 (sob
+        // qemu). Oráculo = o fonte na JVM sobre um .so do HOST.
+        Path c = dir.resolve("libkofcb.c");
+        Files.writeString(c, C_SRC);
+        Path hostSo = dir.resolve("libkofcb-host.so");
+        Process hp = new ProcessBuilder(cc("/usr/bin/cc", "/usr/bin/gcc", "cc", "gcc"),
+                "-shared", "-fPIC", "-O2", "-o", hostSo.toString(), c.toString())
+                .redirectErrorStream(true).start();
+        hp.getInputStream().readAllBytes();
+        assertTrue(hp.waitFor(60, TimeUnit.SECONDS) && hp.exitValue() == 0, "host cc falhou");
+
+        Path jvmSrc = dir.resolve("cbc-jvm.kf");
+        Files.writeString(jvmSrc, CALLBACK_KOF.formatted(hostSo.toString()));
+        Path jvmOut = dir.resolve("out-cbc-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), () -> "JVM oracle compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(jvmOut);
+        assertEquals("42\n42\n42\n6.0\n7.5\n3.5\n21", jvm, "JVM golden (callbacks escalares)");
+
+        String[][] arches = {{"riscv64", "riscv64-linux-gnu-gcc"}, {"aarch64", "aarch64-linux-gnu-gcc"}};
+        for (String[] arch : arches) {
+            assumeTrue(cc(arch[1]) != null, "sem cross-gcc " + arch[0]);
+            assumeTrue(cc("qemu-" + arch[0]) != null, "sem qemu-" + arch[0]);
+            Path so = dir.resolve("libkofcb-" + arch[0] + ".so");
+            Process cp = new ProcessBuilder(arch[1], "-shared", "-fPIC", "-O2",
+                    "-o", so.toString(), c.toString()).redirectErrorStream(true).start();
+            String cOut = new String(cp.getInputStream().readAllBytes());
+            assumeTrue(cp.waitFor(60, TimeUnit.SECONDS) && cp.exitValue() == 0,
+                    "cross-gcc falhou: " + cOut);
+            Path src = dir.resolve("cbc-" + arch[0] + ".kf");
+            Files.writeString(src, CALLBACK_KOF.formatted(so.toString()));
+            Path out = dir.resolve("out-cbc-" + arch[0]);
+            Target t = arch[0].equals("riscv64") ? Target.NATIVE_RISCV64 : Target.NATIVE_AARCH64;
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), () -> "NATIVE " + arch[0] + " callbacks must bind: "
+                    + r.diagnostics().getDiagnostics());
+            Path bin = out.resolve("Default/Main");
+            assertTrue(Files.exists(bin), "binary " + bin);
+            String o = NativeRiscv64E2ETest.runQemuWithLibPath(dir, arch[0], bin);
+            assertEquals(jvm, o, "JVM<->" + arch[0] + " callback parity (M1 face 4 cross)");
+        }
+    }
 }
