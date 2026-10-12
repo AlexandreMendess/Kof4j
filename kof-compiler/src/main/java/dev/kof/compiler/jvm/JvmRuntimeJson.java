@@ -206,7 +206,10 @@ public final class JvmRuntimeJson {
                     String s = json.trim();
                     int n = s.length();
                     if (n >= 2 && s.charAt(0) == '"' && s.charAt(n - 1) == '"')
-                        return s.substring(1, n - 1);
+                        // §667: a forma QUOTADA é texto JSON — o unescape
+                        // completo vem do parser (o strip cru devolvia \t etc.
+                        // verbatim: a divergência 3-vias do audit)
+                        return String.valueOf(kof_json_parse(s));
                     return s;
                 }
 
