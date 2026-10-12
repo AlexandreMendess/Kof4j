@@ -6,5 +6,3 @@ issue	category	reason	owner
 818	1.0-outside	Record extending a user class silently loses value semantics (identity toString/equals) — documented-form nuance, semantics-lane follow-up; not a 0.6.2 regression.	triage 192.168.15.134
 816	1.0-outside	Annotated val (val x: T = ...) does not enforce immutability — SEM037 only covers the inferred form; language-surface nuance awaiting the semantics lane; pre-existing face, not a 0.6.2 regression.	triage 192.168.15.134
 817	1.0-outside	Bare subtype case in sealed switch parses but does not count as coverage — SEM081 flags a pre-covered case; sealed-switch coverage nuance, semantics-lane follow-up.	triage 192.168.15.134
-819	1.0-blocks	REAL compiler bug: switch expression returning different subclasses of another sealed hierarchy compiles to invalid bytecode (VerifyError) — sealed-hierarchy coverage/typing face; to fix in the 0.6.3 cycle.	triage 192.168.15.134
-820	1.0-outside	kof profile: CPU ratio always 0% (comma-decimal parse suspected, pt_BR locales) — tooling display bug; fix in flight this cycle.	triage 192.168.15.134
