@@ -55,6 +55,9 @@ final class TranslateTypes {
             case "byte", "Byte" -> "Byte";
             case "short", "Short" -> "Short";
             case "void" -> "void";
+            // Tabela JDK→stdlib (mantenedora aprovou 14/10)
+            case "ArrayList" -> "List";
+            case "HashMap" -> "Map";
             default -> javaType;
         };
     }

@@ -1462,6 +1462,88 @@ class TranslateTest {
         assertCompiles(dir, kof, "0\n1\n2");
     }
 
+    @Test
+    void jdkArrayListMapsToListOfAndRuns(@TempDir Path dir) throws Exception {
+        // tabela JDK→stdlib (mantenedora 14/10): antes `new ArrayList<>()`
+        // emitia `ArrayList()` que NÃO compila (falso OK). Agora listOf() +
+        // Collections.sort → xs.sort(); executa de verdade.
+        String kof = Translate.translateJava("""
+                import java.util.ArrayList;
+                import java.util.Collections;
+                class T {
+                    public static void main(String[] args) {
+                        ArrayList<String> xs = new ArrayList<String>();
+                        xs.add("b");
+                        xs.add("a");
+                        Collections.sort(xs);
+                        System.out.println(xs.size());
+                        System.out.println(xs.get(0));
+                    }
+                }
+                """);
+        assertTrue(kof.contains("listOf()"), kof);
+        assertTrue(kof.contains(".sort()"), kof);
+        assertCompiles(dir, kof, "2\na");
+    }
+
+    @Test
+    void jdkHashMapMapsToMapOfAndRuns(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                import java.util.HashMap;
+                class T {
+                    public static void main(String[] args) {
+                        HashMap<String,Integer> m = new HashMap<String,Integer>();
+                        m.put("k", 7);
+                        System.out.println(m.size());
+                    }
+                }
+                """);
+        assertTrue(kof.contains("mapOf()"), kof);
+        assertCompiles(dir, kof, "1");
+    }
+
+    @Test
+    void jdkTimeNowMapsAndRuns(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                class T {
+                    public static void main(String[] args) {
+                        long t = System.currentTimeMillis();
+                        System.out.println(t > 0);
+                    }
+                }
+                """);
+        assertTrue(kof.contains("time.now()"), kof);
+        assertCompiles(dir, kof, "true");
+    }
+
+    @Test
+    void jdkStringBuilderChainConcatenatesAndRuns(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                class T {
+                    public static void main(String[] args) {
+                        String a = "n=";
+                        String b = "42";
+                        String s = new StringBuilder().append(a).append(b).toString();
+                        System.out.println(s);
+                    }
+                }
+                """);
+        assertTrue(kof.contains("a + b"), kof);
+        assertCompiles(dir, kof, "n=42");
+    }
+
+    @Test
+    void jdkUnmappedTypeRefusedNamed() {
+        // fora da tabela aprovada: recusa NOMEADA (nunca `HashSet()` que não
+        // compila — o falso OK fechado)
+        TranslateException e = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("""
+                        import java.util.HashSet;
+                        class T { HashSet<String> s = new HashSet<String>(); }
+                        """));
+        assertTrue(e.getMessage().contains("outside the approved JDK"), e.getMessage());
+    }
+
     private void assertCompiles(Path dir, String kof, String expected) throws Exception {
         Path src = dir.resolve("T.kf");
         Files.writeString(src, kof);

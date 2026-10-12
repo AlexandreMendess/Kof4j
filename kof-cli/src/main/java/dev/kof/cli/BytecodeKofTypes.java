@@ -60,7 +60,25 @@ final class BytecodeKofTypes {
             }
             case 0xb7 -> { // invokespecial <init> (mirror do linear)
                 String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                if (m == null || !"<init>".equals(m[1])) return false;
+                if (m == null) return false;
+                if (!"<init>".equals(m[1])) {
+                    // Fase G (diamond super.m(), mantenedora 14/10): owner ==
+                    // super corrente → `super.m(args)` (Kof suporta, medido);
+                    // demais (interface `A.super.m()`) seguem não-recuperados
+                    // aqui até a fatia do inline multi-classfile.
+                    if (BytecodeDecoder.currentSuperInternal != null
+                            && BytecodeDecoder.currentSuperInternal.equals(m[0])) {
+                        int argc = BytecodeCp.argCount(m[2]);
+                        if (stack.size() < argc + 1) return false;
+                        var callArgs = new java.util.ArrayList<String>();
+                        for (int i = 0; i < argc; i++) callArgs.add(0, stack.pop());
+                        String recv = stack.pop();
+                        if (!"this".equals(recv)) return false;
+                        stack.push("super." + m[1] + "(" + String.join(", ", callArgs) + ")");
+                        return true;
+                    }
+                    return false;
+                }
                 int argc = BytecodeCp.argCount(m[2]);
                 if (stack.size() < argc + 2) return false;
                 var callArgs = new java.util.ArrayList<String>();

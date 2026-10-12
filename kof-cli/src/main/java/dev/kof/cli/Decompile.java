@@ -287,6 +287,8 @@ public final class Decompile {
             // instância → crash no 1º teste que EXECUTA saída decompilada.
             boolean isStatic = (m.accessFlags & 0x0008) != 0;
             String stat = isStatic ? "static " : "";
+            // Fase G (super.m()): contexto para o `invokespecial` não-<init>
+            BytecodeDecoder.currentSuperInternal = ir.superClass;
             String body = null;
             List<String> stmts = null;
             if (m.code != null) {

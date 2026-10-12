@@ -254,6 +254,17 @@ class TranslateExpr {
                 String args = parseCallArgs();
                 return "print(" + args + ")";
             }
+            if (receiver.equals("System") && method.equals("currentTimeMillis")) {
+                // Tabela JDK→stdlib (mantenedora aprovou 14/10): epoch millis
+                p.expect("("); p.expect(")");
+                return "time.now()";
+            }
+            if (receiver.equals("Collections") && method.equals("sort")) {
+                // Tabela JDK→stdlib (aprovada): `Collections.sort(xs)` →
+                // `xs.sort()` (método da List Kof — medido: roda)
+                String arg = parseSingleArg();
+                return arg + ".sort()";
+            }
             if (receiver.equals("Math")) {
                 // `Math.<fn>(...)`: Kof expõe a stdlib em `math.<fn>` mas
                 // `math.min/max/abs` são **Int-only** (SEM025 p/ Double, sem

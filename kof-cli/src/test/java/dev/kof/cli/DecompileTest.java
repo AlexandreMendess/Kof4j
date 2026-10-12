@@ -619,6 +619,36 @@ class DecompileTest {
     }
 
     @Test
+    void superCallRecoveredNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase G (diamond super.m(), mantenedora 14/10): `invokespecial` de
+        // superclasse emitia stub ("body not recovered"); `super.m()` É
+        // expressável em Kof (medido rodando) — o corpo recupera o call.
+        Path src = dir.resolve("classes");
+        Path b = dir.resolve("B.java");
+        Files.writeString(b, """
+                public class B { public int base() { return 10; } }
+                """);
+        Path c = dir.resolve("C.java");
+        Files.writeString(c, """
+                public class C extends B {
+                    public int viaSuper() { return super.base(); }
+                }
+                """);
+        runJavac(java.util.List.of(b, c), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String cSrc = Files.readString(out.resolve("C.kf"));
+        assertTrue(cSrc.contains("return super.base()"),
+                "super.m() deve ser RECUPERADO (nao stub):\n" + cSrc);
+        assertFalse(cSrc.contains("body not recovered"),
+                "nenhum stub no arquivo:\n" + cSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("B.kf"), out.resolve("C.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "arvore com super.m() deve compilar (zero drift):\n" + cSrc
+                + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void decompileTreeRefusesAmbiguousSimpleNames(@TempDir Path dir) throws Exception {
         // Recusa R6: simples duplicado em 2+ pacotes do índice nunca ganha
         // import (ambíguo) → stub honesto, mesmo com o pacote atual tendo um.

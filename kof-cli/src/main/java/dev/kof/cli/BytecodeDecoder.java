@@ -26,6 +26,15 @@ import java.util.Set;
      */
     static java.util.function.IntConsumer blockerSink;
 
+    /**
+     * Fase G (diamond super.m(), mantenedora 14/10): o cp achatado perde o
+     * TAG (Methodref vs InterfaceMethodref) — o contexto da classe corrente
+     * vem do Decompile por rodada: `invokespecial` não-<init> cujo owner é a
+     * SUPERCLASSE corrente emite `super.m(args)` (Kof suporta — medido);
+     * owner que é interface (`A.super.m()`) é o refinamento de default.
+     */
+    static String currentSuperInternal;
+
     private BytecodeDecoder() {
     }
 
@@ -226,7 +235,23 @@ import java.util.Set;
                 }
                 case 0xb7 -> { // invokespecial (<init>)
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (m == null || !"<init>".equals(m[1])) return null;
+                    if (m == null) return null;
+                    if (!"<init>".equals(m[1])) {
+                        // Fase G: `super.m(args)` explícito — a invocação da
+                        // superclasse é expressável em Kof (`super.m()` medido
+                        // rodando); owner que NÃO é a super corrente = interface
+                        // (`A.super.m()`) → não recuperado AQUI (o inline
+                        // multi-classfile é a fatia seguinte — nunca fabricar).
+                        if (currentSuperInternal != null && currentSuperInternal.equals(m[0])) {
+                            String a = stack.args(BytecodeCp.argCount(m[2]));
+                            if (a == null) return null;
+                            String recv = stack.popExpr();
+                            if (!"this".equals(recv)) return null;
+                            stack.push("super." + m[1] + "(" + a + ")", "L");
+                            continue;
+                        }
+                        return null;
+                    }
                     String a = stack.args(BytecodeCp.argCount(m[2]));
                     if (a == null || stack.size() < 2) return null;
                     stack.pop();                       // receiver (cópia do dup)

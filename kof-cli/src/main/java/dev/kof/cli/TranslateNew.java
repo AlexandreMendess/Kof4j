@@ -64,6 +64,69 @@ final class TranslateNew {
             // Sem args → string vazia (throw exige String, SEM026).
             return args.isEmpty() ? "\"\"" : args;
         }
+        // Tabela JDK→stdlib (mantenedora aprovou 14/10): fechar o FALSO OK —
+        // antes `new ArrayList<>()` emitia `ArrayList()` que NÃO compila
+        // (SEM015 silencioso). Vazio → listOf()/mapOf(); com args → recusa
+        // nomeada (semântica de cópia não é 1:1).
+        if (typeName.equals("ArrayList")) {
+            if (!args.isEmpty()) {
+                throw new TranslateException(
+                        "`new ArrayList<>(...)` with arguments has no 1:1 Kof equivalent (copying "
+                        + "semantics) — use `listOf(...)` explicitly — manual review");
+            }
+            return "listOf()";
+        }
+        if (typeName.equals("HashMap")) {
+            if (!args.isEmpty()) {
+                throw new TranslateException(
+                        "`new HashMap<>(...)` with arguments has no 1:1 Kof equivalent (copying "
+                        + "semantics) — use `mapOf(...)` explicitly — manual review");
+            }
+            return "mapOf()";
+        }
+        if (typeName.equals("StringBuilder")) {
+            // Tabela aprovada: a cadeia `.append(e)...toString()` baixa para
+            // concatenação `e1 + e2` (o idioma Kof). Sem arg inicial; cadeia
+            // que não termina em toString → recusa nomeada.
+            if (!args.isEmpty()) {
+                throw new TranslateException(
+                        "`new StringBuilder(initial)` has no direct equivalent — start the Kof "
+                        + "concatenation with the initial value (empty-string + x for non-String) — manual review");
+            }
+            java.util.List<String> parts = new java.util.ArrayList<>();
+            while (p.at(".") && p.peek(1) != null && "append".equals(p.peek(1).text)) {
+                p.next(); // .
+                p.next(); // append
+                parts.add(ctx.parseSingleArg());
+            }
+            if (parts.isEmpty() || !(p.at(".") && p.peek(1) != null && "toString".equals(p.peek(1).text))) {
+                throw new TranslateException(
+                        "StringBuilder chain: only the `new StringBuilder().append(...).append(...)"
+                        + ".toString()` shape lowers to Kof concatenation — manual review");
+            }
+            p.next(); // .
+            p.next(); // toString
+            p.expect("("); p.expect(")");
+            if (parts.size() == 1) {
+                // `append(e).toString()` de UM valor: `"" + e` normaliza o
+                // não-String para String (String.valueOf em Java) — medido:
+                // `"" + 42` compila e imprime 42
+                return "\"\"" + " + " + parts.get(0);
+            }
+            return String.join(" + ", parts);
+        }
+        if (JDK_UNMAPPED_TYPES.contains(typeName)) {
+            // fora da tabela aprovada: recusa NOMEADA (nunca `X()` que não
+            // compila — o falso OK fechado)
+            throw new TranslateException(
+                    "JDK type `" + typeName + "` is outside the approved JDK→stdlib table "
+                    + "(ArrayList/HashMap/StringBuilder mapped) — map it explicitly in Kof — manual review");
+        }
         return TranslateTypes.kofType(typeName) + "(" + args + ")";
     }
+
+    /** Tipos do JDK conhecidos SEM mapeamento aprovado — recusa nomeada. */
+    private static final java.util.Set<String> JDK_UNMAPPED_TYPES = java.util.Set.of(
+            "HashSet", "LinkedHashSet", "TreeMap", "TreeSet", "LinkedList", "Vector", "Hashtable",
+            "StringBuffer", "Stack", "PriorityQueue", "ArrayDeque", "ConcurrentHashMap");
 }
