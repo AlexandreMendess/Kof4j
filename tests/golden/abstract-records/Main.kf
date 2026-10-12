@@ -1,0 +1,32 @@
+abstract class Shape {
+    abstract area(): Int
+    String label() = "shape"
+}
+class Sq extends Shape {
+    Int side
+    public constructor(Int s) { this.side = s }
+    area(): Int = side * side
+    String label() = "square"
+}
+class Rect extends Shape {
+    Int w
+    Int h
+    public constructor(Int w, Int h) { this.w = w; this.h = h }
+    area(): Int = w * h
+}
+record Pt(Int x, Int y) {
+    Int sum() = x + y
+    Pt scaled(Int k) = Pt(x * k, y * k)
+}
+main() {
+    var shapes: List<Shape> = listOf(Sq(4), Rect(3, 5))
+    for (var s in shapes) println(s.area())
+    println(Sq(4).label())
+    println(Rect(2, 2).label())
+    var p = Pt(3, 4)
+    println(p.sum())
+    println(p.scaled(2).x())
+    println(p.scaled(2).y())
+    println(p == Pt(3, 4))
+    println(p == Pt(3, 5))
+}
