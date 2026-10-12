@@ -372,8 +372,8 @@
 
 # Changelog
 
-last: 0.6.3-cut
-doing: 0.6.2-published
+last: 0.6.3-published
+doing: accumulating-0.7.0
 next: 0.7.0-cut
 location: CHANGELOG
 state: active

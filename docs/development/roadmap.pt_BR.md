@@ -2,7 +2,7 @@
 
 # Kof — Roadmap de Longo Prazo
 
-last: 0.6.3-cut
+last: 0.6.3-published
 doing: 1.0-exit-gate
 next: promotion-sweep
 location: roadmap
