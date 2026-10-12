@@ -20,6 +20,18 @@ final class MethodCallNamespaces {
     private MethodCallNamespaces() {}
 
     static Type inferStatic(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {
+        // entity-history fatia 2c-parte-2 (D-ENTITY-HISTORY): a reserva
+        // entity-static — `Entity.history(db, id[, offset, limit])` tipa
+        // List<Revision> ANTES do dispatch de instância (a fase SEM também
+        // roteia; a recusa HIST002 do não-audited acontece no lowerer, que
+        // tem o driver).
+        if (mc.receiver() instanceof IdentifierExpr ehR
+                && driver.entityNamesMirror.contains(ehR.name())
+                && "history".equals(mc.methodName())
+                && (mc.arguments().size() == 2 || mc.arguments().size() == 4)) {
+            Type revT = CompilerTypes.toType("Revision", driver.currentUnit, driver.semanticAnalyzer);
+            return new Type.ClassType("kof", "List", List.of(revT));
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && CompilerTypes.isEnumName(rid.name(), driver.currentUnit)
                 && driver.findLocalVar(rid.name(), locals) == null) {
             java.util.List<String> consts = CompilerTypes.enumConstantsOf(rid.name(), driver.currentUnit);

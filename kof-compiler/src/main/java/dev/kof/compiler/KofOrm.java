@@ -131,7 +131,8 @@ public final class KofOrm {
      *  bridge JS e o runtime nativo/cross recebem ORM001 honesto em
      *  compile-time (Fase 5 do rollout), nunca silent. */
     private static final java.util.Set<String> HISTORY_FACES = java.util.Set.of(
-            "kof_orm_create_history", "kof_orm_save_recorded", "kof_orm_delete_recorded");
+            "kof_orm_create_history", "kof_orm_save_recorded", "kof_orm_delete_recorded",
+            "kof_orm_history", "kof_orm_history_page");
 
     static boolean fnSupportedOn(Target target, String fn) {
         if (HISTORY_FACES.contains(fn)) return target == Target.JVM || target == Target.ANDROID;

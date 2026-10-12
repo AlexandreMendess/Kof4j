@@ -63,6 +63,17 @@ public final class SemMethodCallTyper {
                 return CompilerTypes.toType(mc.typeArguments().get(0), sa.unit(), sa);
             }
         }
+        // entity-history fatia 2c-parte-2 (D-ENTITY-HISTORY): a reserva
+        // entity-static (a recusa HIST002 do não-audited acontece no
+        // lowerer, que tem o driver — aqui só o TIPO é reservado).
+        if (mc.receiver() instanceof IdentifierExpr ehS
+                && sa.entityNames.contains(ehS.name())
+                && "history".equals(mc.methodName())
+                && (mc.arguments().size() == 2 || mc.arguments().size() == 4)) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            Type revS = CompilerTypes.toType("Revision", sa.unit(), sa);
+            return new Type.ClassType("kof", "List", List.of(revS));
+        }
         // F10: métodos de instância do handle de process.spawn
         Type recv = null;
         if (mc.receiver() != null) {
