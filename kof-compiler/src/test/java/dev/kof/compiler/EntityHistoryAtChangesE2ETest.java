@@ -15,7 +15,10 @@ import static org.junit.jupiter.api.Assertions.*;
  *  materialized via the JSON binding; a DELETE revision materializes null),
  *  `E.atTime(db, id, iso)` (the last revision at-or-before the ISO instant)
  *  and `E.changes(db, id)` (consecutive-payload field diffs as
- *  `FieldChange`s). HIST002 on non-audited; HIST005 on constant negatives. */
+ *  `FieldChange`s). HIST002 on non-audited; HIST005 on constant negatives.
+ *  The `changes` face: the 2-arg call underflowed the stack (5 pushed for 7
+ *  params — the from/to defaults `from=1, to=MAX_INT` are emitted since this
+ *  slice; that underflow WAS the NegativeArraySize -2 root). */
 class EntityHistoryAtChangesE2ETest {
 
     @TempDir
@@ -99,6 +102,32 @@ class EntityHistoryAtChangesE2ETest {
             """);
         assertEquals("true\nMel", out,
                 "a revisão DELETE materializa null; a revisão anterior mantém o estado");
+    }
+
+    @Test
+    void changesDiffsConsecutivePayloads() throws Exception {
+        String out = runJvm("changes", """
+            import kof.orm.history
+            audited entity User {
+                id: Long generated
+                name: String
+            }
+            main() {
+                var db = db.connect("jdbc:h2:mem:ehd3;DB_CLOSE_DELAY=-1")
+                orm.create<User>(db)
+                orm.createHistory<User>(db)
+                var u = orm.save(db, User(0, "Mel"))
+                u = orm.save(db, User(u.id, "Melissa"))
+                var cs = User.changes(db, u.id)
+                println(cs.size)
+                println(cs.get(0).field)
+                println(cs.get(0).previous)
+                println(cs.get(0).current)
+                db.close(db)
+            }
+            """);
+        assertEquals("1\nname\nMel\nMelissa", out,
+                "o diff campo-a-campo entre os payloads consecutivos");
     }
 
     @Test

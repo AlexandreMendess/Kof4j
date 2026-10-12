@@ -178,6 +178,13 @@ static int lower(CompilerDriver driver, MethodCallExpr mc,
         }
         String fn;
         Type retType;
+        if (isChanges && n == 2) {
+            // a face de 2 args = o histórico INTEIRO: from=1, to=MAX_INT
+            // (crus, os params INT do runtime — sem emitir, o underflow de
+            // pilha era o NegativeArraySize(-2) do COMPUTE_FRAMES)
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, Integer.MAX_VALUE));
+        }
         if ("at".equals(method)) {
             fn = "kof_orm_history_at";
             params.add(Type.PrimitiveType.INT); // revision
