@@ -254,7 +254,8 @@ public final class KofWeb {
 
 
     /** Request-context functions available inside route handlers. */
-    static WebCall contextCall(String name, int argCount) {
+    static WebCall contextCall(String name, List<Type> argTypes) {
+        int argCount = argTypes.size();
         // #102 item 4: query()/header() devolvem null quando o parâmetro/cabeçalho
         // não está presente no request (HashMap.get no runtime). Declará-las como
         // String era uma mentira de tipo (NPE silencioso em header().split(...));
@@ -263,31 +264,36 @@ public final class KofWeb {
         // handler e todo :param do match tem valor (training/idioms/web.md usa
         // param("id").toInt() sem check — código válido, não pode virar erro).
         return switch (name) {
-            case "param" -> argCount == 1
+            // §667 Boundary (ledger §669): guardas de tipo — a tabela ligava
+            // SÓ POR ARIDADE (status("a","b") ligava kof_web_status(Int,String)
+            // com duas Strings → VerifyError). isString já existia aqui.
+            case "param" -> argCount == 1 && isString(argTypes.get(0))
                     ? new WebCall("kof_web_param", STR, List.of(STR))
                     : null;
-            case "query", "header" -> argCount == 1
+            case "query", "header" -> argCount == 1 && isString(argTypes.get(0))
                     ? new WebCall("kof_web_" + name, new Type.NullableType(STR), List.of(STR))
                     : null;
             case "body", "method", "path" -> argCount == 0
                     ? new WebCall("kof_web_" + name, STR, List.of())
                     : null;
-            case "status" -> argCount == 2
+            case "status" -> argCount == 2 && argTypes.get(0) == INT
+                    && isString(argTypes.get(1))
                     ? new WebCall("kof_web_status", STR, List.of(INT, STR))
                     : null;
             case "headerSet", "setHeader" -> argCount == 2
+                    && isString(argTypes.get(0)) && isString(argTypes.get(1))
                     ? new WebCall("kof_web_header_set", STR, List.of(STR, STR))
                     : null;
-            case "sse" -> argCount == 1
+            case "sse" -> argCount == 1 && isString(argTypes.get(0))
                     ? new WebCall("kof_web_sse_send", STR, List.of(STR))
                     : null;
-            case "wsSend" -> argCount == 1
+            case "wsSend" -> argCount == 1 && isString(argTypes.get(0))
                     ? new WebCall("kof_web_ws_send", VOID, List.of(STR))
                     : null;
             case "wsMessage" -> argCount == 0
                     ? new WebCall("kof_web_ws_message", STR, List.of())
                     : null;
-            case "stats" -> argCount == 1
+            case "stats" -> argCount == 1 && isString(argTypes.get(0))
                     ? new WebCall("kof_web_stats", STR, List.of(STR))
                     : null;
             default -> null;

@@ -431,11 +431,16 @@ final class JvmFfiRuntime {
                             cb[k] = kof_ffi_carrier(c);
                         }
                     }
-                    Class<?> rret = kof_ffi_carrier(rb);
+                    // Retorno do invoke Kof (String → java.lang.String) e do stub
+                    // nativo (String → ADDRESS). Só divergem quando rb == 'S'
+                    // (M1 unidade-4 face S: o char* do retorno é alocado na arena).
+                    Class<?> rret = (rb == 'S') ? String.class : kof_ffi_carrier(rb);
+                    Class<?> upRet = (rb == 'S')
+                            ? java.lang.foreign.MemorySegment.class : rret;
                     java.lang.invoke.MethodType cbMt =
                             java.lang.invoke.MethodType.methodType(rret, cb);
                     java.lang.invoke.MethodType upMt =
-                            java.lang.invoke.MethodType.methodType(rret, up);
+                            java.lang.invoke.MethodType.methodType(upRet, up);
                     java.lang.reflect.Method m = null;
                     for (java.lang.reflect.Method cand : closure.getClass().getMethods()) {
                         if (cand.getName().equals("invoke")
@@ -465,6 +470,19 @@ final class JvmFfiRuntime {
                             mh = java.lang.invoke.MethodHandles.filterArguments(mh, strPos[p], cstr);
                         }
                     }
+                    if (rb == 'S') {
+                        // fronteira String->ADDRESS do RETORNO: o `invoke` devolve um
+                        // String Kof; o C espera um `char*` NUL-terminado. Copia na
+                        // arena da chamada (síncrono/não-escapante, o mesmo contrato
+                        // da face de arg; a arena fecha no fim do call).
+                        java.lang.invoke.MethodHandle retc = lookup.findStatic(
+                                lookup.lookupClass(), "kof_ffi_ret_cstr",
+                                java.lang.invoke.MethodType.methodType(
+                                        java.lang.foreign.MemorySegment.class,
+                                        java.lang.foreign.Arena.class, String.class))
+                                .bindTo(arena);
+                        mh = java.lang.invoke.MethodHandles.filterReturnValue(mh, retc);
+                    }
                     mh = mh.asType(upMt);
                     java.lang.foreign.FunctionDescriptor fd = (rb == 'v')
                             ? java.lang.foreign.FunctionDescriptor.ofVoid(il)
@@ -477,6 +495,16 @@ final class JvmFfiRuntime {
                 public static String kof_ffi_cstr(java.lang.foreign.MemorySegment seg) {
                     if (seg == null || seg.address() == 0L) return null;
                     return seg.reinterpret(java.lang.Long.MAX_VALUE).getString(0L);
+                }
+
+                // String devolvido pelo invoke Kof -> char* NUL-terminado na arena da
+                // chamada (M1 unidade-4 face S). NULL vira o ponteiro nulo (o C vê
+                // NULL, como no downcall). O buffer vive até a arena fechar no fim do
+                // call — contrato síncrono/não-escapante.
+                public static java.lang.foreign.MemorySegment kof_ffi_ret_cstr(
+                        java.lang.foreign.Arena arena, String s) {
+                    if (s == null) return java.lang.foreign.MemorySegment.NULL;
+                    return arena.%1$s(s);
                 }
 
                 static Class<?> kof_ffi_carrier(char c) {

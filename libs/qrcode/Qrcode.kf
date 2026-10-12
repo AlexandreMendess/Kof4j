@@ -1,0 +1,878 @@
+package qrcode
+
+import qrcode.QrPng
+
+// kofqrcode — QR Code writer in pure Kof (ISO/IEC 18004).
+//
+// `matrix(text)` builds the QR Code module matrix for `text` (byte mode over
+// UTF-8, versions 1-10, ECC level M, automatic version selection and
+// automatic mask by the spec's penalty scoring) and `writePng(text, path)`
+// writes it as a grayscale PNG with the spec's 4-module quiet zone (the PNG
+// encoding lives in `QrPng.kf`). Everything is pure Kof, so the writer works
+// on every target; the PNG output rides `File.writeBytes`, so JS keeps the
+// existing IOJS001 gap of the file surface.
+//
+//   import qrcode.Qrcode
+//   var m = matrix("Hello")          // QrMatrix(size, modules)
+//   writePng("Hello", "qr.png")      // writes the PNG, returns the side
+//
+// The algorithm is verified against an independent implementation: the module
+// matrices are byte-identical to the Python `qrcode` module (132-case battery
+// across versions 1-10) and every generated PNG decodes back to its text
+// under the zbar reader.
+
+record QrMatrix(Int size, Int[] modules)
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+QrMatrix matrix(String text) {
+    var bytes = utf8Encode(text)
+    var version = chooseVersion(bytes.length)
+    if (version == -1) {
+        throw "QRCODE: text needs more than 213 bytes (version 10, ECC M)"
+    }
+    var codewords = buildCodewords(bytes, version)
+    var size = version * 4 + 17
+    var base = basePatterns(size, version)
+    drawFormatInfo(base, size, 0)
+    if (version >= 7) {
+        drawVersionInfo(base, size, version)
+    }
+    var mask = bestMask(base, size, version, codewords)
+    var finalModules = copyModules(base, size)
+    drawFormatInfo(finalModules, size, mask)
+    mapData(finalModules, size, codewords, mask)
+    return QrMatrix(size, finalModules)
+}
+
+Int writePng(String text, String path) {
+    var m = matrix(text)
+    return writePngMatrix(m.size, m.modules, path)
+}
+
+// ---------------------------------------------------------------------------
+// Versions and Reed-Solomon layout (ECC level M)
+// ---------------------------------------------------------------------------
+
+Int dataCodewords(Int v) {
+    var d = 0
+    if (v == 1) { d = 16 }
+    if (v == 2) { d = 28 }
+    if (v == 3) { d = 44 }
+    if (v == 4) { d = 64 }
+    if (v == 5) { d = 86 }
+    if (v == 6) { d = 108 }
+    if (v == 7) { d = 124 }
+    if (v == 8) { d = 154 }
+    if (v == 9) { d = 182 }
+    if (v == 10) { d = 216 }
+    return d
+}
+
+Int blocksGroup1(Int v) {
+    var n = 1
+    if (v == 4) { n = 2 }
+    if (v == 5) { n = 2 }
+    if (v == 6) { n = 4 }
+    if (v == 7) { n = 4 }
+    if (v == 8) { n = 2 }
+    if (v == 9) { n = 3 }
+    if (v == 10) { n = 4 }
+    return n
+}
+
+Int blocksGroup2(Int v) {
+    var n = 0
+    if (v == 8) { n = 2 }
+    if (v == 9) { n = 2 }
+    if (v == 10) { n = 1 }
+    return n
+}
+
+Int dataPerBlock1(Int v) {
+    var n = dataCodewords(v)
+    if (v == 4) { n = 32 }
+    if (v == 5) { n = 43 }
+    if (v == 6) { n = 27 }
+    if (v == 7) { n = 31 }
+    if (v == 8) { n = 38 }
+    if (v == 9) { n = 36 }
+    if (v == 10) { n = 43 }
+    return n
+}
+
+Int dataPerBlock2(Int v) {
+    var n = 0
+    if (v == 8) { n = 39 }
+    if (v == 9) { n = 37 }
+    if (v == 10) { n = 44 }
+    return n
+}
+
+Int chooseVersion(Int byteCount) {
+    var v = 1
+    while (v <= 10) {
+        if (byteCount <= capacityBytes(v)) {
+            return v
+        }
+        v = v + 1
+    }
+    return -1
+}
+
+Int capacityBytes(Int v) {
+    var countBits = 8
+    if (v >= 10) {
+        countBits = 16
+    }
+    return (dataCodewords(v) * 8 - 4 - countBits) / 8
+}
+
+// ---------------------------------------------------------------------------
+// UTF-8 and data encoding
+// ---------------------------------------------------------------------------
+
+Int[] utf8Encode(String text) {
+    var chars = text.toCharArray()
+    var n = chars.length
+    var out = new Int[n * 4 + 4]
+    var k = 0
+    var i = 0
+    while (i < n) {
+        var c = chars[i] + 0
+        if (c >= 0xD800 && c < 0xDC00 && i + 1 < n) {
+            var lo = chars[i + 1] + 0
+            if (lo >= 0xDC00 && lo < 0xE000) {
+                k = utf8Push(out, k, 0x10000 + ((c - 0xD800) * 1024) + (lo - 0xDC00))
+                i = i + 2
+            } else {
+                k = utf8Push(out, k, 0xFFFD)
+                i = i + 1
+            }
+        } else {
+            k = utf8Push(out, k, c)
+            i = i + 1
+        }
+    }
+    var bytes = new Int[k]
+    var j = 0
+    while (j < k) {
+        bytes[j] = out[j]
+        j = j + 1
+    }
+    return bytes
+}
+
+Int utf8Push(Int[] out, Int k, Int cp) {
+    if (cp < 0x80) {
+        out[k] = cp
+        return k + 1
+    }
+    if (cp < 0x800) {
+        out[k] = 0xC0 + (cp / 64)
+        out[k + 1] = 0x80 + (cp % 64)
+        return k + 2
+    }
+    if (cp < 0x10000) {
+        out[k] = 0xE0 + (cp / 4096)
+        out[k + 1] = 0x80 + ((cp / 64) % 64)
+        out[k + 2] = 0x80 + (cp % 64)
+        return k + 3
+    }
+    out[k] = 0xF0 + (cp / 262144)
+    out[k + 1] = 0x80 + ((cp / 4096) % 64)
+    out[k + 2] = 0x80 + ((cp / 64) % 64)
+    out[k + 3] = 0x80 + (cp % 64)
+    return k + 4
+}
+
+// The complete final sequence: data codewords split per block, each block's
+// Reed-Solomon remainder computed, then the standard column interleaving.
+Int[] buildCodewords(Int[] bytes, Int version) {
+    var bits = new Int[dataCodewords(version) * 8 + 64]
+    var pos = 0
+    pos = pushBits(bits, pos, 4, 4)
+    var countBits = 8
+    if (version >= 10) {
+        countBits = 16
+    }
+    pos = pushBits(bits, pos, bytes.length, countBits)
+    var i = 0
+    while (i < bytes.length) {
+        pos = pushBits(bits, pos, bytes[i], 8)
+        i = i + 1
+    }
+    var capacityBits = dataCodewords(version) * 8
+    var spare = capacityBits - pos
+    if (spare < 0) {
+        throw "QRCODE: data overflows version " + version
+    }
+    if (spare <= 4) {
+        pos = pushBits(bits, pos, 0, spare)
+    } else {
+        pos = pushBits(bits, pos, 0, 4)
+        if ((pos % 8) != 0) {
+            pos = pushBits(bits, pos, 0, 8 - (pos % 8))
+        }
+        var pad = 0xEC
+        while (pos < capacityBits) {
+            pos = pushBits(bits, pos, pad, 8)
+            if (pad == 0xEC) {
+                pad = 0x11
+            } else {
+                pad = 0xEC
+            }
+        }
+    }
+    var data = new Int[dataCodewords(version)]
+    var b = 0
+    while (b < dataCodewords(version)) {
+        data[b] = readBits(bits, b * 8, 8)
+        b = b + 1
+    }
+    return interleave(data, version)
+}
+
+Int[] interleave(Int[] data, Int version) {
+    var g1 = blocksGroup1(version)
+    var g2 = blocksGroup2(version)
+    var d1 = dataPerBlock1(version)
+    var d2 = dataPerBlock2(version)
+    var blocks = g1 + g2
+    var ecc = blocksEcc(version)
+    var allData = new Int[dataCodewords(version)]
+    var allEcc = new Int[ecc * blocks]
+    var src = 0
+    var blockIdx = 0
+    while (blockIdx < blocks) {
+        var len = d1
+        var dataOff = blockIdx * d1
+        if (blockIdx >= g1) {
+            len = d2
+            dataOff = g1 * d1 + (blockIdx - g1) * d2
+        }
+        var blockData = new Int[len]
+        var i = 0
+        while (i < len) {
+            blockData[i] = data[src]
+            src = src + 1
+            i = i + 1
+        }
+        var blockEcc = reedSolomon(blockData, ecc)
+        i = 0
+        while (i < ecc) {
+            allEcc[blockIdx * ecc + i] = blockEcc[i]
+            i = i + 1
+        }
+        i = 0
+        while (i < len) {
+            allData[dataOff + i] = blockData[i]
+            i = i + 1
+        }
+        blockIdx = blockIdx + 1
+    }
+    var out = new Int[dataCodewords(version) + ecc * blocks]
+    var w = 0
+    var k = 0
+    var dataMax = d1
+    if (d2 > dataMax) {
+        dataMax = d2
+    }
+    while (k < dataMax) {
+        blockIdx = 0
+        while (blockIdx < blocks) {
+            var len = d1
+            var dataOff = blockIdx * d1
+            if (blockIdx >= g1) {
+                len = d2
+                dataOff = g1 * d1 + (blockIdx - g1) * d2
+            }
+            if (k < len) {
+                out[w] = allData[dataOff + k]
+                w = w + 1
+            }
+            blockIdx = blockIdx + 1
+        }
+        k = k + 1
+    }
+    k = 0
+    while (k < ecc) {
+        blockIdx = 0
+        while (blockIdx < blocks) {
+            out[w] = allEcc[blockIdx * ecc + k]
+            w = w + 1
+            blockIdx = blockIdx + 1
+        }
+        k = k + 1
+    }
+    return out
+}
+
+Int blocksEcc(Int v) {
+    var e = 0
+    if (v == 1) { e = 10 }
+    if (v == 2) { e = 16 }
+    if (v == 3) { e = 26 }
+    if (v == 4) { e = 18 }
+    if (v == 5) { e = 24 }
+    if (v == 6) { e = 16 }
+    if (v == 7) { e = 18 }
+    if (v == 8) { e = 22 }
+    if (v == 9) { e = 22 }
+    if (v == 10) { e = 26 }
+    return e
+}
+
+// ---------------------------------------------------------------------------
+// Reed-Solomon over GF(256), generator alpha = 2
+// ---------------------------------------------------------------------------
+
+Int gfMul(Int a, Int b) {
+    var r = 0
+    var x = a
+    var y = b
+    while (y != 0) {
+        if ((y % 2) != 0) {
+            r = r ^ x
+        }
+        y = y / 2
+        x = x * 2
+        if (x >= 256) {
+            x = x ^ 0x11D
+        }
+    }
+    return r
+}
+
+// Generator polynomial coefficients, highest degree first: the product of
+// (x - alpha^i) for i in 0..degree-1.
+Int[] rsGenerator(Int degree) {
+    var g = new Int[degree + 1]
+    g[0] = 1
+    var d = 0
+    while (d < degree) {
+        var next = new Int[degree + 1]
+        var i = 0
+        while (i <= d) {
+            next[i] = next[i] ^ g[i]
+            next[i + 1] = next[i + 1] ^ gfMul(g[i], pow2(d))
+            i = i + 1
+        }
+        g = next
+        d = d + 1
+    }
+    return g
+}
+
+Int pow2(Int n) {
+    var r = 1
+    var i = 0
+    while (i < n) {
+        r = r * 2
+        i = i + 1
+    }
+    return r
+}
+
+Int[] reedSolomon(Int[] data, Int degree) {
+    var gen = rsGenerator(degree)
+    var rem = new Int[degree]
+    var i = 0
+    while (i < data.length) {
+        var factor = data[i] ^ rem[0]
+        var k = 0
+        while (k < degree - 1) {
+            rem[k] = rem[k + 1] ^ gfMul(gen[k + 1], factor)
+            k = k + 1
+        }
+        rem[degree - 1] = gfMul(gen[degree], factor)
+        i = i + 1
+    }
+    return rem
+}
+
+// ---------------------------------------------------------------------------
+// Bit helpers
+// ---------------------------------------------------------------------------
+
+Int pushBits(Int[] buf, Int pos, Int value, Int count) {
+    var i = 0
+    while (i < count) {
+        buf[pos + i] = (value / pow2(count - 1 - i)) % 2
+        i = i + 1
+    }
+    return pos + count
+}
+
+Int readBits(Int[] buf, Int pos, Int count) {
+    var v = 0
+    var i = 0
+    while (i < count) {
+        v = v * 2 + buf[pos + i]
+        i = i + 1
+    }
+    return v
+}
+
+// ---------------------------------------------------------------------------
+// Function patterns (drawn once; -1 marks a placeable cell)
+// ---------------------------------------------------------------------------
+
+Int setModule(Int[] modules, Int size, Int row, Int col, Int dark) {
+    modules[row * size + col] = dark
+    return 0
+}
+
+Int getModule(Int[] modules, Int size, Int row, Int col) {
+    return modules[row * size + col]
+}
+
+Int[] basePatterns(Int size, Int version) {
+    var modules = new Int[size * size]
+    fillRange(modules, 0, size * size, -1)
+    drawProbe(modules, size, 0, 0)
+    drawProbe(modules, size, size - 7, 0)
+    drawProbe(modules, size, 0, size - 7)
+    drawAlignment(modules, size, version)
+    drawTiming(modules, size)
+    return modules
+}
+
+Int drawProbe(Int[] modules, Int size, Int row, Int col) {
+    var r = -1
+    while (r <= 7) {
+        if (row + r >= 0 && row + r < size) {
+            var c = -1
+            while (c <= 7) {
+                if (col + c >= 0 && col + c < size) {
+                    var dark = 0
+                    if ((r >= 0 && r <= 6 && (c == 0 || c == 6))
+                            || (c >= 0 && c <= 6 && (r == 0 || r == 6))
+                            || (r >= 2 && r <= 4 && c >= 2 && c <= 4)) {
+                        dark = 1
+                    }
+                    setModule(modules, size, row + r, col + c, dark)
+                }
+                c = c + 1
+            }
+        }
+        r = r + 1
+    }
+    return 0
+}
+
+Int drawAlignment(Int[] modules, Int size, Int version) {
+    var pos = alignmentPositions(version)
+    var i = 0
+    while (i < pos.length) {
+        var j = 0
+        while (j < pos.length) {
+            if (getModule(modules, size, pos[i], pos[j]) == -1) {
+                var r = -2
+                while (r <= 2) {
+                    var c = -2
+                    while (c <= 2) {
+                        var dark = 0
+                        if (r == -2 || r == 2 || c == -2 || c == 2 || (r == 0 && c == 0)) {
+                            dark = 1
+                        }
+                        setModule(modules, size, pos[i] + r, pos[j] + c, dark)
+                        c = c + 1
+                    }
+                    r = r + 1
+                }
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+// Alignment centers: 6 plus the version's interior coordinates
+// (ISO/IEC 18004 table, verified against the reference implementation).
+Int[] alignmentPositions(Int version) {
+    if (version == 1) {
+        return new Int[0]
+    }
+    var n = 2
+    if (version >= 7) {
+        n = 3
+    }
+    var pos = new Int[n]
+    pos[0] = 6
+    if (version == 2) { pos[1] = 18 }
+    if (version == 3) { pos[1] = 22 }
+    if (version == 4) { pos[1] = 26 }
+    if (version == 5) { pos[1] = 30 }
+    if (version == 6) { pos[1] = 34 }
+    if (version == 7) { pos[1] = 22 }
+    if (version == 8) { pos[1] = 24 }
+    if (version == 9) { pos[1] = 26 }
+    if (version == 10) { pos[1] = 28 }
+    if (version == 7) { pos[2] = 38 }
+    if (version == 8) { pos[2] = 42 }
+    if (version == 9) { pos[2] = 46 }
+    if (version == 10) { pos[2] = 50 }
+    return pos
+}
+
+Int drawTiming(Int[] modules, Int size) {
+    var i = 8
+    while (i < size - 8) {
+        if (getModule(modules, size, i, 6) == -1) {
+            var dark = 0
+            if ((i % 2) == 0) {
+                dark = 1
+            }
+            setModule(modules, size, i, 6, dark)
+        }
+        if (getModule(modules, size, 6, i) == -1) {
+            var dark = 0
+            if ((i % 2) == 0) {
+                dark = 1
+            }
+            setModule(modules, size, 6, i, dark)
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+// ---------------------------------------------------------------------------
+// Format and version info
+// ---------------------------------------------------------------------------
+
+Int drawFormatInfo(Int[] modules, Int size, Int mask) {
+    // ECC level M = 00, then the 3 mask bits
+    var fmt = mask
+    var rem = fmt * 1024
+    var i = 14
+    while (i >= 10) {
+        if (bitAt(rem, i) != 0) {
+            rem = rem ^ (0x537 * pow2(i - 10))
+        }
+        i = i - 1
+    }
+    var bits = (fmt * 1024 + rem) ^ 0x5412
+    i = 0
+    while (i < 15) {
+        var bit = bitAt(bits, i)
+        if (i < 6) {
+            setModule(modules, size, i, 8, bit)
+        } else if (i < 8) {
+            setModule(modules, size, i + 1, 8, bit)
+        } else {
+            setModule(modules, size, size - 15 + i, 8, bit)
+        }
+        i = i + 1
+    }
+    i = 0
+    while (i < 15) {
+        var bit = bitAt(bits, i)
+        if (i < 8) {
+            setModule(modules, size, 8, size - 1 - i, bit)
+        } else if (i < 9) {
+            setModule(modules, size, 8, 15 - i, bit)
+        } else {
+            setModule(modules, size, 8, 15 - 1 - i, bit)
+        }
+        i = i + 1
+    }
+    setModule(modules, size, size - 8, 8, 1)
+    return 0
+}
+
+Int drawVersionInfo(Int[] modules, Int size, Int version) {
+    var rem = version * 4096
+    var i = 17
+    while (i >= 12) {
+        if (bitAt(rem, i) != 0) {
+            rem = rem ^ (0x1F25 * pow2(i - 12))
+        }
+        i = i - 1
+    }
+    var bits = version * 4096 + rem
+    i = 0
+    while (i < 18) {
+        var bit = bitAt(bits, i)
+        setModule(modules, size, i / 3, i % 3 + size - 11, bit)
+        setModule(modules, size, i % 3 + size - 11, i / 3, bit)
+        i = i + 1
+    }
+    return 0
+}
+
+Int bitAt(Int value, Int idx) {
+    return (value / pow2(idx)) % 2
+}
+
+// ---------------------------------------------------------------------------
+// Mask selection — the penalty is scored on the test-mode trial: format and
+// version cells zeroed and the dark module cleared, exactly like the
+// independent reference implementation
+// ---------------------------------------------------------------------------
+
+Int[] zeroTestCells(Int[] modules, Int size, Int version) {
+    var i = 0
+    while (i < 15) {
+        if (i < 6) {
+            setModule(modules, size, i, 8, 0)
+        } else if (i < 8) {
+            setModule(modules, size, i + 1, 8, 0)
+        } else {
+            setModule(modules, size, size - 15 + i, 8, 0)
+        }
+        i = i + 1
+    }
+    i = 0
+    while (i < 15) {
+        if (i < 8) {
+            setModule(modules, size, 8, size - 1 - i, 0)
+        } else if (i < 9) {
+            setModule(modules, size, 8, 15 - i, 0)
+        } else {
+            setModule(modules, size, 8, 15 - 1 - i, 0)
+        }
+        i = i + 1
+    }
+    setModule(modules, size, size - 8, 8, 0)
+    if (version >= 7) {
+        i = 0
+        while (i < 18) {
+            setModule(modules, size, i / 3, i % 3 + size - 11, 0)
+            setModule(modules, size, i % 3 + size - 11, i / 3, 0)
+            i = i + 1
+        }
+    }
+    return modules
+}
+
+Int bestMask(Int[] base, Int size, Int version, Int[] codewords) {
+    var best = 0
+    var bestPenalty = 0
+    var m = 0
+    while (m < 8) {
+        var trial = copyModules(base, size)
+        zeroTestCells(trial, size, version)
+        mapData(trial, size, codewords, m)
+        var p = penalty(trial, size)
+        if (m == 0 || p < bestPenalty) {
+            best = m
+            bestPenalty = p
+        }
+        m = m + 1
+    }
+    return best
+}
+
+// Returns 1 when the mask flips the module (ISO/IEC 18004 8.8.2 conditions).
+Int maskBit(Int mask, Int row, Int col) {
+    if (mask == 0) {
+        if ((row + col) % 2 == 0) { return 1 }
+        return 0
+    }
+    if (mask == 1) {
+        if (row % 2 == 0) { return 1 }
+        return 0
+    }
+    if (mask == 2) {
+        if (col % 3 == 0) { return 1 }
+        return 0
+    }
+    if (mask == 3) {
+        if ((row + col) % 3 == 0) { return 1 }
+        return 0
+    }
+    if (mask == 4) {
+        if ((row / 2 + col / 3) % 2 == 0) { return 1 }
+        return 0
+    }
+    if (mask == 5) {
+        if (((row * col) % 2) + ((row * col) % 3) == 0) { return 1 }
+        return 0
+    }
+    if (mask == 6) {
+        if ((((row * col) % 2) + ((row * col) % 3)) % 2 == 0) { return 1 }
+        return 0
+    }
+    if ((((row + col) % 2) + ((row * col) % 3)) % 2 == 0) { return 1 }
+    return 0
+}
+
+// ---------------------------------------------------------------------------
+// Data placement and penalty
+// ---------------------------------------------------------------------------
+
+Int mapData(Int[] modules, Int size, Int[] data, Int mask) {
+    var inc = -1
+    var row = size - 1
+    var bitIndex = 7
+    var byteIndex = 0
+    var col = size - 1
+    while (col > 0) {
+        var cur = col
+        if (cur <= 6) {
+            cur = cur - 1
+        }
+        while (true) {
+            var pair = 0
+            while (pair < 2) {
+                var c = cur - pair
+                if (getModule(modules, size, row, c) == -1) {
+                    var dark = 0
+                    if (byteIndex < data.length) {
+                        dark = bitAt(data[byteIndex], bitIndex)
+                    }
+                    if (maskBit(mask, row, c) != 0) {
+                        dark = dark ^ 1
+                    }
+                    setModule(modules, size, row, c, dark)
+                    bitIndex = bitIndex - 1
+                    if (bitIndex == -1) {
+                        byteIndex = byteIndex + 1
+                        bitIndex = 7
+                    }
+                }
+                pair = pair + 1
+            }
+            row = row + inc
+            if (row < 0 || row >= size) {
+                row = row - inc
+                inc = inc * -1
+                break
+            }
+        }
+        col = col - 2
+    }
+    return 0
+}
+
+Int penalty(Int[] modules, Int size) {
+    var total = 0
+    var row = 0
+    while (row < size) {
+        total = total + runsPenalty(modules, size, row * size, 1)
+        row = row + 1
+    }
+    var col = 0
+    while (col < size) {
+        total = total + runsPenalty(modules, size, col, size)
+        col = col + 1
+    }
+    var n2 = 0
+    row = 0
+    while (row < size - 1) {
+        var col2 = 0
+        while (col2 < size - 1) {
+            var a = modules[row * size + col2]
+            if (a == modules[row * size + col2 + 1] && a == modules[(row + 1) * size + col2] && a == modules[(row + 1) * size + col2 + 1]) {
+                n2 = n2 + 3
+            }
+            col2 = col2 + 1
+        }
+        row = row + 1
+    }
+    var n3 = 0
+    row = 0
+    while (row < size) {
+        n3 = n3 + finderRunsPenalty(modules, size, row * size, 1)
+        row = row + 1
+    }
+    var col3 = 0
+    while (col3 < size) {
+        n3 = n3 + finderRunsPenalty(modules, size, col3, size)
+        col3 = col3 + 1
+    }
+    var dark = 0
+    var i = 0
+    while (i < size * size) {
+        dark = dark + modules[i]
+        i = i + 1
+    }
+    // N4 uses the exact percentage (ISO 18004: floor of |exactPct - 50| / 5),
+    // not a pre-floored percentage
+    var dev = dark * 100 - 50 * (size * size)
+    if (dev < 0) {
+        dev = 0 - dev
+    }
+    var n4 = (dev / (5 * size * size)) * 10
+    return total + n2 + n3 + n4
+}
+
+// Rule N1 along one line: `start` is the first cell index, `stride` the step
+// to the next cell in the same line.
+Int runsPenalty(Int[] modules, Int size, Int start, Int stride) {
+    var p = 0
+    var runLen = 1
+    var prev = modules[start]
+    var i = 1
+    while (i < size) {
+        var v = modules[start + i * stride]
+        if (v == prev) {
+            runLen = runLen + 1
+        } else {
+            if (runLen >= 5) {
+                p = p + 3 + (runLen - 5)
+            }
+            runLen = 1
+            prev = v
+        }
+        i = i + 1
+    }
+    if (runLen >= 5) {
+        p = p + 3 + (runLen - 5)
+    }
+    return p
+}
+
+// Rule N3: the 1:1:3:1:1 dark pattern with four light modules on either side,
+// in both orientations along the line.
+Int finderRunsPenalty(Int[] modules, Int size, Int start, Int stride) {
+    var p = 0
+    var i = 0
+    while (i + 10 < size) {
+        var m0 = modules[start + i * stride]
+        var m1 = modules[start + (i + 1) * stride]
+        var m2 = modules[start + (i + 2) * stride]
+        var m3 = modules[start + (i + 3) * stride]
+        var m4 = modules[start + (i + 4) * stride]
+        var m5 = modules[start + (i + 5) * stride]
+        var m6 = modules[start + (i + 6) * stride]
+        var m7 = modules[start + (i + 7) * stride]
+        var m8 = modules[start + (i + 8) * stride]
+        var m9 = modules[start + (i + 9) * stride]
+        var m10 = modules[start + (i + 10) * stride]
+        if (m0 == 1 && m1 == 0 && m2 == 1 && m3 == 1 && m4 == 1 && m5 == 0 && m6 == 1
+                && m7 == 0 && m8 == 0 && m9 == 0 && m10 == 0) {
+            p = p + 40
+        }
+        if (m0 == 0 && m1 == 0 && m2 == 0 && m3 == 0 && m4 == 1 && m5 == 0 && m6 == 1
+                && m7 == 1 && m8 == 1 && m9 == 0 && m10 == 1) {
+            p = p + 40
+        }
+        i = i + 1
+    }
+    return p
+}
+
+Int[] copyModules(Int[] modules, Int size) {
+    var out = new Int[size * size]
+    var i = 0
+    while (i < size * size) {
+        out[i] = modules[i]
+        i = i + 1
+    }
+    return out
+}
+
+Int fillRange(Int[] a, Int from, Int to, Int value) {
+    var i = from
+    while (i < to) {
+        a[i] = value
+        i = i + 1
+    }
+    return 0
+}

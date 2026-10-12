@@ -195,9 +195,29 @@ public final class BuiltinCallTyper {
             return BuiltinTypes.STRING;
         }
         if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
-                && KofWeb.contextCall(mc.methodName(), mc.arguments().size()) != null) {
-            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-            return KofWeb.contextCall(mc.methodName(), mc.arguments().size()).returnType();
+                && !isCallableLocal(scope, mc.methodName())) {
+            // um local CHAMÁVEL com o mesmo nome (ex.: o parâmetro-lambda `body`
+            // do helper `withDb` de kof.test.db) VENCE o nome de contexto — a
+            // chamada é um lambda comum, não a função web (regressão 0.6.2).
+            // Um local NÃO-chamável (ex.: o parâmetro sintético `sse` do handler)
+            // NÃO vence: o `sse("...")` nu continua sendo a função de contexto.
+        
+            List<Type> webArgTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) webArgTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), webArgTypes);
+            if (webCtx != null) return webCtx.returnType();
+            // §665 Boundary item 1 (ledger §668): nome de contexto conhecido
+            // sem aridade casando NÃO pode cair em silêncio — o
+            // isTopLevelCandidate exclui esses nomes da resolução top-level
+            // (e do SEM015), então sem este diagnóstico a chamada some em
+            // todos os caminhos (status(401) cru compilava limpo).
+            if (sa.diagnostics() != null) {
+                sa.diagnostics().error(mc,
+                        "Cannot resolve function '" + mc.methodName()
+                                + "' on the web request context (arity mismatch)",
+                        "SEM025");
+            }
+            return Type.UnknownType.UNKNOWN;
         }
         if ((mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName()))
                 || (mc.receiver() instanceof IdentifierExpr rid2 && KofScheduler.isSchedulerNamespace(rid2.name())
@@ -310,6 +330,13 @@ public final class BuiltinCallTyper {
             return true;
         }
         return scope.resolve(name) != null;
+    }
+
+
+    /** local/parâmetro CHAMÁVEL (lambda) — vence o nome de contexto web (regressão 0.6.2). */
+    private static boolean isCallableLocal(SymbolTable scope, String name) {
+        SymbolTable.Symbol sym = scope != null ? scope.resolve(name) : null;
+        return sym != null && sym.type() instanceof Type.FunctionType;
     }
 
     static Type inferTail(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {

@@ -1,0 +1,172 @@
+package qrcode
+
+// kofqrcode — PNG encoding for the QR writer (pure Kof).
+//
+// A grayscale 8-bit PNG: the module matrix rendered with the spec's
+// 4-module quiet zone. The IDAT stream is a valid zlib flow made of STORED
+// (uncompressed) deflate blocks — byte-exact, no compressor needed — with
+// the zlib header, the Adler-32 checksum and the per-chunk CRC-32 all
+// computed here. The file is written through `File.writeBytes`, so JS
+// inherits that surface's IOJS001 gap.
+//
+// The CRC-32 runs on the signed 32-bit representation: the reflected
+// polynomial 0xEDB88320 is spelled as its signed value (-306674912, bitwise
+// identical), shifts stay arithmetic with the sign bit masked off, and every
+// byte is extracted with shift+mask so negative intermediates never reach a
+// division or modulo.
+
+Int writePngMatrix(Int size, Int[] modules, String path) {
+    var total = size + 8
+    var raw = new Int[(total + 1) * total]
+    var y = 0
+    while (y < total) {
+        var off = y * (total + 1)
+        raw[off] = 0
+        var x = 0
+        while (x < total) {
+            var dark = 0
+            if (y >= 4 && y < total - 4 && x >= 4 && x < total - 4) {
+                dark = modules[(y - 4) * size + (x - 4)]
+            }
+            if (dark == 1) {
+                raw[off + 1 + x] = 0
+            } else {
+                raw[off + 1 + x] = 255
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+    var idatLen = 2 + 5 + raw.length + 4
+    var pngLen = 8 + 25 + (12 + idatLen) + 12
+    var png = new Int[pngLen]
+    var p = 0
+    // signature
+    png[0] = 137
+    png[1] = 80
+    png[2] = 78
+    png[3] = 71
+    png[4] = 13
+    png[5] = 10
+    png[6] = 26
+    png[7] = 10
+    p = 8
+    // IHDR
+    p = writeChunkHeader(png, p, 13)
+    p = writeType(png, p, 73, 72, 68, 82)
+    p = writeUint32(png, p, total)
+    p = writeUint32(png, p, total)
+    png[p] = 8
+    png[p + 1] = 0
+    png[p + 2] = 0
+    png[p + 3] = 0
+    png[p + 4] = 0
+    p = p + 5
+    p = writeCrcTail(png, p, 12, 17)
+    // IDAT: zlib header + stored blocks + adler32
+    p = writeChunkHeader(png, p, idatLen)
+    p = writeType(png, p, 73, 68, 65, 84)
+    var crcStart = p
+    png[p] = 120
+    png[p + 1] = 1
+    p = p + 2
+    var pos = 0
+    while (pos < raw.length) {
+        var n = raw.length - pos
+        var last = 1
+        if (n > 65535) {
+            n = 65535
+            last = 0
+        }
+        png[p] = last
+        png[p + 1] = n % 256
+        png[p + 2] = n / 256
+        png[p + 3] = (65535 - n) % 256
+        png[p + 4] = (65535 - n) / 256
+        p = p + 5
+        var i = 0
+        while (i < n) {
+            png[p + i] = raw[pos + i]
+            i = i + 1
+        }
+        p = p + n
+        pos = pos + n
+    }
+    p = writeAdler(png, p, raw, raw.length)
+    p = writeCrcTail(png, p, crcStart - 4, idatLen + 4)
+    // IEND
+    p = writeChunkHeader(png, p, 0)
+    p = writeType(png, p, 73, 69, 78, 68)
+    p = writeCrcTail(png, p, p - 4, 4)
+    File(path).writeBytes(png)
+    return total
+}
+
+Int writeChunkHeader(Int[] png, Int p, Int dataLen) {
+    png[p] = dataLen / 16777216 % 256
+    png[p + 1] = dataLen / 65536 % 256
+    png[p + 2] = dataLen / 256 % 256
+    png[p + 3] = dataLen % 256
+    return p + 4
+}
+
+Int writeType(Int[] png, Int p, Int a, Int b, Int c, Int d) {
+    png[p] = a
+    png[p + 1] = b
+    png[p + 2] = c
+    png[p + 3] = d
+    return p + 4
+}
+
+Int writeUint32(Int[] png, Int p, Int value) {
+    png[p] = value / 16777216 % 256
+    png[p + 1] = value / 65536 % 256
+    png[p + 2] = value / 256 % 256
+    png[p + 3] = value % 256
+    return p + 4
+}
+
+// CRC-32 (reflected, polynomial 0xEDB88320) over png[start..start+len-1],
+// written at png[p..p+3] big-endian.
+Int writeCrcTail(Int[] png, Int p, Int start, Int len) {
+    var crc = -1
+    var poly = -306674912
+    var i = 0
+    while (i < len) {
+        crc = crc ^ png[start + i]
+        var k = 0
+        while (k < 8) {
+            if ((crc & 1) == 1) {
+                crc = ((crc >> 1) & 2147483647) ^ poly
+            } else {
+                crc = (crc >> 1) & 2147483647
+            }
+            k = k + 1
+        }
+        i = i + 1
+    }
+    crc = crc ^ -1
+    png[p] = (crc >> 24) & 255
+    png[p + 1] = (crc >> 16) & 255
+    png[p + 2] = (crc >> 8) & 255
+    png[p + 3] = crc & 255
+    return p + 4
+}
+
+// Adler-32 of data[0..len-1], written at png[p..p+3] big-endian. The two
+// 16-bit halves are emitted separately so no intermediate exceeds Int.
+Int writeAdler(Int[] png, Int p, Int[] data, Int len) {
+    var a = 1
+    var b = 0
+    var i = 0
+    while (i < len) {
+        a = (a + data[i]) % 65521
+        b = (b + a) % 65521
+        i = i + 1
+    }
+    png[p] = b / 256
+    png[p + 1] = b % 256
+    png[p + 2] = a / 256
+    png[p + 3] = a % 256
+    return p + 4
+}

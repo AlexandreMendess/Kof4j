@@ -3,7 +3,7 @@
 # Standard Library — Proposta
 
 **Última atualização:** 16 de setembro de 2026
-> **Atualizado (0.6.0):** a stdlib está amplamente implementada nos 3
+> **Atualizado (0.6.1):** a stdlib está amplamente implementada nos 3
 > targets (JVM/Native/JS) — `kof.core`, `kof.collections`, `kof.io`,
 > `kof.time`, `kof.json` (FP + arrays completos no Native, 31/08),
 > `kof.http` (client + resiliência JVM+JS), `kof.web` (`web.app()` +

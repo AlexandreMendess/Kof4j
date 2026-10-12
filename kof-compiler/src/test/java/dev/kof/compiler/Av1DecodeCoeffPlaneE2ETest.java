@@ -61,10 +61,11 @@ class Av1DecodeCoeffPlaneE2ETest implements LibraryInstallSupport {
      * buffer every later block predicts from. The per-process split the other
      * sibling slices use does not work around it here (the corruption is
      * intra-plane). The driver is nonetheless proven exact on riscv64/aarch64
-     * by the GC-disabled differential slice 3ac recorded; here the faces SKIP
-     * with the reason named rather than pass falsely.
+     * by the GC-disabled differential slice 3ac recorded. FIXED 11/10 (§602
+     * closed — the x86 §541 free-list-reuse zeroing the cross runtime never
+     * received, see the ledger): the gate is lifted and the cross faces run.
      */
-    private static final boolean BLOCKED_BY_602 = true;
+    private static final boolean BLOCKED_BY_602 = false;
 
     private static final String CROSS_BLOCKED_REASON =
             "known-bugs §602 (conservative-GC reclaim of the live plane buffer across the "

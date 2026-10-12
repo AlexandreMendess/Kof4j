@@ -101,8 +101,13 @@ class Av1TxSize {
     Int[] txfmLeft
     List<Int[]> txDepthStore
 
-    constructor(Int[] data, Int miCols, Int miRows) {
-        this.sym = Av1Symbol(data)
+    // The symbol decoder is the CALLER's: the tile walk (slice 3af) reads the
+    // mode info, the transform size and the transform type from ONE entropy
+    // stream, so the caller owns the decoder and hands it in already positioned
+    // at the block. A standalone caller wraps its bytes:
+    // `Av1TxSize(Av1Symbol(data), w, h)`.
+    constructor(Av1Symbol sym, Int miCols, Int miRows) {
+        this.sym = sym
         this.miCols = miCols
         this.miRows = miRows
         this.txfmAbove = new Int[miCols]

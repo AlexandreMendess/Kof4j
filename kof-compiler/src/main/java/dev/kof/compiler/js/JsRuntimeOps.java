@@ -106,7 +106,12 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonEncodeMap"),
                         List.of(value, args.get(1))));
             } else if (name.contains("encode")) {
-                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("JSON.stringify"), List.of(value)));
+                // §659b: kofJsonEncode (não JSON.stringify direto) — um Long do
+                // Kof é BigInt no JS e o JSON.stringify o recusa; kofJsonEncode
+                // serializa BigInt como o inteiro decimal (paridade JVM/nativo)
+                // e mantém o caminho sem-Long byte-idêntico.
+                p.lc.registerRuntime("kofJsonEncode");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonEncode"), List.of(value)));
             } else if (name.startsWith("kof_json_decode_")
                     && BuiltinTypes.isList(kc.ownerType())) {
                 // decode<List<T>> — bind each element to the Kof class

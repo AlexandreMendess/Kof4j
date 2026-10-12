@@ -83,6 +83,7 @@ final class Av1TxSizeSupport {
     }
 
     private static final String PROBE = """
+import image.Av1Symbol
 import image.Av1TxSize
 
 main() {
@@ -103,7 +104,7 @@ void runTx(Int w, Int h, Int seed, Int txMode, Int lossless, Int isInter, Int su
         k = k + 1
     }
     println("C " + w + " " + h + " " + txMode + " " + lossless + " " + isInter + " " + subdiv)
-    var m = Av1TxSize(data, w, h)
+    var m = Av1TxSize(Av1Symbol(data), w, h)
     var step = 16
     var bs = 12
     if (subdiv == 1) {

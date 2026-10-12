@@ -63,6 +63,7 @@ final class Av1ModeInfoSupport {
 
     private static final String PROBE = """
 import image.Av1ModeInfo
+import image.Av1Symbol
 
 main() {
     runPrefix(6, 5, 0, 0, 7, listOf(209,42,65,47,29,89,188,173,97,70,80,51,245,215,242,96))
@@ -79,7 +80,7 @@ void runPrefix(Int w, Int h, Int pre, Int act, Int last, List<Int> bytes) {
         data[k] = bytes.get(k)
         k = k + 1
     }
-    var m = Av1ModeInfo(data, w, h)
+    var m = Av1ModeInfo(Av1Symbol(data), w, h)
     var r = 0
     while (r < h) {
         var c = 0

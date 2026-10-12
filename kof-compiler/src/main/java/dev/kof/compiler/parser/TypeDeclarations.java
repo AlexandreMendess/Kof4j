@@ -34,6 +34,16 @@ final class TypeDeclarations {
 
     static AstNode parseTypeDeclaration(ParseContext ctx, List<AnnotationNode> annos) {
         List<String> mods = parseModifiers(ctx);
+        // entity-history fatia 2a (D-ENTITY-HISTORY Q1, ledger §671-promo):
+        // `audited` só é modificador de DECLARAÇÃO DE ENTITY (`auditado` no
+        // perfil portukof). Antes de qualquer outro tipo de declaração o
+        // token NÃO é consumido — o erro honesto de declaração permanece.
+        if (ctx.check(TokenType.AUDITED)
+                && ctx.peekOffset(1).type() == TokenType.ENTITY) {
+            ctx.advance();
+            mods = new ArrayList<>(mods);
+            mods.add("audited");
+        }
         if (ctx.check(TokenType.CLASS)) return parseClassDeclaration(ctx, mods, annos);
         if (ctx.check(TokenType.INTERFACE)) return parseInterfaceDeclaration(ctx, mods, annos);
         if (ctx.check(TokenType.RECORD)) return parseRecordDeclaration(ctx, mods, annos);

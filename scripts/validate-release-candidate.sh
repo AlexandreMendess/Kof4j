@@ -38,6 +38,15 @@ cd "$REPO_ROOT"
 [ -f VERSION ] || { echo "::error::VERSION file missing" >&2; exit 2; }
 
 VERSION="$(cat VERSION)"
+
+# (ordem da mantenedora 11/10, #814): a tag tem que corresponder à versão que o
+# COMPILADOR em si informa — recusa o candidato se as fontes da versão
+# (pom <revision> / version.properties) dessincronizaram da VERSION.
+if ! bash "$REPO_ROOT/scripts/check_version_consistency.sh" >/dev/null 2>&1; then
+    echo "::error::version sources out of sync with VERSION ($VERSION) — run scripts/bump-version.sh and re-commit" >&2
+    bash "$REPO_ROOT/scripts/check_version_consistency.sh" >&2 || true
+    exit 1
+fi
 SHA="$(git rev-parse HEAD)"
 
 case "$VERSION" in

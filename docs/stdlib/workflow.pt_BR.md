@@ -3,7 +3,7 @@
 # Workflows — `kof.workflow`
 
 **Data:** 19 de setembro de 2026
-**Status:** MVP implementado (plano universal Estágio 2, linha 2.1, fatia 2.1.2) — `VERSION` 0.6.0
+**Status:** MVP implementado (plano universal Estágio 2, linha 2.1, fatia 2.1.2) — `VERSION` 0.6.1
 
 > **Escopo do MVP (Q2, enquete da mantenedora 19/09):** `job` / `dag` / `after` /
 > `run` / `Report`. **Face 1 do 2.1.3 ENTREGUE 19/09:** `retry` (Q3 — helper aditivo
@@ -184,7 +184,7 @@ vazia.
 
 ## 6. Prova
 
-`WorkflowE2ETest` 20/20 (goldens exatos de stdout, paridade byte JVM==JS): ordem
+`WorkflowE2ETest` 24/24 (goldens exatos de stdout, paridade byte JVM==JS): ordem
 linear, cascata de falha, throw com motivo, mensagem de ciclo, conjunto de
 guardas, corpos reais via lista capturada, retry (recupera na 3ª + esgota com
 motivo + exponential), fire-count do schedule, restore do checkpoint entre runs,

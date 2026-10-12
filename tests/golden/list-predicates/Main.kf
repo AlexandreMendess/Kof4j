@@ -1,0 +1,16 @@
+main() {
+    var xs = listOf(3, 1, 2, 3)
+    println(xs.any((n: Int) -> n > 2))
+    println(xs.any((n: Int) -> n > 9))
+    println(xs.all((n: Int) -> n > 0))
+    println(xs.all((n: Int) -> n > 1))
+    println(xs.distinct().size)
+    println(xs.distinct().get(2))
+    println(xs.map((n: Int) -> n * 2).get(0))
+    println(xs.map((n: Int) -> n * 2).size)
+    println(xs.filter((n: Int) -> n > 1).size)
+    println(xs.filter((n: Int) -> n > 1).get(0))
+    var empty = listOf()
+    println(empty.any((n: Int) -> n > 0))
+    println(empty.all((n: Int) -> n > 0))
+}

@@ -249,6 +249,14 @@ public final class ExpressionTyper {
                 Type thenType = inferExprType(driver, ie.thenExpr(), locals);
                 Type elseType = ie.elseExpr() != null ? inferExprType(driver, ie.elseExpr(), locals) : Type.UnknownType.UNKNOWN;
                 if (thenType.equals(elseType)) yield thenType;
+                // JVM-03 (audit 0.6.0, §673): two lambda branches of the SAME
+                // signature must unify to the synthetic INTERFACE, not fall to
+                // commonSupertype -> Object. A Lambda0/Lambda1 pair (different
+                // concrete classNames) is NOT equal, so the join yielded Object
+                // and the call site emitted a phantom invokestatic returning
+                // Object -> VerifyError on load. className-less == the interface.
+                Type unifiedFn = unifyLambdaBranches(thenType, elseType);
+                if (unifiedFn != null) yield unifiedFn;
                 if (driver.semanticAnalyzer != null) {
                     // §284-map (18/09): ramo `null` literal obriga o join a
                     // ser NULLABLE do outro lado — o commonSupertype antigo
@@ -267,6 +275,11 @@ public final class ExpressionTyper {
                 if (!se.cases().isEmpty()) {
                     List<Type> bts = switchBranchTypes(driver, se.cases(), se.defaultValue(),
                             inferExprType(driver, se.cases().get(0).body(), locals), locals);
+                    // JVM-03 twin: all branches lambdas of the same signature ->
+                    // unify to the synthetic interface (never commonSupertype ->
+                    // Object, which emitted a phantom Object-returning invoke).
+                    Type unifiedFn = unifyAllLambdaBranches(bts);
+                    if (unifiedFn != null) yield unifiedFn;
                     if (branchTypesDiffer(bts)) {
                         yield new Type.ClassType("java.lang", "Object", List.of());
                     }
@@ -350,6 +363,40 @@ public final class ExpressionTyper {
     static boolean branchTypesDiffer(List<Type> ts) {
         for (Type t : ts) if (!isConcreteBranchType(t)) return false;
         return ts.stream().distinct().count() > 1;
+    }
+
+    /**
+     * JVM-03 (audit 0.6.0, §673): two lambda branches of the SAME signature
+     * (differing only in the concrete synthetic className) unify to the
+     * className-less interface, NOT commonSupertype -> Object. A Lambda0/
+     * Lambda1 pair is not equal, so the join yielded Object and the call site
+     * emitted a phantom {@code invokestatic} returning Object -> VerifyError.
+     * Gated OFF when the lambda's own return type is a FunctionType (the
+     * lambda-returns-lambda family needs the concrete class for its chained
+     * invoke, mirroring §672's gate). Returns null when the shape does not match.
+     */
+    static Type unifyLambdaBranches(Type a, Type b) {
+        if (a instanceof Type.FunctionType fa && b instanceof Type.FunctionType fb
+                && fa.className() != null && fb.className() != null
+                && !(fa.returnType() instanceof Type.FunctionType)
+                && fa.parameterTypes().equals(fb.parameterTypes())
+                && fa.returnType().equals(fb.returnType())) {
+            return new Type.FunctionType(fa.parameterTypes(), fa.returnType(), null);
+        }
+        return null;
+    }
+
+    /** Switch twin of {@link #unifyLambdaBranches}: every branch a same-signature lambda. */
+    static Type unifyAllLambdaBranches(List<Type> ts) {
+        if (ts.size() < 2) return null;
+        for (Type t : ts) if (!(t instanceof Type.FunctionType ft) || ft.className() == null) return null;
+        Type.FunctionType first = (Type.FunctionType) ts.get(0);
+        for (Type t : ts) {
+            Type.FunctionType ft = (Type.FunctionType) t;
+            if (!ft.parameterTypes().equals(first.parameterTypes())
+                    || !ft.returnType().equals(first.returnType())) return null;
+        }
+        return new Type.FunctionType(first.parameterTypes(), first.returnType(), null);
     }
 
     static boolean isConcreteBranchType(Type t) {

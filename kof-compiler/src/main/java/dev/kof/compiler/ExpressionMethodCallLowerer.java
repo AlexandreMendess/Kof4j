@@ -65,6 +65,17 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
     int handledExtern = ExpressionExternCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
     if (handledExtern >= 0) return handledExtern;
 }
+// entity-history fatia 2c-parte-2 (D-ENTITY-HISTORY): a consulta
+    // `Entity.history(db, id[, offset, limit])` é RESERVADA de entity —
+    // vem ANTES da resolução estática genérica de classes (o histórico não
+    // é método da classe; HIST002 fala em nome dela).
+    if (mc.receiver() instanceof IdentifierExpr ehRid
+            && driver.entityNamesMirror.contains(ehRid.name())
+            && ("history".equals(mc.methodName()) || "at".equals(mc.methodName())
+                    || "atTime".equals(mc.methodName()) || "changes".equals(mc.methodName()))) {
+        return ExpressionEntityHistoryLowerer.lower(driver, mc, ops, owner,
+                localIdx, locals, ehRid.name());
+    }
 if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && driver.semanticAnalyzer != null
         && driver.semanticAnalyzer.getClass(rid.name()) != null) {
@@ -384,4 +395,12 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
 }
 return localIdx;
     }
+
+    private static int lowerEntityHistory(CompilerDriver driver, MethodCallExpr mc,
+            List<KofOperation> ops, String owner, int localIdx,
+            List<IRLocalVariable> locals, String entityName) {
+        return ExpressionEntityHistoryLowerer.lower(driver, mc, ops, owner,
+                localIdx, locals, entityName);
+    }
+
 }

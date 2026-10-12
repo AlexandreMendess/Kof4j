@@ -1,13 +1,25 @@
 [English](entity-history-plan.md) | [Português](entity-history-plan.pt_BR.md)
 
-# Histórico de Entidades — auditoria temporal para `kof.orm` (especificação, plano apenas, zero código)
+# Histórico de Entidades — auditoria temporal para `kof.orm` (**EM DESENVOLVIMENTO** — promovido 11/10, `D-FUTURE-UNFREEZE`)
 
-**Status:** proposta, zero código — `docs/development/future/`
+state:
+last: PROMOVIDO 11/10 de `docs/development/future/` (D-FUTURE-UNFREEZE, mantenedora 11/10) — o plano com TODAS as decisões fechadas (D-ENTITY-HISTORY autorizada 28/09 + Q1–Q15 respondidas em D-FUTURE-BATCH-2809B)
+doing: Fase 2 fatia 2b POUSADA 11/10 — a GRAVAÇÃO: `orm.createHistory<User>(db)` (o passo explícito do §10) + `kof_orm_save_recorded`/`kof_orm_delete_recorded` (runtime JVM: revisão por-entity via COALESCE(MAX)+1, operação INSERT/UPDATE decidida dentro do save — generated key → INSERT —, DELETE gravado com o snapshot da pk; payload = snapshot completo dos campos em JSON; entities simples seguem os fns originais, overhead zero; `orm.createHistory` em entity simples = recusa HIST002; as faces de histórico são JVM/ANDROID — bridge JS/nativo/cross recebem ORM001 honesto em compile-time, Fase 5). `EntityHistoryRecordingE2ETest` 3/3 (revisões INSERT→UPDATE→DELETE lidas via SQL cru; entity simples não cria tabela de histórico; HIST002 em entity simples); bateria ORM 168/0F
+doing: fatia 2c-parte-1 POUSADA 11/10 — o PACOTE VIRTUAL `kof.orm.history` (o mecanismo do precedente pagination, D-PAGINATION-P4-LOWERING espelhado): `dev/kof/orm-history.kf` (os records travados `Revision(Long revision, Long at, String operation)` + `FieldChange(Long revision, String field, String? previous, String? current)` — actor/correlationId chegam na Fase 4) injetado FLAT no `import kof.orm.history` explícito (CompilerOrmHistory.injectHostIfNeeded: seguro a colisão — um Revision do usuário vence; nunca auto-injetado); `OrmHistoryHostPackageTest` 3/3 (o import injeta, sem o import os tipos não existem, colisão do usuário vence; o probe RED desabilitou o gancho — a face 1 falhou como esperado)
+doing: fatia 2c-parte-2 POUSADA 11/10 — a CONSULTA: `User.history(db, id)` → `List<Revision>` ascendente e a paginada `User.history(db, id, offset, limit)` em entities audited: os espelhos `auditedEntities`/entity preenchidos num pré-pass do parse na SemanticAnalyzer (a fase SEM não tem driver), a chamada entity-static RESERVADA nas três fases de tipagem (antes da resolução estática genérica de classes, que a engolia e emitia store vazio — a raiz do frame crash), o lowerer emite `kof_orm_history`/`kof_orm_history_page` (JVM: SELECT revision, at, operation ORDER BY revision, instâncias pelo resolver de className — `kof_db_query0/3`; **paridade de retorno ArrayList com kof_orm_all** — o descritor Object era o NoSuchMethodError), HIST002 em receivers não-audited, HIST005 para negativos constantes (Literal E UnaryExpr menos; o runtime guarda os não-constantes); boxeando SÓ o key (offset/limit alimentam params INT crus — o VerifyError do Integer boxeado). `EntityHistoryQueryE2ETest` 4/4; bateria ORM/Db 175/0F
+next: fatia 2d — `User.at(db, id, revision)`/`atTime(db, id, iso)` (materialização do payload via o binding JSON) + `User.changes(db, id[, from, to])` (diffs FieldChange); HIST005 para negativos não-constantes segue com guarda no runtime
+location: docs/development/entity-history-plan.pt_BR.md
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
+state: under-development
+
+
+**Status:** EM DESENVOLVIMENTO (Fase 2 de 6; a fila de rollout é a §24 abaixo)
 **Solicitado por:** mantenedora (26/09/2026)
 **Trava da regra 6:** as superfícies de declaração/consulta foram **resolvidas**
 pela mantenedora em `DECISIONS.md` §`D-ENTITY-HISTORY` (28/09, autorizada;
-Q1–Q15 respondidas em `D-FUTURE-BATCH-2809B`). Este documento é a especificação;
-a promoção a trabalho corrente é uma-por-vez por `D-FUTURE-PROMOTION`.
+Q1–Q15 respondidas em `D-FUTURE-BATCH-2809B`). As seções da spec abaixo são o
+contrato travado; âncoras `file:line` foram medidas no tip do dia da promoção,
+salvo re-medidas numa fatia.
 **Snapshot:** branch `beta-0.5.0`, tip `12bacc39e`. Todo `file:line` abaixo foi
 medido nesse tip.
 

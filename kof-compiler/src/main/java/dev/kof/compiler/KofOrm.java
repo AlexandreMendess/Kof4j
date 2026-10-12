@@ -127,7 +127,16 @@ public final class KofOrm {
             "kof_orm_where", "kof_orm_where_op",
             "kof_orm_page", "kof_orm_delete", "kof_orm_save_all");
 
+    /** entity-history fatia 2b: as faces de histórico são JVM/ANDROID — o
+     *  bridge JS e o runtime nativo/cross recebem ORM001 honesto em
+     *  compile-time (Fase 5 do rollout), nunca silent. */
+    private static final java.util.Set<String> HISTORY_FACES = java.util.Set.of(
+            "kof_orm_create_history", "kof_orm_save_recorded", "kof_orm_delete_recorded",
+            "kof_orm_history", "kof_orm_history_page",
+            "kof_orm_history_at", "kof_orm_history_at_time", "kof_orm_history_changes");
+
     static boolean fnSupportedOn(Target target, String fn) {
+        if (HISTORY_FACES.contains(fn)) return target == Target.JVM || target == Target.ANDROID;
         if (supportedOn(target)) return true;
         if (target == Target.NATIVE) return NATIVE_F1.contains(fn);
         if (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64) return CROSS_FACES.contains(fn);
@@ -151,6 +160,11 @@ public final class KofOrm {
         return switch (name) {
             case "create" -> argTypes.size() == 1
                     ? new OrmCall("kof_orm_create", BOOL, List.of(STR), entityName, false)
+                    : null;
+            // entity-history fatia 2b (D-ENTITY-HISTORY): o passo EXPLÍCITO
+            // de criação do histórico (nunca DDL implícito — §10/Q-answers).
+            case "createHistory" -> typed && argTypes.size() == 1
+                    ? new OrmCall("kof_orm_create_history", BOOL, List.of(STR), entityName, true)
                     : null;
             case "save" -> argTypes.size() == 2
                     ? new OrmCall("kof_orm_save", OBJ, List.of(STR, OBJ), entityName, false)

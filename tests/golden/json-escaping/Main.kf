@@ -1,0 +1,14 @@
+main() {
+    println(json.encode("plain"))
+    println(json.encode("tab\there"))
+    println(json.encode("new\nline"))
+    println(json.encode("cr\rhere"))
+    println(json.encode("quote\"and\\back"))
+    println(json.encode("slash/forward"))
+    println(json.encode("café"))
+    println(json.encode(""))
+    var l = json.decode<List<String>>("[\"x\",\"y\"]")
+    println(l.get(0) + l.get(1))
+    var s = json.decode<String>("\"hello\"")
+    println(s)
+}
