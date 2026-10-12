@@ -1,0 +1,186 @@
+package image
+
+import image.Av1Block
+import image.Av1CoeffPlane
+import image.Av1IntraAvail
+import image.Av1IntraBlock
+import image.Av1ReconBlock
+import image.Av1Tx
+
+// kof.image — AV1 CHROMA PLANE COMPOSITION (slice 3ai of the AVIF front, plan
+// §34). This is the stage libaom's `decode_token_recon_block`
+// (`av1/decoder/decodeframe.c`) runs for `plane > 0` INSIDE each mode-info
+// block, after that block's luma plane:
+//
+//     for (plane = 0; plane < num_planes; ++plane) {
+//       const TX_SIZE tx_size = av1_get_tx_size(plane, xd);
+//       const int unit_height = ROUND_POWER_OF_TWO(
+//           AOMMIN(mu_blocks_high + row, max_blocks_high), pd->subsampling_y);
+//       for (blk_row = row >> pd->subsampling_y; blk_row < unit_height;
+//            blk_row += tx_size_high_unit[tx_size])
+//         for (blk_col = col >> pd->subsampling_x; blk_col < unit_width;
+//              blk_col += tx_size_wide_unit[tx_size]) {
+//           read_coeffs_tx_intra_block_visit(plane, blk_row, blk_col, tx_size);
+//           predict_and_recon_intra_block_visit(plane, blk_row, blk_col, tx_size);
+//         }
+//     }
+//
+// Three facts drive the composition, and each is a slice that already landed:
+//
+//   1. `tx_size` is `av1_get_tx_size(plane, xd)` = `av1_get_max_uv_txsize(
+//      bsize, ss_x, ss_y)` for `plane > 0` — ONE transform size for the whole
+//      chroma plane of a mode-info block, NOT subdivided per luma block
+//      (slice 3ah, `av1GetMaxUvTxSize`). Its plane block size comes from
+//      `get_plane_block_size` (`av1_ss_size_lookup`, `av1PlaneBlockSize`).
+//   2. The transform type is DERIVED from the UV mode
+//      (`intra_mode_to_tx_type(mbmi, PLANE_TYPE_UV)`, slice 3b,
+//      `av1ComputeTxType` with `plane = 1`): libaom transmits `tx_type` for
+//      the LUMA plane only (`av1_read_coeffs_txb`:
+//      `if (plane == AOM_PLANE_Y) av1_read_tx_type(...)`), so the chroma path
+//      reads NO type symbol — it uses `av1DecodeCoeffsBlockEdge`, the face that
+//      takes the type explicitly, never `av1DecodeCoeffsBlockEdgeTx`.
+//   3. The neighbour contexts are PER PLANE (`xd->above_entropy_context[plane]`
+//      / `left_entropy_context[plane]`, `set_entropy_context`), indexed in the
+//      PLANE's own 4x4 units, so U and V never share a context array.
+//
+// `decodeRaster` still refuses AVIF until the frame assembly lands.
+
+// The two chroma planes of a tile decode: each buffer carries the one-sample
+// border the predictor reads (`x + 1` / `y + 1` addressing, like the luma
+// plane), its extents in samples, and its own entropy-context arrays. The
+// arrays are mutated in place — `record` fields are values, but the arrays they
+// hold are references, so the composition writes through them.
+record Av1ChromaPlanes(Int[] u, Int strideU, Int wU, Int hU,
+                       Int[] aboveU, Int[] leftU,
+                       Int[] v, Int strideV, Int wV, Int hV,
+                       Int[] aboveV, Int[] leftV)
+
+// Decodes and reconstructs ONE chroma plane (`plane` 1 = U, 2 = V) for one
+// mode-info block, in libaom's per-plane order.
+//
+//   - `bs` is the block's LUMA block size: the chroma geometry is derived from
+//     it (`av1GetMaxUvTxSize` / `av1PlaneBlockSize` take `ssX`/`ssY`).
+//   - `r`/`c` are the block's LUMA 4x4 origin; the chroma origin is
+//     `r >> ssY` / `c >> ssX`.
+//   - `frame`/`stride`/`frameW`/`frameH` are the CHROMA plane's buffer, while
+//     `lumaFrameW`/`lumaFrameH` are the LUMA extent — `av1IntraAvail` derives
+//     the tile bounds from the LUMA grid and scales the offsets by `ssX`/`ssY`
+//     internally.
+//   - `levelsOut` receives one coefficient array per decoded transform block,
+//     `txTypeOut` the transform type the block was decoded with (derived, not
+//     read).
+//
+// CFL (`uvMode == 13`) needs the reconstructed LUMA block average
+// (`cfl_predict_*`), which is not composed yet, so it is refused BY NAME
+// instead of decoding a wrong prediction.
+void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
+                          Int bs, Int ssX, Int ssY, Int r, Int c,
+                          Int plane, Int uvMode, Int angleUV,
+                          Int useFilterIntra, Int filterIntraMode,
+                          Int bitDepth, Int intraEdgeFilterType, Bool edgeFilter,
+                          Int dcQuant, Int acQuant, Int qIndex, Int reducedTxSet,
+                          Int lossless,
+                          Av1Symbol reader, Av1CoeffCdfStore store,
+                          Av1TxType txTypeStore, Int[] txTypes, Int txTypeStride,
+                          Int[] above, Int[] left,
+                          Int lumaFrameW, Int lumaFrameH,
+                          List<Int[]> levelsOut, List<Int> txTypeOut) {
+    if (uvMode == 13) {
+        throw "IMAGE: CFL chroma prediction is not composed yet (slice 3ai)"
+    }
+    var uvTx = av1GetMaxUvTxSize(bs, ssX, ssY)
+    var uvBs = av1PlaneBlockSize(bs, ssX, ssY)
+    var uw4 = av1BlockNum4x4Wide(uvBs)
+    var uh4 = av1BlockNum4x4High(uvBs)
+    var utw4 = av1TxWidth(uvTx) >> 2
+    var uth4 = av1TxHeight(uvTx) >> 2
+    var uvr = r >> ssY
+    var uvc = c >> ssX
+    var w = av1TxWidth(uvTx)
+    var h = av1TxHeight(uvTx)
+    var maxX = frameW
+    var maxY = frameH
+    var isLossless = false
+    if (lossless == 1) {
+        isLossless = true
+    }
+    var reduced = false
+    if (reducedTxSet == 1) {
+        reduced = true
+    }
+    var i = 0
+    while (i < uh4) {
+        var j = 0
+        while (j < uw4) {
+            var br = uvr + i
+            var bc = uvc + j
+            var x = bc << 2
+            var y = br << 2
+            var haveTop = 0
+            if (br != 0) {
+                haveTop = 1
+            }
+            var haveLeft = 0
+            if (bc != 0) {
+                haveLeft = 1
+            }
+
+            // 1. The transform type DERIVED from the UV mode — no symbol read.
+            var txType = av1ComputeTxType(uvTx, plane, bc, br, isLossless, false,
+                    txTypes, txTypeStride, uvMode, bc, br, ssX, ssY, reduced)
+
+            // 2. Coefficients, with the plane's own entropy contexts.
+            var levels = av1DecodeCoeffsBlockEdge(reader, store, uvBs, plane,
+                    br, bc, uvTx, txType, above, left, 0, 0)
+            levelsOut.add(levels)
+            txTypeOut.add(txType)
+
+            // 3. Availability from the transform block's position.
+            var avail = av1IntraAvail(12, bs, 0, uvTx, ssX, ssY, i, j, uvMode,
+                    angleUV, useFilterIntra, haveTop, haveLeft, br, bc,
+                    lumaFrameW >> 2, lumaFrameH >> 2, lumaFrameW, lumaFrameH)
+            var haveAboveRight = avail[0]
+            var haveBelowLeft = avail[1]
+
+            // 4. Prediction with the UV mode, then dequantize + inverse + recon.
+            var pred = av1IntraPredictBlock(frame, stride, x + 1, y + 1, w, h,
+                    maxX, maxY, haveLeft, haveTop, haveAboveRight, haveBelowLeft,
+                    uvMode, angleUV, useFilterIntra, filterIntraMode,
+                    bitDepth, intraEdgeFilterType, edgeFilter)
+            av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, uvTx,
+                    txType, bitDepth, false, dcQuant, acQuant)
+
+            j = j + utw4
+        }
+        i = i + uth4
+    }
+}
+
+// Decodes BOTH chroma planes of one mode-info block, U then V, in libaom's
+// `for (plane = 0; plane < num_planes; ++plane)` order.
+void av1DecodeChromaBlock(Av1ChromaPlanes chroma, Int bs, Int ssX, Int ssY,
+                          Int r, Int c, Int uvMode, Int angleUV,
+                          Int useFilterIntra, Int filterIntraMode,
+                          Int bitDepth, Int intraEdgeFilterType, Bool edgeFilter,
+                          Int dcQuant, Int acQuant, Int qIndex, Int reducedTxSet,
+                          Int lossless,
+                          Av1Symbol reader, Av1CoeffCdfStore store,
+                          Av1TxType txTypeStore, Int[] txTypes, Int txTypeStride,
+                          Int lumaFrameW, Int lumaFrameH,
+                          List<Int[]> levelsUOut, List<Int[]> levelsVOut,
+                          List<Int> txTypeUOut, List<Int> txTypeVOut) {
+    av1DecodeChromaPlane(chroma.u, chroma.strideU, chroma.wU, chroma.hU,
+            bs, ssX, ssY, r, c, 1, uvMode, angleUV, useFilterIntra,
+            filterIntraMode, bitDepth, intraEdgeFilterType, edgeFilter,
+            dcQuant, acQuant, qIndex, reducedTxSet, lossless,
+            reader, store, txTypeStore, txTypes, txTypeStride,
+            chroma.aboveU, chroma.leftU, lumaFrameW, lumaFrameH,
+            levelsUOut, txTypeUOut)
+    av1DecodeChromaPlane(chroma.v, chroma.strideV, chroma.wV, chroma.hV,
+            bs, ssX, ssY, r, c, 2, uvMode, angleUV, useFilterIntra,
+            filterIntraMode, bitDepth, intraEdgeFilterType, edgeFilter,
+            dcQuant, acQuant, qIndex, reducedTxSet, lossless,
+            reader, store, txTypeStore, txTypes, txTypeStride,
+            chroma.aboveV, chroma.leftV, lumaFrameW, lumaFrameH,
+            levelsVOut, txTypeVOut)
+}
