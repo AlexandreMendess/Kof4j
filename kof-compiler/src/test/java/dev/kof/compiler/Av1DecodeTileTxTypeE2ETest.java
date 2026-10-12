@@ -63,7 +63,8 @@ class Av1DecodeTileTxTypeE2ETest implements LibraryInstallSupport {
         assertTrue(golden().startsWith("C 0 8 0 2 2 16 8"),
                 "golden must be the libaom dump");
         assertEquals(2, cases().size(), "2 oracle cases");
-        assertEquals(1, cases().get(1).blocks().size(), "case 1 is a single 16x16 block");
+        assertEquals(4, cases().get(1).blocks().size(),
+                "case 1 is the four-block 16x16 plane (the §680 reproducer)");
         /* Case 0 is BLOCK_32X32 -> TX_32X32 -> DCTONLY: no tx_type symbol, so
          * the type stays DCT_DCT.  Case 1 is a single BLOCK_16X16 ->
          * TX_16X16 -> TX_SET_INTRA_2: ONE signalled symbol, and the golden
@@ -72,11 +73,13 @@ class Av1DecodeTileTxTypeE2ETest implements LibraryInstallSupport {
          * MULTI-block <= 16x16 plane exposes a separate tx-size-context
          * divergence, recorded as `known-bugs` §680. */
         List<Integer> tt = Av1DecodeTileTxTypeSupport.goldenTxTypes();
-        assertEquals(3, tt.size(), "3 transform blocks");
+        assertEquals(6, tt.size(), "6 transform blocks");
         assertEquals(0, tt.get(0), "TX_32X32 -> DCTONLY -> DCT_DCT");
         assertEquals(0, tt.get(1), "TX_32X32 -> DCTONLY -> DCT_DCT");
-        assertTrue(tt.get(2) != 0,
-                "a TX_16X16 block must carry a signalled, non-DCT_DCT type");
+        for (int i = 2; i < 6; i++) {
+            assertTrue(tt.get(i) != 0,
+                    "every TX_16X16 block must carry a signalled, non-DCT_DCT type");
+        }
     }
 
     @Test

@@ -196,21 +196,15 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
                 haveLeft = 1
             }
 
-            // 3a. Transform type (slice 3t `transform_type`): libaom's
-            //     `av1_read_coeffs_txb` reads `@@intra_tx_type` for a luma block
-            //     with a residual whenever `get_ext_tx_types(tx, 0, reduced) > 1`
-            //     — true for every intra transform block of size <= 16x16
-            //     (`TX_16X16` -> `TX_SET_INTRA_2` -> 5 symbols), false for
-            //     `TX_32X32` (`TX_SET_INTRA_DCTONLY` -> no symbol). The symbol
-            //     precedes the coefficient payload, so it MUST be consumed here.
-            var txType = txTypeStore.readTxType(txSz, reducedTxSet, qIndex,
-                    yMode, useFilterIntra, filterIntraMode, txTypes,
-                    frameW >> 2, bc, br)
-
-            // 3b. Coefficients (3e/3x): the neighbour context from the plane's
-            //     shared above/left store, so it sees the previous blocks.
-            var levels = av1DecodeCoeffsBlockEdge(reader, store, bs, 0,
-                    br, bc, txSz, txType, above, left, 0, 0)
+            // 3a. Coefficients (3e/3x), in libaom's `av1_read_coeffs_txb` ORDER:
+            //     the `all_zero` flag FIRST, then — only when it is 0 — the luma
+            //     `transform_type` (slice 3t), then the level walk. The order is
+            //     load-bearing: the type symbol sits BETWEEN the two.
+            var levels = av1DecodeCoeffsBlockEdgeTx(reader, store, bs, 0,
+                    br, bc, txSz, above, left, 0, 0, txTypeStore,
+                    reducedTxSet, qIndex, yMode, useFilterIntra,
+                    filterIntraMode, txTypes, frameW >> 2, bc, br)
+            var txType = txTypes[br * (frameW >> 2) + bc]
             levelsOut.add(levels)
             txTypeOut.add(txType)
 

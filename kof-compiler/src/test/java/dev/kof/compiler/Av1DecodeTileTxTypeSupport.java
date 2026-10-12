@@ -46,7 +46,7 @@ final class Av1DecodeTileTxTypeSupport {
 
     /** Expected SHA-256 of the decoded golden text, to catch a stale resource. */
     static final String GOLDEN_SHA256 =
-        "42b7c972968e51bb55c465c91f9b5d86728cd735545a23bb909502dd866f733f";
+        "82a141495dc26c77676cccd4a6cef2b3a6231dda6d81b03a1a9ef35277426cc5";
 
     /** One mode-info block: the {@code P} line. */
     record Blk(int r, int c, int bs) {}
