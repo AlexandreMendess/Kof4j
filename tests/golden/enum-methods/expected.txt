@@ -1,0 +1,12 @@
+0
+2
+RED
+GREEN
+3
+BLUE
+true
+false
+true
+-2
+2
+0

@@ -18183,3 +18183,31 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 **Boundary:** closes audit `JVM-03` (both the if-expr and switch-expr faces). `§672` (`JVM-01`, the lambda-typed local reassign) is the sibling, fixed the same day. Owner lane compiler/JVM/native `192.168.15.30:9092`.
 
 <!-- pt-switch --> **PT:** [§673 (pt_BR)](known-bugs.pt_BR.md#673--auditoria-jvm-03-uma-expressao-ifswitch-cujos-ramos-sao-lambdas-da-mesma-assinatura-fazia-o-join-cair-em-object-os-classnames-concretos-lambda0lambda1-diferem-entao-o-call-site-emitia-um-invokestatic--iljavalangobject-fantasma--verifyerror-no-jvm---corrigido-1110-lane-compiladorjvmnativo-19216815309092)
+
+## §674 — the native target's `enum.valueOf(String)` returns a value that SIGSEGVs (139) on ANY use: `Color.valueOf("GREEN")` prints nothing and `println(Color.valueOf("GREEN"))` crashes — while JVM/Script/JS return the enum constant — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+
+**Symptom (measured 11/10, tip `9da325aa2`):** with `enum Color { RED, GREEN, BLUE }`, `main() { println("start")  var g = Color.valueOf("GREEN")  println("got")  println(g) }` prints `start` and `got` on native, then **SIGSEGVs (exit 139)** at `println(g)`. A program that only calls `valueOf` without printing the result prints NOTHING at all (the whole output is lost). JVM/Script/JS print `start`/`got`/`GREEN` (the constant's `toString`). The contract (`docs/language-reference/classes.md`): `valueOf(String) → Dir` (static, `null` on miss).
+
+**Root (as far as measured):** the native emitter's `enum.valueOf` does not produce a usable enum instance — the value it returns is not a valid reference (or not the constant singleton), so passing it to `println`/`toString` dereferences a bad pointer. NOT yet traced to a file:line — the native enum machinery is the next step for this lane.
+
+**Contract:** `valueOf` must return the matching constant instance (or `null` on miss) on all four targets — never a value that crashes on use. `no-silent-fallback` + `honest-cross-target`.
+
+**Fix path (NOT landed here):** trace the native enum `valueOf` lowering/asm, make it return the constant singleton (or `null`), and pin it with a RED-first native test. Cross-arch (riscv64/aarch64) shares the machinery.
+
+**Boundary:** `name()`/`ordinal()`/`values()`/`==`/`!=`/`compareTo` are CORRECT on native (measured) — only `valueOf` is broken. Owner lane compiler/JVM/native `192.168.15.30:9092`.
+
+<!-- pt-switch --> **PT:** [§674 (pt_BR)](known-bugs.pt_BR.md#674--o-enumvalueofstring-do-alvo-nativo-devolve-um-valor-que-da-sigsegv-139-em-qualquer-uso-colorvalueofgreen-nao-imprime-nada-e-printlncolorvalueofgreen-quebra--enquanto-jvmscriptjs-devolvem-a-constante-do-enum---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §675 — `enum` ordering operators (`<` `>` `<=` `>=`) are ACCEPTED but diverge across targets: JVM/JS give `false`, native gives `true`, Script prints `not comparable` for `Color.RED < Color.GREEN` — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+
+**Symptom (measured 11/10, tip `9da325aa2`):** `enum Color { RED, GREEN, BLUE }`; `println(Color.RED < Color.GREEN)` compiles on all four targets and then diverges: **JVM `false`**, **JS `false`**, **native `true`** (an ordinal comparison), **Script `not comparable`** (the interpreter refuses the relational operator on enum values and prints that sentinel). `>`, `<=`, `>=` are the same class.
+
+**Root (read from the tree):** `SemBinaryResultTyper` gates only the enum-vs-String `==`/`!=` face (`SEM062`, D-ENUM207); the relational operators fall through its final `==`/`!=`/`<`/`>`/`<=`/`>=` arm and return `BOOL` for ANY operand types, so an enum relational is ACCEPTED with no defined semantics. Each backend then does whatever its generic comparison does (JVM `if_icmp` on two distinct references → `false`; native compares ordinals → `true`; JS `false`; the interpreter has no enum relational rule → `not comparable`). The language contract (`docs/language-reference/classes.md`) lists `compareTo(Dir) → Int` as the ordering API and does NOT define `<` on enums.
+
+**Contract:** an operator either has ONE defined cross-target meaning or is REJECTED with an explicit diagnostic — never accepted-and-divergent. Here the contract is SILENT, so the fix is a maintainer decision: **reject** enum relationals with a new diagnostic (pointing at `compareTo`), or **define** them as ordinal comparison (which would change JVM/JS/Script). Recorded OPEN pending that call.
+
+**Fix path (needs a decision):** reject in `SemBinaryResultTyper` (mirroring the `SEM062` shape) OR define ordinal semantics in the shared comparison lowering; either way the four backends must agree.
+
+**Boundary:** `==`/`!=` (identity) and `compareTo` are correct on all four targets. Only the relational operators on enums are undefined-and-divergent. Owner lane compiler/JVM/native `192.168.15.30:9092`.
+
+<!-- pt-switch --> **PT:** [§675 (pt_BR)](known-bugs.pt_BR.md#675--os-operadores-de-ordem-de-enum-----sao-aceitos-mas-divergem-entre-alvos-jvmjs-dao-false-o-nativo-da-true-o-script-imprime-not-comparable-para-colorred--colorgreen---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)

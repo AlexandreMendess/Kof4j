@@ -6,7 +6,7 @@
 **Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 
-**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**; a fatia 34, `config-namespace`, a **59 / 236**; a fatia 35, `json-records`, a **60 / 240**; a fatia 36, `json-maps`, a **61 / 244**; a fatia 37, `json-escaping`, a **62 / 248**; a fatia 38, `list-predicates`, a **63 / 252**; a fatia 39, `abstract-records`, a **64 / 256**). Sem decisão aberta, sem fatia enfileirada. As fatias anteriores eram apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano); a fatia 35 é a exceção, pareando o caso golden com a correção de compilador de baixo risco e unidade única §659a que ele revelou (ver o bloco da fatia abaixo).
+**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**; a fatia 34, `config-namespace`, a **59 / 236**; a fatia 35, `json-records`, a **60 / 240**; a fatia 36, `json-maps`, a **61 / 244**; a fatia 37, `json-escaping`, a **62 / 248**; a fatia 38, `list-predicates`, a **63 / 252**; a fatia 39, `abstract-records`, a **64 / 256**; a fatia 40, `enum-methods`, a **65 / 260**). Sem decisão aberta, sem fatia enfileirada. As fatias anteriores eram apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano); a fatia 35 é a exceção, pareando o caso golden com a correção de compilador de baixo risco e unidade única §659a que ele revelou (ver o bloco da fatia abaixo).
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
@@ -1475,6 +1475,25 @@ Apenas infraestrutura de teste, sem mudança de compilador. Prova (executada): c
 primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado;
 `tests/run-golden.sh` **256/256** (64 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile`
 rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger` rc=0.
+
+**Fase 6 fatia 40 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **65 no total** — pinando a superfície de métodos de membro de `enum` que o caso `enum`
+existente deixou descoberta (ele cobre só `name()` e `values()`). O novo caso
+`tests/golden/enum-methods` pina `ordinal()` (`RED`→0, `BLUE`→2), `name()`, `values()` (tamanho +
+elemento), identidade `==`/`!=` entre constantes e `compareTo` (negativo/positivo/zero). As 12
+faces concordam byte-a-byte nos quatro alvos. **BUGS ACHADOS + CATALOGADOS (Q4):** escrever o caso
+revelou DOIS defeitos reais, ambos registrados OPEN: **§674** — o `enum.valueOf(String)` nativo
+devolve um valor que dá SIGSEGV (139) em QUALQUER uso (`println(Color.valueOf("GREEN"))` quebra;
+um programa que só chama `valueOf` não imprime nada), enquanto JVM/Script/JS devolvem a constante;
+**§675** — os operadores de ordem de `enum` (`<` `>` `<=` `>=`) são ACEITOS mas divergem (JVM/JS
+`false`, nativo `true`, Script `not comparable`), e o contrato é silente sobre ordem de enum (ele
+lista `compareTo`), então a correção precisa de decisão da mantenedora (recusar com diagnóstico vs
+definir semântica de ordinal). Ambos são EXCLUÍDOS do caso golden (ele pina só as faces limpas nos
+4 alvos). Apenas infraestrutura de teste, sem mudança de compilador. Prova (executada): cada valor
+medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então
+congelado; `tests/run-golden.sh` **260/260** (65 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler
+-am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
 `check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger` rc=0.
 
 ### Fase 7 — Integração

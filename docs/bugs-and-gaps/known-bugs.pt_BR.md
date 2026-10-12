@@ -15679,3 +15679,31 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 **Fronteira:** fecha a auditoria `JVM-03` (as duas faces, if-expr e switch-expr). O `§672` (`JVM-01`, a reatribuição de local de tipo lambda) é o irmão, corrigido no mesmo dia. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
 
 <!-- en-switch --> **EN:** [§673 (en)](known-bugs.md#673--audit-jvm-03-an-ifswitch-expression-whose-branches-are-lambdas-of-the-same-signature-joined-to-object-the-concrete-lambda0lambda1-classnames-differ-so-the-call-site-emitted-a-phantom-invokestatic--iljavalangobject--jvm-verifyerror---fixed-1110-lane-compilerjvmnative-19216815309092)
+
+## §674 — o `enum.valueOf(String)` do alvo nativo devolve um valor que dá SIGSEGV (139) em QUALQUER uso: `Color.valueOf("GREEN")` não imprime nada e `println(Color.valueOf("GREEN"))` quebra — enquanto JVM/Script/JS devolvem a constante do enum — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
+
+**Sintoma (medido 11/10, tip `9da325aa2`):** com `enum Color { RED, GREEN, BLUE }`, `main() { println("start")  var g = Color.valueOf("GREEN")  println("got")  println(g) }` imprime `start` e `got` no nativo, depois dá **SIGSEGV (exit 139)** no `println(g)`. Um programa que só chama `valueOf` sem imprimir o resultado não imprime NADA (toda a saída é perdida). JVM/Script/JS imprimem `start`/`got`/`GREEN` (o `toString` da constante). O contrato (`docs/language-reference/classes.md`): `valueOf(String) → Dir` (estático, `null` no miss).
+
+**Raiz (até onde foi medido):** o emissor nativo do `enum.valueOf` não produz uma instância de enum utilizável — o valor que devolve não é uma referência válida (ou não é o singleton da constante), então passá-lo a `println`/`toString` desreferencia um ponteiro ruim. Ainda NÃO rastreado até file:line — a maquinaria de enum nativa é o próximo passo desta lane.
+
+**Contrato:** `valueOf` deve devolver a instância da constante correspondente (ou `null` no miss) nos quatro alvos — nunca um valor que quebra no uso. `no-silent-fallback` + `honest-cross-target`.
+
+**Caminho de correção (NÃO pousado aqui):** rastrear o lowering/asm do `enum valueOf` nativo, fazê-lo devolver o singleton da constante (ou `null`), e pinar com um teste nativo RED-first. O cross (riscv64/aarch64) compartilha a maquinaria.
+
+**Fronteira:** `name()`/`ordinal()`/`values()`/`==`/`!=`/`compareTo` estão CORRETOS no nativo (medido) — só o `valueOf` está quebrado. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
+
+<!-- en-switch --> **EN:** [§674 (en)](known-bugs.md#674--the-native-targets-enumvalueofstring-returns-a-value-that-sigsegvs-139-on-any-use-colorvalueofgreen-prints-nothing-and-printlncolorvalueofgreen-crashes--while-jvmscriptjs-return-the-enum-constant---open-found-1110-by-lane-compilerjvmnative-19216815309092)
+
+## §675 — os operadores de ordem de `enum` (`<` `>` `<=` `>=`) são ACEITOS mas divergem entre alvos: JVM/JS dão `false`, o nativo dá `true`, o Script imprime `not comparable` para `Color.RED < Color.GREEN` — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
+
+**Sintoma (medido 11/10, tip `9da325aa2`):** `enum Color { RED, GREEN, BLUE }`; `println(Color.RED < Color.GREEN)` compila nos quatro alvos e depois diverge: **JVM `false`**, **JS `false`**, **nativo `true`** (comparação de ordinal), **Script `not comparable`** (o interpretador recusa o operador relacional em valores de enum e imprime esse sentinela). `>`, `<=`, `>=` são a mesma classe.
+
+**Raiz (lida da árvore):** o `SemBinaryResultTyper` só barra a face enum-vs-String `==`/`!=` (`SEM062`, D-ENUM207); os operadores relacionais caem no braço final `==`/`!=`/`<`/`>`/`<=`/`>=` dele e retornam `BOOL` para QUAISQUER tipos de operando, então um relacional de enum é ACEITO sem semântica definida. Cada backend então faz o que a sua comparação genérica faz (JVM `if_icmp` sobre duas referências distintas → `false`; nativo compara ordinais → `true`; JS `false`; o interpretador não tem regra relacional de enum → `not comparable`). O contrato da linguagem (`docs/language-reference/classes.md`) lista `compareTo(Dir) → Int` como a API de ordem e NÃO define `<` em enums.
+
+**Contrato:** um operador ou tem UM significado cross-target definido ou é RECUSADO com um diagnóstico explícito — nunca aceito-e-divergente. Aqui o contrato é SILENTE, então a correção é decisão da mantenedora: **recusar** relacionais de enum com um novo diagnóstico (apontando para `compareTo`), ou **defini-los** como comparação de ordinal (o que mudaria JVM/JS/Script). Registrado OPEN aguardando essa decisão.
+
+**Caminho de correção (precisa de decisão):** recusar no `SemBinaryResultTyper` (espelhando a forma do `SEM062`) OU definir semântica de ordinal no lowering compartilhado de comparação; de qualquer forma os quatro backends devem concordar.
+
+**Fronteira:** `==`/`!=` (identidade) e `compareTo` estão corretos nos quatro alvos. Só os operadores relacionais em enums estão indefinidos-e-divergentes. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
+
+<!-- en-switch --> **EN:** [§675 (en)](known-bugs.md#675--enum-ordering-operators-----are-accepted-but-diverge-across-targets-jvmjs-give-false-native-gives-true-script-prints-not-comparable-for-colorred--colorgreen---open-found-1110-by-lane-compilerjvmnative-19216815309092)
