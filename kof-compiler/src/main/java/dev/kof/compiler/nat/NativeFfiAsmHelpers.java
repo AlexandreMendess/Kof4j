@@ -168,6 +168,7 @@ final class NativeFfiAsmHelpers {
      * vez) — o mesmo confinamento da call-arena da JVM (R7).
      */
     static void emitX86CallbackTrampoline(StringBuilder sb, String desc) {
+        if (desc.indexOf('S') >= 0) { emitX86CallbackTrampolineStr(sb, desc); return; }
         int arity = desc.length() - 1;
         char rc = desc.charAt(0);
         String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
@@ -206,6 +207,74 @@ final class NativeFfiAsmHelpers {
         sb.append("    call *%r11\n");
         if (arity > 5) sb.append("    addq $").append((arity - 5) * 8).append(", %rsp\n");
         // Retorno: inteiro já em rax; FP move os bits crus rax → xmm0.
+        if (rc == 'f') sb.append("    movd %eax, %xmm0\n");
+        else if (rc == 'd') sb.append("    movq %rax, %xmm0\n");
+        sb.append("    ret\n");
+        sb.append(".section .bss\n");
+        sb.append("kof_cb_closure_").append(desc).append(":\n");
+        sb.append(".quad 0\n");
+        sb.append(".section .text\n");
+    }
+
+    /**
+     * Trampolim x86-64 com ARGUMENTO {@code String} (M1 unidade-4, face `S`):
+     * um arg String chega do C como {@code char*} e o {@code invoke} Kof espera
+     * um objeto String, então cada arg {@code S} passa por {@code kof_ffi_from_cstr}
+     * (cópia de fronteira) ANTES de remontar a chamada. Como um {@code call} no
+     * meio do marshal clobberaria os registradores-fonte do C ainda não salvos,
+     * o frame salva TODAS as fontes primeiro, converte os `S`, e só então carrega
+     * os registradores do {@code invoke}. Restrito a aridade ≤ 5 (o gate
+     * {@code nativeCallbackDesc} recusa `S` acima disso — sem args na pilha).
+     */
+    static void emitX86CallbackTrampolineStr(StringBuilder sb, String desc) {
+        int arity = desc.length() - 1;
+        char rc = desc.charAt(0);
+        String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+        String[] src = new String[arity];
+        boolean[] isFp = new boolean[arity];
+        int ip = 0, fp = 0;
+        for (int i = 0; i < arity; i++) {
+            char c = desc.charAt(i + 1);
+            boolean f = (c == 'f' || c == 'd');
+            isFp[i] = f;
+            src[i] = f ? "%xmm" + (fp++) : intRegs[ip++];
+        }
+        // Frame alinhado a 16 B (rsp ≡ 0 no `call kof_ffi_from_cstr`): a entrada
+        // do trampolim tem rsp ≡ 8 (o `call` do C empilhou o retorno).
+        int pad = ((8 - (8 * arity) % 16) + 16) % 16;
+        int frame = 8 * arity + pad;
+        sb.append("kof_cb_tramp_").append(desc).append(":\n");
+        sb.append("    subq $").append(frame).append(", %rsp\n");
+        // 1) Salva TODAS as fontes do C no frame (FP com os bits crus).
+        for (int i = 0; i < arity; i++) {
+            if (isFp[i]) {
+                sb.append(desc.charAt(i + 1) == 'f'
+                        ? "    movd " + src[i] + ", %eax\n"
+                        : "    movq " + src[i] + ", %rax\n");
+                sb.append("    movq %rax, ").append(8 * i).append("(%rsp)\n");
+            } else {
+                sb.append("    movq ").append(src[i]).append(", ").append(8 * i).append("(%rsp)\n");
+            }
+        }
+        // 2) Converte cada arg `S`: char* → String (a closure ainda não foi
+        //    carregada, então os registradores-fonte já foram salvos acima).
+        for (int i = 0; i < arity; i++) {
+            if (desc.charAt(i + 1) == 'S') {
+                sb.append("    movq ").append(8 * i).append("(%rsp), %rdi\n");
+                sb.append("    call kof_ffi_from_cstr\n");
+                sb.append("    movq %rax, ").append(8 * i).append("(%rsp)\n");
+            }
+        }
+        // 3) Remonta o invoke: rdi=closure, args em rsi..r9 (bits crus).
+        sb.append("    movq kof_cb_closure_").append(desc).append("(%rip), %rdi\n");
+        for (int k = 0; k < arity; k++) {
+            sb.append("    movq ").append(8 * k).append("(%rsp), ")
+                    .append(intRegs[k + 1]).append("\n");
+        }
+        sb.append("    movq 8(%rdi), %r11\n");   // vtable @ offset 8
+        sb.append("    movq (%r11), %r11\n");    // vtable[0] = invoke
+        sb.append("    call *%r11\n");
+        sb.append("    addq $").append(frame).append(", %rsp\n");
         if (rc == 'f') sb.append("    movd %eax, %xmm0\n");
         else if (rc == 'd') sb.append("    movq %rax, %xmm0\n");
         sb.append("    ret\n");
