@@ -1,0 +1,578 @@
+package qrcode
+
+import image.Png
+import image.Raster
+import qrcode.Qrcode
+
+// kofqrcode — QR Code file reader in pure Kof (ISO/IEC 18004).
+//
+// `decodeQr(path)` reads a PNG image containing a QR symbol and returns the
+// decoded text. The pipeline: the existing pure-Kof PNG decoder (`pngRaster`)
+// gives the grayscale samples; the symbol is located by the bounding box of
+// the dark pixels (the three finder patterns sit at the corners of the
+// symbol, so the dark bounding box is the symbol itself); candidate module
+// scales are validated by reading back the three finder patterns and the
+// format info's BCH code; the mask is undone, the codewords are extracted in
+// the placement order (the reverse of the writer's mapData), deinterleaved
+// with the writer's Reed-Solomon tables and verified by syndromes before the
+// message bits are parsed (byte mode over UTF-8).
+//
+//   import qrcode.QrDecode
+//   var text = decodeQr("qr.png")
+//
+// Slice scope (honest): upright digital images whose dark bounding box is
+// exactly the symbol plus a quiet zone — the output of this library's writer
+// and of standard generators (verified against python-qrcode PNGs). Rotated
+// or photographed symbols, ECC levels other than M and versions above 10 are
+// refused with named diagnostics; full Reed-Solomon error correction is the
+// next slice (a corrupted symbol is refused by syndrome, never guessed).
+
+String decodeQr(String path) {
+    var raster = pngRaster(path)
+    var width = raster.width
+    var height = raster.height
+    if (width != height) {
+        throw "QRCODE: image is not square (" + width + "x" + height + ")"
+    }
+    var dark = new Int[width * height]
+    var i = 0
+    while (i < width * height) {
+        dark[i] = 0
+        i = i + 1
+    }
+    var channels = raster.channels
+    i = 0
+    while (i < width * height) {
+        var gray = 0
+        if (channels == 1) {
+            gray = raster.samples[i]
+        } else {
+            var base = i * channels
+            var sum = raster.samples[base]
+            var k = 1
+            while (k < channels) {
+                sum = sum + raster.samples[base + k]
+                k = k + 1
+            }
+            gray = sum / channels
+        }
+        if (gray < 128) {
+            dark[i] = 1
+        }
+        i = i + 1
+    }
+    var bounds = darkBounds(dark, width)
+    var minX = bounds[0]
+    var minY = bounds[1]
+    var maxX = bounds[2]
+    var maxY = bounds[3]
+    if (minX < 0) {
+        throw "QRCODE: no dark pixels in the image"
+    }
+    var boxW = maxX - minX + 1
+    var boxH = maxY - minY + 1
+    if (boxW != boxH) {
+        throw "QRCODE: symbol bounding box is not square (" + boxW + "x" + boxH + ")"
+    }
+    // candidate module scales: boxW must divide into (4*version + 17) modules
+    var n = 21
+    while (n <= 177) {
+        if ((n - 17) % 4 != 0) {
+            n = n + 1
+            continue
+        }
+        if (boxW % n != 0) {
+            n = n + 1
+            continue
+        }
+        var scale = boxW / n
+        var version = (n - 17) / 4
+        var tried = tryDecodeCandidate(dark, width, minX, minY, scale, n, version)
+        if (tried != null) {
+            return tried
+        }
+        n = n + 1
+    }
+    throw "QRCODE: no valid QR symbol found in the image"
+}
+
+Int[] darkBounds(Int[] dark, Int width) {
+    var minX = -1
+    var minY = -1
+    var maxX = -1
+    var maxY = -1
+    var i = 0
+    while (i < dark.length) {
+        if (dark[i] == 1) {
+            var row = i / width
+            var col = i % width
+            if (minX < 0 || col < minX) {
+                minX = col
+            }
+            if (minY < 0 || row < minY) {
+                minY = row
+            }
+            if (col > maxX) {
+                maxX = col
+            }
+            if (row > maxY) {
+                maxY = row
+            }
+        }
+        i = i + 1
+    }
+    var out = new Int[4]
+    out[0] = minX
+    out[1] = minY
+    out[2] = maxX
+    out[3] = maxY
+    return out
+}
+
+// Tries one (scale, version) hypothesis: samples the module matrix, checks
+// the three finder patterns and the format info's BCH; on success decodes the
+// message. Returns null when this candidate is not the symbol.
+String tryDecodeCandidate(Int[] dark, Int width, Int minX, Int minY, Int scale, Int size, Int version) {
+    var modules = new Int[size * size]
+    var r = 0
+    while (r < size) {
+        var c = 0
+        while (c < size) {
+            var px = minX + (c * scale) + (scale - 1) / 2
+            var py = minY + (r * scale) + (scale - 1) / 2
+            modules[r * size + c] = dark[py * width + px]
+            c = c + 1
+        }
+        r = r + 1
+    }
+    if (!finderPatternsValid(modules, size)) {
+        return null
+    }
+    var format = readFormat(modules, size)
+    if (format == null) {
+        return null
+    }
+    var mask = format[0]
+    if (format[1] != 0) {
+        throw "QRCODE: ECC level " + format[1] + " is not M (only M in this slice)"
+    }
+    if (version > 10) {
+        throw "QRCODE: version " + version + " is beyond this reader's range (1-10)"
+    }
+    var codewords = collectCodewords(modules, size, version, mask)
+    var data = deinterleaveAndVerify(codewords, version)
+    return parseMessage(data, version)
+}
+
+// The three finder patterns at the corners must match the 7x7 template.
+Bool finderPatternsValid(Int[] modules, Int size) {
+    return finderAt(modules, size, 0, 0)
+        && finderAt(modules, size, 0, size - 7)
+        && finderAt(modules, size, size - 7, 0)
+}
+
+Bool finderAt(Int[] modules, Int size, Int row, Int col) {
+    var dr = 0
+    while (dr < 7) {
+        var dc = 0
+        while (dc < 7) {
+            var want = 0
+            if (dr == 0 || dr == 6 || dc == 0 || dc == 6) {
+                want = 1
+            }
+            if (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4) {
+                want = 1
+            }
+            if (modules[(row + dr) * size + (col + dc)] != want) {
+                return false
+            }
+            dc = dc + 1
+        }
+        dr = dr + 1
+    }
+    return true
+}
+
+// Reads the two format-info strips; each is XORed with the spec's mask and
+// BCH-checked. Returns [mask, eccLevelBits] for the copy that validates.
+Int[] readFormat(Int[] modules, Int size) {
+    var first = formatFromVertical(modules, size)
+    var second = formatFromHorizontal(modules, size)
+    if (first != null) {
+        return first
+    }
+    return second
+}
+
+Int[] formatFromVertical(Int[] modules, Int size) {
+    var bits = 0
+    var i = 0
+    while (i < 15) {
+        var row = 0
+        if (i < 6) {
+            row = i
+        } else if (i < 8) {
+            row = i + 1
+        } else {
+            row = size - 15 + i
+        }
+        if (modules[row * size + 8] == 1) {
+            bits = bits + pow2(i)
+        }
+        i = i + 1
+    }
+    return decodeFormatBits(bits)
+}
+
+Int[] formatFromHorizontal(Int[] modules, Int size) {
+    var bits = 0
+    var i = 0
+    while (i < 15) {
+        var col = 0
+        if (i < 8) {
+            col = size - 1 - i
+        } else if (i < 9) {
+            col = 15 - i
+        } else {
+            col = 15 - 1 - i
+        }
+        if (modules[8 * size + col] == 1) {
+            bits = bits + pow2(i)
+        }
+        i = i + 1
+    }
+    return decodeFormatBits(bits)
+}
+
+// 15 raw bits -> XOR 0x5412 -> check the 10 BCH bits against the 5 data bits.
+// Returns [mask, eccBits] or null.
+Int[] decodeFormatBits(Int raw) {
+    var value = raw ^ 0x5412
+    var data = (value / 1024) % 32
+    var bch = value % 1024
+    var rem = data * 1024
+    var i = 14
+    while (i >= 10) {
+        if (bitAt(rem, i) != 0) {
+            rem = rem ^ (0x537 * pow2(i - 10))
+        }
+        i = i - 1
+    }
+    if (rem != bch) {
+        return null
+    }
+    var out = new Int[2]
+    out[0] = data % 8
+    out[1] = data / 8
+    return out
+}
+
+
+
+// Walks the placement order (the same as the writer's mapData) and collects
+// the codeword bits from every non-reserved module, unmasked.
+Int[] collectCodewords(Int[] modules, Int size, Int version, Int mask) {
+    var reserved = new Int[size * size]
+    markReserved(reserved, size, version)
+    var totalCodewords = dataCodewords(version) + codewordsEccTotal(version)
+    // versions 2-6 leave 7 remainder cells after the codeword bits; the
+    // walk visits every free cell, so the buffer carries the slack
+    var bits = new Int[totalCodewords * 8 + 8]
+    var bitIndex = 0
+    var inc = -1
+    var row = size - 1
+    var col = size - 1
+    while (col > 0) {
+        var cur = col
+        if (cur <= 6) {
+            cur = cur - 1
+        }
+        while (true) {
+            var pair = 0
+            while (pair < 2) {
+                var c = cur - pair
+                if (reserved[row * size + c] == 0) {
+                    var bit = modules[row * size + c]
+                    if (maskBit(mask, row, c) != 0) {
+                        bit = bit ^ 1
+                    }
+                    bits[bitIndex] = bit
+                    bitIndex = bitIndex + 1
+                }
+                pair = pair + 1
+            }
+            row = row + inc
+            if (row < 0 || row >= size) {
+                row = row - inc
+                inc = inc * -1
+                break
+            }
+        }
+        col = col - 2
+    }
+    if (bitIndex < totalCodewords * 8) {
+        throw "QRCODE: placement mismatch (" + bitIndex + " bits, expected at least " + totalCodewords * 8 + ")"
+    }
+    var out = new Int[totalCodewords]
+    var b = 0
+    while (b < totalCodewords) {
+        out[b] = readBits(bits, b * 8, 8)
+        b = b + 1
+    }
+    return out
+}
+
+// Marks every function-pattern cell reserved (finders + separators + timing +
+// alignment + format strips + dark module + version info).
+Int markReserved(Int[] reserved, Int size, Int version) {
+    fillRange(reserved, 0, size * size, 0)
+    // finders + separators: the writer's drawProbe covers an 8x8 area
+    // (pattern 7x7 plus the separator row/col) around each corner
+    markBlock(reserved, size, 0, 0, 8, 8)
+    markBlock(reserved, size, 0, size - 8, 8, 8)
+    markBlock(reserved, size, size - 8, 0, 8, 8)
+    // alignment patterns: the writer draws them BEFORE timing and skips a
+    // center only when a probe already reserved it, so the check must run
+    // before the timing marks (a timing row/col can pass through a center)
+    var centers = alignmentPositions(version)
+    var a = 0
+    while (a < centers.length) {
+        var b = 0
+        while (b < centers.length) {
+            var row = centers[a]
+            var col = centers[b]
+            if (reserved[row * size + col] == 0) {
+                markBlock(reserved, size, row - 2, col - 2, 5, 5)
+            }
+            b = b + 1
+        }
+        a = a + 1
+    }
+    // timing
+    var i = 8
+    while (i < size - 8) {
+        reserved[6 * size + i] = 1
+        reserved[i * size + 6] = 1
+        i = i + 1
+    }
+    // format strips (rows/cols as written by drawFormatInfo) + dark module
+    var f = 0
+    while (f < 15) {
+        var row = 0
+        if (f < 6) {
+            row = f
+        } else if (f < 8) {
+            row = f + 1
+        } else {
+            row = size - 15 + f
+        }
+        reserved[row * size + 8] = 1
+        var col = 0
+        if (f < 8) {
+            col = size - 1 - f
+        } else if (f < 9) {
+            col = 15 - f
+        } else {
+            col = 15 - 1 - f
+        }
+        reserved[8 * size + col] = 1
+        f = f + 1
+    }
+    reserved[(size - 8) * size + 8] = 1
+    // version info (version >= 7)
+    if (version >= 7) {
+        var v = 0
+        while (v < 18) {
+            reserved[(v / 3) * size + (v % 3 + size - 11)] = 1
+            reserved[(v % 3 + size - 11) * size + (v / 3)] = 1
+            v = v + 1
+        }
+    }
+    return 0
+}
+
+Int markBlock(Int[] reserved, Int size, Int row0, Int col0, Int rows, Int cols) {
+    var r = 0
+    while (r < rows) {
+        var c = 0
+        while (c < cols) {
+            var row = row0 + r
+            var col = col0 + c
+            if (row >= 0 && row < size && col >= 0 && col < size) {
+                reserved[row * size + col] = 1
+            }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return 0
+}
+
+Int codewordsEccTotal(Int version) {
+    return (blocksGroup1(version) + blocksGroup2(version)) * blocksEcc(version)
+}
+
+// Inverse of the writer's interleave: split the received codewords back into
+// per-block (data + ecc) sequences, verify every block's Reed-Solomon
+// syndromes, and return the pure data stream (the message). Throws on a
+// parity failure.
+Int[] deinterleaveAndVerify(Int[] received, Int version) {
+    var g1 = blocksGroup1(version)
+    var g2 = blocksGroup2(version)
+    var d1 = dataPerBlock1(version)
+    var d2 = dataPerBlock2(version)
+    var blocks = g1 + g2
+    var ecc = blocksEcc(version)
+    var dataMax = d1
+    if (d2 > dataMax) {
+        dataMax = d2
+    }
+    var allData = new Int[dataCodewords(version)]
+    var allEcc = new Int[ecc * blocks]
+    var read = 0
+    var k = 0
+    while (k < dataMax) {
+        var blockIdx = 0
+        while (blockIdx < blocks) {
+            var len = d1
+            var dataOff = blockIdx * d1
+            if (blockIdx >= g1) {
+                len = d2
+                dataOff = g1 * d1 + (blockIdx - g1) * d2
+            }
+            if (k < len) {
+                allData[dataOff + k] = received[read]
+                read = read + 1
+            }
+            blockIdx = blockIdx + 1
+        }
+        k = k + 1
+    }
+    k = 0
+    while (k < ecc) {
+        var blockIdx = 0
+        while (blockIdx < blocks) {
+            allEcc[blockIdx * ecc + k] = received[read]
+            read = read + 1
+            blockIdx = blockIdx + 1
+        }
+        k = k + 1
+    }
+    // verify each block's syndromes over its data+ecc codewords
+    var blockIdx = 0
+    while (blockIdx < blocks) {
+        var len = d1
+        var dataOff = blockIdx * d1
+        if (blockIdx >= g1) {
+            len = d2
+            dataOff = g1 * d1 + (blockIdx - g1) * d2
+        }
+        var j = 0
+        while (j < ecc) {
+            var s = 0
+            var i = 0
+            while (i < len) {
+                s = gfMul(s, pow2(j)) ^ allData[dataOff + i]
+                i = i + 1
+            }
+            i = 0
+            while (i < ecc) {
+                s = gfMul(s, pow2(j)) ^ allEcc[blockIdx * ecc + i]
+                i = i + 1
+            }
+            if (s != 0) {
+                throw "QRCODE: symbol data failed the parity check (damaged or unsupported symbol)"
+            }
+            j = j + 1
+        }
+        blockIdx = blockIdx + 1
+    }
+    return allData
+}
+
+// Reads `count` bits of the message stream starting at bit `pos`
+// (MSB-first within each codeword byte).
+Int readStreamBits(Int[] data, Int pos, Int count) {
+    var v = 0
+    var i = 0
+    while (i < count) {
+        v = v * 2 + bitAt(data[(pos + i) / 8], 7 - (pos + i) % 8)
+        i = i + 1
+    }
+    return v
+}
+
+// Parses the message bit stream: byte mode (0100) over UTF-8.
+String parseMessage(Int[] data, Int version) {
+    var pos = 0
+    var mode = readStreamBits(data, 0, 4)
+    pos = 4
+    if (mode != 4) {
+        throw "QRCODE: mode " + mode + " is not byte mode (only byte mode in this slice)"
+    }
+    var countBits = 8
+    if (version >= 10) {
+        countBits = 16
+    }
+    var length = readStreamBits(data, pos, countBits)
+    pos = pos + countBits
+    if (pos + length * 8 > dataCodewords(version) * 8) {
+        throw "QRCODE: message length " + length + " exceeds the data capacity"
+    }
+    var bytes = new Int[length]
+    var i = 0
+    while (i < length) {
+        bytes[i] = readStreamBits(data, pos, 8)
+        pos = pos + 8
+        i = i + 1
+    }
+    return utf8Decode(bytes)
+}
+
+// UTF-8 bytes -> text (the inverse of the writer's utf8Encode, including
+// surrogate pairs for code points above the BMP).
+String utf8Decode(Int[] bytes) {
+    var text = ""
+    var i = 0
+    while (i < bytes.length) {
+        var b = bytes[i]
+        var cp = 0
+        var len = 1
+        if (b < 0x80) {
+            cp = b
+        } else if (b < 0xC0) {
+            throw "QRCODE: invalid UTF-8 continuation byte at " + i
+        } else if (b < 0xE0) {
+            if (i + 1 >= bytes.length) {
+                throw "QRCODE: truncated UTF-8 sequence at " + i
+            }
+            cp = ((b - 0xC0) * 64) + (bytes[i + 1] - 0x80)
+            len = 2
+        } else if (b < 0xF0) {
+            if (i + 2 >= bytes.length) {
+                throw "QRCODE: truncated UTF-8 sequence at " + i
+            }
+            cp = ((b - 0xE0) * 4096) + ((bytes[i + 1] - 0x80) * 64) + (bytes[i + 2] - 0x80)
+            len = 3
+        } else {
+            if (i + 3 >= bytes.length) {
+                throw "QRCODE: truncated UTF-8 sequence at " + i
+            }
+            cp = ((b - 0xF0) * 262144) + ((bytes[i + 1] - 0x80) * 4096) + ((bytes[i + 2] - 0x80) * 64) + (bytes[i + 3] - 0x80)
+            len = 4
+        }
+        i = i + len
+        text = text + charOf(cp)
+    }
+    return text
+}
+
+// Code point -> text (surrogate pair above the BMP).
+String charOf(Int cp) {
+    if (cp < 0x10000) {
+        return "" + (cp as Char)
+    }
+    var high = 0xD800 + ((cp - 0x10000) / 1024)
+    var low = 0xDC00 + ((cp - 0x10000) % 1024)
+    return "" + (high as Char) + (low as Char)
+}
