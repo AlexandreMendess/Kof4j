@@ -110,15 +110,6 @@ public final class JsRuntimeUiJsonMap {
                 return false;
             }
 
-            // §659d: Double inteiro mantém o .0 (JSON.stringify(1.0) → "1";
-            // o JVM/Script/nativo imprimem "1.0"). Não-inteiro segue o caminho
-            // geral. O registro de campos Double por classe é a face 2 (o
-            // record precisa do registro por campo).
-            export function kofJsonEncodeDouble(v) {
-                return (typeof v === 'number' && Number.isInteger(v)) ? v + '.0'
-                        : kofJsonEncode(v);
-            }
-
             // §659d (face record): o toJSON de um record com campo Double/Float
             // inteiro emite a SENTINELA (a mesma mecânica do §659b) e o strip
             // abaixo a devolve COM o .0 — paridade JVM/Script/nativo.

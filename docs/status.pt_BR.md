@@ -1,4 +1,5 @@
 [English](status.md) | [Português](status.pt_BR.md)
+last: **sync de stamps de versão pós-release 0.6.2 → 0.6.3 (~70 docs vivos, 82 campos de versão corrente) + os blocos de release do CHANGELOG/AGENTS (POUSADO 11/10, lane docs/lab, dona `192.168.15.130:9093`)** — menções históricas preservadas (nenhuma tag/artefato tocado); AGENTS next honesto sobre as tags 0.6.3 pendentes. Só docs; gates rc=0; `mvn -o -pl kof-compiler -am compile` rc=0.
 last: **verdade-de-doc — o cabeçalho do `entity-history-plan` tinha uma linha `doing:` duplicada + assimetria EN/PT (2c-parte-1 perdida no EN); restaurada + alinhada EN+PT (POUSADO 11/10, lane docs/lab, dona `192.168.15.130:9093`)** — Só docs; gates rc=0; `mvn -o -pl kof-compiler -am compile` rc=0.
 last: **verdade-de-doc — a ENUMERAÇÃO da fila aberta da §2 foi revertida pela 4ª vez (por `f132b7010`); o gate `check_queue_enum` a PEGOU (RED), reconstruída EN+PT para a autoridade; corrigidos também a cauda duplicada do `next:` do entity-history + o golden da Fase 3 na linha 0h (POUSADO 11/10, lane docs/lab, dona `192.168.15.130:9093`)** — Só docs; gates rc=0; `mvn -o -pl kof-compiler -am compile` rc=0.
 last: **verdade-de-doc — a linha 0k do índice `docs/development/README.md` (`wasm-wasi-plan`) estava velha (parava em 15.3c-sliceA; o plano está em 15.3d-inc2-SLICE-E), corrigida EN+PT (POUSADO 11/10, lane docs/lab, dona `192.168.15.130:9093`)** — Só docs; gates rc=0; `mvn -o -pl kof-compiler -am compile` rc=0.
@@ -233,7 +234,7 @@ state: active
 constraint: maintainer-gated-promotion
 decision: D-KOF-FIRST-IMPL
 
-**Versão:** 0.6.2 (pom `revision`) · **Última atualização:** 30 de setembro de 2026.
+**Versão:** 0.6.3 (pom `revision`) · **Última atualização:** 30 de setembro de 2026.
 
 **28/09 — frente pipeline + biblioteca (branch ativa = `lab`, `D-BRANCH-PIPELINE`).**
 - **memory-safety #651 fatia A1 pousada (29/09, `D-BUFFER-INOUT-NATIVE`):** `Buffer(U8)` abre no Native x86-64 — `buffer.alloc(Int)`, `Buffer.bytes()` e `println(Buffer)` tipado direto bindam com paridade JVM/JS (objeto nativo `[0..8]=header, cap@16, payload@24`; `kof_buffer_alloc` clampa negativo→0 e zero-fill, `kof_buffer_bytes` copia `cap` bytes, `kof_buffer_to_string` imprime `Buffer[cap]`; `NativeX86ValueOf` roteia prints nominais pelo novo `RuntimeBuffer`). `KofBuffer.supportedOn` admite só `Target.NATIVE`; riscv64/aarch64 e Script/Android seguem `FFI001` nesta superfície; o parâmetro FFI `B` é a A2. Prova `BufferE2ETest#allocBytesAndPrintlnNativeParity` (JVM==x86 byte a byte) + `StdParityGapAuditTest`; suíte focada FFI/Buffer verde; #651 segue ABERTA até B (B pousada abaixo).
