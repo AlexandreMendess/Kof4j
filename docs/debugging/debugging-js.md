@@ -7,7 +7,7 @@
 function declaration), not line-level. The JS target runs on the **embedded
 GraalJS engine** (`KofJsRunner`), not Node.
 **Date:** September 20, 2026
-**Version:** 0.6.2 (7 targets; free-list + pthread spawn + FP XMM)
+**Version:** 0.6.3 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 
