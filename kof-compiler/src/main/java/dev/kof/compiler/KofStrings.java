@@ -17,6 +17,15 @@ public final class KofStrings {
     private KofStrings() {}
 
     private static final Type STR = BuiltinTypes.STRING;
+
+    // known-bugs §657: as guardas de tipo dos params (espelho KofMath/KofTime)
+    private static boolean isStr(Type t) {
+        return STR.equals(t) || "String".equals(t.toString());
+    }
+
+    private static boolean isInt(Type t) {
+        return t == INT || "Int".equals(t.toString()) || "int".equals(t.toString());
+    }
     private static final Type BOOL = Type.PrimitiveType.BOOL;
     private static final Type INT = Type.PrimitiveType.INT;
 
@@ -63,7 +72,9 @@ public final class KofStrings {
             case "isAlpha", "isNumeric", "isAlphaNumeric", "isAscii",
                     "isUpperCase", "isLowerCase" -> argc == 1
                     ? new StringsCall("kof_strings_" + name, BOOL, List.of(STR)) : null;
-            case "count" -> argc == 2
+            // known-bugs §657: guardas de tipo nos params INT/STR (a ligação
+            // era só-por-arity — strings.repeat("ab", 5e9) alocava ~5 bi chars)
+            case "count" -> argc == 2 && isStr(argTypes.get(1))
                     ? new StringsCall("kof_strings_count", INT, List.of(STR, STR)) : null;
             case "capitalize", "uncapitalize", "reverse", "toCamelCase", "toPascalCase",
                     "toSnakeCase", "toKebabCase", "slugify" -> argc == 1
@@ -75,15 +86,16 @@ public final class KofStrings {
             case "escapeHtml", "unescapeHtml", "escapeJson", "removeWhitespace", "normalizeWhitespace",
                     "dedent" -> argc == 1
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR)) : null;
-            case "repeat", "truncate" -> argc == 2
+            case "repeat", "truncate" -> argc == 2 && isStr(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT)) : null;
-            case "indent" -> argc == 2
+            case "indent" -> argc == 2 && isStr(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new StringsCall("kof_strings_indent", STR, List.of(STR, INT)) : null;
             // S2b.3: pad(String,Int,String) — pad é a 1ª char do 3º arg (idiom
             // Kof: escreve "*", não o código Int). null=>null; pad vazio/null ou
             // len>=n => original. ASCII travado na matriz (pad ainda byte-based
             // no Native — gap NAT-STR01).
-            case "padLeft", "padRight" -> argc == 3
+            case "padLeft", "padRight" -> argc == 3 && isStr(argTypes.get(0))
+                    && isInt(argTypes.get(1)) && isStr(argTypes.get(2))
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT, STR)) : null;
             default -> null;
         };
