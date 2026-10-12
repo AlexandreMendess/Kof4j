@@ -88,6 +88,8 @@ public final class Migrate {
         Path outDir = outArg != null ? Path.of(outArg) : null;
         boolean json = contains(args, "--json");
         boolean compare = contains(args, "--compare");
+        List<String> compareArgs = optionValues(args, "--arg");
+        String compareStdin = optionValue(args, "--stdin");
         if (!Files.isRegularFile(input)) {
             System.err.println("file not found: " + input);
             return 1;
@@ -106,7 +108,7 @@ public final class Migrate {
                     System.err.println("kof migrate <app.jar> exige --output <dir>");
                     return 1;
                 }
-                report = jarReport(input, outDir, compare);
+                report = jarReport(input, outDir, compare, compareArgs, compareStdin);
                 if (json) {
                     Map<String, Object> out = new LinkedHashMap<>();
                     out.put("report", report.toMap());
@@ -175,6 +177,12 @@ public final class Migrate {
      * assumption.
      */
     static MigrationReport jarReport(Path jarPath, Path outDir, boolean compare) throws IOException {
+        return jarReport(jarPath, outDir, compare, List.of(), null);
+    }
+
+    /** Fase H slice 3: the §8 differential test runs over the SAME INPUT VECTOR. */
+    static MigrationReport jarReport(Path jarPath, Path outDir, boolean compare,
+                                     List<String> compareArgs, String compareStdin) throws IOException {
         java.util.jar.JarFile jar = new java.util.jar.JarFile(jarPath.toFile());
         int classes = 0;
         int fields = 0;
@@ -239,11 +247,11 @@ public final class Migrate {
                             Files.copy(tmp, legacyClass, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                             try {
                                 String simple = internalName.substring(internalName.lastIndexOf('/') + 1);
-                                Compare.RunResult legacyRes = Compare.runLegacy(legacyClass, List.of(), null);
+                                Compare.RunResult legacyRes = Compare.runLegacy(legacyClass, compareArgs, compareStdin);
                                 // the migrated class compiles into the DEFAULT
                                 // package (the .kf has no package line) — the
                                 // entry is the plain simple name
-                                Compare.RunResult kofRes = Compare.runKof(kfPath, simple, List.of(), null);
+                                Compare.RunResult kofRes = Compare.runKof(kfPath, simple, compareArgs, compareStdin);
                                 Compare.Verdict verdict = Compare.compare(legacyRes, kofRes);
                                 if (verdict.equivalent()) {
                                     behPassed++;
@@ -338,5 +346,14 @@ public final class Migrate {
             if (opt.equals(args[i])) return args[i + 1];
         }
         return null;
+    }
+
+    /** Repeatable option: every `--arg <v>` occurrence contributes one value. */
+    private static List<String> optionValues(String[] args, String opt) {
+        List<String> vals = new ArrayList<>();
+        for (int i = 0; i < args.length - 1; i++) {
+            if (opt.equals(args[i])) vals.add(args[i + 1]);
+        }
+        return vals;
     }
 }

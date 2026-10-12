@@ -197,6 +197,32 @@ class MigrateTest extends CliJavacSupport {
     }
 
     @Test
+    void jarCompareRunsSameInputVector(@TempDir Path dir) throws Exception {
+        // §8: the differential test is defined over the SAME INPUT VECTOR —
+        // the args vector must reach BOTH sides identically: both print
+        // "2x" (args.length + first arg) and the verdict is a pass. A
+        // one-sided plumbing flips this to divergent. (The stdin leg of the
+        // plumbing is proven at the Compare level — CompareTest's --stdin
+        // faces; a decompiled body that READS stdin stubs honestly, so the
+        // end-to-end stdin face waits for the structured-shape ceiling.)
+        createClass(dir, "Echo", """
+                public class Echo {
+                    public static void main(String[] args) {
+                        System.out.println(args.length + args[0]);
+                    }
+                }
+                """);
+        createJar(dir.resolve("app.jar"), dir, "Echo");
+
+        Migrate.MigrationReport report = Migrate.jarReport(dir.resolve("app.jar"),
+                dir.resolve("out"), true, java.util.List.of("x", "y"), null);
+        assertEquals(1, report.behavioralPassed(),
+                "both sides must receive the identical arg vector");
+        assertEquals(0, report.behavioralDivergent());
+        assertEquals(0, report.behavioralNotComparable());
+    }
+
+    @Test
     void jarCompareCountsNotComparableWithoutMain(@TempDir Path dir) throws Exception {
         createClass(dir, "Alpha", "public class Alpha { }");
         createJar(dir.resolve("app.jar"), dir, "Alpha");

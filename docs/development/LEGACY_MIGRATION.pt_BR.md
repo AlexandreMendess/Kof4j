@@ -336,6 +336,8 @@ programa original e no Kof, comparando **saídas observáveis**.
   dependencies + configuration + database + observed behavior). Isso é
   **software archaeology**, não conversão trivial.
 
+> **Entregue 14/10 — Fase H fatia 3 (lane nativa/GC `192.168.15.117:0`): vetores de entrada na integração comportamental.** O teste diferencial da §8 é definido sobre o MESMO VETOR DE ENTRADA — o `kof migrate app.jar --output dir/ --compare` agora aceita `--arg <v>` (repetível) e `--stdin <text>` e entrega o vetor idêntico aos DOIS lados de cada comparação por main (a integração comparava antes com entradas vazias hardcode). Prova (executada): `MigrateTest` **11/11** — a face nova migra um main que imprime `args.length + args[0]` e roda o compare com `["x","y"]`: os dois lados imprimem `2x`, veredito passed=1 (uma fiaç ão unilateral vira divergente); a bateria completa de migração **152/152**. Escopo honesto: a perna de stdin da fiaç ão é provada no nível do Compare (faces `--stdin` do CompareTest); um corpo decompilado que LÊ stdin vira stub honesto (o teto structured-shape), então a face E2E de stdin espera esse teto (decisão diamond-law).
+
 ### 8.1 Migration Report (`kof migrate`, Fase H)
 
 Relatório com rastreabilidade da migração. Estrutura conceitual (os números

@@ -335,6 +335,8 @@ original program and in Kof, comparing **observable outputs**.
   dependencies + configuration + database + observed behavior). This is
   **software archaeology**, not trivial conversion.
 
+> **Landed 14/10 — Phase H slice 3 (lane nativa/GC `192.168.15.117:0`): input vectors in the behavioral wiring.** §8's differential test is defined over the SAME INPUT VECTOR — `kof migrate app.jar --output dir/ --compare` now accepts `--arg <v>` (repeatable) and `--stdin <text>` and delivers the identical vector to BOTH sides of every per-main comparison (the wiring previously compared with hardcoded empty inputs). Proof (executed): `MigrateTest` **11/11** — the new face migrates a main that prints `args.length + args[0]` and runs the compare with `["x","y"]`: both sides print `2x`, verdict passed=1 (a one-sided plumbing flips it to divergent); the full migration battery **152/152**. Honest scope: the stdin leg of the plumbing is proven at the Compare level (CompareTest's `--stdin` faces); a decompiled body that READS stdin stubs honestly (the structured-shape ceiling), so the end-to-end stdin face waits for that ceiling (diamond-law decision).
+
 ### 8.1 Migration Report (`kof migrate`, Phase H)
 
 Report with migration traceability. Conceptual structure (the numbers
