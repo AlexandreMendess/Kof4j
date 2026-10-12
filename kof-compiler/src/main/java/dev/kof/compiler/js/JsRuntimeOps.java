@@ -111,7 +111,17 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 // serializa BigInt como o inteiro decimal (paridade JVM/nativo)
                 // e mantém o caminho sem-Long byte-idêntico.
                 p.lc.registerRuntime("kofJsonEncode");
-                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonEncode"), List.of(value)));
+                // §659d: um Double/Float INTEIRO no JS imprime sem o .0
+                // (JSON.stringify(1.0) → "1"); o JVM/Script/nativo mantêm
+                // "1.0". Quando o tipo estático do arg é Double/Float,
+                // roteia p/ o formatador que repõe o .0.
+                boolean dblArg = !kc.parameterTypes().isEmpty()
+                        && kc.parameterTypes().get(0) instanceof Type.PrimitiveType pt0
+                        && ("double".equals(Type.canonicalPrimitiveName(pt0.name()))
+                            || "float".equals(Type.canonicalPrimitiveName(pt0.name())));
+                if (dblArg) p.lc.registerRuntime("kofJsonEncodeDouble");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(
+                        dblArg ? "kofJsonEncodeDouble" : "kofJsonEncode"), List.of(value)));
             } else if (name.startsWith("kof_json_decode_")
                     && BuiltinTypes.isList(kc.ownerType())) {
                 // decode<List<T>> — bind each element to the Kof class

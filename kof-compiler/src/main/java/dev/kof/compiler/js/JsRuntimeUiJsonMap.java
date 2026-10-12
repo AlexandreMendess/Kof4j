@@ -70,6 +70,15 @@ public final class JsRuntimeUiJsonMap {
                 return false;
             }
 
+            // §659d: Double inteiro mantém o .0 (JSON.stringify(1.0) → "1";
+            // o JVM/Script/nativo imprimem "1.0"). Não-inteiro segue o caminho
+            // geral. O registro de campos Double por classe é a face 2 (o
+            // record precisa do registro por campo).
+            export function kofJsonEncodeDouble(v) {
+                return (typeof v === 'number' && Number.isInteger(v)) ? v + '.0'
+                        : kofJsonEncode(v);
+            }
+
             export function kofJsonEncode(v) {
                 if (!kofJsonHasBig(v)) return JSON.stringify(v);
                 return JSON.stringify(v, (k, x) => typeof x === 'bigint'
