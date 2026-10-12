@@ -154,7 +154,7 @@ public final class KofOrm {
 
 /** X10 fatia 3: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("create", "save", "find", "all", "delete", "count", "deleteAll", "where", "saveAll", "page", "migrate"); }
+    static List<String> functions() { return List.of("create", "createHistory", "save", "find", "all", "delete", "count", "deleteAll", "where", "saveAll", "page", "migrate"); }
 
     /** {@code orm.<method>(...) } — resolve o runtime function. */
     static OrmCall staticCall(String name, List<Type> argTypes, boolean typed, String entityName) {
