@@ -15,13 +15,31 @@ public final class JvmOrmHistoryRuntime {
 
     static String source() {
         return """
+                // §11 (D-ENTITY-HISTORY): a ordem de resolução v1 — itens 2+4:
+                // autenticado (os claims JWT do dispatch web) → (user, 'user');
+                // senão (null, 'system') — NUNCA uma mentira. O override
+                // explícito é a açúcar futura (§27); o default de aplicação
+                // precisa de decisão.
+                private static String[] kof_orm_history_actor() throws Exception {
+                    String user = kof_sec_auth_user();
+                    if (user != null) return new String[]{user, "user"};
+                    return new String[]{null, "system"};
+                }
+
+                // o correlation id: o id request-bound (Fase 4a) quando em
+                // request; null fora (um UUID fresco por linha não é correlação)
+                private static String kof_orm_history_corr() {
+                    return KOF_LOG_REQUEST_ID.get();
+                }
+
                 // entity-history fatia 2b (D-ENTITY-HISTORY): wrapper que
                 // grava a revisão APÓS o DML — a operação (INSERT/UPDATE) é
                 // conhecida DENTRO do doSave (generated key → INSERT).
                 public static Object kof_orm_save_recorded(String id, Object obj, String table, String schema) throws Exception {
                     String[] op = new String[1];
                     Object out = kof_orm_do_save(id, obj, table, schema, op);
-                    kof_orm_history_record(id, out, table, schema, op[0]);
+                    String[] actor = kof_orm_history_actor();
+                    kof_orm_history_record(id, out, table, schema, op[0], actor[0], actor[1], kof_orm_history_corr());
                     return out;
                 }
 
@@ -33,7 +51,7 @@ public final class JvmOrmHistoryRuntime {
                 public static java.util.ArrayList<Object> kof_orm_history(String id, Object key,
                         String table, String schema, String className) throws Exception {
                     String dialect = kof_orm_dialect(id);
-                    return kof_db_query1(id, "SELECT revision, at, operation FROM "
+                    return kof_db_query1(id, "SELECT revision, at, operation, actor, correlation_id FROM "
                             + kof_orm_q(table + "_history", dialect)
                             + " WHERE entity_pk = ? ORDER BY revision", key, className);
                 }
@@ -48,7 +66,7 @@ public final class JvmOrmHistoryRuntime {
                     }
                     String dialect = kof_orm_dialect(id);
                     java.util.ArrayList<Object> rows = kof_db_query2(id,
-                            "SELECT revision, at, operation FROM "
+                            "SELECT revision, at, operation, actor, correlation_id AS correlationId FROM "
                                     + kof_orm_q(table + "_history", dialect)
                                     + " WHERE entity_pk = ? AND revision = ?",
                             key, revision, className);
@@ -62,7 +80,7 @@ public final class JvmOrmHistoryRuntime {
                                 + ".history offset/limit must be >= 0");
                     }
                     String dialect = kof_orm_dialect(id);
-                    return kof_db_query3(id, "SELECT revision, at, operation FROM "
+                    return kof_db_query3(id, "SELECT revision, at, operation, actor, correlation_id AS correlationId FROM "
                             + kof_orm_q(table + "_history", dialect)
                             + " WHERE entity_pk = ? ORDER BY revision LIMIT ? OFFSET ?", key, limit, offset, className);
                 }
@@ -172,7 +190,11 @@ public final class JvmOrmHistoryRuntime {
 
                 public static boolean kof_orm_delete_recorded(String id, Object key, String table, String schema) throws Exception {
                     boolean ok = kof_orm_delete(id, key, table, schema);
-                    if (ok) kof_orm_history_record_delete(id, String.valueOf(key), table, schema);
+                    if (ok) {
+                        String[] actor = kof_orm_history_actor();
+                        kof_orm_history_record_delete(id, String.valueOf(key), table, schema,
+                                actor[0], actor[1], kof_orm_history_corr());
+                    }
                     return ok;
                 }
 
@@ -183,14 +205,15 @@ public final class JvmOrmHistoryRuntime {
                     String dialect = kof_orm_dialect(id);
                     return kof_db_execute(id, "CREATE TABLE IF NOT EXISTS " + kof_orm_q(table + "_history", dialect)
                             + " (revision BIGINT NOT NULL, entity_pk VARCHAR(255) NOT NULL, "
-                            + "operation VARCHAR(16) NOT NULL, at BIGINT NOT NULL, payload CLOB)") >= 0;
+                            + "operation VARCHAR(16) NOT NULL, at BIGINT NOT NULL, payload CLOB, "
+                            + "actor VARCHAR(255), actor_kind VARCHAR(16), correlation_id VARCHAR(64))") >= 0;
                 }
 
                 // §10: revisão monotônica POR-ENTITY (entity_pk) —
                 // COALESCE(MAX)+1 na MESMA connection do DML; payload = snapshot
                 // completo dos campos (JSON de texto via reflection).
                 public static void kof_orm_history_record(String id, Object obj, String table, String schema,
-                        String operation) throws Exception {
+                        String operation, String actor, String actorKind, String correlationId) throws Exception {
                     String dialect = kof_orm_dialect(id);
                     java.util.List<OrmField> fields = kof_orm_schema(schema);
                     int pkIndex = kof_orm_pkIndex(fields);
@@ -217,19 +240,22 @@ public final class JvmOrmHistoryRuntime {
                     }
                     try (java.sql.PreparedStatement ps = kof_db_conn(id).prepareStatement(
                             "INSERT INTO " + kof_orm_q(table + "_history", dialect)
-                                    + " (revision, entity_pk, operation, at, payload) VALUES (?, ?, ?, ?, ?)")) {
+                                    + " (revision, entity_pk, operation, at, payload, actor, actor_kind, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
                         ps.setLong(1, rev);
                         ps.setString(2, String.valueOf(pk));
                         ps.setString(3, operation);
                         ps.setLong(4, System.currentTimeMillis());
                         ps.setString(5, json.toString());
+                        ps.setString(6, actor);
+                        ps.setString(7, actorKind);
+                        ps.setString(8, correlationId);
                         ps.executeUpdate();
                     }
                 }
 
                 // DELETE: o snapshot é a própria chave (a linha já não existe)
-                public static void kof_orm_history_record_delete(String id, String pk, String table, String schema)
-                        throws Exception {
+                public static void kof_orm_history_record_delete(String id, String pk, String table, String schema,
+                        String actor, String actorKind, String correlationId) throws Exception {
                     String dialect = kof_orm_dialect(id);
                     long rev;
                     try (java.sql.PreparedStatement rs_ = kof_db_conn(id).prepareStatement(
@@ -242,12 +268,15 @@ public final class JvmOrmHistoryRuntime {
                     }
                     try (java.sql.PreparedStatement ps = kof_db_conn(id).prepareStatement(
                             "INSERT INTO " + kof_orm_q(table + "_history", dialect)
-                                    + " (revision, entity_pk, operation, at, payload) VALUES (?, ?, ?, ?, ?)")) {
+                                    + " (revision, entity_pk, operation, at, payload, actor, actor_kind, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
                         ps.setLong(1, rev);
                         ps.setString(2, pk);
                         ps.setString(3, "DELETE");
                         ps.setLong(4, System.currentTimeMillis());
                         ps.setString(5, "{" + (char) 34 + "deleted" + (char) 34 + ":true}");
+                        ps.setString(6, actor);
+                        ps.setString(7, actorKind);
+                        ps.setString(8, correlationId);
                         ps.executeUpdate();
                     }
                 }
