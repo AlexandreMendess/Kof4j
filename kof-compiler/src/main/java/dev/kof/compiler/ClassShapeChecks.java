@@ -123,7 +123,7 @@ public final class ClassShapeChecks {
                 report(sa, cls.position(),
                         "circular inheritance detected: '" + start + "' extends (directly or "
                                 + "transitively) itself — break the cycle in the hierarchy",
-                        "SEM106");
+                        "SEM107");
                 return;
             }
             SymbolTable.ClassSymbol sym = sa.allClasses().get(current);

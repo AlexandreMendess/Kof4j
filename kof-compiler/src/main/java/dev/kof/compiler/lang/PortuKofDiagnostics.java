@@ -282,6 +282,7 @@ public final class PortuKofDiagnostics {
         m.put("SEM104", List.of(new Variant("Kof has no operator '{0}' for {1} compared to a Double/Float operand — ordering is defined only for numeric operands; compare numeric values, or use value.toDouble() on a known dynamic value", "Kof não tem operador '{0}' para {1} comparado a um operando Double/Float — a ordem é definida apenas para operandos numéricos; compare valores numéricos, ou use valor.toDouble() sobre um valor dinâmico conhecido")));
         m.put("SEM105", List.of(new Variant("Kof has no operator '{0}' for enum (the ordering was accepted-and-divergent across targets); use: a.compareTo(b) {1}", "Kof não tem o operador '{0}' para enum (a ordenação era aceita-e-divergente entre alvos); use: a.compareTo(b) {1}")));
         m.put("SEM106", List.of(new Variant("'instanceof' is not defined for the primitive target '{0}': instanceof checks a CLASS/RECORD reference (the boxed form diverges per target) — the value IS a {1} by its declared type", "'instanceof' não é definido para o alvo primitivo '{0}': o instanceof checa uma referência CLASS/RECORD (a forma boxada diverge por alvo) — o valor É um {1} pelo seu tipo declarado")));
+        m.put("SEM107", List.of(new Variant("circular inheritance detected: '{0}' extends (directly or transitively) itself — break the cycle in the hierarchy", "herança circular detectada: '{0}' estende (direta ou transitivamente) a si mesma — quebre o ciclo na hierarquia")));
         // @@CATALOG_END@@
         return java.util.Collections.unmodifiableMap(m);
     }
