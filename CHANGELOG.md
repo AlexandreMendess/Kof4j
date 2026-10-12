@@ -370,8 +370,8 @@
 
 # Changelog
 
-last: 0.6.2-cut
-doing: 0.6.2-released
+last: 0.6.3-cut
+doing: 0.6.2-published
 next: 0.7.0-cut
 location: CHANGELOG
 state: active

@@ -3,7 +3,7 @@
 # Filosofia do Kof
 
 **Última atualização:** 12 de setembro de 2026
-**Versão:** 0.6.2 (7 targets; `VERSION` 0.6.2)
+**Versão:** 0.6.3 (7 targets; `VERSION` 0.6.3)
 
 ---
 

@@ -3,7 +3,7 @@
 # Kof Licensing
 
 **Last updated:** September 17, 2026
-**Version:** 0.6.2 (7 targets; free-list + pthread spawn + FP XMM)
+**Version:** 0.6.3 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 
@@ -27,7 +27,7 @@ Kof does not modify the embedded JDK; the launcher (`bin/kof`/`bin/kof.bat`, Win
 
 ## 2.1 Compiler (0.6.0)
 
-The Kof compiler (modules `kof-compiler`, `kof-script` and `kof-c-compiler`; current test counts in `docs/status.md`, `VERSION` 0.6.2) is GPLv3.
+The Kof compiler (modules `kof-compiler`, `kof-script` and `kof-c-compiler`; current test counts in `docs/status.md`, `VERSION` 0.6.3) is GPLv3.
 
 It contains:
 - Lexer / Parser (`case String s` + `Point(x,y)` + `String?`)
