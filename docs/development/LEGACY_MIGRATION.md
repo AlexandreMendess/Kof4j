@@ -175,6 +175,31 @@ overloads, constructors, exceptions, annotations, records, enums, lambdas,
 nested classes, anonymous classes, static initialization, access modifiers,
 Java standard library, external library calls.
 
+> **Measured 14/10 (lane nativa/GC `192.168.15.117:0`) — the list against the
+> translator: 17/19 faces land.** classes/interfaces/inheritance/generics/
+> overloads/constructors/exceptions/annotations/records/enums/lambdas/access
+> modifiers/Java stdlib/switch/loops/arrays/casts/instanceof all translate
+> (probed per-item); **static initialization FOLDS since this round** —
+> `static { V = 42; }` with ONLY literal assignments to declared static
+> fields folds into the field initializers (the block's value WINS over a
+> field initializer — Java runs the block after the field inits; executed
+> proof: the translated program compiles and prints `42`), non-literal
+> bodies keep the NAMED refusal; **instance init `{ }` folds** — the body is
+> prefixed into every constructor (a class without one gains the default
+> constructor carrying it; a block AFTER the first constructor refuses —
+> textual order is not recreable in this one-pass parser). The 2 remaining
+> refusals + their unlock options: **nested classes** — Kof has top-level
+> types only; Option A = hoist to top-level as `Outer_Inner` with all
+> qualified references rewritten, name collision → named refusal (covers
+> static nested = pure namespacing; non-static inner captures the enclosing
+> instance → still refused honestly unless the maintainer wants the synthetic
+> `this$Outer` field = Option B); **anonymous classes** — Option A = lower to
+> a Kof lambda when the anonymous type is a functional interface with exactly
+> one abstract method (the Kof-idiomatic shape), multi-method/stateful ones
+> stay refused (or ride the nested Option B). The name format (`Outer_Inner`)
+> is the only surface choice awaiting the maintainer; everything else in the
+> two remaining slices is mechanical once the format is confirmed.
+
 ---
 
 ## 4. Legacy Semantic IR (was `LEGACY_IR.md` — MERGED here 13/09)

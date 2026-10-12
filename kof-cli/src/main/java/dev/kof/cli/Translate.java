@@ -66,6 +66,22 @@ public final class Translate {
         final StringBuilder topFns = new StringBuilder();
         /** Campos `static` da classe em parse — p/ qualificar em funções hoisted. */
         private final java.util.Set<String> staticFields = new java.util.HashSet<>();
+        /**
+         * Fase F (fold de `static {}`): atribuições LITERAIS a campos estáticos
+         * declarados — cada uma vira o inicializador do campo no fechamento da
+         * classe (o campo é emitido ANTES do bloco no fluxo de texto; a dobra
+         * reescreve a linha do campo). Uma instrução não-literal recusa o
+         * bloco INTEIRO (nada parcial em silêncio).
+         */
+        private final java.util.LinkedHashMap<String, String> pendingStaticInits = new java.util.LinkedHashMap<>();
+        /**
+         * Fase F (fold de `{}` de instância): o corpo é prefixado em CADA
+         * construtor (a ordem textual do Java = bloco antes do construtor).
+         * Bloco após o primeiro construtor → recusa nomeada (ordem textual não
+         * recriável neste parser de um passe).
+         */
+        private final List<String> instanceInitBody = new ArrayList<>();
+        private boolean sawConstructor = false;
 
         Emitter(Parser p) { super(p); }
 
@@ -236,6 +252,9 @@ public final class Translate {
             // hoisted — `X` → `Classe.X`; ver TranslateStatics).
             staticFields.clear();
             staticFields.addAll(TranslateStatics.scanFieldNames(p, p.pos));
+            pendingStaticInits.clear();
+            instanceInitBody.clear();
+            sawConstructor = false;
             out.append("class ").append(TranslateTypes.kofType(name)).append(typeParams);
             if (superCls != null) out.append(" extends ").append(TranslateTypes.kofType(superCls));
             if (!ifaces.isEmpty()) {
@@ -248,7 +267,32 @@ public final class Translate {
                 parseMember(name);
             }
             p.expect("}");
+            if (!instanceInitBody.isEmpty() && !sawConstructor) {
+                emitConstructor(List.of(), List.of());
+            }
+            applyPendingStaticInits();
             out.append("}\n");
+        }
+
+        /**
+         * Fase F: reescreve as linhas dos campos que receberam dobra —
+         * `    static Int V` → `    static Int V = 42` (ou substitui o
+         * inicializador existente: no Java o bloco roda DEPOIS do
+         * inicializador do campo, então o valor do bloco vence).
+         */
+        private void applyPendingStaticInits() {
+            for (var e : pendingStaticInits.entrySet()) {
+                java.util.regex.Pattern line = java.util.regex.Pattern.compile(
+                        "(^|\\n)(    static [^ =\\n]+ " + java.util.regex.Pattern.quote(e.getKey()) + ")( = [^\\n]*)?(\\n)");
+                java.util.regex.Matcher m = line.matcher(out);
+                if (!m.find()) {
+                    throw new TranslateException(
+                            "static initialization block folds `" + e.getKey()
+                            + "` but no matching static field line was emitted — translator bug — manual review");
+                }
+                String replacement = m.group(1) + m.group(2) + " = " + e.getValue() + m.group(4);
+                out.replace(m.start(), m.end(), replacement);
+            }
         }
 
         private void parseInterface() {
@@ -353,18 +397,20 @@ public final class Translate {
                 break;
             }
             if (p.at("{")) {
-                // Bloco de inicialização. AMBOS têm efeito: o de INSTÂNCIA
-                // runs before do construtor; o `static {}` inicializa campos
-                // estáticos (que agora EMITIMOS como `static Int X`) — pulá-lo
-                // em silêncio deixaria X com o default errado (R6, Q4 13/09).
-                throw new TranslateException(
-                        (isStatic
-                                ? "initialization block `static { ... }` has no direct equivalent in Kof "
-                                  + "(move it to the `static` field initializer or to a method)"
-                                : "instance initializer block `{ ... }` (non-static) runs before "
-                                  + "of the constructor — no direct equivalent in Kof; move the body to the "
-                                  + "`constructor(...)`")
-                        + " — manual review");
+                // Bloco de inicialização. AMBOS têm efeito: o `static {}`
+                // inicializa campos estáticos; o de INSTÂNCIA roda antes do
+                // construtor. Pulá-los em silêncio deixaria campos com o
+                // default errado (R6, Q4 13/09). FATIA FASE F: os dois CASOS
+                // SIMPLES dobram — `static {}` com SÓ atribuições literais a
+                // campos estáticos declarados vira o inicializador do campo;
+                // `{}` de instância é prefixado em cada construtor. Qualquer
+                // instrução além disso → recusa NOMEADA (nada parcial).
+                if (isStatic) {
+                    foldStaticInitBlock();
+                } else {
+                    foldInstanceInitBlock();
+                }
+                return;
             }
             if (p.at("class") || p.at("interface") || p.at("record") || p.at("enum")) {
                 // Kof não suporta tipo aninhado (SEM042). Hoisting p/ o topo
@@ -445,8 +491,90 @@ public final class Translate {
             }
         }
 
+        /**
+         * Fase F: literal Java PURO — a única forma que dobra sem mudar o
+         * observável (int/long/hex/binário, decimal com sufixo, boolean,
+         * null, char, string com escapes simples, e o menos unário).
+         */
+        private static boolean isPureLiteral(String v) {
+            if (v == null || v.isEmpty()) return false;
+            String s = v.startsWith("-") ? v.substring(1) : v;
+            if (s.equals("true") || s.equals("false") || s.equals("null")) return true;
+            if (s.startsWith("\"")) {
+                // string: abre, fecha, e nenhum escape complicado no meio
+                return s.length() >= 2 && s.endsWith("\"") && s.indexOf('"', 1) == s.length() - 1;
+            }
+            if (s.startsWith("'")) {
+                return s.length() == 3 && s.endsWith("'");
+            }
+            return s.matches("[0-9_]+") || s.toLowerCase().matches("0x[0-9a-f_]+")
+                    || s.matches("\\d*\\.?\\d*([eE][-+]?\\d+)?[fFdDlL]?") && s.matches(".*\\d.*");
+        }
+
+        /**
+         * Fase F: `static { V = 42; }` → o campo ganha `= 42`. Aceita SÓ
+         * `field = <literal>;` para campo estático DECLARADO; qualquer outra
+         * instrução (chamada, loop, leitura de campo, expressão) recusa o
+         * bloco inteiro — a ordem de execução do Java não é recriável num
+         * inicializador de campo sem mudar o observável.
+         */
+        private void foldStaticInitBlock() {
+            p.expect("{");
+            java.util.LinkedHashMap<String, String> inits = new java.util.LinkedHashMap<>();
+            while (!p.at("}")) {
+                if (!p.at(T.IDENT)) {
+                    throw new TranslateException(
+                            "static initialization block: only `field = <literal>;` folds into the "
+                            + "field initializer (Kof has no static init block); this statement is not a "
+                            + "simple literal assignment — manual review");
+                }
+                String field = p.next().text;
+                if (!staticFields.contains(field) || !p.at("=")) {
+                    throw new TranslateException(
+                            "static initialization block: only `field = <literal>;` folds into the "
+                            + "field initializer (Kof has no static init block); `" + field
+                            + "` is not a declared static field or is not a simple assignment — manual review");
+                }
+                p.next(); // =
+                String value = parseExpr();
+                if (!isPureLiteral(value)) {
+                    throw new TranslateException(
+                            "static initialization block: `" + field + " = " + value + "` is not a pure "
+                            + "literal — folding it into the field initializer would reorder execution "
+                            + "(Kof has no static init block) — manual review");
+                }
+                if (!p.at(";")) {
+                    throw new TranslateException(
+                            "static initialization block: expected `;` after `" + field + " = " + value
+                            + "` — manual review");
+                }
+                p.next();
+                inits.put(field, value);
+            }
+            p.expect("}");
+            pendingStaticInits.putAll(inits);
+        }
+
+        /**
+         * Fase F: `{ ... }` de instância é prefixado em CADA construtor (o
+         * Java roda o bloco antes do corpo do construtor). Bloco textualmente
+         * APÓS o primeiro construtor → recusa nomeada (este parser é de um
+         * passe; reordenar os corpos mudaria o observável).
+         */
+        private void foldInstanceInitBlock() {
+            if (sawConstructor) {
+                throw new TranslateException(
+                        "instance initializer block appears after the first constructor — folding "
+                        + "into the constructors would reorder execution (Kof has no instance init "
+                        + "block) — manual review");
+            }
+            instanceInitBody.addAll(parseBlock());
+        }
+
         private void emitConstructor(List<String> params, List<String> body) {
+            sawConstructor = true;
             out.append("    constructor(").append(paramList(params)).append(") {\n");
+            for (String stmt : instanceInitBody) out.append("        ").append(stmt).append('\n');
             for (String stmt : body) out.append("        ").append(stmt).append('\n');
             out.append("    }\n");
         }

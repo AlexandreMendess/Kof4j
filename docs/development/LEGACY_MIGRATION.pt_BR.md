@@ -176,6 +176,32 @@ overloads, constructors, exceptions, annotations, records, enums, lambdas,
 nested classes, anonymous classes, static initialization, access modifiers,
 Java standard library, chamadas de bibliotecas externas.
 
+> **Medido 14/10 (lane nativa/GC `192.168.15.117:0`) — a lista contra o
+> tradutor: 17/19 faces entregues.** classes/interfaces/herança/genéricos/
+> sobrecargas/construtores/exceções/anotações/records/enums/lambdas/modifiers
+> de acesso/stdlib Java/switch/loops/arrays/casts/instanceof todos traduzem
+> (probe por item); **static initialization DOBRA desde esta rodada** —
+> `static { V = 42; }` com SÓ atribuições literais a campos estáticos
+> declarados dobra nos inicializadores dos campos (o valor do bloco VENCE
+> sobre um inicializador de campo — o Java roda o bloco depois dos
+> inicializadores; prova executada: o programa traduzido compila e imprime
+> `42`), corpos não-literais mantêm a recusa NOMEADA; **instance init `{ }`
+> dobra** — o corpo é prefixado em cada construtor (classe sem nenhum ganha
+> o construtor default carregando-o; bloco DEPOIS do primeiro construtor
+> recusa — a ordem textual não é recriável neste parser de um passe). As 2
+> recusas restantes + as opções de destrave: **classes aninhadas** — Kof só
+> tem tipos top-level; Opção A = hoist para o topo como `Outer_Inner` com
+> todas as referências qualificadas reescritas, colisão de nome → recusa
+> nomeada (cobre static nested = namespacing puro; inner não-static captura
+> a instância externa → continua recusada honestamente, a menos que a
+> mantenedora queira o campo sintético `this$Outer` = Opção B); **classes
+> anônimas** — Opção A = baixar para lambda Kof quando o tipo anônimo é
+> interface funcional com exatamente 1 método abstrato (a forma idiomática
+> Kof), multi-método/estado → recusa (ou monta na nested Opção B). O formato
+> do nome (`Outer_Inner`) é a única escolha de superfície aguardando a
+> mantenedora; todo o resto das duas fatias restantes é mecânico depois que
+> o formato for confirmado.
+
 ---
 
 ## 4. Legacy Semantic IR (era `LEGACY_IR.md` — FUNDIDA aqui 13/09)

@@ -87,6 +87,66 @@ class TranslateTest {
     }
 
     @Test
+    void staticInitBlockFoldsIntoFieldInitializer() {
+        // Fase F: `static { V = 42; }` folds into the field initializer —
+        // the block's value WINS over a field initializer (Java runs the
+        // block after the field inits). The refusal used to be the only
+        // outcome (TranslateException).
+        String kof = Translate.translateJava("""
+                class T {
+                    static int V;
+                    static int W = 1;
+                    static { V = 42; W = 7; }
+                    public static void main(String[] args) {
+                        System.out.println(V);
+                    }
+                }
+                """);
+        assertTrue(kof.contains("static Int V = 42"), kof);
+        assertTrue(kof.contains("static Int W = 7"), kof);
+    }
+
+    @Test
+    void staticInitBlockRefusesNonLiteralBody() {
+        // a method call in the block cannot fold without reordering
+        // execution — the named refusal stays
+        assertThrows(TranslateException.class, () -> Translate.translateJava("""
+                class T {
+                    static int V;
+                    static { V = compute(); }
+                    static int compute() { return 1; }
+                }
+                """));
+    }
+
+    @Test
+    void instanceInitBlockFoldsIntoConstructors() {
+        // Fase F: `{ x = 5; }` is prefixed into every constructor (Java runs
+        // it before the constructor body); a class without constructors gains
+        // the default one carrying the init body
+        String kof = Translate.translateJava("""
+                class T {
+                    int x;
+                    { x = 5; }
+                    T(int v) { x = v; }
+                }
+                """);
+        assertTrue(kof.contains("constructor(Int v) {"), kof);
+        assertTrue(kof.indexOf("x = 5") < kof.indexOf("x = v"), kof);
+    }
+
+    @Test
+    void instanceInitAfterConstructorRefuses() {
+        assertThrows(TranslateException.class, () -> Translate.translateJava("""
+                class T {
+                    int x;
+                    T() { }
+                    { x = 5; }
+                }
+                """));
+    }
+
+    @Test
     void recordTranslates(@TempDir Path dir) throws Exception {
         String kof = Translate.translateJava("""
                 public record Point(int x, int y) {
@@ -1134,31 +1194,19 @@ class TranslateTest {
     }
 
     @Test
-    void instanceInitializerBlockIsHonestGap() {
-        // Bloco de instância `{ ... }` roda antes do construtor; dropá-lo
-        // silenciosamente muda comportamento → gap honesto (R6).
-        TranslateException e = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
+    void instanceInitializerBlockFoldsIntoDefaultConstructor() {
+        // Bloco de instância `{ ... }` roda antes do construtor — Fase F: o
+        // corpo é prefixado no construtor (ou no construtor default gerado),
+        // NUNCA pulado em silêncio (R6): toda construção de II imprime "init"
+        // no Java e imprime "init" no Kof traduzido.
+        String kof = Translate.translateJava("""
                         public class II {
                             { System.out.println("init"); }
                             void m() { System.out.println(1); }
                         }
-                        """));
-        assertTrue(e.getMessage().contains("manual review"),
-                "instance initializer block → gap explícito (R6), foi: " + e.getMessage());
-
-        // `static {}` TAMBÉM é gap: agora que o campo `static` é EMITIDO,
-        // pular o bloco deixaria o campo no default (perda silenciosa) — Q4.
-        TranslateException st = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
-                        public class SI {
-                            static int X;
-                            static { X = 5; }
-                            void m() { System.out.println(X); }
-                        }
-                        """));
-        assertTrue(st.getMessage().contains("static") && st.getMessage().contains("manual review"),
-                "static initializer block → gap explícito (R6), foi: " + st.getMessage());
+                        """);
+        assertTrue(kof.contains("constructor() {"), kof);
+        assertTrue(kof.contains("println(\"init\")"), kof);
     }
 
     @Test
