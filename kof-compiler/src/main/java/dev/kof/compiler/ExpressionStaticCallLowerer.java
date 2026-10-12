@@ -78,8 +78,12 @@ if (mc.receiver() == null && "readLine".equals(mc.methodName()) && mc.arguments(
             List.of(), new Type.NullableType(BuiltinTypes.STRING), KofCallKind.FUNCTION));
     return localIdx;
 }
-if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())) {
-    KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), mc.arguments().size());
+if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
+        && !isCallableLocalVar(driver, mc.methodName(), locals)) {
+    // local/parametro com o mesmo nome vence o contexto web (regressao 0.6.2)
+    List<Type> webCtxArgTypes = new ArrayList<>();
+    for (ExpressionNode arg : mc.arguments()) webCtxArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    KofWeb.WebCall webCtx = KofWeb.contextCall(mc.methodName(), webCtxArgTypes);
     if (webCtx != null) {
         // #102 item 3: o runtime nativo só tem o T1 (listen/route + body/
         // method/path); as demais funções de contexto não são emitidas e a
@@ -512,4 +516,10 @@ if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
         }
         return false;
     }
+    /** local CHAMÁVEL (lambda) vence o nome de contexto web; handle não-chamável não (regressão 0.6.2). */
+    private static boolean isCallableLocalVar(CompilerDriver driver, String name, List<IRLocalVariable> locals) {
+        IRLocalVariable lv = driver.findLocalVar(name, locals);
+        return lv != null && lv.type() instanceof Type.FunctionType;
+    }
+
 }

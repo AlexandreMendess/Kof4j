@@ -48,6 +48,7 @@ public final class PortuKofVocabulary {
             new String[]{"entity", "entidade", "ENTITY"},
             new String[]{"extern", "externo", "EXTERN"},
             new String[]{"generated", "gerado", "GENERATED"},
+            new String[]{"audited", "auditado", "AUDITED"},
             new String[]{"unique", "unico", "UNIQUE"},
             new String[]{"extends", "estende", "EXTENDS"},
             new String[]{"implements", "implementa", "IMPLEMENTS"},

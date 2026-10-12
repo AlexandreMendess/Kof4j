@@ -192,7 +192,7 @@ tip: `fmod(Double,Double):Double`→`1.5`; `ldexp(Double,Int):Double`→`12.0`;
 `strncmp(String,String,Int):Int`→`-1`; `puts(String):void`;
 `getenv(String):String`→`mel`. O nome da função Kof É o símbolo C (sem alias).
 Não-escalares são **parcialmente** ligados: na **JVM** um `record` por valor (argumento e retorno), um `T[]` escalar→`ptr` (copy-in por chamada) e um out-buffer `Buffer(U8)` (INOUT: copy-in / chamada / copy-back, criado com `buffer.alloc`) ligam desde a 3.8b (20–21/09, `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 4/4), e um parâmetro de tipo função liga como callback C em JVM/JS (3.4) e no **Native x86-64 + cross riscv64/aarch64** (11/10, M1 unidade-4 — trampolim gerado); as faces restantes (struct/array/out-buffer no Native, bridge de struct no JS) → `FFI001` em tempo de
-compilação (incl. um callback com retorno `String`); o **runner host** JS (GraalJS/node) liga a MESMA ABI escalar via
+compilação (incl. um callback com RETORNO `String`; um callback com ARG `String` agora binda no Native x86-64); o **runner host** JS (GraalJS/node) liga a MESMA ABI escalar via
 `KofJsFfiBridge` — paridade JVM↔JS provada 18/09 (`FfiE2ETest` 16/16, fatia
 3.6.F2/F3 ✅) — com não-escalares → `FFI002` ali e o browser um erro honesto
 de **runtime** (R7, sem host, o mesmo degrade de `kof.io`); o **Native liga a MESMA

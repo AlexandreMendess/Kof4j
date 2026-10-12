@@ -176,8 +176,13 @@ if ("readFile".equals(mc.methodName()) && mc.receiver() == null) {
     return new Type.NullableType(BuiltinTypes.STRING);
 }
 if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
-        && KofWeb.contextCall(mc.methodName(), mc.arguments().size()) != null) {
-    return BuiltinTypes.STRING;
+        && !isCallableLocalVar(driver, mc.methodName(), locals)) {
+    // local/parametro com o mesmo nome vence o contexto web (regressao 0.6.2)
+    List<Type> webCtxArgTypes = new ArrayList<>();
+    for (ExpressionNode arg : mc.arguments()) webCtxArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    if (KofWeb.contextCall(mc.methodName(), webCtxArgTypes) != null) {
+        return BuiltinTypes.STRING;
+    }
 }
 if ("writeFile".equals(mc.methodName()) && mc.receiver() == null) {
     return Type.PrimitiveType.INT;
@@ -577,4 +582,10 @@ SymbolTable.ClassSymbol cs = driver.semanticAnalyzer != null ? driver.semanticAn
 if (cs != null) return cs.type();
 return Type.UnknownType.UNKNOWN;
     }
+    /** local CHAMÁVEL (lambda) vence o nome de contexto web; handle não-chamável não (regressão 0.6.2). */
+    private static boolean isCallableLocalVar(CompilerDriver driver, String name, List<IRLocalVariable> locals) {
+        IRLocalVariable lv = driver.findLocalVar(name, locals);
+        return lv != null && lv.type() instanceof Type.FunctionType;
+    }
+
 }

@@ -1,0 +1,10 @@
+"plain"
+"tab\there"
+"new\nline"
+"cr\rhere"
+"quote\"and\\back"
+"slash/forward"
+"café"
+""
+xy
+hello

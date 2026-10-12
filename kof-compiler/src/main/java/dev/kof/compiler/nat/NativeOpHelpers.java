@@ -193,7 +193,15 @@ final class NativeOpHelpers {
         }
         if (kc.kind() == KofCallKind.CONSTRUCTOR) {
             if (kc.ownerType() instanceof Type.ClassType ct) {
-                return nb.classTypeManglePrefix(ct) + "_" + nb.sanitizeName("<init>") + "_" + kc.parameterTypes().size();
+                // §671: a mesma regra do lado da definição — só o caso de
+                // sobrecarga de MESMA aridade ganha a tag de assinatura.
+                String sym = nb.classTypeManglePrefix(ct) + "_" + nb.sanitizeName("<init>")
+                        + "_" + kc.parameterTypes().size();
+                if (NativeSymbolMangling.constructorArityConflict(NativeSymbolMangling.internalOwner(ct),
+                        kc.parameterTypes().size(), nb.allClassesMap)) {
+                    sym += NativeSymbolMangling.sigTag(kc.parameterTypes());
+                }
+                return sym;
             }
         }
         if (kc.ownerType() instanceof Type.ClassType ct) {

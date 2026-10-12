@@ -88,7 +88,11 @@ final class NativeFfiCall {
         if (usesStrArrayParam(kc)) nb.ffiUsesStrArray = true;
         for (Type t : kc.parameterTypes()) {
             String d = FfiStructLayout.cbPtrDesc(t);
-            if (d != null) nb.ffiCbDescs.add(d);
+            if (d != null) {
+                nb.ffiCbDescs.add(d);
+                // Um arg `S` no callback faz o trampolim chamar kof_ffi_from_cstr.
+                if (d.indexOf('S') >= 0) nb.ffiUsesCstr = true;
+            }
         }
     }
 

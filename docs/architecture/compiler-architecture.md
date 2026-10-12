@@ -2,7 +2,7 @@
 
 # Kof Compiler Architecture
 
-**Version:** 0.6.0 · **Evidence:** `kof-compiler/src/main/java/dev/kof/compiler/`
+**Version:** 0.6.1 · **Evidence:** `kof-compiler/src/main/java/dev/kof/compiler/`
 
 This document describes **how the Kof compiler implements the language**. It is
 **normative about the implementation**, not about the language — the language

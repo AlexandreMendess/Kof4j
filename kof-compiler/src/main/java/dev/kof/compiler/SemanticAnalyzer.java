@@ -88,6 +88,16 @@ public class SemanticAnalyzer {
     private String currentPackage;
     private DiagnosticCollector diagnostics;
 
+    // entity-history fatia 2c-parte-2 (D-ENTITY-HISTORY): espelhos do parse
+    // (o driver não é visível na fase SEM) — quem é `audited` e quem é entity.
+    java.util.Set<String> auditedEntities = java.util.Set.of();
+    java.util.Set<String> entityNames = java.util.Set.of();
+
+    public void setAuditedEntityMirrors(java.util.Set<String> audited, java.util.Set<String> entities) {
+        this.auditedEntities = audited;
+        this.entityNames = entities;
+    }
+
     void analyze(CompilationUnitNode unit, DiagnosticCollector diagnostics) {
         this.diagnostics = diagnostics;
         this.currentPackage = unit.packageName();

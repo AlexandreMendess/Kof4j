@@ -173,6 +173,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmSecretRuntime.source()
                 + JvmInteropErrorRuntime.source()
                 + JvmOrmRuntime.source()
+                + JvmOrmHistoryRuntime.source()
                 + JvmTimeRuntime.source()
                 + JvmStringRuntime.source()
                 + (usesExtern ? JvmFfiRuntime.source() : "")

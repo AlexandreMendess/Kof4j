@@ -1,0 +1,15 @@
+enum Color { RED, GREEN, BLUE }
+main() {
+    println(Color.RED.ordinal())
+    println(Color.BLUE.ordinal())
+    println(Color.RED.name())
+    println(Color.GREEN.name())
+    println(Color.values().size)
+    println(Color.values().get(2).name())
+    println(Color.RED == Color.RED)
+    println(Color.RED == Color.GREEN)
+    println(Color.RED != Color.BLUE)
+    println(Color.RED.compareTo(Color.BLUE))
+    println(Color.BLUE.compareTo(Color.RED))
+    println(Color.GREEN.compareTo(Color.GREEN))
+}

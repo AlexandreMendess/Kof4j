@@ -425,9 +425,11 @@ class FfiNativeE2ETest {
     }
 
     @Test
-    void stringReturnCallbackStaysFfi001Native(@TempDir Path dir) throws IOException {
-        // O retorno String do callback segue gap honesto (ownership do char* não
-        // observável no contrato síncrono) — FFI001 na linha da declaração.
+    void stringReturnCallbackBindsNativeNotFfi001(@TempDir Path dir) throws IOException {
+        // M1 unidade-4 face S: um callback com retorno String agora BINDA no Native
+        // (o invoke devolve o char* do payload obj+24) — o gate não recusa mais por
+        // FFI001. A prova E2E (JVM==Native==cross) vive em
+        // FfiNativeCallbackStrE2ETest#nativeStringReturnCallbacksMatchJvm.
         Path src = dir.resolve("ffi-cbs.kf");
         Files.writeString(src, """
                 extern "libc.so.6" cb_s(Int n, (Int) -> String cb): Int
@@ -437,9 +439,9 @@ class FfiNativeE2ETest {
                 }
                 """);
         CompilationResult r = driver.compile(src, dir.resolve("out"), Target.NATIVE);
-        assertFalse(r.success(), "callback com retorno String segue FFI001 no Native");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "expected FFI001 on Native String-return callback: " + r.diagnostics().getDiagnostics());
+        assertFalse(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
+                "String-return callback is bindable now (no FFI001 at the decl line): "
+                        + r.diagnostics().getDiagnostics());
     }
 
     @Test

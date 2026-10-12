@@ -86,6 +86,7 @@ final class Av1ModeTailSupport {
     private static final String PROBE = """
 import image.Av1Block
 import image.Av1ModeInfo
+import image.Av1Symbol
 
 main() {
     runTail(32, 32, 12, 2, 1, 0, 1, 0, 1, 1, 0, 3, 1, listOf(29,161,158,186,181,133,250,25,212,216,62,211,21,170,79,145,7,23,31,192,153,220,224,224,31,185,109,241,177,121,120,138,117,83,213,176,9,142,255,22,199,182,163,65,241,45,229,100,231,102,216,55,27,119,48))
@@ -105,7 +106,7 @@ void runTail(Int w, Int h, Int sbSize, Int cdefBits, Int enableCdef, Int lossles
         k = k + 1
     }
     println("C " + w + " " + h + " " + sbSize + " " + cdefBits + " " + enableCdef + " " + lossless + " " + dqPresent + " " + dqRes + " " + dlfPresent + " " + dlfMulti + " " + dlfRes + " " + numPlanes + " " + subdiv)
-    var m = Av1ModeInfo(data, w, h)
+    var m = Av1ModeInfo(Av1Symbol(data), w, h)
     var cfg = Av1ModeTail(sbSize, cdefBits, enableCdef, lossless, dqPresent, dqRes, dlfPresent, dlfMulti, dlfRes, numPlanes)
     var sb4 = 16
     if (sbSize == 15) {

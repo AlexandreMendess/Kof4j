@@ -147,8 +147,8 @@ final class NativeArchEmitter {
         if (nb.ffiUsesArray) NativeFfiCallRiscv.emitRiscvArrayPackHelper(sb);
         if (nb.ffiUsesStrArray) NativeFfiCallRiscv.emitRiscvStrArrayPackHelper(sb);
         for (String d : nb.ffiCbDescs) {
-            NativeFfiCallRiscv.emitRiscvCallbackTrampoline(sb, d);
-            NativeFfiCallRiscv.emitRiscvCallbackClosure(sb, d);
+            NativeFfiCallRiscvCallback.emitRiscvCallbackTrampoline(sb, d);
+            NativeFfiCallRiscvCallback.emitRiscvCallbackClosure(sb, d);
         }
 
         // Ponto de entrada: chama <mainClass>_main e sai via exit_group(94).
@@ -364,8 +364,8 @@ final class NativeArchEmitter {
         if (nb.ffiUsesArray) NativeFfiCallRiscv.emitRiscvArrayPackHelper(riscvSb);
         if (nb.ffiUsesStrArray) NativeFfiCallRiscv.emitRiscvStrArrayPackHelper(riscvSb);
         for (String d : nb.ffiCbDescs) {
-            NativeFfiCallRiscv.emitRiscvCallbackTrampoline(riscvSb, d);
-            NativeFfiCallRiscv.emitRiscvCallbackClosure(riscvSb, d);
+            NativeFfiCallRiscvCallback.emitRiscvCallbackTrampoline(riscvSb, d);
+            NativeFfiCallRiscvCallback.emitRiscvCallbackClosure(riscvSb, d);
         }
         String mainEntry = mainClass != null ? nb.sanitizeName(mainClass.name()) + "_main" : "kof_main";
         riscvSb.append("\n.globl _start\n");

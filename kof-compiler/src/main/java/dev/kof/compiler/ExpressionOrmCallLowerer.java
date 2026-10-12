@@ -119,8 +119,35 @@ public final class ExpressionOrmCallLowerer {
                         driver.semanticAnalyzer);
             }
         }
+        // entity-history fatia 2b (D-ENTITY-HISTORY): createHistory só tem
+        // sentido para entidades `audited` — em entity simples é a recusa
+        // honesta HIST002 (nunca criar a tabela em silêncio, §10/Q).
+        if ("createHistory".equals(mc.methodName())) {
+            if (entityName == null || !driver.auditedEntities.contains(entityName)) {
+                if (driver.currentDiagnostics != null) {
+                    driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                            mc.position() != null ? mc.position().line() : 0,
+                            mc.position() != null ? mc.position().column() : 0, 0,
+                            "orm.createHistory: entity '"
+                                    + (entityName == null ? "?" : entityName)
+                                    + "' is not `audited` — mark it `audited entity` first (HIST002)",
+                            "HIST002");
+                }
+                return localIdx;
+            }
+        }
+        // entity-history fatia 2b (D-ENTITY-HISTORY): para entidades
+        // `audited`, save/delete usam os wrappers _recorded (o runtime grava
+        // a revisão após o DML — a operação é conhecida DENTRO do runtime,
+        // generated-key → INSERT, senão UPDATE; delete → DELETE). Entidades
+        // simples seguem os fns originais (overhead zero).
+        String fn = ormCall.function();
+        if (("save".equals(mc.methodName()) || "delete".equals(mc.methodName()))
+                && entityName != null && driver.auditedEntities.contains(entityName)) {
+            fn = fn + "_recorded";
+        }
         ops.add(new KofCall(new Type.ClassType("kof.orm", "Orm", List.of()),
-                ormCall.function(), params, retType, KofCallKind.FUNCTION));
+                fn, params, retType, KofCallKind.FUNCTION));
     }
     return localIdx;
     }

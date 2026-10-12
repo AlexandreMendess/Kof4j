@@ -2,7 +2,7 @@
 
 # Kof — Long-Term Roadmap
 
-last: 0.5.0-release-cut
+last: 0.6.1-cut
 doing: 1.0-exit-gate
 next: promotion-sweep
 location: roadmap
@@ -20,7 +20,7 @@ TIER 3–5 marked DEPRIORITIZED by the maintainer 15/09 — trio back to `future
 implementation plan (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`);
 migration cluster consolidated — `LEGACY_IR`+`DIFFERENTIAL_TESTING` merged into
 `LEGACY_MIGRATION.md`)
-**Version:** 0.6.0 (active development branch `lab`)
+**Version:** 0.6.1 (active development branch `lab`)
 
 ---
 
@@ -788,7 +788,7 @@ Kof is a distributable platform, not just a JAR:
 
 - self-contained distribution (compiler, CLI, runtime, stdlib, tooling, editor support, embedded JDK 25);
 - OpenJDK embedded in the official package (Temurin 25, tooling API level 21);
-- centralized versioning (`VERSION` 0.6.0 → pom/properties via `scripts/bump-version.sh`);
+- centralized versioning (`VERSION` 0.6.1 → pom/properties via `scripts/bump-version.sh`);
 - releases by 2 jobs (`release.yml`: `test-and-bump` exports `bump_sha` → `package-and-release` checks the bump commit + version sanity check) on push to `main`, per platform linux-x86_64 / macos-arm64 / windows-x86_64 (tests 819 → bump → package 3 platforms → GitHub Release);
 - `scripts/package.sh` PASS (dist layout + tar.gz/zip + SHA256SUMS + jars), golden 16/16, integration 9/9;
 - official editor support: TextMate grammar + LSP (hover/completion + real diagnostics) + `kof editor install` (VS Code/Neovim/Vim/Emacs/Geany/Nano + honest step-10 IntelliJ 13/09: filetype XML + External Tools + LSP4IJ README, no plugin — issue #1);
@@ -974,7 +974,8 @@ science) **without** destroying the language's simplicity.
 > [`graphics-gaming.md`](../graphics-gaming.md); stack `G1` DECIDED (SDL3) + form `D-GRAPHICS-WINDOW-FORM` + loop `D-MAINT-BATCH-0610`/A1–A3; pure surface LANDED 05–07/10 (`Clock`/`Keys`/`Mouse`/`Pad`/`Window`/`Sprite`/`Draw`/`Trig`/`Tilemap`/`Audio`/`Wav`/`Video`, E2E goldens every target) + SDL3 ABI/pump/audio/stream measured headless on all four targets + corpus 3.6a (`training/idioms/game` + `learn/42-games`). Decision F ORDERED 08/10 (maintainer: vendor the upstream LGPL-2.1+ FFmpeg from source, no `--enable-gpl`; probe license must NOT be GPLv3+ before any decode lands) + 3.5 (3D) PROMOTED to active scope 08/10 (maintainer). Authoritative state lives in `docs/graphics-gaming.md` (promoted 09/10 — the pure-surface mission complete; the backend faces stay the documented boundary).
 > **CORE COMPLETE (9th front):** `testing-platform` — promoted 10/10 (`D-TESTING-PLATFORM`, maintainer order "pode finalizar o plano então, ja promover e vida que segue") to
 > [`testing-platform.md`](../testing-platform.md); §11 phases 1–4 COMPLETE — unit core §4 (assertions 1–6 + tables §4.4 + clock/random seams §4.6) + harness §5 (temp-dir/readiness, withDb, withServer) + runner §7 (honest discovery, tags OR, level breakdown) + browser §6 FULL STACK (manifesto `kof-test.kofmd` → gate `kof test --tag browser` → SPI `BrowserProvider` → ChromeHeadlessProvider (zero-dep) + PlaywrightLibProvider (lib 1.49.0, normal pom dep) → `kof.test.browser` Kof-level API → REAL Chromium E2E); §12 with NO open decisions (4 chat polls). Phases 5–8 under the confirmed §11 order — measured 11/10 (lane `192.168.100.14:0`): **phase 7 CORE LANDED** (kind-parameterized `PlaywrightLibProvider`, real Firefox render E2E green + Chromium, WebKit launch-blocked on the host → named skips); **phase 5 CORE LANDED** (`CypressProvider` over the REAL `cypress run` — generated ad-hoc specs, honest probe; host unlocked by the maintainer mid-slice: node 24.18.1/npm 11.16.0, Cypress 16.1.1 in the Kof cache); phase 6's KofJS face already proven by the seed `KofJsBrowserE2ETest`, the KofWasm face gated by #776; phase 8 (advanced) OPEN — each slice under a NEW claim. Authoritative state lives in `docs/testing-platform.md`.
-> All remaining `future/` plans are authorized with their
+> > **OPEN (10th front):** `qrcode-wasm` — promoted 11/10 (`D-FUTURE-PROMOTION` resumed per `D-FUTURE-UNFREEZE`, maintainer 11/10) to [`qrcode-wasm-plan.md`](qrcode-wasm-plan.md); state 12/10: Phase 1 slices 1-2b LANDED (writer `Qrcode.kf`+`QrPng.kf` 8/8; file reader `QrDecode.kf` 8/8 incl. Reed-Solomon error correction — damaged symbols up to floor(ecc/2) byte errors per block decode exactly, over-capacity refused by name); next slice = camera reader; Phase 3 (`KofWasm` target) rule-6 (maintainer decision).
+All remaining `future/` plans are authorized with their
 > design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
 > one-at-a-time (`D-FUTURE-PROMOTION`).
 
@@ -1005,7 +1006,7 @@ domain (`INFRA00x`/`DATA00x`/`SCI00x`/`BIO00x`/`SECPQ`) + parity matrix;
 | 2.1.1–2.1.3 | `extern` syntax + type-check + gaps `FFI001`/`FFI002` (never silent drop) | ✅ `Parser.java:192` (PARSE090), `ExternalFunctionNode`, `FfiE2ETest` |
 | 2.1.4 | **JVM** binding (FFM `java.lang.foreign`) | ✅ **generalized 18/09 (`.18`, R3):** any scalar signature, arbitrary arity, `void`/`String` returns — measured `fmod`→1.5, `ldexp`→12.0, `strncmp`→-1, `puts(void)`, `getenv`→String (`syntax.md`) |
 | 2.1.5 | **Native** binding | ✅ **20/09 (#431 slices 1–2, §369)** — the raw binary binds scalars **direct** (`call sym@PLT`, link-by-use), which **supersedes `dlopen`/`dlsym`**; §61 closed. The old `dlopen` segfault was the reason for the switch, not an open gap |
-| 2.1.6 | struct/array marshalling | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` by value as arg/return + scalar `T[]`→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landed 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **Native/cross struct sret + by-value param LANDED 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan.md` — the roadmap row was stale); **JS struct bridge ✅ COMPLETE 21/09** (struct param + return, scalar array copy-in, `Buffer(U8)` INOUT — all byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; this row's "remaining = JS struct bridge" was stale). Remaining = cross HFA struct RETURN (HFA PARAM landed 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); **callbacks LANDED 11/10 on x86-64 AND cross riscv64/aarch64** (M1 unidade-4, `FfiNativeCallbackE2ETest` — only a `String`-return callback stays honest `FFI001`); float/HFA-param (honest `FFI001`/`FFI002`, R6; cross `T[]`, `Buffer(U8)`, `String[]`→`char**`, memory-path structs and >16 B params landed 29–30/09). D6 ✅ decided 20/09 |
+| 2.1.6 | struct/array marshalling | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` by value as arg/return + scalar `T[]`→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landed 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **Native/cross struct sret + by-value param LANDED 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan.md` — the roadmap row was stale); **JS struct bridge ✅ COMPLETE 21/09** (struct param + return, scalar array copy-in, `Buffer(U8)` INOUT — all byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; this row's "remaining = JS struct bridge" was stale). Remaining = cross HFA struct RETURN (HFA PARAM landed 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); **callbacks LANDED 11/10 on x86-64 AND cross riscv64/aarch64** (M1 unidade-4, `FfiNativeCallbackE2ETest` — only a callback with a `String` ARGUMENT binds on Native x86-64 AND cross riscv64/aarch64 (the trampoline bridges `char*`→`String` via `kof_ffi_from_cstr`; `FfiNativeCallbackStrE2ETest`), while a callback whose ABI mentions `String` (ARGUMENT or RETURN) now BINDS on Native x86-64 AND cross riscv64/aarch64 (M1 unidade-4, 11/10: the arg bridges `char*`→`String` via `kof_ffi_from_cstr`; the return hands C the payload `char*` (obj+24) of the String the `invoke` produced); a `String` ARGUMENT binds on x86-64 AND cross riscv64/aarch64); float/HFA-param (honest `FFI001`/`FFI002`, R6; cross `T[]`, `Buffer(U8)`, `String[]`→`char**`, memory-path structs and >16 B params landed 29–30/09). D6 ✅ decided 20/09 |
 | 2.1.7 | JS: gap `FFI002` | ✅ honest gap + **scalar parity CLOSED 18/09 (`d3598c2d`, slices 3.6.F1–F3):** host runner binds via `KofJsFfiBridge`, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS; browser = runtime R7; non-scalar keeps `FFI002` |
 | 2.2.1 | Inventory of implicit codegen (4 points: runtime `.source()`, `desugarTests`, `desugarApplication`, entity→record+schema) | ✅ the 4 exist (`CompilerPipeline:295-296`) |
 | 2.2.2 | **Formal `CodegenStep` hook** | ✅ **LANDED 21/09 (R4, `D-CODEGEN-STEP`)** — `CodegenStep`/`CodegenStepPipeline` (additive; empty registry = identity, zero behavior change; `CodegenStepPipelineTest` 6/6). The old `d1c56bad` "✅" was an over-claim from the `planning-future` branch; R4 is the real landing |
@@ -1068,7 +1069,24 @@ rule 6).
 | 2.8.5 | **X6 interop reflection** (`D-INTEROP-REFLECT` = **A, compile-time intrinsic**) | ✅ **DONE 21–22/09** — surface frozen: `interop.schema(R)` → immutable `List<Field>`, zero runtime reflection, all targets, boundary-only; X6.0–X6.3 (intrinsic+fold, diagnostics `INTEROP001`/`INTEROP002`, `interopschema` cell + Arrow/Parquet binding E2E `InteropSchemaE2ETest` 18/18); **plan CONCLUDED + moved to `docs/` 22/09** | ✅ |
 | 2.8.6 | **X2 interop engine — Python/R** (`D-COMPLETE-FIRST` item 2) | ✅ **COMPLETE 27/09 — fatia 4 cross LANDED** (lane issues, maintainer order: `InteropTimeoutE2ETest` +3 timeout007/deadline-reuse/idle-cancel + `InteropRE2ETest` R-happy, riscv64≡aarch64≡JVM under qemu; R gated on Rscript presence; 008 JVM-only by design) — fatias 1–3+5 already landed/certified; session-state stays declared cut-out; plan promoted | X2 closed |
 
-**Spec plan (X5 + X6):** [`type-system-extensions-plan.md`](../type-system-extensions-plan.md) — **APPROVED 21/09 (D-TYPE-VARIANCE/INTEROP-REFLECT)**; **CONCLUDED + MOVED to `docs/` 22/09** (all slices X5.0–X5.5, X6.0–X6.3 landed with proof).
+**Spec plan (X5 + X6):** [`type-system-extensions-plan.md`](../type-system-extensions-plan.md) — **APPROVED 21/09 (D-TYP
+
+### TIER 2.9 — Entity history — temporal audit for `kof.orm` (PROMOTED 11/10, `D-FUTURE-UNFREEZE`; decisions CLOSED — `D-ENTITY-HISTORY` + Q1–Q15)
+
+> Spec = [`entity-history-plan.md`](../entity-history-plan.md)(+PT) — moved from `future/` on promotion.
+> Surface LOCKED by the Q1–Q15 answers: `audited entity` (PT `auditado entidade`), query entity-static
+> (`User.history(db, id)`), known `Revision`/`FieldChange` records, one revision per `save`, per-entity
+> sequence, ORM paths only, `atTime` = at-or-before, FK values only, snapshot-per-revision, `not audited`
+> exclusion, the `HIST0xx` diagnostic block.
+
+| # | Step | Scope (one line) | Status |
+|---|------|------------------|--------|
+| 2.9.1 | **`audited entity` front-end** | the `AUDITED` token + Portukof pair `auditado` (gated to ENTITY declarations); parse-only, zero behavior change | ✅ **LANDED 11/10** (`AuditedEntityParseE2ETest` 3/3; ORM battery 138/0F) |
+| 2.9.2 | **Recording** | `orm.createHistory<T>(db)` (the explicit §10 step) + `kof_orm_save_recorded`/`kof_orm_delete_recorded` (per-entity revision, snapshot payload; plain entities zero-overhead; HIST002 on plain createHistory; history faces JVM/ANDROID) | ✅ **LANDED 11/10** (`EntityHistoryRecordingE2ETest` 3/3; ORM battery 168/0F) |
+| 2.9.3 | **Historical queries** | `history`/`at`/`atTime`/`changes` + pagination, E2E goldens — parte-1 LANDED 11/10 (the `kof.orm.history` virtual package); **parte-2 LANDED 11/10**: `User.history(db, id[, offset, limit])` → ascending `List<Revision>` (HIST002 on non-audited, HIST005 on constant negatives; `EntityHistoryQueryE2ETest` 4/4, ORM/Db 175/0F); `at`/`atTime`/`changes` OPEN (2d) | OPEN (2d) |
+| 2.9.4 | **Context** | real actor resolution + request-bound correlation id | OPEN (depends on the observability fix) |
+| 2.9.5 | **Native backend** | the same contract in the native ORM runtime | OPEN |
+| 2.9.6 | **Advanced** | retention/archival, typed accessors, field exclusion, tamper-evidence — each with its own decision | OPEN |E-VARIANCE/INTEROP-REFLECT)**; **CONCLUDED + MOVED to `docs/` 22/09** (all slices X5.0–X5.5, X6.0–X6.3 landed with proof).
 
 ### TIER 3–5 — Legacy migration platform (Phases A–H) ✅ code+tests
 
