@@ -39,8 +39,55 @@ done
 # version.properties EMPACOTADO — é exatamente o que vai no jar)
 JAR="$(ls "$ROOT"/kof-cli/target/kof-cli-*.jar 2>/dev/null | head -1 || true)"
 if [ -n "$JAR" ]; then
-    JAVA_BIN="${JAVA_HOME:-$HOME/.sdkman/candidates/java/current}"
-    REPORTED="$("${JAVA_BIN:-java}/bin/java" -jar "$JAR" version 2>/dev/null | head -1)"
+    # java resolution with CANDIDATES and a real usability check: the first
+    # java that actually runs the jar wins. The old form always used sdkman
+    # as JAVA_BIN (the "${JAVA_BIN:-java}" fallback never fired) and died
+    # with an opaque exit 127 on hosts without sdkman (measured 12/10);
+    # even after fixing the order, a PATH java older than the compiled
+    # classes (21 vs 69 here) produced an EMPTY version silently. So:
+    # gather candidates in the standard order (JAVA_HOME, sdkman, JVM
+    # locations, PATH) and pick the first whose run prints a "kof " line.
+    CANDIDATES=""
+    if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ]; then
+        CANDIDATES="${JAVA_HOME}/bin/java"
+    fi
+    if [ -x "$HOME/.sdkman/candidates/java/current/bin/java" ]; then
+        CANDIDATES="$CANDIDATES $HOME/.sdkman/candidates/java/current/bin/java"
+    fi
+    for jvm in /usr/lib/jvm/java-*; do
+        if [ -x "$jvm/bin/java" ]; then
+            CANDIDATES="$CANDIDATES $jvm/bin/java"
+        fi
+    done 2>/dev/null
+    if [ -d "$HOME/tools" ]; then
+        for jdk in "$HOME"/tools/jdk-*; do
+            if [ -x "$jdk/bin/java" ]; then
+                CANDIDATES="$CANDIDATES $jdk/bin/java"
+            fi
+        done 2>/dev/null
+    fi
+    if command -v java >/dev/null 2>&1; then
+        CANDIDATES="$CANDIDATES $(command -v java)"
+    fi
+    if [ -z "$CANDIDATES" ]; then
+        die "nenhum java encontrado (JAVA_HOME, sdkman, /usr/lib/jvm, ~/tools/jdk-*, PATH) para executar a face do jar"
+    fi
+    REPORTED=""
+    TRIED=""
+    for CAND in $CANDIDATES; do
+        TRIED="$TRIED $CAND"
+        OUT="$("$CAND" -jar "$JAR" version 2>&1 | head -1 || true)"
+        case "$OUT" in
+            "kof "*)
+                REPORTED="$OUT"
+                JAVA_BIN="$CAND"
+                break
+                ;;
+        esac
+    done
+    if [ -z "$REPORTED" ]; then
+        die "nenhum java consegue executar o jar (candidatos:$TRIED) - a ultima saida foi: $OUT"
+    fi
     [ "$REPORTED" = "kof $VERSION" ] || die "o compilador empacotado informa '$REPORTED' != 'kof $VERSION' (recompile antes de empacotar)"
 else
     say "PULO nomeado: sem jar empacotado em kof-cli/target — face de runtime fica para o empacote (a face estática acima certifica as fontes)"
