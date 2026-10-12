@@ -179,17 +179,14 @@ class Av1CflE2ETest implements LibraryInstallSupport {
 
     @Test
     void av1CflOnNativeRiscv64() throws Exception {
-        /* known-bugs §687: a Kof frame over ~2 KiB emits an out-of-range
-         * `sd zero,<offset>(s11)` in the riscv64 prologue and the assembler
-         * rejects it — the §625 slot-zeroing loop never splits the immediate.
-         * This probe's 64x64 `Int[]` luma buffer crosses that. The failure is
-         * the BACKEND's, not this primitive's: the same probe is green on
-         * JVM/Script/x86-64/aarch64. The skip is NAMED, not hidden. */
+        /* known-bugs §687 FIXED 13/10: this probe's frame crosses ~2 KiB and the
+         * riscv64 prologue emitted an out-of-range `sd zero,<offset>(s11)`, so
+         * the assembler rejected the build (the skip that used to live here
+         * NAMED §687 — it is gone because the face now RUNS). The backend
+         * materializes the slot address past the 12-bit immediate; the failure
+         * was the BACKEND's, not this primitive's. */
         Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
-        Assumptions.assumeFalse(true,
-                "blocked by known-bugs §687 (riscv64 prologue offset > 12-bit immediate on a "
-                        + "large frame); the other five faces cover the primitive");
         assertEquals(goldenText(), runCross("riscv64", Target.NATIVE_RISCV64));
     }
 

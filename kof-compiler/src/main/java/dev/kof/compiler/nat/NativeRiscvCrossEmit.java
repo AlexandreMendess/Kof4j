@@ -98,67 +98,9 @@ public final class NativeRiscvCrossEmit {
         sb.append(".globl ").append(mangled).append("\n");
         sb.append(mangled).append(":\n");
         // Modelo idêntico ao x86_64: `sp` É a pilha de operandos (cresce p/
-        // baixo); `s11` = frame pointer. Layout (alto→baixo):
-        //   [s11+0]=old s11  [s11-8]=saved ra  [s11-16-idx*8]=local idx  [sp..]=operandos
-        sb.append("    addi sp, sp, -16\n");
-        sb.append("    sd s11, 0(sp)\n");
-        sb.append("    sd ra, 8(sp)\n");
-        sb.append("    addi s11, sp, 16\n");
-        // §546: frames grandes estouram o imediato de 12 bits do `addi`; usa
-        // li+sub (o tradutor aarch64 cobre ambos).
-        if (frameSize <= 2032) {
-            sb.append("    addi sp, sp, -").append(frameSize).append("\n");
-        } else {
-            sb.append("    li t0, ").append(frameSize).append("\n");
-            sb.append("    sub sp, sp, t0\n");
-        }
-        // salva args de entrada (this + params) nos slots locais — ABI riscv:
-        // a0=this/arg0, a1..a7 = demais args (até 8 registradores).
-        String[] argRegs = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
-        // §620 (bug 9 cross): capturas de lambda NÃO são args de entrada (são
-        // carregadas dos campos do objeto via ops). O laço antigo percorria os
-        // locais na ordem de INSERÇÃO [this, captura, param] e consumia um
-        // registrador para a captura, deslocando todos os params reais — a
-        // lambda com captura recebia o argumento no registrador errado (lixo no
-        // cross, correto no x86 que já pulava capturas). Só os slots 1..(soma
-        // das larguras dos params) recebem registradores; capturas (slots
-        // acima) são preenchidas pelas ops. Locais ordenados por índice (a
-        // lista do IR pode estar fora de ordem; `this`=0 primeiro).
-        int paramSlotMax = 1;
-        for (Type pt : method.parameterTypes()) {
-            paramSlotMax += NativeTypeKinds.isDoubleWidthSlot(pt) ? 2 : 1;
-        }
-        java.util.List<IRLocalVariable> sortedLocals =
-                new java.util.ArrayList<>(method.localVariables());
-        sortedLocals.sort(java.util.Comparator.comparingInt(IRLocalVariable::index));
-        int argIdx = 0;
-        for (IRLocalVariable lv : sortedLocals) {
-            if (lv.name().equals("this")) {
-                sb.append("    sd a0, ").append(crossLocalOffRiscv(lv.index())).append("(s11)\n");
-                argIdx++;
-                continue;
-            }
-            if (lv.index() >= paramSlotMax) {
-                // captura de lambda (ou temporário de índice alto): preenchido
-                // pelas ops, NÃO consome registrador de entrada (§620).
-                // §625: mas o slot precisa ser ZERADO, não deixado stale — o GC
-                // conservador do cross varre o frame [sp..bottom] e seguiria o
-                // lixo como ponteiro. O x86 tinha o MESMO padrão latente (mesma
-                // correção aplicada lá); a regressão AV1 só se materializou no
-                // cross pelo layout de frame/operandos, não por já zerar.
-                sb.append("    sd zero, ").append(crossLocalOffRiscv(lv.index())).append("(s11)\n");
-                continue;
-            }
-            if (argIdx < argRegs.length) {
-                sb.append("    sd ").append(argRegs[argIdx]).append(", ")
-                  .append(crossLocalOffRiscv(lv.index())).append("(s11)\n");
-            } else {
-                int stackOff = 8 * (argIdx - argRegs.length);
-                sb.append("    ld t0, ").append(stackOff).append("(s11)\n");
-                sb.append("    sd t0, ").append(crossLocalOffRiscv(lv.index())).append("(s11)\n");
-            }
-            argIdx++;
-        }
+        // baixo); `s11` = frame pointer. O prologue (setup do frame + save dos
+        // args + zeragem dos slots não-arg §625) vive em NativeRiscvCrossFrame.
+        NativeRiscvCrossFrame.emitPrologue(sb, method, frameSize);
         boolean endsWithReturn = false;
         for (IRBasicBlock block : method.basicBlocks()) {
             for (KofOperation op : block.operations()) {
@@ -188,7 +130,7 @@ public final class NativeRiscvCrossEmit {
         if (nb.debugInfo) NativeDwarfCrossRegister.register(this, sb, mangled, method);
     }
 
-    int crossLocalOffRiscv(int idx) { return -(idx + 1) * 8 - 16; }
+    int crossLocalOffRiscv(int idx) { return NativeRiscvCrossFrame.localOff(idx); }
 
     void emitMethodTableRiscv(StringBuilder sb, IRClass clazz) {
         List<String> methods = nb.collectVirtualMethods(clazz);
@@ -220,12 +162,12 @@ public final class NativeRiscvCrossEmit {
             }
             case KofLoadLiteral lit -> emitCrossLoadLiteralRiscv(sb, lit);
             case KofLoadLocal ll -> {
-                sb.append("    ld t0, ").append(crossLocalOffRiscv(ll.index())).append("(s11)\n");
+                NativeRiscvCrossFrame.emitLocalMem(sb, "ld", "t0", ll.index());
                 pushRiscv(sb, "t0");
             }
             case KofStoreLocal sl -> {
                 sb.append("    pop t0\n");
-                sb.append("    sd t0, ").append(crossLocalOffRiscv(sl.index())).append("(s11)\n");
+                NativeRiscvCrossFrame.emitLocalMem(sb, "sd", "t0", sl.index());
             }
             case KofLoadField lf -> {
                 sb.append("    pop t0\n");
@@ -380,7 +322,7 @@ public final class NativeRiscvCrossEmit {
             case KofCatchStart kcs -> {
                 sb.append(nb.resolveLabel(kcs.handlerLabel())).append(":\n");
                 sb.append("    addi sp, sp, 32\n");
-                sb.append("    sd a0, ").append(crossLocalOffRiscv(kcs.localIndex())).append("(s11)\n");
+                NativeRiscvCrossFrame.emitLocalMem(sb, "sd", "a0", kcs.localIndex());
             }
             case KofReturn _ -> {
                 sb.append("    pop a0\n");
