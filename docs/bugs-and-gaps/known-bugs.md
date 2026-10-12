@@ -18205,3 +18205,31 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 **Fix path (needs a decision):** reject in `SemBinaryResultTyper` (mirroring the `SEM062` shape) OR define ordinal semantics in the shared comparison lowering; either way the four backends must agree.
 **Boundary:** `==`/`!=` (identity) and `compareTo` are correct on all four targets. Only the relational operators on enums are undefined-and-divergent. Owner lane compiler/JVM/native `192.168.15.30:9092`.
 <!-- pt-switch --> **PT:** [§675 (pt_BR)](known-bugs.pt_BR.md#675--os-operadores-de-ordem-de-enum-----sao-aceitos-mas-divergem-entre-alvos-jvmjs-dao-false-o-nativo-da-true-o-script-imprime-not-comparable-para-colorred--colorgreen---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §677 — `instanceof` on a boxed primitive diverges: `var o: Object = 42  println(o instanceof Int)` is `false` on Script/native but `true` on JVM/JS — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+
+**Symptom (measured 11/10, tip `fe5e8c108`):** with `var o: Object = 42`, `println(o instanceof Int)` → **Script `false`**, **native `false`**, **JVM `true`**, **JS `true`**. A 2-2 split: the reference-checking backends (JVM/JS) say the boxed `Integer` IS an `Int`, while the value-typed backends (Script/native) say it is not. `o instanceof String` on a boxed `Integer` is `false` on all four (that face agrees).
+
+**Root (as far as measured):** `instanceof` against a PRIMITIVE target (`Int`/`Long`/`Bool`/…) is not defined by the language contract (`docs/language-reference/classes.md` covers `instanceof` only for class/record types). Each backend does whatever its generic `instanceof` does for the primitive's boxed form — JVM `instanceof java.lang.Integer`, JS `typeof`/box check, Script/native compare the value type. Whether `instanceof Int` on an `Object` slot is meaningful (or should be rejected at compile time) is unspecified.
+
+**Contract:** an operator either has ONE defined cross-target meaning or is REJECTED with an explicit diagnostic — never accepted-and-divergent. Here the contract is SILENT on `instanceof <primitive>`, so the fix needs a maintainer decision: **reject** `instanceof` on a primitive target (pointing at a class/record type), or **define** it as the boxed-type check (which would change Script/native). Recorded OPEN pending that call.
+
+**Fix path (needs a decision):** reject in the typer (a new diagnostic) OR define boxed-type semantics in the shared `instanceof` lowering; either way the four backends must agree.
+
+**Boundary:** `instanceof` on a CLASS/RECORD target is correct on all four targets (measured: `a instanceof Dog`/`Cat`/`Animal`, `o instanceof String`). Only the PRIMITIVE target diverges. Owner lane compiler/JVM/native `192.168.15.30:9092`.
+
+<!-- pt-switch --> **PT:** [§677 (pt_BR)](known-bugs.pt_BR.md#677--instanceof-sobre-um-primitivo-boxado-diverge-var-o-object--42--printlno-instanceof-int-e-false-no-scriptnativo-mas-true-no-jvmjs---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §678 — a FAILING downcast `a as Dog` diverges: JVM throws `ClassCastException` while Script/native/JS evaluate to `null` (and a nullable `a as Dog?` returns `null` everywhere except JVM, which throws) — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+
+**Symptom (measured 11/10, tip `fe5e8c108`):** with `class Animal {}` / `class Dog extends Animal {}`, `var a: Animal = Animal()` then `var d = a as Dog` → **JVM throws `ClassCastException: class Animal cannot be cast to class Dog`**, while **Script/native/JS** evaluate the cast to `null` (no throw). The nullable spelling `var d: Dog? = a as Dog?` returns `null` on Script/native/JS but STILL throws on JVM. A SUCCESSFUL cast (`a as Dog` where `a` really is a `Dog`) works identically on all four.
+
+**Root (as far as measured):** the `as` cast semantics on a FAILING downcast are unspecified: the JVM backend lowers `as` to a JVM `CHECKCAST` (which throws), while the value-typed backends lower it to a check that yields `null`. The language contract (`docs/language-reference/classes.md`) documents `as` for numeric conversions and type casts but does NOT state the failing-reference-cast behaviour.
+
+**Contract:** `as` on a failing reference cast must have ONE defined cross-target meaning — either always throw (a cast error) or always yield `null` (a soft cast) — never backend-dependent. The contract is SILENT, so the fix needs a maintainer decision. Recorded OPEN pending that call.
+
+**Fix path (needs a decision):** pick throw-or-null and implement it in all four backends' `as` lowering (the nullable `as T?` should then be the always-null spelling if null wins).
+
+**Boundary:** a SUCCESSFUL `as` cast is correct on all four targets (measured). Only the FAILING reference cast diverges. Owner lane compiler/JVM/native `192.168.15.30:9092`.
+
+<!-- pt-switch --> **PT:** [§678 (pt_BR)](known-bugs.pt_BR.md#678--um-downcast-que-falha-a-as-dog-diverge-o-jvm-lanca-classcastexception-enquanto-scriptnativojs-avaliam-para-null-e-um-a-as-dog-nulavel-devolve-null-em-todo-lugar-exceto-no-jvm-que-lanca---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)

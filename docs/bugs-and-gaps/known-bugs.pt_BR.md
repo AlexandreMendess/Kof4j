@@ -15701,3 +15701,31 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 **Caminho de correção (precisa de decisão):** recusar no `SemBinaryResultTyper` (espelhando a forma do `SEM062`) OU definir semântica de ordinal no lowering compartilhado de comparação; de qualquer forma os quatro backends devem concordar.
 **Fronteira:** `==`/`!=` (identidade) e `compareTo` estão corretos nos quatro alvos. Só os operadores relacionais em enums estão indefinidos-e-divergentes. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
 <!-- en-switch --> **EN:** [§675 (en)](known-bugs.md#675--enum-ordering-operators-----are-accepted-but-diverge-across-targets-jvmjs-give-false-native-gives-true-script-prints-not-comparable-for-colorred--colorgreen---open-found-1110-by-lane-compilerjvmnative-19216815309092)
+
+## §677 — `instanceof` sobre um primitivo boxado diverge: `var o: Object = 42  println(o instanceof Int)` é `false` no Script/nativo mas `true` no JVM/JS — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
+
+**Sintoma (medido 11/10, tip `fe5e8c108`):** com `var o: Object = 42`, `println(o instanceof Int)` → **Script `false`**, **nativo `false`**, **JVM `true`**, **JS `true`**. Uma divisão 2-2: os backends que checam referência (JVM/JS) dizem que o `Integer` boxado É um `Int`, enquanto os backends de tipo-valor (Script/nativo) dizem que não. `o instanceof String` sobre um `Integer` boxado é `false` nos quatro (essa face concorda).
+
+**Raiz (até onde foi medido):** `instanceof` contra um alvo PRIMITIVO (`Int`/`Long`/`Bool`/…) não é definido pelo contrato da linguagem (`docs/language-reference/classes.md` cobre `instanceof` só para tipos classe/record). Cada backend faz o que o seu `instanceof` genérico faz para a forma boxada do primitivo — JVM `instanceof java.lang.Integer`, JS `typeof`/checagem de caixa, Script/nativo comparam o tipo de valor. Se `instanceof Int` sobre um slot `Object` faz sentido (ou deveria ser recusado em compile-time) é não especificado.
+
+**Contrato:** um operador ou tem UM significado cross-target definido ou é RECUSADO com um diagnóstico explícito — nunca aceito-e-divergente. Aqui o contrato é SILENTE sobre `instanceof <primitivo>`, então a correção precisa de decisão da mantenedora: **recusar** `instanceof` sobre um alvo primitivo (apontando para um tipo classe/record), ou **defini-lo** como a checagem do tipo boxado (o que mudaria Script/nativo). Registrado OPEN aguardando essa decisão.
+
+**Caminho de correção (precisa de decisão):** recusar no typer (um novo diagnóstico) OU definir semântica de tipo boxado no lowering compartilhado de `instanceof`; de qualquer forma os quatro backends devem concordar.
+
+**Fronteira:** `instanceof` sobre um alvo CLASSE/RECORD está correto nos quatro alvos (medido: `a instanceof Dog`/`Cat`/`Animal`, `o instanceof String`). Só o alvo PRIMITIVO diverge. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
+
+<!-- en-switch --> **EN:** [§677 (en)](known-bugs.md#677--instanceof-on-a-boxed-primitive-diverges-var-o-object--42--printlno-instanceof-int-is-false-on-scriptnative-but-true-on-jvmjs---open-found-1110-by-lane-compilerjvmnative-19216815309092)
+
+## §678 — um downcast que FALHA `a as Dog` diverge: o JVM lança `ClassCastException` enquanto Script/nativo/JS avaliam para `null` (e um `a as Dog?` nulável devolve `null` em todo lugar exceto no JVM, que lança) — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
+
+**Sintoma (medido 11/10, tip `fe5e8c108`):** com `class Animal {}` / `class Dog extends Animal {}`, `var a: Animal = Animal()` e então `var d = a as Dog` → **JVM lança `ClassCastException: class Animal cannot be cast to class Dog`**, enquanto **Script/nativo/JS** avaliam o cast para `null` (sem lançar). A grafia nulável `var d: Dog? = a as Dog?` devolve `null` no Script/nativo/JS mas AINDA lança no JVM. Um cast BEM-SUCEDIDO (`a as Dog` onde `a` é mesmo um `Dog`) funciona igual nos quatro.
+
+**Raiz (até onde foi medido):** a semântica do cast `as` num downcast que FALHA é não especificada: o backend JVM baixa `as` para um `CHECKCAST` da JVM (que lança), enquanto os backends de tipo-valor baixam para uma checagem que devolve `null`. O contrato da linguagem (`docs/language-reference/classes.md`) documenta `as` para conversões numéricas e casts de tipo mas NÃO declara o comportamento de um cast de referência que falha.
+
+**Contrato:** `as` num cast de referência que falha deve ter UM significado cross-target definido — ou sempre lançar (erro de cast) ou sempre devolver `null` (cast suave) — nunca dependente do backend. O contrato é SILENTE, então a correção precisa de decisão da mantenedora. Registrado OPEN aguardando essa decisão.
+
+**Caminho de correção (precisa de decisão):** escolher lançar-ou-null e implementar nos quatro backends no lowering de `as` (o `as T?` nulável deveria então ser a grafia sempre-null se o null vencer).
+
+**Fronteira:** um cast `as` BEM-SUCEDIDO está correto nos quatro alvos (medido). Só o cast de referência que FALHA diverge. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
+
+<!-- en-switch --> **EN:** [§678 (en)](known-bugs.md#678--a-failing-downcast-a-as-dog-diverges-jvm-throws-classcastexception-while-scriptnativejs-evaluate-to-null-and-a-nullable-a-as-dog-returns-null-everywhere-except-jvm-which-throws---open-found-1110-by-lane-compilerjvmnative-19216815309092)
