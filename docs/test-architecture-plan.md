@@ -1526,6 +1526,28 @@ byte-for-byte on jvm/native/js (all four agree), then frozen; `tests/run-golden.
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger` rc=0.
 
+**Phase 6 slice 43 LANDED (12/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **68 total** — pinning the deterministic lenient edges of the `kof.random`
+namespace, which had no golden coverage. The new case `tests/golden/random-namespace` pins
+`random.randomInt(0)`/`(-5)`→`0` and `(1)`→`0`, `random.randomString(0,"abc")`/`(-3,"ab")`→`""`
+and `(5,"")`→`""`, `random.hex(0)`/`(-1)`/`(-100)`→`null` and the `hex(4)`/`(1)`/`(16)` lengths
+`8`/`2`/`32`, plus PREDICATES for the genuinely random draws (`randomInt(1000)` in range,
+`randomString(6,"ab")` length) — never a value, so the case carries no entropy/clock byte. All
+16 faces agree byte-for-byte on the four targets. **BUG FOUND + FIXED (Q0/Q4):** authoring the
+case surfaced **§681** — `random.hex(n)` with `n <= 0` returned ~2 GiB of binary garbage on
+native x86-64 instead of the contract's `null` (`kof_random_hex` was a bare
+`jmp kof_sec_random_hex`, whose only callers pass a literal 16/32; `n = 0` allocated the header
+and the SIGNED hex loop index `n-1 = -1` scanned the address space downward). FIXED the same
+commit at the `random.hex` face wrapper, with a RED-first test
+(`RandomHexNonPositiveNativeTest` **1/7 FAIL pre-fix** → **7 run / 0F** post-fix on JVM + Script
++ JS + native x86-64 + riscv64 + aarch64). This is the THIRD slice that carries a compiler fix
+(the others were test-only). Proof (executed): every value measured on the Script target first,
+cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **272/272** (68 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:

@@ -55,11 +55,22 @@ public final class RuntimeRandom {
             kof_random_boolean:
                 jmp kof_random_bool
 
-            # kof_random_hex(n) -> tail-jmp p/ kof_sec_random_hex (crypto lane)
+            # kof_random_hex(n) -> kof_sec_random_hex (crypto lane). §681: o
+            # tail-jmp PURO herdava o contrato do kof_sec_random_hex, que para
+            # n<=0 nao devolve null — aloca 25 bytes e o loop de hex com
+            # rcx = n-1 = -1 rodava a varredura INTEIRA do espaco de enderecos
+            # (2 GiB de lixo antes de estourar). O contrato PUBLICO da face
+            # `random.hex` e n<=0 => null (JVM e riscv ja o guardam), entao o
+            # guard vive aqui, no wrapper da face random.
             .globl kof_random_hex
             .type kof_random_hex, @function
             kof_random_hex:
+                testq %rdi, %rdi
+                jle .Lrnd_hex_null
                 jmp kof_sec_random_hex
+            .Lrnd_hex_null:
+                xorq %rax, %rax
+                ret
 
             # kof_random_double() -> Double em [0,1) via xmm0 (53-bit mantissa)
             .globl kof_random_double

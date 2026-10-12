@@ -1533,6 +1533,28 @@ congelado; `tests/run-golden.sh` **268/268** (67 casos × 4 alvos), exit 0; `mvn
 -am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
 `check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger` rc=0.
 
+**Fase 6 fatia 43 POUSADA (12/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **68 no total** — pinando as arestas lenientes determinísticas do namespace `kof.random`,
+que não tinha cobertura golden. O novo caso `tests/golden/random-namespace` pina
+`random.randomInt(0)`/`(-5)`→`0` e `(1)`→`0`, `random.randomString(0,"abc")`/`(-3,"ab")`→`""`
+e `(5,"")`→`""`, `random.hex(0)`/`(-1)`/`(-100)`→`null` e os comprimentos de `hex(4)`/`(1)`/`(16)`
+`8`/`2`/`32`, mais PREDICADOS para os sorteios genuinamente aleatórios (`randomInt(1000)` em
+faixa, comprimento de `randomString(6,"ab")`) — nunca um valor, então o caso não carrega nenhum
+byte de entropia/relógio. As 16 faces concordam byte-a-byte nos quatro alvos. **BUG ACHADO +
+CORRIGIDO (Q0/Q4):** escrever o caso revelou o **§681** — o `random.hex(n)` com `n <= 0`
+devolvia ~2 GiB de lixo binário no nativo x86-64 em vez do `null` do contrato (o `kof_random_hex`
+era um `jmp kof_sec_random_hex` cru, cujos únicos chamadores passam literal 16/32; `n = 0`
+alocava o cabeçalho e o índice COM SINAL `n-1 = -1` do loop de hex varria o espaço de endereços
+para baixo). CORRIGIDO no mesmo commit no wrapper da face `random.hex`, com um teste RED-first
+(`RandomHexNonPositiveNativeTest` **1/7 FALHAM pré-correção** → **7 rodados / 0F** pós-correção no
+JVM + Script + JS + nativo x86-64 + riscv64 + aarch64). Esta é a TERCEIRA fatia que carrega um
+fix de compilador (as outras eram só teste). Prova (executada): cada valor medido primeiro no alvo
+Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado;
+`tests/run-golden.sh` **272/272** (68 casos × 4 alvos), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:
