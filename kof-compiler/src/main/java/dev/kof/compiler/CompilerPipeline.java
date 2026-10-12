@@ -259,6 +259,7 @@ public final class CompilerPipeline {
             else switch (decl) {
                 case EntityDeclarationNode ent -> {
                     driver.entitySchemas.put(ent.name(), ent.fields());
+                    if (ent.modifiers().contains("audited")) driver.auditedEntities.add(ent.name()); // entity-history 2b
                     List<RecordComponentNode> components = new java.util.ArrayList<>();
                     for (EntityFieldNode f : ent.fields()) {
                         components.add(new RecordComponentNode(f.position(), List.of(), f.type(), f.name(), null));
@@ -370,6 +371,16 @@ public final class CompilerPipeline {
             unit = CompilerPipeline.appendAndroidHostIfNeeded(driver, unit);
         }
         driver.semanticAnalyzer = new SemanticAnalyzer();
+        // entity-history fatia 2c-parte-2 (D-ENTITY-HISTORY): pré-pass do
+        // parse — as entidades `audited` e os nomes de entity ficam visíveis
+        // à fase SEM (o conjunto do driver só se enche no IR-build, depois).
+        for (AstNode d0 : unit.declarations()) {
+            if (d0 instanceof EntityDeclarationNode e0) {
+                if (e0.modifiers().contains("audited")) driver.auditedEntities.add(e0.name());
+                driver.entityNamesMirror.add(e0.name());
+            }
+        }
+        driver.semanticAnalyzer.setAuditedEntityMirrors(driver.auditedEntities, driver.entityNamesMirror);
         driver.semanticAnalyzer.setTarget(driver.target);
         driver.semanticAnalyzer.setInterpreting(driver.interpreting);
         driver.semanticAnalyzer.setExternalTypes(driver.externalClasspath);
@@ -533,6 +544,8 @@ public final class CompilerPipeline {
         merged = CompilerInterop.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
         merged = CompilerPagination.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
+        merged = CompilerOrmHistory.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
         merged = CompilerPairs.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;

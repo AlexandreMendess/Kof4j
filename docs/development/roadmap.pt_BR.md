@@ -2,7 +2,7 @@
 
 # Kof — Roadmap de Longo Prazo
 
-last: 0.5.0-release-cut
+last: 0.6.1-cut
 doing: 1.0-exit-gate
 next: promotion-sweep
 location: roadmap
@@ -21,7 +21,7 @@ mantenedora 15/09 — trio de volta a `future/`). (antes: fusão de planos: §23
 plano de implementação ÚNICO (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`); cluster de
 migração consolidado — `LEGACY_IR`+`DIFFERENTIAL_TESTING` fundidos em
 `LEGACY_MIGRATION.md`)
-**Versão:** 0.6.0 (branch de desenvolvimento ativa `lab`)
+**Versão:** 0.6.1 (branch de desenvolvimento ativa `lab`)
 
 ---
 
@@ -790,7 +790,7 @@ O Kof é uma plataforma distribuível, não apenas um JAR:
 
 - distribuição autocontida (compiler, CLI, runtime, stdlib, tooling, editor support, JDK 25 embutido);
 - OpenJDK embutido no pacote oficial (Temurin 25, tooling API level 21);
-- versionamento centralizado (`VERSION` 0.6.0 → pom/properties via `scripts/bump-version.sh`);
+- versionamento centralizado (`VERSION` 0.6.1 → pom/properties via `scripts/bump-version.sh`);
 - releases por 2 jobs (`release.yml`: `test-and-bump` exporta `bump_sha` → `package-and-release` checkeia o commit de bump + sanity check de versão) por push na `main`, por plataforma linux-x86_64 / macos-arm64 / windows-x86_64 (testes 819 → bump → package 3 plataformas → GitHub Release);
 - `scripts/package.sh` PASS (layout dist + tar.gz/zip + SHA256SUMS + jars), golden 16/16, integration 9/9;
 - editor support oficial: grammar TextMate + LSP (hover/completion + diagnostics reais) + `kof editor install` (VS Code/Neovim/Vim/Emacs/Geany/Nano + IntelliJ degrau-10 honesto 13/09: filetype XML + External Tools + README LSP4IJ, sem plugin — issue #1);
@@ -976,7 +976,8 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > [`graphics-gaming.md`](../graphics-gaming.md); stack `G1` DECIDIDA (SDL3) + forma `D-GRAPHICS-WINDOW-FORM` + loop `D-MAINT-BATCH-0610`/A1–A3; superfície pura POUSADA 05–07/10 (`Clock`/`Keys`/`Mouse`/`Pad`/`Window`/`Sprite`/`Draw`/`Trig`/`Tilemap`/`Audio`/`Wav`/`Video`, goldens E2E todo alvo) + ABI/pump/áudio/stream SDL3 medidos headless nos quatro alvos + corpus 3.6a (`training/idioms/game` + `learn/42-games`). Decisão F ORDENADA 08/10 (mantenedora: vendor do FFmpeg upstream LGPL-2.1+ da fonte, sem `--enable-gpl`; a licença do probe NÃO pode ser GPLv3+ antes de qualquer decode) + 3.5 (3D) PROMOVIDA ao escopo ativo 08/10 (mantenedora). Estado autoritativo vive em `docs/graphics-gaming.md` (promovido 09/10 — a missão da superfície pura completa; as faces de backend ficam como a fronteira documentada).
 > **NÚCLEO COMPLETO (9ª frente):** `testing-platform` — promovido 10/10 (`D-TESTING-PLATFORM`, ordem da mantenedora "pode finalizar o plano então, ja promover e vida que segue") para
 > [`testing-platform.md`](../testing-platform.md); fases 1–4 do §11 COMPLETAS — núcleo unit §4 (asserções 1–6 + tabelas §4.4 + seams de clock/random §4.6) + harness §5 (temp-dir/readiness, withDb, withServer) + runner §7 (discovery honesta, tags OR, breakdown por nível) + browser §6 PILHA COMPLETA (manifesto `kof-test.kofmd` → gate `kof test --tag browser` → SPI `BrowserProvider` → ChromeHeadlessProvider (zero-dep) + PlaywrightLibProvider (lib 1.49.0, dependência normal no pom) → API `kof.test.browser` no nível Kof → E2E REAL de Chromium); §12 SEM decisões abertas (4 chat polls). Fases 5–8 na ordem confirmada do §11 — medidas 11/10 (lane `192.168.100.14:0`): **fase 7 NÚCLEO POUSADO** (`PlaywrightLibProvider` parametrizado por kind, E2E real de renderização no Firefox verde + Chromium, WebKit bloqueado no launch neste host → skips nomeados); **fase 5 NÚCLEO POUSADO** (`CypressProvider` sobre o `cypress run` REAL — specs ad-hoc geradas, probe honesto; host destravado pela mantenedora no meio da fatia: node 24.18.1/npm 11.16.0, Cypress 16.1.1 no cache Kof); a face KofJS da fase 6 já provada pela semente `KofJsBrowserE2ETest`, a face KofWasm barrada pelo #776; fase 8 (avançado) ABERTA — cada fatia sob NOVO claim. O estado autoritativo vive em `docs/testing-platform.md`.
-> Todos os planos restantes de `future/` estão autorizados com suas
+> > **ABERTA (10ª frente):** `qrcode-wasm` — promovida 11/10 (`D-FUTURE-PROMOTION` retomada por `D-FUTURE-UNFREEZE`, mantenedora 11/10) para [`qrcode-wasm-plan.pt_BR.md`](qrcode-wasm-plan.pt_BR.md); estado 12/10: Fase 1 fatias 1-2b ENTREGUES (escritor `Qrcode.kf`+`QrPng.kf` 8/8; leitor de arquivo `QrDecode.kf` 8/8 incl. correção de erros Reed-Solomon — símbolos danificados até floor(ecc/2) erros de byte por bloco decodificam exatos, acima da capacidade recusados por nome); próxima fatia = leitor de câmera; a Fase 3 (target `KofWasm`) segue rule-6 (decisão da mantenedora).
+Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).
 
@@ -1007,7 +1008,7 @@ tiers `stable`/`experimental` (`docs/backend-parity.md`).
 | 2.1.1–2.1.3 | Sintaxe `extern` + type-check + gaps `FFI001`/`FFI002` (nunca drop silencioso) | ✅ `Parser.java:192` (PARSE090), `ExternalFunctionNode`, `FfiE2ETest` |
 | 2.1.4 | Binding **JVM** (FFM `java.lang.foreign`) | ✅ **generalizado 18/09 (`.18`, R3):** qualquer assinatura escalar, aridade livre, retornos `void`/`String` — medidos `fmod`→1.5, `ldexp`→12.0, `strncmp`→-1, `puts(void)`, `getenv`→String (`syntax.md`) |
 | 2.1.5 | Binding **Native** | ✅ **20/09 (#431 fatias 1–2, §369)** — o binário cru liga escalares **direto** (`call sym@PLT`, link-by-use), o que **substitui `dlopen`/`dlsym`**; §61 fechado. O segfault antigo do `dlopen` foi o motivo da troca, não um gap aberto |
-| 2.1.6 | Marshalling struct/array | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` por valor como arg/retorno + `T[]` escalar→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landado 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **sret struct Native/cross + param por valor LANDADOS 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan` — a linha estava velha); **bridge de struct no JS ✅ COMPLETO 21/09** (struct param + retorno, array escalar copy-in, `Buffer(U8)` INOUT — byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; o "restam = bridge JS" desta linha estava velho). Restam = RETURN de struct HFA cross (PARAM HFA pousou 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); **callbacks POUSARAM 11/10 no x86-64 E no cross riscv64/aarch64** (M1 unidade-4, `FfiNativeCallbackE2ETest` — só o callback com retorno `String` segue `FFI001` honesto); float/HFA-param (`FFI001`/`FFI002` honestos, R6; `T[]` cross, `Buffer(U8)`, `String[]`→`char**`, structs por memória e params >16 B landados 29–30/09). D6 ✅ decidido 20/09 |
+| 2.1.6 | Marshalling struct/array | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` por valor como arg/retorno + `T[]` escalar→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landado 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **sret struct Native/cross + param por valor LANDADOS 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan` — a linha estava velha); **bridge de struct no JS ✅ COMPLETO 21/09** (struct param + retorno, array escalar copy-in, `Buffer(U8)` INOUT — byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; o "restam = bridge JS" desta linha estava velho). Restam = RETURN de struct HFA cross (PARAM HFA pousou 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); **callbacks POUSARAM 11/10 no x86-64 E no cross riscv64/aarch64** (M1 unidade-4, `FfiNativeCallbackE2ETest` — um callback com ARGUMENTO `String` binda no Native x86-64 E no cross riscv64/aarch64 (o trampolim faz a ponte `char*`→`String` via `kof_ffi_from_cstr`; `FfiNativeCallbackStrE2ETest`), enquanto um callback cuja ABI menciona `String` (ARGUMENTO ou RETORNO) agora BINDA no Native x86-64 E no cross riscv64/aarch64 (M1 unidade-4, 11/10: o arg faz a ponte `char*`→`String` via `kof_ffi_from_cstr`; o retorno entrega ao C o `char*` do payload (obj+24) do String que o `invoke` produziu); um ARGUMENTO `String` binda no x86-64 E no cross riscv64/aarch64 (fatia 5, `emitRiscvCallbackTrampolineStr`)); float/HFA-param (`FFI001`/`FFI002` honestos, R6; `T[]` cross, `Buffer(U8)`, `String[]`→`char**`, structs por memória e params >16 B landados 29–30/09). D6 ✅ decidido 20/09 |
 | 2.1.7 | JS: gap `FFI002` | ✅ gap honesto + **paridade escalar FECHADA 18/09 (`d3598c2d`, fatias 3.6.F1–F3):** runner host liga via `KofJsFfiBridge`, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS; browser = runtime R7; nao-escalar mantem `FFI002` |
 | 2.2.1 | Inventário do codegen implícito (4 pontos: runtime `.source()`, `desugarTests`, `desugarApplication`, entity→record+schema) | ✅ os 4 existem (`CompilerPipeline:295-296`) |
 | 2.2.2 | **Hook formal `CodegenStep`** | ✅ **LANDADO 21/09 (R4, `D-CODEGEN-STEP`)** — `CodegenStep`/`CodegenStepPipeline` (aditivo; registry vazio = identidade, zero mudança de comportamento; `CodegenStepPipelineTest` 6/6). O "✅" antigo de `d1c56bad` era sobre-claim da branch `planning-future`; o R4 é o landing real |

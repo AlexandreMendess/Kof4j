@@ -72,6 +72,7 @@ final class Av1PaletteSupport {
 
     private static final String PROBE = """
 import image.Av1ModeInfo
+import image.Av1Symbol
 
 main() {
     runPal(6, 5, 3, 8, 0, listOf(37,108,151,101,217,151,209,11,219,75,183,165,219,252,135,181,173,121,177,139,12,19,144,128,47,200,217,61,75,245,201,249,178,57,206,116,110,94,148,99,24,186,53,130,7,252,167,111,78,143,254,225,139,178,48,252,83,9,206,116,173,70,136,80,90,14,162,14,3,74,253,169,155,255,133,197,11,132,33,8,224,80,39,189,239,116))
@@ -90,7 +91,7 @@ void runPal(Int w, Int h, Int bs, Int bitDepth, Int ci, List<Int> bytes) {
         k = k + 1
     }
     println("C " + w + " " + h + " " + bs + " " + bitDepth + " " + ci)
-    var m = Av1ModeInfo(data, w, h)
+    var m = Av1ModeInfo(Av1Symbol(data), w, h)
     var bw = av1BlockNum4x4Wide(bs)
     var bh = av1BlockNum4x4High(bs)
     var r = 0

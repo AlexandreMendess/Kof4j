@@ -288,6 +288,23 @@ public final class JsClassEmitter {
                 new JsIr.JsIdentifier("json"));
         List<JsIr.JsStatement> body = new ArrayList<>();
         body.add(new JsIr.JsVarDecl("p", parsed, true));
+        // §565 contract on JS (audit JSN-01, ledger §670): a missing/JSON-null
+        // NON-nullable PRIMITIVE component is the named JSN004 failure, never a
+        // silent undefined (D-JSON-MISSING-PRIMITIVE). Nullable/reference
+        // fields keep the null semantics (no guard).
+        for (IRField field : clazz.fields()) {
+            if (!(field.type() instanceof Type.PrimitiveType)) continue;
+            JsIr.JsExpression raw = new JsIr.JsMember(
+                    new JsIr.JsIdentifier("p"), JsTypeMapper.sanitizeName(field.name()));
+            JsIr.JsExpression missing = new JsIr.JsBinary(
+                    new JsIr.JsBinary(raw, "===", new JsIr.JsIdentifier("undefined")), "||",
+                    new JsIr.JsBinary(raw, "===", new JsIr.JsIdentifier("null")));
+            body.add(new JsIr.JsIf(missing,
+                    List.of(new JsIr.JsThrow(new JsIr.JsCall(new JsIr.JsIdentifier("Error"),
+                            List.of(new JsIr.JsString("JSN004: missing field '"
+                                    + field.name() + "' for " + clazz.name()))))),
+                    List.of()));
+        }
         List<JsIr.JsExpression> ctorArgs = new ArrayList<>();
         for (IRField field : clazz.fields()) {
             ctorArgs.add(decodeFieldValue(field));

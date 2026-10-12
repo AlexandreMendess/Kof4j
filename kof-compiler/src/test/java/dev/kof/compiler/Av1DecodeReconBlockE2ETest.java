@@ -39,46 +39,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class Av1DecodeReconBlockE2ETest implements LibraryInstallSupport {
 
     /**
-     * The cross native faces (riscv64/aarch64) are BLOCKED by the open
-     * {@code known-bugs} §602 conservative-GC reclaim, and — unlike the sibling
-     * slices — no per-process split works around it here.
+     * History of the cross native faces (riscv64/aarch64) of this suite. They
+     * were blocked by the {@code known-bugs} §602 conservative-GC corruption,
+     * and — unlike the sibling slices — no per-process split works around it
+     * here (the sibling workaround of one grid/case/batch per process relies on
+     * each process staying under the {@code kof_gc_collect} alloc-tick of 4096;
+     * a single plane decode crosses it).
      *
-     * <p>The sibling workaround (one grid/case/batch per process, see
-     * {@code Av1DecodeBlockE2ETest}, {@code Av1IntraAvailE2ETest}) relies on each
-     * process staying under the {@code kof_gc_collect} alloc-tick of 4096. This
-     * slice cannot: its unit of work is ONE plane, and a single 16-transform-block
-     * plane decode (measured: the g1 16x16 {@code TX_4X4} case) already crosses
-     * the 4096-alloc tick — verified with a hardware trap on the second
-     * {@code kof_gc_collect} on the riscv64 ELF. The mid-loop collect then
-     * reclaims the still-live {@code frame} array (the plane buffer the caller
-     * passes in and every later block predicts from), so the reconstructed plane
-     * is corrupted: measured deterministically for 9 of the 12 cases (g0/g8/g10
-     * survive only because their per-block allocation path stays under the tick).
+     * <p>Measured 11/10: 9 of the 12 cases reproduced the corruption
+     * deterministically. The culprit was NOT a reclaimed live buffer: a
+     * lockstep ELF trace (GC-on vs a GC-disabled build, allocation by
+     * allocation) showed the {@code frame} plane buffer correctly marked at the
+     * tick-4096 collect and never freed, while the reconstruction writes of the
+     * LAST transform blocks diverged. Root cause: the riscv64 free-list reuse
+     * path never received the x86 §541 parity fix — a reused block's payload
+     * keeps the previous life's bytes, but the JVM oracle zeroes
+     * {@code new Int[n]} always, and {@code av1ReconBlockLevels} deliberately
+     * returns a {@code new Int[tw*th]} with only one element written. Fixed in
+     * {@code NativeRiscvAsmRtB42} (payload zeroed on free-list reuse); the
+     * aarch64 runtime inherits it through the translator.
      *
-     * <p>The driver is nonetheless proven correct on the cross targets by a
-     * differential measurement: two independent GC-disabling builds of the same
-     * riscv64 ELF (neuter {@code kof_gc_collect}'s tick branch, and neuter
-     * {@code kof_gc_collect_now}) both reproduce the golden exactly and
-     * deterministically, while the unmodified ELF diverges. x86-64, JVM, Script
-     * and JS are exact on the identical program (they are asserted above).
-     *
-     * <p>Re-measured 11/10 on the rebased tip AFTER the upstream three-root §602
-     * fix (`586003372`, lane native/GC: the bump base, the free-list mark and the
-     * size sanity): that fix closed the AV1 CDF/ModeBody/deep-graph faces but NOT
-     * this one — the two cross faces still fail here (2F, the same intra-plane
-     * reclaim of the live plane buffer), so §602 stays OPEN for this face.
-     *
-     * <p>These faces therefore SKIP with the reason named, rather than pass
-     * falsely. Remove the assumption (set {@link #BLOCKED_BY_602} to false) once
-     * §602 is fixed for this face.
+     * <p>The driver was proven correct on the cross targets throughout by the
+     * GC-disabled differential builds of the same riscv64 ELF (neutered
+     * {@code kof_gc_collect} tick branch / {@code kof_gc_collect_now}): both
+     * reproduce the golden exactly. x86-64, JVM, Script and JS are exact on the
+     * identical program (asserted above).
      */
-    private static final boolean BLOCKED_BY_602 = true;
-
-    private static final String CROSS_BLOCKED_REASON =
-            "known-bugs §602 (conservative-GC reclaim of the live plane buffer across the "
-                    + "interleaved intra loop) — cross native faces blocked until §602 is fixed; "
-                    + "driver proven exact on riscv64/aarch64 via the GC-disabled differential";
-
     private final CompilerDriver driver = new CompilerDriver();
 
     @TempDir Path tmp;
@@ -115,7 +101,6 @@ class Av1DecodeReconBlockE2ETest implements LibraryInstallSupport {
     void av1DecodeReconBlockOnNativeRiscv64() throws Exception {
         Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
-        Assumptions.assumeFalse(BLOCKED_BY_602, CROSS_BLOCKED_REASON);
         assertEquals(expectedText(crossCaseIndices()),
                 runCrossPerCase("riscv64", Target.NATIVE_RISCV64));
     }
@@ -124,7 +109,6 @@ class Av1DecodeReconBlockE2ETest implements LibraryInstallSupport {
     void av1DecodeReconBlockOnNativeAarch64() throws Exception {
         Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
                 "cross aarch64 + qemu absent — skipping (NATIVE002)");
-        Assumptions.assumeFalse(BLOCKED_BY_602, CROSS_BLOCKED_REASON);
         assertEquals(expectedText(crossCaseIndices()),
                 runCrossPerCase("aarch64", Target.NATIVE_AARCH64));
     }

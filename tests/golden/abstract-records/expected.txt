@@ -1,0 +1,9 @@
+16
+15
+square
+shape
+7
+6
+8
+true
+false

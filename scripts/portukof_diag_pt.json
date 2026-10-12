@@ -940,6 +940,11 @@
     },
     {
       "arity": 1,
+      "en": "Cannot resolve function '{0}' on the web request context (arity mismatch)",
+      "pt": "não é possível resolver a função '{0}' no contexto de requisição web (aridade incompatível)"
+    },
+    {
+      "arity": 1,
       "en": "Cannot resolve method '{0}' on 'process' (valid: run, spawn, exit)",
       "pt": "não é possível resolver o método '{0}' em 'process' (válidos: run, spawn, exit)"
     },

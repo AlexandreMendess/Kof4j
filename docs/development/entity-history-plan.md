@@ -1,13 +1,22 @@
 [English](entity-history-plan.md) | [Português](entity-history-plan.pt_BR.md)
 
-# Entity History — temporal audit for `kof.orm` (specification, plan only, zero code)
+# Entity History — temporal audit for `kof.orm` (**UNDER DEVELOPMENT** — promoted 11/10, `D-FUTURE-UNFREEZE`)
 
-**Status:** proposal, zero code — `docs/development/future/`
+state:
+last: PROMOTED 11/10 from `docs/development/future/` (D-FUTURE-UNFREEZE, maintainer 11/10) — the plan with ALL decisions closed (D-ENTITY-HISTORY authorized 28/09 + Q1–Q15 answered in D-FUTURE-BATCH-2809B)
+doing: Phase 2 slice 2b LANDED 11/10 — the RECORDING: `orm.createHistory<User>(db)` (the explicit §10 step) + `kof_orm_save_recorded`/`kof_orm_delete_recorded` (JVM runtime: per-entity revision via COALESCE(MAX)+1, operation INSERT/UPDATE decided inside the save — generated key → INSERT —, DELETE recorded with the pk snapshot; payload = full field snapshot JSON; plain entities route to the original fns, zero overhead; `orm.createHistory` on a plain entity = HIST002 refusal; the history faces are JVM/ANDROID — JS bridge/native/cross get honest ORM001 in compile-time, Phase 5). `EntityHistoryRecordingE2ETest` 3/3 (INSERT→UPDATE→DELETE revisions read back via raw SQL; plain entity creates no history table; HIST002 on plain); ORM battery 168/0F
+doing: slice 2c-parte-2 LANDED 11/10 — the QUERY: `User.history(db, id)` → ascending `List<Revision>` and the paginated `User.history(db, id, offset, limit)` on audited entities: the `auditedEntities`/entity mirrors populated at a parse pre-pass onto the SemanticAnalyzer (the SEM phase has no driver), the entity-static call RESERVED in all three typer phases (before the generic static-class resolution, which was swallowing it and emitting an empty store — the frame-crash root), the lowerer emits `kof_orm_history`/`kof_orm_history_page` (JVM: SELECT revision, at, operation ORDER BY revision, instances by the className resolver — `kof_db_query0/3`; **ArrayList return parity with kof_orm_all** — the Object-return descriptor mismatch was the NoSuchMethodError), HIST002 on non-audited receivers, HIST005 for constant negatives (Literal AND UnaryExpr minus; the runtime guards non-constant); boxing ONLY the key (offset/limit feed raw INT params — the boxed-Integer VerifyError). `EntityHistoryQueryE2ETest` 4/4; ORM/Db battery 175/0F
+next: slice 2d — `User.at(db, id, revision)`/`atTime(db, id, iso)` (payload materialization via the JSON binding) + `User.changes(db, id[, from, to])` (FieldChange diffs); HIST005 for non-constant negatives stays runtime-guarded
+location: docs/development/entity-history-plan.md
+owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
+state: under-development
+
+**Status:** UNDER DEVELOPMENT (Phase 2 of 6; the rollout queue is §24 below)
 **Requested by:** maintainer (26/09/2026)
 **Rule 6 gate:** the declaration/query surfaces were **resolved** by the maintainer
 in `DECISIONS.md` §`D-ENTITY-HISTORY` (28/09, authorized; Q1–Q15 answered in
-`D-FUTURE-BATCH-2809B`). This document is the specification; promotion to
-current work is one-at-a-time per `D-FUTURE-PROMOTION`.
+`D-FUTURE-BATCH-2809B`). Spec sections below are the locked contract; `file:line`
+anchors were measured on the promotion-day tip unless re-measured in a slice.
 **Snapshot:** branch `beta-0.5.0`, tip `12bacc39e`. Every `file:line` below was
 measured on that tip.
 

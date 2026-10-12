@@ -3,7 +3,7 @@
 # Workflows — `kof.workflow`
 
 **Date:** September 19, 2026
-**Status:** MVP implemented (universal plan Stage 2, row 2.1, slice 2.1.2) — `VERSION` 0.6.0
+**Status:** MVP implemented (universal plan Stage 2, row 2.1, slice 2.1.2) — `VERSION` 0.6.1
 
 > **MVP scope (Q2, maintainer poll 19/09):** `job` / `dag` / `after` / `run` / `Report`.
 > **2.1.3 face 1 LANDED 19/09:** `retry` (Q3 — the workflow's own additive helper;
@@ -180,7 +180,7 @@ null dependency, self-dependency, duplicate names in one dag, empty dag.
 
 ## 6. Proof
 
-`WorkflowE2ETest` 20/20 (exact stdout goldens, JVM==JS byte-parity): linear order,
+`WorkflowE2ETest` 24/24 (exact stdout goldens, JVM==JS byte-parity): linear order,
 failure cascade, throw-with-reason, cycle message, guard set, real bodies through a
 captured list, retry (recover-on-3rd + exhaust-with-reason + exponential), schedule
 fire-count, checkpoint restore across runs, supervised happy path, one_for_one

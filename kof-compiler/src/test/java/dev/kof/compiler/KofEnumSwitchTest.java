@@ -101,6 +101,33 @@ class KofEnumSwitchTest {
                 """, "G");
     }
 
+    // §674: Enum.valueOf(String) — no native, o handler de String.valueOf
+    // interceptava o STATIC valueOf do enum (o dono é a CLASSE do enum, não
+    // String) e devolvia a própria String de entrada; o consumidor lia a
+    // String como instância de enum → SIGSEGV (139). RED-first: o nativo
+    // quebrava antes; agora devolve a constante (ou null no miss) como JVM.
+    @Test
+    void valueOfReturnsTheConstantOnJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, ENUM_VALUEOF, "GREEN\n1\nBLUE\ntrue\ntrue");
+    }
+
+    @Test
+    void valueOfReturnsTheConstantOnNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, ENUM_VALUEOF, "GREEN\n1\nBLUE\ntrue\ntrue");
+    }
+
+    private static final String ENUM_VALUEOF = """
+            enum Color { RED, GREEN, BLUE }
+            main() {
+                var g = Color.valueOf("GREEN")
+                println(g.name())
+                println(g.ordinal())
+                println(Color.valueOf("BLUE").name())
+                println(Color.valueOf("NOPE") == null)
+                println(Color.valueOf("RED") == Color.RED)
+            }
+            """;
+
     private String runJvm(Path tempDir, String source, String expected) throws java.io.IOException {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

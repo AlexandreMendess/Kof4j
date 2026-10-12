@@ -23,6 +23,7 @@ public enum TokenType {
     ENTITY,
     EXTERN,
     GENERATED,
+    AUDITED,
     UNIQUE,
     EXTENDS,
     IMPLEMENTS,
