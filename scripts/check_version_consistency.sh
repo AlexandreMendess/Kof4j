@@ -37,7 +37,12 @@ done
 
 # face de runtime: o que o compilador INFORMA (KofVersion lê o
 # version.properties EMPACOTADO — é exatamente o que vai no jar)
-JAR="$(ls "$ROOT"/kof-cli/target/kof-cli-*.jar 2>/dev/null | head -1 || true)"
+JAR="$(ls "$ROOT/kof-cli/target/kof-cli-$VERSION.jar" 2>/dev/null | head -1 || true)"
+if [ -z "$JAR" ]; then
+    # sem jar da versão corrente: o mais RECENTE por mtime (um jar velho de
+    # release anterior não certifica a árvore — lição do bump 0.6.2)
+    JAR="$(ls -t "$ROOT"/kof-cli/target/kof-cli-*.jar 2>/dev/null | head -1 || true)"
+fi
 if [ -n "$JAR" ]; then
     # java resolution with CANDIDATES and a real usability check: the first
     # java that actually runs the jar wins. The old form always used sdkman
