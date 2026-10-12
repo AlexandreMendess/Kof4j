@@ -11,6 +11,7 @@ import image.Av1ReconBlock
 import image.Av1Symbol
 import image.Av1Tx
 import image.Av1TxSize
+import image.Av1TxType
 
 // kof.image — AV1 intra TILE DRIVER (slice 3ag of the AVIF front, plan §34).
 // The stage libaom runs for every block of a tile as `parse_decode_block`
@@ -28,10 +29,12 @@ import image.Av1TxSize
 //                   3r) and body (Y/UV mode, angles, CFL, palette, filter-intra, 3q);
 //   2. transform size (3s) and the `set_txfm_ctxs` broadcast the NEXT block's
 //      `get_tx_size_context` reads;
-//   3. the block's transform blocks (3y enumeration), each: coefficients
-//      (3e/3x `av1DecodeCoeffsBlockEdge`) -> availability (3ab `av1IntraAvail`)
+//   3. the block's transform blocks (3y enumeration), each: transform type
+//      (3t `Av1TxType.readTxType`) -> coefficients (3e/3x
+//      `av1DecodeCoeffsBlockEdge`) -> availability (3ab `av1IntraAvail`)
 //      -> prediction (3u `av1IntraPredictBlock`) -> dequantize + inverse
-//      transform + reconstruct (3z `av1ReconBlockInto`).
+//      transform + reconstruct (3z `av1ReconBlockInto`) with the DECODED
+//      transform type.
 //
 // Pure Kof, all targets: no I/O, no compiler change. `decodeRaster` still
 // refuses AVIF until the chain closes (chroma planes and the frame assembly).
@@ -48,11 +51,18 @@ import image.Av1TxSize
 //     `lastActiveSegId`/`segSkipActive`: the frame-level mode-info state (3af).
 //   - `dcQuant`/`acQuant`: the dequantization factors (slice 3f).
 //   - `disableEdgeFilter`/`intraEdgeFilterType`: the intra edge filter controls.
+//   - `reducedTxSet`: the frame-header `reduced_tx_set` flag (forces the
+//     transform set of §5.9.2 to `TX_SET_INTRA_2`).
 //   - `store`: the tile's adapting coefficient CDF store.
+//   - `txTypeStore`/`txTypes`: the tile's adapting transform-type CDF store and
+//     the frame's `TxTypes` map (4x4 units, `frameW >> 2` columns), which the
+//     luma `transform_type` read fills per transform block.
 //   - `above`/`left`: the plane's entropy-context arrays (4x4 units); the
 //     coefficient walk reads and updates them, so they must span the tile.
 //   - `levelsOut`: receives each transform block's decoded signed coefficients,
 //     in decode order (the caller-visible decode record).
+//   - `txTypeOut`: receives each transform block's DECODED transform type, in
+//     decode order (the caller-visible record of the `transform_type` reads).
 //   - `modeOut`: receives each block's mode-info record, 17 ints per block in
 //     the slice-3af layout (`skip, segId, cdef, qIndex, txSz, yMode, angleY,
 //     uvMode, angleUV, cflU, cflV, useFilterIntra, filterIntraMode,
@@ -67,9 +77,11 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
                          Int segIdPreSkip, Int lastActiveSegId,
                          Int segSkipActive, Int dcQuant, Int acQuant,
                          Int disableEdgeFilter, Int intraEdgeFilterType,
+                         Int reducedTxSet,
                          Av1Symbol reader, Av1CoeffCdfStore store,
+                         Av1TxType txTypeStore, Int[] txTypes,
                          Int[] above, Int[] left, List<Int[]> levelsOut,
-                         List<Int> modeOut) {
+                         List<Int> txTypeOut, List<Int> modeOut) {
     var modeInfo = Av1ModeInfo(reader, frameW >> 2, frameH >> 2)
     var txSize = Av1TxSize(reader, frameW >> 2, frameH >> 2)
     var maxX = frameW
@@ -184,13 +196,19 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
                 haveLeft = 1
             }
 
-            // 3a. Coefficients (3e/3x): the neighbour context from the plane's
-            //     shared above/left store, so it sees the previous blocks.
-            var levels = av1DecodeCoeffsBlockEdge(reader, store, bs, 0,
-                    br, bc, txSz, 0, above, left, 0, 0)
+            // 3a. Coefficients (3e/3x), in libaom's `av1_read_coeffs_txb` ORDER:
+            //     the `all_zero` flag FIRST, then — only when it is 0 — the luma
+            //     `transform_type` (slice 3t), then the level walk. The order is
+            //     load-bearing: the type symbol sits BETWEEN the two.
+            var levels = av1DecodeCoeffsBlockEdgeTx(reader, store, bs, 0,
+                    br, bc, txSz, above, left, 0, 0, txTypeStore,
+                    reducedTxSet, qIndex, yMode, useFilterIntra,
+                    filterIntraMode, txTypes, frameW >> 2, bc, br)
+            var txType = txTypes[br * (frameW >> 2) + bc]
             levelsOut.add(levels)
+            txTypeOut.add(txType)
 
-            // 3b. Availability (3ab) from the transform block's ABSOLUTE position.
+            // 3c. Availability (3ab) from the transform block's ABSOLUTE position.
             var avail = av1IntraAvail(12, bs, 0, txSz, 0, 0,
                     order.get(bi * 2), order.get(bi * 2 + 1), yMode,
                     angleY, useFilterIntra, haveTop, haveLeft, br, bc,
@@ -198,7 +216,7 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
             var haveAboveRight = avail[0]
             var haveBelowLeft = avail[1]
 
-            // 3c. Prediction (3u) with THIS block's mode.
+            // 3d. Prediction (3u) with THIS block's mode.
             var pred = av1IntraPredictBlock(frame, stride, x + 1, y + 1, w, h,
                                             maxX, maxY,
                                             haveLeft, haveTop, haveAboveRight,
@@ -206,9 +224,9 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
                                             useFilterIntra, filterIntraMode,
                                             bitDepth, intraEdgeFilterType, edgeFilter)
 
-            // 3d. Dequantize + inverse transform + reconstruct (3z).
+            // 3e. Dequantize + inverse transform + reconstruct (3z).
             av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, txSz,
-                              0, bitDepth, false, dcQuant, acQuant)
+                              txType, bitDepth, false, dcQuant, acQuant)
 
             bi = bi + 1
         }

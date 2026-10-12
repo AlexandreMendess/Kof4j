@@ -11,4 +11,13 @@ main() {
     println(l.get(0) + l.get(1))
     var s = json.decode<String>("\"hello\"")
     println(s)
+    println(json.decode<String>("\"x\\ty\""))
+    println(json.decode<String>("\"x\\ny\"").length)
+    println(json.decode<String>("\"x\\\\y\""))
+    println(json.decode<String>("\"x\\\"y\""))
+    println(json.decode<String>("\"a\\/b\""))
+    println(json.decode<String>("\"\\b\\f\"").length)
+    println(json.decode<String>("\"\\u0041\""))
+    println(json.decode<String>("\"caf\\u00e9\""))
+    println(json.decode<String>("\"\\u4e2d\""))
 }

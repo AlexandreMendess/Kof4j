@@ -193,6 +193,7 @@ if touches 'lang/PortuKof|^lang/|parser/Lexer\.java|parser/ParseContext\.java|ch
 fi
 if touches '^docs/development/'; then
     run_gate live_records "${AGENT_VERIFY_LIVERECORDS:-bash scripts/check_live_records.sh}"
+    run_gate queue_enum "${AGENT_VERIFY_QUEUEENUM:-bash scripts/check_queue_enum.sh}"
     run_gate plan_owners "${AGENT_VERIFY_PLANOWNERS:-bash scripts/check_plan_owners.sh}"
 fi
 if touches '(^|/)(kof-runtime|stdlib)/|stdlib_boundary'; then

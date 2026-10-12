@@ -1,6 +1,7 @@
 record Point(Int x, Int y)
 record User(String name, Int age)
 record Flag(Bool ok)
+record Real(Double d)
 main() {
     println(json.encode(Point(3, 4)))
     println(json.encode(User("ada", 36)))
@@ -17,4 +18,9 @@ main() {
     println(w.x() + w.y())
     var e = json.decode<Point>("{\"x\":1,\"y\":2,\"z\":9}")
     println(e.x() + e.y())
+    println(json.encode(Real(1.0)))
+    println(json.encode(Real(2.5)))
+    println(json.encode(1.0))
+    println(json.encode(1.0E10))
+    println(json.encode(listOf(1.0, 2.0)))
 }

@@ -4,7 +4,7 @@
 
 **Status:** Phases 1-3 implemented (DebugInfo in the IR, JVM metadata, `kof-debug` MVP)
 **Date:** August 27, 2026
-**Version:** 0.6.1 (7 targets; free-list + pthread spawn + FP XMM)
+**Version:** 0.6.2 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 

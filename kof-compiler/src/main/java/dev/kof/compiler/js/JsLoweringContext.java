@@ -24,6 +24,9 @@ public class JsLoweringContext {
     final List<String> ioRuntimeImports = new ArrayList<>();
     final Set<String> decodeHelpers = new HashSet<>();
     final Set<String> recordClassNames = new HashSet<>();
+    /** §659d: records with a `Double`/`Float` component (they carry the marked
+     *  `__kof_tojson_fp`; their `json.encode` selects it). */
+    final Set<String> fpRecordClassNames = new HashSet<>();
     Map<String, Set<String>> classMethodNames = Map.of();
     Map<String, Map<Integer, String>> fnArityNames = Map.of();
     /** SG-011B: nome JS quando há ≥2 assinaturas sob o mesmo nome (chave = sigTag). */
