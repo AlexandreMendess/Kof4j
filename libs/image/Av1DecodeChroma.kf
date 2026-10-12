@@ -112,6 +112,14 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
     if (uvMode == 13) {
         baseMode = 0
     }
+    if (uvMode == 13 && (uw4 != utw4 || uh4 != uth4)) {
+        // libaom asserts exactly one chroma transform block for a non-lossless
+        // block (`reconintra.c`: `assert(blk_col == 0); assert(blk_row == 0)`),
+        // and `av1_cfl_predict_block` reads `ac_buf_q3` from the buffer ORIGIN
+        // for every block. A subdivided chroma plane would therefore reuse one
+        // window for several transform blocks; refuse it by name instead.
+        throw "IMAGE: CFL with a subdivided chroma plane is not supported (libaom asserts one transform block)"
+    }
     var i = 0
     while (i < uh4) {
         var j = 0
@@ -161,8 +169,13 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
                     baseMode, angleUV, useFilterIntra, filterIntraMode,
                     bitDepth, intraEdgeFilterType, edgeFilter)
             if (uvMode == 13) {
+                // The window origin is libaom's chroma-origin rule for this
+                // block, not `uvc << (2 + ssX)` computed inline: the two agree
+                // for an even 4x4 column but diverge for the odd 1-wide block
+                // libaom shifts back by one mi.
                 var ac = av1CflAcFromLuma(luma, lumaStride,
-                        uvc << (2 + ssX), uvr << (2 + ssY),
+                        av1CflLumaOriginX(c, av1BlockNum4x4Wide(bs), ssX),
+                        av1CflLumaOriginY(r, av1BlockNum4x4High(bs), ssY),
                         w, h, ssX, ssY,
                         av1TxWidthLog2(uvTx) + av1TxHeightLog2(uvTx))
                 pred = av1CflPredict(pred, ac, cflAlpha, w, h, bitDepth)

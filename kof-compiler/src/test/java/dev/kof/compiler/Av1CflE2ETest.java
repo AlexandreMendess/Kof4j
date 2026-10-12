@@ -12,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
 
@@ -196,6 +198,167 @@ class Av1CflE2ETest implements LibraryInstallSupport {
         Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
                 "cross aarch64 + qemu absent — skipping (NATIVE002)");
         assertEquals(goldenText(), runCross("aarch64", Target.NATIVE_AARCH64));
+    }
+
+    private static final String ORIGIN_RESOURCE = "/av1_cfl_origin_golden.txt.b64";
+    private static final String ORIGIN_SHA256 =
+        "304033b8669b53e6682236b650c6b4fb12e94f04b8838109c83f6dd0f006ca3d";
+
+    private static String resource(String name) {
+        try (InputStream raw = Av1CflE2ETest.class.getResourceAsStream(name)) {
+            if (raw == null) throw new IllegalStateException("missing " + name);
+            byte[] b64 = raw.readAllBytes();
+            StringBuilder sb = new StringBuilder(b64.length);
+            for (byte b : b64) {
+                char c = (char) (b & 0xFF);
+                if (c != '\n' && c != '\r' && c != ' ' && c != '\t') sb.append(c);
+            }
+            byte[] gz = Base64.getDecoder().decode(sb.toString());
+            try (GZIPInputStream in = new GZIPInputStream(new java.io.ByteArrayInputStream(gz))) {
+                String text = new String(in.readAllBytes(), StandardCharsets.UTF_8).strip();
+                String actual = sha256(text);
+                if (!ORIGIN_SHA256.equals(actual)) {
+                    throw new IllegalStateException("stale golden " + name + ": " + actual);
+                }
+                return text;
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("cannot read " + name, e);
+        }
+    }
+
+    private static String sha256(String text) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(d.length * 2);
+            for (byte b : d) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    private static String originGolden() {
+        return resource(ORIGIN_RESOURCE);
+    }
+
+    /**
+     * Probe for the chroma-origin mapping. It is TINY (no large local array), so
+     * it runs on every native face including riscv64 — the {@code known-bugs}
+     * §687 frame limit does not apply here.
+     */
+    private static String originProbe() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("import image.Av1Cfl\n");
+        sb.append("import image.Av1Block\n\n");
+        /* One emitter per block size: a single `main` with all 1408 rows
+         * overflows the JVM's 64 KiB method limit (COMP002), so the rows are
+         * split. */
+        Map<Integer, List<String>> byBs = new LinkedHashMap<>();
+        for (String line : originGolden().split("\n")) {
+            String[] f = line.split(" ");
+            byBs.computeIfAbsent(Integer.parseInt(f[0]), k -> new ArrayList<>()).add(line);
+        }
+        for (Map.Entry<Integer, List<String>> e : byBs.entrySet()) {
+            sb.append("void emit").append(e.getKey()).append("() {\n");
+            for (String line : e.getValue()) {
+                String[] f = line.split(" ");
+                int bs = Integer.parseInt(f[0]);
+                int mr = Integer.parseInt(f[1]);
+                int mc = Integer.parseInt(f[2]);
+                int sx = Integer.parseInt(f[3]);
+                int sy = Integer.parseInt(f[4]);
+                sb.append("    println(\"").append(bs).append(' ').append(mr).append(' ')
+                  .append(mc).append(' ').append(sx).append(' ').append(sy).append(" \" + ")
+                  .append("av1CflChromaOriginUnitX(").append(mc).append(", av1BlockNum4x4Wide(")
+                  .append(bs).append("), ").append(sx).append(") + \" \" + ")
+                  .append("av1CflChromaOriginUnitY(").append(mr).append(", av1BlockNum4x4High(")
+                  .append(bs).append("), ").append(sy).append("))\n");
+            }
+            sb.append("}\n\n");
+        }
+        sb.append("main() {\n");
+        for (Integer bs : byBs.keySet()) sb.append("    emit").append(bs).append("()\n");
+        sb.append("}\n");
+        return sb.toString();
+    }
+
+    @Test
+    void cflOriginGoldenShape() {
+        assertEquals(22 * 4 * 4 * 2 * 2, originGolden().split("\n").length,
+                "22 block sizes x 4 mi_row x 4 mi_col x 2 ssX x 2 ssY");
+    }
+
+    @Test
+    void av1CflOriginOnJvm() throws Exception {
+        assertEquals(originGolden(), runJvm(originProbe()));
+    }
+
+    @Test
+    void av1CflOriginOnScript() throws Exception {
+        Path root = tmp.resolve("script-origin");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), originProbe());
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(originGolden(), result.stdout().strip());
+    }
+
+    @Test
+    void av1CflOriginOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
+        assertEquals(originGolden(), runNativeProbe("origin-x86", Target.NATIVE, originProbe()));
+    }
+
+    @Test
+    void av1CflOriginOnNativeRiscv64() throws Exception {
+        /* This probe is small, so §687 (the riscv64 >2 KiB frame limit) does NOT
+         * bite — the cross face runs for real here. */
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross riscv64 + qemu absent — skipping (NATIVE002)");
+        assertEquals(originGolden(), runCrossProbe("origin-riscv64", Target.NATIVE_RISCV64, originProbe()));
+    }
+
+    @Test
+    void av1CflOriginOnNativeAarch64() throws Exception {
+        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
+                "cross aarch64 + qemu absent — skipping (NATIVE002)");
+        assertEquals(originGolden(), runCrossProbe("origin-aarch64", Target.NATIVE_AARCH64, originProbe()));
+    }
+
+    private String runNativeProbe(String tag, Target target, String code) throws Exception {
+        Path root = tmp.resolve(tag);
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), code);
+        Path out = root.resolve("out");
+        withLibrary(root, () -> {
+            CompilationResult r = driver.compile(root.resolve("Main.kf"), out, target);
+            assertTrue(r.success(), () -> tag + " compile: " + r.diagnostics().getDiagnostics());
+            return null;
+        });
+        return runBinary(out.resolve("Default/Main"), tag);
+    }
+
+    private String runCrossProbe(String tag, Target target, String code) throws Exception {
+        Path root = tmp.resolve(tag);
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), code);
+        Path out = root.resolve("out");
+        withLibrary(root, () -> {
+            CompilationResult r = driver.compile(root.resolve("Main.kf"), out, target);
+            assertTrue(r.success(), () -> tag + " compile: " + r.diagnostics().getDiagnostics());
+            return null;
+        });
+        String arch = tag.endsWith("riscv64") ? "riscv64" : "aarch64";
+        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, out.resolve("Default/Main"));
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").strip();
+        assertEquals(0, process.waitFor(), tag + " output: " + output);
+        return output;
     }
 
     private String runJvm(String code) throws Exception {

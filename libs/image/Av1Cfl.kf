@@ -136,3 +136,40 @@ Int[] av1CflAcFromLuma(Int[] luma, Int stride, Int x, Int y,
     var sub = av1CflSubsample(luma, stride, x, y, cw, ch, ssX, ssY)
     return av1CflSubtractAverage(sub, cw, ch, numPelLog2)
 }
+
+// The CHROMA-plane grid offset of a mode-info block, in the plane's own 4x4
+// units — libaom's `set_entropy_context` (`av1/common/av1_common_int.h`):
+//
+//     col_offset = mi_col;
+//     if (pd->subsampling_x && (mi_col & 0x01) && (mi_size_wide[bsize] == 1))
+//       col_offset = mi_col - 1;
+//     pd->above_entropy_context = &xd->above_entropy_context[i][col_offset >> ssX];
+//
+// `c`/`r` are the block's LUMA 4x4 (mi) origin; `bw4`/`bh4` its LUMA extent in
+// 4x4 units (`mi_size_wide/high`). This is the origin BOTH the chroma entropy
+// contexts and the CFL window are taken from — the two agree for an even 4x4
+// column but diverge for the odd one-mi-wide block libaom shifts back.
+Int av1CflChromaOriginUnitX(Int c, Int bw4, Int ssX) {
+    var colOff = c
+    if (ssX == 1 && (c & 1) != 0 && bw4 == 1) {
+        colOff = c - 1
+    }
+    return colOff >> ssX
+}
+
+Int av1CflChromaOriginUnitY(Int r, Int bh4, Int ssY) {
+    var rowOff = r
+    if (ssY == 1 && (r & 1) != 0 && bh4 == 1) {
+        rowOff = r - 1
+    }
+    return rowOff >> ssY
+}
+
+// The same origin in the LUMA plane's SAMPLES — what `av1CflAcFromLuma` needs.
+Int av1CflLumaOriginX(Int c, Int bw4, Int ssX) {
+    return av1CflChromaOriginUnitX(c, bw4, ssX) << (2 + ssX)
+}
+
+Int av1CflLumaOriginY(Int r, Int bh4, Int ssY) {
+    return av1CflChromaOriginUnitY(r, bh4, ssY) << (2 + ssY)
+}
