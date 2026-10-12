@@ -99,9 +99,9 @@ class FfiSignatureTest {
         assertNull(FfiSignature.paramType("Int[]"), "array param never lowers raw");
     }
 
-    // M1 unidade-4 face `S`: no Native x86-64 um ARGUMENTO String do callback
-    // binda (char* → kof_ffi_from_cstr no trampolim); um RETORNO String não
-    // (ownership do char*), e o cross ainda não monta o frame do bridge.
+    // M1 unidade-4 face `S`: um ARGUMENTO String do callback binda no Native
+    // x86-64 E no cross riscv64/aarch64 (char* → kof_ffi_from_cstr no trampolim);
+    // um RETORNO String não (ownership do char*).
     @Test
     void nativeCallbackDescBindsStringArgButNotStringReturnOrCross() {
         assertEquals("iS", FfiSignature.nativeCallbackDesc("iS"));
@@ -112,7 +112,11 @@ class FfiSignatureTest {
                 "String RETURN from a callback stays non-bindable (char* ownership)");
         assertNull(FfiSignature.nativeCallbackDesc("iSSSSSS"),
                 "String arg > arity 5 stays out (no stack-arg frame)");
-        assertNull(FfiSignature.crossCallbackDesc("iS"),
-                "cross String-arg callback not yet bound (frame not built)");
+        assertEquals("iS", FfiSignature.crossCallbackDesc("iS"));
+        assertEquals("iSi", FfiSignature.crossCallbackDesc("iSi"));
+        assertNull(FfiSignature.crossCallbackDesc("Si"),
+                "cross String RETURN stays non-bindable (char* ownership)");
+        assertNull(FfiSignature.crossCallbackDesc("iSSSSSSSS"),
+                "cross String-arg arity > 7 stays out");
     }
 }

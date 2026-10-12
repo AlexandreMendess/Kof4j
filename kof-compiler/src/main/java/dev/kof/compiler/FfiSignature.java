@@ -309,21 +309,32 @@ public final class FfiSignature {
         return desc;
     }
 
-    /** M1 callbacks no cross (riscv64/aarch64): face escalar, orçamento da ABI
-     *  cruzada (int a0..a7, FP fa0..fa7) e arity ≤ 7 (o `invoke` Kof usa a0 à
-     *  closure). */
+    /** M1 callbacks no cross (riscv64/aarch64): face escalar + ARGUMENTO
+     *  {@code S} (String: um `char*` num registrador INTEIRO, que o trampolim
+     *  converte via `kof_ffi_from_cstr`), orçamento da ABI cruzada (int a0..a7,
+     *  FP fa0..fa7) e arity ≤ 7 (o `invoke` Kof usa a0 à closure, então no máximo
+     *  7 args em a1..a7). Um retorno {@code S} fica fora (ownership do `char*`). */
     public static String crossCallbackDesc(String desc) {
         if (desc == null) return null;
         int nInt = 0, nFp = 0;
+        boolean hasStr = false;
         for (int i = 0; i < desc.length(); i++) {
             char c = desc.charAt(i);
+            if (c == 'S') {
+                if (i == 0) return null;   // String RETURN: ownership não-observável
+                hasStr = true; nInt++;
+                continue;
+            }
             if (c != 'i' && c != 'j' && c != 'b' && c != 'f' && c != 'd' && c != 'v') return null;
             if (i == 0) continue;
             if (c == 'f' || c == 'd') nFp++;
             else nInt++;
         }
-        if (nInt > 8 || nFp > 8) return null;
+        if (nFp > 8) return null;
         if (desc.length() - 1 > 7) return null;
+        // Com um arg `S` o trampolim monta o frame: args só em registradores
+        // (a1..a7 = 7), então nInt ≤ 7.
+        if (hasStr ? nInt > 7 : nInt > 8) return null;
         return desc;
     }
 

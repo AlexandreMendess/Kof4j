@@ -19,9 +19,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Kof — o mesmo bridge que a JVM faz no upcall (3.4-C3.4). Contrato
  * síncrono/não-escapante. Oráculo = o MESMO fonte na JVM (FFM).
  *
- * <p>Faces honestas que ficam de fora (pinned abaixo): um retorno {@code String}
- * (ownership do {@code char*} não observável no contrato síncrono) e o cross
- * riscv64/aarch64 (o trampolim cross ainda não monta o frame do bridge).
+ * <p>Mesma face no cross riscv64/aarch64 (fatia 5, {@code emitRiscvCallbackTrampolineStr}).
+ * A única face honesta que fica de fora (pinned abaixo): um retorno {@code String}
+ * (ownership do {@code char*} não observável no contrato síncrono).
  */
 class FfiNativeCallbackStrE2ETest {
 
@@ -115,21 +115,61 @@ class FfiNativeCallbackStrE2ETest {
                 () -> "esperado FFI001: " + r.diagnostics().getDiagnostics());
     }
 
-    /** O cross riscv64/aarch64 ainda não monta o frame do bridge `S` → honesto FFI001. */
+    /** O cross riscv64/aarch64 monta o mesmo frame do bridge `S` (fatia 5). */
     @Test
-    void strCbArgStaysFfi001OnCross(@TempDir Path dir) throws Exception {
-        Path src = dir.resolve("cross.kf");
-        Files.writeString(src, """
-                extern "c" kof_cb_strlen(s: String, cb: (String) -> Int): Int
-                main() { println(kof_cb_strlen("hello", (x: String) -> x.length)) }
-                """);
-        for (Target t : new Target[] {Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = driver.compile(src, dir.resolve("out-" + t), t);
-            assertFalse(r.success(), "String-arg callback deve ser recusado no cross " + t);
-            assertTrue(r.diagnostics().getDiagnostics().stream()
-                            .anyMatch(d -> "FFI001".equals(d.code())),
-                    () -> "esperado FFI001 em " + t + ": " + r.diagnostics().getDiagnostics());
+    void nativeStringArgCallbacksMatchJvmCross(@TempDir Path dir) throws Exception {
+        assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("linux"),
+                "callback host usa um .so nativo (Linux)");
+        Path c = dir.resolve("libkofstrc.c");
+        Files.writeString(c, C_SRC);
+        Path hostSo = dir.resolve("libkofstrc-host.so");
+        Process hp = new ProcessBuilder(cc("/usr/bin/cc", "/usr/bin/gcc", "cc", "gcc"),
+                "-shared", "-fPIC", "-O2", "-o", hostSo.toString(), c.toString())
+                .redirectErrorStream(true).start();
+        hp.getInputStream().readAllBytes();
+        assertTrue(hp.waitFor(60, TimeUnit.SECONDS) && hp.exitValue() == 0, "host cc falhou");
+
+        Path jvmSrc = dir.resolve("cbs-cross-jvm.kf");
+        Files.writeString(jvmSrc, CALLBACK_KOF.formatted(hostSo.toString()));
+        Path jvmOut = dir.resolve("out-cbs-cross-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), () -> "JVM oracle compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(jvmOut);
+        assertEquals("5\n13\n9", jvm, "JVM golden (String-arg callbacks cross)");
+
+        String[][] arches = {{"riscv64", "riscv64-linux-gnu-gcc"}, {"aarch64", "aarch64-linux-gnu-gcc"}};
+        for (String[] arch : arches) {
+            assumeTrue(cc(arch[1]) != null, "sem cross-gcc " + arch[0]);
+            assumeTrue(cc("qemu-" + arch[0]) != null, "sem qemu-" + arch[0]);
+            Path so = dir.resolve("libkofstrc-" + arch[0] + ".so");
+            Process cp = new ProcessBuilder(arch[1], "-shared", "-fPIC", "-O2",
+                    "-o", so.toString(), c.toString()).redirectErrorStream(true).start();
+            String cOut = new String(cp.getInputStream().readAllBytes());
+            assumeTrue(cp.waitFor(60, TimeUnit.SECONDS) && cp.exitValue() == 0,
+                    "cross-gcc falhou: " + cOut);
+            Path src = dir.resolve("cbs-" + arch[0] + ".kf");
+            Files.writeString(src, CALLBACK_KOF.formatted(so.toString()));
+            Path out = dir.resolve("out-cbs-" + arch[0]);
+            Target t = arch[0].equals("riscv64") ? Target.NATIVE_RISCV64 : Target.NATIVE_AARCH64;
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), () -> "NATIVE " + arch[0] + " String-arg callbacks must bind: "
+                    + r.diagnostics().getDiagnostics());
+            Path bin = out.resolve("Default/Main");
+            assertTrue(Files.exists(bin), "binary " + bin);
+            String o = NativeRiscv64E2ETest.runQemuWithLibPath(dir, arch[0], bin);
+            assertEquals(jvm, o, "JVM<->" + arch[0] + " String-arg callback parity (M1 face S cross)");
         }
+    }
+
+    private static String cc(String... candidates) {
+        for (String c : candidates) {
+            try {
+                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
+                p.getInputStream().readAllBytes();
+                if (p.waitFor(15, TimeUnit.SECONDS) && p.exitValue() == 0) return c;
+            } catch (Exception ignored) { /* tenta o próximo */ }
+        }
+        return null;
     }
 
     private String runJvm(Path outDir) throws IOException {

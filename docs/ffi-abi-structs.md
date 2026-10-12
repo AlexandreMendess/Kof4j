@@ -126,7 +126,7 @@ struct **parameter** path on the cross LANDED 30/09 (`D-MEM-FFI-CROSS-FULL` face
 `FfiStructLayoutTest.crossIntReturnIsBindableOnlyForIntegerRegisterPath`.
 `T[]`/`Buffer` (faces 1–2, `D-MEM-FFI-CROSS-FULL`) and the memory-path struct
 RETURN (face 3, below) have since landed; the >16 B by-value struct **param**
-landed in the same face; callbacks have since landed too (11/10, M1 unidade-4 — a generated trampoline on x86-64 + cross riscv64/aarch64, `FfiNativeCallbackE2ETest`); only a callback with a `String` ARGUMENT binds on Native x86-64 (the trampoline bridges `char*`→`String` via `kof_ffi_from_cstr`; `FfiNativeCallbackStrE2ETest`), while a `String`-RETURN callback and both `String` faces on the **cross** riscv64/aarch64 stay honest `FFI001`.
+landed in the same face; callbacks have since landed too (11/10, M1 unidade-4 — a generated trampoline on x86-64 + cross riscv64/aarch64, `FfiNativeCallbackE2ETest`); only a callback with a `String` ARGUMENT binds on Native x86-64 AND cross riscv64/aarch64 (the trampoline bridges `char*`→`String` via `kof_ffi_from_cstr`; `FfiNativeCallbackStrE2ETest`), while only a `String`-RETURN callback stays honest `FFI001` (char* ownership not observable in the synchronous contract); a `String` ARGUMENT binds on x86-64 AND cross riscv64/aarch64.
 **Landed 22/09 (3.7 fatia 4 · cross struct PARAM, INTEGER register path):** the
 riscv64/aarch64 emitters now bind a `record` scalar-INTEGER-fields struct **by
 value as an argument** — gate `nativeExternBound` accepts struct params on the
