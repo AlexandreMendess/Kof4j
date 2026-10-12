@@ -84,18 +84,17 @@ public final class JsClassEmitter {
             }
         }
         if (isRecord) {
-            methods.add(JsRecordSynthetics.lowerRecordToString(clazz));
-            if (JsRecordSynthetics.hasDoubleOrFloatField(clazz)) {
-                methods.add(JsRecordSynthetics.lowerRecordDblTxt());
-            }
-            methods.add(JsRecordSynthetics.lowerRecordToJson(clazz));
-            methods.add(JsRecordSynthetics.lowerRecordFfiFields(clazz));
-            methods.add(JsRecordSynthetics.lowerRecordFfiFrom(clazz, jsName, p.lc));
-            methods.add(JsRecordSynthetics.lowerRecordEquals(clazz, p.lc));
-            methods.add(JsRecordSynthetics.lowerRecordHashCode(clazz, p.lc));
+            methods.add(p.records.lowerRecordToString(clazz));
+            methods.add(p.records.lowerRecordToJson(clazz));
+            if (JsRecordSynthetics.hasFpField(clazz)) methods.add(p.records.lowerRecordToJsonFp(clazz));
+            methods.add(p.records.lowerRecordFfiFields(clazz));
+            methods.add(p.records.lowerRecordFfiFrom(clazz, jsName));
+            methods.add(p.records.lowerRecordEquals(clazz));
+            methods.add(p.records.lowerRecordHashCode(clazz));
         }
         return new JsIr.JsClass(jsName, jsSuper, fields, methods);
     }
+
 
     /**
      * json.decode&lt;Class&gt; binds the parsed object to the Kof class:
@@ -138,7 +137,7 @@ public final class JsClassEmitter {
         }
         JsIr.JsExpression instance = new JsIr.JsNew(new JsIr.JsIdentifier(jsName),
                 p.lc.ctorDispatch.contains(clazz.name())
-                        ? JsRecordSynthetics.appendCtorToken(ctorArgs, clazz.fields().stream().map(IRField::type).toList())
+                        ? appendCtorToken(ctorArgs, clazz.fields().stream().map(IRField::type).toList())
                         : ctorArgs);
         if (isRecord) {
             body.add(new JsIr.JsVarDecl("o", instance, true));
@@ -351,6 +350,11 @@ public final class JsClassEmitter {
         return TopLevelOverload.sigTag(method.parameterTypes()).replace('_', '$');
     }
 
+    static List<JsIr.JsExpression> appendCtorToken(List<JsIr.JsExpression> args, List<Type> types) {
+        List<JsIr.JsExpression> out = new ArrayList<>(args);
+        out.add(new JsIr.JsString(TopLevelOverload.sigTag(types).replace('_', '$')));
+        return out;
+    }
 
     private record CtorBranch(String sig, List<String> parameters, List<JsIr.JsStatement> body) {}
 

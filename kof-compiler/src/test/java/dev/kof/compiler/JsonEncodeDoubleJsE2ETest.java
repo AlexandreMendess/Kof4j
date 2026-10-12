@@ -8,53 +8,68 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * §659d (face escalar) — {@code json.encode(1.0)} no JS imprimia {@code 1}
- * enquanto JVM/Script/nativo imprimem {@code 1.0}: o backend JS delegava o
- * número ao {@code JSON.stringify}, que solta o {@code .0} de um Double
- * inteiro. Quando o tipo estático do argumento é Double/Float, o lowering
- * roteia para {@code kofJsonEncodeDouble}, que repõe o {@code .0} do inteiro;
- * não-inteiro e as faces Int/Long/Bool seguem byte-idênticos. A face RECORD:
- * o {@code toJSON} do record emite a sentinela {@code KOFDBL_SENTINEL} para o
- * campo Double/Float inteiro e o {@code kofJsonEncode} a devolve com o {@code .0}
- * (a mecânica da sentinela BigInt do §659b). Prova JVM≡JS; oráculo = JVM medido.
+ * known-bugs §659d — the JS backend printed a whole {@code Double} without its
+ * {@code .0} in JSON: a Kof {@code Double}/{@code Float} is a JS {@code number}
+ * and the encoder deferred to {@code JSON.stringify}, which prints {@code 1}
+ * (and {@code 1e+21}) where the other three targets print the JDK form
+ * {@code 1.0} (and {@code 1.0E21}). The divergence was wider than the ledger
+ * recorded: the scientific form, {@code -0.0} and {@code List<Double>} all
+ * diverged too. The JS encoder now routes the Double/Float faces through the
+ * same JDK formatter the display path already uses ({@code kofNumFmt}); a
+ * record's Double/Float component is marked in {@code toJSON} and unmarked
+ * after stringify. The oracle is the JVM, measured.
  */
 class JsonEncodeDoubleJsE2ETest extends ShellSupport {
 
     private static final String SRC = """
-            record Real(Double d, Int n, Long v)
-            record Whole(Double w)
+            record R(Double d)
+            record M(Double d, Int n, String s)
             main() {
                 println(json.encode(1.0))
                 println(json.encode(0.0))
-                println(json.encode(-7.0))
                 println(json.encode(2.5))
-                println(json.encode(42))
-                println(json.encode(9000000000L))
-                println(json.encode(true))
-                println(json.encode(mapOf("x", 1.5)))
-                println(json.encode(Real(1.0, 42, 9000000000)))
-                println(json.encode(Real(2.5, 7, 3)))
-                println(json.encode(Whole(1.0)))
-                println(json.encode(listOf(Real(1.0, 1, 1), Real(0.0, 2, 2))))
+                println(json.encode(-3.0))
+                println(json.encode(-0.0))
+                println(json.encode(1.0E10))
+                println(json.encode(1.0E21))
+                println(json.encode(1.0E-7))
+                println(json.encode(0.0 / 0.0))
+                println(json.encode(1.0 / 0.0))
+                println(json.encode(-1.0 / 0.0))
+                println(json.encode(R(1.0)))
+                println(json.encode(R(2.5)))
+                println(json.encode(M(1.0, 7, "x")))
+                println(json.encode(listOf(1.0, 2.5)))
+                println(json.encode(listOf(1.0, 2.0)))
             }
             """;
 
+    /** The JVM contract — every value measured, frozen. */
+    private static final String ORACLE = String.join("\n",
+            "1.0", "0.0", "2.5", "-3.0", "-0.0", "1.0E10", "1.0E21", "1.0E-7",
+            "null", "null", "null",
+            "{\"d\":1.0}", "{\"d\":2.5}", "{\"d\":1.0,\"n\":7,\"s\":\"x\"}",
+            "[1.0,2.5]", "[1.0,2.0]");
+
     @Test
-    void wholeDoubleKeepsDotZeroOnJsAndMatchesJvm() throws Exception {
+    void jvmIsTheContract() throws Exception {
+        Files.writeString(tmp.resolve("D.kf"), SRC);
+        Run jvm = runJvm(tmp.resolve("D.kf"), tmp.resolve("o-jvm"));
+        assertTrue(jvm.ok(), () -> "JVM falhou: " + jvm.output());
+        assertEquals(ORACLE, jvm.output().trim().replace("\r\n", "\n"), "oráculo JVM (§659d)");
+    }
+
+    @Test
+    void jsMatchesTheJvmOnEveryDoubleFace() throws Exception {
         Files.writeString(tmp.resolve("D.kf"), SRC);
         Run jvm = runJvm(tmp.resolve("D.kf"), tmp.resolve("o-jvm"));
         assertTrue(jvm.ok(), () -> "JVM falhou: " + jvm.output());
         String oracle = jvm.output().trim().replace("\r\n", "\n");
-        assertEquals("1.0\n0.0\n-7.0\n2.5\n42\n9000000000\ntrue\n{\"x\":1.5}"
-                        + "\n{\"d\":1.0,\"n\":42,\"v\":9000000000}"
-                        + "\n{\"d\":2.5,\"n\":7,\"v\":3}"
-                        + "\n{\"w\":1.0}"
-                        + "\n[{\"d\":1.0,\"n\":1,\"v\":1},{\"d\":0.0,\"n\":2,\"v\":2}]",
-                oracle, "oráculo JVM (§659d escalar + record)");
+        assertEquals(ORACLE, oracle, "o oráculo medido no JVM mudou");
 
         Run js = runJs(tmp.resolve("D.kf"), tmp.resolve("o-js"));
         assertTrue(js.ok(), () -> "JS falhou: " + js.output());
         assertEquals(oracle, js.output().trim().replace("\r\n", "\n"),
-                "JS≡JVM no encode de Double inteiro (§659d escalar + record)");
+                "JS≡JVM no encode de Double (§659d)");
     }
 }

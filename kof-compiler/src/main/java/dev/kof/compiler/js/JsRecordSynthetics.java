@@ -3,28 +3,30 @@ package dev.kof.compiler.js;
 import dev.kof.compiler.IRClass;
 import dev.kof.compiler.IRField;
 import dev.kof.compiler.IRMethod;
-import dev.kof.compiler.TopLevelOverload;
 import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * REFACTOR-500: the record SYNTHETIC methods (toString/equals/hashCode/toJSON/
- * FFI fields+from) extracted from {@link JsClassEmitter} — the class emitter
- * crossed the 600-line red line when §659d added the Double/Float sentinel
- * helper. Pure JsIr builders; the only side effect is runtime registration
- * (equals/hashCode) through the passed context.
+ * JsRecordSynthetics — os métodos sintéticos de RECORD do backend JS
+ * (toString/equals/hashCode/toJSON/__kof_tojson_fp/FFI fields+from). Extraído
+ * de {@code JsClassEmitter} por responsabilidade (§659d empurrou o arquivo além
+ * do teto de 500/600 do REFACTOR-500); a semântica é verbatim.
  */
 final class JsRecordSynthetics {
-    private JsRecordSynthetics() {
+
+    private final JsMethodParser p;
+
+    JsRecordSynthetics(JsMethodParser p) {
+        this.p = p;
     }
 
     /**
      * Records get a toString() in JS to mirror the JVM backend's synthetic
      * record toString: "Name[f1=..., f2=...]".
      */
-    static JsIr.JsFunction lowerRecordToString(IRClass clazz) {
+    JsIr.JsFunction lowerRecordToString(IRClass clazz) {
         String simpleName = clazz.name().contains("/")
                 ? clazz.name().substring(clazz.name().lastIndexOf('/') + 1) : clazz.name();
         List<JsIr.JsExpression> parts = new ArrayList<>();
@@ -49,10 +51,10 @@ final class JsRecordSynthetics {
      * componentes. O lowering de `==` em records despacha para `.equals()`
      * em todos os targets.
      */
-    static JsIr.JsFunction lowerRecordEquals(IRClass clazz, JsLoweringContext ctx) {
+    JsIr.JsFunction lowerRecordEquals(IRClass clazz) {
         // Componente objeto (record/classe com equals) compara por conteúdo,
         // como o Objects.equals da JVM — `===` só serve para primitivos.
-        ctx.registerRuntime("kofValEq");
+        p.lc.registerRuntime("kofValEq");
         List<JsIr.JsExpression> conds = new ArrayList<>();
         for (IRField field : clazz.fields()) {
             String backing = "_" + JsTypeMapper.sanitizeName(field.name());
@@ -81,8 +83,8 @@ final class JsRecordSynthetics {
      * kofHashCode (runtime) que trata number/String/record — campos
      * numéricos dão o valor, refs delegam ao runtime.
      */
-    static JsIr.JsFunction lowerRecordHashCode(IRClass clazz, JsLoweringContext ctx) {
-        ctx.registerRuntime("kofHashCode");
+    JsIr.JsFunction lowerRecordHashCode(IRClass clazz) {
+        p.lc.registerRuntime("kofHashCode");
         List<JsIr.JsStatement> body = new ArrayList<>();
         body.add(new JsIr.JsVarDecl("__h", new JsIr.JsNumber("1"), false));
         for (IRField field : clazz.fields()) {
@@ -105,54 +107,64 @@ final class JsRecordSynthetics {
     /**
      * Records serialize as { "f1": ..., "f2": ... } to mirror the JVM backend's
      * reflection-based JSON encoding (JSON.stringify honors toJSON()).
+     *
+     * <p>Stays RAW on purpose: this is ALSO the wire form the JS ORM bridge
+     * hands to the database ({@code kofOrmSave(id, obj.toJSON(), …)}), so it must
+     * never carry a marker. The {@code json.encode} face uses
+     * {@link #lowerRecordToJsonFp} instead.
      */
-    static JsIr.JsFunction lowerRecordToJson(IRClass clazz) {
+    JsIr.JsFunction lowerRecordToJson(IRClass clazz) {
         List<JsIr.JsObjectEntry> entries = new ArrayList<>();
         for (IRField field : clazz.fields()) {
-            JsIr.JsExpression value = new JsIr.JsMember(new JsIr.JsThis(),
-                    "_" + JsTypeMapper.sanitizeName(field.name()));
-            // §659d (face record): um campo Double/Float INTEIRO perde o .0 no
-            // JSON (JS não distingue Int de Double) — o toJSON emite a sentinela
-            // que o kofJsonEncode devolve COM o .0 (a mecânica §659b).
-            if (isDoubleOrFloatField(field.type())) {
-                value = new JsIr.JsCall(new JsIr.JsMember(new JsIr.JsThis(), "__kofDblTxt"),
-                        List.of(value));
-            }
-            entries.add(new JsIr.JsObjectEntry(field.name(), value));
+            entries.add(new JsIr.JsObjectEntry(field.name(),
+                    new JsIr.JsMember(new JsIr.JsThis(), "_" + JsTypeMapper.sanitizeName(field.name()))));
         }
         return new JsIr.JsFunction("toJSON", List.of(),
                 List.of(new JsIr.JsReturn(new JsIr.JsObjectLiteral(entries))), false, false, false);
     }
 
-    /** §659d: o record com campo Double/Float inteiro mantém o .0 no encode JSON. */
-    private static boolean isDoubleOrFloatField(Type type) {
-        if (type instanceof Type.NullableType nt) return isDoubleOrFloatField(nt.inner());
-        return type instanceof Type.PrimitiveType pt
-                && ("double".equals(Type.canonicalPrimitiveName(pt.name()))
-                    || "float".equals(Type.canonicalPrimitiveName(pt.name())));
+    /**
+     * §659d: {@code __kof_tojson_fp} — the same shape as {@link #lowerRecordToJson}
+     * but with each {@code Double}/{@code Float} component wrapped in
+     * {@code kofJsonFp}. A Kof {@code Double}/{@code Float} is a JS {@code number}
+     * and {@code JSON.stringify} prints a whole one as `1` where the other three
+     * targets print the JDK form `1.0`; the marker survives stringify and
+     * {@code kofJsonEncode} replaces it with the raw JDK form afterwards. Only
+     * records that actually HAVE such a component get the method.
+     */
+    JsIr.JsFunction lowerRecordToJsonFp(IRClass clazz) {
+        p.lc.registerRuntime("kofJsonFp");
+        List<JsIr.JsObjectEntry> entries = new ArrayList<>();
+        for (IRField field : clazz.fields()) {
+            JsIr.JsExpression value = new JsIr.JsMember(new JsIr.JsThis(),
+                    "_" + JsTypeMapper.sanitizeName(field.name()));
+            String fpKind = fpFieldKind(field);
+            if (fpKind != null) {
+                entries.add(new JsIr.JsObjectEntry(field.name(),
+                        new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonFp"),
+                                List.of(value, new JsIr.JsNumber(fpKind.equals("float") ? "1" : "0")))));
+            } else {
+                entries.add(new JsIr.JsObjectEntry(field.name(), value));
+            }
+        }
+        return new JsIr.JsFunction("__kof_tojson_fp", List.of(),
+                List.of(new JsIr.JsReturn(new JsIr.JsObjectLiteral(entries))), false, false, false);
     }
 
-    static boolean hasDoubleOrFloatField(IRClass clazz) {
-        return clazz.fields().stream().anyMatch(f -> isDoubleOrFloatField(f.type()));
+    /** "float", "double" or null — the JDK-format JSON kind of a component. */
+    private static String fpFieldKind(IRField field) {
+        Type t = field.type();
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        if (!(t instanceof Type.PrimitiveType pt)) return null;
+        String n = Type.canonicalPrimitiveName(pt.name());
+        return n.equals("double") || n.equals("float") ? n : null;
     }
 
-    /** Só emitido em records COM campo Double/Float (§659d). */
-    static JsIr.JsFunction lowerRecordDblTxt() {
-        // function __kofDblTxt(x) { return (typeof x === 'number'
-        //     && Number.isInteger(x)) ? 'KOFDBL_SENTINEL_' + x.toFixed(1) + '_END' : x; }
-        JsIr.JsExpression x = new JsIr.JsIdentifier("x");
-        JsIr.JsExpression isNum = new JsIr.JsBinary(
-                new JsIr.JsUnary("typeof", x), "===", new JsIr.JsString("number"));
-        JsIr.JsExpression isInt = new JsIr.JsCall(
-                new JsIr.JsMember(new JsIr.JsIdentifier("Number"), "isInteger"), List.of(x));
-        JsIr.JsExpression cond = new JsIr.JsBinary(isNum, "&&", isInt);
-        JsIr.JsExpression toFixed = new JsIr.JsBinary(
-                new JsIr.JsString("KOFDBL_SENTINEL_"), "+",
-                new JsIr.JsCall(new JsIr.JsMember(x, "toFixed"), List.of(new JsIr.JsNumber("1"))));
-        JsIr.JsExpression sentinel = new JsIr.JsBinary(toFixed, "+", new JsIr.JsString("_END"));
-        return new JsIr.JsFunction("__kofDblTxt", List.of("x"),
-                List.of(new JsIr.JsReturn(new JsIr.JsConditional(cond, sentinel, x))),
-                false, false, false);
+    /** True when the record has at least one {@code Double}/{@code Float}
+     *  component (the only case that needs {@code __kof_tojson_fp}). */
+    static boolean hasFpField(IRClass clazz) {
+        for (IRField f : clazz.fields()) if (fpFieldKind(f) != null) return true;
+        return false;
     }
 
     /**
@@ -162,7 +174,7 @@ final class JsRecordSynthetics {
      * {@code kof_ffi_write_struct} reflexivo do JVM. Só records são bindáveis
      * como struct (o gate de {@code isExternBound} fecha o resto).
      */
-    static JsIr.JsFunction lowerRecordFfiFields(IRClass clazz) {
+    JsIr.JsFunction lowerRecordFfiFields(IRClass clazz) {
         List<JsIr.JsExpression> values = new ArrayList<>();
         for (IRField field : clazz.fields()) {
             values.add(new JsIr.JsMember(new JsIr.JsThis(),
@@ -179,7 +191,7 @@ final class JsRecordSynthetics {
      * canônico, paridade com o {@code kof_ffi_read_struct} reflexivo do JVM. Um
      * campo `Long` vira `BigInt` (o JS representa Long como BigInt).
      */
-    static JsIr.JsFunction lowerRecordFfiFrom(IRClass clazz, String jsName, JsLoweringContext ctx) {
+    JsIr.JsFunction lowerRecordFfiFrom(IRClass clazz, String jsName) {
         List<IRMethod> ctors = new ArrayList<>();
         for (IRMethod method : clazz.methods()) {
             if ("<init>".equals(method.name())) ctors.add(method);
@@ -194,7 +206,7 @@ final class JsRecordSynthetics {
                     .orElseGet(() -> ctors.stream()
                             .max((a, b) -> Integer.compare(a.parameterTypes().size(), b.parameterTypes().size()))
                             .orElseThrow());
-            return lowerRecordFfiFrom(clazz, jsName, canonical, ctx);
+            return lowerRecordFfiFrom(clazz, jsName, canonical);
         }
         IRMethod canonical = ctors.isEmpty() ? null : ctors.get(0);
         if (canonical == null) {
@@ -202,11 +214,10 @@ final class JsRecordSynthetics {
                     List.of(new JsIr.JsReturn(new JsIr.JsNew(new JsIr.JsIdentifier(jsName), List.of()))),
                     true, false, false);
         }
-        return lowerRecordFfiFrom(clazz, jsName, canonical, ctx);
+        return lowerRecordFfiFrom(clazz, jsName, canonical);
     }
 
-    private static JsIr.JsFunction lowerRecordFfiFrom(IRClass clazz, String jsName, IRMethod canonical,
-            JsLoweringContext ctx) {
+    private JsIr.JsFunction lowerRecordFfiFrom(IRClass clazz, String jsName, IRMethod canonical) {
         List<JsIr.JsExpression> args = new ArrayList<>();
         int idx = 0;
         for (IRField field : clazz.fields()) {
@@ -230,17 +241,9 @@ final class JsRecordSynthetics {
         }
         return new JsIr.JsFunction("__kof_ffi_from", List.of("fields"),
                 List.of(new JsIr.JsReturn(new JsIr.JsNew(new JsIr.JsIdentifier(jsName),
-                        ctx.ctorDispatch.contains(clazz.name())
-                                ? appendCtorToken(args, canonical.parameterTypes())
+                        p.lc.ctorDispatch.contains(clazz.name())
+                                ? JsClassEmitter.appendCtorToken(args, canonical.parameterTypes())
                                 : args))),
                 true, false, false);
-    }
-
-
-    /** #757: o dispatch de construtores marca a instância com o token do ctor. */
-    static List<JsIr.JsExpression> appendCtorToken(List<JsIr.JsExpression> args, List<Type> types) {
-        List<JsIr.JsExpression> out = new ArrayList<>(args);
-        out.add(new JsIr.JsString(TopLevelOverload.sigTag(types).replace('_', '$')));
-        return out;
     }
 }
