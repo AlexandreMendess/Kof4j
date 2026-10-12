@@ -89,6 +89,7 @@ public class JsBackend implements Backend {
         }
         this.lc.classMethodNames = methodNames;
         lc.recordClassNames.clear();
+        lc.fpRecordClassNames.clear();
         for (IRClass clazz : effClasses) {
             if ("java/lang/Record".equals(clazz.superName())) {
                 lc.recordClassNames.add(clazz.name());
@@ -96,6 +97,14 @@ public class JsBackend implements Backend {
                 // also add simple name
                 String simple = clazz.name().substring(clazz.name().lastIndexOf('/') + 1);
                 lc.recordClassNames.add(simple);
+                // §659d: a record with a Double/Float component emits the marked
+                // `__kof_tojson_fp` (JsClassEmitter) and its json.encode must
+                // select it — register the class so the lowering can tell.
+                if (JsRecordSynthetics.hasFpField(clazz)) {
+                    lc.fpRecordClassNames.add(clazz.name());
+                    lc.fpRecordClassNames.add(clazz.name().replace('/', '.'));
+                    lc.fpRecordClassNames.add(simple);
+                }
             }
         }
         // Default-parameter wrappers share the canonical name; JS has no

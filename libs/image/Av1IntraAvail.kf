@@ -66,6 +66,60 @@ Int av1ScaleChromaBsize(Int bsize, Int ssX, Int ssY) {
     return bsize
 }
 
+// `av1_get_max_uv_txsize( bsize, subsampling_x, subsampling_y )` (libaom
+// `av1/common/blockd.h`): the CHROMA transform size of a mode-info block.  For
+// `plane > 0` libaom does NOT subdivide — `decode_reconstruct_tx` takes the
+// plane's block size, looks up its rectangular max transform and applies
+// `av1_get_adjusted_tx_size` (which folds the 64x64-and-larger sizes down to
+// 32x32).  Pure table composition, no entropy read.
+Int av1GetMaxUvTxSize(Int bs, Int ssX, Int ssY) {
+    var planeBs = av1PlaneBlockSize(bs, ssX, ssY)
+    if (planeBs == 22) {
+        // `get_plane_block_size` yields BLOCK_INVALID for the combos a valid
+        // stream never reaches; libaom asserts on them, so refusing by name is
+        // the honest equivalent (never a silent fallback).
+        throw "IMAGE: no plane block size for this block/subsampling combination"
+    }
+    return av1AdjustedTxSize(av1BlockMaxTxRect(planeBs))
+}
+
+// `get_plane_block_size( bsize, subsampling_x, subsampling_y )` (libaom
+// `av1_ss_size_lookup`, `av1/common/common_data.c`): the plane's OWN block size.
+// NOT the same function as `av1ScaleChromaBsize` above — that one is
+// `scale_chroma_bsize` (`reconintra.c`), which REMAPS the smallest blocks UP for
+// the intra predictor (4x4 -> 8x8 under 4:2:0); this one SCALES DOWN for the
+// plane's coefficient/reconstruction extent (8x8 -> 4x4 under 4:2:0), and
+// returns BLOCK_INVALID (22) for the impossible combinations.  `bsize` is
+// BLOCK_SIZES_ALL, indexed [bs][ssX][ssY].
+Int av1PlaneBlockSize(Int bs, Int ssX, Int ssY) {
+    var t = listOf(
+        listOf(0, 0, 0, 0),        // BLOCK_4X4
+        listOf(1, 0, 22, 0),       // BLOCK_4X8
+        listOf(2, 22, 0, 0),       // BLOCK_8X4
+        listOf(3, 2, 1, 0),        // BLOCK_8X8
+        listOf(4, 3, 22, 1),       // BLOCK_8X16
+        listOf(5, 22, 3, 2),       // BLOCK_16X8
+        listOf(6, 5, 4, 3),        // BLOCK_16X16
+        listOf(7, 6, 22, 4),       // BLOCK_16X32
+        listOf(8, 22, 6, 5),       // BLOCK_32X16
+        listOf(9, 8, 7, 6),        // BLOCK_32X32
+        listOf(10, 9, 22, 7),      // BLOCK_32X64
+        listOf(11, 22, 9, 8),      // BLOCK_64X32
+        listOf(12, 11, 10, 9),     // BLOCK_64X64
+        listOf(13, 12, 22, 10),    // BLOCK_64X128
+        listOf(14, 22, 12, 11),    // BLOCK_128X64
+        listOf(15, 14, 13, 12),    // BLOCK_128X128
+        listOf(16, 1, 22, 1),      // BLOCK_4X16
+        listOf(17, 22, 2, 2),      // BLOCK_16X4
+        listOf(18, 4, 22, 16),     // BLOCK_8X32
+        listOf(19, 22, 5, 17),     // BLOCK_32X8
+        listOf(20, 7, 22, 18),     // BLOCK_16X64
+        listOf(21, 22, 8, 19)      // BLOCK_64X16
+    )
+    var row = t.get(bs)
+    return row.get(ssX * 2 + ssY)
+}
+
 // `extend_modes[mode] & NEED_ABOVERIGHT` (`reconintra.c`): nonzero only for
 // D45_PRED (3) and D67_PRED (8). Returns 0/1.
 Int av1IntraModeNeedAboveRight(Int mode) {

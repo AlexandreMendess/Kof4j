@@ -298,6 +298,18 @@ class Av1Coeffs {
     // signed `Quant[]`, `culLevel` the 0..63 magnitude sum and `dcCategory`
     // the DC sign category (0 = none, 1 = negative, 2 = positive).
     Int decodeBlock(Int allZeroCtx, Int dcSignCtx) {
+        if (this.readTxbSkip(allZeroCtx) != 0) {
+            return 0
+        }
+        return this.decodeLevels(dcSignCtx)
+    }
+
+    // libaom's `av1_read_coeffs_txb` reads `all_zero` FIRST and the luma
+    // `transform_type` only when it is 0 (`av1/decoder/decodetxb.c`: the
+    // `aom_read_symbol(txb_skip_cdf...)` call precedes the `av1_read_tx_type`
+    // call). Splitting the walk lets the caller read the transform type in
+    // that exact position — the order is load-bearing, not cosmetic.
+    Int readTxbSkip(Int allZeroCtx) {
         var i = 0
         while (i < this.levels.size) {
             this.levels[i] = 0
@@ -306,10 +318,21 @@ class Av1Coeffs {
         this.eob = 0
         this.culLevel = 0
         this.dcCategory = 0
-        if (this.reader.readSymbol(
-                this.store.txbSkipCdf(this.txSzCtx, allZeroCtx), 2) != 0) {
-            return 0
-        }
+        return this.reader.readSymbol(
+                this.store.txbSkipCdf(this.txSzCtx, allZeroCtx), 2)
+    }
+
+    // Sets the transform type AFTER the `all_zero` read and recomputes the
+    // scan order the level walk uses (`av1_read_coeffs_txb` reads the type
+    // before `get_scan`).
+    void setTxType(Int txType) {
+        this.txType = txType
+        this.scan = av1ScanOrder(this.txSz, txType)
+    }
+
+    // The EOB read and the descending level walk, with the transform type
+    // already fixed. Returns `eob`.
+    Int decodeLevels(Int dcSignCtx) {
         var eob = this.readEob()
 
         // Descending base/refinement loop (spec `for c = eob-1 .. 0`).

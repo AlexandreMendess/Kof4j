@@ -202,6 +202,12 @@ public final class JvmRuntimeJson {
                     return Boolean.parseBoolean(json.trim()) ? 1 : 0;
                 }
 
+                // §667: uma string JSON decodifica para o MESMO valor nos quatro
+                // alvos, honrando a barra-invertida, aspas, barra, \b \f \n \r \t
+                // e a forma unicode de 4 dígitos hex. O strip de
+                // aspas deixava o escape VERBATIM aqui (o parser completo já
+                // existia nesta classe; só este entry point o ignorava) —
+                // entrada não-aspada segue devolvida crua.
                 public static String kof_json_decode_string(String json) {
                     String s = json.trim();
                     int n = s.length();

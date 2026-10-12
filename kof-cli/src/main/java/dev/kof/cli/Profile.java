@@ -282,6 +282,19 @@ public final class Profile {
 
     private static double parseDoubleAfterColon(String line) {
         String v = line.substring(line.indexOf(':') + 1).trim().split(" ")[0];
+        return parseLenientNumber(v);
+    }
+
+    /**
+     * Parse tolerante a formato de locale e ao sufixo de porcentagem do GNU
+     * time (#820): "28%" -> 28.0, "0,24" -> 0.24 (LC_NUMERIC=pt_BR), "0.24" ->
+     * 0.24. Sem isso, o ratio cpu/wall sai 0% em toda execucao em locale
+     * com virgula decimal e o "Percent of CPU" nunca e lido.
+     */
+    static double parseLenientNumber(String raw) {
+        String v = raw.trim();
+        if (v.endsWith("%")) v = v.substring(0, v.length() - 1).trim();
+        v = v.replace(',', '.');
         try {
             return Double.parseDouble(v);
         } catch (NumberFormatException e) {

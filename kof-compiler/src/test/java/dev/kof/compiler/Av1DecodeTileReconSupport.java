@@ -175,7 +175,8 @@ final class Av1DecodeTileReconSupport {
         StringBuilder sb = new StringBuilder();
         sb.append("import image.Av1DecodeTileRecon\n");
         sb.append("import image.Av1ModeInfo\n");
-        sb.append("import image.Av1Symbol\n\n");
+        sb.append("import image.Av1Symbol\n");
+        sb.append("import image.Av1TxType\n\n");
         sb.append("void reconTileCase(Int ci, Int bd, Int lossless, Int txMode, Int miw, ")
           .append("Int mih, Int[] data, List<Int> blocks) {\n");
         sb.append("    var mw = miw << 2\n");
@@ -191,14 +192,17 @@ final class Av1DecodeTileReconSupport {
         sb.append("    }\n");
         sb.append("    var sym = Av1Symbol(data)\n");
         sb.append("    var store = Av1CoeffCdfStore(80)\n");
+        sb.append("    var txStore = Av1TxType(sym)\n");
+        sb.append("    var txTypes = new Int[(mw >> 2) * (mh >> 2)]\n");
         sb.append("    var above = new Int[miw]\n");
         sb.append("    var left = new Int[mih]\n");
         sb.append("    var levels = listOf<Int[]>()\n");
+        sb.append("    var txTypeOut = listOf<Int>()\n");
         sb.append("    var modes = listOf<Int>()\n");
         sb.append("    var cfg = Av1ModeTail(12, 0, 0, 0, 0, 0, 0, 0, 0, 3)\n");
         sb.append("    var out = av1DecodeTileRecon(frame, stride, mw, mh, blocks, cfg, ")
-          .append("lossless, 1, 0, 0, bd, txMode, 80, 0, 0, 0, 0, 74, 87, 1, 0, ")
-          .append("sym, store, above, left, levels, modes)\n");
+          .append("lossless, 1, 0, 0, bd, txMode, 80, 0, 0, 0, 0, 74, 87, 1, 0, 0, ")
+          .append("sym, store, txStore, txTypes, above, left, levels, txTypeOut, modes)\n");
         sb.append("    var nb = blocks.size / 3\n");
         sb.append("    var b = 0\n");
         sb.append("    while (b < nb) {\n");
