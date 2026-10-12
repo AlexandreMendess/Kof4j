@@ -1595,6 +1595,34 @@ rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_
 `check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
 `check_golden_count` rc=0.
 
+**Fase 6 fatia 46 POUSADA (13/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **71 no total** — pinando o cast de referência NULÁVEL `x as T?` (o cast suave
+sempre-null, a semântica fixada por `D-SEM-REJECTS-1210`), que não tinha cobertura no golden.
+O novo caso `tests/golden/nullable-soft-cast` pina `a as Dog?` (um valor `Animal()`) → `null`,
+o mesmo valor `as Animal?` → mantido, um `Dog()` de verdade `as Dog?` → mantido +
+`instanceof Dog`, e `o: Object = 42` `as String?` → `null`. Os seis valores impressos
+concordam byte-a-byte nos quatro alvos. **BUG ACHADO + CORRIGIDO (Q0/Q4):** escrever o caso
+expôs a metade FACE A do **§678** — o cast de referência nulável baixava para um
+`KofCheckCast` cru, que os backends value-typed baixam para um NO-OP, então o JS e os três
+alvos nativos devolviam o objeto do tipo ERRADO em vez de `null` (as faces JVM+Script já
+estavam verdes pelo pouso de 12/10 do peer; a comparação de programa inteiro no JS ainda
+estava VERMELHA). CORRIGIDO no mesmo commit desugarando o cast de REFERÊNCIA nulável no
+`ExpressionBinaryInstanceOfLowerer` COMPARTILHADO para `if (x instanceof T) x else null` (o
+valor por um local temporário `#softcast`, então `x` é avaliado uma vez e cada ramo carrega
+ops — o parser de if-expr do JS exige ramo não-vazio), o que faz os quatro alvos concordarem
+POR CONSTRUÇÃO sem runtime novo; o alvo NULÁVEL PRIMITIVO mantém o próprio caminho de unbox
+abaixo e não é tocado. RED-first (`SoftCastNullableE2ETest` 6 faces: **4 VERMELHAS
+pré-correção** → **6 run / 0F** pós); o §678 segue vivo pela FACE B no alvo nativo (o `as`
+simples precisa CHECAR e LANÇAR lá). Esta é a QUINTA fatia que carrega um fix de compilador.
+Prova (executada): cada valor medido primeiro no alvo Script, cruzado byte-a-byte em
+jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **284/284**
+(71 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0 (o RED pré-existente do `check_500` — ExpressionTyper, KofInterpreter,
+NativeRiscvAsmRt0 mais Translate/MemberResolver/StatementLowerer dos peers — é dívida de outras
+lanes e não é tocado aqui).
+
 ### Fase 7 — Integração
 
 Implantar:

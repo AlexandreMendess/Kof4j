@@ -1589,6 +1589,33 @@ then frozen; `tests/run-golden.sh` **280/280** (70 cases × 4 targets), exit 0;
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
 
+**Phase 6 slice 46 LANDED (13/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **71 total** — pinning the NULLABLE reference cast `x as T?` (the always-null
+soft cast, the semantics fixed by `D-SEM-REJECTS-1210`), which had no golden coverage. The
+new case `tests/golden/nullable-soft-cast` pins `a as Dog?` (an `Animal()` value) → `null`,
+the same value `as Animal?` → kept, a real `Dog()` `as Dog?` → kept + `instanceof Dog`, and
+`o: Object = 42` `as String?` → `null`. All six printed values agree byte-for-byte on the
+four targets. **BUG FOUND + FIXED (Q0/Q4):** authoring the case surfaced the FACE A half of
+**§678** — the nullable reference cast lowered to a bare `KofCheckCast`, which the
+value-typed backends lower to a NO-OP, so JS and the three native targets handed back the
+object of the WRONG type instead of `null` (the JVM+Script faces were already green via the
+peer's 12/10 landing; the JS whole-program compare was still RED). FIXED the same commit by
+desugaring the nullable REFERENCE cast in the SHARED `ExpressionBinaryInstanceOfLowerer` to
+`if (x instanceof T) x else null` (the value routed through a `#softcast` temp local, so `x`
+is evaluated once and each branch carries ops — the JS if-expr parser requires non-empty
+branches), making the four targets agree BY CONSTRUCTION with no new runtime; the nullable
+PRIMITIVE target keeps its own unbox path below and is not touched. RED-first
+(`SoftCastNullableE2ETest` 6 faces: **4 FAIL pre-fix** → **6 run / 0F** post-fix); §678 stays
+live for its FACE B on the native target (plain `as` must CHECK and THROW there). This is the
+FIFTH slice that carries a compiler fix. Proof (executed): every value measured on the Script
+target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **284/284** (71 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0 (the
+pre-existing `check_500` RED — ExpressionTyper, KofInterpreter, NativeRiscvAsmRt0 plus the peers'
+Translate/MemberResolver/StatementLowerer — is other lanes' debt and is not touched here).
+
 ### Phase 7 — Integration
 
 Deploy:
