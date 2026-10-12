@@ -1,0 +1,138 @@
+package image
+
+import image.Av1DecodeBlock
+
+// kof.image — AV1 CHROMA-FROM-LUMA (CFL) primitives (slice 3aj of the AVIF
+// front, plan §34). This is the predictor libaom runs when `uv_mode` is
+// `UV_CFL_PRED` (13): the chroma prediction is a DC prediction MODULATED by the
+// reconstructed luma of the same block — `av1/common/cfl.c` / `cfl.h`.
+//
+// The chain, in libaom's own order:
+//
+//   1. `cfl_store_tx` (`av1/common/cfl.c`) stores the reconstructed LUMA of the
+//      block into a q3 buffer, subsampled to the chroma grid and scaled by 8
+//      (`cfl_luma_subsampling_420_lbd_c` & friends: the four samples of a 2x2
+//      luma cell are summed and shifted by 1, which preserves the q3 scale
+//      because `(a+b+c+d) << 1 == ((a+b+c+d) >> 2) << 3`).
+//   2. `cfl_compute_parameters` pads the buffer to the transform size and runs
+//      `subtract_average`: `sum` starts at `round_offset` (half a unit, so the
+//      shift rounds), `avg = sum >> num_pel_log2`, then `dst = src - avg`.
+//      `CFL_SUB_AVG_FN` (`cfl.h`) instantiates `(round_offset, num_pel_log2)` as
+//      `(1 << (log2(w*h) - 1), log2(w*h))` — the table is derivable from the tx
+//      size, so no table is transcribed here.
+//   3. `av1_cfl_predict_block` reads the alpha the mode info already decoded
+//      (`cfl_idx_to_alpha` over `cfl_alpha_idx`/`cfl_alpha_signs`) and writes
+//      `clip(get_scaled_luma_q0(alpha_q3, ac_q3) + dst)`.
+//
+// For a NON-lossless block libaom asserts the chroma plane has exactly ONE
+// transform block (`av1/common/reconintra.c`: `assert(blk_col == 0);
+// assert(blk_row == 0)`), so the CFL window is the whole chroma plane block —
+// the caller passes its extent. The alpha is the SIGNED coefficient the mode
+// info already resolved (`body[4]`/`body[5]` of the slice-3af body read), so
+// `cfl_idx_to_alpha` is not re-derived here.
+//
+// Pure Kof, all targets: no I/O, no compiler change. The driver wiring is the
+// next slice; `decodeRaster` keeps refusing AVIF until the chain closes.
+
+// `get_scaled_luma_q0` (`av1/common/cfl.h`):
+// `ROUND_POWER_OF_TWO_SIGNED(alpha_q3 * pred_buf_q3, 6)` — the signed form of
+// `ROUND_POWER_OF_TWO`, which negates, rounds and negates back so negative
+// products round away from zero the way C's arithmetic shift does not.
+Int av1CflScaledLuma(Int alphaQ3, Int acQ3) {
+    var v = alphaQ3 * acQ3
+    if (v < 0) {
+        return 0 - av1RoundPow2(0 - v, 6)
+    }
+    return av1RoundPow2(v, 6)
+}
+
+// `cfl_luma_subsampling_*` for one chroma pixel: the q3 luma value of the luma
+// cell `(i, j)` of the chroma grid (4:2:0 sums a 2x2 cell and shifts by 1,
+// 4:2:2 sums a 1x2 cell and shifts by 2, 4:4:4 shifts a single sample by 3).
+Int av1CflSubsamplePixel(Int[] luma, Int stride, Int x, Int y,
+                         Int ssX, Int ssY) {
+    if (ssX == 1 && ssY == 1) {
+        return (luma[y * stride + x] + luma[y * stride + x + 1]
+                + luma[(y + 1) * stride + x]
+                + luma[(y + 1) * stride + x + 1]) << 1
+    }
+    if (ssX == 1) {
+        return (luma[y * stride + x] + luma[y * stride + x + 1]) << 2
+    }
+    if (ssY == 1) {
+        return (luma[y * stride + x] + luma[(y + 1) * stride + x]) << 2
+    }
+    return luma[y * stride + x] << 3
+}
+
+// The whole `cfl_store` face: the chroma-sized q3 luma of the block whose LUMA
+// origin is `(x, y)` (in LUMA samples) — `cw` x `ch` chroma pixels, flat
+// row-major.
+Int[] av1CflSubsample(Int[] luma, Int stride, Int x, Int y,
+                      Int cw, Int ch, Int ssX, Int ssY) {
+    var out = new Int[cw * ch]
+    var j = 0
+    while (j < ch) {
+        var i = 0
+        while (i < cw) {
+            out[j * cw + i] = av1CflSubsamplePixel(luma, stride,
+                    x + (i << ssX), y + (j << ssY), ssX, ssY)
+            i = i + 1
+        }
+        j = j + 1
+    }
+    return out
+}
+
+// `subtract_average` (`av1/common/cfl.c`): with `round_offset =
+// 1 << (num_pel_log2 - 1)`, `sum` starts there, `avg = sum >> num_pel_log2`,
+// and every output entry is `src - avg` — the AC contribution in q3.
+Int[] av1CflSubtractAverage(Int[] src, Int w, Int h, Int numPelLog2) {
+    var roundOffset = 1 << (numPelLog2 - 1)
+    var sum = roundOffset
+    var k = 0
+    var n = w * h
+    while (k < n) {
+        sum = sum + src[k]
+        k = k + 1
+    }
+    var avg = sum >> numPelLog2
+    var out = new Int[n]
+    k = 0
+    while (k < n) {
+        out[k] = src[k] - avg
+        k = k + 1
+    }
+    return out
+}
+
+// `cfl_predict_lbd_c` (`av1/common/cfl.c`): the DC prediction of the block
+// (`dc`, flat row-major, `w * h`) modulated by the AC contribution and clipped
+// to `bitDepth`.
+Int[] av1CflPredict(Int[] dc, Int[] ac, Int alphaQ3, Int w, Int h, Int bitDepth) {
+    var maxV = (1 << bitDepth) - 1
+    var n = w * h
+    var out = new Int[n]
+    var k = 0
+    while (k < n) {
+        var v = av1CflScaledLuma(alphaQ3, ac[k]) + dc[k]
+        if (v < 0) {
+            v = 0
+        }
+        if (v > maxV) {
+            v = maxV
+        }
+        out[k] = v
+        k = k + 1
+    }
+    return out
+}
+
+// The composed `cfl_compute_parameters` for one chroma plane block: the AC
+// contribution of the LUMA at `(x, y)` for a `cw` x `ch` chroma extent whose
+// transform log2 area is `numPelLog2`.
+Int[] av1CflAcFromLuma(Int[] luma, Int stride, Int x, Int y,
+                       Int cw, Int ch, Int ssX, Int ssY, Int numPelLog2) {
+    var sub = av1CflSubsample(luma, stride, x, y, cw, ch, ssX, ssY)
+    return av1CflSubtractAverage(sub, cw, ch, numPelLog2)
+}

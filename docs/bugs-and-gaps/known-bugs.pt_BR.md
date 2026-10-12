@@ -15860,3 +15860,21 @@ então o contexto de croma do libaom é exatamente `7 + [plano maior] + [above n
 <!-- en-switch --> **EN:** [§685 (en)](known-bugs.md#685--string-concatenation-of-a-collection-on-the-js-target-used-the-hosts-arrayprototypetostringobject-setobject-map-instead-of-the-kof-container-form---listof123--js-123-vs-jvmscriptnative-1-2-3---fixed-1210-lane-compilerjvmnative-19216815309092)
 
 <!-- en-switch --> **EN:** [§686 (en)](known-bugs.md#686--stringvalueofcollection-as-a-direct-call-on-the-native-target-writes-a-raw-pointer-instead-of-the-kof-container-form-printlnstringvalueoflistof123--native-garbage-bytes-vs-jvm-1-2-3---open-found-1210-by-lane-compilerjvmnative-19216815309092)
+
+## §687 — uma função Kof cujo frame de pilha passa de ~2 KiB não MONTА no riscv64: o laço de zeragem de slots do prologue cross emite `sd zero,-2056(s11)` e o assembler rejeita o imediato fora de faixa — 🟡 ABERTO (medido 13/10, lane pipeline/image-vision 192.168.15.21:0)
+
+**Sintoma (medido 13/10, ao pousar a fatia 3aj do AVIF):** um programa Kof com um array local grande compila para JVM, Script, nativo x86-64 e aarch64, mas a perna riscv64 morre no assembler:
+
+```
+out/Default/Main.s:658: Error: illegal operands `sd zero,-2056(s11)'
+out/Default/Main.s:659: Error: illegal operands `sd zero,-2064(s11)'
+... (um por slot, passo de -8)
+```
+
+É o mesmo `sd zero, <offset>(s11)` de zeragem de slots do prologue que a correção do §625 introduziu (`NativeRiscvCrossEmit`). O §625 estabeleceu que todo slot É inicializado; nunca verificou se o OFFSET ainda cabe no imediato de 12 bits com sinal do load/store do riscv (±2048). Passando disso o emissor tem de materializar o endereço (registrador de rascunho com `lui`+`addi`, ou dividir o laço) em vez de emitir um único `sd`.
+
+**Repro (na árvore):** a sonda do `Av1CflE2ETest` (fatia 3aj) aloca um buffer de luma `Int[]` 64x64 mais os arrays de CFL por tamanho — um frame muito além de 2 KiB — então o `Av1CflOnNativeRiscv64` falha na MONTAGEM enquanto as outras cinco faces do mesmo teste estão verdes. As outras sondas do AVIF ficam pequenas (dezenas de Int), e é por isso que isto não tinha aparecido antes.
+
+**Raio de alcance:** qualquer programa Kof legítimo cujo frame passe de ~2 KiB — um array local grande, um struct grande, muitos locais — não pode ser construído para riscv64 de forma alguma. É um limite do BACKEND, não da linguagem.
+
+**Fronteira:** x86-64 e aarch64 não são afetados (medido: a mesma sonda constrói e roda nos dois). O `PrologueSlotInitTest` afirma que os slots estão INICIALIZADOS — outra propriedade. Um teste de regressão do §687 deve afirmar que os offsets emitidos ficam em faixa, ou que um programa de frame grande monta. Lane dona: o backend nativo/cross (`192.168.15.30:9092`).
