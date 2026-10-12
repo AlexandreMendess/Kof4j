@@ -8,6 +8,8 @@
 // `correlationId` chegam com a Fase 4 (contexto); os valores de
 // FieldChange sao strings portaveis (§9.2 — fragmentos JSON canônicos).
 
-record Revision(Long revision, Long at, String operation)
+// §9.2: actor/correlationId (Fase 4, D-ENTITY-HISTORY Q14/Q15) —
+// nullable; o correlation_id vem do ciclo request-bound (Fase 4a).
+record Revision(Long revision, Long at, String operation, String? actor, String? correlationId)
 
 record FieldChange(Long revision, String field, String? previous, String? current)

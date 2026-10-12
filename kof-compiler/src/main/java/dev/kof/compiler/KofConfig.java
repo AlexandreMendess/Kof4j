@@ -57,35 +57,55 @@ public final class KofConfig {
     static List<String> functions() { return List.of("get", "env", "has", "str", "int", "long", "bool", "required"); }
 
     /** {@code config.<method>(...) } — validates arity and maps to the runtime function. */
+    // known-bugs §657: a ligação era SÓ POR ARIDADE — config.int("k",
+    // 5000000000) truncava (a Q-answer: rejeitar Long onde Int é declarado,
+    // como a função de usuário faz). Guardas de tipo em cada overload.
     static ConfigCall staticCall(String name, List<Type> argTypes) {
         return switch (name) {
-            case "get" -> argTypes.size() == 1
+            case "get" -> argTypes.size() == 1 && isStr(argTypes.get(0))
                     ? new ConfigCall("kof_config_get", STR, List.of(STR))
                     : null;
-            case "env" -> argTypes.size() == 1
+            case "env" -> argTypes.size() == 1 && isStr(argTypes.get(0))
                     ? new ConfigCall("kof_config_env", STR, List.of(STR))
                     : null;
-            case "has" -> argTypes.size() == 1
+            case "has" -> argTypes.size() == 1 && isStr(argTypes.get(0))
                     ? new ConfigCall("kof_config_has", BOOL, List.of(STR))
                     : null;
-            case "str" -> argTypes.size() == 2
+            case "str" -> argTypes.size() == 2 && isStr(argTypes.get(0)) && isStr(argTypes.get(1))
                     ? new ConfigCall("kof_config_str", STR, List.of(STR, STR))
                     : null;
-            case "int" -> argTypes.size() == 2
+            case "int" -> argTypes.size() == 2 && isStr(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new ConfigCall("kof_config_int", INT, List.of(STR, INT))
                     : null;
-            case "long" -> argTypes.size() == 2
+            case "long" -> argTypes.size() == 2 && isStr(argTypes.get(0))
+                    && (isLong(argTypes.get(1)) || isInt(argTypes.get(1)))
                     ? new ConfigCall("kof_config_long", LONG, List.of(STR, LONG))
                     : null;
-            case "bool" -> argTypes.size() == 2
+            case "bool" -> argTypes.size() == 2 && isStr(argTypes.get(0)) && isBool(argTypes.get(1))
                     ? new ConfigCall("kof_config_bool", BOOL, List.of(STR, BOOL))
                     : null;
             // P1 (docs/stdlib/stdlib-config.md §8.2): required — falha no startup se
             // ausente (nenhum null silencioso em deploy).
-            case "required" -> argTypes.size() == 1
+            case "required" -> argTypes.size() == 1 && isStr(argTypes.get(0))
                     ? new ConfigCall("kof_config_required", STR, List.of(STR))
                     : null;
             default -> null;
         };
+    }
+
+    private static boolean isStr(Type t) {
+        return STR.equals(t) || "String".equals(t.toString());
+    }
+
+    private static boolean isInt(Type t) {
+        return t == INT || "Int".equals(t.toString()) || "int".equals(t.toString());
+    }
+
+    private static boolean isLong(Type t) {
+        return t == LONG || "Long".equals(t.toString()) || "long".equals(t.toString());
+    }
+
+    private static boolean isBool(Type t) {
+        return t == BOOL || "Bool".equals(t.toString()) || "bool".equals(t.toString());
     }
 }
