@@ -18184,7 +18184,7 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 <!-- pt-switch --> **PT:** [§673 (pt_BR)](known-bugs.pt_BR.md#673--auditoria-jvm-03-uma-expressao-ifswitch-cujos-ramos-sao-lambdas-da-mesma-assinatura-fazia-o-join-cair-em-object-os-classnames-concretos-lambda0lambda1-diferem-entao-o-call-site-emitia-um-invokestatic--iljavalangobject-fantasma--verifyerror-no-jvm---corrigido-1110-lane-compiladorjvmnativo-19216815309092)
 
-## §674 — the native target's `enum.valueOf(String)` returns a value that SIGSEGVs (139) on ANY use: `Color.valueOf("GREEN")` prints nothing and `println(Color.valueOf("GREEN"))` crashes — while JVM/Script/JS return the enum constant — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+## §674 — the native target's `enum.valueOf(String)` returned a value that SIGSEGVed (139) on ANY use: `Color.valueOf("GREEN")` printed nothing and `println(Color.valueOf("GREEN"))` crashed — while JVM/Script/JS returned the enum constant — ✅ FIXED 11/10 (lane compiler/JVM/native 192.168.15.30:9092)
 
 **Symptom (measured 11/10, tip `9da325aa2`):** with `enum Color { RED, GREEN, BLUE }`, `main() { println("start")  var g = Color.valueOf("GREEN")  println("got")  println(g) }` prints `start` and `got` on native, then **SIGSEGVs (exit 139)** at `println(g)`. A program that only calls `valueOf` without printing the result prints NOTHING at all (the whole output is lost). JVM/Script/JS print `start`/`got`/`GREEN` (the constant's `toString`). The contract (`docs/language-reference/classes.md`): `valueOf(String) → Dir` (static, `null` on miss).
 
@@ -18196,7 +18196,10 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 **Boundary:** `name()`/`ordinal()`/`values()`/`==`/`!=`/`compareTo` are CORRECT on native (measured) — only `valueOf` is broken. Owner lane compiler/JVM/native `192.168.15.30:9092`.
 
-<!-- pt-switch --> **PT:** [§674 (pt_BR)](known-bugs.pt_BR.md#674--o-enumvalueofstring-do-alvo-nativo-devolve-um-valor-que-da-sigsegv-139-em-qualquer-uso-colorvalueofgreen-nao-imprime-nada-e-printlncolorvalueofgreen-quebra--enquanto-jvmscriptjs-devolvem-a-constante-do-enum---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+
+**✅ FIXED 11/10 (this lane):** `NativeX86ValueOf.emit` intercepted ANY `KofCallKind.STATIC` call named `valueOf` — but that handler implements `String.valueOf` (owner `java.lang.String`) and the erasure box of the wrappers (`Integer.valueOf` etc., owner `java.lang.*`). An `Enum.valueOf(String)` has the ENUM CLASS as its owner, so it fell into the String branch and returned the INPUT STRING unchanged; the consumer then treated a `String` pointer as an enum instance and dereferenced it → SIGSEGV. Fix: the handler now returns `false` (deferring to the generic STATIC call path, which emits the real `Color_valueOf`) when the owner is a ClassType that is neither `String`/`Object` nor in `java.lang`. The generated `Color_valueOf` already returned the constant singleton or `null` on miss (the `getstatic` + early-return lowering was correct) — only the call dispatch was wrong. Proof (executed, RED-first): new `KofEnumSwitchTest.valueOfReturnsTheConstantOnJvm`/`...OnNative` — pre-fix native SIGSEGV (139), post-fix `GREEN`/`1`/`BLUE`/`true`/`true` on JVM AND native; `KofEnumSwitchTest` 6/6; enum/switch/regression battery 218 run / 0F.
+
+<!-- pt-switch --> **PT:** [§674 (pt_BR)](known-bugs.pt_BR.md#674--o-enumvalueofstring-do-alvo-nativo-devolvia-um-valor-que-dava-sigsegv-139-em-qualquer-uso-colorvalueofgreen-nao-imprimia-nada-e-printlncolorvalueofgreen-quebrava--enquanto-jvmscriptjs-devolviam-a-constante-do-enum---corrigido-1110-lane-compiladorjvmnativo-19216815309092)
 
 ## §675 — `enum` ordering operators (`<` `>` `<=` `>=`) are ACCEPTED but diverge across targets: JVM/JS give `false`, native gives `true`, Script prints `not comparable` for `Color.RED < Color.GREEN` — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
 

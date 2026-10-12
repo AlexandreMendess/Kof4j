@@ -15680,7 +15680,7 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 <!-- en-switch --> **EN:** [§673 (en)](known-bugs.md#673--audit-jvm-03-an-ifswitch-expression-whose-branches-are-lambdas-of-the-same-signature-joined-to-object-the-concrete-lambda0lambda1-classnames-differ-so-the-call-site-emitted-a-phantom-invokestatic--iljavalangobject--jvm-verifyerror---fixed-1110-lane-compilerjvmnative-19216815309092)
 
-## §674 — o `enum.valueOf(String)` do alvo nativo devolve um valor que dá SIGSEGV (139) em QUALQUER uso: `Color.valueOf("GREEN")` não imprime nada e `println(Color.valueOf("GREEN"))` quebra — enquanto JVM/Script/JS devolvem a constante do enum — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
+## §674 — o `enum.valueOf(String)` do alvo nativo devolvia um valor que dava SIGSEGV (139) em QUALQUER uso: `Color.valueOf("GREEN")` não imprimia nada e `println(Color.valueOf("GREEN"))` quebrava — enquanto JVM/Script/JS devolviam a constante do enum — ✅ CORRIGIDO 11/10 (lane compilador/JVM/nativo 192.168.15.30:9092)
 
 **Sintoma (medido 11/10, tip `9da325aa2`):** com `enum Color { RED, GREEN, BLUE }`, `main() { println("start")  var g = Color.valueOf("GREEN")  println("got")  println(g) }` imprime `start` e `got` no nativo, depois dá **SIGSEGV (exit 139)** no `println(g)`. Um programa que só chama `valueOf` sem imprimir o resultado não imprime NADA (toda a saída é perdida). JVM/Script/JS imprimem `start`/`got`/`GREEN` (o `toString` da constante). O contrato (`docs/language-reference/classes.md`): `valueOf(String) → Dir` (estático, `null` no miss).
 
@@ -15692,7 +15692,10 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 **Fronteira:** `name()`/`ordinal()`/`values()`/`==`/`!=`/`compareTo` estão CORRETOS no nativo (medido) — só o `valueOf` está quebrado. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
 
-<!-- en-switch --> **EN:** [§674 (en)](known-bugs.md#674--the-native-targets-enumvalueofstring-returns-a-value-that-sigsegvs-139-on-any-use-colorvalueofgreen-prints-nothing-and-printlncolorvalueofgreen-crashes--while-jvmscriptjs-return-the-enum-constant---open-found-1110-by-lane-compilerjvmnative-19216815309092)
+
+**✅ CORRIGIDO 11/10 (esta lane):** o `NativeX86ValueOf.emit` interceptava QUALQUER chamada `KofCallKind.STATIC` chamada `valueOf` — mas esse handler implementa `String.valueOf` (dono `java.lang.String`) e o box de erasure dos wrappers (`Integer.valueOf` etc., dono `java.lang.*`). Um `Enum.valueOf(String)` tem a CLASSE do enum como dono, então caía no ramo String e devolvia a String de ENTRADA inalterada; o consumidor então tratava um ponteiro de `String` como instância de enum e o desreferenciava → SIGSEGV. Correção: o handler agora devolve `false` (deferindo ao caminho genérico de chamada STATIC, que emite o `Color_valueOf` real) quando o dono é um ClassType que não é `String`/`Object` nem está em `java.lang`. O `Color_valueOf` gerado já devolvia o singleton da constante ou `null` no miss (o lowering de `getstatic` + early-return estava correto) — só o dispatch da chamada estava errado. Prova (executada, RED-first): novo `KofEnumSwitchTest.valueOfReturnsTheConstantOnJvm`/`...OnNative` — pré-correção nativo SIGSEGV (139), pós-correção `GREEN`/`1`/`BLUE`/`true`/`true` no JVM E no nativo; `KofEnumSwitchTest` 6/6; bateria enum/switch/regressão 218 rodadas / 0F.
+
+<!-- en-switch --> **EN:** [§674 (en)](known-bugs.md#674--the-native-targets-enumvalueofstring-returned-a-value-that-sigsegved-139-on-any-use-colorvalueofgreen-printed-nothing-and-printlncolorvalueofgreen-crashed--while-jvmscriptjs-returned-the-enum-constant---fixed-1110-lane-compilerjvmnative-19216815309092)
 
 ## §675 — os operadores de ordem de `enum` (`<` `>` `<=` `>=`) são ACEITOS mas divergem entre alvos: JVM/JS dão `false`, o nativo dá `true`, o Script imprime `not comparable` para `Color.RED < Color.GREEN` — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
 
