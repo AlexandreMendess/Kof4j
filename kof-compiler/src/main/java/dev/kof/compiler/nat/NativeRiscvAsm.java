@@ -352,6 +352,9 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmMapset0.RISCV_MAPSET_ASM_0)
                 .append(NativeRiscvAsmMapset1.RISCV_MAPSET_ASM_1)
                 .append(NativeRiscvAsmMapset2.RISCV_MAPSET_ASM_2)
+                // §667: decode de string JSON (kof_json_decode_string +
+                // kof_json_dec_str) — split da Mapset1/RtB4 por responsabilidade.
+                .append(NativeRiscvAsmJsonStr.RISCV_JSONSTR_ASM)
                 .append(NativeRiscvAsmLookups0.RISCV_LOOKUPS_ASM_0)
                 .append(NativeRiscvAsmSlices.RISCV_SLICES_ASM)
                 .append(NativeRiscvAsmQuantifiers.RISCV_QUANTIFIERS_ASM)

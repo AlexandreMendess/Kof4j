@@ -23,6 +23,8 @@ public final class JsMethodParser {
     final JsOperatorEmitter ops;
     final JsCollectionOps coll;
     final JsRuntimeOps rt;
+    final JsJsonOps jsonOps;
+    final JsRecordSynthetics records;
 
     JsMethodParser(JsLoweringContext lc) {
         this.lc = lc;
@@ -33,6 +35,8 @@ public final class JsMethodParser {
         this.ops = new JsOperatorEmitter(this);
         this.coll = new JsCollectionOps(this);
         this.rt = new JsRuntimeOps(this);
+        this.jsonOps = new JsJsonOps(this);
+        this.records = new JsRecordSynthetics(this);
     }
 
     List<JsIr.JsStatement> parseMethodBody(MethodCtx ctx) {

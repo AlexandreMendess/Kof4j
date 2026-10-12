@@ -2,7 +2,7 @@
 
 # Specification Status
 
-**Version:** 0.6.1 · **Date:** 06/09/2026 · **Re-synced 17/09/2026** against the applied SG-00x (`docs/bugs-and-gaps/specification-gaps.md`) and the #322/#330 fixes.
+**Version:** 0.6.2 · **Date:** 06/09/2026 · **Re-synced 17/09/2026** against the applied SG-00x (`docs/bugs-and-gaps/specification-gaps.md`) and the #322/#330 fixes.
 
 Classification of each language feature. **Nothing here is "stable" out of
 courtesy** — Stable requires frozen semantics (rule 0.2.6-beta) **and** a test

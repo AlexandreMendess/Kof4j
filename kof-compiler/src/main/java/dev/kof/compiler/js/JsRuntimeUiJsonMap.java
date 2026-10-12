@@ -57,6 +57,46 @@ public final class JsRuntimeUiJsonMap {
             // Script). A pré-checagem kofJsonHasBig mantém byte-idêntico o
             // caminho SEM Long (o JSON.stringify puro), então nenhum programa sem
             // Long muda de saída.
+            // §659d: o valor JSON de um Double/Float usa o Double.toString do
+            // JDK nos outros três alvos (`1.0`, `-0.0`, `1.0E21`), mas o JS
+            // representa os dois como `number` e o JSON.stringify imprime `1`,
+            // `0` e `1e+21`. kofNumFmt (§264) é o MESMO formatador do display
+            // (já byte-idêntico ao JVM), então o encode JSON reusa ele. NaN/±Inf
+            // não existem em JSON: viram o literal `null` (paridade com o
+            // kof_json_encode_double do JVM/nativo).
+            function kofJsonFpBody(v, isFloat) {
+                const s = kofNumFmt(v, isFloat);
+                return (s === "NaN" || s === "Infinity" || s === "-Infinity" || s === "null")
+                        ? "null" : s;
+            }
+            export function kofJsonEncodeDouble(v) {
+                return kofJsonFpBody(v, 0);
+            }
+            export function kofJsonEncodeFloat(v) {
+                return kofJsonFpBody(v, 1);
+            }
+            // §659d (List<Double>): o elemento é um `number` e o
+            // JSON.stringify imprime `1`; monta o array com o formato do JDK
+            // por elemento (tag 3 do JsonDispatch.listTag).
+            export function kofJsonEncodeDoubleList(arr) {
+                const parts = [];
+                for (const x of arr) parts.push(kofJsonFpBody(x, 0));
+                return '[' + parts.join(',') + ']';
+            }
+            // Campo Double/Float de record: o toJSON sintético marca o valor
+            // (kofJsonFp) e o kofJsonEncode troca a marca pela forma CRUA — o
+            // JSON.stringify não tem como distinguir `1.0` de `1` sozinho.
+            // A marca é ASCII cercada por `<<`/`>>` para o replace ser um
+            // literal sem escapes; um campo `String` do usuário que contivesse
+            // a marca exata INTEIRA seria raro o bastante (mesma classe de
+            // risco do sentinel de BigInt acima).
+            const KOF_FP_MARK = "<<KOFFP:";
+            const KOF_FP_END = ":KOFFP>>";
+            export function kofJsonFp(v, isFloat) {
+                return KOF_FP_MARK + kofJsonFpBody(v, isFloat) + KOF_FP_END;
+            }
+            const KOF_FP_RE = new RegExp('"' + '<<KOFFP:([^"]*)' + ':KOFFP>>' + '"', 'g');
+
             export function kofJsonHasBig(v) {
                 if (typeof v === 'bigint') return true;
                 if (Array.isArray(v)) {
@@ -70,11 +110,40 @@ public final class JsRuntimeUiJsonMap {
                 return false;
             }
 
+            // §659d: Double inteiro mantém o .0 (JSON.stringify(1.0) → "1";
+            // o JVM/Script/nativo imprimem "1.0"). Não-inteiro segue o caminho
+            // geral. O registro de campos Double por classe é a face 2 (o
+            // record precisa do registro por campo).
+            export function kofJsonEncodeDouble(v) {
+                return (typeof v === 'number' && Number.isInteger(v)) ? v + '.0'
+                        : kofJsonEncode(v);
+            }
+
+            // §659d (face record): o toJSON de um record com campo Double/Float
+            // inteiro emite a SENTINELA (a mesma mecânica do §659b) e o strip
+            // abaixo a devolve COM o .0 — paridade JVM/Script/nativo.
+            export function kofJsonHasRecord(v) {
+                if (Array.isArray(v)) {
+                    for (const x of v) if (kofJsonHasRecord(x)) return true;
+                    return false;
+                }
+                if (v !== null && typeof v === 'object' && !(v instanceof Map)) {
+                    if (typeof v.toJSON === 'function') return true;
+                    for (const k of Object.keys(v)) if (kofJsonHasRecord(v[k])) return true;
+                    return false;
+                }
+                return false;
+            }
+
             export function kofJsonEncode(v) {
-                if (!kofJsonHasBig(v)) return JSON.stringify(v);
+                if (!kofJsonHasBig(v)) {
+                    const s = JSON.stringify(v);
+                    return s.indexOf(KOF_FP_MARK) < 0 ? s : s.replace(KOF_FP_RE, '$1');
+                }
                 return JSON.stringify(v, (k, x) => typeof x === 'bigint'
                         ? 'KOFBIGINT_SENTINEL_' + x.toString() + '_END' : x)
-                    .replace(/"KOFBIGINT_SENTINEL_(-?[0-9]+)_END"/g, '$1');
+                    .replace(/"KOFBIGINT_SENTINEL_(-?[0-9]+)_END"/g, '$1')
+                    .replace(KOF_FP_RE, '$1');
             }
 
             """;

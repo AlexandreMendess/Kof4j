@@ -3,6 +3,7 @@ import image.Av1CoeffCtx
 import image.Av1Coeffs
 import image.Av1Symbol
 import image.Av1Tx
+import image.Av1TxType
 
 // AVIF slice 3x: the AV1 coefficient plane decode driver
 // (`av1DecodeCoeffsPlane`), connecting the slice-3w context selection and
@@ -88,6 +89,37 @@ Int[] av1DecodeCoeffsBlockEdge(Av1Symbol reader, Av1CoeffCdfStore store,
                                Int planeBsize, Int plane, Int r4, Int c4,
                                Int txSz, Int txType, Int[] above, Int[] left,
                                Int planeBlocksWide, Int planeBlocksHigh) {
+    return av1DecodeCoeffsBlockCore(reader, store, planeBsize, plane, r4, c4,
+            txSz, txType, above, left, planeBlocksWide, planeBlocksHigh,
+            null, 0, 0, 0, 0, 0, null, 0, 0, 0, 0)
+}
+
+// The luma TILE face: identical to `av1DecodeCoeffsBlockEdge` except that the
+// `transform_type` symbol is read at the exact position libaom reads it — after
+// the `all_zero` flag and before the level walk (`av1_read_coeffs_txb`). The
+// decoded type is stamped into `txTypes` (the frame map) and returned.
+Int[] av1DecodeCoeffsBlockEdgeTx(Av1Symbol reader, Av1CoeffCdfStore store,
+                               Int planeBsize, Int plane, Int r4, Int c4,
+                               Int txSz, Int[] above, Int[] left,
+                               Int planeBlocksWide, Int planeBlocksHigh,
+                               Av1TxType txTypeStore, Int reducedTxSet,
+                               Int qIndex, Int intraMode, Int useFilterIntra,
+                               Int filterIntraMode, Int[] txTypes,
+                               Int txTypeStride, Int x4, Int y4) {
+    return av1DecodeCoeffsBlockCore(reader, store, planeBsize, plane, r4, c4,
+            txSz, 0, above, left, planeBlocksWide, planeBlocksHigh,
+            txTypeStore, reducedTxSet, qIndex, intraMode, useFilterIntra,
+            filterIntraMode, txTypes, txTypeStride, x4, y4, 1)
+}
+
+Int[] av1DecodeCoeffsBlockCore(Av1Symbol reader, Av1CoeffCdfStore store,
+                               Int planeBsize, Int plane, Int r4, Int c4,
+                               Int txSz, Int txType, Int[] above, Int[] left,
+                               Int planeBlocksWide, Int planeBlocksHigh,
+                               Av1TxType txTypeStore, Int reducedTxSet,
+                               Int qIndex, Int intraMode, Int useFilterIntra,
+                               Int filterIntraMode, Int[] txTypes,
+                               Int txTypeStride, Int x4, Int y4, Int readTxType) {
     var twu = av1TxWidth(txSz) >> 2
     var thu = av1TxHeight(txSz) >> 2
 
@@ -110,9 +142,22 @@ Int[] av1DecodeCoeffsBlockEdge(Av1Symbol reader, Av1CoeffCdfStore store,
     var skipCtx = ctx.get(0)
     var dcSignCtx = ctx.get(1)
 
-    // 2. Decode the block (slice 3e coeffs() walk).
+    // 2. Decode the block (slice 3e coeffs() walk).  The `all_zero` flag is read
+    //    FIRST and the transform type only when it is 0, mirroring libaom's
+    //    `av1_read_coeffs_txb` order; the caller supplies the type it read at
+    //    that exact stream position.
     var coeffs = Av1Coeffs(reader, store, txSz, txType, plane)
-    coeffs.decodeBlock(skipCtx, dcSignCtx)
+    var allZero = coeffs.readTxbSkip(skipCtx)
+    var txTypeUsed = txType
+    if (allZero == 0) {
+        if (readTxType == 1) {
+            txTypeUsed = txTypeStore.readTxType(txSz, reducedTxSet, qIndex,
+                    intraMode, useFilterIntra, filterIntraMode, txTypes,
+                    txTypeStride, x4, y4)
+            coeffs.setTxType(txTypeUsed)
+        }
+        coeffs.decodeLevels(dcSignCtx)
+    }
 
     // 3. Pack the resulting entropy context (slice 3w av1_get_txb_entropy_context).
     var packed = av1TxbEntropyContext(coeffs.culLevel, coeffs.dcCategory)
