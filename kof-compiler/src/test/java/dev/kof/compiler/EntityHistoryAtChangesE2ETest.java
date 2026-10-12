@@ -217,6 +217,31 @@ class EntityHistoryAtChangesE2ETest {
     }
 
     @Test
+    void recordedRowsCarryActorSystemAndNullCorrelation() throws Exception {
+        // §11 v1 resolution (items 2+4): unauthenticated save → (null, 'system');
+        // the correlation_id column stays null outside a request (a fresh
+        // UUID per row is not a correlation)
+        String out = runJvm("actor", """
+            import kof.orm.history
+            audited entity User {
+                id: Long generated
+                name: String
+            }
+            main() {
+                var db = db.connect("jdbc:h2:mem:eht4;DB_CLOSE_DELAY=-1")
+                orm.create<User>(db)
+                orm.createHistory<User>(db)
+                orm.save(db, User(0, "Mel"))
+                var t = db.query(db, "select actor, actor_kind, correlation_id from \\"user_history\\"")
+                println(t.get(0))
+                db.close(db)
+            }
+            """);
+        assertEquals("{\"actor\":null,\"actor_kind\":\"system\",\"correlation_id\":null}", out,
+                "actor nulo + actor_kind system + correlation_id null (nunca uma mentira, §11 item 4)");
+    }
+
+    @Test
     void atTimeReturnsTheStateAtOrBefore() throws Exception {
         String out = runJvm("attime", """
             import kof.orm.history
