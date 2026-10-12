@@ -406,6 +406,82 @@ class TranslateExpr {
             return "(" + String.join(", ", params) + ") -> " + body;
         }
 
+        /**
+         * Fase F (decisão da mantenedora 14/10): `new Fun() { int apply(int x)
+         * { ... } }` → `(x: Int) -> { ... }` — anônima de interface funcional
+         * SAM baixa para lambda Kof (a forma idiomática). EXATAMENTE um
+         * método; campos/estado e multi-método recusam NOMEADO (uma lambda
+         * não tem campos; multi-método não é SAM).
+         */
+        String parseAnonymousAsLambda() {
+            p.expect("{");
+            int methods = 0;
+            List<String> lambdaParams = List.of();
+            List<String> lambdaBody = List.of();
+            while (!p.at("}") && !p.at(T.EOF)) {
+                if (p.at(";")) { p.next(); continue; }
+                // anotações/modificadores do método (@Override, public)
+                while (true) {
+                    if (TranslateTypes.isModifier(p.peek().text)) { p.next(); continue; }
+                    if (p.at(T.AT)) {
+                        p.next();
+                        while (p.at(".")) { p.next(); p.next(); }
+                        if (p.at("(")) { int d = 0; do { if (p.at("(")) d++; else if (p.at(")")) d--; p.next(); } while (d > 0 && !p.at(T.EOF)); }
+                        continue;
+                    }
+                    break;
+                }
+                // tipo de retorno (+ genéricos) e nome
+                p.next(); // returnType
+                if (p.at("<")) { int d = 0; do { if (p.at("<")) d++; else if (p.at(">")) d--; p.next(); } while (d > 0 && !p.at(T.EOF)); }
+                if (!p.at(T.IDENT)) {
+                    throw new TranslateException(
+                            "anonymous class body: expected a method (fields/state are not part of a "
+                            + "single-abstract-method lambda) — manual review");
+                }
+                p.next(); // member name
+                if (!p.at("(")) {
+                    // `Type name = ...;` / `Type name;` = CAMPO (estado) — uma
+                    // lambda não tem campos; recusa NOMEADA (nunca parse cru).
+                    throw new TranslateException(
+                            "stateful anonymous class (field `" + p.peek(-1).text + "`) cannot lower "
+                            + "to a lambda (a lambda has no fields) — extract it to a named class — "
+                            + "manual review");
+                }
+                // parâmetros tipados `(int x, int y)` — formato do parseLambda
+                p.expect("(");
+                List<String> params = new ArrayList<>();
+                while (!p.at(")")) {
+                    if (TranslateTypes.isPrimitiveOrType(p.peek().text) && p.peek(1).type == T.IDENT) {
+                        String ty = TranslateTypes.kofType(p.next().text);
+                        String nm = p.next().text;
+                        params.add(nm + ": " + ty);
+                    } else {
+                        params.add(p.next().text);
+                    }
+                    if (p.at(",")) p.next();
+                }
+                p.expect(")");
+                List<String> body = parseStatementBlock();
+                methods++;
+                if (methods > 1) {
+                    throw new TranslateException(
+                            "anonymous class with more than one method is not a single-abstract-method "
+                            + "functional interface — it cannot lower to a lambda — manual review");
+                }
+                lambdaParams = params;
+                lambdaBody = body;
+            }
+            p.expect("}");
+            if (methods == 0) {
+                throw new TranslateException(
+                        "anonymous class with an empty body has no abstract method to lower into a "
+                        + "lambda — manual review");
+            }
+            return "(" + String.join(", ", lambdaParams) + ") -> { "
+                    + String.join(" ", lambdaBody) + " }";
+        }
+
         /** Lookahead: `(Type) expr` — cast Java. Kof usa `expr as Type`. */
         boolean isCastAhead() {
             // já consumimos '('; olha o próximo token
