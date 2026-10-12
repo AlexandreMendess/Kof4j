@@ -412,6 +412,27 @@ public final class MemberResolver {
         return subs;
     }
 
+    /**
+     * #817 (ordem da mantenedora 12/10): `case &lt;Tipo&gt; -&gt;` — a forma BARE, sem
+     * binding, num switch sobre `sealed` é um TYPE TEST: o nome é um subtipo
+     * DIRETO do sujeito. O parser a deixa como expressão comum
+     * ({@link IdentifierExpr}), então a cobertura não a via (SEM081 acusando um
+     * caso presente) e o lowering a emitia como comparação de VALOR — que NUNCA
+     * casa, em silêncio. Devolve o pattern equivalente ({@code varName == null})
+     * para a cobertura E o lowering rotearem pelo caminho de pattern; null
+     * quando NÃO é essa forma (constante/valor comum segue como sempre — um
+     * identificador que não é subtipo direto do sujeito continua sendo valor).
+     */
+    static PatternExpr bareSealedSubtypeCase(SemanticAnalyzer sa, Type subjectType, ExpressionNode value) {
+        if (sa == null || !(subjectType instanceof Type.ClassType sct) || !sa.isSealedType(sct.name())) {
+            return null;
+        }
+        if (!(value instanceof IdentifierExpr ie)) return null;
+        String simple = ClassShapeChecks.simpleName(ie.name());
+        if (!sealedDirectSubtypes(sa, sct.name()).contains(simple)) return null;
+        return new PatternExpr(ie.position(), ie.name(), null);
+    }
+
     static void checkSwitchExprExhaustiveness(SemanticAnalyzer sa, SwitchExpr se, Type subjectType) {
         // X5.2 (D-X5-SURFACE): sujeito `sealed` — os subtipos DIRETOS são o
         // conjunto fechado; cobrir todos os casos de pattern dispensa o
@@ -421,6 +442,10 @@ public final class MemberResolver {
             for (SwitchExprCase sc : se.cases()) {
                 if (sc.value() instanceof PatternExpr pe) {
                     covered.add(ClassShapeChecks.simpleName(pe.typeName()));
+                } else {
+                    // #817: a forma bare `case Tipo ->` TAMBÉM cobre o subtipo.
+                    PatternExpr bare = bareSealedSubtypeCase(sa, subjectType, sc.value());
+                    if (bare != null) covered.add(ClassShapeChecks.simpleName(bare.typeName()));
                 }
             }
             List<String> subtypes = sealedDirectSubtypes(sa, sct.name());
@@ -472,6 +497,10 @@ public final class MemberResolver {
             for (SwitchCase sc : ss.cases()) {
                 if (sc.value() instanceof PatternExpr pe) {
                     covered.add(ClassShapeChecks.simpleName(pe.typeName()));
+                } else {
+                    // #817: idem forma-expression — a bare `case Tipo:` cobre.
+                    PatternExpr bare = bareSealedSubtypeCase(sa, subjectType, sc.value());
+                    if (bare != null) covered.add(ClassShapeChecks.simpleName(bare.typeName()));
                 }
             }
             List<String> missing = sealedDirectSubtypes(sa, sct.name()).stream()

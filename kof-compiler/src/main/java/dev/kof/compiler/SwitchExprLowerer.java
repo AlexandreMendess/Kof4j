@@ -65,7 +65,12 @@ public final class SwitchExprLowerer {
         LabelId bodyLabel = LabelId.create();
         LabelId elseLabel = LabelId.create();
         LabelId endLabel = LabelId.create();
-        if (sc.value() instanceof PatternExpr pe) {
+        // #817: a forma bare `case Tipo ->` (subtipo DIRETO de um sujeito sealed)
+        // entra no MESMO caminho do pattern — antes virava comparação de VALOR e
+        // nunca casava (resultado silenciosamente errado, não só o SEM081 falso).
+        PatternExpr pe = sc.value() instanceof PatternExpr p ? p
+                : MemberResolver.bareSealedSubtypeCase(driver.semanticAnalyzer, switchType, sc.value());
+        if (pe != null) {
             Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
             if (TypeMetrics.isPrimitiveType(patType)) {
