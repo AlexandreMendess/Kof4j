@@ -316,12 +316,19 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
                             new JsIr.JsBinary(new JsIr.JsUnary("typeof", operand),
                                     "===", new JsIr.JsString("string")),
                             operand, new JsIr.JsNull()));
+                } else if (userClass) {
+                    // §678: a face ESTRITA do JS — o `as T` que falha ESTOURA
+                    // (o bloco PRÓPRIO kofCastFail é seeded só aqui; o helper no
+                    // CORE quebrava o slicing do runner — medido no ciclo 50).
+                    JsIr.JsExpression kept = new JsIr.JsConditional(
+                            new JsIr.JsInstanceOf(operand,
+                                    JsTypeMapper.jsClassName(internal)),
+                            operand,
+                            new JsIr.JsCall(new JsIr.JsIdentifier("kofCastFail"),
+                                    List.of(new JsIr.JsString(internal))));
+                    p.lc.registerRuntime("kofCastFail");
+                    stack.add(kept);
                 } else {
-                    // §678: a face ESTRITA do JS (o `as T` que falha ESTOURA)
-                    // fica DEFERIDA — o helper kofCastFail no bloco core quebra
-                    // o slicing do runtime (o runner morre; medido); a via
-                    // limpa é um bloco próprio + registro no slice — a lane JS.
-                    // O checador de compilação governa estas faces hoje.
                     stack.add(operand);
                 }
             }

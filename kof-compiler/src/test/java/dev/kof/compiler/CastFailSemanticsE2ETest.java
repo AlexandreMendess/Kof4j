@@ -87,6 +87,42 @@ class CastFailSemanticsE2ETest {
     }
 
     @Test
+    void jsFailingPlainCastThrows() throws Exception {
+        Path file = tmp.resolve("jsthrow/Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, THROW_SRC);
+        Path jsOut = tmp.resolve("out-jsthrow");
+        CompilationResult r = driver.compile(file, jsOut, Target.JS);
+        assertTrue(r.success(), () -> "JS compile: " + r.diagnostics().getDiagnostics());
+        String node = TestJdk.onPath("node");
+        ProcessBuilder pb = new ProcessBuilder(node, jsOut.resolve("Default.mjs").toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertNotEquals(0, p.waitFor(),
+                "o as T falho ESTOURA no JS (amolecia antes): " + o);
+        assertTrue(o.contains("type cast failed"), "o erro é o cast error decidido: " + o);
+    }
+
+    @Test
+    void jsSuccessfulFacesStayClean() throws Exception {
+        Path file = tmp.resolve("jsok/Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, OK_SRC);
+        Path jsOut = tmp.resolve("out-jsok");
+        CompilationResult r = driver.compile(file, jsOut, Target.JS);
+        assertTrue(r.success(), () -> "JS compile: " + r.diagnostics().getDiagnostics());
+        String node = TestJdk.onPath("node");
+        ProcessBuilder pb = new ProcessBuilder(node, jsOut.resolve("Default.mjs").toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), () -> "JS exit, output: " + o);
+        assertEquals("true\ntrue", o, "as faces bem-sucedidas intocadas no JS");
+    }
+
+    @Test
     void successfulFacesAreByteIdenticalOnScript() throws Exception {
         Path file = tmp.resolve("ok/Main.kf");
         Files.createDirectories(file.getParent());
