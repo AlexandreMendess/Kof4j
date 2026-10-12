@@ -58,6 +58,25 @@ final class NativeSymbolMangling {
         return false;
     }
 
+    /** §671: true quando a classe tem 2+ construtores (&lt;init&gt;) com a
+     *  MESMA contagem de parâmetros — a aridade crua colide no símbolo
+     *  (`A_init_2` duas vezes → "symbol already defined"). */
+    static boolean constructorArityConflict(String className, int argCount, Map<String, IRClass> classes) {
+        String simple = className.substring(className.lastIndexOf('/') + 1);
+        for (IRClass clazz : classes.values()) {
+            if (clazz.name().equals(simple) || clazz.name().endsWith("/" + simple)) {
+                int count = 0;
+                for (IRMethod m : clazz.methods()) {
+                    if ("<init>".equals(m.name()) && m.parameterTypes().size() == argCount) {
+                        count++;
+                    }
+                }
+                return count > 1;
+            }
+        }
+        return false;
+    }
+
     static String sigTag(List<Type> ps) {
         return TopLevelOverload.sigTag(ps);
     }
@@ -80,8 +99,12 @@ final class NativeSymbolMangling {
     /** Símbolo assembly de (clazz,name,pts). */
     static String fnSymbol(String className, String name, List<Type> pts, Map<String, IRClass> classes) {
         String m = sanitizeNameStatic(className) + "_" + sanitizeNameStatic(name);
-        if ("<init>".equals(name)) m += "_" + pts.size();
-        else if (sigMangles(className, name, classes)) m += sigTag(pts);
+        if ("<init>".equals(name)) {
+            m += "_" + pts.size();
+            if (constructorArityConflict(className, pts.size(), classes)) {
+                m += sigTag(pts);
+            }
+        } else if (sigMangles(className, name, classes)) m += sigTag(pts);
         return m;
     }
 
@@ -95,7 +118,13 @@ final class NativeSymbolMangling {
      *  o bridge (sintético, ACC_BRIDGE) ganha o sufixo do retorno apagado. */
     static String fnSymbol(String className, IRMethod m, Map<String, IRClass> classes) {
         String base = sanitizeNameStatic(className) + "_" + sanitizeNameStatic(m.name());
-        if ("<init>".equals(m.name())) return base + "_" + m.parameterTypes().size();
+        if ("<init>".equals(m.name())) {
+            String sym = base + "_" + m.parameterTypes().size();
+            if (constructorArityConflict(className, m.parameterTypes().size(), classes)) {
+                sym += sigTag(m.parameterTypes());
+            }
+            return sym;
+        }
         if (!sigMangles(className, m.name(), classes)) return base;
         return base + fnTag(m);
     }
