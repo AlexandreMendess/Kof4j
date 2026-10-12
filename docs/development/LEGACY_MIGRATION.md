@@ -321,9 +321,28 @@ original program and in Kof, comparing **observable outputs**.
   values** are covered at the program level by the exit-code channel (main
   has no return value in either language; per-function return-value faces
   belong to the decompiler's structured-shape ceiling — diamond-law decision,
-  outside this plan's autonomous scope); **DB mutations, protocols, side
-  effects** need external-system observation infrastructure (future slices,
-  each behind its own measurement); **JS/native trace formats** for the typed
+  outside this plan's autonomous scope); **DB mutations — LANDED 14/10,
+  Phase G slice 2 (lane nativa/GC `192.168.15.117:0`)**: MEASURED first — an
+  H2 FILE database run twice with the identical program produces DIFFERENT
+  `.mv.db` bytes (the store header carries creation), so the DB observable is
+  the QUERY DIGEST in stdout, not the store bytes; `captureFiles` excludes the
+  driver-internal stores (`.mv.db`/`.trace.db`/`.lock.db`, named reason —
+  without the exclusion equivalent DB programs compare files-divergent), and
+  `Compare.runLegacy`/`runKof` gained extra-classpath overloads (the SAME
+  provisioned JDBC driver on both sides — H2 via the zero-driver `DbDrivers`
+  seam). Proof (executed): `CompareTest` **15/15** — the migrated Kof idiom
+  (`db.connect`/`db.execute` with `?` binds/`db.query` → `json.decode<Row>`
+  digest) vs the legacy JDBC program over their own file DBs: SAME rows →
+  equivalent, ONE different row → divergent; full migration battery
+  **154/154**. The slice also caught + FIXED a compiler regression from the
+  #821 fix (`ec0dd0c1b`): the new inheritance-cycle walk fed
+  `cls.superClass()` into `simpleName` unguarded and EVERY class without an
+  explicit `extends` crashed COMP002 (internal error, measured RED by the
+  battery faces) — null-tolerant guard + the
+  `classWithoutExtendsStillCompiles` regression face (`CircularInheritanceTest`
+  **4/4**; the sealed/inheritance neighborhood 29/29);
+  **protocols, side effects** still need external-system observation
+  infrastructure (future slices, each behind its own measurement); **JS/native trace formats** for the typed
   channel are a future face.
 - **Divergence classification:** equivalent · divergent within scope
   · divergent outside scope · undefined behavior.

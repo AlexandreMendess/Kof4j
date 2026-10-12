@@ -145,6 +145,10 @@ public final class ClassShapeChecks {
     }
 
     static String simpleName(String qualified) {
+        // #821 follow-up: the cycle walk feeds `cls.superClass()` through here
+        // and a class WITHOUT an explicit extends has a null super — the raw
+        // replace crashed COMP002 (internal error) on every such class
+        if (qualified == null) return null;
         String q = qualified.replace('/', '.');
         int dot = q.lastIndexOf('.');
         return dot >= 0 ? q.substring(dot + 1) : q;

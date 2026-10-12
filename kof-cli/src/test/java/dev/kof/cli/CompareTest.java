@@ -115,6 +115,122 @@ class CompareTest extends CliJavacSupport {
     }
 
     @Test
+    void dbMutationsEquivalent(@TempDir Path dir) throws Exception {
+        // §8 Fase G DB-mutations face (MEASURED first: an H2 file DB run twice
+        // with the identical program produces DIFFERENT .mv.db bytes — the
+        // store is driver-internal; the DB observable is the query digest in
+        // stdout). The legacy JDBC program and the migrated Kof idiom insert
+        // the same rows into their OWN file DBs (separate sandboxes) and print
+        // the SAME digest; the H2 driver rides the SAME extra classpath on
+        // both sides.
+        String h2Jar = DbDrivers.ensureDriver("com.h2database:h2:2.5.250").get(0).toString();
+
+        Path javaFile = dir.resolve("DbLeg.java");
+        Files.writeString(javaFile, """
+                import java.sql.*;
+                public class DbLeg {
+                    public static void main(String[] args) throws Exception {
+                        Connection c = DriverManager.getConnection("jdbc:h2:file:./appdb", "sa", "");
+                        Statement s = c.createStatement();
+                        s.execute("create table t(id int, name varchar(20))");
+                        s.execute("insert into t values (1, 'alpha')");
+                        s.execute("insert into t values (2, 'beta')");
+                        s.execute("insert into t values (3, 'gamma')");
+                        ResultSet r = s.executeQuery("select id, name from t order by id");
+                        StringBuilder b = new StringBuilder();
+                        while (r.next()) b.append(r.getInt(1)).append('=').append(r.getString(2)).append(';');
+                        System.out.println(b);
+                    }
+                }
+                """);
+        javac(javaFile, dir);
+
+        Path kofFile = dir.resolve("DbKof.kf");
+        Files.writeString(kofFile, """
+                record Row(Int id, String name)
+
+                class DbKof {
+                    static void main(String[] arg0) {
+                        var db = db.connect("jdbc:h2:file:./appdb")
+                        db.execute(db, "create table t(id int, name varchar(20))")
+                        db.execute(db, "insert into t values (?, ?)", 1, "alpha")
+                        db.execute(db, "insert into t values (?, ?)", 2, "beta")
+                        db.execute(db, "insert into t values (?, ?)", 3, "gamma")
+                        var rows = db.query(db, "select id, name from t order by id")
+                        for (var r in rows) {
+                            var row = json.decode<Row>(r)
+                            print(row.id + "=" + row.name + ";")
+                        }
+                        println("")
+                    }
+                }
+                """);
+
+        Compare.RunResult legacy = Compare.runLegacy(dir.resolve("DbLeg.class"), List.of(), null, h2Jar);
+        Compare.RunResult kof = Compare.runKof(kofFile, "DbKof", List.of(), null, h2Jar);
+        assertEquals("1=alpha;2=beta;3=gamma;", legacy.stdout());
+        assertEquals("1=alpha;2=beta;3=gamma;", kof.stdout());
+        Compare.Verdict v = Compare.compare(legacy, kof);
+        assertTrue(v.equivalent(),
+                "same DB mutations must compare equivalent (digest observable, store bytes excluded): " + v);
+    }
+
+    @Test
+    void dbMutationsDivergentDetected(@TempDir Path dir) throws Exception {
+        // the migrated side inserts ONE different row: the digest observable
+        // must flip the verdict to divergent
+        String h2Jar = DbDrivers.ensureDriver("com.h2database:h2:2.5.250").get(0).toString();
+
+        Path javaFile = dir.resolve("DbLeg.java");
+        Files.writeString(javaFile, """
+                import java.sql.*;
+                public class DbLeg {
+                    public static void main(String[] args) throws Exception {
+                        Connection c = DriverManager.getConnection("jdbc:h2:file:./appdb", "sa", "");
+                        Statement s = c.createStatement();
+                        s.execute("create table t(id int, name varchar(20))");
+                        s.execute("insert into t values (1, 'alpha')");
+                        s.execute("insert into t values (2, 'beta')");
+                        s.execute("insert into t values (3, 'gamma')");
+                        ResultSet r = s.executeQuery("select id, name from t order by id");
+                        StringBuilder b = new StringBuilder();
+                        while (r.next()) b.append(r.getInt(1)).append('=').append(r.getString(2)).append(';');
+                        System.out.println(b);
+                    }
+                }
+                """);
+        javac(javaFile, dir);
+
+        Path kofFile = dir.resolve("DbKof.kf");
+        Files.writeString(kofFile, """
+                record Row(Int id, String name)
+
+                class DbKof {
+                    static void main(String[] arg0) {
+                        var db = db.connect("jdbc:h2:file:./appdb")
+                        db.execute(db, "create table t(id int, name varchar(20))")
+                        db.execute(db, "insert into t values (?, ?)", 1, "alpha")
+                        db.execute(db, "insert into t values (?, ?)", 2, "beta")
+                        db.execute(db, "insert into t values (?, ?)", 3, "GAMMA")
+                        var rows = db.query(db, "select id, name from t order by id")
+                        for (var r in rows) {
+                            var row = json.decode<Row>(r)
+                            print(row.id + "=" + row.name + ";")
+                        }
+                        println("")
+                    }
+                }
+                """);
+
+        Compare.RunResult legacy = Compare.runLegacy(dir.resolve("DbLeg.class"), List.of(), null, h2Jar);
+        Compare.RunResult kof = Compare.runKof(kofFile, "DbKof", List.of(), null, h2Jar);
+        assertNotEquals(legacy.stdout(), kof.stdout());
+        Compare.Verdict v = Compare.compare(legacy, kof);
+        assertEquals(Compare.Channel.DIVERGENT, v.stdout(), "a different DB mutation must diverge");
+        assertFalse(v.equivalent());
+    }
+
+    @Test
     void noThrowNoExceptionChannel() {
         // clean runs: the typed channel is equivalent (null == null)
         Compare.RunResult a = new Compare.RunResult(0, "ok\n", "", Map.of());

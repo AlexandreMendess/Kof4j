@@ -37,4 +37,15 @@ class CircularInheritanceTest extends SemanticResolutionSupport {
     void threeClassCycleRefused(@TempDir Path tmp) throws Exception {
         refuses(tmp, "class A extends B { }\nclass B extends C { }\nclass C extends A { }\n\nmain() { }");
     }
+
+    @Test
+    void classWithoutExtendsStillCompiles(@TempDir Path tmp) throws Exception {
+        // the walk feeds cls.superClass() into simpleName; a class WITHOUT an
+        // explicit extends has a null super — the raw replace crashed COMP002
+        // (internal error) on EVERY such class. Compiles clean now.
+        Path f = tmp.resolve("C821b.kf");
+        Files.writeString(f, "class Plain { }\n\nmain() { }");
+        CompilationResult r = driver.compile(f, tmp.resolve("out"), Target.JVM);
+        assertTrue(r.success(), "a class without extends must compile: " + r.diagnostics().getDiagnostics());
+    }
 }

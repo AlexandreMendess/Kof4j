@@ -322,9 +322,30 @@ programa original e no Kof, comparando **saídas observáveis**.
   G: **return values** são cobertos no nível de programa pelo canal de exit
   code (main não tem return value em nenhuma das linguagens; faces por função
   pertencem ao teto structured-shape do decompilador — decisão diamond-law,
-  fora do escopo autônomo deste plano); **DB mutations, protocolos, side
-  effects** precisam de infraestrutura de observação de sistemas externos
-  (fatias futuras, cada uma atrás da sua própria medição); **formatos de
+  fora do escopo autônomo deste plano); **DB mutations — ENTREGUE 14/10,
+  Fase G fatia 2 (lane nativa/GC `192.168.15.117:0`)**: MEDIDO primeiro — um
+  banco H2 em ARQUIVO executado duas vezes com o programa idêntico produz
+  bytes `.mv.db` DIFERENTES (o header do store carrega criação), então o
+  observável do DB é o DIGEST DE QUERY no stdout, não os bytes do store; o
+  `captureFiles` exclui os stores internos do driver
+  (`.mv.db`/`.trace.db`/`.lock.db`, razão nomeada — sem a exclusão programas
+  DB equivalentes comparam files-divergente), e `Compare.runLegacy`/`runKof`
+  ganham sobrecargas com classpath extra (o MESMO driver JDBC provisionado
+  dos dois lados — H2 via o seam zero-driver `DbDrivers`). Prova (executada):
+  `CompareTest` **15/15** — o idioma Kof migrado (`db.connect`/`db.execute`
+  com binds `?`/`db.query` → digest `json.decode<Row>`) vs o programa JDBC
+  legado sobre seus próprios bancos de arquivo: MESMAS rows → equivalente,
+  UMA row diferente → divergente; bateria completa de migração **154/154**. A
+  fatia também pegou + CORRIGIU uma regressão do compilador vinda do fix do
+  #821 (`ec0dd0c1b`): o novo walk de ciclo de herança alimentava
+  `cls.superClass()` no `simpleName` sem guarda null e TODA classe sem
+  `extends` explícito crashava COMP002 (erro interno, RED medido pelas faces
+  da bateria) — guarda null-tolerante + a face de regressão
+  `classWithoutExtendsStillCompiles` (`CircularInheritanceTest` **4/4**; a
+  vizinhança sealed/inheritance 29/29);
+  **protocolos, side effects** ainda precisam de infraestrutura de observação
+  de sistemas externos (fatias futuras, cada uma atrás da sua própria
+  medição); **formatos de
   trace JS/nativos** para o canal tipado são uma face futura.
 - **Classificação de divergência:** equivalente · divergente dentro do escopo
   · divergente fora do escopo · comportamento indefinido.

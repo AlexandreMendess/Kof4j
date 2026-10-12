@@ -4,6 +4,7 @@ import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.Target;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -171,6 +172,15 @@ public final class Compare {
     }
 
     static RunResult runLegacy(Path legacy, List<String> args, String stdin) throws IOException {
+        return runLegacy(legacy, args, stdin, null);
+    }
+
+    /**
+     * Fase G (§8): overloads com classpath extra — o driver JDBC provisionado
+     * (`DbDrivers`) para as faces de mutação de DB; os DOIS lados recebem o
+     * MESMO classpath para o vetor ser idêntico.
+     */
+    static RunResult runLegacy(Path legacy, List<String> args, String stdin, String extraCp) throws IOException {
         String file = legacy.getFileName().toString();
         Path sandbox = Files.createTempDirectory("kof-compare-legacy-");
         try {
@@ -179,7 +189,9 @@ public final class Compare {
             }
             if (file.endsWith(".class")) {
                 String className = file.substring(0, file.length() - ".class".length());
-                List<String> cmd = Paths.java("-cp", legacy.getParent().toString(), className);
+                String cp = extraCp == null ? legacy.getParent().toString()
+                        : legacy.getParent().toString() + File.pathSeparator + extraCp;
+                List<String> cmd = Paths.java("-cp", cp, className);
                 return exec(cmd, args, stdin, sandbox);
             }
             throw new IOException("legacy must be a .class or .jar file");
@@ -198,6 +210,11 @@ public final class Compare {
      * `Default.Main` do fluxo top-level. A sobrecarga nomeia a entrada.
      */
     static RunResult runKof(Path kofFile, String entryClass, List<String> args, String stdin) throws IOException {
+        return runKof(kofFile, entryClass, args, stdin, null);
+    }
+
+    static RunResult runKof(Path kofFile, String entryClass, List<String> args, String stdin,
+                            String extraCp) throws IOException {
         Path outDir = Files.createTempDirectory("kof-compare-");
         Path sandbox = Files.createTempDirectory("kof-compare-kof-");
         CompilerDriver driver = new CompilerDriver();
@@ -206,7 +223,9 @@ public final class Compare {
             throw new IOException("Kof compile failed: " + result.diagnostics().getDiagnostics());
         }
         try {
-            return exec(Paths.java("-cp", outDir.toString(), entryClass), args, stdin, sandbox);
+            String cp = extraCp == null ? outDir.toString()
+                    : outDir.toString() + File.pathSeparator + extraCp;
+            return exec(Paths.java("-cp", cp, entryClass), args, stdin, sandbox);
         } finally {
             cleanup(outDir);
             cleanup(sandbox);
@@ -240,7 +259,17 @@ public final class Compare {
     private static Map<String, String> captureFiles(Path dir) throws IOException {
         Map<String, String> files = new java.util.TreeMap<>();
         try (var s = Files.walk(dir)) {
-            for (Path p : s.filter(Files::isRegularFile).toList()) {
+            for (Path p : s.filter(Files::isRegularFile)
+                    // MEASURED 14/10: an H2 FILE database run twice with the
+                    // identical program produces DIFFERENT `.mv.db` bytes (the
+                    // store header carries creation) — the store is
+                    // driver-internal, not program output; the DB observable
+                    // is the query digest in stdout. Without the exclusion
+                    // equivalent DB programs compare files-divergent.
+                    .filter(p -> !p.getFileName().toString().endsWith(".mv.db")
+                            && !p.getFileName().toString().endsWith(".trace.db")
+                            && !p.getFileName().toString().endsWith(".lock.db"))
+                    .toList()) {
                 String rel = dir.relativize(p).toString().replace('\\', '/');
                 files.put(rel, sha256(Files.readAllBytes(p)));
             }
