@@ -1566,6 +1566,29 @@ agree), then frozen; `tests/run-golden.sh` **276/276** (69 cases × 4 targets), 
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
 
+**Phase 6 slice 45 LANDED (12/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **70 total** — pinning `String` concatenation of a collection, which had no
+golden coverage. The new case `tests/golden/collection-concat` pins `"L=" + listOf(1,2,3)`
+→ `L=[1, 2, 3]`, a `Set` → `[a, b]`, a `Map` → `{k=1}`, a nested list → `[[1], [2]]`, an
+EMPTY list → `[]`, the bare `"" + list` form, a record concat, and a mixed
+`"mix=" + l.size + "/" + s.size`. All 9 faces agree byte-for-byte on the four targets.
+**BUG FOUND + FIXED (Q0/Q4):** authoring the case surfaced **§685** — on the JS target the
+concat used the HOST's `Array.prototype.toString`/`[object Set]`/`[object Map]`
+(`L=1,2,3`) instead of the Kof container form: the `+` desugar boxes the operand to
+`Object` (the JVM `valueOf(Object)` signature) and the JS `valueOf` fell to a bare
+`String(x)`, its container branches never matching the erased `Object` type. FIXED the same
+commit by routing the erased-`Object` case through `kofFormat` (the Kof container
+formatter, identical to `String(x)` for scalars/String/records), with a RED-first test
+(`CollectionConcatJsE2ETest` **1/2 FAIL pre-fix** → **2 run / 0F** post-fix). A SEPARATE
+face — the DIRECT `String.valueOf(collection)` on the NATIVE target, whose box-to-Object
+path writes a raw pointer — was catalogued OPEN as **§686** and is deliberately NOT pinned.
+This is the FOURTH slice that carries a compiler fix. Proof (executed): every value measured
+on the Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree),
+then frozen; `tests/run-golden.sh` **280/280** (70 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:

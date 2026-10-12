@@ -1572,6 +1572,29 @@ byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado; `tests/run
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
 
+**Fase 6 fatia 45 POUSADA (12/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **70 no total** — pinando a concatenação de `String` de uma coleção, que não tinha
+cobertura golden. O novo caso `tests/golden/collection-concat` pina `"L=" + listOf(1,2,3)`
+→ `L=[1, 2, 3]`, um `Set` → `[a, b]`, um `Map` → `{k=1}`, uma lista aninhada → `[[1], [2]]`, uma
+lista VAZIA → `[]`, a forma crua `"" + list`, o concat de um record, e o misto
+`"mix=" + l.size + "/" + s.size`. As 9 faces concordam byte-a-byte nos quatro alvos.
+**BUG ACHADO + CORRIGIDO (Q0/Q4):** escrever o caso revelou o **§685** — no alvo JS o concat
+usava o `Array.prototype.toString`/`[object Set]`/`[object Map]` do HOST (`L=1,2,3`) em vez
+da forma de container do Kof: o desugar do `+` boxeia o operando para `Object` (a assinatura
+`valueOf(Object)` da JVM) e o `valueOf` do JS caía num `String(x)` cru, seus ramos de
+container nunca casando o tipo `Object` apagado. CORRIGIDO no mesmo commit roteando o caso
+apagado-`Object` por `kofFormat` (o formatador de container do Kof, idêntico ao `String(x)`
+para escalar/String/record), com um teste RED-first (`CollectionConcatJsE2ETest` **1/2 FALHAM
+pré-correção** → **2 rodados / 0F** pós-correção). Uma face SEPARADA — o
+`String.valueOf(coleção)` DIRETO no alvo NATIVO, cujo caminho de box-para-Object escreve um
+ponteiro cru — foi catalogada ABERTA como **§686** e é deliberadamente NÃO pinada. Esta é a
+QUARTA fatia que carrega um fix de compilador. Prova (executada): cada valor medido primeiro
+no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado;
+`tests/run-golden.sh` **280/280** (70 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile`
+rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:
