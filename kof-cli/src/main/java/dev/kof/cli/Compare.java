@@ -155,6 +155,15 @@ public final class Compare {
     }
 
     static RunResult runKof(Path kofFile, List<String> args, String stdin) throws IOException {
+        return runKof(kofFile, "Default.Main", args, stdin);
+    }
+
+    /**
+     * Fase H (§8.1): a migração gera classes com NOMES PRÓPRIOS (`class Hello`
+     * com um main estático) — a entrada compilada é `Default.Hello`, não o
+     * `Default.Main` do fluxo top-level. A sobrecarga nomeia a entrada.
+     */
+    static RunResult runKof(Path kofFile, String entryClass, List<String> args, String stdin) throws IOException {
         Path outDir = Files.createTempDirectory("kof-compare-");
         Path sandbox = Files.createTempDirectory("kof-compare-kof-");
         CompilerDriver driver = new CompilerDriver();
@@ -163,7 +172,7 @@ public final class Compare {
             throw new IOException("Kof compile failed: " + result.diagnostics().getDiagnostics());
         }
         try {
-            return exec(Paths.java("-cp", outDir.toString(), "Default.Main"), args, stdin, sandbox);
+            return exec(Paths.java("-cp", outDir.toString(), entryClass), args, stdin, sandbox);
         } finally {
             cleanup(outDir);
             cleanup(sandbox);
@@ -230,7 +239,7 @@ public final class Compare {
         return oneLine.length() > 60 ? oneLine.substring(0, 60) + "…" : oneLine;
     }
 
-    private static void cleanup(Path dir) {
+    static void cleanup(Path dir) {
         try (var s = Files.walk(dir)) {
             s.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
                 try { Files.deleteIfExists(p); } catch (IOException ignored) {}

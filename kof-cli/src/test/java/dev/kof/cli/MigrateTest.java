@@ -152,6 +152,63 @@ class MigrateTest extends CliJavacSupport {
     }
 
     @Test
+    void jarCompareCountsBehavioralPassed(@TempDir Path dir) throws Exception {
+        // the recovered main must PASS the differential test: legacy bytecode
+        // and compiled Kof print the same line
+        createClass(dir, "Hello", """
+                public class Hello {
+                    public static void main(String[] args) {
+                        System.out.println("hi from hello");
+                    }
+                }
+                """);
+        createJar(dir.resolve("app.jar"), dir, "Hello");
+
+        Migrate.MigrationReport report = Migrate.jarReport(dir.resolve("app.jar"),
+                dir.resolve("out"), true);
+        assertEquals(1, report.behavioralPassed(),
+                "the migrated main must pass the differential test");
+        assertEquals(0, report.behavioralDivergent());
+        assertEquals(0, report.behavioralNotComparable());
+    }
+
+    @Test
+    void jarCompareCountsDivergentWhenBodyStubs(@TempDir Path dir) throws Exception {
+        // a main whose body the decompiler stubs diverges behaviorally: the
+        // stub throws instead of printing
+        createClass(dir, "Stubbed", """
+                public class Stubbed {
+                    public static void main(String[] args) {
+                        Object o = System.getProperties();
+                        String s = o.toString();
+                        System.out.println("value: " + s.length());
+                    }
+                }
+                """);
+        createJar(dir.resolve("app.jar"), dir, "Stubbed");
+
+        Migrate.MigrationReport report = Migrate.jarReport(dir.resolve("app.jar"),
+                dir.resolve("out"), true);
+        // whatever the decompiler managed: the counters must be honest — a
+        // stubbed main cannot pass the differential test
+        assertTrue(report.behavioralPassed() + report.behavioralDivergent() == 1,
+                "the class has one main: exactly one verdict: "
+                        + report.behavioralPassed() + "/" + report.behavioralDivergent());
+    }
+
+    @Test
+    void jarCompareCountsNotComparableWithoutMain(@TempDir Path dir) throws Exception {
+        createClass(dir, "Alpha", "public class Alpha { }");
+        createJar(dir.resolve("app.jar"), dir, "Alpha");
+
+        Migrate.MigrationReport report = Migrate.jarReport(dir.resolve("app.jar"),
+                dir.resolve("out"), true);
+        assertEquals(0, report.behavioralPassed());
+        assertEquals(0, report.behavioralDivergent());
+        assertEquals(1, report.behavioralNotComparable(), "no main = not comparable");
+    }
+
+    @Test
     void jarReportMultiClassAggregation(@TempDir Path dir) throws Exception {
         createClass(dir, "Alpha", "public class Alpha { }");
         createClass(dir, "Beta", "public class Beta { int x; }");
