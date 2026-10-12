@@ -224,7 +224,13 @@ public final class JvmStringObsRuntime {
                     return java.util.UUID.randomUUID().toString();
                 }
 
+                // entity-history Fase 4a (D-ENTITY-HISTORY Q14): request-bound
+                // — dentro de um request web o id é ESTÁVEL (o dispatch já
+                // seta/limpa KOF_LOG_REQUEST_ID por request); fora de request
+                // (jobs/CLI) segue o UUID fresco por chamada.
                 public static String kof_observability_correlation_id() {
+                    String rid = KOF_LOG_REQUEST_ID.get();
+                    if (rid != null) return rid;
                     return kof_observability_request_id();
                 }
 
