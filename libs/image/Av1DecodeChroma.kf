@@ -1,6 +1,7 @@
 package image
 
 import image.Av1Block
+import image.Av1Cfl
 import image.Av1CoeffPlane
 import image.Av1IntraAvail
 import image.Av1IntraBlock
@@ -74,8 +75,9 @@ record Av1ChromaPlanes(Int[] u, Int strideU, Int wU, Int hU,
 // (`cfl_predict_*`), which is not composed yet, so it is refused BY NAME
 // instead of decoding a wrong prediction.
 void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
+                          Int[] luma, Int lumaStride,
                           Int bs, Int ssX, Int ssY, Int r, Int c,
-                          Int plane, Int uvMode, Int angleUV,
+                          Int plane, Int uvMode, Int angleUV, Int cflAlpha,
                           Int useFilterIntra, Int filterIntraMode,
                           Int bitDepth, Int intraEdgeFilterType, Bool edgeFilter,
                           Int dcQuant, Int acQuant, Int qIndex, Int reducedTxSet,
@@ -85,9 +87,6 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
                           Int[] above, Int[] left,
                           Int lumaFrameW, Int lumaFrameH,
                           List<Int[]> levelsOut, List<Int> txTypeOut) {
-    if (uvMode == 13) {
-        throw "IMAGE: CFL chroma prediction is not composed yet (slice 3ai)"
-    }
     var uvTx = av1GetMaxUvTxSize(bs, ssX, ssY)
     var uvBs = av1PlaneBlockSize(bs, ssX, ssY)
     var uw4 = av1BlockNum4x4Wide(uvBs)
@@ -107,6 +106,11 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
     var reduced = false
     if (reducedTxSet == 1) {
         reduced = true
+    }
+    // `get_uv_mode(UV_CFL_PRED) == DC_PRED`; every other UV mode is itself.
+    var baseMode = uvMode
+    if (uvMode == 13) {
+        baseMode = 0
     }
     var i = 0
     while (i < uh4) {
@@ -143,10 +147,26 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
             var haveBelowLeft = avail[1]
 
             // 4. Prediction with the UV mode, then dequantize + inverse + recon.
+            //    For CFL (`uv_mode == UV_CFL_PRED`) libaom's base mode is DC_PRED
+            //    (`get_uv_mode(UV_CFL_PRED) == DC_PRED`) and the DC prediction is
+            //    then MODULATED by the reconstructed luma: `cfl_store_tx` +
+            //    `subtract_average` give the AC contribution, and
+            //    `cfl_predict_lbd_c` adds `ROUND_POWER_OF_TWO_SIGNED(alpha*ac, 6)`
+            //    and clips. The CFL window is the whole chroma PLANE block (libaom
+            //    asserts a single chroma transform block for a non-lossless block),
+            //    so the AC is taken over the transform size starting where the
+            //    block's chroma origin maps into the luma plane.
             var pred = av1IntraPredictBlock(frame, stride, x + 1, y + 1, w, h,
                     maxX, maxY, haveLeft, haveTop, haveAboveRight, haveBelowLeft,
-                    uvMode, angleUV, useFilterIntra, filterIntraMode,
+                    baseMode, angleUV, useFilterIntra, filterIntraMode,
                     bitDepth, intraEdgeFilterType, edgeFilter)
+            if (uvMode == 13) {
+                var ac = av1CflAcFromLuma(luma, lumaStride,
+                        uvc << (2 + ssX), uvr << (2 + ssY),
+                        w, h, ssX, ssY,
+                        av1TxWidthLog2(uvTx) + av1TxHeightLog2(uvTx))
+                pred = av1CflPredict(pred, ac, cflAlpha, w, h, bitDepth)
+            }
             av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, uvTx,
                     txType, bitDepth, false, dcQuant, acQuant)
 
@@ -159,7 +179,9 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
 // Decodes BOTH chroma planes of one mode-info block, U then V, in libaom's
 // `for (plane = 0; plane < num_planes; ++plane)` order.
 void av1DecodeChromaBlock(Av1ChromaPlanes chroma, Int bs, Int ssX, Int ssY,
+                          Int[] luma, Int lumaStride,
                           Int r, Int c, Int uvMode, Int angleUV,
+                          Int cflAlphaU, Int cflAlphaV,
                           Int useFilterIntra, Int filterIntraMode,
                           Int bitDepth, Int intraEdgeFilterType, Bool edgeFilter,
                           Int dcQuant, Int acQuant, Int qIndex, Int reducedTxSet,
@@ -170,14 +192,16 @@ void av1DecodeChromaBlock(Av1ChromaPlanes chroma, Int bs, Int ssX, Int ssY,
                           List<Int[]> levelsUOut, List<Int[]> levelsVOut,
                           List<Int> txTypeUOut, List<Int> txTypeVOut) {
     av1DecodeChromaPlane(chroma.u, chroma.strideU, chroma.wU, chroma.hU,
-            bs, ssX, ssY, r, c, 1, uvMode, angleUV, useFilterIntra,
+            luma, lumaStride, bs, ssX, ssY, r, c, 1, uvMode, angleUV, cflAlphaU,
+            useFilterIntra,
             filterIntraMode, bitDepth, intraEdgeFilterType, edgeFilter,
             dcQuant, acQuant, qIndex, reducedTxSet, lossless,
             reader, store, txTypeStore, txTypes, txTypeStride,
             chroma.aboveU, chroma.leftU, lumaFrameW, lumaFrameH,
             levelsUOut, txTypeUOut)
     av1DecodeChromaPlane(chroma.v, chroma.strideV, chroma.wV, chroma.hV,
-            bs, ssX, ssY, r, c, 2, uvMode, angleUV, useFilterIntra,
+            luma, lumaStride, bs, ssX, ssY, r, c, 2, uvMode, angleUV, cflAlphaV,
+            useFilterIntra,
             filterIntraMode, bitDepth, intraEdgeFilterType, edgeFilter,
             dcQuant, acQuant, qIndex, reducedTxSet, lossless,
             reader, store, txTypeStore, txTypes, txTypeStride,

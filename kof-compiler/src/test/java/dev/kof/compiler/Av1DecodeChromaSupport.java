@@ -54,7 +54,7 @@ final class Av1DecodeChromaSupport {
 
     /** Expected SHA-256 of the decoded golden text, to catch a stale resource. */
     static final String GOLDEN_SHA256 =
-        "85c6d6951dd308cc7f6a4bef35a55707506668eee5c8bc86f487024b070ea712";
+        "af1ead88419fe16cde4cbe6a03e931590f12021e585a4b91bb3e77b11e016cc4";
 
     /** One case: {@code mw}/{@code mh} are the LUMA mi (4x4) extents. */
     record Case(int ci, int bd, int lossless, int txMode, int nblk, int mw, int mh) {}

@@ -244,7 +244,8 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
         // `av1_num_planes(cm)`: a luma-only stream has no chroma symbols to
         // consume, so the chroma walk runs only for a multi-plane frame.
         if (numPlanes > 1 && hasChroma == 1) {
-            av1DecodeChromaBlock(chroma, bs, ssX, ssY, r, c, body[2], body[3],
+            av1DecodeChromaBlock(chroma, bs, ssX, ssY, frame, stride,
+                    r, c, body[2], body[3], body[4], body[5],
                     useFilterIntra, filterIntraMode, bitDepth,
                     intraEdgeFilterType, edgeFilter, dcQuant, acQuant, qIndex,
                     reducedTxSet, lossless, reader, store, txTypeStore, txTypes,

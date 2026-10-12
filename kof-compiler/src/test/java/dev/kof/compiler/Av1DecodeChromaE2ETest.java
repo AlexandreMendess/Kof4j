@@ -46,8 +46,8 @@ class Av1DecodeChromaE2ETest implements LibraryInstallSupport {
     @Test
     void chromaGoldenIsPinned() {
         assertTrue(golden().startsWith("C 0 "), "golden must be the chroma oracle dump");
-        assertEquals(4, dev.kof.compiler.Av1DecodeChromaSupport.allCaseIndices().size(),
-                "four oracle cases (the fourth is the multi-block one)");
+        assertEquals(5, dev.kof.compiler.Av1DecodeChromaSupport.allCaseIndices().size(),
+                "five oracle cases (the multi-block one and the CFL one)");
     }
 
     @Test
