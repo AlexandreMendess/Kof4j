@@ -127,12 +127,11 @@ For `+ - * / %` with two numerics: `double` dominates, else `float`, else
   - **`5 as String` does NOT parse a number**: it emits `checkcast String` over
     a boxed `Integer` → fails at runtime (*probe*). String↔number is only via
     `toInt()/toLong()/toDouble()/toFloat()` (methods of `string`).
-  - **`as T?`** — the nullable spelling — is **decided to be the always-null
-    soft cast** (`D-SEM-REJECTS-1210`, `§678`): a failing reference cast yields
-    `null`; the plain `as` form throws. **This decision is NOT yet implemented**
-    (`§678` open): today the three value-typed backends (Script/native/JS) return
-    the object unchecked on BOTH spellings and the JVM emits a bare `CHECKCAST`
-    on the nullable one — a measured divergence, not the contract.
+  - **`as T?`** — the nullable spelling — is the **always-null soft cast**
+    (`D-SEM-REJECTS-1210`, `§678`): a failing reference cast yields `null`; the
+    plain `as` form throws. Implemented on **JVM, Script and JS** (LANDED 12–13/10);
+    the **Native** face is still pending (`§678` PARTIAL — native returns the
+    object unchecked on both spellings until the native lane lands its check).
 - **`x instanceof T`** → `bool` (`SemExpressionTyper`, case `instanceof`). `o instanceof String` (*probe* ✅).
   - **`instanceof` over a PRIMITIVE target is REFUSED (`SEM106`)** — the target
     must be a class/record/String reference. `o instanceof Int` (a boxed
