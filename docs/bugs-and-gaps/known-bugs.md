@@ -18184,7 +18184,7 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 <!-- pt-switch --> **PT:** [§673 (pt_BR)](known-bugs.pt_BR.md#673--auditoria-jvm-03-uma-expressao-ifswitch-cujos-ramos-sao-lambdas-da-mesma-assinatura-fazia-o-join-cair-em-object-os-classnames-concretos-lambda0lambda1-diferem-entao-o-call-site-emitia-um-invokestatic--iljavalangobject-fantasma--verifyerror-no-jvm---corrigido-1110-lane-compiladorjvmnativo-19216815309092)
 
-## §674 — the AV1 intra tile driver never reads `tx_type`, which libaom signals for every non-skipped intra transform block of size <= 16x16 — the slice-3ag golden only covers 32x32 (set `DCTONLY`, no symbol), so the gap is invisible there — 🟡 OPEN (measured 12/10, lane pipeline/image-vision 192.168.15.21:0)
+## §679 — the AV1 intra tile driver never reads `tx_type`, which libaom signals for every non-skipped intra transform block of size <= 16x16 — the slice-3ag golden only covers 32x32 (set `DCTONLY`, no symbol), so the gap is invisible there — 🟡 OPEN (measured 12/10, lane pipeline/image-vision 192.168.15.21:0)
 
 **Symptom (measured 12/10):** a 16x16 transform block decodes with the wrong coefficients: the Kof driver `av1DecodeTileRecon` (`libs/image/Av1DecodeTileRecon.kf`) passes a hardcoded `txType = 0` (DCT_DCT) to `av1DecodeCoeffsBlockEdge` (`libs/image/Av1CoeffPlane.kf`), so it never consumes the `tx_type` symbol libaom writes before the coefficient payload, and the entropy stream desynchronises at the next symbol.
 

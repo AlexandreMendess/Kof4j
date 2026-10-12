@@ -15680,7 +15680,7 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 <!-- en-switch --> **EN:** [§673 (en)](known-bugs.md#673--audit-jvm-03-an-ifswitch-expression-whose-branches-are-lambdas-of-the-same-signature-joined-to-object-the-concrete-lambda0lambda1-classnames-differ-so-the-call-site-emitted-a-phantom-invokestatic--iljavalangobject--jvm-verifyerror---fixed-1110-lane-compilerjvmnative-19216815309092)
 
-## §674 — o driver de tile intra AV1 nunca lê `tx_type`, que o libaom sinaliza para todo bloco de transformada intra não-skip de tamanho <= 16x16 — o golden da fatia 3ag só cobre 32x32 (conjunto `DCTONLY`, sem símbolo), então o gap é invisível lá — 🟡 ABERTO (medido 12/10, lane pipeline/image-vision 192.168.15.21:0)
+## §679 — o driver de tile intra AV1 nunca lê `tx_type`, que o libaom sinaliza para todo bloco de transformada intra não-skip de tamanho <= 16x16 — o golden da fatia 3ag só cobre 32x32 (conjunto `DCTONLY`, sem símbolo), então o gap é invisível lá — 🟡 ABERTO (medido 12/10, lane pipeline/image-vision 192.168.15.21:0)
 
 **Sintoma (medido 12/10):** um bloco de transformada 16x16 decodifica com coeficientes errados: o driver Kof `av1DecodeTileRecon` (`libs/image/Av1DecodeTileRecon.kf`) passa um `txType = 0` (DCT_DCT) fixo para `av1DecodeCoeffsBlockEdge` (`libs/image/Av1CoeffPlane.kf`), então nunca consome o símbolo `tx_type` que o libaom escreve antes do payload de coeficientes, e o fluxo de entropia dessincroniza no símbolo seguinte.
 
