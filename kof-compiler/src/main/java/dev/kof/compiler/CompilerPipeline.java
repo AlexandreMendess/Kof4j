@@ -535,6 +535,8 @@ public final class CompilerPipeline {
         if (merged == null) return null;
         merged = CompilerPagination.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
+        merged = CompilerOrmHistory.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
         merged = CompilerPairs.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
         merged = CompilerTesting.injectHostIfNeeded(driver, merged, diagnostics);

@@ -1083,7 +1083,7 @@ rule 6).
 |---|------|------------------|--------|
 | 2.9.1 | **`audited entity` front-end** | the `AUDITED` token + Portukof pair `auditado` (gated to ENTITY declarations); parse-only, zero behavior change | ✅ **LANDED 11/10** (`AuditedEntityParseE2ETest` 3/3; ORM battery 138/0F) |
 | 2.9.2 | **Recording** | `orm.createHistory<T>(db)` (the explicit §10 step) + `kof_orm_save_recorded`/`kof_orm_delete_recorded` (per-entity revision, snapshot payload; plain entities zero-overhead; HIST002 on plain createHistory; history faces JVM/ANDROID) | ✅ **LANDED 11/10** (`EntityHistoryRecordingE2ETest` 3/3; ORM battery 168/0F) |
-| 2.9.3 | **Historical queries** | `history`/`at`/`atTime`/`changes` + pagination, E2E goldens | OPEN |
+| 2.9.3 | **Historical queries** | `history`/`at`/`atTime`/`changes` + pagination, E2E goldens — parte-1 LANDED 11/10: the `kof.orm.history` virtual package (`Revision`/`FieldChange` injected on `import kof.orm.history`; `OrmHistoryHostPackageTest` 3/3); the query runtime + entity-static resolution OPEN (parte-2), `at`/`atTime`/`changes` OPEN (2d) | OPEN (parte-2/2d) |
 | 2.9.4 | **Context** | real actor resolution + request-bound correlation id | OPEN (depends on the observability fix) |
 | 2.9.5 | **Native backend** | the same contract in the native ORM runtime | OPEN |
 | 2.9.6 | **Advanced** | retention/archival, typed accessors, field exclusion, tamper-evidence — each with its own decision | OPEN |E-VARIANCE/INTEROP-REFLECT)**; **CONCLUDED + MOVED to `docs/` 22/09** (all slices X5.0–X5.5, X6.0–X6.3 landed with proof).

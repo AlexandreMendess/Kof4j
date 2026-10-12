@@ -1,0 +1,13 @@
+// Pacote virtual kof.orm.history (entity-history, D-ENTITY-HISTORY 28/09).
+//
+// records Revision/FieldChange escritos EM KOF (D-KOF-FIRST item 12):
+// o compilador injeta FLAT no `import kof.orm.history` EXPLICITO — mesmo
+// mecanismo de kof.pagination/kof.supervisor/kof.workflow. Nenhum runtime
+// por backend aqui: sao os tipos de retorno travados da superficie de
+// consulta (plano §9.2 — `User.history(db, id)` etc.). `actor`/
+// `correlationId` chegam com a Fase 4 (contexto); os valores de
+// FieldChange sao strings portaveis (§9.2 — fragmentos JSON canônicos).
+
+record Revision(Long revision, Long at, String operation)
+
+record FieldChange(Long revision, String field, String? previous, String? current)
