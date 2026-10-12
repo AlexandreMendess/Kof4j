@@ -18280,6 +18280,42 @@ So every intra transform block of size <= 16x16 in a real AV1 bitstream carries 
 
 **Boundary:** `Av1DecodeTileTxTypeE2ETest` **7/7** (its golden is single-block by design, see the test's doc) and `Av1DecodeTileReconE2ETest` **7/7** still pass; the gap only shows on a multi-block <= 16x16 plane, which no landed golden covers. `decodeRaster` AVIF still refuses until the chain closes. Owner lane pipeline/image-vision `192.168.15.21:0` (flatt CLI, no opencode server on this host; port n/a per the never-invent rule).
 
+## §682 — the AV1 CHROMA coefficient entropy context is wrong: `av1TxbCtx` derives the chroma `txb_skip_ctx` from `above[k] != 0` / `left[k] != 0` per-unit booleans, but libaom's `get_entropy_context` ORs the raw context BYTES over the tx block's whole width/height first and only then tests non-zero — the driver and the oracle disagree on every chroma block whose neighbour carries a nonzero packed context — 🟡 OPEN (measured 12/10, lane pipeline/image-vision 192.168.15.21:0)
+
+**Symptom (measured 12/10):** wiring the chroma planes into the tile driver (`libs/image/Av1DecodeTileRecon.kf` calling a new `av1DecodeChromaBlock`) desynchronises the entropy stream on any chroma block whose above/left neighbour holds a nonzero packed context: the block decodes as `all_zero` (or with the wrong levels) and every later read — including the NEXT mode-info block's `tx_size` and modes — is garbage. Single-block planes pass; multi-block planes diverge at the second block.
+
+**Root (read from the pinned libaom `d53e6d0b14568ddbd36ad7354bfb9a59a127346e`):** for `plane > 0` libaom's `get_txb_ctx_general` (`av1/common/txb_common.h`) computes the chroma skip context as
+```
+const int ctx_base = get_entropy_context(tx_size, a, l);
+const int ctx_offset = (num_pels_log2_lookup[plane_bsize] >
+                        num_pels_log2_lookup[txsize_to_bsize[tx_size]]) ? 10 : 7;
+txb_ctx->txb_skip_ctx = ctx_base + ctx_offset;
+```
+where `get_entropy_context` (`av1/common/entropy.h`) ORs the raw `ENTROPY_CONTEXT` values over the transform block's WHOLE width/height first:
+```
+case TX_16X16:
+  above_ec = !!*(const uint32_t *)a;   // ORs the first FOUR int16 contexts
+  left_ec  = !!*(const uint32_t *)l;
+  break;
+...
+return combine_entropy_contexts(above_ec, left_ec);   // (a != 0) + (b != 0)
+```
+Kof's `av1TxbCtx` (`libs/image/Av1CoeffCtx.kf`) instead builds a boolean per unit and then folds them into `av1AllZeroCtxUV`:
+```
+var aboveEc = 0
+while (k < txbWUnit) { if (above[k] != 0) { aboveEc = 1 } k = k + 1 }
+...
+skipCtx = av1AllZeroCtxUV(aboveEc == 1, leftEc == 1, bigger)   // ctx = 7 + above + left + 3*bigger
+```
+Two independent divergences:
+1. **The values differ.** libaom's `ctx_base + ctx_offset` is 7/8/9 (small tx) or 10/11/12 (tx smaller than the plane block); Kof's `av1AllZeroCtxUV` yields 7/8/9/10/11/12 from a DIFFERENT formula (`7 + above + left + 3*bigger`, where `bigger` is derived from `NumPelsLog2` comparisons, not the `ctx_offset` branch). On the measured case (chroma `plane_bsize = BLOCK_16X16`, `tx_size = TX_16X16`) libaom gives `ctx_base + 7` = 7..9 while Kof gives `7 + above + left` — they agree only when `bigger` is false AND the boolean fold matches, which is exactly the case that hid the defect in the single-block golden.
+2. **The OR width differs.** `get_entropy_context` reads the contexts as packed multi-byte words (`uint32_t` for `TX_16X16`, `uint64_t` for `TX_32X32`, etc.), so a nonzero byte ANYWHERE in the tx block's above span sets `above_ec`. Kof's per-unit loop tests each unit's own value, which is equivalent for the boolean OR — but the branch selection (`ctx_offset` vs `bigger`) is not equivalent, and that is the divergence.
+
+**Why the slice-3ah-adjacent golden did not catch it:** the chroma golden that reproduced the bug was built with SINGLE-BLOCK cases, where the above/left contexts are all zero, so `aboveEc == 0`, `leftEc == 0`, `bigger == false` and both formulas collapse to 7. The first MULTI-block case exposed it immediately (the second block's chroma context is nonzero).
+
+**Fix (not landed — the attempted composition was REVERTED):** `av1TxbCtx`'s chroma branch must mirror `get_entropy_context` exactly: OR the packed context values over `tx_size_wide_unit`/`tx_size_high_unit` units, then apply `combine_entropy_contexts` (`(a != 0) + (b != 0)`), then add `ctx_offset` = 10 when `av1BlockNumPelsLog2(planeBsize) > av1BlockNumPelsLog2(av1TxSizeToBsize(txSz))` else 7 — replacing the `av1AllZeroCtxUV` call. The chroma tile composition (`Av1DecodeChroma.kf` + the driver's chroma call + the chroma probe/golden) is held back with it: shipping the composition over a wrong context would desynchronise real bitstreams, and the oracle cannot yet produce a verified multi-block chroma golden until the context is right. Reverted cleanly — `git status` is empty and `Av1DecodeTileReconE2ETest` 7/7, `Av1DecodeTileTxTypeE2ETest` 7/7, `Av1UvTxSizeE2ETest` 8/8 all still pass.
+
+**Boundary:** the LUMA path is unaffected (`plane == 0` takes the `kTxbCtxSkipContexts[top][left]` branch, which is implemented and verified). `decodeRaster` AVIF still refuses until the chain closes. Owner lane pipeline/image-vision `192.168.15.21:0` (flatt CLI, no opencode server on this host; port n/a per the never-invent rule).
 ## §681 — `random.hex(n)` with `n <= 0` did NOT return the contract's `null` on native x86-64: the bare `jmp kof_sec_random_hex` skipped the guard, so `n = 0` allocated the header and the hex loop scanned DOWN the whole address space writing garbage (~2 GiB) before faulting — ✅ FIXED 12/10 (lane compiler/JVM/native `192.168.15.30:9092`)
 
 **Symptom (measured 12/10, tip `f7cb457ea`):** with the `random.hex(n)` face, `n <= 0` must be `null` (the `random` namespace's lenient contract, same as `random.randomInt(b<=0)` → `0` and `random.randomString(n<=0, …)` → `""`). Measured: `random.hex(0)` → **native x86-64 writes ~2 GiB of binary garbage to stdout (exit 0, no diagnostic)** while JVM/Script/JS → `null`; `random.hex(-1)` and `random.hex(-100)` behave identically. The positive faces are correct on every target (`random.hex(4).length` → `8`, `random.hex(1).length` → `2`, `random.hex(16).length` → `32`).

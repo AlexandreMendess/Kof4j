@@ -15776,6 +15776,42 @@ Ou seja, todo bloco de transformada intra de tamanho <= 16x16 num bitstream AV1 
 
 **Fronteira:** `Av1DecodeTileTxTypeE2ETest` **7/7** (o golden dele é de um só bloco por desenho, ver o doc do teste) e `Av1DecodeTileReconE2ETest` **7/7** seguem passando; o gap só aparece num plano multi-bloco <= 16x16, que nenhum golden pousado cobre. `decodeRaster` AVIF segue recusado até a cadeia fechar. Dona lane pipeline/image-vision `192.168.15.21:0` (flatt CLI, sem servidor opencode neste host; porta n/a conforme a regra de nunca-inventar).
 
+## §682 — o contexto de entropia de COEFICIENTE de CROMA do AV1 está errado: o `av1TxbCtx` deriva o `txb_skip_ctx` de croma de booleanos por unidade (`above[k] != 0` / `left[k] != 0`), mas o `get_entropy_context` do libaom faz OR dos BYTES de contexto crus sobre toda a largura/altura do bloco de transformada primeiro e só então testa não-zero — o driver e o oráculo discordam em todo bloco de croma cujo vizinho carrega um contexto empacotado não-zero — 🟡 ABERTO (medido 12/10, lane pipeline/image-vision 192.168.15.21:0)
+
+**Sintoma (medido 12/10):** ligar os planos de croma no driver de tile (`libs/image/Av1DecodeTileRecon.kf` chamando um novo `av1DecodeChromaBlock`) dessincroniza o fluxo de entropia em qualquer bloco de croma cujo vizinho above/left carrega um contexto empacotado não-zero: o bloco decodifica como `all_zero` (ou com níveis errados) e toda leitura seguinte — incluindo o `tx_size` e os modos do PRÓXIMO bloco de mode-info — vira lixo. Planos de um só bloco passam; planos multi-bloco divergem no segundo bloco.
+
+**Raiz (lida do libaom pinado `d53e6d0b14568ddbd36ad7354bfb9a59a127346e`):** para `plane > 0` o `get_txb_ctx_general` do libaom (`av1/common/txb_common.h`) calcula o contexto de skip de croma como
+```
+const int ctx_base = get_entropy_context(tx_size, a, l);
+const int ctx_offset = (num_pels_log2_lookup[plane_bsize] >
+                        num_pels_log2_lookup[txsize_to_bsize[tx_size]]) ? 10 : 7;
+txb_ctx->txb_skip_ctx = ctx_base + ctx_offset;
+```
+onde `get_entropy_context` (`av1/common/entropy.h`) faz OR dos valores `ENTROPY_CONTEXT` crus sobre TODA a largura/altura do bloco de transformada primeiro:
+```
+case TX_16X16:
+  above_ec = !!*(const uint32_t *)a;   // OR dos primeiros QUATRO contextos int16
+  left_ec  = !!*(const uint32_t *)l;
+  break;
+...
+return combine_entropy_contexts(above_ec, left_ec);   // (a != 0) + (b != 0)
+```
+O `av1TxbCtx` do Kof (`libs/image/Av1CoeffCtx.kf`) em vez disso monta um booleano por unidade e depois os dobra em `av1AllZeroCtxUV`:
+```
+var aboveEc = 0
+while (k < txbWUnit) { if (above[k] != 0) { aboveEc = 1 } k = k + 1 }
+...
+skipCtx = av1AllZeroCtxUV(aboveEc == 1, leftEc == 1, bigger)   // ctx = 7 + above + left + 3*bigger
+```
+Duas divergências independentes:
+1. **Os valores diferem.** O `ctx_base + ctx_offset` do libaom é 7/8/9 (tx pequeno) ou 10/11/12 (tx menor que o bloco do plano); o `av1AllZeroCtxUV` do Kof dá 7/8/9/10/11/12 por uma fórmula DIFERENTE (`7 + above + left + 3*bigger`, onde `bigger` vem de comparações de `NumPelsLog2`, não do ramo `ctx_offset`). No caso medido (`plane_bsize = BLOCK_16X16`, `tx_size = TX_16X16`) o libaom dá `ctx_base + 7` = 7..9 enquanto o Kof dá `7 + above + left` — eles concordam só quando `bigger` é falso E a dobra booleana casa, que é exatamente o caso que escondeu o defeito no golden de um só bloco.
+2. **A largura do OR difere.** O `get_entropy_context` lê os contextos como palavras empacotadas multi-byte (`uint32_t` para `TX_16X16`, `uint64_t` para `TX_32X32`, etc.), então um byte não-zero em QUALQUER lugar do vão above do bloco de transformada liga `above_ec`. O laço por unidade do Kof testa o valor de cada unidade, o que é equivalente para o OR booleano — mas a seleção de ramo (`ctx_offset` vs `bigger`) não é equivalente, e é aí que está a divergência.
+
+**Por que o golden adjacente à fatia 3ah não pegou:** o golden de croma que reproduziu o bug foi construído com casos de UM só bloco, onde os contextos above/left são todos zero, então `aboveEc == 0`, `leftEc == 0`, `bigger == false` e as duas fórmulas colapsam em 7. O primeiro caso MULTI-bloco o expôs imediatamente (o contexto de croma do segundo bloco é não-zero).
+
+**Correção (não pousada — a composição tentada foi REVERTIDA):** o ramo de croma do `av1TxbCtx` precisa espelhar o `get_entropy_context` exatamente: fazer OR dos valores de contexto empacotados sobre `tx_size_wide_unit`/`tx_size_high_unit` unidades, depois aplicar `combine_entropy_contexts` (`(a != 0) + (b != 0)`), depois somar `ctx_offset` = 10 quando `av1BlockNumPelsLog2(planeBsize) > av1BlockNumPelsLog2(av1TxSizeToBsize(txSz))` senão 7 — substituindo a chamada a `av1AllZeroCtxUV`. A composição de croma no tile (`Av1DecodeChroma.kf` + a chamada de croma no driver + a sonda/golden de croma) fica segurada com ela: pousar a composição sobre um contexto errado dessincronizaria bitstreams reais, e o oráculo ainda não consegue produzir um golden de croma multi-bloco verificado enquanto o contexto estiver errado. Revertida limpo — `git status` está vazio e `Av1DecodeTileReconE2ETest` 7/7, `Av1DecodeTileTxTypeE2ETest` 7/7, `Av1UvTxSizeE2ETest` 8/8 seguem passando.
+
+**Fronteira:** o caminho de LUMA não é afetado (`plane == 0` toma o ramo `kTxbCtxSkipContexts[top][left]`, que está implementado e verificado). `decodeRaster` AVIF segue recusado até a cadeia fechar. Dona lane pipeline/image-vision `192.168.15.21:0` (flatt CLI, sem servidor opencode neste host; porta n/a conforme a regra de nunca-inventar).
 ## §681 — o `random.hex(n)` com `n <= 0` NÃO devolvia o `null` do contrato no nativo x86-64: o `jmp kof_sec_random_hex` cru pulava o guard, então `n = 0` alocava o cabeçalho e o loop de hex varria o espaço de endereços INTEIRO para baixo escrevendo lixo (~2 GiB) antes de falhar — ✅ CORRIGIDO 12/10 (lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Sintoma (medido 12/10, tip `f7cb457ea`):** na face `random.hex(n)`, `n <= 0` deve ser `null` (o contrato leniente do namespace `random`, igual a `random.randomInt(b<=0)` → `0` e `random.randomString(n<=0, …)` → `""`). Medido: `random.hex(0)` → **o nativo x86-64 escreve ~2 GiB de lixo binário no stdout (exit 0, sem diagnóstico)** enquanto JVM/Script/JS → `null`; `random.hex(-1)` e `random.hex(-100)` se comportam igual. As faces positivas estão corretas em todo alvo (`random.hex(4).length` → `8`, `random.hex(1).length` → `2`, `random.hex(16).length` → `32`).
