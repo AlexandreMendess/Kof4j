@@ -362,9 +362,9 @@
 
 # Changelog
 
-last: 0.5.0-beta
-doing: 0.5.0-release-prep
-next: 0.5.0-cut
+last: 0.6.1-cut
+doing: 0.6.1-released
+next: 0.7.0-cut
 location: CHANGELOG
 state: active
 constraint: pr619-maintainer-only
