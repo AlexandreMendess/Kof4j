@@ -283,7 +283,27 @@ public final class JvmOpEmitter {
                 c.mv().visitVarInsn(ASTORE, kcs.localIndex());
             }
             case KofCheckCast cc -> {
-                c.mv().visitTypeInsn(CHECKCAST, castTargetName(cc.type()));
+                // §678 / D-SEM-REJECTS-1210 (mantenedora 12/10): `as T?` = o
+                // soft cast SEMPRE-NULL — o CHECKCAST cru estourava no falho
+                // (a face JVM da divergência §678). O padrão condicional:
+                // null/não-instância → null; instância → o valor (CHECKCAST
+                // passa). O alvo NÃO-nulo segue cru (estoura = o decidido).
+                if (cc.type() instanceof Type.NullableType nt
+                        && nt.inner() instanceof Type.ClassType) {
+                    Label soft = new Label();
+                    Label end = new Label();
+                    c.mv().visitInsn(DUP);
+                    c.mv().visitTypeInsn(INSTANCEOF, castTargetName(nt.inner()));
+                    c.mv().visitJumpInsn(IFEQ, soft);
+                    c.mv().visitTypeInsn(CHECKCAST, castTargetName(nt.inner()));
+                    c.mv().visitJumpInsn(GOTO, end);
+                    c.mv().visitLabel(soft);
+                    c.mv().visitInsn(POP);
+                    c.mv().visitInsn(ACONST_NULL);
+                    c.mv().visitLabel(end);
+                } else {
+                    c.mv().visitTypeInsn(CHECKCAST, castTargetName(cc.type()));
+                }
             }
             case KofInstanceOf io -> {
                 c.mv().visitTypeInsn(INSTANCEOF, castTargetName(io.type()));

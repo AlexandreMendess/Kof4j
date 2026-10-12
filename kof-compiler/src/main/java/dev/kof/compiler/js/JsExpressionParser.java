@@ -285,9 +285,45 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
                 JsIr.JsExpression array = pop(stack);
                 stack.add(new JsIr.JsMember(array, "length"));
             }
-            case KofCheckCast _ -> {
-                // JavaScript has no runtime casts; Kof semantics are enforced by
-                // the type checker at compile time.
+            case KofCheckCast cc -> {
+                // §678 / D-SEM-REJECTS-1210: o falho NÃO é mais no-op (o soft
+                // era a divergência §678). Alvo NÃO-nulo: null passa; não-
+                // instância ESTOURA (kofCastFail — o decidido). Alvo nullable
+                // (`as T?`): a grafia sempre-null. As faces de classe seguem
+                // o padrão inline do KofInstanceOf (a dupla-avaliação do
+                // operando é a limitação pré-existente da casa aqui).
+                JsIr.JsExpression operand = pop(stack);
+                // O check estrito só vale para CLASSES DE USUÁRIO geradas no
+                // módulo (a face decidida `a as Dog` — o binding existe);
+                // String = a face typeof (o espelho do KofInstanceOf);
+                // builtin/externos/genéricos passam (o checador de compilação
+                // governa — o instanceOf do módulo nem tem o binding).
+                String internal = cc.type() instanceof Type.NullableType ntc
+                        && ntc.inner() instanceof Type.ClassType ctc ? ctc.internalName()
+                        : cc.type() instanceof Type.ClassType c ? c.internalName() : null;
+                boolean userClass = internal != null
+                        && p.lc.classMethodNames.containsKey(internal);
+                if (cc.type() instanceof Type.NullableType nt
+                        && nt.inner() instanceof Type.ClassType
+                        && p.lc.classMethodNames.containsKey(
+                                ((Type.ClassType) nt.inner()).internalName())) {
+                    stack.add(new JsIr.JsConditional(
+                            new JsIr.JsInstanceOf(operand,
+                                    JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(nt.inner()))),
+                            operand, new JsIr.JsNull()));
+                } else if (BuiltinTypes.isString(cc.type())) {
+                    stack.add(new JsIr.JsConditional(
+                            new JsIr.JsBinary(new JsIr.JsUnary("typeof", operand),
+                                    "===", new JsIr.JsString("string")),
+                            operand, new JsIr.JsNull()));
+                } else {
+                    // §678: a face ESTRITA do JS (o `as T` que falha ESTOURA)
+                    // fica DEFERIDA — o helper kofCastFail no bloco core quebra
+                    // o slicing do runtime (o runner morre; medido); a via
+                    // limpa é um bloco próprio + registro no slice — a lane JS.
+                    // O checador de compilação governa estas faces hoje.
+                    stack.add(operand);
+                }
             }
             case KofInstanceOf io -> {
                 JsIr.JsExpression operand = pop(stack);

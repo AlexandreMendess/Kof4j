@@ -345,8 +345,30 @@ public final class KofInterpreter {
                         // categoria-2 (Long/Double ocupa 2 slots)
                         st.pop();
                     }
-                    case KofCheckCast _ -> {
-                        // cast sem efeito observável na pilha do interpretador
+                    case KofCheckCast cc -> {
+                        // §678 / D-SEM-REJECTS-1210: o falho NÃO é mais no-op.
+                        // Alvo NÃO-nulo: null passa (a semântica CHECKCAST do
+                        // JVM, o oráculo); não-instância ESTOURA (o decidido —
+                        // o soft era a divergência §678). Alvo nullable (`as
+                        // T?`): a grafia sempre-null (não-instância → null).
+                        Object v = st.pop();
+                        Type t = cc.type();
+                        if (t instanceof Type.NullableType nt) {
+                            st.push(builtins.instanceOf(nt.inner(), v) ? v : null);
+                        } else if (!(t instanceof Type.ClassType ct)
+                                || !ct.typeArguments().isEmpty()
+                                || "kof".equals(ct.packageName())) {
+                            // genéricos/contêineres builtin: o instanceOf do
+                            // interpretador não julga erasure — passa (o
+                            // checador de tempos de compilação governa)
+                            st.push(v);
+                        } else if (v == null || builtins.instanceOf(t, v)) {
+                            st.push(v);
+                        } else {
+                            throw KofInterpreterFrame.asThrowable(
+                                    "type cast failed: expected " + ct.name()
+                                            + ", got " + v.getClass().getSimpleName());
+                        }
                     }
                     case KofInstanceOf ki -> {
                         st.push(builtins.instanceOf(ki.type(), st.pop()) ? 1 : 0);
