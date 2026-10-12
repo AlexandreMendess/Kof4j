@@ -2,7 +2,7 @@
 
 # LEGACY_MIGRATION.md — Legacy Software Migration Platform
 
-**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`).** Phases A–F have working code and tests (Decompile 67, Translate 61, Compare 7, Migrate 3 — all green at the promotion); the decompiler/translator structured-shape surfaces are at their honest ceiling (remaining faces need the diamond-law decision or the interop lane, both outside this plan's autonomous scope). **Current slice: Phase H — full JAR migration per §8.1** (`kof migrate app.jar --output dir/`: per-class decompilation to `.kf` files + the aggregate report with per-unit recovered/not-recovered detected from the actual stubs). **LANDED 14/10 (`39825a291`): the §8.1 behavioral-test wiring** — `kof migrate app.jar --output dir/ --compare` runs the differential test per class with a static `main` (legacy bytecode vs the compiled Kof, `Compare.runKof(kof, entryClass, args, stdin)`), feeding the report's `Behavioral tests: N passed / M divergent` section; main-less/packaged classes count as not-comparable (honest); `MigrationReport` gained `behavioralPassed`/`behavioralDivergent`/`behavioralNotComparable`; proof `MigrateTest` 10/10. **LANDED 14/10 (`9205629bd`): the Phase G typed-exception comparability face** — `kof compare` extracts the first exception/error TYPE from both stderr streams (JVM trace format) as a dedicated `exceptions` channel that GATES the verdict (closes a measured false green: two sides failing exit 1 under DIFFERENT types compared equivalent); proof `CompareTest` 13/13. **How to finish:** remaining Phase G faces = return values (program-level via the exit-code channel; per-function is the decompiler's diamond-law ceiling, outside this plan's autonomous scope), DB mutations/protocols/side effects (external-observation infrastructure), and JS/native trace formats for the typed channel — each behind its own measurement. The former wording follows. — **central and single doc of the migration
+**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`).** Phases A–F have working code and tests (current: Decompile 67, Translate 72, Compare 15, Migrate 11; **Phase F COMPLETE — the §3.3 progressive-support list reaches 19/19**, anonymous SAM → lambda); the remaining structured-shape faces need the diamond-law decision or the interop lane, both outside this plan's autonomous scope. **Current slice: Phase H — full JAR migration per §8.1** (`kof migrate app.jar --output dir/`: per-class decompilation to `.kf` files + the aggregate report with per-unit recovered/not-recovered detected from the actual stubs). **LANDED 14/10 (`39825a291`): the §8.1 behavioral-test wiring** — `kof migrate app.jar --output dir/ --compare` runs the differential test per class with a static `main` (legacy bytecode vs the compiled Kof, `Compare.runKof(kof, entryClass, args, stdin)`), feeding the report's `Behavioral tests: N passed / M divergent` section; main-less/packaged classes count as not-comparable (honest); `MigrationReport` gained `behavioralPassed`/`behavioralDivergent`/`behavioralNotComparable`; proof `MigrateTest` 10/10. **LANDED 14/10 (`9205629bd`): the Phase G typed-exception comparability face** — `kof compare` extracts the first exception/error TYPE from both stderr streams (JVM trace format) as a dedicated `exceptions` channel that GATES the verdict (closes a measured false green: two sides failing exit 1 under DIFFERENT types compared equivalent); proof `CompareTest` 13/13. **How to finish:** remaining Phase G faces = return values (program-level via the exit-code channel; per-function is the decompiler's diamond-law ceiling, outside this plan's autonomous scope), DB mutations/protocols/side effects (external-observation infrastructure), and JS/native trace formats for the typed channel — each behind its own measurement. The former wording follows. — **central and single doc of the migration
 platform** (dropped from `future/` on 12/09; MERGED `LEGACY_IR.md` into §4 and
 `DIFFERENTIAL_TESTING.md` into §8 on 13/09 — duplicated concepts, zero
 unique content; technical work-logs live in `DECOMPILER.md`/`TRANSLATOR.md`).
@@ -176,7 +176,7 @@ nested classes, anonymous classes, static initialization, access modifiers,
 Java standard library, external library calls.
 
 > **Measured 14/10 (lane nativa/GC `192.168.15.117:0`) — the list against the
-> translator: 18/19 faces land (the maintainer DECIDED the two open shapes on
+> translator: COMPLETE — 19/19 faces land (the maintainer DECIDED the two open shapes on
 > 14/10: hoisted name = `Outer_Inner`, static-only scope; anonymous = SAM →
 > lambda, rest refused).** **Nested static classes HOIST since this round** —
 > `static class Inner` inside `T` is emitted top-level as `T_Inner` and every
@@ -185,7 +185,7 @@ Java standard library, external library calls.
 > translated program compiles and runs (`T_Inner(21).twice()` → `42`, and the
 > qualified static `T.Inner.X` → `5`); non-static inner (captures the
 > enclosing instance) and name collisions (`T_Inner` already top-level; the
-> same `Inner` under two outers) refuse with NAMED reasons. classes/interfaces/inheritance/generics/
+> same `Inner` under two outers) refuse with NAMED reasons. **Anonymous classes LOWER since this round (the last face)** — an anonymous of a single-abstract-method functional interface lowers to a Kof lambda (typed params, `(x: Int) -> { return x * 2 }`); the JDK `Runnable` lowers the same; multi-method and stateful (a lambda has no fields) refuse with NAMED reasons. EXECUTED proof: the translated programs compile and run (the SAM probe printed `42`, the multi-statement one `9`). classes/interfaces/inheritance/generics/
 > overloads/constructors/exceptions/annotations/records/enums/lambdas/access
 > modifiers/Java stdlib/switch/loops/arrays/casts/instanceof all translate
 > (probed per-item); **static initialization FOLDS since this round** —
@@ -196,18 +196,13 @@ Java standard library, external library calls.
 > bodies keep the NAMED refusal; **instance init `{ }` folds** — the body is
 > prefixed into every constructor (a class without one gains the default
 > constructor carrying it; a block AFTER the first constructor refuses —
-> textual order is not recreable in this one-pass parser). The 2 remaining
-> refusals + their unlock options: **nested classes** — Kof has top-level
-> types only; Option A = hoist to top-level as `Outer_Inner` with all
-> qualified references rewritten, name collision → named refusal (covers
-> static nested = pure namespacing; non-static inner captures the enclosing
-> instance → still refused honestly unless the maintainer wants the synthetic
-> `this$Outer` field = Option B); **anonymous classes** — Option A = lower to
-> a Kof lambda when the anonymous type is a functional interface with exactly
-> one abstract method (the Kof-idiomatic shape), multi-method/stateful ones
-> stay refused (or ride the nested Option B). The name format (`Outer_Inner`)
-> is the only surface choice awaiting the maintainer; everything else in the
-> two remaining slices is mechanical once the format is confirmed.
+> textual order is not recreable in this one-pass parser). The remaining refusals
+> (all NAMED): **non-static inner** (captures the enclosing instance — the synthetic
+> `this$Outer` field = Option B is the unlock if wanted), **name collision** (`Outer_Inner`
+> already top-level, or the same `Inner` under two outers), and **multi-method / stateful
+> anonymous** (a lambda has no fields; multi-method is not a SAM). The hoisted-name format
+> (`Outer_Inner`) and the anonymous shape (SAM → lambda) were CONFIRMED by the maintainer
+> 14/10 — the §3.3 list is COMPLETE (19/19).
 
 ---
 

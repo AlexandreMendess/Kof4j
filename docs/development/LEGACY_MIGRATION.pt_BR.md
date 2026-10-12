@@ -2,7 +2,7 @@
 
 # LEGACY_MIGRATION.md — Plataforma de Migração de Software Legado
 
-**Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`).** As Fases A–F têm código e testes funcionando (Decompile 67, Translate 61, Compare 7, Migrate 3 — todos verdes na promoção); as superfícies de formas estruturais do decompilador/tradutor estão no teto honesto (as faces restantes precisam da decisão da lei do diamante ou da lane de interop, ambas fora do escopo autônomo deste plano). **Fatia atual: Fase H — migração completa de JAR por §8.1** (`kof migrate app.jar --output dir/`: decompilação por classe para arquivos `.kf` + o relatório agregado com por-unidade recuperado/não-recuperado detectado dos stubs reais). **POUSADO 14/10 (`39825a291`): a integração dos testes comportamentais da §8.1** — `kof migrate app.jar --output dir/ --compare` roda o teste diferencial por classe com `main` estático (bytecode legado vs o Kof compilado, `Compare.runKof(kof, entryClass, args, stdin)`), alimentando a seção `Behavioral tests: N passed / M divergent` do relatório; classes sem `main`/empacotadas contam como não-comparáveis (honesto); o `MigrationReport` ganhou `behavioralPassed`/`behavioralDivergent`/`behavioralNotComparable`; prova `MigrateTest` 10/10. **POUSADO 14/10 (`9205629bd`): a face de comparabilidade de exceções tipadas da Fase G** — o `kof compare` extrai o TIPO da primeira exceção/erro dos dois stderr (formato de trace da JVM) como um canal `exceptions` dedicado que GATEIA o veredicto (fecha um falso-verde medido: dois lados falhando com exit 1 sob TIPOS DIFERENTES comparavam equivalentes); prova `CompareTest` 13/13. **Como terminar:** faces restantes da Fase G = valores de retorno (nível-de-programa pelo canal de exit-code; por-função é o teto de forma estrutural do decompilador — decisão da lei do diamante, fora do escopo autônomo), mutações de DB/protocolos/efeitos colaterais (infra de observação externa), e formatos de trace JS/nativo para o canal tipado — cada uma atrás de sua própria medição. O texto anterior segue. — **doc central e único da plataforma de
+**Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`).** As Fases A–F têm código e testes funcionando (atual: Decompile 67, Translate 72, Compare 15, Migrate 11; **Fase F COMPLETA — a lista de suporte progressivo da §3.3 chega a 19/19**, anônima SAM → lambda); as faces restantes de forma estrutural precisam da decisão da lei do diamante ou da lane de interop, ambas fora do escopo autônomo deste plano. **Fatia atual: Fase H — migração completa de JAR por §8.1** (`kof migrate app.jar --output dir/`: decompilação por classe para arquivos `.kf` + o relatório agregado com por-unidade recuperado/não-recuperado detectado dos stubs reais). **POUSADO 14/10 (`39825a291`): a integração dos testes comportamentais da §8.1** — `kof migrate app.jar --output dir/ --compare` roda o teste diferencial por classe com `main` estático (bytecode legado vs o Kof compilado, `Compare.runKof(kof, entryClass, args, stdin)`), alimentando a seção `Behavioral tests: N passed / M divergent` do relatório; classes sem `main`/empacotadas contam como não-comparáveis (honesto); o `MigrationReport` ganhou `behavioralPassed`/`behavioralDivergent`/`behavioralNotComparable`; prova `MigrateTest` 10/10. **POUSADO 14/10 (`9205629bd`): a face de comparabilidade de exceções tipadas da Fase G** — o `kof compare` extrai o TIPO da primeira exceção/erro dos dois stderr (formato de trace da JVM) como um canal `exceptions` dedicado que GATEIA o veredicto (fecha um falso-verde medido: dois lados falhando com exit 1 sob TIPOS DIFERENTES comparavam equivalentes); prova `CompareTest` 13/13. **Como terminar:** faces restantes da Fase G = valores de retorno (nível-de-programa pelo canal de exit-code; por-função é o teto de forma estrutural do decompilador — decisão da lei do diamante, fora do escopo autônomo), mutações de DB/protocolos/efeitos colaterais (infra de observação externa), e formatos de trace JS/nativo para o canal tipado — cada uma atrás de sua própria medição. O texto anterior segue. — **doc central e único da plataforma de
 migração** (caiu de `future/` em 12/09; FUNDIU `LEGACY_IR.md` no §4 e
 `DIFFERENTIAL_TESTING.md` no §8 em 13/09 — conceitos duplicados, zero
 conteúdo único; work-logs técnicos vivem em `DECOMPILER.md`/`TRANSLATOR.md`).
@@ -206,19 +206,13 @@ Java standard library, chamadas de bibliotecas externas.
 > `42`), corpos não-literais mantêm a recusa NOMEADA; **instance init `{ }`
 > dobra** — o corpo é prefixado em cada construtor (classe sem nenhum ganha
 > o construtor default carregando-o; bloco DEPOIS do primeiro construtor
-> recusa — a ordem textual não é recriável neste parser de um passe). As 2
-> recusas restantes + as opções de destrave: **classes aninhadas** — Kof só
-> tem tipos top-level; Opção A = hoist para o topo como `Outer_Inner` com
-> todas as referências qualificadas reescritas, colisão de nome → recusa
-> nomeada (cobre static nested = namespacing puro; inner não-static captura
-> a instância externa → continua recusada honestamente, a menos que a
-> mantenedora queira o campo sintético `this$Outer` = Opção B); **classes
-> anônimas** — Opção A = baixar para lambda Kof quando o tipo anônimo é
-> interface funcional com exatamente 1 método abstrato (a forma idiomática
-> Kof), multi-método/estado → recusa (ou monta na nested Opção B). O formato
-> do nome (`Outer_Inner`) é a única escolha de superfície aguardando a
-> mantenedora; todo o resto das duas fatias restantes é mecânico depois que
-> o formato for confirmado.
+> recusa — a ordem textual não é recriável neste parser de um passe). As recusas
+> restantes (todas NOMEADAS): **inner não-static** (captura a instância externa — o
+> campo sintético `this$Outer` = Opção B é o destrave se quiserem), **colisão de nome**
+> (`Outer_Inner` já top-level, ou o mesmo `Inner` sob dois outers), e **anônima multi-método
+> / com estado** (lambda não tem campos; multi-método não é SAM). O formato do nome hoisted
+> (`Outer_Inner`) e a forma anônima (SAM → lambda) foram CONFIRMADOS pela mantenedora
+> 14/10 — a lista §3.3 está COMPLETA (19/19).
 
 ---
 
