@@ -74,6 +74,13 @@ state: STABLE (para a lane)
 - **Caveat de harness:** o CLI compila TODO o diretório passado como um módulo (dois `main()` -> `PKG002`), então cada sonda precisa do seu próprio diretório. `-Dkof.install.dir=<dir>` aponta para `<dir>/lib/kof-libs/`. Um `import` novo entre módulos da lib pode não resolver no interpretador (medido com `Av1TxSize -> Av1IntraAvail`); colocar a função junto do seu irmão lógico evita o problema.
 - **Próximo passo:** o laço de coeficientes + reconstrução de CROMA em si (contexto de entropia `above`/`left` por plano, tx-type de croma via `av1ComputeTxType`, reconstrução U/V), depois a montagem tile-group/frame, depois `decodeRaster` AVIF.
 
+## Sessão 13/10 (sexta, 8ª) — fatia 3ao: medição CRUA, a divergência ganhou FORMA
+- **Consertei o instrumento primeiro, como prometido:** larguei o hash rolante (potências de dois = cadeia degenerando) e fiz os dois lados emitirem AMOSTRAS CRUAS. Sem isso eu estaria caçando artefato.
+- **O que a medição crua mostrou (caso CFL, BLOCK_16X16 na origem, resíduo só-DC):** o ORÁCULO dá luma **129 plano** nas 256 amostras (resíduo +1 uniforme sobre predição 128 — o que uma transformada só-DC produz). O DRIVER KOF dá **128 em 255 amostras e UMA em 137 na posição 0** — praticamente SEM resíduo.
+- **Por que isso é muito melhor que o ciclo passado:** antes eu tinha "hashes diferentes" (e o hash era suspeito). Agora eu tenho uma diferença de FORMA, legível a olho nu, e ela aponta para o RESÍDUO da luma — não para a predição (128 confirmado nos dois lados) nem para o shift de desquantização (tabelas conferidas).
+- **O que eu NÃO fiz:** registrar como bug do Kof. O 137 solitário na posição 0 admite outra leitura — minha sonda lendo a área no offset errado — e os registros U/D/A do mesmo caso casam (stream em sincronia). Não repito o erro do §682: forma estranha não é atribuição.
+- **Próximo (barato e ordenado):** imprimir os `levels` que o driver decodificou para aquele bloco de luma (o `levelsOut` já os tem) e o `txType`. Isso separa "o Kof decodificou errado" de "o Kof reconstruiu errado" em UMA rodada.
+
 ## Sessão 13/10 (sexta, 7ª) — fatia 3ao: DOIS candidatos eliminados e o INSTRUMENTO sob suspeita
 - **Eliminei (1) o shift de desquantização:** comparei o corpo REAL do libaom (`av1_get_tx_scale = (pels > 256) + (pels > 1024)`) com o `av1DqDenom` do Kof — são iguais para TODO tamanho de transformada. Minha lembrança dos limiares estava errada; foi medir que resolveu.
 - **Eliminei (2) a predição DC:** o Kof preenche as referências ausentes com `above = mid-1` e `left = mid+1`, e o libaom faz a média — o ±1 se cancela e dá 128 nos dois lados. Testei 129 no oráculo: o hash mudou e mesmo assim não casou, consistente com "não é isso".
