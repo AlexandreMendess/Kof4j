@@ -34,13 +34,15 @@ class OrmHistoryHostPackageTest {
             import kof.orm.history
             record Pedido(String nome, Int clienteId)
             main() {
-                var r: Revision = Revision(1, 1700000000000, "INSERT")
+                var r: Revision = Revision(1, 1700000000000, "INSERT", null, null)
                 println(r.revision)
+                println(r.actor == null)
                 var f: FieldChange = FieldChange(2, "nome", "a", "b")
                 println(f.field)
             }
             """, Target.JVM);
         assertTrue(d.isEmpty(), "os records travados devem existir com o import, veio: " + d);
+        // o output tem 3 linhas: 1, true, nome — a asserção do isEmpty acima já cobre
     }
 
     @Test

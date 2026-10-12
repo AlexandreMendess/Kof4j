@@ -246,6 +246,7 @@ public final class StdCatalog {
                     Map.entry("error", List.of("error(String msg) -> void")))),
             Map.entry("orm", java.util.Map.ofEntries(
                     Map.entry("create", List.of("create(String entity) -> Bool")),
+                    Map.entry("createHistory", List.of("createHistory(String entity) -> Bool")),
                     Map.entry("save", List.of("save(String entity, Object row) -> Object")),
                     Map.entry("find", List.of("find(String entity, Object id) -> Object")),
                     Map.entry("all", List.of("all(String entity) -> List")),
