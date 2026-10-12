@@ -81,6 +81,25 @@ public final class NativeRiscvAsmRtB42 {
                 sd   t3, 0(s2)
             .Lkof_alloc_found:
                 sd   zero, 24(s3)        # fora da free list (flags=0)
+                # §602-sexta-face (paridade §541 do x86): a memória devolvida
+                # pela free-list é LIXO da vida anterior — a JVM (oráculo) zera
+                # `new Int[n]` SEMPRE, e código Kof lê elementos não escritos
+                # (ex.: av1ReconBlockLevels devolve `new Int[tw*th]` com só 1
+                # elemento escrito). O bump do .bss já nasce zero; o reuso NÃO.
+                # Sem isto, o sweep do G-4 devolve blocos e a próxima leitura
+                # parcial vê bytes da alocação anterior (medido no gdb: o valor
+                # escrito em frame[175] saía 149 no reuso e 127 no bump).
+                ld   t2, 0(s3)           # size total do bloco
+                addi t2, t2, -32         # payload (múltiplo de 8: align16+32)
+                srli t2, t2, 3           # palavras de 8B
+                addi t4, s3, 32
+            .Lkof_alloc_zero:
+                beqz t2, .Lkof_alloc_zdone
+                sd   zero, 0(t4)
+                addi t4, t4, 8
+                addi t2, t2, -1
+                j    .Lkof_alloc_zero
+            .Lkof_alloc_zdone:
                 mv   a0, s3              # §540: registra início-de-bloco
                 call kof_bm_set          #        no bitmap O(1) do GC
                 la   t4, .Lkof_alloc_count

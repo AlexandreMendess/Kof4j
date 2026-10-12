@@ -1,0 +1,29 @@
+String day(String code, String fallback = "unknown") {
+    return switch (code) {
+        case "mon" -> "Monday"
+        case "tue" -> "Tuesday"
+        case "wed" -> "Wednesday"
+        default -> fallback
+    }
+}
+
+String greet(String name, String prefix = "Hi", String suffix = "!") = prefix + " " + name + suffix
+
+main() {
+    println(day("mon"))
+    println(day("wed"))
+    println(day("zzz"))
+    println(day("tue", "N/A"))
+    println(greet("Ada"))
+    println(greet("Bob", "Hello"))
+    println(greet("Cy", "Yo", "?"))
+    var code = "tue"
+    switch (code) {
+        case "mon":
+            println("start of week")
+        case "tue":
+            println("second")
+        default:
+            println("other")
+    }
+}

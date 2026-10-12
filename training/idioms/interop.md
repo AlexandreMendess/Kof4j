@@ -41,7 +41,8 @@ extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — Stri
 //   riscv64/aarch64 glibc passes AND returns FP in fa0..fa7 (MEASURED under qemu — NOT ft0);
 //   C stdio is flushed at exit; struct/array/missing-library -> FFI001 at the decl line
 //   (callbacks now BIND on Native x86-64 + cross riscv64/aarch64 — M1 unidade-4, 11/10;
-//    only a String-return callback stays FFI001)
+//    a callback whose ABI mentions String (ARGUMENT or RETURN) also binds on both (slices 4/5/6,
+//    11/10) — arg via kof_ffi_from_cstr, return via the payload char* (obj+24))
 //   Vendored extern libs whose DT_NEEDED closure is NOT in the default dirs
 //     (decision F, 09/10): the ld resolves the closure against the DEFAULT
 //     search dirs — `-L` does NOT apply to it — so the link line gets
@@ -97,8 +98,9 @@ kof_cb_add(20, 22, (x: Int, y: Int) -> x + y)   // 42 measured
 kof_cb_mixed(3, 2.5, (i: Int, d: Double) -> i * d)  // mixed scalar ABI ok
 kof_cb_slen("hello", (x: String) -> x.length())  // char* -> String arg (C3.4)
 // JS (host runner) binds callbacks too (C3.2/C3.4 ✅ 18/09, byte-for-byte JVM~JS;
-// browser = honest runtime degrade R7); struct/pointer-in-callback, a String
-// RETURN, and callback-as-return -> FFI001 (JVM) — never a silent stub.
+// browser = honest runtime degrade R7); on Native a String-ARG callback binds too
+// (slices 4/5, 11/10); struct/pointer-in-callback, a String RETURN, and
+// callback-as-return -> FFI001 — never a silent stub.
 
 // (d) STRUCT / ARRAY / OUT-BUFFER (D6, JVM — 3.8b fatias 1–4, 20–21/09):
 //   a `record` of scalar fields crosses BY VALUE (arg and return), a scalar
@@ -208,4 +210,4 @@ on the runner, `InteropTimeoutE2ETest` 4/4, `InteropTimeoutScriptE2ETest` 1/1).
 
 `docs/language-reference/syntax.md` (§FFI to C), `grammar.md`
 (`extern-declaration`), `modules.md` §6; gaps `FFI001`/`FFI002`;
-R3 landed: JVM arbitrary scalar (arity/void/String-return, 18/09) + JS host parity (3.6.F2/F3 ✅ 18/09) + **callbacks bind on JVM AND the JS host runner, byte-for-byte parity (C2 ✅ + C3.2/C3.3/C3.4 ✅ 18/09 — primitive + `String`-arg callbacks; `JvmFfiCallbackE2ETest` incl. `jvmAndJsCallbacksMatchByteForByte` and `stringCallbackArgsBindAndMatchJvmJs`)** + **D6 struct/array/out-buffer shapes on the JVM (3.8b fatias 1–4 ✅ 20–21/09: record by value in/out, scalar `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT; `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferE2ETest` 4/4, `BufferFfiE2ETest` 4/4)** + **the same D6 shapes on the JS target (3.8b bridge ✅ 21/09 — R54 record arg, R55 scalar `T[]`→ptr copy-in, R57 `kof.buffer` namespace, R58 `Buffer(U8)` INOUT, R59 record return by value; byte-for-byte JVM==JS: `FfiStructE2ETest#structReturnByValueJsParity`, `FfiArrayE2ETest#arrayParamByValueJsParity`, `BufferE2ETest#allocAndBytesJsParity`, `BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`)** + **the Native scalar ABI binds on all 3 archs (fatias 1–2 ✅ 20/09 — §369, §61 CLOSED: `FfiNativeE2ETest` 16/16 x86-64 + `FfiNativeCrossE2ETest` 6/6 riscv64×aarch64 byte-identical under qemu)**; **decided 21/09:** variadics = none (`D-R3-3.5`), opaque `Handle` + `Buffer(U8,INOUT)` (`D-R3-3.3` — Buffer landed, `Handle` waits on the RAII front). Remaining (cross-lane/later): cross riscv64/aarch64 struct float/HFA/byref, `Handle` lifetimes (`docs/scoped-resources-plan.md`). Since this summary: the cross `Buffer(U8)` face (`#651` fatia B) and **FFI callbacks on Native (x86-64 + cross riscv64/aarch64, M1 unidade-4, 11/10 — a `String`-return callback stays the only honest `FFI001`)** have landed.
+R3 landed: JVM arbitrary scalar (arity/void/String-return, 18/09) + JS host parity (3.6.F2/F3 ✅ 18/09) + **callbacks bind on JVM AND the JS host runner, byte-for-byte parity (C2 ✅ + C3.2/C3.3/C3.4 ✅ 18/09 — primitive + `String`-arg callbacks; `JvmFfiCallbackE2ETest` incl. `jvmAndJsCallbacksMatchByteForByte` and `stringCallbackArgsBindAndMatchJvmJs`)** + **D6 struct/array/out-buffer shapes on the JVM (3.8b fatias 1–4 ✅ 20–21/09: record by value in/out, scalar `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT; `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferE2ETest` 4/4, `BufferFfiE2ETest` 4/4)** + **the same D6 shapes on the JS target (3.8b bridge ✅ 21/09 — R54 record arg, R55 scalar `T[]`→ptr copy-in, R57 `kof.buffer` namespace, R58 `Buffer(U8)` INOUT, R59 record return by value; byte-for-byte JVM==JS: `FfiStructE2ETest#structReturnByValueJsParity`, `FfiArrayE2ETest#arrayParamByValueJsParity`, `BufferE2ETest#allocAndBytesJsParity`, `BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`)** + **the Native scalar ABI binds on all 3 archs (fatias 1–2 ✅ 20/09 — §369, §61 CLOSED: `FfiNativeE2ETest` 16/16 x86-64 + `FfiNativeCrossE2ETest` 6/6 riscv64×aarch64 byte-identical under qemu)**; **decided 21/09:** variadics = none (`D-R3-3.5`), opaque `Handle` + `Buffer(U8,INOUT)` (`D-R3-3.3` — Buffer landed, `Handle` waits on the RAII front). Remaining (cross-lane/later): cross riscv64/aarch64 struct float/HFA/byref, `Handle` lifetimes (`docs/scoped-resources-plan.md`). Since this summary: the cross `Buffer(U8)` face (`#651` fatia B) and **FFI callbacks on Native (x86-64 + cross riscv64/aarch64, M1 unidade-4, 11/10 — a callback whose ABI mentions `String` (ARGUMENT or RETURN) now binds on Native x86-64 + cross (slices 4/5/6, 11/10), so the only honest `FFI001` callback faces left are mixed float+int and HFA>2)** have landed.

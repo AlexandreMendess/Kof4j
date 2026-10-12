@@ -1,0 +1,230 @@
+package image
+
+import image.Av1Block
+import image.Av1CoeffPlane
+import image.Av1Coeffs
+import image.Av1DecodeBlock
+import image.Av1IntraAvail
+import image.Av1IntraBlock
+import image.Av1ModeInfo
+import image.Av1ReconBlock
+import image.Av1Symbol
+import image.Av1Tx
+import image.Av1TxSize
+
+// kof.image — AV1 intra TILE DRIVER (slice 3ag of the AVIF front, plan §34).
+// The stage libaom runs for every block of a tile as `parse_decode_block`
+// (`av1/decoder/decodeframe.c`): the mode info and the transform size are read,
+// and THEN the SAME block's coefficients are decoded and predicted/reconstructed
+// — before the next block. That interleaving is what this slice composes: slices
+// 3af (mode info + tx size), 3e/3x (the coefficient walk) and 3z/3ae (the
+// intra predict + inverse transform + reconstruct), driven from ONE shared
+// entropy stream so each block sees the CDF adaptations and the reconstructed
+// samples the previous blocks left behind.
+//
+// Per block `(r, c, bs)`, in libaom's order:
+//
+//   1. mode info  — prefix (segment id + skip, 3p), tail (CDEF/delta-Q/delta-LF,
+//                   3r) and body (Y/UV mode, angles, CFL, palette, filter-intra, 3q);
+//   2. transform size (3s) and the `set_txfm_ctxs` broadcast the NEXT block's
+//      `get_tx_size_context` reads;
+//   3. the block's transform blocks (3y enumeration), each: coefficients
+//      (3e/3x `av1DecodeCoeffsBlockEdge`) -> availability (3ab `av1IntraAvail`)
+//      -> prediction (3u `av1IntraPredictBlock`) -> dequantize + inverse
+//      transform + reconstruct (3z `av1ReconBlockInto`).
+//
+// Pure Kof, all targets: no I/O, no compiler change. `decodeRaster` still
+// refuses AVIF until the chain closes (chroma planes and the frame assembly).
+
+// Decodes and reconstructs one luma plane of a tile.
+//
+//   - `frame`/`stride`: the plane buffer with its one-sample border (the
+//     interior lives at `[1 .. frameW] x [1 .. frameH]`).
+//   - `frameW`/`frameH`: the plane's extent in samples.
+//   - `blocks`: a flat list of `(r, c, bs)` triples, one per mode-info block,
+//     in decode order.
+//   - `cfg`/`lossless`/`hasChroma`/`enableFilterIntra`/`palettePossible`/
+//     `bitDepth`/`txMode`/`baseQIndex`/`segEnabled`/`segIdPreSkip`/
+//     `lastActiveSegId`/`segSkipActive`: the frame-level mode-info state (3af).
+//   - `dcQuant`/`acQuant`: the dequantization factors (slice 3f).
+//   - `disableEdgeFilter`/`intraEdgeFilterType`: the intra edge filter controls.
+//   - `store`: the tile's adapting coefficient CDF store.
+//   - `above`/`left`: the plane's entropy-context arrays (4x4 units); the
+//     coefficient walk reads and updates them, so they must span the tile.
+//   - `levelsOut`: receives each transform block's decoded signed coefficients,
+//     in decode order (the caller-visible decode record).
+//   - `modeOut`: receives each block's mode-info record, 17 ints per block in
+//     the slice-3af layout (`skip, segId, cdef, qIndex, txSz, yMode, angleY,
+//     uvMode, angleUV, cflU, cflV, useFilterIntra, filterIntraMode,
+//     deltaLf0..3`).
+//
+// Returns the reconstructed plane, flat row-major of size `frameW * frameH`.
+Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
+                         List<Int> blocks, Av1ModeTail cfg,
+                         Int lossless, Int hasChroma, Int enableFilterIntra,
+                         Int palettePossible, Int bitDepth, Int txMode,
+                         Int baseQIndex, Int segEnabled,
+                         Int segIdPreSkip, Int lastActiveSegId,
+                         Int segSkipActive, Int dcQuant, Int acQuant,
+                         Int disableEdgeFilter, Int intraEdgeFilterType,
+                         Av1Symbol reader, Av1CoeffCdfStore store,
+                         Int[] above, Int[] left, List<Int[]> levelsOut,
+                         List<Int> modeOut) {
+    var modeInfo = Av1ModeInfo(reader, frameW >> 2, frameH >> 2)
+    var txSize = Av1TxSize(reader, frameW >> 2, frameH >> 2)
+    var maxX = frameW
+    var maxY = frameH
+    var edgeFilter = true
+    if (disableEdgeFilter == 1) {
+        edgeFilter = false
+    }
+    var cur = listOf(0, 0, 0, 0)
+    var qIndex = baseQIndex
+    // The 64x64 CDEF-unit strengths, keyed by the unit origin (row*miCols+col).
+    var cdefUnits = new Int[(frameW >> 2) * (frameH >> 2)]
+    var ci = 0
+    while (ci < cdefUnits.size) {
+        cdefUnits[ci] = -1
+        ci = ci + 1
+    }
+
+    var nb = blocks.size / 3
+    var b = 0
+    while (b < nb) {
+        var base = b * 3
+        var r = blocks.get(base)
+        var c = blocks.get(base + 1)
+        var bs = blocks.get(base + 2)
+
+        // 1. Mode info: prefix (segment id + skip).
+        var skip = 0
+        var segId = 0
+        if (segEnabled == 1) {
+            var pre = modeInfo.readPrefix(r, c, segIdPreSkip, lastActiveSegId,
+                                          segSkipActive)
+            skip = pre[0]
+            segId = pre[1]
+        } else {
+            skip = modeInfo.readSkip(r, c, 0, 0)
+        }
+        // Broadcast the flag/id over the block's 4x4 footprint (libaom aliases
+        // the whole block to one `MB_MODE_INFO`).
+        modeInfo.setSkipSeg(r, c, bs, skip, segId)
+
+        // 1b. Tail: CDEF + delta-Q + delta-LF.
+        var cdef = modeInfo.readCdef(r, c, bs, skip, cfg)
+        var r0 = r - (r % 16)
+        var c0 = c - (c % 16)
+        var uidx = r0 * (frameW >> 2) + c0
+        if (cdef >= 0) {
+            cdefUnits[uidx] = cdef
+        }
+        var deltaQ = modeInfo.readDeltaQ(r, c, bs, skip, cfg)
+        qIndex = av1ModeInfoClip3(1, 255, qIndex + deltaQ)
+        var deltaLf = modeInfo.readDeltaLf(r, c, bs, skip, cur, cfg)
+        if (deltaLf.size > 0) {
+            cur = deltaLf
+        }
+
+        // 1c. Body: Y/UV mode, angles, CFL, palette, filter-intra.
+        var body = modeInfo.readBodyBd(r, c, bs, lossless, hasChroma,
+                                       enableFilterIntra, palettePossible,
+                                       bitDepth)
+        var yMode = body[0]
+        var angleY = body[1]
+        var useFilterIntra = body[6]
+        var filterIntraMode = body[7]
+
+        // 2. Transform size + the transform-context broadcast.
+        var txSz = txSize.readTxSize(r, c, bs, skip, txMode, 0, lossless)
+        txSize.setTxfmCtxs(r, c, bs, txSz, 0)
+
+        modeOut.add(skip)
+        modeOut.add(segId)
+        modeOut.add(cdefUnits[uidx])
+        modeOut.add(qIndex)
+        modeOut.add(txSz)
+        modeOut.add(body[0])
+        modeOut.add(body[1])
+        modeOut.add(body[2])
+        modeOut.add(body[3])
+        modeOut.add(body[4])
+        modeOut.add(body[5])
+        modeOut.add(body[6])
+        modeOut.add(body[7])
+        var lk = 0
+        while (lk < 4) {
+            var lv = 0
+            if (lk < deltaLf.size) {
+                lv = deltaLf.get(lk)
+            }
+            modeOut.add(lv)
+            lk = lk + 1
+        }
+
+        // 3. The block's transform blocks, interleaved decode -> predict -> recon.
+        var bw = av1BlockNum4x4Wide(bs)
+        var bh = av1BlockNum4x4High(bs)
+        var order = av1DecodeBlockGridOrder(txSz, 0, 0, bw, bh)
+        var w = av1TxWidth(txSz)
+        var h = av1TxHeight(txSz)
+        var n = order.size / 2
+        var bi = 0
+        while (bi < n) {
+            var br = r + order.get(bi * 2)
+            var bc = c + order.get(bi * 2 + 1)
+            var x = bc << 2
+            var y = br << 2
+            var haveTop = 0
+            if (br != 0) {
+                haveTop = 1
+            }
+            var haveLeft = 0
+            if (bc != 0) {
+                haveLeft = 1
+            }
+
+            // 3a. Coefficients (3e/3x): the neighbour context from the plane's
+            //     shared above/left store, so it sees the previous blocks.
+            var levels = av1DecodeCoeffsBlockEdge(reader, store, bs, 0,
+                    br, bc, txSz, 0, above, left, 0, 0)
+            levelsOut.add(levels)
+
+            // 3b. Availability (3ab) from the transform block's ABSOLUTE position.
+            var avail = av1IntraAvail(12, bs, 0, txSz, 0, 0,
+                    order.get(bi * 2), order.get(bi * 2 + 1), yMode,
+                    angleY, useFilterIntra, haveTop, haveLeft, br, bc,
+                    frameW >> 2, frameH >> 2, frameW, frameH)
+            var haveAboveRight = avail[0]
+            var haveBelowLeft = avail[1]
+
+            // 3c. Prediction (3u) with THIS block's mode.
+            var pred = av1IntraPredictBlock(frame, stride, x + 1, y + 1, w, h,
+                                            maxX, maxY,
+                                            haveLeft, haveTop, haveAboveRight,
+                                            haveBelowLeft, yMode, angleY,
+                                            useFilterIntra, filterIntraMode,
+                                            bitDepth, intraEdgeFilterType, edgeFilter)
+
+            // 3d. Dequantize + inverse transform + reconstruct (3z).
+            av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, txSz,
+                              0, bitDepth, false, dcQuant, acQuant)
+
+            bi = bi + 1
+        }
+        b = b + 1
+    }
+
+    // Copy the interior (border stripped) into a flat `frameW * frameH` plane.
+    var out = new Int[frameW * frameH]
+    var rr = 0
+    while (rr < frameH) {
+        var cc = 0
+        while (cc < frameW) {
+            out[rr * frameW + cc] = frame[(rr + 1) * stride + (cc + 1)]
+            cc = cc + 1
+        }
+        rr = rr + 1
+    }
+    return out
+}

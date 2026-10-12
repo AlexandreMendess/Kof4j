@@ -20,6 +20,26 @@ final class MethodCallNamespaces {
     private MethodCallNamespaces() {}
 
     static Type inferStatic(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {
+        // entity-history fatia 2c-parte-2 (D-ENTITY-HISTORY): a reserva
+        // entity-static — `Entity.history(db, id[, offset, limit])` tipa
+        // List<Revision> ANTES do dispatch de instância (a fase SEM também
+        // roteia; a recusa HIST002 do não-audited acontece no lowerer, que
+        // tem o driver).
+        if (mc.receiver() instanceof IdentifierExpr ehR
+                && driver.entityNamesMirror.contains(ehR.name())
+                && ("history".equals(mc.methodName()) || "at".equals(mc.methodName())
+                        || "atTime".equals(mc.methodName()) || "changes".equals(mc.methodName()))) {
+            Type revT = CompilerTypes.toType("Revision", driver.currentUnit, driver.semanticAnalyzer);
+            Type fcT = CompilerTypes.toType("FieldChange", driver.currentUnit, driver.semanticAnalyzer);
+            Type entT = CompilerTypes.toType(ehR.name(), driver.currentUnit, driver.semanticAnalyzer);
+            int n = mc.arguments().size();
+            if ("history".equals(mc.methodName()) && (n == 2 || n == 4))
+                return new Type.ClassType("kof", "List", List.of(revT));
+            if ("changes".equals(mc.methodName()) && (n == 2 || n == 4))
+                return new Type.ClassType("kof", "List", List.of(fcT));
+            if (("at".equals(mc.methodName()) || "atTime".equals(mc.methodName())) && n == 3)
+                return new Type.NullableType(entT);
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && CompilerTypes.isEnumName(rid.name(), driver.currentUnit)
                 && driver.findLocalVar(rid.name(), locals) == null) {
             java.util.List<String> consts = CompilerTypes.enumConstantsOf(rid.name(), driver.currentUnit);

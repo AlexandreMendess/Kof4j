@@ -38,15 +38,43 @@ public final class JsRuntimeUiJsonMap {
             // o §106 declarou "4 backends" mas NUNCA testou o JS (matriz não
             // cobria json.encode(Map)). Aqui montamos o objeto com chaves
             // SORTED (mesma semântica JVM/nativo/interp, decisão 2b) via
-            // JSON.stringify por valor (escapa string/número/bool/null
+            // kofJsonEncode por valor (escapa string/número/bool/null
             // corretamente; `tag` fica na assinatura por simetria).
             export function kofJsonEncodeMap(map, tag) {
                 const keys = [...map.keys()].sort();
                 const parts = [];
                 for (const k of keys) {
-                    parts.push(JSON.stringify(String(k)) + ':' + JSON.stringify(map.get(k)));
+                    parts.push(JSON.stringify(String(k)) + ':' + kofJsonEncode(map.get(k)));
                 }
                 return '{' + parts.join(',') + '}';
+            }
+
+            // §659b: um campo Long do Kof é um BigInt do JS, e o JSON.stringify
+            // recusa BigInt (TypeError: Do not know how to serialize a BigInt) —
+            // o encode JSON de qualquer valor com Long (escalar, campo de record,
+            // elemento de lista, valor de map) quebrava o processo. kofJsonEncode
+            // serializa BigInt como o INTEIRO DECIMAL cru (paridade JVM/nativo/
+            // Script). A pré-checagem kofJsonHasBig mantém byte-idêntico o
+            // caminho SEM Long (o JSON.stringify puro), então nenhum programa sem
+            // Long muda de saída.
+            export function kofJsonHasBig(v) {
+                if (typeof v === 'bigint') return true;
+                if (Array.isArray(v)) {
+                    for (const x of v) if (kofJsonHasBig(x)) return true;
+                    return false;
+                }
+                if (v !== null && typeof v === 'object') {
+                    for (const k of Object.keys(v)) if (kofJsonHasBig(v[k])) return true;
+                    return false;
+                }
+                return false;
+            }
+
+            export function kofJsonEncode(v) {
+                if (!kofJsonHasBig(v)) return JSON.stringify(v);
+                return JSON.stringify(v, (k, x) => typeof x === 'bigint'
+                        ? 'KOFBIGINT_SENTINEL_' + x.toString() + '_END' : x)
+                    .replace(/"KOFBIGINT_SENTINEL_(-?[0-9]+)_END"/g, '$1');
             }
 
             """;

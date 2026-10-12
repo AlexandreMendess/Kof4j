@@ -1,7 +1,6 @@
 package dev.kof.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -18,10 +17,10 @@ import org.junit.jupiter.api.io.TempDir;
  * C(<desc>)} e o runtime chama {@code Linker.upcallStub} sobre o valor de função Kof
  * (medido: interface sintética especializada {@code int invoke(int,int)}). Este teste
  * roda o mesmo fonte .kf na JVM e afirma o resultado computado ponta-a-ponta, e trava
- * os gaps honestos: JS callback já tem paridade (fatia C3); o que continua não-bindável
- * é um callback que DEVOLVE String (`char*` com ownership não observável no contrato
- * síncrono) → FFI001 na JVM / FFI002 no JS. PARÂMETRO String do callback (char*->String
- * na fronteira do upcall) foi aberto na fatia 3.4-C3.4 e tem paridade byte-a-byte.
+ * os gaps honestos: JS callback já tem paridade (fatia C3). PARÂMETRO String do callback
+ * (char*->String na fronteira do upcall) foi aberto na fatia 3.4-C3.4; o RETORNO String
+ * (String Kof -> char* NUL-terminado na arena da chamada) foi aberto na M1 unidade-4
+ * face S (11/10) — ambos com paridade byte-a-byte JVM↔JS.
  */
 class JvmFfiCallbackE2ETest {
 
@@ -40,6 +39,10 @@ class JvmFfiCallbackE2ETest {
             int kof_cb_slen_seed(const char* s, int seed, isi cb) { return cb(s, seed); }
             typedef long (*isl)(const char*);
             long kof_cb_sl(const char* s, isl cb) { return cb(s); }
+            typedef const char* (*rs)(int);
+            const char* kof_cb_greet(int n, rs cb) { return cb(n); }
+            typedef const char* (*rs2)(const char*, int);
+            const char* kof_cb_join(const char* s, int n, rs2 cb) { return cb(s, n); }
             """;
 
     private final CompilerDriver driver = new CompilerDriver();
@@ -121,33 +124,38 @@ class JvmFfiCallbackE2ETest {
         assertEquals(jvm, js, "JVM==JS callback parity byte-for-byte (3.4-C3.3)");
     }
 
+    // M1 unidade-4 face S: um callback cujo RETORNO é String agora BINDA na JVM e no
+    // JS host (o `invoke` devolve um String Kof que a fronteira copia para um `char*`
+    // NUL-terminado na arena da chamada — paridade com o `kof_ffi_ret_cstr` do JVM).
     @Test
-    void jsNonBindableCallbackStaysFfi002(@TempDir Path dir) throws Exception {
-        Path src = dir.resolve("Main.kf");
-        Files.writeString(src, """
-                extern "libc.so.6" foo(Int a, (Int) -> String cb): Int
-                main() { println(foo(1, (i: Int) -> "x")) }
-                """);
-        // Callback com ARGUMENTO String já é bindável no JS (3.4-C3.4); o NÃO-bindável
-        // que sobra é a String no RETORNO do callback (char* ownership não observável).
-        CompilationResult r = driver.compile(src, dir.resolve("out"), Target.JS);
-        assertFalse(r.success(), "JS callback não-bindável (String de retorno) deve permanecer gap honesto");
-        assertTrue(r.diagnostics().getDiagnostics().stream().anyMatch(d -> "FFI002".equals(d.code())),
-                () -> "esperava FFI002 no JS, veio " + r.diagnostics().getDiagnostics());
-    }
+    void stringReturnCallbackBindsAndMatchesJvmJs(@TempDir Path dir) throws Exception {
+        String lib = buildHostLib(dir);
+        String kof = """
+                extern "%1$s" kof_cb_greet(Int n, (Int) -> String cb): String
+                extern "%1$s" kof_cb_join(String s, Int n, (String, Int) -> String cb): String
+                main() {
+                    println(kof_cb_greet(3, (n: Int) -> "hi" + n))
+                    println(kof_cb_join("x", 2, (s: String, n: Int) -> s + n))
+                }
+                """.formatted(lib);
 
-    @Test
-    void nonBindableCallbackParamStaysFfi001(@TempDir Path dir) throws Exception {
-        Path src = dir.resolve("Main.kf");
-        Files.writeString(src, """
-                extern "libc.so.6" foo(Int a, (Int) -> String cb): Int
-                main() { println(foo(1, (i: Int) -> "x")) }
-                """);
-        CompilationResult r = driver.compile(src, dir.resolve("out"), Target.JVM);
-        assertFalse(r.success(), "callback com RETORNO String não é bindável na JVM");
-        assertTrue(r.diagnostics().getDiagnostics().stream().anyMatch(d -> "FFI001".equals(d.code())),
-                () -> "esperava FFI001 (retorno String do callback é não-bindável), veio "
-                        + r.diagnostics().getDiagnostics());
+        Path jvmSrc = dir.resolve("sret-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        Path jvmOut = dir.resolve("out-sret-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), () -> "JVM String-return callback must bind (M1 face S): "
+                + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(jvmOut);
+        assertEquals("hi3\nx2", jvm, "JVM golden (String-return callbacks)");
+
+        Path jsSrc = dir.resolve("sret-js.kf");
+        Files.writeString(jsSrc, kof);
+        Path jsOut = dir.resolve("out-sret-js");
+        CompilationResult rjs = driver.compile(jsSrc, jsOut, Target.JS);
+        assertTrue(rjs.success(), () -> "JS String-return callback must bind (M1 face S): "
+                + rjs.diagnostics().getDiagnostics());
+        String js = runJs(jsOut);
+        assertEquals(jvm, js, "JVM↔JS String-return callback parity byte-for-byte");
     }
 
     // R3 3.4-C3.4: um callback cujo PARÂMETRO é String (char*->String na fronteira do

@@ -53,6 +53,15 @@ final class StatementLowererLocalBoxing {
             localIdx = ExpressionLowerer.emitExpression(driver, vdInit, ops, owner, localIdx, locals);
             if ("var".equals(vds.type()) || "val".equals(vds.type())) {
                 varType = ExpressionTyper.inferExprType(driver, vdInit, locals);
+                // JVM-01 (audit 0.6.0, §671): an INFERRED lambda-typed local must
+                // be typed as the synthetic INTERFACE, not the concrete LambdaN
+                // class of the first lambda — otherwise a second lambda of the
+                // same signature (Lambda1) stored into the Lambda0-typed slot is
+                // a VerifyError. Declared types keep the else branch (bug 8).
+                if (varType instanceof Type.FunctionType vft && vft.className() != null
+                        && !(vft.returnType() instanceof Type.FunctionType)) {
+                    varType = new Type.FunctionType(vft.parameterTypes(), vft.returnType(), null);
+                }
                 // spawn-expr: pina Handle<T> com T do corpo (a inferência genérica pode ter perdido o typeArgument)
                 if (vdInit instanceof MethodCallExpr sm && "__kof_spawn_expr".equals(sm.methodName())
                         && varType instanceof Type.ClassType hct && "kof.concurrent".equals(hct.packageName())

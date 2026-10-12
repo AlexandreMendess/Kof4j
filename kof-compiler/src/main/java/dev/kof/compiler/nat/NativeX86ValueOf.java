@@ -20,6 +20,19 @@ final class NativeX86ValueOf {
         if (!(kc.kind() == KofCallKind.STATIC && "valueOf".equals(kc.methodName()))) {
             return false;
         }
+            // §674: `Enum.valueOf(String)` NÃO é `String.valueOf` — o dono é a
+            // CLASSE do enum e o retorno é a INSTÂNCIA do enum (uma referência
+            // ao singleton), não uma String. Este handler só trata
+            // String.valueOf (dono `String`) e o box de erasure dos wrappers
+            // (`Integer.valueOf` etc., dono `java.lang.*`). Sem o guard o enum
+            // caía no ramo String (devolvia a própria String de entrada), e o
+            // consumidor lia a String como instância de enum → SIGSEGV. Deixa o
+            // caminho genérico STATIC emitir a chamada `Color_valueOf` real.
+            if (kc.ownerType() instanceof Type.ClassType oct
+                    && !"String".equals(oct.name()) && !"Object".equals(oct.name())
+                    && !"java.lang".equals(oct.packageName())) {
+                return false;
+            }
             // #772: Wrapper.valueOf(primitivo) é o BOX de erasure do slot T?
             // (§284 MAGIC box), NÃO String.valueOf. Sem este ramo o box virava
             // `kof_*_to_string` e o consumidor do slot lia o ponteiro como

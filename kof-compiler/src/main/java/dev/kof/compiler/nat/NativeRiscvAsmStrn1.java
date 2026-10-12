@@ -271,14 +271,14 @@ public final class NativeRiscvAsmStrn1 {
                 addi t2, s8, -1
                 bne  s7, t2, .Lskl_norm
                 mv   s5, s2
-                call .Lskl_emit
+                call .Lsk_emit
                 j    .Lskl_done
             .Lskl_norm:
                 addi t1, s0, 24
                 add  t1, t1, s5
                 lbu  t1, 0(t1)
                 bne  t1, s3, .Lskl_onext
-                call .Lskl_emit
+                call .Lsk_emit
                 addi s4, s5, 1
                 addi s5, s5, 1
                 j    .Lskl_outer
@@ -287,7 +287,7 @@ public final class NativeRiscvAsmStrn1 {
                 j    .Lskl_outer
             .Lskl_last:
                 mv   s5, s2
-                call .Lskl_emit
+                call .Lsk_emit
             .Lskl_done:
                 beqz s2, .Lskl_empty
                 beqz s8, .Lskl_trimstart

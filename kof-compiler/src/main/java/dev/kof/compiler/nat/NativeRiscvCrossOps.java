@@ -575,8 +575,15 @@ public final class NativeRiscvCrossOps {
             // call-site usava `ct.name()` CRU (= "GridStyle") e so casava por
             // coincidencia quando a classe nao tinha pacote (irmao do #628).
             // internalOwner e a forma canonica ja usada pelo ramo FUNCTION.
-            return nb.sanitizeName(NativeSymbolMangling.internalOwner(ct))
+            // §671: a mesma regra do lado da definicao — so o caso de
+            // sobrecarga de MESMA aridade ganha a tag de assinatura.
+            String sym = nb.sanitizeName(NativeSymbolMangling.internalOwner(ct))
                     + "_" + nb.sanitizeName("<init>") + "_" + kc.parameterTypes().size();
+            if (NativeSymbolMangling.constructorArityConflict(NativeSymbolMangling.internalOwner(ct),
+                    kc.parameterTypes().size(), nb.allClassesMap)) {
+                sym += NativeSymbolMangling.sigTag(kc.parameterTypes());
+            }
+            return sym;
         }
         if (kc.ownerType() instanceof Type.ClassType ct) {
             String key = ct.name() + "." + mn;
