@@ -3,7 +3,7 @@
 # Nomenclatura de Releases — Kof
 
 **Última atualização:** 16/09/2026
-**Versão atual:** 0.6.1
+**Versão atual:** 0.6.2
 
 ---
 

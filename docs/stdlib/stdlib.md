@@ -3,7 +3,7 @@
 # Kof Standard Library — Architecture
 
 **Last updated:** September 12, 2026
-**Version:** 0.6.1
+**Version:** 0.6.2
 
 > Kof's Standard Library is the platform: HTTP, REST, auth, authorization,
 > validation, serialization, database, messaging, observability and testing

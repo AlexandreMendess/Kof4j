@@ -365,8 +365,8 @@
 
 # Changelog
 
-last: 0.6.1-cut
-doing: 0.6.1-released
+last: 0.6.2-cut
+doing: 0.6.2-released
 next: 0.7.0-cut
 location: CHANGELOG
 state: active
