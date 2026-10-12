@@ -74,7 +74,12 @@ class NativeRiscvRuntimeSliceRegistryTest {
         // (double/float→string) e, via kof_list_new (B0), scheduler/mapset.
         // Não é regressão de comportamento (a poda por peça é conservadora);
         // é drift de limite. Trava em 12 (não em ~7) p/ pegar bloat real novo.
-        assertTrue(uni.size() <= 12, "piso riscv deveria ser ~12 peças (B4 json+FP), veio " + uni.size());
+        // §667 (12/10): +1 p/ 13 — o decode de string JSON ganhou o conjunto
+        // COMPLETO de escapes e, por responsabilidade, virou a peça própria
+        // `NativeRiscvAsmJsonStr` (o REFACTOR-500 obrigou o split: Mapset1/RtB4
+        // cruzariam 600 linhas). A peça nova é alcançável pelo piso, então o
+        // fecho sobe em 1 — de novo drift de limite, não bloat espúrio.
+        assertTrue(uni.size() <= 13, "piso riscv deveria ser ~13 peças (B4 json+FP+JsonStr), veio " + uni.size());
     }
 
     /** R6/S5.4 (24/09): a mensagem DB001 do runtime CROSS passou a anunciar
