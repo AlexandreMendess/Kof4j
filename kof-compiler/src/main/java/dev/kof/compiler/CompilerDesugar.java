@@ -376,7 +376,7 @@ public final class CompilerDesugar {
         }
         if (s instanceof VarDeclStmt vd && vd.initializer() != null) {
             return new VarDeclStmt(vd.position(), vd.type(), vd.name(),
-                    rewriteExpr(vd.initializer(), renames));
+                    rewriteExpr(vd.initializer(), renames), vd.isVal());
         }
         if (s instanceof IfStmt is) {
             StatementNode thenB = rewriteStmt(is.thenBranch(), renames);

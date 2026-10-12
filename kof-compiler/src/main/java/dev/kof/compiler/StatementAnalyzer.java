@@ -108,7 +108,7 @@ public final class StatementAnalyzer {
                 } else if (selfCapture && !scope.hasLocal(vds.name())) {
                     scope.define(new SymbolTable.LocalVariableSymbol(vds.name(),
                             Type.UnknownType.UNKNOWN, 0,
-                            vds.type() != null && "val".equals(vds.type())));
+                            vds.isVal()));
                     selfPredefined = true;
                 }
                 // "val"/"var" são palavras-chave de mutabilidade, não tipos —
@@ -176,7 +176,7 @@ public final class StatementAnalyzer {
                     }
                 }
                 scope.define(new SymbolTable.LocalVariableSymbol(vds.name(), varType, 0,
-                        vds.type() != null && "val".equals(vds.type())));
+                        vds.isVal()));
             }
             case ReturnStmt ret -> {
                 if (ret.value() != null) {
