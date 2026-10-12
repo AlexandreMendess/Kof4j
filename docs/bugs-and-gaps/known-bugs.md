@@ -18231,7 +18231,7 @@ So every intra transform block of size <= 16x16 in a real AV1 bitstream carries 
 
 <!-- pt-switch --> **PT:** [§675 (pt_BR)](known-bugs.pt_BR.md#675--os-operadores-de-ordem-de-enum-----sao-aceitos-mas-divergem-entre-alvos-jvmjs-dao-false-o-nativo-da-true-o-script-imprime-not-comparable-para-colorred--colorgreen---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092---corrigido-1210-d-sem-rejects-1210-lane-flatt-192168100140-os-relacionais-de-enum-sao-recusados-com-sem105-no-frontend-compartilhado-o-compareto-explicito-e-a-grafia-de-ordenacao)
 
-## §677 — `instanceof` on a boxed primitive diverges: `var o: Object = 42  println(o instanceof Int)` is `false` on Script/native but `true` on JVM/JS — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+## §677 — `instanceof` on a boxed primitive diverges: `var o: Object = 42  println(o instanceof Int)` is `false` on Script/native but `true` on JVM/JS — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092) — ✅ FIXED 12/10 (D-SEM-REJECTS-1210, lane flatt `192.168.100.14:0`): `instanceof <primitive>` is REFUSED with `SEM106` in the shared frontend; class/record/String targets stay clean
 
 **Symptom (measured 11/10, tip `fe5e8c108`):** with `var o: Object = 42`, `println(o instanceof Int)` → **Script `false`**, **native `false`**, **JVM `true`**, **JS `true`**. A 2-2 split: the reference-checking backends (JVM/JS) say the boxed `Integer` IS an `Int`, while the value-typed backends (Script/native) say it is not. `o instanceof String` on a boxed `Integer` is `false` on all four (that face agrees).
 
@@ -18243,7 +18243,9 @@ So every intra transform block of size <= 16x16 in a real AV1 bitstream carries 
 
 **Boundary:** `instanceof` on a CLASS/RECORD target is correct on all four targets (measured: `a instanceof Dog`/`Cat`/`Animal`, `o instanceof String`). Only the PRIMITIVE target diverges. Owner lane compiler/JVM/native `192.168.15.30:9092`.
 
-<!-- pt-switch --> **PT:** [§677 (pt_BR)](known-bugs.pt_BR.md#677--instanceof-sobre-um-primitivo-boxado-diverge-var-o-object--42--printlno-instanceof-int-e-false-no-scriptnativo-mas-true-no-jvmjs---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+**Fix (landed 12/10, D-SEM-REJECTS-1210 — lane flatt `192.168.100.14:0`):** the primitive-target faces (`o instanceof Int|Long|Bool|Char|Double|Float`) are refused with a NEW `SEM106` in the shared frontend (`SemExpressionTyper` — the target identifier resolved against the frozen primitive-name set). The maintainer DECIDED reject over boxed semantics (the boxed/unboxed distinction is target-muddy; the honest refusal IS the semantics). RED-first: `InstanceofPrimitiveRejectE2ETest` measured the acceptance RED by disabling the gate in-place, 3/0F post (the 6 primitives refused + the class-hierarchy face + the `String`-is-a-class face clean); the instanceof/as battery 9/0F; the portukof PT variant aligned with the generator's arity-2 normalization (285/285 with PT).
+
+<!-- pt-switch --> **PT:** [§677 (pt_BR)](known-bugs.pt_BR.md#677--instanceof-sobre-um-primitivo-boxado-diverge-var-o-object--42--printlno-instanceof-int-e-false-no-scriptnativo-mas-true-no-jvmjs---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092---corrigido-1210-d-sem-rejects-1210-lane-flatt-192168100140-instanceof-primitivo-e-recusado-com-sem106-no-frontend-compartilhado-os-alvos-classrecordstring-ficam-limpos)
 
 ## §678 — a FAILING downcast `a as Dog` diverges: JVM throws `ClassCastException` while Script/native/JS evaluate to `null` (and a nullable `a as Dog?` returns `null` everywhere except JVM, which throws) — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
 

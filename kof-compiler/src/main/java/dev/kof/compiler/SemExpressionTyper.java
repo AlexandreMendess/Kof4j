@@ -12,6 +12,16 @@ public final class SemExpressionTyper {
 
     private SemExpressionTyper() {}
 
+    /** §677: o conjunto congelado dos NOMES de tipo primitivo (a recusa é
+     *  por nome — o alvo do instanceof é um identificador de tipo, não um
+     *  valor; `String` é classe e segue limpa, a fronteira medida). */
+    private static boolean isPrimitiveTypeName(String name) {
+        return switch (name) {
+            case "Int", "Long", "Bool", "Char", "Double", "Float" -> true;
+            default -> false;
+        };
+    }
+
     static Type inferType(SemanticAnalyzer sa, ExpressionNode expr, SymbolTable scope) {
         Type cached = sa.expressionTypes().get(expr);
         if (cached != null && !Type.isUnknown(cached)) return cached;
@@ -219,6 +229,24 @@ public final class SemExpressionTyper {
                     // MethodCallTyper lê para `mapOf(k, v as T)`). Sem isto o
                     // V do Map pinava Unknown e o unbox/print do char-em-
                     // coleção (§104b-ii) perdia o tipo.
+                    // §677 / D-SEM-REJECTS-1210 (mantenedora 12/10): `instanceof`
+                    // com alvo PRIMITIVO (`o instanceof Int`) era aceito e DIVERGIA
+                    // 2-2 (Script/nativo false, JVM/JS true) — o contrato da
+                    // linguagem define instanceof só para class/record. O nome de
+                    // tipo primitivo no alvo leva a recusa SEM106 (compartilhada);
+                    // class/record/String seguem limpos (a fronteira medida).
+                    if ("instanceof".equals(be.operator())
+                            && be.right() instanceof dev.kof.compiler.IdentifierExpr iie
+                            && isPrimitiveTypeName(iie.name())) {
+                        if (sa.diagnostics() != null) {
+                            sa.diagnostics().error("", 0, 0, 0,
+                                    "'instanceof' is not defined for the primitive target '"
+                                            + iie.name() + "': instanceof checks a CLASS/RECORD "
+                                            + "reference (the boxed form diverges per target) — "
+                                            + "the value IS a " + iie.name() + " by its declared type",
+                                    "SEM106");
+                        }
+                    }
                     if ("as".equals(be.operator()) && rightType instanceof Type.UnknownType
                             && be.right() instanceof dev.kof.compiler.IdentifierExpr rie) {
                         Type q = CompilerTypes.toType(rie.name(), sa.unit());
