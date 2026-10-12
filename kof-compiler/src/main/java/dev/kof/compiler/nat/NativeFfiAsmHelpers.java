@@ -168,7 +168,10 @@ final class NativeFfiAsmHelpers {
      * vez) — o mesmo confinamento da call-arena da JVM (R7).
      */
     static void emitX86CallbackTrampoline(StringBuilder sb, String desc) {
-        if (desc.indexOf('S') >= 0) { emitX86CallbackTrampolineStr(sb, desc); return; }
+        // Só a face com ARGUMENTO `S` (char*→String) precisa do frame que salva as
+        // fontes e chama `kof_ffi_from_cstr`; um retorno `S` sozinho usa o marshal
+        // normal + a conversão do retorno (payload obj+24).
+        if (desc.indexOf('S', 1) >= 0) { emitX86CallbackTrampolineStr(sb, desc); return; }
         int arity = desc.length() - 1;
         char rc = desc.charAt(0);
         String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
@@ -206,9 +209,12 @@ final class NativeFfiAsmHelpers {
         sb.append("    movq (%r11), %r11\n");    // vtable[0] = invoke
         sb.append("    call *%r11\n");
         if (arity > 5) sb.append("    addq $").append((arity - 5) * 8).append(", %rsp\n");
-        // Retorno: inteiro já em rax; FP move os bits crus rax → xmm0.
+        // Retorno: inteiro já em rax; FP move os bits crus rax → xmm0; String
+        // devolve o `char*` do payload (obj+24; o heap bump nunca libera, então o
+        // ponteiro é estável — contrato síncrono).
         if (rc == 'f') sb.append("    movd %eax, %xmm0\n");
         else if (rc == 'd') sb.append("    movq %rax, %xmm0\n");
+        else if (rc == 'S') sb.append("    leaq 24(%rax), %rax\n");
         sb.append("    ret\n");
         sb.append(".section .bss\n");
         sb.append("kof_cb_closure_").append(desc).append(":\n");
@@ -277,6 +283,7 @@ final class NativeFfiAsmHelpers {
         sb.append("    addq $").append(frame).append(", %rsp\n");
         if (rc == 'f') sb.append("    movd %eax, %xmm0\n");
         else if (rc == 'd') sb.append("    movq %rax, %xmm0\n");
+        else if (rc == 'S') sb.append("    leaq 24(%rax), %rax\n");
         sb.append("    ret\n");
         sb.append(".section .bss\n");
         sb.append("kof_cb_closure_").append(desc).append(":\n");

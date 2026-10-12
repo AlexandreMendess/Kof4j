@@ -329,14 +329,29 @@ final class KofJsFfiMarshal {
         // recebe os primitivos já com boxing do asType. Mesma forma usada no pin C3.1.
         MethodHandle h = MethodHandles.lookup()
                 .findStatic(KofJsFfiMarshal.class, "executeJs" + Character.toUpperCase(rb),
-                        MethodType.methodType(ret, Value.class, Object[].class))
+                        MethodType.methodType(rb == 'S' ? String.class : ret, Value.class, Object[].class))
                 .bindTo(fn)
                 .asVarargsCollector(Object[].class)
-                .asType(MethodType.methodType(ret, prim));
+                .asType(MethodType.methodType(rb == 'S' ? String.class : ret, prim));
+        if (rb == 'S') {
+            // Face S (RETORNO String): o `invoke` devolve um String Kof; o C espera um
+            // `char*` NUL-terminado. Copia na arena da chamada (síncrono/não-escapante,
+            // paridade com o `kof_ffi_ret_cstr` do JVM).
+            MethodHandle retc = MethodHandles.lookup().findStatic(KofJsFfiMarshal.class,
+                    "jsRetCstr", MethodType.methodType(MemorySegment.class, Arena.class, String.class))
+                    .bindTo(arena);
+            h = MethodHandles.filterReturnValue(h, retc);
+        }
         FunctionDescriptor cb = (rb == 'v')
                 ? FunctionDescriptor.ofVoid(il)
                 : FunctionDescriptor.of(ffiLayout(rb), il);
         return Linker.nativeLinker().upcallStub(h, cb, arena);
+    }
+
+    /** String devolvido pelo `invoke` Kof -> `char*` NUL-terminado na arena da chamada
+     *  (face S de RETORNO). NULL -> ponteiro nulo. */
+    static MemorySegment jsRetCstr(Arena arena, String s) {
+        return s == null ? MemorySegment.NULL : arena.allocateFrom(s);
     }
 
     // Os args chegam do upcall com os primitivos já boxados; um param 'S' chega como
@@ -348,6 +363,7 @@ final class KofJsFfiMarshal {
     static float executeJsF(Value fn, Object... a) { return fn.getMember("invoke").execute(jsBridgeArgs(a)).asFloat(); }
     static double executeJsD(Value fn, Object... a) { return fn.getMember("invoke").execute(jsBridgeArgs(a)).asDouble(); }
     static boolean executeJsB(Value fn, Object... a) { return fn.getMember("invoke").execute(jsBridgeArgs(a)).asBoolean(); }
+    static String executeJsS(Value fn, Object... a) { return fn.getMember("invoke").execute(jsBridgeArgs(a)).asString(); }
     static void executeJsV(Value fn, Object... a) { fn.getMember("invoke").execute(jsBridgeArgs(a)); }
 
     private static Object[] jsBridgeArgs(Object[] a) {
@@ -367,6 +383,7 @@ final class KofJsFfiMarshal {
             case 'f' -> float.class;
             case 'd' -> double.class;
             case 'b' -> boolean.class;
+            case 'S' -> MemorySegment.class;
             default -> throw new IllegalArgumentException("bad ffi carrier char: " + c);
         };
     }

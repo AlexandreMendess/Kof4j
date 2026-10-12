@@ -32,6 +32,10 @@ class FfiNativeCallbackStrE2ETest {
             long kof_cb_strint(const char* s, int n, sij cb) { return cb(s, n); }
             typedef int (*ss)(const char*, const char*);
             int kof_cb_two(const char* a, const char* b, ss cb) { return cb(a, b); }
+            typedef const char* (*rs)(int);
+            const char* kof_cb_greet(int n, rs cb) { return cb(n); }
+            typedef const char* (*rs2)(const char*, int);
+            const char* kof_cb_join(const char* s, int n, rs2 cb) { return cb(s, n); }
             """;
 
     private static final String CALLBACK_KOF = """
@@ -43,6 +47,19 @@ class FfiNativeCallbackStrE2ETest {
                 println(kof_cb_strlen("hello", (x: String) -> x.length))
                 println(kof_cb_strint("abc", 10, (x: String, n: Int) -> x.length as Long + n as Long))
                 println(kof_cb_two("foo", "barbar", (x: String, y: String) -> x.length + y.length))
+            }
+            """;
+
+    /** Face S como RETORNO (M1 unidade-4): o `invoke` devolve um String Kof que a
+     *  fronteira entrega ao C como `char*` (JVM: arena da chamada; Native: payload
+     *  obj+24 do heap bump). Um arg String junto exercita as duas direções. */
+    private static final String CALLBACK_RET_KOF = """
+            extern "%1$s" kof_cb_greet(n: Int, cb: (Int) -> String): String
+            extern "%1$s" kof_cb_join(s: String, n: Int, cb: (String, Int) -> String): String
+
+            main() {
+                println(kof_cb_greet(3, (n: Int) -> "hi" + n))
+                println(kof_cb_join("x", 2, (s: String, n: Int) -> s + n))
             }
             """;
 
@@ -100,19 +117,34 @@ class FfiNativeCallbackStrE2ETest {
         assertEquals(jvm, o, "JVM↔Native String-arg callback parity byte-for-byte");
     }
 
-    /** Um retorno {@code String} continua {@code FFI001} (ownership do `char*`). */
+    /** Retorno {@code String} do callback: binda e o `char*` chega ao C (JVM==Native). */
     @Test
-    void strCbReturnStaysFfi001NativeStrFile(@TempDir Path dir) throws Exception {
-        Path src = dir.resolve("ret.kf");
-        Files.writeString(src, """
-                extern "c" kof_cb_ret(cb: (Int) -> String): Int
-                main() { println(kof_cb_ret((n: Int) -> "x")) }
-                """);
-        CompilationResult r = driver.compile(src, dir.resolve("out-ret"), Target.NATIVE);
-        assertFalse(r.success(), "String-return callback deve ser recusado no Native");
-        assertTrue(r.diagnostics().getDiagnostics().stream()
-                        .anyMatch(d -> "FFI001".equals(d.code())),
-                () -> "esperado FFI001: " + r.diagnostics().getDiagnostics());
+    void nativeStringReturnCallbacksMatchJvm(@TempDir Path dir) throws Exception {
+        String lib = buildHostLib(dir);
+        String kof = CALLBACK_RET_KOF.formatted(lib);
+
+        Path jvmSrc = dir.resolve("cbr-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        Path jvmOut = dir.resolve("out-cbr-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), () -> "JVM oracle compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(jvmOut);
+        assertEquals("hi3\nx2", jvm, "JVM golden (String-return callbacks)");
+
+        Path src = dir.resolve("cbr-native.kf");
+        Files.writeString(src, kof);
+        Path out = dir.resolve("out-cbr-native");
+        CompilationResult r = driver.compile(src, out, Target.NATIVE);
+        assertTrue(r.success(), () -> "NATIVE String-return callbacks must bind (M1 face S): "
+                + r.diagnostics().getDiagnostics());
+        Path bin = out.resolve("Default/Main");
+        assertTrue(Files.exists(bin), "binary " + bin);
+        Process p = new ProcessBuilder(bin.toString()).directory(dir.toFile())
+                .redirectErrorStream(true).start();
+        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), () -> "NATIVE run exit code, output: " + o);
+        assertEquals(jvm, o, "JVM↔Native String-return callback parity byte-for-byte");
     }
 
     /** O cross riscv64/aarch64 monta o mesmo frame do bridge `S` (fatia 5). */
@@ -170,6 +202,52 @@ class FfiNativeCallbackStrE2ETest {
             } catch (Exception ignored) { /* tenta o próximo */ }
         }
         return null;
+    }
+
+    /** Retorno {@code String} do callback no cross riscv64/aarch64 (mesma face S). */
+    @Test
+    void nativeStringReturnCallbacksMatchJvmCross(@TempDir Path dir) throws Exception {
+        assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("linux"),
+                "callback host usa um .so nativo (Linux)");
+        Path c = dir.resolve("libkofretc.c");
+        Files.writeString(c, C_SRC);
+        Path hostSo = dir.resolve("libkofretc-host.so");
+        Process hp = new ProcessBuilder(cc("/usr/bin/cc", "/usr/bin/gcc", "cc", "gcc"),
+                "-shared", "-fPIC", "-O2", "-o", hostSo.toString(), c.toString())
+                .redirectErrorStream(true).start();
+        hp.getInputStream().readAllBytes();
+        assertTrue(hp.waitFor(60, TimeUnit.SECONDS) && hp.exitValue() == 0, "host cc falhou");
+
+        Path jvmSrc = dir.resolve("cbrc-jvm.kf");
+        Files.writeString(jvmSrc, CALLBACK_RET_KOF.formatted(hostSo.toString()));
+        Path jvmOut = dir.resolve("out-cbrc-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), () -> "JVM oracle compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(jvmOut);
+        assertEquals("hi3\nx2", jvm, "JVM golden (String-return callbacks cross)");
+
+        String[][] arches = {{"riscv64", "riscv64-linux-gnu-gcc"}, {"aarch64", "aarch64-linux-gnu-gcc"}};
+        for (String[] arch : arches) {
+            assumeTrue(cc(arch[1]) != null, "sem cross-gcc " + arch[0]);
+            assumeTrue(cc("qemu-" + arch[0]) != null, "sem qemu-" + arch[0]);
+            Path so = dir.resolve("libkofretc-" + arch[0] + ".so");
+            Process cp = new ProcessBuilder(arch[1], "-shared", "-fPIC", "-O2",
+                    "-o", so.toString(), c.toString()).redirectErrorStream(true).start();
+            String cOut = new String(cp.getInputStream().readAllBytes());
+            assumeTrue(cp.waitFor(60, TimeUnit.SECONDS) && cp.exitValue() == 0,
+                    "cross-gcc falhou: " + cOut);
+            Path src = dir.resolve("cbrc-" + arch[0] + ".kf");
+            Files.writeString(src, CALLBACK_RET_KOF.formatted(so.toString()));
+            Path out = dir.resolve("out-cbrc-" + arch[0]);
+            Target t = arch[0].equals("riscv64") ? Target.NATIVE_RISCV64 : Target.NATIVE_AARCH64;
+            CompilationResult r = driver.compile(src, out, t);
+            assertTrue(r.success(), () -> "NATIVE " + arch[0] + " String-return callbacks must bind: "
+                    + r.diagnostics().getDiagnostics());
+            Path bin = out.resolve("Default/Main");
+            assertTrue(Files.exists(bin), "binary " + bin);
+            String o = NativeRiscv64E2ETest.runQemuWithLibPath(dir, arch[0], bin);
+            assertEquals(jvm, o, "JVM<->" + arch[0] + " String-return callback parity (M1 face S cross)");
+        }
     }
 
     private String runJvm(Path outDir) throws IOException {

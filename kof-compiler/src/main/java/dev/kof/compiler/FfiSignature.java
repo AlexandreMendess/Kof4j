@@ -256,12 +256,14 @@ public final class FfiSignature {
     // ---- callbacks / upcalls (R3, fatia 3.4): token C(<ret><params>) ----------------
     // Parâmetros bindáveis: os escalares {Int, Long, Float, Double, Boolean} E String
     // (um `char*` que entra no callback: o runtime faz o bridge ADDRESS->String na
-    // fronteira do upcall, espelhando o downcall `getString`; 3.4-C3.4). O RETORNO do
-    // callback continua primitivo-ou-void: devolver `String` exigiria entregar ao C um
-    // `char*` cujo dono da memória não é observável no contrato síncrono → fica fora do
-    // conjunto bindável e o gate mantém FFI001/FFI002 honestos (R6). void/pointer/struct/
-    // função-aninhada como parâmetro continuam null (não-bindável).
-    // Ex.: "(String, Int) -> Int" -> descritor "iSi"; "(Int) -> String" -> null (retorno S).
+    // fronteira do upcall, espelhando o downcall `getString`; 3.4-C3.4). O RETORNO
+    // do callback é primitivo-ou-void, ou String (M1 unidade-4 face S: o `invoke`
+    // devolve um String Kof que a fronteira entrega ao C como `char*` NUL-terminado
+    // na arena da chamada — síncrono/não-escapante, o mesmo contrato da face de arg;
+    // no Native o payload vive no heap bump que nunca libera, então o `char*` é
+    // estável pela vida do processo). void/pointer/struct/função-aninhada como
+    // parâmetro continuam null (não-bindável).
+    // Ex.: "(String, Int) -> Int" -> descritor "iSi"; "(Int) -> String" -> "Si".
 
     static Character cbParamChar(String t) {
         // 'S' é bindável como ARGUMENTO (char*->String no upcall); só o não-escalar
@@ -271,9 +273,7 @@ public final class FfiSignature {
 
     static Character cbReturnChar(String t) {
         if (isVoidFFI(t)) return 'v';
-        Character c = paramChar(t);
-        if (c == null || c.charValue() == 'S') return null;   // String RETURN: não-bindável
-        return c;
+        return paramChar(t);   // inclui 'S' (String RETURN binda; M1 unidade-4 face S)
     }
 
     static boolean isFunctionType(String t) {
@@ -281,19 +281,20 @@ public final class FfiSignature {
     }
 
     /** M1 callbacks on Native x86-64: aceita os descritores cujos chars são
-     *  escalares inteiros/FP/void ({@code i,j,b,f,d,v}) e um ARGUMENTO {@code S}
-     *  (String: um `char*` no registrador INTEIRO, que o trampolim converte via
-     *  `kof_ffi_from_cstr`). Um retorno {@code S} fica fora (ownership do `char*`
-     *  não observável no contrato síncrono). Devolve {@code desc} ou null. */
+     *  escalares inteiros/FP/void ({@code i,j,b,f,d,v}) e {@code S} (String) como
+     *  ARGUMENTO (um `char*` no registrador INTEIRO, que o trampolim converte via
+     *  `kof_ffi_from_cstr`) OU como RETORNO (o trampolim entrega ao C o `char*` do
+     *  payload do String devolvido — obj+24; o heap bump nunca libera). Devolve
+     *  {@code desc} ou null. */
     public static String nativeCallbackDesc(String desc) {
         if (desc == null) return null;
         int nInt = 0, nFp = 0;
-        boolean hasStr = false;
+        boolean hasStrArg = false;
         for (int i = 0; i < desc.length(); i++) {
             char c = desc.charAt(i);
             if (c == 'S') {
-                if (i == 0) return null;   // String RETURN: ownership não-observável
-                hasStr = true; nInt++;     // String arg = char* num registrador INTEIRO
+                if (i == 0) continue;      // String RETURN: o char* sai do payload (obj+24)
+                hasStrArg = true; nInt++;  // String arg = char* num registrador INTEIRO
                 continue;
             }
             if (c != 'i' && c != 'j' && c != 'b' && c != 'f' && c != 'd' && c != 'v') return null;
@@ -305,24 +306,23 @@ public final class FfiSignature {
         if (nInt > 6 || nFp > 8) return null;
         // String arg: o trampolim monta um frame (salva fontes, chama
         // kof_ffi_from_cstr) — só a face de registradores, aridade ≤ 5.
-        if (hasStr && desc.length() - 1 > 5) return null;
+        if (hasStrArg && desc.length() - 1 > 5) return null;
         return desc;
     }
 
-    /** M1 callbacks no cross (riscv64/aarch64): face escalar + ARGUMENTO
-     *  {@code S} (String: um `char*` num registrador INTEIRO, que o trampolim
-     *  converte via `kof_ffi_from_cstr`), orçamento da ABI cruzada (int a0..a7,
-     *  FP fa0..fa7) e arity ≤ 7 (o `invoke` Kof usa a0 à closure, então no máximo
-     *  7 args em a1..a7). Um retorno {@code S} fica fora (ownership do `char*`). */
+    /** M1 callbacks no cross (riscv64/aarch64): face escalar + {@code S} como
+     *  ARGUMENTO (char* num registrador INTEIRO, bridge `kof_ffi_from_cstr`) ou
+     *  RETORNO (char* do payload obj+24), orçamento da ABI cruzada (int a0..a7,
+     *  FP fa0..fa7) e arity ≤ 7 (o `invoke` Kof usa a0 à closure). */
     public static String crossCallbackDesc(String desc) {
         if (desc == null) return null;
         int nInt = 0, nFp = 0;
-        boolean hasStr = false;
+        boolean hasStrArg = false;
         for (int i = 0; i < desc.length(); i++) {
             char c = desc.charAt(i);
             if (c == 'S') {
-                if (i == 0) return null;   // String RETURN: ownership não-observável
-                hasStr = true; nInt++;
+                if (i == 0) continue;      // String RETURN: o char* sai do payload (obj+24)
+                hasStrArg = true; nInt++;
                 continue;
             }
             if (c != 'i' && c != 'j' && c != 'b' && c != 'f' && c != 'd' && c != 'v') return null;
@@ -334,7 +334,7 @@ public final class FfiSignature {
         if (desc.length() - 1 > 7) return null;
         // Com um arg `S` o trampolim monta o frame: args só em registradores
         // (a1..a7 = 7), então nInt ≤ 7.
-        if (hasStr ? nInt > 7 : nInt > 8) return null;
+        if (hasStrArg ? nInt > 7 : nInt > 8) return null;
         return desc;
     }
 

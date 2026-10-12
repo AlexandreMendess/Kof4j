@@ -16,7 +16,9 @@ final class NativeFfiCallRiscvCallback {
      * a1..) e chama vtable[0]. Só-inteiros/FP escalar (mesmo do x86).
      */
     static void emitRiscvCallbackTrampoline(StringBuilder sb, String desc) {
-        if (desc.indexOf('S') >= 0) { emitRiscvCallbackTrampolineStr(sb, desc); return; }
+        // Só a face com ARG `S` usa o frame de bridge; retorno `S` sozinho usa o
+        // marshal normal + a conversão do retorno (payload obj+24).
+        if (desc.indexOf('S', 1) >= 0) { emitRiscvCallbackTrampolineStr(sb, desc); return; }
         int arity = desc.length() - 1;
         char rc = desc.charAt(0);
         sb.append("kof_cb_tramp_").append(desc).append(":\n");
@@ -55,6 +57,7 @@ final class NativeFfiCallRiscvCallback {
         sb.append("    addi sp, sp, 16\n");
         if (rc == 'f') sb.append("    fmv.w.x fa0, a0\n");
         else if (rc == 'd') sb.append("    fmv.d.x fa0, a0\n");
+        else if (rc == 'S') sb.append("    addi a0, a0, 24\n");
         sb.append("    ret\n");
     }
 
@@ -119,6 +122,7 @@ final class NativeFfiCallRiscvCallback {
         sb.append("    addi sp, sp, ").append(frame).append("\n");
         if (rc == 'f') sb.append("    fmv.w.x fa0, a0\n");
         else if (rc == 'd') sb.append("    fmv.d.x fa0, a0\n");
+        else if (rc == 'S') sb.append("    addi a0, a0, 24\n");
         sb.append("    ret\n");
     }
 
