@@ -511,9 +511,15 @@ public final class MemberResolver {
         if (sa.diagnostics() == null || cls.modifiers().contains("abstract")) return;
         String curSuper = cls.superClass();
         java.util.Set<String> checkedMethods = new java.util.HashSet<>();
+        // #821: a cadeia de extends pode ser CIRCULAR (A extends A, ciclos de
+        // 2/3) — sem o visited o while acima gira para sempre (DoS, sem
+        // diagnóstico). O próprio ClassShapeChecks emite o SEM106; aqui a
+        // caminhada apenas TERMINA no primeiro revisitado.
+        java.util.Set<String> visitedSupers = new java.util.HashSet<>();
         while (curSuper != null && !curSuper.isEmpty() && !"Object".equals(curSuper)) {
             String simpleSuper = curSuper.contains("/") ? curSuper.substring(curSuper.lastIndexOf("/") + 1) : curSuper;
             if (simpleSuper.contains("<")) simpleSuper = simpleSuper.substring(0, simpleSuper.indexOf("<"));
+            if (!visitedSupers.add(simpleSuper)) break;
             SymbolTable.ClassSymbol superCs = sa.allClasses().get(simpleSuper);
             if (superCs == null) break;
             for (java.util.Map.Entry<String, SymbolTable.Symbol> e : superCs.members().localSymbols().entrySet()) {
