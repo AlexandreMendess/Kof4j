@@ -131,6 +131,92 @@ class EntityHistoryAtChangesE2ETest {
     }
 
     @Test
+    void transactionRollbackAlsoRollsBackTheHistory() throws Exception {
+        String out = runJvm("txroll", """
+            import kof.orm.history
+            audited entity User {
+                id: Long generated
+                name: String
+            }
+            main() {
+                var db = db.connect("jdbc:h2:mem:eht1;DB_CLOSE_DELAY=-1")
+                orm.create<User>(db)
+                orm.createHistory<User>(db)
+                var rolled = false
+                try {
+                    transaction {
+                        orm.save(db, User(0, "Mel"))
+                        throw "rollback-now"
+                    }
+                } catch (String e) {
+                    rolled = true
+                }
+                println(rolled)
+                var cs = User.changes(db, 1)
+                println(cs.size)
+                var t = db.query(db, "select count(*) as c from \\"user\\"")
+                println(t.get(0))
+                db.close(db)
+            }
+            """);
+        assertEquals("true\n0\n{\"c\":0}", out,
+                "o rollback da transação desfaz DML E histórico juntos");
+    }
+
+    @Test
+    void transactionCommitPersistsTheHistory() throws Exception {
+        String out = runJvm("txok", """
+            import kof.orm.history
+            audited entity User {
+                id: Long generated
+                name: String
+            }
+            main() {
+                var db = db.connect("jdbc:h2:mem:eht2;DB_CLOSE_DELAY=-1")
+                orm.create<User>(db)
+                orm.createHistory<User>(db)
+                transaction {
+                    orm.save(db, User(0, "Mel"))
+                    orm.save(db, User(1, "Melissa"))
+                }
+                var cs = User.changes(db, 1)
+                println(cs.size)
+                println(cs.get(0).field)
+                db.close(db)
+            }
+            """);
+        assertEquals("1\nname", out, "o commit da transação persiste DML E histórico");
+    }
+
+    @Test
+    void changesRangeFiltersByRevision() throws Exception {
+        String out = runJvm("range", """
+            import kof.orm.history
+            audited entity User {
+                id: Long generated
+                name: String
+            }
+            main() {
+                var db = db.connect("jdbc:h2:mem:eht3;DB_CLOSE_DELAY=-1")
+                orm.create<User>(db)
+                orm.createHistory<User>(db)
+                var u = orm.save(db, User(0, "Mel"))
+                u = orm.save(db, User(u.id, "Melissa"))
+                u = orm.save(db, User(u.id, "Mel2"))
+                var all = User.changes(db, u.id)
+                println(all.size)
+                var rng = User.changes(db, u.id, 3, 3)
+                println(rng.size)
+                println(rng.get(0).previous)
+                println(rng.get(0).current)
+                db.close(db)
+            }
+            """);
+        assertEquals("2\n1\nMelissa\nMel2", out,
+                "a faixa [3,3] isola só o diff da revisão 3");
+    }
+
+    @Test
     void atTimeReturnsTheStateAtOrBefore() throws Exception {
         String out = runJvm("attime", """
             import kof.orm.history
