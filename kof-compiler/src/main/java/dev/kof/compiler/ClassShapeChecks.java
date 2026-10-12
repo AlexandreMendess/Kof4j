@@ -115,7 +115,8 @@ public final class ClassShapeChecks {
      */
     private static void checkInheritanceCycle(SemanticAnalyzer sa, ClassDeclarationNode cls) {
         java.util.Set<String> visited = new java.util.HashSet<>();
-        String current = simpleName(eraseGenerics(cls.superClass()));
+        String current = eraseGenerics(cls.superClass());
+        current = current == null ? null : simpleName(current);
         String start = cls.name();
         while (current != null && visited.add(current)) {
             if (current.equals(start)) {
@@ -126,7 +127,8 @@ public final class ClassShapeChecks {
                 return;
             }
             SymbolTable.ClassSymbol sym = sa.allClasses().get(current);
-            current = sym == null ? null : simpleName(eraseGenerics(sym.superClass()));
+            String nextSuper = sym == null ? null : eraseGenerics(sym.superClass());
+            current = nextSuper == null ? null : simpleName(nextSuper);
         }
     }
 
