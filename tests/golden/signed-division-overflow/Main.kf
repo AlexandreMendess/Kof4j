@@ -1,0 +1,28 @@
+main() {
+    println(-7 / 2)
+    println(-7 % 2)
+    println(7 / -2)
+    println(7 % -2)
+    println(-1 / 2)
+    println(-1 % 2)
+    println(-8 / 2)
+    println(-8 % 3)
+    println(8 % -3)
+    println(-9 / 4)
+    println(-9 % 4)
+    var big: Int = 2147483647
+    println(big + 1)
+    println(big * 2)
+    println(big + big)
+    var a: Long = 0 - 9000000000
+    println(a / 7)
+    println(a % 7)
+    println(a >> 1)
+    println(a << 2)
+    println(a & 255)
+    println(a | 1)
+    println(a ^ 3)
+    println(-1 >> 1)
+    println(-9000000000 / 7)
+    println(-9000000000 % 7)
+}

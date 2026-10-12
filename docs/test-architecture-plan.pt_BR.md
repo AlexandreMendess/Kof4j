@@ -1555,6 +1555,23 @@ Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então conge
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
 
+**Fase 6 fatia 44 POUSADA (12/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **69 no total** — pinando aritmética inteira COM SINAL, uma área da linguagem com ZERO
+cobertura golden. O novo caso `tests/golden/signed-division-overflow` pina o truncamento em
+direção ao ZERO do contrato JVM para divisão e resto de `Int`/`Long` (`-7/2`→`-3`, `-7%2`→`-1`,
+`7/-2`→`-3`, `7%-2`→`1`, `-1/2`→`0`, `-1%2`→`-1`, `-8/2`, `-8%3`, `8%-3`, `-9/4`, `-9%4`), o
+wraparound de 32 bits do `Int` no overflow (`2147483647+1`→`-2147483648`, `big*2`→`-2`,
+`big+big`→`-2`), e as faces com sinal de bitwise/shift do Long (`a>>1` aritmético num negativo →
+`-4500000000`, `a<<2`, `a&255`, `a|1`, `a^3`, `-1>>1`→`-1`). Todo golden aritmético EXISTENTE
+usa só operandos POSITIVOS (`long-arithmetic` `a/b`/`a%b`/`d/2`; `bitwise-ops` `16>>2`/`1<<4`),
+então a regra de truncar-ao-zero, a extensão de sinal do shift negativo e o wrap de overflow não
+tinham pino. As 24 faces concordam byte-a-byte nos quatro alvos. Apenas infraestrutura de teste,
+sem mudança de compilador. Prova (executada): cada valor medido primeiro no alvo Script, cruzado
+byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh`
+**276/276** (69 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:
