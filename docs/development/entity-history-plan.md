@@ -4,8 +4,8 @@
 
 state:
 last: PROMOTED 11/10 from `docs/development/future/` (D-FUTURE-UNFREEZE, maintainer 11/10) — the plan with ALL decisions closed (D-ENTITY-HISTORY authorized 28/09 + Q1–Q15 answered in D-FUTURE-BATCH-2809B)
-doing: Phase 2 slice 2a LANDED 11/10 — the `audited` declaration modifier (AUDITED token + KofKeywords + the Portukof pair `auditado`, gated to ENTITY declarations; `AuditedEntityParseE2ETest` 3/3: `audited entity` compiles+migrates+saves+queries identically to a plain entity on h2, `audited class` stays an error, plain entities unchanged; ORM battery 138/0F)
-next: Phase 2 slice 2b — the recording: `orm.save/update/delete` write the history tables (per-entity revision sequence, snapshot-per-revision) when the entity is audited, inside `transaction { … }`; RED-first E2E (a save on an audited entity creates revision 1; a plain entity creates none)
+doing: Phase 2 slice 2b LANDED 11/10 — the RECORDING: `orm.createHistory<User>(db)` (the explicit §10 step) + `kof_orm_save_recorded`/`kof_orm_delete_recorded` (JVM runtime: per-entity revision via COALESCE(MAX)+1, operation INSERT/UPDATE decided inside the save — generated key → INSERT —, DELETE recorded with the pk snapshot; payload = full field snapshot JSON; plain entities route to the original fns, zero overhead; `orm.createHistory` on a plain entity = HIST002 refusal; the history faces are JVM/ANDROID — JS bridge/native/cross get honest ORM001 in compile-time, Phase 5). `EntityHistoryRecordingE2ETest` 3/3 (INSERT→UPDATE→DELETE revisions read back via raw SQL; plain entity creates no history table; HIST002 on plain); ORM battery 168/0F
+next: slice 2c (roadmap 2.9.3) — the historical queries: `User.history(db, id)` / `at` / `atTime` / `changes` returning the locked `Revision`/`FieldChange` records, HIST002 on non-audited queries, HIST005 argument validation, E2E goldens
 location: docs/development/entity-history-plan.md
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 state: under-development

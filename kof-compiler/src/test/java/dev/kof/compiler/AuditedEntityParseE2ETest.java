@@ -30,9 +30,9 @@ class AuditedEntityParseE2ETest {
     @Test
     void auditedEntityParsesAndBehavesAsEntity() throws Exception {
         // full CRUD round-trip on the canonical ORM surface (h2, the
-        // KofOrmE2ETest pattern): slice 2a is PARSE-ONLY — the audited
-        // entity behaves EXACTLY like a plain entity until slice 2b lands
-        // the recording.
+        // KofOrmE2ETest pattern): slice 2a proved the PARSE; since slice 2b
+        // an audited entity RECORDS — the explicit `orm.createHistory` step
+        // (its contract) must precede the saves.
         Path file = tmp.resolve("crud/Main.kf");
         Files.createDirectories(file.getParent());
         Files.writeString(file, """
@@ -43,6 +43,7 @@ class AuditedEntityParseE2ETest {
             main() {
                 var db = db.connect("jdbc:h2:mem:audited1;DB_CLOSE_DELAY=-1")
                 orm.create<User>(db)
+                orm.createHistory<User>(db)
                 var mel = orm.save(db, User(0, "Mel"))
                 println(mel.id)
                 var u = orm.find<User>(db, mel.id)

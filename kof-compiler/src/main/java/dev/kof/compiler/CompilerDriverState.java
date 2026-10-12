@@ -165,6 +165,9 @@ IRModule currentModule;
      */
 
     final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
+    // entity-history fatia 2b (D-ENTITY-HISTORY): entidades `audited` — o lowering
+    // grava revisões (kof_orm_*_recorded) apenas para estas.
+    public final java.util.Set<String> auditedEntities = new java.util.HashSet<>();
 
     /** FFI (TIER 2.1): declarações {@code extern} por nome — candidatos de
      *  mesmo nome são OVERLOADS por assinatura (#763, `D-MAINT-BATCH-0610`/B). */

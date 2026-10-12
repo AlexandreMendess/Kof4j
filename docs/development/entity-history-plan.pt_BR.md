@@ -4,8 +4,8 @@
 
 state:
 last: PROMOVIDO 11/10 de `docs/development/future/` (D-FUTURE-UNFREEZE, mantenedora 11/10) — o plano com TODAS as decisões fechadas (D-ENTITY-HISTORY autorizada 28/09 + Q1–Q15 respondidas em D-FUTURE-BATCH-2809B)
-doing: Fase 2 fatia 2a POUSADA 11/10 — o modificador de declaração `audited` (token AUDITED + KofKeywords + o par Portukof `auditado`, restrito a declarações ENTITY; `AuditedEntityParseE2ETest` 3/3: `audited entity` compila+migra+salva+consulta idêntico a uma entity simples no h2, `audited class` segue erro, entities simples inalteradas; bateria ORM 138/0F)
-next: Fase 2 fatia 2b — a gravação: `orm.save/update/delete` escrevem as tabelas de histórico (sequência de revisão por entity, snapshot-por-revisão) quando a entity é audited, dentro de `transaction { … }`; E2E RED-first (um save em entity audited cria a revisão 1; uma entity simples não cria nada)
+doing: Fase 2 fatia 2b POUSADA 11/10 — a GRAVAÇÃO: `orm.createHistory<User>(db)` (o passo explícito do §10) + `kof_orm_save_recorded`/`kof_orm_delete_recorded` (runtime JVM: revisão por-entity via COALESCE(MAX)+1, operação INSERT/UPDATE decidida dentro do save — generated key → INSERT —, DELETE gravado com o snapshot da pk; payload = snapshot completo dos campos em JSON; entities simples seguem os fns originais, overhead zero; `orm.createHistory` em entity simples = recusa HIST002; as faces de histórico são JVM/ANDROID — bridge JS/nativo/cross recebem ORM001 honesto em compile-time, Fase 5). `EntityHistoryRecordingE2ETest` 3/3 (revisões INSERT→UPDATE→DELETE lidas via SQL cru; entity simples não cria tabela de histórico; HIST002 em entity simples); bateria ORM 168/0F
+next: fatia 2c (roadmap 2.9.3) — as consultas históricas: `User.history(db, id)` / `at` / `atTime` / `changes` devolvendo os records `Revision`/`FieldChange` travados, HIST002 em consulta de não-audited, HIST005 de validação de args, goldens E2E
 location: docs/development/entity-history-plan.pt_BR.md
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 state: under-development

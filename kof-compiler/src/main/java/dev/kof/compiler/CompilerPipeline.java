@@ -259,6 +259,7 @@ public final class CompilerPipeline {
             else switch (decl) {
                 case EntityDeclarationNode ent -> {
                     driver.entitySchemas.put(ent.name(), ent.fields());
+                    if (ent.modifiers().contains("audited")) driver.auditedEntities.add(ent.name()); // entity-history 2b
                     List<RecordComponentNode> components = new java.util.ArrayList<>();
                     for (EntityFieldNode f : ent.fields()) {
                         components.add(new RecordComponentNode(f.position(), List.of(), f.type(), f.name(), null));

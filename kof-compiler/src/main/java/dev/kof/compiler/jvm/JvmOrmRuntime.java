@@ -149,6 +149,114 @@ public final class JvmOrmRuntime {
                 }
 
                 public static Object kof_orm_save(String id, Object obj, String table, String schema) throws Exception {
+                    return kof_orm_do_save(id, obj, table, schema, null);
+                }
+
+                // entity-history fatia 2b (D-ENTITY-HISTORY): wrapper que
+                // grava a revisão APÓS o DML — a operação (INSERT/UPDATE) é
+                // conhecida DENTRO do doSave (generated key → INSERT).
+                public static Object kof_orm_save_recorded(String id, Object obj, String table, String schema) throws Exception {
+                    String[] op = new String[1];
+                    Object out = kof_orm_do_save(id, obj, table, schema, op);
+                    kof_orm_history_record(id, out, table, schema, op[0]);
+                    return out;
+                }
+
+                public static boolean kof_orm_delete_recorded(String id, Object key, String table, String schema) throws Exception {
+                    boolean ok = kof_orm_delete(id, key, table, schema);
+                    if (ok) kof_orm_history_record_delete(id, String.valueOf(key), table, schema);
+                    return ok;
+                }
+
+                // §10 (D-ENTITY-HISTORY): a tabela lógica audit_revision —
+                // criada pelo passo EXPLÍCITO orm.createHistory<T>(db) (nunca
+                // DDL implícito). Nomes físicos são do backend (§10).
+                public static boolean kof_orm_create_history(String id, String table, String schema) throws Exception {
+                    String dialect = kof_orm_dialect(id);
+                    return kof_db_execute(id, "CREATE TABLE IF NOT EXISTS " + kof_orm_q(table + "_history", dialect)
+                            + " (revision BIGINT NOT NULL, entity_pk VARCHAR(255) NOT NULL, "
+                            + "operation VARCHAR(16) NOT NULL, at BIGINT NOT NULL, payload CLOB)") >= 0;
+                }
+
+                // §10: revisão monotônica POR-ENTITY (entity_pk) —
+                // COALESCE(MAX)+1 na MESMA connection do DML; payload = snapshot
+                // completo dos campos (JSON de texto via reflection).
+                public static void kof_orm_history_record(String id, Object obj, String table, String schema,
+                        String operation) throws Exception {
+                    String dialect = kof_orm_dialect(id);
+                    java.util.List<OrmField> fields = kof_orm_schema(schema);
+                    int pkIndex = kof_orm_pkIndex(fields);
+                    java.lang.reflect.RecordComponent[] comps = obj.getClass().getRecordComponents();
+                    Object[] vals = new Object[comps.length];
+                    StringBuilder json = new StringBuilder("{");
+                    String q = String.valueOf((char) 34);
+                    for (int i = 0; i < comps.length; i++) {
+                        vals[i] = comps[i].getAccessor().invoke(obj);
+                        if (i > 0) json.append(",");
+                        json.append(q).append(comps[i].getName()).append(q).append(":")
+                                .append(kof_orm_json(vals[i]));
+                    }
+                    json.append("}");
+                    Object pk = vals[pkIndex];
+                    long rev;
+                    try (java.sql.PreparedStatement rs_ = kof_db_conn(id).prepareStatement(
+                            "SELECT COALESCE(MAX(revision), 0) + 1 FROM "
+                                    + kof_orm_q(table + "_history", dialect) + " WHERE entity_pk = ?")) {
+                        rs_.setString(1, String.valueOf(pk));
+                        try (java.sql.ResultSet r_ = rs_.executeQuery()) {
+                            rev = r_.next() ? r_.getLong(1) : 1L;
+                        }
+                    }
+                    try (java.sql.PreparedStatement ps = kof_db_conn(id).prepareStatement(
+                            "INSERT INTO " + kof_orm_q(table + "_history", dialect)
+                                    + " (revision, entity_pk, operation, at, payload) VALUES (?, ?, ?, ?, ?)")) {
+                        ps.setLong(1, rev);
+                        ps.setString(2, String.valueOf(pk));
+                        ps.setString(3, operation);
+                        ps.setLong(4, System.currentTimeMillis());
+                        ps.setString(5, json.toString());
+                        ps.executeUpdate();
+                    }
+                }
+
+                // DELETE: o snapshot é a própria chave (a linha já não existe)
+                public static void kof_orm_history_record_delete(String id, String pk, String table, String schema)
+                        throws Exception {
+                    String dialect = kof_orm_dialect(id);
+                    long rev;
+                    try (java.sql.PreparedStatement rs_ = kof_db_conn(id).prepareStatement(
+                            "SELECT COALESCE(MAX(revision), 0) + 1 FROM "
+                                    + kof_orm_q(table + "_history", dialect) + " WHERE entity_pk = ?")) {
+                        rs_.setString(1, pk);
+                        try (java.sql.ResultSet r_ = rs_.executeQuery()) {
+                            rev = r_.next() ? r_.getLong(1) : 1L;
+                        }
+                    }
+                    try (java.sql.PreparedStatement ps = kof_db_conn(id).prepareStatement(
+                            "INSERT INTO " + kof_orm_q(table + "_history", dialect)
+                                    + " (revision, entity_pk, operation, at, payload) VALUES (?, ?, ?, ?, ?)")) {
+                        ps.setLong(1, rev);
+                        ps.setString(2, pk);
+                        ps.setString(3, "DELETE");
+                        ps.setLong(4, System.currentTimeMillis());
+                        ps.setString(5, "{" + (char) 34 + "deleted" + (char) 34 + ":true}");
+                        ps.executeUpdate();
+                    }
+                }
+
+                private static String kof_orm_json(Object v) {
+                    // aspas/barra via char-constante: ZERO sequência de escape
+                    // dentro do text block (o gerado compila sempre).
+                    String q = String.valueOf((char) 34);
+                    String b = String.valueOf((char) 92);
+                    if (v == null) return "null";
+                    if (v instanceof Number || v instanceof Boolean) return String.valueOf(v);
+                    String s = String.valueOf(v);
+                    s = s.replace(b, b + b).replace(q, b + q);
+                    return q + s + q;
+                }
+
+                private static Object kof_orm_do_save(String id, Object obj, String table, String schema, String[] opOut) throws Exception {
 
                     String dialect = kof_orm_dialect(id);                    java.util.List<OrmField> fields = kof_orm_schema(schema);
                     int pkIndex = kof_orm_pkIndex(fields);
@@ -197,6 +305,7 @@ optsType.getMethod("upsert", boolean.class).invoke(opts, true);
                                 }
                             }
                         }
+                        if (opOut != null) opOut[0] = "INSERT";
                         return kof_orm_newInstance(obj.getClass(), values);
                     }
                     // UPDATE
@@ -214,6 +323,7 @@ optsType.getMethod("upsert", boolean.class).invoke(opts, true);
                                     + kof_orm_q(fields.get(pkIndex).name, dialect) + " = ?")) {
                         for (int i = 0; i < binds.size(); i++) ps.setObject(i + 1, binds.get(i));
                         if (ps.executeUpdate() > 0) {
+                            if (opOut != null) opOut[0] = "UPDATE";
                             return obj;
                         }
                     }
@@ -232,6 +342,7 @@ optsType.getMethod("upsert", boolean.class).invoke(opts, true);
                         for (int i = 0; i < insertBinds.size(); i++) ps.setObject(i + 1, insertBinds.get(i));
                         ps.executeUpdate();
                     }
+                    if (opOut != null) opOut[0] = "INSERT";
                     return obj;
                 }
 
