@@ -83,9 +83,7 @@ JVM==Native + `FfiStructLayoutTest` (classification, no C toolchain).
 an SSE eightbyte packing more than one field is emitted bitwise (`%rax`
 shift/or → `movq %xmm`; SSE is bitwise so no FP conversion) — the x86-64 form of
 the cross HFA face, so a homogeneous-float struct of **≤ 2 fields** (`record
-VF(Float, Float)`) now binds on x86-64 too. The cutoff is the SAME as the cross
-(`crossHomogeneousFloat`, ≤ 2 fields): **HFA>2 stays `FFI001`** (in the cross the
-two ABIs diverge there; keeping x86-64 aligned avoids a silent divergence).
+VF(Float, Float)`) now binds on x86-64 too. The x86-64 cutoff stays at the ≤ 2 homogeneous-float form; **HFA>2 is refused on x86-64 AND aarch64** (`FFI001`) — but **MEASURED 13/10: it BINDS on riscv64** (LP64D packs >2 fields into integer doublewords; `F3(Float,Float,Float)` → `6.0` == the JVM oracle, verified against a real C shim). Symmetrically, **mixed float+int is refused only on the CROSS wire — it BINDS on x86-64** (`sseEightbytesAreSingleField`).
 Proof: `FfiStructE2ETest` `structParamAndReturnFloatByValueNative`
 (`F2(Float,Float)` param AND return, byte-for-byte JVM==Native) and
 `structParamThreeFloatStaysFfi001` (HFA>2 = honest `FFI001`) +
