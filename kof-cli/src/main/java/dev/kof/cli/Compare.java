@@ -40,9 +40,10 @@ public final class Compare {
 
     enum Channel { EQUIVALENT, DIVERGENT }
 
-    record Verdict(Channel stdout, Channel stderr, Channel exit, Channel files) {
+    record Verdict(Channel stdout, Channel stderr, Channel exit, Channel files, Channel exceptions) {
         boolean equivalent() {
-            return stdout == Channel.EQUIVALENT && exit == Channel.EQUIVALENT && files == Channel.EQUIVALENT;
+            return stdout == Channel.EQUIVALENT && exit == Channel.EQUIVALENT
+                    && files == Channel.EQUIVALENT && exceptions == Channel.EQUIVALENT;
         }
 
         Map<String, Object> toMap() {
@@ -51,6 +52,7 @@ public final class Compare {
             m.put("stderr", stderr == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("exit", exit == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("files", files == Channel.EQUIVALENT ? "equivalent" : "divergent");
+            m.put("exceptions", exceptions == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("overall", equivalent() ? "equivalent" : "divergent");
             return m;
         }
@@ -129,11 +131,43 @@ public final class Compare {
     }
 
     static Verdict compare(RunResult legacy, RunResult kof) {
+        String legacyEx = exceptionType(legacy.stderr());
+        String kofEx = exceptionType(kof.stderr());
+        Channel exceptions;
+        if (legacyEx == null && kofEx == null) {
+            exceptions = Channel.EQUIVALENT;
+        } else if (legacyEx == null || kofEx == null) {
+            // one side threw, the other exited cleanly: the failure MODE diverged
+            exceptions = Channel.DIVERGENT;
+        } else {
+            // §8 typed-exception face: the TYPE is the observable — the raw
+            // stack text carries environment paths/line numbers (noise)
+            exceptions = legacyEx.equals(kofEx) ? Channel.EQUIVALENT : Channel.DIVERGENT;
+        }
         return new Verdict(
                 legacy.sameStdout(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
                 legacy.sameStderr(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
                 legacy.sameExit(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
-                legacy.sameFiles(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT);
+                legacy.sameFiles(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
+                exceptions);
+    }
+
+    /**
+     * Fase G (§8): the first exception/error TYPE in a stderr stream — the
+     * JVM trace's first line carries it fully qualified
+     * ("Exception in thread \"main\" java.lang.ArithmeticException: ...").
+     * Null when the run threw nothing. JVM-target format (the compare runs
+     * the JVM target on both sides); JS/native trace formats are a future face.
+     */
+    static String exceptionType(String stderr) {
+        if (stderr == null || stderr.isBlank()) {
+            return null;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("[a-z][a-z0-9_]*(?:\\.[A-Za-z0-9_]+)+")
+                .matcher(stderr.lines().filter(l -> l.contains("Exception") || l.contains("Error"))
+                        .findFirst().orElse(""));
+        return m.find() ? m.group() : null;
     }
 
     static RunResult runLegacy(Path legacy, List<String> args, String stdin) throws IOException {

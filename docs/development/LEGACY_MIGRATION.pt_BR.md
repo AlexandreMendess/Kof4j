@@ -303,10 +303,29 @@ O objetivo é impedir que o projeto fique conceitualmente preso à JVM.
 Valida que uma migração preserva comportamento: mesmo vetor de entrada no
 programa original e no Kof, comparando **saídas observáveis**.
 
-- **O que comparar (`kof compare`, implementado):** stdout, stderr, exit code
-  (`Compare.java`, `--stdin`/`--arg`; prova `CompareTest` 6/6). Além de stdout
-  comparável — exceptions tipadas, return values, arquivos, DB mutations,
-  protocolos, side effects — é o pendente da Fase G.
+- **O que comparar (`kof compare`, implementado):** stdout, stderr, exit code,
+  **arquivos** (snapshot SHA-256 do sandbox) e — **ENTREGUE 14/10, fatia da
+  Fase G (lane nativa/GC `192.168.15.117:0`)** — **exceptions tipadas**: o
+  primeiro TIPO de exception/error é extraído dos dois stderr (formato de
+  trace JVM; o compare roda o alvo JVM dos dois lados) e comparado como um
+  canal `exceptions` dedicado que GATA o veredito overall. Isso fecha um FALSO
+  VERDE medido: os dois lados falhando com exit 1 sob TIPOS de exception
+  diferentes (ex. NPE legado vs ArrayIndexOO migrado) comparavam equivalentes
+  antes (stdout ""=="", exit 1==1, files {}=={}; o canal stderr bruto não
+  gata) — o canal tipado vira isso para divergente. O TIPO é o observável; o
+  texto bruto do stack (nomes de arquivo, números de linha) é ruído de
+  ambiente (medido: `Div.java:3` legado vs `Div.kf:11` migrado para o mesmo
+  `ArithmeticException`). Prova: `CompareTest` 13/13 — 5 faces novas (o
+  fechamento do falso verde, mesmo-tipo-equivalente-apesar-do-ruído,
+  divergência throw-vs-saída-limpa, a preservação E2E do
+  `ArithmeticException` migrado, execução limpa null==null). Pendente da Fase
+  G: **return values** são cobertos no nível de programa pelo canal de exit
+  code (main não tem return value em nenhuma das linguagens; faces por função
+  pertencem ao teto structured-shape do decompilador — decisão diamond-law,
+  fora do escopo autônomo deste plano); **DB mutations, protocolos, side
+  effects** precisam de infraestrutura de observação de sistemas externos
+  (fatias futuras, cada uma atrás da sua própria medição); **formatos de
+  trace JS/nativos** para o canal tipado são uma face futura.
 - **Classificação de divergência:** equivalente · divergente dentro do escopo
   · divergente fora do escopo · comportamento indefinido.
 - **Critério de aceite de um sistema crítico:**

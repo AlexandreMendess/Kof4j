@@ -302,10 +302,29 @@ The goal is to prevent the project from becoming conceptually stuck to the JVM.
 Validates that a migration preserves behavior: same input vector in the
 original program and in Kof, comparing **observable outputs**.
 
-- **What to compare (`kof compare`, implemented):** stdout, stderr, exit code
-  (`Compare.java`, `--stdin`/`--arg`; proof `CompareTest` 6/6). Beyond comparable
-  stdout — typed exceptions, return values, files, DB mutations,
-  protocols, side effects — is what remains pending in Phase G.
+- **What to compare (`kof compare`, implemented):** stdout, stderr, exit code,
+  **files** (sandbox snapshot SHA-256) and — **LANDED 14/10, Phase G slice
+  (lane nativa/GC `192.168.15.117:0`)** — **typed exceptions**: the first
+  exception/error TYPE is extracted from both stderr streams (JVM trace
+  format; the compare runs the JVM target on both sides) and compared as a
+  dedicated `exceptions` channel that GATES the overall verdict. This closes
+  a measured FALSE GREEN: both sides failing with exit 1 under DIFFERENT
+  exception types (e.g. legacy NPE vs migrated ArrayIndexOO) compared
+  equivalent before (stdout ""=="" , exit 1==1, files {}=={}; the raw stderr
+  channel does not gate) — the typed channel flips it to divergent. The TYPE
+  is the observable; the raw stack text (file names, line numbers) is
+  environment noise (measured: legacy `Div.java:3` vs migrated `Div.kf:11`
+  for the same `ArithmeticException`). Proof: `CompareTest` 13/13 — 5 new
+  faces (the false-green closure, same-type-equivalent-despite-noise,
+  throw-vs-clean-exit divergence, the E2E migrated `ArithmeticException`
+  preservation, clean-run null==null). Remaining Phase G faces: **return
+  values** are covered at the program level by the exit-code channel (main
+  has no return value in either language; per-function return-value faces
+  belong to the decompiler's structured-shape ceiling — diamond-law decision,
+  outside this plan's autonomous scope); **DB mutations, protocols, side
+  effects** need external-system observation infrastructure (future slices,
+  each behind its own measurement); **JS/native trace formats** for the typed
+  channel are a future face.
 - **Divergence classification:** equivalent · divergent within scope
   · divergent outside scope · undefined behavior.
 - **Acceptance criterion for a critical system:**
