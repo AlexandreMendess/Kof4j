@@ -1759,5 +1759,12 @@
       "en": "'instanceof' is not defined for the primitive target '{0}': instanceof checks a CLASS/RECORD reference (the boxed form diverges per target) — the value IS a {1} by its declared type",
       "pt": "'instanceof' não é definido para o alvo primitivo '{0}': o instanceof checa uma referência CLASS/RECORD (a forma boxada diverge por alvo) — o valor É um {1} pelo seu tipo declarado"
     }
+  ],
+  "SEM107": [
+    {
+      "arity": 1,
+      "en": "circular inheritance detected: '{0}' extends (directly or transitively) itself — break the cycle in the hierarchy",
+      "pt": "herança circular detectada: '{0}' estende (direta ou transitivamente) a si mesma — quebre o ciclo na hierarquia"
+    }
   ]
 }
