@@ -1548,6 +1548,24 @@ cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
 
+**Phase 6 slice 44 LANDED (12/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **69 total** — pinning SIGNED integer arithmetic, a core-language area with
+ZERO golden coverage. The new case `tests/golden/signed-division-overflow` pins the JVM
+contract's truncation TOWARD ZERO for `Int`/`Long` division and remainder (`-7/2`→`-3`,
+`-7%2`→`-1`, `7/-2`→`-3`, `7%-2`→`1`, `-1/2`→`0`, `-1%2`→`-1`, `-8/2`, `-8%3`, `8%-3`,
+`-9/4`, `-9%4`), the `Int` 32-bit wraparound on overflow (`2147483647+1`→`-2147483648`,
+`big*2`→`-2`, `big+big`→`-2`), and the Long signed bitwise/shift faces (`a>>1` arithmetic
+on a negative → `-4500000000`, `a<<2`, `a&255`, `a|1`, `a^3`, `-1>>1`→`-1`). Every
+EXISTING arithmetic golden uses only POSITIVE operands (`long-arithmetic` `a/b`/`a%b`/
+`d/2`; `bitwise-ops` `16>>2`/`1<<4`), so the truncation-toward-zero rule, the negative-shift
+sign extension and the overflow wrap had no pin. All 24 faces agree byte-for-byte on the
+four targets. Test-infrastructure only, no compiler change. Proof (executed): every value
+measured on the Script target first, cross-checked byte-for-byte on jvm/native/js (all four
+agree), then frozen; `tests/run-golden.sh` **276/276** (69 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:

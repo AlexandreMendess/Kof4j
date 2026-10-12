@@ -3,7 +3,7 @@
 # Kof vs Java — Comparação Técnica
 
 **Última atualização:** 12 de setembro de 2026
-**Versão:** 0.6.2 (7 targets; pattern matching + `String?` + spawn Native)
+**Versão:** 0.6.3 (7 targets; pattern matching + `String?` + spawn Native)
 
 ---
 
