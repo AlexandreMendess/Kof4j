@@ -2,7 +2,7 @@
 
 # DECOMPILER.md — Decompilador Kof (DESPRIORIZADO 15/09 → REABERTO 28/09, ainda em future/)
 
-**Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); a superfície de formas estruturais está no teto honesto (as faces restantes precisam da decisão da lei do diamante ou da lane de interop); a fatia atual é a Fase H (migração completa de JAR por LEGACY_MIGRATION §8.1), que vive em `LEGACY_MIGRATION.pt_BR.md`** —
+**Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); a superfície de formas estruturais está no teto honesto (as faces restantes precisam da decisão da lei do diamante ou da lane de interop); **a frente JVM está COMPLETA em 14/10** — Fases A–H entregues (decompile 67/67, translate 72/72 lista §3.3 19/19, compare 15/15 seis canais incl. exceções tipadas + digest de DB, migrate 11/11 JAR + integração comportamental + vetores de entrada; bateria 165/165); as faces restantes do decompilador são o teto structured-shape (decisão da lei do diamante) e a lane de interop; o work-log vive em `LEGACY_MIGRATION.pt_BR.md`** —
 ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
 `D-FUTURE-PROMOTION` (regra dos três estados). O código já no repo fica (kof-cli `Decompile.java` +
 decoders, `DecompileTest` 67/67) — só a *fila* para aqui; o work-log completo

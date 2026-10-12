@@ -2,7 +2,7 @@
 
 # DECOMPILER.md — Kof Decompiler (DEPRIORITIZED 15/09 → REOPENED 28/09, still in future/)
 
-**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); the structured-shape surface is at its honest ceiling (remaining faces need the diamond-law decision or the interop lane); the current slice is Phase H (full JAR migration per LEGACY_MIGRATION §8.1), which lives in `LEGACY_MIGRATION.md`** —
+**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); the structured-shape surface is at its honest ceiling (remaining faces need the diamond-law decision or the interop lane); **the JVM front is COMPLETE as of 14/10** — Phases A–H landed (decompile 67/67, translate 72/72 §3.3 list 19/19, compare 15/15 six channels incl. typed exceptions + DB digest, migrate 11/11 JAR + behavioral wiring + input vectors; battery 165/165); the remaining decompiler faces are the structured-shape ceiling (diamond-law decision) and the interop lane; the work-log lives in `LEGACY_MIGRATION.md`** —
 still plan-only here; promotion to current work is one-at-a-time per
 `D-FUTURE-PROMOTION` (the
 three-states rule). Code already in the repo stays (kof-cli `Decompile.java` +
