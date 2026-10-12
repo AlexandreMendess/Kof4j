@@ -75,7 +75,11 @@ public final class SemMethodCallTyper {
             Type fcS = CompilerTypes.toType("FieldChange", sa.unit(), sa);
             Type entS = CompilerTypes.toType(ehS.name(), sa.unit(), sa);
             int n = mc.arguments().size();
-            if ("history".equals(mc.methodName()) && (n == 2 || n == 4))
+            if ("history".equals(mc.methodName()) && n == 2)
+                return new Type.ClassType("kof", "List", List.of(revS));
+            if ("history".equals(mc.methodName()) && n == 3)
+                return new Type.NullableType(revS); // §9.2 row 2
+            if ("history".equals(mc.methodName()) && n == 4)
                 return new Type.ClassType("kof", "List", List.of(revS));
             if ("changes".equals(mc.methodName()) && (n == 2 || n == 4))
                 return new Type.ClassType("kof", "List", List.of(fcS));

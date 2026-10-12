@@ -33,7 +33,11 @@ final class MethodCallNamespaces {
             Type fcT = CompilerTypes.toType("FieldChange", driver.currentUnit, driver.semanticAnalyzer);
             Type entT = CompilerTypes.toType(ehR.name(), driver.currentUnit, driver.semanticAnalyzer);
             int n = mc.arguments().size();
-            if ("history".equals(mc.methodName()) && (n == 2 || n == 4))
+            if ("history".equals(mc.methodName()) && n == 2)
+                return new Type.ClassType("kof", "List", List.of(revT));
+            if ("history".equals(mc.methodName()) && n == 3)
+                return new Type.NullableType(revT); // §9.2 row 2: uma revisão ou null
+            if ("history".equals(mc.methodName()) && n == 4)
                 return new Type.ClassType("kof", "List", List.of(revT));
             if ("changes".equals(mc.methodName()) && (n == 2 || n == 4))
                 return new Type.ClassType("kof", "List", List.of(fcT));
