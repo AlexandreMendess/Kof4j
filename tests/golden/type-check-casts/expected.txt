@@ -1,0 +1,8 @@
+true
+false
+true
+true
+5
+woof
+dog: woof
+other: meow

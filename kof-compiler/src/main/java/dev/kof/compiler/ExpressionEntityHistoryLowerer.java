@@ -52,6 +52,23 @@ static int lower(CompilerDriver driver, MethodCallExpr mc,
         return lowerAtAtTimeChanges(driver, mc, ops, owner, localIdx, locals,
                 entityName, table, schema);
     }
+    boolean oneRevision = mc.arguments().size() == 3; // §9.2 row 2: Revision?
+    if (oneRevision) {
+        // HIST005 em compile-time: revisão constante <= 0
+        if (mc.arguments().get(2) instanceof UnaryExpr ue
+                && "-".equals(ue.operator())
+                && ue.operand() instanceof LiteralExpr lit2
+                && lit2.value() != null && lit2.value().matches("\\d+")) {
+            if (driver.currentDiagnostics != null) {
+                var pos = mc.position();
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        entityName + ".history: revision must be >= 1 (HIST005)",
+                        "HIST005");
+            }
+            return localIdx;
+        }
+    }
     boolean paginated = mc.arguments().size() == 4;
     // HIST005 em compile-time: offset/limit CONSTANTES negativos
     if (paginated) {
@@ -78,12 +95,16 @@ static int lower(CompilerDriver driver, MethodCallExpr mc,
     // espera Object para o key)
     // (id, key[, offset, limit], table, schema, className) — o key é
     // OBJ (boxeado) como em orm.save/orm.delete; offset/limit são INT.
-    List<Type> params = paginated
+    List<Type> params = oneRevision
+            ? new ArrayList<>(List.of(BuiltinTypes.STRING, Type.UnknownType.UNKNOWN,
+                    Type.PrimitiveType.INT,
+                    BuiltinTypes.STRING, BuiltinTypes.STRING, BuiltinTypes.STRING))
+            : (paginated
             ? new ArrayList<>(List.of(BuiltinTypes.STRING, Type.UnknownType.UNKNOWN,
                     Type.PrimitiveType.INT, Type.PrimitiveType.INT,
                     BuiltinTypes.STRING, BuiltinTypes.STRING, BuiltinTypes.STRING))
             : new ArrayList<>(List.of(BuiltinTypes.STRING, Type.UnknownType.UNKNOWN,
-                    BuiltinTypes.STRING, BuiltinTypes.STRING, BuiltinTypes.STRING));
+                    BuiltinTypes.STRING, BuiltinTypes.STRING, BuiltinTypes.STRING)));
     int emitted = 0;
     for (ExpressionNode arg : mc.arguments()) {
         localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
@@ -95,6 +116,23 @@ static int lower(CompilerDriver driver, MethodCallExpr mc,
             TypeEmitter.boxPrimitive(ops, at);
         }
         emitted++;
+        if (oneRevision && emitted == 3) {
+            // §9.2 row 2: (id, key, revision, table, schema, className) — a
+            // revisão é INT cru; os literais vêm DEPOIS dela.
+            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, table));
+            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, schema));
+            ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
+                    CompilerOrmSupport.classNameFor(driver, "Revision")));
+            // retType = o tipo INTERNO (Revision), não Nullable: o slot
+            // local mapeia para Revision (checkcast no retorno) e o null
+            // segue fluindo por referência — o mesmo truque do `at`.
+            ops.add(new KofCall(new Type.ClassType("kof.orm", "Orm", List.of()),
+                    "kof_orm_history_one", params,
+                    CompilerTypes.toType("Revision", driver.currentUnit,
+                            driver.semanticAnalyzer),
+                    KofCallKind.FUNCTION));
+            return localIdx;
+        }
         if (paginated && emitted == 4) {
             // após os 4 args do usuário: a ordem do runtime é
             // (id, key, offset, limit, table, schema, className) — os

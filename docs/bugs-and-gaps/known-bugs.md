@@ -18184,6 +18184,24 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 <!-- pt-switch --> **PT:** [§673 (pt_BR)](known-bugs.pt_BR.md#673--auditoria-jvm-03-uma-expressao-ifswitch-cujos-ramos-sao-lambdas-da-mesma-assinatura-fazia-o-join-cair-em-object-os-classnames-concretos-lambda0lambda1-diferem-entao-o-call-site-emitia-um-invokestatic--iljavalangobject-fantasma--verifyerror-no-jvm---corrigido-1110-lane-compiladorjvmnativo-19216815309092)
 
+## §674 — the AV1 intra tile driver never reads `tx_type`, which libaom signals for every non-skipped intra transform block of size <= 16x16 — the slice-3ag golden only covers 32x32 (set `DCTONLY`, no symbol), so the gap is invisible there — 🟡 OPEN (measured 12/10, lane pipeline/image-vision 192.168.15.21:0)
+
+**Symptom (measured 12/10):** a 16x16 transform block decodes with the wrong coefficients: the Kof driver `av1DecodeTileRecon` (`libs/image/Av1DecodeTileRecon.kf`) passes a hardcoded `txType = 0` (DCT_DCT) to `av1DecodeCoeffsBlockEdge` (`libs/image/Av1CoeffPlane.kf`), so it never consumes the `tx_type` symbol libaom writes before the coefficient payload, and the entropy stream desynchronises at the next symbol.
+
+**Root (read from the pinned libaom `d53e6d0b14568ddbd36ad7354bfb9a59a127346e`):** `av1_read_coeffs_txb` (`av1/decoder/decodetxb.c:158`) calls `av1_read_tx_type` whenever the block is not `all_zero`; `av1_read_tx_type` (`av1/decoder/decodemv.c:626`) reads the symbol only when `get_ext_tx_types(tx_size, is_inter=0, reduced) > 1` (`av1/common/blockd.h:1129`). For an intra block that is `av1_num_ext_tx_set[av1_get_ext_tx_set_type(tx, 0, reduced)]`:
+- `TX_32X32` -> `EXT_TX_SET_DCTONLY` -> **1** (no symbol) — this is what the slice-3ag golden exercises;
+- `TX_16X16` with `reduced_tx_set_used = 0` -> `av1_ext_tx_set_lookup[0][1]` = `EXT_TX_SET_DTT4_IDTX` -> **5** (symbol read);
+- `TX_16X16` with `reduced_tx_set_used = 1` -> `EXT_TX_SET_DTT4_IDTX` via the reduced branch -> **5**.
+
+So every intra transform block of size <= 16x16 in a real AV1 bitstream carries a `tx_type` symbol that the driver does not consume. `libs/image/Av1TxType.kf` already implements `readTxType(txSz, reducedTxSet, qindex, intraMode, useFilterIntra, filterIntraMode, txTypes, stride, x4, y4)` (slice 3t) — it is simply never called from the tile driver.
+
+**Proof (measured, not yet a golden):** the re-provisioned libaom oracle (`/tmp/s3ag/oracle2.c`, encoder writes the mode info + tx size + coefficients with libaom's OWN default CDFs and range encoder, decoder drives libaom's REAL `read_intra_frame_mode_info` + `read_tx_size` + `av1_read_coeffs_txb` + `av1_get_tx_type`) instrumented on both sides prints, for a `BLOCK_16X16` block: `DTTX tx=2 mode=0 reduced=0 ext=5` — the decoder takes the `tx_type` branch — followed by `MS n=5 s=0` (the 5-symbol `intra_ext_tx_cdf` read), while the encoder's symbol stream for that block has NO `tx_type` write. A single-block 16x16 case DOES round-trip once the encoder writes it (`av1_ext_tx_inv[EXT_TX_SET_DTT4_IDTX][DCT_DCT] = 9`).
+
+**Why slice 3ag passed anyway:** its oracle cases are all `BLOCK_32X32` -> `TX_32X32` -> `DCTONLY` -> no `tx_type`, so driver and oracle agree on an incomplete model. The 3ac/3ad/3ae oracles share the same tx-size restriction.
+
+**Fix (not yet landed):** initialise an `Av1TxType` store in the driver and, per transform block, call `readTxType(txSz, reducedTxSet, qIndex, yMode, useFilterIntra, filterIntraMode, txTypes, stride, x4, y4)` BEFORE the coefficient decode, passing the returned type into `av1DecodeCoeffsBlockEdge`. Held back because the oracle harness still desyncs on its multi-block 16x16 cases (an encoder-side `txb_skip` context mismatch), so a verified golden for the <= 16x16 path does not exist yet — shipping the change without it would be an unverified code path (Q1/Q5).
+
+**Boundary:** the gap is in the intra coefficient path only; `av1DecodeTileReconE2ETest` 7/7 (JVM + Script + native x86-64 + JS + riscv64/aarch64 qemu) still passes because it exercises 32x32 only. `decodeRaster` AVIF still refuses until the chain closes. Owner lane pipeline/image-vision `192.168.15.21:0` (flatt CLI, no opencode server on this host; port n/a per the never-invent rule).
 ## §676 — the entity-history `User.changes` face crashed the JVM backend's COMPUTE_FRAMES (NegativeArraySizeException: -2): the 2-arg call pushed 5 stack values for the 7-param runtime fn — ✅ FIXED 11/10 (lane flatt 192.168.100.14:0)
 **Symptom (measured 11/10, tip `71cae04a0`):** `User.changes(db, u.id)` compiles, the runtime fn is landed and correct, but ANY program whose main() touches the result — even only `cs.size` — dies in the JVM backend: `Internal compiler error: frame crash in Default/Main.main — ASM error: NegativeArraySizeException: -2, phase: JVM backend / ASM COMPUTE_FRAMES (visitMaxs)`. The IR is healthy (LoadLocal List<FieldChange> → the size call → valueOf → println); the crash is in the FRAME COMPUTATION for the method, not in an op.
 **Root (measured after the bisect cleared the record shape):** the 2-arg `User.changes(db, id)` face pushed only FIVE stack values (db, key, table, schema, className) for the SEVEN-param runtime fn (id, key, from, to, table, schema, className) — the from/to were declared in the KofCall params but never EMITTED. COMPUTE_FRAMES popped 7 with 5 on the stack: 5-7 = the NegativeArraySize(-2). The `FieldChange` nullable components were cleared by the bisect (a plain `listOf(FieldChange(...))` + `.size` compiles and runs green).
@@ -18205,3 +18223,31 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 **Fix path (needs a decision):** reject in `SemBinaryResultTyper` (mirroring the `SEM062` shape) OR define ordinal semantics in the shared comparison lowering; either way the four backends must agree.
 **Boundary:** `==`/`!=` (identity) and `compareTo` are correct on all four targets. Only the relational operators on enums are undefined-and-divergent. Owner lane compiler/JVM/native `192.168.15.30:9092`.
 <!-- pt-switch --> **PT:** [§675 (pt_BR)](known-bugs.pt_BR.md#675--os-operadores-de-ordem-de-enum-----sao-aceitos-mas-divergem-entre-alvos-jvmjs-dao-false-o-nativo-da-true-o-script-imprime-not-comparable-para-colorred--colorgreen---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §677 — `instanceof` on a boxed primitive diverges: `var o: Object = 42  println(o instanceof Int)` is `false` on Script/native but `true` on JVM/JS — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+
+**Symptom (measured 11/10, tip `fe5e8c108`):** with `var o: Object = 42`, `println(o instanceof Int)` → **Script `false`**, **native `false`**, **JVM `true`**, **JS `true`**. A 2-2 split: the reference-checking backends (JVM/JS) say the boxed `Integer` IS an `Int`, while the value-typed backends (Script/native) say it is not. `o instanceof String` on a boxed `Integer` is `false` on all four (that face agrees).
+
+**Root (as far as measured):** `instanceof` against a PRIMITIVE target (`Int`/`Long`/`Bool`/…) is not defined by the language contract (`docs/language-reference/classes.md` covers `instanceof` only for class/record types). Each backend does whatever its generic `instanceof` does for the primitive's boxed form — JVM `instanceof java.lang.Integer`, JS `typeof`/box check, Script/native compare the value type. Whether `instanceof Int` on an `Object` slot is meaningful (or should be rejected at compile time) is unspecified.
+
+**Contract:** an operator either has ONE defined cross-target meaning or is REJECTED with an explicit diagnostic — never accepted-and-divergent. Here the contract is SILENT on `instanceof <primitive>`, so the fix needs a maintainer decision: **reject** `instanceof` on a primitive target (pointing at a class/record type), or **define** it as the boxed-type check (which would change Script/native). Recorded OPEN pending that call.
+
+**Fix path (needs a decision):** reject in the typer (a new diagnostic) OR define boxed-type semantics in the shared `instanceof` lowering; either way the four backends must agree.
+
+**Boundary:** `instanceof` on a CLASS/RECORD target is correct on all four targets (measured: `a instanceof Dog`/`Cat`/`Animal`, `o instanceof String`). Only the PRIMITIVE target diverges. Owner lane compiler/JVM/native `192.168.15.30:9092`.
+
+<!-- pt-switch --> **PT:** [§677 (pt_BR)](known-bugs.pt_BR.md#677--instanceof-sobre-um-primitivo-boxado-diverge-var-o-object--42--printlno-instanceof-int-e-false-no-scriptnativo-mas-true-no-jvmjs---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §678 — a FAILING downcast `a as Dog` diverges: JVM throws `ClassCastException` while Script/native/JS evaluate to `null` (and a nullable `a as Dog?` returns `null` everywhere except JVM, which throws) — 🟡 OPEN (found 11/10 by lane compiler/JVM/native 192.168.15.30:9092)
+
+**Symptom (measured 11/10, tip `fe5e8c108`):** with `class Animal {}` / `class Dog extends Animal {}`, `var a: Animal = Animal()` then `var d = a as Dog` → **JVM throws `ClassCastException: class Animal cannot be cast to class Dog`**, while **Script/native/JS** evaluate the cast to `null` (no throw). The nullable spelling `var d: Dog? = a as Dog?` returns `null` on Script/native/JS but STILL throws on JVM. A SUCCESSFUL cast (`a as Dog` where `a` really is a `Dog`) works identically on all four.
+
+**Root (as far as measured):** the `as` cast semantics on a FAILING downcast are unspecified: the JVM backend lowers `as` to a JVM `CHECKCAST` (which throws), while the value-typed backends lower it to a check that yields `null`. The language contract (`docs/language-reference/classes.md`) documents `as` for numeric conversions and type casts but does NOT state the failing-reference-cast behaviour.
+
+**Contract:** `as` on a failing reference cast must have ONE defined cross-target meaning — either always throw (a cast error) or always yield `null` (a soft cast) — never backend-dependent. The contract is SILENT, so the fix needs a maintainer decision. Recorded OPEN pending that call.
+
+**Fix path (needs a decision):** pick throw-or-null and implement it in all four backends' `as` lowering (the nullable `as T?` should then be the always-null spelling if null wins).
+
+**Boundary:** a SUCCESSFUL `as` cast is correct on all four targets (measured). Only the FAILING reference cast diverges. Owner lane compiler/JVM/native `192.168.15.30:9092`.
+
+<!-- pt-switch --> **PT:** [§678 (pt_BR)](known-bugs.pt_BR.md#678--um-downcast-que-falha-a-as-dog-diverge-o-jvm-lanca-classcastexception-enquanto-scriptnativojs-avaliam-para-null-e-um-a-as-dog-nulavel-devolve-null-em-todo-lugar-exceto-no-jvm-que-lanca---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)

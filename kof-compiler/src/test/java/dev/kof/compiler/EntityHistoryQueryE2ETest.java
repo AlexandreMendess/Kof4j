@@ -98,6 +98,52 @@ class EntityHistoryQueryE2ETest {
     }
 
     @Test
+    void oneRevisionFaceReturnsRevisionOrNull() throws Exception {
+        String out = runJvm("one", """
+            import kof.orm.history
+            audited entity User {
+                id: Long generated
+                name: String
+            }
+            main() {
+                var db = db.connect("jdbc:h2:mem:ehq5;DB_CLOSE_DELAY=-1")
+                orm.create<User>(db)
+                orm.createHistory<User>(db)
+                var u = orm.save(db, User(0, "Mel"))
+                u = orm.save(db, User(u.id, "Melissa"))
+                var r1 = User.history(db, u.id, 1)
+                if (r1 != null) { println(r1.operation) }
+                var r9 = User.history(db, u.id, 9)
+                println(r9 == null)
+                db.close(db)
+            }
+            """);
+        assertEquals("INSERT\ntrue", out,
+                "a face de uma revisão devolve a revisão ou null (§9.2 row 2)");
+    }
+
+    @Test
+    void constantNegativeRevisionIsHist005OnOne() throws Exception {
+        Path file = tmp.resolve("hist5one/Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, """
+            import kof.orm.history
+            audited entity User {
+                id: Long generated
+            }
+            main() {
+                var db = db.connect("jdbc:h2:mem:ehq6;DB_CLOSE_DELAY=-1")
+                var r = User.history(db, 1, -1)
+                db.close(db)
+            }
+            """);
+        CompilationResult result = driver.compile(file, tmp.resolve("out-hist5one"), Target.JVM);
+        assertFalse(result.success(), "revisão negativa constante deve falhar");
+        String d = result.diagnostics().getDiagnostics().toString();
+        assertTrue(d.contains("HIST005"), "esperava HIST005, veio: " + d);
+    }
+
+    @Test
     void nonAuditedEntityIsHist002() throws Exception {
         Path file = tmp.resolve("hist2/Main.kf");
         Files.createDirectories(file.getParent());

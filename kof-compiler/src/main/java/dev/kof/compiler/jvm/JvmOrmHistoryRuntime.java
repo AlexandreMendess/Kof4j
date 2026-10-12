@@ -38,6 +38,23 @@ public final class JvmOrmHistoryRuntime {
                             + " WHERE entity_pk = ? ORDER BY revision", key, className);
                 }
 
+                // entity-history fatia 2e (D-ENTITY-HISTORY §9.2 row 2):
+                // `E.history(db, id, revision)` — UMA revisão ou null.
+                public static Object kof_orm_history_one(String id, Object key, int revision,
+                        String table, String schema, String className) throws Exception {
+                    if (revision <= 0) {
+                        throw new RuntimeException("HIST005: " + table
+                                + ".history revision must be >= 1");
+                    }
+                    String dialect = kof_orm_dialect(id);
+                    java.util.ArrayList<Object> rows = kof_db_query2(id,
+                            "SELECT revision, at, operation FROM "
+                                    + kof_orm_q(table + "_history", dialect)
+                                    + " WHERE entity_pk = ? AND revision = ?",
+                            key, revision, className);
+                    return rows.isEmpty() ? null : rows.get(0);
+                }
+
                 public static java.util.ArrayList<Object> kof_orm_history_page(String id, Object key,
                         int offset, int limit, String table, String schema, String className) throws Exception {
                     if (offset < 0 || limit < 0) {

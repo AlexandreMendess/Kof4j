@@ -44,7 +44,7 @@ class LanguageCoreSurfaceTest {
     @Test
     void reservedKeywordsAreExactlyTheFrozenSet() throws Exception {
         Set<String> golden = new TreeSet<>(List.of(
-            "abstract", "as", "assert", "await", "bool", "break", "byte", "case", "catch", "char", "class",
+            "abstract", "as", "assert", "audited", "await", "bool", "break", "byte", "case", "catch", "char", "class",
             "continue", "default", "do", "double", "else", "entity", "enum", "extends", "extern", "false",
             "final", "finally", "float", "fn", "for", "fun", "func", "generated", "if", "implements",
             "import", "instanceof", "int", "interface", "long", "native", "new", "null", "override",
@@ -88,7 +88,7 @@ class LanguageCoreSurfaceTest {
         assertEquals(List.of(
             "EOF", "ERROR", "IDENTIFIER", "INT_LITERAL", "LONG_LITERAL", "FLOAT_LITERAL", "DOUBLE_LITERAL",
             "STRING_LITERAL", "CHAR_LITERAL", "BOOLEAN_LITERAL", "NULL_LITERAL", "CLASS", "INTERFACE",
-            "RECORD", "ENUM", "ENTITY", "EXTERN", "GENERATED", "UNIQUE", "EXTENDS", "IMPLEMENTS", "FUN",
+            "RECORD", "ENUM", "ENTITY", "EXTERN", "GENERATED", "AUDITED", "UNIQUE", "EXTENDS", "IMPLEMENTS", "FUN",
             "FN", "FUNC", "PACKAGE", "IMPORT", "PUBLIC", "PRIVATE", "PROTECTED", "STATIC", "FINAL",
             "ABSTRACT", "TRANSIENT", "VOLATILE", "SYNCHRONIZED", "NATIVE", "DEFAULT", "OVERRIDE", "VOID",
             "NEW", "THIS", "SUPER", "RETURN", "THROW", "IF", "ELSE", "FOR", "WHILE", "DO", "SWITCH",
