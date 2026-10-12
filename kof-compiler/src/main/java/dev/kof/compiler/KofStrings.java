@@ -23,6 +23,10 @@ public final class KofStrings {
         return STR.equals(t) || "String".equals(t.toString());
     }
 
+    private static boolean isChar(Type t) {
+        return t == Type.PrimitiveType.CHAR;
+    }
+
     private static boolean isInt(Type t) {
         return t == INT || "Int".equals(t.toString()) || "int".equals(t.toString());
     }
@@ -95,7 +99,10 @@ public final class KofStrings {
             // len>=n => original. ASCII travado na matriz (pad ainda byte-based
             // no Native — gap NAT-STR01).
             case "padLeft", "padRight" -> argc == 3 && isStr(argTypes.get(0))
-                    && isInt(argTypes.get(1)) && isStr(argTypes.get(2))
+                    && isInt(argTypes.get(1)) && (isStr(argTypes.get(2)) || isChar(argTypes.get(2)))
+                    // literal CHAR é pad válido (o runtime usa a 1ª char do 3º
+                    // arg — idiom pré-guard; regressão achada pela validação da
+                    // release 0.6.2 no CI)
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT, STR)) : null;
             default -> null;
         };
