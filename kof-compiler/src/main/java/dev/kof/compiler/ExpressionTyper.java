@@ -268,6 +268,9 @@ public final class ExpressionTyper {
                 }
                 List<Type> bts = ifBranchTypes(driver, ie, locals);
                 if (branchTypesDiffer(bts)) {
+                    // #819: mesmo join por supertipo comum do switch-expr.
+                    Type sup = joinBranchSupertype(driver, bts);
+                    if (sup != null) yield sup;
                     yield new Type.ClassType("java.lang", "Object", List.of());
                 }
                 yield thenType;
@@ -284,6 +287,11 @@ public final class ExpressionTyper {
                     Type sealedJoin = HierarchyResolver.joinBranchTypes(driver.semanticAnalyzer, bts);
                     if (sealedJoin != null) yield sealedJoin;
                     if (branchTypesDiffer(bts)) {
+                        // #819: irmãos de uma hierarquia selada juntam no
+                        // SUPERTIPO comum — Object tornava o `areturn`
+                        // VerifyError (frame digitado Object p/ retorno Out).
+                        Type sup = joinBranchSupertype(driver, bts);
+                        if (sup != null) yield sup;
                         yield new Type.ClassType("java.lang", "Object", List.of());
                     }
                     // §284-map: mesmo contrato nullable do if-expr.
@@ -363,6 +371,27 @@ public final class ExpressionTyper {
      * `Double(2.0)` — paridade com o interpretador por construção) e o
      * caller pula o pós-box (join só tem referências).
      */
+    /**
+     * #819: o join de braços que divergem NÃO pode ser Object quando os
+     * tipos são classes com supertipo comum (ex.: subclasses irmãs de uma
+     * hierarquia selada) — o frame do merge digitava Object e o `areturn`
+     * virava VerifyError. Reduz via HierarchyResolver.commonSupertype;
+     * null = sem join melhor (o chamador mantém o Object legado).
+     */
+    static Type joinBranchSupertype(CompilerDriver driver, List<Type> ts) {
+        if (ts.isEmpty()) return null;
+        Type acc = ts.get(0);
+        for (int i = 1; i < ts.size(); i++) {
+            Type next = ts.get(i);
+            if (!(acc instanceof Type.ClassType) || !(next instanceof Type.ClassType)) return null;
+            if (driver.semanticAnalyzer == null) return null;
+            Type joined = HierarchyResolver.commonSupertype(driver.semanticAnalyzer, acc, next);
+            if (!(joined instanceof Type.ClassType)) return null;
+            acc = joined;
+        }
+        return acc;
+    }
+
     static boolean branchTypesDiffer(List<Type> ts) {
         for (Type t : ts) if (!isConcreteBranchType(t)) return false;
         return ts.stream().distinct().count() > 1;
