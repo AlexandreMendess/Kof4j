@@ -128,10 +128,10 @@ Para `+ - * / %` com dois numéricos: `double` domina, senão `float`, senão
     um `Integer` boxado → falha em runtime (*probe*). String↔número é só via
     `toInt()/toLong()/toDouble()/toFloat()` (métodos de `string`).
   - **`as T?`** — a grafia nulável — é o **cast suave sempre-nulo**
-    (`D-SEM-REJECTS-1210`, `§678`): um cast de referência que falha devolve
-    `null`; a forma simples `as` lança. Implementado na **JVM, Script e JS**
-    (POUSADO 12–13/10); a face **nativa** segue pendente (`§678` PARCIAL — o
-    nativo devolve o objeto sem checar nas duas grafias até a lane nativa pousar seu check).
+    (`D-SEM-REJECTS-1210`, `§678` FACE A): um cast de referência que falha devolve
+    `null` nos **quatro alvos** (desugar de lowering compartilhado `if (x instanceof T) x else null`;
+    POUSADO 13/10). A forma simples `as` LANÇA num cast que falha — essa é a **FACE B**,
+    pousada na JVM/Script/JS, com a face **nativa** de B ainda pendente (`§678` PARCIAL).
 - **`x instanceof T`** → `bool` (`SemExpressionTyper`, caso `instanceof`). `o instanceof String` (*probe* ✅).
   - **`instanceof` sobre um alvo PRIMITIVO é RECUSADO (`SEM106`)** — o alvo
     precisa ser uma referência class/record/String. `o instanceof Int` (um

@@ -112,8 +112,8 @@ context.
 - `x instanceof T` → `bool`. The target `T` must be a class/record/String
   reference — `instanceof` over a primitive (`o instanceof Int`) is refused
   with `SEM106` (`§677`).
-- `x as T` → converted/cast value. `as T?` is the always-null soft cast
-  (LANDED on JVM/Script/JS; the Native face pending, `§678`). See
+- `x as T` → converted/cast value. `as T?` is the always-null soft cast on
+  **all four targets** (LANDED 13/10); the plain `as` throws, its Native face pending (`§678`). See
   [type-system.md](type-system.md) §4.
 
 ---

@@ -128,10 +128,10 @@ For `+ - * / %` with two numerics: `double` dominates, else `float`, else
     a boxed `Integer` → fails at runtime (*probe*). String↔number is only via
     `toInt()/toLong()/toDouble()/toFloat()` (methods of `string`).
   - **`as T?`** — the nullable spelling — is the **always-null soft cast**
-    (`D-SEM-REJECTS-1210`, `§678`): a failing reference cast yields `null`; the
-    plain `as` form throws. Implemented on **JVM, Script and JS** (LANDED 12–13/10);
-    the **Native** face is still pending (`§678` PARTIAL — native returns the
-    object unchecked on both spellings until the native lane lands its check).
+    (`D-SEM-REJECTS-1210`, `§678` FACE A): a failing reference cast yields `null`
+    on **all four targets** (shared-lowering desugar `if (x instanceof T) x else null`;
+    LANDED 13/10). The plain `as` form THROWS on a failing cast — that is **FACE B**,
+    landed on JVM/Script/JS, with the **Native** face of B still pending (`§678` PARTIAL).
 - **`x instanceof T`** → `bool` (`SemExpressionTyper`, case `instanceof`). `o instanceof String` (*probe* ✅).
   - **`instanceof` over a PRIMITIVE target is REFUSED (`SEM106`)** — the target
     must be a class/record/String reference. `o instanceof Int` (a boxed
