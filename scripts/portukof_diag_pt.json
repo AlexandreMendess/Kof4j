@@ -1745,5 +1745,12 @@
       "en": "Kof has no operator '{0}' for {1} compared to a Double/Float operand — ordering is defined only for numeric operands; compare numeric values, or use value.toDouble() on a known dynamic value",
       "pt": "Kof não tem operador '{0}' para {1} comparado a um operando Double/Float — a ordem é definida apenas para operandos numéricos; compare valores numéricos, ou use valor.toDouble() sobre um valor dinâmico conhecido"
     }
+  ],
+  "SEM105": [
+    {
+      "arity": 2,
+      "en": "Kof has no operator '{0}' for enum (the ordering was accepted-and-divergent across targets); use: a.compareTo(b) {1}",
+      "pt": "Kof não tem o operador '{0}' para enum (a ordenação era aceita-e-divergente entre alvos); use: a.compareTo(b) {1}"
+    }
   ]
 }

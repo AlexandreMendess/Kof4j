@@ -5027,3 +5027,55 @@ The maintainer approved the focus surface proposed in #811 (pillar 5), keeping i
 - **What this does NOT authorize:** deleting or rewriting future plans; skipping the `D-FUTURE-PROMOTION` eligibility gate (no stub, no weakened assertion, no invented work); or two agents on one plan.
 - **Lift history:** this supersedes `D-FUTURE-FREEZE` (maintainer 02/10, chat directive), whose own lift condition ("only the maintainer lifts this freeze, by an explicit later directive recorded as a superseding `D-*`") is now satisfied.
 - **Relationships:** `Supersedes: D-FUTURE-FREEZE`, `Reactivates: D-FUTURE-PROMOTION`, `Related: D-PLAN-ONE-OWNER, D-LAB-STABILITY, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, rule 6`.
+
+---
+
+## D-SEM-REJECTS-1210 — maintainer multiple-choice batch (12/10/2026, chat poll via the flatt lane): the three decision-gated divergences resolved — reject, reject, throw
+
+**Date:** 2026-10-12 · **State:** `DECIDED`
+
+The maintainer answered the three open frozen-semantics questions in one chat poll (the options and
+the recommendations were presented by the flatt lane `192.168.100.14:0`; every option was framed
+with the measured divergence). The house contract "an operator either has ONE defined cross-target
+meaning or is REJECTED with an explicit diagnostic" drives all three:
+
+- **§675 — enum relational operators (`Color.RED < Color.GREEN`): REJECT with a diagnostic** (the
+  `SEM053` String-precedent shape). The enum-vs-enum `<`/`>`/`<=`/`>=` faces are refused in the
+  shared frontend with a new `SEM105` ("Kof has no operator ... for enum; use: a.compareTo(b) ...")
+  — identical on all four targets. Explicit `compareTo` is the ordering spelling. The ordinal
+  semantics was the alternative and was NOT chosen (surface stays minimal; the ordering spelling
+  already exists and works).
+- **§677 — `instanceof` against a PRIMITIVE target (`x instanceof Int`): REJECT with a diagnostic**
+  (a new code in the typer). The language contract defines `instanceof` only for class/record
+  types; a boxed-type check has no clean contract (the boxed/unboxed distinction is target-muddy).
+  The honest refusal is the semantics.
+- **§678 — a failing reference `as` cast: THROW (a cast error) on all four targets;** the nullable
+  spelling `x as T?` is the ALWAYS-NULL soft cast. Plain `as` fails loud (the Kof error contract:
+  errors are explicit, null is never a silent failure marker); `as T?` exists for the legitimate
+  try-shape.
+
+**Implementation order:** §675 (the smallest gate) first, then §677, then §678 (the four `as`
+lowerings) — each with RED-first E2E and the portukof PT variant authored + regenerated.
+
+**Relationships:** `Related: SEM053 (the reject-shape precedent), SEM062 / D-ENUM207 (the enum
+identity precedent), the §657-family guard pattern (refusal falls to the existing diagnostics).`
+
+---
+
+## D-ENTITY-HISTORY-PHASE6 — entity-history Phase 6 is POST-PROMOTION scope (maintainer 12/10/2026, chat poll via the flatt lane)
+
+**Date:** 2026-10-12 · **State:** `DECIDED`
+
+The entity-history plan's Phase 6 faces (retention/archival, typed historical accessors, field
+exclusion, tamper-evidence) are cut OUT of the plan's promotion scope — they become post-1.0 work,
+each still requiring its own decision when picked up.
+
+- The plan PROMOTES to `docs/` once **Phase 5 (the native ORM backend) lands** with its executed
+  proof — the promotion is the native lane's milestone.
+- The plan's docs stay in `docs/development/` until then, with `next:` pointing at Phase 5.
+- Phase 6 moves to a parked-futures note INSIDE the plan (no `docs/development/future/` promotion —
+  the recurring cycle contract keeps future/ frozen for this lane).
+
+**Relationships:** `Related: D-ENTITY-HISTORY (the original Q1–Q15 authorization), D-FUTURE-BATCH-2809B (the resolved declaration/query surfaces).`
+
+---
