@@ -50,6 +50,109 @@ public final class JvmOrmHistoryRuntime {
                             + " WHERE entity_pk = ? ORDER BY revision LIMIT ? OFFSET ?", key, limit, offset, className);
                 }
 
+                // entity-history fatia 2d (D-ENTITY-HISTORY §9.2): `E.at` —
+                // o estado materializado NA revisão (snapshot completo →
+                // kof_json_parse + kof_json_bind, a maquinaria do §565).
+                // Revisão DELETE → null (a entity não existia, §9.3).
+                public static Object kof_orm_history_at(String id, Object key, int revision,
+                        String table, String schema, String className) throws Exception {
+                    if (revision <= 0) {
+                        throw new RuntimeException("HIST005: " + table
+                                + ".at revision must be >= 1");
+                    }
+                    String dialect = kof_orm_dialect(id);
+                    try (java.sql.PreparedStatement ps = kof_db_conn(id).prepareStatement(
+                            "SELECT payload FROM " + kof_orm_q(table + "_history", dialect)
+                                    + " WHERE entity_pk = ? AND revision = ?")) {
+                        ps.setObject(1, key);
+                        ps.setInt(2, revision);
+                        try (java.sql.ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) return null; // revisão ausente (§9.3)
+                            String payload = rs.getString(1);
+                            if (payload.contains("\\"deleted\\"")) return null; // §9.3: após DELETE
+                            return kof_json_bind(Class.forName(className), kof_json_parse(payload));
+                        }
+                    }
+                }
+
+                // §9.2: `E.atTime` — a última revisão EM-OU-ANTES do instante
+                // ISO (Instant.parse; malformado = HIST005 em runtime, §9.3).
+                public static Object kof_orm_history_at_time(String id, Object key, String iso,
+                        String table, String schema, String className) throws Exception {
+                    long epoch;
+                    try {
+                        epoch = java.time.Instant.parse(iso).toEpochMilli();
+                    } catch (java.time.format.DateTimeParseException e) {
+                        throw new RuntimeException("HIST005: " + table
+                                + ".atTime iso instant is malformed: " + iso);
+                    }
+                    String dialect = kof_orm_dialect(id);
+                    try (java.sql.PreparedStatement ps = kof_db_conn(id).prepareStatement(
+                            "SELECT payload FROM " + kof_orm_q(table + "_history", dialect)
+                                    + " WHERE entity_pk = ? AND at <= ? ORDER BY revision DESC LIMIT 1")) {
+                        ps.setObject(1, key);
+                        ps.setLong(2, epoch);
+                        try (java.sql.ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) return null;
+                            String payload = rs.getString(1);
+                            if (payload.contains("\\"deleted\\"")) return null; // §9.3
+                            return kof_json_bind(Class.forName(className), kof_json_parse(payload));
+                        }
+                    }
+                }
+
+                // §9.2: `E.changes` — diffs de campos entre payloads
+                // consecutivos na faixa [from, to] (fechada); strings
+                // portáveis; campo removido = previous-only.
+                public static java.util.ArrayList<Object> kof_orm_history_changes(String id, Object key,
+                        int from, int to, String table, String schema, String fcClassName) throws Exception {
+                    if (from < 1 || to < from) {
+                        throw new RuntimeException("HIST005: " + table
+                                + ".changes range must be 1 <= from <= to");
+                    }
+                    String dialect = kof_orm_dialect(id);
+                    java.util.ArrayList<Object> out = new java.util.ArrayList<>();
+                    Class<?> fcType = Class.forName(fcClassName);
+                    java.lang.reflect.Constructor<?> fcCtor = null;
+                    for (java.lang.reflect.Constructor<?> c : fcType.getDeclaredConstructors()) {
+                        if (c.getParameterCount() == 4) { fcCtor = c; break; }
+                    }
+                    String prevPayload = null;
+                    int prevRev = -1;
+                    try (java.sql.PreparedStatement ps = kof_db_conn(id).prepareStatement(
+                            "SELECT revision, payload FROM " + kof_orm_q(table + "_history", dialect)
+                                    + " WHERE entity_pk = ? AND revision >= ? AND revision <= ? "
+                                    + "ORDER BY revision")) {
+                        ps.setObject(1, key);
+                        ps.setInt(2, Math.max(1, from - 1)); // o estado ANTERIOR à faixa
+                        ps.setInt(3, to);
+                        try (java.sql.ResultSet rs = ps.executeQuery()) {
+                            while (rs.next()) {
+                                int rev = rs.getInt(1);
+                                String payload = rs.getString(2);
+                                if (payload.contains("\\"deleted\\"")) break; // após DELETE não há estado
+                                if (prevPayload != null && rev >= from) {
+                                    java.util.Map<Object, Object> prev =
+                                            (java.util.Map<Object, Object>) kof_json_parse(prevPayload);
+                                    java.util.Map<Object, Object> cur =
+                                            (java.util.Map<Object, Object>) kof_json_parse(payload);
+                                    for (java.util.Map.Entry<Object, Object> e : cur.entrySet()) {
+                                        Object before = prev.get(e.getKey());
+                                        if (!java.util.Objects.equals(before, e.getValue())) {
+                                            out.add(fcCtor.newInstance((long) rev, String.valueOf(e.getKey()),
+                                                    before == null ? null : String.valueOf(before),
+                                                    e.getValue() == null ? null : String.valueOf(e.getValue())));
+                                        }
+                                    }
+                                }
+                                prevPayload = payload;
+                                prevRev = rev;
+                            }
+                        }
+                    }
+                    return out;
+                }
+
                 public static boolean kof_orm_delete_recorded(String id, Object key, String table, String schema) throws Exception {
                     boolean ok = kof_orm_delete(id, key, table, schema);
                     if (ok) kof_orm_history_record_delete(id, String.valueOf(key), table, schema);

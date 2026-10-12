@@ -353,6 +353,9 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_orm_create_history" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z";
             case "kof_orm_history" -> "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_orm_history_page" -> "(Ljava/lang/String;Ljava/lang/Object;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";
+            case "kof_orm_history_at" -> "(Ljava/lang/String;Ljava/lang/Object;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;";
+            case "kof_orm_history_at_time" -> "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;";
+            case "kof_orm_history_changes" -> "(Ljava/lang/String;Ljava/lang/Object;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_orm_find" -> "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;";
             case "kof_orm_all" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_orm_where" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";

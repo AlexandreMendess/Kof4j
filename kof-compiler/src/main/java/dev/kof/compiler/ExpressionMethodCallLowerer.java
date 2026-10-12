@@ -71,9 +71,10 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
     // é método da classe; HIST002 fala em nome dela).
     if (mc.receiver() instanceof IdentifierExpr ehRid
             && driver.entityNamesMirror.contains(ehRid.name())
-            && "history".equals(mc.methodName())
-            && (mc.arguments().size() == 2 || mc.arguments().size() == 4)) {
-        return lowerEntityHistory(driver, mc, ops, owner, localIdx, locals, ehRid.name());
+            && ("history".equals(mc.methodName()) || "at".equals(mc.methodName())
+                    || "atTime".equals(mc.methodName()) || "changes".equals(mc.methodName()))) {
+        return ExpressionEntityHistoryLowerer.lower(driver, mc, ops, owner,
+                localIdx, locals, ehRid.name());
     }
 if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && driver.semanticAnalyzer != null

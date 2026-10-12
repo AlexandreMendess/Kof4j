@@ -27,10 +27,18 @@ final class MethodCallNamespaces {
         // tem o driver).
         if (mc.receiver() instanceof IdentifierExpr ehR
                 && driver.entityNamesMirror.contains(ehR.name())
-                && "history".equals(mc.methodName())
-                && (mc.arguments().size() == 2 || mc.arguments().size() == 4)) {
+                && ("history".equals(mc.methodName()) || "at".equals(mc.methodName())
+                        || "atTime".equals(mc.methodName()) || "changes".equals(mc.methodName()))) {
             Type revT = CompilerTypes.toType("Revision", driver.currentUnit, driver.semanticAnalyzer);
-            return new Type.ClassType("kof", "List", List.of(revT));
+            Type fcT = CompilerTypes.toType("FieldChange", driver.currentUnit, driver.semanticAnalyzer);
+            Type entT = CompilerTypes.toType(ehR.name(), driver.currentUnit, driver.semanticAnalyzer);
+            int n = mc.arguments().size();
+            if ("history".equals(mc.methodName()) && (n == 2 || n == 4))
+                return new Type.ClassType("kof", "List", List.of(revT));
+            if ("changes".equals(mc.methodName()) && (n == 2 || n == 4))
+                return new Type.ClassType("kof", "List", List.of(fcT));
+            if (("at".equals(mc.methodName()) || "atTime".equals(mc.methodName())) && n == 3)
+                return new Type.NullableType(entT);
         }
         if (mc.receiver() instanceof IdentifierExpr rid && CompilerTypes.isEnumName(rid.name(), driver.currentUnit)
                 && driver.findLocalVar(rid.name(), locals) == null) {

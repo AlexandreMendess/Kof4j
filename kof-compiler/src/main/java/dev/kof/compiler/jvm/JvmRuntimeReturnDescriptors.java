@@ -121,7 +121,8 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_string_to_double_or_default" -> "D";
             case "kof_orm_create", "kof_orm_delete", "kof_orm_migrate" -> "Z";
             case "kof_orm_create_history", "kof_orm_delete_recorded" -> "Z";
-            case "kof_orm_history", "kof_orm_history_page" -> "Ljava/util/ArrayList;";
+            case "kof_orm_history", "kof_orm_history_page", "kof_orm_history_changes" -> "Ljava/util/ArrayList;";
+            case "kof_orm_history_at", "kof_orm_history_at_time" -> "Ljava/lang/Object;";
             case "kof_orm_save", "kof_orm_find" -> "Ljava/lang/Object;";
             case "kof_orm_count" -> "J";
              case "kof_web_port" -> "I";
