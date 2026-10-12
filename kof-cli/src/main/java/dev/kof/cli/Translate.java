@@ -62,8 +62,12 @@ public final class Translate {
     }
 
     static final class Emitter extends TranslateStatements {
-        final StringBuilder out = new StringBuilder();
+        StringBuilder out = new StringBuilder();
         final StringBuilder topFns = new StringBuilder();
+        /** Fase F: classes aninhadas hoisted (emitidas após as top-level). */
+        final StringBuilder topClasses = new StringBuilder();
+        /** Nomes das aninhadas static achadas pela pré-varredura. */
+        final java.util.Set<String> nestedTypes = new java.util.HashSet<>();
         /** Campos `static` da classe em parse — p/ qualificar em funções hoisted. */
         private final java.util.Set<String> staticFields = new java.util.HashSet<>();
         /**
@@ -115,13 +119,86 @@ public final class Translate {
                             + "manual review");
                 }
             }
+            // Fase F: pré-varredura dos tipos aninhados static (`Inner` →
+            // `Outer_Inner`) — TODA referência de tipo passa por kofType, que
+            // aplica o rename; colisões recusam com nome (nada silencioso).
+            TranslateTypes.NESTED_RENAMES.clear();
+            nestedTypes.clear();
+            scanNestedTypes();
             // Parse all top-level type declarations.
             while (!p.at(T.EOF)) {
                 parseTypeDeclaration();
             }
-            // Static methods were collected as top-level functions; emit them first.
+            // Static methods were collected as top-level functions; emit them
+            // first; the hoisted nested classes come last (Kof resolves por
+            // nome, a ordem entre classes não carrega semântica aqui).
             out.insert(0, topFns);
-            return out.toString();
+            out.append('\n').append(topClasses);
+            // Fase F: o rename por kofType cobre POSIÇÕES DE TIPO; referências
+            // em EXPRESSÃO (`T.Inner.X`, `Inner.X` — acesso a membro estático
+            // da aninhada) não passam por ele — o pós-passo textual reescreve
+            // as formas qualificada e nua-SEGUIDA-DE-PONTO (a nua `Inner.` só
+            // matcheia com fronteira de palavra e não precedida de `.` — uma
+            // variável local chamada exatamente como o tipo está fora do
+            // subconjunto suportado e é a única forma de falso positivo).
+            String text = out.toString();
+            for (var e : TranslateTypes.NESTED_RENAMES.entrySet()) {
+                if (e.getKey().contains(".")) {
+                    text = text.replace(e.getKey(), e.getValue());
+                } else {
+                    text = text.replaceAll("(?<![\\w.])" + java.util.regex.Pattern.quote(e.getKey()) + "\\.", e.getValue() + ".");
+                }
+            }
+            return text;
+        }
+
+        /**
+         * Fase F (decisão da mantenedora, 14/10): pré-varredura dos tipos
+         * aninhados `static` no nível 1 de cada tipo top-level. Preenche
+         * `nestedTypes` + o mapa `Inner`/`Outer.Inner` → `Outer_Inner`.
+         * Colisões recusam NOMEADAS: dois outers com o mesmo `Inner`
+         * (referência nua ambígua) ou `Outer_Inner` já usado por um top-level.
+         */
+        private void scanNestedTypes() {
+            var toks = p.toks;
+            java.util.Set<String> topLevel = new java.util.HashSet<>();
+            java.util.List<String[]> pairs = new java.util.ArrayList<>(); // [outer, inner]
+            String currentTop = null;
+            int depth = 0;
+            for (int i = 0; i < toks.size(); i++) {
+                String tk = toks.get(i).text;
+                if (tk.equals("{")) { depth++; continue; }
+                if (tk.equals("}")) { depth--; if (depth == 0) currentTop = null; continue; }
+                boolean isTypeKw = tk.equals("class") || tk.equals("interface")
+                        || tk.equals("record") || tk.equals("enum");
+                if (!isTypeKw || i + 1 >= toks.size()) continue;
+                String name = toks.get(i + 1).text;
+                if (depth == 0) {
+                    if (currentTop == null) { currentTop = name; topLevel.add(name); }
+                } else if (depth == 1 && currentTop != null
+                        && i > 0 && toks.get(i - 1).text.equals("static")) {
+                    pairs.add(new String[]{currentTop, name});
+                }
+            }
+            java.util.Map<String, String> innerOwner = new java.util.HashMap<>();
+            for (String[] pr : pairs) {
+                String previous = innerOwner.put(pr[1], pr[0]);
+                if (previous != null && !previous.equals(pr[0])) {
+                    throw new TranslateException(
+                            "nested static type `" + pr[1] + "` is declared in both `" + previous
+                            + "` and `" + pr[0] + "` — a bare reference would be ambiguous after the "
+                            + "top-level hoist — manual review");
+                }
+                String hoisted = pr[0] + "_" + pr[1];
+                if (topLevel.contains(hoisted)) {
+                    throw new TranslateException(
+                            "nested static type `" + pr[0] + "." + pr[1] + "` hoists to `" + hoisted
+                            + "` but that top-level type already exists — manual review");
+                }
+                nestedTypes.add(pr[1]);
+                TranslateTypes.NESTED_RENAMES.put(pr[1], hoisted);
+                TranslateTypes.NESTED_RENAMES.put(pr[0] + "." + pr[1], hoisted);
+            }
         }
 
         private void parseTypeDeclaration() {
@@ -413,13 +490,37 @@ public final class Translate {
                 return;
             }
             if (p.at("class") || p.at("interface") || p.at("record") || p.at("enum")) {
-                // Kof não suporta tipo aninhado (SEM042). Hoisting p/ o topo
-                // exige renomear referências (`Outer.Inner` → `Inner`) —
-                // transformação semântica, decisão de design → manual review
-                // (R6), nunca parse error confuso.
-                throw new TranslateException(
-                        "nested type (`class`/`interface`/`record`/`enum` inside a class) "
-                        + "has no direct equivalent in Kof (SEM042; declare it at the top level) — manual review");
+                // Fase F: `static` nested HOISTA para o topo como
+                // `Outer_Inner` (decisão da mantenedora 14/10) — a pré-varredura
+                // já registrou o rename; o corpo é emitido no buffer de classes
+                // hoisted (um tipo dentro do corpo textual do outer seria Kof
+                // inválido). NÃO-static inner captura a instância externa
+                // (`Outer.this`) — sem o campo sintético `this$Outer` (Opção B
+                // não aprovada) → recusa nomeada.
+                String innerName = p.peek(1) != null ? p.peek(1).text : "";
+                if (!isStatic) {
+                    throw new TranslateException(
+                            "non-static inner class (`" + innerName + "` inside `" + className
+                            + "` captures the enclosing instance via `Outer.this`) — the translator "
+                            + "does not emit the synthetic `this$Outer` field; declare it `static` or "
+                            + "extract it to the top level — manual review");
+                }
+                if (!nestedTypes.contains(innerName)) {
+                    throw new TranslateException(
+                            "nested static type `" + innerName + "` was not found by the hoist "
+                            + "pre-scan (nested-nested types are not hoisted) — manual review");
+                }
+                StringBuilder savedOut = out;
+                out = topClasses;
+                try {
+                    if (p.at("class")) parseClass();
+                    else if (p.at("interface")) parseInterface();
+                    else if (p.at("record")) parseRecord();
+                    else parseEnum();
+                } finally {
+                    out = savedOut;
+                }
+                return;
             }
             // Construtor Java: `[mods] ClassName ( params ) { body }` — sem tipo
             // de retorno. Precisa ser detectado ANTES de parseType, senão o nome

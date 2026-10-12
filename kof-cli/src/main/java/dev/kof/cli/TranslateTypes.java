@@ -33,7 +33,18 @@ final class TranslateTypes {
         return TranslateLexer.KEYWORDS.contains(s);
     }
 
+    /**
+     * Fase F (hoist de tipos aninhados, decisão da mantenedora 14/10): mapas
+     * `Inner` → `Outer_Inner` e `Outer.Inner` → `Outer_Inner`, preenchidos
+     * pela pré-varredura de {@code translate()} ANTES do parse — toda
+     * referência de tipo (declaração, parâmetro, construção, cast,
+     * instanceof, array) passa por aqui e recebe o nome hoisted.
+     */
+    static final java.util.Map<String, String> NESTED_RENAMES = new java.util.HashMap<>();
+
     static String kofType(String javaType) {
+        String renamed = NESTED_RENAMES.get(javaType);
+        if (renamed != null) return renamed;
         return switch (javaType) {
             case "int", "Integer" -> "Int";
             case "long", "Long" -> "Long";

@@ -176,7 +176,16 @@ nested classes, anonymous classes, static initialization, access modifiers,
 Java standard library, external library calls.
 
 > **Measured 14/10 (lane nativa/GC `192.168.15.117:0`) — the list against the
-> translator: 17/19 faces land.** classes/interfaces/inheritance/generics/
+> translator: 18/19 faces land (the maintainer DECIDED the two open shapes on
+> 14/10: hoisted name = `Outer_Inner`, static-only scope; anonymous = SAM →
+> lambda, rest refused).** **Nested static classes HOIST since this round** —
+> `static class Inner` inside `T` is emitted top-level as `T_Inner` and every
+> reference is renamed (type positions via `kofType`, expression accesses like
+> `T.Inner.X`/`Inner.X` via a guarded textual post-pass); EXECUTED proof: the
+> translated program compiles and runs (`T_Inner(21).twice()` → `42`, and the
+> qualified static `T.Inner.X` → `5`); non-static inner (captures the
+> enclosing instance) and name collisions (`T_Inner` already top-level; the
+> same `Inner` under two outers) refuse with NAMED reasons. classes/interfaces/inheritance/generics/
 > overloads/constructors/exceptions/annotations/records/enums/lambdas/access
 > modifiers/Java stdlib/switch/loops/arrays/casts/instanceof all translate
 > (probed per-item); **static initialization FOLDS since this round** —

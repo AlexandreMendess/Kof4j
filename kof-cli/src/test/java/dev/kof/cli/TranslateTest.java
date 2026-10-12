@@ -147,6 +147,66 @@ class TranslateTest {
     }
 
     @Test
+    void staticNestedClassHoistsToOuterInner() {
+        // Fase F (decisão da mantenedora 14/10): `static class Inner` hoists
+        // to top-level `T_Inner` and every reference is renamed — the
+        // translated program compiles and RUNS (the probe measured 42).
+        String kof = Translate.translateJava("""
+                class T {
+                    static class Inner {
+                        int v;
+                        Inner(int v) { this.v = v; }
+                        int twice() { return v * 2; }
+                    }
+                    public static void main(String[] args) {
+                        Inner i = new Inner(21);
+                        System.out.println(i.twice());
+                    }
+                }
+                """);
+        assertTrue(kof.contains("class T_Inner {"), kof);
+        assertTrue(kof.contains("T_Inner(21)"), kof);
+        assertFalse(kof.contains("class Inner"), kof);
+    }
+
+    @Test
+    void nestedQualifiedReferenceRenamed() {
+        // `T.Inner.X` in an EXPRESSION (member access) does not pass through
+        // kofType — the textual post-pass renames it
+        String kof = Translate.translateJava("""
+                class T {
+                    static class Inner {
+                        static int X = 5;
+                    }
+                }
+                class U {
+                    public static void main(String[] args) {
+                        System.out.println(T.Inner.X);
+                    }
+                }
+                """);
+        assertTrue(kof.contains("T_Inner.X"), kof);
+        assertFalse(kof.contains("T.Inner"), kof);
+    }
+
+    @Test
+    void nonStaticInnerClassRefused() {
+        // capturing the enclosing instance needs the synthetic `this$Outer`
+        // field (Option B not approved) — named refusal stays
+        TranslateException e = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("class T { class Inner { int v; } }"));
+        assertTrue(e.getMessage().contains("non-static inner class"), e.getMessage());
+    }
+
+    @Test
+    void nestedHoistCollisionRefused() {
+        // `T_Inner` already exists as a top-level type — named refusal
+        TranslateException e = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("class T { static class Inner { int v; } }\nclass T_Inner { int w; }"));
+        assertTrue(e.getMessage().contains("already exists"), e.getMessage());
+    }
+
+    @Test
     void recordTranslates(@TempDir Path dir) throws Exception {
         String kof = Translate.translateJava("""
                 public record Point(int x, int y) {
@@ -1031,14 +1091,15 @@ class TranslateTest {
         assertTrue(varargs.getMessage().contains("varargs") && varargs.getMessage().contains("manual review"),
                 "varargs `T...` sem equivalente Kof → gap explícito (R6), foi: " + varargs.getMessage());
 
-        TranslateException nested = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
+        // Fase F 14/10: `static class Inner` HOISTA para `N_Inner` (decisão da
+        // mantenedora) — o varargs acima segue recusa nomeada.
+        String hoisted = Translate.translateJava("""
                         public class N {
                             static class Inner { int x = 1; }
                         }
-                        """));
-        assertTrue(nested.getMessage().contains("nested type") && nested.getMessage().contains("manual review"),
-                "nested type sem equivalente Kof (SEM042) → gap explícito (R6), foi: " + nested.getMessage());
+                        """);
+        assertTrue(hoisted.contains("class N_Inner"), hoisted);
+        assertTrue(hoisted.contains("Int x = 1"), hoisted);
 
         TranslateException twr = assertThrows(TranslateException.class, () ->
                 Translate.translateJava("""
