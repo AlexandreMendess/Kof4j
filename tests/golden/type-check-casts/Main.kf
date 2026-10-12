@@ -1,0 +1,33 @@
+class Animal {
+    String name
+    public constructor(String name) { this.name = name }
+    String speak() = "..."
+}
+class Dog extends Animal {
+    public constructor(String name) { super(name) }
+    String speak() = "woof"
+}
+class Cat extends Animal {
+    public constructor(String name) { super(name) }
+    String speak() = "meow"
+}
+main() {
+    var a: Animal = Dog("rex")
+    println(a instanceof Dog)
+    println(a instanceof Cat)
+    println(a instanceof Animal)
+    var o: Object = "hello"
+    println(o instanceof String)
+    var s = o as String
+    println(s.length)
+    var d = a as Dog
+    println(d.speak())
+    var list: List<Animal> = listOf(Dog("a"), Cat("b"))
+    for (var x in list) {
+        if (x instanceof Dog) {
+            println("dog: " + x.speak())
+        } else {
+            println("other: " + x.speak())
+        }
+    }
+}
