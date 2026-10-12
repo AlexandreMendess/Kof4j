@@ -108,10 +108,23 @@ public final class CompilerIfaceRecordLowering {
         // Native: records não geram toString/equals nos backends (JVM/JS
         // geram nos seus emitters). Sintetiza no IR para paridade — bug 11
         // (native `==` dava undefined reference) e toString imprimia o handle.
-        if (driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
-                || driver.target == Target.NATIVE_AARCH64) {
+        // #818: um record que ESTENDE uma classe do usuário perde a superclasse
+        // `java/lang/Record` — o backend JVM então não roda o JvmRecordEmitter
+        // (emite por `superName == java/lang/Record`) e a classe ficava com
+        // toString/equals de IDENTIDADE, em silêncio. Sintetiza no IR nesse caso
+        // (mesma peça do native, que já estava correto).
+        boolean userSuper = rec.superClass() != null && !rec.superClass().isEmpty();
+        boolean nativeTarget = driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
+                || driver.target == Target.NATIVE_AARCH64;
+        if (nativeTarget || userSuper) {
             methods.add(CompilerRecordSupport.buildRecordToStringMethod(driver, internalName, rec, fields, typeParams));
-            methods.add(CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
+            // #818: fora do native, o `==` despacha por `equals(Object)`, então o
+            // sintético precisa ser o OVERRIDE (o `equals(<Record>)` é só um
+            // overload e a comparação caía em identidade). O native mantém o
+            // formato exato de sempre.
+            methods.add(userSuper && !nativeTarget
+                    ? CompilerRecordSupport.buildRecordEqualsObjectOverride(driver, internalName, fields, typeParams)
+                    : CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
             methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
         }
         // #613 (face Native do #608): um record que implementa interface

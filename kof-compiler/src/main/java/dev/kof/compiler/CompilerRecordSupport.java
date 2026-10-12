@@ -141,6 +141,64 @@ public final class CompilerRecordSupport {
     }
 
     /**
+     * #818: o sintético acima é `equals(&lt;Record&gt;)` — um OVERLOAD. No JVM o
+     * `==` entre records despacha por `equals(Object)` (o contrato do
+     * `Object`/`java.lang.Record`), então o overload nunca era chamado e a
+     * comparação caía em IDENTIDADE (medido: `S(7) == S(7)` → `false` num record
+     * que estende classe do usuário, cujo `JvmRecordEmitter` não roda). Este
+     * builder emite o OVERRIDE real: `equals(Object)` com o guard de tipo
+     * (`instanceof`, null-safe) + cast antes de ler os campos.
+     */
+    static IRMethod buildRecordEqualsObjectOverride(CompilerDriver driver, String internalName,
+                                                    List<IRField> fields, List<String> typeParams) {
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, driver.semanticAnalyzer);
+        Type objectType = new Type.ClassType("java.lang", "Object", List.of());
+        List<KofOperation> ops = new ArrayList<>();
+        List<IRLocalVariable> locals = new ArrayList<>();
+        locals.add(new IRLocalVariable(0, "this", ownerType));
+        locals.add(new IRLocalVariable(1, "other", objectType));
+        LabelId castOk = LabelId.create();
+        LabelId notType = LabelId.create();
+        // if (!(other instanceof T)) return false;   — null → false, sem NPE
+        ops.add(new KofLoadLocal(objectType, 1));
+        ops.add(new KofInstanceOf(ownerType));
+        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+        ops.add(new KofConditionalJump(KofComparison.NE, castOk, notType));
+        ops.add(new KofLabel(notType));
+        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+        ops.add(new KofReturn(Type.PrimitiveType.BOOL));
+        ops.add(new KofLabel(castOk));
+        for (int i = 0; i < fields.size(); i++) {
+            IRField f = fields.get(i);
+            ops.add(new KofLoadLocal(ownerType, 0));
+            ops.add(new KofLoadField(ownerType, f.name(), f.type()));
+            ops.add(new KofLoadLocal(objectType, 1));
+            ops.add(new KofCheckCast(ownerType));
+            ops.add(new KofLoadField(ownerType, f.name(), f.type()));
+            if (isStringField(f.type())) {
+                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
+                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
+            } else if (isKofObjectField(f.type())) {
+                ops.add(new KofCall(objectType, "kof_obj_equals",
+                        List.of(objectType, objectType),
+                        Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
+            } else {
+                ops.add(new KofBinary(KofBinaryOp.EQ, f.type()));
+            }
+            if (i > 0) {
+                ops.add(new KofBinary(KofBinaryOp.AND, Type.PrimitiveType.BOOL));
+            }
+        }
+        if (fields.isEmpty()) {
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
+        }
+        ops.add(new KofReturn(Type.PrimitiveType.BOOL));
+        return new IRMethod("equals", Type.PrimitiveType.BOOL, List.of(objectType), AccessFlags.PUBLIC,
+                List.of(), List.of(new IRBasicBlock(0, ops)), locals);
+    }
+
+    /**
      * §114: campo de record que é REFERÊNCIA Kof (classe/record) compara por
      * conteúdo via `kof_obj_equals`. Ficam de fora String (já usa
      * `kof_string_equals`), primitivos, arrays e type-vars (identidade — o
