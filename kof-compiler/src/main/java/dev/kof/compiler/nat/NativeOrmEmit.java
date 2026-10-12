@@ -40,6 +40,9 @@ public final class NativeOrmEmit {
             // Fase 5 do entity-history (D-ENTITY-HISTORY; ordem da mantenedora
             // 13/10): o DDL da tabela de histórico ({@code kof_orm_create_history}).
             dev.kof.compiler.runtime.RuntimeOrmHistory1.emit(sb);
+            // Fase 5 fatia 5b WIP (NÃO emitida): o delete_recorded asm ainda
+            // segva no record (o bisect isolou: conn ok, o delete ok, o crash
+            // no meu bloco record) — o gdb com foco antes de emissão.
             dev.kof.compiler.runtime.RuntimeOrmMysql.emit(sb);
             dev.kof.compiler.runtime.RuntimeOrm2.emit(sb);
             dev.kof.compiler.runtime.RuntimeOrm2.emitMysql(sb);

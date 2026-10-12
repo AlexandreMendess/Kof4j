@@ -25,7 +25,7 @@ public final class RuntimeOrmHistory1 {
             #   NOT NULL, at BIGINT NOT NULL, payload CLOB, actor
             #   VARCHAR(255), actor_kind VARCHAR(16), correlation_id
             #   VARCHAR(64)) — espelha o host JVM (Fase 5).
-            #   slots: 0 id | 8 table | 16 conn
+            #   slots: 0 id | 8 table | 24 conn
             # ---------------------------------------------------------------
                 @@SYMBOL@@
             kof_orm_create_history:
