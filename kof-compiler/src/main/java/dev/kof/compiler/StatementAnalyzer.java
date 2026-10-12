@@ -285,6 +285,14 @@ public final class StatementAnalyzer {
                     elemType = ct.typeArguments().get(0);
                 } else if (collType instanceof Type.ArrayType at) {
                     elemType = at.componentType();
+                } else if (BuiltinTypes.isString(collType)) {
+                    // EVOLUÇÃO (a diretiva da mantenedora 13/10: "liberado
+                    // evoluir a lang"): `for (var c in s)` itera os CHARs da
+                    // string — a unidade do charAt. O bug 145 virou SEM058
+                    // porque os alvos DIVERGIAM; agora o ramo String desce o
+                    // MESMO desugar de índice do List/array (charAt/length, os
+                    // 4 alvos) e o comportamento natural do JS vira contrato.
+                    elemType = Type.PrimitiveType.CHAR;
                 } else if (sa.diagnostics() != null && isNonIterableForIn(collType)) {
                     // bug 145 (espelha o bug 103/SEM054): `for (var c in "abc")`
                     // era ACEITO e quebrava de um jeito em cada target — JVM
