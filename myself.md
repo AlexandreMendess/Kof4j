@@ -74,6 +74,14 @@ state: STABLE (para a lane)
 - **Caveat de harness:** o CLI compila TODO o diretório passado como um módulo (dois `main()` -> `PKG002`), então cada sonda precisa do seu próprio diretório. `-Dkof.install.dir=<dir>` aponta para `<dir>/lib/kof-libs/`. Um `import` novo entre módulos da lib pode não resolver no interpretador (medido com `Av1TxSize -> Av1IntraAvail`); colocar a função junto do seu irmão lógico evita o problema.
 - **Próximo passo:** o laço de coeficientes + reconstrução de CROMA em si (contexto de entropia `above`/`left` por plano, tx-type de croma via `av1ComputeTxType`, reconstrução U/V), depois a montagem tile-group/frame, depois `decodeRaster` AVIF.
 
+## Sessão 13/10 (sexta, 9ª) — fatia 3ao: CAUSA RAIZ ACHADA, e era o MEU ORÁCULO
+- **Uma rodada de diagnóstico resolveu o que três ciclos de raciocínio não resolveram.** Imprimi o que o driver DECODIFICOU para a luma do caso CFL: `N 3 256 9 0:1` — tx_type **9** (V_DCT). O meu oráculo vinha reconstruindo com tx_type **0** (DCT_DCT).
+- **A raiz era minha, e era boba:** eu capturava `av1_get_tx_type` logo APÓS o `kof_read_tx_size`, mas o libaom só guarda o tipo DENTRO do `av1_read_coeffs_txb`. Antes disso ela devolve o default 0. Movi a captura para depois do decode — e o `129` plano virou `137 128 128 …`, **byte a byte igual ao driver**.
+- **Isso invalida a leitura do ciclo passado** ("a divergência está no resíduo da luma"): o resíduo do Kof estava CERTO; o errado era a transformada que o oráculo usava. Lição: quando o instrumento e o objeto discordam, suspeite primeiro do instrumento — e foi um ciclo inteiro perdido por não ter impresso o valor DECODIFICADO antes de teorizar sobre a reconstrução.
+- **Onde estamos agora:** luma 256/256 amostras idênticas; croma 63 de 64 — só a PRIMEIRA amostra difere (driver `130`, oráculo `128`). A composição CFL do Kof está confirmada contra o libaom exceto nessa posição.
+- **Eliminados por medição em três ciclos:** shift de desquantização, predição DC, e agora o "resíduo". Cada um custou um ciclo; o barato teria sido imprimir dados antes.
+- **Próximo:** comparar `ac[0]` nos dois lados (uma linha de cada) para achar o +2 da primeira amostra; depois pousar o golden cru `L`/`W` do CFL ponta a ponta.
+
 ## Sessão 13/10 (sexta, 8ª) — fatia 3ao: medição CRUA, a divergência ganhou FORMA
 - **Consertei o instrumento primeiro, como prometido:** larguei o hash rolante (potências de dois = cadeia degenerando) e fiz os dois lados emitirem AMOSTRAS CRUAS. Sem isso eu estaria caçando artefato.
 - **O que a medição crua mostrou (caso CFL, BLOCK_16X16 na origem, resíduo só-DC):** o ORÁCULO dá luma **129 plano** nas 256 amostras (resíduo +1 uniforme sobre predição 128 — o que uma transformada só-DC produz). O DRIVER KOF dá **128 em 255 amostras e UMA em 137 na posição 0** — praticamente SEM resíduo.
