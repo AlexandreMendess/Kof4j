@@ -62,6 +62,34 @@ final class Av1DecodeChromaSupport {
     /** One mode-info block: LUMA 4x4 origin and block size index. */
     record Blk(int r, int c, int bs) {}
 
+    /** Generic gzip+base64 resource reader with a SHA-256 guard. */
+    static String resourceText(String name, String sha) {
+        try (InputStream raw = Av1DecodeChromaSupport.class.getResourceAsStream(name)) {
+            if (raw == null) throw new IllegalStateException("missing test resource " + name);
+            byte[] b64 = raw.readAllBytes();
+            StringBuilder sb = new StringBuilder(b64.length);
+            for (byte b : b64) {
+                char c = (char) (b & 0xFF);
+                if (c != '\n' && c != '\r' && c != ' ' && c != '\t') sb.append(c);
+            }
+            byte[] gz = Base64.getDecoder().decode(sb.toString());
+            try (GZIPInputStream in = new GZIPInputStream(new java.io.ByteArrayInputStream(gz))) {
+                String text = new String(in.readAllBytes(), StandardCharsets.UTF_8).strip();
+                String actual = sha256(text);
+                if (!sha.equals(actual)) {
+                    throw new IllegalStateException("stale golden " + name + ": " + actual);
+                }
+                return text;
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("cannot read " + name, e);
+        }
+    }
+
+    /** Expected SHA-256 of the pinned CHROMA-plane checksums. */
+    static final String PLANES_SHA256 =
+        "b3fd2bab2baeb735df6531f9e7dcc2aeac965a033021032957be72094914442e";
+
     static String golden() {
         try (InputStream raw = Av1DecodeChromaSupport.class.getResourceAsStream(RESOURCE)) {
             if (raw == null) {
@@ -286,6 +314,27 @@ final class Av1DecodeChromaSupport {
         sb.append("            pl = pl + 1\n");
         sb.append("        }\n");
         sb.append("        bb = bb + 1\n");
+        sb.append("    }\n");
+        /* Z: a rolling checksum of each CHROMA plane the driver wrote. This is a
+         * CHARACTERIZATION lock, not an independent reference: the oracle decodes
+         * coefficients but does not reconstruct, so there is no oracle value for
+         * these samples. It pins the current chroma output so a geometry
+         * regression (the CFL window origin, the border offset) cannot come back
+         * silently. The independent reference for the pixels is still pending. */
+        sb.append("    var pl = 1\n");
+        sb.append("    while (pl <= 2) {\n");
+        sb.append("        var buf = frameU\n");
+        sb.append("        if (pl == 2) {\n");
+        sb.append("            buf = frameV\n");
+        sb.append("        }\n");
+        sb.append("        var h = 0\n");
+        sb.append("        var z = 0\n");
+        sb.append("        while (z < buf.size) {\n");
+        sb.append("            h = (h * 31 + buf[z]) & 65535\n");
+        sb.append("            z = z + 1\n");
+        sb.append("        }\n");
+        sb.append("        println(\"Z \" + ci + \" \" + pl + \" \" + h)\n");
+        sb.append("        pl = pl + 1\n");
         sb.append("    }\n");
         /* A: the LUMA entropy contexts. */
         sb.append("    var a = \"A \" + ci\n");

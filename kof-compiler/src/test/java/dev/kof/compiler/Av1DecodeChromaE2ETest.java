@@ -9,6 +9,7 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static dev.kof.compiler.Av1DecodeChromaSupport.expectedText;
@@ -50,9 +51,41 @@ class Av1DecodeChromaE2ETest implements LibraryInstallSupport {
                 "five oracle cases (the multi-block one and the CFL one)");
     }
 
+    private static final String PLANES_RESOURCE = "/av1_decode_chroma_planes.txt.b64";
+
+    private static String planesGolden() {
+        return Av1DecodeChromaSupport.resourceText(PLANES_RESOURCE,
+                Av1DecodeChromaSupport.PLANES_SHA256);
+    }
+
+    /** The oracle records only — the `Z` checksum lines are compared separately. */
+    private static String stripZ(String out) {
+        List<String> keep = new ArrayList<>();
+        for (String line : out.split("\n")) {
+            if (!line.startsWith("Z ")) keep.add(line);
+        }
+        return String.join("\n", keep);
+    }
+
+    private static String zLines(String out) {
+        List<String> z = new ArrayList<>();
+        for (String line : out.split("\n")) {
+            if (line.startsWith("Z ")) z.add(line);
+        }
+        return String.join("\n", z);
+    }
+
+    @Test
+    void chromaPlanesArePinned() throws Exception {
+        /* Characterization lock on the CHROMA planes: the oracle does not
+         * reconstruct, so this is not an independent reference — it exists so the
+         * CFL window geometry (origin + border offset) cannot regress silently. */
+        assertEquals(planesGolden(), zLines(runJvm(kofProbe())));
+    }
+
     @Test
     void av1ChromaOnJvm() throws Exception {
-        assertEquals(expectedText(), runJvm(kofProbe()));
+        assertEquals(expectedText(), stripZ(runJvm(kofProbe())));
     }
 
     @Test
@@ -63,13 +96,13 @@ class Av1DecodeChromaE2ETest implements LibraryInstallSupport {
         KofInterpreter.Result result = withLibrary(root,
                 () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
         assertEquals(0, result.exitCode(), "script output: " + result.stdout());
-        assertEquals(expectedText(), result.stdout().strip());
+        assertEquals(expectedText(), stripZ(result.stdout().strip()));
     }
 
     @Test
     void av1ChromaOnNativeX86() throws Exception {
         Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
-        assertEquals(expectedText(), runNative("native-x86", Target.NATIVE, kofProbe()));
+        assertEquals(expectedText(), stripZ(runNative("native-x86", Target.NATIVE, kofProbe())));
     }
 
     @Test
@@ -77,7 +110,7 @@ class Av1DecodeChromaE2ETest implements LibraryInstallSupport {
         Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
                 "cross riscv64 + qemu absent — skipping (NATIVE002)");
         assertEquals(expectedText(),
-                runCross("riscv64", Target.NATIVE_RISCV64, kofProbe()));
+                stripZ(runCross("riscv64", Target.NATIVE_RISCV64, kofProbe())));
     }
 
     @Test
@@ -85,7 +118,7 @@ class Av1DecodeChromaE2ETest implements LibraryInstallSupport {
         Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
                 "cross aarch64 + qemu absent — skipping (NATIVE002)");
         assertEquals(expectedText(),
-                runCross("aarch64", Target.NATIVE_AARCH64, kofProbe()));
+                stripZ(runCross("aarch64", Target.NATIVE_AARCH64, kofProbe())));
     }
 
     private String runJvm(String code) throws Exception {

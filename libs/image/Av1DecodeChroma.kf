@@ -173,9 +173,17 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
                 // block, not `uvc << (2 + ssX)` computed inline: the two agree
                 // for an even 4x4 column but diverge for the odd 1-wide block
                 // libaom shifts back by one mi.
+                //
+                // `+ 1` on both axes: a plane SAMPLE (px, py) lives at
+                // `luma[(py + 1) * stride + px + 1]` in this driver (the plane
+                // buffers carry a one-sample border — every other access here,
+                // the predictor at `x + 1` / `y + 1` and the border strip at
+                // `(rr + 1) * stride + (cc + 1)`, does the same). Reading the
+                // bare plane origin would take the cell one row up and one
+                // column left.
                 var ac = av1CflAcFromLuma(luma, lumaStride,
-                        av1CflLumaOriginX(c, av1BlockNum4x4Wide(bs), ssX),
-                        av1CflLumaOriginY(r, av1BlockNum4x4High(bs), ssY),
+                        av1CflLumaOriginX(c, av1BlockNum4x4Wide(bs), ssX) + 1,
+                        av1CflLumaOriginY(r, av1BlockNum4x4High(bs), ssY) + 1,
                         w, h, ssX, ssY,
                         av1TxWidthLog2(uvTx) + av1TxHeightLog2(uvTx))
                 pred = av1CflPredict(pred, ac, cflAlpha, w, h, bitDepth)
