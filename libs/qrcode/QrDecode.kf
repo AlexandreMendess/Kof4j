@@ -458,8 +458,11 @@ Int[] deinterleaveAndVerify(Int[] received, Int version) {
         }
         k = k + 1
     }
-    // verify each block's syndromes over its data+ecc codewords
+    // per block: compute the syndromes; if any is nonzero, run the full
+    // Reed-Solomon error correction (errors only, up to floor(ecc/2) per
+    // block) and write the corrected codewords back
     var blockIdx = 0
+    var i = 0
     while (blockIdx < blocks) {
         var len = d1
         var dataOff = blockIdx * d1
@@ -467,28 +470,280 @@ Int[] deinterleaveAndVerify(Int[] received, Int version) {
             len = d2
             dataOff = g1 * d1 + (blockIdx - g1) * d2
         }
-        var j = 0
-        while (j < ecc) {
-            var s = 0
-            var i = 0
+        var blockLen = len + ecc
+        var combined = new Int[blockLen]
+        i = 0
+        while (i < len) {
+            combined[i] = allData[dataOff + i]
+            i = i + 1
+        }
+        i = 0
+        while (i < ecc) {
+            combined[len + i] = allEcc[blockIdx * ecc + i]
+            i = i + 1
+        }
+        var syn = rsSyndromes(combined, ecc)
+        var dirty = 0
+        i = 0
+        while (i < ecc) {
+            if (syn[i] != 0) {
+                dirty = 1
+            }
+            i = i + 1
+        }
+        if (dirty == 1) {
+            var corrected = rsCorrectBlock(combined, ecc)
+            if (corrected == null) {
+                throw "QRCODE: symbol data failed the parity check (too many errors or unsupported symbol)"
+            }
+            i = 0
             while (i < len) {
-                s = gfMul(s, pow2(j)) ^ allData[dataOff + i]
+                allData[dataOff + i] = corrected[i]
                 i = i + 1
             }
             i = 0
             while (i < ecc) {
-                s = gfMul(s, pow2(j)) ^ allEcc[blockIdx * ecc + i]
+                allEcc[blockIdx * ecc + i] = corrected[len + i]
                 i = i + 1
             }
-            if (s != 0) {
-                throw "QRCODE: symbol data failed the parity check (damaged or unsupported symbol)"
-            }
-            j = j + 1
         }
         blockIdx = blockIdx + 1
     }
     return allData
 }
+
+// ---------------------------------------------------------------------------
+// Reed-Solomon error correction (errors only; roots alpha^0..alpha^(ecc-1);
+// ported from a Python reference validated over damaged real QR blocks)
+// ---------------------------------------------------------------------------
+
+Int gfDiv(Int a, Int b) {
+    // the callers never pass b == 0; b^254 is its multiplicative inverse
+    var inv = 1
+    var i = 0
+    while (i < 254) {
+        inv = gfMul(inv, b)
+        i = i + 1
+    }
+    return gfMul(a, inv)
+}
+
+// GF(256) exponentiation by repeated multiplication (n can be up to 254;
+// the integer pow2 overflows long before that)
+Int gfPow(Int x, Int n) {
+    var r = 1
+    var i = 0
+    while (i < n) {
+        r = gfMul(r, x)
+        i = i + 1
+    }
+    return r
+}
+
+// Evaluates a low-first polynomial (p[0] = coefficient of x^0).
+Int polyEvalLow(Int[] p, Int x) {
+    var r = 0
+    var i = p.length - 1
+    while (i >= 0) {
+        r = gfMul(r, x) ^ p[i]
+        i = i - 1
+    }
+    return r
+}
+
+Int[] rsSyndromes(Int[] block, Int ecc) {
+    var syn = new Int[ecc]
+    var j = 0
+    while (j < ecc) {
+        var r = 0
+        var i = 0
+        while (i < block.length) {
+            r = gfMul(r, gfPow(2, j)) ^ block[i]
+            i = i + 1
+        }
+        syn[j] = r
+        j = j + 1
+    }
+    return syn
+}
+
+// Berlekamp-Massey over the syndrome sequence. Returns [L, C0, C1, ...]:
+// the connection polynomial's degree and its low-first coefficients (C0 = 1).
+Int[] rsBerlekampMassey(Int[] syn, Int ecc) {
+    var C = new Int[1]
+    C[0] = 1
+    var B = new Int[1]
+    B[0] = 1
+    var L = 0
+    var m = 1
+    var b = 1
+    var n = 0
+    var i = 0
+    while (n < ecc) {
+        var d = syn[n]
+        i = 1
+        while (i <= L) {
+            if (i < C.length) {
+                d = d ^ gfMul(C[i], syn[n - i])
+            }
+            i = i + 1
+        }
+        if (d != 0) {
+            var factor = gfDiv(d, b)
+            var newLen = C.length
+            if (B.length + m > newLen) {
+                newLen = B.length + m
+            }
+            var next = new Int[newLen]
+            i = 0
+            while (i < C.length) {
+                next[i] = next[i] ^ C[i]
+                i = i + 1
+            }
+            i = 0
+            while (i < B.length) {
+                next[i + m] = next[i + m] ^ gfMul(factor, B[i])
+                i = i + 1
+            }
+            if (2 * L <= n) {
+                B = C
+                L = n + 1 - L
+                b = d
+                m = 1
+            } else {
+                m = m + 1
+            }
+            C = next
+        } else {
+            m = m + 1
+        }
+        n = n + 1
+    }
+    var out = new Int[C.length + 1]
+    out[0] = L
+    i = 0
+    while (i < C.length) {
+        out[i + 1] = C[i]
+        i = i + 1
+    }
+    return out
+}
+
+// Chien search: the roots alpha^j of the connection polynomial locate the
+// errors at array position len-1-j. Returns the positions followed by -1,
+// or null when the root count does not match the error count L.
+Int[] rsChien(Int[] sigma, Int blockSize, Int L) {
+    var positions = new Int[blockSize]
+    var count = 0
+    var j = 0
+    var i = 0
+    while (j < blockSize) {
+        // Horner high-first over the low-first array: this evaluates the
+        // reciprocal polynomial, whose roots sit at x = X_k = alpha^(n-1-pos)
+        // — the same convention the validated Python reference uses
+        var r = 0
+        var aj = gfPow(2, j)
+        i = 0
+        while (i < sigma.length) {
+            r = gfMul(r, aj) ^ sigma[i]
+            i = i + 1
+        }
+        if (r == 0) {
+            positions[count] = j
+            count = count + 1
+        }
+        j = j + 1
+    }
+    if (count != L) {
+        return null
+    }
+    var out = new Int[count + 1]
+    i = 0
+    while (i < count) {
+        out[i] = positions[i]
+        i = i + 1
+    }
+    out[count] = -1
+    return out
+}
+
+// Full errors-only correction of one received block. Returns the corrected
+// block, or null when the damage exceeds the correction capacity.
+Int[] rsCorrectBlock(Int[] block, Int ecc) {
+    var syn = rsSyndromes(block, ecc)
+    var lm = rsBerlekampMassey(syn, ecc)
+    var L = lm[0]
+    if (L > ecc / 2) {
+        return null
+    }
+    var sigma = new Int[L + 1]
+    var i = 0
+    while (i <= L) {
+        sigma[i] = lm[i + 1]
+        i = i + 1
+    }
+    var positions = rsChien(sigma, block.length, L)
+    if (positions == null) {
+        return null
+    }
+    // omega = (S(x) * sigma(x)) mod x^ecc, low-first
+    var omega = new Int[ecc]
+    i = 0
+    while (i < ecc) {
+        var j = 0
+        while (j < sigma.length) {
+            if (i + j < ecc) {
+                omega[i + j] = omega[i + j] ^ gfMul(syn[i], sigma[j])
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    // formal derivative of sigma, low-first (odd-degree terms only)
+    var lamPrime = new Int[sigma.length - 1]
+    i = 0
+    while (i < lamPrime.length) {
+        if (i % 2 == 0) {
+            lamPrime[i] = sigma[i + 1]
+        }
+        i = i + 1
+    }
+    var corrected = new Int[block.length]
+    i = 0
+    while (i < block.length) {
+        corrected[i] = block[i]
+        i = i + 1
+    }
+    var count = 0
+    while (positions[count] != -1) {
+        var j = positions[count]
+        var pos = block.length - 1 - j
+        var xinv = 1
+        if (j != 0) {
+            xinv = gfPow(2, 255 - j)
+        }
+        var num = polyEvalLow(omega, xinv)
+        var den = polyEvalLow(lamPrime, xinv)
+        if (den == 0) {
+            return null
+        }
+        // Forney with the X factor (syndrome convention S_j = sum e_k X_k^j)
+        var e = gfMul(gfPow(2, j), gfDiv(num, den))
+        corrected[pos] = corrected[pos] ^ e
+        count = count + 1
+    }
+    // the correction must zero every syndrome
+    var check = rsSyndromes(corrected, ecc)
+    i = 0
+    while (i < ecc) {
+        if (check[i] != 0) {
+            return null
+        }
+        i = i + 1
+    }
+    return corrected
+}
+
 
 // Reads `count` bits of the message stream starting at bit `pos`
 // (MSB-first within each codeword byte).
