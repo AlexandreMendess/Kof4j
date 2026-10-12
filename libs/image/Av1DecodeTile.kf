@@ -126,7 +126,7 @@ List<Int> av1DecodeTileBlocks(Int[] data, Int miCols, Int miRows,
             cur = deltaLf
         }
 
-        // 3. Body: Y/UV mode, angles, CFL, palette, filter-intra (slice 3q). + " lf=" + modeInfo.yModeAt(r, c - 1))
+        // 3. Body: Y/UV mode, angles, CFL, palette, filter-intra (slice 3q).
         var body = modeInfo.readBodyBd(r, c, bs, lossless, hasChroma,
                                        enableFilterIntra, palettePossible,
                                        bitDepth)
