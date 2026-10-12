@@ -18190,7 +18190,7 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 <!-- pt-switch --> **PT:** [§673 (pt_BR)](known-bugs.pt_BR.md#673--auditoria-jvm-03-uma-expressao-ifswitch-cujos-ramos-sao-lambdas-da-mesma-assinatura-fazia-o-join-cair-em-object-os-classnames-concretos-lambda0lambda1-diferem-entao-o-call-site-emitia-um-invokestatic--iljavalangobject-fantasma--verifyerror-no-jvm---corrigido-1110-lane-compiladorjvmnativo-19216815309092)
 
-## §679 — the AV1 intra tile driver never reads `tx_type`, which libaom signals for every non-skipped intra transform block of size <= 16x16 — the slice-3ag golden only covers 32x32 (set `DCTONLY`, no symbol), so the gap is invisible there — 🟡 OPEN (measured 12/10, lane pipeline/image-vision 192.168.15.21:0)
+## §679 — the AV1 intra tile driver never reads `tx_type`, which libaom signals for every non-skipped intra transform block of size <= 16x16 — the slice-3ag golden only covers 32x32 (set `DCTONLY`, no symbol), so the gap is invisible there — ✅ FIXED 12/10 (lane pipeline/image-vision 192.168.15.21:0)
 
 **Symptom (measured 12/10):** a 16x16 transform block decodes with the wrong coefficients: the Kof driver `av1DecodeTileRecon` (`libs/image/Av1DecodeTileRecon.kf`) passes a hardcoded `txType = 0` (DCT_DCT) to `av1DecodeCoeffsBlockEdge` (`libs/image/Av1CoeffPlane.kf`), so it never consumes the `tx_type` symbol libaom writes before the coefficient payload, and the entropy stream desynchronises at the next symbol.
 
@@ -18257,3 +18257,15 @@ So every intra transform block of size <= 16x16 in a real AV1 bitstream carries 
 **Boundary:** a SUCCESSFUL `as` cast is correct on all four targets (measured). Only the FAILING reference cast diverges. Owner lane compiler/JVM/native `192.168.15.30:9092`.
 
 <!-- pt-switch --> **PT:** [§678 (pt_BR)](known-bugs.pt_BR.md#678--um-downcast-que-falha-a-as-dog-diverge-o-jvm-lanca-classcastexception-enquanto-scriptnativojs-avaliam-para-null-e-um-a-as-dog-nulavel-devolve-null-em-todo-lugar-exceto-no-jvm-que-lanca---open-achado-1110-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §680 — the AV1 intra tile driver reads the WRONG transform size for the 2nd and later mode-info blocks of a plane of <= 16x16 blocks (it keeps splitting to TX_4X4), so the block walk diverges from libaom — 🟡 OPEN (measured 12/10, lane pipeline/image-vision 192.168.15.21:0)
+
+**Symptom (measured 12/10):** with a MULTI-block plane whose blocks are `BLOCK_16X16`, the driver's second and later blocks decode at `txSz = TX_4X4` where libaom reads `TX_16X16`, and the transform-block counts diverge (the driver emits 2 transform blocks for a 16x16 block where libaom emits 1). The mode-info fields after the tx size also diverge (e.g. `yMode` 9 vs 0). A SINGLE `BLOCK_16X16` plane is correct, and every `BLOCK_32X32` plane (the slice-3ag golden) is correct.
+
+**Evidence (measured):** the `known-bugs` §679 golden generator's multi-block case (`/tmp/s3ag/oracle3.c`, case c1 = four `BLOCK_16X16` in a 16x16 plane) makes the Kof probe print `D 1 1 0 0 1 2 -2 9 0 0 0` / `X 1 1 0 64` (txSz=1=TX_4X4) where the libaom oracle prints `D 1 1 0 0 2 1 0 1 0 0 0` / `X 1 1 2 256` (txSz=2=TX_16X16). Block 0 agrees; blocks 1..n diverge. The entropy stream is still in sync (the encoder/decoder symbol sequences match 1:1 through the whole case), so this is a STATE bug in the tx-size derivation, not a stream desync.
+
+**Leading hypothesis (NOT yet proven — needs its own oracle):** the driver passes `frameW >> 2`/`frameH >> 2` as the mi bounds to `Av1ModeInfo`/`Av1TxSize` and `av1IntraAvail`, but a `BLOCK_16X16` plane in these cases is 2x2 mi units while `TX_16X16` needs a 4x4 mi grid, so `getTxSizeContext`'s above/left reads (`txfmAbove[c]` / `txfmLeft[r]`) run off the populated region and fall back to the `64` initial value, taking the "above/left is large -> split deeper" branch. `av1IntraAvail` (slice 3ab) has the same `frameW >> 2` frame-extent assumption. The 3ag cases are all `BLOCK_32X32` (8x8 mi), which hides it.
+
+**Fix (not yet landed):** derive the tx-size context from the BLOCK's position and the plane's true mi extent, and make the driver's `Av1ModeInfo`/`Av1TxSize`/`av1IntraAvail` frame-extent arguments consistent with the tile's mi grid rather than the 4x4-unit plane size; then re-verify against a multi-block <= 16x16 oracle case. Recorded rather than patched because the root cause is a hypothesis, not a measurement — patching on a guess would be exactly the failure mode §679 was.
+
+**Boundary:** `Av1DecodeTileTxTypeE2ETest` **7/7** (its golden is single-block by design, see the test's doc) and `Av1DecodeTileReconE2ETest` **7/7** still pass; the gap only shows on a multi-block <= 16x16 plane, which no landed golden covers. `decodeRaster` AVIF still refuses until the chain closes. Owner lane pipeline/image-vision `192.168.15.21:0` (flatt CLI, no opencode server on this host; port n/a per the never-invent rule).
