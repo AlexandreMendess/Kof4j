@@ -41,6 +41,36 @@ class LambdaE2ETest extends LambdaSupport {
         runNative(source, tempDir.resolve("out"), "42\n7\n99\nola kof");
     }
 
+    // JVM-01 (audit 0.6.0, §671): `var f = () -> 1  f = () -> 2` typed the local
+    // as the CONCRETE Lambda0 class, so storing Lambda1 into that slot was a
+    // VerifyError. An inferred lambda-typed local is now typed as the synthetic
+    // interface (any same-signature lambda fits); the call site already uses
+    // INVOKEINTERFACE for that shape. RED-first: this failed with VerifyError.
+    private static final String LAMBDA_LOCAL_REASSIGN = """
+            main() {
+                var f = () -> 1
+                f = () -> 2
+                println(f())
+                var g = (x: Int) -> x + 1
+                g = (x: Int) -> x * 10
+                println(g(5))
+            }
+            """;
+
+    @Test
+    void lambdaLocalReassignJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDA_LOCAL_REASSIGN);
+        runJvm(source, tempDir.resolve("out"), "2\n50");
+    }
+
+    @Test
+    void lambdaLocalReassignNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDA_LOCAL_REASSIGN);
+        runNative(source, tempDir.resolve("out"), "2\n50");
+    }
+
     private static final String IF_EXPRS = """
             main() {
                 var v = if (5 > 3) 10 else 20
