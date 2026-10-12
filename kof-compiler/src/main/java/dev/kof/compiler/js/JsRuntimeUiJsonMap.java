@@ -79,11 +79,28 @@ public final class JsRuntimeUiJsonMap {
                         : kofJsonEncode(v);
             }
 
+            // §659d (face record): o toJSON de um record com campo Double/Float
+            // inteiro emite a SENTINELA (a mesma mecânica do §659b) e o strip
+            // abaixo a devolve COM o .0 — paridade JVM/Script/nativo.
+            export function kofJsonHasRecord(v) {
+                if (Array.isArray(v)) {
+                    for (const x of v) if (kofJsonHasRecord(x)) return true;
+                    return false;
+                }
+                if (v !== null && typeof v === 'object' && !(v instanceof Map)) {
+                    if (typeof v.toJSON === 'function') return true;
+                    for (const k of Object.keys(v)) if (kofJsonHasRecord(v[k])) return true;
+                    return false;
+                }
+                return false;
+            }
+
             export function kofJsonEncode(v) {
-                if (!kofJsonHasBig(v)) return JSON.stringify(v);
+                if (!kofJsonHasBig(v) && !kofJsonHasRecord(v)) return JSON.stringify(v);
                 return JSON.stringify(v, (k, x) => typeof x === 'bigint'
                         ? 'KOFBIGINT_SENTINEL_' + x.toString() + '_END' : x)
-                    .replace(/"KOFBIGINT_SENTINEL_(-?[0-9]+)_END"/g, '$1');
+                    .replace(/"KOFBIGINT_SENTINEL_(-?[0-9]+)_END"/g, '$1')
+                    .replace(/"KOFDBL_SENTINEL_(-?[0-9]+\\.[0-9])_END"/g, '$1');
             }
 
             """;
