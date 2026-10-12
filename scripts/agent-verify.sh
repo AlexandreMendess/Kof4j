@@ -184,6 +184,9 @@ fi
 if touches '"FFI[0-9]|^docs/ffi-abi-structs'; then
     run_gate ffi_inventory "${AGENT_VERIFY_FFIINV:-bash scripts/check_ffi_inventory.sh}"
 fi
+if touches '^tests/golden/|^docs/stdlib/stdlib\.|^docs/development/README\.'; then
+    run_gate golden_count "${AGENT_VERIFY_GOLDENCOUNT:-bash scripts/check_golden_count.sh}"
+fi
 if touches 'lang/PortuKof|^lang/|parser/Lexer\.java|parser/ParseContext\.java|check_portukof|LspProject|LspDiagnostics|KofFormatter|Fmt\.java'; then
     run_gate portukof_parity "bash scripts/check_portukof_parity.sh"
     run_gate portukof_tooling "bash scripts/check_portukof_tooling.sh"

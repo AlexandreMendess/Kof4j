@@ -15680,6 +15680,24 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 <!-- en-switch --> **EN:** [§673 (en)](known-bugs.md#673--audit-jvm-03-an-ifswitch-expression-whose-branches-are-lambdas-of-the-same-signature-joined-to-object-the-concrete-lambda0lambda1-classnames-differ-so-the-call-site-emitted-a-phantom-invokestatic--iljavalangobject--jvm-verifyerror---fixed-1110-lane-compilerjvmnative-19216815309092)
 
+## §674 — o driver de tile intra AV1 nunca lê `tx_type`, que o libaom sinaliza para todo bloco de transformada intra não-skip de tamanho <= 16x16 — o golden da fatia 3ag só cobre 32x32 (conjunto `DCTONLY`, sem símbolo), então o gap é invisível lá — 🟡 ABERTO (medido 12/10, lane pipeline/image-vision 192.168.15.21:0)
+
+**Sintoma (medido 12/10):** um bloco de transformada 16x16 decodifica com coeficientes errados: o driver Kof `av1DecodeTileRecon` (`libs/image/Av1DecodeTileRecon.kf`) passa um `txType = 0` (DCT_DCT) fixo para `av1DecodeCoeffsBlockEdge` (`libs/image/Av1CoeffPlane.kf`), então nunca consome o símbolo `tx_type` que o libaom escreve antes do payload de coeficientes, e o fluxo de entropia dessincroniza no símbolo seguinte.
+
+**Raiz (lida do libaom pinado `d53e6d0b14568ddbd36ad7354bfb9a59a127346e`):** `av1_read_coeffs_txb` (`av1/decoder/decodetxb.c:158`) chama `av1_read_tx_type` sempre que o bloco não é `all_zero`; `av1_read_tx_type` (`av1/decoder/decodemv.c:626`) lê o símbolo só quando `get_ext_tx_types(tx_size, is_inter=0, reduced) > 1` (`av1/common/blockd.h:1129`). Para um bloco intra isso é `av1_num_ext_tx_set[av1_get_ext_tx_set_type(tx, 0, reduced)]`:
+- `TX_32X32` -> `EXT_TX_SET_DCTONLY` -> **1** (sem símbolo) — é o que o golden da fatia 3ag exercita;
+- `TX_16X16` com `reduced_tx_set_used = 0` -> `av1_ext_tx_set_lookup[0][1]` = `EXT_TX_SET_DTT4_IDTX` -> **5** (símbolo lido);
+- `TX_16X16` com `reduced_tx_set_used = 1` -> `EXT_TX_SET_DTT4_IDTX` pelo ramo reduzido -> **5**.
+
+Ou seja, todo bloco de transformada intra de tamanho <= 16x16 num bitstream AV1 real carrega um símbolo `tx_type` que o driver não consome. `libs/image/Av1TxType.kf` já implementa `readTxType(txSz, reducedTxSet, qindex, intraMode, useFilterIntra, filterIntraMode, txTypes, stride, x4, y4)` (fatia 3t) — ele simplesmente nunca é chamado pelo driver de tile.
+
+**Prova (medida, ainda não um golden):** o oráculo libaom reprovisionado (`/tmp/s3ag/oracle2.c`, o encoder escreve mode info + tx size + coeficientes com as PRÓPRIAS CDFs default e o encoder de range do libaom, o decoder dirige o REAL `read_intra_frame_mode_info` + `read_tx_size` + `av1_read_coeffs_txb` + `av1_get_tx_type`) instrumentado dos dois lados imprime, para um bloco `BLOCK_16X16`: `DTTX tx=2 mode=0 reduced=0 ext=5` — o decoder toma o ramo do `tx_type` — seguido de `MS n=5 s=0` (a leitura de 5 símbolos em `intra_ext_tx_cdf`), enquanto o fluxo de símbolos do encoder para aquele bloco NÃO tem escrita de `tx_type`. Um caso de um único bloco 16x16 RODA redondo quando o encoder o escreve (`av1_ext_tx_inv[EXT_TX_SET_DTT4_IDTX][DCT_DCT] = 9`).
+
+**Por que a fatia 3ag passou mesmo assim:** os casos do oráculo dela são todos `BLOCK_32X32` -> `TX_32X32` -> `DCTONLY` -> sem `tx_type`, então driver e oráculo concordam num modelo incompleto. Os oráculos das fatias 3ac/3ad/3ae compartilham a mesma restrição de tx size.
+
+**Correção (ainda não pousada):** inicializar um store `Av1TxType` no driver e, por bloco de transformada, chamar `readTxType(txSz, reducedTxSet, qIndex, yMode, useFilterIntra, filterIntraMode, txTypes, stride, x4, y4)` ANTES da decodificação de coeficientes, passando o tipo retornado para `av1DecodeCoeffsBlockEdge`. Segurada porque o harness do oráculo ainda dessincroniza nos seus casos multi-bloco 16x16 (um descasamento de contexto `txb_skip` do lado do encoder), então ainda não existe um golden verificado para o caminho <= 16x16 — pousar a mudança sem ele seria um caminho de código não verificado (Q1/Q5).
+
+**Fronteira:** o gap está só no caminho de coeficientes intra; `Av1DecodeTileReconE2ETest` 7/7 (JVM + Script + nativo x86-64 + JS + riscv64/aarch64 qemu) segue passando porque exercita só 32x32. `decodeRaster` AVIF segue recusado até a cadeia fechar. Dona lane pipeline/image-vision `192.168.15.21:0` (flatt CLI, sem servidor opencode neste host; porta n/a conforme a regra de nunca-inventar).
 ## §676 — a face `User.changes` do entity-history cravava o COMPUTE_FRAMES do backend JVM (NegativeArraySizeException: -2): a chamada de 2 args empurrava 5 valores de pilha para o fn de 7 params — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0)
 **Sintoma (medido 11/10, tip `71cae04a0`):** `User.changes(db, u.id)` compila, o fn de runtime está pousado e correto, mas QUALQUER programa cujo main() toque o resultado — mesmo só `cs.size` — morre no backend JVM: `Internal compiler error: frame crash in Default/Main.main — ASM error: NegativeArraySizeException: -2, phase: JVM backend / ASM COMPUTE_FRAMES (visitMaxs)`. O IR está sadio (LoadLocal List<FieldChange> → a chamada size → valueOf → println); o crash está na COMPUTAÇÃO DE FRAMES do método, não num op.
 **Raiz (medida após o bisect limpar a forma do record):** a face de 2 args `User.changes(db, id)` empilhava só CINCO valores (db, key, table, schema, className) para o fn de SETE params (id, key, from, to, table, schema, className) — o from/to estavam declarados nos params do KofCall mas nunca EMITIDOS. O COMPUTE_FRAMES desempilhava 7 com 5 na pilha: 5-7 = o NegativeArraySize(-2). Os componentes nullable do `FieldChange` foram limpos pelo bisect (um `listOf(FieldChange(...))` cru + `.size` compila e roda verde).
@@ -15701,3 +15719,31 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 **Caminho de correção (precisa de decisão):** recusar no `SemBinaryResultTyper` (espelhando a forma do `SEM062`) OU definir semântica de ordinal no lowering compartilhado de comparação; de qualquer forma os quatro backends devem concordar.
 **Fronteira:** `==`/`!=` (identidade) e `compareTo` estão corretos nos quatro alvos. Só os operadores relacionais em enums estão indefinidos-e-divergentes. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
 <!-- en-switch --> **EN:** [§675 (en)](known-bugs.md#675--enum-ordering-operators-----are-accepted-but-diverge-across-targets-jvmjs-give-false-native-gives-true-script-prints-not-comparable-for-colorred--colorgreen---open-found-1110-by-lane-compilerjvmnative-19216815309092)
+
+## §677 — `instanceof` sobre um primitivo boxado diverge: `var o: Object = 42  println(o instanceof Int)` é `false` no Script/nativo mas `true` no JVM/JS — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
+
+**Sintoma (medido 11/10, tip `fe5e8c108`):** com `var o: Object = 42`, `println(o instanceof Int)` → **Script `false`**, **nativo `false`**, **JVM `true`**, **JS `true`**. Uma divisão 2-2: os backends que checam referência (JVM/JS) dizem que o `Integer` boxado É um `Int`, enquanto os backends de tipo-valor (Script/nativo) dizem que não. `o instanceof String` sobre um `Integer` boxado é `false` nos quatro (essa face concorda).
+
+**Raiz (até onde foi medido):** `instanceof` contra um alvo PRIMITIVO (`Int`/`Long`/`Bool`/…) não é definido pelo contrato da linguagem (`docs/language-reference/classes.md` cobre `instanceof` só para tipos classe/record). Cada backend faz o que o seu `instanceof` genérico faz para a forma boxada do primitivo — JVM `instanceof java.lang.Integer`, JS `typeof`/checagem de caixa, Script/nativo comparam o tipo de valor. Se `instanceof Int` sobre um slot `Object` faz sentido (ou deveria ser recusado em compile-time) é não especificado.
+
+**Contrato:** um operador ou tem UM significado cross-target definido ou é RECUSADO com um diagnóstico explícito — nunca aceito-e-divergente. Aqui o contrato é SILENTE sobre `instanceof <primitivo>`, então a correção precisa de decisão da mantenedora: **recusar** `instanceof` sobre um alvo primitivo (apontando para um tipo classe/record), ou **defini-lo** como a checagem do tipo boxado (o que mudaria Script/nativo). Registrado OPEN aguardando essa decisão.
+
+**Caminho de correção (precisa de decisão):** recusar no typer (um novo diagnóstico) OU definir semântica de tipo boxado no lowering compartilhado de `instanceof`; de qualquer forma os quatro backends devem concordar.
+
+**Fronteira:** `instanceof` sobre um alvo CLASSE/RECORD está correto nos quatro alvos (medido: `a instanceof Dog`/`Cat`/`Animal`, `o instanceof String`). Só o alvo PRIMITIVO diverge. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
+
+<!-- en-switch --> **EN:** [§677 (en)](known-bugs.md#677--instanceof-on-a-boxed-primitive-diverges-var-o-object--42--printlno-instanceof-int-is-false-on-scriptnative-but-true-on-jvmjs---open-found-1110-by-lane-compilerjvmnative-19216815309092)
+
+## §678 — um downcast que FALHA `a as Dog` diverge: o JVM lança `ClassCastException` enquanto Script/nativo/JS avaliam para `null` (e um `a as Dog?` nulável devolve `null` em todo lugar exceto no JVM, que lança) — 🟡 OPEN (achado 11/10 pela lane compilador/JVM/nativo 192.168.15.30:9092)
+
+**Sintoma (medido 11/10, tip `fe5e8c108`):** com `class Animal {}` / `class Dog extends Animal {}`, `var a: Animal = Animal()` e então `var d = a as Dog` → **JVM lança `ClassCastException: class Animal cannot be cast to class Dog`**, enquanto **Script/nativo/JS** avaliam o cast para `null` (sem lançar). A grafia nulável `var d: Dog? = a as Dog?` devolve `null` no Script/nativo/JS mas AINDA lança no JVM. Um cast BEM-SUCEDIDO (`a as Dog` onde `a` é mesmo um `Dog`) funciona igual nos quatro.
+
+**Raiz (até onde foi medido):** a semântica do cast `as` num downcast que FALHA é não especificada: o backend JVM baixa `as` para um `CHECKCAST` da JVM (que lança), enquanto os backends de tipo-valor baixam para uma checagem que devolve `null`. O contrato da linguagem (`docs/language-reference/classes.md`) documenta `as` para conversões numéricas e casts de tipo mas NÃO declara o comportamento de um cast de referência que falha.
+
+**Contrato:** `as` num cast de referência que falha deve ter UM significado cross-target definido — ou sempre lançar (erro de cast) ou sempre devolver `null` (cast suave) — nunca dependente do backend. O contrato é SILENTE, então a correção precisa de decisão da mantenedora. Registrado OPEN aguardando essa decisão.
+
+**Caminho de correção (precisa de decisão):** escolher lançar-ou-null e implementar nos quatro backends no lowering de `as` (o `as T?` nulável deveria então ser a grafia sempre-null se o null vencer).
+
+**Fronteira:** um cast `as` BEM-SUCEDIDO está correto nos quatro alvos (medido). Só o cast de referência que FALHA diverge. Lane dona compilador/JVM/nativo `192.168.15.30:9092`.
+
+<!-- en-switch --> **EN:** [§678 (en)](known-bugs.md#678--a-failing-downcast-a-as-dog-diverges-jvm-throws-classcastexception-while-scriptnativejs-evaluate-to-null-and-a-nullable-a-as-dog-returns-null-everywhere-except-jvm-which-throws---open-found-1110-by-lane-compilerjvmnative-19216815309092)

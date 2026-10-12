@@ -133,7 +133,8 @@ public final class KofOrm {
     private static final java.util.Set<String> HISTORY_FACES = java.util.Set.of(
             "kof_orm_create_history", "kof_orm_save_recorded", "kof_orm_delete_recorded",
             "kof_orm_history", "kof_orm_history_page",
-            "kof_orm_history_at", "kof_orm_history_at_time", "kof_orm_history_changes");
+            "kof_orm_history_at", "kof_orm_history_at_time", "kof_orm_history_changes",
+            "kof_orm_history_one");
 
     static boolean fnSupportedOn(Target target, String fn) {
         if (HISTORY_FACES.contains(fn)) return target == Target.JVM || target == Target.ANDROID;
@@ -153,7 +154,7 @@ public final class KofOrm {
 
 /** X10 fatia 3: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("create", "save", "find", "all", "delete", "count", "deleteAll", "where", "saveAll", "page", "migrate"); }
+    static List<String> functions() { return List.of("create", "createHistory", "save", "find", "all", "delete", "count", "deleteAll", "where", "saveAll", "page", "migrate"); }
 
     /** {@code orm.<method>(...) } — resolve o runtime function. */
     static OrmCall staticCall(String name, List<Type> argTypes, boolean typed, String entityName) {

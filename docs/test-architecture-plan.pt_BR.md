@@ -6,7 +6,7 @@
 **Dono:** `192.168.15.30:9092` (lane compiler/JVM — claims do split de higiene + matriz de paridade R6; UM plano, UM dono por `D-PLAN-ONE-OWNER`)
 **Decisão:** `D-TEST-ARCHITECTURE-GO` (`DECISIONS.md`) — promoção autorizada "profiling → integration".
 
-**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**; a fatia 34, `config-namespace`, a **59 / 236**; a fatia 35, `json-records`, a **60 / 240**; a fatia 36, `json-maps`, a **61 / 244**; a fatia 37, `json-escaping`, a **62 / 248**; a fatia 38, `list-predicates`, a **63 / 252**; a fatia 39, `abstract-records`, a **64 / 256**; a fatia 40, `enum-methods`, a **65 / 260**; a fatia 41, `string-switch-defaults`, a **66 / 264**). Sem decisão aberta, sem fatia enfileirada. As fatias anteriores eram apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano); a fatia 35 é a exceção, pareando o caso golden com a correção de compilador de baixo risco e unidade única §659a que ele revelou (ver o bloco da fatia abaixo).
+**Fechamento (11/10/2026):** a refatoração está COMPLETA — toda fase de escopo finito pousou e seu ratchet está esgotado. Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`), Fase 2 descoberta + ratchet (`scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`), Fase 3 modularização (oversized 43→18; extração pura esgotada), Fase 4 harness (consolidação de pares idênticos 146→117; **zero pares idênticos restam**), Fase 5 alvos (quinze fatias; ratchet `dupname` 131→117, **ESGOTADO** — o cluster `main` é falso positivo confirmado: `main()` de Kof dentro de text blocks de fonte de teste, não um helper Java), Fase 7 integração (`mvn verify -Pintegration`; golden + integração CLI na fase `verify`). **A Fase 6 (Conformance) não é uma tarefa finita, mas o resultado permanente do plano** — a suíte oficial de equivalência (`tests/run-golden.sh`, quatro alvos: jvm/native/js/script) é uma rede de regressão permanente que cresce **um caso por fatia**; no fechamento eram **55 casos / 220 checagens** (fatias 1–30), e novos casos são manutenção aditiva comum, não trabalho de plano (a fatia 31, `passwords-namespace`, levou a **56 / 224**; a fatia 32, `jwt-namespace`, a **57 / 228**; a fatia 33, `string-methods-extended`, a **58 / 232**; a fatia 34, `config-namespace`, a **59 / 236**; a fatia 35, `json-records`, a **60 / 240**; a fatia 36, `json-maps`, a **61 / 244**; a fatia 37, `json-escaping`, a **62 / 248**; a fatia 38, `list-predicates`, a **63 / 252**; a fatia 39, `abstract-records`, a **64 / 256**; a fatia 40, `enum-methods`, a **65 / 260**; a fatia 41, `string-switch-defaults`, a **66 / 264**; a fatia 42, `type-check-casts`, a **67 / 268**). Sem decisão aberta, sem fatia enfileirada. As fatias anteriores eram apenas infraestrutura de teste — o compilador nunca foi tocado (regra de ouro do plano); a fatia 35 é a exceção, pareando o caso golden com a correção de compilador de baixo risco e unidade única §659a que ele revelou (ver o bloco da fatia abaixo).
 **Estado real (atualizado 30/09/2026):** a suíte são milhares de
 arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado:**
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
@@ -1510,6 +1510,27 @@ infraestrutura de teste, sem mudança de compilador. Prova (executada): cada val
 alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado;
 `tests/run-golden.sh` **264/264** (66 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile`
 rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger` rc=0.
+
+**Fase 6 fatia 42 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **67 no total** — pinando type-tests `instanceof` de referência e casts `as` de
+referência, uma área de núcleo sem cobertura golden (os quatro usos de `as` na suíte são todos casts
+NUMÉRICOS: `d as Int`, `x as Double`, `charAt(1) as Int`, `300 as Byte`). O novo caso
+`tests/golden/type-check-casts` pina `instanceof` num par superclasse/subclasse (`a instanceof Dog`/
+`Cat`/`Animal`), `instanceof String` num slot `Object`, um cast `as String` bem-sucedido (depois
+`.length`), um downcast `as Dog` bem-sucedido (depois uma chamada) e um laço guardado por
+`instanceof` sobre um `List<Animal>` despachando por tipo de runtime. As 8 faces concordam
+byte-a-byte nos quatro alvos. **BUGS ACHADOS + CATALOGADOS (Q4):** escrever o caso revelou DUAS
+divergências, ambas OPEN: **§677** — `instanceof` sobre um alvo PRIMITIVO (`o instanceof Int` num
+`Object` boxado) é `false` no Script/nativo mas `true` no JVM/JS; **§678** — um downcast que FALHA
+(`a as Dog` onde `a` é um `Animal`) lança `ClassCastException` no JVM mas avalia para `null` no
+Script/nativo/JS. Ambos são SILENTES no contrato (a referência da linguagem define `instanceof` só
+para tipos classe/record e não declara o comportamento de cast que falha), então cada um precisa de
+decisão da mantenedora; ambos são EXCLUÍDOS do caso golden (ele pina só as faces limpas nos 4
+alvos). Apenas infraestrutura de teste, sem mudança de compilador. Prova (executada): cada valor
+medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então
+congelado; `tests/run-golden.sh` **268/268** (67 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler
+-am compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
 `check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger` rc=0.
 
 ### Fase 7 — Integração
