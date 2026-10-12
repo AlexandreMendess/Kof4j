@@ -264,7 +264,7 @@ public final class ExpressionTyper {
                     // mentindo o static type: println imprimia o ponteiro da
                     // caixa, `==` derefava inteiro — medido ifexpr-intnull).
                     var joined = HierarchyResolver.commonSupertype(driver.semanticAnalyzer, thenType, elseType);
-                    yield nullableIfNullBranch(joined, ie.thenExpr(), ie.elseExpr());
+                    yield HierarchyResolver.nullableIfNullBranch(joined, ie.thenExpr(), ie.elseExpr());
                 }
                 List<Type> bts = ifBranchTypes(driver, ie, locals);
                 if (branchTypesDiffer(bts)) {
@@ -280,12 +280,15 @@ public final class ExpressionTyper {
                     // Object, which emitted a phantom Object-returning invoke).
                     Type unifiedFn = unifyAllLambdaBranches(bts);
                     if (unifiedFn != null) yield unifiedFn;
+                    // #819: join real (o ramo IfExpr já fazia; o switch caía em Object → VerifyError).
+                    Type sealedJoin = HierarchyResolver.joinBranchTypes(driver.semanticAnalyzer, bts);
+                    if (sealedJoin != null) yield sealedJoin;
                     if (branchTypesDiffer(bts)) {
                         yield new Type.ClassType("java.lang", "Object", List.of());
                     }
                     // §284-map: mesmo contrato nullable do if-expr.
                     var sbody = inferExprType(driver, se.cases().get(0).body(), locals);
-                    yield nullableIfNullBranch(sbody, se.cases().get(0).body(),
+                    yield HierarchyResolver.nullableIfNullBranch(sbody, se.cases().get(0).body(),
                             se.defaultValue() != null ? se.defaultValue() : se.cases().get(0).body());
                 }
                 yield se.defaultValue() != null ? inferExprType(driver, se.defaultValue(), locals)
@@ -408,17 +411,6 @@ public final class ExpressionTyper {
     }
 
     /** Tipos dos ramos do if (then, else) p/ `branchTypesDiffer`. */
-    /** §284-map: `T` + ramo literal `null` → `T?` (nunca toca nullable/objeto). */
-    static Type nullableIfNullBranch(Type joined, ExpressionNode... branches) {
-        if (!(joined instanceof Type.PrimitiveType pt) || Type.isVoid(pt)) return joined;
-        for (ExpressionNode b : branches) {
-            if (b instanceof LiteralExpr lit && lit.kind() == ConcreteLiteralKind.NULL) {
-                return new Type.NullableType(pt);
-            }
-        }
-        return joined;
-    }
-
     static List<Type> ifBranchTypes(CompilerDriver driver, IfExpr ie,
                                     List<IRLocalVariable> locals) {
         return List.of(branchTypeOrNullAsRef(driver, ie.thenExpr(), locals),

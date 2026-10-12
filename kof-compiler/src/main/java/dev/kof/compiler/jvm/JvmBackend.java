@@ -109,12 +109,25 @@ public class JvmBackend implements Backend {
 
     private IRModule currentModule;
     private IRClass currentClass;
+    // #819: hierarquia das classes DESTE módulo (internal name -> super internal
+    // name). getCommonSuperClass do ASM só via externalTypes + Class.forName; as
+    // classes geradas na MESMA compilação não carregam via Class.forName (ainda
+    // não existem em disco), então o merge de frames entre duas subclasses irmãs
+    // caía em java/lang/Object → areturn inválido (VerifyError: Bad return type).
+    private java.util.Map<String, String> moduleSupers = java.util.Map.of();
 
     @Override
     public void emit(IRModule module, Path outputDir, boolean debugInfo) throws IOException {
         this.currentModule = module;
         this.sourceName = module.sourceName();
         this.debugInfoEnabled = debugInfo;
+        java.util.Map<String, String> supers = new java.util.HashMap<>();
+        for (IRClass c : module.classes()) {
+            if (c.name() != null) {
+                supers.put(c.name(), c.superName() != null ? c.superName() : "java/lang/Object");
+            }
+        }
+        this.moduleSupers = supers;
         for (IRClass clazz : module.classes()) {
             emitClass(clazz, outputDir);
         }
@@ -184,6 +197,12 @@ public class JvmBackend implements Backend {
                 if (externalTypes != null && externalTypes.knows(internalName)) {
                     String sup = externalTypes.superClassOf(internalName);
                     return sup != null ? sup : "java/lang/Object";
+                }
+                // #819: classes DESTE módulo (geradas na mesma compilação) não
+                // existem em disco para o Class.forName; a hierarquia vem do IR.
+                String moduleSuper = moduleSupers.get(internalName);
+                if (moduleSuper != null) {
+                    return moduleSuper;
                 }
                 try {
                     Class<?> c = Class.forName(internalName.replace('/', '.'), false,

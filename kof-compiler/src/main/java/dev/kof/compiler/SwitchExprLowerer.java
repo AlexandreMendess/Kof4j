@@ -26,9 +26,15 @@ public final class SwitchExprLowerer {
         // sintético precisa ter o tipo do RESULTADO (corpo dos casos), não o tipo
         // do subject. Sem isso, `switch(c){case Color.Red -> 1 ...}` fazia o merge
         // int-vs-referência do enum → VerifyError (Integer vs int) no JVM.
-        boolean differ = ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
-                driver, se.cases(), se.defaultValue(), resultType, locals));
-        Type fallbackType = differ ? new Type.ClassType("java.lang", "Object", List.of()) : resultType;
+        // #819: quando os ramos têm um supertipo comum REAL, o fallback sintético
+        // deve ter esse supertipo (resultType já é o join) — forçá-lo a Object
+        // alargava o merge do `endLabel` para Object e o `areturn` do método
+        // (declarando o supertipo) recebia Object → VerifyError. O Object só
+        // permanece como fallback honesto quando não há ancestral comum
+        // (ramos primitivos heterogêneos já chegam aqui com resultType = Object).
+        Type fallbackType = Type.isUnknown(resultType)
+                ? new Type.ClassType("java.lang", "Object", List.of())
+                : resultType;
         int switchTmp = localIdx++;
         localIdx = ExpressionLowerer.emitExpression(driver, se.expression(), ops, owner, localIdx, locals);
         ops.add(new KofStoreLocal(switchType, switchTmp));
