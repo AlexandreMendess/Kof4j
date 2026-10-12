@@ -37,6 +37,9 @@ public final class NativeOrmEmit {
         }
         if (backend.usesOrm) {
             dev.kof.compiler.runtime.RuntimeOrm1.emit(sb);
+            // Fase 5 do entity-history (D-ENTITY-HISTORY; ordem da mantenedora
+            // 13/10): o DDL da tabela de histórico ({@code kof_orm_create_history}).
+            dev.kof.compiler.runtime.RuntimeOrmHistory1.emit(sb);
             dev.kof.compiler.runtime.RuntimeOrmMysql.emit(sb);
             dev.kof.compiler.runtime.RuntimeOrm2.emit(sb);
             dev.kof.compiler.runtime.RuntimeOrm2.emitMysql(sb);
