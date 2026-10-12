@@ -2,10 +2,7 @@
 
 # LEGACY_MIGRATION.md — Plataforma de Migração de Software Legado
 
-**Status:** **REABERTO pela mantenedora (`D-DEPRIORITIZED-REOPEN`, lote 28/09)** —
-ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
-`D-FUTURE-PROMOTION`. O código já
-no repo fica. — **doc central e único da plataforma de
+**Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`).** As Fases A–F têm código e testes funcionando (Decompile 67, Translate 61, Compare 7, Migrate 3 — todos verdes na promoção); as superfícies de formas estruturais do decompilador/tradutor estão no teto honesto (as faces restantes precisam da decisão da lei do diamante ou da lane de interop, ambas fora do escopo autônomo deste plano). **Fatia atual: Fase H — migração completa de JAR por §8.1** (`kof migrate app.jar --output dir/`: decompilação por classe para arquivos `.kf` + o relatório agregado com por-unidade recuperado/não-recuperado detectado dos stubs reais). **Como terminar:** próximas fatias = a integração dos testes comportamentais da §8.1 (resultados do `kof compare` no relatório), depois as faces de comparabilidade restantes da Fase G (exceções tipadas, valores de retorno) — cada uma atrás de sua própria medição. O texto anterior segue. — **doc central e único da plataforma de
 migração** (caiu de `future/` em 12/09; FUNDIU `LEGACY_IR.md` no §4 e
 `DIFFERENTIAL_TESTING.md` no §8 em 13/09 — conceitos duplicados, zero
 conteúdo único; work-logs técnicos vivem em `DECOMPILER.md`/`TRANSLATOR.md`).
@@ -14,6 +11,8 @@ registrados no `Main.java` (contagem de testes = fonte única em
 `roadmap.md` §23 TIER 3–5; `inspect` é o comando de IR stats, sem classe de
 teste própria). Recuperação de corpo de método ainda é parcial — relatório
 rastreável o expõe de forma honesta)
+
+**Dono:** `192.168.15.117:0` (lane nativa/GC — ONE plan, ONE owner per `D-PLAN-ONE-OWNER`).
 **Escopo:** plataforma de migração (implementação iniciada na 0.3.x)
 **Criado:** 22 de agosto de 2026 · **Última consolidação:** 13/09/2026
 

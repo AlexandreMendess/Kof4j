@@ -6,7 +6,7 @@
 > no header; último código há 6 dias `84c48041`; regra dono-sem-IP=órfão da
 > mantenedora).
 
-**Status:** **REABERTO pela mantenedora (`D-DEPRIORITIZED-REOPEN`, lote 28/09)** —
+**Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); a superfície de formas do tradutor está no teto honesto (o mapeamento JDK→stdlib precisa de decisão rule-6); a fatia atual é a Fase H (migração completa de JAR por LEGACY_MIGRATION §8.1), que vive em `LEGACY_MIGRATION.pt_BR.md`** —
 ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
 `D-FUTURE-PROMOTION`. O código já no repo fica (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
 `TranslateTest` 61/61) — só a *fila* para aqui. Fase F

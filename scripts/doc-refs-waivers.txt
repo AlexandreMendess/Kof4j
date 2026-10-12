@@ -37,3 +37,8 @@ path	future/secrets-plan.md	nota historica nos DECISIONS (D-SECRETS): o plano fo
 path	future/type-system-extensions-plan.md	nota historica nos DECISIONS (D-PROPERTY): o plano foi promovido (docs/)
 path	future/BOOTSTRAP-GAPS.md	artefato PROSPECTIVO do PLAN-BOOTSTRAP (output planejado, ainda nao criado)
 path	docs/development/kfvm-plan.md	doc PROSPECTIVO: D-KFVM (02/10, #707) exige promocao do plano antes da implementacao; alvo planejado, ainda nao criado
+path	docs/development/future/TRANSLATOR.md	promovido 14/10 (D-FUTURE-PROMOTION, lane nativa/GC) — refs em planos irmãos kof-cobol/kof-connector apontam p/ a antiga localização
+path	docs/development/future/TRANSLATOR.pt_BR.md	promovido 14/10 — idem PT
+path	docs/development/future/LEGACY_MIGRATION.md	promovido 14/10 — refs em kof-connector-ecosystem-plan apontam p/ a antiga localização
+path	docs/development/future/LEGACY_MIGRATION.pt_BR.md	promovido 14/10 — idem PT
+sha	ffffffff	constante hexadecimal em prosa técnica sobre bytecode (DECOMPILER.md line 325), não é um SHA de commit

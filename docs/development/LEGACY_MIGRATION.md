@@ -2,10 +2,7 @@
 
 # LEGACY_MIGRATION.md — Legacy Software Migration Platform
 
-**Status:** **REOPENED by the maintainer (`D-DEPRIORITIZED-REOPEN`, 28/09 batch)** —
-still plan-only here; promotion to current work is one-at-a-time per
-`D-FUTURE-PROMOTION`. The code already
-in the repo stays. — **central and single doc of the migration
+**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`).** Phases A–F have working code and tests (Decompile 67, Translate 61, Compare 7, Migrate 3 — all green at the promotion); the decompiler/translator structured-shape surfaces are at their honest ceiling (remaining faces need the diamond-law decision or the interop lane, both outside this plan's autonomous scope). **Current slice: Phase H — full JAR migration per §8.1** (`kof migrate app.jar --output dir/`: per-class decompilation to `.kf` files + the aggregate report with per-unit recovered/not-recovered detected from the actual stubs). **How to finish:** next slices = the §8.1 behavioral-test wiring (`kof compare` results in the report), then the remaining Phase G comparability faces (typed exceptions, return values) — each behind its own measurement. The former wording follows. — **central and single doc of the migration
 platform** (dropped from `future/` on 12/09; MERGED `LEGACY_IR.md` into §4 and
 `DIFFERENTIAL_TESTING.md` into §8 on 13/09 — duplicated concepts, zero
 unique content; technical work-logs live in `DECOMPILER.md`/`TRANSLATOR.md`).
@@ -14,6 +11,8 @@ registered in `Main.java` (test count = single source in
 `roadmap.md` §23 TIER 3–5; `inspect` is the IR stats command, with no test
 class of its own). Method body recovery is still partial — the traceable
 report exposes it honestly)
+
+**Owner:** `192.168.15.117:0` (lane nativa/GC — ONE plan, ONE owner per `D-PLAN-ONE-OWNER`).
 **Scope:** migration platform (implementation started in 0.3.x)
 **Created:** August 22, 2026 · **Last consolidation:** 13/09/2026
 

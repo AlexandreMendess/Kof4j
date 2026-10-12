@@ -2,7 +2,7 @@
 
 # DECOMPILER.md — Kof Decompiler (DEPRIORITIZED 15/09 → REOPENED 28/09, still in future/)
 
-**Status:** **REOPENED by the maintainer (`D-DEPRIORITIZED-REOPEN`, 28/09 batch)** —
+**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); the structured-shape surface is at its honest ceiling (remaining faces need the diamond-law decision or the interop lane); the current slice is Phase H (full JAR migration per LEGACY_MIGRATION §8.1), which lives in `LEGACY_MIGRATION.md`** —
 still plan-only here; promotion to current work is one-at-a-time per
 `D-FUTURE-PROMOTION` (the
 three-states rule). Code already in the repo stays (kof-cli `Decompile.java` +
@@ -17,6 +17,8 @@ struct joins with computation/invokes in the test, 519 TRAPs of the `r14`
 family — needs the post-dominator walker = a dedicated future session; the
 local "stop/join" guards and the naive expression-fallback were tried and
 REJECTED, steps 1–3a of the work-log below)
+
+**Owner:** `192.168.15.117:0` (lane nativa/GC — ONE plan, ONE owner per `D-PLAN-ONE-OWNER`).
 **Date:** August 22, 2026
 
 ---

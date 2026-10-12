@@ -862,7 +862,7 @@ continue, disconnect). Phase 4 (Kof Editor) planned; Phase 5 (Native DWARF) x86-
 Long-term initiative to analyze, recover, translate and modernize
 legacy systems into Kof — **outside the 0.0.x scope**.
 
-- Central document: `future/LEGACY_MIGRATION.md` (§4 = Legacy Semantic
+- Central document: `LEGACY_MIGRATION.md` (§4 = Legacy Semantic
   IR/Confidence; §8 = differential test + migration report) — **DEPRIORITIZED
   by the maintainer 15/09: the trio + work-logs went back to `future/`; code in
   kof-cli stays. REOPENED 28/09 by `D-DEPRIORITIZED-REOPEN` (maintainer batch):
@@ -871,7 +871,7 @@ legacy systems into Kof — **outside the 0.0.x scope**.
   `kof migrate`, `kof compare`
 - Architecture: `Legacy Input → Legacy Semantic IR → Kof AST → Kof IR → Backend`
 - Java is a supported source, never a mandatory intermediate representation
-- Related documents: `future/DECOMPILER.md`, `future/TRANSLATOR.md` (the old
+- Related documents: `DECOMPILER.md`, `TRANSLATOR.md` (the old
   `LEGACY_IR.md` and `DIFFERENTIAL_TESTING.md` were merged into the central one 13/09;
   `IMPLEMENTATION_PLAN.md`/`ACTION_PLAN.md` became §23 of this roadmap)
 
@@ -1088,7 +1088,7 @@ rule 6).
 | 2.9.5 | **Native backend** | the same contract in the native ORM runtime | OPEN |
 | 2.9.6 | **Advanced** | retention/archival, typed accessors, field exclusion, tamper-evidence — each with its own decision | OPEN |E-VARIANCE/INTEROP-REFLECT)**; **CONCLUDED + MOVED to `docs/` 22/09** (all slices X5.0–X5.5, X6.0–X6.3 landed with proof).
 
-### TIER 3–5 — Legacy migration platform (Phases A–H) ✅ code+tests
+### TIER 3–5 — Legacy migration platform (Phases A–H) ✅ code+tests — PROMOTED 14/10 (`D-FUTURE-PROMOTION`; current slice = Phase H, full JAR migration per §8.1 — `kof migrate app.jar --output dir/` landed with per-class decompilation + the §8.1 aggregate report)
 
 `kof inspect/decompile/translate/compare/migrate` in the CLI (`Main.java`);
 Legacy Semantic IR with Confidence Model (5 levels) + "never invent". Proof
@@ -1100,8 +1100,8 @@ since the `.22` lane closed it). Method body recovery still partial
 1793 stubs, the biggest family is if-test prefixes with computation/invokes —
 519/566 TRAPs needing the post-dominator walker; the old "2452" StoreCat
 number is stale, the pure if-then join sub-case already recovered). The
-detailed technical history lives in `future/LEGACY_MIGRATION.md` +
-`future/DECOMPILER.md` (§7) — **do not duplicate here**; this table only gives
+detailed technical history lives in `LEGACY_MIGRATION.md` +
+`DECOMPILER.md` (§7) — **do not duplicate here**; this table only gives
 the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work. REOPENED 28/09 by `D-DEPRIORITIZED-REOPEN` — still not promoted; promotion is one-at-a-time per `D-FUTURE-PROMOTION`.**
 
 ### TIER 6–12 — Universal platform (architecture **UNDER DEVELOPMENT** 17/09 — R12 overridden; governed by `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)

@@ -864,7 +864,7 @@ continue, disconnect). Fase 4 (Kof Editor) planejada; Fase 5 (Native DWARF) x86-
 Iniciativa de longo prazo para analisar, recuperar, traduzir e modernizar
 sistemas legados para Kof — **fora do escopo 0.0.x**.
 
-- Documento central: `future/LEGACY_MIGRATION.md` (§4 = Legacy Semantic
+- Documento central: `LEGACY_MIGRATION.md` (§4 = Legacy Semantic
   IR/Confidence; §8 = teste diferencial + migration report) —
   **DESPRIORIZADO pela mantenedora 15/09: o trio + work-logs voltaram para
   `future/`; o código em kof-cli fica. REABERTO 28/09 por `D-DEPRIORITIZED-REOPEN`
@@ -874,7 +874,7 @@ sistemas legados para Kof — **fora do escopo 0.0.x**.
   `kof migrate`, `kof compare`
 - Arquitetura: `Legacy Input → Legacy Semantic IR → Kof AST → Kof IR → Backend`
 - Java é origem suportada, nunca representação intermediária obrigatória
-- Documentos relacionados: `future/DECOMPILER.md`, `future/TRANSLATOR.md` (os antigos
+- Documentos relacionados: `DECOMPILER.md`, `TRANSLATOR.md` (os antigos
   `LEGACY_IR.md` e `DIFFERENTIAL_TESTING.md` foram fundidos no central 13/09;
   `IMPLEMENTATION_PLAN.md`/`ACTION_PLAN.md` viraram o §23 deste roadmap)
 
@@ -1072,7 +1072,7 @@ do código, regra 6).
 
 **Plano spec (X5 + X6):** [`type-system-extensions-plan.pt_BR.md`](../type-system-extensions-plan.pt_BR.md) — **APROVADO 21/09 (`D-TYPE-VARIANCE`/`D-INTEROP-REFLECT`)**; **CONCLUÍDO + MOVIDO para `docs/` 22/09** (todas as fatias X5.0–X5.5, X6.0–X6.3 com prova).
 
-### TIER 3–5 — Plataforma de migração legado (Fases A–H) ✅ código+testes
+### TIER 3–5 — Plataforma de migração legado (Fases A–H) ✅ código+testes — PROMOVIDA 14/10 (`D-FUTURE-PROMOTION`; fatia atual = Fase H, migração completa de JAR por §8.1 — `kof migrate app.jar --output dir/` pousou com decompilação por classe + relatório agregado da §8.1)
 
 `kof inspect/decompile/translate/compare/migrate` no CLI (`Main.java`);
 Legacy Semantic IR com Confidence Model (5 níveis) + "nunca inventar". Prova
@@ -1085,8 +1085,8 @@ Recuperação de corpo de método ainda parcial
 1793 stubs, a maior família são prefixos de teste com computação/invokes —
 519/566 TRAPs exigindo o walker de post-dominador; o número antigo "2452" do
 StoreCat está defasado, o sub-caso de join if-then puro já está recuperado). O
-histórico técnico detalhado vive em `future/LEGACY_MIGRATION.md` +
-`future/DECOMPILER.md` (§7) — **não duplicar aqui**; esta tabela só dá a
+histórico técnico detalhado vive em `LEGACY_MIGRATION.md` +
+`DECOMPILER.md` (§7) — **não duplicar aqui**; esta tabela só dá a
 ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual. REABERTO 28/09 por `D-DEPRIORITIZED-REOPEN` — ainda não promovido; promoção é uma-por-vez por `D-FUTURE-PROMOTION`.**
 
 ### TIER 6–12 — Plataforma universal (arquitetura **EM DESENVOLVIMENTO** 17/09 — R12 sobreposto; regidos por `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)

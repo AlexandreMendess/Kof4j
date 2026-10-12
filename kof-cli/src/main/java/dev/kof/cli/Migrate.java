@@ -14,11 +14,16 @@ import java.util.Map;
  * `kof migrate` — full migration with a traceable report (docs/development/
  * LEGACY_MIGRATION.md, Fase H).
  *
- * Inputs: a {@code .class} (decompiled to a structural Kof skeleton) or a
- * {@code .java} (translated to Kof). The report is honest about what was
- * recovered vs. what requires manual review — never inventing behavior.
+ * Inputs: a {@code .class} (decompiled to a structural Kof skeleton), a
+ * {@code .java} (translated to Kof), or a {@code .jar} (every class extracted
+ * and decompiled to the output directory, with the §8.1 aggregate report).
+ * The report is honest about what was recovered vs. what requires manual
+ * review — never inventing behavior.
  */
 public final class Migrate {
+
+    /** The decompiler's marker line for a body it did NOT recover (Fase E). */
+    static final String STUB_MARKER = "throw \"body not recovered\"";
 
     private Migrate() {
     }
@@ -61,6 +66,7 @@ public final class Migrate {
         Path input = Path.of(args[0]);
         String outArg = optionValue(args, "--output");
         Path outFile = outArg != null ? Path.of(outArg) : null;
+        Path outDir = outArg != null ? Path.of(outArg) : null;
         boolean json = contains(args, "--json");
         if (!Files.isRegularFile(input)) {
             System.err.println("file not found: " + input);
@@ -75,8 +81,23 @@ public final class Migrate {
             } else if (input.toString().endsWith(".java")) {
                 kof = Translate.translateJava(Files.readString(input));
                 report = reportJava(input, kof);
+            } else if (input.toString().endsWith(".jar")) {
+                if (outDir == null) {
+                    System.err.println("kof migrate <app.jar> exige --output <dir>");
+                    return 1;
+                }
+                report = jarReport(input, outDir, json);
+                if (json) {
+                    Map<String, Object> out = new LinkedHashMap<>();
+                    out.put("report", report.toMap());
+                    out.put("output_dir", outDir.toString());
+                    System.out.println(Json.stringify(out));
+                } else {
+                    print(report, outDir);
+                }
+                return 0;
             } else {
-                System.err.println("kof migrate expects a .class or .java file");
+                System.err.println("kof migrate expects a .class, .java or .jar file");
                 return 1;
             }
 
@@ -123,6 +144,84 @@ public final class Migrate {
         int methods = countOccurrences(kof, "(") > 0 ? approximateMethods(kof) : 0;
         return new MigrationReport(input.getFileName().toString(), "java",
                 1, 0, methods, methods, 0, List.of(), 100.0);
+    }
+
+    /**
+     * Fase H slice 1 (§8.1): migrate a whole JAR. Every {@code .class} entry
+     * is decompiled to a {@code .kf} file in the output directory (package
+     * structure preserved) and the aggregate report is built from the
+     * decompiler's ACTUAL output — a unit counts as not-recovered only when
+     * its decompiled source contains the {@link #STUB_MARKER} line, never by
+     * assumption.
+     */
+    static MigrationReport jarReport(Path jarPath, Path outDir, boolean json) throws IOException {
+        java.util.jar.JarFile jar = new java.util.jar.JarFile(jarPath.toFile());
+        int classes = 0;
+        int fields = 0;
+        int signatures = 0;
+        int notRecovered = 0;
+        List<String> review = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+        try {
+            java.util.Enumeration<java.util.jar.JarEntry> entries = jar.entries();
+            List<java.util.jar.JarEntry> classEntries = new ArrayList<>();
+            while (entries.hasMoreElements()) {
+                java.util.jar.JarEntry e = entries.nextElement();
+                if (!e.isDirectory() && e.getName().endsWith(".class")
+                        && !e.getName().contains("module-info")
+                        && !e.getName().contains("package-info")) {
+                    classEntries.add(e);
+                }
+            }
+            Files.createDirectories(outDir);
+            for (java.util.jar.JarEntry e : classEntries) {
+                Path tmp = Files.createTempFile("migrate-", ".class");
+                try (var in = jar.getInputStream(e)) {
+                    Files.copy(in, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+                String internalName = e.getName().replaceFirst("\\.class$", "");
+                try {
+                    String kof = Decompile.decompile(tmp);
+                    // package structure preserved in the output dir
+                    Path kfPath = outDir.resolve(internalName + ".kf");
+                    if (kfPath.getParent() != null) {
+                        Files.createDirectories(kfPath.getParent());
+                    }
+                    Files.writeString(kfPath, kof);
+                    classes++;
+                    ClassFileParser.ClassFile ir = ClassFileParser.parse(Files.newInputStream(tmp));
+                    fields += (int) ir.fields.stream().filter(f -> (f.accessFlags & 0x0008) == 0).count();
+                    int methods = (int) ir.methods.stream()
+                            .filter(m -> m.code != null && !"<clinit>".equals(m.name))
+                            .count();
+                    signatures += methods;
+                    int stubs = countOccurrences(kof, STUB_MARKER);
+                    notRecovered += stubs;
+                    if (stubs > 0) {
+                        review.add(internalName + ": " + stubs + " body(ies) not recovered");
+                    }
+                } catch (RuntimeException ex) {
+                    // a class the decompiler cannot parse at all is an honest
+                    // warning in the report, never a silent drop
+                    warnings.add(internalName + ": " + ex.getMessage());
+                    classes++;
+                } finally {
+                    Files.deleteIfExists(tmp);
+                }
+            }
+        } finally {
+            jar.close();
+        }
+        int recovered = signatures - notRecovered;
+        if (recovered < 0) recovered = 0;
+        int units = signatures + fields;
+        double pct = units == 0 ? 100.0 : 100.0 * (units - notRecovered) / units;
+        MigrationReport report = new MigrationReport(jarPath.getFileName().toString(), "jar",
+                classes, fields, signatures, recovered, notRecovered, review, pct);
+        for (String w : warnings) {
+            System.err.println("kof migrate warning: " + w);
+        }
+        return report;
     }
 
     private static int approximateMethods(String kof) {

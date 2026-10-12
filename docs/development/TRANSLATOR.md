@@ -6,7 +6,7 @@
 > in the header; last code 6 days ago `84c48041`; maintainer's owner-without-IP=orphan
 > rule).
 
-**Status:** **REOPENED by the maintainer (`D-DEPRIORITIZED-REOPEN`, 28/09 batch)** —
+**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); the translator shape surface is at its honest ceiling (JDK-to-stdlib mapping needs a rule-6 decision); the current slice is Phase H (full JAR migration per LEGACY_MIGRATION §8.1), which lives in `LEGACY_MIGRATION.md`** —
 still plan-only here; promotion to current work is one-at-a-time per
 `D-FUTURE-PROMOTION`. Code
 already in the repo stays (`Translate.java` + `TranslateLexer`/`TranslateExpr`,

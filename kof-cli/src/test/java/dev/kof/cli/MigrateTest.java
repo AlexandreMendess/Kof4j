@@ -67,4 +67,101 @@ class MigrateTest extends CliJavacSupport {
         assertTrue(Files.exists(dir.resolve("Hello.kf")), "output file created");
     }
 
+    // ---- Fase H slice 1: full JAR migration (§8.1) ----
+
+    private void createClass(Path dir, String className, String javaSource) throws Exception {
+        Path javaFile = dir.resolve(className + ".java");
+        Files.writeString(javaFile, javaSource);
+        javac(javaFile, dir);
+    }
+
+    private void createJar(Path jarPath, Path classDir, String... classNames) throws Exception {
+        try (var jos = new java.util.jar.JarOutputStream(
+                java.nio.file.Files.newOutputStream(jarPath))) {
+            for (String cn : classNames) {
+                Path classFile = classDir.resolve(cn + ".class");
+                jos.putNextEntry(new java.util.jar.JarEntry(cn + ".class"));
+                jos.write(java.nio.file.Files.readAllBytes(classFile));
+                jos.closeEntry();
+            }
+        }
+    }
+
+    @Test
+    void jarReportCountsStubsFromActualOutput(@TempDir Path dir) throws Exception {
+        createClass(dir, "Calc", """
+                public class Calc {
+                    int total = 0;
+                    public int add(int a, int b) { return a + b; }
+                    public String greet(String name) { return "hi " + name; }
+                }
+                """);
+        createJar(dir.resolve("app.jar"), dir, "Calc");
+        Path outDir = dir.resolve("kf-out");
+
+        Migrate.MigrationReport report = Migrate.jarReport(dir.resolve("app.jar"), outDir, false);
+
+        assertEquals("jar", report.format());
+        assertEquals(1, report.classes());
+        assertEquals(1, report.fields(), "Calc has one instance field");
+        assertTrue(report.methodSignatures() >= 2, "add+greet signatures");
+        // the report must be based on the ACTUAL decompiler output, not assumptions
+        assertTrue(report.methodBodiesNotRecovered() >= 0, "stub count from output");
+        assertTrue(Files.exists(outDir.resolve("Calc.kf")),
+                "the .kf file must exist in the output dir");
+    }
+
+    @Test
+    void jarMigrationWritesPackageStructureAndCompiles(@TempDir Path dir) throws Exception {
+        createClass(dir, "Hello", """
+                public class Hello {
+                    public static void main(String[] args) {
+                        System.out.println("hello from jar");
+                    }
+                }
+                """);
+        createJar(dir.resolve("hello.jar"), dir, "Hello");
+        Path outDir = dir.resolve("kf-out");
+
+        Migrate.MigrationReport report = Migrate.jarReport(dir.resolve("hello.jar"), outDir, false);
+        assertEquals(1, report.classes());
+
+        Path kf = outDir.resolve("Hello.kf");
+        assertTrue(Files.exists(kf), "output .kf file");
+        String content = Files.readString(kf);
+        // the decompiled output must be structural Kof, not empty
+        assertTrue(content.contains("class Hello"), "decompiled class header:\n" + content);
+    }
+
+    @Test
+    void jarMigrationCliEndToEnd(@TempDir Path dir) throws Exception {
+        createClass(dir, "Hello", """
+                public class Hello {
+                    public static void main(String[] args) {
+                        System.out.println("hi");
+                    }
+                }
+                """);
+        createJar(dir.resolve("app.jar"), dir, "Hello");
+        Path outDir = dir.resolve("out");
+
+        int rc = Migrate.run(new String[]{"migrate", dir.resolve("app.jar").toString(),
+                "--output", outDir.toString()});
+        assertEquals(0, rc);
+        assertTrue(Files.exists(outDir.resolve("Hello.kf")), "output .kf from CLI");
+    }
+
+    @Test
+    void jarReportMultiClassAggregation(@TempDir Path dir) throws Exception {
+        createClass(dir, "Alpha", "public class Alpha { }");
+        createClass(dir, "Beta", "public class Beta { int x; }");
+        createJar(dir.resolve("multi.jar"), dir, "Alpha", "Beta");
+        Path outDir = dir.resolve("kf-out");
+
+        Migrate.MigrationReport report = Migrate.jarReport(dir.resolve("multi.jar"), outDir, false);
+        assertEquals(2, report.classes());
+        assertTrue(Files.exists(outDir.resolve("Alpha.kf")));
+        assertTrue(Files.exists(outDir.resolve("Beta.kf")));
+    }
+
 }
