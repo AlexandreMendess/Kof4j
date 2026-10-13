@@ -91,11 +91,23 @@ public final class Optimizer {
     private static List<KofOperation> passes(List<KofOperation> ops,
                                              Map<KofOperation, SourcePosition> positions) {
         ops = OptimizerConstantFold.constantFold(ops, positions);
+        // Phase B of docs/development/assembly-optimization-plan.md: the new
+        // passes are stack-balanced load rewrites (a LoadLocal becomes a
+        // LoadLiteral / another LoadLocal), so they never remove a store/load
+        // pair the backends pattern-match on. Wired after folding so folded
+        // literals feed the propagation.
+        ops = CONSTANT_PROPAGATION.run(ops, positions);
+        ops = COPY_PROPAGATION.run(ops, positions);
+        ops = DEAD_CODE_ELIMINATION.run(ops, positions);
         ops = deadEffects(ops, positions);
         ops = reachability(ops, positions);
         ops = removeJumpToNext(ops, positions);
         return ops;
     }
+
+    private static final ConstantPropagation CONSTANT_PROPAGATION = new ConstantPropagation();
+    private static final CopyPropagation COPY_PROPAGATION = new CopyPropagation();
+    private static final DeadCodeElimination DEAD_CODE_ELIMINATION = new DeadCodeElimination();
 
     // ── Dead stack effects ────────────────────────────────────────────
 
