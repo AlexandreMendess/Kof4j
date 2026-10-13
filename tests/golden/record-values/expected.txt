@@ -1,0 +1,15 @@
+Ponto[x=1, y=2]
+true
+false
+true
+Rotulo[texto=k, peso=7]
+true
+false
+[Ponto[x=1, y=1], Ponto[x=2, y=2]]
+2
+true
+false
+Ponto[x=3, y=4]
+true
+true
+end

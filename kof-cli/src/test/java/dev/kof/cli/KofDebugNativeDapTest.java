@@ -94,9 +94,42 @@ class KofDebugNativeDapTest {
     }
 
     private static String next(Session s) throws Exception {
+        return readFrameBounded(s.fromCli(), 30_000);
+    }
+
+    /**
+     * #815: a leitura de UM frame DAP é BLOQUEANTE. O `await` abaixo tem deadline
+     * de 60 s, mas o avaliava só ENTRE leituras — quando o adaptador parou de
+     * emitir (o hang medido: DAP idle em `futex_wait` com 3 requests no log), a
+     * leitura pendurava para sempre e o deadline nunca era reavaliado: 8581 s
+     * (2.4 h) até o SIGTERM, e a suíte local ficava não-determinística. Com o
+     * prazo, o hang vira FALHA NOMEADA dentro do deadline.
+     */
+    static String readFrameBounded(InputStream in, long timeoutMs) throws Exception {
+        java.util.concurrent.Future<String> f = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "dap-reader");
+            t.setDaemon(true);
+            return t;
+        }).submit(() -> readFrame(in));
+        try {
+            return f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.TimeoutException te) {
+            f.cancel(true);
+            throw new AssertionError("#815: o adaptador DAP parou de emitir — nenhum frame em "
+                    + timeoutMs + " ms (antes do guard isto pendurava a suíte inteira)");
+        } catch (java.util.concurrent.ExecutionException ee) {
+            Throwable c = ee.getCause();
+            if (c instanceof Exception e) {
+                throw e;
+            }
+            throw new RuntimeException(c);
+        }
+    }
+
+    private static String readFrame(InputStream in) throws Exception {
         String line;
         int len = -1;
-        while ((line = KofDebug.readLine(s.fromCli())) != null) {
+        while ((line = KofDebug.readLine(in)) != null) {
             if (line.isBlank()) {
                 break;
             }
@@ -108,8 +141,24 @@ class KofDebugNativeDapTest {
         if (len < 0) {
             return null;
         }
-        byte[] body = s.fromCli().readNBytes(len);
+        byte[] body = in.readNBytes(len);
         return new String(body, StandardCharsets.UTF_8);
+    }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.Timeout(30)
+    void dapReadThatNeverArrivesFailsWithinItsDeadlineInsteadOfHanging() throws Exception {
+        // Um InputStream que nunca entrega nada reproduz o sintoma do #815 (o
+        // adaptador para de emitir). Sem o prazo do readFrameBounded, ISTO
+        // penduraria a suíte inteira (8581 s medidos) — o @Timeout acima é o
+        // guard do guard: sem o fix o teste morre por timeout (RED).
+        java.io.PipedOutputStream sink = new java.io.PipedOutputStream();
+        java.io.PipedInputStream never = new java.io.PipedInputStream(sink);  // conectado, nunca escreve
+        long t0 = System.currentTimeMillis();
+        AssertionError err = assertThrows(AssertionError.class, () -> readFrameBounded(never, 500));
+        long dt = System.currentTimeMillis() - t0;
+        assertTrue(err.getMessage().contains("#815"), "falha nomeada, foi: " + err.getMessage());
+        assertTrue(dt < 20_000, "deve falhar perto do prazo, levou " + dt + " ms");
     }
 
     private static String await(Session s, String needle, String label) throws Exception {

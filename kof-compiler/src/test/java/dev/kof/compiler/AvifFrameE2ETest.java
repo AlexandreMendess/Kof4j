@@ -60,7 +60,8 @@ class AvifFrameE2ETest implements LibraryInstallSupport {
             "tile4 t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2 hb=3 bq=0 lf=0 cd=0",
             "intra t=2 show=1 err=0 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1 hb=5 bq=0 lf=0 cd=0",
             "q32 t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=6 bq=32 lf=7 cd=0",
-            "nonuni t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x1 hb=3 bq=0 lf=0 cd=0");
+            "nonuni t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x1 hb=3 bq=0 lf=0 cd=0",
+            "qchroma t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2 hb=6 bq=80 lf=0 cd=0");
 
     @Test
     void avifFrameHeaderOnJvm() throws Exception {
@@ -144,7 +145,8 @@ class AvifFrameE2ETest implements LibraryInstallSupport {
                 "tile4 " + javaFrameFacts(dir.resolve("tile4.avif")),
                 "intra " + javaFrameFacts(dir.resolve("intra.avif")),
                 "q32 " + javaFrameFacts(dir.resolve("q32.avif")),
-                "nonuni " + javaFrameFacts(dir.resolve("nonuni.avif")));
+                "nonuni " + javaFrameFacts(dir.resolve("nonuni.avif")),
+                "qchroma " + javaFrameFacts(dir.resolve("qchroma.avif")));
         assertEquals(kof, java);
         assertEquals(GOLDEN, java);
 

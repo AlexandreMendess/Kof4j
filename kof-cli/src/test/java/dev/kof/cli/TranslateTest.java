@@ -87,6 +87,177 @@ class TranslateTest {
     }
 
     @Test
+    void staticInitBlockFoldsIntoFieldInitializer() {
+        // Fase F: `static { V = 42; }` folds into the field initializer —
+        // the block's value WINS over a field initializer (Java runs the
+        // block after the field inits). The refusal used to be the only
+        // outcome (TranslateException).
+        String kof = Translate.translateJava("""
+                class T {
+                    static int V;
+                    static int W = 1;
+                    static { V = 42; W = 7; }
+                    public static void main(String[] args) {
+                        System.out.println(V);
+                    }
+                }
+                """);
+        assertTrue(kof.contains("static Int V = 42"), kof);
+        assertTrue(kof.contains("static Int W = 7"), kof);
+    }
+
+    @Test
+    void staticInitBlockRefusesNonLiteralBody() {
+        // a method call in the block cannot fold without reordering
+        // execution — the named refusal stays
+        assertThrows(TranslateException.class, () -> Translate.translateJava("""
+                class T {
+                    static int V;
+                    static { V = compute(); }
+                    static int compute() { return 1; }
+                }
+                """));
+    }
+
+    @Test
+    void instanceInitBlockFoldsIntoConstructors() {
+        // Fase F: `{ x = 5; }` is prefixed into every constructor (Java runs
+        // it before the constructor body); a class without constructors gains
+        // the default one carrying the init body
+        String kof = Translate.translateJava("""
+                class T {
+                    int x;
+                    { x = 5; }
+                    T(int v) { x = v; }
+                }
+                """);
+        assertTrue(kof.contains("constructor(Int v) {"), kof);
+        assertTrue(kof.indexOf("x = 5") < kof.indexOf("x = v"), kof);
+    }
+
+    @Test
+    void instanceInitAfterConstructorRefuses() {
+        assertThrows(TranslateException.class, () -> Translate.translateJava("""
+                class T {
+                    int x;
+                    T() { }
+                    { x = 5; }
+                }
+                """));
+    }
+
+    @Test
+    void staticNestedClassHoistsToOuterInner() {
+        // Fase F (decisão da mantenedora 14/10): `static class Inner` hoists
+        // to top-level `T_Inner` and every reference is renamed — the
+        // translated program compiles and RUNS (the probe measured 42).
+        String kof = Translate.translateJava("""
+                class T {
+                    static class Inner {
+                        int v;
+                        Inner(int v) { this.v = v; }
+                        int twice() { return v * 2; }
+                    }
+                    public static void main(String[] args) {
+                        Inner i = new Inner(21);
+                        System.out.println(i.twice());
+                    }
+                }
+                """);
+        assertTrue(kof.contains("class T_Inner {"), kof);
+        assertTrue(kof.contains("T_Inner(21)"), kof);
+        assertFalse(kof.contains("class Inner"), kof);
+    }
+
+    @Test
+    void nestedQualifiedReferenceRenamed() {
+        // `T.Inner.X` in an EXPRESSION (member access) does not pass through
+        // kofType — the textual post-pass renames it
+        String kof = Translate.translateJava("""
+                class T {
+                    static class Inner {
+                        static int X = 5;
+                    }
+                }
+                class U {
+                    public static void main(String[] args) {
+                        System.out.println(T.Inner.X);
+                    }
+                }
+                """);
+        assertTrue(kof.contains("T_Inner.X"), kof);
+        assertFalse(kof.contains("T.Inner"), kof);
+    }
+
+    @Test
+    void nonStaticInnerClassRefused() {
+        // capturing the enclosing instance needs the synthetic `this$Outer`
+        // field (Option B not approved) — named refusal stays
+        TranslateException e = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("class T { class Inner { int v; } }"));
+        assertTrue(e.getMessage().contains("non-static inner class"), e.getMessage());
+    }
+
+    @Test
+    void nestedHoistCollisionRefused() {
+        // `T_Inner` already exists as a top-level type — named refusal
+        TranslateException e = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("class T { static class Inner { int v; } }\nclass T_Inner { int w; }"));
+        assertTrue(e.getMessage().contains("already exists"), e.getMessage());
+    }
+
+    @Test
+    void anonymousSamClassLowersToLambda() {
+        // Fase F (decisao da mantenedora 14/10): anonymous of a functional
+        // interface lowers to a Kof lambda — the executed probe printed 42
+        String kof = Translate.translateJava("""
+                interface Fun { int apply(int x); }
+                class T {
+                    public static void main(String[] args) {
+                        Fun twice = new Fun() {
+                            public int apply(int x) {
+                                return x * 2;
+                            }
+                        };
+                    }
+                }
+                """);
+        assertTrue(kof.contains("(x: Int) ->"), kof);
+        assertTrue(kof.contains("x * 2"), kof);
+        assertFalse(kof.contains("new Fun"), kof);
+    }
+
+    @Test
+    void anonymousMultiMethodRefused() {
+        TranslateException e = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("""
+                        interface Cmp { int cmp(int a); boolean ok(); }
+                        class T {
+                            Cmp c = new Cmp() {
+                                public int cmp(int a) { return a; }
+                                public boolean ok() { return true; }
+                            };
+                        }
+                        """));
+        assertTrue(e.getMessage().contains("more than one method"), e.getMessage());
+    }
+
+    @Test
+    void anonymousStatefulRefused() {
+        TranslateException e = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("""
+                        interface Fun { int apply(int x); }
+                        class T {
+                            Fun f = new Fun() {
+                                int base = 10;
+                                public int apply(int x) { return x + base; }
+                            };
+                        }
+                        """));
+        assertTrue(e.getMessage().contains("stateful anonymous class"), e.getMessage());
+    }
+
+    @Test
     void recordTranslates(@TempDir Path dir) throws Exception {
         String kof = Translate.translateJava("""
                 public record Point(int x, int y) {
@@ -971,14 +1142,15 @@ class TranslateTest {
         assertTrue(varargs.getMessage().contains("varargs") && varargs.getMessage().contains("manual review"),
                 "varargs `T...` sem equivalente Kof → gap explícito (R6), foi: " + varargs.getMessage());
 
-        TranslateException nested = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
+        // Fase F 14/10: `static class Inner` HOISTA para `N_Inner` (decisão da
+        // mantenedora) — o varargs acima segue recusa nomeada.
+        String hoisted = Translate.translateJava("""
                         public class N {
                             static class Inner { int x = 1; }
                         }
-                        """));
-        assertTrue(nested.getMessage().contains("nested type") && nested.getMessage().contains("manual review"),
-                "nested type sem equivalente Kof (SEM042) → gap explícito (R6), foi: " + nested.getMessage());
+                        """);
+        assertTrue(hoisted.contains("class N_Inner"), hoisted);
+        assertTrue(hoisted.contains("Int x = 1"), hoisted);
 
         TranslateException twr = assertThrows(TranslateException.class, () ->
                 Translate.translateJava("""
@@ -1015,8 +1187,9 @@ class TranslateTest {
         assertTrue(label.getMessage().contains("labeled") && label.getMessage().contains("manual review"),
                 "labeled statement sem equivalente Kof → gap explícito (R6), foi: " + label.getMessage());
 
-        TranslateException anon = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
+        // Fase F 14/10: anônima de interface funcional SAM (mesmo JDK —
+        // Runnable tem 1 método) baixa para lambda — decisão da mantenedora.
+        String lam = Translate.translateJava("""
                         public class A {
                             public static void main(String[] args) {
                                 Runnable r = new Runnable() {
@@ -1025,9 +1198,9 @@ class TranslateTest {
                                 r.run();
                             }
                         }
-                        """));
-        assertTrue(anon.getMessage().contains("anonymous class") && anon.getMessage().contains("manual review"),
-                "anonymous class sem equivalente Kof → gap explícito (R6), foi: " + anon.getMessage());
+                        """);
+        assertTrue(lam.contains("() -> {"), lam);
+        assertTrue(lam.contains("println(\"x\")"), lam);
     }
 
     @Test
@@ -1134,31 +1307,19 @@ class TranslateTest {
     }
 
     @Test
-    void instanceInitializerBlockIsHonestGap() {
-        // Bloco de instância `{ ... }` roda antes do construtor; dropá-lo
-        // silenciosamente muda comportamento → gap honesto (R6).
-        TranslateException e = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
+    void instanceInitializerBlockFoldsIntoDefaultConstructor() {
+        // Bloco de instância `{ ... }` roda antes do construtor — Fase F: o
+        // corpo é prefixado no construtor (ou no construtor default gerado),
+        // NUNCA pulado em silêncio (R6): toda construção de II imprime "init"
+        // no Java e imprime "init" no Kof traduzido.
+        String kof = Translate.translateJava("""
                         public class II {
                             { System.out.println("init"); }
                             void m() { System.out.println(1); }
                         }
-                        """));
-        assertTrue(e.getMessage().contains("manual review"),
-                "instance initializer block → gap explícito (R6), foi: " + e.getMessage());
-
-        // `static {}` TAMBÉM é gap: agora que o campo `static` é EMITIDO,
-        // pular o bloco deixaria o campo no default (perda silenciosa) — Q4.
-        TranslateException st = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
-                        public class SI {
-                            static int X;
-                            static { X = 5; }
-                            void m() { System.out.println(X); }
-                        }
-                        """));
-        assertTrue(st.getMessage().contains("static") && st.getMessage().contains("manual review"),
-                "static initializer block → gap explícito (R6), foi: " + st.getMessage());
+                        """);
+        assertTrue(kof.contains("constructor() {"), kof);
+        assertTrue(kof.contains("println(\"init\")"), kof);
     }
 
     @Test
@@ -1299,6 +1460,88 @@ class TranslateTest {
         assertFalse(kof.contains("do { {"), "sem chaves duplas:\n" + kof);
 
         assertCompiles(dir, kof, "0\n1\n2");
+    }
+
+    @Test
+    void jdkArrayListMapsToListOfAndRuns(@TempDir Path dir) throws Exception {
+        // tabela JDK→stdlib (mantenedora 14/10): antes `new ArrayList<>()`
+        // emitia `ArrayList()` que NÃO compila (falso OK). Agora listOf() +
+        // Collections.sort → xs.sort(); executa de verdade.
+        String kof = Translate.translateJava("""
+                import java.util.ArrayList;
+                import java.util.Collections;
+                class T {
+                    public static void main(String[] args) {
+                        ArrayList<String> xs = new ArrayList<String>();
+                        xs.add("b");
+                        xs.add("a");
+                        Collections.sort(xs);
+                        System.out.println(xs.size());
+                        System.out.println(xs.get(0));
+                    }
+                }
+                """);
+        assertTrue(kof.contains("listOf()"), kof);
+        assertTrue(kof.contains(".sort()"), kof);
+        assertCompiles(dir, kof, "2\na");
+    }
+
+    @Test
+    void jdkHashMapMapsToMapOfAndRuns(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                import java.util.HashMap;
+                class T {
+                    public static void main(String[] args) {
+                        HashMap<String,Integer> m = new HashMap<String,Integer>();
+                        m.put("k", 7);
+                        System.out.println(m.size());
+                    }
+                }
+                """);
+        assertTrue(kof.contains("mapOf()"), kof);
+        assertCompiles(dir, kof, "1");
+    }
+
+    @Test
+    void jdkTimeNowMapsAndRuns(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                class T {
+                    public static void main(String[] args) {
+                        long t = System.currentTimeMillis();
+                        System.out.println(t > 0);
+                    }
+                }
+                """);
+        assertTrue(kof.contains("time.now()"), kof);
+        assertCompiles(dir, kof, "true");
+    }
+
+    @Test
+    void jdkStringBuilderChainConcatenatesAndRuns(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                class T {
+                    public static void main(String[] args) {
+                        String a = "n=";
+                        String b = "42";
+                        String s = new StringBuilder().append(a).append(b).toString();
+                        System.out.println(s);
+                    }
+                }
+                """);
+        assertTrue(kof.contains("a + b"), kof);
+        assertCompiles(dir, kof, "n=42");
+    }
+
+    @Test
+    void jdkUnmappedTypeRefusedNamed() {
+        // fora da tabela aprovada: recusa NOMEADA (nunca `HashSet()` que não
+        // compila — o falso OK fechado)
+        TranslateException e = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("""
+                        import java.util.HashSet;
+                        class T { HashSet<String> s = new HashSet<String>(); }
+                        """));
+        assertTrue(e.getMessage().contains("outside the approved JDK"), e.getMessage());
     }
 
     private void assertCompiles(Path dir, String kof, String expected) throws Exception {

@@ -151,10 +151,20 @@ public final class KofInterpreterOps {
     Object unary(KofUnary ku, Object v) {
         Type t = ku.operandType();
         return switch (ku.op()) {
-            case NEG -> KofInterpreterValues.isLongType(t) ? -((Number) v).longValue()
-                    : KofInterpreterValues.isFloatType(t) ? -((Number) v).floatValue()
-                    : KofInterpreterValues.isDoubleType(t) ? -((Number) v).doubleValue()
-                    : -KofInterpreter.unboxInt(v);
+            // §694: NUNCA encadear este ternário. O operador condicional do
+            // Java aplica PROMOÇÃO NUMÉRICA aos dois ramos, então um ternário
+            // que mistura `long`, `float`, `double` e `int` tem tipo `double` e
+            // o ramo `long` é ALARGADO: `-9000000000L` virava um Double no
+            // Script. O valor ainda imprimia certo (`println` formata o Double),
+            // o que escondeu o defeito — mas o cast seguinte (`as Int`) recebia
+            // o Double e `Double.intValue()` SATURA (-2147483648) onde o
+            // JVM/JS/nativo TRUNCAM (-410065408).
+            case NEG -> {
+                if (KofInterpreterValues.isLongType(t)) yield -((Number) v).longValue();
+                if (KofInterpreterValues.isFloatType(t)) yield -((Number) v).floatValue();
+                if (KofInterpreterValues.isDoubleType(t)) yield -((Number) v).doubleValue();
+                yield -KofInterpreter.unboxInt(v);
+            }
             case NOT -> KofInterpreter.unboxInt(v) == 0 ? 1 : 0;
             // §383/#561: bool→long no store de List pinada passa a emitir
             // I2L sobre um valor que pode ser Boolean (cmp do interpretador

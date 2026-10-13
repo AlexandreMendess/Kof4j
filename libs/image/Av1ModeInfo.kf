@@ -641,17 +641,24 @@ class Av1ModeInfo {
                 var signs = this.sym.readSymbol(this.cflSignStore, 8)
                 var signU = (signs + 1) / 3
                 var signV = (signs + 1) % 3
+                // `CFL_SIGN_NEG` is 1 and `CFL_SIGN_POS` is 2 (`av1/common/enums.h`),
+                // and libaom's `cfl_idx_to_alpha` returns `-(abs + 1)` for every
+                // sign that is not `CFL_SIGN_POS` — so the NEGATIVE case is 1, not
+                // 2. The polarity here was inverted (measured 13/10 against
+                // libaom's own `cfl_idx_to_alpha`: `signs = 3` gives alphaU = -3,
+                // and this code produced +3), which flipped the sign of the CFL
+                // modulation on every block whose alpha is negative.
                 if (signU != 0) {
                     var au = this.sym.readSymbol(this.cflAlphaStore.get((signU - 1) * 3 + signV), 16)
                     cflU = 1 + au
-                    if (signU == 2) {
+                    if (signU == 1) {
                         cflU = 0 - cflU
                     }
                 }
                 if (signV != 0) {
                     var av = this.sym.readSymbol(this.cflAlphaStore.get((signV - 1) * 3 + signU), 16)
                     cflV = 1 + av
-                    if (signV == 2) {
+                    if (signV == 1) {
                         cflV = 0 - cflV
                     }
                 }

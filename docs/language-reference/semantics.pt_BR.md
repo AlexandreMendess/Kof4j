@@ -64,7 +64,7 @@ quando ele roda — de forma independente do backend.
 - **`string`**: valor por conteúdo (imutável; `==` compara conteúdo).
 - **`record`**: valor por conteúdo (`==` compara campo a campo).
 - **`class`**: referência (identidade; `==` compara referência; campos mutáveis).
-- **`enum`**: o valor é uma instância de enum real (um singleton por constante). `==`/`!=` é identidade. Um valor de enum não é uma String: `Dir.N == "N"` é `SEM062` (D-ENUM207).
+- **`enum`**: o valor é uma instância de enum real (um singleton por constante). `==`/`!=` é identidade. Um valor de enum não é uma String: `Dir.N == "N"` é `SEM062` (D-ENUM207). Relacional `<`/`<=`/`>`/`>=` entre dois valores de enum é `SEM105` (use `a.compareTo(b)`).
 - **Coleções** (`List/Map/Set`): referência (objeto mutável).
 - Passagem a função: **por valor** (para referência, o valor é a referência —
   mutar o objeto é visível; reatribuir o parâmetro não é).

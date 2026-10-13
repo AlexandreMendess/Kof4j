@@ -91,7 +91,10 @@ public class JsBackend implements Backend {
         lc.recordClassNames.clear();
         lc.fpRecordClassNames.clear();
         for (IRClass clazz : effClasses) {
-            if ("java/lang/Record".equals(clazz.superName())) {
+            // #818: `clazz.isRecord()` cobre o record que ESTENDE uma classe do
+            // usuário (forma aceita pela gramática) — a superclasse deixa de ser
+            // `java/lang/Record` e a classe perdia os sintéticos de valor no JS.
+            if ("java/lang/Record".equals(clazz.superName()) || clazz.isRecord()) {
                 lc.recordClassNames.add(clazz.name());
                 lc.recordClassNames.add(clazz.name().replace('/', '.'));
                 // also add simple name

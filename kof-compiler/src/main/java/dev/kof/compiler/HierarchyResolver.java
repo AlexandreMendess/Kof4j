@@ -216,4 +216,40 @@ public final class HierarchyResolver {
         }
         return elem;
     }
+
+    /**
+     * #819 (1.0-blocks): join de tipos de ramos (switch-expression) pelo supertipo
+     * comum REAL. Devolve o supertipo nomeado quando existe um (dobra
+     * {@link #commonSupertype} pelos ramos); null quando NÃO há ancestral comum
+     * nomeado (primitivos heterogêneos, ramos sem parentesco) — o caller mantém o
+     * fallback honesto (java.lang.Object / first-wins). Sem este passo o switch
+     * caía em Object e o `areturn` do método (declarando o supertipo) recebia
+     * Object → VerifyError no load.
+     */
+    static Type joinBranchTypes(SemanticAnalyzer sa, java.util.List<Type> branches) {
+        if (sa == null || branches == null || branches.isEmpty()) return null;
+        Type joined = branches.get(0);
+        for (int i = 1; i < branches.size(); i++) {
+            joined = commonSupertype(sa, joined, branches.get(i));
+        }
+        if (joined instanceof Type.ClassType cc
+                && !("java.lang".equals(cc.packageName()) && "Object".equals(cc.name()))) {
+            return cc;
+        }
+        return null;
+    }
+
+    /**
+     * §284-map: `T` + ramo literal `null` → `T?` (nunca toca nullable/objeto).
+     * (Movido de ExpressionTyper para manter a classe abaixo do teto de 500/600.)
+     */
+    static Type nullableIfNullBranch(Type joined, ExpressionNode... branches) {
+        if (!(joined instanceof Type.PrimitiveType pt) || Type.isVoid(pt)) return joined;
+        for (ExpressionNode b : branches) {
+            if (b instanceof LiteralExpr lit && lit.kind() == ConcreteLiteralKind.NULL) {
+                return new Type.NullableType(pt);
+            }
+        }
+        return joined;
+    }
 }

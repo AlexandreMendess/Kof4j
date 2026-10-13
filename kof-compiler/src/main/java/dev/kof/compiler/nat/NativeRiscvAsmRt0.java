@@ -392,7 +392,14 @@ public final class NativeRiscvAsmRt0 {
                 lw   t1, 0(t2)
                 beqz t1, .Lio_null
                 bne  t1, t0, .Lio_next
-                lw   a0, 4(t2)
+                # §688: o super vai para t0 — é o registrador que o laço
+                # COMPARA (o x86 guarda em %eax e compara com %eax). Antes
+                # carregava em a0, que o cabeçalho do laço não lê: a caminhada
+                # relia a MESMA entrada e girava PARA SEMPRE em todo
+                # `instanceof` que precisasse descer a kof_super_table (só
+                # escapava quando o typeId do objeto JÁ era o alvo, aí o
+                # primeiro bne acha e retorna sem caminhar).
+                lw   t0, 4(t2)
                 j    .Lio_loop
             .Lio_next:
                 addi t2, t2, 8
@@ -582,17 +589,5 @@ public final class NativeRiscvAsmRt0 {
                 ld   s1, 24(sp)
                 ld   s2, 16(sp)
                 ld   ra, 40(sp)
-                addi sp, sp, 48
-                ret
-            .Las_null:
-                call kof_null_error
-            .Las_bounds:
-                call kof_bounds_error
-
-            # ---- strings ----
-            # kof_string_length — MOVIDO p/ B34 (faces UTF-16, bug 43 cross):
-            # contava bytes UTF-8 (café=5 vs JVM 4).
-
-            # kof_string_concat(a, b) -> KofStr*
             """;
 }

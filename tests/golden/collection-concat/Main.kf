@@ -1,0 +1,15 @@
+record P(Int x, Int y)
+main() {
+    var l = listOf(1, 2, 3)
+    var s = setOf("a", "b")
+    var m = mapOf("k", 1)
+    println("L=" + l)
+    println("S=" + s)
+    println("M=" + m)
+    println("nl=" + listOf(listOf(1), listOf(2)))
+    var e: List<Int> = listOf()
+    println("E=" + e)
+    println("" + l)
+    println("P=" + P(1, 2))
+    println("mix=" + l.size + "/" + s.size)
+}

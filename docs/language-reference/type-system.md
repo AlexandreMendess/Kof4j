@@ -127,7 +127,21 @@ For `+ - * / %` with two numerics: `double` dominates, else `float`, else
   - **`5 as String` does NOT parse a number**: it emits `checkcast String` over
     a boxed `Integer` → fails at runtime (*probe*). String↔number is only via
     `toInt()/toLong()/toDouble()/toFloat()` (methods of `string`).
+  - **`as T?`** — the nullable spelling — is the **always-null soft cast**
+    (`D-SEM-REJECTS-1210`, `§678` FACE A): a failing reference cast yields `null`
+    on **all four targets** (shared-lowering desugar `if (x instanceof T) x else null`;
+    LANDED 13/10). The plain `as` form THROWS on a failing cast — that is **FACE B**,
+    landed on JVM/Script/JS 12–13/10 and on the **Native** (x86-64 + cross) 13/10 — `§678` is CLOSED, the failing cast THROWS on **all four** targets.
 - **`x instanceof T`** → `bool` (`SemExpressionTyper`, case `instanceof`). `o instanceof String` (*probe* ✅).
+  - **`instanceof` over a PRIMITIVE target is REFUSED (`SEM106`)** — the target
+    must be a class/record/String reference. `o instanceof Int` (a boxed
+    primitive) was accepted-and-divergent 2-2 (Script/native `false`, JVM/JS
+    `true`; `D-SEM-REJECTS-1210`, `§677`) and is now a compile error: the value
+    IS an `Int` by its declared type, so the check is meaningless.
+  - **Relational operators over enums are REFUSED (`SEM105`)** — `<`/`<=`/`>`/`>=`
+    between two enum values diverged (JVM/JS `false`, native `true`, Script
+    "not comparable") and are now a compile error (`D-SEM-REJECTS-1210`, `§675`);
+    the ordering spelling is the explicit `a.compareTo(b) < 0` (`==`/`!=` stay valid).
 
 ---
 

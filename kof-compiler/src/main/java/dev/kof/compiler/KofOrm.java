@@ -136,8 +136,18 @@ public final class KofOrm {
             "kof_orm_history_at", "kof_orm_history_at_time", "kof_orm_history_changes",
             "kof_orm_history_one");
 
+    /** Fase 5 (D-ENTITY-HISTORY; ordem da mantenedora 13/10 "ponta a ponta"):
+     *  as faces de histórico com runtime NATIVO x86-64 pousado. Cada fatia
+     *  adiciona a sua — o resto segue ORM001 honesto (o cross mantém o
+     *  contrato do ORM nativo inteiro: SQLite x86-64 only). */
+    private static final java.util.Set<String> HISTORY_NATIVE =
+            java.util.Set.of("kof_orm_create_history", "kof_orm_delete_recorded", "kof_orm_save_recorded", "kof_orm_history");
+
     static boolean fnSupportedOn(Target target, String fn) {
-        if (HISTORY_FACES.contains(fn)) return target == Target.JVM || target == Target.ANDROID;
+        if (HISTORY_FACES.contains(fn)) {
+            return target == Target.JVM || target == Target.ANDROID
+                    || (target == Target.NATIVE && HISTORY_NATIVE.contains(fn));
+        }
         if (supportedOn(target)) return true;
         if (target == Target.NATIVE) return NATIVE_F1.contains(fn);
         if (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64) return CROSS_FACES.contains(fn);

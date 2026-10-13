@@ -21,6 +21,8 @@ final class JsRuntimeSlices {
 
     static final List<Block> BLOCKS = List.of(
             new Block("core", JsRuntimeCore.CORE_RUNTIME + JsRuntimeStringSplit.SPLIT_RUNTIME, false),
+            new Block("castfail", JsRuntimeCastFail.CASTFAIL_RUNTIME, false),
+            new Block("divzero", JsRuntimeDivZero.DIVZERO_RUNTIME, false),
             new Block("equality", JsRuntimeEquality.EQUALITY_RUNTIME, false),
             new Block("ui-components", JsRuntimeUiComponents.UI_COMPONENT_RUNTIME, false),
             new Block("ui-link-image-icon", JsRuntimeUiLinkImageIcon.UI_LINK_IMAGE_ICON_RUNTIME, false),

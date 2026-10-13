@@ -26,8 +26,12 @@ final class BytecodeStdlib {
         if ("java/lang/String".equals(ownerInternal) && "equals".equals(name)) {
             return receiver + " == " + args;
         }
-        // métodos sem-argumento que em Kof são PROPRIEDADES (não métodos)
-        if (args.isEmpty() && ("length".equals(name) || "size".equals(name) || "isEmpty".equals(name))) {
+        // métodos sem-argumento que em Kof são PROPRIEDADES (não métodos).
+        // `isEmpty` NÃO é propriedade (13/10, medido: `.isEmpty` compilava e
+        // quebrava em runtime com NoSuchField — nem String nem ArrayList têm
+        // o campo; `s.isEmpty()` CHAMADA é fiel e `Bool != 0` na condição
+        // funciona) — sai da lista.
+        if (args.isEmpty() && ("length".equals(name) || "size".equals(name))) {
             return receiver + "." + name;
         }
         // #362 (SEM074): unbox de wrapper do JDK = identidade em Kof — não

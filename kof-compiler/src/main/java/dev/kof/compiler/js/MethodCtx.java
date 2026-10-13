@@ -66,7 +66,11 @@ public final class MethodCtx {
         this.kofClassName = clazz == null ? null : clazz.name();
         this.methodName = method.name();
         this.paramCount = method.parameterTypes().size();
-        this.recordClass = clazz != null && "java/lang/Record".equals(clazz.superName());
+        // #818: a record-ness vem do lowering (IRClass.isRecord) além da
+        // superclasse — um record que estende classe do usuário grava os campos
+        // com o mesmo prefixo `_` que os leitores usam (senão o ctor escrevia
+        // `this.x` e o toString lia `this._x` → `undefined`).
+        this.recordClass = clazz != null && ("java/lang/Record".equals(clazz.superName()) || clazz.isRecord());
         String asyncKey = clazz == null
                 ? "#" + method.name() + "/" + method.parameterTypes().size()
                         + dev.kof.compiler.TopLevelOverload.sigTag(method.parameterTypes())

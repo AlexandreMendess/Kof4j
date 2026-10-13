@@ -40,10 +40,19 @@ final class BytecodeKofTypes {
                 return exprOp(op, stack, cp, idx, stmts, frame);
             }
             case 0xbb -> { // new de DOMÍNIO (mirror do path linear):
-                // `new java.lang.X` nunca é idiomático (R6). Cross-package
-                // registra import (§7 degrau 3); emissão = nome simples.
+                // `new java.lang.X` nunca é idiomático (R6). EXCEÇÃO: o
+                // idioma errors.md (a exceção É a String do message — o
+                // TranslateNew mapeia igual) — `new RuntimeException(msg)`
+                // entra com marcador próprio e o <init> devolve os args.
                 String cn = BytecodeCp.resolveClassName(cp, in.operands()[0]);
-                if (cn == null || BytecodeCp.isJdkClass(cp, in.operands()[0])) return false;
+                if (cn == null) return false;
+                if (BytecodeCp.isJdkClass(cp, in.operands()[0])) {
+                    String simple = cn.substring(cn.lastIndexOf('/') + 1);
+                    if (!simple.endsWith("Exception") && !simple.endsWith("Error")) return false;
+                    stack.push("\u27e6ex\u27e7" + simple);
+                    if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(-99);
+                    return true;
+                }
                 if (frame != null && frame.treeScope != null) {
                     String internal = indexInternalName(cp, in.operands()[0]);
                     if (internal != null) frame.treeScope.resolve(internal);
@@ -51,23 +60,48 @@ final class BytecodeKofTypes {
                 stack.push("⟦new⟧" + cn);
                 return true;
             }
-            case 0x59 -> { // dup — só no padrão new (mirror do linear)
+            case 0x59 -> { // dup — padrão new E o padrão de exceção (⟦ex⟧)
                 if (stack.isEmpty()) return false;
                 String top = stack.peek();
-                if (top == null || !top.startsWith("⟦new⟧")) return false;
+                if (top == null || !(top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7"))) return false;
                 stack.push(top);
                 return true;
             }
             case 0xb7 -> { // invokespecial <init> (mirror do linear)
                 String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                if (m == null || !"<init>".equals(m[1])) return false;
+                if (m == null) return false;
+                if (!"<init>".equals(m[1])) {
+                    // Fase G (diamond super.m(), mantenedora 14/10): owner ==
+                    // super corrente → `super.m(args)` (Kof suporta, medido);
+                    // demais (interface `A.super.m()`) seguem não-recuperados
+                    // aqui até a fatia do inline multi-classfile.
+                    if (BytecodeDecoder.currentSuperInternal != null
+                            && BytecodeDecoder.currentSuperInternal.equals(m[0])) {
+                        int argc = BytecodeCp.argCount(m[2]);
+                        if (stack.size() < argc + 1) return false;
+                        var callArgs = new java.util.ArrayList<String>();
+                        for (int i = 0; i < argc; i++) callArgs.add(0, stack.pop());
+                        String recv = stack.pop();
+                        if (!"this".equals(recv)) return false;
+                        stack.push("super." + m[1] + "(" + String.join(", ", callArgs) + ")");
+                        return true;
+                    }
+                    return false;
+                }
                 int argc = BytecodeCp.argCount(m[2]);
                 if (stack.size() < argc + 2) return false;
                 var callArgs = new java.util.ArrayList<String>();
                 for (int i = 0; i < argc; i++) callArgs.add(0, stack.pop());
                 stack.pop();   // receiver (cópia do dup)
                 String marker = stack.pop();
-                if (marker == null || !marker.startsWith("⟦new⟧")) return false;
+                if (marker == null) return false;
+                // idioma errors.md: a construção de EXCEÇÃO devolve a String
+                // do message (o Kof lança String; `throw msg` direto)
+                if (marker.startsWith("\u27e6ex\u27e7")) {
+                    stack.push(String.join(", ", callArgs));
+                    return true;
+                }
+                if (!marker.startsWith("⟦new⟧")) return false;
                 stack.push(marker.substring("⟦new⟧".length()) + "(" + String.join(", ", callArgs) + ")");
                 return true;
             }
@@ -94,6 +128,14 @@ final class BytecodeKofTypes {
                 String arr = stack.pop();
                 // stmt sem valor (void no bytecode) — como `pop` de chamada
                 stmts.add(arr + "[" + idx + "] = " + v);
+                return true;
+            }
+            case 0xbc -> { // newarray → `new Int[n]` (arrays PRIMITIVOS; JVMS 6.5)
+                if (stack.isEmpty()) return false;
+                String elem = primitiveArrayType(in.operands()[0]);
+                if (elem == null) return false;
+                String n = stack.pop();
+                stack.push("new " + elem + "[" + n + "]");
                 return true;
             }
             case 0xbe -> { // arraylength → `a.length` (Kof idiomático)
@@ -125,9 +167,13 @@ final class BytecodeKofTypes {
                 stack.push(stack.pop() + " instanceof " + t);
                 return true;
             }
-            case 0xc0 -> {   // checkcast → `(x as T)` só p/ primitivo-alvo
-                // (Kof: downcast Object→Int é explícito). String/Object
-                // recusados: `x as String` é redundante/ambíguo na verificação.
+            case 0xc0 -> {   // checkcast → `(x as T)`
+                // Fase E (fatia cast-String, mantenedora "stubs viram código",
+                // 14/10): `as String` é FIEL — MEDIDO: compila, o cast correto
+                // retorna e o errado LANÇA a CCE (a mesma verificação runtime
+                // do checkcast Java); a recusa antiga ("redundante/ambíguo")
+                // não se sustenta contra a execução. Object-alvo é no-op
+                // (checkcast Object nunca falha para não-null) → mantém `x`.
                 // Domínio SÓ via índice (§7 degrau 2) — nome resolve no tree.
                 String t = inlineKofType(cp, cpIdx);
                 if (t == null) {
@@ -136,7 +182,7 @@ final class BytecodeKofTypes {
                     stack.push("(" + stack.pop() + " as " + t + ")");
                     return true;
                 }
-                if (t.equals("String") || t.equals("Object")) return false;
+                if (t.equals("Object")) return true;   // no-op: o valor segue
                 stack.push("(" + stack.pop() + " as " + t + ")");
                 return true;
             }
@@ -171,6 +217,21 @@ final class BytecodeKofTypes {
      * (`new Int[n]` é `int[]`, semântica distinta) → recusar; arrays e
      * malformados caem no regex do índice.
      */
+    /** JVMS 6.5 newarray atype → tipo Kof do elemento, ou null. */
+    static String primitiveArrayType(int atype) {
+        return switch (atype) {
+            case 4 -> "Bool";
+            case 5 -> "Char";
+            case 6 -> "Float";
+            case 7 -> "Double";
+            case 8 -> "Byte";
+            case 9 -> "Short";
+            case 10 -> "Int";
+            case 11 -> "Long";
+            default -> null;
+        };
+    }
+
     static String arrayElementType(String[] cp, int classIdx, BytecodeFrame frame) {
         String n = BytecodeCp.resolveClassName(cp, classIdx);
         if (n == null) return null;

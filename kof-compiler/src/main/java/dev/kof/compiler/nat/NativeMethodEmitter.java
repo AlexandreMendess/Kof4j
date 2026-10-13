@@ -382,20 +382,11 @@ final class NativeMethodEmitter {
                 sb.append("    leaq ").append(sym).append("(%rip), %rcx\n");
                 sb.append("    movq %rax, 0(%rcx)\n");
             }
-            case KofCheckCast _ -> { }
+            case KofCheckCast cc -> NativeCastGuard.emitX86(sb, nb, cc.type());
             case KofInstanceOf io -> {
-                int targetTypeId = 0;
-                if (BuiltinTypes.isString(io.type())) {
-                    targetTypeId = NativeRuntime.KOF_STRING_TYPE_ID;
-                } else if (io.type() instanceof Type.ClassType ct) {
-                    for (IRClass clazz : nb.allClassesMap.values()) {
-                        if (clazz.name().equals(ct.name()) || clazz.name().endsWith("/" + ct.name())
-                                || ct.name().endsWith("/" + clazz.name()) || ct.name().equals(nb.sanitizeName(clazz.name()))) {
-                            targetTypeId = clazz.typeId();
-                            break;
-                        }
-                    }
-                }
+                // §678: a resolução do type id vive no NativeCastGuard (uma
+                // cópia só, compartilhada com o cast ESTRITO).
+                int targetTypeId = NativeCastGuard.typeId(nb, io.type());
                 sb.append("    popq %rdi\n");
                 sb.append("    movl $").append(targetTypeId).append(", %esi\n");
                 sb.append("    call kof_instanceof\n");

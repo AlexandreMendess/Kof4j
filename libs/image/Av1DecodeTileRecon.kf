@@ -4,6 +4,7 @@ import image.Av1Block
 import image.Av1CoeffPlane
 import image.Av1Coeffs
 import image.Av1DecodeBlock
+import image.Av1DecodeChroma
 import image.Av1IntraAvail
 import image.Av1IntraBlock
 import image.Av1ModeInfo
@@ -71,7 +72,8 @@ import image.Av1TxType
 // Returns the reconstructed plane, flat row-major of size `frameW * frameH`.
 Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
                          List<Int> blocks, Av1ModeTail cfg,
-                         Int lossless, Int hasChroma, Int enableFilterIntra,
+                         Int lossless, Int hasChroma, Int numPlanes,
+                         Int enableFilterIntra,
                          Int palettePossible, Int bitDepth, Int txMode,
                          Int baseQIndex, Int segEnabled,
                          Int segIdPreSkip, Int lastActiveSegId,
@@ -81,7 +83,10 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
                          Av1Symbol reader, Av1CoeffCdfStore store,
                          Av1TxType txTypeStore, Int[] txTypes,
                          Int[] above, Int[] left, List<Int[]> levelsOut,
-                         List<Int> txTypeOut, List<Int> modeOut) {
+                         List<Int> txTypeOut, List<Int> modeOut,
+                         Av1ChromaPlanes chroma, Int ssX, Int ssY,
+                         List<Int[]> levelsUOut, List<Int[]> levelsVOut,
+                         List<Int> txTypeUOut, List<Int> txTypeVOut) {
     var modeInfo = Av1ModeInfo(reader, frameW >> 2, frameH >> 2)
     var txSize = Av1TxSize(reader, frameW >> 2, frameH >> 2)
     var maxX = frameW
@@ -229,6 +234,23 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
                               txType, bitDepth, false, dcQuant, acQuant)
 
             bi = bi + 1
+        }
+
+        // 4. The CHROMA planes of THIS block, after its luma plane — libaom's
+        //    `decode_token_recon_block` runs `plane = 0` then U then V for the
+        //    same block, each with its own derived transform size and its own
+        //    entropy-context arrays. Chroma is decoded only when the block is a
+        //    chroma reference (`xd->is_chroma_ref`).
+        // `av1_num_planes(cm)`: a luma-only stream has no chroma symbols to
+        // consume, so the chroma walk runs only for a multi-plane frame.
+        if (numPlanes > 1 && hasChroma == 1) {
+            av1DecodeChromaBlock(chroma, bs, ssX, ssY, frame, stride,
+                    r, c, body[2], body[3], body[4], body[5],
+                    useFilterIntra, filterIntraMode, bitDepth,
+                    intraEdgeFilterType, edgeFilter, dcQuant, acQuant, qIndex,
+                    reducedTxSet, lossless, reader, store, txTypeStore, txTypes,
+                    frameW >> 2, frameW, frameH, levelsUOut, levelsVOut,
+                    txTypeUOut, txTypeVOut)
         }
         b = b + 1
     }

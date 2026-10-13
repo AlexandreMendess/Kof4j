@@ -421,11 +421,14 @@ public class StatementParser {
         SourcePosition p = ctx.pos();
         String type = "var";
         boolean typeFirst = false;
+        boolean isVal = false;
         if (ctx.check(TokenType.VAL)) {
-            // bug 62: `val` é imutável — o type do VarDeclStmt precisa carregar
-            // "val" para o analisador semântico emitir SEM037 em reatribuição.
+            // bug 62 + #816: `val` é imutável — a mutabilidade viaja no campo
+            // PRÓPRIO do VarDeclStmt (não no `type`), senão a anotação `:` a
+            // sobrescrevia e `val x: Int = 1` perdia o SEM037.
             ctx.advance();
             type = "val";
+            isVal = true;
         } else if (ctx.check(TokenType.VAR)) {
             ctx.advance();
         } else {
@@ -462,7 +465,7 @@ public class StatementParser {
             init = ExpressionParser.parseExpression(ctx);
         }
         ctx.expectSemicolon();
-        return new VarDeclStmt(p, type, name, init);
+        return new VarDeclStmt(p, type, name, init, isVal);
     }
 
     /**

@@ -225,4 +225,12 @@ public final class KofInterpreterMembers {
         return staticFields.computeIfAbsent(internal,
                 k -> new java.util.concurrent.ConcurrentHashMap<>());
     }
+
+    /** §306(b): unbox canônico de slots Nullable(Bool)/boxed — #0.6.4 split. */
+    static int unboxInt(Object v) {
+        if (v instanceof Number num) return num.intValue();
+        if (v instanceof Character ch) return ch;
+        if (v instanceof Boolean b) return b ? 1 : 0;
+        throw new ClassCastException("not an int: " + v);
+    }
 }

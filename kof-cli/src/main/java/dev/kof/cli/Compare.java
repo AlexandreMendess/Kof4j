@@ -4,6 +4,7 @@ import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.Target;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -40,9 +41,10 @@ public final class Compare {
 
     enum Channel { EQUIVALENT, DIVERGENT }
 
-    record Verdict(Channel stdout, Channel stderr, Channel exit, Channel files) {
+    record Verdict(Channel stdout, Channel stderr, Channel exit, Channel files, Channel exceptions) {
         boolean equivalent() {
-            return stdout == Channel.EQUIVALENT && exit == Channel.EQUIVALENT && files == Channel.EQUIVALENT;
+            return stdout == Channel.EQUIVALENT && exit == Channel.EQUIVALENT
+                    && files == Channel.EQUIVALENT && exceptions == Channel.EQUIVALENT;
         }
 
         Map<String, Object> toMap() {
@@ -51,6 +53,7 @@ public final class Compare {
             m.put("stderr", stderr == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("exit", exit == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("files", files == Channel.EQUIVALENT ? "equivalent" : "divergent");
+            m.put("exceptions", exceptions == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("overall", equivalent() ? "equivalent" : "divergent");
             return m;
         }
@@ -129,14 +132,55 @@ public final class Compare {
     }
 
     static Verdict compare(RunResult legacy, RunResult kof) {
+        String legacyEx = exceptionType(legacy.stderr());
+        String kofEx = exceptionType(kof.stderr());
+        Channel exceptions;
+        if (legacyEx == null && kofEx == null) {
+            exceptions = Channel.EQUIVALENT;
+        } else if (legacyEx == null || kofEx == null) {
+            // one side threw, the other exited cleanly: the failure MODE diverged
+            exceptions = Channel.DIVERGENT;
+        } else {
+            // §8 typed-exception face: the TYPE is the observable — the raw
+            // stack text carries environment paths/line numbers (noise)
+            exceptions = legacyEx.equals(kofEx) ? Channel.EQUIVALENT : Channel.DIVERGENT;
+        }
         return new Verdict(
                 legacy.sameStdout(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
                 legacy.sameStderr(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
                 legacy.sameExit(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
-                legacy.sameFiles(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT);
+                legacy.sameFiles(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
+                exceptions);
+    }
+
+    /**
+     * Fase G (§8): the first exception/error TYPE in a stderr stream — the
+     * JVM trace's first line carries it fully qualified
+     * ("Exception in thread \"main\" java.lang.ArithmeticException: ...").
+     * Null when the run threw nothing. JVM-target format (the compare runs
+     * the JVM target on both sides); JS/native trace formats are a future face.
+     */
+    static String exceptionType(String stderr) {
+        if (stderr == null || stderr.isBlank()) {
+            return null;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("[a-z][a-z0-9_]*(?:\\.[A-Za-z0-9_]+)+")
+                .matcher(stderr.lines().filter(l -> l.contains("Exception") || l.contains("Error"))
+                        .findFirst().orElse(""));
+        return m.find() ? m.group() : null;
     }
 
     static RunResult runLegacy(Path legacy, List<String> args, String stdin) throws IOException {
+        return runLegacy(legacy, args, stdin, null);
+    }
+
+    /**
+     * Fase G (§8): overloads com classpath extra — o driver JDBC provisionado
+     * (`DbDrivers`) para as faces de mutação de DB; os DOIS lados recebem o
+     * MESMO classpath para o vetor ser idêntico.
+     */
+    static RunResult runLegacy(Path legacy, List<String> args, String stdin, String extraCp) throws IOException {
         String file = legacy.getFileName().toString();
         Path sandbox = Files.createTempDirectory("kof-compare-legacy-");
         try {
@@ -145,7 +189,9 @@ public final class Compare {
             }
             if (file.endsWith(".class")) {
                 String className = file.substring(0, file.length() - ".class".length());
-                List<String> cmd = Paths.java("-cp", legacy.getParent().toString(), className);
+                String cp = extraCp == null ? legacy.getParent().toString()
+                        : legacy.getParent().toString() + File.pathSeparator + extraCp;
+                List<String> cmd = Paths.java("-cp", cp, className);
                 return exec(cmd, args, stdin, sandbox);
             }
             throw new IOException("legacy must be a .class or .jar file");
@@ -155,6 +201,20 @@ public final class Compare {
     }
 
     static RunResult runKof(Path kofFile, List<String> args, String stdin) throws IOException {
+        return runKof(kofFile, "Default.Main", args, stdin);
+    }
+
+    /**
+     * Fase H (§8.1): a migração gera classes com NOMES PRÓPRIOS (`class Hello`
+     * com um main estático) — a entrada compilada é `Default.Hello`, não o
+     * `Default.Main` do fluxo top-level. A sobrecarga nomeia a entrada.
+     */
+    static RunResult runKof(Path kofFile, String entryClass, List<String> args, String stdin) throws IOException {
+        return runKof(kofFile, entryClass, args, stdin, null);
+    }
+
+    static RunResult runKof(Path kofFile, String entryClass, List<String> args, String stdin,
+                            String extraCp) throws IOException {
         Path outDir = Files.createTempDirectory("kof-compare-");
         Path sandbox = Files.createTempDirectory("kof-compare-kof-");
         CompilerDriver driver = new CompilerDriver();
@@ -163,7 +223,9 @@ public final class Compare {
             throw new IOException("Kof compile failed: " + result.diagnostics().getDiagnostics());
         }
         try {
-            return exec(Paths.java("-cp", outDir.toString(), "Default.Main"), args, stdin, sandbox);
+            String cp = extraCp == null ? outDir.toString()
+                    : outDir.toString() + File.pathSeparator + extraCp;
+            return exec(Paths.java("-cp", cp, entryClass), args, stdin, sandbox);
         } finally {
             cleanup(outDir);
             cleanup(sandbox);
@@ -197,7 +259,17 @@ public final class Compare {
     private static Map<String, String> captureFiles(Path dir) throws IOException {
         Map<String, String> files = new java.util.TreeMap<>();
         try (var s = Files.walk(dir)) {
-            for (Path p : s.filter(Files::isRegularFile).toList()) {
+            for (Path p : s.filter(Files::isRegularFile)
+                    // MEASURED 14/10: an H2 FILE database run twice with the
+                    // identical program produces DIFFERENT `.mv.db` bytes (the
+                    // store header carries creation) — the store is
+                    // driver-internal, not program output; the DB observable
+                    // is the query digest in stdout. Without the exclusion
+                    // equivalent DB programs compare files-divergent.
+                    .filter(p -> !p.getFileName().toString().endsWith(".mv.db")
+                            && !p.getFileName().toString().endsWith(".trace.db")
+                            && !p.getFileName().toString().endsWith(".lock.db"))
+                    .toList()) {
                 String rel = dir.relativize(p).toString().replace('\\', '/');
                 files.put(rel, sha256(Files.readAllBytes(p)));
             }
@@ -230,7 +302,7 @@ public final class Compare {
         return oneLine.length() > 60 ? oneLine.substring(0, 60) + "…" : oneLine;
     }
 
-    private static void cleanup(Path dir) {
+    static void cleanup(Path dir) {
         try (var s = Files.walk(dir)) {
             s.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
                 try { Files.deleteIfExists(p); } catch (IOException ignored) {}
