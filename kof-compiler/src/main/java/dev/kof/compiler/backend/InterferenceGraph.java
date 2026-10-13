@@ -78,6 +78,7 @@ public final class InterferenceGraph {
         TreeMap<Integer, TreeSet<Integer>> adj = new TreeMap<>();
         for (KofOperation op : ops) {
             for (int d : defOf(op)) {
+                adj.computeIfAbsent(d, k -> new TreeSet<>());   // every def'd slot is a node
                 for (int live : liveness.liveAfter(op)) {
                     if (live == d) continue;
                     addEdge(adj, d, live);
