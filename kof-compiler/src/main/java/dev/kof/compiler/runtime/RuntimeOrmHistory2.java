@@ -57,6 +57,11 @@ public final class RuntimeOrmHistory2 {
                 movq %rax, 64(%rsp)
                 cmpq $0, 64(%rsp)
                 je .Lormh2_done               # o delete falhou → false (sem linha)
+                # EXPERIMENTO: o conn RE-RESOLVIDO após o DML (o delete aloca
+                # pesado; o handle pré-DML é o suspeito do segv)
+                movq (%rsp), %rdi
+                call .Lorm_conn
+                movq %rax, 32(%rsp)
                 # ---- pk → texto (o String.valueOf do host) -----------------
                 movq 8(%rsp), %rdi
                 call kof_box_to_string
