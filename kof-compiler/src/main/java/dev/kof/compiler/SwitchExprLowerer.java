@@ -51,7 +51,7 @@ public final class SwitchExprLowerer {
                 localIdx = ExpressionLowerer.emitExpression(driver, defaultValue, ops, owner, localIdx, locals);
                 // #57/§70: corpos com tipos distintos → boxa ramo primitivo
                 // in-branch (join só de referências); callers pulam pós-box.
-                if (ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+                if (ExpressionBranchJoin.branchTypesDiffer(ExpressionBranchJoin.switchBranchTypes(
                         driver, cases, defaultValue, fallbackType, locals))) {
                     ExpressionTyper.boxPrimitiveBranch(driver, ops,
                             ExpressionTyper.inferExprType(driver, defaultValue, locals));
@@ -134,7 +134,7 @@ public final class SwitchExprLowerer {
         }
         localIdx = ExpressionLowerer.emitExpression(driver, sc.body(), ops, owner, localIdx, locals);
         // #57/§70: corpos com tipos distintos → boxa corpo primitivo in-branch.
-        if (ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+        if (ExpressionBranchJoin.branchTypesDiffer(ExpressionBranchJoin.switchBranchTypes(
                 driver, cases, defaultValue, fallbackType, locals))) {
             ExpressionTyper.boxPrimitiveBranch(driver, ops,
                     ExpressionTyper.inferExprType(driver, sc.body(), locals));

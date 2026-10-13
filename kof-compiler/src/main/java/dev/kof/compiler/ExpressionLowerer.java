@@ -330,8 +330,8 @@ public final class ExpressionLowerer {
                 // boxeado p/ SEU boxed aqui dentro (join só de referências);
                 // os callers pulam o pós-box (mesmo predicado, sem canal).
                 List<Type> bts = ie.elseExpr() != null
-                        ? ExpressionTyper.ifBranchTypes(driver, ie, locals) : List.of();
-                boolean differ = !bts.isEmpty() && ExpressionTyper.branchTypesDiffer(bts);
+                        ? ExpressionBranchJoin.ifBranchTypes(driver, ie, locals) : List.of();
+                boolean differ = !bts.isEmpty() && ExpressionBranchJoin.branchTypesDiffer(bts);
                 if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(0));
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
