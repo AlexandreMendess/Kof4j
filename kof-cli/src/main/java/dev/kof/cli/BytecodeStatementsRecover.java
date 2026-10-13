@@ -130,6 +130,43 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             }
         }
         if (cond == null) { BytecodeStatements.refuse("cond-null"); return false; }
+        // Fase C (13/10, short-circuit ||): orientacao ESPELHADA do && —
+        // o JUMP do teste externo e o braco VERDADEIRO e o fall-through e
+        // o SEGUNDO teste. Detecta: o then-bloco (fall-through) e um teste
+        // cujo FALL-THROUGH == o jump-target do externo (= o verdadeiro).
+        if (!loop0) {
+            int guard = 0;
+            BytecodeReader.Block tb = byStart.get(thenStart);
+            String orCond = null;
+            int realFalse = -1;
+            while (guard < 4 && tb != null && tb.succ.size() == 2
+                    && tb.succ.get(1) == exitStart && !BytecodeReader.isLoopHeader(tb)) {
+                List<BytecodeReader.Insn> tblk = BytecodeDecoder.insnsWithin(tb, insns);
+                if (tblk.isEmpty() || !tblk.get(tblk.size() - 1).isCond()) break;
+                // ASSIMETRIA: no `||` o teste EXTERNO tem o jump no braco
+                // VERDADEIRO (takenCond), mas os testes INTERNOS tem o jump
+                // no FALSO (invCond, como no &&/if-else) — medido (or2 dava
+                // `arg1 <= 0` com takenCond no interno; o correto e `> 0`)
+                String c2 = BytecodeDecoder.blockCondition(tb, insns, frame, cp);
+                if (c2 == null) break;
+                if (orCond == null) {
+                    orCond = BytecodeDecoder.blockConditionTaken(b, insns, frame, cp);
+                    if (orCond == null) break;
+                }
+                orCond = orCond + " || " + c2;
+                realFalse = tb.succ.get(0);
+                tb = byStart.get(tb.succ.get(1));
+                guard++;
+            }
+            if (orCond != null && realFalse >= 0) {
+                // o jump externo (exitStart) e o VERDADEIRO; o falso real e o
+                // jump do ultimo teste interno — troca os papeis
+                cond = orCond;
+                int trueStart = exitStart;
+                thenStart = trueStart;
+                exitStart = realFalse;
+            }
+        }
         // Fase C (13/10, short-circuit &&): o THEN-bloco é OUTRO teste
         // cujo falso-alvo é o MESMO else → as condições combinam com
         // `&&` (a avaliação em cadeia do bytecode É o curto-circuit do
@@ -178,6 +215,15 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                                 tIns.subList(0, tIns.size() - 1), frame, cp);
                         String eVal = BytecodeDecoder.stackValue(eIns, frame, cp);
                         if (tVal != null && eVal != null) {
+                            // coerção Bool: método `Z` com braços 1/0 → true/false
+                            // (o Kof exige Bool; medido — `return if (..) 1 else 0`
+                            // num Bool dá SEM010). Vale p/ && e || iguais.
+                            if ("Z".equals(frame.retType())) {
+                                if ("1".equals(tVal)) tVal = "true";
+                                if ("0".equals(tVal)) tVal = "false";
+                                if ("1".equals(eVal)) eVal = "true";
+                                if ("0".equals(eVal)) eVal = "false";
+                            }
                             out.add("    return if (" + cond + ") " + tVal + " else " + eVal);
                             emitted.add(exitStart);
                             emitted.add(joinAfterElse);

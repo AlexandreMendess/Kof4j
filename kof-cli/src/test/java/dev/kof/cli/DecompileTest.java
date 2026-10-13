@@ -1011,6 +1011,40 @@ class DecompileTest {
         assertEquals("0\n3\n3", output, "zero-drift executado");
     }
 
+    @Test
+    void orCombinationAndBoolCoercionRecover(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): o `||` (orientação ESPELHADA do &&) recupera +
+        // coerção Bool (braços 1/0 num método `Z` → true/false; antes o
+        // `&&` emitia `return if (..) 1 else 0` num Bool = SEM010).
+        Path javaFile = dir.resolve("Or.java");
+        Files.writeString(javaFile, """
+                public class Or {
+                    boolean or2(int a, int b) { return a > 0 || b > 0; }
+                    boolean and2(int a, int b) { return a > 0 && b > 0; }
+                    int orInIf(int a, int b) { if (a > 0 || b > 0) { return 1; } return 0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Or.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "|| e && recuperam:\n" + kof);
+        assertTrue(kof.contains("true") || kof.contains("false"),
+                "braços Bool viram true/false:\n" + kof);
+        // zero-drift executado
+        String kofRun = kof + "\nmain() {\n    var o = Or()\n    println(o.or2(1, 0))\n    println(o.or2(0, 0))\n    println(o.and2(1, 1))\n    println(o.and2(1, 0))\n    println(o.orInIf(0, 5))\n    println(o.orInIf(0, 0))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("true\nfalse\ntrue\nfalse\n1\n0", output, "zero-drift executado");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
