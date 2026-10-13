@@ -1113,6 +1113,38 @@ class DecompileTest {
         assertEquals("16\n-4\n2147483645\n1099511627776", output, "zero-drift dos shifts");
     }
 
+    @Test
+    void orChain3TermsRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): a cadeia `||` de 3+ termos (orChain) — os testes
+        // NAO-finais saltam para o VERDADEIRO (takenCond) e o ULTIMO cai no
+        // verdadeiro (invCond), diferente do `||` de 2 termos (assimetria
+        // medida). Antes: stub do método inteiro.
+        Path javaFile = dir.resolve("Oc.java");
+        Files.writeString(javaFile, """
+                public class Oc {
+                    boolean or3(int a, int b, int c) { return a > 0 || b > 0 || c > 0; }
+                    boolean or4(int a, int b, int c, int d) { return a > 0 || b > 0 || c > 0 || d > 0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Oc.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "a cadeia || de 3/4 termos recupera:\n" + kof);
+        assertTrue(kof.contains("arg0 > 0 || arg1 > 0 || arg2 > 0"), kof);
+        String kofRun = kof + "\nmain() {\n    var oc = Oc()\n    println(oc.or3(0, 0, 1))\n    println(oc.or3(0, 0, 0))\n    println(oc.or4(0, 0, 0, 5))\n    println(oc.or4(0, 0, 0, 0))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("true\nfalse\ntrue\nfalse", output, "zero-drift executado");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

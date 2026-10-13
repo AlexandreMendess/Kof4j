@@ -130,41 +130,40 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             }
         }
         if (cond == null) { BytecodeStatements.refuse("cond-null"); return false; }
-        // Fase C (13/10, short-circuit ||): orientacao ESPELHADA do && —
-        // o JUMP do teste externo e o braco VERDADEIRO e o fall-through e
-        // o SEGUNDO teste. Detecta: o then-bloco (fall-through) e um teste
-        // cujo FALL-THROUGH == o jump-target do externo (= o verdadeiro).
+        // Fase C (13/10, short-circuit ||): o `||` tem a orientacao
+        // ESPELHADA do &&. Medido (or2/or3): os testes NAO-finais saltam
+        // para o VERDADEIRO (takenCond; succ[0]==exitStart) e o ULTIMO teste
+        // cai no verdadeiro (invCond; succ[1]==exitStart) com o jump para o
+        // FALSO. O bloco externo (b) E o primeiro termo.
         if (!loop0) {
             int guard = 0;
-            BytecodeReader.Block tb = byStart.get(thenStart);
+            BytecodeReader.Block tb = b;
             String orCond = null;
             int realFalse = -1;
-            while (guard < 4 && tb != null && tb.succ.size() == 2
-                    && tb.succ.get(1) == exitStart && !BytecodeReader.isLoopHeader(tb)) {
-                List<BytecodeReader.Insn> tblk = BytecodeDecoder.insnsWithin(tb, insns);
-                if (tblk.isEmpty() || !tblk.get(tblk.size() - 1).isCond()) break;
-                // ASSIMETRIA: no `||` o teste EXTERNO tem o jump no braco
-                // VERDADEIRO (takenCond), mas os testes INTERNOS tem o jump
-                // no FALSO (invCond, como no &&/if-else) — medido (or2 dava
-                // `arg1 <= 0` com takenCond no interno; o correto e `> 0`)
-                String c2 = BytecodeDecoder.blockCondition(tb, insns, frame, cp);
-                if (c2 == null) break;
-                if (orCond == null) {
-                    orCond = BytecodeDecoder.blockConditionTaken(b, insns, frame, cp);
-                    if (orCond == null) break;
+            while (guard < 8 && tb != null && tb.succ.size() == 2
+                    && !BytecodeReader.isLoopHeader(tb)) {
+                if (tb.succ.get(0) == exitStart) {
+                    // nao-final: jump=VERDADEIRO
+                    String c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
+                    if (c2 == null) break;
+                    orCond = orCond == null ? c2 : orCond + " || " + c2;
+                    tb = byStart.get(tb.succ.get(1));
+                    guard++;
+                } else if (tb.succ.get(1) == exitStart && orCond != null) {
+                    // ULTIMO: jump=FALSO (invCond), o jump e o falso real
+                    String c2 = BytecodeDecoder.blockCondition(tb, insns, frame, cp);
+                    if (c2 == null) break;
+                    orCond = orCond + " || " + c2;
+                    realFalse = tb.succ.get(0);
+                    break;
+                } else {
+                    break;
                 }
-                orCond = orCond + " || " + c2;
-                realFalse = tb.succ.get(0);
-                tb = byStart.get(tb.succ.get(1));
-                guard++;
             }
             if (orCond != null && realFalse >= 0) {
-                // o jump externo (exitStart) e o VERDADEIRO; o falso real e o
-                // jump do ultimo teste interno — troca os papeis
                 cond = orCond;
-                int trueStart = exitStart;
-                thenStart = trueStart;
-                exitStart = realFalse;
+                thenStart = exitStart;   // o verdadeiro
+                exitStart = realFalse;   // o falso real
             }
         }
         // Fase C (13/10, short-circuit &&): o THEN-bloco é OUTRO teste
