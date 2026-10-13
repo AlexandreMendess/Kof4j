@@ -91,7 +91,7 @@ public final class KofInterpreter {
     private Class<?> runtimeClass;
     private boolean ui002Warned;
     final KofInterpreterBuiltins builtins;
-    private final KofInterpreterMembers members;
+    final KofInterpreterMembers members;
     private final KofInterpreterFrame frames;
     // #739: workDir fixo + estáticos compartilhados quando em sessão de REPL.
     private final Path sharedWorkDir;
@@ -559,30 +559,15 @@ public final class KofInterpreter {
         return full;
     }
 
-    IRMethod findKofMethod(IRClass c, String name, int argc) {
-        return members.findKofMethod(c, name, argc, null);
-    }
-
-    IRMethod findKofMethod(IRClass c, String name, int argc, List<Type> sig) {
-        return members.findKofMethod(c, name, argc, sig);
-    }
-
+    IRMethod findKofMethod(IRClass c, String name, int argc) { return members.findKofMethod(c, name, argc, null); }
+    IRMethod findKofMethod(IRClass c, String name, int argc, List<Type> sig) { return members.findKofMethod(c, name, argc, sig); }
     IRClass kofClassOf(Type t) { return members.kofClassOf(t); }
     IRClass kofClassOrNull(Type t) { return members.kofClassOrNull(t); }
     IRClass classByInternal(String internal) { return members.classByInternal(internal); }
 
     static Object defaultValue(Type t) { return KofInterpreterMembers.defaultValue(t); }
 
-    static int unboxInt(Object v) {
-        if (v instanceof Number num) return num.intValue();
-        if (v instanceof Character ch) return ch;
-        // §306(b): Boolean é a representação de verdade do slot Nullable(Bool)
-        // no JVM (referência boxed) e o interpretador passou a aceitar os dois
-        // canones (Integer 0/1 de ofBool e Boolean de coerceFor/get) — unroll
-        // do Boolean aqui é o equivalente do CHECKCAST+booleanValue do bytecode.
-        if (v instanceof Boolean b) return b ? 1 : 0;
-        throw new ClassCastException("not an int: " + v);
-    }
+    static int unboxInt(Object v) { return KofInterpreterMembers.unboxInt(v); }
 
     Class<?> runtimeClass() { return runtimeClass; }
     void setRuntimeClass(Class<?> c) { this.runtimeClass = c; }
@@ -600,23 +585,7 @@ public final class KofInterpreter {
     Map<String, Object> kofStatics(String internal) { return members.kofStatics(internal); }
 
     /** Invoca método de lambda/Runnable/Callable Kof com args reais. */
-    Object invokeLambda(Object lambda, Object[] args) throws Throwable {
-        if (lambda instanceof KofObj ko) {
-            IRClass c = members.classByInternal(ko.internalName());
-            IRMethod m = findKofMethod(c, "invoke", args.length);
-            if (m == null) m = findKofMethod(c, "run", args.length);
-            if (m == null) m = findKofMethod(c, "call", args.length);
-            if (m == null) throw new NoSuchMethodError(ko.internalName() + ".invoke/" + args.length);
-            return evalKof(c, m, prepend(ko, args), true);
-        }
-        for (Method mm : lambda.getClass().getMethods()) {
-            if (mm.getParameterCount() == args.length
-                    && (mm.getName().equals("invoke") || mm.getName().equals("run"))) {
-                return mm.invoke(lambda, args);
-            }
-        }
-        throw new NoSuchMethodError("lambda invoke(" + args.length + " args)");
-    }
+    Object invokeLambda(Object lambda, Object[] args) throws Throwable { return KofInterpreterInvoke.lambda(this, lambda, args); }
 
     /** toString canônico de valor Kof (records: Name[f=v, ...]). */
     String valueToString(Object v) { return builtins.kofToString(v); }
