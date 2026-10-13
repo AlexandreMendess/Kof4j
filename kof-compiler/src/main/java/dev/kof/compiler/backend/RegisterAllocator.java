@@ -57,6 +57,18 @@ public final class RegisterAllocator {
 
     /** Allocates {@code registerCount} colours over the graph. */
     public static Allocation allocate(InterferenceGraph graph, int registerCount) {
+        return allocate(graph, registerCount, null);
+    }
+
+    /**
+     * Allocates {@code registerCount} colours over the graph, using {@code
+     * spillCost} (when non-null) to choose WHICH node spills. When a node has no
+     * free colour, the cheapest-to-spill node among it and its already-coloured
+     * neighbours is spilled to make room; a lower-cost neighbour is preferred
+     * over spilling the current node.
+     */
+    public static Allocation allocate(InterferenceGraph graph, int registerCount,
+                                      SpillCost spillCost) {
         if (registerCount < 1) {
             throw new IllegalArgumentException("registerCount must be >= 1");
         }
@@ -67,21 +79,56 @@ public final class RegisterAllocator {
         Map<Integer, Integer> colorOf = new TreeMap<>();
         Set<Integer> spills = new java.util.TreeSet<>();
         for (int slot : nodes) {
-            Set<Integer> used = new HashSet<>();
-            for (int n : graph.neighbors(slot)) {
-                Integer c = colorOf.get(n);
-                if (c != null && c >= 0) used.add(c);
+            Set<Integer> used = usedColors(graph, colorOf, slot);
+            int chosen = lowestFree(used, registerCount);
+            if (chosen >= 0) {
+                colorOf.put(slot, chosen);
+                continue;
             }
-            int chosen = -1;
-            for (int c = 0; c < registerCount; c++) {
-                if (!used.contains(c)) {
-                    chosen = c;
-                    break;
+            // No free colour: spill the cheapest node among {slot} and its
+            // coloured neighbours. Without a cost model, spill the current node.
+            int victim = slot;
+            if (spillCost != null) {
+                int best = spillCost.costOf(slot);
+                for (int n : graph.neighbors(slot)) {
+                    Integer c = colorOf.get(n);
+                    if (c == null || c < 0) continue;
+                    int cost = spillCost.costOf(n);
+                    if (cost < best || (cost == best && n > victim && victim == slot)) {
+                        best = cost;
+                        victim = n;
+                    }
                 }
             }
-            colorOf.put(slot, chosen);
-            if (chosen < 0) spills.add(slot);
+            if (victim == slot) {
+                colorOf.put(slot, -1);
+                spills.add(slot);
+            } else {
+                colorOf.put(victim, -1);
+                spills.add(victim);
+                // Recompute: freeing the victim may have made a colour available.
+                int freed = lowestFree(usedColors(graph, colorOf, slot), registerCount);
+                colorOf.put(slot, freed);
+                if (freed < 0) spills.add(slot);
+            }
         }
         return new Allocation(Map.copyOf(colorOf), Set.copyOf(spills));
+    }
+
+    private static Set<Integer> usedColors(InterferenceGraph graph,
+                                           Map<Integer, Integer> colorOf, int slot) {
+        Set<Integer> used = new HashSet<>();
+        for (int n : graph.neighbors(slot)) {
+            Integer c = colorOf.get(n);
+            if (c != null && c >= 0) used.add(c);
+        }
+        return used;
+    }
+
+    private static int lowestFree(Set<Integer> used, int registerCount) {
+        for (int c = 0; c < registerCount; c++) {
+            if (!used.contains(c)) return c;
+        }
+        return -1;
     }
 }
