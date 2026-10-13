@@ -43,4 +43,33 @@ public final class RuntimeMisc {
             """);
     }
 
+    /**
+     * §678 face B (D-SEM-REJECTS-1210): o cast de referência SIMPLES é
+     * ESTRITO — `kof_cast_check(obj, typeId)` devolve o MESMO objeto quando
+     * passa (incluindo `null`, a semântica CHECKCAST do JVM, o oráculo) e
+     * derruba via `kof_panic` quando não é instância. Antes disto o emissor
+     * x86 baixava `KofCheckCast` para NO-OP e o valor do tipo errado seguia.
+     */
+    public static void emitCastCheck(StringBuilder sb) {
+        sb.append("""
+            .globl kof_cast_check
+            .type kof_cast_check, @function
+            kof_cast_check:
+                testq %rdi, %rdi
+                jz .Lkof_cast_ok
+                pushq %rdi
+                call kof_instanceof
+                popq %rdi
+                testl %eax, %eax
+                jz .Lkof_cast_fail
+            .Lkof_cast_ok:
+                movq %rdi, %rax
+                ret
+            .Lkof_cast_fail:
+                leaq .Lkof_cast_msg(%rip), %rdi
+                call kof_panic
+            .Lkof_cast_msg: .asciz "type cast failed"
+            """);
+    }
+
 }

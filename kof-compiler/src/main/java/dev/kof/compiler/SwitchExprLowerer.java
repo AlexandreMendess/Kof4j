@@ -26,9 +26,15 @@ public final class SwitchExprLowerer {
         // sintético precisa ter o tipo do RESULTADO (corpo dos casos), não o tipo
         // do subject. Sem isso, `switch(c){case Color.Red -> 1 ...}` fazia o merge
         // int-vs-referência do enum → VerifyError (Integer vs int) no JVM.
-        boolean differ = ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
-                driver, se.cases(), se.defaultValue(), resultType, locals));
-        Type fallbackType = differ ? new Type.ClassType("java.lang", "Object", List.of()) : resultType;
+        // #819: quando os ramos têm um supertipo comum REAL, o fallback sintético
+        // deve ter esse supertipo (resultType já é o join) — forçá-lo a Object
+        // alargava o merge do `endLabel` para Object e o `areturn` do método
+        // (declarando o supertipo) recebia Object → VerifyError. O Object só
+        // permanece como fallback honesto quando não há ancestral comum
+        // (ramos primitivos heterogêneos já chegam aqui com resultType = Object).
+        Type fallbackType = Type.isUnknown(resultType)
+                ? new Type.ClassType("java.lang", "Object", List.of())
+                : resultType;
         int switchTmp = localIdx++;
         localIdx = ExpressionLowerer.emitExpression(driver, se.expression(), ops, owner, localIdx, locals);
         ops.add(new KofStoreLocal(switchType, switchTmp));
@@ -45,7 +51,7 @@ public final class SwitchExprLowerer {
                 localIdx = ExpressionLowerer.emitExpression(driver, defaultValue, ops, owner, localIdx, locals);
                 // #57/§70: corpos com tipos distintos → boxa ramo primitivo
                 // in-branch (join só de referências); callers pulam pós-box.
-                if (ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+                if (ExpressionBranchJoin.branchTypesDiffer(ExpressionBranchJoin.switchBranchTypes(
                         driver, cases, defaultValue, fallbackType, locals))) {
                     ExpressionTyper.boxPrimitiveBranch(driver, ops,
                             ExpressionTyper.inferExprType(driver, defaultValue, locals));
@@ -59,7 +65,12 @@ public final class SwitchExprLowerer {
         LabelId bodyLabel = LabelId.create();
         LabelId elseLabel = LabelId.create();
         LabelId endLabel = LabelId.create();
-        if (sc.value() instanceof PatternExpr pe) {
+        // #817: a forma bare `case Tipo ->` (subtipo DIRETO de um sujeito sealed)
+        // entra no MESMO caminho do pattern — antes virava comparação de VALOR e
+        // nunca casava (resultado silenciosamente errado, não só o SEM081 falso).
+        PatternExpr pe = sc.value() instanceof PatternExpr p ? p
+                : MemberResolver.bareSealedSubtypeCase(driver.semanticAnalyzer, switchType, sc.value());
+        if (pe != null) {
             Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
             if (TypeMetrics.isPrimitiveType(patType)) {
@@ -123,7 +134,7 @@ public final class SwitchExprLowerer {
         }
         localIdx = ExpressionLowerer.emitExpression(driver, sc.body(), ops, owner, localIdx, locals);
         // #57/§70: corpos com tipos distintos → boxa corpo primitivo in-branch.
-        if (ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+        if (ExpressionBranchJoin.branchTypesDiffer(ExpressionBranchJoin.switchBranchTypes(
                 driver, cases, defaultValue, fallbackType, locals))) {
             ExpressionTyper.boxPrimitiveBranch(driver, ops,
                     ExpressionTyper.inferExprType(driver, sc.body(), locals));

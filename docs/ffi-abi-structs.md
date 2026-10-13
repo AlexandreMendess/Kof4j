@@ -83,9 +83,7 @@ JVM==Native + `FfiStructLayoutTest` (classification, no C toolchain).
 an SSE eightbyte packing more than one field is emitted bitwise (`%rax`
 shift/or → `movq %xmm`; SSE is bitwise so no FP conversion) — the x86-64 form of
 the cross HFA face, so a homogeneous-float struct of **≤ 2 fields** (`record
-VF(Float, Float)`) now binds on x86-64 too. The cutoff is the SAME as the cross
-(`crossHomogeneousFloat`, ≤ 2 fields): **HFA>2 stays `FFI001`** (in the cross the
-two ABIs diverge there; keeping x86-64 aligned avoids a silent divergence).
+VF(Float, Float)`) now binds on x86-64 too. The x86-64 cutoff stays at the ≤ 2 homogeneous-float form; **HFA>2 is refused on x86-64 AND aarch64** (`FFI001`) — but **MEASURED 13/10: it BINDS on riscv64** (LP64D packs >2 fields into integer doublewords; `F3(Float,Float,Float)` → `6.0` == the JVM oracle, verified against a real C shim). Symmetrically, **mixed float+int is refused only on the CROSS wire — it BINDS on x86-64** (`sseEightbytesAreSingleField`).
 Proof: `FfiStructE2ETest` `structParamAndReturnFloatByValueNative`
 (`F2(Float,Float)` param AND return, byte-for-byte JVM==Native) and
 `structParamThreeFloatStaysFfi001` (HFA>2 = honest `FFI001`) +
@@ -126,7 +124,7 @@ struct **parameter** path on the cross LANDED 30/09 (`D-MEM-FFI-CROSS-FULL` face
 `FfiStructLayoutTest.crossIntReturnIsBindableOnlyForIntegerRegisterPath`.
 `T[]`/`Buffer` (faces 1–2, `D-MEM-FFI-CROSS-FULL`) and the memory-path struct
 RETURN (face 3, below) have since landed; the >16 B by-value struct **param**
-landed in the same face; callbacks have since landed too (11/10, M1 unidade-4 — a generated trampoline on x86-64 + cross riscv64/aarch64, `FfiNativeCallbackE2ETest`); only a callback with a `String` ARGUMENT binds on Native x86-64 AND cross riscv64/aarch64 (the trampoline bridges `char*`→`String` via `kof_ffi_from_cstr`; `FfiNativeCallbackStrE2ETest`), while a callback whose ABI mentions `String` (ARGUMENT or RETURN) now BINDS on Native x86-64 AND cross riscv64/aarch64 (M1 unidade-4, 11/10: the arg bridges `char*`→`String` via `kof_ffi_from_cstr`; the return hands C the payload `char*` (obj+24) of the String the `invoke` produced); a `String` ARGUMENT binds on x86-64 AND cross riscv64/aarch64.
+landed in the same face; callbacks have since landed too (11/10, M1 unidade-4 — a generated trampoline on x86-64 + cross riscv64/aarch64, `FfiNativeCallbackE2ETest`); a callback whose ABI mentions `String` (ARGUMENT or RETURN) binds on Native x86-64 AND cross riscv64/aarch64 (M1 unidade-4, 11/10: the arg bridges `char*`→`String` via `kof_ffi_from_cstr`; the return hands C the payload `char*` (obj+24) of the String the `invoke` produced).
 **Landed 22/09 (3.7 fatia 4 · cross struct PARAM, INTEGER register path):** the
 riscv64/aarch64 emitters now bind a `record` scalar-INTEGER-fields struct **by
 value as an argument** — gate `nativeExternBound` accepts struct params on the

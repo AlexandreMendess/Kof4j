@@ -412,6 +412,27 @@ public final class MemberResolver {
         return subs;
     }
 
+    /**
+     * #817 (ordem da mantenedora 12/10): `case &lt;Tipo&gt; -&gt;` — a forma BARE, sem
+     * binding, num switch sobre `sealed` é um TYPE TEST: o nome é um subtipo
+     * DIRETO do sujeito. O parser a deixa como expressão comum
+     * ({@link IdentifierExpr}), então a cobertura não a via (SEM081 acusando um
+     * caso presente) e o lowering a emitia como comparação de VALOR — que NUNCA
+     * casa, em silêncio. Devolve o pattern equivalente ({@code varName == null})
+     * para a cobertura E o lowering rotearem pelo caminho de pattern; null
+     * quando NÃO é essa forma (constante/valor comum segue como sempre — um
+     * identificador que não é subtipo direto do sujeito continua sendo valor).
+     */
+    static PatternExpr bareSealedSubtypeCase(SemanticAnalyzer sa, Type subjectType, ExpressionNode value) {
+        if (sa == null || !(subjectType instanceof Type.ClassType sct) || !sa.isSealedType(sct.name())) {
+            return null;
+        }
+        if (!(value instanceof IdentifierExpr ie)) return null;
+        String simple = ClassShapeChecks.simpleName(ie.name());
+        if (!sealedDirectSubtypes(sa, sct.name()).contains(simple)) return null;
+        return new PatternExpr(ie.position(), ie.name(), null);
+    }
+
     static void checkSwitchExprExhaustiveness(SemanticAnalyzer sa, SwitchExpr se, Type subjectType) {
         // X5.2 (D-X5-SURFACE): sujeito `sealed` — os subtipos DIRETOS são o
         // conjunto fechado; cobrir todos os casos de pattern dispensa o
@@ -421,6 +442,10 @@ public final class MemberResolver {
             for (SwitchExprCase sc : se.cases()) {
                 if (sc.value() instanceof PatternExpr pe) {
                     covered.add(ClassShapeChecks.simpleName(pe.typeName()));
+                } else {
+                    // #817: a forma bare `case Tipo ->` TAMBÉM cobre o subtipo.
+                    PatternExpr bare = bareSealedSubtypeCase(sa, subjectType, sc.value());
+                    if (bare != null) covered.add(ClassShapeChecks.simpleName(bare.typeName()));
                 }
             }
             List<String> subtypes = sealedDirectSubtypes(sa, sct.name());
@@ -472,6 +497,10 @@ public final class MemberResolver {
             for (SwitchCase sc : ss.cases()) {
                 if (sc.value() instanceof PatternExpr pe) {
                     covered.add(ClassShapeChecks.simpleName(pe.typeName()));
+                } else {
+                    // #817: idem forma-expression — a bare `case Tipo:` cobre.
+                    PatternExpr bare = bareSealedSubtypeCase(sa, subjectType, sc.value());
+                    if (bare != null) covered.add(ClassShapeChecks.simpleName(bare.typeName()));
                 }
             }
             List<String> missing = sealedDirectSubtypes(sa, sct.name()).stream()
@@ -503,60 +532,10 @@ public final class MemberResolver {
         // o lowering (SEM031 sumiria). #686 cobre só sealed + Bool.
     }
 
-    /**
-     * SG-015 (#256): classe concreta que estende classe abstrata deve implementar
-     * todos os métodos abstratos herdados da cadeia de superclasses.
-     */
     static void checkAbstractClassImplementation(SemanticAnalyzer sa, ClassDeclarationNode cls) {
-        if (sa.diagnostics() == null || cls.modifiers().contains("abstract")) return;
-        String curSuper = cls.superClass();
-        java.util.Set<String> checkedMethods = new java.util.HashSet<>();
-        while (curSuper != null && !curSuper.isEmpty() && !"Object".equals(curSuper)) {
-            String simpleSuper = curSuper.contains("/") ? curSuper.substring(curSuper.lastIndexOf("/") + 1) : curSuper;
-            if (simpleSuper.contains("<")) simpleSuper = simpleSuper.substring(0, simpleSuper.indexOf("<"));
-            SymbolTable.ClassSymbol superCs = sa.allClasses().get(simpleSuper);
-            if (superCs == null) break;
-            for (java.util.Map.Entry<String, SymbolTable.Symbol> e : superCs.members().localSymbols().entrySet()) {
-                if (!(e.getValue() instanceof SymbolTable.MethodSymbol am)) continue;
-                if ((am.accessFlags() & AccessFlags.ABSTRACT) == 0) continue;
-                // §242: a chave é a ASSINATURA (nome + tipos de parâmetro), não
-                // a aridade — duas sobrecargas de mesma aridade mas tipos
-                // diferentes são abstratos DISTINTOS. Sem isto, o dedup
-                // colapsava-as e um `Int run(Int)` podia "satisfazer"
-                // `abstract Int run(String)` (AbstractMethodError em runtime).
-                String methodKey = am.name() + TopLevelOverload.sigTag(am.parameterTypes());
-                if (!checkedMethods.add(methodKey)) continue;
-                SymbolTable.Symbol local = resolveInHierarchy(sa, cls.name(), am.name());
-                boolean implemented = false;
-                if (local instanceof SymbolTable.MethodSymbol lm) {
-                    implemented = satisfiesAbstract(lm, am);
-                } else if (local instanceof SymbolTable.MethodSet set) {
-                    for (SymbolTable.MethodSymbol lm : set.methods()) {
-                        if (satisfiesAbstract(lm, am)) {
-                            implemented = true;
-                            break;
-                        }
-                    }
-                }
-                if (!implemented) {
-                    sa.diagnostics().error(cls,
-                            "class '" + cls.name() + "' does not implement abstract method '"
-                                    + am.name() + "()' from superclass '" + superCs.name() + "'",
-                            "SEM043");
-                }
-            }
-            curSuper = superCs.superClass();
-        }
+        AbstractImplementationCheck.check(sa, cls);
     }
-
-    /**
-     * §242: um método concreto satisfaz um abstrato quando NÃO é abstrato e a
-     * assinatura casa — mesma aridade E mesmos tipos de parâmetro (o que a JVM
-     * exige para o override). Antes o check comparava só a ARIDADE: um
-     * `Int run(Int)` "satisfazia" `abstract Int run(String)` e o
-     * `AbstractMethodError` voltava em runtime.
-     */
-    private static boolean satisfiesAbstract(SymbolTable.MethodSymbol concrete,
+    static boolean satisfiesAbstract(SymbolTable.MethodSymbol concrete,
                                              SymbolTable.MethodSymbol abstractMethod) {
         if ((concrete.accessFlags() & AccessFlags.ABSTRACT) != 0) return false;
         if (concrete.parameterTypes().size() != abstractMethod.parameterTypes().size()) return false;

@@ -49,7 +49,9 @@ int switchTmp = localIdx++;
 localIdx = ExpressionLowerer.emitExpression(driver, ss.expression(), ops, owner, localIdx, locals);
 ops.add(new KofStoreLocal(switchType, switchTmp));
 locals.add(new IRLocalVariable(switchTmp, "#switch", switchType));
-boolean hasPattern = ss.cases().stream().anyMatch(sc -> sc.value() instanceof PatternExpr);
+boolean hasPattern = ss.cases().stream().anyMatch(sc -> sc.value() instanceof PatternExpr
+        // #817: a forma bare `case Tipo:` (subtipo sealed) também é pattern.
+        || MemberResolver.bareSealedSubtypeCase(driver.semanticAnalyzer, switchType, sc.value()) != null);
 if (hasPattern) {
     // Pattern switch lowered as if-else chain (no switch subject needed beyond #switch)
     List<LabelId> bodyLabels = new ArrayList<>();
@@ -69,7 +71,9 @@ if (hasPattern) {
         if (i > 0) ops.add(new KofLabel(nextTestLabels.get(i)));
         SwitchCase sc = ss.cases().get(i);
         LabelId nextTest = i + 1 < ss.cases().size() ? nextTestLabels.get(i + 1) : defaultLabelPat;
-        if (sc.value() instanceof PatternExpr pe) {
+        PatternExpr pe = sc.value() instanceof PatternExpr p ? p
+                : MemberResolver.bareSealedSubtypeCase(driver.semanticAnalyzer, switchType, sc.value());
+        if (pe != null) {
             Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
             if (TypeMetrics.isPrimitiveType(patType)) {
@@ -149,7 +153,9 @@ if (hasPattern) {
     for (int i = 0; i < ss.cases().size(); i++) {
         SwitchCase sc = ss.cases().get(i);
         ops.add(new KofLabel(bodyLabels.get(i)));
-        if (sc.value() instanceof PatternExpr pe) {
+        PatternExpr pe = sc.value() instanceof PatternExpr p ? p
+                : MemberResolver.bareSealedSubtypeCase(driver.semanticAnalyzer, switchType, sc.value());
+        if (pe != null) {
             Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
             if (TypeMetrics.isPrimitiveType(patType)) {
@@ -173,7 +179,12 @@ if (hasPattern) {
                 int varIdx = localIdx++;
                 locals.add(new IRLocalVariable(varIdx, pe.varName(), patType));
                 ops.add(new KofStoreLocal(patType, varIdx));
-            } else if (!pe.fieldVars().isEmpty()) {
+            } else {
+                // #817: uma pattern SEM binding (a forma bare `case Tipo:`) não
+                // tem var nem fieldVars — sem o store num slot de rascunho o
+                // valor empilhado acima VAZA e o COMPUTE_FRAMES estoura
+                // (ArrayIndexOutOfBounds no visitMaxs). Mesmo desenho do
+                // emitPatternBinding da forma-expression.
                 int castTmp = localIdx++;
                 locals.add(new IRLocalVariable(castTmp, "#patCast", patType));
                 ops.add(new KofStoreLocal(patType, castTmp));

@@ -202,7 +202,12 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     ExternalClasspath.MethodSignature extSig = driver.externalClasspath
             .resolveMethodWithArgs(javaClass, mc.methodName(), mc.arguments().size(), actualArgTypes);
     if (extSig != null) {
-        List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
+        // §686: `String.valueOf(contêiner)` no alvo nativo — a assinatura JDK
+        // `valueOf(Object)` apaga o tipo e o emissor imprimia o PONTEIRO cru;
+        // o tipo estático Kof volta aqui (NativeValueOfArgs). JVM/JS/Script
+        // seguem a assinatura do JDK.
+        List<Type> extFormal = NativeValueOfArgs.recover(driver, mc,
+                VarargsArrayPacker.formalTypes(extSig), locals);
         Type extRet = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
         // §500: `String.join(CharSequence, CharSequence...)` etc. — os args
         // finais empacotam no array do tipo componente (descritor REAL),

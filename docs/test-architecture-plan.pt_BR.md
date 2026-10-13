@@ -1572,6 +1572,117 @@ byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado; `tests/run
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
 
+**Fase 6 fatia 45 POUSADA (12/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **70 no total** — pinando a concatenação de `String` de uma coleção, que não tinha
+cobertura golden. O novo caso `tests/golden/collection-concat` pina `"L=" + listOf(1,2,3)`
+→ `L=[1, 2, 3]`, um `Set` → `[a, b]`, um `Map` → `{k=1}`, uma lista aninhada → `[[1], [2]]`, uma
+lista VAZIA → `[]`, a forma crua `"" + list`, o concat de um record, e o misto
+`"mix=" + l.size + "/" + s.size`. As 9 faces concordam byte-a-byte nos quatro alvos.
+**BUG ACHADO + CORRIGIDO (Q0/Q4):** escrever o caso revelou o **§685** — no alvo JS o concat
+usava o `Array.prototype.toString`/`[object Set]`/`[object Map]` do HOST (`L=1,2,3`) em vez
+da forma de container do Kof: o desugar do `+` boxeia o operando para `Object` (a assinatura
+`valueOf(Object)` da JVM) e o `valueOf` do JS caía num `String(x)` cru, seus ramos de
+container nunca casando o tipo `Object` apagado. CORRIGIDO no mesmo commit roteando o caso
+apagado-`Object` por `kofFormat` (o formatador de container do Kof, idêntico ao `String(x)`
+para escalar/String/record), com um teste RED-first (`CollectionConcatJsE2ETest` **1/2 FALHAM
+pré-correção** → **2 rodados / 0F** pós-correção). Uma face SEPARADA — o
+`String.valueOf(coleção)` DIRETO no alvo NATIVO, cujo caminho de box-para-Object escreve um
+ponteiro cru — foi catalogada ABERTA como **§686** e é deliberadamente NÃO pinada. Esta é a
+QUARTA fatia que carrega um fix de compilador. Prova (executada): cada valor medido primeiro
+no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado;
+`tests/run-golden.sh` **280/280** (70 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile`
+rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0.
+
+**Fase 6 fatia 46 POUSADA (13/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **71 no total** — pinando o cast de referência NULÁVEL `x as T?` (o cast suave
+sempre-null, a semântica fixada por `D-SEM-REJECTS-1210`), que não tinha cobertura no golden.
+O novo caso `tests/golden/nullable-soft-cast` pina `a as Dog?` (um valor `Animal()`) → `null`,
+o mesmo valor `as Animal?` → mantido, um `Dog()` de verdade `as Dog?` → mantido +
+`instanceof Dog`, e `o: Object = 42` `as String?` → `null`. Os seis valores impressos
+concordam byte-a-byte nos quatro alvos. **BUG ACHADO + CORRIGIDO (Q0/Q4):** escrever o caso
+expôs a metade FACE A do **§678** — o cast de referência nulável baixava para um
+`KofCheckCast` cru, que os backends value-typed baixam para um NO-OP, então o JS e os três
+alvos nativos devolviam o objeto do tipo ERRADO em vez de `null` (as faces JVM+Script já
+estavam verdes pelo pouso de 12/10 do peer; a comparação de programa inteiro no JS ainda
+estava VERMELHA). CORRIGIDO no mesmo commit desugarando o cast de REFERÊNCIA nulável no
+`ExpressionBinaryInstanceOfLowerer` COMPARTILHADO para `if (x instanceof T) x else null` (o
+valor por um local temporário `#softcast`, então `x` é avaliado uma vez e cada ramo carrega
+ops — o parser de if-expr do JS exige ramo não-vazio), o que faz os quatro alvos concordarem
+POR CONSTRUÇÃO sem runtime novo; o alvo NULÁVEL PRIMITIVO mantém o próprio caminho de unbox
+abaixo e não é tocado. RED-first (`SoftCastNullableE2ETest` 6 faces: **4 VERMELHAS
+pré-correção** → **6 run / 0F** pós); o §678 seguiu vivo pela FACE B no alvo nativo nesta fatia (o `as`
+simples precisa CHECAR e LANÇAR lá) [*superado 13/10: as faces NATIVAS da FACE B pousaram, o `§678` está FECHADO*]. Esta é a QUINTA fatia que carrega um fix de compilador.
+Prova (executada): cada valor medido primeiro no alvo Script, cruzado byte-a-byte em
+jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **284/284**
+(71 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0 (o RED pré-existente do `check_500` — ExpressionTyper, KofInterpreter,
+NativeRiscvAsmRt0 mais Translate/MemberResolver/StatementLowerer dos peers — é dívida de outras
+lanes e não é tocado aqui).
+
+**Fase 6 fatia 47 POUSADA (13/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **72 no total** — pinando VALORES de `Char`: a leitura de volta de um `Char[]` comparada
+contra um literal char, contra outra leitura de `Char[]`, contra o `charAt` (as duas grafias que
+têm de concordar), mais `!=`, o par ordenado, `as Int` e um `charAt` com case dobrado. O novo caso
+`tests/golden/char-values` pina os onze valores impressos, byte-idênticos nos quatro alvos.
+**BUG ACHADO + CORRIGIDO (Q0/Q4):** escrever o caso expôs o **§690** — o `char[]` do interpretador
+guarda `Character` de verdade (o §185 precisa deles para o `Array.set`) e o
+`KofInterpreterValues.numEq` só entendia `Number`, então `"abc".toCharArray()[0] == 'a'` era
+FALSO no Script enquanto o JVM/nativo/JS diziam true; as faces ORDENADAS já concordavam porque
+passam pelo `KofInterpreter.unboxInt`, que conhece `Character`/`Boolean`. CORRIGIDO no mesmo
+commit normalizando os canons boxados no `numEq` (`KofInterpreterValues.numericCanon`), então a
+igualdade entra no mesmo espaço numérico do caminho ordenado. RED-first
+(`CharBoxedCanonEqualityE2ETest`, Script contra o oráculo JVM em dez faces: **1 das suas 6 faces de
+alvo FALHA pré-correção** — a única que lê um canon boxado — e as 6 passam depois). Esta é a SEXTA
+fatia que carrega um fix de compilador. Prova (executada): cada valor medido primeiro no alvo
+Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado;
+`tests/run-golden.sh` **288/288** (72 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0.
+
+**Fase 6 fatia 48 POUSADA (13/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **73 no total** — pinando o `List.zip`, que tinha ZERO cobertura de golden (o operador só
+era exercitado pelo `ListZipE2ETest`). O novo caso `tests/golden/zip-pairs` pina o contrato
+DECIDIDO (`D-MULTIPARADIGMA-ZIP`: o record `Pair<A,B>`, truncando na lista MAIS CURTA) — o tamanho
+truncado, os dois campos do `Pair` em cada índice mantido, o caso de tamanhos iguais, o caso vazio
+de um dos lados (tamanho 0) e uma concatenação `first + "=" + second`. Os doze valores impressos
+concordam byte-a-byte nos quatro alvos.
+**Fronteira medida ao escrever o caso:** o tipo de elemento é `String` dos DOIS lados de
+propósito. Um elemento PRIMITIVO faz o alvo nativo recusar a chamada com `NAT008`
+(`D-MULTIPARADIGMA-ZIP-NATIVE` — um slot primitivo cru visto pela type variable nua
+`zipPairs<A,B>` seria desboxado como ponteiro), então um caso de elemento primitivo não rodaria
+nos quatro alvos; o caminho de elemento-referência é o que roda em todos. Também medido: o lado
+VAZIO precisa ser tipado (`listOf("solo").drop(1)`, não um `listOf()` nu), porque o literal nu
+infere elemento desconhecido e cai no mesmo gate `NAT008` — o golden pina a forma tipada, que é o
+que um programa Kof escreve. Prova (executada): cada valor medido primeiro no alvo Script, cruzado
+byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh`
+**292/292** (73 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
+
+**Fase 6 fatia 49 POUSADA (13/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **74 no total** — pinando a superfície de VALOR do record, que não tinha golden nenhum: o
+caso `records` existente pina só o acesso a COMPONENTE e uma comparação por componente
+(`p.x() + p.y()`, `p.x() == 3`). O novo caso `tests/golden/record-values` pina a forma do
+`toString` de um record (`Ponto[x=1, y=2]`, e um segundo record com forma `String` + `Int`), o `==`
+do record inteiro nas DUAS direções (igual e diferente, mais uma comparação construída na hora),
+um record DENTRO de uma lista (a forma impressa, o tamanho e o `contains` acertando e errando), e
+um record como VALOR de Map (lido de volta, comparado e `containsKey`). Os dezoito valores
+impressos concordam byte-a-byte nos quatro alvos.
+**Por que o gap importava:** a semântica de valor do record é exatamente a superfície que um golden
+existe para proteger — o `==` num record é igualdade de CONTEÚDO (não identidade) nos quatro alvos,
+e a forma do `toString` é o contrato do qual o printer de contêiner compõe, então uma regressão ali
+mudaria em silêncio toda coleção de records impressa. Sondado nos quatro alvos ANTES de congelar
+(Script primeiro, depois jvm/nativo/js), conforme a regra de ouro do plano. Prova (executada):
+`tests/run-golden.sh` **296/296** (74 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:

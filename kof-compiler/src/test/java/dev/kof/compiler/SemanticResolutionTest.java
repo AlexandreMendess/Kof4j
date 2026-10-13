@@ -469,10 +469,12 @@ class SemanticResolutionTest extends SemanticResolutionSupport {
     // compile-time (família SEM054 do bug 103). Unknown/generic NÃO são
     // flagados (podem ser List/array em runtime, SG-008). ----
 
+    // EVOLUÇÃO (a diretiva da mantenedora 13/10): a face String SAIU dos
+    // rejeitados — `for (var c in s)` itera CharS (ForInStringE2ETest); Map/Set/Int
+    // continuam SEM058 (frozen; a iteração de entradas seria decisão própria).
     @Test
     void forInNonIterableRejected(@TempDir Path tmp) throws IOException {
         String[] exprs = {
-            "var s = \"abc\"; for (var c in s) { println(c) }",
             "var m = mapOf(\"a\", 1); for (var e in m) { println(e) }",
             "var st = setOf(\"a\"); for (var e in st) { println(e) }",
             "var n = 3; for (var x in n) { println(x) }" };

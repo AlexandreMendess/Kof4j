@@ -209,18 +209,24 @@ public final class NativeX86Arith {
             case SUB -> sb.append("    sub").append(suf).append(" %").append(a32).append("cx, %").append(a32).append("ax\n");
             case MUL -> sb.append("    imul").append(suf).append(" %").append(a32).append("cx, %").append(a32).append("ax\n");
             case DIV -> {
+                String divzSfx = divZeroLabel();
+                emitDivZeroGuard(sb, int32, divzSfx);
                 if (int32) {
                     sb.append("    cdq\n    idivl %ecx\n");
                 } else {
                     sb.append("    cqo\n    idivq %rcx\n");
                 }
+                emitDivZeroGuardEnd(sb, divzSfx);
             }
             case MOD -> {
+                String divzSfx = divZeroLabel();
+                emitDivZeroGuard(sb, int32, divzSfx);
                 if (int32) {
                     sb.append("    cdq\n    idivl %ecx\n    movl %edx, %eax\n");
                 } else {
                     sb.append("    cqo\n    idivq %rcx\n    movq %rdx, %rax\n");
                 }
+                emitDivZeroGuardEnd(sb, divzSfx);
             }
             case EQ -> sb.append("    cmp").append(suf).append(" %").append(a32).append("cx, %").append(a32).append("ax\n    sete %al\n    movzbl %al, %eax\n");
             case NE -> sb.append("    cmp").append(suf).append(" %").append(a32).append("cx, %").append(a32).append("ax\n    setne %al\n    movzbl %al, %eax\n");
@@ -331,6 +337,30 @@ public final class NativeX86Arith {
             return;
         }
         sb.append("    popq %rax\n");
+        // §695: `as Byte`/`as Short` ESTREITAM — o emissor não tinha ramo para
+        // I2B/I2S e os dois caíam no `pushq` final como NO-OP: `200 as Byte`
+        // devolvia 200 no nativo enquanto Script/JVM/JS davam -56 (o byte
+        // 0xC8 sign-extended). O JVM emite `i2b`/`i2s`; aqui é o equivalente
+        // em duas instruções (sign-extend da metade baixa).
+        if (ku.op() == KofUnaryOp.I2B) {
+            sb.append("    movsbl %al, %eax\n");
+            sb.append("    pushq %rax\n");
+            return;
+        }
+        if (ku.op() == KofUnaryOp.I2S) {
+            sb.append("    movswl %ax, %eax\n");
+            sb.append("    pushq %rax\n");
+            return;
+        }
+        // §697: `as Char` mascara para 16 bits (o JVM emite `i2c`). Este
+        // emissor NÃO tinha ramo para I2C — o cast caía no `pushq` final e o
+        // valor passava CRU: `(70000 as Char) as Int` dava 70000 aqui e 4464
+        // (70000 & 0xFFFF) em Script/JVM. ZERO-extend: o Char é sem sinal.
+        if (ku.op() == KofUnaryOp.I2C) {
+            sb.append("    movzwl %ax, %eax\n");
+            sb.append("    pushq %rax\n");
+            return;
+        }
         boolean int32u = NativeTypeKinds.isInt32Type(ku.operandType());
         String suf = int32u ? "l" : "q";
         String reg = int32u ? "%eax" : "%rax";
@@ -366,6 +396,35 @@ public final class NativeX86Arith {
      */
     private static java.util.concurrent.atomic.AtomicLong SAT_SEQ =
             new java.util.concurrent.atomic.AtomicLong();
+
+    /** §693: divisor de RUNTIME zero — o `idiv` TRAVA (SIGFPE) e o trap nao e
+     *  um throwable do Kof, entao o `try`/`catch` do usuario nao o salvava. A
+     *  guarda checa ANTES e desvia para o `kof_throw_string` (o mesmo caminho
+     *  que a paginacao e o `throw "msg"` usam), fazendo a falha virar um throw
+     *  capturavel — a semantica do JVM/Script, que e o contrato. */
+    private static java.util.concurrent.atomic.AtomicLong DIVZ_SEQ =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    private static String divZeroLabel() {
+        return Long.toString(DIVZ_SEQ.incrementAndGet());
+    }
+
+    private static void emitDivZeroGuard(StringBuilder sb, boolean int32, String sfx) {
+        sb.append(int32 ? "    testl %ecx, %ecx\n" : "    testq %rcx, %rcx\n");
+        sb.append("    jz .Ldivz_").append(sfx).append("\n");
+    }
+
+    private static void emitDivZeroGuardEnd(StringBuilder sb, String sfx) {
+        sb.append("    jmp .Ldivz_done_").append(sfx).append("\n");
+        sb.append(".Ldivz_").append(sfx).append(":\n");
+        sb.append("    leaq .Ldivz_msg_").append(sfx).append("(%rip), %rdi\n");
+        sb.append("    call kof_throw_string\n");
+        sb.append("    ud2\n");
+        sb.append(".Ldivz_done_").append(sfx).append(":\n");
+        sb.append(".pushsection .rodata\n");
+        sb.append(".Ldivz_msg_").append(sfx).append(": .asciz \"/ by zero\"\n");
+        sb.append(".popsection\n");
+    }
 
     private static void emitSatConv(StringBuilder sb, boolean isFloat, boolean toInt) {
         String sfx = Long.toString(SAT_SEQ.incrementAndGet());

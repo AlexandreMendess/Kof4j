@@ -1657,6 +1657,11 @@ class CoreRegressionE2ETest extends JvmJsRunSupport {
     // emitted '?' as class name instead of boxed java.lang type (NoClassDefFoundError).
     @Test
     void instanceofWithPrimitiveTypes(@TempDir Path tempDir) throws IOException {
+        // §677 (D-SEM-REJECTS-1210): `instanceof` sobre alvo PRIMITIVO é
+        // RECUSADO com SEM106 no frontend compartilhado (a forma boxada diverge
+        // por alvo: false em Script/nativo, true em JVM/JS) — o teste antigo
+        // pinava a divergência (o pior comportamento possível). A recusa é o
+        // contrato agora; class/record/String seguem limpos.
         Path src = tempDir.resolve("instanceofprim.kf");
         Files.writeString(src, """
                 main() {
@@ -1670,8 +1675,10 @@ class CoreRegressionE2ETest extends JvmJsRunSupport {
                 """);
         Path out = tempDir.resolve("instanceofprim-jvm");
         CompilationResult r = driver.compile(src, out, Target.JVM);
-        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
-        assertEquals("true\nfalse\ntrue\nfalse", runJvm(out));
+        assertFalse(r.success(), "§677: instanceof primitivo deve ser recusado");
+        assertTrue(r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "SEM106".equals(d.code())), "SEM106 esperado: "
+                + r.diagnostics().getDiagnostics());
     }
 
     // Issue #200 — switch expression rejected as RHS of assignment statement (PARSE041).

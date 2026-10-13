@@ -33,7 +33,11 @@ public final class JsClassEmitter {
                 && !"java/lang/Record".equals(clazz.superName())) {
             jsSuper = JsTypeMapper.jsClassName(clazz.superName());
         }
-        boolean isRecord = "java/lang/Record".equals(clazz.superName());
+        // #818: a record-ness vem do lowering (IRClass.isRecord) além da
+        // superclasse — um record que estende classe do usuário não é
+        // `java/lang/Record` mas continua sendo record.
+        boolean isRecord = "java/lang/Record".equals(clazz.superName())
+                || p.lc.recordClassNames.contains(clazz.name());
         List<JsIr.JsField> fields = new ArrayList<>();
         for (IRField field : clazz.fields()) {
             boolean isStatic = (field.accessFlags() & AccessFlags.STATIC) != 0;
@@ -103,7 +107,8 @@ public final class JsClassEmitter {
      */
     JsIr.JsFunction lowerDecodeHelper(IRClass clazz) {
         String jsName = JsTypeMapper.jsClassName(clazz.name());
-        boolean isRecord = "java/lang/Record".equals(clazz.superName());
+        boolean isRecord = "java/lang/Record".equals(clazz.superName())
+                || p.lc.recordClassNames.contains(clazz.name());   // #818
         // Accept both a JSON string and an already-parsed object (list decode
         // maps parsed elements through this helper).
         JsIr.JsExpression parsed = new JsIr.JsConditional(
