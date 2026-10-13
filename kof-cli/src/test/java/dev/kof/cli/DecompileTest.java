@@ -777,6 +777,38 @@ class DecompileTest {
     }
 
     @Test
+    void stringCastRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E (fatia cast-String, 14/10): checkcast com alvo String era
+        // recusado ("redundante") — medido que `as String` é FIEL (o cast
+        // errado lança a CCE): os métodos com cast recuperam agora.
+        Path javaFile = dir.resolve("Ca.java");
+        Files.writeString(javaFile, """
+                public class Ca {
+                    String cast(Object o) { return (String) o; }
+                    int len(Object o) { String s = (String) o; return s.length(); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Ca.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "cast String deve recuperar (nao stub):\n" + kof);
+        assertTrue(kof.contains("as String"), "checkcast → as String:\n" + kof);
+        // zero-drift executado
+        String kofRun = kof + "\nmain() {\n    var ca = Ca()\n    println(ca.cast(\"ok\"))\n    println(ca.len(\"abcd\"))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("ok\n4", output, "zero-drift: cast + len como no Java");
+    }
+
+    @Test
     void decompileTreeRefusesAmbiguousSimpleNames(@TempDir Path dir) throws Exception {
         // Recusa R6: simples duplicado em 2+ pacotes do índice nunca ganha
         // import (ambíguo) → stub honesto, mesmo com o pacote atual tendo um.

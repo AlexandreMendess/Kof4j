@@ -151,9 +151,13 @@ final class BytecodeKofTypes {
                 stack.push(stack.pop() + " instanceof " + t);
                 return true;
             }
-            case 0xc0 -> {   // checkcast → `(x as T)` só p/ primitivo-alvo
-                // (Kof: downcast Object→Int é explícito). String/Object
-                // recusados: `x as String` é redundante/ambíguo na verificação.
+            case 0xc0 -> {   // checkcast → `(x as T)`
+                // Fase E (fatia cast-String, mantenedora "stubs viram código",
+                // 14/10): `as String` é FIEL — MEDIDO: compila, o cast correto
+                // retorna e o errado LANÇA a CCE (a mesma verificação runtime
+                // do checkcast Java); a recusa antiga ("redundante/ambíguo")
+                // não se sustenta contra a execução. Object-alvo é no-op
+                // (checkcast Object nunca falha para não-null) → mantém `x`.
                 // Domínio SÓ via índice (§7 degrau 2) — nome resolve no tree.
                 String t = inlineKofType(cp, cpIdx);
                 if (t == null) {
@@ -162,7 +166,7 @@ final class BytecodeKofTypes {
                     stack.push("(" + stack.pop() + " as " + t + ")");
                     return true;
                 }
-                if (t.equals("String") || t.equals("Object")) return false;
+                if (t.equals("Object")) return true;   // no-op: o valor segue
                 stack.push("(" + stack.pop() + " as " + t + ")");
                 return true;
             }
