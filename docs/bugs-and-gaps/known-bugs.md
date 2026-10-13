@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §652
+last: §705
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -17221,6 +17221,22 @@ A `while` with an unconditional `return`, and a `for` whose body throws, fail th
 **Boundary:** the JS backend only; the other five targets are correct. Not the same as §703 — that needs a try/finally with a CONDITIONAL return; this needs only an unconditional terminator as the loop body's last statement.
 
 <!-- pt-switch --> **PT:** [§704 (pt_BR)](known-bugs.pt_BR.md#704--um-loop-cujo-corpo-termina-incondicionalmente-returnthrow-como-ultimo-statement-executado-emite-js-invalido-o-otimizador-remove-o-back-edge-do-loop-a-reconstrucao-do-js-entao-remonta-um-if-e-descarta-o-setup-do-loop-entao-o-programa-morre-com-referenceerror-_idx-is-not-defined---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §705 — a class method carrying 46 locals HANGS the native x86 binary at RUNTIME (the same Kof is correct on the JVM/Script/JS and the emitted assembly looks correct) — 🟡 OPEN (measured 13/10 by lane pipeline/image-vision `192.168.15.21:0`, surfaced by AVIF slice 3au)
+
+**Symptom (measured 13/10, through the COMPILER MODULE):** the AVIF tile driver's per-block stage moved from the top-level `av1DecodeTileRecon` (slice 3ag) into a method `Av1TileDecode.decodeBlock(r, c, bs)` (slice 3au, `libs/image/Av1DecodeTileRecon.kf`). The JVM, Script and JS faces of `Av1DecodeTileReconE2ETest` / `Av1DecodeTileTxTypeE2ETest` / `Av1DecodeChromaE2ETest` all PASS; `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` HANGS — the emitted `Main` spins at ~10% CPU with NO output and never terminates. Reverting the library to pre-3au makes the SAME face pass in 54–58s, three separate runs; restoring 3au hangs it again. **This is a cross-target divergence: one Kof source, correct on three targets, a hang on native.**
+
+**Narrowing (measured, not inferred):** a marked probe on native prints `M1 start` / `M2 data` / `M3 before-ctor` / `M4 after-ctor` and then stops at `M5 before-direct-decodeBlock` — so construction of the class and its `planes()` method both WORK; the hang is a direct `tile.decodeBlock(0, 0, 9)` call. `av1TxWidth(3)` and `av1BlockNum4x4Wide(9)` (called just before) return the correct `32` and `8`, so the arguments are right.
+
+**What the assembly looks like (inspected via `KOF_KEEP_ASM=1`):** the prologue is `subq $992, %rsp`, 46 slots written (4 from `%rdi..%rcx`, 42 zeroed), the deepest slot is `-720(%rbp)` — INSIDE the frame; a scan of the whole method body finds ZERO `-N(%rbp)` offsets beyond 992. The method assembles and links cleanly and produces the same 457032-byte binary size as the working pre-3au build. The transform-block loop's back-edge and counter (`-592(%rbp)`, compared against `-584(%rbp)`) are emitted correctly.
+
+**HYPOTHESES ALREADY REFUTED (each by a minimal native test, so the next agent does not repeat them):** (a) "many locals in a method" — a class method with 8 fields and 38 parameters summing them runs fine (it even gives a WRONG value on native, `742` vs `749`, which is a SEPARATE defect worth its own report); (b) "class field access on native" — a minimal field+constructor+loop class prints `sum=10`; (c) "a many-argument call inside a loop" — a method hoisting 38 fields and calling a 38-argument top-level function inside a `while` runs and prints the right value; (d) "a method call on an object held in a field, inside a loop" — runs and prints the right value. So the trigger is something about `decodeBlock` itself, not the local count or the field/loop shapes alone.
+
+**Environment limits hit while diagnosing (recorded so the next agent budgets for them):** `perf` is blocked (`perf_event_paranoid=4`) and `gdb` cannot attach (`ptrace_scope=1`, "ioctl inapropriado para dispositivo") nor run the binary to completion in batch (the batch `gdb` itself hung and had to be killed), so no backtrace could be taken. The sandbox also kills long `mvn test` runs mid-assembly; the native faces must be run DETACHED (`setsid nohup timeout N mvn ... & disown`) and their results read from `kof-compiler/target/surefire-reports/*.txt` mtimes rather than from stdout.
+
+**Status:** the slice that surfaced it (3au) is REVERTED; the tree is green. The bug is NOT a defect in `libs/image` — it is a native-backend interaction that any sufficiently large extracted method may hit, so it belongs to the compiler/native lane.
+
+<!-- pt-switch --> **PT:** [§705 (pt_BR)](known-bugs.pt_BR.md#705--um-metodo-de-classe-com-46-locais-trava-o-binario-nativo-x86-em-runtime-o-mesmo-kof-e-correto-no-jvmscriptjs-e-o-assembly-emitido-parece-correto---aberto-medido-1310-pela-lane-pipelineimage-vision-19216815210-exposto-pela-fatia-3au-do-avif)
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 

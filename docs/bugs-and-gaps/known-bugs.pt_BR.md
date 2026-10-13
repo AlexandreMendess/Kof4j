@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §652
+last: §705
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -15124,6 +15124,22 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 **Fronteira:** as duas faces são fluxo de conclusão abrupta de try/finally. A face A é lacuna de lowering JVM/Script/Native (JS é o oráculo); a face B é lacuna do reconstruidor KofJS (JVM/Script/Native são o oráculo). Nenhuma decisão `D-*` é exigida — o contrato ("`finally` always executes") é normativo. Sem issue aberta; catalogado aqui + referência cruzada no `twin.md`.
 
 <!-- pt-switch --> **EN:** [§617 (en)](known-bugs.md#617--tryfinally-control-flow-parity-2-faces-a-breakcontinue-leaving-a-try-skipped-the-finally-on-jvmscriptnative-js-was-java-correct-b-a-nested-tryfinally-whose-inner-try-returns-iced-the-kofjs-target-comp002-unexpected-kofcatchstart---fixed-0610-owner--19216815309092-lane-compilerjvmnative-bugs-and-gaps-front-found-in-the-phase-6-equivalence-sweep-after-613)
+
+## §705 — um método de classe com 46 locais TRAVA o binário nativo x86 em RUNTIME (o mesmo Kof é correto no JVM/Script/JS e o assembly emitido parece correto) — 🟡 ABERTO (medido 13/10 pela lane pipeline/image-vision `192.168.15.21:0`, exposto pela fatia 3au do AVIF)
+
+**Sintoma (medido 13/10, pelo MÓDULO COMPILADOR):** o estágio por bloco do driver de tile do AVIF saiu da função de topo `av1DecodeTileRecon` (fatia 3ag) para o método `Av1TileDecode.decodeBlock(r, c, bs)` (fatia 3au, `libs/image/Av1DecodeTileRecon.kf`). As faces JVM, Script e JS de `Av1DecodeTileReconE2ETest` / `Av1DecodeTileTxTypeE2ETest` / `Av1DecodeChromaE2ETest` PASSAM; `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` TRAVA — o `Main` emitido gira a ~10% de CPU SEM saída e nunca termina. Reverter a biblioteca para o pré-3au faz a MESMA face passar em 54–58s, em três execuções; restaurar a 3au trava de novo. **É uma divergência cross-target: um Kof, correto em três alvos, travamento no nativo.**
+
+**Estreitamento (medido, não inferido):** uma sonda marcada no nativo imprime `M1 start` / `M2 data` / `M3 before-ctor` / `M4 after-ctor` e para em `M5 before-direct-decodeBlock` — a construção da classe e o `planes()` FUNCIONAM; o travamento é uma chamada direta `tile.decodeBlock(0, 0, 9)`. `av1TxWidth(3)` e `av1BlockNum4x4Wide(9)` (chamados logo antes) devolvem os valores certos, `32` e `8`.
+
+**Como o assembly se parece (inspecionado via `KOF_KEEP_ASM=1`):** o prólogo é `subq $992, %rsp`, 46 slots escritos (4 de `%rdi..%rcx`, 42 zerados), o slot mais fundo é `-720(%rbp)` — DENTRO do frame; uma varredura do corpo inteiro encontra ZERO offsets `-N(%rbp)` além de 992. O método monta e linka limpo e produz o mesmo binário de 457032 bytes do build pré-3au. O back-edge do laço de blocos de transformada e o contador (`-592(%rbp)`, comparado com `-584(%rbp)`) estão emitidos corretamente.
+
+**HIPÓTESES JÁ REFUTADAS (cada uma por um teste nativo mínimo, para o próximo agente não repeti-las):** (a) "muitos locais num método" — um método com 8 campos e 38 parâmetros que os soma roda (e até dá um valor ERRADO no nativo, `742` vs `749`, defeito SEPARADO que merece registro próprio); (b) "acesso a campo de classe no nativo" — uma classe mínima campo+construtor+laço imprime `sum=10`; (c) "chamada de muitos argumentos dentro de um laço" — um método que hoista 38 campos e chama uma função de topo de 38 argumentos num `while` roda e imprime o valor certo; (d) "chamada de método num objeto guardado em campo, dentro de laço" — roda e imprime o valor certo. O gatilho é algo do próprio `decodeBlock`, não a contagem de locais nem as formas de campo/laço isoladas.
+
+**Limites de ambiente ao diagnosticar (registrados para o próximo agente orçar):** o `perf` está bloqueado (`perf_event_paranoid=4`) e o `gdb` não anexa (`ptrace_scope=1`, "ioctl inapropriado para dispositivo") nem roda o binário até o fim em batch (o próprio `gdb` em batch travou e teve de ser morto), então nenhum backtrace pôde ser tirado. O sandbox também mata execuções longas do `mvn test` no meio da montagem; as faces nativas devem rodar DESTACADAS (`setsid nohup timeout N mvn ... & disown`) e o resultado lido do mtime de `kof-compiler/target/surefire-reports/*.txt`, não do stdout.
+
+**Estado:** a fatia que o expôs (3au) está REVERTIDA; a árvore está verde. O defeito NÃO é de `libs/image` — é uma interação do backend nativo que qualquer método extraído suficientemente grande pode atingir, então pertence à lane compilador/nativo.
+
+<!-- pt-switch --> **EN:** [§705 (en)](known-bugs.md#705--a-class-method-carrying-46-locals-hangs-the-native-x86-binary-at-runtime-the-same-kof-is-correct-on-the-jvmscriptjs-and-the-emitted-assembly-looks-correct---open-measured-1310-by-lane-pipelineimage-vision-19216815210-surfaced-by-avif-slice-3au)
 
 ## §613 — native (x86-64 + riscv64 + aarch64): um `return` DENTRO do `catch` de um `try/finally` corrompia a cadeia do handler de exceção e dava SIGSEGV no `throw` seguinte — o frame de finally do DD-01 era empilhado antes do corpo do `try`, então o return no catch emitia um `KofExcUnlink` a mais (o throw já tinha desempilhado o handler deste `try`); JVM/Script/JS corretos — ✅ FIXED 06/10 (dona = 192.168.15.30:9092; lane compiler/JVM/native, frente bugs-and-gaps; o residual do §551)
 
