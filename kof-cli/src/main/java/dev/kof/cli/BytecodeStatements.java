@@ -269,7 +269,7 @@ final class BytecodeStatements {
                 out.add("} while (" + cond + ")");
                 return struct(byStart.get(exit), insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
-            String cond = BytecodeDecoder.blockCondition(b, insns, frame);
+            String cond = BytecodeDecoder.blockCondition(b, insns, frame, cp);
             int exitStart = b.succ.get(0);   // alvo do branch (falso)
             int thenStart = b.succ.get(1);   // fall-through (verdadeiro)
             boolean loop0 = BytecodeReader.isLoopHeader(b);
@@ -477,7 +477,7 @@ final class BytecodeStatements {
                 // Fase E: construção/teste-emit (0xbb new, 0xbd anewarray,
                 // 0x59 dup, 0xb7 init, 0x57 pop, 0xc0 cast, 0xc1 instanceof)
                 // — semântica em BytecodeKofTypes (gate ≤500); false = stub.
-                case 0x57, 0xc0, 0xc1, 0xbb, 0xbd, 0x59, 0xb7,
+                case 0x57, 0xc0, 0xc1, 0xbb, 0xbc, 0xbd, 0x59, 0xb7,
                      0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
                      0x4f, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0xbe -> {
                     if (!BytecodeKofTypes.statementOp(op, in, stack, cp, stmts, frame)) return null;

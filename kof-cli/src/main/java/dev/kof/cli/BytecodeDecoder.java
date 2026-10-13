@@ -446,7 +446,41 @@ import java.util.Set;
                 // antiga da face de guarda (`0 0 1 3 3 7 12`) estava
                 // matematicamente errada para esse corpo — foi ela, não o
                 // join, que fechava esta porta.
-                default -> { return null; }
+                                // Fase C (13/10): CHAMADAS em condição (`s.isEmpty()`) — o
+                // MESMO gate R6 do emitLinear (JDK-owner recusa; método em
+                // objeto novo recusa; void em condição não existe).
+                case 0xb6, 0xb9 -> {                           // invokevirtual/interface
+                    String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
+                    if (m == null) return null;
+                    String a = BytecodeCp.callArgs(st, BytecodeCp.argCount(m[2]));
+                    if (a == null || st.isEmpty()) return null;
+                    String recv = st.pop();
+                    String mapped = BytecodeStdlib.virtual(recv, m[0], m[1], a);
+                    String NEW = new String(new char[]{'\u27e6', 'n', 'e', 'w', '\u27e7'});
+                    if (mapped == null && recv.startsWith(NEW)) return null;
+                    st.push(mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")");
+                }
+                case 0xb8 -> {                                 // invokestatic
+                    String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
+                    if (m == null) return null;
+                    String a = BytecodeCp.callArgs(st, BytecodeCp.argCount(m[2]));
+                    if (a == null) return null;
+                    String mapped = BytecodeStdlib.statics(m[0], m[1], a, m[2]);
+                    if (mapped == null && BytecodeCp.isJdkOwner(m[0])) return null;
+                    st.push(mapped != null ? mapped : BytecodeCp.simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
+                }
+                case 0xb2 -> {                                 // getstatic
+                    String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
+                    if (f == null) return null;
+                    st.push(BytecodeCp.simpleOwner(f[0]) + "." + f[1]);
+                }
+                case 0xb4 -> {                                 // getfield
+                    String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
+                    if (f == null || st.isEmpty()) return null;
+                    String obj = st.pop();
+                    st.push(obj + "." + f[1]);
+                }
+default -> { return null; }
             }
         }
         if (st.size() != arity) return null;
