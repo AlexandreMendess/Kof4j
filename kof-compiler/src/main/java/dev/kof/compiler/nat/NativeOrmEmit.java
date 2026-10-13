@@ -52,9 +52,11 @@ public final class NativeOrmEmit {
             dev.kof.compiler.runtime.RuntimeOrmHistory2.emit(sb);
             // Fase 5 fatia 5d-1: a consulta ascendente ({@code
             // kof_orm_history} — a List<Revision> posicional).
-            // Fase 5 fatia 5d-1 WIP (NÃO emitida): o kof_orm_history asm
-            // quebrou as faces 5a/5b na mesma build (a interação
-            // H4+className-scan+prune) — o journal no DOING do ciclo 70.
+            // Fase 5 fatia 5d-1: a consulta ascendente ({@code
+            // kof_orm_history} — a List<Revision> posicional).
+            if (backend.usesOrmHistory) {
+                dev.kof.compiler.runtime.RuntimeOrmHistory4.emit(sb);
+            }
             // Fase 5 fatia 5c: o SAVE gravando a revisão ({@code
             // kof_orm_save_recorded} — o payload JSON por campo).
             // Fase 5 fatia 5c: o SAVE gravando a revisão ({@code

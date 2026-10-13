@@ -116,6 +116,7 @@ public class NativeBackend implements Backend {
 
     boolean usesDb = false;
     boolean usesOrm = false;
+    boolean usesOrmHistory = false;
     /** F2b: className das entidades usadas com {@code orm.find} (para o
      *  resolver {@code kof_orm_ctors} que constrói o record no runtime). */
     final Set<String> ormCtorClasses = new LinkedHashSet<>();
@@ -344,6 +345,9 @@ public class NativeBackend implements Backend {
                         }
                         if (op instanceof KofCall kc && kc.methodName().startsWith("kof_orm_")) {
                             usesOrm = true;
+                            if (kc.methodName().equals("kof_orm_history")) {
+                                usesOrmHistory = true;
+                            }
                             if ((kc.methodName().equals("kof_orm_find")
                                         && kc.parameterTypes().size() == 5)
                                     || (kc.methodName().equals("kof_orm_all")
