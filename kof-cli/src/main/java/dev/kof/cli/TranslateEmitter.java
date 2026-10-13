@@ -17,7 +17,7 @@ final class TranslateEmitter extends TranslateStatements {
     /** Nomes das aninhadas static achadas pela pré-varredura. */
     final java.util.Set<String> nestedTypes = new java.util.HashSet<>();
     /** Campos `static` da classe em parse — p/ qualificar em funções hoisted. */
-    private final java.util.Set<String> staticFields = new java.util.HashSet<>();
+    final java.util.Set<String> staticFields = new java.util.HashSet<>();
     /**
      * Fase F (fold de `static {}`): atribuições LITERAIS a campos estáticos
      * declarados — cada uma vira o inicializador do campo no fechamento da
@@ -25,7 +25,7 @@ final class TranslateEmitter extends TranslateStatements {
      * reescreve a linha do campo). Uma instrução não-literal recusa o
      * bloco INTEIRO (nada parcial em silêncio).
      */
-    private final java.util.LinkedHashMap<String, String> pendingStaticInits = new java.util.LinkedHashMap<>();
+    final java.util.LinkedHashMap<String, String> pendingStaticInits = new java.util.LinkedHashMap<>();
     /**
      * Fase F (fold de `{}` de instância): o corpo é prefixado em CADA
      * construtor (a ordem textual do Java = bloco antes do construtor).
@@ -431,7 +431,7 @@ final class TranslateEmitter extends TranslateStatements {
             // `{}` de instância é prefixado em cada construtor. Qualquer
             // instrução além disso → recusa NOMEADA (nada parcial).
             if (isStatic) {
-                foldStaticInitBlock();
+                TranslateStaticInit.foldStaticInitBlock(this);
             } else {
                 foldInstanceInitBlock();
             }
@@ -560,49 +560,6 @@ final class TranslateEmitter extends TranslateStatements {
                 || s.matches("\\d*\\.?\\d*([eE][-+]?\\d+)?[fFdDlL]?") && s.matches(".*\\d.*");
     }
 
-    /**
-     * Fase F: `static { V = 42; }` → o campo ganha `= 42`. Aceita SÓ
-     * `field = <literal>;` para campo estático DECLARADO; qualquer outra
-     * instrução (chamada, loop, leitura de campo, expressão) recusa o
-     * bloco inteiro — a ordem de execução do Java não é recriável num
-     * inicializador de campo sem mudar o observável.
-     */
-    private void foldStaticInitBlock() {
-        p.expect("{");
-        java.util.LinkedHashMap<String, String> inits = new java.util.LinkedHashMap<>();
-        while (!p.at("}")) {
-            if (!p.at(T.IDENT)) {
-                throw new TranslateException(
-                        "static initialization block: only `field = <literal>;` folds into the "
-                        + "field initializer (Kof has no static init block); this statement is not a "
-                        + "simple literal assignment — manual review");
-            }
-            String field = p.next().text;
-            if (!staticFields.contains(field) || !p.at("=")) {
-                throw new TranslateException(
-                        "static initialization block: only `field = <literal>;` folds into the "
-                        + "field initializer (Kof has no static init block); `" + field
-                        + "` is not a declared static field or is not a simple assignment — manual review");
-            }
-            p.next(); // =
-            String value = parseExpr();
-            if (!isPureLiteral(value)) {
-                throw new TranslateException(
-                        "static initialization block: `" + field + " = " + value + "` is not a pure "
-                        + "literal — folding it into the field initializer would reorder execution "
-                        + "(Kof has no static init block) — manual review");
-            }
-            if (!p.at(";")) {
-                throw new TranslateException(
-                        "static initialization block: expected `;` after `" + field + " = " + value
-                        + "` — manual review");
-            }
-            p.next();
-            inits.put(field, value);
-        }
-        p.expect("}");
-        pendingStaticInits.putAll(inits);
-    }
 
     /**
      * Fase F: `{ ... }` de instância é prefixado em CADA construtor (o
