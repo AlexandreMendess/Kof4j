@@ -903,6 +903,41 @@ class DecompileTest {
                 "o abstrato degrada para o stub inócuo catalogado:\n" + kof);
     }
 
+    @Test
+    void valuePropagatingIfElseRecovers(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): os braços do if/else deixando 1 valor na pilha e o
+        // join começando com a store → if-expression propagada
+        // (`var v2 = if (cond) thenVal else eVal`; o astore do join é
+        // consumido pela atribuição — o skip-first).
+        Path javaFile = dir.resolve("Vp.java");
+        Files.writeString(javaFile, """
+                public class Vp {
+                    String pick(boolean big) {
+                        String r;
+                        if (big) { r = "B"; } else { r = "S"; }
+                        return r;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Vp.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o if/else com valor propagado recupera:\n" + kof);
+        assertTrue(kof.contains("if ("), kof);
+        String kofRun = kof + "\nmain() {\n    var vp = Vp()\n    println(vp.pick(true))\n    println(vp.pick(false))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("B\nS", output, "zero-drift executado");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
@@ -1292,13 +1327,13 @@ class DecompileTest {
     }
 
     @Test
-    void refLocalEscapingStaysHonestStubNotBrokenOutput(@TempDir Path dir) throws Exception {
-        // §238 (face R6): um local de REFERENCIA escapante (String s escrito
-        // nos 2 ramos, lido depois) NAO tem default seguro a icar (o tipo de
-        // referencia e desconhecido no store; float literal drifta — licao bug
-        // 62). Antes o pureIfElse emitia `var v1 = "a"` dentro do ramo ->
-        // saida nao-compilavel. Agora: RECUSA p/ stub honesto (UNKNOWN), que e
-        // o contrato R6 (nunca codigo errado/nao-compilavel).
+    void refLocalEscapingRecoversValuePropagated(@TempDir Path dir) throws Exception {
+        // §238 (13/10, evoluído): o local de REFERÊNCIA escrito nos 2 ramos e
+        // lido depois AGORA RECUPERA — o valor propagado declara o `var` UMA
+        // vez FORA do if/else (`var v2 = if (cond) "a" else "b"`), exatamente
+        // o que a face antiga exigia (sem `var` escopado no ramo = o
+        // não-compilável do bug §238). Antes: stub honesto (sem default
+        // seguro a içar). Zero-drift executado.
         Path src = dir.resolve("classes");
         Files.createDirectories(src);
         Path s = src.resolve("Hr.java");
@@ -1313,13 +1348,25 @@ class DecompileTest {
                 """);
         runJavac(java.util.List.of(s), src);
         String kof = Decompile.decompile(src.resolve("Hr.class"));
-
-        assertTrue(kof.contains("throw \"body not recovered\""),
-                "local de referencia escapante deve degradar p/ stub honesto:\n" + kof);
-        assertFalse(kof.contains("var v") && kof.contains("} else {"),
-                "nao deve emitir var escopado dentro do ramo (bug §238):\n" + kof);
+        assertFalse(kof.contains("body not recovered"),
+                "o local de referencia escapante recupera (valor propagado):\n" + kof);
+        assertTrue(kof.contains("if ("), kof);
+        // o `var` é declarado FORA do ramo (o contrato do §238)
+        assertTrue(kof.indexOf("var ") < kof.indexOf("if ("),
+                "o var do local escapante fica FORA do if/else:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Hr.ref(0))\n    println(Hr.ref(1))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("a\nb", output, "zero-drift executado");
     }
-
     @Test
     void recoversNullNarrowAndRunsIt(@TempDir Path dir) throws Exception {
         // Fase C: ifnull/ifnonnull (0xc6/0xc7) — narrowing CANONICO da
