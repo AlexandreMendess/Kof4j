@@ -480,6 +480,16 @@ import java.util.Set;
                     String obj = st.pop();
                     st.push(obj + "." + f[1]);
                 }
+                case 0xc0 -> {                                 // checkcast
+                    String ct = BytecodeKofTypes.inlineKofType(cp, in.operands()[0]);
+                    if (ct == null) {
+                        ct = BytecodeKofTypes.indexKofType(cp, in.operands()[0], frame);
+                        if (ct == null) return null;
+                    }
+                    if (st.isEmpty()) return null;
+                    String v = st.pop();
+                    st.push(ct.equals("Object") ? v : "(" + v + " as " + ct + ")");
+                }
 default -> { return null; }
             }
         }

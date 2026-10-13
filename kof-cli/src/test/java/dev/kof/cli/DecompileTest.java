@@ -810,6 +810,40 @@ class DecompileTest {
                 + "\n" + r.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void castConditionRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase C: checkcast no testExpr — `if ((Integer) o > 3)` recupera
+        // como `(arg0 as Int) > 3` (o intValue e UNBOX → identidade).
+        Path javaFile = dir.resolve("Cn.java");
+        Files.writeString(javaFile, """
+                public class Cn {
+                    int v;
+                    int viaCast(Object o) {
+                        if ((Integer) o > 3) { return 1; }
+                        return 0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cn.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "cast na condicao recupera:\n" + kof);
+        assertTrue(kof.contains("(arg0 as Int) > 3"), kof);
+        // zero-drift executado: build(5) -> 1, cast 2 -> 0
+        String kofRun = kof + "\nmain() {\n    var cn = Cn()\n    var o1: Object = 5\n    var o2: Object = 2\n    println(cn.viaCast(o1))\n    println(cn.viaCast(o2))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("1\n0", output, "zero-drift executado");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
