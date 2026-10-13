@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §691
+last: §692
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
