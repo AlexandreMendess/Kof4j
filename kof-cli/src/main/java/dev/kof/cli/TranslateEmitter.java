@@ -230,35 +230,7 @@ final class TranslateEmitter extends TranslateStatements {
     }
 
     private void parseRecord() {
-        p.expect("record");            String name = p.next().text;
-        String typeParams = p.at("<") ? parseTypeParams() : "";
-        List<String> components = new ArrayList<>();
-        if (p.at("(")) {
-            p.next();
-            while (!p.at(")")) {
-                String type = TranslateTypes.kofType(p.next().text);
-                String cname = p.next().text;
-                components.add(type + " " + cname);
-                if (p.at(",")) p.next();
-            }
-            p.expect(")");
-        }
-        if (p.at("{")) {
-            // Corpo do record (construtor compacto, accessors, métodos) —
-            // Kof record é só os componentes. Corpo VAZIO `{}` é no-op;
-            // corpo com conteúdo era pulado em SILÊNCIO → validações/
-            // overrides sumiam (R6, Q4 13/09).
-            if (!p.peek(1).text.equals("}")) {
-                throw new TranslateException(
-                        "record with a body (compact constructor/accessors/methods) has no "
-                        + "equivalent in Kof (record = components only) — manual review");
-            }
-            skipBlock();
-        } else {
-            p.expect(";");
-        }
-        out.append("record ").append(name).append(typeParams).append('(')
-           .append(String.join(", ", components)).append(")\n");
+        TranslateTypeDecls.parseRecord(this);
     }
 
     private void parseClass() {
@@ -381,7 +353,7 @@ final class TranslateEmitter extends TranslateStatements {
      * Bounds (`<T extends X>`) não têm equivalente direto → revisão
      * manual (R6).
      */
-    private String parseTypeParams() {
+    String parseTypeParams() {
         p.expect("<");
         List<String> tps = new ArrayList<>();
         while (!p.at(">") && !p.at(T.EOF)) {
