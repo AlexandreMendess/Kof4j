@@ -36,6 +36,8 @@ final class ReturnValueLowerer {
         localIdx = ExpressionLowerer.emitExpression(driver, rv, ops, owner, localIdx, locals);
         Type rvType = ExpressionTyper.inferExprType(driver, rv, locals);
         driver.emitWideningIfNeeded(ops, rvType, returnType);
+        // §696: estreita o return num alvo Byte/Short (paridade com o cast)
+        CompilerEmissionHelpers.emitStoreNarrow(driver, ops, rvType, returnType);
         // Issue #169: retorno de primitivo de função tipo Object
         if (driver.erasesToReference(returnType)
                 && TypeMetrics.isPrimitiveType(rvType)

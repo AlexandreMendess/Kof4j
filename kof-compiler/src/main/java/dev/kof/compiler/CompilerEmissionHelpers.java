@@ -181,6 +181,34 @@ public final class CompilerEmissionHelpers {
         }
     }
 
+    /**
+     * known-bugs §696: um STORE num slot Byte/Short estreita como
+     * `(v as Byte)` — a MESMA semântica que o §695 deu ao cast. Sem isto o
+     * valor CRU fica no slot e os quatro alvos divergem: o JVM estoura o
+     * cache do `Byte.valueOf` (ArrayIndexOutOfBoundsException), o Script
+     * estreita, e native/JS mantêm o cru. Chamado nos três stores (declaração
+     * de local, atribuição simples, return) logo APÓS o widening — que é
+     * NO-OP para destinos Byte/Short (só promove, nunca trunca).
+     */
+    static void emitStoreNarrow(CompilerDriver driver, List<KofOperation> ops, Type from, Type to) {
+        if (!TypeMetrics.isPrimitiveType(from) || !TypeMetrics.isPrimitiveType(to)) return;
+        String tn = TypeMetrics.primitiveName(to);
+        if (!"byte".equals(tn) && !"Byte".equals(tn)
+                && !"short".equals(tn) && !"Short".equals(tn)) {
+            return;
+        }
+        if (from.equals(to)) return;
+        // uma fonte mais LARGA (Long/Float/Double) converte primeiro para Int,
+        // espelhando o caminho do cast (que parte de um Int na pilha).
+        switch (TypeMetrics.primitiveName(from)) {
+            case "long", "Long" -> ops.add(new KofUnary(KofUnaryOp.L2I, from));
+            case "float", "Float" -> ops.add(new KofUnary(KofUnaryOp.F2I, from));
+            case "double", "Double" -> ops.add(new KofUnary(KofUnaryOp.D2I, from));
+            default -> { }
+        }
+        driver.emitPrimNarrow(ops, Type.PrimitiveType.INT, to);
+    }
+
     static boolean isZeroLiteral(LiteralExpr lit) {
         if (lit.value() == null) return false;
         String v = lit.value().trim();
