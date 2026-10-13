@@ -1617,6 +1617,26 @@ target first, cross-checked byte-for-byte on jvm/native/js (all four agree), the
 pre-existing `check_500` RED — ExpressionTyper, KofInterpreter, NativeRiscvAsmRt0 plus the peers'
 Translate/MemberResolver/StatementLowerer — is other lanes' debt and is not touched here).
 
+**Phase 6 slice 47 LANDED (13/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **72 total** — pinning `Char` VALUES: the read-back of a `Char[]` compared against a
+char literal, against another `Char[]` read, against `charAt` (the two spellings that must agree),
+plus `!=`, the ordered pair, `as Int` and a case-folded `charAt`. The new case
+`tests/golden/char-values` pins all eleven printed values, byte-identical on the four targets.
+**BUG FOUND + FIXED (Q0/Q4):** authoring the case surfaced **§690** — the interpreter's `char[]`
+holds real `Character` boxes (§185 needs them for `Array.set`) and `KofInterpreterValues.numEq`
+only understood `Number`, so `"abc".toCharArray()[0] == 'a'` was FALSE on the Script while the
+JVM/native/JS said true; the ORDERED faces agreed already because they go through
+`KofInterpreter.unboxInt`, which knows `Character`/`Boolean`. FIXED the same commit by normalizing
+the boxed canons in `numEq` (`KofInterpreterValues.numericCanon`), so equality enters the same
+numeric space as the ordered path. RED-first (`CharBoxedCanonEqualityE2ETest`, Script against the
+JVM oracle over ten faces: **1 of its 6 target faces FAIL pre-fix** — the only one that reads a
+boxed canon — and all 6 pass after). This is the SIXTH slice that carries a compiler fix. Proof
+(executed): every value measured on the Script target first, cross-checked byte-for-byte on
+jvm/native/js (all four agree), then frozen; `tests/run-golden.sh` **288/288** (72 cases × 4
+targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:

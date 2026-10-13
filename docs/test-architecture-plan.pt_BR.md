@@ -1623,6 +1623,27 @@ jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **2
 NativeRiscvAsmRt0 mais Translate/MemberResolver/StatementLowerer dos peers — é dívida de outras
 lanes e não é tocado aqui).
 
+**Fase 6 fatia 47 POUSADA (13/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **72 no total** — pinando VALORES de `Char`: a leitura de volta de um `Char[]` comparada
+contra um literal char, contra outra leitura de `Char[]`, contra o `charAt` (as duas grafias que
+têm de concordar), mais `!=`, o par ordenado, `as Int` e um `charAt` com case dobrado. O novo caso
+`tests/golden/char-values` pina os onze valores impressos, byte-idênticos nos quatro alvos.
+**BUG ACHADO + CORRIGIDO (Q0/Q4):** escrever o caso expôs o **§690** — o `char[]` do interpretador
+guarda `Character` de verdade (o §185 precisa deles para o `Array.set`) e o
+`KofInterpreterValues.numEq` só entendia `Number`, então `"abc".toCharArray()[0] == 'a'` era
+FALSO no Script enquanto o JVM/nativo/JS diziam true; as faces ORDENADAS já concordavam porque
+passam pelo `KofInterpreter.unboxInt`, que conhece `Character`/`Boolean`. CORRIGIDO no mesmo
+commit normalizando os canons boxados no `numEq` (`KofInterpreterValues.numericCanon`), então a
+igualdade entra no mesmo espaço numérico do caminho ordenado. RED-first
+(`CharBoxedCanonEqualityE2ETest`, Script contra o oráculo JVM em dez faces: **1 das suas 6 faces de
+alvo FALHA pré-correção** — a única que lê um canon boxado — e as 6 passam depois). Esta é a SEXTA
+fatia que carrega um fix de compilador. Prova (executada): cada valor medido primeiro no alvo
+Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado;
+`tests/run-golden.sh` **288/288** (72 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:
