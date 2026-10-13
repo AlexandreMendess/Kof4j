@@ -35,6 +35,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # asm is PINNED at 9.10.1 on purpose (#805, known-bugs §652): 9.11's
+    # ComputeLimits refuses large generated methods (LimitExceededException in
+    # COMPUTE_FRAMES) — the group bump `137ea696d` silently undid the pin once.
+    ignore:
+      - dependency-name: "org.ow2.asm:*"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
