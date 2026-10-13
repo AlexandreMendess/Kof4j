@@ -589,17 +589,5 @@ public final class NativeRiscvAsmRt0 {
                 ld   s1, 24(sp)
                 ld   s2, 16(sp)
                 ld   ra, 40(sp)
-                addi sp, sp, 48
-                ret
-            .Las_null:
-                call kof_null_error
-            .Las_bounds:
-                call kof_bounds_error
-
-            # ---- strings ----
-            # kof_string_length — MOVIDO p/ B34 (faces UTF-16, bug 43 cross):
-            # contava bytes UTF-8 (café=5 vs JVM 4).
-
-            # kof_string_concat(a, b) -> KofStr*
             """;
 }
