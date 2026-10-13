@@ -1644,6 +1644,26 @@ compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs
 `check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
 `check_golden_count` rc=0.
 
+**Fase 6 fatia 48 POUSADA (13/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **73 no total** — pinando o `List.zip`, que tinha ZERO cobertura de golden (o operador só
+era exercitado pelo `ListZipE2ETest`). O novo caso `tests/golden/zip-pairs` pina o contrato
+DECIDIDO (`D-MULTIPARADIGMA-ZIP`: o record `Pair<A,B>`, truncando na lista MAIS CURTA) — o tamanho
+truncado, os dois campos do `Pair` em cada índice mantido, o caso de tamanhos iguais, o caso vazio
+de um dos lados (tamanho 0) e uma concatenação `first + "=" + second`. Os doze valores impressos
+concordam byte-a-byte nos quatro alvos.
+**Fronteira medida ao escrever o caso:** o tipo de elemento é `String` dos DOIS lados de
+propósito. Um elemento PRIMITIVO faz o alvo nativo recusar a chamada com `NAT008`
+(`D-MULTIPARADIGMA-ZIP-NATIVE` — um slot primitivo cru visto pela type variable nua
+`zipPairs<A,B>` seria desboxado como ponteiro), então um caso de elemento primitivo não rodaria
+nos quatro alvos; o caminho de elemento-referência é o que roda em todos. Também medido: o lado
+VAZIO precisa ser tipado (`listOf("solo").drop(1)`, não um `listOf()` nu), porque o literal nu
+infere elemento desconhecido e cai no mesmo gate `NAT008` — o golden pina a forma tipada, que é o
+que um programa Kof escreve. Prova (executada): cada valor medido primeiro no alvo Script, cruzado
+byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh`
+**292/292** (73 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_known_bugs_status`/
+`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:

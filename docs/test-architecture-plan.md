@@ -1637,6 +1637,27 @@ targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
 
+**Phase 6 slice 48 LANDED (13/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **73 total** — pinning `List.zip`, which had ZERO golden coverage (the operator was
+only exercised by `ListZipE2ETest`). The new case `tests/golden/zip-pairs` pins the DECIDED
+contract (`D-MULTIPARADIGMA-ZIP`: the record `Pair<A,B>`, truncating at the SHORTER list) — the
+truncated size, both `Pair` fields at each kept index, the equal-length case, the empty-on-either-
+side case (size 0) and a `first + "=" + second` concatenation. All twelve printed values agree
+byte-for-byte on the four targets.
+**Boundary measured while authoring:** the element type is `String` on BOTH sides on purpose. A
+PRIMITIVE element makes the native target refuse the call with `NAT008`
+(`D-MULTIPARADIGMA-ZIP-NATIVE` — a raw primitive slot seen through the bare type variable
+`zipPairs<A,B>` would be unboxed as a pointer), so a primitive-element case could not run on all
+four targets; the reference-element path is the one that runs everywhere. Also measured: the
+EMPTY side has to be typed (`listOf("solo").drop(1)`, not a bare `listOf()`), because the bare
+literal infers an unknown element and trips the same `NAT008` gate — the golden pins the typed
+form, which is what a Kof program writes. Proof (executed): every value measured on the Script
+target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **292/292** (73 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:
