@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §696
+last: §652
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -18019,6 +18019,8 @@ EAD
 ## §652 — the dependabot ASM 9.10.1→9.11 bump (PR #793, `4b58a15e1`, merged 10/10) introduced `ComputeLimits` in the JVM backend's COMPUTE, so `CoreRegressionE2ETest.largeDenseFileLoadsOnJvm` (60 nested try/for/while/finally blocks) died `LimitExceededException: Too many operations` instead of compiling — 🟡 OPEN / MITIGATED (measured 11/10 by lane nativa/GC `192.168.15.117:9092` on the pre-pin tip; owner = the JVM-backend lane `192.168.15.30:9092`)
 
 **⚠️ CORRECTED 11/10 (docs/lab lane, measured):** the symptom no longer reproduces on the current tip — the tree PINS ASM `9.10.1` (`c2faa9fd9`, root pom `<asm.version>9.10.1</asm.version>`, 11/10 04:42, which "fixes #805"), so `CoreRegressionE2ETest#largeDenseFileLoadsOnJvm` **PASSES** (executed this cycle: `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`). The §602 lane's "now dies" measurement was on the pre-pin tip `82e737544` (verified: the pin is NOT an ancestor of it). §652 stays 🟡 OPEN because the pin is a WORKAROUND, not the root fix: the root is `ClassWriter.setComputeLimits(int, long)` (raise the limits for the compiler's ClassWriter) or splitting huge methods, which needs a re-bump — a decision recorded as "re-bump only after upstream lifts the limit".
+
+**⚠️ RE-MEASURED 14/10 (lane `192.168.100.14:0`, flatt CLI): the pin was SILENTLY UNDONE and the bug was LIVE at the tip.** The dependabot group bump `137ea696d` (13/10 05:32, "bump the maven-minor-patch group with 3 updates") re-bumped `<asm.version>` `9.10.1` → `9.11` while the pom comment still read "9.10.1 PINNED (#805)" — so the mitigation the 11/10 correction relied on was gone and `largeDenseFileLoadsOnJvm` was RED again (`LimitExceededException: Too many operations`, executed: `Tests run: 1, Failures: 1`). The pin is RESTORED (`9.10.1`), the pom comment now records the incident, and `.github/dependabot.yml` gained an `ignore: org.ow2.asm:*` on the maven block so the automated bump cannot undo it a third time. Proof: with `9.11` the dense test is RED, with `9.10.1` `CoreRegressionE2ETest` is 104/0F. **The MITIGATION is restored; the ROOT fix (setComputeLimits / split) stays the JVM-backend lane's** (`192.168.15.30:9092`).
 
 **Measured (11/10):** deterministic RED on the clean tip `82e737544` AND with the §602 fix applied (two full runs, quiet machine) — `JVM compile failed: Internal compiler error: frame crash in Default/Main.main ... phase: JVM backend / ASM COMPUTE_FRAMES (visitMaxs) ... ASM error: LimitExceededException: Too many operations` (~6788 IR ops for the dense method, last ops at source line 416→423). **Root (read from the jars):** ASM 9.11 added `org.object.web.asm.ComputeLimits` — frame computation now counts operations/bytes and throws `LimitExceededException` past the defaults (`DEFAULT_MAX_MEMORY_LIMIT = 10485760`, `DEFAULT_MAX_OPERATIONS_LIMIT = 100000000`); ASM 9.10.1 has no such class and the test compiled green before the bump (the dense method's 60 nested try/finally blocks blow past the operation budget during frame computation). **Fix path (named in the ASM API):** `ClassWriter.setComputeLimits(int maxMemory, long maxOperations)` is public in 9.11 — raise it for the compiler's ClassWriter (or split huge methods). **Boundary:** JVM backend only; NOT caused by the §602 cross-GC fix (fails identically with the fix stashed, measured); the cross/native targets are untouched.
 
