@@ -17237,7 +17237,7 @@ A `while` with an unconditional `return`, and a `for` whose body throws, fail th
 **Status:** the slice that surfaced it (3au) is REVERTED; the tree is green. The bug is NOT a defect in `libs/image` — it is a native-backend interaction that any sufficiently large extracted method may hit, so it belongs to the compiler/native lane.
 
 <!-- pt-switch --> **PT:** [§705 (pt_BR)](known-bugs.pt_BR.md#705--um-metodo-de-classe-com-46-locais-trava-o-binario-nativo-x86-em-runtime-o-mesmo-kof-e-correto-no-jvmscriptjs-e-o-assembly-emitido-parece-correto---aberto-medido-1310-pela-lane-pipelineimage-vision-19216815210-exposto-pela-fatia-3au-do-avif)
-## §705 — a NESTED generic type argument (`Box<Box<Int>>`) breaks the OUTER accessor: on the JVM the call site expects `int Box.get()` and crashes with `NoSuchMethodError`, on native it reads GARBAGE — while Script/JS return the correct value — 🟡 OPEN (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+## §706 — a NESTED generic type argument (`Box<Box<Int>>`) breaks the OUTER accessor: on the JVM the call site expects `int Box.get()` and crashes with `NoSuchMethodError`, on native it reads GARBAGE — while Script/JS return the correct value — 🟡 OPEN (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):**
 
@@ -17265,7 +17265,7 @@ A SINGLE-parameter generic (`Box<Int>`) and a MULTI-parameter generic (`Pair<Str
 
 **Boundary:** nested generic type arguments only. Single- and multi-parameter generics at one level are correct on all six targets. The Script and JS targets are correct (dynamically typed).
 
-<!-- pt-switch --> **PT:** [§705 (pt_BR)](known-bugs.pt_BR.md#705--um-argumento-de-tipo-generico-aninhado-boxboxint-quebra-o-acessor-externo-no-jvm-o-call-site-espera-int-boxget-e-crasha-com-nosuchmethoderror-no-nativo-le-lixo--enquanto-scriptjs-devolvem-o-valor-correto---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
+<!-- pt-switch --> **PT:** [§706 (pt_BR)](known-bugs.pt_BR.md#706--um-argumento-de-tipo-generico-aninhado-boxboxint-quebra-o-acessor-externo-no-jvm-o-call-site-espera-int-boxget-e-crasha-com-nosuchmethoderror-no-nativo-le-lixo--enquanto-scriptjs-devolvem-o-valor-correto---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 

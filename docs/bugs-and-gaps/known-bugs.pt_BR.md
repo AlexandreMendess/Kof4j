@@ -14740,7 +14740,7 @@ Um `while` com `return` incondicional, e um `for` cujo corpo lança, falham do m
 
 <!-- en-switch --> **EN:** [§704 (en)](known-bugs.md#704--a-loop-whose-body-unconditionally-terminates-returnthrow-as-its-last-executed-statement-emits-invalid-js-the-optimizer-removes-the-loops-back-edge-the-js-reconstruction-then-rebuilds-an-if-and-drops-the-loop-setup-so-the-program-dies-with-referenceerror-_idx-is-not-defined---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
 
-## §705 — um argumento de tipo genérico ANINHADO (`Box<Box<Int>>`) quebra o acessor EXTERNO: no JVM o call site espera `int Box.get()` e crasha com `NoSuchMethodError`, no nativo lê LIXO — enquanto Script/JS devolvem o valor correto — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §706 — um argumento de tipo genérico ANINHADO (`Box<Box<Int>>`) quebra o acessor EXTERNO: no JVM o call site espera `int Box.get()` e crasha com `NoSuchMethodError`, no nativo lê LIXO — enquanto Script/JS devolvem o valor correto — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
 
@@ -14768,7 +14768,7 @@ Um genérico de UM parâmetro (`Box<Int>`) e um de MÚLTIPLOS parâmetros (`Pair
 
 **Fronteira:** só argumentos de tipo genéricos aninhados. Genéricos de um e de múltiplos parâmetros num nível estão corretos nos seis alvos. Os alvos Script e JS estão corretos (dinamicamente tipados).
 
-<!-- en-switch --> **EN:** [§705 (en)](known-bugs.md#705--a-nested-generic-type-argument-boxboxint-breaks-the-outer-accessor-on-the-jvm-the-call-site-expects-int-boxget-and-crashes-with-nosuchmethoderror-on-native-it-reads-garbage--while-scriptjs-return-the-correct-value---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§706 (en)](known-bugs.md#706--a-nested-generic-type-argument-boxboxint-breaks-the-outer-accessor-on-the-jvm-the-call-site-expects-int-boxget-and-crashes-with-nosuchmethoderror-on-native-it-reads-garbage--while-scriptjs-return-the-correct-value---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
