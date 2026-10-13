@@ -14584,6 +14584,20 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 <!-- en-switch --> **EN:** [§599 (EN)](known-bugs.md#599--native-processrunshellrunshellpipeline-children-inherited-the-parents-and-the-runtimes-file-descriptors-forkexecvp-never-closed-or-cloexec-ed-them-leaking-open-resourcesauthority-to-a-less-trusted-subprocess---fixed-0510-owner--19216815309093-lane-issuestooling-bugs-and-gaps-front-issue-762)
 
+## §694 — o `NEG` do interpretador era um TERNÁRIO ANINHADO misturando `long`/`float`/`double`/`int`, e o operador condicional do Java PROMOVE NUMERICAMENTE os ramos — então `-x` num `Long` produzia um `Double` no Script, e o cast seguinte SATURAVA em vez de truncar (`(-9000000000L) as Int` → Script `-2147483648` vs JVM/JS/nativo `-410065408`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+
+**Sintoma (medido 13/10):** `var bigL = 9000000000L` e então `println((-bigL) as Int)` imprimia **`-2147483648` no Script** e **`-410065408` em JVM/nativo/JS**. O `println(-bigL)` cru imprimia `-9000000000` em TODOS, que é o que escondeu o defeito — o valor errado só aparece quando o resultado é CASTADO.
+
+**Raiz (instrumentada, não inferida):** o braço `NEG` do `KofInterpreterOps.unary` era UMA expressão condicional aninhada com um ramo `long`, um `float`, um `double` e um `int`. O operador condicional do Java aplica PROMOÇÃO NUMÉRICA BINÁRIA aos dois ramos, então a expressão inteira tem tipo `double` e o ramo `long` é ALARGADO: o valor em runtime era um `java.lang.Double` carregando `-9.0E9` (instrumentado: `v=9000000000 -> -9.0E9 (Double)`). O `println` formata um Double como `-9000000000`, então a exibição estava certa; o CAST então via o Double e `((Number) v).intValue()` num `Double` SATURA para `Integer.MIN_VALUE`, onde o `l2i` do JVM (e o `| 0` do JS e o `movl` do nativo) TRUNCAM os 32 bits baixos.
+
+**Correção:** o braço agora é uma cadeia if/else explícita com `yield`, então cada ramo mantém o próprio tipo e nenhuma promoção acontece — um braço, um tipo, o mesmo espaço numérico que o bytecode usa.
+
+**Prova (executada, RED-first):** o novo `LongNegationCastE2ETest` **3 run / 0F**; com o ternário ANTIGO restaurado no lugar **a face Script dele FALHA** (a divergência acima) enquanto as faces do oráculo JVM e do nativo passam — elas nunca foram afetadas, que é exatamente a forma de um defeito só do interpretador. O caso pina a negação de um `Long` local, de um literal `Long`, o cast `as Int` nos dois, um `Long` pequeno, e as negações de `Double`/`Float`/`Int` para o fix não regredir os outros braços. A bateria interpretador/long/cast **98 run / 0F / 0E**.
+
+**Fronteira:** só o SCRIPT (os backends JVM/nativo/JS nunca veem este braço — emitem `lneg`/`l2i`). A exibição de um `Long` negado estava correta nos quatro alvos e continua; o que mudou é a REPRESENTAÇÃO do valor no interpretador, que é o que o cast lê. Ternários aninhados irmãos com o mesmo risco de promoção foram PROCURADOS no mesmo arquivo e não sobrou nenhum (`binary`/`compare` já usam cadeias if/else).
+
+<!-- en-switch --> **EN:** [§694 (en)](known-bugs.md#694--the-interpreters-neg-was-a-nested-ternary-mixing-longfloatdoubleint-and-javas-conditional-operator-numerically-promotes-its-branches--so--x-on-a-long-produced-a-double-on-the-script-and-the-next-cast-saturated-instead-of-truncating--9000000000l-as-int--script--2147483648-vs-jvmjsnative--410065408---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+
 ## §693 — DIVISÃO INTEIRA POR UM ZERO DE RUNTIME diverge de três jeitos: o JVM/Script LANÇAM `ArithmeticException` (capturável), o alvo JS calcula um `0` SILENCIOSO para `Int` (e um `RangeError` cru do host para `Long`), e os alvos NATIVOS morrem com `SIGFPE` de hardware (rc=136) que o próprio `try`/`catch` do Kof NÃO captura — ✅ CORRIGIDO 13/10 (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; a face NATIVA e a face JS pousaram ambas pela mesma lane)
 
 **Sintoma (medido 13/10, no jar commitado).** Com um divisor de RUNTIME (então a guarda de compile-time `ARITH001` não dispara):

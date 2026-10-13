@@ -17061,6 +17061,20 @@ absent failures are identical pre/post (environmental).
 
 <!-- pt-switch --> **PT:** [§599 (pt_BR)](known-bugs.pt_BR.md#599--filhos-native-de-processrunshellrunshellpipeline-herdavam-os-file-descriptors-do-pai-e-do-runtime-forkexecvp-nunca-os-fechava-nem-marcava-cloexec-vazando-recursosautoridade-para-um-subprocesso-menos-confiavel---corrigido-0510-dona--19216815309093-lane-issuestooling-frente-bugs-and-gaps-issue-762)
 
+## §694 — the interpreter's `NEG` was a NESTED TERNARY mixing `long`/`float`/`double`/`int`, and Java's conditional operator NUMERICALLY PROMOTES its branches — so `-x` on a `Long` produced a `Double` on the Script, and the next cast SATURATED instead of truncating (`(-9000000000L) as Int` → Script `-2147483648` vs JVM/JS/native `-410065408`) — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
+
+**Symptom (measured 13/10):** `var bigL = 9000000000L` then `println((-bigL) as Int)` printed **`-2147483648` on the Script** and **`-410065408` on JVM/native/JS**. The plain `println(-bigL)` printed `-9000000000` EVERYWHERE, which is what hid it — the wrong value only surfaces once the result is CAST.
+
+**Root (instrumented, not inferred):** `KofInterpreterOps.unary`'s `NEG` arm was one nested conditional expression with a `long` branch, a `float` branch, a `double` branch and an `int` branch. Java's conditional operator applies BINARY NUMERIC PROMOTION to its two branches, so the whole expression has type `double` and the `long` branch is WIDENED: the runtime value was a `java.lang.Double` carrying `-9.0E9` (instrumented: `v=9000000000 -> -9.0E9 (Double)`). `println` formats a Double as `-9000000000`, so the display was right; the CAST then saw the Double and `((Number) v).intValue()` on a `Double` SATURATES to `Integer.MIN_VALUE`, where the JVM's `l2i` (and the JS `| 0` and the native `movl`) TRUNCATE the low 32 bits.
+
+**Fix:** the arm is now an explicit if/else chain that YIELDS, so each branch keeps its own type and no promotion happens — one arm, one type, the same numeric space the bytecode uses.
+
+**Proof (executed, RED-first):** the new `LongNegationCastE2ETest` **3 run / 0F**; with the OLD ternary restored in place **its Script face FAILS** (the divergence above) while the JVM-oracle and native faces pass — they were never affected, which is exactly the shape of an interpreter-only defect. The case pins the negation of a `Long` local, of a `Long` literal, the `as Int` cast on both, a small `Long`, and the `Double`/`Float`/`Int` negations so the fix cannot regress the other arms. The interpreter/long/cast battery **98 run / 0F / 0E**.
+
+**Boundary:** the SCRIPT only (the JVM/native/JS backends never see this arm — they emit `lneg`/`l2i`). The display of a negated `Long` was correct on all four targets and remains so; what changed is the VALUE's representation in the interpreter, which is what the cast reads. Sibling nested ternaries with the same promotion hazard were SEARCHED for in the same file and there are none left (`binary`/`compare` already use if/else chains).
+
+<!-- pt-switch --> **PT:** [§694 (pt_BR)](known-bugs.pt_BR.md#694--o-neg-do-interpretador-era-um-ternario-aninhado-misturando-longfloatdoubleint-e-o-operador-condicional-do-java-promove-numericamente-os-ramos--entao--x-num-long-produzia-um-double-no-script-e-o-cast-seguinte-saturava-em-vez-de-truncar--9000000000l-as-int--script--2147483648-vs-jvmjsnativo--410065408---corrigido-1310-achado-1310-pela-lane-compiladorjvmnativo-19216815309092-corrigido-pela-mesma-lane)
+
 ## §693 — INTEGER DIVISION BY A RUNTIME ZERO diverges three ways: the JVM/Script THROW `ArithmeticException` (catchable), the JS target computes a SILENT `0` for `Int` (and a raw host `RangeError` for `Long`), and the NATIVE targets die with a hardware `SIGFPE` (rc=136) that Kof's own `try`/`catch` does NOT catch — ✅ FIXED 13/10 (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; the NATIVE face and the JS face both landed by the same lane)
 
 **Symptom (measured 13/10, on the committed jar).** With a RUNTIME divisor (so the compile-time `ARITH001` guard does not fire):
