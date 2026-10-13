@@ -44,7 +44,7 @@ public final class RuntimeOrmHistory5 {
                 movq 16(%rbp), %rax          # className (o 7º arg: na pilha;
                                              #   8(%rbp) = o endereço de retorno)
                 movq %rax, 48(%rsp)
-            @@CONN@@
+            @@CONN_PAGE@@
                 movq 48(%rsp), %rax
                 leaq 24(%rax), %rdi
                 movl 16(%rax), %esi
@@ -76,8 +76,8 @@ public final class RuntimeOrmHistory5 {
                 call .Lorm_bp
                 movl $34, %r8d
                 call .Lorm_bh
-                leaq .Lormh4_where(%rip), %rsi
-                movl $.Lormh4_where_len, %ecx
+                leaq .Lormh4p_where(%rip), %rsi
+                movl $.Lormh4p_where_len, %ecx
                 call .Lorm_bp
                 call .Lorm_bfin
                 movq 56(%rsp), %rdi
@@ -143,7 +143,7 @@ public final class RuntimeOrmHistory5 {
                 movq 80(%rsp), %rdx
                 movq %rax, 24(%rdx)
                 movq %r12, %rdi
-                xorl %esi, %esi
+                movl $2, %esi
                 call kof_ormh4_colstr
                 movq 80(%rsp), %rdx
                 movq %rax, 32(%rdx)
@@ -206,7 +206,7 @@ public final class RuntimeOrmHistory5 {
                 movq %rcx, 24(%rsp)
                 movq %r8, 32(%rsp)
                 movq %r9, 40(%rsp)
-            @@CONN@@
+            @@CONN_ONE@@
                 movq 40(%rsp), %rax
                 leaq 24(%rax), %rdi
                 movl 16(%rax), %esi
@@ -276,6 +276,7 @@ public final class RuntimeOrmHistory5 {
                 cmpl $101, %eax
                 jne .Lormh41_rb
                 xorl %eax, %eax               # ausente → null
+                movq %rax, 96(%rsp)
                 jmp .Lormh41_ret
             .Lormh41_rb:
                 movq 88(%rsp), %rdi
@@ -296,7 +297,7 @@ public final class RuntimeOrmHistory5 {
                 movq 64(%rsp), %rdx
                 movq %rax, 24(%rdx)
                 movq %r12, %rdi
-                xorl %esi, %esi
+                movl $2, %esi
                 call kof_ormh4_colstr
                 movq 64(%rsp), %rdx
                 movq %rax, 32(%rdx)
@@ -311,9 +312,13 @@ public final class RuntimeOrmHistory5 {
                 movq 64(%rsp), %rdx
                 movq %rax, 48(%rdx)
                 movq 64(%rsp), %rax
+                movq %rax, 96(%rsp)          # o objeto — o sqlite3_finalize
+                                             # de _ret zera o %rax (a one
+                                             # retornava 0/null mesmo com a row)
             .Lormh41_ret:
                 movq %r12, %rdi
                 call sqlite3_finalize
+                movq 96(%rsp), %rax          # restaura (0 no caminho no-row)
                 addq $120, %rsp
                 popq %r15
                 popq %r14
@@ -335,8 +340,12 @@ public final class RuntimeOrmHistory5 {
                 ud2
             .Lormh41_done0:
                 xorl %eax, %eax
+                movq %rax, 96(%rsp)
                 jmp .Lormh41_ret
 
+            .Lormh4p_where:
+                .ascii " WHERE entity_pk = ? ORDER BY revision LIMIT ? OFFSET ?"
+                .set .Lormh4p_where_len, . - .Lormh4p_where
             .Lormh41_where:
                 .ascii " WHERE entity_pk = ? AND revision = ?"
                 .set .Lormh41_where_len, . - .Lormh41_where
@@ -345,10 +354,11 @@ public final class RuntimeOrmHistory5 {
                 .replace("@@SYMBOL@@",
                         ".globl kof_orm_history_page\n            .type kof_orm_history_page, @function\n"
                       + "            .globl kof_orm_history_one\n            .type kof_orm_history_one, @function")
-                .replace("@@CONN@@",
+                .replace("@@CONN_PAGE@@",
                         "                movq (%rsp), %rdi\n                call .Lorm_conn\n"
-                      + "                movq %rax, 56(%rsp)             # conn (page)\n"
-                      + "                movq (%rsp), %rdi\n                call .Lorm_conn\n"
+                      + "                movq %rax, 56(%rsp)             # conn (page)")
+                .replace("@@CONN_ONE@@",
+                        "                movq (%rsp), %rdi\n                call .Lorm_conn\n"
                       + "                movq %rax, 48(%rsp)             # conn (one)"));
     }
 }
