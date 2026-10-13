@@ -503,25 +503,10 @@ public class NativeBackend implements Backend {
     }
 
 
-    // ---------------------------------------------------------------------
-    // NATIVE002 — lowering riscv64 + runtime EM ASSEMBLY PURO (sem C).
-    //
-    // Kof é Kof: o runtime é asm puro (raw syscalls, layout de objeto idêntico
-    // ao x86_64 em NativeRuntime), compilado com riscv64-linux-gnu-as e
-    // linkado com riscv64-linux-gnu-ld — binário estático, sem C.
-    //
-    // A stack machine é a MESMA do x86_64 (operandos numa pilha), com a ABI
-    // RISC-V: `s11` = frame pointer (locais em `s11-(idx+1)*8`), `s2` =
-    // ponteiro da pilha de operandos (callee-saved — sobrevive a calls), e
-    // `ra`/`s2` preservados no topo do frame.
-    //
-    // Caminho feliz (validado em qemu-riscv64): println(String/Int),
-    // var x = n, aritmética Int (ADD/SUB/MUL/DIV/MOD), comparações
-    // (EQ/NE/LT/LE/GT/GE), if/else. Ops fora disso → diagnóstico NATIVE002
-    // (nunca binário mudo).
-    // ---------------------------------------------------------------------
-
-
+    // NATIVE002 — lowering riscv64 + runtime EM ASSEMBLY PURO (sem C): a stack
+    // machine é a MESMA do x86_64, com a ABI RISC-V (s11=fp, s2=pilha de
+    // operandos, ra/s2 preservados). Caminho feliz validado em qemu-riscv64;
+    // ops fora do subset → diagnóstico NATIVE002 (nunca binário mudo).
     // ---- NATIVE002-stdlib: HTTP client riscv64 (asm puro) -----------------
     // Port de NativeHttpRuntime (x86_64) para a convenção riscv64: args em
     // a0..a7, resultado em a0, syscalls asm-generic (socket=198, connect=203,

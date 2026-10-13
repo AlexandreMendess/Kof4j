@@ -37,7 +37,7 @@ final class BytecodeStatements {
 
     static List<String> recoverStatements(byte[] code, String[] cp, BytecodeFrame frame, int[][] handlers) {
         List<BytecodeReader.Insn> insns = BytecodeReader.decode(code);
-        List<String> sw = recoverSwitch(code, insns, cp, frame);
+        List<String> sw = BytecodeStatementsSwitch.recoverSwitch(code, insns, cp, frame);
         if (sw != null) return sw;
         // Fase C (statement-switch): só tenta se o de expressão recusou
         // (saída do de expressão preservada byte-idêntica onde aceitava).
@@ -163,47 +163,6 @@ final class BytecodeStatements {
 
     // ── switch (tableswitch/lookupswitch) ─────────────────────────────────
 
-    private static List<String> recoverSwitch(byte[] code, List<BytecodeReader.Insn> insns,
-                                              String[] cp, BytecodeFrame frame) {
-        // localiza o switch
-        int swOff = -1;
-        for (int pc = 0; pc < code.length; ) {
-            int op = code[pc] & 0xFF;
-            if (op == 0xaa || op == 0xab) { swOff = pc; break; }
-            int l = BytecodeReader.length(op);
-            pc += (l == -1) ? 1 : l;
-        }
-        if (swOff < 0) return null;
-        BytecodeSwitch.SwitchInfo si = BytecodeSwitch.parseSwitch(code, swOff);
-        if (si == null) return null;
-
-        // expressão do switch = topo da pilha antes do switch
-        String expr = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, 0, swOff), cp, frame);
-        if (expr == null) return null;
-
-        // limites (targets ordenados) p/ reconstruir cada corpo
-        java.util.TreeSet<Integer> bounds = new java.util.TreeSet<>();
-        bounds.add(si.dflt);
-        for (int t : si.targets) bounds.add(t);
-        int maxOff = insns.get(insns.size() - 1).offset() + 1;
-
-        List<String> out = new ArrayList<>();
-        out.add("switch (" + expr + ") {");
-        for (int i = 0; i < si.targets.length; i++) {
-            int bodyEnd = BytecodeSwitch.nextBound(bounds, si.targets[i], maxOff);
-            String val = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, si.targets[i], bodyEnd), cp, frame);
-            if (val == null) return null;
-            out.add("case " + si.values[i] + ": return " + val);
-        }
-        int dfltEnd = BytecodeSwitch.nextBound(bounds, si.dflt, maxOff);
-        String dfltVal = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, si.dflt, dfltEnd), cp, frame);
-        if (dfltVal == null) return null;
-        out.add("default: return " + dfltVal);
-        out.add("}");
-        return out;
-    }
-
-    /** Condição de CONTINUAÇÃO (lado do fallthrough) — não invertida. */
     private static String contCond(int op) {
         return switch (op) {
             case 0x99 -> "== 0"; case 0x9a -> "!= 0"; case 0x9b -> "< 0";
