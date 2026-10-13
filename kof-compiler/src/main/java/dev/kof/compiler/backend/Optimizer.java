@@ -105,6 +105,7 @@ public final class Optimizer {
         // artificial loads/stores"). Runs after the Phase B passes so it sees
         // their output.
         ops = LIVENESS_DEAD_STORES.run(ops, positions);
+        ops = STRENGTH_REDUCTION.run(ops, positions);
         ops = deadEffects(ops, positions);
         ops = reachability(ops, positions);
         ops = removeJumpToNext(ops, positions);
@@ -115,6 +116,7 @@ public final class Optimizer {
     private static final CopyPropagation COPY_PROPAGATION = new CopyPropagation();
     private static final DeadCodeElimination DEAD_CODE_ELIMINATION = new DeadCodeElimination();
     private static final LivenessDeadStores LIVENESS_DEAD_STORES = new LivenessDeadStores();
+    private static final StrengthReduction STRENGTH_REDUCTION = new StrengthReduction();
 
     // ── Dead stack effects ────────────────────────────────────────────
 
