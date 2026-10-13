@@ -972,6 +972,11 @@ science) **without** destroying the language's simplicity.
 > AVIF pixel decode (`decodeRaster` refuses AVIF by policy). Queue per the plan §34 — authoritative state lives there.
 > **SURFACE COMPLETE (8th front):** `graphics-gaming` — promoted 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) to
 > [`graphics-gaming.md`](../graphics-gaming.md); stack `G1` DECIDED (SDL3) + form `D-GRAPHICS-WINDOW-FORM` + loop `D-MAINT-BATCH-0610`/A1–A3; pure surface LANDED 05–07/10 (`Clock`/`Keys`/`Mouse`/`Pad`/`Window`/`Sprite`/`Draw`/`Trig`/`Tilemap`/`Audio`/`Wav`/`Video`, E2E goldens every target) + SDL3 ABI/pump/audio/stream measured headless on all four targets + corpus 3.6a (`training/idioms/game` + `learn/42-games`). Decision F ORDERED 08/10 (maintainer: vendor the upstream LGPL-2.1+ FFmpeg from source, no `--enable-gpl`; probe license must NOT be GPLv3+ before any decode lands) + 3.5 (3D) PROMOTED to active scope 08/10 (maintainer). Authoritative state lives in `docs/graphics-gaming.md` (promoted 09/10 — the pure-surface mission complete; the backend faces stay the documented boundary).
+> **PROMOTED (12th front):** `entity-history` — promoted 14/10 (from `docs/development/`, `D-FUTURE-UNFREEZE`) to
+> [`entity-history.md`](../entity-history.md) (+PT); Phases 2–5 ALL LANDED with executed proof — JDBC recording +
+> historical queries + context, and the NATIVE backend (`EntityHistoryNativeCreateE2ETest` 5/5: createHistory,
+> delete_recorded, save_recorded, the ascending query, the page/one variants); Phase 3 GOLDEN byte-stable. Phase 6
+> (advanced) deferred post-promotion by `D-ENTITY-HISTORY-PHASE6`.
 > **CORE COMPLETE (9th front):** `testing-platform` — promoted 10/10 (`D-TESTING-PLATFORM`, maintainer order "pode finalizar o plano então, ja promover e vida que segue") to
 > [`testing-platform.md`](../testing-platform.md); §11 phases 1–4 COMPLETE — unit core §4 (assertions 1–6 + tables §4.4 + clock/random seams §4.6) + harness §5 (temp-dir/readiness, withDb, withServer) + runner §7 (honest discovery, tags OR, level breakdown) + browser §6 FULL STACK (manifesto `kof-test.kofmd` → gate `kof test --tag browser` → SPI `BrowserProvider` → ChromeHeadlessProvider (zero-dep) + PlaywrightLibProvider (lib 1.49.0, normal pom dep) → `kof.test.browser` Kof-level API → REAL Chromium E2E); §12 with NO open decisions (4 chat polls). Phases 5–8 under the confirmed §11 order — measured 11/10 (lane `192.168.100.14:0`): **phase 7 CORE LANDED** (kind-parameterized `PlaywrightLibProvider`, real Firefox render E2E green + Chromium, WebKit launch-blocked on the host → named skips); **phase 5 CORE LANDED** (`CypressProvider` over the REAL `cypress run` — generated ad-hoc specs, honest probe; host unlocked by the maintainer mid-slice: node 24.18.1/npm 11.16.0, Cypress 16.1.1 in the Kof cache); phase 6's KofJS face already proven by the seed `KofJsBrowserE2ETest`, the KofWasm face gated by #776; phase 8 (advanced) OPEN — each slice under a NEW claim. Authoritative state lives in `docs/testing-platform.md`.
 > > **OPEN (11th front):** `assembly-optimization` — promoted 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`) to [`assembly-optimization-plan.md`](assembly-optimization-plan.md); the only `future/` plan whose gate was already decided (no new syntax, additive compiler-internal). Phase A (structured CFG over the existing linear `Optimizer.java`) is the current slice.
@@ -1074,7 +1079,7 @@ rule 6).
 
 ### TIER 2.9 — Entity history — temporal audit for `kof.orm` (PROMOTED 11/10, `D-FUTURE-UNFREEZE`; decisions CLOSED — `D-ENTITY-HISTORY` + Q1–Q15)
 
-> Spec = [`entity-history-plan.md`](../entity-history-plan.md)(+PT) — moved from `future/` on promotion.
+> Spec = [`entity-history.md`](../entity-history.md)(+PT) — moved from `future/` on promotion.
 > Surface LOCKED by the Q1–Q15 answers: `audited entity` (PT `auditado entidade`), query entity-static
 > (`User.history(db, id)`), known `Revision`/`FieldChange` records, one revision per `save`, per-entity
 > sequence, ORM paths only, `atTime` = at-or-before, FK values only, snapshot-per-revision, `not audited`
