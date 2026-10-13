@@ -649,6 +649,38 @@ class DecompileTest {
     }
 
     @Test
+    void interfaceSuperDefaultInlinedNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase G (diamond, mantenedora 14/10): `return A.super.m();` — o
+        // corpo do default da interface é lido do classfile irmão e INLINADO
+        // no call site (mesmo pipeline); stub nunca é opção (Q7).
+        Path src = dir.resolve("classes");
+        Path a = dir.resolve("A.java");
+        Files.writeString(a, """
+                public interface A {
+                    default int m() { return 1; }
+                }
+                """);
+        Path c = dir.resolve("C.java");
+        Files.writeString(c, """
+                public class C implements A {
+                    public int viaInterface() { return A.super.m(); }
+                }
+                """);
+        runJavac(java.util.List.of(a, c), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String cSrc = Files.readString(out.resolve("C.kf"));
+        assertTrue(cSrc.contains("viaInterface() = 1"),
+                "o default deve ser INLINADO (valor do corpo de A.m()):\n" + cSrc);
+        assertFalse(cSrc.contains("body not recovered"),
+                "nenhum stub no arquivo:\n" + cSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("A.kf"), out.resolve("C.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "arvore com o default inlinado deve compilar (zero drift):\n" + cSrc
+                + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void decompileTreeRefusesAmbiguousSimpleNames(@TempDir Path dir) throws Exception {
         // Recusa R6: simples duplicado em 2+ pacotes do índice nunca ganha
         // import (ambíguo) → stub honesto, mesmo com o pacote atual tendo um.

@@ -183,6 +183,55 @@ public final class Decompile {
      * cross-package) ou cai no simples (comportamento anterior).
      * Emissão nunca é null — no pior caso, igual a antes.
      */
+    /**
+     * Fase G (diamond, mantenedora 14/10): o shape `return A.super.m();`
+     * compila para `aload_0; invokespecial InterfaceMethodref A.m; xreturn`.
+     * O corpo do default é lido do CLASSFILE IRMÃO (o mesmo diretório) e
+     * recuperado pelo MESMO pipeline — o call site emite o corpo inlinado.
+     * Stub nunca é opção de design (Q7/AGENTS): se o corpo do default não
+     * recuperar, o método segue não-recuperado pelo fluxo normal (o relatório
+     * conta), nunca fabricado.
+     */
+    private static String tryInlineInterfaceSuperCall(ClassFileParser.MethodInfo m,
+                                                      ClassFileParser.ClassFile self,
+                                                      Path classFilePath) {
+        if (m == null || m.code == null || classFilePath == null) return null;
+        List<BytecodeReader.Insn> insns;
+        try {
+            insns = BytecodeReader.decode(m.code.bytecode);
+        } catch (Exception e) {
+            return null;
+        }
+        if (insns.size() != 3) return null;
+        if (insns.get(0).opcode() != 0x2a) return null;            // aload_0
+        if (insns.get(1).opcode() != 0xb7) return null;            // invokespecial
+        int ret = insns.get(2).opcode();
+        if (ret < 0xac || ret > 0xb1) return null;                 // xreturn
+        String[] ref = BytecodeCp.resolveMethodRef(self.constantPool, insns.get(1).operands()[0]);
+        if (ref == null) return null;
+        // o owner NÃO pode ser a própria classe nem a super (esses shapes têm
+        // tratamento próprio); invokespecial não-init restante = interface
+        if (ref[0].equals(self.thisClass) || ref[0].equals(self.superClass)) return null;
+        if (BytecodeCp.argCount(ref[2]) != 0) return null;         // 1ª fatia: sem args
+        Path ownerFile = classFilePath.getParent() == null ? null
+                : classFilePath.getParent().resolve(ref[0].replace('/', java.io.File.separatorChar) + ".class");
+        if (ownerFile == null || !java.nio.file.Files.exists(ownerFile)) return null;
+        try (java.io.InputStream in = java.nio.file.Files.newInputStream(ownerFile)) {
+            ClassFileParser.ClassFile owner = ClassFileParser.parse(in);
+            for (ClassFileParser.MethodInfo om : owner.methods) {
+                if (!ref[1].equals(om.name) || !ref[2].equals(om.descriptor)) continue;
+                if (om.code == null) return null;
+                boolean omStatic = (om.accessFlags & 0x0008) != 0;
+                BytecodeFrame of = new BytecodeFrame(om.descriptor, omStatic);
+                // o corpo do default é recuperado pelo MESMO pipeline
+                return BytecodeDecoder.recoverExpression(om.code.bytecode, owner.constantPool, of);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        return null;
+    }
+
     static String resolveSuperName(String internal, TreeScope scope) {
         if (scope != null) {
             String r = scope.resolve(internal);
@@ -297,6 +346,13 @@ public final class Decompile {
                 boolean hasHandlers = m.code.exceptionHandlers != null && !m.code.exceptionHandlers.isEmpty();
                 if (!hasHandlers) {
                     body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, frame);
+                }
+                if (body == null) {
+                    // Fase G (diamond, mantenedora 14/10): o refinamento de
+                    // default `A.super.m()` — o corpo do default da interface é
+                    // INLINADO (lido do classfile irmão e recuperado pelo MESMO
+                    // pipeline); stub NUNCA é opção de design (Q7).
+                    body = tryInlineInterfaceSuperCall(m, ir, classFile);
                 }
                 if (body == null && m.code.exceptionHandlers != null) {
                     int[][] handlers = new int[m.code.exceptionHandlers.size()][];
