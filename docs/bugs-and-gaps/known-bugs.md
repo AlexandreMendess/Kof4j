@@ -17154,6 +17154,37 @@ compiled on JVM/Script/native x86-64/riscv64/aarch64 (all returning `11`) but on
 
 <!-- pt-switch --> **PT:** [§702 (pt_BR)](known-bugs.pt_BR.md#702--um-try-aninhado-num-try-cujo-try-interno-tem-um-finally-nao-compilava-no-js-um-erro-interno-do-compilador-comp002-kofjs-unexpected-kofcatchstart-at-statement-level---corrigido-1310-achado-1310-pela-lane-compiladorjvmnativo-19216815309092-corrigido-pela-mesma-lane)
 
+## §703 — a `return` inside a `try`/`finally` inside a LOOP emits WRONG JS on the JS backend: `undefined` (return nested in an `if`), or INVALID JS (`SyntaxError: Missing catch or finally after try` / `ReferenceError: _idx is not defined`, return as the try's last statement) — 🟡 OPEN (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 13/10 through the COMPILER MODULE):**
+
+```kof
+Int returnInTryFinallyLoop() {
+    var r = 0
+    for (var i in listOf(0, 1, 2)) {
+        try {
+            if (i == 1) { return 100 }
+            r += i
+        } finally {
+            r += 10
+        }
+    }
+    return r
+}
+```
+
+returns `100` on JVM/Script/native x86-64/riscv64/aarch64 but **`undefined` on JS** — silent. A variant where the `return` is the try's LAST statement (no enclosing `if`) is worse: the JS backend emits **invalid JS** (`SyntaxError: Missing catch or finally after try` at the `try`, then `Invalid return statement`), or with an `if` it emits `ReferenceError: _idx is not defined`.
+
+**Root (traced by dumping the IR ops AND the generated JS):** a `return` inside a try/finally lowers to `_retVal = X; goto <returnFinally>`, and the JS backend renders the return-finally EPILOGUE (`return _retVal`) INLINE right after the `try`/`finally` block. Outside a loop that is fine — the epilogue lands at the method tail. INSIDE a loop the epilogue lands inside the LOOP BODY, so it runs UNCONDITIONALLY on the first iteration and returns the still-`undefined` `_retVal`; and the try body keeps `_retVal = X` as an ASSIGNMENT instead of a real `return`, so JS's native `try/finally` never sees a return to run the finally for.
+
+**Fix path (named, ATTEMPTED and REVERTED — recorded honestly):** convert the try body's `_retVal = X` into `return X` (letting JS's native try/finally run the finally on the abrupt completion) and DROP the `returnFinally` epilogue. A recursive conversion over the body (assign→return, descending if/block/while/for/for-in/switch) was implemented and MEASURED: it FIXED the `return`-nested-in-`if` shape (`undefined` → `100`) and the `while` shape, but the `return`-as-the-try's-LAST-statement shape then emitted invalid JS (`Missing catch or finally after try`) — the conversion interacts with the try parser's jump/region-exit consumption for a trailing return, which is a SECOND structural change. Reverted rather than shipped partial: the partial fix changed the failure mode of an already-broken shape from `ReferenceError` to `SyntaxError` (both wrong), so it is not a strict improvement and would have been a false-progress change. The full fix must handle BOTH the nested-return shape AND the trailing-return shape together, with the whole try/finally/return battery (§617 faces A/B, DD-01/bug45, §147) as the regression net.
+
+**Why it was left OPEN:** the value is silently wrong (or uncompilable) on ONE target; the fix is a structural change to the return-finally reconstruction, a shared-IR area that four prior bugs (§617, DD-01, bug45, §147) already touched. Recorded with the exact attempted patch and its measured outcome so the next pass starts from evidence, not from scratch.
+
+**Boundary:** the JS backend only; the other five targets are correct. The non-loop try/finally-with-return shape is correct. `break`/`continue` inside a try/finally (already fixed by an earlier lane, §6xx) are NOT this bug.
+
+<!-- pt-switch --> **PT:** [§703 (pt_BR)](known-bugs.pt_BR.md#703--um-return-dentro-de-um-tryfinally-dentro-de-um-loop-emite-js-errado-no-backend-js-undefined-return-aninhado-num-if-ou-js-invalido-syntaxerror-missing-catch-or-finally-after-try--referenceerror-_idx-is-not-defined-return-como-ultimo-statement-do-try---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
+
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):** `var d = 0` then `try { println(10 / d) } catch (String e) { ... }` printed **`-1` on riscv64 and `0` on aarch64** and left the `catch` UNREACHED, where every other target printed `caught`. Same for `%` and for `Long` (`10L / 0L`). The failure is the worst kind: the program keeps running with a wrong value instead of failing loudly.
