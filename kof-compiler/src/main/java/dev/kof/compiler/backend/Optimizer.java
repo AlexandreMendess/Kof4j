@@ -99,6 +99,12 @@ public final class Optimizer {
         ops = CONSTANT_PROPAGATION.run(ops, positions);
         ops = COPY_PROPAGATION.run(ops, positions);
         ops = DEAD_CODE_ELIMINATION.run(ops, positions);
+        // Phase C of the same plan: a liveness-driven dead-store pass — the
+        // materialization that consumes LivenessAnalysis (Phase C slice 1) to
+        // remove stores whose slot is never read (the §21 "reduction in
+        // artificial loads/stores"). Runs after the Phase B passes so it sees
+        // their output.
+        ops = LIVENESS_DEAD_STORES.run(ops, positions);
         ops = deadEffects(ops, positions);
         ops = reachability(ops, positions);
         ops = removeJumpToNext(ops, positions);
@@ -108,6 +114,7 @@ public final class Optimizer {
     private static final ConstantPropagation CONSTANT_PROPAGATION = new ConstantPropagation();
     private static final CopyPropagation COPY_PROPAGATION = new CopyPropagation();
     private static final DeadCodeElimination DEAD_CODE_ELIMINATION = new DeadCodeElimination();
+    private static final LivenessDeadStores LIVENESS_DEAD_STORES = new LivenessDeadStores();
 
     // ── Dead stack effects ────────────────────────────────────────────
 

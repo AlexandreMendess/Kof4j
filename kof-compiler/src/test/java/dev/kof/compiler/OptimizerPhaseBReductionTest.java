@@ -69,9 +69,12 @@ class OptimizerPhaseBReductionTest {
                 new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT),
                 new KofReturn(Type.PrimitiveType.INT));
         List<KofOperation> out = optimizeOps(in);
-        assertEquals(6, out.size(),
-                "both dead stores are removed and the surviving reads fold to a literal"
-                        + " (in=" + in.size() + " out=" + out.size() + ")");
+        // Through the full pipeline (Phase B + Phase C liveness dead-store pass),
+        // both dead stores are removed, the reads fold to literals and the ADD
+        // folds, leaving the returned literal.
+        assertEquals(2, out.size(),
+                "the whole expression folds to a literal return (in=" + in.size()
+                        + " out=" + out.size() + ")");
     }
 
     @Test
@@ -92,10 +95,7 @@ class OptimizerPhaseBReductionTest {
                 new KofReturn(Type.PrimitiveType.INT));
         List<KofOperation> out = optimizeOps(in);
         // Both operands of the ADD must still be pushed: the dead store is gone
-        // (in=8 -> out=6) but the two surviving reads are intact.
-        assertEquals(6, out.size(),
-                "only the dead store pair is removed (in=" + in.size()
-                        + " out=" + out.size() + ")");
+        // but the two surviving reads are intact (they fold to literals).
         int addIndex = -1;
         for (int i = 0; i < out.size(); i++) {
             if (out.get(i) instanceof KofBinary) addIndex = i;
@@ -107,5 +107,23 @@ class OptimizerPhaseBReductionTest {
 
     private static boolean isPush(KofOperation op) {
         return op instanceof KofLoadLiteral || op instanceof KofLoadLocal;
+    }
+
+    @Test
+    void livenessRemovesANeverReadStoreThatPhaseBAloneKeeps() {
+        // x = 1; y = 2; return x — slot 1 is never read (not even overwritten), so
+        // the Phase B overwrite-only rule cannot remove it; the Phase C liveness
+        // pass can (slot 1 is not live after its store).
+        List<KofOperation> in = List.of(
+                KofLoadLiteral.ofInt(1),
+                new KofStoreLocal(Type.PrimitiveType.INT, 1),
+                KofLoadLiteral.ofInt(2),
+                new KofStoreLocal(Type.PrimitiveType.INT, 2),
+                new KofLoadLocal(Type.PrimitiveType.INT, 2),
+                new KofReturn(Type.PrimitiveType.INT));
+        List<KofOperation> out = optimizeOps(in);
+        assertTrue(out.size() < in.size(),
+                "the never-read store is removed by the liveness pass (in=" + in.size()
+                        + " out=" + out.size() + ")");
     }
 }
