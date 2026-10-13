@@ -42,7 +42,7 @@ public final class RuntimeOrmHistory3 {
                 pushq %r13
                 pushq %r14
                 pushq %r15
-                subq $160, %rsp
+                subq $168, %rsp
                 movq %rdi, (%rsp)
                 movq %rsi, 8(%rsp)
                 movq %rdx, 16(%rsp)
@@ -458,7 +458,7 @@ public final class RuntimeOrmHistory3 {
                 call sqlite3_finalize
             .Lormh3_done:
                 movq 8(%rsp), %rax
-                addq $160, %rsp
+                addq $168, %rsp
                 popq %r15
                 popq %r14
                 popq %r13
