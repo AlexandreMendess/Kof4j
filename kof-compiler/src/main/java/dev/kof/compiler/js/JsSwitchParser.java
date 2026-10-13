@@ -68,6 +68,7 @@ JsIr.JsStatement parseSwitchStatement(MethodCtx ctx, int[] pos) {
             boolean stringEq = false;
             boolean identityEq = false;
             boolean primitiveEq = false;
+            boolean directEq = false;
             while (true) {
                 KofOperation op = ctx.ops.get(pos[0]);
                 if (op instanceof KofBinary kb && kb.op() == KofBinaryOp.SUB && stack.size() == 2) {
@@ -120,6 +121,18 @@ JsIr.JsStatement parseSwitchStatement(MethodCtx ctx, int[] pos) {
                     pos[0]++;
                     break;
                 }
+                // §700: `case 0` baixa como `(subject - 0) == 0`, e o
+                // `foldIdentity` do otimizador remove o `SUB` E o literal do
+                // caseValue (x - 0 = x), deixando a comparação DIRETA
+                // `[#switch, LoadLiteral(0), CJump(EQ)]` — sem o `LoadLiteral(0)`
+                // de comparação e com o CJump em EQ (não NE). Sem este ramo o
+                // parser estourava (COMP002) e um `switch` sobre Int com um
+                // `case 0` NÃO COMPILAVA no JS.
+                if (op instanceof KofConditionalJump cj && cj.comparison() == KofComparison.EQ
+                        && stack.size() == 2) {
+                    directEq = true;
+                    break;
+                }
                 if (!p.expr.isExpressionOp(op)) {
                     throw new IllegalStateException("KofJS: unexpected op in switch case: " + op);
                 }
@@ -127,11 +140,13 @@ JsIr.JsStatement parseSwitchStatement(MethodCtx ctx, int[] pos) {
             }
             JsIr.JsExpression caseValue = p.expr.pop(stack);
             p.expr.pop(stack);
-            if (!(ctx.ops.get(pos[0]) instanceof KofLoadLiteral zero
-                    && zero.value() instanceof Integer i && i == 0)) {
-                throw new IllegalStateException("KofJS: switch case expected 0");
+            if (!directEq) {
+                if (!(ctx.ops.get(pos[0]) instanceof KofLoadLiteral zero
+                        && zero.value() instanceof Integer i && i == 0)) {
+                    throw new IllegalStateException("KofJS: switch case expected 0");
+                }
+                pos[0]++;
             }
-            pos[0]++;
             if (!(ctx.ops.get(pos[0]) instanceof KofConditionalJump cj
                     && ((stringEq || identityEq || primitiveEq)
                         ? cj.comparison() == KofComparison.NE
