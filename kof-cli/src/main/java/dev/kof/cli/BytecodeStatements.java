@@ -28,6 +28,11 @@ final class BytecodeStatements {
      * Por-rodada (limpo no fim de recoverStatements).
      */
     static java.util.Set<Integer> skipFirst;
+    /**
+     * Fase C (13/10): o alvo da SAÍDA do loop aberto — um bloco de goto único
+     * para ele É o `break`. Por-rodada (salvo/restaurado por loop aninhado).
+     */
+    static int currentLoopExit = -1;
     /** Atribuição com declaração `var` na 1ª escrita do slot. */
     private static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
         String name = BytecodeDecoder.slotName(slot, frame);
@@ -78,6 +83,7 @@ final class BytecodeStatements {
             if (tc != null) return tc;
         }
         skipFirst = null;   // por-método: nenhum skip vaza entre corpos
+        currentLoopExit = -1;
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
         if (blocks.isEmpty()) { refuse("cfg-empty"); return null; }
         if (refusalSink != null) {
@@ -378,8 +384,12 @@ final class BytecodeStatements {
             boolean loop = loop0;
             if (loop) {
                 out.add("while (" + cond + ") {");
-                if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, b.start, stops))
-                    { refuse("struct-generic"); return false; }
+                int savedExit = currentLoopExit;
+                currentLoopExit = exitStart;   // `break` = goto para a saída
+                boolean bodyOk = struct(byStart.get(thenStart), insns, byStart, cp, frame,
+                        out, emitted, declared, b.start, stops);
+                currentLoopExit = savedExit;
+                if (!bodyOk) { refuse("struct-generic"); return false; }
                 out.add("}");
                 return struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
@@ -531,6 +541,11 @@ final class BytecodeStatements {
             List<String> stmts = BytecodeStatementsEmit.emitLinear(blkSeq(b, insns), cp, frame, declared);
             if (stmts == null) { refuse("emitLinear-null"); return false; }
             out.addAll(stmts);
+            // Fase C (13/10): goto para a SAÍDA do loop aberto = `break`
+            if (currentLoopExit >= 0 && b.succ.get(0) == currentLoopExit) {
+                out.add("break");
+                return true;
+            }
             return struct(byStart.get(b.succ.get(0)), insns, byStart, cp, frame, out, emitted, declared, header, stops);
         }
         { refuse("struct-generic"); return false; }

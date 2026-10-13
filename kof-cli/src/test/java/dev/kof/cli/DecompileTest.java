@@ -976,6 +976,41 @@ class DecompileTest {
         assertEquals("2\na", output, "zero-drift executado");
     }
 
+    @Test
+    void breakInLoopRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): `break` é um goto para a SAÍDA do loop aberto —
+        // um bloco de goto único para ela emite `break` (o corpo antes já
+        // emitido). Antes: stub do método inteiro.
+        Path javaFile = dir.resolve("Bk.java");
+        Files.writeString(javaFile, """
+                public class Bk {
+                    int brk(int n) {
+                        int s = 0;
+                        for (int i = 0; i < n; i++) { if (i == 3) break; s += i; }
+                        return s;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bk.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o break recupera:\n" + kof);
+        assertTrue(kof.contains("break"), kof);
+        // zero-drift executado
+        String kofRun = kof + "\nmain() {\n    var bk = Bk()\n    println(bk.brk(0))\n    println(bk.brk(3))\n    println(bk.brk(6))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("0\n3\n3", output, "zero-drift executado");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
