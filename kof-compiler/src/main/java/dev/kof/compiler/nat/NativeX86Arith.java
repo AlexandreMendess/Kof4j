@@ -337,6 +337,21 @@ public final class NativeX86Arith {
             return;
         }
         sb.append("    popq %rax\n");
+        // §695: `as Byte`/`as Short` ESTREITAM — o emissor não tinha ramo para
+        // I2B/I2S e os dois caíam no `pushq` final como NO-OP: `200 as Byte`
+        // devolvia 200 no nativo enquanto Script/JVM/JS davam -56 (o byte
+        // 0xC8 sign-extended). O JVM emite `i2b`/`i2s`; aqui é o equivalente
+        // em duas instruções (sign-extend da metade baixa).
+        if (ku.op() == KofUnaryOp.I2B) {
+            sb.append("    movsbl %al, %eax\n");
+            sb.append("    pushq %rax\n");
+            return;
+        }
+        if (ku.op() == KofUnaryOp.I2S) {
+            sb.append("    movswl %ax, %eax\n");
+            sb.append("    pushq %rax\n");
+            return;
+        }
         boolean int32u = NativeTypeKinds.isInt32Type(ku.operandType());
         String suf = int32u ? "l" : "q";
         String reg = int32u ? "%eax" : "%rax";

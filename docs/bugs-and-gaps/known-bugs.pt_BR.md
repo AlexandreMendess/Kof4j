@@ -14584,6 +14584,37 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 <!-- en-switch --> **EN:** [§599 (EN)](known-bugs.md#599--native-processrunshellrunshellpipeline-children-inherited-the-parents-and-the-runtimes-file-descriptors-forkexecvp-never-closed-or-cloexec-ed-them-leaking-open-resourcesauthority-to-a-less-trusted-subprocess---fixed-0510-owner--19216815309093-lane-issuestooling-bugs-and-gaps-front-issue-762)
 
+## §696 — um LOCAL ou RETORNO `Byte`/`Short` guardando um valor FORA DE FAIXA é aceito LIMPO nos quatro alvos e então DIVERGE DE QUATRO JEITOS: o Script estreita (`var x: Byte = 200` → `-56`), nativo/JS mantêm o valor CRU (`200`), e o JVM CRASHA em runtime (`ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` dentro do `java.lang.Byte.valueOf`) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10):** `main() { var x: Byte = 200\n println(x) }` passa no `kof check` com **nenhum erro** e então:
+- **JVM:** `Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` em `java.lang.Byte.valueOf(Byte.java:149)` — o `Byte.valueOf(byte)` do JDK cacheia `-128..127` e o emissor entrega o `200` CRU (328 = 200 + 128), então o ÍNDICE do cache sai de faixa e o processo morre com uma `ArrayIndexOutOfBoundsException` que não tem nada a ver com o código do usuário.
+- **Script:** `-56` (o interpretador aplica `(byte)`).
+- **nativo / JS:** `200` (o inteiro cru).
+
+A mesma forma vale para `Short` (`var y: Short = 40000`: JVM `Index 328 out of bounds for length 256` do `Short.valueOf`, nativo/JS `40000`, Script `-25536`). Um **retorno** Byte/Short diverge igual (medido: `b(): Byte { return 200 }` → Script `-56`, nativo/JS `200`, JVM o mesmo crash de cache quando o chamador boxeia).
+
+**Por que é bug:** quatro alvos, quatro comportamentos, e o checador de compile-time diz que o programa está bom. O contrato é o do Java: um valor `Byte`/`Short` está SEMPRE em faixa, então a atribuição precisa ESTREITAR (estilo JLS 5.1.3) — que é o que o Script já faz e o que o §695 acabou de fazer o CAST fazer nos alvos nativos. O crash do JVM é a pior face: uma `ArrayIndexOutOfBoundsException` num cache do JDK, não um diagnóstico sobre o valor do usuário.
+
+**Caminho de correção (nomeado, NÃO pousado — precisa de decisão sobre ONDE estreitar, e é por isso que foi separado do §695):** o lowering de atribuição/retorno precisa aplicar o mesmo estreitamento `I2B`/`I2S` que o CAST agora faz, nos quatro alvos, para `var x: Byte = 200` se comportar como `(200 as Byte)`. Dois sítios candidatos, com raios diferentes: (a) no lowering da DECLARAÇÃO/STORE (estreitar todo store Byte/Short — mais perto do `i2b`/`i2s` do JVM no caminho `putfield`/`astore`, mas toca toda atribuição); ou (b) na fronteira de BOXING (estreitar só onde o valor vira um Byte/Short boxeado — mais estreito, e é exatamente onde o JVM crasheia, mas deixa o valor cru visível aos caminhos desboxados). A escolha muda o que um literal fora de faixa SIGNIFICA, então é uma decisão de semântica da mantenedora, não uma escolha de lane.
+
+**Fronteira:** a face do CAST (`200 as Byte`) é o §695 e está CORRIGIDA nos quatro alvos. Esta entrada é só a face LOCAL/RETORNO. Medido em x86-64 para o nativo; as faces cross não foram construídas para esta sonda.
+
+<!-- en-switch --> **EN:** [§696 (en)](known-bugs.md#696--a-byteshort-local-or-return-holding-an-out-of-range-value-is-accepted-clean-on-all-four-targets-and-then-diverges-four-ways-the-script-narrows-var-x-byte--200---56-nativejs-keep-the-raw-value-200-and-the-jvm-crashes-at-runtime-arrayindexoutofboundsexception-index-328-out-of-bounds-for-length-256-inside-javalangbytevalueof---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §695 — o `as Byte` / `as Short` NÃO estreitava nos alvos NATIVOS: os dois emissores nativos não tinham ramo para `I2B`/`I2S`, então o cast caía como NO-OP e o valor passava CRU (`200 as Byte` → nativo `200` vs Script/JVM/JS `-56`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+
+**Sintoma (medido 13/10):** `var x = 200` e então `println(x as Byte)` imprimia **`200` nos alvos nativos** (x86-64 e os cross riscv64/aarch64) e **`-56` em Script/JVM/JS** (o byte `0xC8` sign-extended). Igual para `as Short`: `40000 as Short` → nativo `40000` vs `-25536` nos outros. A divergência é silenciosa — o valor nativo é simplesmente o inteiro não estreitado.
+
+**Raiz:** o `CompilerEmissionHelpers.emitPrimNarrow` emite `KofUnaryOp.I2B`/`I2S` para alvo Byte/Short (o JVM os baixa para `i2b`/`i2s` e o interpretador aplica `(byte)`/`(short)`), mas NENHUM emissor nativo tinha ramo para eles: o `NativeX86Arith.emitUnary` caía no `pushq` final (o cast virava no-op) e o switch unário do `NativeRiscvCrossEmit` batia no `default` (um comentário `NATIVE002`, também no-op).
+
+**Correção:** o emissor x86 sign-extende da metade baixa (`movsbl %al, %eax` para `I2B`, `movswl %ax, %eax` para `I2S`); o emissor cross usa o par de shifts (`slli` + `srai` por 56 / 48 bits), que é o que o riscv tem em vez de uma instrução de sign-extend de 8/16 bits — e o tradutor aarch64 já cobre os dois shifts, então a face aarch64 sai da mesma emissão.
+
+**Prova (executada, RED-first):** o novo `NativeByteShortCastE2ETest` **5 run / 0F**; com as duas mudanças dos emissores REVERTIDAS **3 das suas 5 faces FALHAM** — `nativeX86MatchesTheJvm`, `nativeRiscv64MatchesTheJvm` e `nativeAarch64MatchesTheJvm`, todas na primeira divergência (`expected -56`) — enquanto as faces do oráculo JVM e do Script passam (elas já estreitavam, que é o que faz do nativo o divergente). O caso pina as duas larguras, a direção negativa (`-200 as Byte` → `56`, `as Short` → `-200`), os valores de fronteira (`127`/`-128`/`-1`/`65535`) e `70000 as Byte` → `112`. A bateria byte/short/cast/aritmética/nativo **783 run / 0F / 0E (54 skipped)**.
+
+**Fronteira:** só o CAST. Um LOCAL ou retorno Byte/Short guardando um valor fora de faixa é uma face SEPARADA — ver §696 (é aceito limpo, o Script estreita, nativo/JS mantêm o valor cru e o JVM CRASHA); as duas foram achadas juntas e deliberadamente separadas.
+
+<!-- en-switch --> **EN:** [§695 (en)](known-bugs.md#695--as-byte--as-short-did-not-narrow-on-the-native-targets-both-native-emitters-had-no-arm-for-i2bi2s-so-the-cast-fell-through-as-a-no-op-and-the-value-passed-through-raw-200-as-byte--native-200-vs-scriptjvmjs--56---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+
 ## §694 — o `NEG` do interpretador era um TERNÁRIO ANINHADO misturando `long`/`float`/`double`/`int`, e o operador condicional do Java PROMOVE NUMERICAMENTE os ramos — então `-x` num `Long` produzia um `Double` no Script, e o cast seguinte SATURAVA em vez de truncar (`(-9000000000L) as Int` → Script `-2147483648` vs JVM/JS/nativo `-410065408`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10):** `var bigL = 9000000000L` e então `println((-bigL) as Int)` imprimia **`-2147483648` no Script** e **`-410065408` em JVM/nativo/JS**. O `println(-bigL)` cru imprimia `-9000000000` em TODOS, que é o que escondeu o defeito — o valor errado só aparece quando o resultado é CASTADO.

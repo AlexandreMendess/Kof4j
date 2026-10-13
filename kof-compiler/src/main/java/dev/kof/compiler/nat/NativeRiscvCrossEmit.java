@@ -393,6 +393,13 @@ public final class NativeRiscvCrossEmit {
             case NOT -> sb.append("    seqz t0, t0\n");
             case I2L -> sb.append("    sext.w t0, t0\n");
             case I2C -> sb.append("    sext.w t0, t0\n");
+            // §695: `as Byte`/`as Short` ESTREITAM (o JVM emite i2b/i2s). Sem
+            // estes ramos o cross caía no `default` (comentário NATIVE002) e o
+            // valor passava CRU: `200 as Byte` dava 200 em vez de -56.
+            // Par slli+srai (o tradutor aarch64 cobre os dois) — não há
+            // instrução de sign-extend de 8/16 bits no riscv base.
+            case I2B -> sb.append("    slli t0, t0, 56\n    srai t0, t0, 56\n");
+            case I2S -> sb.append("    slli t0, t0, 48\n    srai t0, t0, 48\n");
             case L2I -> sb.append("    sext.w t0, t0\n");
             case I2F -> sb.append("    fcvt.s.w f0, t0\n    fmv.x.w t0, f0\n");
             case I2D -> sb.append("    fcvt.d.w f0, t0\n    fmv.x.d t0, f0\n");
