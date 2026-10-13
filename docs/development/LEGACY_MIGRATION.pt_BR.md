@@ -187,6 +187,15 @@ Java standard library, chamadas de bibliotecas externas.
 > (`T_Inner(21).twice()` → `42`, e o estático qualificado `T.Inner.X` →
 > `5`); inner não-static (captura a instância externa) e colisões de nome
 > (`T_Inner` já top-level; o mesmo `Inner` sob dois outers) recusam com
+> razões NOMEADAS.
+> **Campos static + o `<clinit>` DOBRAM no DECOMPILADOR desde esta rodada** — um FALSO OK medido do mesmo formato do fechado no tradutor: uma classe `static int W = 7` decompilada NÃO emitia campo nenhum e o bloco `<clinit>` sumia em silêncio (o Kof emitido referenciava `St.W` que não existia — sem compilar). Agora os campos static são EMITIDOS e o clinit no formato literal-putstatic dobra nos inicializadores (`static Int V = 42`, `static String S = "hi"`); constantes `static final` (JVMS 4.7.2 — NÃO passam pelo clinit) dobram via o attribute `ConstantValue` recém-lido (leitura aditiva no parser); corpos de clinit não-literais deixam os campos sem initializer (conta no relatório, nunca fabricado). Prova executada: a árvore decompilada compila e RODA imprimindo `42`/`hi` (`DecompileTest.staticFieldsAndClinitFoldNotSilentlyLost`). **Classes anônimas BAIXAM desde esta rodada (a última face)** — anônima de
+> interface funcional de método único abstrato baixa para lambda Kof
+> (`new Fun() { public int apply(int x) { return x * 2; } }` →
+> `(x: Int) -> { return x * 2 }`); a `Runnable` do JDK baixa igual;
+> multi-método e com estado (campo) recusam com razões NOMEADAS (lambda não
+> tem campos; multi-método não é SAM). PROVA EXECUTADA: os programas
+> traduzidos compilam e rodam (o probe SAM imprimiu `42`, o
+> multi-instrução `9`). classes/interfaces/herança/genéricos/
 > razões NOMEADAS. classes/interfaces/herança/genéricos/
 > sobrecargas/construtores/exceções/anotações/records/enums/lambdas/modifiers
 > de acesso/stdlib Java/switch/loops/arrays/casts/instanceof todos traduzem

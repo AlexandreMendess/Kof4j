@@ -75,7 +75,10 @@ class DecompileTest {
     }
 
     @Test
-    void decompileStaticFieldSkipped(@TempDir Path dir) throws Exception {
+    void decompileStaticFieldEmittedWithFoldedInit(@TempDir Path dir) throws Exception {
+        // Fase E (fatia static-init, mantenedora 14/10): o campo estático era
+        // PULADO (perda silenciosa — o main referenciava `Const.MAX` que não
+        // existia = falso OK); agora é EMITIDO e o clinit literal dobra.
         Path javaFile = dir.resolve("Const.java");
         Files.writeString(javaFile, """
                 public class Const {
@@ -86,7 +89,8 @@ class DecompileTest {
         runJavac(javaFile, dir);
 
         String kof = Decompile.decompile(dir.resolve("Const.class"));
-        assertFalse(kof.contains("MAX"), "static field should be skipped:\n" + kof);
+        assertTrue(kof.contains("static Int MAX = 100"),
+                "static field emitido com o clinit dobrado:\n" + kof);
         assertTrue(kof.contains("String label"), "instance field should be kept:\n" + kof);
     }
 
@@ -682,6 +686,45 @@ class DecompileTest {
                 out.resolve("A.kf"), out.resolve("C.kf")), dir.resolve("o"), Target.JVM, out);
         assertTrue(r.success(), "arvore com o default inlinado deve compilar (zero drift):\n" + cSrc
                 + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void staticFieldsAndClinitFoldNotSilentlyLost(@TempDir Path dir) throws Exception {
+        // Fase E (fatia static-init, mantenedora 14/10): o clinit em forma
+        // literal-putstatic dobra nos inicializadores — antes os campos
+        // estáticos NEM eram emitidos (o main referenciava `St.V` que não
+        // existia = Kof sem compilar, falso OK medido).
+        Path src = dir.resolve("classes");
+        Path s = dir.resolve("St.java");
+        Files.writeString(s, """
+                public class St {
+                    static int V;
+                    static String S;
+                    static { V = 42; S = "hi"; }
+                    public static void main(String[] args) {
+                        System.out.println(V);
+                        System.out.println(S);
+                    }
+                }
+                """);
+        runJavac(java.util.List.of(s), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String stSrc = Files.readString(out.resolve("St.kf"));
+        assertTrue(stSrc.contains("static Int V = 42"), stSrc);
+        assertTrue(stSrc.contains("static String S = \"hi\""), stSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("St.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "a arvore com os campos dobrados deve compilar:\n" + stSrc
+                + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "St");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("42\nhi", output, "os valores dobrados devem RODAR");
     }
 
     @Test
