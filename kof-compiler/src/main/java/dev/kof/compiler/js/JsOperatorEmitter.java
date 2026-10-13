@@ -33,11 +33,17 @@ final class JsOperatorEmitter {
             case MUL -> intWrap(kb.operandType(), new JsIr.JsBinary(left, "*", right));
             case DIV -> {
                 if (JsTypeMapper.isIntFamily(kb.operandType())) {
-                    yield intWrap(kb.operandType(), new JsIr.JsBinary(left, "/", right));
+                    yield intWrap(kb.operandType(),
+                            new JsIr.JsBinary(left, "/", divZeroGuard(right)));
                 }
                 yield new JsIr.JsBinary(left, "/", right);
             }
-            case MOD -> new JsIr.JsBinary(left, "%", right);
+            case MOD -> JsTypeMapper.isIntFamily(kb.operandType())
+                    // §693: o `%` inteiro tem a MESMA armadilha do `/` (no
+                    // JVM os dois lançam; no JS o `x % 0` é NaN e o `| 0` do
+                    // intWrap o transformava num `0` silencioso).
+                    ? intWrap(kb.operandType(), new JsIr.JsBinary(left, "%", divZeroGuard(right)))
+                    : new JsIr.JsBinary(left, "%", right);
             case EQ -> JsTypeMapper.isBoolOperand(kb.operandType()) || JsTypeMapper.isBoolLiteral(left) || JsTypeMapper.isBoolLiteral(right)
                     ? boolEq(left, right, true)
                     : new JsIr.JsBinary(left, "===", right);
@@ -76,6 +82,17 @@ final class JsOperatorEmitter {
      * Kof Int is a signed 32-bit type; JavaScript numbers are doubles. Wrap
      * int arithmetic with ToInt32 (| 0) to preserve Kof/JVM 32-bit semantics.
      */
+    /** §693: a divisão INTEIRA por um zero de RUNTIME. O `/` do JS é a divisão
+     *  IEEE do host (`10 / 0` = `Infinity`, e o `| 0` do {@link #intWrap} o
+     *  transformava num `0` silencioso) enquanto o JVM e o Script LANÇAM e o
+     *  `try`/`catch` do Kof recupera — o contrato. O helper vive num bloco
+     *  PRÓPRIO do runtime (a mesma forma do `kofCastFail`: o IR não tem
+     *  expressão condicional, e o bloco CORE quebrava o slicing). */
+    private JsIr.JsExpression divZeroGuard(JsIr.JsExpression divisor) {
+        p.lc.registerRuntime("kofDivZero");
+        return new JsIr.JsCall(new JsIr.JsIdentifier("kofDivZero"), List.of(divisor));
+    }
+
     JsIr.JsExpression intWrap(Type operandType, JsIr.JsExpression inner) {
         if (JsTypeMapper.isIntFamily(operandType)) {
             return new JsIr.JsBinary(inner, "|", new JsIr.JsNumber("0"));
