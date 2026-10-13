@@ -88,7 +88,7 @@ final class Av1DecodeChromaSupport {
 
     /** Expected SHA-256 of the pinned CHROMA-plane checksums. */
     static final String PLANES_SHA256 =
-        "b3fd2bab2baeb735df6531f9e7dcc2aeac965a033021032957be72094914442e";
+        "4ee616f0095d94986fb44636440789dc8d599a9a4ea5e07abc96997a50bf7cd3";
 
     static String golden() {
         try (InputStream raw = Av1DecodeChromaSupport.class.getResourceAsStream(RESOURCE)) {
@@ -335,6 +335,46 @@ final class Av1DecodeChromaSupport {
         sb.append("        }\n");
         sb.append("        println(\"Z \" + ci + \" \" + pl + \" \" + h)\n");
         sb.append("        pl = pl + 1\n");
+        sb.append("    }\n");
+        /* L/W: the RAW reconstructed samples of the CFL case's block area. The
+         * oracle emits the same rows from libaom's own inverse transform + CFL
+         * prediction, so this is the end-to-end PIXEL reference for the CFL
+         * composition — the thing a rolling checksum could not give (it
+         * degenerated, see the slice-3ao notes). */
+        sb.append("    var lb = av1BlockWidth(blocks.get(2))\n");
+        sb.append("    var lhb = av1BlockHeight(blocks.get(2))\n");
+        sb.append("    var ls = \"L \" + ci + \" \" + txTypeOut.get(0)\n");
+        sb.append("    var ly = 0\n");
+        sb.append("    while (ly < lhb) {\n");
+        sb.append("        var lx = 0\n");
+        sb.append("        while (lx < lb) {\n");
+        sb.append("            ls = ls + \" \" + frame[(ly + 1) * stride + lx + 1]\n");
+        sb.append("            lx = lx + 1\n");
+        sb.append("        }\n");
+        sb.append("        ly = ly + 1\n");
+        sb.append("    }\n");
+        sb.append("    println(ls)\n");
+        sb.append("    var fuvb = av1PlaneBlockSize(blocks.get(2), 1, 1)\n");
+        sb.append("    var fw = av1BlockWidth(fuvb)\n");
+        sb.append("    var fh = av1BlockHeight(fuvb)\n");
+        sb.append("    var wpl = 1\n");
+        sb.append("    while (wpl <= 2) {\n");
+        sb.append("        var wb = frameU\n");
+        sb.append("        if (wpl == 2) {\n");
+        sb.append("            wb = frameV\n");
+        sb.append("        }\n");
+        sb.append("        var ws = \"W \" + ci + \" \" + wpl\n");
+        sb.append("        var wy = 0\n");
+        sb.append("        while (wy < fh) {\n");
+        sb.append("            var wx = 0\n");
+        sb.append("            while (wx < fw) {\n");
+        sb.append("                ws = ws + \" \" + wb[(wy + 1) * cstride + wx + 1]\n");
+        sb.append("                wx = wx + 1\n");
+        sb.append("            }\n");
+        sb.append("            wy = wy + 1\n");
+        sb.append("        }\n");
+        sb.append("        println(ws)\n");
+        sb.append("        wpl = wpl + 1\n");
         sb.append("    }\n");
         /* A: the LUMA entropy contexts. */
         sb.append("    var a = \"A \" + ci\n");

@@ -62,7 +62,10 @@ class Av1DecodeChromaE2ETest implements LibraryInstallSupport {
     private static String stripZ(String out) {
         List<String> keep = new ArrayList<>();
         for (String line : out.split("\n")) {
-            if (!line.startsWith("Z ")) keep.add(line);
+            /* `Z`/`L`/`W` are the reconstructed-sample captures; the oracle
+             * comparison below is about the DECODE records only. */
+            if (line.startsWith("Z ") || line.startsWith("L ") || line.startsWith("W ")) continue;
+            keep.add(line);
         }
         return String.join("\n", keep);
     }
@@ -81,6 +84,36 @@ class Av1DecodeChromaE2ETest implements LibraryInstallSupport {
          * reconstruct, so this is not an independent reference — it exists so the
          * CFL window geometry (origin + border offset) cannot regress silently. */
         assertEquals(planesGolden(), zLines(runJvm(kofProbe())));
+    }
+
+    private static final String PIXELS_RESOURCE = "/av1_decode_chroma_pixels_golden.txt.b64";
+    private static final String PIXELS_SHA256 =
+        "6968751d1e5feb3d2f49c1a4517dde19052dfd007448f869b761433651ac480d";
+
+    /** The oracle's raw reconstructed samples for the CFL case (libaom's own
+     * inverse transform + CFL prediction). */
+    private static String pixelsGolden() {
+        return Av1DecodeChromaSupport.resourceText(PIXELS_RESOURCE, PIXELS_SHA256);
+    }
+
+    private static String pixelLines(String out) {
+        List<String> keep = new ArrayList<>();
+        for (String line : out.split("\n")) {
+            if (line.startsWith("L 3 ") || line.startsWith("W 3 ")) keep.add(line);
+        }
+        return String.join("\n", keep);
+    }
+
+    /**
+     * END-TO-END PIXEL REFERENCE for the CFL composition: the driver's
+     * reconstructed LUMA and CHROMA against libaom's, sample for sample. This is
+     * the check the rolling checksum could not be — and it is what caught the
+     * inverted CFL alpha sign in `readBodyBd` (`signU == 2` negated where libaom
+     * negates on `signU == 1`).
+     */
+    @Test
+    void chromaAndLumaPixelsMatchLibaom() throws Exception {
+        assertEquals(pixelsGolden(), pixelLines(runJvm(kofProbe())));
     }
 
     @Test

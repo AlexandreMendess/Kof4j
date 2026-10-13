@@ -34,7 +34,7 @@ final class Av1ModeBodySupport {
 
     /** Expected SHA-256 of the decoded golden text (stripped), stale-resource guard. */
     static final String GOLDEN_SHA256 =
-        "cef3c09dc31aab8e4e970381a60c7e28551ec38b2a10e80b8bf7d64337a6dc1e";
+        "75a060e6337efaa5b3e5efcdc4adae244c3045cdff7034c696ff574513545405";
 
     /** The canonical dump the Kof probe must reproduce. */
     static String golden() {

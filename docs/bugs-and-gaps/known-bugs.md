@@ -18408,3 +18408,23 @@ That is the same `sd zero, <offset>(s11)` prologue slot-zeroing the §625 fix in
 **Boundary:** the CROSS natives only (riscv64/aarch64). JVM/Script/JS/native x86-64 were always correct (measured). The golden suite's `native` target is x86-64, so it could never have caught this — the pin lives in the cross E2E. Found while investigating known-bugs §678 face A (the `as T?` soft-cast desugar introduced an `instanceof` that walks the chain and exposed it; the desugar itself was NOT the cause and remains a separate, still-open unit). Owner lane compiler/JVM/native `192.168.15.30:9092`.
 
 <!-- pt-switch --> **PT:** [§688 (pt_BR)](known-bugs.pt_BR.md#687--uma-funcao-kof-cujo-frame-de-pilha-passa-de-2-kib-nao-mont-no-riscv64-o-laco-de-zeragem-de-slots-do-prologue-cross-emite-sd-zero-2056s11-e-o-assembler-rejeita-o-imediato-fora-de-faixa---corrigido-1310-achado-1310-pela-lane-pipelineimage-vision-19216815210-corrigido-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §689 — `readBodyBd` decoded the CFL alpha SIGN with the polarity INVERTED (`signU == 2` negated where libaom negates on `CFL_SIGN_NEG == 1`), so every `UV_CFL_PRED` block whose alpha is negative got the opposite sign in its chroma prediction — ✅ FIXED 13/10 (lane pipeline/image-vision 192.168.15.21:0)
+
+**Symptom (measured 13/10):** the AVIF tile driver's reconstructed CHROMA disagreed with libaom on `UV_CFL_PRED` blocks: with a single `BLOCK_16X16` at the frame origin the driver wrote `130` at the block's first sample where libaom's reconstruction has `128`. Only ONE sample differed, which is what the sign flip of a DC-ish CFL term looks like.
+
+**Root cause (measured, not inferred):** `libs/image/Av1ModeInfo.kf` (`readBodyBd`) computed the CFL alpha as
+
+```
+signU = (signs + 1) / 3          // correct — libaom: CFL_SIGN_U(js) = ((js + 1) * 11) >> 5
+cflU = 1 + au
+if (signU == 2) { cflU = 0 - cflU }   // WRONG polarity
+```
+
+libaom's `CFL_SIGN_TYPE` is `{ CFL_SIGN_ZERO, CFL_SIGN_NEG, CFL_SIGN_POS }` (`av1/common/enums.h`) — so `CFL_SIGN_NEG` is **1** and `CFL_SIGN_POS` is **2** — and `cfl_idx_to_alpha` (`av1/common/cfl.c`) returns `-(abs + 1)` for every sign that is not `CFL_SIGN_POS`. The negative case is therefore `signU == 1`, and the code negated on `2`.
+
+**Proof (independent, from libaom itself):** the instrumented chroma oracle calls libaom's OWN `cfl_idx_to_alpha` over the decoded `cfl_alpha_idx`/`cfl_alpha_signs` and prints `AL 3 33 3 -3 -2` — for `idx = 33`, `signs = 3` libaom produces `alphaU = -3`, `alphaV = -2`, while Kof produced `+3`/`+2`. The end-to-end pixel comparison then closes it: after the fix the driver's reconstructed LUMA (256/256 samples) and CHROMA (64/64) are byte-identical to libaom's own reconstruction for the CFL case. RED-first: reverting the polarity back to `== 2` makes `chromaAndLumaPixelsMatchLibaom` fail.
+
+**Collateral, and it is a finding of its own:** the polarity was ALSO baked into the `av1_modebody_golden.txt.b64` reference (`Av1ModeBodyE2ETest`) — that golden PASSED with the inverted code, so its generator shared the inversion. The 479 alpha fields across its 321 CFL rows were re-signed (`Av1ModeBodyE2ETest` 6/6 after, and 6/6 FAILING before, which is what confirms the generator's convention). The slice-3am chroma-plane characterization lock also caught the change — only the CFL case's checksums moved — and was re-pinned.
+
+**Boundary:** LUMA and non-CFL chroma are untouched; `av1TxbCtx` is unrelated (and proven correct). The parity matrix row for AVIF decode stays `UNDER DEVELOPMENT` until `decodeRaster` lands.

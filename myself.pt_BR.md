@@ -74,6 +74,15 @@ state: STABLE (para a lane)
 - **Caveat de harness:** o CLI compila TODO o diretório passado como um módulo (dois `main()` -> `PKG002`), então cada sonda precisa do seu próprio diretório. `-Dkof.install.dir=<dir>` aponta para `<dir>/lib/kof-libs/`. Um `import` novo entre módulos da lib pode não resolver no interpretador (medido com `Av1TxSize -> Av1IntraAvail`); colocar a função junto do seu irmão lógico evita o problema.
 - **Próximo passo:** o laço de coeficientes + reconstrução de CROMA em si (contexto de entropia `above`/`left` por plano, tx-type de croma via `av1ComputeTxType`, reconstrução U/V), depois a montagem tile-group/frame, depois `decodeRaster` AVIF.
 
+## Sessão 13/10 (sexta, 10ª) — fatia 3ap POUSADA: §689, o SINAL do alpha de CFL estava invertido
+- **ACHEI UM BUG REAL DO KOF, e o golden de pixel foi o que o pegou.** Os quatro ciclos de estreitamento valeram: depois de reduzir a divergência a UMA amostra de croma (`130` vs `128`), medi o `ac[0]` (igual dos dois lados: `18 0 0 …`) e então o PRÓPRIO `cfl_idx_to_alpha` do libaom sobre o `cfl_alpha_idx`/`cfl_alpha_signs` decodificado: `AL 3 33 3 -3 -2`. O Kof produzia `+3`/`+2`.
+- **A causa:** o `readBodyBd` negava em `signU == 2`, mas o enum do libaom é `{ ZERO, NEG, POS }` — NEG é **1**. Todo bloco `UV_CFL_PRED` com alpha negativo decodificava o sinal oposto. Fix de duas linhas.
+- **Prova:** `chromaAndLumaPixelsMatchLibaom` — luma 256/256 e croma 64/64 amostras byte a byte iguais à reconstrução do libaom. RED-first: reverter a polaridade faz falhar.
+- **Colateral interessante:** o `av1_modebody_golden` também tinha a inversão gravada (ele PASSAVA com o código errado — é isso que prova que o gerador compartilhava a convenção). Re-assinei 479 campos de alpha em 321 linhas de CFL. Se eu tivesse confiado no golden como "fonte independente", teria concluído que a correção estava errada.
+- **Lição que fecha a série:** um golden gerado pelo MESMO entendimento do código não é referência independente — o do mode-body era caracterização disfarçada de oráculo. O que quebrou o empate foi uma medição EXTERNA (a função do libaom rodando), não o golden.
+- **Nota:** o §687 que eu registrei (limite de frame >2 KiB no riscv64) foi CORRIGIDO pela lane do compilador; o §678 também fechou. Fila viva: §652 + §686.
+- **Caveat:** a varredura `Av1*` completa estava em voo no momento do commit (0 falhas até então); o resultado fica registrado no próximo ciclo se algo aparecer.
+
 ## Sessão 13/10 (sexta, 9ª) — fatia 3ao: CAUSA RAIZ ACHADA, e era o MEU ORÁCULO
 - **Uma rodada de diagnóstico resolveu o que três ciclos de raciocínio não resolveram.** Imprimi o que o driver DECODIFICOU para a luma do caso CFL: `N 3 256 9 0:1` — tx_type **9** (V_DCT). O meu oráculo vinha reconstruindo com tx_type **0** (DCT_DCT).
 - **A raiz era minha, e era boba:** eu capturava `av1_get_tx_type` logo APÓS o `kof_read_tx_size`, mas o libaom só guarda o tipo DENTRO do `av1_read_coeffs_txb`. Antes disso ela devolve o default 0. Movi a captura para depois do decode — e o `129` plano virou `137 128 128 …`, **byte a byte igual ao driver**.
