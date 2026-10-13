@@ -74,7 +74,11 @@ final class JsOperatorEmitter {
             // Normaliza o contador p/ Number 32-bit (o JS já mascara em 0x1f).
             case SHL -> new JsIr.JsBinary(JsLongEmitter.int32(left), "<<", JsLongEmitter.toNumber32(right));
             case SHR -> new JsIr.JsBinary(JsLongEmitter.int32(left), ">>", JsLongEmitter.toNumber32(right));
-            case USHR -> new JsIr.JsBinary(JsLongEmitter.int32(left), ">>>", JsLongEmitter.toNumber32(right));
+            // §698 face JS: o `>>>` do JS devolve 32 bits SEM SINAL, então
+            // `-5 >>> 0` dava 4294967291 em vez de -5 (o JVM devolve o int).
+            // O `int32` externo re-interpreta o resultado como signed.
+            case USHR -> JsLongEmitter.int32(new JsIr.JsBinary(
+                    JsLongEmitter.int32(left), ">>>", JsLongEmitter.toNumber32(right)));
         };
     }
 
