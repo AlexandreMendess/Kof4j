@@ -73,6 +73,22 @@ class NativeCharCastE2ETest {
     }
 
     @Test
+    void jsMatchesTheJvmOnCharCasts() throws Exception {
+        Path dir = tmp.resolve("js");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("Main.kf"), SRC);
+        Path out = dir.resolve("out");
+        CompilationResult r = driver.compile(dir.resolve("Main.kf"), out, Target.JS);
+        assertTrue(r.success(), () -> "js compile: " + r.diagnostics().getDiagnostics());
+        var stdout = new java.io.ByteArrayOutputStream();
+        int exit = dev.kof.runtime.KofJsRunner.run(out.resolve("Default.mjs"), stdout,
+                new java.io.ByteArrayInputStream(new byte[0]), stdout);
+        assertEquals(0, exit, () -> "js saída: " + stdout);
+        assertEquals(GOLDEN, stdout.toString(StandardCharsets.UTF_8).strip(),
+                "§697 face JS: o `I2C` estava na lista de IDENTIDADE do JsOperatorEmitter (o cast era um no-op)");
+    }
+
+    @Test
     void nativeX86MatchesTheJvmOnCharCasts() throws Exception {
         Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
         assertEquals(GOLDEN, runNative("x86", Target.NATIVE, null));

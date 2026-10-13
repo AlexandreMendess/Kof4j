@@ -2,14 +2,16 @@
 
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
+**Status:** ✅ **CONCLUÍDO 13/10** (lane docs/lab `192.168.15.130:9093`) — **DoD cumprido:** as doze seções de `docs/spec/memory-safety.md` (§1–§12 + Apêndice) estão realizadas, a lista de classes-de-bug-impossíveis é explícita, e a matriz de segurança §11 está verde nos quatro backends reais (JVM/Native/JS/Script; `check_matrix_inventory` rc=0). **Movido `development/` → `docs/`** (regra dos três estados: implementado + validado). As seis fases fechadas (0 Investigação, 1 Especificação, 2 Infraestrutura do compilador, 3 Primeiras garantias, 4 Closures & async, 5 Native & FFI M1, 6 Cross-target). As faces `FFI001` honestas restantes (misto float+int, HFA>2) são **divergências de ABI por-backend** (medidas 13/10), NÃO parte do DoD de memory-safety — são superfície extra de binding FFI, cada uma atrás da sua própria medição.
+
 
 dona: `192.168.15.130:9093` (lane docs/lab — reivindicado 10/10 depois do claim `192.168.15.101:9092` ser revogado 09/10 sob `D-PLAN-ONE-OWNER`; M1 unidade-3 VF-no-x86-64 pousada 10/10)
 
 last: M1 UNIDADE-4 fatia 3 POUSADA 10/10 (lane docs/lab `192.168.15.130:9093`) — callbacks FFI bindam no Native **x86-64 E cross riscv64/aarch64**. O trampolim cross (`NativeFfiCallRiscv.emitRiscvCallbackTrampoline`) espelha o design x86-64 (invoke em vtable[0], remonte soft-float-safe a0=closure/a1..) e SALVA `ra` (o `ra` não salvo era o hang medido); o call-site guarda a lambda em `kof_cb_closure_<desc>` e passa `kof_cb_tramp_<desc>`. `FfiNativeCallbackE2ETest` roda o MESMO fonte na JVM (`.so` do host) e nos dois cross (`.so` riscv64/aarch64 sob qemu) byte-a-byte, incl. aridade>5. Antes: fatia 2 (Float/Double x86-64) + UNIDADE-3. **Fatia 4 POUSADA 11/10 (esta lane `192.168.15.130:9093`): um callback com ARGUMENTO `String` agora BINDA no Native x86-64** — `FfiSignature.nativeCallbackDesc` aceita um arg `S` (um `char*` num registrador INTEIRO) e `NativeFfiAsmHelpers.emitX86CallbackTrampolineStr` monta um frame que salva todas as fontes e chama `kof_ffi_from_cstr` por `S` antes de remontar o `invoke` (`FfiNativeCallbackStrE2ETest`, JVM↔Native byte-a-byte, aridade ≤ 5). **Fatia 5 POUSADA 11/10 (mesma lane): a mesma face de ARG `String` no CROSS riscv64/aarch64** — `FfiSignature.crossCallbackDesc` aceita `S` (orçamento int ≤ 7), `NativeFfiCallRiscvCallback.emitRiscvCallbackTrampolineStr` espelha o frame x86-64 (`FfiNativeCallbackStrE2ETest#nativeStringArgCallbacksMatchJvmCross`, JVM==riscv64==aarch64 sob qemu). Só um callback com RETORNO `String` segue `FFI001` honesto (ownership do char* não observável no contrato síncrono).
 doing: M1 unidade-4 COMPLETA no x86-64 + cross (Int/Long/Double/misto/Float, aridade>5) + fatia 4 (ARG `String` no x86-64) + fatia 5 (ARG `String` no cross) + fatia 6 (RETORNO `String` no JVM/JS + x86-64 + cross) — a face `String` do callback está COMPLETA; FFI001 restante: misto float+int e HFA>2 (spec §12)
 next: M1 callbacks — a face `String` (arg E retorno) está COMPLETA em JVM/JS/Native x86-64/cross (fatias 4/5/6, 11/10); as faces `FFI001` honestas restantes são POR BACKEND (medido 13/10): misto float+int recusa SÓ no CROSS (binda o x86-64); HFA>2 recusa no x86-64 E no aarch64 (binda o riscv64) (spec §12). A frente M1 não tem mais face de callback implementável por agente.
-location: memory-safety-plan
-state: active
+location: docs/memory-safety-plan
+state: concluded
 intent: compiler-provable-memory-safety
 constraint:
   - core-edits-wait-for-queue

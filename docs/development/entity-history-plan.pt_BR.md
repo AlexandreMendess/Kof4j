@@ -897,7 +897,7 @@ o documento é `entity-history-plan.md`. "Revisão", "registro de auditoria" e
 - `docs/stdlib/observability.md:134` — a única menção a "future audit
   logging".
 - Planos relacionados: `docs/stdlib/pagination-plan` (windowing),
-  `docs/development/memory-safety-plan.md`,
+  `docs/memory-safety-plan.md`,
   `docs/stdlib/db-parity-plan.md`, `docs/stdlib/DATABASE_VISION.md`,
   `DECISIONS.md` §`D-DB-GAPS`.
 
