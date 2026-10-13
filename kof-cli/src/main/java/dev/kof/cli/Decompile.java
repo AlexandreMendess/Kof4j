@@ -183,6 +183,117 @@ public final class Decompile {
      * cross-package) ou cai no simples (comportamento anterior).
      * Emissão nunca é null — no pior caso, igual a antes.
      */
+    /** Slot carregado por uma instrução de LOAD direta, ou null. */
+    private static Integer loadSlot(BytecodeReader.Insn in) {
+        int op = in.opcode();
+        if (op >= 0x1a && op <= 0x2d) return (op - 0x1a) % 4;      // xload_0..3
+        if (op >= 0x15 && op <= 0x19) return in.operands().length > 0 ? in.operands()[0] : null;
+        return null;
+    }
+
+    /** Descritores dos parâmetros (JVM type descriptors). */
+    private static List<String> paramTypes(String descriptor) {
+        List<String> out = new java.util.ArrayList<>();
+        int i = 1;
+        while (i < descriptor.length() && descriptor.charAt(i) != ')') {
+            char c = descriptor.charAt(i);
+            if (c == '[') {
+                int j = i;
+                while (descriptor.charAt(j) == '[') j++;
+                if (descriptor.charAt(j) == 'L') j = descriptor.indexOf(';', j);
+                out.add(descriptor.substring(i, j + 1));
+                i = j + 1;
+            } else if (c == 'L') {
+                int j = descriptor.indexOf(';', i);
+                out.add(descriptor.substring(i, j + 1));
+                i = j + 1;
+            } else {
+                out.add(String.valueOf(c));
+                i++;
+            }
+        }
+        return out;
+    }
+
+    private static boolean isWideType(String desc) {
+        return "J".equals(desc) || "D".equals(desc);
+    }
+
+    /**
+     * Fase G (diamond, mantenedora 14/10): o shape `return A.super.m();`
+     * compila para `aload_0; invokespecial InterfaceMethodref A.m; xreturn`.
+     * O corpo do default é lido do CLASSFILE IRMÃO (o mesmo diretório) e
+     * recuperado pelo MESMO pipeline — o call site emite o corpo inlinado.
+     * Stub nunca é opção de design (Q7/AGENTS): se o corpo do default não
+     * recuperar, o método segue não-recuperado pelo fluxo normal (o relatório
+     * conta), nunca fabricado.
+     */
+    private static String tryInlineInterfaceSuperCall(ClassFileParser.MethodInfo m,
+                                                      ClassFileParser.ClassFile self,
+                                                      Path classFilePath,
+                                                      BytecodeFrame curFrame) {
+        if (m == null || m.code == null || classFilePath == null) return null;
+        List<BytecodeReader.Insn> insns;
+        try {
+            insns = BytecodeReader.decode(m.code.bytecode);
+        } catch (Exception e) {
+            return null;
+        }
+        if (insns.size() < 3) return null;
+        if (insns.get(0).opcode() != 0x2a) return null;            // aload_0 (receptor)
+        int invokeAt = insns.size() - 2;
+        if (insns.get(invokeAt).opcode() != 0xb7) return null;     // invokespecial
+        int ret = insns.get(invokeAt + 1).opcode();
+        if (ret < 0xac || ret > 0xb1) return null;                 // xreturn
+        String[] ref = BytecodeCp.resolveMethodRef(self.constantPool, insns.get(invokeAt).operands()[0]);
+        if (ref == null) return null;
+        // o owner NÃO pode ser a própria classe nem a super (esses shapes têm
+        // tratamento próprio); invokespecial não-init restante = interface
+        if (ref[0].equals(self.thisClass) || ref[0].equals(self.superClass)) return null;
+        int argc = BytecodeCp.argCount(ref[2]);
+        if (insns.size() != argc + 3) return null;                 // aload_0 + N loads + invoke + return
+        // os N loads entre o receptor e o invoke são os ARGUMENTOS — só a
+        // forma de load direto de slot (local simples) é aceita
+        int[] argSlots = new int[argc];
+        for (int k = 0; k < argc; k++) {
+            Integer slot = loadSlot(insns.get(1 + k));
+            if (slot == null) return null;
+            argSlots[k] = slot;
+        }
+        Path ownerFile = classFilePath.getParent() == null ? null
+                : classFilePath.getParent().resolve(ref[0].replace('/', java.io.File.separatorChar) + ".class");
+        if (ownerFile == null || !java.nio.file.Files.exists(ownerFile)) return null;
+        try (java.io.InputStream in = java.nio.file.Files.newInputStream(ownerFile)) {
+            ClassFileParser.ClassFile owner = ClassFileParser.parse(in);
+            for (ClassFileParser.MethodInfo om : owner.methods) {
+                if (!ref[1].equals(om.name) || !ref[2].equals(om.descriptor)) continue;
+                if (om.code == null) return null;
+                boolean omStatic = (om.accessFlags & 0x0008) != 0;
+                BytecodeFrame of = new BytecodeFrame(om.descriptor, omStatic);
+                // liga cada parâmetro do default à EXPRESSÃO do argumento no
+                // call site (resolvido no frame do método CORRENTE)
+                if (curFrame == null && argc > 0) return null;
+                int slot = omStatic ? 0 : 1;
+                List<String> ty = paramTypes(om.descriptor);
+                for (int i = 0; i < argSlots.length && i < ty.size(); i++) {
+                    of.bindSlot(slot, curFrame.name(argSlots[i]));
+                    slot += isWideType(ty.get(i)) ? 2 : 1;
+                }
+                // o corpo do default é recuperado pelo MESMO pipeline
+                return BytecodeDecoder.recoverExpression(om.code.bytecode, owner.constantPool, of);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        return null;
+    }
+
+    /**
+     * Fase E: o clinit em forma `[push, putstatic]*, return` dobra — cada
+     * literal vai para o inicializador do campo. Qualquer instrução fora do
+     * shape desiste do fold INTEIRO (nada parcial em silêncio).
+     */
+
     static String resolveSuperName(String internal, TreeScope scope) {
         if (scope != null) {
             String r = scope.resolve(internal);
@@ -256,15 +367,41 @@ public final class Decompile {
         }
         sb.append(" {\n");
 
+        // Fase E (fatia static-init, mantenedora 14/10): o clinit em forma
+        // literal-putstatic DOBRA nos inicializadores dos campos estáticos —
+        // o MESMO padrão aprovado no tradutor; qualquer outra instrução → sem
+        // fold (nada parcial em silêncio). Stub nunca é opção de design (Q7).
+        java.util.Map<String, String> clinitInits = new java.util.LinkedHashMap<>();
+        for (var mm : ir.methods) {
+            if (!"<clinit>".equals(mm.name) || mm.code == null) continue;
+            DecompileConstPool.foldClinitLiterals(mm.code.bytecode, ir.constantPool, clinitInits);
+        }
+
         for (var f : ir.fields) {
-            if ((f.accessFlags & 0x0008) != 0) continue; // skip static
+            boolean isStaticField = (f.accessFlags & 0x0008) != 0;
             String ftype = f.signature != null
                     ? methodKofType(dev.kof.compiler.Type.describe(
                             dev.kof.compiler.Type.fromJvmSignature(f.signature)))
                     : fieldKofType(f.descriptor);
             recordSignatureUses(fieldTypeTree(f.descriptor, f.signature), scope);
-            sb.append("    ").append(ftype).append(' ')
-              .append(f.name).append("   // ").append(Confidence.EXACT.label()).append('\n');
+            String init = "";
+            if (isStaticField) {
+                // o campo estático AGORA é emitido (antes: perda silenciosa —
+                // o main referenciava `Cls.X` que não existia = Kof sem
+                // compilar = falso OK); initializer: ConstantValue (constantes
+                // `static final` NÃO passam pelo clinit, JVMS 4.7.2) ou o
+                // clinit dobrado
+                if (f.constantValue != null) {
+                    String lit = DecompileConstPool.kofLiteral(f.constantValue, f.descriptor);
+                    if (lit != null) init = " = " + lit;
+                }
+                if (init.isEmpty()) {
+                    String lit = clinitInits.get(f.name);
+                    if (lit != null) init = " = " + lit;
+                }
+            }
+            sb.append("    ").append(isStaticField ? "static " : "").append(ftype).append(' ')
+              .append(f.name).append(init).append("   // ").append(Confidence.EXACT.label()).append('\n');
         }
 
         for (var m : ir.methods) {
@@ -287,6 +424,8 @@ public final class Decompile {
             // instância → crash no 1º teste que EXECUTA saída decompilada.
             boolean isStatic = (m.accessFlags & 0x0008) != 0;
             String stat = isStatic ? "static " : "";
+            // Fase G (super.m()): contexto para o `invokespecial` não-<init>
+            BytecodeDecoder.currentSuperInternal = ir.superClass;
             String body = null;
             List<String> stmts = null;
             if (m.code != null) {
@@ -296,8 +435,20 @@ public final class Decompile {
                 if (!hasHandlers) {
                     body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, frame);
                 }
-                if (body == null && m.code.exceptionHandlers != null) {
-                    int[][] handlers = new int[m.code.exceptionHandlers.size()][];
+                if (body == null) {
+                    // Fase G (diamond, mantenedora 14/10): o refinamento de
+                    // default `A.super.m()` — o corpo do default da interface é
+                    // INLINADO (lido do classfile irmão e recuperado pelo MESMO
+                    // pipeline); stub NUNCA é opção de design (Q7).
+                    body = tryInlineInterfaceSuperCall(m, ir, classFile, frame);
+                }
+                if (body == null) {
+                    // Fase C (13/10): o statements path roda para TODO corpo
+                    // não-recuperado por expressão — antes o gate
+                    // `exceptionHandlers != null` pulava métodos SEM try (o
+                    // javac nem emite o attribute sem handlers), e tern/&&
+                    // stubavam sem nunca chegar ao struct.
+                    int[][] handlers = new int[m.code.exceptionHandlers == null ? 0 : m.code.exceptionHandlers.size()][];
                     for (int i = 0; i < handlers.length; i++) {
                         var h = m.code.exceptionHandlers.get(i);
                         boolean isFinally = h.catchType == null || "INVALID".equals(h.catchType);

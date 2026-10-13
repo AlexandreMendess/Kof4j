@@ -66,20 +66,28 @@ void handleCall(MethodCtx ctx, List<Object> stack,
                 } else {
                     stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String.fromCharCode"), List.of(args.get(0))));
                 }
-            } else if (p0 instanceof Type.ArrayType) {
-                // §388-B: array cru (readBytes et al.) pega o MESMO formato de
-                // container da casa ("[65, 66]") — String() cru dava `65,66`
-                // sem colchetes (a paridade reversa medida do §388-B).
-                p.lc.registerRuntime("kofFormat");
-                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
-            } else if (p0 instanceof Type.ClassType ct && "kof".equals(ct.packageName())
-                    && (ct.name().equals("List") || ct.name().equals("Map") || ct.name().equals("Set"))) {
+            } else if (isCollectionValue(p0)) {
+                // §388-B/§682: List/Set/Map (e array) pegam o MESMO formato de
+                // container do Kof ("[1, 2]"/"{k=1}") — `String(x)` cru dava o
+                // `Array.prototype.toString`/`[object Set]` do host. Usa os
+                // predicados canônicos (não a comparação de pacote/nome, que
+                // não casava a forma inferida de um `listOf` direto).
                 p.lc.registerRuntime("kofFormat");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
             } else if (BuiltinTypes.isString(kc.ownerType()) && p0 != null && isDoubleOrFloatUnwrapped(p0)) {
                 p.lc.registerRuntime("kofNumFmt");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofNumFmt"),
                         List.of(args.get(0), new JsIr.JsNumber(isFloatUnwrapped(p0) ? "1" : "0"))));
+            } else if (BuiltinTypes.isString(kc.ownerType()) && (isErasedType(p0) || BuiltinTypes.isObject(p0))) {                // §682: no JS o `valueOf` chega com o tipo do argumento APAGADO
+                // (`Type.UnknownType` — o `+`/`String.valueOf` desugars passam
+                // UNKNOWN fora do native, então os ramos de List/Map/Set/Array
+                // acima NUNCA casavam). O `String(x)` cru então usava o
+                // `Array.prototype.toString`/`[object Set]` do host, divergindo
+                // do JVM (`[1, 2, 3]`/`{k=1}`). `kofFormat` é o formatador de
+                // container do Kof e é IDÊNTICO ao `String(x)` para escalar,
+                // String e record (só difere em List/Set/Map/Array).
+                p.lc.registerRuntime("kofFormat");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
             } else if (BuiltinTypes.isString(kc.ownerType())) {
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
             } else if (p0 instanceof Type.PrimitiveType pt && "bool".equals(Type.canonicalPrimitiveName(pt.name()))) {
@@ -361,6 +369,23 @@ boolean isPrintCall(KofCall kc) {
         return owner instanceof Type.ClassType ct && "java.lang".equals(ct.packageName());
     }
 
+    /** §682: valor cuja stringificação no Kof é o formato de CONTAINER
+     *  (`[a, b]`/`{k=v}`) — List/Set/Map/array, aceitando Nullable. */
+    private static boolean isCollectionValue(Type t) {
+        Type inner = t instanceof Type.NullableType nt ? nt.inner() : t;
+        return inner instanceof Type.ArrayType || BuiltinTypes.isList(inner)
+                || BuiltinTypes.isMap(inner) || BuiltinTypes.isSet(inner);
+    }
+
+    /** §682: tipo do argumento APAGADO (o `+`/`String.valueOf` passam
+     *  `Type.UnknownType` no JS fora do native, e um `T` genérico chega como
+     *  `TypeVariable`) — o valueOf só tem a forma do VALOR em runtime. */
+    private static boolean isErasedType(Type t) {
+        // null = parameterTypes vazio (o call não carrega o tipo) — mesma
+        // situação de tipo desconhecido: só a forma do VALOR decide.
+        return t == null || t instanceof Type.UnknownType || t instanceof Type.TypeVariable;
+    }
+
     /** §264: Double/Float crus (ou Nullable deles) — o JS trata-os como Number. */
     private static boolean isDoubleOrFloatUnwrapped(Type t) {
         Type inner = t instanceof Type.NullableType nt ? nt.inner() : t;
@@ -417,7 +442,20 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
             case "kof_string_equals" -> stack.add(new JsIr.JsConditional(
                     new JsIr.JsBinary(args.get(0), "===", args.get(1)),
                     new JsIr.JsNumber("1"), new JsIr.JsNumber("0")));
-            case "valueOf" -> stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
+            case "valueOf" -> {
+                // §682: o `String.valueOf` também chega por AQUI (não só pelo
+                // ramo isJdkValueOfOwner) — o `String(x)` cru usava o
+                // `Array.prototype.toString`/`[object Set]` do host para
+                // List/Set/Map/array, divergindo do JVM. kofFormat é o
+                // formatador de container e é idêntico ao String(x) fora deles.
+                Type vt = kc.parameterTypes().isEmpty() ? null : kc.parameterTypes().get(0);
+                if (vt == null || isCollectionValue(vt) || isErasedType(vt) || BuiltinTypes.isObject(vt)) {
+                    p.lc.registerRuntime("kofFormat");
+                    stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
+                } else {
+                    stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
+                }
+            }
             case "charAt" -> stack.add(new JsIr.JsCall(
                     new JsIr.JsMember(receiver, "charCodeAt"), List.of(args.get(0))));
             case "length" -> stack.add(new JsIr.JsMember(receiver, "length"));

@@ -5017,3 +5017,55 @@ A mantenedora aprovou a superfície de foco proposta na #811 (pilar 5), mantendo
 - **O que isto NÃO autoriza:** apagar ou reescrever planos futuros; pular o gate de elegibilidade do `D-FUTURE-PROMOTION` (sem stub, sem asserção enfraquecida, sem trabalho inventado); ou dois agentes no mesmo plano.
 - **Histórico do levantamento:** isto supersede o `D-FUTURE-FREEZE` (mantenedora 02/10, diretiva de chat), cuja própria condição de levantamento ("só a mantenedora levanta este congelamento, por diretiva posterior explícita registrada como `D-*` superador") agora se cumpre.
 - **Relações:** `Supersedes: D-FUTURE-FREEZE`, `Reativa: D-FUTURE-PROMOTION`, `Related: D-PLAN-ONE-OWNER, D-LAB-STABILITY, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, rule 6`.
+
+---
+
+## D-SEM-REJECTS-1210 — lote de múltipla escolha da mantenedora (12/10/2026, enquete no chat via a lane flatt): as três divergências decisão-gated resolvidas — rejeitar, rejeitar, estourar
+
+**Data:** 2026-10-12 · **Estado:** `DECIDIDO`
+
+A mantenedora respondeu às três perguntas abertas de semântica congelada numa única enquete de chat
+(as opções e as recomendações foram apresentadas pela lane flatt `192.168.100.14:0`; toda opção foi
+apresentada com a divergência medida). O contrato da casa "um operador ou tem UM significado
+definido entre alvos ou é REJEITADO com um diagnóstico explícito" conduz as três:
+
+- **§675 — operadores relacionais de enum (`Color.RED < Color.GREEN`): REJEITAR com diagnóstico**
+  (a forma do precedente SEM053 de String). As faces enum-vs-enum `<`/`>`/`<=`/`>=` são recusadas
+  no frontend COMPARTILHADO com um novo `SEM105` ("Kof não tem o operador ... para enum; use:
+  a.compareTo(b) ...") — idêntico nos 4 alvos. O `compareTo` explícito é a grafia de ordenação. A
+  semântica ordinal era a alternativa e NÃO foi escolhida (a superfície fica mínima; a grafia de
+  ordenação já existe e funciona).
+- **§677 — `instanceof` com alvo PRIMITIVO (`x instanceof Int`): REJEITAR com diagnóstico** (um
+  novo código no typer). O contrato da linguagem define `instanceof` só para tipos class/record;
+  uma checagem de tipo boxed não tem contrato limpo (a distinção boxed/unboxed fica turva por
+  alvo). A recusa honesta É a semântica.
+- **§678 — um cast de referência `as` que FALHA: ESTOURAR (erro de cast) nos 4 alvos;** a grafia
+  nullable `x as T?` é o soft cast SEMPRE-NULL. O `as` puro falha ALTO (o contrato de erros do
+  Kof: erros são explícitos, null nunca é um marcador silencioso de falha); o `as T?` existe para
+  a forma legítima de tentativa.
+
+**Ordem de implementação:** §675 (o menor gate) primeiro, depois §677, depois §678 (os quatro
+lowerings de `as`) — cada um com E2E RED-first e a variante PT do portukof autorada + regenerada.
+
+**Relacionamentos:** `Relacionados: SEM053 (o precedente da forma de recusa), SEM062 / D-ENUM207 (o precedente de identidade de enum), o padrão de guardas da família §657 (a divergência cai nos diagnósticos existentes).`
+
+---
+
+## D-ENTITY-HISTORY-PHASE6 — a Fase 6 do entity-history é escopo PÓS-PROMOÇÃO (mantenedora 12/10/2026, enquete no chat via a lane flatt)
+
+**Data:** 2026-10-12 · **Estado:** `DECIDIDO`
+
+As faces da Fase 6 do plano entity-history (retenção/arquivamento, acessores históricos tipados,
+exclusão de campos, tamper-evidence) são cortadas FORA do escopo de promoção do plano — viram
+trabalho pós-1.0, cada uma ainda exigindo sua própria decisão quando pegas.
+
+- O plano PROMOVE para `docs/` assim que a **Fase 5 (o backend ORM nativo) pousar** com sua prova
+  executada — a promoção é o marco da lane nativa.
+- Os docs do plano ficam em `docs/development/` até lá, com o `next:` apontando para a Fase 5.
+- A Fase 6 vira uma nota de futuros estacionados DENTRO do plano (sem promoção para
+  `docs/development/future/` — o contrato recorrente de ciclo mantém o future/ congelado para
+  esta lane).
+
+**Relacionamentos:** `Relacionados: D-ENTITY-HISTORY (a autorização original Q1–Q15), D-FUTURE-BATCH-2809B (as superfícies de declaração/consulta resolvidas).`
+
+---

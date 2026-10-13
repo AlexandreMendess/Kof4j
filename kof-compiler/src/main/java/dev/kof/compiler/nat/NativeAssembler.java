@@ -124,8 +124,6 @@ public final class NativeAssembler {
                 patchBiosPayloadHeader(binFile);
             }
             Files.deleteIfExists(objFile);
-            Files.deleteIfExists(asmToAssemble);
-            if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
             return;
         }
@@ -197,7 +195,10 @@ public final class NativeAssembler {
             }
         }
         Files.deleteIfExists(objFile);
-        if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
+        if (System.getenv("KOF_KEEP_ASM") == null
+                && System.getProperty("KOF_KEEP_ASM") == null) {
+            Files.deleteIfExists(asmFile);
+        }
         binFile.toFile().setExecutable(true);
     }
 

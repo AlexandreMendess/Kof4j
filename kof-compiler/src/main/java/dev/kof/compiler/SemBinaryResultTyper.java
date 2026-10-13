@@ -67,6 +67,31 @@ public final class SemBinaryResultTyper {
             }
             return Type.PrimitiveType.BOOL;
         }
+        // §675 / D-SEM-REJECTS-1210: os operadores relacionais de enum eram
+        // aceitos e DIVERGIAM (JVM/JS false, nativo true, Script
+        // "not comparable" — o mesmo contrato-silente do SEM053 de String).
+        // A mantenedora DECIDIU rejeitar (D-SEM-REJECTS-1210): compareTo
+        // explícito é a grafia de ordenação. Rejeitado no frontend
+        // COMPARTILHADO — o mesmo SEM105 nos 4 alvos (freeze regra 5).
+        if (("<".equals(operator) || ">".equals(operator)
+                || "<=".equals(operator) || ">=".equals(operator))
+                && left != null && right != null
+                && isEnumRef(left) && isEnumRef(right)) {
+            if (diagnostics != null) {
+                diagnostics.error("", 0, 0, 0,
+                        "Kof has no operator '" + operator + "' for enum "
+                                + "(the ordering was accepted-and-divergent across targets); "
+                                + "use: a.compareTo(b) "
+                                + switch (operator) {
+                                    case "<" -> "< 0";
+                                    case "<=" -> "<= 0";
+                                    case ">" -> "> 0";
+                                    default -> ">= 0";
+                                },
+                        "SEM105");
+            }
+            return Type.PrimitiveType.BOOL;
+        }
         if ("==".equals(operator) || "!=".equals(operator) || "<".equals(operator) ||
                 ">".equals(operator) || "<=".equals(operator) || ">=".equals(operator)) {
             return Type.PrimitiveType.BOOL;

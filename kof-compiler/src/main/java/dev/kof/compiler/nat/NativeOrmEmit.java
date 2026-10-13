@@ -37,6 +37,42 @@ public final class NativeOrmEmit {
         }
         if (backend.usesOrm) {
             dev.kof.compiler.runtime.RuntimeOrm1.emit(sb);
+            // Fase 5 do entity-history (D-ENTITY-HISTORY; ordem da mantenedora
+            // 13/10): o DDL da tabela de histórico ({@code kof_orm_create_history}).
+            dev.kof.compiler.runtime.RuntimeOrmHistory1.emit(sb);
+            // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
+            // kof_orm_delete_recorded} — espelha o host JVM; o conn
+            // RE-RESOLVIDO pós-DML = o conserto do segv do ciclo 60).
+            // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
+            // kof_orm_delete_recorded} — espelha o host JVM; o conn
+            // re-resolvido pós-DML).
+            // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
+            // kof_orm_delete_recorded} — espelha o host JVM; o frame
+            // alinhado 88 e o conn re-resolvido pós-DML).
+            dev.kof.compiler.runtime.RuntimeOrmHistory2.emit(sb);
+            if (backend.usesOrmHistory) {
+            // Fase 5 fatia 5d-1: a consulta ascendente ({@code
+            // kof_orm_history} — a List<Revision> posicional).
+                dev.kof.compiler.runtime.RuntimeOrmHistory4.emit(sb);
+            }
+            // Fase 5 fatia 5c: o SAVE gravando a revisão ({@code
+            // kof_orm_save_recorded} — o payload JSON por campo).
+            // Fase 5 fatia 5c: o SAVE gravando a revisão ({@code
+            // kof_orm_save_recorded} — o payload JSON por campo).
+            dev.kof.compiler.runtime.RuntimeOrmHistory3.emit(sb);
+            // Fase 5 fatia 5d-1: a consulta ascendente ({@code
+            // kof_orm_history} — a List<Revision> posicional).
+            dev.kof.compiler.runtime.RuntimeOrmHistory4.emit(sb);
+            // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
+            // kof_orm_delete_recorded} — espelha o host JVM).
+            // Fase 5 fatia 5b WIP (NÃO emitida): o delete_recorded asm — o
+            // gdb interativo pendente (o journal no DOING do ciclo 61/62).
+            // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
+            // kof_orm_delete_recorded} — espelha o host JVM).
+            // Fase 5 fatia 5b WIP (NÃO emitida): o gdb provou — o pruner
+            // reconstrói o runtime das fatias REGISTRADAS (45/161, 720KB
+            // podados) e a emissão solta do H2 fica vítima da matemática do
+            // prune; o conserto = registrar o H2 como fatia própria.
             dev.kof.compiler.runtime.RuntimeOrmMysql.emit(sb);
             dev.kof.compiler.runtime.RuntimeOrm2.emit(sb);
             dev.kof.compiler.runtime.RuntimeOrm2.emitMysql(sb);
@@ -86,8 +122,8 @@ public final class NativeOrmEmit {
                 dev.kof.compiler.runtime.RuntimeOrm8.emit(o8);
                 sb.append(o8.toString().replace("@@MAGIC@@",
                         dev.kof.compiler.runtime.RuntimeErasureBox.MAGIC));
-                NativeOrmCtors.emit(backend, sb, backend.ormCtorClasses);
             }
+            NativeOrmCtors.emit(backend, sb, backend.ormCtorClasses);
             StringBuilder o9 = new StringBuilder();
             dev.kof.compiler.runtime.RuntimeOrm9.emit(o9);
             sb.append(o9.toString().replace("@@MAGIC@@",

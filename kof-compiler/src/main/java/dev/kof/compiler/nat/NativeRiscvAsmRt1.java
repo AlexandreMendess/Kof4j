@@ -8,6 +8,18 @@ public final class NativeRiscvAsmRt1 {
     private NativeRiscvAsmRt1() {}
 
     static  String RISCV_RUNTIME_ASM_1 = """
+                addi sp, sp, 48
+                ret
+            .Las_null:
+                call kof_null_error
+            .Las_bounds:
+                call kof_bounds_error
+
+            # ---- strings ----
+            # kof_string_length — MOVIDO p/ B34 (faces UTF-16, bug 43 cross):
+            # contava bytes UTF-8 (café=5 vs JVM 4).
+
+            # kof_string_concat(a, b) -> KofStr*
             .globl kof_string_concat
             kof_string_concat:
                 addi sp, sp, -64

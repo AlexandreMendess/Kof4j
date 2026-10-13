@@ -1,0 +1,15 @@
+main() {
+    var cs = "abc".toCharArray()
+    println(cs[0] == 'a')
+    println(cs[2] == 'c')
+    println(cs[0] != 'b')
+    println(cs[0] < 'b')
+    println(cs[0] > 'Z')
+    println((cs[0] as Int) == 97)
+    println(cs[0] == cs[0])
+    println(cs[0] == "abc".charAt(0))
+    println("abc".charAt(1) == 'b')
+    var up = "abc".toUpperCase()
+    println(up.charAt(0) == 'A')
+    println("end")
+}

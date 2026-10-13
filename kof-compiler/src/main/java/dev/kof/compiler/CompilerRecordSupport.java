@@ -216,9 +216,20 @@ public final class CompilerRecordSupport {
             } else if (isDoubleField(f.type())) {
                 // §114 face hash: Double.hashCode = (int)(bits ^ (bits>>>32)).
                 // O ADD cru somava 0 (o lowering int não lê o slot de 64 bits).
-                ops.add(new KofCall(Type.PrimitiveType.DOUBLE, "kof_double_hash",
-                        List.of(Type.PrimitiveType.DOUBLE),
-                        Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+                // #0.6.4: no JVM o kof_double_hash (asm nativo) NÃO existe e o
+                // owner DOUBLE virava Class "" no pool (ClassFormatError no
+                // load, cortesia do fix #818 que roteou record-com-superclasse
+                // pelo gerador de hashCode) — `java.lang.Double.hashCode(D)I`
+                // é a MESMA fórmula com owner válido.
+                if (driver.target == Target.JVM) {
+                    ops.add(new KofCall(new Type.ClassType("java.lang", "Double", List.of()),
+                            "hashCode", List.of(Type.PrimitiveType.DOUBLE),
+                            Type.PrimitiveType.INT, KofCallKind.STATIC));
+                } else {
+                    ops.add(new KofCall(Type.PrimitiveType.DOUBLE, "kof_double_hash",
+                            List.of(Type.PrimitiveType.DOUBLE),
+                            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+                }
             } else if (isKofObjectField(f.type())) {
                 // §114 face hash aninhada: campo record/classe soma o hashCode
                 // de CONTEUDO (kof_obj_hash: null-safe, String por conteúdo,

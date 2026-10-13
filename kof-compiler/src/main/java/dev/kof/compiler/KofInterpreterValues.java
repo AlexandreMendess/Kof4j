@@ -126,7 +126,29 @@ public final class KofInterpreterValues {
         };
     }
 
+    /**
+     * §690: os canons BOXED do interpretador — {@code Character} (o que um
+     * {@code char[]} guarda de verdade, §185: sem ele o {@code Array.set} morre
+     * "argument type mismatch") e {@code Boolean} (§306(b), o canon do slot
+     * {@code Nullable(Bool)}) — não são {@code Number}, então caíam no
+     * {@code Objects.equals} do fim: {@code "abc".toCharArray()[0] == 'a'} era
+     * FALSE no Script e true no JVM/native/JS. O {@code '<'} já concordava
+     * porque o caminho ordenado passa por {@code KofInterpreter.unboxInt}, que
+     * conhece os dois; aqui a mesma regra entra pelo MESMO espaço numérico.
+     */
+    private static Object numericCanon(Object v) {
+        if (v instanceof Character c) return (int) c;
+        if (v instanceof Boolean b) return b ? 1 : 0;
+        return v;
+    }
+
     static boolean numEq(Object a, Object b) {
+        Object na = numericCanon(a);
+        Object nb = numericCanon(b);
+        if (na != a || nb != b) {
+            a = na;
+            b = nb;
+        }
         if (a instanceof Number x && b instanceof Number y) {
             if (a instanceof Long || b instanceof Long) return x.longValue() == y.longValue();
             if (a instanceof Double || b instanceof Double || a instanceof Float || b instanceof Float) {

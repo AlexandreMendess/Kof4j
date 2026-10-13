@@ -163,6 +163,39 @@ final class SemFieldAccessTyper {
                             "SEM102");
                     return Type.UnknownType.UNKNOWN;
                 }
+                // §692: as COLEÇÕES e a `String` fecham a mesma família — o
+                // §505 deixou registrado como "residual" que um campo
+                // desconhecido nesses receivers "falha ALTO no runtime
+                // (`NoSuchFieldError` numa classe que EXISTE)", e a medição
+                // DESMENTE isso: `m.keys` (sem parênteses), `l.bogus` e
+                // `s.bogus` compilam LIMPOS nos quatro alvos e o SCRIPT
+                // imprime uma STRING DE DEBUG
+                // (`ClassType[packageName=kof, name=Map, ...].keys`) — valor
+                // ERRADO em silêncio, não falha alta. O contrato é o mesmo do
+                // §491/§503: essas superfícies expõem MÉTODOS (`m.keys()`,
+                // `m.values()`, `l.get(i)`) e só `size`/`length` são
+                // PROPRIEDADE (é o que o `ExpressionFieldAccessTyper` libera;
+                // `String` tem `length`/`name`/`path`, que já retornaram
+                // acima). A mensagem do `keys`/`values` aponta o método, que é
+                // o idioma do corpus.
+                if ((BuiltinTypes.isList(recvType) || BuiltinTypes.isMap(recvType)
+                        || BuiltinTypes.isSet(recvType) || Type.isString(recvType))
+                        && !"size".equals(fa.fieldName()) && !"length".equals(fa.fieldName())
+                        && sa.diagnostics() != null) {
+                    String collectionName = Type.isString(recvType) ? "String"
+                            : BuiltinTypes.isMap(recvType) ? "Map"
+                            : BuiltinTypes.isSet(recvType) ? "Set" : "List";
+                    boolean methodLike = "keys".equals(fa.fieldName()) || "values".equals(fa.fieldName());
+                    sa.diagnostics().error(fa,
+                            "'" + collectionName + "' has no field '" + fa.fieldName() + "'"
+                                    + (methodLike
+                                            ? " — it is a METHOD: write "
+                                                    + fa.fieldName() + "()"
+                                            : " (this type exposes methods, not properties; "
+                                                    + "`size` is the only property)"),
+                            "SEM102");
+                    return Type.UnknownType.UNKNOWN;
+                }
                 // #375/§355 (rio da erasure): receiver é type-variable COM bound
                 // (`item.name` com `item: T: Animal`) — o membro resolve no
                 // BOUND, como javac após a erasure. Sem isto o tipo caía em

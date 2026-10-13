@@ -516,6 +516,9 @@ public final class OwnershipPass {
         }
 
         private void readExpr(ExpressionNode e) {
+            // #822: um `;` solitario parseia como ExpressionStmt(null) — nada a
+            // ler (conservador, como o default do switch). Nunca NPE.
+            if (e == null) return;
             switch (e) {
                 case IdentifierExpr id -> readName(id.name());
                 case MethodCallExpr mc -> {

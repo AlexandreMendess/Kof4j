@@ -135,10 +135,18 @@ final class KofDebugNativeDap {
                 respond(seq, command, Map.of("breakpoints", result));
             }
             case "configurationDone" -> {
+                // #815: responder ANTES de disparar o run. O `-exec-run` faz o gdb
+                // ecoar `*stopped` imediatamente e o pump emite o evento `stopped`
+                // numa OUTRA thread; se o `respond` viesse depois (como vinha), a
+                // corrida podia entregar o `stopped` ANTES da resposta do
+                // configurationDone — o cliente (que espera a resposta primeiro)
+                // consumia o evento fora de ordem, o descartava, e o próximo
+                // `await(stopped)` estourava (o hang/flake de 2.4h). A resposta
+                // primeiro torna a ordem DAP determinística.
+                respond(seq, command, Map.of());
                 if (mi != null && attachPid == null) {
                     mi.send("-exec-run --all");
                 }
-                respond(seq, command, Map.of());
             }
             case "continue" -> exec(seq, command, "-exec-continue --all",
                     Map.of("allThreadsContinued", true));
@@ -288,8 +296,13 @@ final class KofDebugNativeDap {
             fail(seq, command, "not launched");
             return;
         }
-        mi.send(miCmd);
+        // #815: a resposta DAP PRIMEIRO, depois o comando MI. `-exec-continue`/
+        // `-exec-next`/… fazem o gdb emitir `*stopped` quase imediatamente, e o
+        // pump o converte em evento `stopped` numa OUTRA thread; com o `send`
+        // antes, o evento podia sair ANTES desta resposta e o cliente o consumia
+        // fora de ordem (descartando-o) — a corrida que gerava o hang/flake.
         respond(seq, command, body);
+        mi.send(miCmd);
     }
 
     /** MI `*stopped` -> DAP `stopped` (ou `exited`+`terminated` no fim). */

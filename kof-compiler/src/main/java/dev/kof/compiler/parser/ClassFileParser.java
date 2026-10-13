@@ -109,11 +109,19 @@ public final class ClassFileParser {
         /** JVMS 4.7.1: assinatura genérica (null quando o .class não a tem). */
         public final String signature;
 
+        /** JVMS 4.7.2: valor de constante `static final` (null na maioria). */
+        public final String constantValue;
+
         FieldInfo(int accessFlags, String name, String descriptor, String signature) {
+            this(accessFlags, name, descriptor, signature, null);
+        }
+
+        FieldInfo(int accessFlags, String name, String descriptor, String signature, String constantValue) {
             this.accessFlags = accessFlags;
             this.name = name;
             this.descriptor = descriptor;
             this.signature = signature;
+            this.constantValue = constantValue;
         }
     }
 
@@ -272,6 +280,7 @@ public final class ClassFileParser {
             String fieldName = constPool[bb.getShort() & 0xFFFF];
             String fieldDesc = constPool[bb.getShort() & 0xFFFF];
             String fieldSig = null;
+            String constantValue = null;
             int attrCount = bb.getShort() & 0xFFFF;
             for (int j = 0; j < attrCount; j++) {
                 int attrNameIdx = bb.getShort() & 0xFFFF;
@@ -279,11 +288,17 @@ public final class ClassFileParser {
                 int attrLen = bb.getInt();
                 if ("Signature".equals(attrName)) {
                     fieldSig = constPool[bb.getShort() & 0xFFFF];
+                } else if ("ConstantValue".equals(attrName)) {
+                    // JVMS 4.7.2: constantes `static final` NÃO passam pelo
+                    // clinit (o valor vem deste attribute) — o decompilador
+                    // usa para dobrar o initializer (ADITIVO)
+                    int cvIdx = bb.getShort() & 0xFFFF;
+                    constantValue = cvIdx > 0 && cvIdx < constPool.length ? constPool[cvIdx] : null;
                 } else {
                     bb.position(bb.position() + attrLen);
                 }
             }
-            fields.add(new FieldInfo(fieldAccess, fieldName, fieldDesc, fieldSig));
+            fields.add(new FieldInfo(fieldAccess, fieldName, fieldDesc, fieldSig, constantValue));
         }
 
         int methodCount = bb.getShort() & 0xFFFF;

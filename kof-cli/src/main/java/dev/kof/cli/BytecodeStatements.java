@@ -19,9 +19,25 @@ final class BytecodeStatements {
     private BytecodeStatements() {
     }
 
+    /** Medidor offline (probe-only): razão da recusa do struct. */
+    static java.util.Map<String, Integer> refusalSink;
+    /** Atribuição com declaração `var` na 1ª escrita do slot. */
+    private static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
+        String name = BytecodeDecoder.slotName(slot, frame);
+        if (!declared.contains(slot)) {
+            declared.add(slot);
+            return "var " + name + " = " + value;
+        }
+        return name + " = " + value;
+    }
+
+    private static void refuse(String reason) {
+        if (refusalSink != null) refusalSink.merge(reason, 1, Integer::sum);
+    }
+
     static List<String> recoverStatements(byte[] code, String[] cp, BytecodeFrame frame, int[][] handlers) {
         List<BytecodeReader.Insn> insns = BytecodeReader.decode(code);
-        List<String> sw = recoverSwitch(code, insns, cp, frame);
+        List<String> sw = BytecodeStatementsSwitch.recoverSwitch(code, insns, cp, frame);
         if (sw != null) return sw;
         // Fase C (statement-switch): só tenta se o de expressão recusou
         // (saída do de expressão preservada byte-idêntica onde aceitava).
@@ -34,13 +50,23 @@ final class BytecodeStatements {
             if (tc != null) return tc;
         }
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
-        if (blocks.isEmpty()) return null;
+        if (blocks.isEmpty()) { refuse("cfg-empty"); return null; }
+        if (refusalSink != null) {
+            StringBuilder dbg = new StringBuilder();
+            for (BytecodeReader.Block b : blocks)
+                dbg.append("B@").append(b.start).append(" succ").append(b.succ)
+                   .append(" pred").append(b.pred).append("; ");
+            refusalSink.merge("CFG[" + dbg + "]", 1, Integer::sum);
+        }
         Map<Integer, BytecodeReader.Block> byStart = new HashMap<>();
         for (BytecodeReader.Block b : blocks) byStart.put(b.start, b);
         List<String> out = new ArrayList<>();
         Set<Integer> emitted = new HashSet<>();
         Set<Integer> declared = new HashSet<>();
         if (!struct(blocks.get(0), insns, byStart, cp, frame, out, emitted, declared, -1, new HashSet<>())) {
+            if (refusalSink != null) {
+                refusalSink.merge("struct-false | out-so-far: " + String.join(" | ", out), 1, Integer::sum);
+            }
             return null;
         }
         return out;
@@ -69,7 +95,7 @@ final class BytecodeStatements {
             return null;
         }
         tryStmts = tryExpr.isEmpty() ? new ArrayList<>() : new ArrayList<>(List.of("return " + tryExpr));
-        List<String> handlerStmts = emitLinear(handlerSeq, cp, frame, new HashSet<>());
+        List<String> handlerStmts = BytecodeStatementsEmit.emitLinear(handlerSeq, cp, frame, new HashSet<>());
         if (handlerStmts == null) return null;
         List<String> out = new ArrayList<>();
         out.add("try {");
@@ -109,7 +135,7 @@ final class BytecodeStatements {
             if (op >= 0x2a && op <= 0x2d && (op - 0x2a) == tempSlot) { retOff = in.offset(); break; }
         }
         if (retOff < 0) return null;
-        List<String> finStmts = emitLinear(BytecodeSwitch.range(insns, to, retOff), cp, frame, new HashSet<>());
+        List<String> finStmts = BytecodeStatementsEmit.emitLinear(BytecodeSwitch.range(insns, to, retOff), cp, frame, new HashSet<>());
         if (finStmts == null) return null;
 
         List<String> out = new ArrayList<>();
@@ -137,47 +163,6 @@ final class BytecodeStatements {
 
     // ── switch (tableswitch/lookupswitch) ─────────────────────────────────
 
-    private static List<String> recoverSwitch(byte[] code, List<BytecodeReader.Insn> insns,
-                                              String[] cp, BytecodeFrame frame) {
-        // localiza o switch
-        int swOff = -1;
-        for (int pc = 0; pc < code.length; ) {
-            int op = code[pc] & 0xFF;
-            if (op == 0xaa || op == 0xab) { swOff = pc; break; }
-            int l = BytecodeReader.length(op);
-            pc += (l == -1) ? 1 : l;
-        }
-        if (swOff < 0) return null;
-        BytecodeSwitch.SwitchInfo si = BytecodeSwitch.parseSwitch(code, swOff);
-        if (si == null) return null;
-
-        // expressão do switch = topo da pilha antes do switch
-        String expr = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, 0, swOff), cp, frame);
-        if (expr == null) return null;
-
-        // limites (targets ordenados) p/ reconstruir cada corpo
-        java.util.TreeSet<Integer> bounds = new java.util.TreeSet<>();
-        bounds.add(si.dflt);
-        for (int t : si.targets) bounds.add(t);
-        int maxOff = insns.get(insns.size() - 1).offset() + 1;
-
-        List<String> out = new ArrayList<>();
-        out.add("switch (" + expr + ") {");
-        for (int i = 0; i < si.targets.length; i++) {
-            int bodyEnd = BytecodeSwitch.nextBound(bounds, si.targets[i], maxOff);
-            String val = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, si.targets[i], bodyEnd), cp, frame);
-            if (val == null) return null;
-            out.add("case " + si.values[i] + ": return " + val);
-        }
-        int dfltEnd = BytecodeSwitch.nextBound(bounds, si.dflt, maxOff);
-        String dfltVal = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, si.dflt, dfltEnd), cp, frame);
-        if (dfltVal == null) return null;
-        out.add("default: return " + dfltVal);
-        out.add("}");
-        return out;
-    }
-
-    /** Condição de CONTINUAÇÃO (lado do fallthrough) — não invertida. */
     private static String contCond(int op) {
         return switch (op) {
             case 0x99 -> "== 0"; case 0x9a -> "!= 0"; case 0x9b -> "< 0";
@@ -214,8 +199,8 @@ final class BytecodeStatements {
         emitted.add(b.start);
 
         if (b.succ.isEmpty()) {
-            List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
-            if (stmts == null) return false;
+            List<String> stmts = BytecodeStatementsEmit.emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
+            if (stmts == null) { refuse("emitLinear-null"); return false; }
             out.addAll(stmts);
             return true;
         }
@@ -231,39 +216,39 @@ final class BytecodeStatements {
                 if (s <= b.start) back = s; else exit = s;
             }
             if (back >= 0) {
-                if (back != b.start) return false;  // corpo separado do teste — não recuperar
+                if (back != b.start) { refuse("loop-body-separate"); return false; }  // corpo separado do teste — não recuperar
                 List<BytecodeReader.Insn> block = BytecodeDecoder.insnsWithin(b, insns);
-                if (block.isEmpty()) return false;
+                if (block.isEmpty()) { refuse("empty-body"); return false; }
                 BytecodeReader.Insn last = block.get(block.size() - 1);
-                if (!last.isCond()) return false;
+                if (!last.isCond()) { refuse("do-while-no-cond"); return false; }
                 int op = last.opcode();
                 String cond;
                 List<BytecodeReader.Insn> body;
                 if (op >= 0x99 && op <= 0x9e) {
-                    if (block.size() < 2) return false;
+                    if (block.size() < 2) { refuse("do-while-short"); return false; }
                     String a = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
-                    if (a == null) return false;
+                    if (a == null) { refuse("do-while-load-null"); return false; }
                     cond = a + " " + contCond(op);
                     body = block.subList(0, block.size() - 2);
                 } else if (op >= 0x9f && op <= 0xa4) {
-                    if (block.size() < 3) return false;
+                    if (block.size() < 3) { refuse("do-while-short"); return false; }
                     String x = BytecodeDecoder.loadValue(block.get(block.size() - 3), frame);
                     String y = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
-                    if (x == null || y == null) return false;
+                    if (x == null || y == null) { refuse("do-while-load-null"); return false; }
                     cond = x + " " + contCond(op) + " " + y;
                     body = block.subList(0, block.size() - 3);
                 } else {
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 }
-                if (body.isEmpty()) return false;
-                List<String> stmts = emitLinear(body, cp, frame, declared);
-                if (stmts == null) return false;
+                if (body.isEmpty()) { refuse("loop-body-empty"); return false; }
+                List<String> stmts = BytecodeStatementsEmit.emitLinear(body, cp, frame, declared);
+                if (stmts == null) { refuse("emitLinear-null"); return false; }
                 out.add("do {");
                 out.addAll(stmts);
                 out.add("} while (" + cond + ")");
                 return struct(byStart.get(exit), insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
-            String cond = BytecodeDecoder.blockCondition(b, insns, frame);
+            String cond = BytecodeDecoder.blockCondition(b, insns, frame, cp);
             int exitStart = b.succ.get(0);   // alvo do branch (falso)
             int thenStart = b.succ.get(1);   // fall-through (verdadeiro)
             boolean loop0 = BytecodeReader.isLoopHeader(b);
@@ -279,11 +264,16 @@ final class BytecodeStatements {
                 BytecodeReader.Insn last = blk.get(blk.size() - 1);
                 int lop = last.opcode();
                 int k = (lop >= 0x9f && lop <= 0xa4) ? 2 : 1;   // if_acmp* = 2 ops; demais 1
-                if (blk.size() >= k + 1 && last.isCond()) {
+                String inv = BytecodeCp.invCond(lop);
+                // Fase C (13/10): a condição por BUSCA DE SUFIXO com o
+                // avaliador fechado (o prólogo com stores/chamadas É emitido
+                // pelo emitLinear abaixo — nada se perde em silêncio)
+                String suffixCond = (inv != null && blk.size() >= k + 1)
+                        ? BytecodeDecoder.condFromSuffix(blk, frame, cp, k, inv) : null;
+                if (suffixCond != null || (blk.size() >= k + 1 && last.isCond())) {
                     String x = BytecodeDecoder.loadValue(blk.get(blk.size() - 1 - k), frame);
                     String y = k == 2 ? BytecodeDecoder.loadValue(blk.get(blk.size() - 2), frame) : null;
-                    String inv = BytecodeCp.invCond(lop);
-                    if (x != null && (k == 1 || y != null) && inv != null) {
+                    if (suffixCond != null || (x != null && (k == 1 || y != null) && inv != null)) {
                         List<BytecodeReader.Insn> preInsns = blk.subList(0, blk.size() - k - 1);
                         // emitLinear PARA e retorna parcial em branch (linha do
                         // 0xa7) — prefixo com fluxo interno truncaria código em
@@ -291,21 +281,82 @@ final class BytecodeStatements {
                         for (BytecodeReader.Insn pi : preInsns) {
                             int po = pi.opcode();
                             boolean fluxo = (po >= 0x99 && po <= 0xa7) || (po >= 0xaa && po <= 0xb1) || po == 0xbf;
-                            if (fluxo) return false;
+                            if (fluxo) { refuse("prologue-has-flow"); return false; }
                         }
-                        List<String> pre = emitLinear(preInsns, cp, frame, declared);
-                        if (pre == null) return false;
+                        List<String> pre = BytecodeStatementsEmit.emitLinear(preInsns, cp, frame, declared);
+                        if (pre == null) { refuse("emitLinear-null"); return false; }
                         out.addAll(pre);
-                        cond = k == 2 ? x + " " + inv + " " + y : x + " " + inv;
+                        // Fase C (13/10): o sufixo avaliado (com o avaliador
+                        // fechado) tem prioridade quando os loads desnudos não
+                        // resolvem (condições com chamadas/campos)
+                        cond = suffixCond != null ? suffixCond
+                                : (k == 2 ? x + " " + inv + " " + y : x + " " + inv);
                     }
                 }
             }
-            if (cond == null) return false;
+            if (cond == null) { refuse("cond-null"); return false; }
+            // Fase C (13/10, short-circuit &&): o THEN-bloco é OUTRO teste
+            // cujo falso-alvo é o MESMO else → as condições combinam com
+            // `&&` (a avaliação em cadeia do bytecode É o curto-circuit do
+            // &&; os braços passam a ser os do teste interno).
+            if (!loop0) {
+                int guard = 0;
+                BytecodeReader.Block tb = byStart.get(thenStart);
+                while (guard < 4 && tb != null && tb.succ.size() == 2
+                        && tb.succ.get(0) == exitStart && !BytecodeReader.isLoopHeader(tb)) {
+                    // succ.size() == 2 EXIGIDO: o && clássico tem then-de-teste
+                    // com DOIS sucessores (o falso-alvo compartilhado + a
+                    // queda); um teste com succ único (braços que caem no
+                    // mesmo join) NÃO combina — o get(1) crashava IOOBE
+                    // (medido no TranslateStatements real, 13/10).
+                    List<BytecodeReader.Insn> tblk = BytecodeDecoder.insnsWithin(tb, insns);
+                    if (tblk.isEmpty() || !tblk.get(tblk.size() - 1).isCond()) break;
+                    String cond2 = BytecodeDecoder.blockCondition(tb, insns, frame, cp);
+                    if (cond2 == null) break;
+                    cond = cond + " && " + cond2;
+                    thenStart = tb.succ.get(1);
+                    tb = byStart.get(thenStart);
+                    guard++;
+                }
+            }
+            // Fase C (13/10, return-join ?:): o ELSE-bloco é [push, xreturn]
+            // e o THEN termina em goto→[xreturn] — cada braço deixa UM valor
+            // na pilha → if-expression Kof: `return if (cond) tVal else eVal`.
+            {
+                BytecodeReader.Block elseBlk = byStart.get(exitStart);
+                BytecodeReader.Block thenBlk = byStart.get(thenStart);
+                if (elseBlk != null && thenBlk != null && !elseBlk.succ.isEmpty()) {
+                    List<BytecodeReader.Insn> eIns = BytecodeDecoder.insnsWithin(elseBlk, insns);
+                    int joinAfterElse = elseBlk.succ.get(elseBlk.succ.size() - 1);
+                    BytecodeReader.Block joinBlk = byStart.get(joinAfterElse);
+                    // o else-bloco é SÓ o push (o xreturn é o bloco do join)
+                    boolean eShape = eIns.size() == 1;
+                    boolean tShape = thenBlk.succ.size() == 1 && thenBlk.succ.get(0) == joinAfterElse
+                            && joinBlk != null && joinBlk.succ.isEmpty();
+                    if (eShape && tShape) {
+                        List<BytecodeReader.Insn> tIns = BytecodeDecoder.insnsWithin(thenBlk, insns);
+                        List<BytecodeReader.Insn> jIns = BytecodeDecoder.insnsWithin(joinBlk, insns);
+                        if (tIns.size() >= 2 && tIns.get(tIns.size() - 1).opcode() == 0xa7
+                                && jIns.size() == 1 && jIns.get(0).opcode() >= 0xac
+                                && jIns.get(0).opcode() <= 0xb1) {
+                            String tVal = BytecodeDecoder.stackValue(
+                                    tIns.subList(0, tIns.size() - 1), frame, cp);
+                            String eVal = BytecodeDecoder.stackValue(eIns, frame, cp);
+                            if (tVal != null && eVal != null) {
+                                out.add("    return if (" + cond + ") " + tVal + " else " + eVal);
+                                emitted.add(exitStart);
+                                emitted.add(joinAfterElse);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
             boolean loop = loop0;
             if (loop) {
                 out.add("while (" + cond + ") {");
                 if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, b.start, stops))
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 out.add("}");
                 return struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
@@ -339,7 +390,7 @@ final class BytecodeStatements {
             // float/ref (sem default seguro) -> RECUSAR p/ stub honesto.
             if (pureIfElse) {
                 List<String> hoist = StructWalker.hoistEscapingLocals(thenB, elseB, insns, frame, declared);
-                if (hoist == null) return false;
+                if (hoist == null) { refuse("hoist-null"); return false; }
                 out.addAll(hoist);
             }
             out.add("if (" + cond + ") {");
@@ -347,7 +398,7 @@ final class BytecodeStatements {
                 Set<Integer> jstops = new HashSet<>(stops);
                 jstops.add(exitStart);
                 if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, jstops))
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 out.add("}");
                 return struct(join, insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
@@ -362,28 +413,28 @@ final class BytecodeStatements {
                 Set<Integer> bstops = new HashSet<>(stops);
                 bstops.add(tail);
                 if (!struct(thenB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 out.add("} else {");
                 if (!struct(elseB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 out.add("}");
                 return struct(byStart.get(tail), insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
             if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
-                return false;
+                { refuse("struct-generic"); return false; }
             out.add("} else {");
             if (!struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
-                return false;
+                { refuse("struct-generic"); return false; }
             out.add("}");
             return true;
         }
         if (b.succ.size() == 1) {
-            List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
-            if (stmts == null) return false;
+            List<String> stmts = BytecodeStatementsEmit.emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
+            if (stmts == null) { refuse("emitLinear-null"); return false; }
             out.addAll(stmts);
             return struct(byStart.get(b.succ.get(0)), insns, byStart, cp, frame, out, emitted, declared, header, stops);
         }
-        return false;
+        { refuse("struct-generic"); return false; }
     }
 
     /** Emite statements lineares de um bloco (para em branch/goto/return). */
@@ -394,6 +445,7 @@ final class BytecodeStatements {
         Deque<String> stack = new ArrayDeque<>();
         for (BytecodeReader.Insn in : seq) {
             int op = in.opcode();
+            String opcodeTag = "emitLinear-null:0x" + String.format("%02x", op);
             switch (op) {
                 case 0x01 -> stack.push("null");
                 case 0x02 -> stack.push("-1");
@@ -403,26 +455,26 @@ final class BytecodeStatements {
                 // literal Long (42L) e Double (2.25) — fconst fica recusado.
                 case 0x09 -> stack.push("0L");
                 case 0x0a -> stack.push("1L");
-                case 0x0b, 0x0c, 0x0d -> { return null; }  // fconst: sem literal float em Kof
+                case 0x0b, 0x0c, 0x0d -> { { refuse(opcodeTag); return null; } }  // fconst: sem literal float em Kof
                 case 0x0e -> stack.push("0.0");
                 case 0x0f -> stack.push("1.0");
                 case 0x10 -> stack.push(String.valueOf((byte) in.operands()[0]));
                 case 0x11 -> stack.push(String.valueOf((short) in.operands()[0]));
                 case 0x12, 0x13 -> {                            // ldc, ldc_w
                     String c = BytecodeCp.ldc(cp, in.operands()[0]);
-                    if (c == null) return null;
+                    if (c == null) { refuse(opcodeTag); return null; }
                     stack.push(c);
                 }
                 case 0x14 -> {
                     String c = BytecodeCp.ldc2(cp, in.operands()[0]);
-                    if (c == null) return null;
+                    if (c == null) { refuse(opcodeTag); return null; }
                     stack.push(c);
                 }
                 case 0xba -> { // invokedynamic — só String concat (CONCAT: no CP)
                     String rec = BytecodeConcat.recipe(cp, in.operands()[0]);
-                    if (rec == null) return null;
+                    if (rec == null) { refuse(opcodeTag); return null; }
                     String expr = BytecodeConcat.apply(stack, rec);
-                    if (expr == null) return null;
+                    if (expr == null) { refuse(opcodeTag); return null; }
                     stack.push(expr);
                 }
                 case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoder.slotName(op - 0x1a, frame));
@@ -432,25 +484,25 @@ final class BytecodeStatements {
                 case 0x15, 0x19 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], frame));
                 case 0x16, 0x17, 0x18 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], frame));   // lload/fload/dload
                 case 0x36, 0x37, 0x38, 0x39, 0x3a -> { // istore..astore idx
-                    if (stack.isEmpty()) return null;
+                    if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
                     int slot = in.operands()[0];
                     stmts.add(assign(slot, val, frame, declared));
                 }
                 case 0x3b, 0x3c, 0x3d, 0x3e -> { // istore_0..3
-                    if (stack.isEmpty()) return null;
+                    if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
                     stmts.add(assign(op - 0x3b, val, frame, declared));
                 }
                 case 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a -> {
                     // lstore_0..3 / fstore_0..3 / dstore_0..3: 4 opcodes POR tipo
                     // → slot = (op - 0x3f) % 4 (dstore_1 = 0x48 → slot 1, não 9)
-                    if (stack.isEmpty()) return null;
+                    if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
                     stmts.add(assign((op - 0x3f) % 4, val, frame, declared));
                 }
                 case 0x4b, 0x4c, 0x4d, 0x4e -> { // astore_0..3
-                    if (stack.isEmpty()) return null;
+                    if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
                     stmts.add(assign(op - 0x4b, val, frame, declared));
                 }
@@ -462,86 +514,86 @@ final class BytecodeStatements {
                     declared.add(slot);
                     stmts.add(name + " = " + name + " + " + k);
                 }
-                case 0x60 -> { if (!BytecodeDecoder.bin(stack, "+")) return null; }
-                case 0x64 -> { if (!BytecodeDecoder.bin(stack, "-")) return null; }
-                case 0x68 -> { if (!BytecodeDecoder.bin(stack, "*")) return null; }
-                case 0x6c -> { if (!BytecodeDecoder.bin(stack, "/")) return null; }
-                case 0x70 -> { if (!BytecodeDecoder.bin(stack, "%")) return null; }
-                case 0x74 -> { if (stack.isEmpty()) return null; stack.push("-" + stack.pop()); }
+                case 0x60 -> { if (!BytecodeDecoder.bin(stack, "+")) { refuse(opcodeTag); return null; } }
+                case 0x64 -> { if (!BytecodeDecoder.bin(stack, "-")) { refuse(opcodeTag); return null; } }
+                case 0x68 -> { if (!BytecodeDecoder.bin(stack, "*")) { refuse(opcodeTag); return null; } }
+                case 0x6c -> { if (!BytecodeDecoder.bin(stack, "/")) { refuse(opcodeTag); return null; } }
+                case 0x70 -> { if (!BytecodeDecoder.bin(stack, "%")) { refuse(opcodeTag); return null; } }
+                case 0x74 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stack.push("-" + stack.pop()); }
                 // Fase E: construção/teste-emit (0xbb new, 0xbd anewarray,
                 // 0x59 dup, 0xb7 init, 0x57 pop, 0xc0 cast, 0xc1 instanceof)
                 // — semântica em BytecodeKofTypes (gate ≤500); false = stub.
-                case 0x57, 0xc0, 0xc1, 0xbb, 0xbd, 0x59, 0xb7,
+                case 0x57, 0xc0, 0xc1, 0xbb, 0xbc, 0xbd, 0x59, 0xb7,
                      0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
                      0x4f, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0xbe -> {
-                    if (!BytecodeKofTypes.statementOp(op, in, stack, cp, stmts, frame)) return null;
+                    if (!BytecodeKofTypes.statementOp(op, in, stack, cp, stmts, frame)) { refuse(opcodeTag); return null; }
                 }
                 case 0xb8 -> { // invokestatic
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (m == null) return null;
+                    if (m == null) { refuse(opcodeTag); return null; }
                     String a = BytecodeCp.callArgs(stack, BytecodeCp.argCount(m[2]));
-                    if (a == null) return null;
+                    if (a == null) { refuse(opcodeTag); return null; }
                     String mapped = BytecodeStdlib.statics(m[0], m[1], a, m[2]);
-                    if (mapped == null && BytecodeCp.isJdkOwner(m[0])) return null;   // R6: owner JDK
+                    if (mapped == null && BytecodeCp.isJdkOwner(m[0])) { refuse(opcodeTag); return null; }   // R6: owner JDK
                     String call = mapped != null ? mapped : BytecodeCp.simpleOwner(m[0]) + "." + m[1] + "(" + a + ")";
                     if (BytecodeCp.isVoidDesc(m[2])) { stmts.add(call); } else { stack.push(call); }
                 }
                 case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (m == null) return null;
+                    if (m == null) { refuse(opcodeTag); return null; }
                     String a = BytecodeCp.callArgs(stack, BytecodeCp.argCount(m[2]));
-                    if (a == null || stack.isEmpty()) return null;
+                    if (a == null || stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String recv = stack.pop();
                     String mapped = BytecodeStdlib.virtual(recv, m[0], m[1], a);
-                    if (mapped == null && recv.startsWith("⟦new⟧")) return null;  // R6: método em novo Objeto JDK
+                    if (mapped == null && recv.startsWith("⟦new⟧")) { refuse(opcodeTag); return null; }  // R6: método em novo Objeto JDK
                     String call = mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")";
                     if (BytecodeCp.isVoidDesc(m[2])) { stmts.add(call); } else { stack.push(call); }
                 }
                 case 0xb4 -> { // getfield
                     String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null || stack.isEmpty()) return null;
+                    if (f == null || stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String obj = stack.pop();
                     stack.push(obj + "." + f[1]);
                 }
                 case 0xb2 -> { // getstatic
                     String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null) return null;
+                    if (f == null) { refuse(opcodeTag); return null; }
                     stack.push(BytecodeCp.simpleOwner(f[0]) + "." + f[1]);
                 }
                 case 0xb5 -> { // putfield
                     String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null || stack.isEmpty()) return null;
+                    if (f == null || stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
-                    if (stack.isEmpty()) return null;
+                    if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String obj = stack.pop();
                     stmts.add(obj + "." + f[1] + " = " + val);
                 }
                 case 0xb3 -> { // putstatic
                     String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null || stack.isEmpty()) return null;
+                    if (f == null || stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
                     stmts.add(BytecodeCp.simpleOwner(f[0]) + "." + f[1] + " = " + val);
                 }
-                case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) return null; stmts.add("return " + stack.pop()); return stmts; }
-                case 0xb0 -> { if (stack.isEmpty()) return null; stmts.add("return " + stack.pop()); return stmts; }
+                case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
+                case 0xb0 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
                 case 0xb1 -> { stmts.add("return"); return stmts; }
+                case 0xbf -> { // athrow → `throw x` (o Kof lança a exceção/String)
+                    if (refusalSink != null) refusalSink.merge("ATHROW-STACK=" + stack, 1, Integer::sum);
+                    if (stack.isEmpty()) return null;
+                    stmts.add("throw " + stack.pop());
+                    return stmts;
+                }
                 // terminadores de bloco: branch/goto — paramos sem emitir
-                case 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7 -> { return stmts; }
+                // (0xc6/0xc7 ifnull/ifnonnull entram: são branches como os
+                // demais — o struct cuida dos joins)
+                case 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xc6, 0xc7 -> { return stmts; }
                 default -> {
                     if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(op);
-                    return null;
+                    { refuse(opcodeTag); return null; }
                 }
             }
         }
         return stmts;
     }
 
-    private static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
-        String name = BytecodeDecoder.slotName(slot, frame);
-        if (!declared.contains(slot)) {
-            declared.add(slot);
-            return "var " + name + " = " + value;
-        }
-        return name + " = " + value;
-    }
 }

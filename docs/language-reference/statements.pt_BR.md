@@ -113,13 +113,21 @@ são opcionais.
 for-in = "for" , "(" , ( "var" | "val" ) , identifier , "in" , expression , ")" , statement
 `
 
-- Itera sobre `List<T>` (índice interno `#coll`/`#idx`) ou array
-  (`StatementLowerer.java:259-310`). **Sem iterator customizado.**
+- Itera sobre `List<T>` (índice interno `#coll`/`#idx`), array ou `String`
+  (`StatementLowerer.java`). **Sem iterator customizado.**
 - **`in` é palavra contextual** (não keyword) — só válida aqui.
-- O tipo da variável é `typeArguments.get(0)` da List ou o componente do array.
-- **`for (var c in "ab")` NÃO itera sobre string** — o receiver `string` não é
-  coleção; comportamento **Unspecified** (o probe JVM deu erro de runtime, não
-  iteração). Use `s.charAt(i)` num loop numérico.
+- O tipo da variável é `typeArguments.get(0)` da List, o componente do array,
+  ou **`Char` para uma `String`** (a unidade do charAt — code unit UTF-16, a
+  mesma unidade de `charAt`/`indexOf`).
+- **`for (var c in "ab")` itera os chars da string** (EVOLUÇÃO DA LINGUAGEM,
+  diretiva da mantenedora 13/10 — "liberado evoluir a lang"): o lowering usa o
+  MESMO desugar de índice do ramo List/array, pelos calls padrão
+  `length`/`charAt` (todos os alvos; o backend JS já iterava chars — esse
+  comportamento natural virou o contrato). História: a face era aceita em
+  silêncio e quebrava por alvo (bug 145), depois rejeitada com `SEM058`
+  (14/09) até a implementação real pousar. **`Map`/`Set`/primitivos/records/
+  classes ainda rejeitam com `SEM058`** (só `List<T>`, arrays e `String` são
+  iteráveis).
 
 ### 5.5 `break` / `continue`
 

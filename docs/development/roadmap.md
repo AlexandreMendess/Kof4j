@@ -2,7 +2,7 @@
 
 # Kof — Long-Term Roadmap
 
-last: 0.6.3-cut
+last: 0.6.3-published
 doing: 1.0-exit-gate
 next: promotion-sweep
 location: roadmap
@@ -862,7 +862,7 @@ continue, disconnect). Phase 4 (Kof Editor) planned; Phase 5 (Native DWARF) x86-
 Long-term initiative to analyze, recover, translate and modernize
 legacy systems into Kof — **outside the 0.0.x scope**.
 
-- Central document: `future/LEGACY_MIGRATION.md` (§4 = Legacy Semantic
+- Central document: `LEGACY_MIGRATION.md` (§4 = Legacy Semantic
   IR/Confidence; §8 = differential test + migration report) — **DEPRIORITIZED
   by the maintainer 15/09: the trio + work-logs went back to `future/`; code in
   kof-cli stays. REOPENED 28/09 by `D-DEPRIORITIZED-REOPEN` (maintainer batch):
@@ -871,7 +871,7 @@ legacy systems into Kof — **outside the 0.0.x scope**.
   `kof migrate`, `kof compare`
 - Architecture: `Legacy Input → Legacy Semantic IR → Kof AST → Kof IR → Backend`
 - Java is a supported source, never a mandatory intermediate representation
-- Related documents: `future/DECOMPILER.md`, `future/TRANSLATOR.md` (the old
+- Related documents: `DECOMPILER.md`, `TRANSLATOR.md` (the old
   `LEGACY_IR.md` and `DIFFERENTIAL_TESTING.md` were merged into the central one 13/09;
   `IMPLEMENTATION_PLAN.md`/`ACTION_PLAN.md` became §23 of this roadmap)
 
@@ -1006,7 +1006,7 @@ domain (`INFRA00x`/`DATA00x`/`SCI00x`/`BIO00x`/`SECPQ`) + parity matrix;
 | 2.1.1–2.1.3 | `extern` syntax + type-check + gaps `FFI001`/`FFI002` (never silent drop) | ✅ `Parser.java:192` (PARSE090), `ExternalFunctionNode`, `FfiE2ETest` |
 | 2.1.4 | **JVM** binding (FFM `java.lang.foreign`) | ✅ **generalized 18/09 (`.18`, R3):** any scalar signature, arbitrary arity, `void`/`String` returns — measured `fmod`→1.5, `ldexp`→12.0, `strncmp`→-1, `puts(void)`, `getenv`→String (`syntax.md`) |
 | 2.1.5 | **Native** binding | ✅ **20/09 (#431 slices 1–2, §369)** — the raw binary binds scalars **direct** (`call sym@PLT`, link-by-use), which **supersedes `dlopen`/`dlsym`**; §61 closed. The old `dlopen` segfault was the reason for the switch, not an open gap |
-| 2.1.6 | struct/array marshalling | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` by value as arg/return + scalar `T[]`→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landed 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **Native/cross struct sret + by-value param LANDED 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan.md` — the roadmap row was stale); **JS struct bridge ✅ COMPLETE 21/09** (struct param + return, scalar array copy-in, `Buffer(U8)` INOUT — all byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; this row's "remaining = JS struct bridge" was stale). Remaining = cross HFA struct RETURN (HFA PARAM landed 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); **callbacks LANDED 11/10 on x86-64 AND cross riscv64/aarch64** (M1 unidade-4, `FfiNativeCallbackE2ETest` — only a callback with a `String` ARGUMENT binds on Native x86-64 AND cross riscv64/aarch64 (the trampoline bridges `char*`→`String` via `kof_ffi_from_cstr`; `FfiNativeCallbackStrE2ETest`), while a callback whose ABI mentions `String` (ARGUMENT or RETURN) now BINDS on Native x86-64 AND cross riscv64/aarch64 (M1 unidade-4, 11/10: the arg bridges `char*`→`String` via `kof_ffi_from_cstr`; the return hands C the payload `char*` (obj+24) of the String the `invoke` produced); a `String` ARGUMENT binds on x86-64 AND cross riscv64/aarch64); float/HFA-param (honest `FFI001`/`FFI002`, R6; cross `T[]`, `Buffer(U8)`, `String[]`→`char**`, memory-path structs and >16 B params landed 29–30/09). D6 ✅ decided 20/09 |
+| 2.1.6 | struct/array marshalling | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` by value as arg/return + scalar `T[]`→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landed 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **Native/cross struct sret + by-value param LANDED 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan.md` — the roadmap row was stale); **JS struct bridge ✅ COMPLETE 21/09** (struct param + return, scalar array copy-in, `Buffer(U8)` INOUT — all byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; this row's "remaining = JS struct bridge" was stale). Remaining = cross HFA struct RETURN (HFA PARAM landed 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); **callbacks LANDED 11/10 on x86-64 AND cross riscv64/aarch64** (M1 unidade-4, `FfiNativeCallbackE2ETest` — a callback whose ABI mentions `String` (ARGUMENT or RETURN) binds on Native x86-64 AND cross riscv64/aarch64 (M1 unidade-4, 11/10: the arg bridges `char*`→`String` via `kof_ffi_from_cstr`; the return hands C the payload `char*` (obj+24) of the String the `invoke` produced)); the remaining FFI001 faces are PER-BACKEND (measured 13/10): mixed float+int refuses on the CROSS wire only (binds x86-64); HFA>2 refuses on x86-64 + aarch64 (binds riscv64) (cross `T[]`, `Buffer(U8)`, `String[]`→`char**`, memory-path structs and >16 B params landed 29–30/09). D6 ✅ decided 20/09 |
 | 2.1.7 | JS: gap `FFI002` | ✅ honest gap + **scalar parity CLOSED 18/09 (`d3598c2d`, slices 3.6.F1–F3):** host runner binds via `KofJsFfiBridge`, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS; browser = runtime R7; non-scalar keeps `FFI002` |
 | 2.2.1 | Inventory of implicit codegen (4 points: runtime `.source()`, `desugarTests`, `desugarApplication`, entity→record+schema) | ✅ the 4 exist (`CompilerPipeline:295-296`) |
 | 2.2.2 | **Formal `CodegenStep` hook** | ✅ **LANDED 21/09 (R4, `D-CODEGEN-STEP`)** — `CodegenStep`/`CodegenStepPipeline` (additive; empty registry = identity, zero behavior change; `CodegenStepPipelineTest` 6/6). The old `d1c56bad` "✅" was an over-claim from the `planning-future` branch; R4 is the real landing |
@@ -1088,7 +1088,7 @@ rule 6).
 | 2.9.5 | **Native backend** | the same contract in the native ORM runtime | OPEN |
 | 2.9.6 | **Advanced** | retention/archival, typed accessors, field exclusion, tamper-evidence — each with its own decision | OPEN |E-VARIANCE/INTEROP-REFLECT)**; **CONCLUDED + MOVED to `docs/` 22/09** (all slices X5.0–X5.5, X6.0–X6.3 landed with proof).
 
-### TIER 3–5 — Legacy migration platform (Phases A–H) ✅ code+tests
+### TIER 3–5 — Legacy migration platform (Phases A–H) ✅ code+tests — PROMOTED 14/10 (`D-FUTURE-PROMOTION`; current slice = Phase H, full JAR migration per §8.1 — `kof migrate app.jar --output dir/` landed with per-class decompilation + the §8.1 aggregate report)
 
 `kof inspect/decompile/translate/compare/migrate` in the CLI (`Main.java`);
 Legacy Semantic IR with Confidence Model (5 levels) + "never invent". Proof
@@ -1100,8 +1100,8 @@ since the `.22` lane closed it). Method body recovery still partial
 1793 stubs, the biggest family is if-test prefixes with computation/invokes —
 519/566 TRAPs needing the post-dominator walker; the old "2452" StoreCat
 number is stale, the pure if-then join sub-case already recovered). The
-detailed technical history lives in `future/LEGACY_MIGRATION.md` +
-`future/DECOMPILER.md` (§7) — **do not duplicate here**; this table only gives
+detailed technical history lives in `LEGACY_MIGRATION.md` +
+`DECOMPILER.md` (§7) — **do not duplicate here**; this table only gives
 the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work. REOPENED 28/09 by `D-DEPRIORITIZED-REOPEN` — still not promoted; promotion is one-at-a-time per `D-FUTURE-PROMOTION`.**
 
 ### TIER 6–12 — Universal platform (architecture **UNDER DEVELOPMENT** 17/09 — R12 overridden; governed by `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)

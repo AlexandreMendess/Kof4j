@@ -108,7 +108,7 @@ public final class StatementAnalyzer {
                 } else if (selfCapture && !scope.hasLocal(vds.name())) {
                     scope.define(new SymbolTable.LocalVariableSymbol(vds.name(),
                             Type.UnknownType.UNKNOWN, 0,
-                            vds.type() != null && "val".equals(vds.type())));
+                            vds.isVal()));
                     selfPredefined = true;
                 }
                 // "val"/"var" são palavras-chave de mutabilidade, não tipos —
@@ -176,7 +176,7 @@ public final class StatementAnalyzer {
                     }
                 }
                 scope.define(new SymbolTable.LocalVariableSymbol(vds.name(), varType, 0,
-                        vds.type() != null && "val".equals(vds.type())));
+                        vds.isVal()));
             }
             case ReturnStmt ret -> {
                 if (ret.value() != null) {
@@ -285,6 +285,14 @@ public final class StatementAnalyzer {
                     elemType = ct.typeArguments().get(0);
                 } else if (collType instanceof Type.ArrayType at) {
                     elemType = at.componentType();
+                } else if (BuiltinTypes.isString(collType)) {
+                    // EVOLUÇÃO (a diretiva da mantenedora 13/10: "liberado
+                    // evoluir a lang"): `for (var c in s)` itera os CHARs da
+                    // string — a unidade do charAt. O bug 145 virou SEM058
+                    // porque os alvos DIVERGIAM; agora o ramo String desce o
+                    // MESMO desugar de índice do List/array (charAt/length, os
+                    // 4 alvos) e o comportamento natural do JS vira contrato.
+                    elemType = Type.PrimitiveType.CHAR;
                 } else if (sa.diagnostics() != null && isNonIterableForIn(collType)) {
                     // bug 145 (espelha o bug 103/SEM054): `for (var c in "abc")`
                     // era ACEITO e quebrava de um jeito em cada target — JVM

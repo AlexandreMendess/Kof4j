@@ -110,16 +110,30 @@ class TypeNameAsValueE2ETest {
     }
 
     @Test
-    void asAndInstanceofTypeRefsStillCompile(@TempDir Path tempDir) throws Exception {
+    void asTypeRefStillCompilesAndInstanceofPrimitiveIsSem106(@TempDir Path tempDir) throws Exception {
+        // D-SEM-REJECTS-1210 (maintainer 12/10): `x as Int` stays the numeric
+        // conversion; `instanceof <primitive>` is REFUSED (SEM106 — the
+        // boxed form diverged 2-2 across targets; the old pin held the
+        // divergence). The type-REF grammar itself is untouched.
         CompilationResult result = compile(tempDir, """
                 main() {
                     var x = 3
                     var y = x as Int
-                    var b = y instanceof Int
+                    println(y)
+                }
+                """);
+        assertTrue(result.success(), () -> "`as Int` must keep compiling: "
+                + result.diagnostics().getDiagnostics());
+
+        CompilationResult refused = compile(tempDir, """
+                main() {
+                    var b = 3 instanceof Int
                     println(b)
                 }
                 """);
-        assertTrue(result.success(), () -> "`as`/`instanceof` must keep compiling: "
-                + result.diagnostics().getDiagnostics());
+        assertTrue(refused.diagnostics().getDiagnostics().stream()
+                        .anyMatch(d -> String.valueOf(d).contains("SEM106")),
+                "`instanceof Int` must be refused with SEM106 (D-SEM-REJECTS-1210): "
+                        + refused.diagnostics().getDiagnostics());
     }
 }

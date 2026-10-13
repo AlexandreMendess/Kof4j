@@ -1,0 +1,15 @@
+class Animal { }
+class Dog extends Animal { }
+main() {
+    var a: Animal = Animal()
+    var s = a as Dog?
+    println(s == null)
+    println(s instanceof Animal)
+    var d: Animal = Dog()
+    var t = d as Dog?
+    println(t != null)
+    println(t instanceof Dog)
+    println(d as Animal? != null)
+    var o: Object = 42
+    println((o as String?) == null)
+}

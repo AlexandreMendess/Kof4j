@@ -400,6 +400,6 @@ final class BytecodeSwitch {
             int op = in.opcode();
             if (op == 0xa7 || op == 0xc8) { cut = off; break; }
         }
-        return BytecodeStatements.emitLinear(range(insns, start, cut), cp, frame, declared);
+        return BytecodeStatementsEmit.emitLinear(range(insns, start, cut), cp, frame, declared);
     }
 }
