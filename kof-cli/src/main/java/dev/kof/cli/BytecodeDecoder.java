@@ -208,10 +208,18 @@ import java.util.Set;
                     if (rec == null) return null;
                     int n = 0;
                     for (int i = 0; i < rec.length(); i++) if (rec.charAt(i) == 1) n++;
-                    java.util.List<String> argE = new java.util.ArrayList<>();
-                    for (int i = 0; i < n; i++) argE.add(0, stack.popExpr());
-                    if (argE.stream().anyMatch(java.util.Objects::isNull)) return null;
-                    java.util.Deque<String> vals = new java.util.ArrayDeque<>(argE);
+                    // BUG DE CORRECAO (medido 13/10: concat3 dava "cba"): o
+                    // apply() JA desempilha a ordem original — o caller NAO
+                    // deve re-inverter (o add(0,..) + o Deque dupla-invertiam).
+                    // Coleta em ordem de PILHA (topo primeiro) e o apply poe
+                    // em ordem original.
+                    java.util.Deque<String> vals = new java.util.ArrayDeque<>();
+                    // addLast: o pop() do ArrayDeque e removeFirst — o apply
+                    // espera o ULTIMO arg na cabeca (ele re-inverte com
+                    // add(0,pop) para montar a ordem original). Medido: push
+                    // (=addFirst) dava "cba"; addLast da "abc".
+                    for (int i = 0; i < n; i++) vals.addLast(stack.popExpr());
+                    if (vals.stream().anyMatch(java.util.Objects::isNull)) return null;
                     String expr = BytecodeConcat.apply(vals, rec);
                     if (expr == null) return null;
                     stack.push(expr, "L");

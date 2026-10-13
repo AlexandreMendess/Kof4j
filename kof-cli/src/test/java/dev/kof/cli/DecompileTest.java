@@ -415,6 +415,39 @@ class DecompileTest {
     }
 
     @Test
+    void multiArgConcatKeepsArgumentOrder(@TempDir Path dir) throws Exception {
+        // REGRESSÃO (13/10): a concat com 2+ placeholders saía com a ORDEM
+        // INVERTIDA ("cba" p/ `a + b + c`) — o caller re-invertia a pilha e
+        // o BytecodeConcat.apply re-invertia de novo (double-reverse); a face
+        // antiga só tinha 1 placeholder, então nunca pegou. Zero-drift
+        // executado: o Kof decompilado RODA e dá o mesmo do Java.
+        Path javaFile = dir.resolve("Mc.java");
+        Files.writeString(javaFile, """
+                public class Mc {
+                    static String three(String a, String b, String c) { return a + b + c; }
+                    static String four(String a, String b, String c, String d) { return a + "-" + b + c + d; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Mc.class"));
+        assertTrue(kof.contains("arg0 + arg1 + arg2"),
+                "concat de 3 args mant\u00e9m a ordem:\n" + kof);
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Mc.three(\"a\", \"b\", \"c\"))\n    println(Mc.four(\"w\", \"x\", \"y\", \"z\"))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("abc\nw-xyz", output, "zero-drift: ordem da concat correta");
+    }
+
+    @Test
     void recoversStringConcatInvokedynamic(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Cat.java");
         Files.writeString(javaFile, """
