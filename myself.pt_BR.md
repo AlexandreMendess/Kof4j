@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: AVIF slice 3ag POUSADA 11/10 — o DRIVER DE TILE intra (`libs/image/Av1DecodeTileRecon.kf`, novo): mode-info + tx-size + coeficientes INTERCALADOS por bloco; `Av1DecodeTileReconE2ETest` **7 rodados / 0F / 0 pulados** (JVM/Script/x86-64/JS + riscv64(qemu)/aarch64(qemu) — o §602 foi CORRIGIDO upstream, então `BLOCKED_BY_602` virou false); não-regressão 12 suítes verdes (80 rodados/0F/4 pulados)
-doing: nenhum — unidade completa e pousada; a frente segue o próximo slice do `image-vision-plan`
-next: os PLANOS DE CROMA (U/V pelo mesmo laço intercalado com os tamanhos de transformada de croma e a derivação `compute_tx_type` de croma), depois a montagem tile-group/frame que roteia o payload de tile real por este driver, e por fim o `decodeRaster` AVIF. `decodeRaster` AVIF segue recusado até a cadeia fechar.
+last: 13/10 — AVIF fatia 3ar RE-POUSADA (`682d45539` → revertida pelo stash-pop `8004dcf0a` → reaplicada sobre o `origin/lab` `167accaf1`): a fixture que faltava (quadro NÃO-MONOCROMÁTICO + NÃO-LOSSLESS, `qchroma.avif`, ida-e-volta pinada; `AvifFrameE2ETest` **16/16** na base nova).
+doing: nenhum — 3ar restaurada e provada; a frente retoma o próximo slice do `image-vision-plan`
+next: a COLA de montagem de quadro — costurar os planos do `av1DecodeTileRecon` num quadro usando o stream de tile REAL do `qchroma.avif` como golden ponta-a-ponta (e terminar de ler o `Av1Partition.kf` para fixar como `blocks` é produzido num tile real; confirmar se `av1DecodeTileRecon` é frame-absoluto ou tile-relativo). Depois `decodeRaster` AVIF. `decodeRaster` AVIF segue recusado até a cadeia fechar.
 location: repository
-state: STABLE (para a lane)
+state: STABLE (para a lane) — NOTE: a fatia 3ar foi REVERTIDA por um stash-pop de terceiro (`8004dcf0a`) e restaurada neste ciclo; a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 13/10 (14ª) — 3ar REVERTIDA por um stash-pop de terceiro, e RESTAURADA
+- **O achado:** a ponta do `lab` (`8004dcf0a`, "docs(dev) — house policy") era um STASH-POP velho. Medi hasheando cada arquivo do commit contra `git rev-list <commit>^`: `Decompile.java` = estado de 12/10; `ClassFileParser.java` = **14/09**; `RuntimeOrmHistory2.java` = pré-fix-do-segv; `AvifFrameChromaSupport.java` DELETADO e `AvifFrameSupport`/`AvifFrameE2ETest` = 03–04/10 (a minha 3ar sumiu). O sinal que fecha o caso: a mensagem diz que resolveu marcadores de conflito CRUS, mas o PAI `0d9ec60b5` tem **ZERO** marcadores (`git grep '^<<<<<<< '` vazio).
+- **O estado real ao retomar:** as lanes pares (`.117:0`, docs/lab `.130:9093`) JÁ tinham percebido e restaurado o PRÓPRIO código (`Decompile.java`, `ClassFileParser`, `RuntimeOrmHistory2`, `release-blockers.tsv`) e as entradas de CHANGELOG/status da 3ar. Só faltavam o CÓDIGO da image-vision, o corpo do plano e a linha 0f do README.
+- **O que eu fiz:** reaplicar a 3ar do commit de ORIGEM `682d45539` (os três arquivos de infra de teste) sobre o `origin/lab` corrente (`167accaf1`) — NÃO sobre o pai, para não reverter o trabalho novo das pares. Mais o bloco prepend do plano EN+PT e o span `1b–3ap`→`1b–3ar` da linha 0f.
+- **Prova:** `AvifFrameE2ETest` **16/16** na base nova; `mvn -pl kof-compiler,kof-cli -am compile` rc=0; `check_plan_index` rc=0; `check_owner_identity`/`check_live_records` rc=0.
+- **Lição de método (importante):** quando a ponta está quebrada por um commit de terceiro, NÃO restaure ao pai às cegas — as pares podem já ter consertado o lado delas e avançado. Meça o que falta (`grep` de cada artefato seu na ponta) e reaplique SÓ o seu, do commit de origem, sobre a ponta corrente. `git add` por caminho explícito: a árvore carregava o WIP de cinco lanes.
+- **Lição de harness:** `mvn -pl kof-compiler -am compile` NÃO cobre `kof-cli` — o módulo que quebrou com o stash-pop. E um commit de "docs" pode carregar código: o teste barato é `git diff --stat <commit>^ <commit>` (deleções fora do assunto = sinal).
 
 ## O que EU sou
 - lane pipeline/image-vision — identidade honesta `owner = 192.168.15.21:0` (flatt CLI, NÃO opencode; não há listener opencode neste host — porta anotada como `0`/n/a conforme a regra de nunca-inventar).
