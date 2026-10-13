@@ -29,6 +29,23 @@ public final class MethodCtx {
     final List<String> tempDecls = new ArrayList<>();
     final List<LoopCtx> loops = new ArrayList<>();
     /**
+     * §701: pilha dos labels de FIM de `switch` em parse. Um `break` dentro de
+     * um case (mesmo ANINHADO num if/loop) baixa como um KofJump para esse
+     * label; sem registrá-lo, o salto caía no caminho genérico de "region
+     * exit" do parseStatements e TRUNCAVA o corpo do case (o resto — incl. o
+     * default — vazava para dentro do case anterior). Só labels de LOOP eram
+     * registrados antes (`loops`), o que cobria o `break` DIRETO no case (§587)
+     * mas não a forma aninhada.
+     */
+    final List<LabelId> switchEnds = new ArrayList<>();
+    /**
+     * §701: TODOS os labels estruturais de switches em parse (corpo de case,
+     * default, fim). Um `if`/`else` INTERNO não pode consumir nenhum deles como
+     * seu "end" — o `parseIfBody` engolia o label do DEFAULT pensando ser o fim
+     * do if, e o corpo do default vazava para dentro do case anterior.
+     */
+    final java.util.Set<LabelId> switchStructLabels = new java.util.HashSet<>();
+    /**
      * §267: `if` de STATEMENT (marcados no lowering por KofStatementIf) são
      * identicos em IR a if-expressões ([cond], CJump, Label, ramo, Jump, Label,
      * ramo, Label) — o dispatcher de statements só distingue um do outro pela
@@ -124,6 +141,19 @@ public final class MethodCtx {
         return loops.isEmpty() ? null : loops.get(loops.size() - 1);
     }
 
+    /** §701: `label` pertence à ESTRUTURA de um switch em parse. */
+    boolean isSwitchStruct(LabelId label) {
+        return switchStructLabels.contains(label);
+    }
+
+    /** §701: `label` é o fim de ALGUM switch em parse (contexto quebrável). */
+    boolean isSwitchEnd(LabelId label) {
+        for (LabelId sw : switchEnds) {
+            if (sw.equals(label)) return true;
+        }
+        return false;
+    }
+
     boolean isLoopLabel(LabelId label) {
         for (LoopCtx loop : loops) {
             if (label.equals(loop.start) || label.equals(loop.continueLabel) || label.equals(loop.end)) {
@@ -155,7 +185,7 @@ public final class MethodCtx {
      * este último deixa o KofCatchStart solto (COMP002, §174).
      */
     boolean isIfEndLabel(int[] pos, LabelId label) {
-        return !isLoopLabel(label) && !JsLabelParser.isLoopStart(this, pos, label)
+        return !isLoopLabel(label) && !isSwitchStruct(label) && !JsLabelParser.isLoopStart(this, pos, label)
                 && !isTryEndLabel(label);
     }
 

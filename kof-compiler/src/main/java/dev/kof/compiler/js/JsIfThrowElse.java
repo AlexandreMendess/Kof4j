@@ -67,6 +67,9 @@ public final class JsIfThrowElse {
                 // undefined). Devolve sem consumir; o parseStatements do
                 // envolvente casa o label (endLabels dele).
                 if (ctx.isEnclosingIfFalse(kl.label())) return out;
+                // §701: um label ESTRUTURAL de switch (corpo/default/fim) não é
+                // o fim do else — consumi-lo faz o corpo do default vazar.
+                if (ctx.isSwitchStruct(kl.label())) return out;
                 pos[0]++;
                 return out;
             }
