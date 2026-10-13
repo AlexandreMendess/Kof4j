@@ -1078,6 +1078,41 @@ class DecompileTest {
         assertEquals("true\nfalse\ntrue\nfalse\n1\n0", output, "zero-drift executado");
     }
 
+    @Test
+    void shiftOperatorsRecoverNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E (13/10): os opcodes de SHIFT (0x78-0x7d) faltavam no emitLinear
+        // (e no avaliador) — qualquer corpo com `<<`/`>>`/`>>>` stubava. A
+        // semântica por-target é do COMPILADOR (corrigida no §698).
+        Path javaFile = dir.resolve("Sh.java");
+        Files.writeString(javaFile, """
+                public class Sh {
+                    static int shl(int a, int b) { return a << b; }
+                    static int shr(int a, int b) { return a >> b; }
+                    static int ushr(int a, int b) { return a >>> b; }
+                    static long lshl(long a, int b) { return a << b; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Sh.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "os shifts recuperam:\n" + kof);
+        assertTrue(kof.contains("<<") && kof.contains(">>") && kof.contains(">>>"), kof);
+        // zero-drift executado (contagens VARIÁVEIS — literais são const-folded)
+        String kofRun = kof + "\nmain() {\n    var sh = Sh()\n    println(Sh.shl(1, 4))\n    println(Sh.shr(-16, 2))\n    println(Sh.ushr(-5, 1))\n    println(Sh.lshl(1L, 40))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1<<4=16, -16>>2=-4, -5>>>1=2147483645, 1L<<40=1099511627776
+        assertEquals("16\n-4\n2147483645\n1099511627776", output, "zero-drift dos shifts");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

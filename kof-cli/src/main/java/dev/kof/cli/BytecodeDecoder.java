@@ -495,6 +495,9 @@ import java.util.Set;
                 // matematicamente errada para esse corpo — foi ela, não o
                 // join, que fechava esta porta.
                 case 0x70 -> { if (!bin2(st, "%")) return false; }
+                case 0x78, 0x79 -> { if (!bin2(st, "<<")) return false; }
+                case 0x7a, 0x7b -> { if (!bin2(st, ">>")) return false; }
+                case 0x7c, 0x7d -> { if (!bin2(st, ">>>")) return false; }
                 case 0x60 -> { if (!bin2(st, "+")) return false; }
                 case 0x64 -> { if (!bin2(st, "-")) return false; }
                 case 0x68 -> { if (!bin2(st, "*")) return false; }
