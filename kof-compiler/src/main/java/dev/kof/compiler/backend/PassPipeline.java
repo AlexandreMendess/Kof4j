@@ -85,6 +85,7 @@ public final class PassPipeline {
             }
         });
         ps.add(new ConstantPropagation());
+        ps.add(new CopyPropagation());
         return new PassPipeline(ps);
     }
 }

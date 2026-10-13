@@ -11,8 +11,8 @@
 **Princípio:** otimizar antes do assembly específico da ISA sempre que possível; especializar no backend somente quando a arquitetura exigir.
 
 last: promovido 13/10 (`D-FUTURE-PROMOTION`; o único plano de `future/` cujo gate `D-ASSEMBLY-OPT-GO` já está decidido, sem sintaxe nova, aditivo compilador-interno)
-doing: Fase A COMPLETA 13/10 + Fase B fatia 1 (propagação de constantes: `ConstantPropagation.java`, um `IrPass` registrado em `PassPipeline.standard()`, aditivo — ainda não ligado no `Optimizer` de produção) — a Fase A pousou todos os seis itens da §21: `ControlFlowGraph.java` (blocos + arestas de sucessão), `EffectAnalysis.java` (efeito + def/uso de locais), `VirtualRegisters.java` (numeração (slot,tipo)), `PassPipeline.java` + `IrPass.java` (ordenado, fixpoint, determinístico). ADITIVA — o `Optimizer.java` linear fica intocado, zero mudança de comportamento
-next: a Fase B continua — propagação de cópias, eliminação de código morto, simplificação de blocos básicos (constant folding + código inalcançável já existem no `Optimizer` linear); cada uma com redução mensurável de instruções em fixtures
+doing: Fase A COMPLETA 13/10 + Fase B fatias 1–2 (propagação de constantes `ConstantPropagation.java` + propagação de cópias `CopyPropagation.java`, ambos `IrPass` registrados em `PassPipeline.standard()`, aditivos — ainda não ligados no `Optimizer` de produção) — a Fase A pousou todos os seis itens da §21: `ControlFlowGraph.java` (blocos + arestas de sucessão), `EffectAnalysis.java` (efeito + def/uso de locais), `VirtualRegisters.java` (numeração (slot,tipo)), `PassPipeline.java` + `IrPass.java` (ordenado, fixpoint, determinístico). ADITIVA — o `Optimizer.java` linear fica intocado, zero mudança de comportamento
+next: a Fase B continua — eliminação de código morto, simplificação de blocos básicos (constant folding + código inalcançável já existem no `Optimizer` linear); cada uma com redução mensurável de instruções em fixtures
 state: active
 owner: `192.168.15.130:9093` (lane docs/lab)
 
