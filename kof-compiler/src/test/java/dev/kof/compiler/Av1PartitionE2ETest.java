@@ -13,7 +13,11 @@ import java.nio.file.Path;
 import static dev.kof.compiler.Av1PartitionSupport.expectedGrid;
 import static dev.kof.compiler.Av1PartitionSupport.golden;
 import static dev.kof.compiler.Av1PartitionSupport.kofGridProbe;
+import static dev.kof.compiler.Av1PartitionSupport.REAL_TILE_HEAD;
 import static dev.kof.compiler.Av1PartitionSupport.kofProbe;
+import static dev.kof.compiler.Av1PartitionSupport.kofRealTileProbe;
+import static dev.kof.compiler.Av1PartitionSupport.kofSeamProbe;
+import static dev.kof.compiler.Av1PartitionSupport.kofSharedReaderProbe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -87,6 +91,96 @@ class Av1PartitionE2ETest implements LibraryInstallSupport {
                 new java.io.ByteArrayInputStream(new byte[0]), stdout);
         assertEquals(0, exit, "js output: " + stdout);
         assertEquals(golden(), stdout.toString(StandardCharsets.UTF_8).strip());
+    }
+
+    /**
+     * The SHARED-READER seam (slice 3at): {@code Av1Partition.useReader} lets a
+     * caller bind an {@code Av1Symbol} it already owns, because a real tile's
+     * partition symbols and block payloads live in ONE entropy stream (libaom's
+     * {@code decode_partition} reads the partition symbol and then calls
+     * {@code decode_block} on the same {@code aom_reader}). The seam must be
+     * behaviour-preserving: the walk must emit exactly the same decisions as the
+     * constructor-owned reader does on the same bytes.
+     */
+    @Test
+    void av1SharedReaderSeamOnJvm() throws Exception {
+        assertEquals(golden(), runJvm(kofSharedReaderProbe()));
+    }
+
+    @Test
+    void av1SharedReaderSeamOnScript() throws Exception {
+        Path root = tmp.resolve("script-shared");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), kofSharedReaderProbe());
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(java.util.List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(golden(), result.stdout().strip());
+    }
+
+    @Test
+    void av1SharedReaderSeamOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
+        assertEquals(golden(), runNativeX86(kofSharedReaderProbe()));
+    }
+
+    @Test
+    void av1SharedReaderSeamOnJs() throws Exception {
+        Path root = tmp.resolve("js-shared");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), kofSharedReaderProbe());
+        Path out = root.resolve("out");
+        CompilationResult result = withLibrary(root,
+                () -> driver.compile(root.resolve("Main.kf"), out, Target.JS));
+        assertTrue(result.success(), () -> "js compile: " + result.diagnostics().getDiagnostics());
+        Path jsFile = out.resolve("Default.mjs");
+        assertTrue(Files.isRegularFile(jsFile), "generated JS module must exist");
+        var stdout = new ByteArrayOutputStream();
+        int exit = dev.kof.runtime.KofJsRunner.run(jsFile, stdout,
+                new java.io.ByteArrayInputStream(new byte[0]), stdout);
+        assertEquals(0, exit, "js output: " + stdout);
+        assertEquals(golden(), stdout.toString(StandardCharsets.UTF_8).strip());
+    }
+
+    /**
+     * The walk reads a REAL INTERLEAVED tile stream (slice 3at): partition
+     * symbols and block payloads in one entropy stream, as libaom's
+     * {@code decode_partition} produces them. This is the first time the Kof walk
+     * consumes a stream that carries block payloads at all. Only the first two
+     * decisions are asserted — the walk has no block decoder to consume the
+     * payload between symbols, so it is in sync exactly until the first
+     * {@code decode_block}, which is the boundary of the next slice.
+     */
+    @Test
+    void av1WalkReadsRealInterleavedTile() throws Exception {
+        assertEquals(REAL_TILE_HEAD, runJvm(kofRealTileProbe()));
+    }
+
+    /**
+     * The seam must actually BIND, not merely preserve behaviour: a probe walks
+     * the same bytes with the walk bound to a caller-owned reader and with the
+     * constructor's own reader, and the two final bit positions must be EQUAL.
+     * That equality is the discriminating assertion — a no-op {@code useReader}
+     * leaves the shared reader at its construction position (the 15-bit
+     * {@code init_symbol} seed, so a plain {@code > 0} would not catch it) while
+     * the walk's own reader advances past it. Measured RED: 15 vs 24.
+     */
+    @Test
+    void av1SharedReaderSeamBinds() throws Exception {
+        String out = runJvm(kofSeamProbe());
+        int checked = 0;
+        for (String line : out.split("\n")) {
+            if (!line.startsWith("R ")) {
+                continue;
+            }
+            String[] f = line.trim().split(" ");
+            long shared = Long.parseLong(f[1]);
+            long own = Long.parseLong(f[2]);
+            assertEquals(own, shared,
+                    "the walk must consume the reader it was GIVEN: " + line);
+            checked++;
+        }
+        assertEquals(2, checked, "expected one R record per case, got: " + out);
     }
 
     /**

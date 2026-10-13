@@ -61,6 +61,24 @@ class Av1Partition {
         this.steps = listOf()
     }
 
+    // Binds an EXTERNAL entropy reader, replacing the constructor's own.
+    //
+    // libaom's `decode_partition` reads the partition symbol and then calls
+    // `decode_block` on the SAME `aom_reader` (av1/decoder/decodeframe.c), so a
+    // real tile's partition symbols and block payloads are INTERLEAVED in one
+    // entropy stream. A walk that must stay in sync with a block decoder has to
+    // share that one reader — and share the stream position with it. This is
+    // that seam: the caller builds the `Av1Symbol` once and hands it to both.
+    void useReader(Av1Symbol reader) {
+        this.sym = reader
+    }
+
+    // The reader's bit position — the observable that proves the walk consumed
+    // the reader it was GIVEN rather than one it built itself.
+    Int position() {
+        return this.sym.position()
+    }
+
     // Walks the whole frame, one 64x64 superblock at a time, zeroing the left
     // context per superblock row (libaom `av1_zero_left_context`).
     List<Int[]> walk() {
