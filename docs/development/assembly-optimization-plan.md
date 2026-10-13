@@ -11,8 +11,8 @@
 **Principle:** prefer optimizing before the ISA-specific assembly whenever possible; specialize to the backend only when the architecture requires it.
 
 last: promoted 13/10 (`D-FUTURE-PROMOTION`; the only `future/` plan whose gate `D-ASSEMBLY-OPT-GO` is already decided, no new syntax, additive compiler-internal)
-doing: Phase A — the structured CFG foundation
-next: land the control-flow graph (basic-block partition + successor edges) over the linear op stream, tested; then virtual registers + use/effect analysis
+doing: Phase A — slice 1 (structured CFG: `ControlFlowGraph.java`, blocks + successor edges) + slice 2 (effect/use analysis: `EffectAnalysis.java`) LANDED 13/10; virtual registers + the pass pipeline remain
+next: virtual registers + the pass pipeline over the CFG; then Phase B (constant/copy propagation, DCE, unreachable-code elimination)
 state: active
 owner: `192.168.15.130:9093` (lane docs/lab)
 
