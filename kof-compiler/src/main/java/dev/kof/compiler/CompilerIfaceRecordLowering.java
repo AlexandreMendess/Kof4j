@@ -105,34 +105,21 @@ public final class CompilerIfaceRecordLowering {
                         typeParams, fields, java.util.Map.of()));
             }
         }
-        // Native: records não geram toString/equals nos backends (JVM/JS
-        // geram nos seus emitters). Sintetiza no IR para paridade — bug 11
-        // (native `==` dava undefined reference) e toString imprimia o handle.
-        // #818: um record que ESTENDE uma classe do usuário perde a superclasse
-        // `java/lang/Record` — o backend JVM então não roda o JvmRecordEmitter
-        // (emite por `superName == java/lang/Record`) e a classe ficava com
-        // toString/equals de IDENTIDADE, em silêncio. Sintetiza no IR nesse caso
-        // (mesma peça do native, que já estava correto).
-        boolean userSuper = rec.superClass() != null && !rec.superClass().isEmpty();
+        // Native: records não geram toString/equals nos backends (JVM/JS geram
+        // nos seus emitters). Sintetiza no IR para paridade — bug 11 (native `==`
+        // dava undefined reference) e toString imprimia o handle.
+        // #818 (face JVM): um record que ESTENDE uma classe do usuário perde a
+        // superclasse `java/lang/Record`; a correção JVM é o `JvmBackend` passar a
+        // reconhecer `clazz.isRecord()` e rodar o `JvmRecordEmitter` (que já trata
+        // os componentes category-2 — Double/Long — corretamente). NÃO se sintetiza
+        // mais no IR para o JVM: aqueles builders são orientados ao native e
+        // tratavam o slot de 64 bits como int (regressão #823: Long → VerifyError
+        // `long_2nd`; Double → ClassFormatError pelo owner primitivo no call de hash).
         boolean nativeTarget = driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
                 || driver.target == Target.NATIVE_AARCH64;
-        // #818: o caso `userSuper` vale para o JVM — o backend lá decide a
-        // record-ness por `superName == java/lang/Record` e por isso pulava o
-        // JvmRecordEmitter. No JS/Script os emissores têm os PRÓPRIOS geradores
-        // de record, com um formato que o lowering de IR deles não aceita
-        // (medido: COMP002 "unexpected op in expression statement:
-        // KofConditionalJump" quando injetado lá) — essas faces ficam como
-        // fronteira registrada da issue, sem regressão de compilação.
-        boolean jvmUserSuper = userSuper && driver.target == Target.JVM;
-        if (nativeTarget || jvmUserSuper) {
+        if (nativeTarget) {
             methods.add(CompilerRecordSupport.buildRecordToStringMethod(driver, internalName, rec, fields, typeParams));
-            // #818: fora do native, o `==` despacha por `equals(Object)`, então o
-            // sintético precisa ser o OVERRIDE (o `equals(<Record>)` é só um
-            // overload e a comparação caía em identidade). O native mantém o
-            // formato exato de sempre.
-            methods.add(jvmUserSuper
-                    ? CompilerRecordSupport.buildRecordEqualsObjectOverride(driver, internalName, fields, typeParams)
-                    : CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
+            methods.add(CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
             methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
         }
         // #613 (face Native do #608): um record que implementa interface

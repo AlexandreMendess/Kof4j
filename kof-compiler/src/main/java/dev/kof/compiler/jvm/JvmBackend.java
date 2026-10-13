@@ -257,7 +257,7 @@ public class JvmBackend implements Backend {
             }
         }
 
-        if ("java/lang/Record".equals(superName)) {
+        if ("java/lang/Record".equals(superName) || clazz.isRecord()) {
             JvmRecordEmitter.emitRecordMethods(cw, clazz);
         }
 

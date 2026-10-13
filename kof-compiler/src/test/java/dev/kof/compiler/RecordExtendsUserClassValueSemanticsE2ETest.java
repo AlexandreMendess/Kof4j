@@ -118,4 +118,42 @@ class RecordExtendsUserClassValueSemanticsE2ETest {
             """);
         assertEquals("Ponto[x=1, y=2]\ntrue", out, "the plain record face must not regress");
     }
+
+    /**
+     * Issue #823 (regressão do fix #818): um componente category-2 (Double/Long)
+     * num record que estende uma classe do usuário. O fix #818 sintetizava os
+     * métodos de valor no IR TAMBÉM para o JVM; aqueles builders são orientados
+     * ao native e tratavam o slot de 64 bits como int — `Long` → VerifyError
+     * (`long_2nd` em `hashCode`), `Double` → ClassFormatError (owner primitivo no
+     * call de hash, gerando referência a classe ""). A correção é o JVM voltar a
+     * usar o `JvmRecordEmitter` (que já trata category-2) via `clazz.isRecord()`.
+     */
+    @Test
+    void sealedSubclassWithDoubleComponentRunsOnJvm(@TempDir Path tmp) throws Exception {
+        String out = runJvm(tmp, """
+            sealed class B
+            class D(Double v) extends B
+            main() {
+                var d = D(2.5)
+                println(d.v())
+                println(D(2.5) == D(2.5))
+            }
+            """);
+        assertEquals("2.5\ntrue", out, "a Double component must load and compare by content");
+    }
+
+    @Test
+    void sealedSubclassWithLongComponentRunsOnJvm(@TempDir Path tmp) throws Exception {
+        String out = runJvm(tmp, """
+            sealed class B
+            class L(Long v) extends B
+            main() {
+                var l = L(5)
+                println(l.v())
+                println(L(5) == L(5))
+                println(L(5).hashCode() == L(5).hashCode())
+            }
+            """);
+        assertEquals("5\ntrue\ntrue", out, "a Long component must hash without the category-2 overflow");
+    }
 }

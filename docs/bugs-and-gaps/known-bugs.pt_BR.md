@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §683
+last: §691
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -15925,3 +15925,15 @@ O `CFL_SIGN_TYPE` do libaom é `{ CFL_SIGN_ZERO, CFL_SIGN_NEG, CFL_SIGN_POS }` (
 **Colateral, e é um achado por si só:** a polaridade também estava gravada no golden `av1_modebody_golden.txt.b64` (`Av1ModeBodyE2ETest`) — esse golden PASSAVA com o código invertido, logo o gerador dele compartilhava a inversão. Os 479 campos de alpha nas suas 321 linhas de CFL foram re-assinados (`Av1ModeBodyE2ETest` 6/6 depois, e 6/6 FALHANDO antes, que é o que confirma a convenção do gerador). A trava de caracterização dos planos de croma da fatia 3am também pegou a mudança — só os checksums do caso CFL se moveram — e foi re-pinada.
 
 **Fronteira:** LUMA e croma não-CFL não são tocados; o `av1TxbCtx` não tem relação (e está provado correto). A linha da matriz de paridade do decode AVIF segue `EM DESENVOLVIMENTO` até o `decodeRaster` pousar.
+
+## §691 — o fix JVM do #818 sintetizava os métodos de valor do record com um builder de IR orientado ao NATIVE, então uma subclasse sealed com componente category-2 (`Double`/`Long`) falhava na CARGA da classe — ✅ CORRIGIDO 12/10 (lane issues/tooling `192.168.15.30:9093`; regressão registrada como issue #823)
+
+**Sintoma (medido 12/10 no build 0.6.3):** o `kof check` passa limpo; o `kof run --target jvm` morre na carga da classe. `sealed class B` + `class D(Double v) extends B` → `java.lang.ClassFormatError: Illegal class name "" in class file D`; `class L(Long v) extends B` → `java.lang.VerifyError: Bad type on operand stack … L.hashCode()I @6: iadd … Type long_2nd is not assignable to integer`. Controles que PASSAM: componentes `Int`/`String`, records standalone com `Double`/`Long`, classes comuns com `Double`/`Long`. O jar pré-#818 roda o caso `Double` normalmente.
+
+**Causa raiz:** a face JVM do #818 (`7ac887e73`) corrigiu a degradação de semântica de identidade sintetizando `toString`/`equals`/`hashCode` **no IR** (`CompilerRecordSupport.buildRecord*Method`) sempre que um record estende uma classe do usuário. Aqueles builders são **orientados ao native**: o `hashCode` não tem ramo `Long` (um slot de 64 bits caía em `KofBinary(ADD, INT)` → `iadd` num valor category-2), e o `Double` passa por `KofCall(owner = PrimitiveType.DOUBLE, "kof_double_hash")`, cujo owner primitivo materializa como o **internal name VAZIO** no JVM. O alvo NATIVE nunca caiu nisso: o emitter dele trata category-2.
+
+**Fix (causa raiz):** o JVM não sintetiza esses métodos no IR — emite-os com o PRÓPRIO `JvmRecordEmitter` (que trata `long`/`double` corretamente e já emite um `equals(Object)` adequado). O `JvmBackend` agora liga o emitter por `"java/lang/Record".equals(superName) || clazz.isRecord()` (o campo de IR que o follow-up do #818 introduziu), e o `CompilerIfaceRecordLowering` sintetiza no IR apenas para os alvos native.
+
+**Prova (executada, RED-first):** os dois casos entraram no `RecordExtendsUserClassValueSemanticsE2ETest`; revertendo só os dois arquivos do fix → **2/6 RED** com os erros exatos do relato; com o fix → **6/6 GREEN**. Bateria `*Record*`/interpretador **99/0F**, **golden 284/284** (quatro alvos).
+
+**Fronteira:** só JVM (native inalterado, já correto; JS/Script usam emitters próprios).
