@@ -81,8 +81,23 @@ final class NativeRiscvCrossBinary {
             case ADD -> sb.append("    add t1, t1, t0\n");
             case SUB -> sb.append("    sub t1, t1, t0\n");
             case MUL -> sb.append("    mul t1, t1, t0\n");
-            case DIV -> sb.append("    div t1, t1, t0\n");
-            case MOD -> sb.append("    rem t1, t1, t0\n");
+            // §699: divisor de RUNTIME zero — o `div`/`rem` do riscv NÃO
+            // levanta exceção (devolve o "indefinido" -1, ou 0 no aarch64),
+            // então o `try`/`catch` do Kof nunca disparava e o valor era um
+            // lixo silencioso. Mesma guarda do x86 (§693): checa ANTES e
+            // desvia para o `kof_throw_string`, virando um throw capturável.
+            case DIV -> {
+                String sfx = divZeroLabel();
+                emitDivZeroGuard(sb, sfx);
+                sb.append("    div t1, t1, t0\n");
+                emitDivZeroGuardEnd(sb, sfx);
+            }
+            case MOD -> {
+                String sfx = divZeroLabel();
+                emitDivZeroGuard(sb, sfx);
+                sb.append("    rem t1, t1, t0\n");
+                emitDivZeroGuardEnd(sb, sfx);
+            }
             case EQ -> { sb.append("    sub t2, t1, t0\n"); sb.append("    seqz t1, t2\n"); }
             case NE -> { sb.append("    sub t2, t1, t0\n"); sb.append("    snez t1, t2\n"); }
             case LT -> sb.append("    slt t1, t1, t0\n");
@@ -128,4 +143,34 @@ final class NativeRiscvCrossBinary {
         other.pushRiscv(sb, "t1");
     
 }
+
+    /** §699: rótulo único por emissão (dois `div` no MESMO método gerariam
+     *  labels duplicados e o GNU as falharia — lição do §181). */
+    private static final java.util.concurrent.atomic.AtomicLong DIVZ_SEQ =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    private static String divZeroLabel() {
+        return Long.toString(DIVZ_SEQ.incrementAndGet());
+    }
+
+    private void emitDivZeroGuard(StringBuilder sb, String sfx) {
+        sb.append("    beqz t0, .Ldivz_").append(sfx).append("\n");
+    }
+
+    private void emitDivZeroGuardEnd(StringBuilder sb, String sfx) {
+        sb.append("    j .Ldivz_done_").append(sfx).append("\n");
+        sb.append(".Ldivz_").append(sfx).append(":\n");
+        // §693: a mensagem vive num `.pushsection .rodata` NO PONTO DE USO
+        // (padrão provado no x86). Um `internString` aqui é TARDE DEMAIS — a
+        // seção de dados do backend já foi escrita quando os métodos são
+        // emitidos, então o label ficava sem definição (undefined reference).
+        sb.append("    la a0, .Ldivz_msg_").append(sfx).append("\n");
+        sb.append("    li a1, 9\n");
+        sb.append("    call kof_string_from_literal\n");
+        sb.append("    call kof_throw_string\n");
+        sb.append(".Ldivz_done_").append(sfx).append(":\n");
+        sb.append(".pushsection .rodata\n");
+        sb.append(".Ldivz_msg_").append(sfx).append(": .asciz \"/ by zero\"\n");
+        sb.append(".popsection\n");
+    }
 }
