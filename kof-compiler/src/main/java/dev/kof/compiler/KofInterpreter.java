@@ -54,7 +54,10 @@ public final class KofInterpreter {
         final Map<String, Object> fields = new LinkedHashMap<>();
         KofObj(IRClass clazz) { this.clazz = clazz; }
         String internalName() { return clazz.name(); }
-        boolean isRecord() { return "java/lang/Record".equals(clazz.superName()); }
+        // #818: record-ness do lowering (IRClass.isRecord) além da superclasse —
+        // um record que estende classe do usuário continua sendo record para
+        // equals/hashCode/toString de CONTEÚDO no Script.
+        boolean isRecord() { return "java/lang/Record".equals(clazz.superName()) || clazz.isRecord(); }
 
         @Override public boolean equals(Object o) {
             // bug 104a: equals/hashCode/toString VIRTUAIS (não só a synthetic

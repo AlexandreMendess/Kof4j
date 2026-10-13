@@ -88,6 +88,26 @@ class RecordExtendsUserClassValueSemanticsE2ETest {
     }
 
     @Test
+    void recordExtendingUserClassKeepsValueSemanticsOnScript(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("MainScript.kf");
+        Files.writeString(src, """
+            sealed class B
+            record S extends B(Int x)
+            main() {
+                var a = S(7)
+                var b = S(7)
+                println(a)
+                println(a == b)
+                println(a.hashCode() == b.hashCode())
+            }
+            """);
+        KofInterpreter.Result ir = driver.interpret(java.util.List.of(src), tmp, new String[0]);
+        assertEquals(0, ir.exitCode(), "script stderr: " + ir.stderr());
+        assertEquals("S[x=7]\ntrue\ntrue", ir.stdout().replace("\r\n", "\n").trim(),
+                "the Script target must keep the same CONTENT semantics as the JVM");
+    }
+
+    @Test
     void plainRecordStillKeepsValueSemantics(@TempDir Path tmp) throws Exception {
         String out = runJvm(tmp, """
             record Ponto(Int x, Int y)
