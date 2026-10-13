@@ -43,10 +43,12 @@ public final class NativeOrmEmit {
             // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
             // kof_orm_delete_recorded} — espelha o host JVM; o conn
             // RE-RESOLVIDO pós-DML = o conserto do segv do ciclo 60).
-            // Fase 5 fatia 5b WIP (NÃO emitida): o delete_recorded asm com
-            // o conn re-resolvido pós-DML (o conserto do segv PROVADO — o
-            // delete roda sem crash); o restante = o mistério do output
-            // vazio (o journal no DOING do ciclo 63).
+            // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
+            // kof_orm_delete_recorded} — espelha o host JVM; o conn
+            // re-resolvido pós-DML).
+            // Fase 5 fatia 5b WIP (NÃO emitida): o delete_recorded asm — o
+            // mistério do exit-0-vazio (os markers não disparam; o journal
+            // no DOING dos ciclos 61-64) — o gdb interativo é o próximo.
             // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
             // kof_orm_delete_recorded} — espelha o host JVM).
             // Fase 5 fatia 5b WIP (NÃO emitida): o delete_recorded asm — o

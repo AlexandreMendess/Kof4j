@@ -102,7 +102,12 @@ class EntityHistoryNativeCreateE2ETest {
                 }
             }
         } catch (Exception e) { }
-        java.util.List<String> cmd = java.util.List.of(binary.toString());
+        java.util.List<String> cmd = "1".equals(System.getenv("KOF_GDB"))
+                ? java.util.List.of("gdb", "-batch", "-ex", "set debuginfod enabled off",
+                        "-ex", "break kof_orm_delete_recorded", "-ex", "run",
+                        "-ex", "finish", "-ex", "continue",
+                        "--args", binary.toString())
+                : java.util.List.of(binary.toString());
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
         Process p = pb.start();
