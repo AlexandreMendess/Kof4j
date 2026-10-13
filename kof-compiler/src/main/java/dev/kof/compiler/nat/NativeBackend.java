@@ -353,7 +353,9 @@ public class NativeBackend implements Backend {
                                     || (kc.methodName().equals("kof_orm_page")
                                         && kc.parameterTypes().size() == 6)
                                     || (kc.methodName().equals("kof_orm_where_op")
-                                        && kc.parameterTypes().size() == 7)) {
+                                        && kc.parameterTypes().size() == 7)
+                                    || (kc.methodName().equals("kof_orm_history")
+                                        && kc.parameterTypes().size() == 5)) {
                                 // 5º arg = className literal (KofLoadLiteral STRING
                                 // emitido logo antes do call pelo lowering ORM)
                                 for (int j = i - 1; j >= i - 2 && j >= 0; j--) {
