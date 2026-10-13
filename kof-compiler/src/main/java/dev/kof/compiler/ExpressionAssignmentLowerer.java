@@ -254,6 +254,10 @@ if (ae.target() instanceof IdentifierExpr cie) {
             emitCompoundRhsConv(driver, ops, op, targetLocal.type(),
                     ExpressionTyper.inferExprType(driver, ae.value(), locals));
             ops.add(new KofBinary(compoundBinaryOp(op), targetLocal.type()));
+            // §696: o composto num slot Byte/Short estreita (JLS 15.26.2 — a
+            // atribuição composta inclui o cast implícito). A aritmética
+            // promove Byte/Short a Int, então o valor na pilha é Int.
+            CompilerEmissionHelpers.emitStoreNarrow(driver, ops, Type.PrimitiveType.INT, targetLocal.type());
             ops.add(new KofStoreLocal(targetLocal.type(), targetLocal.index()));
             return localIdx;
         }
@@ -265,6 +269,8 @@ if (ae.target() instanceof IdentifierExpr sie) {
     for (int i = locals.size() - 1; i >= 0; i--) {
         if (locals.get(i).name().equals(sie.name())) {
             driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, ae.value(), locals), locals.get(i).type());
+            // §696: estreita o store num slot Byte/Short
+            CompilerEmissionHelpers.emitStoreNarrow(driver, ops, ExpressionTyper.inferExprType(driver, ae.value(), locals), locals.get(i).type());
             // bug 15: `Object o; o = 7` — box primitivo p/ referência
             // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
             // §295(b): espelho do gate cru do return/VarDecl — slot

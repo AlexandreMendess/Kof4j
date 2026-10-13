@@ -136,7 +136,7 @@ public final class RuntimeOrmHistory4 {
                 movq 64(%rsp), %rdx
                 movq %rax, 24(%rdx)
                 movq %r12, %rdi
-                xorl %esi, %esi
+                movl $2, %esi
                 call kof_ormh4_colstr
                 movq 64(%rsp), %rdx
                 movq %rax, 32(%rdx)
@@ -181,9 +181,13 @@ public final class RuntimeOrmHistory4 {
             # kof_ormh4_colstr(r12=stmt, esi=col) -> rax = KofString* | 0 (NULL)
             kof_ormh4_colstr:
                 # o col idx em r13d (CALLEE-saved — o column_type/text clobberam
-                # o esi/rsi pela C ABI; o bug do ciclo 72: o esi virava lixo)
+                # o esi/rsi pela C ABI; o bug do ciclo 72: o esi virava lixo).
+                # r14 guarda o text ptr entre o strlen e o make_string: o
+                # `movl %r13d, %esi` do 2º column_text zerava o length (o
+                # operation saía vazio; bug do ciclo 80).
                 pushq %r12
                 pushq %r13
+                pushq %r14
                 movq %rdi, %r12
                 movl %esi, %r13d
                 movq %r12, %rdi
@@ -197,15 +201,14 @@ public final class RuntimeOrmHistory4 {
                 movq %r12, %rdi
                 movl %r13d, %esi
                 call sqlite3_column_text
+                movq %rax, %r14
                 movq %rax, %rdi
                 call kof_io_strlen
                 movq %rax, %rsi
-                movq %r12, %rdi
-                movl %r13d, %esi
-                call sqlite3_column_text
-                movq %rax, %rdi
+                movq %r14, %rdi
                 call kof_io_make_string
             .Lormh4_csret:
+                popq %r14
                 popq %r13
                 popq %r12
                 ret
