@@ -283,3 +283,29 @@ class Av1Partition {
         }
     }
 }
+
+// The tile's BLOCK GRID: the flat `(r, c, bs)` triples the tile driver
+// (`av1DecodeTileRecon`, slice 3ag) consumes, taken from the walk's `decode_block`
+// steps in DECODE ORDER. libaom's `decode_partition` calls `decode_block` at every
+// leaf of the partition recursion and nowhere else, so the `kind == 1` steps ARE
+// the mode-info blocks — this is the link between the partition walk (3o) and the
+// driver (3ag): it answers "who produces `blocks` for a real tile".
+//
+// `steps` is `Av1Partition.walk()`'s output: `[ kind, r, c, value, partition ]`
+// per step, `kind` 0 for a `@@partition` read and 1 for a `decode_block` call
+// (where `value` is the sub block size). The positions are FRAME-ABSOLUTE 4x4 mi
+// coordinates, which is the space the driver works in.
+List<Int> av1TileBlockGrid(List<Int[]> steps) {
+    var out = listOf()
+    var i = 0
+    while (i < steps.size()) {
+        var s = steps.get(i)
+        if (s[0] == 1) {
+            out.add(s[1])
+            out.add(s[2])
+            out.add(s[3])
+        }
+        i = i + 1
+    }
+    return out
+}

@@ -10,7 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static dev.kof.compiler.Av1PartitionSupport.expectedGrid;
 import static dev.kof.compiler.Av1PartitionSupport.golden;
+import static dev.kof.compiler.Av1PartitionSupport.kofGridProbe;
 import static dev.kof.compiler.Av1PartitionSupport.kofProbe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -85,6 +87,53 @@ class Av1PartitionE2ETest implements LibraryInstallSupport {
                 new java.io.ByteArrayInputStream(new byte[0]), stdout);
         assertEquals(0, exit, "js output: " + stdout);
         assertEquals(golden(), stdout.toString(StandardCharsets.UTF_8).strip());
+    }
+
+    /**
+     * The BLOCK GRID the tile driver consumes (slice 3as): {@code av1TileBlockGrid}
+     * must extract exactly the {@code decode_block} calls libaom makes, in decode
+     * order — the link between the partition walk (3o) and the driver (3ag). The
+     * reference is the golden's own {@code B r c subSize} records, so this is
+     * libaom's own block list, not a re-derivation.
+     */
+    @Test
+    void av1TileBlockGridOnJvm() throws Exception {
+        assertEquals(expectedGrid(), runJvm(kofGridProbe()));
+    }
+
+    @Test
+    void av1TileBlockGridOnScript() throws Exception {
+        Path root = tmp.resolve("script-grid");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), kofGridProbe());
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(java.util.List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(expectedGrid(), result.stdout().strip());
+    }
+
+    @Test
+    void av1TileBlockGridOnNativeX86() throws Exception {
+        Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
+        assertEquals(expectedGrid(), runNativeX86(kofGridProbe()));
+    }
+
+    @Test
+    void av1TileBlockGridOnJs() throws Exception {
+        Path root = tmp.resolve("js-grid");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), kofGridProbe());
+        Path out = root.resolve("out");
+        CompilationResult result = withLibrary(root,
+                () -> driver.compile(root.resolve("Main.kf"), out, Target.JS));
+        assertTrue(result.success(), () -> "js compile: " + result.diagnostics().getDiagnostics());
+        Path jsFile = out.resolve("Default.mjs");
+        assertTrue(Files.isRegularFile(jsFile), "generated JS module must exist");
+        var stdout = new ByteArrayOutputStream();
+        int exit = dev.kof.runtime.KofJsRunner.run(jsFile, stdout,
+                new java.io.ByteArrayInputStream(new byte[0]), stdout);
+        assertEquals(0, exit, "js output: " + stdout);
+        assertEquals(expectedGrid(), stdout.toString(StandardCharsets.UTF_8).strip());
     }
 
     private String runJvm(String code) throws Exception {

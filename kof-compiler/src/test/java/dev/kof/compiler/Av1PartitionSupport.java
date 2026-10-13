@@ -60,6 +60,58 @@ final class Av1PartitionSupport {
         return PROBE;
     }
 
+    /**
+     * The expected block grid, derived from the golden's own {@code B r c subSize}
+     * records (libaom's {@code decode_block} calls) — the independent reference
+     * for {@code av1TileBlockGrid}. Emitted in the same {@code G r c bs} shape the
+     * grid probe prints, so the two compare line for line.
+     */
+    static String expectedGrid() {
+        StringBuilder sb = new StringBuilder();
+        for (String line : golden().split("\n")) {
+            if (!line.startsWith("B ")) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append('G').append(line.substring(1));
+        }
+        return sb.toString();
+    }
+
+    /** Kof probe that prints ONLY the block grid the tile driver consumes. */
+    static String kofGridProbe() {
+        return GRID_PROBE;
+    }
+
+    private static final String GRID_PROBE = """
+import image.Av1Partition
+
+main() {
+    runCase(6, 5, listOf(236))
+    runCase(24, 20, listOf(242, 194, 176))
+    runCase(33, 21, listOf(176, 149, 80))
+    runCase(16, 40, listOf(239, 12))
+}
+
+void runCase(Int w, Int h, List<Int> bytes) {
+    var data = new Int[bytes.size()]
+    var k = 0
+    while (k < bytes.size()) {
+        data[k] = bytes.get(k)
+        k = k + 1
+    }
+    var p = Av1Partition(data, w, h)
+    var grid = av1TileBlockGrid(p.walk())
+    var i = 0
+    while (i < grid.size()) {
+        println("G " + grid.get(i) + " " + grid.get(i + 1) + " " + grid.get(i + 2))
+        i = i + 3
+    }
+}
+""";
+
     private static final String PROBE = """
 import image.Av1Partition
 
