@@ -439,7 +439,9 @@ final class BytecodeStatements {
                         out.add("    " + assign0);
                         emitted.add(thenStart);
                         emitted.add(exitStart);
-                        emitted.add(tail);
+                        // NAO marcar tail como emitido: o struct PRECISA
+                        // processa-lo (o skipFirst consome o store) — marca-lo
+                        // batia na guarda de re-entrancia e stubava o metodo
                         if (skipFirst == null) skipFirst = new HashSet<>();
                         skipFirst.add(tail);
                         return struct(byStart.get(tail), insns, byStart, cp, frame,
