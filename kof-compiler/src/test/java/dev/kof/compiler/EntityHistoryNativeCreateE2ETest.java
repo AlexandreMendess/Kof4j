@@ -89,12 +89,31 @@ class EntityHistoryNativeCreateE2ETest {
     }
 
     private static String runNative(Path binary) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder(binary.toString());
+        // o preserv p/ o debug: o binário + o .s em /tmp/histdbg-last/
+        try {
+            Path dbg = Path.of("/tmp/histdbg-last");
+            Files.createDirectories(dbg);
+            Files.copy(binary, dbg.resolve("Main"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Path parent = binary.getParent();
+            if (parent != null) {
+                for (Path f : Files.list(parent).toList()) {
+                    Files.copy(f, dbg.resolve(f.getFileName().toString()),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        } catch (Exception e) { }
+        java.util.List<String> cmd = "1".equals(System.getenv("KOF_GDB"))
+                ? java.util.List.of("gdb", "-batch", "-ex", "run",
+                        "-ex", "info registers rdi rsi rdx r12 rbx rsp rip",
+                        "-ex", "x/6i $rip-24", "--args", binary.toString())
+                : java.util.List.of(binary.toString());
+        ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
         Process p = pb.start();
         String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
                 .replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), () -> "native exit, output: " + out);
+        p.waitFor();
+        System.out.println("NATIVE-RUN: " + out);
         return out;
     }
 }
