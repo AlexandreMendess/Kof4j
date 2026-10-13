@@ -11,8 +11,8 @@
 **Princípio:** otimizar antes do assembly específico da ISA sempre que possível; especializar no backend somente quando a arquitetura exigir.
 
 last: promovido 13/10 (`D-FUTURE-PROMOTION`; o único plano de `future/` cujo gate `D-ASSEMBLY-OPT-GO` já está decidido, sem sintaxe nova, aditivo compilador-interno)
-doing: Fase A — fatia 1 (CFG estruturado: `ControlFlowGraph.java`, blocos + arestas de sucessão) + fatia 2 (análise de uso/efeito: `EffectAnalysis.java`) POUSADAS 13/10; registradores virtuais + o pipeline de passes restam
-next: registradores virtuais + o pipeline de passes sobre o CFG; depois Fase B (propagação de constantes/cópias, DCE, eliminação de código inalcançável)
+doing: Fase A COMPLETA 13/10 — todos os seis itens da §21 pousados: `ControlFlowGraph.java` (blocos + arestas de sucessão), `EffectAnalysis.java` (efeito + def/uso de locais), `VirtualRegisters.java` (numeração (slot,tipo)), `PassPipeline.java` + `IrPass.java` (ordenado, fixpoint, determinístico). ADITIVA — o `Optimizer.java` linear fica intocado, zero mudança de comportamento
+next: Fase B — otimizações básicas (propagação de constantes/cópias, eliminação de código morto, eliminação de código inalcançável, simplificação de blocos básicos) sobre o CFG, cada uma com redução mensurável de instruções em fixtures
 state: active
 owner: `192.168.15.130:9093` (lane docs/lab)
 
