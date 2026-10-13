@@ -54,6 +54,9 @@ public final class NativeOrmEmit {
             // Fase 5 fatia 5d-1: a consulta ascendente ({@code
             // kof_orm_history} — a List<Revision> posicional).
                 dev.kof.compiler.runtime.RuntimeOrmHistory4.emit(sb);
+            // Fase 5 fatia 5d-2: as variantes page/one (o mesmo build
+            // posicional com as janelas LIMIT/OFFSET e a revisão única).
+                dev.kof.compiler.runtime.RuntimeOrmHistory5.emit(sb);
             }
             // Fase 5 fatia 5c: o SAVE gravando a revisão ({@code
             // kof_orm_save_recorded} — o payload JSON por campo).
@@ -62,7 +65,6 @@ public final class NativeOrmEmit {
             dev.kof.compiler.runtime.RuntimeOrmHistory3.emit(sb);
             // Fase 5 fatia 5d-1: a consulta ascendente ({@code
             // kof_orm_history} — a List<Revision> posicional).
-            dev.kof.compiler.runtime.RuntimeOrmHistory4.emit(sb);
             // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
             // kof_orm_delete_recorded} — espelha o host JVM).
             // Fase 5 fatia 5b WIP (NÃO emitida): o delete_recorded asm — o
