@@ -102,11 +102,7 @@ class EntityHistoryNativeCreateE2ETest {
                 }
             }
         } catch (Exception e) { }
-        java.util.List<String> cmd = "1".equals(System.getenv("KOF_GDB"))
-                ? java.util.List.of("gdb", "-batch", "-ex", "run",
-                        "-ex", "info registers rdi rsi rdx r12 rbx rsp rip",
-                        "-ex", "x/6i $rip-24", "--args", binary.toString())
-                : java.util.List.of(binary.toString());
+        java.util.List<String> cmd = java.util.List.of(binary.toString());
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
         Process p = pb.start();

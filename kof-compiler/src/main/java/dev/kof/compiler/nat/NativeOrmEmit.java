@@ -40,10 +40,10 @@ public final class NativeOrmEmit {
             // Fase 5 do entity-history (D-ENTITY-HISTORY; ordem da mantenedora
             // 13/10): o DDL da tabela de histórico ({@code kof_orm_create_history}).
             dev.kof.compiler.runtime.RuntimeOrmHistory1.emit(sb);
-            // Fase 5 fatia 5b WIP (NÃO emitida — o journal no DOING): o
-            // delete_recorded asm fica à espera da investigação do prune
-            // (o exit-0-vazio com a 45/162 = o renderSubset vs a emissão
-            // solta; o gdb+strace+journal registrados no ciclo 60).
+            // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
+            // kof_orm_delete_recorded} — espelha o host JVM).
+            // Fase 5 fatia 5b WIP (NÃO emitida): o delete_recorded asm — o
+            // gdb interativo pendente (o journal no DOING do ciclo 61/62).
             // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
             // kof_orm_delete_recorded} — espelha o host JVM).
             // Fase 5 fatia 5b WIP (NÃO emitida): o gdb provou — o pruner
