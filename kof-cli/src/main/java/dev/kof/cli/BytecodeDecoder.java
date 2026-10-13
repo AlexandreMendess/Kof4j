@@ -408,6 +408,34 @@ import java.util.Set;
      * os opcodes são modelados 1:1; qualquer outro recusa (R6: nunca código
      * errado compilável — a lição da regressão do irem acima).
      */
+    /**
+     * Fase C (13/10): a condição do teste por BUSCA DE SUFIXO — o bloco pode
+     * ter um PRÓLOGO (stores/chamadas) antes da expressão; tenta sufixos
+     * crescentes com o avaliador fechado e aceita o que deixar EXATAMENTE os
+     * `arity` operandos. Exato por construção (o mesmo conjunto fechado);
+     * SÓ use onde o prólogo É emitido pelo chamador (o path do prologue no
+     * struct) — em outro lugar o prólogo seria descartado em silêncio.
+     */
+    static String condFromSuffix(java.util.List<BytecodeReader.Insn> blk, BytecodeFrame frame,
+                                 String[] cp, int arity, String inv) {
+        int max = Math.min(blk.size() - 1, 16);
+        for (int len = 1; len <= max; len++) {
+            java.util.List<BytecodeReader.Insn> suf =
+                    blk.subList(blk.size() - 1 - len, blk.size() - 1);
+            java.util.Deque<String> st = new java.util.ArrayDeque<>();
+            if (!evalInto(suf, frame, cp, st)) continue;
+            if (st.size() != arity) continue;
+            if (arity == 1) {
+                String a = st.pop();
+                return a + " " + inv;
+            }
+            String b = st.pop();
+            String a = st.pop();
+            return a + " " + inv + " " + b;
+        }
+        return null;
+    }
+
     static String testExpr(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame,
                            int arity, String inv, String[] cp) {
         java.util.Deque<String> st = new java.util.ArrayDeque<>();

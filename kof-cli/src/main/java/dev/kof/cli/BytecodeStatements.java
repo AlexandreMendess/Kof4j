@@ -264,11 +264,16 @@ final class BytecodeStatements {
                 BytecodeReader.Insn last = blk.get(blk.size() - 1);
                 int lop = last.opcode();
                 int k = (lop >= 0x9f && lop <= 0xa4) ? 2 : 1;   // if_acmp* = 2 ops; demais 1
-                if (blk.size() >= k + 1 && last.isCond()) {
+                String inv = BytecodeCp.invCond(lop);
+                // Fase C (13/10): a condição por BUSCA DE SUFIXO com o
+                // avaliador fechado (o prólogo com stores/chamadas É emitido
+                // pelo emitLinear abaixo — nada se perde em silêncio)
+                String suffixCond = (inv != null && blk.size() >= k + 1)
+                        ? BytecodeDecoder.condFromSuffix(blk, frame, cp, k, inv) : null;
+                if (suffixCond != null || (blk.size() >= k + 1 && last.isCond())) {
                     String x = BytecodeDecoder.loadValue(blk.get(blk.size() - 1 - k), frame);
                     String y = k == 2 ? BytecodeDecoder.loadValue(blk.get(blk.size() - 2), frame) : null;
-                    String inv = BytecodeCp.invCond(lop);
-                    if (x != null && (k == 1 || y != null) && inv != null) {
+                    if (suffixCond != null || (x != null && (k == 1 || y != null) && inv != null)) {
                         List<BytecodeReader.Insn> preInsns = blk.subList(0, blk.size() - k - 1);
                         // emitLinear PARA e retorna parcial em branch (linha do
                         // 0xa7) — prefixo com fluxo interno truncaria código em
@@ -281,7 +286,11 @@ final class BytecodeStatements {
                         List<String> pre = BytecodeStatementsEmit.emitLinear(preInsns, cp, frame, declared);
                         if (pre == null) { refuse("emitLinear-null"); return false; }
                         out.addAll(pre);
-                        cond = k == 2 ? x + " " + inv + " " + y : x + " " + inv;
+                        // Fase C (13/10): o sufixo avaliado (com o avaliador
+                        // fechado) tem prioridade quando os loads desnudos não
+                        // resolvem (condições com chamadas/campos)
+                        cond = suffixCond != null ? suffixCond
+                                : (k == 2 ? x + " " + inv + " " + y : x + " " + inv);
                     }
                 }
             }
