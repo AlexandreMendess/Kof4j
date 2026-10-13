@@ -294,33 +294,27 @@ final class BytecodeStatements {
                 int lop = last.opcode();
                 int k = (lop >= 0x9f && lop <= 0xa4) ? 2 : 1;   // if_acmp* = 2 ops; demais 1
                 String inv = BytecodeCp.invCond(lop);
-                // Fase C (13/10): a condição por BUSCA DE SUFIXO com o
-                // avaliador fechado (o prólogo com stores/chamadas É emitido
-                // pelo emitLinear abaixo — nada se perde em silêncio)
-                String suffixCond = (inv != null && blk.size() >= k + 1)
-                        ? BytecodeDecoder.condFromSuffix(blk, frame, cp, k, inv) : null;
-                if (suffixCond != null || (blk.size() >= k + 1 && last.isCond())) {
-                    String x = BytecodeDecoder.loadValue(blk.get(blk.size() - 1 - k), frame);
-                    String y = k == 2 ? BytecodeDecoder.loadValue(blk.get(blk.size() - 2), frame) : null;
-                    if (suffixCond != null || (x != null && (k == 1 || y != null) && inv != null)) {
-                        List<BytecodeReader.Insn> preInsns = blk.subList(0, blk.size() - k - 1);
-                        // emitLinear PARA e retorna parcial em branch (linha do
-                        // 0xa7) — prefixo com fluxo interno truncaria código em
-                        // silêncio (código errado compilável). Recusa → stub.
-                        for (BytecodeReader.Insn pi : preInsns) {
-                            int po = pi.opcode();
-                            boolean fluxo = (po >= 0x99 && po <= 0xa7) || (po >= 0xaa && po <= 0xb1) || po == 0xbf;
-                            if (fluxo) { refuse("prologue-has-flow"); return false; }
-                        }
-                        List<String> pre = BytecodeStatementsEmit.emitLinear(preInsns, cp, frame, declared);
-                        if (pre == null) { refuse("emitLinear-null"); return false; }
-                        out.addAll(pre);
-                        // Fase C (13/10): o sufixo avaliado (com o avaliador
-                        // fechado) tem prioridade quando os loads desnudos não
-                        // resolvem (condições com chamadas/campos)
-                        cond = suffixCond != null ? suffixCond
-                                : (k == 2 ? x + " " + inv + " " + y : x + " " + inv);
+                // Fase C (13/10): o SPLIT seguro (prólogo-statements +
+                // expressão) — o prólogo termina em store/pop; a expressão
+                // avalia EXATAMENTE os `arity` operandos. Fecha o risco do
+                // sufixo-fragmento reaproveitar um valor como receptor
+                // (medido: `[ldc "(", at]` avaliava mas era código ERRADO).
+                BytecodeDecoder.TestSplit split = (inv != null && last.isCond())
+                        ? BytecodeDecoder.testSplit(blk, frame, cp, k, inv) : null;
+                if (split != null) {
+                    List<BytecodeReader.Insn> preInsns = blk.subList(0, split.prologueLen());
+                    // emitLinear PARA e retorna parcial em branch (linha do
+                    // 0xa7) — prefixo com fluxo interno truncaria código em
+                    // silêncio (código errado compilável). Recusa → stub.
+                    for (BytecodeReader.Insn pi : preInsns) {
+                        int po = pi.opcode();
+                        boolean fluxo = (po >= 0x99 && po <= 0xa7) || (po >= 0xaa && po <= 0xb1) || po == 0xbf;
+                        if (fluxo) { refuse("prologue-has-flow"); return false; }
                     }
+                    List<String> pre = BytecodeStatementsEmit.emitLinear(preInsns, cp, frame, declared);
+                    if (pre == null) { refuse("emitLinear-null"); return false; }
+                    out.addAll(pre);
+                    cond = split.cond();
                 }
             }
             if (cond == null) { refuse("cond-null"); return false; }
