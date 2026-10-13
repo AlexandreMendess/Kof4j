@@ -21,6 +21,16 @@ final class BytecodeStatements {
 
     /** Medidor offline (probe-only): razão da recusa do struct. */
     static java.util.Map<String, Integer> refusalSink;
+    /** Atribuição com declaração `var` na 1ª escrita do slot. */
+    private static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
+        String name = BytecodeDecoder.slotName(slot, frame);
+        if (!declared.contains(slot)) {
+            declared.add(slot);
+            return "var " + name + " = " + value;
+        }
+        return name + " = " + value;
+    }
+
     private static void refuse(String reason) {
         if (refusalSink != null) refusalSink.merge(reason, 1, Integer::sum);
     }
