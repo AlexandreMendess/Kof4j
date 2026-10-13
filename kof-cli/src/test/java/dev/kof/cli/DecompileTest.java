@@ -331,16 +331,32 @@ class DecompileTest {
 
         String kof = Decompile.decompile(dir.resolve("Join.class"));
 
-        // REGRESSÃO R6 travada: continue (join no incremento), && (curto-
-        // circuito com braços que caem no mesmo bloco) e `?:` têm PONTO DE
-        // JUNÇÃO compartilhado entre braços. O struct() antigo re-emitia o
-        // bloco já emitido (só checava isLoopHeader), gerando código ERRADO
-        // mas COMPILÁVEL: o `for+continue` virava um while que PERDIA o
-        // incremento no caminho normal; `&&` sugava o return final p/ dentro
-        // do else. Agora: re-entrar em bloco que NÃO é o header do loop aberto
-        // → recusar → stub UNKNOWN honesto (R6: nunca código errado).
-        assertTrue(kof.contains("throw \"body not recovered\""), "continue/&&/?: devem degradar:\n" + kof);
-        assertFalse(kof.contains("while (v2 <"), "não deve emitir for errado (sem incremento):\n" + kof);
+        // Fase E 14/10: o contFor (continue no if do for) HOJE RECUPERA com
+        // zero-drift provado contra o ORÁCULO JAVA REAL — a lista de oráculo
+        // antiga desta face (`0 0 1 3 3 7 12`) estava MATEMATICAMENTE errada
+        // para esse corpo (o correto é `0 0 1 1 4 4 9`: contFor(4) = 1+3 = 4,
+        // não 3 — verificada executando o Java). O `&&` e o `?:` (join
+        // compartilhado real) seguem degradando para stub honesto.
+        assertTrue(kof.contains("if ((v2 % 2) == 0)"), "a condicao com calculo recupera:\n" + kof);
+        assertTrue(kof.contains("v2 = v2 + 1"), "o incremento comum permanece:\n" + kof);
+        // (shortc/tern seguem degradando a stub honesto — join compartilhado
+        // real ainda sem fatia; o contFor é o que recuperou.)
+        // o oráculo EXECUTADO: decompila → compila → roda = o Java
+        String kofRun = kof + "\nmain() {\n    var j = 0\n    while (j <= 20) {\n        print(Join.contFor(j))\n        print(\" \")\n        j = j + 1\n    }\n    println(\"\")\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // o ORÁCULO JAVA REAL (o `0 0 1 3 3 7 12` antigo estava errado —
+        // contFor(4) = 1+3 = 4, não 3)
+        assertEquals("0 0 1 1 4 4 9 9 16 16 25 25 36 36 49 49 64 64 81 81 100", output,
+                "zero-drift executado n=0..20");
     }
 
     @Test

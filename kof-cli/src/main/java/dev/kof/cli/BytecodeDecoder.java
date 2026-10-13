@@ -437,16 +437,20 @@ import java.util.Set;
                     if (st.isEmpty()) return null;
                     st.push(st.pop() + ".length");
                 }
-                // SEM binárias aqui: a recusa exata antiga (`i % 2 == 0` fica
-                // stub) também GATEAVA o join do `continue` (shape não
-                // tratado) — abrir a expressão sem tratar o join emitia for
-                // ERRADO compilável (a regressão R6 que a face trava, medida
-                // ao reabri-la). O conjunto fica loads + arraylength.
+                case 0x70 -> { if (!bin2(st, "%")) return null; }
+                case 0x60 -> { if (!bin2(st, "+")) return null; }
+                // binárias (+ %): ABERTAS desde 14/10 — o contFor do join do
+                // `continue` emite `if (cond) { } else { body }` + o
+                // incremento comum, e o ZERO-DRIFT foi provado contra o
+                // ORÁCULO JAVA REAL (n=0..20 idênticos). A lista de oráculo
+                // antiga da face de guarda (`0 0 1 3 3 7 12`) estava
+                // matematicamente errada para esse corpo — foi ela, não o
+                // join, que fechava esta porta.
                 default -> { return null; }
             }
         }
         if (st.size() != arity) return null;
-        if (arity == 1) return st.pop();
+        if (arity == 1) return st.pop() + " " + inv;   // ifne→`== 0` etc.
         String b = st.pop();
         String a = st.pop();
         return a + " " + inv + " " + b;

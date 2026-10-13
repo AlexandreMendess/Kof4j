@@ -19,6 +19,12 @@ final class BytecodeStatements {
     private BytecodeStatements() {
     }
 
+    /** Medidor offline (probe-only): razão da recusa do struct. */
+    static java.util.Map<String, Integer> refusalSink;
+    private static void refuse(String reason) {
+        if (refusalSink != null) refusalSink.merge(reason, 1, Integer::sum);
+    }
+
     static List<String> recoverStatements(byte[] code, String[] cp, BytecodeFrame frame, int[][] handlers) {
         List<BytecodeReader.Insn> insns = BytecodeReader.decode(code);
         List<String> sw = recoverSwitch(code, insns, cp, frame);
@@ -215,7 +221,7 @@ final class BytecodeStatements {
 
         if (b.succ.isEmpty()) {
             List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
-            if (stmts == null) return false;
+            if (stmts == null) { refuse("emitLinear-null"); return false; }
             out.addAll(stmts);
             return true;
         }
@@ -231,33 +237,33 @@ final class BytecodeStatements {
                 if (s <= b.start) back = s; else exit = s;
             }
             if (back >= 0) {
-                if (back != b.start) return false;  // corpo separado do teste — não recuperar
+                if (back != b.start) { refuse("loop-body-separate"); return false; }  // corpo separado do teste — não recuperar
                 List<BytecodeReader.Insn> block = BytecodeDecoder.insnsWithin(b, insns);
-                if (block.isEmpty()) return false;
+                if (block.isEmpty()) { refuse("empty-body"); return false; }
                 BytecodeReader.Insn last = block.get(block.size() - 1);
-                if (!last.isCond()) return false;
+                if (!last.isCond()) { refuse("do-while-no-cond"); return false; }
                 int op = last.opcode();
                 String cond;
                 List<BytecodeReader.Insn> body;
                 if (op >= 0x99 && op <= 0x9e) {
-                    if (block.size() < 2) return false;
+                    if (block.size() < 2) { refuse("do-while-short"); return false; }
                     String a = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
-                    if (a == null) return false;
+                    if (a == null) { refuse("do-while-load-null"); return false; }
                     cond = a + " " + contCond(op);
                     body = block.subList(0, block.size() - 2);
                 } else if (op >= 0x9f && op <= 0xa4) {
-                    if (block.size() < 3) return false;
+                    if (block.size() < 3) { refuse("do-while-short"); return false; }
                     String x = BytecodeDecoder.loadValue(block.get(block.size() - 3), frame);
                     String y = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
-                    if (x == null || y == null) return false;
+                    if (x == null || y == null) { refuse("do-while-load-null"); return false; }
                     cond = x + " " + contCond(op) + " " + y;
                     body = block.subList(0, block.size() - 3);
                 } else {
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 }
-                if (body.isEmpty()) return false;
+                if (body.isEmpty()) { refuse("loop-body-empty"); return false; }
                 List<String> stmts = emitLinear(body, cp, frame, declared);
-                if (stmts == null) return false;
+                if (stmts == null) { refuse("emitLinear-null"); return false; }
                 out.add("do {");
                 out.addAll(stmts);
                 out.add("} while (" + cond + ")");
@@ -291,21 +297,21 @@ final class BytecodeStatements {
                         for (BytecodeReader.Insn pi : preInsns) {
                             int po = pi.opcode();
                             boolean fluxo = (po >= 0x99 && po <= 0xa7) || (po >= 0xaa && po <= 0xb1) || po == 0xbf;
-                            if (fluxo) return false;
+                            if (fluxo) { refuse("prologue-has-flow"); return false; }
                         }
                         List<String> pre = emitLinear(preInsns, cp, frame, declared);
-                        if (pre == null) return false;
+                        if (pre == null) { refuse("emitLinear-null"); return false; }
                         out.addAll(pre);
                         cond = k == 2 ? x + " " + inv + " " + y : x + " " + inv;
                     }
                 }
             }
-            if (cond == null) return false;
+            if (cond == null) { refuse("cond-null"); return false; }
             boolean loop = loop0;
             if (loop) {
                 out.add("while (" + cond + ") {");
                 if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, b.start, stops))
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 out.add("}");
                 return struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
@@ -339,7 +345,7 @@ final class BytecodeStatements {
             // float/ref (sem default seguro) -> RECUSAR p/ stub honesto.
             if (pureIfElse) {
                 List<String> hoist = StructWalker.hoistEscapingLocals(thenB, elseB, insns, frame, declared);
-                if (hoist == null) return false;
+                if (hoist == null) { refuse("hoist-null"); return false; }
                 out.addAll(hoist);
             }
             out.add("if (" + cond + ") {");
@@ -347,7 +353,7 @@ final class BytecodeStatements {
                 Set<Integer> jstops = new HashSet<>(stops);
                 jstops.add(exitStart);
                 if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, jstops))
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 out.add("}");
                 return struct(join, insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
@@ -362,28 +368,28 @@ final class BytecodeStatements {
                 Set<Integer> bstops = new HashSet<>(stops);
                 bstops.add(tail);
                 if (!struct(thenB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 out.add("} else {");
                 if (!struct(elseB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
-                    return false;
+                    { refuse("struct-generic"); return false; }
                 out.add("}");
                 return struct(byStart.get(tail), insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
             if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
-                return false;
+                { refuse("struct-generic"); return false; }
             out.add("} else {");
             if (!struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
-                return false;
+                { refuse("struct-generic"); return false; }
             out.add("}");
             return true;
         }
         if (b.succ.size() == 1) {
             List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
-            if (stmts == null) return false;
+            if (stmts == null) { refuse("emitLinear-null"); return false; }
             out.addAll(stmts);
             return struct(byStart.get(b.succ.get(0)), insns, byStart, cp, frame, out, emitted, declared, header, stops);
         }
-        return false;
+        { refuse("struct-generic"); return false; }
     }
 
     /** Emite statements lineares de um bloco (para em branch/goto/return). */
