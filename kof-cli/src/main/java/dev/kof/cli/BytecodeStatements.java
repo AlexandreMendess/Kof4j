@@ -21,6 +21,13 @@ final class BytecodeStatements {
 
     /** Medidor offline (probe-only): razão da recusa do struct. */
     static java.util.Map<String, Integer> refusalSink;
+    /**
+     * Fase C (13/10, if/else com valor propagado): blocos cuja PRIMEIRA
+     * instrução é consumida pela emissão propagada (o astore/istore do join
+     * vira `var/if-expression` no braço) — o struct emite o bloco PULANDO-a.
+     * Por-rodada (limpo no fim de recoverStatements).
+     */
+    static java.util.Set<Integer> skipFirst;
     /** Atribuição com declaração `var` na 1ª escrita do slot. */
     private static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
         String name = BytecodeDecoder.slotName(slot, frame);
@@ -29,6 +36,27 @@ final class BytecodeStatements {
             return "var " + name + " = " + value;
         }
         return name + " = " + value;
+    }
+
+    /**
+     * O valor pendente do braço: avalia as insns (pulando o `goto` final
+     * quando o braço salta para o join) — exatamente 1 valor ou null.
+     */
+    private static String stackValueStrip(List<BytecodeReader.Insn> seq, BytecodeFrame frame, String[] cp) {
+        if (seq.isEmpty()) return null;
+        if (seq.get(seq.size() - 1).opcode() == 0xa7) {
+            return BytecodeDecoder.stackValue(seq.subList(0, seq.size() - 1), frame, cp);
+        }
+        return BytecodeDecoder.stackValue(seq, frame, cp);
+    }
+
+    /** Insns do bloco, pulando a primeira quando o skip-first marca (o join propagado). */
+    private static List<BytecodeReader.Insn> blkSeq(BytecodeReader.Block b, List<BytecodeReader.Insn> insns) {
+        List<BytecodeReader.Insn> seq = BytecodeDecoder.insnsWithin(b, insns);
+        if (skipFirst != null && skipFirst.contains(b.start) && !seq.isEmpty()) {
+            return seq.subList(1, seq.size());
+        }
+        return seq;
     }
 
     private static void refuse(String reason) {
@@ -49,6 +77,7 @@ final class BytecodeStatements {
             List<String> tc = tryCatch(insns, cp, frame, handlers);
             if (tc != null) return tc;
         }
+        skipFirst = null;   // por-método: nenhum skip vaza entre corpos
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
         if (blocks.isEmpty()) { refuse("cfg-empty"); return null; }
         if (refusalSink != null) {
@@ -260,7 +289,7 @@ final class BytecodeStatements {
                 // souber emitir) e o cond sao os ULTIMOS K insns (loads
                 // diretos p/ o condicional; pilha do cond vem deles). Path
                 // classico (cond != null) NAO toca aqui = byte-identico.
-                List<BytecodeReader.Insn> blk = BytecodeDecoder.insnsWithin(b, insns);
+                List<BytecodeReader.Insn> blk = blkSeq(b, insns);
                 BytecodeReader.Insn last = blk.get(blk.size() - 1);
                 int lop = last.opcode();
                 int k = (lop >= 0x9f && lop <= 0xa4) ? 2 : 1;   // if_acmp* = 2 ops; demais 1
@@ -388,9 +417,83 @@ final class BytecodeStatements {
             // if; so no pureIfElse (o pureIfThen nao tem else nem init
             // escapante — Java valido nao o produz). Se um local escapante for
             // float/ref (sem default seguro) -> RECUSAR p/ stub honesto.
+            // Fase C (13/10): VALOR PROPAGADO — os braços deixam exatamente 1
+            // valor na pilha e o join começa com a store desse valor →
+            // if-expression Kof: `var/if name = if (cond) tVal else eVal` (o
+            // astore do join é CONSUMIDO pela atribuição — o skip-first).
+            {
+                BytecodeReader.Block joinB = byStart.get(tail);
+                // guardas de null: o tail nem sempre é fronteira de bloco e os
+                // blocos dos braços podem não existir no byStart — sem guarda
+                // o insnsWithin crashava NPE (medido no corpus real, 13/10)
+                if (joinB != null && thenB != null && elseB != null) {
+                List<BytecodeReader.Insn> jPre = BytecodeDecoder.insnsWithin(joinB, insns);
+                List<BytecodeReader.Insn> tSeq = BytecodeDecoder.insnsWithin(thenB, insns);
+                List<BytecodeReader.Insn> eSeq = BytecodeDecoder.insnsWithin(elseB, insns);
+                boolean jStore = !jPre.isEmpty() && isStore(jPre.get(0).opcode());
+                boolean bothReach = thenB.succ.contains(tail) && elseB.succ.contains(tail);
+                if (pureIfElse && bothReach && jStore) {
+                    String tVal = stackValueStrip(tSeq, frame, cp);
+                    String eVal = stackValueStrip(eSeq, frame, cp);
+                    if (tVal != null && eVal != null) {
+                        int slot = storeSlot(jPre.get(0));
+                        String name = BytecodeDecoder.slotName(slot, frame);
+                        boolean first = !declared.contains(slot);
+                        declared.add(slot);
+                        String assign0 = (first ? "var " + name + " = " : name + " = ")
+                                + "if (" + cond + ") " + tVal + " else " + eVal;
+                        out.add("    " + assign0);
+                        emitted.add(thenStart);
+                        emitted.add(exitStart);
+                        emitted.add(tail);
+                        if (skipFirst == null) skipFirst = new HashSet<>();
+                        skipFirst.add(tail);
+                        return struct(byStart.get(tail), insns, byStart, cp, frame,
+                                out, emitted, declared, header, stops);
+                    }
+                }
+                }
+            }
             if (pureIfElse) {
                 List<String> hoist = StructWalker.hoistEscapingLocals(thenB, elseB, insns, frame, declared);
-                if (hoist == null) { refuse("hoist-null"); return false; }
+                if (hoist == null) {
+                    // Fase C (13/10): o fallback do hoist-null É o VALOR
+                    // PROPAGADO — os braços terminando com a store do MESMO
+                    // slot e valores extraíveis → `var/if name = if (cond)
+                    // tVal else eVal` (sem default seguro necessário: cada
+                    // braço tem o seu valor). Refshape estrito; senão stub.
+                    List<BytecodeReader.Insn> tI = BytecodeDecoder.insnsWithin(thenB, insns);
+                    List<BytecodeReader.Insn> eI = BytecodeDecoder.insnsWithin(elseB, insns);
+                    boolean tJump = !tI.isEmpty() && tI.get(tI.size() - 1).opcode() == 0xa7;
+                    boolean eJump = !eI.isEmpty() && eI.get(eI.size() - 1).opcode() == 0xa7;
+                    List<BytecodeReader.Insn> tCore = tJump ? tI.subList(0, tI.size() - 1) : tI;
+                    List<BytecodeReader.Insn> eCore = eJump ? eI.subList(0, eI.size() - 1) : eI;
+                    boolean shapeOk = !tCore.isEmpty() && !eCore.isEmpty()
+                            && isStore(tCore.get(tCore.size() - 1).opcode())
+                            && isStore(eCore.get(eCore.size() - 1).opcode());
+                    if (shapeOk) {
+                        int tSlot = storeSlot(tCore.get(tCore.size() - 1));
+                        int eSlot = storeSlot(eCore.get(eCore.size() - 1));
+                        if (tSlot == eSlot) {
+                            String tVal = BytecodeDecoder.stackValue(
+                                    tCore.subList(0, tCore.size() - 1), frame, cp);
+                            String eVal = BytecodeDecoder.stackValue(
+                                    eCore.subList(0, eCore.size() - 1), frame, cp);
+                            if (tVal != null && eVal != null) {
+                                String name = BytecodeDecoder.slotName(tSlot, frame);
+                                boolean first = !declared.contains(tSlot);
+                                declared.add(tSlot);
+                                out.add("    " + (first ? "var " + name + " = " : name + " = ")
+                                        + "if (" + cond + ") " + tVal + " else " + eVal);
+                                emitted.add(thenStart);
+                                emitted.add(exitStart);
+                                return struct(byStart.get(tail), insns, byStart, cp, frame,
+                                        out, emitted, declared, header, stops);
+                            }
+                        }
+                    }
+                    refuse("hoist-null"); return false;
+                }
                 out.addAll(hoist);
             }
             out.add("if (" + cond + ") {");
@@ -429,7 +532,7 @@ final class BytecodeStatements {
             return true;
         }
         if (b.succ.size() == 1) {
-            List<String> stmts = BytecodeStatementsEmit.emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
+            List<String> stmts = BytecodeStatementsEmit.emitLinear(blkSeq(b, insns), cp, frame, declared);
             if (stmts == null) { refuse("emitLinear-null"); return false; }
             out.addAll(stmts);
             return struct(byStart.get(b.succ.get(0)), insns, byStart, cp, frame, out, emitted, declared, header, stops);
