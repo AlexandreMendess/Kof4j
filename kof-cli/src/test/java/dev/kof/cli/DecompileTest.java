@@ -938,6 +938,44 @@ class DecompileTest {
         assertEquals("B\nS", output, "zero-drift executado");
     }
 
+    @Test
+    void jdkCollectionConstructionMapsToStdlib(@TempDir Path dir) throws Exception {
+        // Fase E (13/10): mapeamento JDK→stdlib de COLEÇÕES (o mesmo do
+        // tradutor): `new ArrayList()` → `listOf()` etc. Sem o mapa, o
+        // `new ArrayList()` no corpo recusava (stub) — destravou o
+        // parseRecord e muitos métodos.
+        Path javaFile = dir.resolve("Col.java");
+        Files.writeString(javaFile, """
+                import java.util.ArrayList;
+                public class Col {
+                    static ArrayList<String> mk() {
+                        ArrayList<String> xs = new ArrayList<String>();
+                        xs.add("a");
+                        xs.add("b");
+                        return xs;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Col.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "new ArrayList() mapeia para listOf() (n\u00e3o stub):\n" + kof);
+        assertTrue(kof.contains("listOf()"), kof);
+        // zero-drift executado
+        String kofRun = kof + "\nmain() {\n    var xs = Col.mk()\n    println(xs.size)\n    println(xs.get(0))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("2\na", output, "zero-drift executado");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
