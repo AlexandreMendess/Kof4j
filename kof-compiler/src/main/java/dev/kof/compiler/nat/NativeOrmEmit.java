@@ -61,9 +61,10 @@ public final class NativeOrmEmit {
             // kof_orm_save_recorded} — o payload JSON por campo).
             // Fase 5 fatia 5c: o SAVE gravando a revisão ({@code
             // kof_orm_save_recorded} — o payload JSON por campo).
-            // Fase 5 fatia 5c WIP (NÃO emitida): o save_recorded asm — a
-            // contradição tripla (o exit-0 vazio, os markers mudos) requer o
-            // gdb interativo; o journal no DOING dos ciclos 66-68.
+            dev.kof.compiler.runtime.RuntimeOrmHistory3.emit(sb);
+            // Fase 5 fatia 5d-1: a consulta ascendente ({@code
+            // kof_orm_history} — a List<Revision> posicional).
+            dev.kof.compiler.runtime.RuntimeOrmHistory4.emit(sb);
             // Fase 5 fatia 5b: o DELETE gravando a revisão ({@code
             // kof_orm_delete_recorded} — espelha o host JVM).
             // Fase 5 fatia 5b WIP (NÃO emitida): o delete_recorded asm — o
