@@ -336,7 +336,7 @@ import java.util.Set;
         BytecodeReader.Block entry = blocks.get(0);
         if (entry.succ.size() != 2) return null;
         // entrada é condicional: dois sucessores (then e else)
-        String cond = blockCondition(entry, insns, frame);
+        String cond = blockCondition(entry, insns, frame, cp);
         if (cond == null) return null;
         // succ[0] = alvo do branch (falso/else); succ[1] = fall-through (verdadeiro/then)
         int elseStart = entry.succ.get(0);
@@ -364,7 +364,7 @@ import java.util.Set;
     }
 
     static String blockCondition(BytecodeReader.Block entry, List<BytecodeReader.Insn> insns,
-                                         BytecodeFrame frame) {
+                                         BytecodeFrame frame, String[] cp) {
         List<BytecodeReader.Insn> block = insnsWithin(entry, insns);
         if (block.isEmpty()) return null;
         BytecodeReader.Insn last = block.get(block.size() - 1);
@@ -378,14 +378,86 @@ import java.util.Set;
         // Se o bloco do teste tem qualquer calculo, o test-expr nao e
         // recuperavel aqui: null = stub honesto (R6).
         int arity = (last.opcode() >= 0x9f && last.opcode() <= 0xa4) ? 2 : 1;
-        if (block.size() - 1 != arity) return null;
-        java.util.List<String> operands = new java.util.ArrayList<>();
-        for (int i = 0; i < block.size() - 1; i++) {
-            String v = loadValue(block.get(i), frame);
-            if (v == null) return null;
-            operands.add(v);
+        if (block.size() - 1 < arity) return null;
+        // Path EXATO original: o bloco do teste é SÓ os loads (aridade igual)
+        if (block.size() - 1 == arity) {
+            java.util.List<String> operands = new java.util.ArrayList<>();
+            for (int i = 0; i < block.size() - 1; i++) {
+                String v = loadValue(block.get(i), frame);
+                if (v == null) return null;
+                operands.add(v);
+            }
+            return operands.get(0) + " " + inv + (arity == 2 ? " " + operands.get(1) : "");
         }
-        return operands.get(0) + " " + inv + (arity == 2 ? " " + operands.get(1) : "");
+        // Fase E (fatia array-cond, 14/10): o teste tem CÁLCULO simples —
+        // mini-avaliador de pilha com conjunto FECHADO de opcodes (cada um
+        // modelado exatamente; qualquer outro → null = stub honesto). No fim
+        // a pilha tem EXATAMENTE os `arity` operandos em ordem.
+        return testExpr(block.subList(0, block.size() - 1), frame, arity, inv, cp);
+    }
+
+    /**
+     * Avalia a expressão do teste com conjunto FECHADO: loads, pushes de
+     * constante, `arraylength`, binárias + - * / %. Exato por construção —
+     * os opcodes são modelados 1:1; qualquer outro recusa (R6: nunca código
+     * errado compilável — a lição da regressão do irem acima).
+     */
+    static String testExpr(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame,
+                           int arity, String inv, String[] cp) {
+        java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        for (BytecodeReader.Insn in : seq) {
+            int op = in.opcode();
+            switch (op) {
+                case 0x01 -> st.push("null");
+                case 0x02 -> st.push("-1");
+                case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> st.push(String.valueOf(op - 0x03));
+                case 0x09 -> st.push("0L");
+                case 0x0a -> st.push("1L");
+                case 0x0e -> st.push("0.0");
+                case 0x0f -> st.push("1.0");
+                case 0x10 -> st.push(String.valueOf((byte) in.operands()[0]));
+                case 0x11 -> st.push(String.valueOf((short) in.operands()[0]));
+                case 0x12, 0x13 -> {
+                    String c = BytecodeCp.ldc(cp, in.operands()[0]);
+                    if (c == null) return null;
+                    st.push(c);
+                }
+                case 0x14 -> {
+                    String c = BytecodeCp.ldc2(cp, in.operands()[0]);
+                    if (c == null) return null;
+                    st.push(c);
+                }
+                case 0x1a, 0x1b, 0x1c, 0x1d -> st.push(slotName(op - 0x1a, frame));
+                case 0x1e, 0x1f, 0x20, 0x21 -> st.push(slotName(op - 0x1e, frame));
+                case 0x26, 0x27, 0x28, 0x29 -> st.push(slotName(op - 0x26, frame));
+                case 0x2a, 0x2b, 0x2c, 0x2d -> st.push(slotName(op - 0x2a, frame));
+                case 0x15, 0x19 -> st.push(slotName(in.operands()[0], frame));
+                case 0x16, 0x17, 0x18 -> st.push(slotName(in.operands()[0], frame));
+                case 0xbe -> {                                 // arraylength
+                    if (st.isEmpty()) return null;
+                    st.push(st.pop() + ".length");
+                }
+                // SEM binárias aqui: a recusa exata antiga (`i % 2 == 0` fica
+                // stub) também GATEAVA o join do `continue` (shape não
+                // tratado) — abrir a expressão sem tratar o join emitia for
+                // ERRADO compilável (a regressão R6 que a face trava, medida
+                // ao reabri-la). O conjunto fica loads + arraylength.
+                default -> { return null; }
+            }
+        }
+        if (st.size() != arity) return null;
+        if (arity == 1) return st.pop();
+        String b = st.pop();
+        String a = st.pop();
+        return a + " " + inv + " " + b;
+    }
+
+    private static boolean bin2(java.util.Deque<String> st, String op) {
+        if (st.size() < 2) return false;
+        String b = st.pop();
+        String a = st.pop();
+        st.push("(" + a + " " + op + " " + b + ")");
+        return true;
     }
 
     static String blockReturnExpr(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,

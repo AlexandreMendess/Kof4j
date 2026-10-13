@@ -739,6 +739,11 @@ class DecompileTest {
                         for (int i = 0; i < n; i++) { a[i] = i; }
                         return a;
                     }
+                    int total(int[] a) {
+                        int s = 0;
+                        for (int i = 0; i < a.length; i++) { s += a[i]; }
+                        return s;
+                    }
                 }
                 """);
         runJavac(javaFile, dir);
@@ -746,10 +751,23 @@ class DecompileTest {
         assertFalse(kof.contains("body not recovered"),
                 "arrays primitivos devem recuperar (nao stub):\n" + kof);
         assertTrue(kof.contains("new Int[arg0]"), "newarray → new Int[n]:\n" + kof);
+        assertTrue(kof.contains("arg0.length"), "arraylength na CONDICAO do loop:\n" + kof);
+        assertFalse(kof.contains("body not recovered"),
+                "build + total sem stub nenhum:\n" + kof);
+        // zero-drift executado: o Kof decompilado compila e RODA como o Java
+        String kofRun = kof + "\nmain() {\n    var arr = Arr()\n    var x = arr.build(5)\n    println(arr.total(x))\n}\n";
         CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
-                writeKof(dir, kof)), dir.resolve("o"), Target.JVM, dir);
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
         assertTrue(r.success(), "o Kof dos arrays deve compilar (zero drift):\n" + kof
                 + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("10", output, "zero-drift: build(5)+total = 10 como no Java");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {

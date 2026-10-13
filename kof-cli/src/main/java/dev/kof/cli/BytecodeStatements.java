@@ -263,7 +263,7 @@ final class BytecodeStatements {
                 out.add("} while (" + cond + ")");
                 return struct(byStart.get(exit), insns, byStart, cp, frame, out, emitted, declared, header, stops);
             }
-            String cond = BytecodeDecoder.blockCondition(b, insns, frame);
+            String cond = BytecodeDecoder.blockCondition(b, insns, frame, cp);
             int exitStart = b.succ.get(0);   // alvo do branch (falso)
             int thenStart = b.succ.get(1);   // fall-through (verdadeiro)
             boolean loop0 = BytecodeReader.isLoopHeader(b);
