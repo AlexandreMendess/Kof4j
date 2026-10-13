@@ -54,21 +54,17 @@ public final class RuntimeOrmHistory3 {
                 movq %rcx, 56(%rsp)          # nFields
                 movq %r8, 64(%rsp)           # pkIndex
                 # ---- pkVal pré-DML + a detecção da operação ----------------
-                movq 64(%rsp), %rax
-                movq %rax, 72(%rsp)          # pkEntry
-                movq 8(%rsp), %rdx
-                movq 72(%rsp), %rax
-                movl 12(%rax), %ecx          # pkType
-                movq %rcx, 144(%rsp)
-                movq 72(%rsp), %rax
-                shlq $5, %rax
-                addq 48(%rsp), %rax
-                movl 12(%rax), %ecx          # pkType (do ftab)
-                movq %rcx, 144(%rsp)
-                movq 8(%rsp), %rdx
-                movq 72(%rsp), %rax
+                # pkEntry = ftab + pkIndex*32 (o stride); o pkType = entry+12;
+                # o pkSlot = obj + 16 + pkIndex*8.
+                movq 64(%rsp), %rcx
+                shlq $5, %rcx
+                movq 48(%rsp), %rax
+                addq %rcx, %rax
+                movq %rax, 72(%rsp)          # pkEntry = &entry
                 movl 12(%rax), %ecx
-                movslq %ecx, %rcx
+                movq %rcx, 144(%rsp)         # pkType
+                movq 8(%rsp), %rdx
+                movq 64(%rsp), %rcx
                 leaq 16(%rdx,%rcx,8), %rdx
                 movq %rdx, 136(%rsp)         # pkSlot
                 movq 136(%rsp), %rdx
