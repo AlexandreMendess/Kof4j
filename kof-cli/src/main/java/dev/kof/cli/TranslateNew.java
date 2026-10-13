@@ -52,10 +52,13 @@ final class TranslateNew {
         }
         String args = ctx.parseCallArgs();
         if (p.at("{")) {
-            // Fase F (decisão da mantenedora 14/10): anônima de interface
-            // funcional SAM → lambda Kof; multi-método/estado → recusa
-            // nomeada.
-            return ctx.parseAnonymousAsLambda();
+            // Classe anônima Java (`new Runnable() { ... }`) — Kof não
+            // tem classes anônimas (só lambdas p/ interface funcional).
+            // Converter exige inferir a interface funcional — decisão de
+            // design (regra 6) → manual review (R6).
+            throw new TranslateException(
+                    "anonymous class (`new X() { ... }`) has no direct equivalent in Kof "
+                    + "(use a lambda for a functional interface) — manual review");
         }
         if (typeName.equals("RuntimeException") || typeName.equals("IllegalStateException")
                 || typeName.equals("IllegalArgumentException") || typeName.equals("Exception")) {

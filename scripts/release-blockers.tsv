@@ -4,3 +4,5 @@ issue	category	reason	owner
 811	1.0-outside	[Feature] kof.ui focus management (pillar 5) — feature request on the UI surface; kof-ui lane follow-up.	unassigned (triage 192.168.15.134)
 815	1.0-outside	[Flaky/env] KofDebugNativeDapTest hangs (2.4h, killed; reproduces in isolation) on the gdb-mi stub — DAP stops consuming after -exec-run --all; kof-cli debug identical since 0.6.1 (passed same morning, same host). Debug-lane follow-up; not a 0.6.2 code blocker.	deploy-flow lane 192.168.15.134 (triage 12/10)
 818	1.0-outside	Record extending a user class silently loses value semantics (identity toString/equals) — documented-form nuance, semantics-lane follow-up; not a 0.6.2 regression.	triage 192.168.15.134
+816	1.0-outside	Annotated val (val x: T = ...) does not enforce immutability — SEM037 only covers the inferred form; language-surface nuance awaiting the semantics lane; pre-existing face, not a 0.6.2 regression.	triage 192.168.15.134
+817	1.0-outside	Bare subtype case in sealed switch parses but does not count as coverage — SEM081 flags a pre-covered case; sealed-switch coverage nuance, semantics-lane follow-up.	triage 192.168.15.134

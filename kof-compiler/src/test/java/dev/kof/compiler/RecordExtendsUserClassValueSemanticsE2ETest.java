@@ -38,6 +38,38 @@ class RecordExtendsUserClassValueSemanticsE2ETest {
         return output;
     }
 
+    private String runJs(Path tmp, String source) throws IOException, InterruptedException {
+        Path src = tmp.resolve("MainJs.kf");
+        Files.writeString(src, source);
+        Path out = tmp.resolve("out-js");
+        CompilationResult res = driver.compile(src, out, Target.JS);
+        assertTrue(res.success(), "JS compile must be clean: " + res.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder("node", out.resolve("Default.mjs").toString())
+                .redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, "JS exit, output was:\n" + output);
+        return output;
+    }
+
+    @Test
+    void recordExtendingUserClassKeepsValueSemanticsOnJs(@TempDir Path tmp) throws Exception {
+        String out = runJs(tmp, """
+            sealed class B
+            record S extends B(Int x)
+            main() {
+                var a = S(7)
+                var b = S(7)
+                println(a)
+                println(a == b)
+                println(a.hashCode() == b.hashCode())
+            }
+            """);
+        assertEquals("S[x=7]\ntrue\ntrue", out,
+                "the JS target must keep the same CONTENT semantics as the JVM");
+    }
+
     @Test
     void recordExtendingUserClassKeepsValueSemantics(@TempDir Path tmp) throws Exception {
         String out = runJvm(tmp, """

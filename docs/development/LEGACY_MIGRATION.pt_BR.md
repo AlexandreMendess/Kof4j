@@ -176,9 +176,9 @@ overloads, constructors, exceptions, annotations, records, enums, lambdas,
 nested classes, anonymous classes, static initialization, access modifiers,
 Java standard library, chamadas de bibliotecas externas.
 
-> **Medido 14/10 (lane nativa/GC `192.168.15.117:0`) — a lista §3.3 contra o
-> tradutor está COMPLETA: 19/19 faces entregues (a mantenedora decidiu as
-> formas abertas em 14/10: nome hoisted = `Outer_Inner`, escopo só-static;
+> **Medido 14/10 (lane nativa/GC `192.168.15.117:0`) — a lista contra o
+> tradutor: 18/19 faces entregues (a mantenedora DECIDIU as duas formas
+> abertas em 14/10: nome hoisted = `Outer_Inner`, escopo só-static;
 > anônimas = SAM → lambda, resto recusa).** **Classes aninhadas static
 > HOISTAM desde esta rodada** — `static class Inner` dentro de `T` é emitida
 > no topo como `T_Inner` e toda referência é renomeada (posições de tipo via
@@ -187,15 +187,7 @@ Java standard library, chamadas de bibliotecas externas.
 > (`T_Inner(21).twice()` → `42`, e o estático qualificado `T.Inner.X` →
 > `5`); inner não-static (captura a instância externa) e colisões de nome
 > (`T_Inner` já top-level; o mesmo `Inner` sob dois outers) recusam com
-> razões NOMEADAS.
-> **Classes anônimas BAIXAM desde esta rodada (a última face)** — anônima de
-> interface funcional de método único abstrato baixa para lambda Kof
-> (`new Fun() { public int apply(int x) { return x * 2; } }` →
-> `(x: Int) -> { return x * 2 }`); a `Runnable` do JDK baixa igual;
-> multi-método e com estado (campo) recusam com razões NOMEADAS (lambda não
-> tem campos; multi-método não é SAM). PROVA EXECUTADA: os programas
-> traduzidos compilam e rodam (o probe SAM imprimiu `42`, o
-> multi-instrução `9`). classes/interfaces/herança/genéricos/
+> razões NOMEADAS. classes/interfaces/herança/genéricos/
 > sobrecargas/construtores/exceções/anotações/records/enums/lambdas/modifiers
 > de acesso/stdlib Java/switch/loops/arrays/casts/instanceof todos traduzem
 > (probe por item); **static initialization DOBRA desde esta rodada** —

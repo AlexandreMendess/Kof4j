@@ -207,57 +207,6 @@ class TranslateTest {
     }
 
     @Test
-    void anonymousSamClassLowersToLambda() {
-        // Fase F (decisão da mantenedora 14/10): anonymous of a functional
-        // interface lowers to a Kof lambda — the executed probe printed 42
-        String kof = Translate.translateJava("""
-                interface Fun { int apply(int x); }
-                class T {
-                    public static void main(String[] args) {
-                        Fun twice = new Fun() {
-                            public int apply(int x) {
-                                return x * 2;
-                            }
-                        };
-                    }
-                }
-                """);
-        assertTrue(kof.contains("(x: Int) ->"), kof);
-        assertTrue(kof.contains("x * 2"), kof);
-        assertFalse(kof.contains("new Fun"), kof);
-    }
-
-    @Test
-    void anonymousMultiMethodRefused() {
-        TranslateException e = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
-                        interface Cmp { int cmp(int a); boolean ok(); }
-                        class T {
-                            Cmp c = new Cmp() {
-                                public int cmp(int a) { return a; }
-                                public boolean ok() { return true; }
-                            };
-                        }
-                        """));
-        assertTrue(e.getMessage().contains("more than one method"), e.getMessage());
-    }
-
-    @Test
-    void anonymousStatefulRefused() {
-        TranslateException e = assertThrows(TranslateException.class, () ->
-                Translate.translateJava("""
-                        interface Fun { int apply(int x); }
-                        class T {
-                            Fun f = new Fun() {
-                                int base = 10;
-                                public int apply(int x) { return x + base; }
-                            };
-                        }
-                        """));
-        assertTrue(e.getMessage().contains("stateful anonymous class"), e.getMessage());
-    }
-
-    @Test
     void recordTranslates(@TempDir Path dir) throws Exception {
         String kof = Translate.translateJava("""
                 public record Point(int x, int y) {
@@ -1187,9 +1136,8 @@ class TranslateTest {
         assertTrue(label.getMessage().contains("labeled") && label.getMessage().contains("manual review"),
                 "labeled statement sem equivalente Kof → gap explícito (R6), foi: " + label.getMessage());
 
-        // Fase F 14/10: anônima de interface funcional SAM (mesmo JDK —
-        // Runnable tem 1 método) baixa para lambda — decisão da mantenedora.
-        String lam = Translate.translateJava("""
+        TranslateException anon = assertThrows(TranslateException.class, () ->
+                Translate.translateJava("""
                         public class A {
                             public static void main(String[] args) {
                                 Runnable r = new Runnable() {
@@ -1198,9 +1146,9 @@ class TranslateTest {
                                 r.run();
                             }
                         }
-                        """);
-        assertTrue(lam.contains("() -> {"), lam);
-        assertTrue(lam.contains("println(\"x\")"), lam);
+                        """));
+        assertTrue(anon.getMessage().contains("anonymous class") && anon.getMessage().contains("manual review"),
+                "anonymous class sem equivalente Kof → gap explícito (R6), foi: " + anon.getMessage());
     }
 
     @Test

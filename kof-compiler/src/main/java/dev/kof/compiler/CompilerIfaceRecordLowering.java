@@ -116,13 +116,21 @@ public final class CompilerIfaceRecordLowering {
         boolean userSuper = rec.superClass() != null && !rec.superClass().isEmpty();
         boolean nativeTarget = driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
                 || driver.target == Target.NATIVE_AARCH64;
-        if (nativeTarget || userSuper) {
+        // #818: o caso `userSuper` vale para o JVM — o backend lá decide a
+        // record-ness por `superName == java/lang/Record` e por isso pulava o
+        // JvmRecordEmitter. No JS/Script os emissores têm os PRÓPRIOS geradores
+        // de record, com um formato que o lowering de IR deles não aceita
+        // (medido: COMP002 "unexpected op in expression statement:
+        // KofConditionalJump" quando injetado lá) — essas faces ficam como
+        // fronteira registrada da issue, sem regressão de compilação.
+        boolean jvmUserSuper = userSuper && driver.target == Target.JVM;
+        if (nativeTarget || jvmUserSuper) {
             methods.add(CompilerRecordSupport.buildRecordToStringMethod(driver, internalName, rec, fields, typeParams));
             // #818: fora do native, o `==` despacha por `equals(Object)`, então o
             // sintético precisa ser o OVERRIDE (o `equals(<Record>)` é só um
             // overload e a comparação caía em identidade). O native mantém o
             // formato exato de sempre.
-            methods.add(userSuper && !nativeTarget
+            methods.add(jvmUserSuper
                     ? CompilerRecordSupport.buildRecordEqualsObjectOverride(driver, internalName, fields, typeParams)
                     : CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
             methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
@@ -153,6 +161,6 @@ public final class CompilerIfaceRecordLowering {
             methods.addAll(bridges);
         }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
-                typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()));
+                typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()), true);
     }
 }
