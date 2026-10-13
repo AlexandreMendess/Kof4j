@@ -112,7 +112,7 @@ atribuição.
 - `x instanceof T` → `bool`. O alvo `T` precisa ser uma referência class/record/String —
   `instanceof` sobre um primitivo (`o instanceof Int`) é recusado com `SEM106` (`§677`).
 - `x as T` → valor convertido/castado. `as T?` é o cast suave sempre-nulo nos
-  **quatro alvos** (POUSADO 13/10); a forma simples `as` lança, sua face nativa pendente (`§678`). Ver
+  **quatro alvos** (POUSADO 13/10); a forma simples `as` LANÇA nos quatro também (`§678` FECHADO). Ver
   [type-system.md](type-system.md) §4.
 
 ---

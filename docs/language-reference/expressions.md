@@ -113,7 +113,7 @@ context.
   reference — `instanceof` over a primitive (`o instanceof Int`) is refused
   with `SEM106` (`§677`).
 - `x as T` → converted/cast value. `as T?` is the always-null soft cast on
-  **all four targets** (LANDED 13/10); the plain `as` throws, its Native face pending (`§678`). See
+  **all four targets** (LANDED 13/10); the plain `as` THROWS on all four too (`§678` CLOSED). See
   [type-system.md](type-system.md) §4.
 
 ---

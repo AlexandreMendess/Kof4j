@@ -131,7 +131,7 @@ Para `+ - * / %` com dois numéricos: `double` domina, senão `float`, senão
     (`D-SEM-REJECTS-1210`, `§678` FACE A): um cast de referência que falha devolve
     `null` nos **quatro alvos** (desugar de lowering compartilhado `if (x instanceof T) x else null`;
     POUSADO 13/10). A forma simples `as` LANÇA num cast que falha — essa é a **FACE B**,
-    pousada na JVM/Script/JS, com a face **nativa** de B ainda pendente (`§678` PARCIAL).
+    pousada na JVM/Script/JS 12–13/10 e no **Native** (x86-64 + cross) 13/10 — o `§678` está FECHADO, o cast que falha LANÇA nos **quatro** alvos.
 - **`x instanceof T`** → `bool` (`SemExpressionTyper`, caso `instanceof`). `o instanceof String` (*probe* ✅).
   - **`instanceof` sobre um alvo PRIMITIVO é RECUSADO (`SEM106`)** — o alvo
     precisa ser uma referência class/record/String. `o instanceof Int` (um

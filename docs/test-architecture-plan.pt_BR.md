@@ -1612,8 +1612,8 @@ valor por um local temporário `#softcast`, então `x` é avaliado uma vez e cad
 ops — o parser de if-expr do JS exige ramo não-vazio), o que faz os quatro alvos concordarem
 POR CONSTRUÇÃO sem runtime novo; o alvo NULÁVEL PRIMITIVO mantém o próprio caminho de unbox
 abaixo e não é tocado. RED-first (`SoftCastNullableE2ETest` 6 faces: **4 VERMELHAS
-pré-correção** → **6 run / 0F** pós); o §678 segue vivo pela FACE B no alvo nativo (o `as`
-simples precisa CHECAR e LANÇAR lá). Esta é a QUINTA fatia que carrega um fix de compilador.
+pré-correção** → **6 run / 0F** pós); o §678 seguiu vivo pela FACE B no alvo nativo nesta fatia (o `as`
+simples precisa CHECAR e LANÇAR lá) [*superado 13/10: as faces NATIVAS da FACE B pousaram, o `§678` está FECHADO*]. Esta é a QUINTA fatia que carrega um fix de compilador.
 Prova (executada): cada valor medido primeiro no alvo Script, cruzado byte-a-byte em
 jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **284/284**
 (71 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates

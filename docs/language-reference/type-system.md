@@ -131,7 +131,7 @@ For `+ - * / %` with two numerics: `double` dominates, else `float`, else
     (`D-SEM-REJECTS-1210`, `§678` FACE A): a failing reference cast yields `null`
     on **all four targets** (shared-lowering desugar `if (x instanceof T) x else null`;
     LANDED 13/10). The plain `as` form THROWS on a failing cast — that is **FACE B**,
-    landed on JVM/Script/JS, with the **Native** face of B still pending (`§678` PARTIAL).
+    landed on JVM/Script/JS 12–13/10 and on the **Native** (x86-64 + cross) 13/10 — `§678` is CLOSED, the failing cast THROWS on **all four** targets.
 - **`x instanceof T`** → `bool` (`SemExpressionTyper`, case `instanceof`). `o instanceof String` (*probe* ✅).
   - **`instanceof` over a PRIMITIVE target is REFUSED (`SEM106`)** — the target
     must be a class/record/String reference. `o instanceof Int` (a boxed

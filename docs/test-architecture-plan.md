@@ -1605,8 +1605,9 @@ desugaring the nullable REFERENCE cast in the SHARED `ExpressionBinaryInstanceOf
 is evaluated once and each branch carries ops — the JS if-expr parser requires non-empty
 branches), making the four targets agree BY CONSTRUCTION with no new runtime; the nullable
 PRIMITIVE target keeps its own unbox path below and is not touched. RED-first
-(`SoftCastNullableE2ETest` 6 faces: **4 FAIL pre-fix** → **6 run / 0F** post-fix); §678 stays
-live for its FACE B on the native target (plain `as` must CHECK and THROW there). This is the
+(`SoftCastNullableE2ETest` 6 faces: **4 FAIL pre-fix** → **6 run / 0F** post-fix); §678 stayed
+live for its FACE B on the native target at this slice (plain `as` must CHECK and THROW there)
+[*superseded 13/10: the NATIVE faces of FACE B landed, `§678` is CLOSED*]. This is the
 FIFTH slice that carries a compiler fix. Proof (executed): every value measured on the Script
 target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
 `tests/run-golden.sh` **284/284** (71 cases × 4 targets), exit 0;
