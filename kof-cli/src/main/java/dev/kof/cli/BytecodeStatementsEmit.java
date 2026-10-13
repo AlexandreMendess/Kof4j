@@ -160,8 +160,13 @@ final class BytecodeStatementsEmit {
                 case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
                 case 0xb0 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
                 case 0xb1 -> { stmts.add("return"); return stmts; }
+                case 0xbf -> { // athrow → `throw x` (o Kof lança a exceção/String)
+                    if (stack.isEmpty()) { refuse(opcodeTag); return null; }
+                    stmts.add("throw " + stack.pop());
+                    return stmts;
+                }
                 // terminadores de bloco: branch/goto — paramos sem emitir
-                case 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7 -> { return stmts; }
+                case 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xc6, 0xc7 -> { return stmts; }
                 default -> {
                     if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(op);
                     { refuse(opcodeTag); return null; }

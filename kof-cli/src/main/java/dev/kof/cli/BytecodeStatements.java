@@ -605,6 +605,7 @@ final class BytecodeStatements {
                 case 0xb0 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
                 case 0xb1 -> { stmts.add("return"); return stmts; }
                 case 0xbf -> { // athrow → `throw x` (o Kof lança a exceção/String)
+                    if (refusalSink != null) refusalSink.merge("ATHROW-STACK=" + stack, 1, Integer::sum);
                     if (stack.isEmpty()) return null;
                     stmts.add("throw " + stack.pop());
                     return stmts;

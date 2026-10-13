@@ -40,10 +40,19 @@ final class BytecodeKofTypes {
                 return exprOp(op, stack, cp, idx, stmts, frame);
             }
             case 0xbb -> { // new de DOMÍNIO (mirror do path linear):
-                // `new java.lang.X` nunca é idiomático (R6). Cross-package
-                // registra import (§7 degrau 3); emissão = nome simples.
+                // `new java.lang.X` nunca é idiomático (R6). EXCEÇÃO: o
+                // idioma errors.md (a exceção É a String do message — o
+                // TranslateNew mapeia igual) — `new RuntimeException(msg)`
+                // entra com marcador próprio e o <init> devolve os args.
                 String cn = BytecodeCp.resolveClassName(cp, in.operands()[0]);
-                if (cn == null || BytecodeCp.isJdkClass(cp, in.operands()[0])) return false;
+                if (cn == null) return false;
+                if (BytecodeCp.isJdkClass(cp, in.operands()[0])) {
+                    String simple = cn.substring(cn.lastIndexOf('/') + 1);
+                    if (!simple.endsWith("Exception") && !simple.endsWith("Error")) return false;
+                    stack.push("\u27e6ex\u27e7" + simple);
+                    if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(-99);
+                    return true;
+                }
                 if (frame != null && frame.treeScope != null) {
                     String internal = indexInternalName(cp, in.operands()[0]);
                     if (internal != null) frame.treeScope.resolve(internal);
@@ -51,10 +60,10 @@ final class BytecodeKofTypes {
                 stack.push("⟦new⟧" + cn);
                 return true;
             }
-            case 0x59 -> { // dup — só no padrão new (mirror do linear)
+            case 0x59 -> { // dup — padrão new E o padrão de exceção (⟦ex⟧)
                 if (stack.isEmpty()) return false;
                 String top = stack.peek();
-                if (top == null || !top.startsWith("⟦new⟧")) return false;
+                if (top == null || !(top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7"))) return false;
                 stack.push(top);
                 return true;
             }
@@ -85,7 +94,14 @@ final class BytecodeKofTypes {
                 for (int i = 0; i < argc; i++) callArgs.add(0, stack.pop());
                 stack.pop();   // receiver (cópia do dup)
                 String marker = stack.pop();
-                if (marker == null || !marker.startsWith("⟦new⟧")) return false;
+                if (marker == null) return false;
+                // idioma errors.md: a construção de EXCEÇÃO devolve a String
+                // do message (o Kof lança String; `throw msg` direto)
+                if (marker.startsWith("\u27e6ex\u27e7")) {
+                    stack.push(String.join(", ", callArgs));
+                    return true;
+                }
+                if (!marker.startsWith("⟦new⟧")) return false;
                 stack.push(marker.substring("⟦new⟧".length()) + "(" + String.join(", ", callArgs) + ")");
                 return true;
             }
