@@ -14593,6 +14593,51 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 <!-- en-switch --> **EN:** [§700 (en)](known-bugs.md#700--a-switch-over-int-containing-a-case-0-did-not-compile-on-js-the-js-backend-threw-an-internal-compiler-error-comp002-kofjs-unexpected-op-in-switch-case---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
 
+## §701 — um `break` ANINHADO num `if` dentro de um case de `switch` emite JS ERRADO: o corpo do default vaza para dentro do case e o `break` vira um bloco VAZIO (`swBreakInLoop` → JS `32` vs `2` nos outros cinco alvos) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int f() {
+    var r = 0
+    for (var i in listOf(0, 1, 2)) {
+        switch (1) {
+            case 1:
+                if (i == 1) { break }
+                r += 1
+            default:
+                r += 10
+        }
+    }
+    return r
+}
+```
+
+devolve `2` em JVM/Script/nativo x86-64/riscv64/aarch64 mas **`32` no JS** — o valor errado é SILENCIOSO (sem crash). O JS gerado está estruturalmente errado:
+
+```js
+case 1:
+    if ((_forInVar === 1)) {
+    } else {
+        r = ((r + 1) | 0);
+    }
+    r = ((r + 10) | 0);   // o corpo do DEFAULT, anexado dentro do case 1
+    break;
+                       // o label `default:` SUMIU
+```
+
+O `break` virou um bloco VAZIO, o `r += 1` que segue o `if` foi absorvido como seu ramo ELSE, e o corpo do default foi puxado para dentro do `case 1` sem sobrar label `default:`.
+
+**Raiz (rastreada dumpando o stream de ops):** o corpo do switch é parseado com `endLabels = Set.of()` — VAZIO. O `break` baixa como um `KofJump` cujo alvo é o label de FIM do switch, e o braço KofJump do `JsControlFlowParser.parseStatements` só reconhece um alvo que seja (a) um de `endLabels`, (b) um label de LOOP (`ctx.isLoopLabel`), ou (c) cai no caminho genérico "region exit (if/try/finally jump)", que faz `exits.add(target); return out;` — TRUNCANDO o corpo do case no break. O resto do case (e o default) é então consumido pelo parse envolvente e deslocado. O label de fim do switch nunca é registrado como contexto quebrável no `MethodCtx` (só labels de FIM de LOOP são), então um `break` dentro de um construto aninhado não tem contra o quê resolver.
+
+**Por que o §587 não pegou:** o `SwitchBreakScopeE2ETest` (8/8, verde) cobre um `break` DIRETO no corpo do case — essa forma acaba terminando o corpo no ponto certo, então a truncagem fica invisível. A forma ANINHADA (`break` dentro de um `if`, ou de um loop, dentro de um case) é a descoberta, e é a que desloca os statements seguintes.
+
+**Caminho de correção (nomeado, NÃO pousado — precisa do label de fim do switch encadeado pela reconstrução estrutural):** registrar o label de fim do switch como contexto quebrável no `MethodCtx` (ao lado de `loops`), e no braço KofJump do `parseStatements`, quando o alvo É esse fim de switch, emitir um `JsBreak` e terminar o corpo — em vez da truncagem genérica de region-exit. É uma mudança estrutural de IR compartilhada na reconstrução do JS (a área que §587/§588/#473/#474 tocaram), então tem de pousar com a bateria switch/control-flow inteira como rede de regressão. Deixado ABERTO em vez de apressado: o valor está silenciosamente errado num ÚNICO alvo e o fix toca uma reconstrução delicada.
+
+**Fronteira:** só o backend JS. Os outros cinco alvos estão corretos. O `break` DIRETO num case (a face do §587) está correto em todos os alvos.
+
+<!-- en-switch --> **EN:** [§701 (en)](known-bugs.md#701--a-break-nested-inside-an-if-inside-a-switch-case-emits-wrong-js-the-default-body-leaks-into-the-case-and-the-break-becomes-an-empty-block-swbreakinloop--js-32-vs-2-on-the-other-five-targets---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
