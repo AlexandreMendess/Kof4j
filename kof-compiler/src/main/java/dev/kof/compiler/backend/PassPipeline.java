@@ -86,6 +86,7 @@ public final class PassPipeline {
         });
         ps.add(new ConstantPropagation());
         ps.add(new CopyPropagation());
+        ps.add(new DeadCodeElimination());
         return new PassPipeline(ps);
     }
 }
