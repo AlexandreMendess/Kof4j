@@ -288,87 +288,6 @@ public final class Decompile {
         return null;
     }
 
-    /**
-     * Fase E: o clinit em forma `[push, putstatic]*, return` dobra — cada
-     * literal vai para o inicializador do campo. Qualquer instrução fora do
-     * shape desiste do fold INTEIRO (nada parcial em silêncio).
-     */
-    private static void foldClinitLiterals(byte[] code, String[] cp,
-                                           java.util.Map<String, String> inits) {
-        List<BytecodeReader.Insn> insns;
-        try {
-            insns = BytecodeReader.decode(code);
-        } catch (Exception e) {
-            return;
-        }
-        String pending = null;
-        for (BytecodeReader.Insn in : insns) {
-            int op = in.opcode();
-            if (pending != null) {
-                if (op != 0xb3) return;                     // putstatic
-                String[] fr = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                if (fr == null) return;
-                // o descritor do CAMPO (fr[2]) tipa o literal
-                String lit = kofLiteral(pending, fr[2]);
-                if (lit == null) return;
-                inits.put(fr[1], lit);
-                pending = null;
-                continue;
-            }
-            pending = cpConstText(op, in, cp);
-            if (pending == null) return;
-        }
-        if (pending != null) return;                        // sem o return final
-    }
-
-    /** Texto cru do push constante (cp para ldc/ldc_w/ldc2_w). */
-    private static String cpConstText(int op, BytecodeReader.Insn in, String[] cp) {
-        switch (op) {
-            case 0x01: return "null";
-            case 0x02: return "-1";
-            case 0x03: case 0x04: case 0x05: case 0x06: case 0x07: case 0x08:
-                return String.valueOf(op - 0x03);
-            case 0x09: return "0L"; case 0x0a: return "1L";
-            case 0x0b: return "0.0F"; case 0x0c: return "1.0F"; case 0x0d: return "2.0F";
-            case 0x0e: return "0.0"; case 0x0f: return "1.0";
-            case 0x10: // bipush
-                return String.valueOf((byte) in.operands()[0]);
-            case 0x11: // sipush
-                return String.valueOf((short) in.operands()[0]);
-            case 0x12: case 0x13: case 0x14: {              // ldc/ldc_w/ldc2_w
-                int idx = in.operands()[0];
-                if (idx <= 0 || idx >= cp.length || cp[idx] == null) return null;
-                if (cp[idx].startsWith("#")) {
-                    try {
-                        int u = Integer.parseInt(cp[idx].substring(1));
-                        return u < cp.length && cp[u] != null ? cp[u] : null;
-                    } catch (NumberFormatException nfe) {
-                        return null;
-                    }
-                }
-                return cp[idx];
-            }
-            default: return null;
-        }
-    }
-
-    /** Formata o raw do cp como literal Kof pelo descritor do campo. */
-    private static String kofLiteral(String raw, String desc) {
-        if (raw == null) return null;
-        if (desc != null && desc.endsWith("Ljava/lang/String;")) {
-            return '"' + TranslateLexer.escapeKofString(raw) + '"';
-        }
-        if (desc != null && (desc.startsWith("J") || desc.startsWith("D") || desc.startsWith("F")
-                || desc.startsWith("I"))) {
-            // numérico: o texto do cp é o valor; sufixo para long/float
-            if (desc.startsWith("J") && !raw.endsWith("L")) return raw + "L";
-            if (desc.startsWith("F") && !raw.endsWith("F")) return raw + "F";
-            return raw;
-        }
-        // sem descritor resolvido: só literais seguros (número/negativo)
-        return raw.matches("-?\\d+") ? raw : null;
-    }
-
     static String resolveSuperName(String internal, TreeScope scope) {
         if (scope != null) {
             String r = scope.resolve(internal);
@@ -442,41 +361,15 @@ public final class Decompile {
         }
         sb.append(" {\n");
 
-        // Fase E (fatia static-init, mantenedora 14/10): o clinit em forma
-        // literal-putstatic DOBRA nos inicializadores dos campos estáticos —
-        // o MESMO padrão aprovado no tradutor; qualquer outra instrução → sem
-        // fold (nada parcial em silêncio). Stub nunca é opção de design (Q7).
-        java.util.Map<String, String> clinitInits = new java.util.LinkedHashMap<>();
-        for (var mm : ir.methods) {
-            if (!"<clinit>".equals(mm.name) || mm.code == null) continue;
-            foldClinitLiterals(mm.code.bytecode, ir.constantPool, clinitInits);
-        }
-
         for (var f : ir.fields) {
-            boolean isStaticField = (f.accessFlags & 0x0008) != 0;
+            if ((f.accessFlags & 0x0008) != 0) continue; // skip static
             String ftype = f.signature != null
                     ? methodKofType(dev.kof.compiler.Type.describe(
                             dev.kof.compiler.Type.fromJvmSignature(f.signature)))
                     : fieldKofType(f.descriptor);
             recordSignatureUses(fieldTypeTree(f.descriptor, f.signature), scope);
-            String init = "";
-            if (isStaticField) {
-                // o campo estático AGORA é emitido (antes: perda silenciosa —
-                // o main referenciava `Cls.X` que não existia = Kof sem
-                // compilar = falso OK); initializer: ConstantValue (constantes
-                // `static final` NÃO passam pelo clinit, JVMS 4.7.2) ou o
-                // clinit dobrado
-                if (f.constantValue != null) {
-                    String lit = kofLiteral(f.constantValue, f.descriptor);
-                    if (lit != null) init = " = " + lit;
-                }
-                if (init.isEmpty()) {
-                    String lit = clinitInits.get(f.name);
-                    if (lit != null) init = " = " + lit;
-                }
-            }
-            sb.append("    ").append(isStaticField ? "static " : "").append(ftype).append(' ')
-              .append(f.name).append(init).append("   // ").append(Confidence.EXACT.label()).append('\n');
+            sb.append("    ").append(ftype).append(' ')
+              .append(f.name).append("   // ").append(Confidence.EXACT.label()).append('\n');
         }
 
         for (var m : ir.methods) {

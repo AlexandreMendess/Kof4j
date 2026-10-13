@@ -187,7 +187,6 @@ final class AvifFrameSupport {
      * loop_filter/cdef/restoration bits and no tx_mode_select; then
      * reduced_tx_set f(1). numPlanes selects the UV delta flags.
      */
-
     static void tailLossless(AvifMetadataSupport.Bits w, int reducedTxSet, int numPlanes) {
         w.bits(0, 8);           // base_q_idx = 0 -> CodedLossless
         w.bits(0, 1);           // DeltaQYDc coded flag = 0
@@ -331,15 +330,6 @@ final class AvifFrameSupport {
                         AvifMetadataSupport.configObuCap(0, 2, false, false, true,
                                                          false, true, false),
                         frameQ32()))));
-        // NON-MONOCHROME (real chroma planes) + NON-LOSSLESS tail: the frame the
-        // tile streams this front decodes actually belong to. `q32` above is the
-        // mono non-lossless case; this one adds the chroma the frame assembly
-        // needs, which no other fixture in the suite provides.
-        Files.write(dir.resolve("qchroma.avif"), AvifObuSupport.containerWithItem(
-                AvifMetadataSupport.concat(java.util.List.of(
-                        AvifSeqSupport.delimiter(),
-                        AvifFrameChromaSupport.redSeq128Color(),
-                        AvifFrameChromaSupport.frameReducedQ(80, 128, 128, 2, 2, 1, 1)))));
         // NON-uniform tile_info (uniform_tile_spacing_flag=0): the ns() col
         // size list {4,4} + row list {8} over redSeq128 -> 2x1 tiles.
         Files.write(dir.resolve("nonuni.avif"), AvifObuSupport.containerWithItem(
@@ -436,7 +426,6 @@ final class AvifFrameSupport {
                 println("intra " + facts(readAvifFrameHeader(base + "/intra.avif")))
                 println("q32 " + facts(readAvifFrameHeader(base + "/q32.avif")))
                 println("nonuni " + facts(readAvifFrameHeader(base + "/nonuni.avif")))
-                println("qchroma " + facts(readAvifFrameHeader(base + "/qchroma.avif")))
             }
             """.formatted(base);
     }

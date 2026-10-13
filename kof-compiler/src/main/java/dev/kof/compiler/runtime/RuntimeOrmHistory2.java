@@ -57,11 +57,6 @@ public final class RuntimeOrmHistory2 {
                 movq %rax, 64(%rsp)
                 cmpq $0, 64(%rsp)
                 je .Lormh2_done               # o delete falhou → false (sem linha)
-                # EXPERIMENTO: o conn RE-RESOLVIDO após o DML (o delete aloca
-                # pesado; o handle pré-DML é o suspeito do segv)
-                movq (%rsp), %rdi
-                call .Lorm_conn
-                movq %rax, 32(%rsp)
                 # ---- pk → texto (o String.valueOf do host) -----------------
                 movq 8(%rsp), %rdi
                 call kof_box_to_string
@@ -96,8 +91,6 @@ public final class RuntimeOrmHistory2 {
                 leaq 40(%rsp), %rcx
                 xorl %r8d, %r8d
                 call sqlite3_prepare_v2
-                testl %eax, %eax
-                jnz .Lormh2_sqlerr
                 movq 40(%rsp), %r12
                 testq %r12, %r12
                 jz .Lormh2_done0
@@ -158,8 +151,6 @@ public final class RuntimeOrmHistory2 {
                 leaq 40(%rsp), %rcx
                 xorl %r8d, %r8d
                 call sqlite3_prepare_v2
-                testl %eax, %eax
-                jnz .Lormh2_sqlerr
                 movq 40(%rsp), %r12
                 testq %r12, %r12
                 jz .Lormh2_done0
@@ -258,19 +249,6 @@ public final class RuntimeOrmHistory2 {
             .Lormh2_system:
                 .ascii "system"
                 .set .Lormh2_system_len, . - .Lormh2_system
-            # .Lormh2_sqlerr: rdi = conn — o erro SQL real via errmsg + throw
-            .Lormh2_sqlerr:
-                movq %rdi, %r13
-                call sqlite3_errmsg
-                testq %rax, %rax
-                jz .Lormh2_sqlerr2
-                movq %rax, %rsi
-                call .Lorm_pcstr
-            .Lormh2_sqlerr2:
-                call .Lorm_bfin
-                movq %rbx, %rdi
-                call kof_throw_string
-                ud2
             """;
         sb.append(b
                 .replace("@@SYMBOL@@", ".globl kof_orm_delete_recorded\n            .type kof_orm_delete_recorded, @function")
