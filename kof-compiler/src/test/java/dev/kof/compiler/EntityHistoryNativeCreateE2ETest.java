@@ -94,6 +94,81 @@ class EntityHistoryNativeCreateE2ETest {
     }
 
     @Test
+    void nativeHistoryQueryReturnsTheRevisions() throws Exception {
+        assumeTrue(dev.kof.compiler.nat.NativeToolchainGate.present(),
+                "x86-64 toolchain (as/ld) ausente — pulando");
+        java.nio.file.Path dbgDir = Path.of("/tmp/histdbg-run");
+        Files.createDirectories(dbgDir);
+        Files.deleteIfExists(dbgDir.resolve("hist5d.db"));
+        String source = """
+                import kof.orm.history
+                audited entity User {
+                    id: Long generated
+                    name: String
+                }
+                main() {
+                    var db = db.connect("sqlite:%s/hist5d.db")
+                    orm.create<User>(db)
+                    orm.createHistory<User>(db)
+                    db.execute(db, "insert into user_history(revision, entity_pk, operation, at, payload, actor, actor_kind, correlation_id) values (1, '7', 'INSERT', 100, '{}', NULL, 'system', NULL)")
+                    db.execute(db, "insert into user_history(revision, entity_pk, operation, at, payload, actor, actor_kind, correlation_id) values (2, '7', 'UPDATE', 200, '{}', NULL, 'system', NULL)")
+                    var rs = User.history(db, 7)
+                    println(rs.size)
+                    println(rs.get(0).operation)
+                    println(rs.get(1).operation)
+                    db.close(db)
+                }
+                """.formatted(dbgDir);
+        Path out = tmp.resolve("out-native5d");
+        CompilationResult r = driver.compile(
+                writeFile("Main5d.kf", source), out, Target.NATIVE);
+        assertTrue(r.success(), () -> "native compile: " + r.diagnostics().getDiagnostics());
+        assertEquals("2\nINSERT\nUPDATE", runNative(out.resolve("Default/Main")),
+                "a consulta ascendente no nativo (a Fase 5 fatia 5d-1)");
+    }
+
+    @Test
+    void nativeHistoryPageAndOneVariants() throws Exception {
+        assumeTrue(dev.kof.compiler.nat.NativeToolchainGate.present(),
+                "x86-64 toolchain (as/ld) ausente — pulando");
+        java.nio.file.Path dbgDir = Path.of("/tmp/histdbg-run");
+        Files.createDirectories(dbgDir);
+        Files.deleteIfExists(dbgDir.resolve("hist5e.db"));
+        String source = """
+                import kof.orm.history
+                audited entity User {
+                    id: Long generated
+                    name: String
+                }
+                main() {
+                    var db = db.connect("sqlite:%s/hist5e.db")
+                    orm.create<User>(db)
+                    orm.createHistory<User>(db)
+                    db.execute(db, "insert into user_history(revision, entity_pk, operation, at, payload, actor, actor_kind, correlation_id) values (1, '7', 'INSERT', 100, '{}', NULL, 'system', NULL)")
+                    db.execute(db, "insert into user_history(revision, entity_pk, operation, at, payload, actor, actor_kind, correlation_id) values (2, '7', 'UPDATE', 200, '{}', NULL, 'system', NULL)")
+                    var pg = User.history(db, 7, 0, 1)
+                    println(pg.size)
+                    println(pg.get(0).operation)
+                    var one = User.history(db, 7, 2)
+                    if (one != null) {
+                        println(one.operation)
+                    }
+                    var miss = User.history(db, 7, 9)
+                    println(miss == null)
+                    db.close(db)
+                }
+                """.formatted(dbgDir);
+        Path out = tmp.resolve("out-native5e");
+        CompilationResult r = driver.compile(
+                writeFile("Main5e.kf", source), out, Target.NATIVE);
+        assertTrue(r.success(), () -> "native compile: " + r.diagnostics().getDiagnostics());
+        Files.copy(out.resolve("Default/Main"), Path.of("/tmp/histdbg-last/h5e-main"),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        assertEquals("1\nINSERT\nUPDATE\ntrue", runNative(out.resolve("Default/Main")),
+                "as variantes page/one no nativo (a Fase 5 fatia 5d-2)");
+    }
+
+    @Test
     void crossTargetsKeepTheHonestOrm001() throws Exception {
         String source = """
                 import kof.orm.history
