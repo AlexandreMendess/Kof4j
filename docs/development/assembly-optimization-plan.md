@@ -2,12 +2,19 @@
 
 # Cross-Target Assembly Optimization
 
-**Status:** Future plan — design only, **zero code**
-**Location:** `docs/development/future/`
+**Status:** UNDER DEVELOPMENT — promoted from `future/` to `docs/development/` 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`; lane docs/lab `192.168.15.130:9093`). **Current slice: Phase A — infrastructure.** The structured-optimizer layer is built over the EXISTING linear IR optimizer: `kof-compiler/src/main/java/dev/kof/compiler/backend/Optimizer.java` (264 ln) already does constant folding + dead stack-effect elimination + reachability + jump-to-next on a FLATTENED op list (`IRBasicBlock` is a single flat block today). Phase A adds the structured foundation (control-flow graph / basic-block partition / successor edges) ADDITIVELY — the existing linear passes stay, zero behavior change.
+**How to finish:** Phase A (CFG + virtual registers + use/effect analysis + pass pipeline), then Phase B (basic optimizations) → Phase C (register allocation) → Phase D (target lowering) → Phase E (ISA) → Phase F (benchmarks); each phase's criterion per §21. The per-target ABI is a scope decision before Phase D (R7 honest scope).
+**Location:** `docs/development/assembly-optimization-plan.md`
 **Nature:** architecture, contracts, implementation strategy and promotion criteria
 **Scope:** Kof Native backend on multiple ISAs
 **Targets:** x86_64, aarch64, riscv64 and future Native backends
 **Principle:** prefer optimizing before the ISA-specific assembly whenever possible; specialize to the backend only when the architecture requires it.
+
+last: promoted 13/10 (`D-FUTURE-PROMOTION`; the only `future/` plan whose gate `D-ASSEMBLY-OPT-GO` is already decided, no new syntax, additive compiler-internal)
+doing: Phase A — the structured CFG foundation
+next: land the control-flow graph (basic-block partition + successor edges) over the linear op stream, tested; then virtual registers + use/effect analysis
+state: active
+owner: `192.168.15.130:9093` (lane docs/lab)
 
 ---
 

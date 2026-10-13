@@ -2,12 +2,19 @@
 
 # Otimização de Assembly Cross-Target
 
-**Estado:** Plano futuro — somente design, **zero código**
-**Local:** `docs/development/future/`
+**Estado:** EM DESENVOLVIMENTO — promovido de `future/` para `docs/development/` 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`; lane docs/lab `192.168.15.130:9093`). **Fatia atual: Fase A — infraestrutura.** A camada de otimização estruturada é construída sobre o otimizador de IR LINEAR que já existe: `kof-compiler/src/main/java/dev/kof/compiler/backend/Optimizer.java` (264 ln) já faz constant folding + eliminação de efeitos-mortos de pilha + alcançabilidade + jump-to-next sobre uma lista de ops ACHATADA (`IRBasicBlock` é um único bloco plano hoje). A Fase A adiciona a fundação estruturada (grafo de fluxo de controle / partição em blocos básicos / arestas de sucessão) de forma ADITIVA — as passes lineares existentes ficam, zero mudança de comportamento.
+**Como terminar:** Fase A (CFG + registradores virtuais + análise de uso/efeito + pipeline de passes), depois Fase B (otimizações básicas) → Fase C (alocação de registradores) → Fase D (lowering por alvo) → Fase E (ISA) → Fase F (benchmarks); cada critério de fase conforme §21. A ABI por-alvo é uma decisão de escopo antes da Fase D (R7 escopo honesto).
+**Local:** `docs/development/assembly-optimization-plan.pt_BR.md`
 **Natureza:** arquitetura, contratos, estratégia de implementação e critérios de promoção
 **Escopo:** backend Native do Kof em múltiplas ISAs
 **Alvos:** x86_64, aarch64, riscv64 e futuros backends Native
 **Princípio:** otimizar antes do assembly específico da ISA sempre que possível; especializar no backend somente quando a arquitetura exigir.
+
+last: promovido 13/10 (`D-FUTURE-PROMOTION`; o único plano de `future/` cujo gate `D-ASSEMBLY-OPT-GO` já está decidido, sem sintaxe nova, aditivo compilador-interno)
+doing: Fase A — a fundação do CFG estruturado
+next: pousar o grafo de fluxo de controle (partição em blocos básicos + arestas de sucessão) sobre o stream linear de ops, testado; depois registradores virtuais + análise de uso/efeito
+state: active
+owner: `192.168.15.130:9093` (lane docs/lab)
 
 ---
 
