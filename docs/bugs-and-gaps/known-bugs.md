@@ -17237,6 +17237,35 @@ A `while` with an unconditional `return`, and a `for` whose body throws, fail th
 **Status:** the slice that surfaced it (3au) is REVERTED; the tree is green. The bug is NOT a defect in `libs/image` — it is a native-backend interaction that any sufficiently large extracted method may hit, so it belongs to the compiler/native lane.
 
 <!-- pt-switch --> **PT:** [§705 (pt_BR)](known-bugs.pt_BR.md#705--um-metodo-de-classe-com-46-locais-trava-o-binario-nativo-x86-em-runtime-o-mesmo-kof-e-correto-no-jvmscriptjs-e-o-assembly-emitido-parece-correto---aberto-medido-1310-pela-lane-pipelineimage-vision-19216815210-exposto-pela-fatia-3au-do-avif)
+## §705 — a NESTED generic type argument (`Box<Box<Int>>`) breaks the OUTER accessor: on the JVM the call site expects `int Box.get()` and crashes with `NoSuchMethodError`, on native it reads GARBAGE — while Script/JS return the correct value — 🟡 OPEN (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 13/10 through the COMPILER MODULE):**
+
+```kof
+record Box<T>(T value) {
+    T get() { return value }
+}
+main() {
+    var inner = Box<Int>(7)
+    println(inner.get())
+    var outer = Box<Box<Int>>(inner)
+    println(outer.get().get())
+}
+```
+
+prints `7` then the CORRECT `7` on Script and JS, but:
+- **JVM:** `Exception in thread "main" java.lang.NoSuchMethodError: 'int Box.get()'` — the OUTER `outer.get()` is compiled with return type `int` (the INNER type argument), but the method emitted is `Object Box.get()` (erased), so the call site cannot bind.
+- **native x86-64/riscv64/aarch64:** a GARBAGE value (`-1937768288`, `201072`, `4395376` on the three targets) — the outer accessor reads the wrong slot/width, so the value is whatever memory happens to hold.
+
+A SINGLE-parameter generic (`Box<Int>`) and a MULTI-parameter generic (`Pair<String, Int>`) both work; the divergence is specific to a generic type ARGUMENT that is itself generic (`Box<Box<Int>>`).
+
+**Root (analysis, not yet instrumented):** the type substitution for the outer `Box<Box<Int>>.get()` computes the return type from the WRONG level — it sees the inner type argument `Int` (or the inner `Box<Int>`'s erasure) instead of the outer type parameter's argument `Box<Int>`. The JVM's `NoSuchMethodError: 'int Box.get()'` is the exact signature mismatch that produces; native's garbage is the same wrong-type read at the ABI level. Script/JS work because they are dynamically typed (no erased signature to mismatch).
+
+**Fix path (named, NOT landed):** the generic substitution that resolves a member's return type on a parameterised receiver must recurse correctly through nested type arguments — `Box<Box<Int>>.get()` returns `Box<Int>`, and only the SECOND `.get()` returns `Int`. The bug is in the substitution/erasure of the OUTER receiver's type argument. It touches the shared type machinery (JVM + native + JS all read the same substitution), so it must land with the generics battery as the regression net. Left OPEN with the diagnosis rather than rushed: the wrong substitution is a shared-code change and the JVM face is a hard crash (loud, not silent) while native is a silent wrong value.
+
+**Boundary:** nested generic type arguments only. Single- and multi-parameter generics at one level are correct on all six targets. The Script and JS targets are correct (dynamically typed).
+
+<!-- pt-switch --> **PT:** [§705 (pt_BR)](known-bugs.pt_BR.md#705--um-argumento-de-tipo-generico-aninhado-boxboxint-quebra-o-acessor-externo-no-jvm-o-call-site-espera-int-boxget-e-crasha-com-nosuchmethoderror-no-nativo-le-lixo--enquanto-scriptjs-devolvem-o-valor-correto---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 

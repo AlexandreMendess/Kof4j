@@ -14740,6 +14740,36 @@ Um `while` com `return` incondicional, e um `for` cujo corpo lança, falham do m
 
 <!-- en-switch --> **EN:** [§704 (en)](known-bugs.md#704--a-loop-whose-body-unconditionally-terminates-returnthrow-as-its-last-executed-statement-emits-invalid-js-the-optimizer-removes-the-loops-back-edge-the-js-reconstruction-then-rebuilds-an-if-and-drops-the-loop-setup-so-the-program-dies-with-referenceerror-_idx-is-not-defined---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
 
+## §705 — um argumento de tipo genérico ANINHADO (`Box<Box<Int>>`) quebra o acessor EXTERNO: no JVM o call site espera `int Box.get()` e crasha com `NoSuchMethodError`, no nativo lê LIXO — enquanto Script/JS devolvem o valor correto — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+record Box<T>(T value) {
+    T get() { return value }
+}
+main() {
+    var inner = Box<Int>(7)
+    println(inner.get())
+    var outer = Box<Box<Int>>(inner)
+    println(outer.get().get())
+}
+```
+
+imprime `7` e depois o CORRETO `7` em Script e JS, mas:
+- **JVM:** `Exception in thread "main" java.lang.NoSuchMethodError: 'int Box.get()'` — o `outer.get()` EXTERNO é compilado com tipo de retorno `int` (o argumento de tipo INTERNO), mas o método emitido é `Object Box.get()` (erased), então o call site não consegue ligar.
+- **nativo x86-64/riscv64/aarch64:** um valor LIXO (`-1937768288`, `201072`, `4395376` nos três alvos) — o acessor externo lê o slot/largura errados, então o valor é o que a memória tiver.
+
+Um genérico de UM parâmetro (`Box<Int>`) e um de MÚLTIPLOS parâmetros (`Pair<String, Int>`) funcionam; a divergência é específica de um argumento de tipo genérico que é ele próprio genérico (`Box<Box<Int>>`).
+
+**Raiz (análise, ainda não instrumentada):** a substituição de tipo para o `Box<Box<Int>>.get()` externo calcula o tipo de retorno do NÍVEL errado — vê o argumento de tipo interno `Int` (ou a erasure do `Box<Int>` interno) em vez do argumento do parâmetro de tipo externo `Box<Int>`. O `NoSuchMethodError: 'int Box.get()'` do JVM é exatamente o mismatch de assinatura que isso produz; o lixo do nativo é a mesma leitura de tipo errado no nível da ABI. Script/JS funcionam porque são dinamicamente tipados (nenhuma assinatura erased para dar mismatch).
+
+**Caminho de correção (nomeado, NÃO pousado):** a substituição genérica que resolve o tipo de retorno de um membro num receptor parametrizado precisa recursar corretamente por argumentos de tipo aninhados — `Box<Box<Int>>.get()` devolve `Box<Int>`, e só o SEGUNDO `.get()` devolve `Int`. O bug está na substituição/erasure do argumento de tipo do receptor EXTERNO. Toca a maquinaria de tipos compartilhada (JVM + nativo + JS leem a mesma substituição), então tem de pousar com a bateria de genéricos como rede de regressão. Deixado ABERTO com o diagnóstico em vez de apressado: a substituição errada é mudança de código compartilhado e a face JVM é crash duro (alto, não silencioso) enquanto a nativa é valor errado silencioso.
+
+**Fronteira:** só argumentos de tipo genéricos aninhados. Genéricos de um e de múltiplos parâmetros num nível estão corretos nos seis alvos. Os alvos Script e JS estão corretos (dinamicamente tipados).
+
+<!-- en-switch --> **EN:** [§705 (en)](known-bugs.md#705--a-nested-generic-type-argument-boxboxint-breaks-the-outer-accessor-on-the-jvm-the-call-site-expects-int-boxget-and-crashes-with-nosuchmethoderror-on-native-it-reads-garbage--while-scriptjs-return-the-correct-value---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
