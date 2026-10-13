@@ -453,7 +453,7 @@
 
 # Changelog
 
-last: 0.6.3-published
+last: 0.6.4-cut
 doing: accumulating-0.7.0
 next: 0.7.0-cut
 location: CHANGELOG
