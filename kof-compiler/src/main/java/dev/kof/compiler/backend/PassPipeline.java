@@ -64,9 +64,11 @@ public final class PassPipeline {
     }
 
     /**
-     * The pipeline seeded with the ONLY existing pass that is reusable without
-     * editing {@link Optimizer} (constant folding). This is the extension point
-     * Phase B grows: register the new passes here as they land.
+     * The pipeline seeded with the existing reusable pass (constant folding) plus
+     * the Phase B passes as they land (currently: constant propagation). This is
+     * the extension point Phase B grows. Nothing in the production
+     * {@link Optimizer} calls this yet — behavior is unchanged until a caller
+     * opts in.
      */
     public static PassPipeline standard() {
         List<IrPass> ps = new ArrayList<>();
@@ -82,6 +84,7 @@ public final class PassPipeline {
                 return OptimizerConstantFold.constantFold(ops, positions);
             }
         });
+        ps.add(new ConstantPropagation());
         return new PassPipeline(ps);
     }
 }
