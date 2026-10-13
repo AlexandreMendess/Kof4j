@@ -17122,6 +17122,38 @@ The `break` became an EMPTY block, the `r += 1` that follows the `if` was absorb
 
 <!-- pt-switch --> **PT:** [§701 (pt_BR)](known-bugs.pt_BR.md#701--um-break-aninhado-num-if-dentro-de-um-case-de-switch-emite-js-errado-o-corpo-do-default-vaza-para-dentro-do-case-e-o-break-vira-um-bloco-vazio-swbreakinloop--js-32-vs-2-nos-outros-cinco-alvos---corrigido-1310-achado-e-corrigido-1310-pela-lane-compiladorjvmnativo-19216815309092)
 
+## §702 — a `try` NESTED inside a `try` whose inner try has a `finally` did NOT COMPILE on JS: an INTERNAL COMPILER ERROR (`COMP002: KofJS: unexpected KofCatchStart at statement level`) — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
+
+**Symptom (measured 13/10 through the COMPILER MODULE):**
+
+```kof
+Int nestedTryFinally() {
+    var r = 0
+    try {
+        try {
+            throw "inner"
+        } finally {
+            r += 1
+        }
+    } catch (String e) {
+        r += 10
+    }
+    return r
+}
+```
+
+compiled on JVM/Script/native x86-64/riscv64/aarch64 (all returning `11`) but on **JS the compiler itself crashed**: `COMP002: Internal compiler error: KofJS: unexpected KofCatchStart at statement level`. A nested try where the INNER try has a `finally` and the OUTER has a `catch` was uncompilable on JS — a compile-time crash, not a wrong value.
+
+**Root (traced by dumping the op stream at the parser):** in `JsTryParser`, after the inner try's `finally` body is parsed, the trailing-label consumption branch had NO `isTryEndLabel` guard. When the finally body ends via the "unmatched label" path, the `done` label is null, so that branch blindly consumed the NEXT label — which in a nested try/finally is the OUTER try's end label. Consuming it left the outer try without its boundary, so its `KofCatchStart` surfaced at statement level and the compiler threw. The SIBLING branch (`no-finally: the trailing empty label (done) ends the try`) already carried `!isLoopLabel && !isTryEndLabel` (§617 face B); this one did not.
+
+**Fix:** the branch now carries the same guard (`!ctx.isLoopLabel(...) && !ctx.isTryEndLabel(...)`) — one condition, matching its sibling. The endLabel of an enclosing try belongs to that try; a nested try must never consume it.
+
+**Proof (executed, RED-first):** the new `JsNestedTryFinallyE2ETest` **6 run / 0F**; with the parser change REVERTED **exactly 1 of its 6 faces FAILS** — `jsMatchesTheJvmOnNestedTry`, with the `COMP002` above — while the JVM-oracle, Script and the three native faces pass. The case covers the crashing shape (inner `finally` + outer `catch`), a nested `try`/`catch` without finally, a doubly-nested `finally`, a `return` from an inner `try` with two enclosing `finally`s, and a TRIPLE-nested try. The try/catch/throw/js/switch/flow battery **394 run / 0F / 0E (25 skipped)**, the broader js/native/cast/arith battery **1020 run / 0F / 0E (79 skipped)** and the golden suite **296 passed / 0 failed / 0 skipped** — zero regression.
+
+**Boundary:** the JS backend only. The other five targets are correct. This is the sibling of §617 face B (the same missing guard on the other branch of the same `if`).
+
+<!-- pt-switch --> **PT:** [§702 (pt_BR)](known-bugs.pt_BR.md#702--um-try-aninhado-num-try-cujo-try-interno-tem-um-finally-nao-compilava-no-js-um-erro-interno-do-compilador-comp002-kofjs-unexpected-kofcatchstart-at-statement-level---corrigido-1310-achado-1310-pela-lane-compiladorjvmnativo-19216815309092-corrigido-pela-mesma-lane)
+
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):** `var d = 0` then `try { println(10 / d) } catch (String e) { ... }` printed **`-1` on riscv64 and `0` on aarch64** and left the `catch` UNREACHED, where every other target printed `caught`. Same for `%` and for `Long` (`10L / 0L`). The failure is the worst kind: the program keeps running with a wrong value instead of failing loudly.

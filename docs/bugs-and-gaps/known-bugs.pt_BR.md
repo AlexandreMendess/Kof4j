@@ -14640,6 +14640,38 @@ O `break` virou um bloco VAZIO, o `r += 1` que segue o `if` foi absorvido como s
 
 <!-- en-switch --> **EN:** [§701 (en)](known-bugs.md#701--a-break-nested-inside-an-if-inside-a-switch-case-emits-wrong-js-the-default-body-leaks-into-the-case-and-the-break-becomes-an-empty-block-swbreakinloop--js-32-vs-2-on-the-other-five-targets---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
 
+## §702 — um `try` ANINHADO num `try` cujo try interno tem um `finally` NÃO COMPILAVA no JS: um ERRO INTERNO DO COMPILADOR (`COMP002: KofJS: unexpected KofCatchStart at statement level`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int nestedTryFinally() {
+    var r = 0
+    try {
+        try {
+            throw "inner"
+        } finally {
+            r += 1
+        }
+    } catch (String e) {
+        r += 10
+    }
+    return r
+}
+```
+
+compilava em JVM/Script/nativo x86-64/riscv64/aarch64 (todos devolvendo `11`) mas no **JS o próprio compilador crashava**: `COMP002: Internal compiler error: KofJS: unexpected KofCatchStart at statement level`. Um try aninhado onde o try INTERNO tem um `finally` e o EXTERNO tem um `catch` era incompilável no JS — um crash de compile-time, não um valor errado.
+
+**Raiz (rastreada dumpando o stream de ops no parser):** no `JsTryParser`, depois de parsear o corpo do `finally` do try interno, o ramo de consumo do label final NÃO tinha a guarda `isTryEndLabel`. Quando o corpo do finally termina pelo caminho "label não-casado", o label `done` fica null, então aquele ramo consumia CEGAMENTE o próximo label — que num try/finally aninhado é o label de fim do try EXTERNO. Consumi-lo deixava o try externo sem fronteira, então o `KofCatchStart` dele aparecia no nível de statement e o compilador estourava. O ramo IRMÃO (`no-finally: the trailing empty label (done) ends the try`) já tinha `!isLoopLabel && !isTryEndLabel` (§617 face B); este não.
+
+**Correção:** o ramo agora leva a mesma guarda (`!ctx.isLoopLabel(...) && !ctx.isTryEndLabel(...)`) — uma condição, igual ao irmão. O endLabel de um try envolvente pertence àquele try; um try aninhado nunca pode consumi-lo.
+
+**Prova (executada, RED-first):** o novo `JsNestedTryFinallyE2ETest` **6 run / 0F**; com a mudança do parser REVERTIDA **exatamente 1 das suas 6 faces FALHA** — `jsMatchesTheJvmOnNestedTry`, com o `COMP002` acima — enquanto as faces do oráculo JVM, do Script e as três nativas passam. O caso cobre a forma que crashava (finally interno + catch externo), um try/catch aninhado sem finally, um finally duplamente aninhado, um `return` de um try interno com dois finallys envolventes, e um try TRIPLO-aninhado. A bateria try/catch/throw/js/switch/flow **394 run / 0F / 0E (25 skipped)**, a bateria mais ampla js/nativo/cast/aritmética **1020 run / 0F / 0E (79 skipped)** e a suíte golden **296 passed / 0 failed / 0 skipped** — zero regressão.
+
+**Fronteira:** só o backend JS. Os outros cinco alvos estão corretos. É o irmão do §617 face B (a mesma guarda faltando no outro ramo do mesmo `if`).
+
+<!-- en-switch --> **EN:** [§702 (en)](known-bugs.md#702--a-try-nested-inside-a-try-whose-inner-try-has-a-finally-did-not-compile-on-js-an-internal-compiler-error-comp002-kofjs-unexpected-kofcatchstart-at-statement-level---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
