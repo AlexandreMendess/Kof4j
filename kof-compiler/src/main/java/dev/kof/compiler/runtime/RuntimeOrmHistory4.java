@@ -180,28 +180,33 @@ public final class RuntimeOrmHistory4 {
 
             # kof_ormh4_colstr(r12=stmt, esi=col) -> rax = KofString* | 0 (NULL)
             kof_ormh4_colstr:
+                # o col idx em r13d (CALLEE-saved — o column_type/text clobberam
+                # o esi/rsi pela C ABI; o bug do ciclo 72: o esi virava lixo)
                 pushq %r12
+                pushq %r13
                 movq %rdi, %r12
+                movl %esi, %r13d
                 movq %r12, %rdi
-                movl %esi, %esi
+                movl %r13d, %esi
                 call sqlite3_column_type
                 cmpl $5, %eax                # SQLITE_NULL → 0 (o host: null)
                 jne .Lormh4_cs1
                 xorl %eax, %eax
-                popq %r12
-                ret
+                jmp .Lormh4_csret
             .Lormh4_cs1:
                 movq %r12, %rdi
-                movl %esi, %esi
+                movl %r13d, %esi
                 call sqlite3_column_text
                 movq %rax, %rdi
                 call kof_io_strlen
                 movq %rax, %rsi
                 movq %r12, %rdi
-                movl %esi, %esi
+                movl %r13d, %esi
                 call sqlite3_column_text
                 movq %rax, %rdi
                 call kof_io_make_string
+            .Lormh4_csret:
+                popq %r13
                 popq %r12
                 ret
 
