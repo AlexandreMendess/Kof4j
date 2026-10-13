@@ -14584,6 +14584,20 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 <!-- en-switch --> **EN:** [§599 (EN)](known-bugs.md#599--native-processrunshellrunshellpipeline-children-inherited-the-parents-and-the-runtimes-file-descriptors-forkexecvp-never-closed-or-cloexec-ed-them-leaking-open-resourcesauthority-to-a-less-trusted-subprocess---fixed-0510-owner--19216815309093-lane-issuestooling-bugs-and-gaps-front-issue-762)
 
+## §697 — o `x as Char` NÃO mascarava para 16 bits em NENHUM alvo nativo: o emissor x86 não tinha braço para `I2C` (no-op silencioso) e o cross usava `sext.w` (sign-extend de 32 bits) — `(70000 as Char) as Int` → nativo `70000` vs JVM/Script `4464` (`70000 & 0xFFFF`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR — o jar do CLI está velho, ver a fronteira):** `var x = 70000` e então `println((x as Char) as Int)` imprimia **`4464` em JVM/Script** (`70000 & 0xFFFF`) e **`70000` no nativo x86-64, riscv64 E aarch64** — a máscara simplesmente não acontecia. O display de `println(x as Char)` divergia igual (`ᅰ` = U+1170 vs um caractere de substituição).
+
+**Raiz:** o emissor x86 (`NativeX86Arith.emitUnary`) NÃO tinha braço para `KofUnaryOp.I2C`, então o cast caía no `pushq` final — um NO-OP SILENCIOSO — e o emissor cross mapeava `I2C` para `sext.w`, que sign-extende de 32 bits e portanto também não mascara para 16. O JVM emite `i2c` e o interpretador aplica `(char)`; os dois mascaram. Mesma família do §695 (um `KofUnaryOp` com braço faltando ou errado no emissor é um no-op silencioso, não um erro).
+
+**Correção:** o x86 usa `movzwl %ax, %eax` (ZERO-extend de 16 bits — `Char` é sem sinal, então `movswl` estaria errado); o emissor cross usa o par de shifts LÓGICOS (`slli` + `srli` por 48 bits), que o tradutor aarch64 já cobre.
+
+**Prova (executada, RED-first):** o novo `NativeCharCastE2ETest` **5 run / 0F**; com as duas mudanças dos emissores REVERTIDAS **3 das suas 5 faces FALHAM** — `nativeX86MatchesTheJvmOnCharCasts`, `nativeRiscv64MatchesTheJvmOnCharCasts` e `nativeAarch64MatchesTheJvmOnCharCasts` — enquanto as faces do oráculo JVM e do Script passam (elas já mascaravam, que é o que faz do nativo o divergente). O caso pina `70000`, o display do `println` (U+1170), `65535`, `65536` → 0, `-1` → 65535, `-70000` → 61072, e uma ida-e-volta `65 as Char` que imprime `A`/`65`. A bateria char/cast/byte/short/nativo/aritmética/string **879 run / 2F / 0E (54 skipped)** — the 2 are the entity-history lane's OWN registered STOP (see the note).
+
+**Fronteira:** só o CAST. Também registrado: com o módulo `kof-cli` sem compilar (conflito REAL de um peer, ainda vivo às 07:23), o jar do CLI em `kof-cli/target/` é de 00:03 e PREDATA §692/§693-JS/§694/§695 — então todo probe via CLI está testando um compilador VELHO, e probes de mudanças do compilador têm de passar pelo `mvn test -pl kof-compiler`. Foi assim que este bug apareceu (e assim que um re-probe do §695 foi corretamente descartado como artefato de jar velho em vez de re-reportado).
+
+<!-- en-switch --> **EN:** [§697 (en)](known-bugs.md#697--x-as-char-did-not-mask-to-16-bits-on-any-native-target-the-x86-emitter-had-no-arm-for-i2c-a-silent-no-op-and-the-cross-one-used-sextw-a-32-bit-sign-extend--70000-as-char-as-int--native-70000-vs-jvmscript-4464-70000--0xffff---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+
 ## §696 — um LOCAL ou RETORNO `Byte`/`Short` guardando um valor FORA DE FAIXA é aceito LIMPO nos quatro alvos e então DIVERGE DE QUATRO JEITOS: o Script estreita (`var x: Byte = 200` → `-56`), nativo/JS mantêm o valor CRU (`200`), e o JVM CRASHA em runtime (`ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` dentro do `java.lang.Byte.valueOf`) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Sintoma (medido 13/10):** `main() { var x: Byte = 200\n println(x) }` passa no `kof check` com **nenhum erro** e então:

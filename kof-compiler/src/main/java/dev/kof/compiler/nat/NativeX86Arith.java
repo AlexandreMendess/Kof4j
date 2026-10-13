@@ -352,6 +352,15 @@ public final class NativeX86Arith {
             sb.append("    pushq %rax\n");
             return;
         }
+        // §697: `as Char` mascara para 16 bits (o JVM emite `i2c`). Este
+        // emissor NÃO tinha ramo para I2C — o cast caía no `pushq` final e o
+        // valor passava CRU: `(70000 as Char) as Int` dava 70000 aqui e 4464
+        // (70000 & 0xFFFF) em Script/JVM. ZERO-extend: o Char é sem sinal.
+        if (ku.op() == KofUnaryOp.I2C) {
+            sb.append("    movzwl %ax, %eax\n");
+            sb.append("    pushq %rax\n");
+            return;
+        }
         boolean int32u = NativeTypeKinds.isInt32Type(ku.operandType());
         String suf = int32u ? "l" : "q";
         String reg = int32u ? "%eax" : "%rax";
