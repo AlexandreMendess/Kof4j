@@ -352,22 +352,39 @@ import java.util.Set;
      * SÓ use onde o prólogo É emitido pelo chamador (o path do prologue no
      * struct) — em outro lugar o prólogo seria descartado em silêncio.
      */
-    static String condFromSuffix(java.util.List<BytecodeReader.Insn> blk, BytecodeFrame frame,
-                                 String[] cp, int arity, String inv) {
-        int max = Math.min(blk.size() - 1, 16);
-        for (int len = 1; len <= max; len++) {
-            java.util.List<BytecodeReader.Insn> suf =
-                    blk.subList(blk.size() - 1 - len, blk.size() - 1);
+    record TestSplit(String cond, int prologueLen) {}
+
+    /**
+     * Fase C (13/10): o SPLIT seguro do bloco de teste em
+     * (prólogo-statements, expressão-da-condição). O prólogo DEVE terminar
+     * num terminador de statement (store/pop) ou ser vazio — senão o sufixo
+     * seria um fragmento de expressão (o risco MEDIDO: `[ldc "(", at]`
+     * avalia mas reaproveita o `(` como receptor — código ERRADO). A
+     * expressão (sufixo) tem de avaliar para EXATAMENTE `arity` valores.
+     */
+    static TestSplit testSplit(java.util.List<BytecodeReader.Insn> blk, BytecodeFrame frame,
+                               String[] cp, int arity, String inv) {
+        int max = Math.min(blk.size() - 1, 24);
+        for (int len = arity; len <= max; len++) {
+            java.util.List<BytecodeReader.Insn> pre = blk.subList(0, blk.size() - 1 - len);
+            java.util.List<BytecodeReader.Insn> suf = blk.subList(blk.size() - 1 - len, blk.size() - 1);
+            if (!pre.isEmpty()) {
+                int lo = pre.get(pre.size() - 1).opcode();
+                boolean stmtEnd = (lo >= 0x36 && lo <= 0x4e) || lo == 0x57;
+                if (!stmtEnd) continue;
+            }
             java.util.Deque<String> st = new java.util.ArrayDeque<>();
             if (!evalInto(suf, frame, cp, st)) continue;
             if (st.size() != arity) continue;
+            String cond;
             if (arity == 1) {
+                cond = st.pop() + " " + inv;
+            } else {
+                String b = st.pop();
                 String a = st.pop();
-                return a + " " + inv;
+                cond = a + " " + inv + " " + b;
             }
-            String b = st.pop();
-            String a = st.pop();
-            return a + " " + inv + " " + b;
+            return new TestSplit(cond, blk.size() - 1 - len);
         }
         return null;
     }

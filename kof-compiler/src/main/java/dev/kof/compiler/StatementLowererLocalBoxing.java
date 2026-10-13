@@ -90,6 +90,9 @@ final class StatementLowererLocalBoxing {
                     varType = ift;
                 } else {
                     driver.emitWideningIfNeeded(ops, initT, varType);
+                    // §696: estreita o store num slot Byte/Short (o widening
+                    // acima é NO-OP para esses destinos)
+                    CompilerEmissionHelpers.emitStoreNarrow(driver, ops, initT, varType);
                 }
             }
         }

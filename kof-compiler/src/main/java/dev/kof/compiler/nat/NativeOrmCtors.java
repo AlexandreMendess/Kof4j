@@ -32,7 +32,6 @@ final class NativeOrmCtors {
         // antes ficavam colados ao rótulo de miss e o fall-through executava
         // bytes como instrução (quebrava com 2+ entidades). O miss de cada
         // entrada salta para a próxima; a última cai no retorno 0.
-        System.err.println("ORMCTORS-DEBUG: classNames=" + classNames);
         int emitted = 0;
         int total = 0;
         System.err.println("ORMCTORS-DEBUG: classNames=" + classNames

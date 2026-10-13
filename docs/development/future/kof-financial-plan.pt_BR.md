@@ -42,7 +42,7 @@ compliance, perfis de jurisdição.
 - `KofTime.java` — `time.now()` epoch millis; datas ISO.
 - `KofObservability.java` — ids de correlação/requisição (retentativas de
   webhook, reconciliação).
-- `docs/development/entity-history-plan.md` — auditoria temporal (PROMOVIDO 11/10, `D-FUTURE-UNFREEZE`), o
+- `docs/entity-history.md` — auditoria temporal (PROMOVIDO 11/10, `D-FUTURE-UNFREEZE`), o
   mesmo instinto append-only que a razão precisa; `audited entity` pode
   hospedar as linhas da razão.
 
