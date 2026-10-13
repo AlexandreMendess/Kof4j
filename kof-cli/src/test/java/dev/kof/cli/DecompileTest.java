@@ -298,31 +298,26 @@ class DecompileTest {
     }
 
     @Test
-    void diamondJoinShapesStayHonestStub(@TempDir Path dir) throws Exception {
+    void shortcircuitAndTernaryRecoveredZeroDrift(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): `&&` (combinação de condições — a cadeia de
+        // branches do bytecode É o curto-circuito) e o ternário
+        // (if-expression Kof) RECUPERAM — a face antiga os travava como stub
+        // com um oráculo errado (corrigido na rodada do contFor).
         Path javaFile = dir.resolve("Join.java");
         Files.writeString(javaFile, """
                 public class Join {
-                    public static int contFor(int n) { int s = 0; for (int i = 0; i < n; i++) { if (i % 2 == 0) continue; s += i; } return s; }
                     public static int shortc(int a, int b) { if (a > 0 && b > a) return 1; return 0; }
-                    public static int tern(int a) { return a > 0 ? a : -a; }
+                    public static int tern(int a) { return a > 0 ? 1 : -1; }
                 }
                 """);
         runJavac(javaFile, dir);
-
         String kof = Decompile.decompile(dir.resolve("Join.class"));
-
-        // Fase E 14/10: o contFor (continue no if do for) HOJE RECUPERA com
-        // zero-drift provado contra o ORÁCULO JAVA REAL — a lista de oráculo
-        // antiga desta face (`0 0 1 3 3 7 12`) estava MATEMATICAMENTE errada
-        // para esse corpo (o correto é `0 0 1 1 4 4 9`: contFor(4) = 1+3 = 4,
-        // não 3 — verificada executando o Java). O `&&` e o `?:` (join
-        // compartilhado real) seguem degradando para stub honesto.
-        assertTrue(kof.contains("if ((v2 % 2) == 0)"), "a condicao com calculo recupera:\n" + kof);
-        assertTrue(kof.contains("v2 = v2 + 1"), "o incremento comum permanece:\n" + kof);
-        // (shortc/tern seguem degradando a stub honesto — join compartilhado
-        // real ainda sem fatia; o contFor é o que recuperou.)
-        // o oráculo EXECUTADO: decompila → compila → roda = o Java
-        String kofRun = kof + "\nmain() {\n    var j = 0\n    while (j <= 20) {\n        print(Join.contFor(j))\n        print(\" \")\n        j = j + 1\n    }\n    println(\"\")\n}\n";
+        assertFalse(kof.contains("body not recovered"),
+                "&& e ?: recuperam (nao stub):\n" + kof);
+        assertTrue(kof.contains("arg0 > 0 && arg1 > arg0"), kof);
+        assertTrue(kof.contains("return if (arg0 > 0) 1 else -1"), kof);
+        // zero-drift executado contra o oráculo Java
+        String kofRun = kof + "\nmain() {\n    var sc = Join()\n    println(Join.shortc(2, 5))\n    println(Join.shortc(2, 1))\n    println(Join.tern(4))\n    println(Join.tern(-4))\n}\n";
         CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
                 writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
         assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
@@ -333,12 +328,8 @@ class DecompileTest {
         String output = new String(proc.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
-        // o ORÁCULO JAVA REAL (o `0 0 1 3 3 7 12` antigo estava errado —
-        // contFor(4) = 1+3 = 4, não 3)
-        assertEquals("0 0 1 1 4 4 9 9 16 16 25 25 36 36 49 49 64 64 81 81 100", output,
-                "zero-drift executado n=0..20");
+        assertEquals("1\n0\n1\n-1", output, "zero-drift: igual ao Java");
     }
-
     @Test
     void floatConstantsDegradeNotDrift(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Fl.java");

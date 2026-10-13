@@ -393,7 +393,13 @@ import java.util.Set;
         // mini-avaliador de pilha com conjunto FECHADO de opcodes (cada um
         // modelado exatamente; qualquer outro → null = stub honesto). No fim
         // a pilha tem EXATAMENTE os `arity` operandos em ordem.
-        return testExpr(block.subList(0, block.size() - 1), frame, arity, inv, cp);
+        java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        if (!evalInto(block.subList(0, block.size() - 1), frame, cp, st)) return null;
+        if (st.size() != arity) return null;
+        if (arity == 1) return st.pop() + " " + inv;   // ifne→`== 0` etc.
+        String b = st.pop();
+        String a = st.pop();
+        return a + " " + inv + " " + b;
     }
 
     /**
@@ -405,6 +411,34 @@ import java.util.Set;
     static String testExpr(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame,
                            int arity, String inv, String[] cp) {
         java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        if (!evalInto(seq, frame, cp, st)) return null;
+        if (st.size() != arity) return null;
+        if (arity == 1) return st.pop() + " " + inv;
+        String b = st.pop();
+        String a = st.pop();
+        return a + " " + inv + " " + b;
+    }
+
+    /**
+     * Fase C (13/10): avalia a EXPRESSÃO de um braço curto (os pushes antes
+     * do goto/xreturn) — o valor pendente que o join consome. O MESMO
+     * conjunto fechado do testExpr; exatamente 1 valor ou null.
+     */
+    static String stackValue(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame, String[] cp) {
+        java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        if (!evalInto(seq, frame, cp, st)) return null;
+        return st.size() == 1 ? st.pop() : null;
+    }
+
+    /**
+     * O avaliador de conjunto FECHADO compartilhado (testExpr/stackValue).
+     * loads, pushes de constante, `arraylength`, binárias + - * / %,
+     * chamadas (os MESMOS gates R6 do emitLinear: JDK-owner recusa; método
+     * em objeto novo recusa), getstatic/getfield, checkcast. Exato por
+     * construção; qualquer outro opcode → false.
+     */
+    static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame,
+                            String[] cp, java.util.Deque<String> st) {
         for (BytecodeReader.Insn in : seq) {
             int op = in.opcode();
             switch (op) {
@@ -419,12 +453,12 @@ import java.util.Set;
                 case 0x11 -> st.push(String.valueOf((short) in.operands()[0]));
                 case 0x12, 0x13 -> {
                     String c = BytecodeCp.ldc(cp, in.operands()[0]);
-                    if (c == null) return null;
+                    if (c == null) return false;
                     st.push(c);
                 }
                 case 0x14 -> {
                     String c = BytecodeCp.ldc2(cp, in.operands()[0]);
-                    if (c == null) return null;
+                    if (c == null) return false;
                     st.push(c);
                 }
                 case 0x1a, 0x1b, 0x1c, 0x1d -> st.push(slotName(op - 0x1a, frame));
@@ -434,11 +468,9 @@ import java.util.Set;
                 case 0x15, 0x19 -> st.push(slotName(in.operands()[0], frame));
                 case 0x16, 0x17, 0x18 -> st.push(slotName(in.operands()[0], frame));
                 case 0xbe -> {                                 // arraylength
-                    if (st.isEmpty()) return null;
+                    if (st.isEmpty()) return false;
                     st.push(st.pop() + ".length");
                 }
-                case 0x70 -> { if (!bin2(st, "%")) return null; }
-                case 0x60 -> { if (!bin2(st, "+")) return null; }
                 // binárias (+ %): ABERTAS desde 14/10 — o contFor do join do
                 // `continue` emite `if (cond) { } else { body }` + o
                 // incremento comum, e o ZERO-DRIFT foi provado contra o
@@ -446,37 +478,42 @@ import java.util.Set;
                 // antiga da face de guarda (`0 0 1 3 3 7 12`) estava
                 // matematicamente errada para esse corpo — foi ela, não o
                 // join, que fechava esta porta.
-                                // Fase C (13/10): CHAMADAS em condição (`s.isEmpty()`) — o
+                case 0x70 -> { if (!bin2(st, "%")) return false; }
+                case 0x60 -> { if (!bin2(st, "+")) return false; }
+                case 0x64 -> { if (!bin2(st, "-")) return false; }
+                case 0x68 -> { if (!bin2(st, "*")) return false; }
+                case 0x6c -> { if (!bin2(st, "/")) return false; }
+                // Fase C (13/10): CHAMADAS em condição (`s.isEmpty()`) — o
                 // MESMO gate R6 do emitLinear (JDK-owner recusa; método em
                 // objeto novo recusa; void em condição não existe).
                 case 0xb6, 0xb9 -> {                           // invokevirtual/interface
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (m == null) return null;
+                    if (m == null) return false;
                     String a = BytecodeCp.callArgs(st, BytecodeCp.argCount(m[2]));
-                    if (a == null || st.isEmpty()) return null;
+                    if (a == null || st.isEmpty()) return false;
                     String recv = st.pop();
                     String mapped = BytecodeStdlib.virtual(recv, m[0], m[1], a);
                     String NEW = new String(new char[]{'\u27e6', 'n', 'e', 'w', '\u27e7'});
-                    if (mapped == null && recv.startsWith(NEW)) return null;
+                    if (mapped == null && recv.startsWith(NEW)) return false;
                     st.push(mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")");
                 }
                 case 0xb8 -> {                                 // invokestatic
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (m == null) return null;
+                    if (m == null) return false;
                     String a = BytecodeCp.callArgs(st, BytecodeCp.argCount(m[2]));
-                    if (a == null) return null;
+                    if (a == null) return false;
                     String mapped = BytecodeStdlib.statics(m[0], m[1], a, m[2]);
-                    if (mapped == null && BytecodeCp.isJdkOwner(m[0])) return null;
+                    if (mapped == null && BytecodeCp.isJdkOwner(m[0])) return false;
                     st.push(mapped != null ? mapped : BytecodeCp.simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
                 }
                 case 0xb2 -> {                                 // getstatic
                     String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null) return null;
+                    if (f == null) return false;
                     st.push(BytecodeCp.simpleOwner(f[0]) + "." + f[1]);
                 }
                 case 0xb4 -> {                                 // getfield
                     String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null || st.isEmpty()) return null;
+                    if (f == null || st.isEmpty()) return false;
                     String obj = st.pop();
                     st.push(obj + "." + f[1]);
                 }
@@ -484,20 +521,16 @@ import java.util.Set;
                     String ct = BytecodeKofTypes.inlineKofType(cp, in.operands()[0]);
                     if (ct == null) {
                         ct = BytecodeKofTypes.indexKofType(cp, in.operands()[0], frame);
-                        if (ct == null) return null;
+                        if (ct == null) return false;
                     }
-                    if (st.isEmpty()) return null;
+                    if (st.isEmpty()) return false;
                     String v = st.pop();
                     st.push(ct.equals("Object") ? v : "(" + v + " as " + ct + ")");
                 }
-default -> { return null; }
+                default -> { return false; }
             }
         }
-        if (st.size() != arity) return null;
-        if (arity == 1) return st.pop() + " " + inv;   // ifne→`== 0` etc.
-        String b = st.pop();
-        String a = st.pop();
-        return a + " " + inv + " " + b;
+        return true;
     }
 
     private static boolean bin2(java.util.Deque<String> st, String op) {

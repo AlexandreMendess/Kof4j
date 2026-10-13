@@ -40,13 +40,23 @@ final class BytecodeStatements {
             if (tc != null) return tc;
         }
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
-        if (blocks.isEmpty()) return null;
+        if (blocks.isEmpty()) { refuse("cfg-empty"); return null; }
+        if (refusalSink != null) {
+            StringBuilder dbg = new StringBuilder();
+            for (BytecodeReader.Block b : blocks)
+                dbg.append("B@").append(b.start).append(" succ").append(b.succ)
+                   .append(" pred").append(b.pred).append("; ");
+            refusalSink.merge("CFG[" + dbg + "]", 1, Integer::sum);
+        }
         Map<Integer, BytecodeReader.Block> byStart = new HashMap<>();
         for (BytecodeReader.Block b : blocks) byStart.put(b.start, b);
         List<String> out = new ArrayList<>();
         Set<Integer> emitted = new HashSet<>();
         Set<Integer> declared = new HashSet<>();
         if (!struct(blocks.get(0), insns, byStart, cp, frame, out, emitted, declared, -1, new HashSet<>())) {
+            if (refusalSink != null) {
+                refusalSink.merge("struct-false | out-so-far: " + String.join(" | ", out), 1, Integer::sum);
+            }
             return null;
         }
         return out;
@@ -307,6 +317,58 @@ final class BytecodeStatements {
                 }
             }
             if (cond == null) { refuse("cond-null"); return false; }
+            // Fase C (13/10, short-circuit &&): o THEN-bloco é OUTRO teste
+            // cujo falso-alvo é o MESMO else → as condições combinam com
+            // `&&` (a avaliação em cadeia do bytecode É o curto-circuit do
+            // &&; os braços passam a ser os do teste interno).
+            if (!loop0) {
+                int guard = 0;
+                BytecodeReader.Block tb = byStart.get(thenStart);
+                while (guard < 4 && tb != null && !tb.succ.isEmpty()
+                        && tb.succ.get(0) == exitStart && !BytecodeReader.isLoopHeader(tb)) {
+                    List<BytecodeReader.Insn> tblk = BytecodeDecoder.insnsWithin(tb, insns);
+                    if (tblk.isEmpty() || !tblk.get(tblk.size() - 1).isCond()) break;
+                    String cond2 = BytecodeDecoder.blockCondition(tb, insns, frame, cp);
+                    if (cond2 == null) break;
+                    cond = cond + " && " + cond2;
+                    thenStart = tb.succ.get(1);
+                    tb = byStart.get(thenStart);
+                    guard++;
+                }
+            }
+            // Fase C (13/10, return-join ?:): o ELSE-bloco é [push, xreturn]
+            // e o THEN termina em goto→[xreturn] — cada braço deixa UM valor
+            // na pilha → if-expression Kof: `return if (cond) tVal else eVal`.
+            {
+                BytecodeReader.Block elseBlk = byStart.get(exitStart);
+                BytecodeReader.Block thenBlk = byStart.get(thenStart);
+                if (elseBlk != null && thenBlk != null && !elseBlk.succ.isEmpty()) {
+                    List<BytecodeReader.Insn> eIns = BytecodeDecoder.insnsWithin(elseBlk, insns);
+                    int joinAfterElse = elseBlk.succ.get(elseBlk.succ.size() - 1);
+                    BytecodeReader.Block joinBlk = byStart.get(joinAfterElse);
+                    // o else-bloco é SÓ o push (o xreturn é o bloco do join)
+                    boolean eShape = eIns.size() == 1;
+                    boolean tShape = thenBlk.succ.size() == 1 && thenBlk.succ.get(0) == joinAfterElse
+                            && joinBlk != null && joinBlk.succ.isEmpty();
+                    if (eShape && tShape) {
+                        List<BytecodeReader.Insn> tIns = BytecodeDecoder.insnsWithin(thenBlk, insns);
+                        List<BytecodeReader.Insn> jIns = BytecodeDecoder.insnsWithin(joinBlk, insns);
+                        if (tIns.size() >= 2 && tIns.get(tIns.size() - 1).opcode() == 0xa7
+                                && jIns.size() == 1 && jIns.get(0).opcode() >= 0xac
+                                && jIns.get(0).opcode() <= 0xb1) {
+                            String tVal = BytecodeDecoder.stackValue(
+                                    tIns.subList(0, tIns.size() - 1), frame, cp);
+                            String eVal = BytecodeDecoder.stackValue(eIns, frame, cp);
+                            if (tVal != null && eVal != null) {
+                                out.add("    return if (" + cond + ") " + tVal + " else " + eVal);
+                                emitted.add(exitStart);
+                                emitted.add(joinAfterElse);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
             boolean loop = loop0;
             if (loop) {
                 out.add("while (" + cond + ") {");

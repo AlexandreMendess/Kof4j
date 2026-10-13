@@ -517,8 +517,13 @@ public final class Decompile {
                     // pipeline); stub NUNCA é opção de design (Q7).
                     body = tryInlineInterfaceSuperCall(m, ir, classFile, frame);
                 }
-                if (body == null && m.code.exceptionHandlers != null) {
-                    int[][] handlers = new int[m.code.exceptionHandlers.size()][];
+                if (body == null) {
+                    // Fase C (13/10): o statements path roda para TODO corpo
+                    // não-recuperado por expressão — antes o gate
+                    // `exceptionHandlers != null` pulava métodos SEM try (o
+                    // javac nem emite o attribute sem handlers), e tern/&&
+                    // stubavam sem nunca chegar ao struct.
+                    int[][] handlers = new int[m.code.exceptionHandlers == null ? 0 : m.code.exceptionHandlers.size()][];
                     for (int i = 0; i < handlers.length; i++) {
                         var h = m.code.exceptionHandlers.get(i);
                         boolean isFinally = h.catchType == null || "INVALID".equals(h.catchType);
