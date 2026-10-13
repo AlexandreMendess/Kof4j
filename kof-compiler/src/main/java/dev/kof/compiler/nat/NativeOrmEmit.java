@@ -50,11 +50,9 @@ public final class NativeOrmEmit {
             // kof_orm_delete_recorded} — espelha o host JVM; o frame
             // alinhado 88 e o conn re-resolvido pós-DML).
             dev.kof.compiler.runtime.RuntimeOrmHistory2.emit(sb);
-            // Fase 5 fatia 5d-1: a consulta ascendente ({@code
-            // kof_orm_history} — a List<Revision> posicional).
-            // Fase 5 fatia 5d-1: a consulta ascendente ({@code
-            // kof_orm_history} — a List<Revision> posicional).
             if (backend.usesOrmHistory) {
+            // Fase 5 fatia 5d-1: a consulta ascendente ({@code
+            // kof_orm_history} — a List<Revision> posicional).
                 dev.kof.compiler.runtime.RuntimeOrmHistory4.emit(sb);
             }
             // Fase 5 fatia 5c: o SAVE gravando a revisão ({@code
