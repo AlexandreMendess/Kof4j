@@ -1664,6 +1664,25 @@ byte-a-byte em jvm/nativo/js (os quatro concordam), então congelado; `tests/run
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_known_bugs_status`/
 `check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/`check_golden_count` rc=0.
 
+**Fase 6 fatia 49 POUSADA (13/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais um
+caso — **74 no total** — pinando a superfície de VALOR do record, que não tinha golden nenhum: o
+caso `records` existente pina só o acesso a COMPONENTE e uma comparação por componente
+(`p.x() + p.y()`, `p.x() == 3`). O novo caso `tests/golden/record-values` pina a forma do
+`toString` de um record (`Ponto[x=1, y=2]`, e um segundo record com forma `String` + `Int`), o `==`
+do record inteiro nas DUAS direções (igual e diferente, mais uma comparação construída na hora),
+um record DENTRO de uma lista (a forma impressa, o tamanho e o `contains` acertando e errando), e
+um record como VALOR de Map (lido de volta, comparado e `containsKey`). Os dezoito valores
+impressos concordam byte-a-byte nos quatro alvos.
+**Por que o gap importava:** a semântica de valor do record é exatamente a superfície que um golden
+existe para proteger — o `==` num record é igualdade de CONTEÚDO (não identidade) nos quatro alvos,
+e a forma do `toString` é o contrato do qual o printer de contêiner compõe, então uma regressão ali
+mudaria em silêncio toda coleção de records impressa. Sondado nos quatro alvos ANTES de congelar
+(Script primeiro, depois jvm/nativo/js), conforme a regra de ouro do plano. Prova (executada):
+`tests/run-golden.sh` **296/296** (74 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:

@@ -1658,6 +1658,25 @@ compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs
 `check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
 `check_golden_count` rc=0.
 
+**Phase 6 slice 49 LANDED (13/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **74 total** — pinning the record's own VALUE surface, which had NO golden: the
+existing `records` case pins only the COMPONENT access and a component-wise comparison
+(`p.x() + p.y()`, `p.x() == 3`). The new case `tests/golden/record-values` pins the `toString`
+form of a record (`Ponto[x=1, y=2]`, and a second record with a `String` + `Int` shape), the
+whole-record `==` in BOTH directions (equal and unequal, plus a directly-constructed comparison),
+a record INSIDE a list (its printed form, the size, and `contains` hitting and missing), and a
+record as a Map VALUE (read back, compared, and `containsKey`). All eighteen printed values agree
+byte-for-byte on the four targets.
+**Why the gap mattered:** the record value semantics are exactly the surface a golden exists to
+protect — `==` on a record is content equality (not identity) on all four targets, and the
+`toString` form is the contract the container printer composes from, so a regression there would
+silently change every printed collection of records. Probed on the four targets BEFORE freezing
+(Script first, then jvm/native/js), per the plan's golden rule. Proof (executed):
+`tests/run-golden.sh` **296/296** (74 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am
+compile` rc=0; gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/
+`check_known_bugs_status`/`check_ledger_anchors`/`check_live_records`/`check_changelog_ledger`/
+`check_golden_count` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:
