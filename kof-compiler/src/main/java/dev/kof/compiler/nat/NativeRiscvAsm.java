@@ -22,6 +22,7 @@ public final class NativeRiscvAsm {
     private static String runtimeRt() {
         return new StringBuilder()
                 .append(NativeRiscvAsmRt0.RISCV_RUNTIME_ASM_0)
+                .append(NativeRiscvAsmCast.RISCV_CAST_ASM)
                 .append(NativeRiscvAsmRt1.RISCV_RUNTIME_ASM_1)
                 .toString();
     }

@@ -254,6 +254,7 @@ public final class NativeRuntime {
         NativeNetFrontPeer.emitNetPeer(sb);
         NativeNetFront.emitNetClose(sb);
         RuntimeMisc.emitInstanceof(sb);
+        RuntimeMisc.emitCastCheck(sb);
         RuntimeSecurityData.emit(sb);
         RuntimeSecurity1.emit(sb);
         RuntimeSecurity2.emit(sb);

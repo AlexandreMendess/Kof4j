@@ -216,20 +216,11 @@ public final class NativeRiscvCrossEmit {
             // inclusive — ver pushRiscv). O POP2 herdado do JVM (16) desbalanceava
             // a pilha; descartar 1 qword. aarch64 herda via tradutor.
             case KofPop2 _ -> sb.append("    addi sp, sp, 8\n");
-            case KofCheckCast _ -> { }
+            case KofCheckCast cc -> NativeCastGuard.emitRiscv(sb, nb, cc.type());
             case KofInstanceOf io -> {
-                int targetTypeId = 0;
-                if (BuiltinTypes.isString(io.type())) {
-                    targetTypeId = NativeRuntime.KOF_STRING_TYPE_ID;
-                } else if (io.type() instanceof Type.ClassType ct) {
-                    for (IRClass clazz : nb.allClassesMap.values()) {
-                        if (clazz.name().equals(ct.name()) || clazz.name().endsWith("/" + ct.name())
-                                || ct.name().endsWith("/" + clazz.name()) || ct.name().equals(nb.sanitizeName(clazz.name()))) {
-                            targetTypeId = clazz.typeId();
-                            break;
-                        }
-                    }
-                }
+                // §678: type id pelo NativeCastGuard (compartilhado com o cast
+                // ESTRITO — antes esta resolução era copiada aqui).
+                int targetTypeId = NativeCastGuard.typeId(nb, io.type());
                 sb.append("    pop a0\n");
                 sb.append("    li a1, ").append(targetTypeId).append("\n");
                 sb.append("    call kof_instanceof\n");
