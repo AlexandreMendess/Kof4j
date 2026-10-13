@@ -882,6 +882,27 @@ class DecompileTest {
                 "o decompile não pode CRASHAR (degrada para stub, nunca lança)");
     }
 
+    @Test
+    void abstractMethodEmitsSignatureNotStub(@TempDir Path dir) throws Exception {
+        // Fase E: método ABSTRATO não tem corpo NO BYTECODE — o throw-stub
+        // era mentira (não há informação perdida); emite a assinatura nua.
+        Path javaFile = dir.resolve("Sh.java");
+        Files.writeString(javaFile, """
+                public interface Sh {
+                    String shape(int kind);
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Sh.class"));
+        // O Kof NÃO tem métodos abstratos (a interface decompilada vira
+        // class): o corpo do abstrato é o throw-stub INÓCUO (nunca
+        // alcançável numa interface) — catalogado, nunca código real
+        // inventado; a assinatura fica EXACT.
+        assertTrue(kof.contains("shape"), kof);
+        assertTrue(kof.contains("body not recovered"),
+                "o abstrato degrada para o stub inócuo catalogado:\n" + kof);
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
