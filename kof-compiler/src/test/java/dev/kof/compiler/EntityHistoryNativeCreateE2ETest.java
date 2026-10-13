@@ -58,6 +58,42 @@ class EntityHistoryNativeCreateE2ETest {
     }
 
     @Test
+    void nativeDeleteRecordedRecordsTheRow() throws Exception {
+        assumeTrue(dev.kof.compiler.nat.NativeToolchainGate.present(),
+                "x86-64 toolchain (as/ld) ausente — pulando");
+        java.nio.file.Path dbgDir = Path.of("/tmp/histdbg-run");
+        java.nio.file.Files.createDirectories(dbgDir);
+        java.nio.file.Files.deleteIfExists(dbgDir.resolve("hist5b.db"));
+        String source = """
+                import kof.orm.history
+                audited entity User {
+                    id: Long generated
+                    name: String
+                }
+                main() {
+                    var db = db.connect("sqlite:%s/hist5b.db")
+                    orm.create<User>(db)
+                    orm.createHistory<User>(db)
+                    db.execute(db, "insert into user(id, name) values (7, 'Mel')")
+                    println(orm.delete<User>(db, 7))
+                    var rows = db.query(db, "select revision, operation from user_history order by revision")
+                    for (var r in rows) {
+                        println(r)
+                    }
+                    db.close(db)
+                }
+                """.formatted(dbgDir);
+        Path out = tmp.resolve("out-native5b");
+        CompilationResult r = driver.compile(
+                writeFile("Main5b.kf", source), out, Target.NATIVE);
+        assertTrue(r.success(), () -> "native compile: " + r.diagnostics().getDiagnostics());
+        String got = runNative(out.resolve("Default/Main"));
+        assertEquals("true\n{\"revision\":1,\"operation\":\"DELETE\"}",
+                got, "a revisão DELETE gravada pelo nativo (o snapshot é a chave; "
+                   + "o frame alinhado 88 = o conserto do segv)");
+    }
+
+    @Test
     void crossTargetsKeepTheHonestOrm001() throws Exception {
         String source = """
                 import kof.orm.history

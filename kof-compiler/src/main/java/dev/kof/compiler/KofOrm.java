@@ -141,7 +141,7 @@ public final class KofOrm {
      *  adiciona a sua — o resto segue ORM001 honesto (o cross mantém o
      *  contrato do ORM nativo inteiro: SQLite x86-64 only). */
     private static final java.util.Set<String> HISTORY_NATIVE =
-            java.util.Set.of("kof_orm_create_history");
+            java.util.Set.of("kof_orm_create_history", "kof_orm_delete_recorded");
 
     static boolean fnSupportedOn(Target target, String fn) {
         if (HISTORY_FACES.contains(fn)) {

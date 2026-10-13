@@ -41,7 +41,7 @@ public final class RuntimeOrmHistory2 {
                 pushq %r13
                 pushq %r14
                 pushq %r15
-                subq $80, %rsp
+                subq $88, %rsp
                 movq %rdi, (%rsp)
                 movq %rsi, 8(%rsp)
                 movq %rdx, 16(%rsp)
@@ -217,11 +217,11 @@ public final class RuntimeOrmHistory2 {
                 movq %r12, %rdi
                 call sqlite3_finalize
             .Lormh2_done:
-                movq 64(%rsp), %rax
-                testq %rax, %rax
-                sete %al
+                movq 64(%rsp), %rax           # o Bool do delete (1=ok) — SEM
+                                              # o sete do create (o slot guarda
+                                              # o BOOL, não o rc do exec)
                 movzbl %al, %eax
-                addq $80, %rsp
+                addq $88, %rsp
                 popq %r15
                 popq %r14
                 popq %r13
