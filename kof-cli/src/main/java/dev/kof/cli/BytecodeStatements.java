@@ -293,8 +293,13 @@ final class BytecodeStatements {
             if (!loop0) {
                 int guard = 0;
                 BytecodeReader.Block tb = byStart.get(thenStart);
-                while (guard < 4 && tb != null && !tb.succ.isEmpty()
+                while (guard < 4 && tb != null && tb.succ.size() == 2
                         && tb.succ.get(0) == exitStart && !BytecodeReader.isLoopHeader(tb)) {
+                    // succ.size() == 2 EXIGIDO: o && clássico tem then-de-teste
+                    // com DOIS sucessores (o falso-alvo compartilhado + a
+                    // queda); um teste com succ único (braços que caem no
+                    // mesmo join) NÃO combina — o get(1) crashava IOOBE
+                    // (medido no TranslateStatements real, 13/10).
                     List<BytecodeReader.Insn> tblk = BytecodeDecoder.insnsWithin(tb, insns);
                     if (tblk.isEmpty() || !tblk.get(tblk.size() - 1).isCond()) break;
                     String cond2 = BytecodeDecoder.blockCondition(tb, insns, frame, cp);

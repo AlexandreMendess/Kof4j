@@ -867,6 +867,21 @@ class DecompileTest {
         assertEquals("caught: boom-42", output, "zero-drift: a mensagem lançada e pega");
     }
 
+    @Test
+    void andCombinationNoCrashOnSucc1Then(@TempDir Path dir) throws Exception {
+        // Fase C (regressão 13/10): o loop de combinação && chamava
+        // succ.get(1) sem exigir succ.size() == 2 — um then-de-teste com
+        // succ ÚNICO (braços que caem no mesmo join) crashava IOOBE
+        // (medido no TranslateStatements REAL). Sem crash + rc=0.
+        Path real = Path.of("target/classes/dev/kof/cli/TranslateStatements.class");
+        if (!Files.exists(real)) {
+            real = Path.of("kof-cli/target/classes/dev/kof/cli/TranslateStatements.class");
+        }
+        final Path realF = real;
+        assertDoesNotThrow(() -> Decompile.decompile(realF),
+                "o decompile não pode CRASHAR (degrada para stub, nunca lança)");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
