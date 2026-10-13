@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §697
+last: §696
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -13415,12 +13415,7 @@ comando → 22/0F. Ocorrências em suíte completa: run 2 (com override de env) 
 run 3 (canônico, sem env) — os mesmos 12. O job dedicado `Native cross` da CI
 roda-os verdes (runner dedicado).
 
-**Caminho de correção (dona = lane native-cross):** limitar+repetir o exec do
-qemu nos harnesses (precedente §418 `hangingChildIsKilledByTheBoundedWait`) ou
-manter a classe como CI-only; deref NULL no guest sob pressão do escalonador é
-a hipótese — provar com `qemu-aarch64 -strace` antes de mexer no runtime.
-**Política de leitura:** um 139 nestas classes sob carga da suíte completa,
-verde em isolamento, é esta flake — nunca atribuí-la a uma lane não relacionada.
+**Correção (POUSADA 14/10 — a mantenedora decidiu o site: o STORE).** O lowering de atribuição/retorno agora aplica o MESMO estreitamento `I2B`/`I2S` que o CAST já fazia (§695), então `var x: Byte = 200` se comporta como `(200 as Byte)` nos quatro alvos. Novo helper `CompilerEmissionHelpers.emitStoreNarrow` (reusa `emitPrimNarrow`) chamado nos três sites de store: a DECLARAÇÃO de local (`StatementLowererLocalBoxing.emitLocalDeclaration`), a atribuição simples e COMPOSTA (`ExpressionAssignmentLowerer` — a composta carrega o cast implícito, JLS 15.26.2, e a aritmética promove Byte/Short a Int), e o RETURN (`ReturnValueLowerer`). Uma fonte mais larga (Long/Float/Double) converte para Int primeiro. Prova: `ByteShortStoreNarrowE2ETest` 2/2 (JVM+Script+JS numa face, nativo na outra) — 11 faces cobrindo os limites exatos (`127`/`128`, `-129`), fonte mais larga, reatribuição, return e a forma composta; RED-first medido desabilitando o helper in-place (o `ArrayIndexOutOfBoundsException: Index 328` exato do JVM volta). **Os dois sites que o ledger nomeou, resolvidos:** o STORE foi ESCOLHIDO — é o único que dá paridade real, porque os outros dois deixam a divergência de pé (só-boxing deixa o caminho unboxed cru; rejeitar em compile-time não cobre o caso runtime `var x: Byte = f()`, e contradiria o Script e o §695, que já estreitam). O resultado é a regra mais simples: `var x: Byte = 200` é idêntico a `(200 as Byte)`. Medido NÃO afetado: o store de ELEMENTO de `Byte[]` (`a[0] = 200` já estreitava no JVM e no Script via `bastore`) e o store de campo (records são imutáveis — `SEM038`, então não existe face de field-store).
 
 **Corrigido 12/10 (lane nativa/GC `192.168.15.117:0`): o símbolo do construtor agora ganha a tag de assinatura de parâmetros SOMENTE quando a classe tem de fato 2+ métodos `<init>` com a mesma contagem de parâmetros — o caso de construtor único mantém o símbolo cru `Classe_init_<aridade>`, então os símbolos de nenhum programa existente mudam (a regra de ouro do mangle). Os três sítios foram atualizados juntos: o lado da definição (`NativeSymbolMangling.fnSymbol`, as duas formas) e os dois call sites (`NativeOpHelpers.resolveCalleeName` para x86 e `NativeRiscvCrossOps` para riscv64/aarch64, que dividem o mangler). A tag é o descritor padrão `sigTag` (ex. `_I_I` vs `_String_I`), e o call site usa os tipos de parâmetro do overload RESOLVIDO (a mesma lista que o backend JVM usa para o descritor), então definição e chamada sempre concordam. **Prova (executada, RED-first):** novo `NativeConstructorOverloadE2ETest` — pre-fix, o repro do §671 falhou nas DUAS faces nativas com o erro exato do registro (`symbol 'A_init_2' is already defined`, x86 e cross riscv64); pós-fix **4/4**: JVM + Script + nativo x86-64 + cross riscv64/aarch64, byte-iguais ao oráculo JVM para os programas de dois construtores e de três vias (`Int,Int` / `String,Int` / `Bool,Int`); não-regressão: `ConstructorOverloadE2ETest` 2/2 existente, `ConstructorArgTypeTest` 6/6, `MemorySafetyE2ETest` 48/48, `KofGcE2ETest` 8/8, `NativeCrossWideArgsE2ETest` 3/3, `PrologueSlotInitTest` 2/2 (67/67 no total).
 
@@ -14632,7 +14627,7 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 <!-- en-switch --> **EN:** [§697 (en)](known-bugs.md#697--x-as-char-did-not-mask-to-16-bits-on-any-native-target-nor-on-js-the-x86-emitter-had-no-arm-for-i2c-a-silent-no-op-the-cross-one-used-sextw-a-32-bit-sign-extend-and-the-js-emitter-listed-i2c-among-the-identity-conversions--70000-as-char-as-int--70000-on-native-and-js-vs-jvmscript-4464-70000--0xffff---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
 
-## §696 — um LOCAL ou RETORNO `Byte`/`Short` guardando um valor FORA DE FAIXA é aceito LIMPO nos quatro alvos e então DIVERGE DE QUATRO JEITOS: o Script estreita (`var x: Byte = 200` → `-56`), nativo/JS mantêm o valor CRU (`200`), e o JVM CRASHA em runtime (`ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` dentro do `java.lang.Byte.valueOf`) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §696 — um LOCAL, ATRIBUIÇÃO ou RETORNO `Byte`/`Short` guardando um valor FORA DE FAIXA era aceito LIMPO nos quatro alvos e então DIVERGIA DE QUATRO JEITOS: o Script estreitava (`var x: Byte = 200` → `-56`), nativo/JS mantinham o valor CRU (`200`), e o JVM CRASHAVA em runtime (`ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` dentro do `java.lang.Byte.valueOf`) — ✅ CORRIGIDO 14/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido 14/10 pela lane `192.168.100.14:0`, flatt CLI — site decidido pela mantenedora: o STORE)
 
 **Sintoma (medido 13/10):** `main() { var x: Byte = 200\n println(x) }` passa no `kof check` com **nenhum erro** e então:
 - **JVM:** `Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` em `java.lang.Byte.valueOf(Byte.java:149)` — o `Byte.valueOf(byte)` do JDK cacheia `-128..127` e o emissor entrega o `200` CRU (328 = 200 + 128), então o ÍNDICE do cache sai de faixa e o processo morre com uma `ArrayIndexOutOfBoundsException` que não tem nada a ver com o código do usuário.
@@ -14647,7 +14642,7 @@ A mesma forma vale para `Short` (`var y: Short = 40000`: JVM `Index 328 out of b
 
 **Fronteira:** a face do CAST (`200 as Byte`) é o §695 e está CORRIGIDA nos quatro alvos. Esta entrada é só a face LOCAL/RETORNO. Medido em x86-64 para o nativo; as faces cross não foram construídas para esta sonda.
 
-<!-- en-switch --> **EN:** [§696 (en)](known-bugs.md#696--a-byteshort-local-or-return-holding-an-out-of-range-value-is-accepted-clean-on-all-four-targets-and-then-diverges-four-ways-the-script-narrows-var-x-byte--200---56-nativejs-keep-the-raw-value-200-and-the-jvm-crashes-at-runtime-arrayindexoutofboundsexception-index-328-out-of-bounds-for-length-256-inside-javalangbytevalueof---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§696 (en)](known-bugs.md#696--a-byteshort-local-assignment-or-return-holding-an-out-of-range-value-was-accepted-clean-on-all-four-targets-and-then-diverged-four-ways-the-script-narrowed-var-x-byte--200---56-nativejs-kept-the-raw-value-200-and-the-jvm-crashed-at-runtime-arrayindexoutofboundsexception-index-328-out-of-bounds-for-length-256-inside-javalangbytevalueof---fixed-1410-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-1410-by-lane-192168100140-flatt-cli--maintainer-decided-site-the-store)
 
 ## §695 — o `as Byte` / `as Short` NÃO estreitava nos alvos NATIVOS: os dois emissores nativos não tinham ramo para `I2B`/`I2S`, então o cast caía como NO-OP e o valor passava CRU (`200 as Byte` → nativo `200` vs Script/JVM/JS `-56`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
