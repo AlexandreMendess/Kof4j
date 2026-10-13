@@ -14703,6 +14703,43 @@ devolve `100` em JVM/Script/nativo x86-64/riscv64/aarch64 mas **`undefined` no J
 
 <!-- en-switch --> **EN:** [§703 (en)](known-bugs.md#703--a-return-inside-a-tryfinally-inside-a-loop-emits-wrong-js-on-the-js-backend-undefined-return-nested-in-an-if-or-invalid-js-syntaxerror-missing-catch-or-finally-after-try--referenceerror-_idx-is-not-defined-return-as-the-trys-last-statement---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
 
+## §704 — um LOOP cujo corpo termina incondicionalmente (`return`/`throw` como último statement executado) emite JS INVÁLIDO: o otimizador remove o back-edge do loop, a reconstrução do JS então remonta um `if` e DESCARTA o setup do loop, então o programa morre com `ReferenceError: _idx is not defined` — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int forReturn() {
+    for (var i in listOf(0, 1, 2)) {
+        return 100
+    }
+    return -1
+}
+```
+
+devolve `100` em JVM/Script/nativo x86-64/riscv64/aarch64 mas no JS o módulo gerado é INVÁLIDO: o runtime falha com `ReferenceError: _idx is not defined` (e `_coll` idem). A função emitida é um `if` SEM loop e SEM setup:
+
+```js
+function forReturn() {
+    let __kof_t0; let __kof_t1; let __kof_t2;
+    if ((_idx < kofListSize(_coll))) {   // _idx/_coll nunca atribuídos
+        let _forInVar = kofListGet(_coll, _idx);
+        return 100;
+    } else {
+        return -1;
+    }
+}
+```
+
+Um `while` com `return` incondicional, e um `for` cujo corpo lança, falham do mesmo jeito. É DISTINTO do §703 (que precisa de try/finally e um return CONDICIONAL): aqui não há `try` nenhum, e o return é incondicional.
+
+**Raiz (rastreada dumpando o IR):** o corpo `return 100` de um for-in é um terminador incondicional, então as ops de BACK-EDGE do loop (`idx++` depois `Jump(start)`) são genuinamente inalcançáveis — nada salta para elas. O passe de reachability do otimizador (que trata `KofReturn`/`KofThrow` como terminadores de região) portanto as REMOVE como código morto. Sem o back-edge o IR deixa de parecer um loop, e a reconstrução do JS — que identifica um loop pelo back-edge — remonta a forma residual `Label(start); cond; CJump(body, exit); body; exit` como um `if` simples, DESCARTANDO as ops de setup do loop que consumiu (a cadeia `kofListNew`/`kofListAdd` e os stores `_coll`/`_idx`) junto com o header `for-in` que não conseguiu formar.
+
+**Caminho de correção (nomeado, NÃO pousado):** a reconstrução de loop do JS precisa tratar um loop cujo corpo sempre termina — emitir o setup do loop + um construto de iteração única (ou manter o back-edge no IR para o loop seguir identificável). Dois sítios candidatos: (a) o otimizador para de apagar um back-edge que é o único marcador estrutural de um loop (mudança de IR compartilhada afetando todos os alvos), ou (b) a reconstrução do JS reconhece a forma for-in sem back-edge e emite o setup + uma iteração (só backend JS). (b) é mais estreito; ambos têm de pousar com a bateria loop/control-flow como rede de regressão. Deixado ABERTO com o diagnóstico em vez de apressado: é uma mudança de IR compartilhada / reconstrução estrutural, e a reconstrução do JS já produziu cinco bugs em quatro ciclos (§700–§703 + a família de casts).
+
+**Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Não é o mesmo que o §703 — aquele precisa de try/finally com return CONDICIONAL; este precisa só de um terminador incondicional como último statement do corpo do loop.
+
+<!-- en-switch --> **EN:** [§704 (en)](known-bugs.md#704--a-loop-whose-body-unconditionally-terminates-returnthrow-as-its-last-executed-statement-emits-invalid-js-the-optimizer-removes-the-loops-back-edge-the-js-reconstruction-then-rebuilds-an-if-and-drops-the-loop-setup-so-the-program-dies-with-referenceerror-_idx-is-not-defined---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
