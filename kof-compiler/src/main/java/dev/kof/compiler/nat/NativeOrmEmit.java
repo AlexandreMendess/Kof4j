@@ -122,8 +122,8 @@ public final class NativeOrmEmit {
                 dev.kof.compiler.runtime.RuntimeOrm8.emit(o8);
                 sb.append(o8.toString().replace("@@MAGIC@@",
                         dev.kof.compiler.runtime.RuntimeErasureBox.MAGIC));
-                NativeOrmCtors.emit(backend, sb, backend.ormCtorClasses);
             }
+            NativeOrmCtors.emit(backend, sb, backend.ormCtorClasses);
             StringBuilder o9 = new StringBuilder();
             dev.kof.compiler.runtime.RuntimeOrm9.emit(o9);
             sb.append(o9.toString().replace("@@MAGIC@@",
