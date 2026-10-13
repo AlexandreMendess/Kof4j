@@ -532,66 +532,10 @@ public final class MemberResolver {
         // o lowering (SEM031 sumiria). #686 cobre só sealed + Bool.
     }
 
-    /**
-     * SG-015 (#256): classe concreta que estende classe abstrata deve implementar
-     * todos os métodos abstratos herdados da cadeia de superclasses.
-     */
     static void checkAbstractClassImplementation(SemanticAnalyzer sa, ClassDeclarationNode cls) {
-        if (sa.diagnostics() == null || cls.modifiers().contains("abstract")) return;
-        String curSuper = cls.superClass();
-        java.util.Set<String> checkedMethods = new java.util.HashSet<>();
-        // #821: a cadeia de extends pode ser CIRCULAR (A extends A, ciclos de
-        // 2/3) — sem o visited o while acima gira para sempre (DoS, sem
-        // diagnóstico). O próprio ClassShapeChecks emite o SEM106; aqui a
-        // caminhada apenas TERMINA no primeiro revisitado.
-        java.util.Set<String> visitedSupers = new java.util.HashSet<>();
-        while (curSuper != null && !curSuper.isEmpty() && !"Object".equals(curSuper)) {
-            String simpleSuper = curSuper.contains("/") ? curSuper.substring(curSuper.lastIndexOf("/") + 1) : curSuper;
-            if (simpleSuper.contains("<")) simpleSuper = simpleSuper.substring(0, simpleSuper.indexOf("<"));
-            if (!visitedSupers.add(simpleSuper)) break;
-            SymbolTable.ClassSymbol superCs = sa.allClasses().get(simpleSuper);
-            if (superCs == null) break;
-            for (java.util.Map.Entry<String, SymbolTable.Symbol> e : superCs.members().localSymbols().entrySet()) {
-                if (!(e.getValue() instanceof SymbolTable.MethodSymbol am)) continue;
-                if ((am.accessFlags() & AccessFlags.ABSTRACT) == 0) continue;
-                // §242: a chave é a ASSINATURA (nome + tipos de parâmetro), não
-                // a aridade — duas sobrecargas de mesma aridade mas tipos
-                // diferentes são abstratos DISTINTOS. Sem isto, o dedup
-                // colapsava-as e um `Int run(Int)` podia "satisfazer"
-                // `abstract Int run(String)` (AbstractMethodError em runtime).
-                String methodKey = am.name() + TopLevelOverload.sigTag(am.parameterTypes());
-                if (!checkedMethods.add(methodKey)) continue;
-                SymbolTable.Symbol local = resolveInHierarchy(sa, cls.name(), am.name());
-                boolean implemented = false;
-                if (local instanceof SymbolTable.MethodSymbol lm) {
-                    implemented = satisfiesAbstract(lm, am);
-                } else if (local instanceof SymbolTable.MethodSet set) {
-                    for (SymbolTable.MethodSymbol lm : set.methods()) {
-                        if (satisfiesAbstract(lm, am)) {
-                            implemented = true;
-                            break;
-                        }
-                    }
-                }
-                if (!implemented) {
-                    sa.diagnostics().error(cls,
-                            "class '" + cls.name() + "' does not implement abstract method '"
-                                    + am.name() + "()' from superclass '" + superCs.name() + "'",
-                            "SEM043");
-                }
-            }
-            curSuper = superCs.superClass();
-        }
+        AbstractImplementationCheck.check(sa, cls);
     }
-
-    /**
-     * §242: um método concreto satisfaz um abstrato quando NÃO é abstrato e a
-     * assinatura casa — mesma aridade E mesmos tipos de parâmetro (o que a JVM
-     * exige para o override). Antes o check comparava só a ARIDADE: um
-     * `Int run(Int)` "satisfazia" `abstract Int run(String)` e o
-     * `AbstractMethodError` voltava em runtime.
-     */
-    private static boolean satisfiesAbstract(SymbolTable.MethodSymbol concrete,
+    static boolean satisfiesAbstract(SymbolTable.MethodSymbol concrete,
                                              SymbolTable.MethodSymbol abstractMethod) {
         if ((concrete.accessFlags() & AccessFlags.ABSTRACT) != 0) return false;
         if (concrete.parameterTypes().size() != abstractMethod.parameterTypes().size()) return false;

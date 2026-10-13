@@ -255,7 +255,7 @@ public final class ExpressionTyper {
                 // concrete classNames) is NOT equal, so the join yielded Object
                 // and the call site emitted a phantom invokestatic returning
                 // Object -> VerifyError on load. className-less == the interface.
-                Type unifiedFn = unifyLambdaBranches(thenType, elseType);
+                Type unifiedFn = ExpressionBranchJoin.unifyLambdaBranches(thenType, elseType);
                 if (unifiedFn != null) yield unifiedFn;
                 if (driver.semanticAnalyzer != null) {
                     // §284-map (18/09): ramo `null` literal obriga o join a
@@ -266,31 +266,31 @@ public final class ExpressionTyper {
                     var joined = HierarchyResolver.commonSupertype(driver.semanticAnalyzer, thenType, elseType);
                     yield HierarchyResolver.nullableIfNullBranch(joined, ie.thenExpr(), ie.elseExpr());
                 }
-                List<Type> bts = ifBranchTypes(driver, ie, locals);
-                if (branchTypesDiffer(bts)) {
+                List<Type> bts = ExpressionBranchJoin.ifBranchTypes(driver, ie, locals);
+                if (ExpressionBranchJoin.branchTypesDiffer(bts)) {
                     // #819: mesmo join por supertipo comum do switch-expr.
-                    Type sup = joinBranchSupertype(driver, bts);
+                    Type sup = ExpressionBranchJoin.joinBranchSupertype(driver, bts);
                     if (sup != null) yield sup;
                     yield new Type.ClassType("java.lang", "Object", List.of());
                 }
                 yield thenType;
             }            case SwitchExpr se -> {
                 if (!se.cases().isEmpty()) {
-                    List<Type> bts = switchBranchTypes(driver, se.cases(), se.defaultValue(),
+                    List<Type> bts = ExpressionBranchJoin.switchBranchTypes(driver, se.cases(), se.defaultValue(),
                             inferExprType(driver, se.cases().get(0).body(), locals), locals);
                     // JVM-03 twin: all branches lambdas of the same signature ->
                     // unify to the synthetic interface (never commonSupertype ->
                     // Object, which emitted a phantom Object-returning invoke).
-                    Type unifiedFn = unifyAllLambdaBranches(bts);
+                    Type unifiedFn = ExpressionBranchJoin.unifyAllLambdaBranches(bts);
                     if (unifiedFn != null) yield unifiedFn;
                     // #819: join real (o ramo IfExpr já fazia; o switch caía em Object → VerifyError).
                     Type sealedJoin = HierarchyResolver.joinBranchTypes(driver.semanticAnalyzer, bts);
                     if (sealedJoin != null) yield sealedJoin;
-                    if (branchTypesDiffer(bts)) {
+                    if (ExpressionBranchJoin.branchTypesDiffer(bts)) {
                         // #819: irmãos de uma hierarquia selada juntam no
                         // SUPERTIPO comum — Object tornava o `areturn`
                         // VerifyError (frame digitado Object p/ retorno Out).
-                        Type sup = joinBranchSupertype(driver, bts);
+                        Type sup = ExpressionBranchJoin.joinBranchSupertype(driver, bts);
                         if (sup != null) yield sup;
                         yield new Type.ClassType("java.lang", "Object", List.of());
                     }
@@ -378,98 +378,6 @@ public final class ExpressionTyper {
      * virava VerifyError. Reduz via HierarchyResolver.commonSupertype;
      * null = sem join melhor (o chamador mantém o Object legado).
      */
-    static Type joinBranchSupertype(CompilerDriver driver, List<Type> ts) {
-        if (ts.isEmpty()) return null;
-        Type acc = ts.get(0);
-        for (int i = 1; i < ts.size(); i++) {
-            Type next = ts.get(i);
-            if (!(acc instanceof Type.ClassType) || !(next instanceof Type.ClassType)) return null;
-            if (driver.semanticAnalyzer == null) return null;
-            Type joined = HierarchyResolver.commonSupertype(driver.semanticAnalyzer, acc, next);
-            if (!(joined instanceof Type.ClassType)) return null;
-            acc = joined;
-        }
-        return acc;
-    }
-
-    static boolean branchTypesDiffer(List<Type> ts) {
-        for (Type t : ts) if (!isConcreteBranchType(t)) return false;
-        return ts.stream().distinct().count() > 1;
-    }
-
-    /**
-     * JVM-03 (audit 0.6.0, §673): two lambda branches of the SAME signature
-     * (differing only in the concrete synthetic className) unify to the
-     * className-less interface, NOT commonSupertype -> Object. A Lambda0/
-     * Lambda1 pair is not equal, so the join yielded Object and the call site
-     * emitted a phantom {@code invokestatic} returning Object -> VerifyError.
-     * Gated OFF when the lambda's own return type is a FunctionType (the
-     * lambda-returns-lambda family needs the concrete class for its chained
-     * invoke, mirroring §672's gate). Returns null when the shape does not match.
-     */
-    static Type unifyLambdaBranches(Type a, Type b) {
-        if (a instanceof Type.FunctionType fa && b instanceof Type.FunctionType fb
-                && fa.className() != null && fb.className() != null
-                && !(fa.returnType() instanceof Type.FunctionType)
-                && fa.parameterTypes().equals(fb.parameterTypes())
-                && fa.returnType().equals(fb.returnType())) {
-            return new Type.FunctionType(fa.parameterTypes(), fa.returnType(), null);
-        }
-        return null;
-    }
-
-    /** Switch twin of {@link #unifyLambdaBranches}: every branch a same-signature lambda. */
-    static Type unifyAllLambdaBranches(List<Type> ts) {
-        if (ts.size() < 2) return null;
-        for (Type t : ts) if (!(t instanceof Type.FunctionType ft) || ft.className() == null) return null;
-        Type.FunctionType first = (Type.FunctionType) ts.get(0);
-        for (Type t : ts) {
-            Type.FunctionType ft = (Type.FunctionType) t;
-            if (!ft.parameterTypes().equals(first.parameterTypes())
-                    || !ft.returnType().equals(first.returnType())) return null;
-        }
-        return new Type.FunctionType(first.parameterTypes(), first.returnType(), null);
-    }
-
-    static boolean isConcreteBranchType(Type t) {
-        if (t instanceof Type.PrimitiveType pt) return !"void".equals(pt.name());
-        if (t instanceof Type.ClassType) return true;
-        if (t instanceof Type.ArrayType) return true;
-        if (t instanceof Type.NullableType nt) return isConcreteBranchType(nt.inner());
-        return false;
-    }
-
-    /** Tipos dos ramos do if (then, else) p/ `branchTypesDiffer`. */
-    static List<Type> ifBranchTypes(CompilerDriver driver, IfExpr ie,
-                                    List<IRLocalVariable> locals) {
-        return List.of(branchTypeOrNullAsRef(driver, ie.thenExpr(), locals),
-                branchTypeOrNullAsRef(driver, ie.elseExpr(), locals));
-    }
-
-    /** Tipos dos corpos do switch (+ default; sem default, o sintético tem o
-     *  tipo do switch — igual ao lowering, que emite `defaultValueOp`). */
-    static List<Type> switchBranchTypes(CompilerDriver driver, List<SwitchExprCase> cases,
-                                        ExpressionNode defaultValue, Type switchFallbackType,
-                                        List<IRLocalVariable> locals) {
-        var ts = new java.util.ArrayList<Type>();
-        for (SwitchExprCase c : cases) ts.add(branchTypeOrNullAsRef(driver, c.body(), locals));
-        ts.add(defaultValue != null ? branchTypeOrNullAsRef(driver, defaultValue, locals) : switchFallbackType);
-        return ts;
-    }
-
-    /**
-     * Tipo de um ramo p/ o predicado — com uma exceção honesta: literal
-     * `null` infere `UnknownType` (não-concreto → predicado desligaria), mas
-     * `null` é referência 1-word no JVM. Sem isso, `if (c) 1 else null`
-     * seguia VerifyError mesmo com o mecanismo pronto.
-     */
-    static Type branchTypeOrNullAsRef(CompilerDriver driver, ExpressionNode e,
-                                      List<IRLocalVariable> locals) {
-        if (e instanceof LiteralExpr lit && lit.kind() == ConcreteLiteralKind.NULL) {
-            return new Type.ClassType("java.lang", "Object", List.of());
-        }
-        return inferExprType(driver, e, locals);
-    }
 
     /**
      * true = a expressão já boxeou seus ramos primitivos in-branch (#57/§70)
@@ -479,11 +387,11 @@ public final class ExpressionTyper {
     static boolean boxesOwnBranches(CompilerDriver driver, ExpressionNode e,
                                     List<IRLocalVariable> locals) {
         if (e instanceof IfExpr ie && ie.elseExpr() != null)
-            return branchTypesDiffer(ifBranchTypes(driver, ie, locals));
+            return ExpressionBranchJoin.branchTypesDiffer(ExpressionBranchJoin.ifBranchTypes(driver, ie, locals));
         if (e instanceof SwitchExpr se)
             // §149: fallback sintético (sem default) tem o tipo do RESULTADO, não
             // o do subject — alinhado ao lowering (SwitchExprLowerer.emitSwitchExpr).
-            return branchTypesDiffer(switchBranchTypes(driver, se.cases(),
+            return ExpressionBranchJoin.branchTypesDiffer(ExpressionBranchJoin.switchBranchTypes(driver, se.cases(),
                     se.defaultValue(), inferExprType(driver, se, locals), locals));
         return false;
     }
