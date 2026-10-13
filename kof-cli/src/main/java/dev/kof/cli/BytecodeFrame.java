@@ -47,6 +47,15 @@ final class BytecodeFrame {
         }
     }
 
+    /**
+     * Fase G (inline de `A.super.m(args)`, 14/10): liga o slot do parâmetro do
+     * default à EXPRESSÃO do argumento no call site — o corpo recuperado sai
+     * com a expressão no lugar do nome.
+     */
+    void bindSlot(int slot, String expr) {
+        if (slot >= 0 && slot < names.length) names[slot] = expr;
+    }
+
     /** Nome do slot p/ load/store: parâmetro, {@code this}, ou local "v+n". */
     String name(int slot) {
         if (slot >= 0 && slot < names.length && names[slot] != null) return names[slot];

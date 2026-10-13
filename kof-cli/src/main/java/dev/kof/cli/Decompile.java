@@ -183,6 +183,42 @@ public final class Decompile {
      * cross-package) ou cai no simples (comportamento anterior).
      * Emissão nunca é null — no pior caso, igual a antes.
      */
+    /** Slot carregado por uma instrução de LOAD direta, ou null. */
+    private static Integer loadSlot(BytecodeReader.Insn in) {
+        int op = in.opcode();
+        if (op >= 0x1a && op <= 0x2d) return (op - 0x1a) % 4;      // xload_0..3
+        if (op >= 0x15 && op <= 0x19) return in.operands().length > 0 ? in.operands()[0] : null;
+        return null;
+    }
+
+    /** Descritores dos parâmetros (JVM type descriptors). */
+    private static List<String> paramTypes(String descriptor) {
+        List<String> out = new java.util.ArrayList<>();
+        int i = 1;
+        while (i < descriptor.length() && descriptor.charAt(i) != ')') {
+            char c = descriptor.charAt(i);
+            if (c == '[') {
+                int j = i;
+                while (descriptor.charAt(j) == '[') j++;
+                if (descriptor.charAt(j) == 'L') j = descriptor.indexOf(';', j);
+                out.add(descriptor.substring(i, j + 1));
+                i = j + 1;
+            } else if (c == 'L') {
+                int j = descriptor.indexOf(';', i);
+                out.add(descriptor.substring(i, j + 1));
+                i = j + 1;
+            } else {
+                out.add(String.valueOf(c));
+                i++;
+            }
+        }
+        return out;
+    }
+
+    private static boolean isWideType(String desc) {
+        return "J".equals(desc) || "D".equals(desc);
+    }
+
     /**
      * Fase G (diamond, mantenedora 14/10): o shape `return A.super.m();`
      * compila para `aload_0; invokespecial InterfaceMethodref A.m; xreturn`.
@@ -194,7 +230,8 @@ public final class Decompile {
      */
     private static String tryInlineInterfaceSuperCall(ClassFileParser.MethodInfo m,
                                                       ClassFileParser.ClassFile self,
-                                                      Path classFilePath) {
+                                                      Path classFilePath,
+                                                      BytecodeFrame curFrame) {
         if (m == null || m.code == null || classFilePath == null) return null;
         List<BytecodeReader.Insn> insns;
         try {
@@ -202,17 +239,27 @@ public final class Decompile {
         } catch (Exception e) {
             return null;
         }
-        if (insns.size() != 3) return null;
-        if (insns.get(0).opcode() != 0x2a) return null;            // aload_0
-        if (insns.get(1).opcode() != 0xb7) return null;            // invokespecial
-        int ret = insns.get(2).opcode();
+        if (insns.size() < 3) return null;
+        if (insns.get(0).opcode() != 0x2a) return null;            // aload_0 (receptor)
+        int invokeAt = insns.size() - 2;
+        if (insns.get(invokeAt).opcode() != 0xb7) return null;     // invokespecial
+        int ret = insns.get(invokeAt + 1).opcode();
         if (ret < 0xac || ret > 0xb1) return null;                 // xreturn
-        String[] ref = BytecodeCp.resolveMethodRef(self.constantPool, insns.get(1).operands()[0]);
+        String[] ref = BytecodeCp.resolveMethodRef(self.constantPool, insns.get(invokeAt).operands()[0]);
         if (ref == null) return null;
         // o owner NÃO pode ser a própria classe nem a super (esses shapes têm
         // tratamento próprio); invokespecial não-init restante = interface
         if (ref[0].equals(self.thisClass) || ref[0].equals(self.superClass)) return null;
-        if (BytecodeCp.argCount(ref[2]) != 0) return null;         // 1ª fatia: sem args
+        int argc = BytecodeCp.argCount(ref[2]);
+        if (insns.size() != argc + 3) return null;                 // aload_0 + N loads + invoke + return
+        // os N loads entre o receptor e o invoke são os ARGUMENTOS — só a
+        // forma de load direto de slot (local simples) é aceita
+        int[] argSlots = new int[argc];
+        for (int k = 0; k < argc; k++) {
+            Integer slot = loadSlot(insns.get(1 + k));
+            if (slot == null) return null;
+            argSlots[k] = slot;
+        }
         Path ownerFile = classFilePath.getParent() == null ? null
                 : classFilePath.getParent().resolve(ref[0].replace('/', java.io.File.separatorChar) + ".class");
         if (ownerFile == null || !java.nio.file.Files.exists(ownerFile)) return null;
@@ -223,6 +270,15 @@ public final class Decompile {
                 if (om.code == null) return null;
                 boolean omStatic = (om.accessFlags & 0x0008) != 0;
                 BytecodeFrame of = new BytecodeFrame(om.descriptor, omStatic);
+                // liga cada parâmetro do default à EXPRESSÃO do argumento no
+                // call site (resolvido no frame do método CORRENTE)
+                if (curFrame == null && argc > 0) return null;
+                int slot = omStatic ? 0 : 1;
+                List<String> ty = paramTypes(om.descriptor);
+                for (int i = 0; i < argSlots.length && i < ty.size(); i++) {
+                    of.bindSlot(slot, curFrame.name(argSlots[i]));
+                    slot += isWideType(ty.get(i)) ? 2 : 1;
+                }
                 // o corpo do default é recuperado pelo MESMO pipeline
                 return BytecodeDecoder.recoverExpression(om.code.bytecode, owner.constantPool, of);
             }
@@ -352,7 +408,7 @@ public final class Decompile {
                     // default `A.super.m()` — o corpo do default da interface é
                     // INLINADO (lido do classfile irmão e recuperado pelo MESMO
                     // pipeline); stub NUNCA é opção de design (Q7).
-                    body = tryInlineInterfaceSuperCall(m, ir, classFile);
+                    body = tryInlineInterfaceSuperCall(m, ir, classFile, frame);
                 }
                 if (body == null && m.code.exceptionHandlers != null) {
                     int[][] handlers = new int[m.code.exceptionHandlers.size()][];

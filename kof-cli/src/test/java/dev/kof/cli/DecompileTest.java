@@ -658,12 +658,14 @@ class DecompileTest {
         Files.writeString(a, """
                 public interface A {
                     default int m() { return 1; }
+                    default int twice(int x) { return x * 2; }
                 }
                 """);
         Path c = dir.resolve("C.java");
         Files.writeString(c, """
                 public class C implements A {
                     public int viaInterface() { return A.super.m(); }
+                    public int viaArgs(int x) { return A.super.twice(x); }
                 }
                 """);
         runJavac(java.util.List.of(a, c), src);
@@ -672,6 +674,8 @@ class DecompileTest {
         String cSrc = Files.readString(out.resolve("C.kf"));
         assertTrue(cSrc.contains("viaInterface() = 1"),
                 "o default deve ser INLINADO (valor do corpo de A.m()):\n" + cSrc);
+        assertTrue(cSrc.contains("viaArgs(Int arg0) = (arg0 * 2)"),
+                "o default COM argumento deve ser INLINADO ligando o arg:\n" + cSrc);
         assertFalse(cSrc.contains("body not recovered"),
                 "nenhum stub no arquivo:\n" + cSrc);
         CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
