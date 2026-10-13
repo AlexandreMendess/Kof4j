@@ -11,8 +11,8 @@
 **Principle:** prefer optimizing before the ISA-specific assembly whenever possible; specialize to the backend only when the architecture requires it.
 
 last: promoted 13/10 (`D-FUTURE-PROMOTION`; the only `future/` plan whose gate `D-ASSEMBLY-OPT-GO` is already decided, no new syntax, additive compiler-internal)
-doing: Phase A COMPLETE 13/10 + Phase B slices 1–2 (constant propagation `ConstantPropagation.java` + copy propagation `CopyPropagation.java`, both `IrPass` registered in `PassPipeline.standard()`, additive — not wired into the production `Optimizer` yet) — Phase A landed all six §21 items: `ControlFlowGraph.java` (blocks + successor edges), `EffectAnalysis.java` (effect + local def/use), `VirtualRegisters.java` ((slot,type) numbering), `PassPipeline.java` + `IrPass.java` (ordered, fixpoint, deterministic). ADDITIVE — the linear `Optimizer.java` is untouched, zero behavior change
-next: Phase B continues — dead-code elimination, basic-block simplification (constant folding + unreachable-code already exist in the linear `Optimizer`); each with a measurable instruction reduction on fixtures
+doing: Phase A COMPLETE 13/10 + Phase B slices 1–3 (constant propagation + copy propagation + dead store elimination, all `IrPass` registered in `PassPipeline.standard()`, additive — not wired into the production `Optimizer` yet) — Phase A landed all six §21 items: `ControlFlowGraph.java` (blocks + successor edges), `EffectAnalysis.java` (effect + local def/use), `VirtualRegisters.java` ((slot,type) numbering), `PassPipeline.java` + `IrPass.java` (ordered, fixpoint, deterministic). ADDITIVE — the linear `Optimizer.java` is untouched, zero behavior change
+next: Phase B continues — basic-block simplification (constant folding + unreachable-code + jump-to-next already exist in the linear `Optimizer`) (constant folding + unreachable-code already exist in the linear `Optimizer`); each with a measurable instruction reduction on fixtures
 state: active
 owner: `192.168.15.130:9093` (lane docs/lab)
 
