@@ -17061,6 +17061,30 @@ absent failures are identical pre/post (environmental).
 
 <!-- pt-switch --> **PT:** [§599 (pt_BR)](known-bugs.pt_BR.md#599--filhos-native-de-processrunshellrunshellpipeline-herdavam-os-file-descriptors-do-pai-e-do-runtime-forkexecvp-nunca-os-fechava-nem-marcava-cloexec-vazando-recursosautoridade-para-um-subprocesso-menos-confiavel---corrigido-0510-dona--19216815309093-lane-issuestooling-frente-bugs-and-gaps-issue-762)
 
+## §693 — INTEGER DIVISION BY A RUNTIME ZERO diverges three ways: the JVM/Script THROW `ArithmeticException` (catchable), the JS target computes a SILENT `0` for `Int` (and a raw host `RangeError` for `Long`), and the NATIVE targets die with a hardware `SIGFPE` (rc=136) that Kof's own `try`/`catch` does NOT catch — 🟡 OPEN (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 13/10, on the committed jar).** With a RUNTIME divisor (so the compile-time `ARITH001` guard does not fire):
+```kof
+zero(): Int { return 0 }
+var a = 10 / zero()
+```
+- **JVM:** `java.lang.ArithmeticException: / by zero` — and a `try { … } catch (String e)` RECOVERS (measured: the catch body ran, printing `-1`).
+- **Script:** the same throw, same recovery (`-1`).
+- **JS:** prints `0` and CONTINUES — no throw, no diagnostic. The `try`/`catch` version also prints `0`, i.e. nothing was raised: a SILENT WRONG VALUE (R6), not a failure.
+- **Native (x86-64):** the process dies with `SIGFPE` (rc=136) printing NOTHING, and the Kof `try`/`catch` does **not** save it — the hardware trap is not a Kof throwable.
+
+The `Long` width was probed too and is divergent in its own way: Script and JVM throw as above, the JS target surfaces a raw host `RangeError` from the `BigInt` division (a host error, not the Kof throw shape), and native dies the same `SIGFPE` (rc=136). Whether that JS `RangeError` is recoverable by a Kof `catch` was NOT measured — recorded as unknown, not assumed.
+
+**Why this is a bug and not the documented "expected" behaviour:** the ledger's own parity table already records this exact scenario — `10 / 0` (variables) → "`ArithmeticException` runtime, ARITH001 only catches constants". So the CONTRACT is throw-and-catch, JVM/Script are the reference, and the JS and native faces are the divergent ones. Two of the four targets are wrong, in two different directions, one of them a wrong value and the other a process death.
+
+**Root (read from the emitters):** the guard only exists for a CONSTANT zero (`ARITH001`, compile-time). At runtime the native x86 emitter emits a bare `cdq` + `idivl %ecx` (`NativeX86Arith`, and `cqo` + `idivq %rcx` for the 64-bit width; the cross emitter's `div` is the same shape in `NativeRiscvCrossOps`) — `idiv`/`div` TRAP on a zero divisor, and the trap is a signal, not the Kof exception chain. On JS the Int `/` is the host's IEEE division, so `10 / 0` is `Infinity`, and storing that into an `Int` slot yields `0`.
+
+**Fix path (named, NOT landed — it spans two backends and needs its own cycle with full proof):** (1) **JS** — `JsOperatorEmitter`'s DIV/MOD for `Int` must guard a zero divisor and raise through the SAME machinery `throw "msg"` uses, so it is catchable like the JVM; the `Long` face should route its `BigInt` division through the same guard instead of letting the host `RangeError` escape. (2) **Native** — a runtime zero check BEFORE the division, calling the existing `kof_throw_string` path so the failure becomes a catchable Kof throw instead of a signal; a signal handler was considered and rejected as the riskier route. Both faces want a RED-first E2E per width (Int and Long) comparing the four targets against the JVM oracle, and the constant case must keep its `ARITH001`.
+
+**Boundary:** the runtime divisor only (the constant case is already `ARITH001` and was not touched). Measured on x86-64; the cross targets (riscv64/aarch64) were NOT built for this probe — their `div` is the same instruction family, so the same trap is EXPECTED there, but that is an inference and is recorded as such rather than as a measurement.
+
+<!-- pt-switch --> **PT:** [§693 (pt_BR)](known-bugs.pt_BR.md#693--divisao-inteira-por-um-zero-de-runtime-diverge-de-tres-jeitos-o-jvmscript-lancam-arithmeticexception-capturavel-o-alvo-js-calcula-um-0-silencioso-para-int-e-um-rangeerror-cru-do-host-para-long-e-os-alvos-nativos-morrem-com-sigfpe-de-hardware-rc136-que-o-proprio-trycatch-do-kof-nao-captura---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
+
 ## §692 — an UNKNOWN FIELD on a collection or on `String` compiles CLEAN on all four targets and the Script prints a DEBUG STRING instead of failing (`m.keys` without parentheses → `ClassType[packageName=kof, name=Map, ...].keys`) — ✅ FIXED 13/10 (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10, on the committed jar):** `var m = mapOf("a", 1)` then `println(m.keys)` — the METHOD spelled without parentheses — compiles with NO diagnostic on jvm/native/js/script and the **Script prints a debug string**: `ClassType[packageName=kof, name=Map, typeArguments=[ClassType[packageName=java.lang, name=String, ...], PrimitiveType[name=int, sort=10]]].keys`. The same shape holds for `listOf(1, 2).bogus` and `setOf(1, 2).bogus` and for `"abc".bogus`. A reader would expect a field error; what they get is a WRONG VALUE (R6), and on the three compiling backends the emitted `getfield` only fails later, at class load.
