@@ -855,7 +855,7 @@ document is `entity-history-plan.md`. "Revision", "audit record" and
   `interop.schema(R)` compile-time, no runtime reflection.
 - `docs/stdlib/observability.md:134` — the only "future audit logging" mention.
 - Related plans: `docs/stdlib/pagination-plan` (windowing),
-  `docs/development/memory-safety-plan.md`, `docs/stdlib/db-parity-plan.md`,
+  `docs/memory-safety-plan.md`, `docs/stdlib/db-parity-plan.md`,
   `docs/stdlib/DATABASE_VISION.md`, `DECISIONS.md` §`D-DB-GAPS`.
 
 **No implementation was performed.** This document is the entire change.

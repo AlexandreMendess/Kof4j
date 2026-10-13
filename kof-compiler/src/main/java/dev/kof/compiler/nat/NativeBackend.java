@@ -313,11 +313,6 @@ public class NativeBackend implements Backend {
         }
         sb.append("\n.section .text\n");
         int rtStart = sb.length();
-        sb.append(NativeRuntime.generateRuntimeAssembly());
-        int rtEnd = sb.length();
-        RuntimeMemory.emitInitObject(sb);
-        // kof.db on the native target: link the DB client library directly
-        // (no JDBC driver) — the same direct-.so pattern as kof-webview.
         for (IRClass clazz : module.classes()) {
             for (IRMethod method : clazz.methods()) {
                 for (IRBasicBlock block : method.basicBlocks()) {
@@ -345,7 +340,7 @@ public class NativeBackend implements Backend {
                         }
                         if (op instanceof KofCall kc && kc.methodName().startsWith("kof_orm_")) {
                             usesOrm = true;
-                            if (kc.methodName().equals("kof_orm_history")) {
+                            if (kc.methodName().startsWith("kof_orm_history")) {
                                 usesOrmHistory = true;
                             }
                             if ((kc.methodName().equals("kof_orm_find")
@@ -359,7 +354,11 @@ public class NativeBackend implements Backend {
                                     || (kc.methodName().equals("kof_orm_where_op")
                                         && kc.parameterTypes().size() == 7)
                                     || (kc.methodName().equals("kof_orm_history")
-                                        && kc.parameterTypes().size() == 5)) {
+                                        && kc.parameterTypes().size() == 5)
+                                    || (kc.methodName().equals("kof_orm_history_page")
+                                        && kc.parameterTypes().size() == 7)
+                                    || (kc.methodName().equals("kof_orm_history_one")
+                                        && kc.parameterTypes().size() == 6)) {
                                 // 5º arg = className literal (KofLoadLiteral STRING
                                 // emitido logo antes do call pelo lowering ORM)
                                 for (int j = i - 1; j >= i - 2 && j >= 0; j--) {
@@ -385,6 +384,12 @@ public class NativeBackend implements Backend {
                 }
             }
         }
+        sb.append(NativeRuntime.generateRuntimeAssembly());
+        int rtEnd = sb.length();
+        RuntimeMemory.emitInitObject(sb);
+        // kof.db on the native target: link the DB client library directly
+        // (no JDBC driver) — the same direct-.so pattern as kof-webview.
+        
         NativeOrmEmit.emitRuntimeSlices(this, sb);
 
         if (usesHttp) {
