@@ -728,6 +728,37 @@ class DecompileTest {
     }
 
     @Test
+    void primitiveArrayBuildRecoveredNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E: `newarray` (0xbc) faltava — arrays primitivos (`int[]`)
+        // stubavam o metodo inteiro. Agora `new int[n]` + xastore recuperam.
+        Path javaFile = dir.resolve("Arr.java");
+        Files.writeString(javaFile, """
+                public class Arr {
+                    int[] build(int n) {
+                        int[] a = new int[n];
+                        for (int i = 0; i < n; i++) { a[i] = i; }
+                        return a;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Arr.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "arrays primitivos devem recuperar (nao stub):\n" + kof);
+        assertTrue(kof.contains("new Int[arg0]"), "newarray → new Int[n]:\n" + kof);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kof)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "o Kof dos arrays deve compilar (zero drift):\n" + kof
+                + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    private Path writeKof(Path dir, String kof) throws Exception {
+        Path f = dir.resolve("Arr.kf");
+        Files.writeString(f, kof);
+        return f;
+    }
+
+    @Test
     void decompileTreeRefusesAmbiguousSimpleNames(@TempDir Path dir) throws Exception {
         // Recusa R6: simples duplicado em 2+ pacotes do índice nunca ganha
         // import (ambíguo) → stub honesto, mesmo com o pacote atual tendo um.

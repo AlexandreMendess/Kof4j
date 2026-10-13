@@ -114,6 +114,14 @@ final class BytecodeKofTypes {
                 stmts.add(arr + "[" + idx + "] = " + v);
                 return true;
             }
+            case 0xbc -> { // newarray → `new Int[n]` (arrays PRIMITIVOS; JVMS 6.5)
+                if (stack.isEmpty()) return false;
+                String elem = primitiveArrayType(in.operands()[0]);
+                if (elem == null) return false;
+                String n = stack.pop();
+                stack.push("new " + elem + "[" + n + "]");
+                return true;
+            }
             case 0xbe -> { // arraylength → `a.length` (Kof idiomático)
                 if (stack.isEmpty()) return false;
                 stack.push(stack.pop() + ".length");
@@ -189,6 +197,21 @@ final class BytecodeKofTypes {
      * (`new Int[n]` é `int[]`, semântica distinta) → recusar; arrays e
      * malformados caem no regex do índice.
      */
+    /** JVMS 6.5 newarray atype → tipo Kof do elemento, ou null. */
+    static String primitiveArrayType(int atype) {
+        return switch (atype) {
+            case 4 -> "Bool";
+            case 5 -> "Char";
+            case 6 -> "Float";
+            case 7 -> "Double";
+            case 8 -> "Byte";
+            case 9 -> "Short";
+            case 10 -> "Int";
+            case 11 -> "Long";
+            default -> null;
+        };
+    }
+
     static String arrayElementType(String[] cp, int classIdx, BytecodeFrame frame) {
         String n = BytecodeCp.resolveClassName(cp, classIdx);
         if (n == null) return null;
