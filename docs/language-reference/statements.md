@@ -113,17 +113,21 @@ are optional.
 for-in = "for" , "(" , ( "var" | "val" ) , identifier , "in" , expression , ")" , statement
 `
 
-- Iterates over `List<T>` (internal index `#coll`/`#idx`) or an array
-  (`StatementLowerer.java:259-310`). **No custom iterator.**
+- Iterates over `List<T>` (internal index `#coll`/`#idx`), an array, or a
+  `String` (`StatementLowerer.java`). **No custom iterator.**
 - **`in` is a contextual word** (not a keyword) — only valid here.
-- The variable type is `typeArguments.get(0)` of the List or the array component.
-- **`for (var c in "ab")` does NOT iterate over a string** — the `string`
-  receiver is not a collection. Since 14/09 it is **rejected at compile time
-  with `SEM058`** on all 5 targets (previously it was silently accepted and
-  broke differently per target — JVM `VerifyError` `arraylength` on String,
-  Native SIGSEGV, Script "Argument is not an array", JS iterated chars). Use
-  `s.charAt(i)` in a numeric loop. The same applies to `Map`/`Set`/primitives/
-  record/class receivers (only `List<T>` and arrays are iterable).
+- The variable type is `typeArguments.get(0)` of the List, the array component,
+  or **`Char` for a `String`** (the `charAt` unit — UTF-16 code unit, the same
+  unit as `charAt`/`indexOf`).
+- **`for (var c in "ab")` iterates the string's chars** (LANGUAGE EVOLUTION,
+  maintainer directive 13/10 — "liberado evoluir a lang"): the lowering takes
+  the SAME index-desugar the List/array branch uses, through the standard
+  `length`/`charAt` instance calls (all targets; the JS backend already
+  iterated chars — that natural behavior became the contract). History: the
+  face was silently accepted and broke per target (bug 145), then rejected
+  with `SEM058` (14/09) until the real implementation landed.
+  **`Map`/`Set`/primitives/record/class receivers still reject with `SEM058`**
+  (only `List<T>`, arrays and `String` are iterable).
 
 ### 5.5 `break` / `continue`
 

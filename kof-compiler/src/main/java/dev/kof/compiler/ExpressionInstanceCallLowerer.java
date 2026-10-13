@@ -500,7 +500,9 @@ public final class ExpressionInstanceCallLowerer {
                     for (String d : extSig.parameterDescriptors()) {
                         formal.add(ExternalClasspath.typeFromDescriptor(d));
                     }
-                    methodParamTypes = formal;
+                    // §686: o alvo nativo recupera o tipo Kof que a
+                    // assinatura JDK apagou (ver NativeValueOfArgs).
+                    methodParamTypes = NativeValueOfArgs.recover(driver, mc, formal, locals);
                 } else if ("valueOf".equals(mc.methodName()) && methodParamTypes.size() == 1
                         && methodParamTypes.get(0) instanceof Type.PrimitiveType) {
                     // valueOf(I) direto do JDK — sem boxing duplo

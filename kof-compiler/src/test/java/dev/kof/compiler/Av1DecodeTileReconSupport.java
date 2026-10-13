@@ -174,6 +174,7 @@ final class Av1DecodeTileReconSupport {
     static String kofProbe(List<Integer> indices) {
         StringBuilder sb = new StringBuilder();
         sb.append("import image.Av1DecodeTileRecon\n");
+        sb.append("import image.Av1DecodeChroma\n");
         sb.append("import image.Av1ModeInfo\n");
         sb.append("import image.Av1Symbol\n");
         sb.append("import image.Av1TxType\n\n");
@@ -200,9 +201,18 @@ final class Av1DecodeTileReconSupport {
         sb.append("    var txTypeOut = listOf<Int>()\n");
         sb.append("    var modes = listOf<Int>()\n");
         sb.append("    var cfg = Av1ModeTail(12, 0, 0, 0, 0, 0, 0, 0, 0, 3)\n");
+        /* Luma-only cases: `numPlanes == 1`, so the chroma walk never runs and the
+         * bundle is unused (libaom's `av1_num_planes(cm)`). */
+        sb.append("    var chroma = Av1ChromaPlanes(new Int[1], 1, 0, 0, new Int[1], new Int[1], ")
+          .append("new Int[1], 1, 0, 0, new Int[1], new Int[1])\n");
+        sb.append("    var levelsU = listOf<Int[]>()\n");
+        sb.append("    var levelsV = listOf<Int[]>()\n");
+        sb.append("    var txU = listOf<Int>()\n");
+        sb.append("    var txV = listOf<Int>()\n");
         sb.append("    var out = av1DecodeTileRecon(frame, stride, mw, mh, blocks, cfg, ")
-          .append("lossless, 1, 0, 0, bd, txMode, 80, 0, 0, 0, 0, 74, 87, 1, 0, 0, ")
-          .append("sym, store, txStore, txTypes, above, left, levels, txTypeOut, modes)\n");
+          .append("lossless, 1, 1, 0, 0, bd, txMode, 80, 0, 0, 0, 0, 74, 87, 1, 0, 0, ")
+          .append("sym, store, txStore, txTypes, above, left, levels, txTypeOut, modes, ")
+          .append("chroma, 0, 0, levelsU, levelsV, txU, txV)\n");
         sb.append("    var nb = blocks.size / 3\n");
         sb.append("    var b = 0\n");
         sb.append("    while (b < nb) {\n");

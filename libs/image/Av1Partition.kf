@@ -61,6 +61,24 @@ class Av1Partition {
         this.steps = listOf()
     }
 
+    // Binds an EXTERNAL entropy reader, replacing the constructor's own.
+    //
+    // libaom's `decode_partition` reads the partition symbol and then calls
+    // `decode_block` on the SAME `aom_reader` (av1/decoder/decodeframe.c), so a
+    // real tile's partition symbols and block payloads are INTERLEAVED in one
+    // entropy stream. A walk that must stay in sync with a block decoder has to
+    // share that one reader — and share the stream position with it. This is
+    // that seam: the caller builds the `Av1Symbol` once and hands it to both.
+    void useReader(Av1Symbol reader) {
+        this.sym = reader
+    }
+
+    // The reader's bit position — the observable that proves the walk consumed
+    // the reader it was GIVEN rather than one it built itself.
+    Int position() {
+        return this.sym.position()
+    }
+
     // Walks the whole frame, one 64x64 superblock at a time, zeroing the left
     // context per superblock row (libaom `av1_zero_left_context`).
     List<Int[]> walk() {
@@ -282,4 +300,30 @@ class Av1Partition {
             this.updateCtx(r, c + half, splitSize, subSize)
         }
     }
+}
+
+// The tile's BLOCK GRID: the flat `(r, c, bs)` triples the tile driver
+// (`av1DecodeTileRecon`, slice 3ag) consumes, taken from the walk's `decode_block`
+// steps in DECODE ORDER. libaom's `decode_partition` calls `decode_block` at every
+// leaf of the partition recursion and nowhere else, so the `kind == 1` steps ARE
+// the mode-info blocks — this is the link between the partition walk (3o) and the
+// driver (3ag): it answers "who produces `blocks` for a real tile".
+//
+// `steps` is `Av1Partition.walk()`'s output: `[ kind, r, c, value, partition ]`
+// per step, `kind` 0 for a `@@partition` read and 1 for a `decode_block` call
+// (where `value` is the sub block size). The positions are FRAME-ABSOLUTE 4x4 mi
+// coordinates, which is the space the driver works in.
+List<Int> av1TileBlockGrid(List<Int[]> steps) {
+    var out = listOf()
+    var i = 0
+    while (i < steps.size()) {
+        var s = steps.get(i)
+        if (s[0] == 1) {
+            out.add(s[1])
+            out.add(s[2])
+            out.add(s[3])
+        }
+        i = i + 1
+    }
+    return out
 }

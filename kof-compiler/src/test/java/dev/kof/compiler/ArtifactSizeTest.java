@@ -108,7 +108,12 @@ class ArtifactSizeTest implements NativeToolchainAssumptions {
     // lane landings, not from this unit. The B-03 `JsRuntimeBuffer` borrow state
     // adds the remaining ~317B, giving 18.415B re-measured on this host with the
     // budget; the unilateral gate is re-pinned to the measured number.
-    private static final long HELLO_JS_BYTES = 18_415L;
+    // 12/10 (re-baseline COM CAUSA — §260 precedente, lane deploy-flow): o hello
+    // JS passou 19.336B → 19.999B com a face §659d (json Double guarda o .0):
+    // kofJsonHasRecord/kofJsonFpBody entraram no fecho de alcançabilidade do
+    // kofPrintln (o formatador é o MESMO kofNumFmt do display — a aresta é
+    // estrutural, não inchação). Medido no tip 3177e985a.
+    private static final long HELLO_JS_BYTES = 20_000L;
     // Hello riscv64 (cross — só medido onde há toolchain). Pós-S-5 (T1b,
     // 12/09): seções .text.<fn> por função do runtime + `ld --gc-sections`
     // derrubaram os irmãos mortos DENTRO das peças mantidas pela S-4:

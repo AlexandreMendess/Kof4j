@@ -193,8 +193,8 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
             List<KofOperation> ops, String owner, int localIdx, List<IRLocalVariable> locals) {
         ExpressionNode arg = mc.arguments().get(0);
         if (arg instanceof IfExpr ie && ie.elseExpr() != null) {
-            List<Type> bts = ExpressionTyper.ifBranchTypes(driver, ie, locals);
-            if (bts.size() == 2 && ExpressionTyper.branchTypesDiffer(bts)
+            List<Type> bts = ExpressionBranchJoin.ifBranchTypes(driver, ie, locals);
+            if (bts.size() == 2 && ExpressionBranchJoin.branchTypesDiffer(bts)
                     && staticallyPrintable(bts.get(0)) && staticallyPrintable(bts.get(1))) {
                 LabelId thenLabel = LabelId.create();
                 LabelId elseLabel = LabelId.create();
@@ -218,7 +218,7 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
         }
         if (arg instanceof SwitchExpr se && se.defaultValue() != null && !se.cases().isEmpty()
                 && se.cases().stream().allMatch(c -> !(c.value() instanceof PatternExpr))
-                && ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+                && ExpressionBranchJoin.branchTypesDiffer(ExpressionBranchJoin.switchBranchTypes(
                         driver, se.cases(), se.defaultValue(),
                         ExpressionTyper.inferExprType(driver, se, locals), locals))
                 && staticallyPrintable(ExpressionTyper.inferExprType(driver, se.defaultValue(), locals))

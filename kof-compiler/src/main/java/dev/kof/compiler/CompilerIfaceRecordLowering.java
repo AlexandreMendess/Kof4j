@@ -105,11 +105,19 @@ public final class CompilerIfaceRecordLowering {
                         typeParams, fields, java.util.Map.of()));
             }
         }
-        // Native: records não geram toString/equals nos backends (JVM/JS
-        // geram nos seus emitters). Sintetiza no IR para paridade — bug 11
-        // (native `==` dava undefined reference) e toString imprimia o handle.
-        if (driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
-                || driver.target == Target.NATIVE_AARCH64) {
+        // Native: records não geram toString/equals nos backends (JVM/JS geram
+        // nos seus emitters). Sintetiza no IR para paridade — bug 11 (native `==`
+        // dava undefined reference) e toString imprimia o handle.
+        // #818 (face JVM): um record que ESTENDE uma classe do usuário perde a
+        // superclasse `java/lang/Record`; a correção JVM é o `JvmBackend` passar a
+        // reconhecer `clazz.isRecord()` e rodar o `JvmRecordEmitter` (que já trata
+        // os componentes category-2 — Double/Long — corretamente). NÃO se sintetiza
+        // mais no IR para o JVM: aqueles builders são orientados ao native e
+        // tratavam o slot de 64 bits como int (regressão #823: Long → VerifyError
+        // `long_2nd`; Double → ClassFormatError pelo owner primitivo no call de hash).
+        boolean nativeTarget = driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
+                || driver.target == Target.NATIVE_AARCH64;
+        if (nativeTarget) {
             methods.add(CompilerRecordSupport.buildRecordToStringMethod(driver, internalName, rec, fields, typeParams));
             methods.add(CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
             methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
@@ -140,6 +148,6 @@ public final class CompilerIfaceRecordLowering {
             methods.addAll(bridges);
         }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
-                typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()));
+                typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()), true);
     }
 }

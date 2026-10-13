@@ -40,6 +40,11 @@ public final class ClassShapeChecks {
                             + " (declared 'final' — remove 'final' or the inheritance)",
                     "SEM070");
         }
+        // #821: herança CIRCULAR (A extends A, ciclos de 2/3) travava o
+        // compilador em loop infinito (DoS, sem diagnóstico) — a caminhada da
+        // cadeia de extends em HierarchyResolver não termina. Detecta o ciclo
+        // AQUI, antes de qualquer análise de corpo, com diagnóstico honesto.
+        checkInheritanceCycle(sa, cls);
         // X5.1 (D-X5-SURFACE): subtipo de tipo `sealed` só na mesma unidade.
         SealedTypeChecks.checkSubtype(sa, cls.position(), cls.name(),
                 cls.superClass(), cls.interfaces());
@@ -101,6 +106,32 @@ public final class ClassShapeChecks {
         }
     }
 
+
+    /**
+     * #821: caminha a cadeia de `extends` (via ClassSymbol.superClass, já
+     * registrada pelo SymbolTableBuilder) com conjunto de visitados; revisitar
+     * uma classe = ciclo → SEM106. O walk é LIMITADO (visited), então nada
+     * hanga mesmo com múltiplos ciclos declarados.
+     */
+    private static void checkInheritanceCycle(SemanticAnalyzer sa, ClassDeclarationNode cls) {
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        String current = eraseGenerics(cls.superClass());
+        current = current == null ? null : simpleName(current);
+        String start = cls.name();
+        while (current != null && visited.add(current)) {
+            if (current.equals(start)) {
+                report(sa, cls.position(),
+                        "circular inheritance detected: '" + start + "' extends (directly or "
+                                + "transitively) itself — break the cycle in the hierarchy",
+                        "SEM107");
+                return;
+            }
+            SymbolTable.ClassSymbol sym = sa.allClasses().get(current);
+            String nextSuper = sym == null ? null : eraseGenerics(sym.superClass());
+            current = nextSuper == null ? null : simpleName(nextSuper);
+        }
+    }
+
     private static void report(SemanticAnalyzer sa, SourcePosition pos, String msg, String code) {
         if (sa.diagnostics() == null) return;
         sa.diagnostics().error(pos != null ? pos.file() : "",
@@ -114,6 +145,10 @@ public final class ClassShapeChecks {
     }
 
     static String simpleName(String qualified) {
+        // #821 follow-up: the cycle walk feeds `cls.superClass()` through here
+        // and a class WITHOUT an explicit extends has a null super — the raw
+        // replace crashed COMP002 (internal error) on every such class
+        if (qualified == null) return null;
         String q = qualified.replace('/', '.');
         int dot = q.lastIndexOf('.');
         return dot >= 0 ? q.substring(dot + 1) : q;

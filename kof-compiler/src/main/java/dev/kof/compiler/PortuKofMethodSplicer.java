@@ -160,7 +160,7 @@ public final class PortuKofMethodSplicer {
             case VarDeclStmt v -> {
                 ExpressionNode i0 = expr(v.initializer());
                 yield i0 == v.initializer() ? v : new VarDeclStmt(v.position(), v.type(),
-                        v.name(), i0);
+                        v.name(), i0, v.isVal());
             }
             case IfStmt i -> {
                 ExpressionNode c = expr(i.condition());

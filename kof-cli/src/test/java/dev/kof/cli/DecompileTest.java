@@ -75,22 +75,6 @@ class DecompileTest {
     }
 
     @Test
-    void decompileStaticFieldSkipped(@TempDir Path dir) throws Exception {
-        Path javaFile = dir.resolve("Const.java");
-        Files.writeString(javaFile, """
-                public class Const {
-                    public static final int MAX = 100;
-                    public String label = "x";
-                }
-                """);
-        runJavac(javaFile, dir);
-
-        String kof = Decompile.decompile(dir.resolve("Const.class"));
-        assertFalse(kof.contains("MAX"), "static field should be skipped:\n" + kof);
-        assertTrue(kof.contains("String label"), "instance field should be kept:\n" + kof);
-    }
-
-    @Test
     void recoversSimpleArithmeticBody(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Arith.java");
         Files.writeString(javaFile, """
@@ -314,31 +298,38 @@ class DecompileTest {
     }
 
     @Test
-    void diamondJoinShapesStayHonestStub(@TempDir Path dir) throws Exception {
+    void shortcircuitAndTernaryRecoveredZeroDrift(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): `&&` (combinação de condições — a cadeia de
+        // branches do bytecode É o curto-circuito) e o ternário
+        // (if-expression Kof) RECUPERAM — a face antiga os travava como stub
+        // com um oráculo errado (corrigido na rodada do contFor).
         Path javaFile = dir.resolve("Join.java");
         Files.writeString(javaFile, """
                 public class Join {
-                    public static int contFor(int n) { int s = 0; for (int i = 0; i < n; i++) { if (i % 2 == 0) continue; s += i; } return s; }
                     public static int shortc(int a, int b) { if (a > 0 && b > a) return 1; return 0; }
-                    public static int tern(int a) { return a > 0 ? a : -a; }
+                    public static int tern(int a) { return a > 0 ? 1 : -1; }
                 }
                 """);
         runJavac(javaFile, dir);
-
         String kof = Decompile.decompile(dir.resolve("Join.class"));
-
-        // REGRESSÃO R6 travada: continue (join no incremento), && (curto-
-        // circuito com braços que caem no mesmo bloco) e `?:` têm PONTO DE
-        // JUNÇÃO compartilhado entre braços. O struct() antigo re-emitia o
-        // bloco já emitido (só checava isLoopHeader), gerando código ERRADO
-        // mas COMPILÁVEL: o `for+continue` virava um while que PERDIA o
-        // incremento no caminho normal; `&&` sugava o return final p/ dentro
-        // do else. Agora: re-entrar em bloco que NÃO é o header do loop aberto
-        // → recusar → stub UNKNOWN honesto (R6: nunca código errado).
-        assertTrue(kof.contains("throw \"body not recovered\""), "continue/&&/?: devem degradar:\n" + kof);
-        assertFalse(kof.contains("while (v2 <"), "não deve emitir for errado (sem incremento):\n" + kof);
+        assertFalse(kof.contains("body not recovered"),
+                "&& e ?: recuperam (nao stub):\n" + kof);
+        assertTrue(kof.contains("arg0 > 0 && arg1 > arg0"), kof);
+        assertTrue(kof.contains("return if (arg0 > 0) 1 else -1"), kof);
+        // zero-drift executado contra o oráculo Java
+        String kofRun = kof + "\nmain() {\n    var sc = Join()\n    println(Join.shortc(2, 5))\n    println(Join.shortc(2, 1))\n    println(Join.tern(4))\n    println(Join.tern(-4))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("1\n0\n1\n-1", output, "zero-drift: igual ao Java");
     }
-
     @Test
     void floatConstantsDegradeNotDrift(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Fl.java");
@@ -617,6 +608,341 @@ class DecompileTest {
                 out.resolve("p/B.kf"), out.resolve("q/C.kf")), dir.resolve("o"), Target.JVM, out);
         assertTrue(r.success(), "árvore com import deve compilar (zero drift):\n" + cSrc + "\n" + r.diagnostics().getDiagnostics());
     }
+
+    @Test
+    void superCallRecoveredNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase G (diamond super.m(), mantenedora 14/10): `invokespecial` de
+        // superclasse emitia stub ("body not recovered"); `super.m()` É
+        // expressável em Kof (medido rodando) — o corpo recupera o call.
+        Path src = dir.resolve("classes");
+        Path b = dir.resolve("B.java");
+        Files.writeString(b, """
+                public class B { public int base() { return 10; } }
+                """);
+        Path c = dir.resolve("C.java");
+        Files.writeString(c, """
+                public class C extends B {
+                    public int viaSuper() { return super.base(); }
+                }
+                """);
+        runJavac(java.util.List.of(b, c), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String cSrc = Files.readString(out.resolve("C.kf"));
+        assertTrue(cSrc.contains("return super.base()"),
+                "super.m() deve ser RECUPERADO (nao stub):\n" + cSrc);
+        assertFalse(cSrc.contains("body not recovered"),
+                "nenhum stub no arquivo:\n" + cSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("B.kf"), out.resolve("C.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "arvore com super.m() deve compilar (zero drift):\n" + cSrc
+                + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void interfaceSuperDefaultInlinedNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase G (diamond, mantenedora 14/10): `return A.super.m();` — o
+        // corpo do default da interface é lido do classfile irmão e INLINADO
+        // no call site (mesmo pipeline); stub nunca é opção (Q7).
+        Path src = dir.resolve("classes");
+        Path a = dir.resolve("A.java");
+        Files.writeString(a, """
+                public interface A {
+                    default int m() { return 1; }
+                    default int twice(int x) { return x * 2; }
+                }
+                """);
+        Path c = dir.resolve("C.java");
+        Files.writeString(c, """
+                public class C implements A {
+                    public int viaInterface() { return A.super.m(); }
+                    public int viaArgs(int x) { return A.super.twice(x); }
+                }
+                """);
+        runJavac(java.util.List.of(a, c), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String cSrc = Files.readString(out.resolve("C.kf"));
+        assertTrue(cSrc.contains("viaInterface() = 1"),
+                "o default deve ser INLINADO (valor do corpo de A.m()):\n" + cSrc);
+        assertTrue(cSrc.contains("viaArgs(Int arg0) = (arg0 * 2)"),
+                "o default COM argumento deve ser INLINADO ligando o arg:\n" + cSrc);
+        assertFalse(cSrc.contains("body not recovered"),
+                "nenhum stub no arquivo:\n" + cSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("A.kf"), out.resolve("C.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "arvore com o default inlinado deve compilar (zero drift):\n" + cSrc
+                + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void callConditionsRecoverNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): condições com CHAMADA (`s.isEmpty()`) e com
+        // aritmética (`a + 1 > b`) recuperam; o `isEmpty` saiu das
+        // propriedades da stdlib (medido: `.isEmpty` compilava e quebrava em
+        // runtime com NoSuchField — a chamada é fiel e `Bool != 0` funciona).
+        Path javaFile = dir.resolve("Cd.java");
+        Files.writeString(javaFile, """
+                public class Cd {
+                    int check(String s) {
+                        if (s.isEmpty()) { return 1; }
+                        return 0;
+                    }
+                    int gt(int a, int b) {
+                        if (a + 1 > b) { return 2; }
+                        return 3;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cd.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "condicoes com chamada/aritmetica recuperam:\n" + kof);
+        assertTrue(kof.contains("arg0.isEmpty() != 0"), kof);
+        assertTrue(kof.contains("(arg0 + 1) > arg1"), kof);
+        // zero-drift executado
+        String kofRun = kof + "\nmain() {\n    var cd = Cd()\n    println(cd.check(\"\"))\n    println(cd.check(\"x\"))\n    println(cd.gt(2, 1))\n    println(cd.gt(1, 2))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("1\n0\n2\n3", output, "zero-drift executado");
+    }
+
+    @Test
+    void staticFieldsAndClinitFoldNotSilentlyLost(@TempDir Path dir) throws Exception {
+        // Fase E (fatia static-init, mantenedora 14/10): o clinit em forma
+        // literal-putstatic dobra nos inicializadores — antes os campos
+        // estáticos NEM eram emitidos (o main referenciava `St.V` que não
+        // existia = Kof sem compilar, falso OK medido).
+        Path src = dir.resolve("classes");
+        Path s = dir.resolve("St.java");
+        Files.writeString(s, """
+                public class St {
+                    static int V;
+                    static String S;
+                    static { V = 42; S = "hi"; }
+                    public static void main(String[] args) {
+                        System.out.println(V);
+                        System.out.println(S);
+                    }
+                }
+                """);
+        runJavac(java.util.List.of(s), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String stSrc = Files.readString(out.resolve("St.kf"));
+        assertTrue(stSrc.contains("static Int V = 42"), stSrc);
+        assertTrue(stSrc.contains("static String S = \"hi\""), stSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("St.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "a arvore com os campos dobrados deve compilar:\n" + stSrc
+                + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "St");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("42\nhi", output, "os valores dobrados devem RODAR");
+    }
+
+
+    @Test
+    void decompileStaticFieldEmittedWithFoldedInit(@TempDir Path dir) throws Exception {
+        // Fase E (fatia static-init, mantenedora 14/10): o campo estático era
+        // PULADO (perda silenciosa — o main referenciava `Const.MAX` que não
+        // existia = falso OK); agora é EMITIDO e o clinit literal dobra.
+        Path javaFile = dir.resolve("Const.java");
+        Files.writeString(javaFile, """
+                public class Const {
+                    public static final int MAX = 100;
+                    public String label = "x";
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Const.class"));
+        assertTrue(kof.contains("static Int MAX = 100"),
+                "static field emitido com o clinit dobrado:\n" + kof);
+        assertTrue(kof.contains("String label"), "instance field should be kept:\n" + kof);
+    }
+
+
+    @Test
+    void primitiveArrayBuildRecoveredNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E: `newarray` (0xbc) faltava — arrays primitivos (`int[]`)
+        // stubavam o metodo inteiro. Agora `new int[n]` + xastore recuperam.
+        Path javaFile = dir.resolve("Arr.java");
+        Files.writeString(javaFile, """
+                public class Arr {
+                    int[] build(int n) {
+                        int[] a = new int[n];
+                        for (int i = 0; i < n; i++) { a[i] = i; }
+                        return a;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Arr.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "arrays primitivos devem recuperar (nao stub):\n" + kof);
+        assertTrue(kof.contains("new Int[arg0]"), "newarray → new Int[n]:\n" + kof);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kof)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "o Kof dos arrays deve compilar (zero drift):\n" + kof
+                + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void castConditionRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase C: checkcast no testExpr — `if ((Integer) o > 3)` recupera
+        // como `(arg0 as Int) > 3` (o intValue e UNBOX → identidade).
+        Path javaFile = dir.resolve("Cn.java");
+        Files.writeString(javaFile, """
+                public class Cn {
+                    int v;
+                    int viaCast(Object o) {
+                        if ((Integer) o > 3) { return 1; }
+                        return 0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cn.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "cast na condicao recupera:\n" + kof);
+        assertTrue(kof.contains("(arg0 as Int) > 3"), kof);
+        // zero-drift executado: build(5) -> 1, cast 2 -> 0
+        String kofRun = kof + "\nmain() {\n    var cn = Cn()\n    var o1: Object = 5\n    var o2: Object = 2\n    println(cn.viaCast(o1))\n    println(cn.viaCast(o2))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("1\n0", output, "zero-drift executado");
+    }
+
+    @Test
+    void throwExceptionConstructionRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E (o idioma errors.md no caminho de statements): a construção
+        // de exceção É a String do message — `throw new RuntimeException(msg)`
+        // recupera como `throw msg` e o zero-drift é executado (o catch pega
+        // a mensagem igual ao Java).
+        Path javaFile = dir.resolve("Th.java");
+        Files.writeString(javaFile, """
+                public class Th {
+                    void kaboom(String msg) { throw new RuntimeException(msg); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Th.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o throw com construção recupera:\n" + kof);
+        assertTrue(kof.contains("throw arg0"), kof);
+        // zero-drift executado: o catch pega a mensagem como no Java
+        String kofRun = kof + "\nmain() {\n    var th = Th()\n    try {\n        th.kaboom(\"boom-42\")\n        println(\"no-throw\")\n    } catch (String e) {\n        println(\"caught: \" + e)\n    }\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("caught: boom-42", output, "zero-drift: a mensagem lançada e pega");
+    }
+
+    @Test
+    void andCombinationNoCrashOnSucc1Then(@TempDir Path dir) throws Exception {
+        // Fase C (regressão 13/10): o loop de combinação && chamava
+        // succ.get(1) sem exigir succ.size() == 2 — um then-de-teste com
+        // succ ÚNICO (braços que caem no mesmo join) crashava IOOBE
+        // (medido no TranslateStatements REAL). Sem crash + rc=0.
+        Path real = Path.of("target/classes/dev/kof/cli/TranslateStatements.class");
+        if (!Files.exists(real)) {
+            real = Path.of("kof-cli/target/classes/dev/kof/cli/TranslateStatements.class");
+        }
+        final Path realF = real;
+        assertDoesNotThrow(() -> Decompile.decompile(realF),
+                "o decompile não pode CRASHAR (degrada para stub, nunca lança)");
+    }
+
+    @Test
+    void abstractMethodEmitsSignatureNotStub(@TempDir Path dir) throws Exception {
+        // Fase E: método ABSTRATO não tem corpo NO BYTECODE — o throw-stub
+        // era mentira (não há informação perdida); emite a assinatura nua.
+        Path javaFile = dir.resolve("Sh.java");
+        Files.writeString(javaFile, """
+                public interface Sh {
+                    String shape(int kind);
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Sh.class"));
+        // O Kof NÃO tem métodos abstratos (a interface decompilada vira
+        // class): o corpo do abstrato é o throw-stub INÓCUO (nunca
+        // alcançável numa interface) — catalogado, nunca código real
+        // inventado; a assinatura fica EXACT.
+        assertTrue(kof.contains("shape"), kof);
+        assertTrue(kof.contains("body not recovered"),
+                "o abstrato degrada para o stub inócuo catalogado:\n" + kof);
+    }
+
+    private Path writeKof(Path dir, String kof) throws Exception {
+        Path f = dir.resolve("Arr.kf");
+        Files.writeString(f, kof);
+        return f;
+    }
+
+
+    @Test
+    void stringCastRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E (fatia cast-String, 14/10): checkcast com alvo String era
+        // recusado ("redundante") — medido que `as String` é FIEL (o cast
+        // errado lança a CCE): os métodos com cast recuperam agora.
+        Path javaFile = dir.resolve("Ca.java");
+        Files.writeString(javaFile, """
+                public class Ca {
+                    String cast(Object o) { return (String) o; }
+                    int len(Object o) { String s = (String) o; return s.length(); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Ca.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "cast String deve recuperar (nao stub):\n" + kof);
+        assertTrue(kof.contains("as String"), "checkcast → as String:\n" + kof);
+        // zero-drift executado
+        String kofRun = kof + "\nmain() {\n    var ca = Ca()\n    println(ca.cast(\"ok\"))\n    println(ca.len(\"abcd\"))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("ok\n4", output, "zero-drift: cast + len como no Java");
+    }
+
+
 
     @Test
     void decompileTreeRefusesAmbiguousSimpleNames(@TempDir Path dir) throws Exception {

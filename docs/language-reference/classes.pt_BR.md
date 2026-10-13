@@ -157,7 +157,10 @@ println(c.name())         // "Red" (probe)
   compara **identidade** (`if_acmp`) — correto porque as constantes são
   singletons. Um valor de enum **não** é uma String: `Color.Red == "Red"` é
   rejeitado em compile-time com `SEM062` — compare dois valores de enum ou
-  chame `.name()`.
+  chame `.name()`. Os operadores **relacionais** (`<`/`<=`/`>`/`>=`) entre dois
+  valores de enum também são rejeitados (`SEM105`, `D-SEM-REJECTS-1210`/`§675`)
+  — a ordenação divergia entre alvos; escreva-a explicitamente como
+  `a.compareTo(b) < 0` (`==`/`!=` seguem válidos, comparação por identidade).
 - Métodos sintéticos: `values() → List<Dir>` (static), `valueOf(String) →
   Dir` (static, null no miss), `name() → String`, `ordinal() → Int`,
   `toString() → String` (o nome), `compareTo(Dir) → Int` (instância).

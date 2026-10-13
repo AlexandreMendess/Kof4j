@@ -85,10 +85,7 @@ int+float no mesmo eightbyte/`Time` long+double) byte-a-byte JVM==Native +
 x86-64):** um eightbyte SSE com mais de um campo é emitido bitwise (`%rax`
 shift/or → `movq %xmm`; SSE é bitwise, então nenhuma conversão FP) — a forma
 x86-64 da face HFA cross, então um struct homogêneo-flutuante de **≤ 2 campos**
-(`record VF(Float, Float)`) agora binda no x86-64 também. O corte é o MESMO do
-cross (`crossHomogeneousFloat`, ≤ 2 campos): **HFA>2 segue `FFI001`** (no cross
-as duas ABIs divergem aí; manter o x86-64 alinhado evita uma divergência
-silenciosa). Prova: `FfiStructE2ETest` `structParamAndReturnFloatByValueNative`
+(`record VF(Float, Float)`) agora binda no x86-64 também. O corte do x86-64 fica na forma homogêneo-flutuante ≤ 2; **HFA>2 é recusado no x86-64 E no aarch64** (`FFI001`) — mas **MEDIDO 13/10: BINDA no riscv64** (LP64D empacota >2 campos em doublewords inteiros; `F3(Float,Float,Float)` → `6.0` == o oráculo JVM, verificado contra um shim C real). Simetricamente, **misto float+int é recusado SÓ no CROSS — BINDA no x86-64** (`sseEightbytesAreSingleField`). Prova: `FfiStructE2ETest` `structParamAndReturnFloatByValueNative`
 (`F2(Float,Float)` param E retorno, byte-a-byte JVM==Native) e
 `structParamThreeFloatStaysFfi001` (HFA>2 = `FFI001` honesto) +
 `FfiCrossHfaE2ETest`/`FfiCrossHfaReturnE2ETest` (os pins antigos
@@ -130,7 +127,7 @@ veja abaixo). Prova:
 `FfiStructLayoutTest.crossIntReturnIsBindableOnlyForIntegerRegisterPath`.
 `T[]`/`Buffer` (faces 1–2, `D-MEM-FFI-CROSS-FULL`) e o struct **retorno** por caminho
 de memória (face 3, abaixo) pousaram desde então; o **param** struct > 16 B pousou
-na mesma face; callbacks também pousaram (11/10, M1 unidade-4 — trampolim gerado no x86-64 + cross riscv64/aarch64, `FfiNativeCallbackE2ETest`); só um callback com ARGUMENTO `String` binda no Native x86-64 E no cross riscv64/aarch64 (o trampolim faz a ponte `char*`→`String` via `kof_ffi_from_cstr`; `FfiNativeCallbackStrE2ETest`), enquanto um callback cuja ABI menciona `String` (ARGUMENTO ou RETORNO) agora BINDA no Native x86-64 E no cross riscv64/aarch64 (M1 unidade-4, 11/10: o arg faz a ponte `char*`→`String` via `kof_ffi_from_cstr`; o retorno entrega ao C o `char*` do payload (obj+24) do String que o `invoke` produziu); um ARGUMENTO `String` binda no x86-64 E no cross riscv64/aarch64 (fatia 5, `emitRiscvCallbackTrampolineStr`)
+na mesma face; callbacks também pousaram (11/10, M1 unidade-4 — trampolim gerado no x86-64 + cross riscv64/aarch64, `FfiNativeCallbackE2ETest`); só callback cuja ABI menciona `String` (ARGUMENTO ou RETORNO) binda no Native x86-64 E no cross riscv64/aarch64 (M1 unidade-4, 11/10: o arg faz a ponte `char*`→`String` via `kof_ffi_from_cstr`; o retorno entrega ao C o `char*` do payload (obj+24) do String que o `invoke` produziu)
 (nenhum `D-*` registrado ainda).
 **Pousou 22/09 (3.7 fatia 4 · struct PARAM no cross, register path INTEGER):** os
 emissores riscv64/aarch64 agora bindam um struct `record` de campos escalares

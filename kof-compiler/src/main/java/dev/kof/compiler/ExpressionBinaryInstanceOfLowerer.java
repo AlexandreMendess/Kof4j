@@ -82,7 +82,41 @@ final class ExpressionBinaryInstanceOfLowerer {
             // kof_box é identidade lá.
             driver.emitErasureBox(ops, fromCastType);
         }
-        ops.add(new KofCheckCast(castTarget));
+        // §678 (D-SEM-REJECTS-1210): `x as T?` é o cast SUAVE SEMPRE-NULL — em
+        // TODO alvo um valor que não é T vira `null`. Medido antes: o JVM
+        // lançava `ClassCastException` e os três alvos value-typed devolviam o
+        // OBJETO do tipo errado (o `KofCheckCast` é no-op lá). O desugar vive
+        // no lowering COMPARTILHADO (`if (x instanceof T) x else null`, ops já
+        // provadas), então a paridade dos 4 alvos é POR CONSTRUÇÃO e não há
+        // runtime novo. Só a face NULÁVEL de REFERÊNCIA: o alvo nulável
+        // primitivo tem o próprio caminho de unbox abaixo.
+        if (castTarget instanceof Type.NullableType ntSoft
+                && !TypeMetrics.isPrimitiveType(ntSoft.inner())) {
+            Type softInner = ntSoft.inner();
+            // O valor vai por um LOCAL temporário: `x` é avaliado UMA vez
+            // (um `f() as T?` não pode chamar f() duas vezes) e cada RAMO do
+            // if-expr tem ops próprias — o parser de if-expr do JS exige ramo
+            // NÃO-VAZIO (o `DUP`/pilha-implícita não o satisfaz).
+            int softTmp = localIdx;
+            ops.add(new KofStoreLocal(fromCastType, softTmp));
+            locals.add(new IRLocalVariable(softTmp, "#softcast", fromCastType));
+            localIdx += TypeMetrics.isDoubleWidth(fromCastType) ? 2 : 1;
+            LabelId keepLabel = LabelId.create();
+            LabelId nullLabel = LabelId.create();
+            LabelId softEnd = LabelId.create();
+            ops.add(new KofLoadLocal(fromCastType, softTmp));
+            ops.add(new KofInstanceOf(softInner));
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+            ops.add(new KofConditionalJump(KofComparison.NE, keepLabel, nullLabel));
+            ops.add(new KofLabel(keepLabel));
+            ops.add(new KofLoadLocal(fromCastType, softTmp));
+            ops.add(new KofJump(softEnd));
+            ops.add(new KofLabel(nullLabel));
+            ops.add(KofLoadLiteral.ofNull());
+            ops.add(new KofLabel(softEnd));
+        } else {
+            ops.add(new KofCheckCast(castTarget));
+        }
         // #205: cast de REFERÊNCIA → PRIMITIVO (`obj as Int` com obj Object)
         // chegava aqui com targetType primitivo (from não é primitivo → o ramo
         // de conversão numérica não pega). O CHECKCAST vira a caixa (Integer),
