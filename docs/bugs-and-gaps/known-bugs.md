@@ -17736,6 +17736,17 @@ JVM prints `kof`; Script/native print `null` and JS prints `undefined`. The QUAL
 
 <!-- pt-switch --> **PT:** [§725](known-bugs.pt_BR.md#725--uma-constante-de-interface-usada-nao-qualificada-dentro-de-um-implementador-da-nullundefined-fora-do-jvm-interface-named--string-name--kof-string-tag---class-t-implements-named--string-tag--return-name----o-jvm-imprime-kof-a-constante-e-inlinada-scriptjsnativo-dao-nullundefined---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
+
+## §726 — a class that `implements` an interface is NOT assignable to the interface type when the class and the interface live in DIFFERENT files (SEM021) — 🟡 OPEN (measured 14/10 by lane ORM/native `192.168.100.14:0`; blocks the `kof.financial.provider` slice)
+
+**Symptom (minimal repro, measured in isolation):** two files — `ifc/Greeter.kf` (`package ifc`, `interface Greeter { String greet() }`) and `ifc/PtGreeter.kf` (`package ifc`, `class PtGreeter(String who) implements Greeter { String greet() {...} }`) — plus `Main.kf` (`import ifc.Greeter`, `import ifc.PtGreeter`, `var g: Greeter = PtGreeter("mel")`) → **SEM021** `type mismatch: cannot assign ifc.PtGreeter to 'g: ifc.Greeter'` on EVERY target. The SAME interface + class + assignment in ONE file compiles clean (measured).
+
+**Root (analysis):** the subtype check behind SEM021 consults the `implements` relationship through a path that only sees SAME-FILE declarations — the cross-file `ClassSymbol.interfaces()` qualification (or the analyzer's class table lookup) misses the lib-file interface, so the check treats the concrete class as unrelated to the interface.
+
+**Impact:** every library that exposes an interface + implementations is unusable through the interface type across the file boundary — the dependency-inversion seam (a `Provider` interface with swappable adapters) cannot be typed.
+
+**Boundary:** NOT the §673/§714/§715 family (those are interface-method dispatch/bridges with WORKING assignability in-file). Same-file works. Blocks `kof.financial` slice 9 (the Provider seam landed with the concrete doubles only).
+
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):** `var d = 0` then `try { println(10 / d) } catch (String e) { ... }` printed **`-1` on riscv64 and `0` on aarch64** and left the `catch` UNREACHED, where every other target printed `caught`. Same for `%` and for `Long` (`10L / 0L`). The failure is the worst kind: the program keeps running with a wrong value instead of failing loudly.

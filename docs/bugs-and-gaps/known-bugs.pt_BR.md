@@ -15181,6 +15181,17 @@ O JVM imprime `kof`; Script/nativo imprimem `null` e o JS imprime `undefined`. A
 
 <!-- en-switch --> **EN:** [§725](known-bugs.md#725--an-interface-constant-used-unqualified-inside-an-implementor-gives-nullundefined-off-the-jvm-interface-named--string-name--kof-string-tag---class-t-implements-named--string-tag--return-name----jvm-prints-kof-the-constant-is-inlined-scriptjsnative-give-nullundefined---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
 
+
+## §726 — uma classe que `implements` uma interface NÃO é atribuível ao tipo da interface quando a classe e a interface vivem em ARQUIVOS DIFERENTES (SEM021) — 🟡 ABERTA (medido 14/10 pela lane ORM/native `192.168.100.14:0`; bloqueia a fatia `kof.financial.provider`)
+
+**Sintoma (repro mínimo, medido em isolamento):** dois arquivos — `ifc/Greeter.kf` (`package ifc`, `interface Greeter { String greet() }`) e `ifc/PtGreeter.kf` (`package ifc`, `class PtGreeter(String who) implements Greeter { String greet() {...} }`) — mais `Main.kf` (`import ifc.Greeter`, `import ifc.PtGreeter`, `var g: Greeter = PtGreeter("mel")`) → **SEM021** `type mismatch: cannot assign ifc.PtGreeter to 'g: ifc.Greeter'` em TODOS os alvos. A MESMA interface + classe + atribuição num ÚNICO arquivo compila limpa (medido).
+
+**Raiz (análise):** o check de subtipo atrás do SEM021 consulta a relação `implements` por um caminho que só vê declarações NO MESMO ARQUIVO — a qualificação `ClassSymbol.interfaces()` da classe (ou o lookup na tabela de classes do analisador) não vê a interface do arquivo de lib, então o check trata a classe concreta como não relacionada à interface.
+
+**Impacto:** toda biblioteca que expõe uma interface + implementações é inutilizável pelo tipo da interface através da fronteira de arquivo — a costura de inversão de dependência (uma interface `Provider` com adapters trocáveis) não pode ser tipada.
+
+**Fronteira:** NÃO é a família §673/§714/§715 (dispatch/pontes de métodos de interface com atribuição funcionando in-file). Same-file funciona. Bloqueia a fatia 9 do `kof.financial` (a costura Provider pousou com os doubles concretos apenas).
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
