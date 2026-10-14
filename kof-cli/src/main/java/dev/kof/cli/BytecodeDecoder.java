@@ -200,7 +200,7 @@ import java.util.Set;
                     // compila). Recusar ANTES do pass-through.
                     if ("java/lang/String".equals(m[0])
                             && ((("indexOf".equals(m[1]) || "lastIndexOf".equals(m[1]))
-                            && m[2].startsWith("(I)"))
+                            && !m[2].startsWith("(Ljava/lang/String;"))
                             || "strip".equals(m[1]) || "stripLeading".equals(m[1]) || "stripTrailing".equals(m[1]))) return null;
                     String a = stack.args(BytecodeCp.argCount(m[2]));
                     if (a == null) return null;

@@ -196,7 +196,7 @@ final class BytecodeStatementsEmit {
                     // tem equivalente Kof (String-param; SEM051 medida)
                     if ("java/lang/String".equals(m[0])
                             && ((("indexOf".equals(m[1]) || "lastIndexOf".equals(m[1]))
-                            && m[2].startsWith("(I)"))
+                            && !m[2].startsWith("(Ljava/lang/String;"))
                             || "strip".equals(m[1]) || "stripLeading".equals(m[1]) || "stripTrailing".equals(m[1]))) { refuse(opcodeTag); return null; }
                     String a = BytecodeCp.callArgs(stack, BytecodeCp.argCount(m[2]));
                     if (a == null || stack.isEmpty()) { refuse(opcodeTag); return null; }
