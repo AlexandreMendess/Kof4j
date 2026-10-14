@@ -95,10 +95,36 @@ public final class AlgebraicSimplification implements IrPass {
                     continue;
                 }
             }
+            if (op instanceof KofBinary b && selfComparison(b) != null && out.size() >= 2) {
+                // x OP x for a comparison is a constant for int/long (no NaN).
+                KofOperation right = out.get(out.size() - 1);
+                KofOperation left = out.get(out.size() - 2);
+                if (sameValue(b, left, right)) {
+                    KofLoadLiteral result = KofLoadLiteral.ofBool(selfComparison(b));
+                    SourcePosition p = positions.remove(right);
+                    positions.remove(left);
+                    out.remove(out.size() - 1);
+                    out.remove(out.size() - 1);
+                    if (p != null) positions.put(result, p);
+                    out.add(result);
+                    prev = result;
+                    continue;
+                }
+            }
             out.add(op);
             prev = op;
         }
         return out;
+    }
+
+    /** The constant result of {@code x OP x} for a comparison, or null. */
+    private static Boolean selfComparison(KofBinary b) {
+        if (!isIntOrLong(b.operandType())) return null;
+        return switch (b.op()) {
+            case EQ, LE, GE -> Boolean.TRUE;    // x == x, x <= x, x >= x are always true
+            case NE, LT, GT -> Boolean.FALSE;   // x != x, x < x, x > x are always false
+            default -> null;
+        };
     }
 
     /** True for the self-annihilating ops {@code x - x} / {@code x ^ x} (int/long). */

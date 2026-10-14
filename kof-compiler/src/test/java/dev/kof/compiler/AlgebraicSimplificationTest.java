@@ -160,4 +160,33 @@ class AlgebraicSimplificationTest {
                 new KofReturn(Type.PrimitiveType.DOUBLE)));
         assertEquals(4, out.size(), "float x - x is not 0 (NaN)");
     }
+
+    @Test
+    void equalSameLocalBecomesTrue() {
+        List<KofOperation> out = run(List.of(
+                load(1), load(1),
+                new KofBinary(KofBinaryOp.EQ, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(KofLoadLiteral.ofBool(true), out.get(0), "x == x is always true");
+    }
+
+    @Test
+    void lessThanSameLocalBecomesFalse() {
+        List<KofOperation> out = run(List.of(
+                load(1), load(1),
+                new KofBinary(KofBinaryOp.LT, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(KofLoadLiteral.ofBool(false), out.get(0), "x < x is always false");
+    }
+
+    @Test
+    void floatEqualSameIsNotFolded() {
+        // NaN == NaN is false, so float x == x is not always true.
+        List<KofOperation> out = run(List.of(
+                new KofLoadLocal(Type.PrimitiveType.DOUBLE, 1),
+                new KofLoadLocal(Type.PrimitiveType.DOUBLE, 1),
+                new KofBinary(KofBinaryOp.EQ, Type.PrimitiveType.DOUBLE),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(4, out.size(), "float x == x is not always true (NaN)");
+    }
 }
