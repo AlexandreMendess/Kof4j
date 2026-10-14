@@ -324,6 +324,19 @@ public final class Decompile {
         // stubs). Qualquer desvio do shape (interface não-resolvida, método
         // extra, nome reservado, bound genérico) → null → esqueleto de hoje
         // (zero-drift por construção).
+        // Fase E (14/10): Java enum PURO → `enum Nome { A, B, C }` (o Kof
+        // tem enum nativo — medido). Qualquer método/field extra → o
+        // esqueleto de hoje (zero-drift por construção).
+        String enumForm = BytecodeRecords.pureEnum(ir);
+        if (enumForm != null) {
+            sb.append(enumForm).append("\n\n");
+            if (scope != null) {
+                var lines = new StringBuilder();
+                for (String imp : scope.usedImports()) lines.append("import ").append(imp).append('\n');
+                if (lines.length() > 0) sb.insert(importPos, lines.toString());
+            }
+            return sb.toString();
+        }
         BytecodeRecords.Rec rec = BytecodeRecords.pureRecord(ir, scope);
         if (rec != null) {
             List<dev.kof.compiler.parser.ClassFileParser.FieldInfo> comps = rec.components();
