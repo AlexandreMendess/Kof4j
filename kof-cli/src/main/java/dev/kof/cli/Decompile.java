@@ -472,9 +472,28 @@ public final class Decompile {
             for (dev.kof.compiler.Type pt : m.parameterTypes) recordSignatureUses(pt, scope);
             if ("<clinit>".equals(m.name)) continue; // static initializer — skip
             if ("<init>".equals(m.name)) {
+                // Fase E (14/10): o CONSTRUCTOR tem corpo — as atribuições
+                // `this.x = x` são o ESTADO da classe; o `constructor(...)
+                // { }` vazio deixava toda classe destruída com fields
+                // mortos (medido no capstone Inventory: name/qty/price
+                // nunca atribuídos, total()=0, find=null). O super()
+                // implícito [aload_0, invokespecial Object.<init>] é
+                // SKIPado no emitLinear (o Kof chama super implicitamente).
                 sb.append("    constructor(")
                   .append(paramList(m.parameterTypeNames()))
-                  .append(") {\n    }\n");
+                  .append(") {\n");
+                if (m.code != null) {
+                    BytecodeFrame cFrame = new BytecodeFrame(m.descriptor, false);
+                    cFrame.treeScope = scope;
+                    var cStmts = BytecodeStatements.recoverStatements(m.code.bytecode,
+                            ir.constantPool, cFrame, new int[0][]);
+                    if (cStmts != null) {
+                        for (String cs : cStmts) sb.append("        ").append(cs).append('\n');
+                    } else {
+                        sb.append("        throw \"body not recovered\"\n");
+                    }
+                }
+                sb.append("    }\n");
                 continue;
             }
             String ret = DecompileTypes.methodKofType(m.returnTypeName());

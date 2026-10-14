@@ -76,6 +76,7 @@ final class BytecodeStatementsEmit {
                 case 0x36, 0x37, 0x38, 0x39, 0x3a -> { // istore..astore idx
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
+                    if (val.equals("null")) { refuse(opcodeTag); return null; }   // SEM048 congelada
                     int slot = in.operands()[0];
                     // Fase E (14/10): o slot de um StringBuilder vira STRING
                     // (o idioma Kof é concat; StringBuilder não existe —
@@ -92,6 +93,7 @@ final class BytecodeStatementsEmit {
                 case 0x3b, 0x3c, 0x3d, 0x3e -> { // istore_0..3
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
+                    if (val.equals("null")) { refuse(opcodeTag); return null; }   // SEM048 congelada
                     stmts.add(assign(op - 0x3b, val, frame, declared));
                 }
                 case 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a -> {
@@ -99,11 +101,13 @@ final class BytecodeStatementsEmit {
                     // → slot = (op - 0x3f) % 4 (dstore_1 = 0x48 → slot 1, não 9)
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
+                    if (val.equals("null")) { refuse(opcodeTag); return null; }   // SEM048 congelada
                     stmts.add(assign((op - 0x3f) % 4, val, frame, declared));
                 }
                 case 0x4b, 0x4c, 0x4d, 0x4e -> { // astore_0..3
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
+                    if (val.equals("null")) { refuse(opcodeTag); return null; }   // SEM048 congelada
                     int slot2 = op - 0x4b;
                     if (val.startsWith("⟦sb⟧")) {
                         BytecodeStatements.builderSlots.add(slot2);
@@ -229,6 +233,10 @@ final class BytecodeStatementsEmit {
                 }
                 case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String rv = stack.pop();
+                    // SEM048 congelada: o literal null é BANIDO (o mantenedor:
+                    // "total ban of the literal, not even to T?") — `return
+                    // null` não compila → recusa honesta (R6)
+                    if (rv.equals("null")) { refuse(opcodeTag); return null; }
                     // coerção Bool (SEM010, medido no found/anyNeg): método `Z`
                     // com retorno iconst 1/0 → true/false (espelho do ternário)
                     if ("Z".equals(frame.retType())) {
@@ -238,6 +246,7 @@ final class BytecodeStatementsEmit {
                     stmts.add("return " + rv); return stmts; }
                 case 0xb0 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String rv2 = stack.pop();
+                    if (rv2.equals("null")) { refuse(opcodeTag); return null; }   // SEM048 congelada
                     if ("Z".equals(frame.retType())) {
                         if ("1".equals(rv2)) rv2 = "true";
                         if ("0".equals(rv2)) rv2 = "false";

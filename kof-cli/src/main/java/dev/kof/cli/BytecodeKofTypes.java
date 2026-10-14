@@ -123,6 +123,26 @@ final class BytecodeKofTypes {
                     return false;
                 }
                 int argc = BytecodeCp.argCount(m[2]);
+                // Fase E (14/10): o `invokespecial Object.<init>` do CONSTRUCTOR
+                // com só `this` na pilha (o ctor decompilado é [aload_0, super])
+                // → SKIP: o Kof chama super implicitamente (classes.md, a forma
+                // real `constructor(...) { this.x = x }` não tem super()).
+                if ("java/lang/Object".equals(m[0]) && argc == 0
+                        && stack.size() == 1 && "this".equals(stack.peek())) {
+                    stack.pop();
+                    return true;
+                }
+                // Fase E (14/10): o `invokespecial B.<init>` do CONSTRUCTOR
+                // (o shape [this, args] SEM dup) → `super(args)` explícito
+                // (medido: o Kof aceita super(v) no ctor e o Base.v recebe).
+                if (!"java/lang/Object".equals(m[0]) && stack.size() == argc + 1
+                        && "this".equals(stack.peek())) {
+                    var supArgs = new java.util.ArrayList<String>();
+                    for (int i = 0; i < argc; i++) supArgs.add(0, stack.pop());
+                    stack.pop();   // this
+                    stack.push("super(" + String.join(", ", supArgs) + ")");
+                    return true;
+                }
                 if (stack.size() < argc + 2) return false;
                 var callArgs = new java.util.ArrayList<String>();
                 for (int i = 0; i < argc; i++) callArgs.add(0, stack.pop());

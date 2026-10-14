@@ -1921,6 +1921,60 @@ class DecompileTest {
         assertEquals("1\n0", output, "zero-drift: lambda id\u00eantico ao Java");
     }
 
+    @Test
+    void capstoneClassRecoversZeroDrift(@TempDir Path dir) throws Exception {
+        // VALIDA\u00c7\u00c3O CAPSTONE (14/10): uma classe realista (fields +
+        // ctor + m\u00e9todos de inst\u00e2ncia + est\u00e1ticos + for-each +
+        // concat + String.equals) decompila → compila → RODA id\u00eantica ao
+        // Java. Tr\u00eas bugs cr\u00edticos pegos no caminho: (1) o ctor sa\u00eda
+        // VAZIO (o corpo nunca recuperava — toda classe destruída ficava com
+        // fields mortos); (2) o literal `null` (BANIDO pela sem\u00e2ntica
+        // congelada, SEM048) emitia c\u00f3digo n\u00e3o-compil\u00e1vel — recusa
+        // honesta; (3) o super(args) expl\u00edcito do ctor.
+        Path javaFile = dir.resolve("Inv.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                import java.util.ArrayList;
+                public class Inv {
+                    private String name;
+                    private int qty;
+                    public Inv(String name, int qty) { this.name = name; this.qty = qty; }
+                    public boolean take(int n) { if (n > qty) { return false; } qty -= n; return true; }
+                    public static Inv find(List<Inv> invs, String name) {
+                        for (Inv inv : invs) { if (inv.name.equals(name)) { return inv; } } return null;
+                    }
+                    public static String label(Inv inv) { return inv == null ? "none" : inv.name; }
+                    public static String repeat(String s, int n) {
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < n; i++) { sb.append(s); } return sb.toString();
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Inv.class"));
+        // o `find` (return null) STUBA honestamente: o literal null \u00e9
+        // BANIDO pela sem\u00e2ntica congelada (SEM048, mantenedora 09/09 —
+        // "total ban, not even to T?"); o label usa `== null` (narrowing, OK)
+        assertTrue(kof.contains("this.name = arg0"), "o ctor tem corpo:\n" + kof);
+        // o `== null` (narrowing) \u00c9 permitido; a ATRIBUI\u00c7\u00c3O/retorno
+        // do literal n\u00e3o (SEM048) — tira os `== null` antes de checar
+        assertFalse(kof.replace("== null", "").contains("= null"),
+                "o null literal n\u00e3o emite (o == null do narrowing fica):\n" + kof);
+        String kofRun = kof + "\nmain() {\n    var invs = listOf(Inv(\"a\", 5), Inv(\"b\", 0))\n    var a = invs.get(0)\n    println(Inv.label(a))\n    a.take(2)\n    println(Inv.label(a))\n    println(Inv.label(invs.get(1)))\n    println(Inv.repeat(\"ab\", 3))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: a | a | b | ababab
+        assertEquals("a\na\nb\nababab", output, "zero-drift: capstone id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
