@@ -259,7 +259,14 @@ public final class JsClassEmitter {
      * (this.name as a property would shadow the name() accessor).
      */
     String jsFieldName(IRClass clazz, String name) {
-        if ("java/lang/Record".equals(clazz.superName())) {
+        // #836: o mesmo predicado de record-ness do emit da classe (linha ~40):
+        // um record SINTÉTICO (class X(p) extends Base → componentes+acessores)
+        // tem o acessor `p()`; o backing field PRECISA do prefixo `_` mesmo sem
+        // a superclasse literal java/lang/Record, senão `this.p = <default>`
+        // SOBRESCREVE o método p() (o campo vira número, `p()` deixa de existir
+        // → TypeError no JS). Antes só o Record literal levava o prefixo.
+        if ("java/lang/Record".equals(clazz.superName())
+                || p.lc.recordClassNames.contains(clazz.name())) {
             return "_" + JsTypeMapper.sanitizeName(name);
         }
         return JsTypeMapper.sanitizeName(name);
