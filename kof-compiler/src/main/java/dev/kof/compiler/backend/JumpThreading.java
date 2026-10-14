@@ -67,6 +67,12 @@ public final class JumpThreading implements IrPass {
         }
 
         // 3) retarget every jump (and conditional jump) to the resolved target.
+        //    NOTE: this pass is additive and NOT wired into the production
+        //    Optimizer — the JS backend reconstructs if/while/switch structure
+        //    from the exact jump targets, so retargeting them (measured: both
+        //    KofJsE2ETest.execBreakContinue and KofSwitchExprE2ETest.nestedJs)
+        //    breaks it. Kept for the JVM/native backends once the JS
+        //    reconstruction is made robust to retargeted jumps.
         List<KofOperation> out = new ArrayList<>(ops.size());
         for (KofOperation op : ops) {
             if (op instanceof KofJump j) {
