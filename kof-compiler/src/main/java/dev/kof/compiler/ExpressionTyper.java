@@ -194,6 +194,27 @@ public final class ExpressionTyper {
                     t = new Type.ClassType(cts.packageName(), cts.name(),
                             ne.typeArguments().stream().map(n -> CompilerTypes.toType(n,
                                     driver.currentUnit, driver.semanticAnalyzer)).toList());
+                } else if (ne.typeArguments().isEmpty() && t instanceof Type.ClassType cts
+                        && driver.semanticAnalyzer != null) {
+                    // §713: sem args explícitos, INFERE-os — o emit constrói o
+                    // tipo do NewExpr independentemente do semântico, então a
+                    // inferência precisa acontecer AQUI também (senão o
+                    // receptor fica com args vazios e o JVM/nativo usam Object
+                    // apagado). Usa o construtor resolvido pelo semântico e os
+                    // tipos inferidos dos argumentos.
+                    SymbolTable.ConstructorSymbol ctor = driver.semanticAnalyzer.getResolvedConstructor(ne);
+                    if (ctor != null) {
+                        java.util.List<Type> argTypes = new java.util.ArrayList<>();
+                        for (ExpressionNode arg : ne.arguments()) {
+                            argTypes.add(driver.semanticAnalyzer.getExpressionType(arg));
+                        }
+                        java.util.List<Type> inferred = GenericTypeArgInference.infer(
+                                driver.semanticAnalyzer.typeParamNames(cts.name()),
+                                ctor.parameterTypes(), argTypes);
+                        if (inferred != null) {
+                            t = new Type.ClassType(cts.packageName(), cts.name(), inferred);
+                        }
+                    }
                 }
                 yield t;
             }

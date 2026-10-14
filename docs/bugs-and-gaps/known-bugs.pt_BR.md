@@ -14949,7 +14949,7 @@ devolve `100` em JVM/Script/nativo com o otimizador de IR DESLIGADO, mas LIGADO 
 
 <!-- en-switch --> **EN:** [§712](known-bugs.md#712--a-trycatchfinally-whose-finally-reads-a-local-that-the-trycatch-assigns-is-dead-stored-by-the-phase-c-livenessdeadstores-pass--jvm-verifyerror-bad-local-variable-type-the-finally-handler-sees-the-local-as-top---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
 
-## §713 — uma classe genérica construída SEM type-arguments explícitos (`Box(n)`) não os INFERE: o acesso a campo/método mantém o `Object` apagado, então o JVM lança `VerifyError: Bad type on operand stack` e os alvos nativos `ClassCastException` — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §713 — uma classe genérica construída SEM type-arguments explícitos (`Box(n)`) não os INFERE: o acesso a campo/método mantém o `Object` apagado, então o JVM lança `VerifyError: Bad type on operand stack` e os alvos nativos `ClassCastException` — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR, todos os seis alvos):**
 
@@ -14970,11 +14970,36 @@ Com type-arguments EXPLÍCITOS o mesmo programa está correto nos seis: `Box<Int
 
 **Raiz (análise):** NÃO existe inferência de type-arguments para chamadas de construtor em lugar algum do compilador — nenhum unificador existe (`SemMethodCallTyper` e `SemNewExprTyper` se espelham e NENHUM infere; um grep não acha helper `inferTypeArguments`/`unify`/`bindTypeVar`). Quando `ne.typeArguments()` é vazio, tanto o semântico (`SemNewExprTyper.infer`) quanto o emit (braço NewExpr do `ExpressionTyper`) constroem um `ClassType` com type-arguments VAZIOS, então o tipo do receptor não tem um `T` concreto; o `TypeSubstitution.substituteTypeVariableIn` não resolve `T`, e o tipo do campo/método fica o `Object` apagado. Os backends JVM/nativo então usam `Object` onde a fonte diz `Int`. Script/JS são lenientes (tipagem dinâmica) e por acaso concordam.
 
-**Caminho de correção (nomeado, NÃO pousado):** implementar inferência de type-arguments para `new C(args)` — unificar os tipos de parâmetro DECLARADOS do construtor (com folhas `TypeVariable`) contra os tipos inferidos dos argumentos para ligar cada type-parameter da classe, então construir o `ClassType` com os args inferidos — em AMBOS `SemNewExprTyper.infer` E no braço NewExpr do emit (`ExpressionTyper`), já que ambos constroem o tipo independentemente. Os NOMES dos type-parameters da classe precisam ser expostos (eles são registrados em `ClassTypeRegistry.registerTypeParameters` mas só a VARIÂNCIA é guardada). Tem de pousar com a bateria de genéricos (§706/§270/§582, records) como rede de regressão. Um diagnóstico (exigir args explícitos) seria uma MUDANÇA DE COMPORTAMENTO rejeitando código hoje aceito, então NÃO é o fix — o `var` do Kof implica que a inferência é o contrato pretendido.
+**Correção (POUSADA 14/10):** um unificador (`GenericTypeArgInference`) liga os type-parameters da classe a partir dos tipos DECLARADOS dos parâmetros do construtor contra os tipos inferidos dos argumentos. Está ligado nos TRÊS sítios de construção do tipo (cada um construía o tipo independentemente): `BuiltinCallTyper` (o caminho de construção implícita `Box(n)`, que era o que de fato produzia o tipo quebrado), `SemNewExprTyper.infer` (o caminho semântico de `new Box(n)`), e o braço NewExpr do emit (`ExpressionTyper`). Os NOMES dos type-parameters da classe são expostos via `ClassTypeRegistry.typeParamNames` (o registry guardava só a VARIÂNCIA). O unificador é conservador: um type-param não ligado vira `Object` (erasure), um tipo real `Unknown`/`TypeVariable` não é ligado, e uma forma que não casa deixa o tipo cru — então nada antes aceito é rejeitado. **Prova:** `GenericCtorInferenceE2ETest` 6/0F (JVM/Script/JS/nativo x86-64/riscv64/aarch64), RED-first (a face JVM lançava `VerifyError` antes); bateria de genéricos/records 500/0F; suíte golden 296/0F/0skip.
 
 **Fronteira:** os backends JVM + nativo (Script/JS são lenientes); a forma com type-arguments explícitos está correta nos seis. Distinto do §706 (`Box<Box<Int>>` ANINHADO com args EXPLÍCITOS) — isto é a INFERÊNCIA dos args em si.
 
-<!-- en-switch --> **EN:** [§713](known-bugs.md#713--a-generic-class-constructed-without-explicit-type-arguments-boxn-does-not-infer-them-the-fieldmethod-access-keeps-the-erased-object-so-the-jvm-throws-verifyerror-bad-type-on-operand-stack-and-the-native-targets-classcastexception---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§713](known-bugs.md#713--a-generic-class-constructed-without-explicit-type-arguments-boxn-does-not-infer-them-the-fieldmethod-access-keeps-the-erased-object-so-the-jvm-throws-verifyerror-bad-type-on-operand-stack-and-the-native-targets-classcastexception---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §714 — uma classe com um CAMPO e um MÉTODO de MESMO nome (`class H(Int item) { Int item() { return item } }`) compila em JVM/JS mas FALHA no Script (compilação) e no nativo (`as`: `symbol 'H_item' is already defined`) — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+class H(Int item) {
+    Int item() { return item }
+}
+Int f(Int n) {
+    var h = H(n)
+    return h.item() + 1
+}
+main() { println(f(5)) }
+```
+
+compila e roda em JVM e JS, mas: o **Script** falha na compilação, e o **nativo x86-64/riscv64/aarch64** falha na montagem — o `.s` gerado define o símbolo `H_item` DUAS vezes (`as: symbol 'H_item' is already defined` / `.Lfe_H_item`), uma para o campo `item` e uma para o método `item()`. O backend nativo mangla um campo e um método de mesmo nome para o MESMO símbolo; o backend Script também rejeita a forma.
+
+**Raiz (análise):** o mangling de símbolo nativo (`Owner_member`) não distingue um campo de um método, então campo+método de mesmo nome colidem. É a mesma classe do trabalho de inferência de record genérico (§713) — achado ao escrever aquele E2E — mas é INDEPENDENTE de genéricos: uma `class H(Int item)` não-genérica com um método de mesmo nome reproduz. Se o Kof PRETENDE permitir campo e método de mesmo nome é uma questão de semântica; o bug é que os alvos DIVERGEM (JVM/JS aceitam, Script/nativo rejeitam) — pelo contrato devem concordar, ou todos aceitando (então corrigir o mangling + o Script) ou todos rejeitando com um diagnóstico.
+
+**Caminho de correção (nomeado, NÃO pousado):** desambiguar o mangling nativo (ex.: um infixo `field$`/`method$`) OU fazer o semântico rejeitar a colisão uniformemente; a face Script tem de ser alinhada de qualquer forma. Tem de pousar com a bateria de classe/método nativa + Script como rede de regressão.
+
+**Fronteira:** Script + nativo x86-64/riscv64/aarch64; JVM/JS estão corretos. Distinto do §713 (inferência de type-arguments) — isto é uma COLISÃO de nome.
+
+<!-- en-switch --> **EN:** [§714](known-bugs.md#714--a-class-with-a-field-and-a-method-of-the-same-name-class-hint-item--int-item--return-item---compiles-on-jvmjs-but-fails-on-script-compile-and-native-as-symbol-h_item-is-already-defined---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
