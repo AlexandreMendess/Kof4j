@@ -320,7 +320,16 @@ final class NativeMethodEmitter {
             case KofCatchStart kcs -> {
                 sb.append(nb.resolveLabel(kcs.handlerLabel())).append(":\n");
                 sb.append("    addq $32, %rsp\n");
-                sb.append("    movq %rdi, -").append((kcs.localIndex() + 1) * 8).append("(%rbp)\n");
+                // The caught exception arrives in %rdi. Store it to the local's
+                // REGISTER when it is register-placed, else to its frame slot —
+                // otherwise a register-placed caught var reads a stale value
+                // (MEASURED: SIGSEGV when a reference local was register-placed).
+                String catchReg = regOf(kcs.localIndex());
+                if (catchReg != null) {
+                    sb.append("    movq %rdi, %").append(catchReg).append("\n");
+                } else {
+                    sb.append("    movq %rdi, -").append((kcs.localIndex() + 1) * 8).append("(%rbp)\n");
+                }
             }
             case KofTryStart kts -> {
                 sb.append(nb.resolveLabel(kts.startLabel())).append(":\n");
