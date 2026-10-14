@@ -1975,6 +1975,46 @@ class DecompileTest {
         assertEquals("a\na\nb\nababab", output, "zero-drift: capstone id\u00eantico ao Java");
     }
 
+    @Test
+    void orRangeCheckWithThrowRecovers(@TempDir Path dir) throws Exception {
+        // VALIDA\u00c7\u00c3O (14/10): o range-check `if (p < 1 || p > 65535)
+        // throw` — TR\u00caS bugs raiz pegos: (1) o athrow (0xbf) OPACO tinha
+        // length=4 no skipper — o bloco do throw esticava e ENGOLIA o
+        // `return` seguinte (o CFG ficava com blocos sobrepostos);
+        // (2) o `||` com o PR\u00d3LOGO fundido no teste: o 1º termo do walk
+        // usa o SUFIXO do split (o prólogo já emitido); (3) o `ldc` grande
+        // (65535, fora do bipush) cai no mini-avaliador quando o loadValue
+        // falha. Zero-drift executado.
+        Path javaFile = dir.resolve("Vk.java");
+        Files.writeString(javaFile, """
+                public class Vk {
+                    static int parsePort(String s) {
+                        int p = Integer.parseInt(s);
+                        if (p < 1 || p > 65535) { throw new RuntimeException("range:" + p); }
+                        return p;
+                    }
+                    static boolean inRange(int v, int lo, int hi) { return v >= lo && v <= hi; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Vk.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("||"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Vk.parsePort(\"8080\"))\n    println(Vk.inRange(5, 1, 10))\n    println(Vk.inRange(0, 1, 10))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 8080 | true | false
+        assertEquals("8080\ntrue\nfalse", output, "zero-drift: range-check id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

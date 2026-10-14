@@ -391,15 +391,21 @@ import java.util.Set;
         // recuperavel aqui: null = stub honesto (R6).
         int arity = (last.opcode() >= 0x9f && last.opcode() <= 0xa4) ? 2 : 1;
         if (block.size() - 1 < arity) return null;
-        // Path EXATO original: o bloco do teste é SÓ os loads (aridade igual)
+        // Path EXATO original: o bloco do teste é SÓ os loads (aridade igual).
+        // Fase E (14/10): se um load falha (ex.: `ldc 65535` — fora do
+        // bipush), CAI no mini-avaliador (que modela o ldc) em vez de
+        // recusar — medido no parsePort: o `||` quebrava no 2º termo.
         if (block.size() - 1 == arity) {
             java.util.List<String> operands = new java.util.ArrayList<>();
+            boolean exactOk = true;
             for (int i = 0; i < block.size() - 1; i++) {
                 String v = BytecodeDecoderStack.loadValue(block.get(i), frame);
-                if (v == null) return null;
+                if (v == null) { exactOk = false; break; }
                 operands.add(v);
             }
-            return operands.get(0) + " " + inv + (arity == 2 ? " " + operands.get(1) : "");
+            if (exactOk) {
+                return operands.get(0) + " " + inv + (arity == 2 ? " " + operands.get(1) : "");
+            }
         }
         // Fase E (14/10): comparação LONG — o javac emite [x, y, lcmp, ifXX]
         // (o ifXX testa o SINAL do lcmp): a condição real tem DOIS operandos.

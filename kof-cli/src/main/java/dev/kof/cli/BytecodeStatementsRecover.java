@@ -94,6 +94,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         int exitStart = b.succ.get(0);   // alvo do branch (falso)
         int thenStart = b.succ.get(1);   // fall-through (verdadeiro)
         boolean loop0 = BytecodeReader.isLoopHeader(b);
+        // Fase E (14/10): visíveis ao walk do || — o 1º termo é o SUFIXO
+        // do bloco fundido (o prólogo já foi emitido pelo fusion)
+        List<BytecodeReader.Insn> fusedBlk = null;
+        int fusedK = 0;
+        int fusedLastOp = -1;
+        BytecodeDecoder.TestSplit split = null;
         if (cond == null && !loop0) {
             // Fase C (prologue no mesmo bloco do teste): javac funde
             // `int r = 100; if (x > 5)` num bloco so — o blockCondition
@@ -112,8 +118,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             // avalia EXATAMENTE os `arity` operandos. Fecha o risco do
             // sufixo-fragmento reaproveitar um valor como receptor
             // (medido: `[ldc "(", at]` avaliava mas era código ERRADO).
-            BytecodeDecoder.TestSplit split = (inv != null && last.isCond())
+            split = (inv != null && last.isCond())
                     ? BytecodeDecoder.testSplit(blk, frame, cp, k, inv) : null;
+            fusedBlk = blk;
+            fusedK = k;
+            fusedLastOp = last.opcode();
+
             if (split != null) {
                 List<BytecodeReader.Insn> preInsns = blk.subList(0, split.prologueLen());
                 // emitLinear PARA e retorna parcial em branch (linha do
@@ -145,7 +155,21 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                     && !BytecodeReader.isLoopHeader(tb)) {
                 if (tb.succ.get(0) == exitStart) {
                     // nao-final: jump=VERDADEIRO
-                    String c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
+                    String c2;
+                    if (tb == b && split != null) {
+                        // Fase E (14/10): o bloco fundido (o prólogo já
+                        // emitido): o 1º termo é o SUFIXO do split com o
+                        // takenCond — o bloco INTEIRO falharia nas stores
+                        // do prólogo (medido no parsePort: o walk quebrava
+                        // e o cond flat saía errado)
+                        List<BytecodeReader.Insn> suf = fusedBlk.subList(
+                                split.prologueLen(), fusedBlk.size() - 1);
+                        String top = BytecodeCp.takenCond(fusedLastOp);
+                        c2 = top == null ? null
+                                : BytecodeDecoder.testExpr(suf, frame, fusedK, top, cp);
+                    } else {
+                        c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
+                    }
                     if (c2 == null) break;
                     orCond = orCond == null ? c2 : orCond + " || " + c2;
                     tb = byStart.get(tb.succ.get(1));
