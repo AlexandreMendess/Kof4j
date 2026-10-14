@@ -17573,6 +17573,52 @@ returns `107` on the JVM (the `p.x` access routes through the OVERRIDDEN accesso
 
 <!-- pt-switch --> **PT:** [§715](known-bugs.pt_BR.md#715--um-componente-de-record-acessado-como-campo-px-diverge-quando-o-record-declara-um-acessor-explicito-de-mesmo-nome-o-jvm-roteia-px-pelo-acessor-o-valor-sobrescrito-enquanto-scriptjsnativo-leem-o-campo-cru---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
+## §717 — a generic method returning a NESTED generic collection (`List<T> asList()`) gives GARBAGE on the native targets (the JVM/Script/JS are correct) — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):**
+
+```kof
+record Box<T>(T value) {
+    List<T> asList() { return listOf(value) }
+}
+main() {
+    var b = Box<Int>(5)
+    var xs = b.asList()
+    println(xs.get(0))
+}
+```
+
+prints `5` on JVM/Script/JS but a GARBAGE value on native x86-64/riscv64/aarch64 (`1855979680`/`201072`/`4395376`) — the returned `List<T>` handle is mis-read. Related to §706 (a generic member's return type at the call site) but the divergence is native-ONLY here (the JVM/JS are correct), so it is a distinct face: the native backend mishandles the generic collection return.
+
+**Root (analysis, not fully traced):** the native call site / return-handling of a generic method whose return is a collection with a type-variable element loses the type identity. Distinct from §706 (which was JVM+native and was a WRONG DESCRIPTOR fixed by using the declared return type).
+
+**Fix path (named, NOT landed):** trace the native call-site/return type for a generic collection return; align it with the JVM/Script/JS. Must land with the generics + native battery as the regression net.
+
+**Boundary:** native x86-64/riscv64/aarch64 only; JVM/Script/JS are correct.
+
+<!-- pt-switch --> **PT:** [§717](known-bugs.pt_BR.md#717--um-metodo-generico-que-retorna-uma-colecao-generica-aninhada-listt-aslist-da-lixo-nos-alvos-nativos-jvmscriptjs-corretos---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §716 — a generic type-parameter BOUND is NOT validated: an unknown bound (`T: Foobar`) or the non-type `T: Any` compiles clean and the emitted class references a nonexistent class (`NoClassDefFoundError: Foobar`/`Any` at JVM load) — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):**
+
+```kof
+record Box<T: Foobar>(T value) {
+    T id() { return value }
+}
+main() { println(Box<Int>(4).id()) }
+```
+
+compiles CLEAN (no diagnostic) and the emitted class references `Foobar` — at JVM load `NoClassDefFoundError: Foobar`. The same happens with the plausible-looking but nonexistent `T: Any` (`NoClassDefFoundError: Any`): the bound is resolved to a `ClassType` with no validation that the type exists, so a typo in a bound is SILENT until the JVM crashes at load (violates R6/Q7 — no silent fallback). The native targets happen to print the value (they may erase differently), so the faces DIVERGE.
+
+**Root (analysis):** `TypeParams.variable` / `CompilerTypes.toType` build the `TypeVariable` bound from the raw bound text via `toType` WITHOUT checking that the named type is a known class (module-declared, imported, or a builtin). An unknown bound should be a compile diagnostic (e.g. SEM — unknown type in bound), never a deferred `NoClassDefFoundError`.
+
+**Fix path (named, NOT landed):** validate the bound name during semantic analysis (it must resolve to a known type); emit a SEM diagnostic otherwise. Must land with the generics battery as the regression net.
+
+**Boundary:** all targets that emit the bound into a descriptor (JVM fails loud at load; native silently ignores/erases). Distinct from §706/§717 (member return types) — this is bound VALIDATION.
+
+<!-- pt-switch --> **PT:** [§716](known-bugs.pt_BR.md#716--o-bound-de-um-type-parameter-generico-nao-e-validado-um-bound-desconhecido-t-foobar-ou-o-nao-tipo-t-any-compila-limpo-e-a-classe-emitida-referencia-uma-classe-inexistente-noclassdeffounderror-foobarany-no-load-do-jvm---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):** `var d = 0` then `try { println(10 / d) } catch (String e) { ... }` printed **`-1` on riscv64 and `0` on aarch64** and left the `catch` UNREACHED, where every other target printed `caught`. Same for `%` and for `Long` (`10L / 0L`). The failure is the worst kind: the program keeps running with a wrong value instead of failing loudly.

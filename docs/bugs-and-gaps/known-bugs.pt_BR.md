@@ -15028,6 +15028,52 @@ devolve `107` no JVM (o acesso `p.x` passa pelo acessor SOBRESCRITO: `x()+y = 10
 
 <!-- en-switch --> **EN:** [§715](known-bugs.md#715--a-record-component-accessed-as-a-field-px-diverges-when-the-record-declares-an-explicit-accessor-of-the-same-name-the-jvm-routes-px-through-the-accessor-the-overridden-value-while-scriptjsnative-read-the-raw-field---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
 
+## §717 — um método genérico que retorna uma coleção genérica ANINHADA (`List<T> asList()`) dá LIXO nos alvos nativos (JVM/Script/JS corretos) — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+record Box<T>(T value) {
+    List<T> asList() { return listOf(value) }
+}
+main() {
+    var b = Box<Int>(5)
+    var xs = b.asList()
+    println(xs.get(0))
+}
+```
+
+imprime `5` em JVM/Script/JS mas um valor LIXO nos nativos x86-64/riscv64/aarch64 (`1855979680`/`201072`/`4395376`) — o handle `List<T>` retornado é mal-lido. Relacionado ao §706 (o tipo de retorno de um membro genérico no call site) mas a divergência aqui é SÓ do nativo (JVM/JS corretos), então é uma face distinta: o backend nativo trata mal o retorno de coleção genérica.
+
+**Raiz (análise, não totalmente rastreada):** o call site / tratamento de retorno nativo de um método genérico cujo retorno é uma coleção com elemento type-variable perde a identidade do tipo. Distinto do §706 (que era JVM+nativo e era um DESCRIPTOR ERRADO, corrigido usando o retorno declarado).
+
+**Caminho de correção (nomeado, NÃO pousado):** rastrear o tipo do call site/retorno nativo para um retorno de coleção genérica; alinhar com o JVM/Script/JS. Tem de pousar com a bateria de genéricos + nativa como rede de regressão.
+
+**Fronteira:** só nativo x86-64/riscv64/aarch64; JVM/Script/JS corretos.
+
+<!-- en-switch --> **EN:** [§717](known-bugs.md#717--a-generic-method-returning-a-nested-generic-collection-listt-aslist-gives-garbage-on-the-native-targets-the-jvmscriptjs-are-correct---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §716 — o BOUND de um type-parameter genérico NÃO é validado: um bound desconhecido (`T: Foobar`) ou o não-tipo `T: Any` compila limpo e a classe emitida referencia uma classe inexistente (`NoClassDefFoundError: Foobar`/`Any` no load do JVM) — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+record Box<T: Foobar>(T value) {
+    T id() { return value }
+}
+main() { println(Box<Int>(4).id()) }
+```
+
+compila LIMPO (sem diagnóstico) e a classe emitida referencia `Foobar` — no load do JVM `NoClassDefFoundError: Foobar`. O mesmo acontece com o aparentemente plausível mas inexistente `T: Any` (`NoClassDefFoundError: Any`): o bound é resolvido para um `ClassType` sem validação de que o tipo existe, então um erro de digitação num bound é SILENCIOSO até o JVM crashar no load (viola R6/Q7 — sem fallback silencioso). Os alvos nativos por acaso imprimem o valor (podem apagar diferente), então as faces DIVERGEM.
+
+**Raiz (análise):** o `TypeParams.variable` / `CompilerTypes.toType` constroem o bound do `TypeVariable` a partir do texto cru do bound via `toType` SEM checar que o tipo nomeado é uma classe conhecida (declarada no módulo, importada, ou um builtin). Um bound desconhecido deveria ser um diagnóstico de compilação (ex.: SEM — tipo desconhecido no bound), nunca um `NoClassDefFoundError` adiado.
+
+**Caminho de correção (nomeado, NÃO pousado):** validar o nome do bound na análise semântica (tem de resolver para um tipo conhecido); emitir um diagnóstico SEM caso contrário. Tem de pousar com a bateria de genéricos como rede de regressão.
+
+**Fronteira:** todos os alvos que emitem o bound num descriptor (o JVM falha alto no load; o nativo silenciosamente ignora/apaga). Distinto do §706/§717 (tipos de retorno de membros) — isto é VALIDAÇÃO de bound.
+
+<!-- en-switch --> **EN:** [§716](known-bugs.md#716--a-generic-type-parameter-bound-is-not-validated-an-unknown-bound-t-foobar-or-the-non-type-t-any-compiles-clean-and-the-emitted-class-references-a-nonexistent-class-noclassdeffounderror-foobarany-at-jvm-load---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
