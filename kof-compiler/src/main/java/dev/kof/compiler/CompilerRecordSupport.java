@@ -253,8 +253,13 @@ public final class CompilerRecordSupport {
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> locals = new ArrayList<>();
         Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, driver.semanticAnalyzer);
+        // §720: a superclasse pode ser GENÉRICA (`extends Base<Int>`) — o
+        // owner do super() tem de ser o nome APAGADO (`Base`), nunca
+        // `Base<Int>` (o JVM emite `invokeSpecial "Base<Int>".<init>` →
+        // VerifyError). Espelha o eraseTypeArgs do CompilerClassLowering:24 e
+        // do CompilerIfaceRecordLowering:48.
         Type superType = rec.superClass() != null
-                ? CompilerTypes.ownerTypeFromInternal(driver.toInternalName("", rec.superClass()), driver.semanticAnalyzer)
+                ? CompilerTypes.ownerTypeFromInternal(driver.toInternalName("", CompilerClassLowering.eraseTypeArgs(rec.superClass())), driver.semanticAnalyzer)
                 : new Type.ClassType("java.lang", "Record", List.of());
         locals.add(new IRLocalVariable(0, "this", ownerType));
         if (driver.isJvmTarget()) {
