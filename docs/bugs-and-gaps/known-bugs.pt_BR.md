@@ -15053,7 +15053,7 @@ imprime `5` em JVM/Script/JS mas um valor LIXO nos nativos x86-64/riscv64/aarch6
 
 <!-- en-switch --> **EN:** [§717](known-bugs.md#717--a-generic-method-returning-a-nested-generic-collection-listt-aslist-gives-garbage-on-the-native-targets-the-jvmscriptjs-are-correct---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
 
-## §716 — o BOUND de um type-parameter genérico NÃO é validado: um bound desconhecido (`T: Foobar`) ou o não-tipo `T: Any` compila limpo e a classe emitida referencia uma classe inexistente (`NoClassDefFoundError: Foobar`/`Any` no load do JVM) — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §716 — o BOUND de um type-parameter genérico NÃO é validado: um bound desconhecido (`T: Foobar`) ou o não-tipo `T: Any` compila limpo e a classe emitida referencia uma classe inexistente (`NoClassDefFoundError: Foobar`/`Any` no load do JVM) — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
 
@@ -15068,11 +15068,11 @@ compila LIMPO (sem diagnóstico) e a classe emitida referencia `Foobar` — no l
 
 **Raiz (análise):** o `TypeParams.variable` / `CompilerTypes.toType` constroem o bound do `TypeVariable` a partir do texto cru do bound via `toType` SEM checar que o tipo nomeado é uma classe conhecida (declarada no módulo, importada, ou um builtin). Um bound desconhecido deveria ser um diagnóstico de compilação (ex.: SEM — tipo desconhecido no bound), nunca um `NoClassDefFoundError` adiado.
 
-**Caminho de correção (nomeado, NÃO pousado):** validar o nome do bound na análise semântica (tem de resolver para um tipo conhecido); emitir um diagnóstico SEM caso contrário. Tem de pousar com a bateria de genéricos como rede de regressão.
+**Correção (POUSADA 14/10):** o `DeclaredTypeChecker` (o checador de tipos declarados do §251/SEM011) agora valida CADA bound de type-parameter com o MESMO predicado (`MemberResolver.declaredTypeUnresolved`), isentando os type-params do próprio dono. Um bound que é uma classe do módulo, um import, um builtin, ou `java.lang` resolve; qualquer outro é SEM011. **Prova RED-first:** `GenericBoundValidationE2ETest` (novo) **6 run / 0F**; com o fix revertido 3/6 falham (os casos bound desconhecido / `Any` / bound de função compilam limpos). Bateria genéricos/records 273/0F.
 
 **Fronteira:** todos os alvos que emitem o bound num descriptor (o JVM falha alto no load; o nativo silenciosamente ignora/apaga). Distinto do §706/§717 (tipos de retorno de membros) — isto é VALIDAÇÃO de bound.
 
-<!-- en-switch --> **EN:** [§716](known-bugs.md#716--a-generic-type-parameter-bound-is-not-validated-an-unknown-bound-t-foobar-or-the-non-type-t-any-compiles-clean-and-the-emitted-class-references-a-nonexistent-class-noclassdeffounderror-foobarany-at-jvm-load---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§716](known-bugs.md#716--a-generic-type-parameter-bound-is-not-validated-an-unknown-bound-t-foobar-or-the-non-type-t-any-compiles-clean-and-the-emitted-class-references-a-nonexistent-class-noclassdeffounderror-foobarany-at-jvm-load---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
