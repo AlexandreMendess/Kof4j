@@ -97,13 +97,25 @@ final class BytecodeStatementsEmit {
                     declared.add(slot);
                     stmts.add(name + " = " + name + " + " + k);
                 }
-                case 0x60 -> { if (!BytecodeDecoder.bin(stack, "+")) { refuse(opcodeTag); return null; } }
-                case 0x64 -> { if (!BytecodeDecoder.bin(stack, "-")) { refuse(opcodeTag); return null; } }
-                case 0x68 -> { if (!BytecodeDecoder.bin(stack, "*")) { refuse(opcodeTag); return null; } }
-                case 0x6c -> { if (!BytecodeDecoder.bin(stack, "/")) { refuse(opcodeTag); return null; } }
-                case 0x70 -> { if (!BytecodeDecoder.bin(stack, "%")) { refuse(opcodeTag); return null; } }
+                // Fase C (13/10): aritmetica INT/LONG/FLOAT/DOUBLE — as
+                // variantes long/float/double (0x61-0x63/0x65-0x67/0x69-0x6b/
+                // 0x6d-0x6f/0x71-0x73) faltavam: QUALQUER corpo multi-statement
+                // com math long/double stubava. O bin e type-agnostico (os
+                // operandos carregam o valor).
+                case 0x60, 0x61, 0x62, 0x63 -> { if (!BytecodeDecoder.bin(stack, "+")) { refuse(opcodeTag); return null; } }
+                case 0x64, 0x65, 0x66, 0x67 -> { if (!BytecodeDecoder.bin(stack, "-")) { refuse(opcodeTag); return null; } }
+                case 0x68, 0x69, 0x6a, 0x6b -> { if (!BytecodeDecoder.bin(stack, "*")) { refuse(opcodeTag); return null; } }
+                case 0x6c, 0x6d, 0x6e, 0x6f -> { if (!BytecodeDecoder.bin(stack, "/")) { refuse(opcodeTag); return null; } }
+                case 0x70, 0x71, 0x72, 0x73 -> { if (!BytecodeDecoder.bin(stack, "%")) { refuse(opcodeTag); return null; } }
                 // Fase C (13/10): shifts (0x78-0x7d) — Int/Long << >> >>> (a
                 // semantica por-target e do COMPILADOR, corrigida no §698)
+                // Fase C (13/10): CONVERSOES primitivas (0x85-0x90) — Int/Long/
+                // Float/Double via .toInt()/.toLong()/.toFloat()/.toDouble()
+                // (medido: os unicos conversores de primitivo do Kof). 0x91-0x93
+                // (i2b/i2c/i2s) NAO tem equivalente Kof -> seguem recusados.
+                case 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90 -> {
+                    if (!BytecodeDecoder.conv(stack, op)) { refuse(opcodeTag); return null; }
+                }
                 case 0x78, 0x79 -> { if (!BytecodeDecoder.bin(stack, "<<")) { refuse(opcodeTag); return null; } }
                 case 0x7a, 0x7b -> { if (!BytecodeDecoder.bin(stack, ">>")) { refuse(opcodeTag); return null; } }
                 case 0x7c, 0x7d -> { if (!BytecodeDecoder.bin(stack, ">>>")) { refuse(opcodeTag); return null; } }

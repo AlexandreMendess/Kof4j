@@ -494,14 +494,17 @@ import java.util.Set;
                 // antiga da face de guarda (`0 0 1 3 3 7 12`) estava
                 // matematicamente errada para esse corpo — foi ela, não o
                 // join, que fechava esta porta.
-                case 0x70 -> { if (!bin2(st, "%")) return false; }
+                case 0x60, 0x61, 0x62, 0x63 -> { if (!bin2(st, "+")) return false; }
+                case 0x64, 0x65, 0x66, 0x67 -> { if (!bin2(st, "-")) return false; }
+                case 0x68, 0x69, 0x6a, 0x6b -> { if (!bin2(st, "*")) return false; }
+                case 0x6c, 0x6d, 0x6e, 0x6f -> { if (!bin2(st, "/")) return false; }
+                case 0x70, 0x71, 0x72, 0x73 -> { if (!bin2(st, "%")) return false; }
+                case 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90 -> {
+                    if (!conv(st, op)) return false;
+                }
                 case 0x78, 0x79 -> { if (!bin2(st, "<<")) return false; }
                 case 0x7a, 0x7b -> { if (!bin2(st, ">>")) return false; }
                 case 0x7c, 0x7d -> { if (!bin2(st, ">>>")) return false; }
-                case 0x60 -> { if (!bin2(st, "+")) return false; }
-                case 0x64 -> { if (!bin2(st, "-")) return false; }
-                case 0x68 -> { if (!bin2(st, "*")) return false; }
-                case 0x6c -> { if (!bin2(st, "/")) return false; }
                 // Fase C (13/10): CHAMADAS em condição (`s.isEmpty()`) — o
                 // MESMO gate R6 do emitLinear (JDK-owner recusa; método em
                 // objeto novo recusa; void em condição não existe).
@@ -549,6 +552,20 @@ import java.util.Set;
                 default -> { return false; }
             }
         }
+        return true;
+    }
+
+    /** Converte o topo da pilha com o metodo Kof do opcode (0x85-0x90), ou false. */
+    static boolean conv(java.util.Deque<String> st, int op) {
+        String m = switch (op) {
+            case 0x85 -> "toLong"; case 0x86 -> "toFloat"; case 0x87 -> "toDouble";
+            case 0x88 -> "toInt"; case 0x89 -> "toFloat"; case 0x8a -> "toDouble";
+            case 0x8b -> "toInt"; case 0x8c -> "toLong"; case 0x8d -> "toDouble";
+            case 0x8e -> "toInt"; case 0x8f -> "toLong"; case 0x90 -> "toFloat";
+            default -> null;
+        };
+        if (m == null || st.isEmpty()) return false;
+        st.push(st.pop() + "." + m + "()");
         return true;
     }
 

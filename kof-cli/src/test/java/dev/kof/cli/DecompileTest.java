@@ -1178,6 +1178,51 @@ class DecompileTest {
         assertEquals("42\n7\ntrue\nn=5!", output, "zero-drift: String.valueOf idêntico ao Java");
     }
 
+    @Test
+    void primitiveConversionsRecoverNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E (13/10): as CONVERSÕES primitivas (0x85-0x90) faltavam no
+        // emitLinear/avaliador — qualquer corpo com `(long) x`/`(double) x`/
+        // `(int) l` stubava. Mapeadas p/ .toLong()/.toDouble()/.toInt()/
+        // .toFloat() (os únicos conversores de primitivo do Kof, medido).
+        // 0x91-0x93 (i2b/i2c/i2s) NÃO têm equivalente — seguem recusados.
+        Path javaFile = dir.resolve("Cv.java");
+        Files.writeString(javaFile, """
+                public class Cv {
+                    static long widen(int i) { return (long) i; }
+                    static double iToD(int i) { return (double) i; }
+                    static int lToI(long l) { return (int) l; }
+                    static double lToD(long l) { return (double) l; }
+                    static int dToI(double d) { return (int) d; }
+                    static long dToL(double d) { return (long) d; }
+                    static double mix(int a, long b) {
+                        long x = (long) a;
+                        double y = (double) b;
+                        return x + y;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cv.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "as conversoes recuperam:\n" + kof);
+        // o caminho de EXPRESS\u00c3O emite `as` (correto, medido); o de
+        // STATEMENTS emite `.toX()` — aceita qualquer um
+        assertTrue(kof.contains("as Long") || kof.contains(".toLong()"), kof);
+        assertTrue(kof.contains("as Double") || kof.contains(".toDouble()"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Cv.widen(42))\n    println(Cv.iToD(7))\n    println(Cv.lToI(9L))\n    println(Cv.lToD(3L))\n    println(Cv.dToI(2.9))\n    println(Cv.dToL(5.7))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("42\n7.0\n9\n3.0\n2\n5", output, "zero-drift das conversoes");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
