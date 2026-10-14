@@ -27,11 +27,12 @@ class FinancialLedgerE2ETest implements LibraryInstallSupport {
 
     @Override public String libraryName() { return "financial"; }
 
-    @Override public List<String> libraryMarkers() { return List.of("Money.kf", "Ledger.kf"); }
+    @Override public List<String> libraryMarkers() { return List.of("Money.kf", "Ledger.kf", "Recon.kf"); }
 
     private static final String PROBE = """
             import financial.Money
             import financial.Ledger
+import financial.Recon
 
             main() {
                 var cash = Account("cash-1", "store-1", "BRL", "asset")
@@ -58,13 +59,26 @@ class FinancialLedgerE2ETest implements LibraryInstallSupport {
                 } catch (String e) {
                     println(e)
                 }
+                var e2 = listOf(
+                    Entry("cash-1", Direction.debit, 995L, "BRL"),
+                    Entry("rev-1", Direction.credit, 995L, "BRL"))
+                var s2store = post(s1, e2, "sale-3", "j-2", 1800L)
+                var stmt = listOf(
+                    StatementLine("s-1", 1000L, "BRL", 1500L, "dep 1000"),
+                    StatementLine("s-2", 990L, "BRL", 1600L, "dep 990 (9 off)"),
+                    StatementLine("s-3", 500L, "USD", 1700L, "usd line"))
+                var ms = reconcile(s2store.journals, stmt, 10)
+                println(ms.size)
+                println(ms.get(0).kind)
+                println(ms.get(1).kind)
+                println(ms.get(2).kind)
             }
             """;
 
     // 150+250=400 -> R$ 4.00 ; 250-150=100 -> R$ 1.00 ; negate 150 -> R$ -1.50 ;
     // roundTo(155, 1, halfEven) -> 160 -> R$ 1.60 ; scale(150, 3/2) = 225 -> R$ 2.25 ;
     // JPY has 0 minor units: Money(0,"JPY") -> "JPY 0" ; roundTo(12345, 0) -> "JPY 12345"
-    private static final String EXPECTED = "1\ntrue\n1000\n-1000\n1000\n700\nunbalanced journal (FIN004)";
+    private static final String EXPECTED = "1\ntrue\n1000\n-1000\n1000\n700\nunbalanced journal (FIN004)\n3\nexact\ntolerance\nunmatched";
 
     private <T> T withLibrary(Path root, CheckedSupplier<T> action) throws Exception {
         copyLibrary(root.resolve("kof-install/lib/kof-libs"));
