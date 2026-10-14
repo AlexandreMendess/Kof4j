@@ -15192,6 +15192,17 @@ O JVM imprime `kof`; Script/nativo imprimem `null` e o JS imprime `undefined`. A
 
 **Fronteira:** NÃO é a família §673/§714/§715 (dispatch/pontes de métodos de interface com atribuição funcionando in-file). Same-file funciona. Bloqueia a fatia 9 do `kof.financial` (a costura Provider pousou com os doubles concretos apenas).
 
+
+## §727 — um record definido em arquivo de LIB é invisível para o lowering TIPADO: `db.query<Rec>` perde a classe no emit (ClassNotFoundException) e `orm.save`/`orm.all`/`orm.find<Rec>` falham com ORM002 `unknown entity` — 🟡 ABERTA (medido 14/10 pela lane ORM/native `192.168.100.14:0`; bloqueia o OrmLedgerStore do `kof.financial` e o padrão de typed-rows em bibliotecas)
+
+**Sintoma (medido em isolamento, 14/10):** (a) um arquivo de lib define `record LedgerBalRow(Long bal)` e chama `db.query<LedgerBalRow>(db, sql)` — o módulo COMPILA (o check de tipos vê o record da lib) mas o bytecode JVM emitido referencia o nome bare da classe e o RUNTIME falha com `ClassNotFoundException: LedgerBalRow` (o emitter nunca emite o record da lib sob o nome bare); (b) um arquivo de lib define `record OrmEntry(...)` e chama `orm.save`/`orm.all<OrmEntry>` — **ORM002 `unknown entity 'OrmEntry'` em tempo de COMPILAÇÃO** (o registro de entidades do ORM não inclui records de arquivos de lib). As MESMAS chamadas com o record definido no Main.kf funcionam (medido: as suítes ORM + db E2E estão verdes).
+
+**Raiz (análise):** o lowering tipado (db.query/orm.*) resolve o record por um registro populado das declarações da UNIDADE ATUAL — os records de arquivos de lib chegam ao CHECK DE TIPOS (atribuição, acesso a campo) mas nunca ao registro de ENTIDADE/EMIT, então o lowering emite uma referência bare-name para uma classe não emitida/registrada.
+
+**Impacto:** toda biblioteca que quiser o padrão de typed-rows (entidades ORM ou queries db tipadas) está bloqueada — bibliotecas precisam recorrer ao `db.query` bruto + `json.decode<Rec>` (funciona: o caminho de decode no runtime, medido). O OrmLedgerStore do `kof.financial` (plano §5.2) fica adiado até o conserto; o DbLedgerStore cobre a costura de persistência enquanto isso.
+
+**Fronteira:** NÃO é o §726 (a ATRIBUIBILIDADE de interface cross-file — um check diferente, também de fronteira de lib). O gap do registro é território da lane compiler (o lowering ORM/db).
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.

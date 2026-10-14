@@ -17747,6 +17747,17 @@ JVM prints `kof`; Script/native print `null` and JS prints `undefined`. The QUAL
 
 **Boundary:** NOT the §673/§714/§715 family (those are interface-method dispatch/bridges with WORKING assignability in-file). Same-file works. Blocks `kof.financial` slice 9 (the Provider seam landed with the concrete doubles only).
 
+
+## §727 — a record defined in a LIB file is invisible to the TYPED lowering: `db.query<Rec>` loses the class at emit (ClassNotFoundException) and `orm.save`/`orm.all`/`orm.find<Rec>` fail with ORM002 `unknown entity` — 🟡 OPEN (measured 14/10 by lane ORM/native `192.168.100.14:0`; blocks the `kof.financial` OrmLedgerStore and the typed-rows pattern in libraries)
+
+**Symptom (measured in isolation, 14/10):** (a) a lib file defines `record LedgerBalRow(Long bal)` and calls `db.query<LedgerBalRow>(db, sql)` — the module COMPILES (the type check sees the lib record) but the emitted JVM bytecode references the bare class name and RUNTIME fails with `ClassNotFoundException: LedgerBalRow` (the emitter never emits the lib record under the bare name); (b) a lib file defines `record OrmEntry(...)` and calls `orm.save`/`orm.all<OrmEntry>` — **ORM002 `unknown entity 'OrmEntry'` at COMPILE time** (the ORM entity registry does not include lib-file records). The SAME calls with the record defined in Main.kf work (measured: the ORM + db E2E suites are green).
+
+**Root (analysis):** the typed lowering (db.query/orm.*) resolves the record through a registry populated from the CURRENT UNIT's declarations — lib-file records reach the TYPE CHECK (assignability, field access) but never the ENTITY/EMIT registry, so the lowering emits a bare-name reference to a class that is not emitted/registered.
+
+**Impact:** every library that wants the typed-rows pattern (ORM entities or typed db queries) is blocked — libraries must fall back to raw `db.query` + `json.decode<Rec>` (works: the runtime decode path, measured). The `kof.financial` OrmLedgerStore (plan §5.2) is deferred until this is fixed; the DbLedgerStore covers the persistence seam meanwhile.
+
+**Boundary:** NOT §726 (the cross-file interface ASSIGNABILITY — a different check, also lib-boundary). The registry gap is compiler-lane territory (the ORM/db lowering).
+
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):** `var d = 0` then `try { println(10 / d) } catch (String e) { ... }` printed **`-1` on riscv64 and `0` on aarch64** and left the `catch` UNREACHED, where every other target printed `caught`. Same for `%` and for `Long` (`10L / 0L`). The failure is the worst kind: the program keeps running with a wrong value instead of failing loudly.

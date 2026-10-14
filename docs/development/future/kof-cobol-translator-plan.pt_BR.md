@@ -43,7 +43,7 @@ promoção de future (`docs/development/future/README.md` §"When to move",
   `TranslateException`/gap honesto; **não** substitui o front Java.
 - `KofFormatter.format(src, fileName)` (`kof-compiler`) — o parser+printer
   canônico; o Kof gerado **deve** passar por ele (§19, §68).
-- `docs/development/kof-financial-plan.md` — o modelo de dinheiro
+- `docs/financial.md` — o modelo de dinheiro
   *greenfield* (`Money` = `Long` minor units + ISO-4217); a saída
   financeiro-decimal do tradutor mira isto, nunca `Float`/`Double`.
 - `docs/stdlib/kof-connector-ecosystem-plan.md` fase 7 +

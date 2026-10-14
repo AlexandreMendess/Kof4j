@@ -42,7 +42,7 @@ authored under that freeze, not promoted.
   / honest-gap contract; it does **not** replace the Java front.
 - `KofFormatter.format(src, fileName)` (`kof-compiler`) — the canonical
   parser+printer; generated Kof **must** round-trip through it (§19, §68).
-- `docs/development/kof-financial-plan.md` — the **greenfield** money
+- `docs/financial.md` — the **greenfield** money
   model (`Money` = `Long` minor units + ISO-4217); the translator's
   financial-decimal output targets this, never `Float`/`Double`.
 - `docs/stdlib/kof-connector-ecosystem-plan.md` phase 7 +
