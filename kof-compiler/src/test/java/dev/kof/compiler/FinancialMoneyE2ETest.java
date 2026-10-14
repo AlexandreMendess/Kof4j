@@ -31,6 +31,7 @@ class FinancialMoneyE2ETest implements LibraryInstallSupport {
 
     private static final String PROBE = """
             import financial.Money
+import financial.Fx
 
             main() {
                 var a = Money(150L, "BRL")
@@ -47,6 +48,12 @@ class FinancialMoneyE2ETest implements LibraryInstallSupport {
                 } catch (String e) {
                     println(e)
                 }
+                var usd = convert(Money(200L, "BRL"), Rate("BRL", "USD", 1L, 5L, 1000L, "test"), Rounding.halfUp)
+                println(format(usd))
+                var brl = convert(usd, invert(Rate("BRL", "USD", 1L, 5L, 1000L, "test")), Rounding.halfUp)
+                println(format(brl))
+                var eur = convert(Money(100L, "BRL"), compose(Rate("BRL", "USD", 1L, 5L, 1000L, "t1"), Rate("USD", "EUR", 3L, 2L, 900L, "t2")), Rounding.halfUp)
+                println(format(eur))
             }
             """;
 
@@ -55,7 +62,8 @@ class FinancialMoneyE2ETest implements LibraryInstallSupport {
     // JPY has 0 minor units: Money(0,"JPY") -> "JPY 0" ; roundTo(12345, 0) -> "JPY 12345"
     private static final String EXPECTED =
             "R$ 4.00\nR$ 1.00\nR$ -1.50\nR$ 1.60\nR$ 2.25\nJPY 0\nJPY 12345\n"
-            + "currency mismatch: BRL + USD (FIN001)";
+            + "currency mismatch: BRL + USD (FIN001)\n"
+            + "$ 0.40\nR$ 2.00\nEUR 0.30";
 
     private <T> T withLibrary(Path root, CheckedSupplier<T> action) throws Exception {
         copyLibrary(root.resolve("kof-install/lib/kof-libs"));
