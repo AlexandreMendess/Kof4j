@@ -82,6 +82,7 @@ final class NativeX86Peephole {
         collapsed += foldLoadIntoCompare(lines);
         collapsed += NativeX86LeaFold.foldAddIntoLea(lines);
         collapsed += cmpZeroToTest(lines);
+        collapsed += epilogueToLeave(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;
@@ -296,6 +297,23 @@ final class NativeX86Peephole {
      * rewritten to {@code test{l,q} %reg, %reg} — identical FLAGS (ZF set iff reg is
      * zero; SF/CF=0 as for a compare against 0), shorter encoding, no immediate.
      */
+    /**
+     * §7 x86_64 ("lower-cost instruction selection"): {@code movq %rbp, %rsp} +
+     * {@code popq %rbp} is exactly the {@code leave} instruction — one instruction
+     * and one byte shorter, same effect (rsp = rbp; rbp = [rsp]).
+     */
+    private static int epilogueToLeave(List<String> lines) {
+        int folded = 0;
+        for (int i = 0; i + 1 < lines.size(); i++) {
+            if (!lines.get(i).trim().equals("movq %rbp, %rsp")) continue;
+            if (!lines.get(i + 1).trim().equals("popq %rbp")) continue;
+            lines.set(i, "    leave");
+            lines.remove(i + 1);
+            folded++;
+        }
+        return folded;
+    }
+
     private static int cmpZeroToTest(List<String> lines) {
         int folded = 0;
         for (int i = 0; i < lines.size(); i++) {

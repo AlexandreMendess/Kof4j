@@ -279,4 +279,16 @@ class NativeX86PeepholeTest {
         String body = "    cmpl $5, %ebx\n";
         assertEquals(body, result(body));
     }
+
+    @Test
+    void theFrameTeardownBecomesLeave() {
+        assertEquals("    leave\n    ret\n", result("    movq %rbp, %rsp\n    popq %rbp\n    ret\n"));
+    }
+
+    @Test
+    void aLoneMovqRbplRspIsKept() {
+        // Without the following popq it is not the epilogue idiom.
+        String body = "    movq %rbp, %rsp\n    ret\n";
+        assertEquals(body, result(body));
+    }
 }
