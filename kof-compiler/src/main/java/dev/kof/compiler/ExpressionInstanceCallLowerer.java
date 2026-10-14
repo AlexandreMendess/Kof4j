@@ -393,7 +393,25 @@ public final class ExpressionInstanceCallLowerer {
         // fall back to the lowering's own inference (list-get
         // chains, user classes resolved through hierarchy)
         Type inferred = ExpressionTyper.inferExprType(driver, mc, locals);
-        if (!(inferred instanceof Type.UnknownType)) {
+        // §706: para um método de uma classe do USUÁRIO o descriptor tem de ser
+        // o tipo DECLARADO do membro (a classe emite `get():Ljava/lang/Object;`
+        // — a erasure). A inferência devolve o SUBSTITUÍDO pelo receiver
+        // (`Box<Int>.get()` -> `Int`), então um call ENCADEADO
+        // (`outer.get().get()`, cujo resolvedMethod o semântico não cacheia)
+        // emitia `invokevirtual Box.get:()I` enquanto a classe só tem
+        // `()Ljava/lang/Object;` -> NoSuchMethodError no JVM / lixo no nativo.
+        // Resolve o símbolo pelo receiver e usa o retorno DECLARADO; cai para a
+        // inferência só quando não há símbolo de classe.
+        boolean usedDeclared = false;
+        if (recvType instanceof Type.ClassType ct706 && driver.semanticAnalyzer != null) {
+            SymbolTable.Symbol m706 = driver.semanticAnalyzer.resolveInHierarchy(ct706.name(), mc.methodName());
+            if (m706 instanceof SymbolTable.MethodSymbol ms706
+                    && ms706.parameterTypes().size() == mc.arguments().size()) {
+                methodReturnType = ms706.returnType();
+                usedDeclared = true;
+            }
+        }
+        if (!usedDeclared && !(inferred instanceof Type.UnknownType)) {
             methodReturnType = inferred;
         }
     }
