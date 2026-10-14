@@ -51,7 +51,8 @@ public final class RegisterAssignment {
     /**
      * Maps the allocation's colours to physical registers, using {@code slotTypes}
      * to know each slot's register class. Slots absent from {@code slotTypes} (no
-     * known type) and colours outside the class's register count go to memory.
+     * known type), non-placeable types, and colours outside the class's register
+     * count go to memory.
      */
     public static Assignment of(Map<Integer, Type> slotTypes,
                                 RegisterAllocator.Allocation alloc) {
@@ -60,7 +61,7 @@ public final class RegisterAssignment {
         for (int slot : alloc.colorOf().keySet()) {
             int color = alloc.color(slot);
             Type type = slotTypes.get(slot);
-            if (color < 0 || type == null) {
+            if (color < 0 || type == null || !placeable(type)) {
                 inMemory.add(slot);
                 continue;
             }
@@ -72,5 +73,16 @@ public final class RegisterAssignment {
             }
         }
         return new Assignment(Map.copyOf(regOf), Set.copyOf(inMemory));
+    }
+
+    /**
+     * Whether a local of this type may be REGISTER-PLACED. Only int/bool (scalars
+     * the conservative GC does not track) qualify; a REFERENCE must stay in the
+     * frame — the native GC is conservative and scans the frame, so a reference
+     * held only in a register would be invisible to it and could be collected
+     * while live. long/float/double are double-width and stay in the frame too.
+     */
+    public static boolean placeable(Type t) {
+        return t.equals(Type.PrimitiveType.INT) || t.equals(Type.PrimitiveType.BOOL);
     }
 }

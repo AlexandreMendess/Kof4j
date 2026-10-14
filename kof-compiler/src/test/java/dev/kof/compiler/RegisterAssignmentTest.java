@@ -31,11 +31,13 @@ class RegisterAssignmentTest {
     }
 
     @Test
-    void anSseColorMapsToTheSseFile() {
+    void aDoubleStaysInTheFrame() {
+        // Only int/bool are register-placeable (the GC scans the frame); a
+        // double-width local stays in the frame.
         var a = RegisterAssignment.of(
                 Map.of(2, Type.PrimitiveType.DOUBLE),
                 alloc(Map.of(2, 0), Set.of()));
-        assertEquals("xmm0", a.register(2), "colour 0 in SSE is xmm0");
+        assertTrue(a.isInMemory(2), "a double local stays in the frame");
     }
 
     @Test
@@ -94,5 +96,24 @@ class RegisterAssignmentTest {
                 "both slots fit in registers");
         assertNotEquals(a.register(1), a.register(2),
                 "interfering slots get distinct physical registers");
+    }
+
+    @Test
+    void aReferenceLocalStaysInTheFrame() {
+        // A reference must NOT be register-placed (the conservative GC scans the
+        // frame; a ref held only in a register would be invisible to it).
+        var a = RegisterAssignment.of(
+                Map.of(1, new Type.ClassType("java.lang", "String", java.util.List.of())),
+                alloc(Map.of(1, 0), Set.of()));
+        assertFalse(RegisterAssignment.placeable(new Type.ClassType("java.lang", "String", java.util.List.of())));
+        assertTrue(a.isInMemory(1), "a reference local stays in the frame");
+    }
+
+    @Test
+    void onlyIntAndBoolArePlaceable() {
+        assertTrue(RegisterAssignment.placeable(Type.PrimitiveType.INT));
+        assertTrue(RegisterAssignment.placeable(Type.PrimitiveType.BOOL));
+        assertFalse(RegisterAssignment.placeable(Type.PrimitiveType.LONG));
+        assertFalse(RegisterAssignment.placeable(Type.PrimitiveType.DOUBLE));
     }
 }

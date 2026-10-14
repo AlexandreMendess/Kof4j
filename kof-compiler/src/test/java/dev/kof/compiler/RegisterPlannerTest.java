@@ -45,14 +45,15 @@ class RegisterPlannerTest {
     }
 
     @Test
-    void aDoubleUsesTheSseFile() {
+    void aDoubleStaysInTheFrameNotARegister() {
+        // Only int/bool are register-placeable; a double is double-width and the
+        // GC scans the frame, so it stays in memory.
         IRMethod m = method(List.of(
                 KofLoadLiteral.ofDouble(1.5), store(1, Type.PrimitiveType.DOUBLE),
                 load(1, Type.PrimitiveType.DOUBLE), new KofReturn(Type.PrimitiveType.DOUBLE)),
                 List.of(new IRLocalVariable(1, "d", Type.PrimitiveType.DOUBLE)));
         RegisterPlanner.Placement p = RegisterPlanner.plan(m, 4);
-        assertTrue(p.isRegister(1));
-        assertTrue(p.register(1).startsWith("xmm"), "a double is placed in an SSE register");
+        assertFalse(p.isRegister(1), "a double stays in the frame");
     }
 
     @Test
