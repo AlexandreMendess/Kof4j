@@ -38,9 +38,14 @@ final class NativeRegisterLocalSupport {
         this.saveSlotBaseBytes = saveSlotBaseBytes;
     }
 
-    /** The feature gate — OFF by default. */
+    /**
+     * The feature gate — ON by default (D-CODEGEN-REWRITE: the register-mapped
+     * local model is now the native x86-64 default). Set
+     * {@code -Dkof.native.register.locals=false} to fall back to the frame-slot
+     * path (an escape hatch, not the normal path).
+     */
     static boolean enabled() {
-        return Boolean.getBoolean("kof.native.register.locals");
+        return !"false".equalsIgnoreCase(System.getProperty("kof.native.register.locals", "true"));
     }
 
     /**
