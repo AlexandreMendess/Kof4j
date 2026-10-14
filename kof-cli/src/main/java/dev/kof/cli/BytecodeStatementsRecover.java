@@ -182,6 +182,14 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                     realFalse = tb.succ.get(0);
                     break;
                 } else {
+                    // Fase E (14/10): o 2º termo do || é uma CADEIA && (a
+                    // árvore de condição — `v > 100 || (v > 50 && v < 75)`);
+                    // o condTree recursa com limite de profundidade.
+                    String rest = condTree(tb, exitStart, tb.succ.get(0),
+                            byStart, insns, frame, cp, 0);
+                    if (rest == null) break;
+                    orCond = orCond + " || (" + rest + ")";
+                    realFalse = tb.succ.get(0);
                     break;
                 }
             }
@@ -608,6 +616,42 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                     && armReachesJoin(b.succ.get(1), tail, byStart, insns, depth + 1)) return true;
         }
         return false;
+    }
+
+    /**
+     * Fase E (14/10): a ÁRVORE de condição — o teste do bloco com os alvos
+     * (verdadeiro/falso), compondo `||` (o salto = o verdadeiro) e `&&` (o
+     * salto = o falso) recursivamente. Profundidade limitada; qualquer
+     * desvio → null = stub honesto (R6).
+     */
+    private static String condTree(BytecodeReader.Block b, int trueTgt, int falseTgt,
+            Map<Integer, BytecodeReader.Block> byStart, List<BytecodeReader.Insn> insns,
+            BytecodeFrame frame, String[] cp, int depth) {
+        if (depth > 4 || b == null || b.succ.size() != 2) return null;
+        if (BytecodeReader.isLoopHeader(b)) return null;
+        int j = b.succ.get(0);
+        int f = b.succ.get(1);
+        if (j == trueTgt && f == falseTgt)
+            return BytecodeDecoder.blockConditionTaken(b, insns, frame, cp);
+        if (j == falseTgt && f == trueTgt)
+            return BytecodeDecoder.blockCondition(b, insns, frame, cp);
+        if (j == trueTgt) {
+            String c1 = BytecodeDecoder.blockConditionTaken(b, insns, frame, cp);
+            if (c1 == null) return null;
+            String rest = condTree(byStart.get(f), trueTgt, falseTgt,
+                    byStart, insns, frame, cp, depth + 1);
+            if (rest == null) return null;
+            return c1 + " || (" + rest + ")";
+        }
+        if (j == falseTgt) {
+            String c1 = BytecodeDecoder.blockCondition(b, insns, frame, cp);
+            if (c1 == null) return null;
+            String rest = condTree(byStart.get(f), trueTgt, falseTgt,
+                    byStart, insns, frame, cp, depth + 1);
+            if (rest == null) return null;
+            return c1 + " && (" + rest + ")";
+        }
+        return null;
     }
 
 }

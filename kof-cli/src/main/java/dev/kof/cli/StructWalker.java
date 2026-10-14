@@ -47,6 +47,10 @@ final class StructWalker {
             for (BytecodeReader.Insn in : BytecodeDecoder.insnsWithin(b, insns)) {
                 int slot = storeSlot(in);
                 if (slot < 0 || declared.contains(slot) || seen.contains(slot)) continue;
+                // Fase E (14/10): slot NOMEADO (parâmetro/this) NUNCA hoista —
+                // o `var arg0 = 0` do default sombreava o parâmetro e o loop
+                // rodava para sempre (medido no collatz; R6)
+                if (frame.isNamedSlot(slot)) continue;
                 String def = storeDefault(in.opcode());
                 if (def == null) return null;                 // float/ref: recusar (R6)
                 seen.add(slot);

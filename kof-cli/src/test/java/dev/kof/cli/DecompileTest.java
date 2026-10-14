@@ -2015,6 +2015,39 @@ class DecompileTest {
         assertEquals("8080\ntrue\nfalse", output, "zero-drift: range-check id\u00eantico ao Java");
     }
 
+    @Test
+    void mixedAndOrTreeAndParamHoistGuard(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): (1) a \u00c1RVORE de condi\u00e7\u00e3o — o `||` cujo 2º
+        // termo \u00e9 uma CADEIA && (`v > 100 || (v > 50 && v < 75)`) — o
+        // condTree recursa com limite; (2) o HOIST (\u00a7238) sombreava o
+        // PAR\u00c2METRO com o default (`var n = 0`) — o collatz rodava para
+        // sempre; o hoist pula os slots nomeados. Zero-drift executado.
+        Path javaFile = dir.resolve("Mt.java");
+        Files.writeString(javaFile, """
+                public class Mt {
+                    static boolean band(int v) { return v > 100 || (v > 50 && v < 75); }
+                    static int collatz(int n) { int steps = 0; while (n != 1) { if (n % 2 == 0) { n = n / 2; } else { n = 3 * n + 1; } steps++; } return steps; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Mt.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertFalse(kof.contains("var arg0 ="), "o par\u00e2metro n\u00e3o sombreia:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Mt.band(60))\n    println(Mt.band(200))\n    println(Mt.band(10))\n    println(Mt.collatz(6))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | true | false | 8
+        assertEquals("true\ntrue\nfalse\n8", output, "zero-drift: \u00e1rvore + collatz id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
