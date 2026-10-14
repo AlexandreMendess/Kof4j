@@ -2126,6 +2126,52 @@ class DecompileTest {
         assertEquals("55\n6\n24\n3\nab   |\nyes\n5", output, "zero-drift: algoritmos cl\u00e1ssicos id\u00eanticos ao Java");
     }
 
+    @Test
+    void staticInitAndBoxingClassRecovers(@TempDir Path dir) throws Exception {
+        // VALIDA\u00c7\u00c3O (14/10): o CLINIT FOLD (`static { counter = 10;
+        // prefix = "n"; }` vira os inicializadores dos fields EXACT), o
+        // boxing/unboxing de wrappers (Integer.valueOf/x.intValue = \u00ad
+        // identidade), a cadeia else-if de 3 n\u00edveis como EXPRESS\u00c3O e
+        // os loops duplos — 0 stubs e as 7 linhas id\u00eanticas ao Java.
+        Path javaFile = dir.resolve("St.java");
+        Files.writeString(javaFile, """
+                public class St {
+                    static int counter;
+                    static String prefix;
+                    static { counter = 10; prefix = "n"; }
+                    static Integer boxed(int v) { return v; }
+                    static int unboxed(Integer v) { return v + 1; }
+                    static String grade2(int s) {
+                        if (s >= 9) { return "A"; } else if (s >= 7) { return "B"; }
+                        else if (s >= 5) { return "C"; } else { return "F"; }
+                    }
+                    static int doubleLoop(int a, int b) {
+                        int t = 0; while (a > 0) { while (b > 0) { t += 2; b--; } a--; } return t;
+                    }
+                    static int countTo(int limit) {
+                        int n = 0; for (int i = 0; i < limit; i++) { for (int j = 0; j < i; j++) { n++; } } return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("St.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("static Int counter = 10"), kof);
+        String kofRun = kof + "\nmain() {\n    println(St.counter)\n    println(St.prefix + \":\" + St.boxed(7))\n    println(St.unboxed(41))\n    println(St.grade2(8))\n    println(St.doubleLoop(3, 2))\n    println(St.countTo(4))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10 | n:7 | 42 | B | 4 | 6
+        assertEquals("10\nn:7\n42\nB\n4\n6", output, "zero-drift: static-init + boxing id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
