@@ -14918,6 +14918,36 @@ O PRÓLOGO do for-in (`_coll = listOf(...)`; `_idx = 0`) e o incremento (`_idx =
 **Raiz (disassemblado):** a entrada de suffix-match da F2b faz `rdi += (len − entryLen)` para apontar os ÚLTIMOS entryLen bytes — e NUNCA RESTAURAVA `%rdi` antes da entrada seguinte, então com um className mais longo o deslocamento ACUMULA entre as entradas: a entrada `User` deslocou `rdi` em 1 ("Ghost"→"host"), a `Item` em mais 1 ("ost"), e a entrada `Ghost` comparou `"ost"` contra `Ghost` → miss → ORM001. Tabelas de entrada única eram imunes (por isso as faces da entity-history ficaram verdes).
 
 **Correção:** o `kof_orm_ctors` salva o body original em `%r11` (scratch; a função é folha) na entrada e CADA entrada restaura `%rdi` dele antes do `add`. Prova: o tail do repro agora imprime `sqlite: no column "name"` (a linha do oráculo) e o `KofOrmE2ETest` está **82 corridas / 0F / 38 skips honestos** (era 4F). RED-first: pré-fix o mesmo repro falhava com o diff ORM001 (medido duas vezes).
+## §712 — um `try`/`catch`/`finally` cujo `finally` LÊ um local que o try/catch atribui é dead-stored pelo pass Phase C `LivenessDeadStores` → JVM `VerifyError: Bad local variable type` (o handler do finally vê o local como `top`) — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR, otimizador LIGADO):**
+
+```kof
+Int f() {
+    var v = 0
+    try {
+        v = 1
+        throw "x"
+    } catch (String e) {
+        v = 99
+    } finally {
+        v = v + 1
+    }
+    return v
+}
+```
+
+devolve `100` em JVM/Script/nativo com o otimizador de IR DESLIGADO, mas LIGADO o JVM `Default.Main` não verifica: `VerifyError: Bad local variable type ... iload_0 ... Type top` no handler do FINALLY. Um `try/finally` SEM catch, e um `try/catch` SEM finally, estão ambos OK — o bug precisa das três cláusulas com o finally lendo um local atribuído. **É a família §709** (a aresta de exceção não é modelada), mas o fix do §709 cobriu só o `handlerLabel` declarado do try.
+
+**Raiz (análise):** um try tem MAIS DE UM handler de exceção — o `catch` do usuário E o catch-all SINTÉTICO que emula o `finally` — com `handlerLabel`s DISTINTOS. O fix de liveness do §709 construía a aresta de exceção só a partir do `KofTryStart.handlerLabel`, então o bloco do handler do `finally` ficava FORA do fluxo: um slot lido só nele (ou inicializado antes do try) parecia morto, o dead-store removia sua inicialização, e o handler do finally lia o slot como `top`.
+
+**Correção (POUSADA):** as arestas de exceção da liveness agora cobrem TODO `KofCatchStart` da região do try — TANTO nas arestas de sucessor (o jump de exceção) QUANTO no pseudo-USE do liveIn do handler (um slot lido em qualquer handler é vivo no INÍCIO do bloco protegido, porque a exceção pode disparar antes de qualquer def). A aresta do `handlerLabel` declarado também é mantida (um shape sintético pode não ter `KofCatchStart`).
+
+**Prova RED-first:** `CatchFinallyLivenessE2ETest` (novo) **4 run / 0F**; com o fix do `LivenessAnalysis` revertido a face JVM FALHA (o VerifyError). `LivenessAnalysisTest` 7/0F (o teste sintético pré-existente do handler ainda passa — a aresta do handlerLabel declarado é mantida).
+
+**Fronteira:** o otimizador de IR de produção (todos os seis alvos consomem o IR otimizado); NÃO é bug do backend JS. Distinto do §709 (o catch-only-read de handler único, já corrigido) — isto é o caso MULTI-handler (catch + finally sintético).
+
+<!-- en-switch --> **EN:** [§712](known-bugs.md#712--a-trycatchfinally-whose-finally-reads-a-local-that-the-trycatch-assigns-is-dead-stored-by-the-phase-c-livenessdeadstores-pass--jvm-verifyerror-bad-local-variable-type-the-finally-handler-sees-the-local-as-top---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 

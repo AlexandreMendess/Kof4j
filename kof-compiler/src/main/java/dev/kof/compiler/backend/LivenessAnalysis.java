@@ -5,6 +5,7 @@ import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofStoreLocal;
+import dev.kof.compiler.KofTryEnd;
 import dev.kof.compiler.KofTryStart;
 
 import java.util.ArrayList;
@@ -104,11 +105,40 @@ public final class LivenessAnalysis {
         for (int i = 0; i < n; i++) {
             succ.add(new ArrayList<>(blocks.get(i).successors()));
         }
-        for (int i = 0; i < n; i++) {
-            for (KofOperation op : blocks.get(i).operations()) {
-                if (op instanceof KofTryStart ts) {
-                    int h = cfg.blockOf(ts.handlerLabel());
-                    if (h >= 0 && !succ.get(i).contains(h)) succ.get(i).add(h);
+        // §709/§712: um try tem MAIS de um handler — o catch do usuário E o
+        // catch-all SINTÉTICO que emula o `finally` (handlers com handlerLabel
+        // DISTINTOS). Adicionar a aresta de exceção só ao handlerLabel do
+        // KofTryStart deixava o bloco do FINALLY fora do fluxo, então um slot
+        // lido SÓ no finally (ou inicializado antes do try) parecia morto e o
+        // LivenessDeadStores o removia → o handler do finally via o slot como
+        // `top` (JVM VerifyError). Varre a REGIÃO do try (até o KofTryEnd
+        // casado, respeitando aninhamento) e liga a TODOS os KofCatchStart.
+        List<KofOperation> flat = new ArrayList<>();
+        for (ControlFlowGraph.Block b : blocks) flat.addAll(b.operations());
+        java.util.Map<KofOperation, Integer> opBlock = new java.util.IdentityHashMap<>();
+        for (int b = 0; b < n; b++) {
+            for (KofOperation o : blocks.get(b).operations()) opBlock.put(o, b);
+        }
+        for (int i = 0; i < flat.size(); i++) {
+            if (!(flat.get(i) instanceof KofTryStart ts)) continue;
+            int src = opBlock.getOrDefault(flat.get(i), -1);
+            if (src < 0) continue;
+            // o handlerLabel declarado do try (o catch do usuário; um shape
+            // sintético pode não ter KofCatchStart).
+            int direct = cfg.blockOf(ts.handlerLabel());
+            if (direct >= 0 && !succ.get(src).contains(direct)) succ.get(src).add(direct);
+            // e TODOS os KofCatchStart da região (o catch do usuário E o
+            // catch-all sintético que emula o `finally`, com handlerLabels
+            // DISTINTOS) — §712: sem o handler do finally, um slot lido só nele
+            // parece morto e o dead-store o remove → `top` no handler.
+            int depth = 1;
+            for (int j = i + 1; j < flat.size() && depth > 0; j++) {
+                KofOperation o = flat.get(j);
+                if (o instanceof KofTryStart) { depth++; }
+                else if (o instanceof KofTryEnd) { depth--; }
+                else if (o instanceof KofCatchStart cs && depth == 1) {
+                    int h = cfg.blockOf(cs.handlerLabel());
+                    if (h >= 0 && !succ.get(src).contains(h)) succ.get(src).add(h);
                 }
             }
         }
@@ -124,16 +154,27 @@ public final class LivenessAnalysis {
         // o liveIn do handler é vivo no INÍCIO do bloco (a exceção pode ocorrer
         // antes de qualquer def da região protegida), então NÃO pode ser morto
         // pelos defs do bloco.
+        // §709/§712: TODOS os handlers de exceção de cada bloco — o catch do
+        // usuário E o catch-all sintético que emula o `finally` (handlerLabels
+        // DISTINTOS). Um slot lido só no finally precisa contar como vivo no
+        // INÍCIO do bloco protegido (a exceção pode disparar antes de qualquer
+        // def), senão o dead-store o remove e o handler vê `top` (VerifyError).
         List<List<Integer>> tryHandlers = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            List<Integer> hs = new ArrayList<>();
-            for (KofOperation op : blocks.get(i).operations()) {
-                if (op instanceof KofTryStart ts) {
-                    int h = cfg.blockOf(ts.handlerLabel());
-                    if (h >= 0) hs.add(h);
+        for (int i = 0; i < n; i++) tryHandlers.add(new ArrayList<>());
+        for (int i = 0; i < flat.size(); i++) {
+            if (!(flat.get(i) instanceof KofTryStart)) continue;
+            int src = opBlock.getOrDefault(flat.get(i), -1);
+            if (src < 0) continue;
+            int depth = 1;
+            for (int j = i + 1; j < flat.size() && depth > 0; j++) {
+                KofOperation o = flat.get(j);
+                if (o instanceof KofTryStart) { depth++; }
+                else if (o instanceof KofTryEnd) { depth--; }
+                else if (o instanceof KofCatchStart cs && depth == 1) {
+                    int h = cfg.blockOf(cs.handlerLabel());
+                    if (h >= 0 && !tryHandlers.get(src).contains(h)) tryHandlers.get(src).add(h);
                 }
             }
-            tryHandlers.add(hs);
         }
 
         // Backward fixpoint (deterministic order; iterate until stable).

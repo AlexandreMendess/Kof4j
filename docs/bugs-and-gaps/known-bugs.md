@@ -17437,6 +17437,36 @@ The for-in PROLOGUE (`_coll = listOf(...)`; `_idx = 0`) and the increment (`_idx
 **Root (disassembled):** the F2b suffix-match entry does `rdi += (len − entryLen)` to point at the LAST entryLen bytes — and NEVER RESTORED `%rdi` before the next entry, so with a longer className the shift CUMULATES across entries: entry `User` shifted `rdi` by 1 ("Ghost"→"host"), entry `Item` by 1 more ("ost"), and entry `Ghost` compared `"ost"` against `Ghost` → miss → ORM001. Single-entry tables were immune (why the entity-history faces stayed green).
 
 **Fix:** `kof_orm_ctors` saves the original body in `%r11` (scratch; the function is a leaf) at entry and EVERY entry restores `%rdi` from it before the `add`. Proof: the repro's tail now prints `sqlite: no column "name"` (the oracle line) and `KofOrmE2ETest` is **82 run / 0F / 38 honest skips** (was 4F). RED-first: pre-fix the same repro failed with the ORM001 diff (measured twice).
+## §712 — a `try`/`catch`/`finally` whose `finally` READS a local that the try/catch assigns is dead-stored by the Phase C `LivenessDeadStores` pass → JVM `VerifyError: Bad local variable type` (the finally handler sees the local as `top`) — ✅ FIXED 14/10 (found and fixed 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE, optimizer ON):**
+
+```kof
+Int f() {
+    var v = 0
+    try {
+        v = 1
+        throw "x"
+    } catch (String e) {
+        v = 99
+    } finally {
+        v = v + 1
+    }
+    return v
+}
+```
+
+returns `100` on JVM/Script/native with the IR optimizer DISABLED, but with it ENABLED the JVM `Default.Main` fails to verify: `VerifyError: Bad local variable type ... iload_0 ... Type top` at the FINALLY handler. A `try/finally` WITHOUT a catch, and a `try/catch` WITHOUT a finally, are both fine — the bug needs all three clauses with the finally reading an assigned local. **This is the §709 family** (the exception edge is not modelled), but the §709 fix covered only the try's declared `handlerLabel`.
+
+**Root (analysis):** a try has MORE THAN ONE exception handler — the user's `catch` AND the SYNTHETIC catch-all that emulates `finally` — with DISTINCT `handlerLabel`s. §709's liveness fix built the exception edge from the `KofTryStart.handlerLabel` only, so the `finally` handler block was OUTSIDE the flow: a slot read only there (or initialized before the try) looked dead, the dead-store pass removed its initialization, and the finally handler read the slot as `top`.
+
+**Fix (LANDED):** the liveness exception edges now cover EVERY `KofCatchStart` in the try region — BOTH in the successor edges (the exception jump) AND in the handler-liveIn pseudo-USE (a slot read in any handler is live at the START of the protected block, because the exception can fire before any def). The declared `handlerLabel` edge is kept too (a synthetic shape may have no `KofCatchStart`).
+
+**Proof RED-first:** `CatchFinallyLivenessE2ETest` (new) **4 run / 0F**; with the `LivenessAnalysis` fix reverted the JVM face FAILS (the VerifyError). `LivenessAnalysisTest` 7/0F (the pre-existing synthetic handler test still passes — the declared handlerLabel edge is retained).
+
+**Boundary:** the production IR optimizer (all six targets consume the optimized IR); NOT a JS-backend bug. Distinct from §709 (the single-handler catch-only-read, which was already fixed) — this is the MULTI-handler (catch + synthetic finally) case.
+
+<!-- pt-switch --> **PT:** [§712](known-bugs.pt_BR.md#712--um-trycatchfinally-cujo-finally-le-um-local-que-o-trycatch-atribui-e-dead-stored-pelo-pass-phase-c-livenessdeadstores--jvm-verifyerror-bad-local-variable-type-o-handler-do-finally-ve-o-local-como-top---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
