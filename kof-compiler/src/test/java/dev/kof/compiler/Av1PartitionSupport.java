@@ -192,7 +192,9 @@ main() {
         + "D 2 0 0 3 0 0 0 0 0 0\n"
         + "D 3 0 0 3 0 0 0 0 0 0\n"
         + "A 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17"
-        + " | 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17";
+        + " | 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17\n"
+        + "P 128 128 128 128\n"
+        + "S 524288";
 
     /** Kof probe: the walk decodes the real interleaved tile end to end. */
     static String kofTileTreeProbe() {
@@ -262,6 +264,35 @@ main() {
         k = k + 1
     }
     println(a)
+    // The RECONSTRUCTED pixels of the same driver, pinned: DC_PRED with no
+    // neighbours and a zero residual is flat mid-gray (128 at bit depth 8),
+    // so a wrong prediction/transform/plane-offset shows up here, not only in
+    // the mode records above.
+    var p = "P"
+    var qs = listOf(0, 32)
+    var qi = 0
+    while (qi < qs.size) {
+        var r = qs.get(qi)
+        var qj = 0
+        while (qj < qs.size) {
+            var c = qs.get(qj)
+            p = p + " " + frame[(r + 1) * stride + (c + 1)]
+            qj = qj + 1
+        }
+        qi = qi + 1
+    }
+    println(p)
+    var sum = 0
+    var rr = 0
+    while (rr < mh) {
+        var cc = 0
+        while (cc < mw) {
+            sum = sum + frame[(rr + 1) * stride + (cc + 1)]
+            cc = cc + 1
+        }
+        rr = rr + 1
+    }
+    println("S " + sum)
 }
 """;
 

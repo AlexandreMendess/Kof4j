@@ -157,6 +157,35 @@ class Av1PartitionE2ETest implements LibraryInstallSupport {
         assertEquals(REAL_TILE_DECODED, runJvm(kofTileTreeProbe()));
     }
 
+    @Test
+    void av1TileTreeDecodesRealInterleavedTileOnScript() throws Exception {
+        Path root = tmp.resolve("tree-script");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), kofTileTreeProbe());
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(java.util.List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(REAL_TILE_DECODED, result.stdout().strip());
+    }
+
+    @Test
+    void av1TileTreeDecodesRealInterleavedTileOnJs() throws Exception {
+        Path root = tmp.resolve("tree-js");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), kofTileTreeProbe());
+        Path out = root.resolve("out");
+        CompilationResult result = withLibrary(root,
+                () -> driver.compile(root.resolve("Main.kf"), out, Target.JS));
+        assertTrue(result.success(), () -> "js compile: " + result.diagnostics().getDiagnostics());
+        Path jsFile = out.resolve("Default.mjs");
+        assertTrue(Files.isRegularFile(jsFile), "generated JS module must exist");
+        var stdout = new ByteArrayOutputStream();
+        int exit = dev.kof.runtime.KofJsRunner.run(jsFile, stdout,
+                new java.io.ByteArrayInputStream(new byte[0]), stdout);
+        assertEquals(0, exit, "js output: " + stdout);
+        assertEquals(REAL_TILE_DECODED, stdout.toString(StandardCharsets.UTF_8).strip());
+    }
+
     /**
      * The walk reads a REAL INTERLEAVED tile stream (slice 3at): partition
      * symbols and block payloads in one entropy stream, as libaom's

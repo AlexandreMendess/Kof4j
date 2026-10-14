@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3au RE-LANDADA + `known-bugs` §705 CORRIGIDO. O giro do nativo x86 não se reproduz mais na ponta (o reprodutor do stream degenerado sai LIMPO, `rc=0`); a correção veio do trabalho concorrente de emissão da lane de codegen (`D-CODEGEN-REWRITE` + Fase E), NÃO do pad de alinhamento de 16 bytes (que segue sem papel causal estabelecido). 3au re-landada byte-idêntica a `0f8ca55ff`; prova com a escotilha OFF: driver 7/7 + partição 17/17. Fronteira: o caminho DEFAULT de locais-em-registradores (§723, lane irmã) ainda falha/trava as faces nativas AVIF.
-doing: 3au re-landada (classe do driver de tile + `bindDecoder`); §705 marcado CORRIGIDO; fila 11→10
-next: o slice do tile-group/OBU (que não depende da 3au) e depois a composição `decodeRaster` AVIF; a face nativa AVIF só fica verde no caminho DEFAULT quando a lane de codegen resolver o §723 (a virada de locais-em-registradores)
+last: 14/10 — AVIF slice 3aw LANDADA (infra de teste): o tile interleaved real agora tem os PIXELS reconstruídos fixados (`P 128 128 128 128`, `S 524288`) — antes o probe da 3au só checava os registros de modo, então um erro de predição/transformada/offset de plano passaria. Faces de árvore JVM/Script/JS 3/3; `Av1PartitionE2ETest` 19/19 (escotilha OFF). As faces nativas seguem bloqueadas pelo §723.
+doing: 3aw landada (prova de pixels do tile real); §705 CORRIGIDO; 3au re-landada
+next: o slice do tile-group/OBU (independente da 3au) e depois a composição `decodeRaster` AVIF; a face nativa AVIF só fica verde no caminho DEFAULT quando a lane de codegen resolver o §723
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (20ª) — AVIF slice 3aw: a prova do tile real agora pina os PIXELS reconstruídos
+- **O buraco que achei:** o probe de árvore da 3au (`Av1PartitionSupport.TREE_PROBE`) afirmava "decodifica ponta a ponta" mas só imprimia os registros de modo (D) e o contexto de entropia (A) — nunca lia o `frame` reconstruído. Um erro de predição/transformada/offset de plano passaria.
+- **O que fiz:** o probe agora também imprime as quatro amostras DC dos quadrantes (`P`) e a soma do interior (`S`); o golden fixa `P 128 128 128 128` e `S 524288`.
+- **Por que esses valores são corretos (não só observados):** `DC_PRED` sem vizinhos (`haveAbove == haveLeft == 0`) é `1 << (bitDepth - 1)` = 128 em bit depth 8, e o resíduo do fixture é zero — então o plano é cinza-médio plano e 64x64x128 = 524288. É o valor da especificação, não uma coincidência.
+- **Bônus:** as faces de árvore agora cobrem JVM + Script + JS (3/3). As nativas ficam de fora pelo §723 (a lane irmã), não por esta fatia.
+- **Prova:** 3 faces de árvore 3/3; `Av1PartitionE2ETest` completo 19/19 com a escotilha OFF (17 → 19); compile rc=0.
+- **Investigação descartada (registrada para não repetir):** a recusa `IMAGE: AV1 directional intra prediction is not supported yet` em `Av1Intra.kf:218` NÃO é um bug — `av1IntraPred` é o dispatch dos modos NÃO-direcionais e o chamador (`Av1IntraBlock.kf`) roteia os direcionais (3..8) para `av1DrPredict` (fatia 3k) antes. O ramo é defensivo/morto.
 
 ## Sessão 14/10 (19ª) — 3au RE-LANDADA e §705 CORRIGIDO (o giro do nativo morreu com o trabalho concorrente de emissão)
 - **O que eu fui fazer:** o próximo slice do plano (3y) já estava landado; o trabalho vivo era a 3au, revertida em 13/10 pelo §705.
