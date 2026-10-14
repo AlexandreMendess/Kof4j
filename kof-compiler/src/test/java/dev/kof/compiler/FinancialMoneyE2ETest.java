@@ -27,10 +27,11 @@ class FinancialMoneyE2ETest implements LibraryInstallSupport {
 
     @Override public String libraryName() { return "financial"; }
 
-    @Override public List<String> libraryMarkers() { return List.of("Money.kf"); }
+    @Override public List<String> libraryMarkers() { return List.of("Money.kf", "Fees.kf"); }
 
     private static final String PROBE = """
             import financial.Money
+import financial.Fees
 import financial.Fx
 
             main() {
@@ -48,6 +49,21 @@ import financial.Fx
                 } catch (String e) {
                     println(e)
                 }
+                var rules = listOf(
+                    FeeRule("fixed-1", "fixed", 50L, 0L, "BRL"),
+                    FeeRule("pct-1", "percentage", 0L, 250L, "BRL"))
+                var fees = applyFees(Money(1000L, "BRL"), rules, Rounding.halfUp)
+                println(fees.get(0).amount.minor)
+                println(fees.get(1).amount.minor)
+                println(format(totalWithFees(Money(1000L, "BRL"), fees)))
+                println(format(netOfFees(Money(1000L, "BRL"), fees)))
+                var tiered = listOf(FeeRule("t-1", "tiered", 0L, 0L, "BRL"))
+                try {
+                    applyFees(Money(1000L, "BRL"), tiered, Rounding.halfUp)
+                    println("no-throw")
+                } catch (String e) {
+                    println(e)
+                }
                 var usd = convert(Money(200L, "BRL"), Rate("BRL", "USD", 1L, 5L, 1000L, "test"), Rounding.halfUp)
                 println(format(usd))
                 var brl = convert(usd, invert(Rate("BRL", "USD", 1L, 5L, 1000L, "test")), Rounding.halfUp)
@@ -60,10 +76,7 @@ import financial.Fx
     // 150+250=400 -> R$ 4.00 ; 250-150=100 -> R$ 1.00 ; negate 150 -> R$ -1.50 ;
     // roundTo(155, 1, halfEven) -> 160 -> R$ 1.60 ; scale(150, 3/2) = 225 -> R$ 2.25 ;
     // JPY has 0 minor units: Money(0,"JPY") -> "JPY 0" ; roundTo(12345, 0) -> "JPY 12345"
-    private static final String EXPECTED =
-            "R$ 4.00\nR$ 1.00\nR$ -1.50\nR$ 1.60\nR$ 2.25\nJPY 0\nJPY 12345\n"
-            + "currency mismatch: BRL + USD (FIN001)\n"
-            + "$ 0.40\nR$ 2.00\nEUR 0.30";
+    private static final String EXPECTED = "R$ 4.00\nR$ 1.00\nR$ -1.50\nR$ 1.60\nR$ 2.25\nJPY 0\nJPY 12345\ncurrency mismatch: BRL + USD (FIN001)\n50\n25\nR$ 10.75\nR$ 9.25\nunsupported fee kind: tiered (FIN007)\n$ 0.40\nR$ 2.00\nEUR 0.30";
 
     private <T> T withLibrary(Path root, CheckedSupplier<T> action) throws Exception {
         copyLibrary(root.resolve("kof-install/lib/kof-libs"));
