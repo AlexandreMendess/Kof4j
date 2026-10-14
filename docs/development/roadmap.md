@@ -972,6 +972,9 @@ science) **without** destroying the language's simplicity.
 > AVIF pixel decode (`decodeRaster` refuses AVIF by policy). Queue per the plan §34 — authoritative state lives there.
 > **SURFACE COMPLETE (8th front):** `graphics-gaming` — promoted 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) to
 > [`graphics-gaming.md`](../graphics-gaming.md); stack `G1` DECIDED (SDL3) + form `D-GRAPHICS-WINDOW-FORM` + loop `D-MAINT-BATCH-0610`/A1–A3; pure surface LANDED 05–07/10 (`Clock`/`Keys`/`Mouse`/`Pad`/`Window`/`Sprite`/`Draw`/`Trig`/`Tilemap`/`Audio`/`Wav`/`Video`, E2E goldens every target) + SDL3 ABI/pump/audio/stream measured headless on all four targets + corpus 3.6a (`training/idioms/game` + `learn/42-games`). Decision F ORDERED 08/10 (maintainer: vendor the upstream LGPL-2.1+ FFmpeg from source, no `--enable-gpl`; probe license must NOT be GPLv3+ before any decode lands) + 3.5 (3D) PROMOTED to active scope 08/10 (maintainer). Authoritative state lives in `docs/graphics-gaming.md` (promoted 09/10 — the pure-surface mission complete; the backend faces stay the documented boundary).
+> **PROMOTED (14th front):** `kof-financial` — promoted 14/10 (maintainer order "pega mais um" + `D-FUTURE-UNFREEZE`) to
+> [`kof-financial-plan.md`](kof-financial-plan.md) (+PT); **slice 1 (the `kof.financial.money` core) LANDED 14/10** — exact minor-unit money,
+> currency-safe + overflow-checked arithmetic, integer-only rounding (6 modes), library-first pure Kof; slices 2+ (fx/account/ledger/tx/...) remain.
 > **PROMOTED (13th front):** `value-records` — promoted 14/10 (maintainer order "puxa um de future" + `D-FUTURE-UNFREEZE`) to
 > [`value-records-plan.md`](value-records-plan.md) (+PT); **step 2.7.1 (the `value` front-end keyword) LANDED 14/10** — `value record` parses/types
 > like `record` + the `value` modifier (contextual like `sealed`), no identity semantics yet; 2.7.2–2.7.5 (per-target ABI + parity) remain.

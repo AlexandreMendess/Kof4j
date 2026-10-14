@@ -1,8 +1,12 @@
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+# `kof.financial` — dinheiro, contas e movimentação (EM DESENVOLVIMENTO · TIER 2)
+
+estado:
+last: PROMOVIDO 14/10 de `docs/development/future/` (ordem da mantenedora "pega mais um" + `D-FUTURE-UNFREEZE`) — escolhido pelo teste mais-fácil-primeiro do `D-FUTURE-PROMOTION`: o v1 é LIBRARY-FIRST em Kof puro sobre primitivas existentes (sem sintaxe nova, sem primitiva de core nova), ao contrário de kof-expr/kofbol (decisões de sintaxe nova) ou dos planos bootstrap/universal (enormes).
+fazendo: fatia 1 (o NÚCLEO `kof.financial.money`) POUSADA 14/10 — `libs/financial/Money.kf`: `record Currency(code, minorUnits, symbol)` + `record Money(Long minor, String currency)` + `enum Rounding`; `currencyOf` (a tabela de escala ISO-4217 padrão), `add`/`sub` (currency-safe + overflow-checados), `negate`/`abs`, `scale` (taxa racional exata), `roundTo` (só inteiro, 6 modos incl. halfEven), `format`. `FinancialMoneyE2ETest` (JVM/Script/JS/nativo).
+próximo: fatia 2 (`kof.financial.fx` — `Rate` como racional exato + `convert`), depois account/ledger/tx/fees/events/idem/recon/provider/compliance/jurisdiction. Cada um é um pacote Kof puro; sem mudança de core.
+local: docs/development/kof-financial-plan.pt_BR.md
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
+estado: under-development
 
 intent: kof-financial-money-movement
 
