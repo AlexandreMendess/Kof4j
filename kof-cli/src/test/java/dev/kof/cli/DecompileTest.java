@@ -1412,6 +1412,40 @@ class DecompileTest {
         assertEquals("a-b\nz,m,n\n[p, q]", output, "zero-drift: varargs id\u00eanticos ao Java");
     }
 
+    @Test
+    void bitwiseOperatorsRecoverZeroDrift(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): os operadores BITWISE (& | ^) faltavam no emitLinear
+        // E no avaliador (movido p/ BytecodeEval pelo refactor) — qualquer
+        // corpo com bits stubava. O Kof tem os tres (medido: 6&3=2, 6|3=7,
+        // 6^3=5). Zero-drift executado contra o oráculo Java REAL.
+        Path javaFile = dir.resolve("Bw.java");
+        Files.writeString(javaFile, """
+                public class Bw {
+                    static int bits(int a, int b) { return (a & b) | (a ^ b); }
+                    static int xor(int a, int b) { return a ^ b; }
+                    static boolean even(int a) { return (a & 1) == 0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bw.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "os bitwise recuperam:\n" + kof);
+        assertTrue(kof.contains("&") && kof.contains("|") && kof.contains("^"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Bw.bits(6, 3))\n    println(Bw.bits(12, 10))\n    println(Bw.xor(170, 85))\n    println(Bw.even(4))\n    println(Bw.even(5))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java REAL: (6&3)|(6^3)=7; (12&10)|(12^10)=14; 170^85=255; even
+        assertEquals("7\n14\n255\ntrue\nfalse", output, "zero-drift: bitwise id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

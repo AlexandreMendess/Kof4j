@@ -116,6 +116,11 @@ final class BytecodeStatementsEmit {
                 case 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90 -> {
                     if (!BytecodeDecoder.conv(stack, op)) { refuse(opcodeTag); return null; }
                 }
+                // Fase E (14/10): BITWISE (0x7e-0x83) — & | ^ p/ Int/Long
+                // (medido: o Kof tem os tres; o ~ e iconst_m1+ixor no javac)
+                case 0x7e, 0x7f -> { if (!BytecodeDecoder.bin(stack, "&")) { refuse(opcodeTag); return null; } }
+                case 0x80, 0x81 -> { if (!BytecodeDecoder.bin(stack, "|")) { refuse(opcodeTag); return null; } }
+                case 0x82, 0x83 -> { if (!BytecodeDecoder.bin(stack, "^")) { refuse(opcodeTag); return null; } }
                 case 0x78, 0x79 -> { if (!BytecodeDecoder.bin(stack, "<<")) { refuse(opcodeTag); return null; } }
                 case 0x7a, 0x7b -> { if (!BytecodeDecoder.bin(stack, ">>")) { refuse(opcodeTag); return null; } }
                 case 0x7c, 0x7d -> { if (!BytecodeDecoder.bin(stack, ">>>")) { refuse(opcodeTag); return null; } }
