@@ -128,6 +128,13 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
                 String obj = st.pop();
                 st.push(obj + "." + f[1]);
             }
+            case 0xba -> {   // invokedynamic — LAMBDA (o texto do pré-pass)
+                int idynIdx = in.operands()[0];
+                String idyn = idynIdx < cp.length ? cp[idynIdx] : null;
+                if (idyn == null || !idyn.startsWith("LAMBDA:")
+                        || !BytecodeConcat.LAMBDA_TEXT.containsKey(idynIdx)) return false;
+                st.push(BytecodeConcat.LAMBDA_TEXT.get(idynIdx));
+            }
             case 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35 -> {   // xaload
                 // Fase E (14/10): carga de array na CONDIÇÃO (medido no
                 // maxOf: `if (xs[i] > m)` dentro do loop stubava)

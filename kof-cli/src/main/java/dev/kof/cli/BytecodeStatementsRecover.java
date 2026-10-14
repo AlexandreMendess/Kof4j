@@ -240,7 +240,6 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         }
         boolean loop = loop0;
         if (loop) {
-            if (System.getenv("KOF_FE_DBG") != null) System.out.println("DBG loop cond=[" + cond + "] last=" + (out.isEmpty() ? "-" : out.get(out.size()-1)));
             // Fase E (14/10): for-each — `var it = X.iterator(); while
             // (it.hasNext()) { var x = (it.next() as T); ... }` → o idioma
             // nativo `for (var x in X) { ... }` (o iterator não existe no

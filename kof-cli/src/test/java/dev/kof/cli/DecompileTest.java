@@ -1879,6 +1879,48 @@ class DecompileTest {
         assertEquals("2\ntrue\nfalse\nxxxxx", output, "zero-drift: for-each + StringBuilder id\u00eanticos ao Java");
     }
 
+    @Test
+    void lambdaRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o LAMBDA — o javac compila para invokedynamic +
+        // Lambdafactory + o sint\u00e9tico `lambda$X$0` (o corpo no classfile).
+        // O parser exp\u00f5e `LAMBDA:<impl>` (a ordem importa: o implMethod
+        // resolve ANTES da receita String — o MethodType do lambda produzia
+        // a receita falsa e escondia o LAMBDA); o pr\u00e9-pass recupera o
+        // corpo pelo MESMO pipeline e arma `(p0: T) -> corpo`; os avaliadores
+        // empurram no invokedynamic. As interfaces funcionais
+        // (Predicate/Function/Supplier) mapeiam p/ tipos fun\u00e7\u00e3o Kof
+        // (medido: `(Int) -> Bool` como param compila e roda).
+        Path javaFile = dir.resolve("Lm.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                import java.util.function.Predicate;
+                public class Lm {
+                    static boolean anyMatch(List<Integer> xs, Predicate<Integer> p) {
+                        for (int x : xs) { if (p.test(x)) { return true; } } return false;
+                    }
+                    static int useAny(List<Integer> xs) { return anyMatch(xs, x -> x < 0) ? 1 : 0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Lm.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("-> if (arg0 < 0) true else false"), kof);
+        assertFalse(kof.contains("Predicate<"), "o tipo fun\u00e7\u00e3o Kof, n\u00e3o o JDK:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    var xs = listOf(1, -2, 3)\n    println(Lm.useAny(xs))\n    println(Lm.useAny(listOf(2, 3)))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: o lambda pega o -2 (1) e n\u00e3o pega (0)
+        assertEquals("1\n0", output, "zero-drift: lambda id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

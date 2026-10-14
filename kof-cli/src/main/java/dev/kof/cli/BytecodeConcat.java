@@ -23,6 +23,11 @@ final class BytecodeConcat {
     private BytecodeConcat() {
     }
 
+    // Fase E (14/10): os textos das lambdas Kof por ÍNDICE de CP — o
+    // Decompile popula no pré-pass (o corpo do sintético lambda$X$0 vem do
+    // MESMO pipeline); os avaliadores consomem no invokedynamic.
+    static final java.util.Map<Integer, String> LAMBDA_TEXT = new java.util.HashMap<>();
+
     /** CP[idx] (tag 18) resolvido p/ "CONCAT:<receita>"? null se não for concat. */
     static String recipe(String[] cp, int idx) {
         if (idx <= 0 || idx >= cp.length || cp[idx] == null) return null;

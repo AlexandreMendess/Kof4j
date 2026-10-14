@@ -221,7 +221,14 @@ import java.util.Set;
                     if (f == null) return null;
                     stack.push(BytecodeCp.simpleOwner(f[0]) + "." + f[1], BytecodeCp.retOf(f[2]));
                 }
-                case 0xba -> { // invokedynamic — só String concat (CONCAT: no CP)
+                case 0xba -> { // invokedynamic — String concat OU lambda
+                    int idynIdx = in.operands()[0];
+                    String idyn = idynIdx < cp.length ? cp[idynIdx] : null;
+                    if (idyn != null && idyn.startsWith("LAMBDA:")
+                            && BytecodeConcat.LAMBDA_TEXT.containsKey(idynIdx)) {
+                        stack.push(BytecodeConcat.LAMBDA_TEXT.get(idynIdx), "L");
+                        continue;
+                    }
                     String rec = BytecodeConcat.recipe(cp, in.operands()[0]);
                     if (rec == null) return null;
                     int n = 0;

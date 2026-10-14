@@ -53,12 +53,19 @@ final class BytecodeStatementsEmit {
                     if (c == null) { refuse(opcodeTag); return null; }
                     stack.push(c);
                 }
-                case 0xba -> { // invokedynamic — só String concat (CONCAT: no CP)
+                case 0xba -> { // invokedynamic — String concat OU lambda
+                    int idynIdx = in.operands()[0];
+                    String idyn = idynIdx < cp.length ? cp[idynIdx] : null;
+                    if (idyn != null && idyn.startsWith("LAMBDA:")
+                            && BytecodeConcat.LAMBDA_TEXT.containsKey(idynIdx)) {
+                        stack.push(BytecodeConcat.LAMBDA_TEXT.get(idynIdx));
+                    } else {
                     String rec = BytecodeConcat.recipe(cp, in.operands()[0]);
                     if (rec == null) { refuse(opcodeTag); return null; }
                     String expr = BytecodeConcat.apply(stack, rec);
                     if (expr == null) { refuse(opcodeTag); return null; }
                     stack.push(expr);
+                    }
                 }
                 case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoderStack.slotName(op - 0x1a, frame));
                 case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(BytecodeDecoderStack.slotName(op - 0x1e, frame));   // lload_0..3

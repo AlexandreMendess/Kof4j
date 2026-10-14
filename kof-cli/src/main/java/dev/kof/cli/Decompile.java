@@ -148,6 +148,49 @@ public final class Decompile {
      * (`List<p.B>` registra `p/B`); `Outer$Inner`/malformados caem nas
      * guardas do `TreeScope.resolve` (recusa → como antes).
      */
+    /**
+     * Fase E (14/10): pré-pass das LAMBDAS — o sintético `lambda$X$0` tem
+     * corpo no classfile; recupera (expression → statements) e arma
+     * `(p0: T, ...) -> corpo` no mapa por ÍNDICE de CP.
+     */
+    static void prepassLambdas(ClassFileParser.ClassFile ir) {
+        BytecodeConcat.LAMBDA_TEXT.clear();
+        for (int i = 1; i < ir.constantPool.length; i++) {
+            String e = ir.constantPool[i];
+            if (e == null || !e.startsWith("LAMBDA:")) continue;
+            String impl = e.substring("LAMBDA:".length());
+            for (var m : ir.methods) {
+                if (!m.name.equals(impl) || m.code == null) continue;
+                var frame = new BytecodeFrame(m.descriptor, (m.accessFlags & 0x0008) != 0);
+                String body = BytecodeDecoder.recoverExpression(m.code.bytecode,
+                        ir.constantPool, frame);
+                if (body == null) {
+                    int[][] handlers = new int[m.code.exceptionHandlers == null
+                            ? 0 : m.code.exceptionHandlers.size()][];
+                    for (int hI = 0; hI < handlers.length; hI++) {
+                        var h = m.code.exceptionHandlers.get(hI);
+                        boolean fin = h.catchType == null || "INVALID".equals(h.catchType);
+                        handlers[hI] = new int[]{h.startPc, h.endPc, h.handlerPc, fin ? 1 : 0};
+                    }
+                    var stmts = BytecodeStatements.recoverStatements(m.code.bytecode,
+                            ir.constantPool, frame, handlers);
+                    if (stmts != null) body = String.join("\n", stmts);
+                }
+                if (body == null) break;
+                var pts = paramTypes(m.descriptor);
+                var sbP = new StringBuilder("(");
+                for (int k = 0; k < pts.size(); k++) {
+                    if (k > 0) sbP.append(", ");
+                    sbP.append("arg").append(k).append(": ")
+                       .append(fieldKofType(pts.get(k)));
+                }
+                sbP.append(") -> ").append(body);
+                BytecodeConcat.LAMBDA_TEXT.put(i, sbP.toString());
+                break;
+            }
+        }
+    }
+
     static void recordSignatureUses(dev.kof.compiler.Type t, TreeScope scope) {
         if (scope == null || t == null) return;
         if (t instanceof dev.kof.compiler.Type.ClassType ct) {
@@ -305,6 +348,10 @@ public final class Decompile {
     static String decompile(Path classFile, String pkg,
                             TreeScope scope) throws IOException {
         var ir = ClassFileParser.parse(Files.newInputStream(classFile));
+        // Fase E (14/10): pré-pass das LAMBDAS — para cada CP entry
+        // "LAMBDA:<impl>", recupera o corpo do sintético pelo MESMO pipeline
+        // e arma o texto; os avaliadores consomem no invokedynamic.
+        prepassLambdas(ir);
         StringBuilder sb = new StringBuilder();
         sb.append("// decompiled from ").append(classFile.getFileName()).append('\n');
         sb.append("// structural skeleton — simple method bodies recovered; others stubbed (Fase E)\n");
@@ -552,7 +599,19 @@ public final class Decompile {
                 }
             }
             args.append(capitalizePrimitive(inner.substring(start).trim()));
-            return capitalizePrimitive(base.substring(0, lt)) + "<" + args + ">" + arraySuffix;
+            // Fase E (14/10): as interfaces funcionais do JDK → tipos função
+            // Kof (medido: `(Int) -> Bool` como param compila e roda). As
+            // fontes JDK: Predicate<T> / Function<T,R> / Supplier<T>.
+            String fnHead = base.substring(0, lt);
+            if (fnHead.equals("Predicate")) return "(" + args + ") -> Bool" + arraySuffix;
+            if (fnHead.equals("Function") || fnHead.equals("UnaryOperator")) {
+                String two = args.toString();
+                int comma = two.indexOf(", ");
+                if (comma > 0) return "(" + two.substring(0, comma) + ") -> "
+                        + two.substring(comma + 2) + arraySuffix;
+            }
+            if (fnHead.equals("Supplier")) return "() -> " + args + arraySuffix;
+            return capitalizePrimitive(fnHead) + "<" + args + ">" + arraySuffix;
         }
         String capitalized = switch (base) {
             case "int" -> "Int";
