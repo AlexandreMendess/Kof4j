@@ -107,6 +107,10 @@ import java.util.Set;
 
     static MachineRun machineRun(List<BytecodeReader.Insn> insns, String[] cp,
                                        BytecodeFrame frame) {
+        // Fase E (14/10): memória de LOCAIS da fatia (o binding do
+        // `instanceof String s` compila p/ checkcast+astore+aload); só
+        // referências (o tipo "L" basta p/ os usos no braço).
+        java.util.Map<Integer, String[]> locals = new java.util.HashMap<>();
         BytecodeTypes.TStack stack = new BytecodeTypes.TStack();
         for (BytecodeReader.Insn in : insns) {
             int op = in.opcode();
@@ -136,7 +140,11 @@ import java.util.Set;
                 case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(slotName(op - 0x1a, frame), "I");
                 case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(slotName(op - 0x1e, frame), "J");   // lload_0..3
                 case 0x26, 0x27, 0x28, 0x29 -> stack.push(slotName(op - 0x26, frame), "D");   // dload_0..3
-                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(slotName(op - 0x2a, frame), "L");
+                case 0x2a, 0x2b, 0x2c, 0x2d -> {
+                    int slot = op - 0x2a;
+                    if (locals.containsKey(slot)) stack.push(locals.get(slot)[0], locals.get(slot)[1]);
+                    else stack.push(slotName(slot, frame), "L");
+                }
                 case 0x15 -> stack.push(slotName(in.operands()[0], frame), "I");
                 case 0x19 -> stack.push(slotName(in.operands()[0], frame), "L");
                 case 0x16 -> stack.push(slotName(in.operands()[0], frame), "J");   // lload
@@ -269,6 +277,22 @@ import java.util.Set;
                     if (result == null || !result.startsWith("⟦new⟧")) return null;
                     stack.push(result.substring("⟦new⟧".length()) + "(" + a + ")", "L");
                 }
+                case 0x3a, 0x4b, 0x4c, 0x4d, 0x4e -> {   // astore (binding; JVMS: astore_0=0x4b)
+                    if (stack.isEmpty()) return null;
+                    int slot = op == 0x3a ? in.operands()[0] : op - 0x4b;
+                    String v = stack.popExpr();
+                    locals.put(slot, new String[]{v, "L"});
+                }
+                case 0xc0 -> {                            // checkcast → `as`
+                    String ct = BytecodeKofTypes.inlineKofType(cp, in.operands()[0]);
+                    if (ct == null) {
+                        ct = BytecodeKofTypes.indexKofType(cp, in.operands()[0], frame);
+                        if (ct == null) return null;
+                    }
+                    if (stack.isEmpty()) return null;
+                    String v = stack.popExpr();
+                    stack.push(ct.equals("Object") ? v : "(" + v + " as " + ct + ")", "L");
+                }
                 case 0xac -> { return new MachineRun(stack, stack.retTyped("I"), true); }
                 case 0xad -> { return new MachineRun(stack, stack.retTyped("J"), true); }
                 case 0xae -> { return new MachineRun(stack, stack.retTyped("F"), true); }
@@ -367,9 +391,26 @@ import java.util.Set;
         // modelado exatamente; qualquer outro → null = stub honesto). No fim
         // a pilha tem EXATAMENTE os `arity` operandos em ordem.
         java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        // Fase E (14/10): STORES no trecho = statements que o caller precisa
+        // emitir (o fusion-path) — a memória de locais do avaliador não pode
+        // engoli-las (medido: `var v1 = 0` do prólogo sumia e o corpo
+        // referenciava v1 antes da declaração, SEM011).
+        for (BytecodeReader.Insn in : block.subList(0, block.size() - 1)) {
+            int sop = in.opcode();
+            if (sop >= 0x36 && sop <= 0x4e) return null;
+        }
         if (!evalInto(block.subList(0, block.size() - 1), frame, cp, st)) return null;
         if (st.size() != arity) return null;
-        if (arity == 1) return st.pop() + " " + inv;   // ifne→`== 0` etc.
+        if (arity == 1) {
+            String v = st.pop();
+            // Fase E (14/10): instanceof como condição — o inv `!= 0` sobre
+            // Bool é ruído (espelho do testSplit/testExpr; medido describe)
+            if (block.get(block.size() - 2).opcode() == 0xc1) {
+                if (v.startsWith("(") && v.endsWith(")")) v = v.substring(1, v.length() - 1);
+                return "!= 0".equals(inv) ? v : "!(" + v + ")";
+            }
+            return v + " " + inv;   // ifne→`== 0` etc.
+        }
         String b = st.pop();
         String a = st.pop();
         return a + " " + inv + " " + b;
@@ -411,11 +452,28 @@ import java.util.Set;
                 if (!stmtEnd) continue;
             }
             java.util.Deque<String> st = new java.util.ArrayDeque<>();
+            boolean hasStore = false;
+            for (BytecodeReader.Insn sin : suf) {
+                int sop = sin.opcode();
+                if (sop >= 0x36 && sop <= 0x4e) { hasStore = true; break; }
+            }
+            if (hasStore) continue;   // stores = statements (fusion-path)
             if (!evalInto(suf, frame, cp, st)) continue;
             if (st.size() != arity) continue;
             String cond;
             if (arity == 1) {
-                cond = st.pop() + " " + inv;
+                String v = st.pop();
+                // Fase E (14/10): o sufixo terminando em INSTANCEOF — o
+                // inv `!= 0`/`== 0` sobre Bool é ruído; o instanceof É a
+                // condição (ifeq salta no FALSO → a queda é o verdadeiro =
+                // o instanceof puro; ifne → negado).
+                int lop = suf.get(suf.size() - 1).opcode();
+                if (lop == 0xc1) {
+                    if (v.startsWith("(") && v.endsWith(")")) v = v.substring(1, v.length() - 1);
+                    cond = "!= 0".equals(inv) ? v : "!(" + v + ")";
+                } else {
+                    cond = v + " " + inv;
+                }
             } else {
                 String b = st.pop();
                 String a = st.pop();
@@ -429,9 +487,23 @@ import java.util.Set;
     static String testExpr(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame,
                            int arity, String inv, String[] cp) {
         java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        for (BytecodeReader.Insn in : seq) {
+            int sop = in.opcode();
+            if (sop >= 0x36 && sop <= 0x4e) return null;   // stores = statements
+        }
         if (!evalInto(seq, frame, cp, st)) return null;
         if (st.size() != arity) return null;
-        if (arity == 1) return st.pop() + " " + inv;
+        if (arity == 1) {
+            String v = st.pop();
+            // Fase E (14/10): instanceof como condição — o inv `!= 0` sobre
+            // Bool é ruído (espelho do testSplit; medido no describe)
+            int lop = seq.get(seq.size() - 1).opcode();
+            if (lop == 0xc1) {
+                if (v.startsWith("(") && v.endsWith(")")) v = v.substring(1, v.length() - 1);
+                return "!= 0".equals(inv) ? v : "!(" + v + ")";
+            }
+            return v + " " + inv;
+        }
         String b = st.pop();
         String a = st.pop();
         return a + " " + inv + " " + b;

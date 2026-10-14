@@ -120,7 +120,7 @@ final class BytecodeSwitch {
         boolean a0 = insns.get(0).opcode() == 0x19 || (insns.get(0).opcode() >= 0x2a && insns.get(0).opcode() <= 0x2d);
         boolean a1 = insns.get(1).opcode() == 0x3a || (insns.get(1).opcode() >= 0x4a && insns.get(1).opcode() <= 0x4d);
         boolean a2 = insns.get(2).opcode() == 0x02;
-        boolean a3 = insns.get(3).opcode() == 0x36 || (insns.get(3).opcode() >= 0x3d && insns.get(3).opcode() <= 0x40);
+        boolean a3 = insns.get(3).opcode() == 0x36 || (insns.get(3).opcode() >= 0x3b && insns.get(3).opcode() <= 0x3e);
         boolean a4 = insns.get(4).opcode() == 0x19 || (insns.get(4).opcode() >= 0x2a && insns.get(4).opcode() <= 0x2d);
         String[] hm = insns.get(5).opcode() == 0xb6
                 ? BytecodeCp.resolveMethodRef(cp, insns.get(5).operands()[0]) : null;
@@ -149,7 +149,7 @@ final class BytecodeSwitch {
             boolean e2 = eq != null && "java/lang/String".equals(eq[0]) && "equals".equals(eq[1]);
             boolean e3 = insns.get(i + 3).opcode() == 0x99 && insns.get(i + 3).target() == join;
             Integer k = constVal(insns.get(i + 4));
-            boolean e5 = insns.get(i + 5).opcode() == 0x36 || (insns.get(i + 5).opcode() >= 0x3d && insns.get(i + 5).opcode() <= 0x40);
+            boolean e5 = insns.get(i + 5).opcode() == 0x36 || (insns.get(i + 5).opcode() >= 0x3b && insns.get(i + 5).opcode() <= 0x3e);
             // o ÚLTIMO caso de hash cai no join SEM goto (medido: a cadeia
             // tem 6 insns e i+6 é o próprio insn do join)
             boolean e6;

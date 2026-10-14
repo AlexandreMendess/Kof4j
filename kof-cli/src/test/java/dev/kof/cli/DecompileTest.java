@@ -1588,6 +1588,44 @@ class DecompileTest {
         assertEquals("A\nB\n?", output, "zero-drift: switch de String id\u00eantico ao Java");
     }
 
+    @Test
+    void bindingInstanceofTernaryRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o BINDING instanceof (`o instanceof String s ? ...`)
+        // compila p/ instanceof+ifeq no cond e checkcast+astore+aload no
+        // braço. O avaliador ganhou instanceof (0xc1) + memória de locais da
+        // fatia (o binding é self-contained); os extratores de CONDIÇÃO
+        // recusam stores (o fusion-path as emite — sem isso o prólogo
+        // sumia e o corpo referenciava v1 antes da declaração, SEM011).
+        // Zero-drift executado. (O `==` de REFERÊNCIA Java segue stub
+        // honesto: o == do Kof é CONTEÚDO — semântica congelada.)
+        Path javaFile = dir.resolve("Bi.java");
+        Files.writeString(javaFile, """
+                public class Bi {
+                    static String describe(Object o) { return o instanceof String s ? "str:" + s : "other"; }
+                    static boolean isStr(Object o) { return o instanceof String; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bi.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o binding instanceof recupera:\n" + kof);
+        assertTrue(kof.contains("arg0 instanceof String"), kof);
+        assertFalse(kof.contains("!= 0) \""), "o instanceof n\u00e3o carrega ru\u00eddo:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Bi.describe(\"x\"))\n    println(Bi.describe(42))\n    println(Bi.isStr(\"s\"))\n    println(Bi.isStr(7))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: str:x | other | true | false
+        assertEquals("str:x\nother\ntrue\nfalse", output, "zero-drift: binding instanceof id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

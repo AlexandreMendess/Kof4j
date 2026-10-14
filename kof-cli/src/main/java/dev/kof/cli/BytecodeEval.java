@@ -13,9 +13,24 @@ final class BytecodeEval {
 
 static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame,
                         String[] cp, java.util.Deque<String> st) {
+    // Fase E (14/10): memória de LOCAIS da própria fatia (o binding
+    // `instanceof String s` compila para checkcast+astore+aload — a
+    // avaliação straight-line é determinística, o mapa é local à chamada).
+    // Só referências/ints (lstore/dstore ocupam 2 slots — fora, honesto).
+    java.util.Map<Integer, String> locals = new java.util.HashMap<>();
     for (BytecodeReader.Insn in : seq) {
         int op = in.opcode();
         switch (op) {
+            case 0x3a, 0x4b, 0x4c, 0x4d, 0x4e -> {      // astore (binding; astore_0=0x4b)
+                if (st.isEmpty()) return false;
+                int slot = op == 0x3a ? in.operands()[0] : op - 0x4b;
+                locals.put(slot, st.pop());
+            }
+            case 0x36, 0x3b, 0x3c, 0x3d, 0x3e -> {      // istore (istore_0=0x3b)
+                if (st.isEmpty()) return false;
+                int slot = op == 0x36 ? in.operands()[0] : op - 0x3b;
+                locals.put(slot, st.pop());
+            }
             case 0x01 -> st.push("null");
             case 0x02 -> st.push("-1");
             case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> st.push(String.valueOf(op - 0x03));
@@ -35,10 +50,16 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
                 if (c == null) return false;
                 st.push(c);
             }
-            case 0x1a, 0x1b, 0x1c, 0x1d -> st.push(BytecodeDecoder.slotName(op - 0x1a, frame));
+            case 0x1a, 0x1b, 0x1c, 0x1d -> {
+                int slot = op - 0x1a;
+                st.push(locals.containsKey(slot) ? locals.get(slot) : BytecodeDecoder.slotName(slot, frame));
+            }
             case 0x1e, 0x1f, 0x20, 0x21 -> st.push(BytecodeDecoder.slotName(op - 0x1e, frame));
             case 0x26, 0x27, 0x28, 0x29 -> st.push(BytecodeDecoder.slotName(op - 0x26, frame));
-            case 0x2a, 0x2b, 0x2c, 0x2d -> st.push(BytecodeDecoder.slotName(op - 0x2a, frame));
+            case 0x2a, 0x2b, 0x2c, 0x2d -> {
+                int slot = op - 0x2a;
+                st.push(locals.containsKey(slot) ? locals.get(slot) : BytecodeDecoder.slotName(slot, frame));
+            }
             case 0x15, 0x19 -> st.push(BytecodeDecoder.slotName(in.operands()[0], frame));
             case 0x16, 0x17, 0x18 -> st.push(BytecodeDecoder.slotName(in.operands()[0], frame));
             case 0xbe -> {                                 // arraylength
@@ -100,6 +121,15 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
                 if (f == null || st.isEmpty()) return false;
                 String obj = st.pop();
                 st.push(obj + "." + f[1]);
+            }
+            case 0xc1 -> {                                 // instanceof (Kof nativo)
+                String ct = BytecodeKofTypes.inlineKofType(cp, in.operands()[0]);
+                if (ct == null) {
+                    ct = BytecodeKofTypes.indexKofType(cp, in.operands()[0], frame);
+                    if (ct == null) return false;
+                }
+                if (st.isEmpty()) return false;
+                st.push("(" + st.pop() + " instanceof " + ct + ")");
             }
             case 0xc0 -> {                                 // checkcast
                 String ct = BytecodeKofTypes.inlineKofType(cp, in.operands()[0]);
