@@ -130,6 +130,42 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             }
         }
         if (cond == null) { BytecodeStatements.refuse("cond-null"); return false; }
+        // Fase C (13/10, short-circuit ||): o `||` tem a orientacao
+        // ESPELHADA do &&. Medido (or2/or3): os testes NAO-finais saltam
+        // para o VERDADEIRO (takenCond; succ[0]==exitStart) e o ULTIMO teste
+        // cai no verdadeiro (invCond; succ[1]==exitStart) com o jump para o
+        // FALSO. O bloco externo (b) E o primeiro termo.
+        if (!loop0) {
+            int guard = 0;
+            BytecodeReader.Block tb = b;
+            String orCond = null;
+            int realFalse = -1;
+            while (guard < 8 && tb != null && tb.succ.size() == 2
+                    && !BytecodeReader.isLoopHeader(tb)) {
+                if (tb.succ.get(0) == exitStart) {
+                    // nao-final: jump=VERDADEIRO
+                    String c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
+                    if (c2 == null) break;
+                    orCond = orCond == null ? c2 : orCond + " || " + c2;
+                    tb = byStart.get(tb.succ.get(1));
+                    guard++;
+                } else if (tb.succ.get(1) == exitStart && orCond != null) {
+                    // ULTIMO: jump=FALSO (invCond), o jump e o falso real
+                    String c2 = BytecodeDecoder.blockCondition(tb, insns, frame, cp);
+                    if (c2 == null) break;
+                    orCond = orCond + " || " + c2;
+                    realFalse = tb.succ.get(0);
+                    break;
+                } else {
+                    break;
+                }
+            }
+            if (orCond != null && realFalse >= 0) {
+                cond = orCond;
+                thenStart = exitStart;   // o verdadeiro
+                exitStart = realFalse;   // o falso real
+            }
+        }
         // Fase C (13/10, short-circuit &&): o THEN-bloco é OUTRO teste
         // cujo falso-alvo é o MESMO else → as condições combinam com
         // `&&` (a avaliação em cadeia do bytecode É o curto-circuit do
@@ -178,6 +214,15 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                                 tIns.subList(0, tIns.size() - 1), frame, cp);
                         String eVal = BytecodeDecoder.stackValue(eIns, frame, cp);
                         if (tVal != null && eVal != null) {
+                            // coerção Bool: método `Z` com braços 1/0 → true/false
+                            // (o Kof exige Bool; medido — `return if (..) 1 else 0`
+                            // num Bool dá SEM010). Vale p/ && e || iguais.
+                            if ("Z".equals(frame.retType())) {
+                                if ("1".equals(tVal)) tVal = "true";
+                                if ("0".equals(tVal)) tVal = "false";
+                                if ("1".equals(eVal)) eVal = "true";
+                                if ("0".equals(eVal)) eVal = "false";
+                            }
                             out.add("    return if (" + cond + ") " + tVal + " else " + eVal);
                             emitted.add(exitStart);
                             emitted.add(joinAfterElse);

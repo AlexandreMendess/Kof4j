@@ -15,8 +15,17 @@ public final class CapturedVarBox {
     static int emit(CompilerDriver driver, VarDeclStmt vds, ExpressionNode vdInit,
                     List<KofOperation> ops, String owner, int localIdx,
                     List<IRLocalVariable> locals) {
-        Type initType = vdInit == null ? Type.PrimitiveType.INT
-                : ExpressionTyper.inferExprType(driver, vdInit, locals);
+        // §664 captured twin: um local de TIPO DE FUNÇÃO capturado+mutado e
+        // SEM inicializador boxava como INT (o default hardcoded) — o store da
+        // lambda no campo `int value` é VerifyError. Usa o tipo DECLARADO
+        // (a interface sintética) e o default null, espelhando o §664 do
+        // caminho plano (StatementLowererLocalBoxing).
+        Type declared = CompilerTypes.toType(vds.type(), driver.currentUnit, driver.semanticAnalyzer);
+        Type initType = declared instanceof Type.FunctionType
+                ? declared
+                : (vdInit == null
+                        ? Type.PrimitiveType.INT
+                        : ExpressionTyper.inferExprType(driver, vdInit, locals));
         String boxName = driver.boxFactory.createBoxClass(initType, driver.syntheticClasses, driver.lambdaCounter);
         Type boxType = new Type.ClassType("", boxName, List.of());
         ops.add(new KofNewObject(boxType, List.of()));
@@ -45,7 +54,8 @@ public final class CapturedVarBox {
             nextFree = ExpressionLowerer.emitExpression(driver, vdInit, ops, owner,
                     localIdx + 1, locals);
         } else {
-            ops.add(new KofLoadLiteral(initType, 0));
+            ops.add(new KofLoadLiteral(initType,
+                    initType instanceof Type.FunctionType ? null : 0));
         }
         ops.add(new KofStoreLocal(initType, nextFree));
         locals.add(new IRLocalVariable(nextFree, "$boxinit" + nextFree, initType));

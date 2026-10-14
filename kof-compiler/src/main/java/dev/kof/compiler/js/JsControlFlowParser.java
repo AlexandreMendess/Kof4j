@@ -100,6 +100,16 @@ List<JsIr.JsStatement> parseStatements(MethodCtx ctx, int[] pos,
                     }
                     continue;
                 }
+                // §701: salto para o FIM do switch em parse = `break` de case.
+                // Vale mesmo ANINHADO (num if/loop dentro do case): o alvo é o
+                // label do switch, registrado em ctx.switchEnds pelo parser do
+                // switch. Sem isto o salto caía no region-exit genérico abaixo
+                // e TRUNCAVA o corpo (o default vazava para dentro do case).
+                if (ctx.isSwitchEnd(kj.target())) {
+                    pos[0]++;
+                    out.add(new JsIr.JsBreak());
+                    return out;
+                }
                 // region exit (if/try/finally jump)
                 pos[0]++;
                 exits.add(kj.target());
