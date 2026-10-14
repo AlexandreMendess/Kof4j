@@ -60,18 +60,33 @@ public final class AlgebraicSimplification implements IrPass {
                     && isAbsorbingValue(b, lit) && out.size() >= 2) {
                 KofOperation producer = out.get(out.size() - 2);
                 if (isPureProducer(producer)) {
-                    // producer; lit; OP  ->  lit(0). Drop the producer and the
-                    // binary, keep a literal zero (stack depth unchanged).
-                    KofLoadLiteral zero = b.operandType().equals(Type.PrimitiveType.LONG)
-                            ? KofLoadLiteral.ofLong(0L)
-                            : KofLoadLiteral.ofInt(0);
+                    // producer; lit; OP -> a constant. For MUL/AND/OR the absorbing
+                    // literal IS the result (x*0=0, x&0=0, x|-1=-1); for MOD the
+                    // result is always 0 (x%1, x%-1). Drop producer + binary.
+                    KofLoadLiteral result = b.op() == KofBinaryOp.MOD
+                            ? literalOf(b.operandType(), 0L)
+                            : lit;
                     SourcePosition p = positions.remove(lit);
                     positions.remove(producer);
                     out.remove(out.size() - 1);   // the literal
                     out.remove(out.size() - 1);   // the producer
-                    if (p != null) positions.put(zero, p);
-                    out.add(zero);
-                    prev = zero;
+                    if (p != null) positions.put(result, p);
+                    out.add(result);
+                    prev = result;
+                    continue;
+                }
+            }
+            if (op instanceof KofBinary b && b.op() == KofBinaryOp.AND
+                    && isIntOrLong(b.operandType()) && prev instanceof KofLoadLiteral lit
+                    && litLong(lit) == -1 && out.size() >= 2) {
+                // x & -1 is the IDENTITY x (all bits set): keep the producer, drop
+                // the literal and the binary. Stack depth unchanged.
+                KofOperation producer = out.get(out.size() - 2);
+                if (isPureProducer(producer)) {
+                    positions.remove(lit);
+                    positions.remove(op);
+                    out.remove(out.size() - 1);   // the literal
+                    prev = producer;
                     continue;
                 }
             }
@@ -144,11 +159,12 @@ public final class AlgebraicSimplification implements IrPass {
         return false;
     }
 
-    /** True when {@code x OP literal} collapses to 0 for the literal on the stack. */
+    /** True when {@code x OP literal} collapses to a constant. */
     private static boolean absorbs(KofBinary b) {
         if (!isIntOrLong(b.operandType())) return false;
         return switch (b.op()) {
             case MUL, AND -> true;        // x * 0, x & 0  (literal must be 0)
+            case OR -> true;              // x | -1       (literal must be -1)
             case MOD -> true;             // x % 1, x % -1 (literal must be 1 or -1)
             default -> false;
         };
@@ -156,13 +172,25 @@ public final class AlgebraicSimplification implements IrPass {
 
     /** Whether the preceding literal is the absorbing value for the op. */
     private static boolean isAbsorbingValue(KofBinary b, KofLoadLiteral lit) {
-        if (!(lit.value() instanceof Number n)) return false;
-        long v = n.longValue();
+        long v = litLong(lit);
         return switch (b.op()) {
             case MUL, AND -> v == 0;
+            case OR -> v == -1;
             case MOD -> v == 1 || v == -1;
             default -> false;
         };
+    }
+
+    /** The long value of an integer literal, or a sentinel when it is not one. */
+    private static long litLong(KofLoadLiteral lit) {
+        if (lit.value() instanceof Number n) return n.longValue();
+        return Long.MIN_VALUE;
+    }
+
+    private static KofLoadLiteral literalOf(Type t, long v) {
+        return t.equals(Type.PrimitiveType.LONG)
+                ? KofLoadLiteral.ofLong(v)
+                : KofLoadLiteral.ofInt((int) v);
     }
 
     private static boolean isIntOrLong(Type t) {

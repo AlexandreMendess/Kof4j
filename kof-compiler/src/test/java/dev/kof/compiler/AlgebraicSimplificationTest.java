@@ -189,4 +189,34 @@ class AlgebraicSimplificationTest {
                 new KofReturn(Type.PrimitiveType.INT)));
         assertEquals(4, out.size(), "float x == x is not always true (NaN)");
     }
+
+    @Test
+    void orMinusOneBecomesMinusOne() {
+        List<KofOperation> out = run(List.of(
+                load(1), KofLoadLiteral.ofInt(-1),
+                new KofBinary(KofBinaryOp.OR, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(2, out.size(), "x | -1 folds to the constant -1");
+        assertEquals(KofLoadLiteral.ofInt(-1), out.get(0));
+    }
+
+    @Test
+    void andMinusOneIsIdentity() {
+        // x & -1 == x: the producer is kept, the literal and the AND are dropped.
+        List<KofOperation> out = run(List.of(
+                load(1), KofLoadLiteral.ofInt(-1),
+                new KofBinary(KofBinaryOp.AND, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(2, out.size(), "x & -1 keeps x and drops the AND");
+        assertEquals(load(1), out.get(0));
+    }
+
+    @Test
+    void orNonMinusOneIsUnchanged() {
+        List<KofOperation> out = run(List.of(
+                load(1), KofLoadLiteral.ofInt(3),
+                new KofBinary(KofBinaryOp.OR, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(4, out.size(), "x | 3 is not an absorbing element");
+    }
 }
