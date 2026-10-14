@@ -1145,6 +1145,39 @@ class DecompileTest {
         assertEquals("true\nfalse\ntrue\nfalse", output, "zero-drift executado");
     }
 
+    @Test
+    void stringValueOfMapsToConcat(@TempDir Path dir) throws Exception {
+        // Fase E (13/10): `String.valueOf(x)` é MUITO comum — o decompilador
+        // mapeia para a concat de string vazia (o idioma Kof; medido: "" + x
+        // dá o mesmo p/ Int/Long/Double/Bool/Char). Antes: stub.
+        Path javaFile = dir.resolve("Sv.java");
+        Files.writeString(javaFile, """
+                public class Sv {
+                    static String ofInt(int i) { return String.valueOf(i); }
+                    static String ofLong(long l) { return String.valueOf(l); }
+                    static String ofBool(boolean b) { return String.valueOf(b); }
+                    static String embed(int i) { return "n=" + String.valueOf(i) + "!"; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Sv.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "String.valueOf recupera:\n" + kof);
+        assertTrue(kof.contains("\"\" + arg0"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Sv.ofInt(42))\n    println(Sv.ofLong(7L))\n    println(Sv.ofBool(true))\n    println(Sv.embed(5))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("42\n7\ntrue\nn=5!", output, "zero-drift: String.valueOf idêntico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

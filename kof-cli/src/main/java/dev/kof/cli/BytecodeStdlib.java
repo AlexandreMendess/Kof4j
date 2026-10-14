@@ -75,6 +75,13 @@ final class BytecodeStdlib {
                     return null;
             }
         }
+        // Fase E (13/10): `String.valueOf(x)` é MUITO comum — o Kof converte
+        // para String com a concat de string vazia (medido: "" + x dá o mesmo
+        // p/ Int/Long/Double/Bool/Char). Vale p/ os overloads primitivos E o
+        // Object (String.valueOf(Object) chama toString; "" + obj idem).
+        if ("java/lang/String".equals(ownerInternal) && "valueOf".equals(name)) {
+            return "\"\" + " + args;
+        }
         if ("java/lang/Integer".equals(ownerInternal) && ("parseInt".equals(name) || "valueOf".equals(name))) {
             return args + ".toInt()";
         }
