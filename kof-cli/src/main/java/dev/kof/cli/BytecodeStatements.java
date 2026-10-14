@@ -74,6 +74,11 @@ final class BytecodeStatements {
         if (sw != null) return sw;
         // Fase C (statement-switch): só tenta se o de expressão recusou
         // (saída do de expressão preservada byte-idêntica onde aceitava).
+        // Fase E (14/10): o switch de STRING (o desdobramento hashCode/
+        // equals do javac) antes do switch comum — o hashCode recusaria
+        // no linearExpr e o método inteiro stubaria.
+        List<String> ssw = BytecodeSwitch.stringSwitchExpr(code, insns, cp, frame);
+        if (ssw != null) return ssw;
         List<String> sws = BytecodeSwitch.recoverSwitchStmt(code, insns, cp, frame);
         if (sws != null) return sws;
         if (handlers != null && handlers.length > 0) {

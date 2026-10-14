@@ -1553,6 +1553,41 @@ class DecompileTest {
         assertEquals("10\n20\n-1\nA\n?", output, "zero-drift: switch-expression id\u00eantico ao Java");
     }
 
+    @Test
+    void stringSwitchRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o switch de STRING — o javac desdobra em hashCode
+        // → lookupswitch + cadeias equals atribuindo um índice + um SEGUNDO
+        // switch sobre o índice. O stringSwitchExpr reconstr\u00f3i os casos
+        // literais e emite a forma seta Kof (que aceita String — medido).
+        // Três armadilhas medidas: o join \u00e9 [iload IDX, switch] (o switch
+        // vem DEPOIS do load), o fim comum \u00e9 o RETURN (o dflt \u00e9 o INÍCIO
+        // do bra\u00e7o default) e o \u00daLTIMO caso de hash cai no join sem goto.
+        Path javaFile = dir.resolve("Ss.java");
+        Files.writeString(javaFile, """
+                public class Ss {
+                    static String pick(String s) { return switch (s) { case "a" -> "A"; case "b" -> "B"; default -> "?"; }; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Ss.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o switch de String recupera:\n" + kof);
+        assertTrue(kof.contains("case \"a\""), kof);
+        String kofRun = kof + "\nmain() {\n    println(Ss.pick(\"a\"))\n    println(Ss.pick(\"b\"))\n    println(Ss.pick(\"z\"))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: A B ?
+        assertEquals("A\nB\n?", output, "zero-drift: switch de String id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
