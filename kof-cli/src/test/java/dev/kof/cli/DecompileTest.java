@@ -2299,6 +2299,45 @@ class DecompileTest {
         assertEquals("empty\nbig\n20.0\na,b,c\ntrue\n1\nv", output, "zero-drift: a classe de servi\u00e7o id\u00eantica ao Java");
     }
 
+    @Test
+    void freshArrayLiteralRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o ARRAY LITERAL fresh (`new int[2]` + dup +
+        // iastore\u00d7N + return — o shape do minMax) — o dup do array vira
+        // um TEMP (`var arrT1 = new Int[2]` + as stores no var): o texto
+        // `new Int[2][0] = v` n\u00e3o parseia. Zero-drift executado.
+        Path javaFile = dir.resolve("Fz.java");
+        Files.writeString(javaFile, """
+                public class Fz {
+                    static int[] minMax(int[] xs) {
+                        int mn = xs[0]; int mx = xs[0];
+                        for (int x : xs) { if (x < mn) { mn = x; } if (x > mx) { mx = x; } }
+                        return new int[] { mn, mx };
+                    }
+                    static boolean allBelow(int[] xs, int cap) {
+                        for (int x : xs) { if (x >= cap) { return false; } } return true;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Fz.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("arrT"), "o temp do array literal:\n" + kof);
+        assertFalse(kof.contains("new Int[2][0]"), "sem store no texto do new:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    var xs = new Int[3]\n    xs[0] = 4\n    xs[1] = -2\n    xs[2] = 9\n    println(Fz.allBelow(xs, 10))\n    var mm = Fz.minMax(xs)\n    println(mm[0])\n    println(mm[1])\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | -2 | 9
+        assertEquals("true\n-2\n9", output, "zero-drift: array literal id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

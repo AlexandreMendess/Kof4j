@@ -105,6 +105,7 @@ final class BytecodeStatements {
         skipFirst = null;   // por-método: nenhum skip vaza entre corpos
         currentLoopExit = -1;
         builderSlots = new HashSet<>();
+        BytecodeKofTypes.resetArrTmps();
         if (skipCount == null) skipCount = new HashMap<>();
         skipCount.clear();
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);

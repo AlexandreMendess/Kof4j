@@ -10,6 +10,13 @@ package dev.kof.cli;
  */
 final class BytecodeKofTypes {
 
+    // Fase E (14/10): o contador dos temps de array fresh (por método —
+    // resetado pelo chamador via resetArrTmps).
+    private static int arrTmpCount = 0;
+
+    /** Zera o contador dos temps de array (por método recuperado). */
+    static void resetArrTmps() { arrTmpCount = 0; }
+
     private BytecodeKofTypes() {
     }
 
@@ -89,6 +96,18 @@ final class BytecodeKofTypes {
                 if (top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7")
                         || top.startsWith("\u27e6col\u27e7") || top.startsWith("⟦sb⟧")) {
                     stack.push(top);
+                    return true;
+                }
+                // Fase E (14/10): o ARRAY LITERAL fresh (`new Int[2]` + dup +
+                // iastore×N + return) → temp: `var arrT1 = new Int[2]` + as
+                // stores no var (o texto `new Int[2][0] = v` não parseia;
+                // medido no minMax). O nome único por recuperação.
+                if (top.matches("new \\w+\\[.*")) {
+                    stack.pop();
+                    String tmp = "arrT" + (++arrTmpCount);
+                    stmts.add("var " + tmp + " = " + top);
+                    stack.push(tmp);
+                    stack.push(tmp);
                     return true;
                 }
                 // o dup de um valor PURO (aritmetica/variavel) e seguro — o
