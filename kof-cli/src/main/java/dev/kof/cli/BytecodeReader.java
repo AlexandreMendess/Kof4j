@@ -86,6 +86,13 @@ final class BytecodeReader {
                     break;
                 }
                 operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF)};
+            } else if (len == 4 && op == 0xc5) { // multianewarray: índice CP (2) + dims (1)
+                if (pc + 4 > code.length) {
+                    out.add(new Insn(pc, -1, operands, -1));
+                    break;
+                }
+                operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF),
+                                     code[pc + 3] & 0xFF};
             } else if (len == 5 && op == 0xba) { // invokedynamic: índice CP nos 2 bytes (depois, 2 zeros)
                 if (pc + 5 > code.length) {
                     out.add(new Insn(pc, -1, operands, -1));

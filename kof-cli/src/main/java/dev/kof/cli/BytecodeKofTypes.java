@@ -164,6 +164,36 @@ final class BytecodeKofTypes {
                 stmts.add(arr + "[" + idx + "] = " + v);
                 return true;
             }
+            case 0xc5 -> { // multianewarray → `new Int[d1][d2]...`
+                // (medido: new Int[3][2] + m[0][0] compila e roda no Kof).
+                // O CP entry é o DESCRIPTOR do array ("[[I"); as dimensões
+                // estão na pilha (operand[1] = quantidade).
+                int dims = in.operands()[1];
+                if (dims < 1 || dims > 3 || stack.size() < dims) return false;
+                String internal = indexInternalName(cp, in.operands()[0]);
+                if (internal == null || !internal.startsWith("[")) return false;
+                String base = internal;
+                while (base.startsWith("[")) base = base.substring(1);
+                String elem = switch (base) {
+                    case "I" -> "Int"; case "J" -> "Long"; case "F" -> "Float";
+                    case "D" -> "Double"; case "Z" -> "Bool"; case "C" -> "Char";
+                    case "B" -> "Byte"; case "S" -> "Short";
+                    default -> null;
+                };
+                if (elem == null && base.startsWith("L") && base.endsWith(";")) {
+                    String simple = base.substring(1, base.length() - 1);
+                    int slash = simple.lastIndexOf('/');
+                    simple = slash >= 0 ? simple.substring(slash + 1) : simple;
+                    if (simple.equals("String") || simple.equals("Object")) elem = simple;
+                }
+                if (elem == null) return false;   // domínio — fora do slice
+                String[] ds = new String[dims];
+                for (int i = dims - 1; i >= 0; i--) ds[i] = stack.pop();
+                StringBuilder sb2 = new StringBuilder("new ").append(elem);
+                for (int i = 0; i < dims; i++) sb2.append("[").append(ds[i]).append("]");
+                stack.push(sb2.toString());
+                return true;
+            }
             case 0xbc -> { // newarray → `new Int[n]` (arrays PRIMITIVOS; JVMS 6.5)
                 if (stack.isEmpty()) return false;
                 String elem = primitiveArrayType(in.operands()[0]);

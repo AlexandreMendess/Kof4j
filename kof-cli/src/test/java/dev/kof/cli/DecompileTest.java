@@ -1662,6 +1662,39 @@ class DecompileTest {
         assertEquals("120\n3628800\n6\n1", output, "zero-drift: long loop + gcd id\u00eanticos ao Java");
     }
 
+    @Test
+    void twoDimArrayRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o MULTIANEWARRAY (0xc5) — `new int[n][2]` — faltava
+        // no statementOp E o reader n\u00e3o populava os operands (o \u00edndice CP +
+        // o byte de dims). Emite `new Int[d1][2]` (medido: compila e roda com
+        // indexa\u00e7\u00e3o dupla). Zero-drift executado.
+        Path javaFile = dir.resolve("Td.java");
+        Files.writeString(javaFile, """
+                public class Td {
+                    static int[][] make(int n) { int[][] m = new int[n][2]; for (int i = 0; i < n; i++) { m[i][0] = i; } return m; }
+                    static int read(int[][] m) { return m[0][1]; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Td.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o array 2D recupera:\n" + kof);
+        assertTrue(kof.contains("new Int[") && kof.contains("][2]"), kof);
+        String kofRun = kof + "\nmain() {\n    var m = Td.make(3)\n    println(Td.read(m))\n    println(m[2][0])\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: read2d=0 (m[0][1] zera) | m[2][0]=2
+        assertEquals("0\n2", output, "zero-drift: array 2D id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
