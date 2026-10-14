@@ -277,6 +277,15 @@ public final class JsClassEmitter {
         List<JsIr.JsStatement> body = p.parseMethodBody(ctx);
         insertFieldDefaults(clazz, body);
         insertSuperCall(clazz, body);
+        // TIER 2.7 (D-VALUE-RECORD, 2.7.4 — ABI JS): um `value record` é um
+        // objeto CONGELADO (o plano §4) — sem identidade observável e sem
+        // mutação. Kof não muta record, então o freeze é invisível ao código
+        // Kof e entrega a garantia de valor no nível do objeto JS.
+        if (clazz.isValueRecord()) {
+            body.add(new JsIr.JsExprStmt(new JsIr.JsCall(
+                    new JsIr.JsIdentifier("Object.freeze"),
+                    List.of(new JsIr.JsIdentifier("this")))));
+        }
         return new JsIr.JsFunction("constructor", p.parameterNames(ctx), body, false, true, false, false,
                 JsMethodParser.firstKofLine(method));
     }

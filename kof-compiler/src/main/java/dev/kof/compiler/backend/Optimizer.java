@@ -59,7 +59,8 @@ public final class Optimizer {
             }
             classes.add(new IRClass(cls.name(), cls.superName(), cls.interfaces(),
                     cls.accessFlags(), cls.fields(), methods,
-                    cls.innerClasses(), cls.signature(), cls.typeId(), cls.annotations(), cls.isRecord()));
+                    cls.innerClasses(), cls.signature(), cls.typeId(), cls.annotations(), cls.isRecord(),
+                    cls.isValueRecord()));
         }
         return new IRModule(module.name(), classes, module.imports(), module.sourceName(), module.sourceContent());
     }

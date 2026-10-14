@@ -147,7 +147,12 @@ public final class CompilerIfaceRecordLowering {
                     driver, internalName, superName, ifaces, methods);
             methods.addAll(bridges);
         }
+        // TIER 2.7 (D-VALUE-RECORD, 2.7.3/2.7.4): a flag `value` viaja para a
+        // IR — o emissor JS congela o objeto (ABI JS) e o Native consulta-a p/
+        // a decisão de ABI registrada no plano (o heap atual já entrega a
+        // semântica de valor: imutável + igualdade estrutural).
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
-                typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()), true);
+                typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()), true,
+                rec.modifiers().contains("value"));
     }
 }

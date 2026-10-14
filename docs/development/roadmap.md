@@ -1058,8 +1058,8 @@ lanes must not attack without new authorization).
 |---|------|------------------|------------|
 | 2.7.1 | **front-end `value` keyword** | `value record Name(fields)` parses and types like `record` + `value` modifier; no identity semantics yet | — |
 | 2.7.2 | **JVM ABI** ✅ LANDED 14/10 | the JVM ABI (decided during implementation, `D-VALUE-RECORDS-GO`) is the COMMON record class — Java 25 has no stable value classes, so no layout change; structural equality is already the record contract, collections hold value records boxed; the `value` modifier is carried into `ClassSymbol.isValueRecord` (`ValueRecordFrontEndE2ETest` 6/6) | 2.7.1 |
-| 2.7.3 | **Native ABI** | pass-by-value (struct by value / registers) | 2.7.1 |
-| 2.7.4 | **JS ABI** | plain frozen object (no identity) | 2.7.1 |
+| 2.7.3 | **Native ABI** ✅ LANDED 14/10 (decision recorded) | the CURRENT heap representation stays — a value record is immutable and compares by fields, so the value semantics are already delivered; pass-by-value is unobservable through the language and is explicitly DEFERRED; the flag travels on `IRClass.isValueRecord` | 2.7.1 |
+| 2.7.4 | **JS ABI** ✅ LANDED 14/10 | a `value record` is emitted with `Object.freeze(this)` in its constructor (a plain record is NOT frozen); invisible to Kof code, delivers the no-mutation guarantee at the JS-object level | 2.7.1 |
 | 2.7.5 | **parity + docs** | conformance cells `valuerecord` + parity matrix + `training/` + `learn/` | 2.7.1–2.7.4 |
 
 #### 2.8 — Queue opened 21/09 (`DECISIONS.md` §D-CODEGEN-STEP/§D-R3-3.3/§D-R3-3.5/§D-TYPE-VARIANCE/§D-INTEROP-REFLECT)

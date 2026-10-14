@@ -1059,8 +1059,8 @@ fechar; lanes não devem atacar sem nova autorização).
 |---|-------|--------------------|------------|
 | 2.7.1 | **keyword `value` no front-end** | `value record Name(campos)` faz parse e tipagem como `record` + modificador `value`; sem semântica de identidade ainda | — |
 | 2.7.2 | **ABI JVM** ✅ POUSADO 14/10 | a ABI JVM (decidida na implementação, `D-VALUE-RECORDS-GO`) é a classe record COMUM — o Java 25 não tem value classes estáveis, então nenhuma mudança de layout; igualdade estrutural já é o contrato do record, coleções guardam value records boxados; o modificador `value` é carregado em `ClassSymbol.isValueRecord` (`ValueRecordFrontEndE2ETest` 6/6) | 2.7.1 |
-| 2.7.3 | **ABI Native** | passagem por valor (struct por valor / registradores) | 2.7.1 |
-| 2.7.4 | **ABI JS** | objeto congelado comum (sem identidade) | 2.7.1 |
+| 2.7.3 | **ABI Native** ✅ POUSADO 14/10 (decisão registrada) | a representação ATUAL de heap permanece — um value record é imutável e compara por campos, então a semântica de valor já está entregue; pass-by-value é invisível pela linguagem e fica EXPLICITAMENTE adiado; a flag viaja em `IRClass.isValueRecord` | 2.7.1 |
+| 2.7.4 | **ABI JS** ✅ POUSADO 14/10 | um `value record` é emitido com `Object.freeze(this)` no fim do seu construtor (um record comum NÃO é congelado); invisível ao código Kof, entrega a garantia de não-mutação no nível do objeto JS | 2.7.1 |
 | 2.7.5 | **paridade + docs** | células de conformidade `valuerecord` + matriz de paridade + `training/` + `learn/` | 2.7.1–2.7.4 |
 
 #### 2.8 — Fila aberta 21/09 (`DECISIONS.md` §D-CODEGEN-STEP/§D-R3-3.3/§D-R3-3.5/§D-TYPE-VARIANCE/§D-INTEROP-REFLECT)

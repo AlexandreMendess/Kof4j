@@ -205,4 +205,44 @@ class ValueRecordFrontEndE2ETest {
                 "2.7.2: the JVM ABI of a `value record` is the common record (structural equality, boxed in collections)");
         assertEquals("true\nP[x=1, y=2]\n2\n1\ntrue\n2\ntrue", valueResult, "the real values");
     }
+
+    /**
+     * 2.7.4 JS ABI (the plan §4: "plain frozen object"): a {@code value
+     * record} is emitted with {@code Object.freeze(this)} in its constructor —
+     * a plain record is NOT frozen. The freeze is invisible to Kof code
+     * (records are immutable) and delivers the no-mutation guarantee at the
+     * JS-object level.
+     */
+    @Test
+    void jsEmitsFrozenObjectForValueRecordOnly(@TempDir Path tmp) throws Exception {
+        String body = "record Vec2(Float x, Float y)\n"
+                + "main() { var a = Vec2(1.0, 2.0)  println(a.x)  println(a.y) }\n";
+        Path plain = tmp.resolve("plain.kf");
+        Files.writeString(plain, body);
+        Path plainOut = tmp.resolve("plain-js");
+        CompilationResult rp = driver.compile(plain, plainOut, Target.JS);
+        assertTrue(rp.success(), () -> "JS compile: " + rp.diagnostics().getDiagnostics());
+        String plainJs = Files.readString(plainOut.resolve("Default.mjs"));
+        assertFalse(plainJs.contains("Object.freeze"),
+                "a plain record is NOT frozen");
+
+        Path value = tmp.resolve("value.kf");
+        Files.writeString(value, body.replace("record Vec2", "value record Vec2"));
+        Path valueOut = tmp.resolve("value-js");
+        CompilationResult rv = driver.compile(value, valueOut, Target.JS);
+        assertTrue(rv.success(), () -> "JS compile: " + rv.diagnostics().getDiagnostics());
+        String valueJs = Files.readString(valueOut.resolve("Default.mjs"));
+        assertTrue(valueJs.contains("Object.freeze(this);"),
+                "the `value record` constructor freezes the object");
+
+        // the frozen face runs identically on node
+        ProcessBuilder jb = new ProcessBuilder(TestJdk.onPath("node"),
+                valueOut.resolve("Default.mjs").toString());
+        jb.redirectErrorStream(true);
+        Process jp = jb.start();
+        String got = new String(jp.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertEquals(0, jp.waitFor(), "JS exit, output: " + got);
+        assertEquals("1.0\n2.0", got, "the frozen value record runs unchanged");
+    }
 }
