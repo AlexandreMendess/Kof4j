@@ -359,6 +359,60 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             }
             out.addAll(hoist);
         }
+        // Fase E (14/10): ELSE-IF — o braco ELSE (o alvo do branch falso do if
+        // externo) e ele MESMO um teste cujo falso == o join externo (o tail
+        // do then) → o braco else e um if-SEM-else. Emite
+        // `if (A) { .. } else { if (B) { .. } }` e segue no join. Sem isto o
+        // shape `if (a>0) r=1; else if (b>0) r=2;` stubava (o join tem 3
+        // preds e o pureIfElse exige 2 — medido).
+        boolean pureElseIfThen = !pureIfElse && thenB != null && tail >= 0
+                && thenB.succ.equals(List.of(tail))
+                && elseB != null && elseB.succ.size() == 2
+                && elseB.succ.get(0) == tail
+                && byStart.get(elseB.succ.get(1)) != null
+                && byStart.get(elseB.succ.get(1)).succ.equals(List.of(tail))
+                && byStart.get(tail) != null
+                && !BytecodeReader.isLoopHeader(byStart.get(tail));
+        // ELSE-IF-ELSE: o braco else e um teste cujo verdadeiro E o falso
+        // convergem num join INTERNO (ambos com goto para o join externo) →
+        // o braco else e um if/else completo.
+        int elseIfElseInner = -1;
+        if (!pureIfElse && !pureElseIfThen && thenB != null && tail >= 0
+                && thenB.succ.equals(List.of(tail))
+                && elseB != null && elseB.succ.size() == 2) {
+            BytecodeReader.Block t2 = byStart.get(elseB.succ.get(1));
+            BytecodeReader.Block e2 = byStart.get(elseB.succ.get(0));
+            if (t2 != null && e2 != null && t2 != elseB && e2 != elseB
+                    && t2.succ.equals(List.of(tail)) && e2.succ.equals(List.of(tail))) {
+                elseIfElseInner = 1;
+            }
+        }
+        if (pureElseIfThen || elseIfElseInner > 0) {
+            String innerCond = BytecodeDecoder.blockCondition(elseB, insns, frame, cp);
+            if (innerCond == null) { BytecodeStatements.refuse("elseif-cond"); return false; }
+            Set<Integer> bstops = new HashSet<>(stops);
+            bstops.add(tail);
+            out.add("if (" + cond + ") {");
+            if (!struct(thenB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
+                { BytecodeStatements.refuse("struct-generic"); return false; }
+            out.add("} else {");
+            out.add("if (" + innerCond + ") {");
+            if (!struct(byStart.get(elseB.succ.get(1)), insns, byStart, cp, frame,
+                    out, emitted, declared, header, bstops))
+                { BytecodeStatements.refuse("struct-generic"); return false; }
+            out.add("}");
+            if (elseIfElseInner > 0) {
+                out.add("else {");
+                if (!struct(byStart.get(elseB.succ.get(0)), insns, byStart, cp, frame,
+                        out, emitted, declared, header, bstops))
+                    { BytecodeStatements.refuse("struct-generic"); return false; }
+                out.add("}");
+            }
+            out.add("}");
+            emitted.add(elseB.start);
+            return struct(byStart.get(tail), insns, byStart, cp, frame,
+                    out, emitted, declared, header, stops);
+        }
         out.add("if (" + cond + ") {");
         if (pureIfThen) {
             Set<Integer> jstops = new HashSet<>(stops);

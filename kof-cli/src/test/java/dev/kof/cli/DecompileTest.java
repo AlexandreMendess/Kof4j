@@ -1806,6 +1806,39 @@ class DecompileTest {
         assertEquals("RED\nGREEN\nBLUE", output, "zero-drift: enum id\u00eantico ao Java");
     }
 
+    @Test
+    void elseIfChainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): a CADEIA else-if — `if (a>0) r=1; else if (b>0)
+        // r=2;` e `.. else { r=3; }` — stubava (o join externo tem 3 preds
+        // e o pureIfElse exige 2; medido). O braco else E um teste cujo
+        // falso == o join externo (else-if) ou cujo verdadeiro E falso
+        // convergem num join interno (else-if-else). Zero-drift executado.
+        Path javaFile = dir.resolve("Ei.java");
+        Files.writeString(javaFile, """
+                public class Ei {
+                    static int chain(int a, int b) { int r = 0; if (a > 0) { r = 1; } else if (b > 0) { r = 2; } return r; }
+                    static int full(int a, int b) { int r = 0; if (a > 0) { r = 1; } else if (b > 0) { r = 2; } else { r = 3; } return r; }
+                    static int inLoop(int n) { int s = 0; for (int i = 0; i < n; i++) { if (i % 2 == 0) { s += i; } else if (i % 3 == 0) { s += 1; } } return s; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Ei.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Ei.chain(1, 1))\n    println(Ei.chain(0, 1))\n    println(Ei.chain(0, 0))\n    println(Ei.full(1, 1))\n    println(Ei.full(0, 1))\n    println(Ei.full(0, 0))\n    println(Ei.inLoop(10))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1 2 0 | 1 2 3 | 22
+        assertEquals("1\n2\n0\n1\n2\n3\n22", output, "zero-drift: cadeia else-if id\u00eantica ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
