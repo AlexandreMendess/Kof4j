@@ -326,23 +326,6 @@ final class NativeX86Peephole {
     }
 
     /**
-     * §7 x86_64 ("lea for suitable arithmetic operations"): folds
-     * {@code movq %X, %rax} + {@code shl{l,q} $N, %{e,r}ax} (N = 1/2/3, i.e. a
-     * multiply by 2/4/8 — what {@code StrengthReduction} produces) into a single
-     * {@code lea} that scales {@code %X} directly:
-     *
-     * <pre>
-     *   movq %rbx, %rax     leal (%rbx,%rbx), %eax     (x*2)
-     *   shll $1, %eax
-     * </pre>
-     *
-     * <p>{@code lea} computes the address {@code X + X*scale} = {@code X*(1+scale)},
-     * which for scale 1/2/4 is {@code 2X/4X/8X} — exactly the shift result (32-bit
-     * for `leal`, 64-bit for `leaq`, matching the shift width). One instruction
-     * instead of two. Only when the destination is {@code %rax} (the value register)
-     * and the source is not {@code %rax}.
-     */
-    /**
      * §7 x86_64 ("choice between mov, lea and combined operations"): folds an
      * immediate add into an existing {@code lea}'s displacement:
      *
@@ -394,6 +377,23 @@ final class NativeX86Peephole {
         return folded;
     }
 
+    /**
+     * §7 x86_64 ("lea for suitable arithmetic operations"): folds
+     * {@code movq %X, %rax} + {@code shl{l,q} $N, %{e,r}ax} (N = 1/2/3, i.e. a
+     * multiply by 2/4/8 — what {@code StrengthReduction} produces) into a single
+     * {@code lea} that scales {@code %X} directly:
+     *
+     * <pre>
+     *   movq %rbx, %rax     leal (%rbx,%rbx), %eax     (x*2)
+     *   shll $1, %eax
+     * </pre>
+     *
+     * <p>{@code lea} computes the address {@code X + X*scale} = {@code X*(1+scale)},
+     * which for scale 1/2/4 is {@code 2X/4X/8X} — exactly the shift result (32-bit
+     * for `leal`, 64-bit for `leaq`, matching the shift width). One instruction
+     * instead of two. Only when the destination is {@code %rax} (the value register)
+     * and the source is not {@code %rax}.
+     */
     private static int foldShiftToLea(List<String> lines) {
         int folded = 0;
         boolean changed = true;
