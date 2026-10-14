@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3aw LANDADA (infra de teste): o tile interleaved real agora tem os PIXELS reconstruídos fixados (`P 128 128 128 128`, `S 524288`) — antes o probe da 3au só checava os registros de modo, então um erro de predição/transformada/offset de plano passaria. Faces de árvore JVM/Script/JS 3/3; `Av1PartitionE2ETest` 19/19 (escotilha OFF). As faces nativas seguem bloqueadas pelo §723.
-doing: 3aw landada (prova de pixels do tile real); §705 CORRIGIDO; 3au re-landada
-next: o slice do tile-group/OBU (independente da 3au) e depois a composição `decodeRaster` AVIF; a face nativa AVIF só fica verde no caminho DEFAULT quando a lane de codegen resolver o §723
+last: 14/10 — AVIF slice 3ax LANDADA: o cabeçalho de quadro agora expõe `lossless`/`txModeSelect`/`reducedTxSet` (o `frameTailWalk` já os calculava/pulava e os descartava) — é a cola que a composição `decodeRaster` AVIF precisa para dirigir o driver de tile a partir de um quadro real. `headerBytes` inalterado; probe Kof + leitor Java + golden concordam 3/3; `AvifFrameE2ETest` 14/16 (as 2 nativas são o §723 pré-existente, A/B contra a árvore upstream confirmou idêntico).
+doing: 3ax landada (fatos do cabeçalho de quadro para a composição)
+next: compor `decodeRaster` AVIF (frame header + tile-group + o driver de tile + a montagem de quadro) usando os fatos expostos pela 3ax; a face nativa AVIF só fica verde no caminho DEFAULT quando a lane de codegen resolver o §723
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (21ª) — AVIF slice 3ax: o cabeçalho de quadro expõe os fatos que a composição precisa
+- **O buraco:** `AvifFrame.frameTailWalk` derivava `CodedLossless` e pulava os bits de `tx_mode_select` e `reduced_tx_set`, mas retornava só `{bits, baseQ, lf0, cdefBits}`. A composição (`decodeRaster` AVIF) precisa exatamente desses três valores (`lossless`/`txMode`/`reducedTxSet`) para dirigir o driver de tile a partir de um quadro real — e não tinha como obtê-los.
+- **O que fiz:** o walk agora lê e retorna os três; `AvifFrameHeader` ganhou `lossless`, `txModeSelect`, `reducedTxSet`. `headerBytes` ficou inalterado porque as posições de bit são as mesmas (o skip virou leitura).
+- **Especificação (não inventei semântica):** `CodedLossless` força `TX_MODE_ONLY_4X4` (bit ausente); `read_tx_mode` = `TX_MODE_SELECT` quando o bit é 1, senão `TX_MODE_LARGEST`; `reduced_tx_set` força `TX_SET_INTRA_2`.
+- **Prova:** o probe Kof + o leitor Java independente (`AvifFrameJavaSupport`) + o golden carregam os novos fatos e CONCORDAM (3/3 faces não-nativas). `AvifFrameE2ETest` 14/16.
+- **As 2 falhas nativas são PRÉ-EXISTENTES — provei por A/B:** revertendo só `AvifFrame.kf`/`AvifGroup.kf` para o upstream, `avifFrameHeaderOnNativeX86` falha com o MESMO erro (`IMAGE: avif item obu missing size field`). É o §723 (o default de locais-em-registradores), não esta fatia. Zero regressão.
+- **Lição de método:** quando uma face nativa falha logo depois de uma mudança minha, a pergunta certa é "ela falhava ANTES?" — o A/B contra a árvore upstream custa ~3 min e transforma uma suspeita em fato. Já evitei atribuir duas falhas pré-existentes (§723) à minha fatia.
 
 ## Sessão 14/10 (20ª) — AVIF slice 3aw: a prova do tile real agora pina os PIXELS reconstruídos
 - **O buraco que achei:** o probe de árvore da 3au (`Av1PartitionSupport.TREE_PROBE`) afirmava "decodifica ponta a ponta" mas só imprimia os registros de modo (D) e o contexto de entropia (A) — nunca lia o `frame` reconstruído. Um erro de predição/transformada/offset de plano passaria.

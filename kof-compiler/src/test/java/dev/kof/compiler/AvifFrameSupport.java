@@ -425,6 +425,8 @@ final class AvifFrameSupport {
                     + " tiles=" + f.tileColumns + "x" + f.tileRows
                     + " hb=" + f.headerBytes + " bq=" + f.baseQIdx
                     + " lf=" + f.loopFilterLevel0 + " cd=" + f.cdefBits
+                    + " ll=" + f.lossless + " tx=" + f.txModeSelect
+                    + " rts=" + f.reducedTxSet
             }
 
             main() {

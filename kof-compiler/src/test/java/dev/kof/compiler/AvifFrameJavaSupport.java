@@ -309,8 +309,11 @@ final class AvifFrameJavaSupport {
                         if (!use128 && lrUnitShift != 0) bits += 1;
                     }
                 }
-                if (!codedLossless) bits += 1;              // tx_mode_select
-                bits += 1;                                  // reduced_tx_set
+                int txModeSelect = 0;
+                if (!codedLossless) {                       // tx_mode_select
+                    txModeSelect = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                }
+                int reducedTxSet = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
                 if (bits > limit * 8) throw new AssertionError("trunc");
                 int hb = bits;
                 while ((hb & 7) != 0) hb++;
@@ -319,7 +322,9 @@ final class AvifFrameJavaSupport {
                         + " w=" + codedW + " h=" + codedH + " rd=" + rd
                         + " rw=" + rW + " rh=" + rH + " tiles=" + tiles + "x" + trows
                         + " hb=" + headerBytes + " bq=" + baseQ
-                        + " lf=" + lf0Out + " cd=" + cdefBitsOut;
+                        + " lf=" + lf0Out + " cd=" + cdefBitsOut
+                        + " ll=" + (codedLossless ? 1 : 0) + " tx=" + txModeSelect
+                        + " rts=" + reducedTxSet;
             }
             pos = limit;
         }
