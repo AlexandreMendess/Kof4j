@@ -14770,7 +14770,7 @@ Um genérico de UM parâmetro (`Box<Int>`) e um de MÚLTIPLOS parâmetros (`Pair
 
 <!-- en-switch --> **EN:** [§706 (en)](known-bugs.md#706--a-nested-generic-type-argument-boxboxint-breaks-the-outer-accessor-on-the-jvm-the-call-site-expects-int-boxget-and-crashes-with-nosuchmethoderror-on-native-it-reads-garbage--while-scriptjs-return-the-correct-value---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
 
-## §707 — um loop `do-while` cujo corpo contém um `break` ou `continue` NÃO COMPILA no JS: o backend lança um ERRO INTERNO DO COMPILADOR (`COMP002: KofJS: unexpected op in expression statement: KofConditionalJump`) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §707 — um loop `do-while` cujo corpo contém um `break` ou `continue` NÃO COMPILA no JS: o backend lança um ERRO INTERNO DO COMPILADOR (`COMP002: KofJS: unexpected op in expression statement: KofConditionalJump`) — ✅ CORRIGIDO 13/10 (achado e corrigido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
 
@@ -14791,11 +14791,55 @@ compila e devolve `3` em JVM/Script/nativo x86-64/riscv64/aarch64, mas no **JS o
 
 **Raiz (análise):** o do-while é o único construto cujo salto condicional aponta para o PRÓPRIO label de início (`JsControlFlowParser.parseLoop` o detecta varrendo um `KofConditionalJump` cujo `trueLabel` é o início do loop, então roteia para `parseDoWhile`). Um `break`/`continue` no corpo introduz jumps/labels adicionais que a reconstrução do do-while não considera, então depois de parsear o corpo o `KofConditionalJump` final da condição fica no nível de expression-statement e o dispatcher estoura. A reconstrução da cauda do do-while (condição + back-edge) não consome as saídas de break/continue que o corpo produziu.
 
-**Caminho de correção (nomeado, NÃO pousado):** o parse do corpo do do-while precisa entregar ao `parseDoWhile` as saídas que o break/continue produziu (como os corpos de while/for fazem), e a reconstrução da cauda precisa consumi-las antes da condição final. É a mesma família de reconstrução de loop do JS que §703/§704 (cada um já um fix estrutural multi-ciclo), então tem de pousar com a bateria de loop/control-flow como rede de regressão.
+**Correção (POUSADA):** o `parseElse` do JS agora para numa FRONTEIRA DE CONDIÇÃO de do-while. O `JsControlFlowParser.isDoWhileConditionAheadAny` checa se as próximas ops alcançam um `KofConditionalJump` apontando para o START de algum loop na pilha `loops` do contexto (isto é, a condição de back-edge de um do-while ativo, que vem DEPOIS do corpo); o `JsIfThrowElse.parseElse` retorna antes de consumi-la. Sem isto o `parseElse` de um `if` cujo ramo then terminava incondicionalmente consumia o resto do corpo do do-while E a sua condição, deixando o CJump da condição no nível de expression-statement (COMP002). Uma guarda, aditiva: a checagem só dispara quando um do-while está na pilha de loops e a condição dele está de fato à frente.
 
 **Fronteira:** só o backend JS; os outros cinco alvos estão corretos. O do-while SEM break/continue está correto em todos os alvos. `break`/`continue` num `while`/`for` estão corretos (isto é específico da reconstrução do do-while).
 
-<!-- en-switch --> **EN:** [§707 (en)](known-bugs.md#707--a-do-while-loop-whose-body-contains-a-break-or-continue-does-not-compile-on-js-the-backend-throws-an-internal-compiler-error-comp002-kofjs-unexpected-op-in-expression-statement-kofconditionaljump---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§707 (en)](known-bugs.md#707--a-do-while-loop-whose-body-contains-a-break-or-continue-does-not-compile-on-js-the-backend-throws-an-internal-compiler-error-comp002-kofjs-unexpected-op-in-expression-statement-kofconditionaljump---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §708 — um LOCAL declarado com inicializador e depois atribuído dentro de um `if`/`else` perde a declaração no JS: o `let` vai para DENTRO do ramo e o outro ramo o referencia sem declarar — `ReferenceError: <var> is not defined` em runtime (e o inicializador é descartado) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+main() {
+    var w = 5
+    var x = 3
+    println(w + x)
+    var flag = true
+    if (flag) { w = 6 } else { w = 7 }
+    println(w)
+}
+```
+
+compila em JVM/Script/nativo mas no JS a função gerada está ERRADA:
+
+```js
+function main() {
+    let x;                          // `w` NÃO está declarado
+    kofPrintln(kofFormat(8));       // `w + x` foi dobrado para 8 — `w` sumiu
+    let flag = true;
+    if (flag) {
+        let w = 6;                  // a declaração foi para DENTRO do ramo then
+    } else {
+        w = 7;                      // atribuição a um nome não declarado
+    }
+    kofPrintln(kofFormat(w));       // `w` fora de escopo
+    return;
+}
+```
+
+O runtime morre com `ReferenceError: w is not defined`. A mesma forma se reproduz como `ReferenceError: <var> is not defined` em vários testes existentes (`JsIfFoldStatementE2ETest`, `JsDivideByZeroE2ETest`, `JsSwitchCaseZeroE2ETest` todos falham com um `ReferenceError` nomeando um local), o que é uma regressão REAL no backend JS, NÃO um problema de JavaFX/ambiente.
+
+**Raiz (análise):** um local DECLARADO com inicializador e depois ATRIBUÍDO dentro de um ramo tem o `let` emitido na PRIMEIRA posição de atribuição em vez da declaração — e quando essa primeira atribuição está dentro de um ramo `if`, o `let` cai no escopo de bloco do ramo, então o outro ramo e o código depois do `if` não o enxergam. Combinado com o constant-fold de `w + x` (o valor do inicializador), a declaração se perde por completo. A colocação da declaração JS precisa ser no PONTO DE DECLARAÇÃO da variável (escopo do método/bloco), não no primeiro store.
+
+**Por que ficou escondido:** os testes que exercitam essa forma TAMBÉM têm um passo de oráculo JVM, e neste host o launcher JVM imprime "os componentes de runtime do JavaFX não foram encontrados" e sai com código não-zero — o que parece um problema de ambiente. **Pela regra do projeto, uma mensagem de JavaFX ausente NUNCA é benigna: ela estava MASCARANDO este `ReferenceError` real do lado do JS.** A falha do JS está presente COM e SEM o fix do §707 (verificado), então é pré-existente, não uma regressão daquela unidade.
+
+**Caminho de correção (nomeado, NÃO pousado):** emitir o `let` JS de um local no seu PONTO DE DECLARAÇÃO (o store produzido pela declaração da variável) e manter as atribuições posteriores como atribuições simples — o bookkeeping de predecl/declaração no parser de método do JS precisa registrar o slot no store de declaração, não no primeiro store condicional. Tem de pousar com a bateria if/loop/locais como rede de regressão.
+
+**Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Distinto do §707 (do-while break/continue) e do §703/§704 (reconstrução de loop/try) — isto é COLOCAÇÃO DA DECLARAÇÃO de local.
+
+<!-- en-switch --> **EN:** [§708 (en)](known-bugs.md#708--a-local-declared-with-an-initializer-then-assigned-inside-an-ifelse-loses-its-declaration-on-js-the-let-moves-inside-the-branch-and-the-other-branch-references-it-undeclared--referenceerror-var-is-not-defined-at-runtime-and-the-initializer-is-dropped---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 

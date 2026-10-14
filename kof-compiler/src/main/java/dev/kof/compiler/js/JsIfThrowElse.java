@@ -87,6 +87,10 @@ public final class JsIfThrowElse {
             if (op instanceof KofReturnVoid && pos[0] == ctx.ops.size() - 1) {
                 return out;
             }
+            // §707: a condição (back-edge) de um do-while ATIVO é fronteira —
+            // consumi-la aqui (o corpo do do-while vem antes da condição)
+            // deixava o CJump no nível de statement → COMP002.
+            if (flow.isDoWhileConditionAheadAny(ctx, pos)) return out;
             out.addAll(flow.parseStatement(ctx, pos));
         }
         return out;

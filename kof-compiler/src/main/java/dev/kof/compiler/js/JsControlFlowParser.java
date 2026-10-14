@@ -494,7 +494,33 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
         return new JsIr.JsWhile(condition, body, true);
     }
 
-boolean isDoWhileConditionAhead(MethodCtx ctx, int[] pos, LabelId startLabel) {
+/**
+     * §707: um `KofConditionalJump` que aponta para o START de um loop ATIVO é a
+     * condição (back-edge) de um do-while. Como a condição do do-while vem
+     * DEPOIS do corpo, um `parseElse`/`parseStatements` aninhado que consuma
+     * além do fim do corpo engole a condição e estoura (COMP002). Este guard
+     * marca a fronteira: para antes dela.
+     */
+    boolean isDoWhileConditionAheadAny(MethodCtx ctx, int[] pos) {
+        for (int i = pos[0]; i < ctx.ops.size(); i++) {
+            KofOperation op = ctx.ops.get(i);
+            if (op instanceof KofConditionalJump cj) {
+                for (LoopCtx lc : ctx.loops) {
+                    if (cj.trueLabel().equals(lc.start)) return true;
+                }
+                return false;
+            }
+            if (op instanceof KofStoreLocal || op instanceof KofLabel
+                    || op instanceof KofJump || op instanceof KofReturn
+                    || op instanceof KofReturnVoid || op instanceof KofThrow) {
+                return false;
+            }
+            if (!p.expr.isExpressionOp(op)) return false;
+        }
+        return false;
+    }
+
+    boolean isDoWhileConditionAhead(MethodCtx ctx, int[] pos, LabelId startLabel) {
         for (int i = pos[0]; i < ctx.ops.size(); i++) {
             KofOperation op = ctx.ops.get(i);
             if (op instanceof KofConditionalJump cj) {
