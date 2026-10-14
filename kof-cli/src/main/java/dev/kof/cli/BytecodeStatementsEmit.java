@@ -70,6 +70,16 @@ final class BytecodeStatementsEmit {
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
                     int slot = in.operands()[0];
+                    // Fase E (14/10): o slot de um StringBuilder vira STRING
+                    // (o idioma Kof é concat; StringBuilder não existe —
+                    // SEM015). `var name = ""`.
+                    if (val.startsWith("⟦sb⟧")) {
+                        BytecodeStatements.builderSlots.add(slot);
+                        String name = BytecodeDecoderStack.slotName(slot, frame);
+                        declared.add(slot);
+                        stmts.add("var " + name + " = \"\"");
+                        continue;
+                    }
                     stmts.add(assign(slot, val, frame, declared));
                 }
                 case 0x3b, 0x3c, 0x3d, 0x3e -> { // istore_0..3
@@ -87,7 +97,15 @@ final class BytecodeStatementsEmit {
                 case 0x4b, 0x4c, 0x4d, 0x4e -> { // astore_0..3
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
-                    stmts.add(assign(op - 0x4b, val, frame, declared));
+                    int slot2 = op - 0x4b;
+                    if (val.startsWith("⟦sb⟧")) {
+                        BytecodeStatements.builderSlots.add(slot2);
+                        String name2 = BytecodeDecoderStack.slotName(slot2, frame);
+                        declared.add(slot2);
+                        stmts.add("var " + name2 + " = \"\"");
+                        continue;
+                    }
+                    stmts.add(assign(slot2, val, frame, declared));
                 }
                 case 0x84 -> { // iinc: byte1=index, byte2=const (signed)
                     int w = in.operands()[0];
@@ -146,6 +164,23 @@ final class BytecodeStatementsEmit {
                 case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) { refuse(opcodeTag); return null; }
+                    // Fase E (14/10): StringBuilder.append/toString — o idioma
+                    // Kof é concat (SEM015): `sb = sb + x` / o próprio sb.
+                    if ("java/lang/StringBuilder".equals(m[0]) && !BytecodeStatements.builderSlots.isEmpty()) {
+                        if ("toString".equals(m[1]) && BytecodeCp.argCount(m[2]) == 0) {
+                            String recvT = stack.pop();
+                            stack.push(recvT);
+                            continue;
+                        }
+                        if ("append".equals(m[1]) && BytecodeCp.argCount(m[2]) == 1) {
+                            String aB = BytecodeCp.callArgs(stack, 1);
+                            if (aB == null || stack.isEmpty()) { refuse(opcodeTag); return null; }
+                            String recvB = stack.pop();
+                            stmts.add(recvB + " = " + recvB + " + " + aB);
+                            stack.push("⟦sb⟧");
+                            continue;
+                        }
+                    }
                     // Fase E (14/10): o overload INT de indexOf/lastIndexOf não
                     // tem equivalente Kof (String-param; SEM051 medida)
                     if ("java/lang/String".equals(m[0])
@@ -185,8 +220,22 @@ final class BytecodeStatementsEmit {
                     String val = stack.pop();
                     stmts.add(BytecodeCp.simpleOwner(f[0]) + "." + f[1] + " = " + val);
                 }
-                case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
-                case 0xb0 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
+                case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; }
+                    String rv = stack.pop();
+                    // coerção Bool (SEM010, medido no found/anyNeg): método `Z`
+                    // com retorno iconst 1/0 → true/false (espelho do ternário)
+                    if ("Z".equals(frame.retType())) {
+                        if ("1".equals(rv)) rv = "true";
+                        if ("0".equals(rv)) rv = "false";
+                    }
+                    stmts.add("return " + rv); return stmts; }
+                case 0xb0 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; }
+                    String rv2 = stack.pop();
+                    if ("Z".equals(frame.retType())) {
+                        if ("1".equals(rv2)) rv2 = "true";
+                        if ("0".equals(rv2)) rv2 = "false";
+                    }
+                    stmts.add("return " + rv2); return stmts; }
                 case 0xb1 -> { stmts.add("return"); return stmts; }
                 case 0xbf -> { // athrow → `throw x` (o Kof lança a exceção/String)
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }

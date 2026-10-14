@@ -240,6 +240,75 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         }
         boolean loop = loop0;
         if (loop) {
+            if (System.getenv("KOF_FE_DBG") != null) System.out.println("DBG loop cond=[" + cond + "] last=" + (out.isEmpty() ? "-" : out.get(out.size()-1)));
+            // Fase E (14/10): for-each — `var it = X.iterator(); while
+            // (it.hasNext()) { var x = (it.next() as T); ... }` → o idioma
+            // nativo `for (var x in X) { ... }` (o iterator não existe no
+            // Kof — SEM025 medida). O binding (4 insns) é consumido via
+            // skipCount; a declaração do iterator sai do output.
+            if (cond != null && cond.contains(".hasNext()")) {
+                // a cond sai PARENTESADA pelo bin2 — `(v1.hasNext() != 0)`;
+                // extrair o identificador com regex, não por substring
+                var hM = java.util.regex.Pattern
+                        .compile("([A-Za-z_][A-Za-z0-9_]*)\\.hasNext\\(\\)").matcher(cond);
+                String itVar = hM.find() ? hM.group(1) : null;
+                if (itVar != null && !out.isEmpty()) {
+                    String last = out.get(out.size() - 1);
+                    String declPrefix = "var " + itVar + " = ";
+                    if (last.startsWith(declPrefix) && last.endsWith(".iterator()")) {
+                        String src = last.substring(declPrefix.length(),
+                                last.length() - ".iterator()".length());
+                        BytecodeReader.Block bodyFirst = byStart.get(thenStart);
+                        List<BytecodeReader.Insn> fblk = bodyFirst == null
+                                ? List.of() : BytecodeDecoder.insnsWithin(bodyFirst, insns);
+                        // o binding: [aload it, next, (checkcast), astore vX]
+                        int bindVar = -1;
+                        int bindLen = 0;
+                        for (int bi = 0; bi < fblk.size(); bi++) {
+                            int bop = fblk.get(bi).opcode();
+                            // o elemento pode unboxar (Integer.intValue → int):
+                            // istore/astore com índice E as formas _n
+                            if (bop == 0x36 || bop == 0x3a) {
+                                bindVar = fblk.get(bi).operands()[0];
+                                bindLen = bi + 1;
+                                break;
+                            }
+                            if (bop >= 0x3b && bop <= 0x3e) {
+                                bindVar = bop - 0x3b;
+                                bindLen = bi + 1;
+                                break;
+                            }
+                            if (bop >= 0x4b && bop <= 0x4e) {
+                                bindVar = bop - 0x4b;
+                                bindLen = bi + 1;
+                                break;
+                            }
+                        }
+                        // R6: o source não pode conter chamadas sem
+                        // equivalente (medido: `entrySet()` — o Map do Kof
+                        // itera keys/values, não há Entry) → stub honesto
+                        if (bindVar >= 0 && bindLen >= 2 && !src.contains(".entrySet()")
+                                && !src.contains(".keySet()") && !src.contains(".values()")) {
+                            String bindName = BytecodeDecoderStack.slotName(bindVar, frame);
+                            if (BytecodeStatements.skipCount == null)
+                                BytecodeStatements.skipCount = new java.util.HashMap<>();
+                            BytecodeStatements.skipCount.put(bodyFirst.start, bindLen);
+                            declared.add(bindVar);
+                            out.remove(out.size() - 1);
+                            out.add("for (var " + bindName + " in " + src + ") {");
+                            int savedExit = BytecodeStatements.currentLoopExit;
+                            BytecodeStatements.currentLoopExit = exitStart;
+                            boolean bodyOk = struct(bodyFirst, insns, byStart, cp, frame,
+                                    out, emitted, declared, b.start, stops);
+                            BytecodeStatements.currentLoopExit = savedExit;
+                            if (!bodyOk) { BytecodeStatements.refuse("struct-generic"); return false; }
+                            out.add("}");
+                            return struct(byStart.get(exitStart), insns, byStart, cp, frame,
+                                    out, emitted, declared, header, stops);
+                        }
+                    }
+                }
+            }
             out.add("while (" + cond + ") {");
             int savedExit = BytecodeStatements.currentLoopExit;
             BytecodeStatements.currentLoopExit = exitStart;   // `break` = goto para a saída

@@ -1840,6 +1840,45 @@ class DecompileTest {
         assertEquals("1\n2\n0\n1\n2\n3\n22\n1\n3\n0", output, "zero-drift: cadeia else-if id\u00eantica ao Java");
     }
 
+    @Test
+    void forEachAndStringBuilderRecover(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): os dois idioms JDK-heavy. (1) O for-each DESAGUADO
+        // (`var it = xs.iterator(); while (it.hasNext()) { var x =
+        // (it.next() as T); ... }`) → o nativo `for (var x in xs)` (o
+        // iterator não existe — SEM025; o binding unboxa via intValue). A
+        // fonte com chamadas sem equivalente (entrySet) recusa (R6).
+        // (2) O StringBuilder (`new StringBuilder(); sb.append(x);
+        // sb.toString()`) → concat (`var sb = ""; sb = sb + x; sb`) —
+        // SEM015. Zero-drift executado.
+        Path javaFile = dir.resolve("Fe.java");
+        Files.writeString(javaFile, """
+                public class Fe {
+                    static int sumList(java.util.List<Integer> xs) { int s = 0; for (int x : xs) { s += x; } return s; }
+                    static boolean anyNeg(java.util.List<Integer> xs) { for (int x : xs) { if (x < 0) { return true; } } return false; }
+                    static String repeatChar(char c, int n) { StringBuilder sb = new StringBuilder(); for (int i = 0; i < n; i++) { sb.append(c); } return sb.toString(); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Fe.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertFalse(kof.contains("iterator"), "sem iterator no output:\n" + kof);
+        assertFalse(kof.contains("StringBuilder"), "sem StringBuilder no output:\n" + kof);
+        assertTrue(kof.contains("for (var"), kof);
+        String kofRun = kof + "\nmain() {\n    var xs = listOf(1, -2, 3)\n    println(Fe.sumList(xs))\n    println(Fe.anyNeg(xs))\n    println(Fe.anyNeg(listOf(1, 2)))\n    println(Fe.repeatChar('x', 5))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2 | true | false | xxxxx
+        assertEquals("2\ntrue\nfalse\nxxxxx", output, "zero-drift: for-each + StringBuilder id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

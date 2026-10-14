@@ -48,6 +48,13 @@ final class BytecodeKofTypes {
                 if (cn == null) return false;
                 if (BytecodeCp.isJdkClass(cp, in.operands()[0])) {
                     String simple = cn.substring(cn.lastIndexOf('/') + 1);
+                    // Fase E (14/10): o StringBuilder vira STRING no Kof
+                    // (SEM015 — o idioma é concat); a marca alimenta o
+                    // astore (var sb = "") e os appends (sb = sb + x).
+                    if (simple.equals("StringBuilder")) {
+                        stack.push("⟦sb⟧");
+                        return true;
+                    }
                     if (simple.endsWith("Exception") || simple.endsWith("Error")) {
                         stack.push("\u27e6ex\u27e7" + simple);
                         if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(-99);
@@ -80,7 +87,7 @@ final class BytecodeKofTypes {
                 String top = stack.peek();
                 if (top == null) return false;
                 if (top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7")
-                        || top.startsWith("\u27e6col\u27e7")) {
+                        || top.startsWith("\u27e6col\u27e7") || top.startsWith("⟦sb⟧")) {
                     stack.push(top);
                     return true;
                 }
@@ -122,6 +129,12 @@ final class BytecodeKofTypes {
                 stack.pop();   // receiver (cópia do dup)
                 String marker = stack.pop();
                 if (marker == null) return false;
+                // Fase E (14/10): StringBuilder() sem args — a marca segue
+                // para o astore (var sb = "")
+                if (marker.equals("⟦sb⟧")) {
+                    stack.push(marker);   // o pop do receiver consumiu a cópia do dup — repõe
+                    return true;
+                }
                 // idioma errors.md: a construção de EXCEÇÃO devolve a String
                 // do message (o Kof lança String; `throw msg` direto)
                 if (marker.startsWith("\u27e6ex\u27e7")) {
@@ -218,6 +231,7 @@ final class BytecodeKofTypes {
         switch (op) {
             case 0x57 -> {   // pop: descarta CHAMADA de valor não-usado
                 String top = stack.pop();
+                if (top.equals("⟦sb⟧")) return true;   // append já virou statement
                 if (!isCallExpr(top)) return false;
                 stmts.add(top);
                 return true;

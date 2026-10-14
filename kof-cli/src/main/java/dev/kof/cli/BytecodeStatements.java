@@ -28,6 +28,14 @@ final class BytecodeStatements {
      * Por-rodada (limpo no fim de recoverStatements).
      */
     static java.util.Set<Integer> skipFirst;
+
+    // Fase E (14/10): os slots de StringBuilder desta recuperação (o idioma
+    // Kof é concat; StringBuilder não existe — SEM015). Reset por método.
+    static java.util.Set<Integer> builderSlots = new HashSet<>();
+
+    // Fase E (14/10): quantas insns iniciais do bloco já foram consumidas
+    // (o binding do for-each: aload it; next; checkcast; astore x = 4).
+    static java.util.Map<Integer, Integer> skipCount = new HashMap<>();
     /**
      * Fase C (13/10): o alvo da SAÍDA do loop aberto — um bloco de goto único
      * para ele É o `break`. Por-rodada (salvo/restaurado por loop aninhado).
@@ -64,6 +72,10 @@ final class BytecodeStatements {
         if (skipFirst != null && skipFirst.contains(b.start) && !seq.isEmpty()) {
             return seq.subList(1, seq.size());
         }
+        if (skipCount != null && skipCount.containsKey(b.start)) {
+            int n = Math.min(skipCount.get(b.start), seq.size());
+            return seq.subList(n, seq.size());
+        }
         return seq;
     }
 
@@ -92,6 +104,9 @@ final class BytecodeStatements {
         }
         skipFirst = null;   // por-método: nenhum skip vaza entre corpos
         currentLoopExit = -1;
+        builderSlots = new HashSet<>();
+        if (skipCount == null) skipCount = new HashMap<>();
+        skipCount.clear();
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
         if (blocks.isEmpty()) { refuse("cfg-empty"); return null; }
         if (refusalSink != null) {
