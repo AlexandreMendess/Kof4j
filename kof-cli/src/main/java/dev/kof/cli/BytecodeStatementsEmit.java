@@ -102,6 +102,11 @@ final class BytecodeStatementsEmit {
                 case 0x68 -> { if (!BytecodeDecoder.bin(stack, "*")) { refuse(opcodeTag); return null; } }
                 case 0x6c -> { if (!BytecodeDecoder.bin(stack, "/")) { refuse(opcodeTag); return null; } }
                 case 0x70 -> { if (!BytecodeDecoder.bin(stack, "%")) { refuse(opcodeTag); return null; } }
+                // Fase C (13/10): shifts (0x78-0x7d) — Int/Long << >> >>> (a
+                // semantica por-target e do COMPILADOR, corrigida no §698)
+                case 0x78, 0x79 -> { if (!BytecodeDecoder.bin(stack, "<<")) { refuse(opcodeTag); return null; } }
+                case 0x7a, 0x7b -> { if (!BytecodeDecoder.bin(stack, ">>")) { refuse(opcodeTag); return null; } }
+                case 0x7c, 0x7d -> { if (!BytecodeDecoder.bin(stack, ">>>")) { refuse(opcodeTag); return null; } }
                 case 0x74 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stack.push("-" + stack.pop()); }
                 // Fase E: construção/teste-emit (0xbb new, 0xbd anewarray,
                 // 0x59 dup, 0xb7 init, 0x57 pop, 0xc0 cast, 0xc1 instanceof)

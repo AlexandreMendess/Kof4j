@@ -34,6 +34,9 @@ final class NativeOrmCtors {
         // entrada salta para a próxima; a última cai no retorno 0.
         int emitted = 0;
         int total = 0;
+        System.err.println("ORMCTORS-DEBUG: classNames=" + classNames
+                + " found=" + classNames.stream().filter(c -> findClass(nb, c) != null).count()
+                + " allClasses=" + nb.allClassesMap.size());
         for (String cn : classNames) {
             if (findClass(nb, cn) != null) total++;
         }
@@ -46,9 +49,15 @@ final class NativeOrmCtors {
             byte[] bytes = cn.getBytes(StandardCharsets.UTF_8);
             String miss = (emitted + 1 < total) ? ".Lormc_t" + (emitted + 1) : ".Lormc_miss";
             sb.append("        .Lormc_t").append(emitted).append(":\n");
+            // o suffix match: o runtime pode passar o FQN (o classNameFor) ou
+            // o simples — compara os ÚLTIMOS bytes.length bytes do runtime
+            // contra a entrada (o NUL em +n fecha o caso exato).
             sb.append("            cmpl $").append(bytes.length).append(", %esi\n");
-            sb.append("            jne ").append(miss).append("\n");
+            sb.append("            jl ").append(miss).append("\n");
             sb.append("            movl %esi, %edx\n");
+            sb.append("            subl $").append(bytes.length).append(", %edx\n");
+            sb.append("            addq %rdx, %rdi\n");
+            sb.append("            movl $").append(bytes.length).append(", %edx\n");
             sb.append("            leaq .Lormc_b").append(emitted).append("(%rip), %r10\n");
             sb.append("            xorl %ecx, %ecx\n");
             sb.append("        .Lormc_c").append(emitted).append(":\n");

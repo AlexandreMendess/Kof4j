@@ -74,7 +74,11 @@ final class JsOperatorEmitter {
             // Normaliza o contador p/ Number 32-bit (o JS já mascara em 0x1f).
             case SHL -> new JsIr.JsBinary(JsLongEmitter.int32(left), "<<", JsLongEmitter.toNumber32(right));
             case SHR -> new JsIr.JsBinary(JsLongEmitter.int32(left), ">>", JsLongEmitter.toNumber32(right));
-            case USHR -> new JsIr.JsBinary(JsLongEmitter.int32(left), ">>>", JsLongEmitter.toNumber32(right));
+            // §698 face JS: o `>>>` do JS devolve 32 bits SEM SINAL, então
+            // `-5 >>> 0` dava 4294967291 em vez de -5 (o JVM devolve o int).
+            // O `int32` externo re-interpreta o resultado como signed.
+            case USHR -> JsLongEmitter.int32(new JsIr.JsBinary(
+                    JsLongEmitter.int32(left), ">>>", JsLongEmitter.toNumber32(right)));
         };
     }
 
@@ -118,7 +122,14 @@ JsIr.JsExpression unaryExpr(KofUnary ku, JsIr.JsExpression operand) {
                     ? JsLongEmitter.wrap64(new JsIr.JsUnary("-", JsLongEmitter.longOperand(operand)))
                     : new JsIr.JsUnary("-", operand);
             case NOT -> new JsIr.JsConditional(operand, new JsIr.JsNumber("0"), new JsIr.JsNumber("1"));
-            case I2F, I2D, I2C, L2F, L2D, F2D, D2F -> operand;
+            case I2F, I2D, L2F, L2D, F2D, D2F -> operand;
+            // §697 face JS: `as Char` MASCA para 16 bits ZERO-estendidos. O
+            // I2C estava na lista de IDENTIDADE acima, então o cast era um
+            // no-op no JS: `(70000 as Char) as Int` dava 70000 (o JVM/Script/
+            // nativo dão 4464 = 70000 & 0xFFFF) e `(-1 as Char) as Int` dava
+            // -1 em vez de 65535. O `&` do JS trunca em 32 bits signed, então
+            // o resultado fica em 0..65535 — que é o Char.
+            case I2C -> new JsIr.JsBinary(operand, "&", new JsIr.JsNumber("65535"));
             // #471: i2b/i2s no JS = wrap signed 8/16 bits em Number 32-bit
             // (mesmo truque de mask do kofArraySet §184; a pilha aqui ja e
             // int de 32 bits — L2I/F2I/D2I rodam antes).

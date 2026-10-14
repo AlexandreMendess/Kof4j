@@ -48,10 +48,21 @@ final class BytecodeKofTypes {
                 if (cn == null) return false;
                 if (BytecodeCp.isJdkClass(cp, in.operands()[0])) {
                     String simple = cn.substring(cn.lastIndexOf('/') + 1);
-                    if (!simple.endsWith("Exception") && !simple.endsWith("Error")) return false;
-                    stack.push("\u27e6ex\u27e7" + simple);
-                    if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(-99);
-                    return true;
+                    if (simple.endsWith("Exception") || simple.endsWith("Error")) {
+                        stack.push("\u27e6ex\u27e7" + simple);
+                        if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(-99);
+                        return true;
+                    }
+                    // Fase E (13/10): mapeamento JDK→stdlib de COLEÇÕES — o
+                    // MESMO que o tradutor tem (new ArrayList()→listOf(),
+                    // new HashMap()→mapOf()); o <init> devolve o literal. Sem
+                    // o mapa, `new ArrayList()` emitia nada → stub.
+                    String kof = collectionLiteral(simple);
+                    if (kof != null) {
+                        stack.push("\u27e6col\u27e7" + kof);
+                        return true;
+                    }
+                    return false;
                 }
                 if (frame != null && frame.treeScope != null) {
                     String internal = indexInternalName(cp, in.operands()[0]);
@@ -63,7 +74,8 @@ final class BytecodeKofTypes {
             case 0x59 -> { // dup — padrão new E o padrão de exceção (⟦ex⟧)
                 if (stack.isEmpty()) return false;
                 String top = stack.peek();
-                if (top == null || !(top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7"))) return false;
+                if (top == null || !(top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7")
+                        || top.startsWith("\u27e6col\u27e7"))) return false;
                 stack.push(top);
                 return true;
             }
@@ -99,6 +111,13 @@ final class BytecodeKofTypes {
                 // do message (o Kof lança String; `throw msg` direto)
                 if (marker.startsWith("\u27e6ex\u27e7")) {
                     stack.push(String.join(", ", callArgs));
+                    return true;
+                }
+                if (marker.startsWith("\u27e6col\u27e7")) {
+                    // `new ArrayList<>()` sem args → listOf(); com args a
+                    // semântica de cópia não é 1:1 (o tradutor recusa igual)
+                    if (!callArgs.isEmpty()) return false;
+                    stack.push(marker.substring("\u27e6col\u27e7".length()));
                     return true;
                 }
                 if (!marker.startsWith("⟦new⟧")) return false;
@@ -217,6 +236,19 @@ final class BytecodeKofTypes {
      * (`new Int[n]` é `int[]`, semântica distinta) → recusar; arrays e
      * malformados caem no regex do índice.
      */
+    /**
+     * Fase E: o mapa JDK→stdlib de coleções (o mesmo do tradutor) — o literal
+     * Kof para um `new java.util.X()` sem args, ou null (fora do mapa).
+     */
+    static String collectionLiteral(String simple) {
+        return switch (simple) {
+            case "ArrayList", "LinkedList" -> "listOf()";
+            case "HashMap", "LinkedHashMap", "TreeMap" -> "mapOf()";
+            case "HashSet", "LinkedHashSet", "TreeSet" -> "setOf()";
+            default -> null;
+        };
+    }
+
     /** JVMS 6.5 newarray atype → tipo Kof do elemento, ou null. */
     static String primitiveArrayType(int atype) {
         return switch (atype) {

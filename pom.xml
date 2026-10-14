@@ -26,7 +26,7 @@
           repository root. The release pipeline reads it and updates this property
           (scripts/bump-version.sh). Do not edit this by hand.
         -->
-        <revision>0.6.4</revision>
+        <revision>0.6.5</revision>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!--
@@ -40,7 +40,10 @@
              ComputeLimits that refuse large generated methods
              (LimitExceededException "Too many operations" in COMPUTE_FRAMES) —
              measured RED on the dense-file regression (largeDenseFileLoadsOnJvm)
-             and on CI. Re-bump only after an upstream release lifts the limit. -->
+             and on CI. Re-bump only after an upstream release lifts the limit.
+             ⚠️ The pin was UNDONE once by the dependabot group bump `137ea696d`
+             (13/10) — re-landed §652 with the pin comment still claiming it held.
+             The `.github/dependabot.yml` `ignore` keeps the bump from recurring. -->
         <asm.version>9.10.1</asm.version>
         <junit.version>6.1.3</junit.version>
         <graaljs.version>25.4.4.1.1</graaljs.version>

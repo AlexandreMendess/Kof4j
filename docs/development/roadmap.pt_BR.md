@@ -21,7 +21,7 @@ mantenedora 15/09 — trio de volta a `future/`). (antes: fusão de planos: §23
 plano de implementação ÚNICO (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`); cluster de
 migração consolidado — `LEGACY_IR`+`DIFFERENTIAL_TESTING` fundidos em
 `LEGACY_MIGRATION.md`)
-**Versão:** 0.6.3 (branch de desenvolvimento ativa `lab`)
+**Versão:** 0.6.4 (branch de desenvolvimento ativa `lab`)
 
 ---
 
@@ -790,7 +790,7 @@ O Kof é uma plataforma distribuível, não apenas um JAR:
 
 - distribuição autocontida (compiler, CLI, runtime, stdlib, tooling, editor support, JDK 25 embutido);
 - OpenJDK embutido no pacote oficial (Temurin 25, tooling API level 21);
-- versionamento centralizado (`VERSION` 0.6.3 → pom/properties via `scripts/bump-version.sh`);
+- versionamento centralizado (`VERSION` 0.6.4 → pom/properties via `scripts/bump-version.sh`);
 - releases por 2 jobs (`release.yml`: `test-and-bump` exporta `bump_sha` → `package-and-release` checkeia o commit de bump + sanity check de versão) por push na `main`, por plataforma linux-x86_64 / macos-arm64 / windows-x86_64 (testes 819 → bump → package 3 plataformas → GitHub Release);
 - `scripts/package.sh` PASS (layout dist + tar.gz/zip + SHA256SUMS + jars), golden 16/16, integration 9/9;
 - editor support oficial: grammar TextMate + LSP (hover/completion + diagnostics reais) + `kof editor install` (VS Code/Neovim/Vim/Emacs/Geany/Nano + IntelliJ degrau-10 honesto 13/09: filetype XML + External Tools + README LSP4IJ, sem plugin — issue #1);
@@ -974,8 +974,14 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > [`image-vision-plan.md`](image-vision-plan.md); estado 02/10: metadados de 17 formatos + decode/encode/ops de raster + fatias `kof.vision` + decoder VP8 lossy de key frame ponteira-a-ponteira (oráculo libwebp) + AVIF fatias 1–2g (travessias de container/item/fluxo-OBU/cabeçalho-de-sequência/prefixo-de-quadro/cabeçalho-de-tile-group/obu-de-metadado, Kof puro, `AvifFrameE2ETest` 16/16 + `AvifMetaE2ETest` 8/8) LANDADAS; sem decode de pixel AVIF (`decodeRaster` recusa AVIF por política). Fila pelo plano §34 — o estado autoritativo vive lá.
 > **SUPERFÍCIE COMPLETA (8ª frente):** `graphics-gaming` — promovido 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) para
 > [`graphics-gaming.md`](../graphics-gaming.md); stack `G1` DECIDIDA (SDL3) + forma `D-GRAPHICS-WINDOW-FORM` + loop `D-MAINT-BATCH-0610`/A1–A3; superfície pura POUSADA 05–07/10 (`Clock`/`Keys`/`Mouse`/`Pad`/`Window`/`Sprite`/`Draw`/`Trig`/`Tilemap`/`Audio`/`Wav`/`Video`, goldens E2E todo alvo) + ABI/pump/áudio/stream SDL3 medidos headless nos quatro alvos + corpus 3.6a (`training/idioms/game` + `learn/42-games`). Decisão F ORDENADA 08/10 (mantenedora: vendor do FFmpeg upstream LGPL-2.1+ da fonte, sem `--enable-gpl`; a licença do probe NÃO pode ser GPLv3+ antes de qualquer decode) + 3.5 (3D) PROMOVIDA ao escopo ativo 08/10 (mantenedora). Estado autoritativo vive em `docs/graphics-gaming.md` (promovido 09/10 — a missão da superfície pura completa; as faces de backend ficam como a fronteira documentada).
+> **PROMOVIDO (12ª frente):** `entity-history` — promovido 14/10 (de `docs/development/`, `D-FUTURE-UNFREEZE`) para
+> [`entity-history.md`](../entity-history.md) (+PT); Fases 2–5 TODAS POUSADAS com prova executada — gravação JDBC +
+> consultas históricas + contexto, e o backend NATIVO (`EntityHistoryNativeCreateE2ETest` 5/5: createHistory,
+> delete_recorded, save_recorded, a consulta ascendente, as variantes page/one); GOLDEN da Fase 3 byte-estável. A
+> Fase 6 (avançado) diferida pós-promoção por `D-ENTITY-HISTORY-PHASE6`.
 > **NÚCLEO COMPLETO (9ª frente):** `testing-platform` — promovido 10/10 (`D-TESTING-PLATFORM`, ordem da mantenedora "pode finalizar o plano então, ja promover e vida que segue") para
 > [`testing-platform.md`](../testing-platform.md); fases 1–4 do §11 COMPLETAS — núcleo unit §4 (asserções 1–6 + tabelas §4.4 + seams de clock/random §4.6) + harness §5 (temp-dir/readiness, withDb, withServer) + runner §7 (discovery honesta, tags OR, breakdown por nível) + browser §6 PILHA COMPLETA (manifesto `kof-test.kofmd` → gate `kof test --tag browser` → SPI `BrowserProvider` → ChromeHeadlessProvider (zero-dep) + PlaywrightLibProvider (lib 1.49.0, dependência normal no pom) → API `kof.test.browser` no nível Kof → E2E REAL de Chromium); §12 SEM decisões abertas (4 chat polls). Fases 5–8 na ordem confirmada do §11 — medidas 11/10 (lane `192.168.100.14:0`): **fase 7 NÚCLEO POUSADO** (`PlaywrightLibProvider` parametrizado por kind, E2E real de renderização no Firefox verde + Chromium, WebKit bloqueado no launch neste host → skips nomeados); **fase 5 NÚCLEO POUSADO** (`CypressProvider` sobre o `cypress run` REAL — specs ad-hoc geradas, probe honesto; host destravado pela mantenedora no meio da fatia: node 24.18.1/npm 11.16.0, Cypress 16.1.1 no cache Kof); a face KofJS da fase 6 já provada pela semente `KofJsBrowserE2ETest`, a face KofWasm barrada pelo #776; fase 8 (avançado) ABERTA — cada fatia sob NOVO claim. O estado autoritativo vive em `docs/testing-platform.md`.
+> > **ABERTA (11ª frente):** `assembly-optimization` — promovida 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`) para [`assembly-optimization-plan.pt_BR.md`](assembly-optimization-plan.pt_BR.md); o único plano de `future/` cujo gate já estava decidido (sem sintaxe nova, aditivo compilador-interno). Fase A COMPLETA (CFG estruturado + uso/efeito + registradores virtuais + pipeline de passes sobre o `Optimizer.java` linear existente); a Fase B (propagação de constantes/cópias + eliminação de stores mortos pousadas, simplificação de blocos a seguir) é a atual.
 > > **ABERTA (10ª frente):** `qrcode-wasm` — promovida 11/10 (`D-FUTURE-PROMOTION` retomada por `D-FUTURE-UNFREEZE`, mantenedora 11/10) para [`qrcode-wasm-plan.pt_BR.md`](qrcode-wasm-plan.pt_BR.md); estado 12/10: Fase 1 fatias 1-2b ENTREGUES (escritor `Qrcode.kf`+`QrPng.kf` 8/8; leitor de arquivo `QrDecode.kf` 8/8 incl. correção de erros Reed-Solomon — símbolos danificados até floor(ecc/2) erros de byte por bloco decodificam exatos, acima da capacidade recusados por nome); próxima fatia = leitor de câmera; a Fase 3 (target `KofWasm`) segue rule-6 (decisão da mantenedora).
 Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue

@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §697
+last: §705
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -13415,12 +13415,7 @@ comando → 22/0F. Ocorrências em suíte completa: run 2 (com override de env) 
 run 3 (canônico, sem env) — os mesmos 12. O job dedicado `Native cross` da CI
 roda-os verdes (runner dedicado).
 
-**Caminho de correção (dona = lane native-cross):** limitar+repetir o exec do
-qemu nos harnesses (precedente §418 `hangingChildIsKilledByTheBoundedWait`) ou
-manter a classe como CI-only; deref NULL no guest sob pressão do escalonador é
-a hipótese — provar com `qemu-aarch64 -strace` antes de mexer no runtime.
-**Política de leitura:** um 139 nestas classes sob carga da suíte completa,
-verde em isolamento, é esta flake — nunca atribuí-la a uma lane não relacionada.
+**Correção (POUSADA 14/10 — a mantenedora decidiu o site: o STORE).** O lowering de atribuição/retorno agora aplica o MESMO estreitamento `I2B`/`I2S` que o CAST já fazia (§695), então `var x: Byte = 200` se comporta como `(200 as Byte)` nos quatro alvos. Novo helper `CompilerEmissionHelpers.emitStoreNarrow` (reusa `emitPrimNarrow`) chamado nos três sites de store: a DECLARAÇÃO de local (`StatementLowererLocalBoxing.emitLocalDeclaration`), a atribuição simples e COMPOSTA (`ExpressionAssignmentLowerer` — a composta carrega o cast implícito, JLS 15.26.2, e a aritmética promove Byte/Short a Int), e o RETURN (`ReturnValueLowerer`). Uma fonte mais larga (Long/Float/Double) converte para Int primeiro. Prova: `ByteShortStoreNarrowE2ETest` 2/2 (JVM+Script+JS numa face, nativo na outra) — 11 faces cobrindo os limites exatos (`127`/`128`, `-129`), fonte mais larga, reatribuição, return e a forma composta; RED-first medido desabilitando o helper in-place (o `ArrayIndexOutOfBoundsException: Index 328` exato do JVM volta). **Os dois sites que o ledger nomeou, resolvidos:** o STORE foi ESCOLHIDO — é o único que dá paridade real, porque os outros dois deixam a divergência de pé (só-boxing deixa o caminho unboxed cru; rejeitar em compile-time não cobre o caso runtime `var x: Byte = f()`, e contradiria o Script e o §695, que já estreitam). O resultado é a regra mais simples: `var x: Byte = 200` é idêntico a `(200 as Byte)`. Medido NÃO afetado: o store de ELEMENTO de `Byte[]` (`a[0] = 200` já estreitava no JVM e no Script via `bastore`) e o store de campo (records são imutáveis — `SEM038`, então não existe face de field-store).
 
 **Corrigido 12/10 (lane nativa/GC `192.168.15.117:0`): o símbolo do construtor agora ganha a tag de assinatura de parâmetros SOMENTE quando a classe tem de fato 2+ métodos `<init>` com a mesma contagem de parâmetros — o caso de construtor único mantém o símbolo cru `Classe_init_<aridade>`, então os símbolos de nenhum programa existente mudam (a regra de ouro do mangle). Os três sítios foram atualizados juntos: o lado da definição (`NativeSymbolMangling.fnSymbol`, as duas formas) e os dois call sites (`NativeOpHelpers.resolveCalleeName` para x86 e `NativeRiscvCrossOps` para riscv64/aarch64, que dividem o mangler). A tag é o descritor padrão `sigTag` (ex. `_I_I` vs `_String_I`), e o call site usa os tipos de parâmetro do overload RESOLVIDO (a mesma lista que o backend JVM usa para o descritor), então definição e chamada sempre concordam. **Prova (executada, RED-first):** novo `NativeConstructorOverloadE2ETest` — pre-fix, o repro do §671 falhou nas DUAS faces nativas com o erro exato do registro (`symbol 'A_init_2' is already defined`, x86 e cross riscv64); pós-fix **4/4**: JVM + Script + nativo x86-64 + cross riscv64/aarch64, byte-iguais ao oráculo JVM para os programas de dois construtores e de três vias (`Int,Int` / `String,Int` / `Bool,Int`); não-regressão: `ConstructorOverloadE2ETest` 2/2 existente, `ConstructorArgTypeTest` 6/6, `MemorySafetyE2ETest` 48/48, `KofGcE2ETest` 8/8, `NativeCrossWideArgsE2ETest` 3/3, `PrologueSlotInitTest` 2/2 (67/67 no total).
 
@@ -14584,7 +14579,230 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 <!-- en-switch --> **EN:** [§599 (EN)](known-bugs.md#599--native-processrunshellrunshellpipeline-children-inherited-the-parents-and-the-runtimes-file-descriptors-forkexecvp-never-closed-or-cloexec-ed-them-leaking-open-resourcesauthority-to-a-less-trusted-subprocess---fixed-0510-owner--19216815309093-lane-issuestooling-bugs-and-gaps-front-issue-762)
 
-## §697 — o `x as Char` NÃO mascarava para 16 bits em NENHUM alvo nativo: o emissor x86 não tinha braço para `I2C` (no-op silencioso) e o cross usava `sext.w` (sign-extend de 32 bits) — `(70000 as Char) as Int` → nativo `70000` vs JVM/Script `4464` (`70000 & 0xFFFF`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+## §700 — um `switch` sobre `Int` contendo um `case 0` NÃO COMPILAVA no JS: o backend JS lançava um ERRO INTERNO DO COMPILADOR (`COMP002: KofJS: unexpected op in switch case`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var x = 0` e então `switch (x) { case 0: ...; case 1: ...; default: ... }` compilava em JVM/Script/nativo x86-64/riscv64/aarch64 mas no **JS o próprio compilador crashava**: `COMP002: Internal compiler error: KofJS: unexpected op in switch case: KofConditionalJump[comparison=EQ, operandType=Int, ...]`. Qualquer `switch` sobre `Int` com um `case 0` era incompilável no JS — um crash de compile-time, não um valor errado.
+
+**Raiz (rastreada dumpando o stream de ops no parser JS):** `case 0` baixa como `(subject - 0) == 0`. O `foldIdentity` do otimizador dobra `x - 0 -> x` — e remove TANTO o `SUB` QUANTO o literal do caseValue junto — então o teste do case vira a comparação DIRETA `[#switch, LoadLiteral(0), CJump(EQ)]`. O parser JS só conhecia `[#switch, caseVal, SUB|EQ|call, LoadLiteral(0), CJump]`; a forma dobrada não tem expressão de caseValue nem o `LoadLiteral(0)` final, então o parser caía no `unexpected op`. (O `case 1` do mesmo programa mantinha a forma `SUB` e parseava bem — só o case zero colapsava, por isso isso se escondeu.)
+
+**Correção:** o parser detecta a forma dobrada — um `CJump(EQ)` logo após o load do `#switch` com o subject na pilha — e trata o próprio subject como o valor do case (o `switch` do JS compara com `===`, então `[subject, CJump(EQ)]` é exatamente `case 0`), pulando a expectativa do `LoadLiteral(0)` que a forma `SUB` precisa. Nenhuma mudança no lowering nem no otimizador: a dobra está correta, o leitor JS é que não conhecia a forma.
+
+**Prova (executada, RED-first):** o novo `JsSwitchCaseZeroE2ETest` **6 run / 0F**; com a mudança do parser REVERTIDA **exatamente 1 das suas 6 faces FALHA** — `jsMatchesTheJvmOnSwitchCaseZero`, com o `COMP002` acima — enquanto as faces do oráculo JVM, do Script e as três nativas passam. O caso cobre um `switch` com `case 0` num método que devolve valor E em posição de statement, mais um `switch` de controle SEM case zero (que tomava o caminho `SUB` antigo e sempre funcionou), então o fix está pinado dos dois lados. A bateria switch/js/control-flow **340 run / 0F / 0E (25 skipped)**.
+
+**Fronteira:** só o backend JS, e só a forma dobrada do `case 0`. A dobra em si está correta e é IR compartilhada — os outros cinco alvos nunca foram afetados. O jar do CLI foi reconstruído neste ciclo (a árvore estava bloqueada por um arquivo não-mesclado de um peer), então a suíte golden também foi re-rodada: **296 passed / 0 failed / 0 skipped**.
+
+<!-- en-switch --> **EN:** [§700 (en)](known-bugs.md#700--a-switch-over-int-containing-a-case-0-did-not-compile-on-js-the-js-backend-threw-an-internal-compiler-error-comp002-kofjs-unexpected-op-in-switch-case---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+
+## §701 — um `break` ANINHADO num `if` dentro de um case de `switch` emite JS ERRADO: o corpo do default vaza para dentro do case e o `break` vira um bloco VAZIO (`swBreakInLoop` → JS `32` vs `2` nos outros cinco alvos) — ✅ CORRIGIDO 13/10 (achado e corrigido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int f() {
+    var r = 0
+    for (var i in listOf(0, 1, 2)) {
+        switch (1) {
+            case 1:
+                if (i == 1) { break }
+                r += 1
+            default:
+                r += 10
+        }
+    }
+    return r
+}
+```
+
+devolve `2` em JVM/Script/nativo x86-64/riscv64/aarch64 mas **`32` no JS** — o valor errado é SILENCIOSO (sem crash). O JS gerado está estruturalmente errado:
+
+```js
+case 1:
+    if ((_forInVar === 1)) {
+    } else {
+        r = ((r + 1) | 0);
+    }
+    r = ((r + 10) | 0);   // o corpo do DEFAULT, anexado dentro do case 1
+    break;
+                       // o label `default:` SUMIU
+```
+
+O `break` virou um bloco VAZIO, o `r += 1` que segue o `if` foi absorvido como seu ramo ELSE, e o corpo do default foi puxado para dentro do `case 1` sem sobrar label `default:`.
+
+**Raiz (rastreada dumpando o stream de ops):** o corpo do switch é parseado com `endLabels = Set.of()` — VAZIO. O `break` baixa como um `KofJump` cujo alvo é o label de FIM do switch, e o braço KofJump do `JsControlFlowParser.parseStatements` só reconhece um alvo que seja (a) um de `endLabels`, (b) um label de LOOP (`ctx.isLoopLabel`), ou (c) cai no caminho genérico "region exit (if/try/finally jump)", que faz `exits.add(target); return out;` — TRUNCANDO o corpo do case no break. O resto do case (e o default) é então consumido pelo parse envolvente e deslocado. O label de fim do switch nunca é registrado como contexto quebrável no `MethodCtx` (só labels de FIM de LOOP são), então um `break` dentro de um construto aninhado não tem contra o quê resolver.
+
+**Por que o §587 não pegou:** o `SwitchBreakScopeE2ETest` (8/8, verde) cobre um `break` DIRETO no corpo do case — essa forma acaba terminando o corpo no ponto certo, então a truncagem fica invisível. A forma ANINHADA (`break` dentro de um `if`, ou de um loop, dentro de um case) é a descoberta, e é a que desloca os statements seguintes.
+
+**Correção (POUSADA, dois defeitos estruturais na reconstrução do JS):** (1) o `MethodCtx` ganhou uma pilha `switchEnds` — o parser do switch acha o label de fim (o alvo do jump de auto-término dos corpos de case, o último `KofJump` antes do label do default — o `endLabel` derivado do CJump é o label do DEFAULT, não o fim) e o registra; o braço `KofJump` do `parseStatements` agora resolve um salto para ele num `JsBreak` e encerra o corpo, em vez de cair no caminho genérico de region-exit que truncava o case. (2) o `MethodCtx` também ganhou `switchStructLabels` (todo label de corpo/default/fim de um switch em parse) e o `isIfEndLabel` agora os recusa — o SEGUNDO defeito, achado só depois de (1): o `parseIfBody` consumia o label do `default` do switch como se fosse o fim do `if`, então o corpo do default era puxado para dentro do case anterior. O `JsIfThrowElse.parseElse` também os recusa. Os dois são só do backend JS e aditivos (um conjunto de labels que fica vazio fora de um switch).
+
+**Prova (executada, RED-first):** o novo `JsSwitchBreakNestedE2ETest` **6 run / 0F**; com os quatro arquivos JS revertidos **exatamente 1 das suas 6 faces FALHA** — a do JS — enquanto as faces do oráculo JVM, do Script e as três nativas passam. O caso cobre um `break` aninhado num `if` de um case (dentro de um `for` E de um `while`), um `break` DIRETO num case (a face do §587, ainda verde), um loop aninhado num case, um switch multi-case, e o controle sem break. A bateria switch/js/control-flow **365 run / 0F / 0E (25 skipped)** e a bateria mais ampla js/nativo/cast/aritmética **1032 run / 0F / 0E (79 skipped)** — zero regressão na área delicada de reconstrução; a suíte golden **296 passed / 0 failed / 0 skipped**.
+
+**Fronteira:** só o backend JS. Os outros cinco alvos estão corretos. O `break` DIRETO num case (a face do §587) está correto em todos os alvos.
+
+<!-- en-switch --> **EN:** [§701 (en)](known-bugs.md#701--a-break-nested-inside-an-if-inside-a-switch-case-emits-wrong-js-the-default-body-leaks-into-the-case-and-the-break-becomes-an-empty-block-swbreakinloop--js-32-vs-2-on-the-other-five-targets---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §702 — um `try` ANINHADO num `try` cujo try interno tem um `finally` NÃO COMPILAVA no JS: um ERRO INTERNO DO COMPILADOR (`COMP002: KofJS: unexpected KofCatchStart at statement level`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int nestedTryFinally() {
+    var r = 0
+    try {
+        try {
+            throw "inner"
+        } finally {
+            r += 1
+        }
+    } catch (String e) {
+        r += 10
+    }
+    return r
+}
+```
+
+compilava em JVM/Script/nativo x86-64/riscv64/aarch64 (todos devolvendo `11`) mas no **JS o próprio compilador crashava**: `COMP002: Internal compiler error: KofJS: unexpected KofCatchStart at statement level`. Um try aninhado onde o try INTERNO tem um `finally` e o EXTERNO tem um `catch` era incompilável no JS — um crash de compile-time, não um valor errado.
+
+**Raiz (rastreada dumpando o stream de ops no parser):** no `JsTryParser`, depois de parsear o corpo do `finally` do try interno, o ramo de consumo do label final NÃO tinha a guarda `isTryEndLabel`. Quando o corpo do finally termina pelo caminho "label não-casado", o label `done` fica null, então aquele ramo consumia CEGAMENTE o próximo label — que num try/finally aninhado é o label de fim do try EXTERNO. Consumi-lo deixava o try externo sem fronteira, então o `KofCatchStart` dele aparecia no nível de statement e o compilador estourava. O ramo IRMÃO (`no-finally: the trailing empty label (done) ends the try`) já tinha `!isLoopLabel && !isTryEndLabel` (§617 face B); este não.
+
+**Correção:** o ramo agora leva a mesma guarda (`!ctx.isLoopLabel(...) && !ctx.isTryEndLabel(...)`) — uma condição, igual ao irmão. O endLabel de um try envolvente pertence àquele try; um try aninhado nunca pode consumi-lo.
+
+**Prova (executada, RED-first):** o novo `JsNestedTryFinallyE2ETest` **6 run / 0F**; com a mudança do parser REVERTIDA **exatamente 1 das suas 6 faces FALHA** — `jsMatchesTheJvmOnNestedTry`, com o `COMP002` acima — enquanto as faces do oráculo JVM, do Script e as três nativas passam. O caso cobre a forma que crashava (finally interno + catch externo), um try/catch aninhado sem finally, um finally duplamente aninhado, um `return` de um try interno com dois finallys envolventes, e um try TRIPLO-aninhado. A bateria try/catch/throw/js/switch/flow **394 run / 0F / 0E (25 skipped)**, a bateria mais ampla js/nativo/cast/aritmética **1020 run / 0F / 0E (79 skipped)** e a suíte golden **296 passed / 0 failed / 0 skipped** — zero regressão.
+
+**Fronteira:** só o backend JS. Os outros cinco alvos estão corretos. É o irmão do §617 face B (a mesma guarda faltando no outro ramo do mesmo `if`).
+
+<!-- en-switch --> **EN:** [§702 (en)](known-bugs.md#702--a-try-nested-inside-a-try-whose-inner-try-has-a-finally-did-not-compile-on-js-an-internal-compiler-error-comp002-kofjs-unexpected-kofcatchstart-at-statement-level---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+
+## §703 — um `return` dentro de um `try`/`finally` dentro de um LOOP emite JS ERRADO no backend JS: `undefined` (return aninhado num `if`), ou JS INVÁLIDO (`SyntaxError: Missing catch or finally after try` / `ReferenceError: _idx is not defined`, return como último statement do try) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int returnInTryFinallyLoop() {
+    var r = 0
+    for (var i in listOf(0, 1, 2)) {
+        try {
+            if (i == 1) { return 100 }
+            r += i
+        } finally {
+            r += 10
+        }
+    }
+    return r
+}
+```
+
+devolve `100` em JVM/Script/nativo x86-64/riscv64/aarch64 mas **`undefined` no JS** — silencioso. Uma variante onde o `return` é o ÚLTIMO statement do try (sem `if` envolvente) é pior: o backend JS emite **JS inválido** (`SyntaxError: Missing catch or finally after try` no `try`, depois `Invalid return statement`), ou com um `if` emite `ReferenceError: _idx is not defined`.
+
+**Raiz (rastreada dumpando as ops do IR E o JS gerado):** um `return` dentro de um try/finally baixa como `_retVal = X; goto <returnFinally>`, e o backend JS renderiza o EPÍLOGO return-finally (`return _retVal`) INLINE logo após o bloco `try`/`finally`. Fora de um loop isso está certo — o epílogo cai na cauda do método. DENTRO de um loop o epílogo cai no CORPO DO LOOP, então roda INCONDICIONALMENTE na primeira iteração e retorna o `_retVal` ainda `undefined`; e o corpo do try mantém `_retVal = X` como ATRIBUIÇÃO em vez de um `return` de verdade, então o `try/finally` nativo do JS nunca vê um return para rodar o finally.
+
+**Caminho de correção (nomeado, TENTADO e REVERTIDO — registrado honestamente):** converter o `_retVal = X` do corpo do try em `return X` (deixando o try/finally nativo do JS rodar o finally na conclusão abrupta) e DESCARTAR o epílogo `returnFinally`. Uma conversão recursiva do corpo (assign→return, descendo por if/block/while/for/for-in/switch) foi implementada e MEDIDA: ela CORRIGIU a forma `return` aninhado num `if` (`undefined` → `100`) e a forma `while`, mas a forma `return` como ÚLTIMO statement do try passou a emitir JS inválido (`Missing catch or finally after try`) — a conversão interage com o consumo de jump/region-exit do parser do try para um return final, que é uma SEGUNDA mudança estrutural. Revertida em vez de pousar parcial: o fix parcial mudava o MODO de falha de uma forma já quebrada de `ReferenceError` para `SyntaxError` (ambos errados), então não é melhoria estrita e seria uma mudança de falso progresso. O fix completo precisa tratar AS DUAS formas (return aninhado E return final) juntas, com a bateria inteira de try/finally/return (§617 faces A/B, DD-01/bug45, §147) como rede de regressão.
+
+**Por que ficou ABERTO:** o valor está silenciosamente errado (ou incompilável) num ÚNICO alvo; o fix é uma mudança estrutural na reconstrução return-finally, uma área de IR compartilhada que quatro bugs anteriores (§617, DD-01, bug45, §147) já tocaram. Registrado com o patch exato tentado e seu resultado medido, para a próxima passada começar da evidência, não do zero.
+
+**Fronteira:** só o backend JS; os outros cinco alvos estão corretos. A forma não-loop de try/finally com return está correta. `break`/`continue` dentro de um try/finally (já corrigidos por uma lane anterior, §6xx) NÃO são este bug.
+
+<!-- en-switch --> **EN:** [§703 (en)](known-bugs.md#703--a-return-inside-a-tryfinally-inside-a-loop-emits-wrong-js-on-the-js-backend-undefined-return-nested-in-an-if-or-invalid-js-syntaxerror-missing-catch-or-finally-after-try--referenceerror-_idx-is-not-defined-return-as-the-trys-last-statement---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §704 — um LOOP cujo corpo termina incondicionalmente (`return`/`throw` como último statement executado) emite JS INVÁLIDO: o otimizador remove o back-edge do loop, a reconstrução do JS então remonta um `if` e DESCARTA o setup do loop, então o programa morre com `ReferenceError: _idx is not defined` — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int forReturn() {
+    for (var i in listOf(0, 1, 2)) {
+        return 100
+    }
+    return -1
+}
+```
+
+devolve `100` em JVM/Script/nativo x86-64/riscv64/aarch64 mas no JS o módulo gerado é INVÁLIDO: o runtime falha com `ReferenceError: _idx is not defined` (e `_coll` idem). A função emitida é um `if` SEM loop e SEM setup:
+
+```js
+function forReturn() {
+    let __kof_t0; let __kof_t1; let __kof_t2;
+    if ((_idx < kofListSize(_coll))) {   // _idx/_coll nunca atribuídos
+        let _forInVar = kofListGet(_coll, _idx);
+        return 100;
+    } else {
+        return -1;
+    }
+}
+```
+
+Um `while` com `return` incondicional, e um `for` cujo corpo lança, falham do mesmo jeito. É DISTINTO do §703 (que precisa de try/finally e um return CONDICIONAL): aqui não há `try` nenhum, e o return é incondicional.
+
+**Raiz (rastreada dumpando o IR):** o corpo `return 100` de um for-in é um terminador incondicional, então as ops de BACK-EDGE do loop (`idx++` depois `Jump(start)`) são genuinamente inalcançáveis — nada salta para elas. O passe de reachability do otimizador (que trata `KofReturn`/`KofThrow` como terminadores de região) portanto as REMOVE como código morto. Sem o back-edge o IR deixa de parecer um loop, e a reconstrução do JS — que identifica um loop pelo back-edge — remonta a forma residual `Label(start); cond; CJump(body, exit); body; exit` como um `if` simples, DESCARTANDO as ops de setup do loop que consumiu (a cadeia `kofListNew`/`kofListAdd` e os stores `_coll`/`_idx`) junto com o header `for-in` que não conseguiu formar.
+
+**Caminho de correção (nomeado, NÃO pousado — e MEDIDO como NÃO sendo um problema de seeding de reachability):** o back-edge fica estruturalmente DEPOIS do terminador incondicional do corpo, então o scan de reachability (linear, para em `KofReturn`/`KofThrow`) nunca pode marcá-lo — semear raízes extras (início do loop, alvos de jump) NÃO ajuda, porque o scan de qualquer semente também para no `Return` do corpo antes de chegar ao back-edge. O lowerer do loop também não pode emiti-lo numa posição alcançável (ele fica depois de um return incondicional). Então o ÚNICO sítio viável é a reconstrução do JS. **MEDIDO mais (13/10, segunda tentativa):** estender o `JsLabelParser.isLoopStart` para aceitar a forma sem back-edge NÃO é suficiente — instrumentado, o `isLoopStart` nem é CHAMADO para o label de início do loop nesta forma, então as ops são consumidas por outro caminho (o dispatch de expressão/if) antes da checagem de loop-start. O fix tem portanto de interceptar MAIS CEDO — no ponto onde o setup `#coll`/`#idx` + `Label; cond; CJump` é primeiro despachado — reconhecer a forma for-in e roteá-la para uma reconstrução de loop que sintetize o update `_idx++` ausente (determinístico num for-in) e mantenha o setup. É uma mudança estrutural no dispatch do JS, não uma guarda de uma linha; tem de pousar com a bateria loop/control-flow como rede de regressão. Deixado ABERTO com o diagnóstico em vez de apressado: é uma mudança de reconstrução estrutural e a reconstrução do JS já produziu cinco bugs em quatro ciclos (§700–§703 + a família de casts).
+
+**Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Não é o mesmo que o §703 — aquele precisa de try/finally com return CONDICIONAL; este precisa só de um terminador incondicional como último statement do corpo do loop.
+
+<!-- en-switch --> **EN:** [§704 (en)](known-bugs.md#704--a-loop-whose-body-unconditionally-terminates-returnthrow-as-its-last-executed-statement-emits-invalid-js-the-optimizer-removes-the-loops-back-edge-the-js-reconstruction-then-rebuilds-an-if-and-drops-the-loop-setup-so-the-program-dies-with-referenceerror-_idx-is-not-defined---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §706 — um argumento de tipo genérico ANINHADO (`Box<Box<Int>>`) quebra o acessor EXTERNO: no JVM o call site espera `int Box.get()` e crasha com `NoSuchMethodError`, no nativo lê LIXO — enquanto Script/JS devolvem o valor correto — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+record Box<T>(T value) {
+    T get() { return value }
+}
+main() {
+    var inner = Box<Int>(7)
+    println(inner.get())
+    var outer = Box<Box<Int>>(inner)
+    println(outer.get().get())
+}
+```
+
+imprime `7` e depois o CORRETO `7` em Script e JS, mas:
+- **JVM:** `Exception in thread "main" java.lang.NoSuchMethodError: 'int Box.get()'` — o `outer.get()` EXTERNO é compilado com tipo de retorno `int` (o argumento de tipo INTERNO), mas o método emitido é `Object Box.get()` (erased), então o call site não consegue ligar.
+- **nativo x86-64/riscv64/aarch64:** um valor LIXO (`-1937768288`, `201072`, `4395376` nos três alvos) — o acessor externo lê o slot/largura errados, então o valor é o que a memória tiver.
+
+Um genérico de UM parâmetro (`Box<Int>`) e um de MÚLTIPLOS parâmetros (`Pair<String, Int>`) funcionam; a divergência é específica de um argumento de tipo genérico que é ele próprio genérico (`Box<Box<Int>>`).
+
+**Raiz (INSTRUMENTADA neste ciclo — o mecanismo exato):** o `returnType` do `KofCall` é o tipo SUBSTITUÍDO, não o DECLARADO. Para o encadeado `outer.get().get()` o lowerer emite `KofCall(ownerType=Box<Int>, returnType=Int)` (o receiver do segundo `get` é `outer.get()` = `Box<Int>`, então `T` substitui para `Int`). O emissor JVM então deriva o DESCRIPTOR do method-ref desse `returnType` → `()I`, mas o método realmente emitido é o ERASED `Box.get()Ljava/lang/Object;` — daí o `NoSuchMethodError: 'int Box.get()'`. E o caminho de unbox (`GenericReturnAdapter.emit`) só dispara quando o retorno declarado é um `TypeVariable`; aqui é `Int`, então ele não faz nada e nenhum `checkcast Integer`+`intValue` é emitido. O fix precisa manter o tipo de retorno DECLARADO (erased) no `KofCall` (para o descriptor ser `()Ljava/lang/Object;`) e deixar o `GenericReturnAdapter` desboxar o `Int` substituído — ou seja, o tipo substituído é para TIPAGEM, o declarado é para o DESCRIPTOR. O sítio exato da divergência é o fallback que seta `methodReturnType` a partir de `ExpressionTyper.inferExprType` (o tipo substituído) quando `resolvedMethod` é null para a chamada encadeada.
+
+**Caminho de correção (nomeado, NÃO pousado):** a substituição genérica que resolve o tipo de retorno de um membro num receptor parametrizado precisa recursar corretamente por argumentos de tipo aninhados — `Box<Box<Int>>.get()` devolve `Box<Int>`, e só o SEGUNDO `.get()` devolve `Int`. O bug está na substituição/erasure do argumento de tipo do receptor EXTERNO. Toca a maquinaria de tipos compartilhada (JVM + nativo + JS leem a mesma substituição), então tem de pousar com a bateria de genéricos como rede de regressão. Deixado ABERTO com o diagnóstico em vez de apressado: a substituição errada é mudança de código compartilhado e a face JVM é crash duro (alto, não silencioso) enquanto a nativa é valor errado silencioso.
+
+**Fronteira:** só argumentos de tipo genéricos aninhados. Genéricos de um e de múltiplos parâmetros num nível estão corretos nos seis alvos. Os alvos Script e JS estão corretos (dinamicamente tipados).
+
+<!-- en-switch --> **EN:** [§706 (en)](known-bugs.md#706--a-nested-generic-type-argument-boxboxint-breaks-the-outer-accessor-on-the-jvm-the-call-site-expects-int-boxget-and-crashes-with-nosuchmethoderror-on-native-it-reads-garbage--while-scriptjs-return-the-correct-value---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
+
+**Esta é a face do §693 que o ledger tinha marcado como NÃO VERIFICADA.** O §693 (13/10) corrigiu o SIGFPE do x86 e o `0` silencioso do JS, e a própria nota de fronteira dele dizia que os alvos cross "não foram construídos para esta sonda — o mesmo trap é ESPERADO, e o ledger diz inferência, não medição". Este ciclo transformou aquela inferência em medição, achou-a VERDADEIRA, e corrigiu.
+
+**Raiz:** o `div`/`rem` do riscv (e as formas aarch64 traduzidas delas) não são trapping: um divisor zero devolve o resultado "indefinido" da ISA. Não havia checagem de divisor nenhuma, então nada chegava ao `kof_throw_string`.
+
+**Correção:** espelhar a guarda do x86 — checar o divisor ANTES do `div`/`rem` (`beqz t0, .Ldivz_<n>`) e desviar para o `kof_throw_string` com a mensagem `/ by zero` do JVM, que é o mesmo caminho que o `throw "msg"` usa, então o `catch (String e)` do usuário o recebe. Os labels são únicos por emissão (lição do §181: dois `div` num método colidiriam). A mensagem vive num `.pushsection .rodata` NO PONTO DE USO — um `internString` ali é TARDE DEMAIS (a seção de dados do backend já foi escrita quando os métodos são emitidos, então o label saía indefinido e o `ld` falhava com `undefined reference to .Lstr_N`, medido), e um label no corpo da função é a lição do pruner do §693.
+
+**Prova (executada, RED-first):** o novo `CrossDivideByZeroE2ETest` **6 run / 0F**; com a guarda cross REVERTIDA **exatamente 2 das suas 6 faces FALHAM** — `nativeRiscv64MatchesTheJvmOnDivideByZero` e `nativeAarch64MatchesTheJvmOnDivideByZero` — enquanto as faces do oráculo JVM, do Script, do JS e do nativo-x86 passam (o x86 foi corrigido pelo §693, que é o que isola o cross). O caso cobre `Int` `DIV`/`MOD` e `Long` `DIV`/`MOD` com divisor zero de runtime, mais um controle de que `INT_MIN / -1` e `INT_MIN % -1` continuam batendo com o JVM, e um controle de que uma divisão NÃO-zero continua não lançando. A bateria divisão/aritmética/cross/shift/cast **325 run / 0F / 0E (9 skipped)**.
+
+**Fronteira:** só o divisor zero de runtime no cross. A face x86 e a face JS foram o §693. O `INT_MIN / -1` foi medido na mesma sonda e concorda nos seis alvos (o JVM alarga para `2147483648`), então está pinado por este caso em vez de ficar como suposição. O jar do CLI está velho (predata §692–§698) porque o `kof-cli` não compila — conflito vivo de um peer — então isto foi medido e pinado pelo módulo do compilador.
+
+<!-- en-switch --> **EN:** [§699 (en)](known-bugs.md#699--integer-division-by-a-runtime-zero-did-not-throw-on-the-cross-targets-riscv-divrem-do-not-raise-on-a-zero-divisor-they-return-the-isas-undefined-value-so-the-kof-trycatch-never-fired-and-the-program-continued-with-a-silent-garbage-value--riscv64-10--0---1-aarch64--0-where-jvmscriptjsnative-x86-all-throw-a-catchable--by-zero---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+
+## §698 — os SHIFTS de Int NÃO batiam com o JVM nos alvos CROSS, e o `>>>` estava errado no JS: `sll`/`srl`/`sra` do riscv operam em 64 bits e usam a contagem mod 64, enquanto `ishl`/`iushr`/`ishr` do JVM operam em 32 bits e usam mod 32 — `1 << 31` → `2147483648` (não `-2147483648`), `1 << 33` → `2^33` (não `2`), `-5 >>> 1` vazava um resultado de 64 bits e `-5 >> 32` → `-1` (não `-5`); no JS `-5 >>> 0` → `4294967291` (a coerção sem sinal) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR — o jar do CLI está velho):** com a CONTAGEM do shift vinda de uma lista (um valor de runtime; uma contagem LITERAL é dobrada em compile-time e esconde o emissor por completo — por isso isso sobreviveu), em riscv64/aarch64 `1 << 31` imprimia `2147483648` onde o JVM imprime `-2147483648`, `1 << 33` imprimia `2^33` onde o JVM imprime `2`, `-5 >>> 1` imprimia um `9223372036854775805` de 64 bits onde o JVM imprime `2147483645`, `-5 >> 32` imprimia `-1` onde o JVM imprime `-5`, e `1 << 63` imprimia `-9223372036854775808` onde o JVM imprime `-2147483648`. No JS, `-5 >>> 0` imprimia `4294967291` onde o JVM imprime `-5`.
+
+**Raiz:** o `NativeRiscvCrossOps` aplicava `sext.w` só depois de ADD/SUB/MUL, então os braços de shift não truncavam o resultado para 32 bits nem mascaravam a contagem — e os shifts do riscv usam os 6 bits baixos (mod 64) onde o JVM usa os 5 (mod 32). O emissor x86 já estava correto: `%cl` mascara automaticamente para 5 bits e suas ops são de 32 bits. No JS, o `>>>` devolve um valor de 32 bits SEM SINAL e o braço não o re-envolvia para signed.
+
+**Correção:** no cross, mascarar a contagem Int com `andi t0, t0, 31`, truncar SHL/SHR com `sext.w`, e zero-extend antes do `srl` + `sext.w` depois para o USHR (o zero-extend é o que mantém o shift de 64 bits LÓGICO sobre os 32 bits baixos, e o `sext.w` final reinterpreta o resultado como signed — então a contagem 0 segue sendo a identidade). No JS, o resultado do USHR é envolvido com `int32`. Os shifts de Long não são tocados: ops de 64 bits com contagem mod 64 são exatamente o que o riscv faz nativamente, e o caso pina que eles continuam concordando.
+
+**Prova (executada, RED-first):** o novo `ShiftSemanticsE2ETest` **6 run / 0F** — com as DUAS correções revertidas **3 das suas 6 faces FALHAM** (`nativeRiscv64MatchesTheJvmOnShifts`, `nativeAarch64MatchesTheJvmOnShifts`, `jsMatchesTheJvmOnShifts`) enquanto as faces do oráculo JVM, do Script e do x86 passam (o x86 já estava correto, que é o que isola o cross). O caso exercita `<<`/`>>`/`>>>` sobre `1` e `-5` nas contagens 0/1/31/32/33/63 (Int) e `1L`/`-5L` nas mesmas contagens (Long, onde a contagem NÃO é mascarada para 32), com as contagens vindo de um `List<Int>` para nada ser dobrado. A bateria shift/aritmética/cast/nativo **551 run / 0F / 0E (44 skipped)**.
+
+**REFACTOR-500:** o fix empurrou o `NativeRiscvCrossOps` para 619 linhas (>= 600 bloqueia CI), então o método binário dele mudou para o novo `NativeRiscvCrossBinary` (a classe volta a 516, a nova tem 131) — extração verbatim mecânica, sem mudança de comportamento, no mesmo commit.
+
+**Fronteira:** só a largura/contagem do shift de Int. A face JS foi achada na mesma medição e corrigida na mesma unidade (é o mesmo operador na mesma expressão). O jar do CLI está velho (predata §692–§697) porque o `kof-cli` não compila — conflito vivo de um peer — então isto foi medido e pinado pelo módulo do compilador.
+
+<!-- en-switch --> **EN:** [§698 (en)](known-bugs.md#698--the-int-shift-operators-did-not-follow-the-jvm-on-the-cross-targets-and--was-wrong-on-js-riscv-sllsrlsra-work-on-64-bits-and-take-the-count-mod-64-while-the-jvms-ishliushrishr-work-on-32-bits-and-take-it-mod-32--1--31--2147483648-not--2147483648-1--33--233-not-2--5--1-leaked-a-64-bit-result-and--5--32---1-not--5-on-js--5--0--4294967291-the-unsigned-coercion---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+
+## §697 — o `x as Char` NÃO mascarava para 16 bits em NENHUM alvo nativo NEM no JS: o emissor x86 não tinha braço para `I2C` (no-op silencioso), o cross usava `sext.w` (sign-extend de 32 bits) e o emissor JS listava `I2C` entre as conversões de IDENTIDADE — `(70000 as Char) as Int` → `70000` no nativo e no JS vs JVM/Script `4464` (`70000 & 0xFFFF`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR — o jar do CLI está velho, ver a fronteira):** `var x = 70000` e então `println((x as Char) as Int)` imprimia **`4464` em JVM/Script** (`70000 & 0xFFFF`) e **`70000` no nativo x86-64, riscv64 E aarch64** — a máscara simplesmente não acontecia. O display de `println(x as Char)` divergia igual (`ᅰ` = U+1170 vs um caractere de substituição).
 
@@ -14592,13 +14810,15 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 **Correção:** o x86 usa `movzwl %ax, %eax` (ZERO-extend de 16 bits — `Char` é sem sinal, então `movswl` estaria errado); o emissor cross usa o par de shifts LÓGICOS (`slli` + `srli` por 48 bits), que o tradutor aarch64 já cobre.
 
-**Prova (executada, RED-first):** o novo `NativeCharCastE2ETest` **5 run / 0F**; com as duas mudanças dos emissores REVERTIDAS **3 das suas 5 faces FALHAM** — `nativeX86MatchesTheJvmOnCharCasts`, `nativeRiscv64MatchesTheJvmOnCharCasts` e `nativeAarch64MatchesTheJvmOnCharCasts` — enquanto as faces do oráculo JVM e do Script passam (elas já mascaravam, que é o que faz do nativo o divergente). O caso pina `70000`, o display do `println` (U+1170), `65535`, `65536` → 0, `-1` → 65535, `-70000` → 61072, e uma ida-e-volta `65 as Char` que imprime `A`/`65`. A bateria char/cast/byte/short/nativo/aritmética/string **879 run / 2F / 0E (54 skipped)** — the 2 are the entity-history lane's OWN registered STOP (see the note).
+**Prova (executada, RED-first):** o novo `NativeCharCastE2ETest` **6 run / 0F**; com as duas mudanças nativas dos emissores REVERTIDAS **3 das suas faces FALHAM**, com o braço JS revertido **1 das suas faces FALHA** — `nativeX86MatchesTheJvmOnCharCasts`, `nativeRiscv64MatchesTheJvmOnCharCasts` e `nativeAarch64MatchesTheJvmOnCharCasts` — enquanto as faces do oráculo JVM e do Script passam (elas já mascaravam, que é o que faz do nativo o divergente). O caso pina `70000`, o display do `println` (U+1170), `65535`, `65536` → 0, `-1` → 65535, `-70000` → 61072, e uma ida-e-volta `65 as Char` que imprime `A`/`65`. A bateria js/char/cast/byte/short/nativo/aritmética **1025 run / 0F / 0E (79 skipped)**.
+
+**Face JS (achada 13/10 no MESMO ciclo, ao re-medir a matriz depois do fix nativo):** o `unaryExpr` do emissor JS tinha `case I2F, I2D, I2C, L2F, L2D, F2D, D2F -> operand;` — o `I2C` era tratado como conversão de IDENTIDADE, então `(70000 as Char) as Int` dava `70000` (JVM/Script/nativo dão `4464`) e `(-1 as Char) as Int` dava `-1` em vez de `65535`. É antigo (a linha vem do refactor §344 de 19/09) e nunca foi pego porque nenhum teste exercitava `as Char` com valor fora de faixa no JS. Correção: `I2C` ganha braço próprio, `(operand & 0xFFFF)` — o `&` do JS trunca em 32 bits signed, então o resultado cai em `0..65535`, que é o Char. RED-first: a nova face JS do `NativeCharCastE2ETest` FALHA com este braço revertido e passa com ele (as três faces nativas ficam verdes nos dois casos, pois foram corrigidas antes).
 
 **Fronteira:** só o CAST. Também registrado: com o módulo `kof-cli` sem compilar (conflito REAL de um peer, ainda vivo às 07:23), o jar do CLI em `kof-cli/target/` é de 00:03 e PREDATA §692/§693-JS/§694/§695 — então todo probe via CLI está testando um compilador VELHO, e probes de mudanças do compilador têm de passar pelo `mvn test -pl kof-compiler`. Foi assim que este bug apareceu (e assim que um re-probe do §695 foi corretamente descartado como artefato de jar velho em vez de re-reportado).
 
-<!-- en-switch --> **EN:** [§697 (en)](known-bugs.md#697--x-as-char-did-not-mask-to-16-bits-on-any-native-target-the-x86-emitter-had-no-arm-for-i2c-a-silent-no-op-and-the-cross-one-used-sextw-a-32-bit-sign-extend--70000-as-char-as-int--native-70000-vs-jvmscript-4464-70000--0xffff---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+<!-- en-switch --> **EN:** [§697 (en)](known-bugs.md#697--x-as-char-did-not-mask-to-16-bits-on-any-native-target-nor-on-js-the-x86-emitter-had-no-arm-for-i2c-a-silent-no-op-the-cross-one-used-sextw-a-32-bit-sign-extend-and-the-js-emitter-listed-i2c-among-the-identity-conversions--70000-as-char-as-int--70000-on-native-and-js-vs-jvmscript-4464-70000--0xffff---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
 
-## §696 — um LOCAL ou RETORNO `Byte`/`Short` guardando um valor FORA DE FAIXA é aceito LIMPO nos quatro alvos e então DIVERGE DE QUATRO JEITOS: o Script estreita (`var x: Byte = 200` → `-56`), nativo/JS mantêm o valor CRU (`200`), e o JVM CRASHA em runtime (`ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` dentro do `java.lang.Byte.valueOf`) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §696 — um LOCAL, ATRIBUIÇÃO ou RETORNO `Byte`/`Short` guardando um valor FORA DE FAIXA era aceito LIMPO nos quatro alvos e então DIVERGIA DE QUATRO JEITOS: o Script estreitava (`var x: Byte = 200` → `-56`), nativo/JS mantinham o valor CRU (`200`), e o JVM CRASHAVA em runtime (`ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` dentro do `java.lang.Byte.valueOf`) — ✅ CORRIGIDO 14/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido 14/10 pela lane `192.168.100.14:0`, flatt CLI — site decidido pela mantenedora: o STORE)
 
 **Sintoma (medido 13/10):** `main() { var x: Byte = 200\n println(x) }` passa no `kof check` com **nenhum erro** e então:
 - **JVM:** `Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: Index 328 out of bounds for length 256` em `java.lang.Byte.valueOf(Byte.java:149)` — o `Byte.valueOf(byte)` do JDK cacheia `-128..127` e o emissor entrega o `200` CRU (328 = 200 + 128), então o ÍNDICE do cache sai de faixa e o processo morre com uma `ArrayIndexOutOfBoundsException` que não tem nada a ver com o código do usuário.
@@ -14613,7 +14833,7 @@ A mesma forma vale para `Short` (`var y: Short = 40000`: JVM `Index 328 out of b
 
 **Fronteira:** a face do CAST (`200 as Byte`) é o §695 e está CORRIGIDA nos quatro alvos. Esta entrada é só a face LOCAL/RETORNO. Medido em x86-64 para o nativo; as faces cross não foram construídas para esta sonda.
 
-<!-- en-switch --> **EN:** [§696 (en)](known-bugs.md#696--a-byteshort-local-or-return-holding-an-out-of-range-value-is-accepted-clean-on-all-four-targets-and-then-diverges-four-ways-the-script-narrows-var-x-byte--200---56-nativejs-keep-the-raw-value-200-and-the-jvm-crashes-at-runtime-arrayindexoutofboundsexception-index-328-out-of-bounds-for-length-256-inside-javalangbytevalueof---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§696 (en)](known-bugs.md#696--a-byteshort-local-assignment-or-return-holding-an-out-of-range-value-was-accepted-clean-on-all-four-targets-and-then-diverged-four-ways-the-script-narrowed-var-x-byte--200---56-nativejs-kept-the-raw-value-200-and-the-jvm-crashed-at-runtime-arrayindexoutofboundsexception-index-328-out-of-bounds-for-length-256-inside-javalangbytevalueof---fixed-1410-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-1410-by-lane-192168100140-flatt-cli--maintainer-decided-site-the-store)
 
 ## §695 — o `as Byte` / `as Short` NÃO estreitava nos alvos NATIVOS: os dois emissores nativos não tinham ramo para `I2B`/`I2S`, então o cast caía como NO-OP e o valor passava CRU (`200 as Byte` → nativo `200` vs Script/JVM/JS `-56`) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
@@ -14934,6 +15154,22 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 **Fronteira:** as duas faces são fluxo de conclusão abrupta de try/finally. A face A é lacuna de lowering JVM/Script/Native (JS é o oráculo); a face B é lacuna do reconstruidor KofJS (JVM/Script/Native são o oráculo). Nenhuma decisão `D-*` é exigida — o contrato ("`finally` always executes") é normativo. Sem issue aberta; catalogado aqui + referência cruzada no `twin.md`.
 
 <!-- pt-switch --> **EN:** [§617 (en)](known-bugs.md#617--tryfinally-control-flow-parity-2-faces-a-breakcontinue-leaving-a-try-skipped-the-finally-on-jvmscriptnative-js-was-java-correct-b-a-nested-tryfinally-whose-inner-try-returns-iced-the-kofjs-target-comp002-unexpected-kofcatchstart---fixed-0610-owner--19216815309092-lane-compilerjvmnative-bugs-and-gaps-front-found-in-the-phase-6-equivalence-sweep-after-613)
+
+## §705 — um método de classe com 46 locais TRAVA o binário nativo x86 em RUNTIME (o mesmo Kof é correto no JVM/Script/JS e o assembly emitido parece correto) — 🟡 ABERTO (medido 13/10 pela lane pipeline/image-vision `192.168.15.21:0`, exposto pela fatia 3au do AVIF)
+
+**Sintoma (medido 13/10, pelo MÓDULO COMPILADOR):** o estágio por bloco do driver de tile do AVIF saiu da função de topo `av1DecodeTileRecon` (fatia 3ag) para o método `Av1TileDecode.decodeBlock(r, c, bs)` (fatia 3au, `libs/image/Av1DecodeTileRecon.kf`). As faces JVM, Script e JS de `Av1DecodeTileReconE2ETest` / `Av1DecodeTileTxTypeE2ETest` / `Av1DecodeChromaE2ETest` PASSAM; `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` TRAVA — o `Main` emitido gira a ~10% de CPU SEM saída e nunca termina. Reverter a biblioteca para o pré-3au faz a MESMA face passar em 54–58s, em três execuções; restaurar a 3au trava de novo. **É uma divergência cross-target: um Kof, correto em três alvos, travamento no nativo.**
+
+**Estreitamento (medido, não inferido):** uma sonda marcada no nativo imprime `M1 start` / `M2 data` / `M3 before-ctor` / `M4 after-ctor` e para em `M5 before-direct-decodeBlock` — a construção da classe e o `planes()` FUNCIONAM; o travamento é uma chamada direta `tile.decodeBlock(0, 0, 9)`. `av1TxWidth(3)` e `av1BlockNum4x4Wide(9)` (chamados logo antes) devolvem os valores certos, `32` e `8`.
+
+**Como o assembly se parece (inspecionado via `KOF_KEEP_ASM=1`):** o prólogo é `subq $992, %rsp`, 46 slots escritos (4 de `%rdi..%rcx`, 42 zerados), o slot mais fundo é `-720(%rbp)` — DENTRO do frame; uma varredura do corpo inteiro encontra ZERO offsets `-N(%rbp)` além de 992. O método monta e linka limpo e produz o mesmo binário de 457032 bytes do build pré-3au. O back-edge do laço de blocos de transformada e o contador (`-592(%rbp)`, comparado com `-584(%rbp)`) estão emitidos corretamente.
+
+**HIPÓTESES JÁ REFUTADAS (cada uma por um teste nativo mínimo, para o próximo agente não repeti-las):** (a) "muitos locais num método" — um método com 8 campos e 38 parâmetros que os soma roda (e até dá um valor ERRADO no nativo, `742` vs `749`, defeito SEPARADO que merece registro próprio); (b) "acesso a campo de classe no nativo" — uma classe mínima campo+construtor+laço imprime `sum=10`; (c) "chamada de muitos argumentos dentro de um laço" — um método que hoista 38 campos e chama uma função de topo de 38 argumentos num `while` roda e imprime o valor certo; (d) "chamada de método num objeto guardado em campo, dentro de laço" — roda e imprime o valor certo. O gatilho é algo do próprio `decodeBlock`, não a contagem de locais nem as formas de campo/laço isoladas.
+
+**Limites de ambiente ao diagnosticar (registrados para o próximo agente orçar):** o `perf` está bloqueado (`perf_event_paranoid=4`) e o `gdb` não anexa (`ptrace_scope=1`, "ioctl inapropriado para dispositivo") nem roda o binário até o fim em batch (o próprio `gdb` em batch travou e teve de ser morto), então nenhum backtrace pôde ser tirado. O sandbox também mata execuções longas do `mvn test` no meio da montagem; as faces nativas devem rodar DESTACADAS (`setsid nohup timeout N mvn ... & disown`) e o resultado lido do mtime de `kof-compiler/target/surefire-reports/*.txt`, não do stdout.
+
+**Estado:** a fatia que o expôs (3au) está REVERTIDA; a árvore está verde. O defeito NÃO é de `libs/image` — é uma interação do backend nativo que qualquer método extraído suficientemente grande pode atingir, então pertence à lane compilador/nativo.
+
+<!-- pt-switch --> **EN:** [§705 (en)](known-bugs.md#705--a-class-method-carrying-46-locals-hangs-the-native-x86-binary-at-runtime-the-same-kof-is-correct-on-the-jvmscriptjs-and-the-emitted-assembly-looks-correct---open-measured-1310-by-lane-pipelineimage-vision-19216815210-surfaced-by-avif-slice-3au)
 
 ## §613 — native (x86-64 + riscv64 + aarch64): um `return` DENTRO do `catch` de um `try/finally` corrompia a cadeia do handler de exceção e dava SIGSEGV no `throw` seguinte — o frame de finally do DD-01 era empilhado antes do corpo do `try`, então o return no catch emitia um `KofExcUnlink` a mais (o throw já tinha desempilhado o handler deste `try`); JVM/Script/JS corretos — ✅ FIXED 06/10 (dona = 192.168.15.30:9092; lane compiler/JVM/native, frente bugs-and-gaps; o residual do §551)
 
@@ -15483,6 +15719,8 @@ EAD
 
 **⚠️ CORRIGIDO 11/10 (lane docs/lab, medido):** o sintoma não reproduz mais no tip atual — a árvore PINa o ASM `9.10.1` (`c2faa9fd9`, pom raiz `<asm.version>9.10.1</asm.version>`, 11/10 04:42, que "corrige a #805"), então `CoreRegressionE2ETest#largeDenseFileLoadsOnJvm` **PASSA** (executado neste ciclo: `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`). A medição "agora morre" da lane do §602 foi no tip pré-pin `82e737544` (verificado: o pin NÃO é ancestral dele). O §652 segue 🟡 ABERTO porque o pin é WORKAROUND, não a correção-raiz: a raiz é `ClassWriter.setComputeLimits(int, long)` (subir os limites do ClassWriter do compilador) ou dividir métodos enormes, o que exige um re-bump — decisão registrada como "re-bump só depois que o upstream levantar o limite".
 
+**⚠️ RE-MEDIDO 14/10 (lane `192.168.100.14:0`, flatt CLI): o pin foi DESFEITO EM SILÊNCIO e o bug estava VIVO na ponta.** O bump de grupo do dependabot `137ea696d` (13/10 05:32, "bump the maven-minor-patch group with 3 updates") re-bumpou `<asm.version>` `9.10.1` → `9.11` enquanto o comentário do pom ainda dizia "9.10.1 PINNED (#805)" — então a mitigação em que a correção de 11/10 confiava tinha sumido e `largeDenseFileLoadsOnJvm` estava VERMELHO de novo (`LimitExceededException: Too many operations`, executado: `Tests run: 1, Failures: 1`). O pin foi RESTAURADO (`9.10.1`), o comentário do pom agora registra o incidente, e o `.github/dependabot.yml` ganhou um `ignore: org.ow2.asm:*` no bloco maven para que o bump automático não o desfaça uma terceira vez. Prova: com `9.11` o teste denso é VERMELHO, com `9.10.1` o `CoreRegressionE2ETest` é 104/0F. **A MITIGAÇÃO está restaurada; a correção-RAIZ (setComputeLimits / split) segue da lane de backend JVM** (`192.168.15.30:9092`).
+
 **Medido (11/10):** RED determinístico no tip limpo `82e737544` E com a correção do §602 aplicada (duas corridas completas, máquina quieta) — `JVM compile failed: Internal compiler error: frame crash in Default/Main.main ... phase: JVM backend / ASM COMPUTE_FRAMES (visitMaxs) ... ASM error: LimitExceededException: Too many operations` (~6788 ops IR no método denso, últimas ops nas linhas 416→423 do fonte). **Raiz (lida dos jars):** o ASM 9.11 adicionou `org.objectweb.asm.ComputeLimits` — a computação de frames agora conta operações/bytes e lança `LimitExceededException` acima dos padrões (`DEFAULT_MAX_MEMORY_LIMIT = 10485760`, `DEFAULT_MAX_OPERATIONS_LIMIT = 100000000`); o ASM 9.10.1 não tem essa classe e o teste compilava verde antes do bump (os 60 blocos try/finally aninhados estouram o orçamento de operações na computação de frames). **Caminho de correção (nomeado na API do ASM):** `ClassWriter.setComputeLimits(int maxMemory, long maxOperations)` é público no 9.11 — elevá-lo no ClassWriter do compilador (ou dividir métodos enormes). **Fronteira:** apenas backend JVM; NÃO causada pela correção do §602 (falha idênticamente com a correção em stash, medido); os alvos cross/native não são tocados.
 
 ## §653 — `passwords.verify` no alvo JS devolvia um `false` SILENCIOSO para um hash VÁLIDO porque o shim #104 de `kof_platform` torna `typeof kof_platform.pbkdf2Hex === "function"` verdadeiro fora do host, então o fallback PBKDF2 puro-JS era inalcançável — ✅ CORRIGIDO 11/10 (lane compiler/JVM/native `192.168.15.30:9092`)
@@ -15695,7 +15933,7 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 <!-- en-switch --> **EN:** [§663 (en)](known-bugs.md#663--audit-diag-02-sem012sem021ctor-sem014-leaked-the-raw-type-representation-cannot-assign-classtypepackagename-nameb-typearguments-to-classtype---fixed-1110-lane-flatt-192168100140)
 
-## §664 — auditoria JVM-02: local de tipo função sem inicializador era default `iconst_0` no JVM (`iconst_0; astore_1` → VerifyError no load da classe) — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0; o caminho simples)
+## §664 — auditoria JVM-02: local de tipo função sem inicializador era default `iconst_0` no JVM (`iconst_0; astore_1` → VerifyError no load da classe) — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0; o caminho simples) + o gêmeo CAPTURADO ✅ CORRIGIDO 14/10 (mesma lane)
 
 **Sintoma (medido 11/10, tip `df103f4cc`; auditoria 0.6.0 item `JVM-02`):** `main() { var f: (Int) -> Int  f = (x: Int) -> x + 1  println(f(5)) }` passava no `check` e morria no load da classe: `VerifyError: Bad type on operand stack ... Type integer is not assignable to reference type` — `javap` mostrava `iconst_0; astore_1` (o default sem-init guardava um INT num slot de referência). Medido RED-first: o repro exato da auditoria dá VerifyError no load, byte-a-byte o sintoma do audit.
 
@@ -15707,7 +15945,7 @@ build/classes/Default/Main.s:3064: Erro: symbol `.Lfe_A_init_2' is already defin
 
 **Fronteira:** isto corrige o caminho SIMPLES (não capturado) — a face do audit. O gêmeo CAPTURADO (local de tipo função mutado e também capturado por closure) passa por `CapturedVarBox`, cujo box sem init ainda hardcodifica `INT`; um fix só do box foi tentado e medido INSUFICIENTE — expõe a lacuna mais funda do dispatch de chamada capturada (`Object` na pilha vs o retorno `Int` declarado dentro do `invoke` da closure), que é a família lambda/box do audit `JVM-01`/`JVM-03` (risco médio, bateria de inferência compartilhada) — deixada para aquela unidade, não meio-corrigida aqui. O `erasesToReference` em si está intocado (8 outros call sites dependem do gate de hoje).
 
-<!-- en-switch --> **EN:** [§664 (en)](known-bugs.md#664--audit-jvm-02-a-function-type-local-without-an-initializer-was-defaulted-to-iconst_0-on-the-jvm-iconst_0-astore_1--verifyerror-at-class-load---fixed-1110-lane-flatt-192168100140-the-plain-path)
+**CORRIGIDO 14/10 (lane `192.168.100.14:0`, flatt CLI) — o gêmeo CAPTURADO, com as duas causas-raiz que a re-medição fixou.** Repro: `main() { var f: (Int) -> Int  var g = () -> { f = (x: Int) -> { return x * 10 }  return f(2) }  println(g()) }` compilava LIMPO e o JVM morria `VerifyError: Bad type on operand stack / Lambda0.invoke()I — Type 'java/lang/Object' is not assignable to integer` (e a variante inicializada em `Lambda1.invoke()I`). DOIS defeitos, ambos corrigidos: (1) o `CapturedVarBox.emit` boxava o local com o tipo INFERIDO do inicializador (ou `INT` hardcoded quando não havia) — para um local de tipo função isso é a classe sintética CONCRETA da primeira lambda, então uma segunda lambda da mesma assinatura não podia ser guardada, e o caso sem init boxava `int`; o box agora usa o tipo DECLARADO quando ele é um `FunctionType` (a interface sintética, então qualquer lambda da mesma assinatura cabe) e defaulta para `null` (espelhando o fix §664 do caminho simples); (2) a chamada dentro da closure (`f(2)`) emitia um `invokestatic Default/Main.f:(I)Ljava/lang/Object;` FANTASMA porque o `f` capturado é um CAMPO da lambda (o box), o `findLocalVar` devolve o ClassType do box (não um `FunctionType`), e o caminho de captura de campo só casava um campo `FunctionType` — o `ExpressionBareCallLowerer` agora reconhece um local de tipo caixa cujo valor é um tipo de função, carrega o campo `value` e invoca via a interface sintética (espelhando o ramo de tipo de função declarado). Prova: `CapturedFunctionTypeE2ETest` 2/2 — os gêmeos capturados sem e com init, um local de tipo função capturado só LIDO, e um `Int` capturado+mutado, em JVM+Script+JS e no nativo; RED-first desabilitando as duas mudanças (o `VerifyError` volta, 2/2 VERMELHO). Não-regressão: as baterias `*Lambda*`/`*Capture*`/`*Closure*`/`*Spawn*`/`*Component*`/`*Statement*` **317 corridas / 0F / 22 skips nomeados**. Fronteira: o gêmeo capturado agora está FECHADO; o caminho simples do §664 já fora corrigido 11/10.
 
 ## §665 — auditoria HTTP-01: KofHttp.staticCall ligava SÓ POR ARIDADE — http.status(401) ligava kof_http_status(String) com um Int e morria como VerifyError no JVM — ✅ CORRIGIDO 11/10 (lane flatt 192.168.100.14:0)
 

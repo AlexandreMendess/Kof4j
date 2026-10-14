@@ -3661,7 +3661,9 @@ ligado no `scripts/check_release_050_gate.sh` (`full_parity`).
 
 **Plano de fases (do brief, ordem verificável por máquina):** Fase 0 doc de investigação → Fase 1 spec (`docs/spec/memory-safety.md`) → Fase 2 infraestrutura do compilador (representações ownership/lifetime/borrow/alias/mutability/escape/resource-state) → Fase 3 primeiras garantias (use-after-move, dangling refs, escapes inválidos, aliasing mutável, dupla propriedade/destruição) → Fase 4 closures/async → Fase 5 Native+FFI → Fase 6 paridade JVM/JS/WASM da semântica. Cada fase gateia a próxima; uma fase sem seus testes de prova não fecha.
 
-**Evidência:** mensagens da mantenedora 25/09/2026 (chat, esta sessão): o brief completo (seções 1–27) + "pode botar em docs/development e ja assumir essa frente"; plan doc criado no mesmo commit (`docs/development/memory-safety-plan.md` EN+PT).
+**Evidência:** mensagens da mantenedora 25/09/2026 (chat, esta sessão): o brief completo (seções 1–27) + "pode botar em docs/development e ja assumir essa frente"; plan doc criado no mesmo commit (`docs/memory-safety-plan.md` EN+PT).
+
+- **Fechamento 13/10:** as seis fases FECHADAS (0–6); a matriz de segurança §11 está verde nos quatro backends reais (`check_matrix_inventory` rc=0); plano movido para `docs/memory-safety-plan.md` (três estados). O M1 (Native & FFI) pousou os callbacks FFI incl. o arg E o retorno `String` no x86-64 + cross; as faces `FFI001` honestas restantes (misto float+int, HFA>2) são divergências de ABI por-backend, não parte do DoD.
 
 - **Relacionamentos:** `Relaciona: D-FULL-PARITY-050, D-UNIVERSAL, D-RELEASE-0.5.0-SCOPE, D-DECOMPILER, D-BOOTSTRAP, D-DB-GAPS, D-GRAFICOS-GAMING, D-MAKEALIVE, D-MAKEALIVE-CLI, D-KOF-AS-CLOUD, D-KOF-FIRST, D-RELEASE-0.5.0-GATE, D-BRANCH-0.5.0, D-BAREMETAL-BOOT, D-BAREMETAL-BODIES, D-BAREMETAL-MCU-GC, D-GRAFICOS-GAMING, D-UNIVERSAL, D-DB-GAPS, rule 6, rule 11, R6, R7, D-MEMORY-SAFETY`.
 
@@ -4112,7 +4114,7 @@ nenhum `MEM003` era emitido (silêncio honesto). A mantenedora escolheu o
 CONTRATO: `clear()` DEVE anular cada slot antes de encolher, então a garantia é
 provada por teste de runtime por alvo, não por diagnóstico de compile. Nenhuma
 face de compile `MEM003` é criada. Resolve o decision request em
-`docs/development/memory-safety-plan.md`; o teste entra na suíte E2E de
+`docs/memory-safety-plan.md`; o teste entra na suíte E2E de
 memory-safety nos quatro alvos.
 
 - **Relações:** `Related: D-MEMORY-SAFETY, D-COMPLETE-FIRST`.
@@ -4353,7 +4355,7 @@ individuais:
 - **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-DESUGAR-STEP, regra 6, regra 11, regra 12`.
 ## D-MEM021-SCALAR — `MEM021` cobre também a captura ESCALAR: reatribuição do pai de um local capturado após `spawn` sem join é ERROR de compilação (mantenedora 28/09/2026, votou opção A + ERROR)
 
-**Estado:** DECIDIDO (mantenedora) — resolve o decision request do #660; implementação = `OwnershipPass` + `SpawnCaptureScanner` (frente `docs/development/memory-safety-plan.md` fatia 3.2b).
+**Estado:** DECIDIDO (mantenedora) — resolve o decision request do #660; implementação = `OwnershipPass` + `SpawnCaptureScanner` (frente `docs/memory-safety-plan.md` fatia 3.2b).
 
 - **Questão (#660):** `SpawnCaptureScanner.MUTATORS` listava só mutadores de OBJETO (`add`/`remove`/`clear`/`addAll`); a reatribuição do pai do MESMO escalar capturado após o `spawn`, sem `await`/`join_all` entre, compilava SEM diagnóstico em todos os alvos e corria (medido JVM/JS/Script `202` depois `101`, exit 0). A spec B-04 falava de "objeto mutável", então o caso escalar não estava nem proibido nem registrado.
 - **Decisão:** opção **A — diagnosticar**, severidade **ERROR** (não WARNING): estender `MEM021` ao caminho escalar. Razão: o worker que ESCREVE o binding capturado força o box de representação (`CompilerCaptureScanner` → `mutatedCapturedNames` → `CapturedVarBox`), então pai e worker COMPARTILHAM o slot; escrita do pai sem `await` entre é a corrida clara de B-04/C-03, mesma classe do `MEM021` de objeto (ERROR na corrida clara).
@@ -4375,7 +4377,7 @@ individuais:
 
 ## D-SCRIPT-EXTERN-REFUSE — Script × `extern` é recusado em compile-time com código de gap honesto + linha FFI×Script em `backend-parity` (mantenedora 28/09/2026, opção A votada)
 
-**Estado:** DECIDED (mantenedora) — resolve o pedido de decisão #667; **a implementação pertence à lane memory-safety/Script** (frente `docs/development/memory-safety-plan.md` unidade 2 da fase 5), não à lane issues/tooling.
+**Estado:** DECIDED (mantenedora) — resolve o pedido de decisão #667; **a implementação pertence à lane memory-safety/Script** (frente `docs/memory-safety-plan.md` unidade 2 da fase 5), não à lane issues/tooling.
 
 - **Questão (#667):** `extern "libc.so.6" abs(Int x): Int` + `main() { println(abs(-7)) }` compila CLEAN no Script e morre em runtime com o erro bruto do JVM `KofRuntime.kof_ffi/4` (exit 1), com ou sem `spawn`; sem código de gap e sem linha FFI×Script em `docs/backend-parity.md`. `kof_ffi` existe só no runtime JVM (`JvmRuntimeCallDescriptors`), não no `KofInterpreterRuntime`.
 - **Decisão:** opção **A — recusa em compile-time**. O alvo Script não tem runtime FFI, então uma declaração `extern` é recusada na linha da declaração com código de gap nomeado e honesto, e a linha FFI×Script é adicionada à matriz `backend-parity`. Sem fallback silencioso, sem morte crua em runtime (precedente #510/`INTEROP003`: campo estático de classe externa em alvo não-JVM = recusa em compile-time).
@@ -4386,7 +4388,7 @@ individuais:
 
 ## D-MEM020-COMPILE — `MEM020` (B-03) ganha face de COMPILAÇÃO sobre o `OwnershipPass` existente: duas escritas `extern` concorrentes no mesmo `Buffer(U8)` via `spawn` sem join = ERROR de compilação (mantenedora 28/09/2026, opção A votada)
 
-**Estado:** DECIDED (mantenedora) — resolve o pedido de decisão #668; **a implementação pertence à lane memory-safety** (frente `docs/development/memory-safety-plan.md` unidade 2 da fase 5), não à lane issues/tooling.
+**Estado:** DECIDED (mantenedora) — resolve o pedido de decisão #668; **a implementação pertence à lane memory-safety** (frente `docs/memory-safety-plan.md` unidade 2 da fase 5), não à lane issues/tooling.
 
 - **Questão (#668):** duas chamadas `extern` em `spawn`s distintos escrevendo o mesmo `Buffer(U8)` sem sync compilam CLEAN (diag=[]) em todos os alvos — a linha B-03 da spec ("Passar o mesmo `Buffer` para duas chamadas FFI concorrentes sem sync" → `MEM020`, `MemRule.java:36` `COMPILE_AND_RUNTIME`). O Buffer capturado é por referência e a escrita FFI não está em `SpawnCaptureScanner.MUTATORS`, então o `MEM021` de objeto não dispara e o `D-MEM021-SCALAR` não cobre alias de objeto via FFI. Sem scanner, sem guard de runtime, sem E2E.
 - **Decisão:** opção **A — face de compilação**. `MEM020` ERROR quando um `Buffer` é escrito por um `extern` (param INOUT) a partir de dois `spawn`s sem `await`/`join_all` entre — implementado sobre o `OwnershipPass` existente (mesma forma das fatias 3.2/3.2b). A spec já proíbe B-03; isto dá dente à regra existente.
@@ -4458,7 +4460,7 @@ individuais:
 
 ## D-SCRIPT-WARN-SURFACE — o alvo Script expõe diagnósticos WARNING do frontend como JVM/JS/Native (mantenedora 29/09/2026, múltipla escolha "A" na #678)
 
-**Estado:** DECIDIDO (mantenedora) / IMPLEMENTADO 29/09 — resolve o pedido de decisão #678 (divergência de paridade de diagnósticos da fase 6, `docs/development/memory-safety-plan.md`).
+**Estado:** DECIDIDO (mantenedora) / IMPLEMENTADO 29/09 — resolve o pedido de decisão #678 (divergência de paridade de diagnósticos da fase 6, `docs/memory-safety-plan.md`).
 
 - **Questão (#678):** um `for-in` terminante + `list.remove(0)` emite `MEM022` em JVM/Native/JS, mas `driver.interpret` devolvia `exit=0, stderr=[]` — o `CompilerPipeline.prepareForInterpretation` criava um `DiagnosticCollector` local e o descartava (só ERRORS escapavam via `KofInterpretException`), então todo WARNING (`MEM022`, `MEM014`) era invisível no Script, contradizendo o DoD do plano ("mesmas fontes, mesmos diagnósticos").
 - **Decisão:** opção **A — expor os warnings**. O interpretador expõe os WARNING do frontend via `KofInterpreter.Result.warnings()` (componente aditivo do record com construtor compat de 3 args); o CLI/`KofScript` os imprime em stderr exatamente como o caminho de compilação. Sem mudança de semântica da linguagem — só diagnósticos.
@@ -4506,7 +4508,7 @@ individuais:
 
 ## D-MEM030-BORROW-RUNTIME — o B-03 ganha a metade RUNTIME: estado de borrow gravável no `Buffer(U8)`, com prova cross-target total (mantenedora 30/09/2026, múltipla escolha "Borrow-state + prova cross total")
 
-**State:** DECIDED (mantenedora) — estende `D-MEM020-COMPILE`; a mantenedora rejeitou aceitar a metade runtime como gap. A implementação pertence à lane memory-safety (frente `docs/development/memory-safety-plan.md`, fase-5 unidade 4).
+**State:** DECIDED (mantenedora) — estende `D-MEM020-COMPILE`; a mantenedora rejeitou aceitar a metade runtime como gap. A implementação pertence à lane memory-safety (frente `docs/memory-safety-plan.md`, fase-5 unidade 4).
 
 - **Questão:** o `MEM020` (B-03, `MemRule.java:36` `COMPILE_AND_RUNTIME`) entregou só a face de compilação sobre o `OwnershipPass` (`D-MEM020-COMPILE`); a metade runtime ("Passar o mesmo `Buffer` para duas chamadas FFI concorrentes sem sync") ficou sem forma porque a opção B exigia primitiva nova de núcleo. A mantenedora decidiu 30/09 que nenhum gap é aceito — a metade runtime tem de ser desenvolvida.
 - **Decisão:** implementar a **opção B — estado de borrow gravável em runtime no objeto `Buffer`**: um flag de borrow (e a identidade da task detentora) mantido pelo runtime do `Buffer` (native/JVM/JS); uma escrita INOUT de `extern` tenta adquirir um borrow gravável exclusivo, e um segundo borrow gravável concorrente (dois `spawn`s, ou worker×parente sem `await`) levanta `MEM020` em runtime. Escritor único e um `await` no meio seguem limpos (mesma forma da face de compilação).
