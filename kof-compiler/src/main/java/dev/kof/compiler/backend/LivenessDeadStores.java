@@ -1,10 +1,12 @@
 package dev.kof.compiler.backend;
 
+import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofFunctionAddress;
 import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofStoreLocal;
+import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.SourcePosition;
 
 import java.util.ArrayList;
@@ -46,6 +48,18 @@ public final class LivenessDeadStores implements IrPass {
     @Override
     public List<KofOperation> run(List<KofOperation> ops,
                                   Map<KofOperation, SourcePosition> positions) {
+        // §709 + §712 (both found in the wild): a store's liveness is UNSOUND
+        // around exception regions — a local assigned in a try/catch and read only
+        // in a catch/finally handler must survive, but the exception edge is easy
+        // to under-model. Rather than risk a third instance, this pass is
+        // CONSERVATIVE: it removes NOTHING from a method that has any try/catch.
+        // Exception-heavy methods lose the optimization; correctness is not
+        // negotiable. (Non-exception methods — the common case — keep it.)
+        for (KofOperation op : ops) {
+            if (op instanceof KofTryStart || op instanceof KofCatchStart) {
+                return ops;
+            }
+        }
         LivenessAnalysis live = LivenessAnalysis.ofOps(ops);
         Set<KofOperation> dead = Collections.newSetFromMap(new IdentityHashMap<>());
         KofOperation prev = null;

@@ -90,4 +90,22 @@ class LivenessDeadStoresTest {
         assertTrue(out.stream().anyMatch(o -> o instanceof KofStoreLocal),
                 "a slot read in a later arm keeps its store");
     }
+
+    @Test
+    void aMethodWithATryRemovesNothing() {
+        // §709 + §712: the pass is CONSERVATIVE around exception regions — a store
+        // that looks dead must survive because a catch/finally may read it through
+        // the (under-modelable) exception edge. Nothing is removed from any method
+        // that has a try/catch.
+        LabelId start = new LabelId(0), end = new LabelId(1), handler = new LabelId(2), after = new LabelId(3);
+        List<KofOperation> ops = List.of(
+                KofLoadLiteral.ofInt(9), store(1),
+                new KofTryStart(start, end, handler, "String", 4),
+                new KofLabel(start), new KofLabel(end), new KofJump(after),
+                new KofCatchStart(handler, "String", 4), load(1), new KofReturnVoid(),
+                new KofLabel(after), new KofReturnVoid());
+        List<KofOperation> out = run(ops);
+        assertEquals(ops.size(), out.size(),
+                "a method with a try/catch removes nothing (conservative)");
+    }
 }
