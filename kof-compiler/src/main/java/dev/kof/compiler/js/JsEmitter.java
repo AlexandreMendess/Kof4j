@@ -240,6 +240,13 @@ public final class JsEmitter {
                     indent++;
                     for (JsIr.JsStatement s : t.finallyBody()) emitStatement(s);
                     indent--;
+                } else if (t.catches() == null || t.catches().isEmpty()) {
+                    // §703: o corpo do finally foi esvaziado (o otimizador
+                    // removeu um dead store) e não há catch — sem isto o JS
+                    // emite `try { ... }` sem cláusula (SyntaxError). Um
+                    // `finally {}` mantém a sintaxe e a semântica (o finally
+                    // vazio não faz nada).
+                    line("} finally {");
                 }
                 line("}");
                 // DD-01 (bug 45): epílogo do return que saiu do try — roda DEPOIS

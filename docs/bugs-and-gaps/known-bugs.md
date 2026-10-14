@@ -17155,7 +17155,7 @@ compiled on JVM/Script/native x86-64/riscv64/aarch64 (all returning `11`) but on
 
 <!-- pt-switch --> **PT:** [§702 (pt_BR)](known-bugs.pt_BR.md#702--um-try-aninhado-num-try-cujo-try-interno-tem-um-finally-nao-compilava-no-js-um-erro-interno-do-compilador-comp002-kofjs-unexpected-kofcatchstart-at-statement-level---corrigido-1310-achado-1310-pela-lane-compiladorjvmnativo-19216815309092-corrigido-pela-mesma-lane)
 
-## §703 — a `return` inside a `try`/`finally` inside a LOOP emits WRONG JS on the JS backend: `undefined` (return nested in an `if`), or INVALID JS (`SyntaxError: Missing catch or finally after try` / `ReferenceError: _idx is not defined`, return as the try's last statement) — 🟡 OPEN (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+## §703 — a `return` inside a `try`/`finally` inside a LOOP emits WRONG JS on the JS backend: `undefined` (return nested in an `if`), or INVALID JS (`SyntaxError: Missing catch or finally after try` / `ReferenceError: _idx is not defined`, return as the try's last statement) — 🟡 PARTIALLY FIXED 14/10 (non-loop + return-in-`if`/`catch`/nested shapes FIXED; the for-in trailing-return shape remains → §710) — lane compiler/JVM/native `192.168.15.30:9092`
 
 **Symptom (measured 13/10 through the COMPILER MODULE):**
 
@@ -17182,9 +17182,11 @@ returns `100` on JVM/Script/native x86-64/riscv64/aarch64 but **`undefined` on J
 
 **Why it was left OPEN:** the value is silently wrong (or uncompilable) on ONE target; the fix is a structural change to the return-finally reconstruction, a shared-IR area that four prior bugs (§617, DD-01, bug45, §147) already touched. Recorded with the exact attempted patch and its measured outcome so the next pass starts from evidence, not from scratch.
 
+**Fix (PARTIALLY LANDED 14/10):** the JS backend now converts a `#retVal` store INSIDE a try that has a return-finally (both the try body and each catch body) into `return X` — JS's NATIVE try/finally then runs the finally on the abrupt completion — and DROPS the inline epilogue; a try with an EMPTY finally and no catch emits an explicit `finally {}` so the syntax stays valid (the optimizer had removed the finally's dead store, leaving `try { ... }` with no clause → SyntaxError). `JsMethodParser`/`JsTryParser`/`JsExpressionParser`/`JsEmitter`. **Fixed shapes (measured, `JsReturnTryFinallyE2ETest` 3/0F, RED-first):** non-loop trailing return (`SyntaxError` → `5`), `return` nested in an `if` inside a try/finally inside a loop (`undefined` → `100`), nested try/finally (`inner|outer|1|inner|outer|2`), and a `return` in the catch with finally. **REMAINING (→ §710):** a trailing `return` as the try body's LAST statement inside a for-in still breaks the for-in reconstruction. Battery 654 run / 0F; zero regression.
+
 **Boundary (CORRECTED 13/10 by a second measurement):** the JS backend only; the other five targets are correct. **The claim "the non-loop shape is correct" was WRONG** — the minimal NON-loop repro `Int f() { var x = 0; try { return 5 } finally { x = 7 } return x }` ALSO emits invalid JS (`Missing catch or finally after try`): the generated function is `try { _retVal = 5; }` with the finally clause DROPPED, then `return _retVal;`. The shape is sensitive to the finally BODY: `finally { x += 7 }` (compound) and `finally { println("fin") }` (a call) survive, while `finally { x = 7 }` (simple assign) and `finally { var z = 1 }` (a decl) drop the clause. So the bug is NOT loop-specific — it is the trailing-`return`-in-`try`-with-`finally` shape generally, and the earlier "non-loop is correct" note came from a probe whose finally body happened to be a compound statement. `break`/`continue` inside a try/finally (already fixed by an earlier lane, §6xx) are NOT this bug.
 
-<!-- pt-switch --> **PT:** [§703 (pt_BR)](known-bugs.pt_BR.md#703--um-return-dentro-de-um-tryfinally-dentro-de-um-loop-emite-js-errado-no-backend-js-undefined-return-aninhado-num-if-ou-js-invalido-syntaxerror-missing-catch-or-finally-after-try--referenceerror-_idx-is-not-defined-return-como-ultimo-statement-do-try---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
+<!-- pt-switch --> **PT:** [§703 (pt_BR)](known-bugs.pt_BR.md#703--um-return-dentro-de-um-tryfinally-dentro-de-um-loop-emite-js-errado-no-backend-js-undefined-return-aninhado-num-if-ou-js-invalido-syntaxerror-missing-catch-or-finally-after-try--referenceerror-_idx-is-not-defined-return-como-ultimo-statement-do-try---parcialmente-corrigido-1410-formas-non-loop--return-em-ifcatchaninhado-corrigidas-a-forma-for-in-trailing-return-resta--710--lane-compiladorjvmnativo-19216815309092)
 
 ## §704 — a LOOP whose body unconditionally terminates (`return`/`throw` as its last executed statement) emits INVALID JS: the optimizer removes the loop's back-edge, the JS reconstruction then rebuilds an `if` and DROPS the loop setup, so the program dies with `ReferenceError: _idx is not defined` — 🟡 OPEN (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 
@@ -17377,6 +17379,46 @@ returns `1` on JVM/Script/native when the IR optimizer is DISABLED, but with it 
 **Boundary:** the production IR optimizer (all six targets consume the optimized IR, so all six diverge when the optimizer is on); NOT a JS-backend bug. Distinct from §707/§708 (JS reconstruction).
 
 <!-- pt-switch --> **PT:** [§709](known-bugs.pt_BR.md#709--o-pass-phase-c-livenessdeadstores-remove-a-inicializacao-de-um-local-lido-so-num-handler-catchfinally-o-cfg-da-liveness-nao-modela-a-aresta-de-excecao-koftrystarthandlerlabel-e-carregado-pelo-op-kofcatchstart-nao-por-um-koflabel-entao-blockofhandler-devolve--1-e-a-aresta-e-descartada-em-silencio--o-script-lanca-not-an-int-null-e-o-jvm-lanca-verifyerror-bad-local-variable-type---corrigido-1310-achado-e-corrigido-1310-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §710 — a for-in loop whose body is a try/finally ending in a TRAILING `return` loses its loop structure on JS: the for-in PROLOGUE (`_coll`/`_idx` init) and increment are dropped and the loop renders as a bare `if` (`_coll`/`_idx` read as `undefined`) — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):**
+
+```kof
+Int f() {
+    var r = 0
+    for (var i in listOf(0, 1, 2)) {
+        try {
+            r += i
+            return r
+        } finally {
+            r += 10
+        }
+    }
+    return r
+}
+```
+
+returns `0` on JVM/Script/native but on JS the generated function is:
+
+```js
+r = 0;
+if ((_idx < kofListSize(_coll))) {   // the `while` became an `if`; `_coll`/`_idx` never initialized
+    _forInVar = kofListGet(_coll, _idx);
+    try { r = ((r + _forInVar) | 0); return r; } finally { r = ((r + 10) | 0); }
+    return r;
+}
+```
+
+The for-in PROLOGUE (`_coll = listOf(...)`; `_idx = 0`) and the increment (`_idx = _idx + 1`) are MISSING, so `_coll`/`_idx` are `undefined` → `TypeError: Cannot read property 'length' of undefined`. **The IR is CORRECT** (the prologue ops are present) — the JS for-in reconstruction drops them.
+
+**Root (analysis):** the for-in is desugared to `_coll = <list>; _idx = 0; while (_idx < size(_coll)) { _forInVar = get(_coll, _idx); <body>; _idx++ }`. When the try body's LAST statement is a `return`, the try's region-exit / trailing-jump consumption in the JS reconstruction consumes the for-in's prologue and increment ops, and the loop's back-edge is lost — the condition CJump is then rendered as a plain `if` with the init gone. The `return` NESTED in an `if` does NOT trigger it (only the TRAILING return), which is why §703's `loop_retInIf` shape is fixed while this one is not.
+
+**Fix path (named, NOT landed):** the JS for-in reconstruction must re-emit (or not consume) the loop prologue/increment when the body's region-exit consumes the loop tail — the same class of loop-boundary guard as §703/§704/§707. Must land with the loop/for-in battery as the regression net.
+
+**Boundary:** the JS backend only; the other five targets are correct. Distinct from §703 (the return-finally EPILOGUE placement, now fixed for the non-loop/return-in-if shapes) — this is the for-in loop STRUCTURE.
+
+<!-- pt-switch --> **PT:** [§710](known-bugs.pt_BR.md#710--um-loop-for-in-cujo-corpo-e-um-tryfinally-terminando-num-return-trailing-perde-a-estrutura-de-loop-no-js-o-prologo-do-for-in-_coll_idx-init-e-o-incremento-sao-descartados-e-o-loop-vira-um-if-puro-_coll_idx-lidos-como-undefined---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
