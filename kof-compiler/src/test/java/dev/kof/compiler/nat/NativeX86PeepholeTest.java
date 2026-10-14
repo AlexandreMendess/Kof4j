@@ -62,8 +62,40 @@ class NativeX86PeepholeTest {
 
     @Test
     void chainedPairsAllCollapse() {
-        String body = "    pushq %r13\n    popq %rax\n    shll $1, %eax\n    pushq %rax\n    popq %rcx\n";
-        assertEquals("    movq %r13, %rax\n    shll $1, %eax\n    movq %rax, %rcx\n", result(body));
+        String body = "    pushq %r13\n    popq %rax\n    shll $4, %eax\n    pushq %rax\n    popq %rcx\n";
+        assertEquals("    movq %r13, %rax\n    shll $4, %eax\n    movq %rax, %rcx\n", result(body));
+    }
+
+    @Test
+    void aMulByTwoBecomesLea() {
+        // movq %r13, %rax; shll $1, %eax  ->  leal (%r13d,%r13d), %eax
+        assertEquals("    leal (%r13d,%r13d), %eax\n",
+                result("    movq %r13, %rax\n    shll $1, %eax\n"));
+    }
+
+    @Test
+    void aMulByFourBecomesLeaWithScale() {
+        assertEquals("    leal 0(,%r13d,4), %eax\n",
+                result("    movq %r13, %rax\n    shll $2, %eax\n"));
+    }
+
+    @Test
+    void aMulByEightBecomesLeaWithScale() {
+        assertEquals("    leal 0(,%r13d,8), %eax\n",
+                result("    movq %r13, %rax\n    shll $3, %eax\n"));
+    }
+
+    @Test
+    void aLongMulByTwoUsesLeaq() {
+        assertEquals("    leaq (%r13,%r13), %rax\n",
+                result("    movq %r13, %rax\n    shlq $1, %rax\n"));
+    }
+
+    @Test
+    void aMulBySixteenIsNotFolded() {
+        // scale 16 has no lea form (max scale 8).
+        String body = "    movq %r13, %rax\n    shll $4, %eax\n";
+        assertEquals(body, result(body));
     }
 
     @Test

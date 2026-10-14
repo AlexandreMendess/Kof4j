@@ -77,6 +77,7 @@ final class NativeX86Peephole {
         }
         collapsed += collapseSpannedPushPop(lines);
         collapsed += foldScratchLoadIntoOp(lines);
+        collapsed += foldShiftToLea(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;
@@ -173,6 +174,72 @@ final class NativeX86Peephole {
 
     private static boolean mentionsRcx(String t) {
         return t.contains("%rcx") || t.contains("%ecx") || t.contains("%cl");
+    }
+
+    /**
+     * §7 x86_64 ("lea for suitable arithmetic operations"): folds
+     * {@code movq %X, %rax} + {@code shl{l,q} $N, %{e,r}ax} (N = 1/2/3, i.e. a
+     * multiply by 2/4/8 — what {@code StrengthReduction} produces) into a single
+     * {@code lea} that scales {@code %X} directly:
+     *
+     * <pre>
+     *   movq %rbx, %rax     leal (%rbx,%rbx), %eax     (x*2)
+     *   shll $1, %eax
+     * </pre>
+     *
+     * <p>{@code lea} computes the address {@code X + X*scale} = {@code X*(1+scale)},
+     * which for scale 1/2/4 is {@code 2X/4X/8X} — exactly the shift result (32-bit
+     * for `leal`, 64-bit for `leaq`, matching the shift width). One instruction
+     * instead of two. Only when the destination is {@code %rax} (the value register)
+     * and the source is not {@code %rax}.
+     */
+    private static int foldShiftToLea(List<String> lines) {
+        int folded = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 1 < lines.size(); i++) {
+                String mv = lines.get(i).trim();
+                if (!mv.startsWith("movq ") || !mv.endsWith(", %rax")) continue;
+                String x = mv.substring("movq ".length(), mv.length() - ", %rax".length()).trim();
+                if (!x.startsWith("%") || x.equals("%rax")) continue;
+                int j = i + 1;
+                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
+                if (j >= lines.size()) continue;
+                String sh = lines.get(j).trim();
+                String mnemonic;
+                int n;
+                boolean is64;
+                if (sh.startsWith("shll $") && sh.endsWith(", %eax")) {
+                    mnemonic = "leal";
+                    is64 = false;
+                } else if (sh.startsWith("shlq $") && sh.endsWith(", %rax")) {
+                    mnemonic = "leaq";
+                    is64 = true;
+                } else {
+                    continue;
+                }
+                try {
+                    n = Integer.parseInt(sh.substring(6, sh.indexOf(',')).trim());
+                } catch (NumberFormatException e) {
+                    continue;
+                }
+                String xr = is64 ? x : REG32.getOrDefault(x, x);
+                String lea = switch (n) {
+                    case 1 -> "    " + mnemonic + " (" + xr + "," + xr + "), " + (is64 ? "%rax" : "%eax") + "\n";
+                    case 2 -> "    " + mnemonic + " 0(," + xr + ",4), " + (is64 ? "%rax" : "%eax") + "\n";
+                    case 3 -> "    " + mnemonic + " 0(," + xr + ",8), " + (is64 ? "%rax" : "%eax") + "\n";
+                    default -> null;
+                };
+                if (lea == null) continue;
+                lines.set(i, lea.stripTrailing());
+                lines.remove(j);
+                folded++;
+                changed = true;
+                break;
+            }
+        }
+        return folded;
     }
 
     /**
