@@ -200,7 +200,7 @@ final class NativeMethodEmitter {
                     continue; // temporarios do lowering nao sao nome Kof
                 }
                 NativeDwarf.Local slot = new NativeDwarf.Local(lv.name(),
-                        NativeDwarf.slotOffset(lv.index()), dwarfKindOf(lv.type()));
+                        NativeDwarf.slotOffset(lv.index()), NativeDwarf.dwarfKindOf(lv.type()));
                 if (lv.name().equals("this") || lv.index() < paramSlotMax) {
                     params.add(slot);
                 } else {
@@ -208,7 +208,7 @@ final class NativeMethodEmitter {
                 }
             }
             nb.kofDwarf.add(mangled, method.name(), declLine,
-                    dwarfKindOf(method.returnType()), params, locals);
+                    NativeDwarf.dwarfKindOf(method.returnType()), params, locals);
         }
     }
 
@@ -220,24 +220,6 @@ final class NativeMethodEmitter {
     /** Restore the used callee-saved registers at a return (no-op when inactive). */
     private void restoreCalleeSavedForReturn(StringBuilder sb) {
         if (regLocals != null) regLocals.emitReturnRestore(sb);
-    }
-
-    static String dwarfKindOf(Type t) {
-        if (t instanceof Type.PrimitiveType pt) {
-            return switch (Type.canonicalPrimitiveName(pt.name())) {
-                case "int" -> "Int";
-                case "long" -> "Long";
-                case "short" -> "Short";
-                case "byte" -> "Byte";
-                case "float" -> "Float";
-                case "double" -> "Double";
-                case "bool", "boolean" -> "Bool";
-                case "char" -> "Char";
-                case "void" -> "Void";
-                default -> "Opaque";
-            };
-        }
-        return "Opaque"; // String/classes/arrays: handle 8B opaco (sem DW_TAG_structure p/ agora)
     }
 
     @SuppressWarnings("unused")
@@ -309,7 +291,7 @@ final class NativeMethodEmitter {
                     //  !endsWithReturn — que nunca roda para o main.)
                     sb.append("    call kof_spawn_join_all\n");
                 }
-                sb.append("    popq %rax\n");
+                NativeReturnEmit.popReturnValue(sb);
                 restoreCalleeSavedForReturn(sb);
                 sb.append("    movq %rbp, %rsp\n");
                 sb.append("    popq %rbp\n");
