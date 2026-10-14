@@ -2172,6 +2172,71 @@ class DecompileTest {
         assertEquals("10\nn:7\n42\nB\n4\n6", output, "zero-drift: static-init + boxing id\u00eanticos ao Java");
     }
 
+    @Test
+    void domainObjectCollectionsRecover(@TempDir Path dir) throws Exception {
+        // VALIDA\u00c7\u00c3O (14/10): COLE\u00c7\u00d5ES de OBJETOS de dom\u00ednio (o
+        // padr\u00e3o repositório: List<Prod> + filtros/agregações) — o
+        // checkcast do dom\u00ednio no modo 1-arquivo recusava (o treeScope
+        // era null) → o nome SIMPLES do n\u00e3o-JDK \u00e9 fiel: o .kf irmão
+        // decompilado declara a classe. Zero-drift executado.
+        Path prodFile = dir.resolve("Pr.java");
+        Files.writeString(prodFile, """
+                public class Pr {
+                    String id; int stock;
+                    Pr(String id, int stock) { this.id = id; this.stock = stock; }
+                    int stock() { return stock; }
+                    String id() { return id; }
+                }
+                """);
+        Path repoFile = dir.resolve("Rp.java");
+        Files.writeString(repoFile, """
+                import java.util.List;
+                import java.util.ArrayList;
+                public class Rp {
+                    static List<Pr> lowStock(List<Pr> ps, int min) {
+                        List<Pr> out = new ArrayList<>();
+                        for (Pr p : ps) { if (p.stock() < min) { out.add(p); } } return out;
+                    }
+                    static Pr maxStock(List<Pr> ps) {
+                        Pr best = ps.get(0);
+                        for (Pr p : ps) { if (p.stock() > best.stock()) { best = p; } } return best;
+                    }
+                    static int totalUnits(List<Pr> ps) {
+                        int t = 0; for (Pr p : ps) { t += p.stock(); } return t;
+                    }
+                    static boolean allAvailable(List<Pr> ps) {
+                        for (Pr p : ps) { if (p.stock() <= 0) { return false; } } return true;
+                    }
+                }
+                """);
+        // os DOIS no mesmo javac (o Rp referencia o Pr)
+        runJavac(java.util.List.of(prodFile, repoFile), dir);
+        String prodKof = Decompile.decompile(dir.resolve("Pr.class"));
+        String repoKof = Decompile.decompile(dir.resolve("Rp.class"));
+        assertFalse(prodKof.contains("body not recovered"), prodKof);
+        assertFalse(repoKof.contains("body not recovered"), repoKof);
+        assertTrue(repoKof.contains("as Pr"), "o cast do dom\u00ednio:\n" + repoKof);
+        // o kofRun \u00c9 S\u00d3 o main (as classes j\u00e1 est\u00e3o nos pr\u00f3prios arquivos)
+        String kofRun = "\nmain() {\n    var ps = listOf(Pr(\"a\", 5), Pr(\"b\", 0), Pr(\"c\", 12))\n    println(Rp.totalUnits(ps))\n    println(Rp.maxStock(ps).id())\n    println(Rp.lowStock(ps, 3).size())\n    println(Rp.allAvailable(ps))\n}\n";
+        // writeKof usa nome FIXO (Arr.kf) — os DOIS arquivos com nomes próprios
+        Path prodK = dir.resolve("ProdK.kf");
+        Path repoK = dir.resolve("RepoK.kf");
+        Files.writeString(prodK, prodKof);
+        Files.writeString(repoK, repoKof + kofRun);   // o main vai no Repo
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                prodK, repoK), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 17 | c | 1 | false
+        assertEquals("17\nc\n1\nfalse", output, "zero-drift: cole\u00e7\u00f5es de objetos id\u00eanticas ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

@@ -276,7 +276,16 @@ final class BytecodeKofTypes {
                 String t = inlineKofType(cp, cpIdx);
                 if (t == null) {
                     t = indexKofType(cp, cpIdx, frame);
-                    if (t == null) return false;
+                    if (t == null) {
+                        // Fase E (14/10): classe de DOMÍNIO não-JDK no modo
+                        // 1-arquivo (sem treeScope) → o NOME SIMPLES é fiel:
+                        // o .kf irmão decompilado declara a classe (medido no
+                        // Repo/Prod: `(arg0.get(0) as Prod)` compila e roda)
+                        String internal = indexInternalName(cp, cpIdx);
+                        if (internal == null || BytecodeCp.isJdkClass(cp, cpIdx)) return false;
+                        int slash = internal.lastIndexOf('/');
+                        t = slash >= 0 ? internal.substring(slash + 1) : internal;
+                    }
                     stack.push("(" + stack.pop() + " as " + t + ")");
                     return true;
                 }
