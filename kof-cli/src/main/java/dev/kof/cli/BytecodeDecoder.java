@@ -400,8 +400,8 @@ import java.util.Set;
         int lastOp = block.get(block.size() - 1).opcode();
         if (lastOp >= 0x99 && lastOp <= 0x9e && block.size() >= 4
                 && block.get(block.size() - 2).opcode() == 0x94) {
-            String x = loadValue(block.get(block.size() - 4), frame);
-            String y = loadValue(block.get(block.size() - 3), frame);
+            String x = BytecodeDecoderStack.loadValue(block.get(block.size() - 4), frame);
+            String y = BytecodeDecoderStack.loadValue(block.get(block.size() - 3), frame);
             String lcmpInv = switch (lastOp) {
                 case 0x99 -> "!="; case 0x9a -> "=="; case 0x9b -> ">=";
                 case 0x9c -> "<"; case 0x9d -> "<="; case 0x9e -> ">";
