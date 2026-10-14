@@ -355,30 +355,18 @@ final class NativeX86Peephole {
                 while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
                 if (j >= lines.size()) continue;
                 String sh = lines.get(j).trim();
-                String mnemonic;
-                int n;
-                boolean is64;
+                String lea;
                 if (sh.startsWith("shll $") && sh.endsWith(", %eax")) {
-                    mnemonic = "leal";
-                    is64 = false;
+                    lea = leaForShift(sh, x, false);
                 } else if (sh.startsWith("shlq $") && sh.endsWith(", %rax")) {
-                    mnemonic = "leaq";
-                    is64 = true;
+                    lea = leaForShift(sh, x, true);
+                } else if (sh.startsWith("imull $") && sh.endsWith(", %eax")) {
+                    lea = leaForImul(sh, x, false);
+                } else if (sh.startsWith("imulq $") && sh.endsWith(", %rax")) {
+                    lea = leaForImul(sh, x, true);
                 } else {
                     continue;
                 }
-                try {
-                    n = Integer.parseInt(sh.substring(6, sh.indexOf(',')).trim());
-                } catch (NumberFormatException e) {
-                    continue;
-                }
-                String xr = is64 ? x : REG32.getOrDefault(x, x);
-                String lea = switch (n) {
-                    case 1 -> "    " + mnemonic + " (" + xr + "," + xr + "), " + (is64 ? "%rax" : "%eax") + "\n";
-                    case 2 -> "    " + mnemonic + " 0(," + xr + ",4), " + (is64 ? "%rax" : "%eax") + "\n";
-                    case 3 -> "    " + mnemonic + " 0(," + xr + ",8), " + (is64 ? "%rax" : "%eax") + "\n";
-                    default -> null;
-                };
                 if (lea == null) continue;
                 lines.set(i, lea.stripTrailing());
                 lines.remove(j);
@@ -388,6 +376,53 @@ final class NativeX86Peephole {
             }
         }
         return folded;
+    }
+
+    /** The immediate of a {@code mnem $N, %reg} line, or Integer.MIN_VALUE when absent. */
+    private static int parseImmediate(String line) {
+        int dollar = line.indexOf('$');
+        int comma = line.indexOf(',');
+        if (dollar < 0 || comma < 0 || comma < dollar) return Integer.MIN_VALUE;
+        try {
+            return Integer.parseInt(line.substring(dollar + 1, comma).trim());
+        } catch (NumberFormatException e) {
+            return Integer.MIN_VALUE;
+        }
+    }
+
+    /** {@code shl{l,q} $N, %ax} (N=1/2/3) as a {@code lea} scaling X, or null. */
+    private static String leaForShift(String sh, String x, boolean is64) {
+        int n = parseImmediate(sh);
+        if (n == Integer.MIN_VALUE) return null;
+        String mnemonic = is64 ? "leaq" : "leal";
+        String ax = is64 ? "%rax" : "%eax";
+        String xr = is64 ? x : REG32.getOrDefault(x, x);
+        return switch (n) {
+            case 1 -> "    " + mnemonic + " (" + xr + "," + xr + "), " + ax + "\n";
+            case 2 -> "    " + mnemonic + " 0(," + xr + ",4), " + ax + "\n";
+            case 3 -> "    " + mnemonic + " 0(," + xr + ",8), " + ax + "\n";
+            default -> null;
+        };
+    }
+
+    /**
+     * {@code imul{l,q} $N, %ax} for N=3/5/9 as a {@code lea}: X*3 = lea (X,X,2),
+     * X*5 = lea (X,X,4), X*9 = lea (X,X,8). Other N have no base+index*scale form.
+     */
+    private static String leaForImul(String im, String x, boolean is64) {
+        int n = parseImmediate(im);
+        if (n == Integer.MIN_VALUE) return null;
+        String mnemonic = is64 ? "leaq" : "leal";
+        String ax = is64 ? "%rax" : "%eax";
+        String xr = is64 ? x : REG32.getOrDefault(x, x);
+        int scale = switch (n) {
+            case 3 -> 2;
+            case 5 -> 4;
+            case 9 -> 8;
+            default -> -1;
+        };
+        if (scale < 0) return null;
+        return "    " + mnemonic + " (" + xr + "," + xr + "," + scale + "), " + ax + "\n";
     }
 
     /**

@@ -202,10 +202,28 @@ class NativeX86PeepholeTest {
     }
 
     @Test
-    void aLoadIntoAMultiplyIsNotFolded() {
-        // `imull $1, %eax` is neither a compare nor an add -> the movq must stay.
-        String body = "    movq %rbx, %rax\n    imull $3, %eax\n";
+    void aLoadIntoANonFoldableOpIsKept() {
+        // `imull $7, %eax` (7 has no lea form) is neither a compare nor an add -> the movq must stay.
+        String body = "    movq %rbx, %rax\n    imull $7, %eax\n";
         assertEquals(body, result(body));
+    }
+
+    @Test
+    void aMultiplyByThreeBecomesLea() {
+        assertEquals("    leal (%ebx,%ebx,2), %eax\n",
+                result("    movq %rbx, %rax\n    imull $3, %eax\n"));
+    }
+
+    @Test
+    void aMultiplyByFiveBecomesLea() {
+        assertEquals("    leal (%ebx,%ebx,4), %eax\n",
+                result("    movq %rbx, %rax\n    imull $5, %eax\n"));
+    }
+
+    @Test
+    void aMultiplyByNineBecomesLea() {
+        assertEquals("    leal (%ebx,%ebx,8), %eax\n",
+                result("    movq %rbx, %rax\n    imull $9, %eax\n"));
     }
 
     @Test
