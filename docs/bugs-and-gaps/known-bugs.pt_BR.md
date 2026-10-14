@@ -14797,7 +14797,7 @@ compila e devolve `3` em JVM/Script/nativo x86-64/riscv64/aarch64, mas no **JS o
 
 <!-- en-switch --> **EN:** [§707 (en)](known-bugs.md#707--a-do-while-loop-whose-body-contains-a-break-or-continue-does-not-compile-on-js-the-backend-throws-an-internal-compiler-error-comp002-kofjs-unexpected-op-in-expression-statement-kofconditionaljump---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
 
-## §708 — um LOCAL declarado com inicializador e depois atribuído dentro de um `if`/`else` perde a declaração no JS: o `let` vai para DENTRO do ramo e o outro ramo o referencia sem declarar — `ReferenceError: <var> is not defined` em runtime (e o inicializador é descartado) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §708 — um LOCAL declarado com inicializador e depois atribuído dentro de um `if`/`else` perde a declaração no JS: o `let` vai para DENTRO do ramo e o outro ramo o referencia sem declarar — `ReferenceError: <var> is not defined` em runtime (e o inicializador é descartado) — ✅ CORRIGIDO 13/10 (achado e corrigido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
 
@@ -14835,11 +14835,39 @@ O runtime morre com `ReferenceError: w is not defined`. A mesma forma se reprodu
 
 **Por que ficou escondido:** os testes que exercitam essa forma TAMBÉM têm um passo de oráculo JVM, e neste host o launcher JVM imprime "os componentes de runtime do JavaFX não foram encontrados" e sai com código não-zero — o que parece um problema de ambiente. **Pela regra do projeto, uma mensagem de JavaFX ausente NUNCA é benigna: ela estava MASCARANDO este `ReferenceError` real do lado do JS.** A falha do JS está presente COM e SEM o fix do §707 (verificado), então é pré-existente, não uma regressão daquela unidade.
 
-**Caminho de correção (nomeado, NÃO pousado):** emitir o `let` JS de um local no seu PONTO DE DECLARAÇÃO (o store produzido pela declaração da variável) e manter as atribuições posteriores como atribuições simples — o bookkeeping de predecl/declaração no parser de método do JS precisa registrar o slot no store de declaração, não no primeiro store condicional. Tem de pousar com a bateria if/loop/locais como rede de regressão.
+**Correção (POUSADA):** o `JsMethodParser.parseMethodBody` agora pré-declara TODOS os locais no TOPO do método ANTES de parsear o corpo (antes o predecl rodava DEPOIS do parse do corpo, então o `storeLocalStatement` já tinha emitido um `let x = v` inline no primeiro store de cada slot). Com todos os slots declarados no topo, nenhum store emite `let` inline e todo store é atribuição simples — a declaração fica sempre no escopo do método, robusto a IR otimizado. Um bloco movido + um filtro de temp `#`, aditivo.
 
 **Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Distinto do §707 (do-while break/continue) e do §703/§704 (reconstrução de loop/try) — isto é COLOCAÇÃO DA DECLARAÇÃO de local.
 
-<!-- en-switch --> **EN:** [§708 (en)](known-bugs.md#708--a-local-declared-with-an-initializer-then-assigned-inside-an-ifelse-loses-its-declaration-on-js-the-let-moves-inside-the-branch-and-the-other-branch-references-it-undeclared--referenceerror-var-is-not-defined-at-runtime-and-the-initializer-is-dropped---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§708 (en)](known-bugs.md#708--a-local-declared-with-an-initializer-then-assigned-inside-an-ifelse-loses-its-declaration-on-js-the-let-moves-inside-the-branch-and-the-other-branch-references-it-undeclared--referenceerror-var-is-not-defined-at-runtime-and-the-initializer-is-dropped---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §709 — o pass Phase C `LivenessDeadStores` REMOVE a inicialização de um local LIDO SÓ num handler `catch`/`finally`: o CFG da liveness não modela a aresta de exceção (`KofTryStart.handlerLabel` é carregado pelo op `KofCatchStart`, não por um `KofLabel`), então `blockOf(handler)` devolve `-1` e a aresta é descartada em silêncio — o Script lança `not an int: null` e o JVM lança `VerifyError: Bad local variable type` — ✅ CORRIGIDO 13/10 (achado e corrigido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR, otimizador LIGADO):**
+
+```kof
+Int catchOnlyRead() {
+    var r = 0
+    try {
+        throw "x"
+    } catch (String e) {
+        r += 1
+    }
+    return r
+}
+```
+
+devolve `1` em JVM/Script/nativo com o otimizador de IR DESLIGADO, mas LIGADO: o Script lança `ClassCastException: not an int: null` (o catch lê um `r` nunca armazenado) e o JVM `Default.Main` não verifica com `VerifyError: Bad local variable type ... iload_0 ... Type top`. A face `finally` é a mesma: `try { r = 3 } finally { r += 2 }` dá o mesmo `VerifyError`. **É uma REGRESSÃO introduzida pelo commit `66a2fb756` (assembly-opt Phase B/C CLOSE), que ligou `ConstantPropagation`/`CopyPropagation`/`DeadCodeElimination`/`LivenessDeadStores` no `Optimizer` de produção** — os testes que ele quebrou também têm um passo de oráculo JVM, e o launcher JVM imprime a mensagem FALSA "os componentes de runtime do JavaFX não foram encontrados" para uma classe que falha ao VERIFICAR, então o `VerifyError` ficou mascarado. **Mensagem de JavaFX ausente NUNCA é benigna.**
+
+**Raiz (análise, duas facetas):** (a) o `ControlFlowGraph` calcula líderes de bloco só a partir de alvos de `KofJump`/`KofConditionalJump` — nem `KofTryStart.handlerLabel` (carregado pelo op `KofCatchStart`, NÃO por um `KofLabel`) nem o próprio `KofTryStart` são fronteira, então `blockOf(handler)` é `-1` e o laço de aresta de exceção do `LivenessAnalysis` (`if (h >= 0 ...)`) descarta a aresta em SILÊNCIO; (b) mesmo com o handler mapeado, um store ANTES do `KofTryStart` (ex.: `r = 0`) compartilha o bloco protegido, então o walk backward mata `r` no def posterior `r = 3` — mas a exceção pode disparar ANTES desse def, então o liveIn do handler não pode ser morto pelos defs do bloco.
+
+**Correção (POUSADA):** o `ControlFlowGraph` marca um `KofCatchStart` E um `KofTryStart` como líderes de bloco, e mapeia o `handlerLabel` de cada try ao bloco do seu `KofCatchStart` (o alvo da aresta de exceção); o `LivenessAnalysis` adiciona o liveIn do handler de cada bloco como um pseudo-USE do bloco, então a liveness do handler não é morta pelos defs da região protegida. Com a aresta de exceção presente, um slot lido só num handler está vivo e seu store é preservado.
+
+**Prova RED-first:** `CatchLivenessDeadStoreE2ETest` (novo) **6 run / 0F**; com o fix do CFG + liveness REVERTIDO todas as seis faces falham (Script `not an int: null`, JS errado, nativo errado). O caso cobre catch-only-read, catch+after, catch aninhado e finally-only-read.
+
+**Fronteira:** o otimizador de IR de produção (todos os seis alvos consomem o IR otimizado, então todos os seis divergem com o otimizador ligado); NÃO é bug do backend JS. Distinto de §707/§708 (reconstrução JS).
+
+<!-- en-switch --> **EN:** [§709](known-bugs.md#709--the-phase-c-livenessdeadstores-pass-removes-the-initialization-of-a-local-that-is-read-only-in-a-catchfinally-handler-the-liveness-cfg-does-not-model-the-exception-edge-koftrystarthandlerlabel-is-carried-by-the-kofcatchstart-op-not-a-koflabel-so-blockofhandler-returns--1-and-the-edge-is-silently-dropped--the-script-throws-not-an-int-null-and-the-jvm-throws-verifyerror-bad-local-variable-type---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 

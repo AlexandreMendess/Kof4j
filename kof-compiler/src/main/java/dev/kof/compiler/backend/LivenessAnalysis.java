@@ -118,6 +118,22 @@ public final class LivenessAnalysis {
             liveOut.add(new LinkedHashSet<>());
         }
 
+        // §709 (face finally): para cada bloco, os handlers de exceção dos KofTryStart nele —
+        // o liveIn do handler é vivo no INÍCIO do bloco (a exceção pode ocorrer
+        // antes de qualquer def da região protegida), então NÃO pode ser morto
+        // pelos defs do bloco.
+        List<List<Integer>> tryHandlers = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            List<Integer> hs = new ArrayList<>();
+            for (KofOperation op : blocks.get(i).operations()) {
+                if (op instanceof KofTryStart ts) {
+                    int h = cfg.blockOf(ts.handlerLabel());
+                    if (h >= 0) hs.add(h);
+                }
+            }
+            tryHandlers.add(hs);
+        }
+
         // Backward fixpoint (deterministic order; iterate until stable).
         boolean changed = true;
         while (changed) {
@@ -128,6 +144,9 @@ public final class LivenessAnalysis {
                 Set<Integer> in = new LinkedHashSet<>(use.get(i));
                 for (int s : out) {
                     if (!def.get(i).contains(s)) in.add(s);
+                }
+                for (int h : tryHandlers.get(i)) {
+                    in.addAll(liveIn.get(h));
                 }
                 if (!out.equals(liveOut.get(i))) {
                     liveOut.set(i, out);
