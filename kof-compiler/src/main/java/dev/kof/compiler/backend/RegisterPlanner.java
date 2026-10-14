@@ -103,13 +103,35 @@ public final class RegisterPlanner {
 
     /**
      * Whether a method is ELIGIBLE for the register-mapped local model (Phase D
-     * switch-over). Any method qualifies. Exception methods are eligible too: the
-     * emission stores a caught exception to the local's register when it is
-     * register-placed ({@code KofCatchStart} is placement-aware). References and
-     * double-width locals still stay in the frame via {@link
-     * RegisterAssignment#placeable}, so only int/bool locals are register-placed.
+     * switch-over).
+     *
+     * <p><b>Methods that CALL are NOT eligible (issue #841/#839 regression gate,
+     * measured 14/10).</b> With the feature on, a method that calls another
+     * function mis-coloured a live local/param: `Av1CflGeometryE2ETest
+     * #av1CflRegionOnNativeX86` read a param as `1` where it should be `4` (and
+     * a hash constant `8192` where it should vary) — the same defect behind the
+     * `RasterDecode`/AV1 native faces of #839. Disabling the whole feature
+     * (`-Dkof.native.register.locals=false`) makes those tests pass; restricting
+     * eligibility to call-FREE methods makes them pass too. A method with 9
+     * register-worthy locals and NO call is correct, so the defect is specific to
+     * the call path (the interference/colouring does not protect a value live
+     * across a call). The precise fix — model the call-clobber in the
+     * interference graph — is the D-CODEGEN-REWRITE lane's follow-up; until then
+     * this conservative gate keeps the idiom CORRECT (frame locals, the
+     * pre-feature behaviour) at the cost of the optimisation on calling methods.
+     *
+     * <p>Exception methods are eligible too: the emission stores a caught
+     * exception to the local's register when it is register-placed
+     * ({@code KofCatchStart} is placement-aware). References and double-width
+     * locals still stay in the frame via {@link RegisterAssignment#placeable}, so
+     * only int/bool locals are register-placed.
      */
     public static boolean eligibleForRegisterLocals(IRMethod method) {
+        for (var b : method.basicBlocks()) {
+            for (var op : b.operations()) {
+                if (op instanceof dev.kof.compiler.KofCall) return false;
+            }
+        }
         return true;
     }
 }
