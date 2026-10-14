@@ -83,6 +83,10 @@ public final class JsClassEmitter {
                 methods.add(new JsIr.JsFunction("_kof_clinit", clinit.parameters(), clinit.body(),
                         true, false, false, clinit.isAsync(), clinit.kofLine()));
             } else {
+                // §724: um método ABSTRACT de interface não tem corpo — emitir
+                // um stub quebraria a classe JS. Uma interface só chega aqui
+                // quando tem membro static (skipClass).
+                if ((method.accessFlags() & AccessFlags.ABSTRACT) != 0) continue;
                 boolean isStatic = (method.accessFlags() & AccessFlags.STATIC) != 0;
                 methods.add(p.lowerFunction(method, clazz, isStatic));
             }

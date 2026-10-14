@@ -15133,6 +15133,54 @@ compila LIMPO (sem diagnóstico) e a classe emitida referencia `Foobar` — no l
 
 <!-- pt-switch --> **EN:** [§723 (en)](known-bugs.md#723--the-d-codegen-rewrite-register-locals-flip-kofnativeregisterlocals-default-true-c044a2add-breaks-the-avif-native-x86-faces-av1decodetilerecone2etestav1decodetilerecononnativex86-and-av1coeffse2etestav1coeffsonnativex86-both-pass-with-the-escape-hatch-off-and-fail-with-the-flag-on--and-the-flips-own-commit-message-records-the-coeffs-failure-as-pre-existent-independent-of-this-change-which-this-measurement-contradicts---open-measured-1410-by-lane-pipelineimage-vision-19216815210)
 
+## §724 — uma interface com membro STATIC produzia `ReferenceError: Shape is not defined` no JS: `interface Shape { static Int sides() { return 4 } }` / `Shape.sides()` — JVM/Script/nativo imprimem `4`, o JS lança — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO COMPILADOR):**
+
+```kof
+interface Shape {
+    static Int sides() { return 4 }
+}
+main() { println(Shape.sides()) }
+```
+
+JVM/Script/nativo imprimem `4`; o backend JS lança `ReferenceError: Shape is not defined`.
+
+**Raiz:** o lowering JS descarta TODA interface (`JsLoweringContext.skipClass`: "JavaScript has no runtime interface..."), o que vale para métodos de INSTÂNCIA (dispatch estrutural) mas NÃO para um membro STATIC — uma chamada estática `Shape.sides()` NOMEIA a interface, então precisa de uma entidade JS real.
+
+**Correção (POUSADA):** o `skipClass` não descarta mais uma interface que tenha membro STATIC (método ou campo); uma interface puramente abstrata ainda não precisa de entidade. O emitter de classe pula métodos ABSTRACT (sem corpo), então só o corpo estático real é emitido.
+
+**Prova (executada, RED-first):** o novo `JsInterfaceStaticMemberE2ETest` **4 run / 0F** (JVM/Script/JS/nativo x86); com o fix revertido a face JS lança o `ReferenceError`. Bateria JS/interface/static/enum/lambda **480 run / 0F / 25 skipped**.
+
+**Fronteira:** só o backend JS; os outros cinco alvos corretos. Uma CONSTANTE de interface usada NÃO-qualificada dentro de um implementador é uma face distinta (§725).
+
+<!-- en-switch --> **EN:** [§724](known-bugs.md#724--an-interface-with-a-static-member-produced-referenceerror-shape-is-not-defined-on-js-interface-shape--static-int-sides--return-4----shapesides--jvmscriptnative-print-4-js-throws---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §725 — uma CONSTANTE de interface usada NÃO-qualificada dentro de um implementador dá `null`/`undefined` fora do JVM: `interface Named { String NAME = "kof"; String tag() }` / `class T() implements Named { String tag() { return NAME } }` — o JVM imprime `kof` (a constante é INLINADA), Script/JS/nativo dão `null`/`undefined` — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO COMPILADOR):**
+
+```kof
+interface Named {
+    String NAME = "kof"
+    String tag()
+}
+class T() implements Named {
+    String tag() { return NAME }
+}
+main() { println(T().tag()) }
+```
+
+O JVM imprime `kof`; Script/nativo imprimem `null` e o JS imprime `undefined`. A forma QUALIFICADA `Named.NAME` está correta nos quatro alvos.
+
+**Raiz (análise):** um campo de interface é `static final`; o JVM INLINA a referência de constante em tempo de compilação (`ConstantValue`), então o `NAME` não-qualificado dentro de `T.tag()` resolve. Script/JS/nativo o leem como um campo estático comum na CLASSE, que não o tem (ele vive na INTERFACE) → null/undefined.
+
+**Caminho de correção (nomeado, NÃO pousado):** resolver um identificador não-qualificado que seja um CAMPO ESTÁTICO de uma interface implementada para o campo dessa interface (um `getstatic <iface>.NAME`), espelhando o inline do JVM. Provavelmente um fix no resolver de membros mais o acesso a campo por backend.
+
+**Fronteira:** Script/JS/nativo; o JVM inlina. Distinto do §724 (o método STATIC, CORRIGIDO).
+
+<!-- en-switch --> **EN:** [§725](known-bugs.md#725--an-interface-constant-used-unqualified-inside-an-implementor-gives-nullundefined-off-the-jvm-interface-named--string-name--kof-string-tag---class-t-implements-named--string-tag--return-name----jvm-prints-kof-the-constant-is-inlined-scriptjsnative-give-nullundefined---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
