@@ -146,6 +146,12 @@ final class BytecodeStatementsEmit {
                 case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) { refuse(opcodeTag); return null; }
+                    // Fase E (14/10): o overload INT de indexOf/lastIndexOf não
+                    // tem equivalente Kof (String-param; SEM051 medida)
+                    if ("java/lang/String".equals(m[0])
+                            && ((("indexOf".equals(m[1]) || "lastIndexOf".equals(m[1]))
+                            && m[2].startsWith("(I)"))
+                            || "strip".equals(m[1]) || "stripLeading".equals(m[1]) || "stripTrailing".equals(m[1]))) { refuse(opcodeTag); return null; }
                     String a = BytecodeCp.callArgs(stack, BytecodeCp.argCount(m[2]));
                     if (a == null || stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String recv = stack.pop();

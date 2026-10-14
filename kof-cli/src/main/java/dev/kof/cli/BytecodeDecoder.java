@@ -194,6 +194,14 @@ import java.util.Set;
                 case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;
+                    // Fase E (14/10): o overload INT de indexOf/lastIndexOf
+                    // (char) não tem equivalente — o do Kof é String-param
+                    // (SEM051 medida: o verbatim `lastIndexOf(46)` não
+                    // compila). Recusar ANTES do pass-through.
+                    if ("java/lang/String".equals(m[0])
+                            && ((("indexOf".equals(m[1]) || "lastIndexOf".equals(m[1]))
+                            && m[2].startsWith("(I)"))
+                            || "strip".equals(m[1]) || "stripLeading".equals(m[1]) || "stripTrailing".equals(m[1]))) return null;
                     String a = stack.args(BytecodeCp.argCount(m[2]));
                     if (a == null) return null;
                     String recv = stack.popExpr();

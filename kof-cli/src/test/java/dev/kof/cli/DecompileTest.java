@@ -1695,6 +1695,41 @@ class DecompileTest {
         assertEquals("0\n2", output, "zero-drift: array 2D id\u00eantico ao Java");
     }
 
+    @Test
+    void mathDoubleAndHonestGates(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): Math.sqrt/pow EXISTEM no math do Kof (medido
+        // 3.0/8.0) e agora mapeiam; floor/round/Character.* N\u00c3O existem
+        // (SEM025) → tetos honestos. E o verbatim de JDK n\u00e3o-compil\u00e1vel
+        // foi trancado: lastIndexOf(int)/indexOf(int) (o do Kof \u00e9
+        // String-param, SEM051) e strip (o compilador Kof digere-o como
+        // Object → VerifyError) RECUSAM em vez de emitir lixo.
+        Path javaFile = dir.resolve("Md.java");
+        Files.writeString(javaFile, """
+                public class Md {
+                    static double root(double a) { return Math.sqrt(a); }
+                    static double pow(double a, double b) { return Math.pow(a, b); }
+                    static String cut(String s, int i) { return s.substring(i); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Md.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("math.sqrt(") && kof.contains("math.pow("), kof);
+        String kofRun = kof + "\nmain() {\n    println(Md.root(9.0))\n    println(Md.pow(2.0, 10.0))\n    println(Md.cut(\"hello\", 1))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3.0 | 1024.0 | ello
+        assertEquals("3.0\n1024.0\nello", output, "zero-drift: sqrt/pow id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

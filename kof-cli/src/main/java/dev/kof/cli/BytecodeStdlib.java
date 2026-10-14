@@ -26,6 +26,14 @@ final class BytecodeStdlib {
         if ("java/lang/String".equals(ownerInternal) && "equals".equals(name)) {
             return receiver + " == " + args;
         }
+        // Fase E (14/10): indexOf/lastIndexOf com argumento INT (char) NÃO
+        // têm equivalente — os do Kof são String-param (medido SEM051: o
+        // verbatim `lastIndexOf(46)` não compila). Só o overload String passa.
+        if ("java/lang/String".equals(ownerInternal)
+                && ("lastIndexOf".equals(name) || "indexOf".equals(name))
+                && !args.isEmpty() && !args.startsWith("\"")) {
+            return null;
+        }
         // métodos sem-argumento que em Kof são PROPRIEDADES (não métodos).
         // `isEmpty` NÃO é propriedade (13/10, medido: `.isEmpty` compilava e
         // quebrava em runtime com NoSuchField — nem String nem ArrayList têm
@@ -70,6 +78,15 @@ final class BytecodeStdlib {
                     return null;
                 case "(III)I":
                     if ("clamp".equals(name)) return "math.clamp(" + args + ")";
+                    return null;
+                // Fase E (14/10): sqrt/pow EXISTEM no math p/ Double (medido:
+                // sqrt(9.0)=3.0, pow(2,3)=8.0); floor/round/ceil NÃO existem
+                // (SEM025) → teto honesto (exigiria stdlib nova = mantenedora).
+                case "(D)D":
+                    if ("sqrt".equals(name)) return "math.sqrt(" + args + ")";
+                    return null;
+                case "(DD)D":
+                    if ("pow".equals(name)) return "math.pow(" + args + ")";
                     return null;
                 default:
                     return null;

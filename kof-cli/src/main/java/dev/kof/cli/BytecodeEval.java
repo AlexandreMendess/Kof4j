@@ -94,6 +94,12 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
             case 0xb6, 0xb9 -> {                           // invokevirtual/interface
                 String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
                 if (m == null) return false;
+                    // Fase E (14/10): o overload INT de indexOf/lastIndexOf não
+                    // tem equivalente Kof (String-param; SEM051 medida)
+                    if ("java/lang/String".equals(m[0])
+                            && ((("indexOf".equals(m[1]) || "lastIndexOf".equals(m[1]))
+                            && m[2].startsWith("(I)"))
+                            || "strip".equals(m[1]) || "stripLeading".equals(m[1]) || "stripTrailing".equals(m[1]))) return false;
                 String a = BytecodeCp.callArgs(st, BytecodeCp.argCount(m[2]));
                 if (a == null || st.isEmpty()) return false;
                 String recv = st.pop();
