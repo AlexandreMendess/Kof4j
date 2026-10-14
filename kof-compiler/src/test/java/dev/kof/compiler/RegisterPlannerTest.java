@@ -1,0 +1,88 @@
+package dev.kof.compiler;
+
+import dev.kof.compiler.backend.RegisterPlanner;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Phase D of the assembly-optimization plan ({@code D-CODEGEN-REWRITE}): the
+ * per-method register-placement driver. It chains liveness → interference →
+ * allocator → assignment and returns the placement; pure computation, additive.
+ */
+class RegisterPlannerTest {
+
+    private static KofLoadLocal load(int slot, Type t) {
+        return new KofLoadLocal(t, slot);
+    }
+
+    private static KofStoreLocal store(int slot, Type t) {
+        return new KofStoreLocal(t, slot);
+    }
+
+    private static IRMethod method(List<KofOperation> ops, List<IRLocalVariable> locals) {
+        return new IRMethod("m", Type.PrimitiveType.INT, List.<Type>of(), 0,
+                List.<String>of(), List.of(new IRBasicBlock(0, ops)), locals,
+                KofDebugInfo.EMPTY, List.of(), List.of());
+    }
+
+    @Test
+    void twoIndependentIntSlotsFitInRegisters() {
+        // Two slots with disjoint lifetimes -> both get registers (one colour).
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofInt(1), store(1, Type.PrimitiveType.INT),
+                load(1, Type.PrimitiveType.INT), new KofPop(),
+                KofLoadLiteral.ofInt(2), store(2, Type.PrimitiveType.INT),
+                load(2, Type.PrimitiveType.INT), new KofReturn(Type.PrimitiveType.INT)),
+                List.of(new IRLocalVariable(1, "a", Type.PrimitiveType.INT),
+                        new IRLocalVariable(2, "b", Type.PrimitiveType.INT)));
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 4);
+        assertTrue(p.isRegister(1));
+        assertTrue(p.isRegister(2));
+        assertNotNull(p.register(1));
+    }
+
+    @Test
+    void aDoubleUsesTheSseFile() {
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofDouble(1.5), store(1, Type.PrimitiveType.DOUBLE),
+                load(1, Type.PrimitiveType.DOUBLE), new KofReturn(Type.PrimitiveType.DOUBLE)),
+                List.of(new IRLocalVariable(1, "d", Type.PrimitiveType.DOUBLE)));
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 4);
+        assertTrue(p.isRegister(1));
+        assertTrue(p.register(1).startsWith("xmm"), "a double is placed in an SSE register");
+    }
+
+    @Test
+    void oneRegisterForTwoInterferingSlotsSpillsOne() {
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofInt(1), store(1, Type.PrimitiveType.INT),
+                KofLoadLiteral.ofInt(2), store(2, Type.PrimitiveType.INT),
+                load(1, Type.PrimitiveType.INT), load(2, Type.PrimitiveType.INT),
+                new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)),
+                List.of(new IRLocalVariable(1, "a", Type.PrimitiveType.INT),
+                        new IRLocalVariable(2, "b", Type.PrimitiveType.INT)));
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 1);
+        long inReg = java.util.stream.Stream.of(1, 2).filter(p::isRegister).count();
+        assertEquals(1, inReg, "with one register and two interfering slots, exactly one is in a register");
+    }
+
+    @Test
+    void planningIsDeterministic() {
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofInt(1), store(1, Type.PrimitiveType.INT),
+                KofLoadLiteral.ofInt(2), store(2, Type.PrimitiveType.INT),
+                load(1, Type.PrimitiveType.INT), load(2, Type.PrimitiveType.INT),
+                new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)),
+                List.of(new IRLocalVariable(1, "a", Type.PrimitiveType.INT),
+                        new IRLocalVariable(2, "b", Type.PrimitiveType.INT)));
+        RegisterPlanner.Placement a = RegisterPlanner.plan(m, 2);
+        RegisterPlanner.Placement b = RegisterPlanner.plan(m, 2);
+        assertEquals(a.register(1), b.register(1));
+        assertEquals(a.register(2), b.register(2));
+    }
+}
