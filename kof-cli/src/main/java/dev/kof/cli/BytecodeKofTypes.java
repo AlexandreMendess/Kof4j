@@ -71,13 +71,28 @@ final class BytecodeKofTypes {
                 stack.push("⟦new⟧" + cn);
                 return true;
             }
-            case 0x59 -> { // dup — padrão new E o padrão de exceção (⟦ex⟧)
+            case 0x59 -> { // dup — new, exceção, coleção E o multi-assign
+                // Fase E (13/10): o `x = y = 5` compila p/ iconst_5, dup,
+                // istore, istore — o dup de um valor SIMPLES (sem "(") é puro
+                // (sem efeito colateral a duplicar). Chamadas seguem recusadas
+                // (duplicar uma chamada executaria duas vezes).
                 if (stack.isEmpty()) return false;
                 String top = stack.peek();
-                if (top == null || !(top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7")
-                        || top.startsWith("\u27e6col\u27e7"))) return false;
-                stack.push(top);
-                return true;
+                if (top == null) return false;
+                if (top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7")
+                        || top.startsWith("\u27e6col\u27e7")) {
+                    stack.push(top);
+                    return true;
+                }
+                // o dup de um valor PURO (aritmetica/variavel) e seguro — o
+                // texto aparece duas vezes mas avalia igual. O risco e apenas
+                // CHAMADA (executaria duas vezes): rejeita se ha `ident(` no
+                // texto (medido: `(arg0 * 2)` do imul passa; `at(` recusa).
+                if (!top.matches(".*\\w\\(.*")) {
+                    stack.push(top);
+                    return true;
+                }
+                return false;
             }
             case 0xb7 -> { // invokespecial <init> (mirror do linear)
                 String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);

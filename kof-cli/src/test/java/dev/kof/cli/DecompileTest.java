@@ -1223,6 +1223,36 @@ class DecompileTest {
         assertEquals("42\n7.0\n9\n3.0\n2\n5", output, "zero-drift das conversoes");
     }
 
+    @Test
+    void multiAssignRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E (13/10): o `x = y = 5` compila p/ iconst_5, dup, istore,
+        // istore — o dup de um valor PURO (sem chamada) é seguro (o texto
+        // aparece duas vezes mas avalia igual). Antes: stub do método.
+        Path javaFile = dir.resolve("Ma.java");
+        Files.writeString(javaFile, """
+                public class Ma {
+                    static int multiAssign() { int x, y; x = y = 5; return x + y; }
+                    static int multiAssign2(int a) { int x, y; x = y = a * 2; return x - y; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Ma.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o multi-assign recupera:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Ma.multiAssign())\n    println(Ma.multiAssign2(6))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("10\n0", output, "zero-drift executado");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
