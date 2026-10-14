@@ -123,6 +123,14 @@ public final class JsMethodParser {
             // carregada mantém o nome cru, zero churn no structural dispatch).
             name = this.lc.jsFunctionName(name, method.parameterTypes(), method.parameterTypes().size());
         }
+        // §722: um método cujo nome é uma PALAVRA RESERVADA do JS (`of`,
+        // `class`, `delete`, ...) é DEFINIDO com o nome cru mas CHAMADO com o
+        // `sanitizeName` do call site (→ `_of`), então o método não existe
+        // (`TypeError: f._of is not a function`). A definição passa pelo MESMO
+        // sanitize do call site. `<init>`/`constructor` ficam intactos.
+        if (!"<init>".equals(method.name()) && !"constructor".equals(name)) {
+            name = JsTypeMapper.sanitizeName(name);
+        }
         return new JsIr.JsFunction(name, parameterNames(ctx), parseMethodBody(ctx), isStatic, false, isTopLevel,
                 ctx.isAsync, firstKofLine(method));
     }
