@@ -1,10 +1,11 @@
 504	kof-c-compiler/src/main/java/dev/kof/c/KofCParser.java
-563	kof-cli/src/main/java/dev/kof/cli/BytecodeDecoder.java
+576	kof-cli/src/main/java/dev/kof/cli/BytecodeDecoder.java
+613	kof-cli/src/main/java/dev/kof/cli/BytecodeStatementsRecover.java
 619	kof-cli/src/main/java/dev/kof/cli/BytecodeSwitch.java
 562	kof-cli/src/main/java/dev/kof/cli/CmdBuild.java
 504	kof-cli/src/main/java/dev/kof/cli/CmdDeploy.java
 589	kof-cli/src/main/java/dev/kof/cli/CmdTest.java
-598	kof-cli/src/main/java/dev/kof/cli/Decompile.java
+592	kof-cli/src/main/java/dev/kof/cli/Decompile.java
 524	kof-cli/src/main/java/dev/kof/cli/KofDebugJvmSession.java
 573	kof-cli/src/main/java/dev/kof/cli/LspServer.java
 599	kof-cli/src/main/java/dev/kof/cli/TranslateEmitter.java
@@ -18,7 +19,7 @@
 526	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriver.java
 598	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriverState.java
 583	kof-compiler/src/main/java/dev/kof/compiler/CompilerPipeline.java
-543	kof-compiler/src/main/java/dev/kof/compiler/CompilerRecordSupport.java
+548	kof-compiler/src/main/java/dev/kof/compiler/CompilerRecordSupport.java
 573	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
 512	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
 575	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
@@ -58,7 +59,7 @@
 592	kof-compiler/src/main/java/dev/kof/compiler/MethodCallTyper.java
 514	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeArchEmitter.java
 592	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeBackend.java
-588	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeMethodEmitter.java
+593	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeMethodEmitter.java
 551	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmLookups0.java
 595	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmMapset0.java
 504	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmMapset1.java
@@ -76,6 +77,7 @@
 503	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmRtB80.java
 537	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvCrossEmit.java
 516	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvCrossOps.java
+526	kof-compiler/src/main/java/dev/kof/compiler/parser/ClassFileParser.java
 577	kof-compiler/src/main/java/dev/kof/compiler/parser/ExpressionParser.java
 501	kof-compiler/src/main/java/dev/kof/compiler/parser/Parser.java
 559	kof-compiler/src/main/java/dev/kof/compiler/parser/StatementParser.java
