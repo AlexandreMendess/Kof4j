@@ -2237,6 +2237,68 @@ class DecompileTest {
         assertEquals("17\nc\n1\nfalse", output, "zero-drift: cole\u00e7\u00f5es de objetos id\u00eanticas ao Java");
     }
 
+    @Test
+    void orderServiceClassRecovers(@TempDir Path dir) throws Exception {
+        // VALIDA\u00c7\u00c3O (14/10): a classe de SERVI\u00c7O (status por faixas,
+        // avg com cast double + empty-guard, join com \u00edndice manual,
+        // startsWith com substring(0,1) + .equals ||, findIndex com .get(i)
+        // e lastOf com size()-1) — 0 stubs NA PRIMEIRA TENTATIVA e as 7
+        // linhas id\u00eanticas ao Java (o front maduro valida de primeira).
+        Path javaFile = dir.resolve("Or.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Or {
+                    static String status(List<Integer> items) {
+                        if (items.isEmpty()) { return "empty"; }
+                        int total = 0;
+                        for (int i : items) { total += i; }
+                        if (total > 100) { return "big"; }
+                        if (total > 10) { return "mid"; }
+                        return "small";
+                    }
+                    static double avg(List<Integer> xs) {
+                        if (xs.isEmpty()) { return 0.0; }
+                        int s = 0;
+                        for (int x : xs) { s += x; }
+                        return (double) s / xs.size();
+                    }
+                    static String joinNames(List<String> names) {
+                        String r = ""; int i = 0;
+                        for (String n : names) { if (i > 0) { r = r + ","; } r = r + n; i++; }
+                        return r;
+                    }
+                    static boolean startsWithVowel(List<String> words) {
+                        for (String w : words) {
+                            String f = w.substring(0, 1);
+                            if (f.equals("a") || f.equals("e") || f.equals("i")) { return true; }
+                        }
+                        return false;
+                    }
+                    static int findIndex(List<String> xs, String target) {
+                        for (int i = 0; i < xs.size(); i++) { if (xs.get(i).equals(target)) { return i; } }
+                        return -1;
+                    }
+                    static String lastOf(List<String> xs) { return xs.get(xs.size() - 1); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Or.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + "\nmain() {\n    var items = listOf(5, 10, 90)\n    println(Or.status(listOf()))\n    println(Or.status(items))\n    println(Or.avg(listOf(10, 20, 30)))\n    println(Or.joinNames(listOf(\"a\", \"b\", \"c\")))\n    println(Or.startsWithVowel(listOf(\"x\", \"apple\")))\n    println(Or.findIndex(listOf(\"p\", \"q\"), \"q\"))\n    println(Or.lastOf(listOf(\"u\", \"v\")))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: empty | big | 20.0 | a,b,c | true | 1 | v
+        assertEquals("empty\nbig\n20.0\na,b,c\ntrue\n1\nv", output, "zero-drift: a classe de servi\u00e7o id\u00eantica ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
