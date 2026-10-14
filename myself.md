@@ -2,11 +2,21 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — §705 SÉTIMA PASSAGEM: a hipótese do alinhamento de 16 bytes está ENFRAQUECIDA. Um reprodutor MÍNIMO de 21 argumentos roda correto COM e SEM o pad, e o runtime não tem SSE alinhado a 16 bytes para dar falta — então o pad é ABI-correto e zero-regressão (face do driver verde com a escotilha OFF + bateria nativa 114/114), mas NÃO é a causa do §705. §723 continua aberto (o pad não o corrige). Nada landado; árvore limpa.
-doing: nenhum — ciclo de diagnóstico; árvore limpa
-next: a lane de compilador/nativo decide landar o pad de 16 bytes em `nat/NativeX86Calls.java` como endurecimento de ABI (4 sítios: helper `padBytes` + `pushq $0` antes dos args + limpeza) e resolve o §723 (flag ON); depois re-landar a 3au, retomar o slice do tile-group/OBU e por fim `decodeRaster` AVIF
+last: 14/10 — AVIF slice 3au RE-LANDADA + `known-bugs` §705 CORRIGIDO. O giro do nativo x86 não se reproduz mais na ponta (o reprodutor do stream degenerado sai LIMPO, `rc=0`); a correção veio do trabalho concorrente de emissão da lane de codegen (`D-CODEGEN-REWRITE` + Fase E), NÃO do pad de alinhamento de 16 bytes (que segue sem papel causal estabelecido). 3au re-landada byte-idêntica a `0f8ca55ff`; prova com a escotilha OFF: driver 7/7 + partição 17/17. Fronteira: o caminho DEFAULT de locais-em-registradores (§723, lane irmã) ainda falha/trava as faces nativas AVIF.
+doing: 3au re-landada (classe do driver de tile + `bindDecoder`); §705 marcado CORRIGIDO; fila 11→10
+next: o slice do tile-group/OBU (que não depende da 3au) e depois a composição `decodeRaster` AVIF; a face nativa AVIF só fica verde no caminho DEFAULT quando a lane de codegen resolver o §723 (a virada de locais-em-registradores)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (19ª) — 3au RE-LANDADA e §705 CORRIGIDO (o giro do nativo morreu com o trabalho concorrente de emissão)
+- **O que eu fui fazer:** o próximo slice do plano (3y) já estava landado; o trabalho vivo era a 3au, revertida em 13/10 pelo §705.
+- **A medição que mudou tudo:** re-rodei a face nativa do driver com a 3au re-aplicada e a escotilha `-Dkof.native.register.locals=false` — PASSOU (7/7, 196 s). O §705 (o giro) não se reproduz mais.
+- **A prova direta:** reconstruí o reprodutor original do §705 (stream de 1 byte, `data[0]=236` e `data[0]=11`, chamando `Av1TileDecode.decodeBlock(0,0,9)`) — ambos saem LIMPOS (`rc=0`, `BEFORE | AFTER`) onde antes giravam.
+- **A atribuição:** a correção veio do trabalho concorrente da lane de codegen (`D-CODEGEN-REWRITE` + Fase E ISA), não de nada meu; e o pad de alinhamento de 16 bytes que eu tinha proposto na sexta passagem NÃO era a causa (o reprodutor mínimo de 21 argumentos é correto COM e SEM o pad — a sétima passagem já tinha enfraquecido essa hipótese).
+- **O que landei:** 3au re-aplicada byte-idêntica a `0f8ca55ff` (os dois `.kf` + os dois arquivos de teste da partição), `§705` marcado ✅ CORRIGIDO com a resolução, o plano, `status.md`, o README (fila 11→10).
+- **Prova:** `Av1DecodeTileReconE2ETest` 7/7 e `Av1PartitionE2ETest` 17/17 com a escotilha OFF; compile rc=0; os cinco gates de ledger rc=0.
+- **Caveat honesto:** no caminho DEFAULT (locais-em-registradores ON) a face nativa do driver FALHA e a da partição TRAVA (>900 s) — mas medi o BASELINE sem a 3au e ele TRAVA igual, então é o §723 (regressão da lane de codegen), não a 3au. Landar a 3au não piora nada e destrava a frente.
+- **Lição:** re-medir um bug "conhecido" na ponta corrente antes de assumir que ele ainda existe — o §705 tinha 7 passagens de diagnóstico e simplesmente desapareceu quando uma lane irmã mudou a emissão.
 
 ## Sessão 14/10 (18ª) — §705 SÉTIMA PASSAGEM: a hipótese do alinhamento de 16 bytes ENFRAQUECIDA (a correção da passagem anterior foi uma super-generalização)
 - **O que eu tinha dito (17ª):** "o bloco de argumentos de pilha nunca é alinhado a 16 bytes; o pad `pushq $0` faz o probe girante sair limpo — pista MEDIDA". Isso tratou UMA observação como causa.
