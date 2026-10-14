@@ -69,8 +69,21 @@ final class NativeOpHelpers {
 
     static void emitLoadLiteral(NativeBackend nb, StringBuilder sb, KofLoadLiteral lit) {
         switch (lit.value()) {
-            case Integer i -> sb.append("    movq $").append(i).append(", %rax\n");
-            case Long l -> sb.append("    movq $").append(l).append(", %rax\n");
+            // §7 x86_64 ("reduction of instructions for constants"): an immediate
+            // that fits in a sign-extended imm32 is pushed with a single `pushq
+            // $imm` instead of `movq $imm, %rax; pushq %rax`. Kof `int` is 32-bit
+            // (always fits); a `long` only when it round-trips through int.
+            case Integer i -> {
+                sb.append("    pushq $").append(i).append("\n");
+                return;
+            }
+            case Long l -> {
+                if (l == (int) (long) l) {
+                    sb.append("    pushq $").append(l).append("\n");
+                    return;
+                }
+                sb.append("    movq $").append(l).append(", %rax\n");
+            }
             case Float f -> sb.append("    movq $").append(Float.floatToIntBits(f)).append(", %rax\n");
             case Double d -> sb.append("    movq $").append(Double.doubleToLongBits(d)).append(", %rax\n");
             case String s -> {
@@ -80,8 +93,14 @@ final class NativeOpHelpers {
                 sb.append("    movl $").append(byteLen).append(", %esi\n");
                 sb.append("    call kof_string_from_literal\n");
             }
-            case Boolean b -> sb.append("    movq $").append(b ? 1 : 0).append(", %rax\n");
-            case null -> sb.append("    movq $0, %rax\n");
+            case Boolean b -> {
+                sb.append("    pushq $").append(b ? 1 : 0).append("\n");
+                return;
+            }
+            case null -> {
+                sb.append("    pushq $0\n");
+                return;
+            }
             default -> { }
         }
         sb.append("    pushq %rax\n");

@@ -760,6 +760,8 @@ RISC-V
 
 without contaminating the IR with unnecessary details of a single architecture.
 
+**Phase E slice 1 LANDED (14/10):** x86_64 §7 "reduction of instructions for constants" — an immediate that fits in a sign-extended imm32 is emitted as a single `pushq $imm` instead of `movq $imm, %rax; pushq %rax` (2 instructions → 1). Applies to `int` (always 32-bit) and to a `long` only when it round-trips through `int` (a wide long keeps the two-instruction path, since `pushq` sign-extends). Proof `NativeConstEmissionTest` 5/5 (int, negative int, small long, wide long, bool) + the full native x86-64 batch 225/225. This is native-only (the JS/JVM backends are unaffected) and needs no IR change — the plan's "without contaminating the IR" requirement.
+
 ---
 
 ## Phase F — benchmark suite

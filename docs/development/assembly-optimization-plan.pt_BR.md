@@ -760,6 +760,8 @@ RISC-V
 
 sem contaminar o IR com detalhes desnecessários de uma única arquitetura.
 
+**Fatia 1 da Fase E POUSADA (14/10):** x86_64 §7 "reduction of instructions for constants" — um imediato que cabe num imm32 com extensão de sinal é emitido como um único `pushq $imm` em vez de `movq $imm, %rax; pushq %rax` (2 instruções → 1). Vale para `int` (sempre 32 bits) e para um `long` só quando ele volta por `int` (um long largo mantém o caminho de duas instruções, pois `pushq` estende o sinal). Prova `NativeConstEmissionTest` 5/5 (int, int negativo, long pequeno, long largo, bool) + o lote native x86-64 completo 225/225. É só-native (os backends JS/JVM não são afetados) e não exige mudança no IR — o requisito "sem contaminar o IR" do plano.
+
 ---
 
 ## Fase F — benchmark suite
