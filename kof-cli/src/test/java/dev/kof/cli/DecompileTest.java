@@ -1446,6 +1446,45 @@ class DecompileTest {
         assertEquals("7\n14\n255\ntrue\nfalse", output, "zero-drift: bitwise id\u00eanticos ao Java");
     }
 
+    @Test
+    void loopWithCompoundConditionRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o `while (i < n && s < 100)` — o CFG divide os DOIS
+        // testes em blocos separados (o fall-through de um cond é líder) e o
+        // teste interno salta para a MESMA saída. A combinação `&&` já cobria
+        // o shape, mas o guard `!loop0` pulava-a para headers de loop — o
+        // método inteiro stubava. A combinação não altera then/exit (o corpo
+        // já é o fall-through do teste interno). Zero-drift executado.
+        Path javaFile = dir.resolve("Wc.java");
+        Files.writeString(javaFile, """
+                public class Wc {
+                    static int run(int n) {
+                        int s = 0; int i = 1;
+                        while (i < n && s < 100) { s += i; i *= 2; }
+                        return s;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Wc.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o loop com condi\u00e7\u00e3o composta recupera:\n" + kof);
+        assertTrue(kof.contains("while ("), kof);
+        assertTrue(kof.contains("&&"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Wc.run(5))\n    println(Wc.run(1000))\n    println(Wc.run(0))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java REAL: 7 127 0
+        assertEquals("7\n127\n0", output, "zero-drift: loop composto id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

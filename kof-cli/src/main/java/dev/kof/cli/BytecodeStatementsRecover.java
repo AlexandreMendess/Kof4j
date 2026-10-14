@@ -1,5 +1,6 @@
 package dev.kof.cli;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -170,7 +171,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // cujo falso-alvo é o MESMO else → as condições combinam com
         // `&&` (a avaliação em cadeia do bytecode É o curto-circuit do
         // &&; os braços passam a ser os do teste interno).
-        if (!loop0) {
+        // Fase E (14/10): vale TAMBÉM para o header do LOOP — o
+        // `while (a && b)` tem o teste interno (fora do corpo) saltando
+        // para a MESMA saída; a combinação não altera then/exit (o corpo
+        // já é o fall-through do teste interno). Medido: whileComplex
+        // stubava porque o guard `!loop0` pulava a combinação.
+        {
             int guard = 0;
             BytecodeReader.Block tb = byStart.get(thenStart);
             while (guard < 4 && tb != null && tb.succ.size() == 2
