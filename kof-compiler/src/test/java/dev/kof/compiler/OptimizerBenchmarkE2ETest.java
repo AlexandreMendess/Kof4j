@@ -108,7 +108,16 @@ class OptimizerBenchmarkE2ETest {
                         var h = 8
                         println(a + b + c + d + e + f + g + h)
                     }
-                    """, "36"));
+                    """, "36"),
+            new Bench("memory", "memory", """
+                    main() {
+                        var buf = new Int[256]
+                        for (var i = 0; i < 256; i++) { buf[i] = i * i }
+                        var s = 0
+                        for (var i = 0; i < 256; i++) { s = s + buf[i] }
+                        println(s)
+                    }
+                    """, "5559680"));
 
     @Test
     void benchmarkSuiteRunsAndReportsMetrics(@TempDir Path dir) throws Exception {
