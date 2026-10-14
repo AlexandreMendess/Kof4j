@@ -17268,6 +17268,33 @@ A SINGLE-parameter generic (`Box<Int>`) and a MULTI-parameter generic (`Pair<Str
 
 <!-- pt-switch --> **PT:** [§706 (pt_BR)](known-bugs.pt_BR.md#706--um-argumento-de-tipo-generico-aninhado-boxboxint-quebra-o-acessor-externo-no-jvm-o-call-site-espera-int-boxget-e-crasha-com-nosuchmethoderror-no-nativo-le-lixo--enquanto-scriptjs-devolvem-o-valor-correto---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
 
+## §707 — a `do-while` loop whose body contains a `break` or `continue` does NOT COMPILE on JS: the backend throws an INTERNAL COMPILER ERROR (`COMP002: KofJS: unexpected op in expression statement: KofConditionalJump`) — 🟡 OPEN (measured 13/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 13/10 through the COMPILER MODULE):**
+
+```kof
+Int doWhileBreak() {
+    var s = 0
+    var i = 0
+    do {
+        i++
+        if (i == 3) { break }
+        s += i
+    } while (i < 10)
+    return s
+}
+```
+
+compiles and returns `3` on JVM/Script/native x86-64/riscv64/aarch64, but on **JS the compiler itself crashes**: `COMP002: Internal compiler error: KofJS: unexpected op in expression statement: KofConditionalJump[comparison=LT, ...]`. The same holds for a `continue` in a do-while body. A do-while WITHOUT break/continue compiles and runs correctly on JS.
+
+**Root (analysis):** the do-while is the one construct whose conditional jump targets its OWN start label (`JsControlFlowParser.parseLoop` detects it by scanning for a `KofConditionalJump` whose `trueLabel` equals the loop start, then routes to `parseDoWhile`). A `break`/`continue` inside the body introduces additional jumps/labels that the do-while reconstruction does not account for, so after the body is parsed the trailing condition `KofConditionalJump` is left at the expression-statement level and the dispatcher throws. The reconstruction of the do-while's tail (condition + back-edge) does not consume the break/continue exits the body produced.
+
+**Fix path (named, NOT landed):** the do-while body parse must hand `parseDoWhile` the exits the break/continue produced (as the while/for bodies do), and the tail reconstruction must consume them before the trailing condition. This is the same JS loop reconstruction family as §703/§704 (each already a multi-cycle structural fix), so it must land with the loop/control-flow battery as the regression net.
+
+**Boundary:** the JS backend only; the other five targets are correct. The do-while WITHOUT break/continue is correct on all targets. `break`/`continue` in a `while`/`for` are correct (this is specific to the do-while reconstruction).
+
+<!-- pt-switch --> **PT:** [§707 (pt_BR)](known-bugs.pt_BR.md#707--um-loop-do-while-cujo-corpo-contem-um-break-ou-continue-nao-compila-no-js-o-backend-lanca-um-erro-interno-do-compilador-comp002-kofjs-unexpected-op-in-expression-statement-kofconditionaljump---aberto-medido-1310-pela-lane-compiladorjvmnativo-19216815309092)
+
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):** `var d = 0` then `try { println(10 / d) } catch (String e) { ... }` printed **`-1` on riscv64 and `0` on aarch64** and left the `catch` UNREACHED, where every other target printed `caught`. Same for `%` and for `Long` (`10L / 0L`). The failure is the worst kind: the program keeps running with a wrong value instead of failing loudly.
