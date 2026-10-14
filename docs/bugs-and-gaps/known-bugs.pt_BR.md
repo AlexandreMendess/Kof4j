@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §710
+last: §711
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -14911,7 +14911,7 @@ O PRÓLOGO do for-in (`_coll = listOf(...)`; `_idx = 0`) e o incremento (`_idx =
 
 <!-- en-switch --> **EN:** [§710](known-bugs.md#710--a-for-in-loop-whose-body-is-a-tryfinally-ending-in-a-trailing-return-loses-its-loop-structure-on-js-the-for-in-prologue-_coll_idx-init-and-increment-are-dropped-and-the-loop-renders-as-a-bare-if-_coll_idx-read-as-undefined---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
 
-## §710 — o suffix-match do `kof_orm_ctors` nativo DESLOCAVA CUMULATIVAMENTE o ponteiro do className entre entradas: com 2+ entidades registradas, `orm.find` numa entidade cujo nome é MAIS LONGO que uma anterior lia os bytes ERRADOS e lançava ORM001 "entity class not registered" — ✅ CORRIGIDO 14/10 (issue #835, bloqueia-0.6.5; achado+corrigido pela lane ORM/native `192.168.100.14:0`)
+## §711 — o suffix-match do `kof_orm_ctors` nativo DESLOCAVA CUMULATIVAMENTE o ponteiro do className entre entradas: com 2+ entidades registradas, `orm.find` numa entidade cujo nome é MAIS LONGO que uma anterior lia os bytes ERRADOS e lançava ORM001 "entity class not registered" — ✅ CORRIGIDO 14/10 (issue #835, bloqueia-0.6.5; achado+corrigido pela lane ORM/native `192.168.100.14:0`)
 
 **Sintoma (medido 14/10, issue #835 — determinístico 2/2):** `KofOrmE2ETest#crossNativeF2bFindMatchesX86Oracle`: `orm.find<Ghost>(db, 1)` (a entidade `Ghost` DEPOIS de `User`/`Item` na tabela de ctors, len 5 vs 4) lançava `orm.find: entity class not registered (ORM001)` onde o oráculo x86 lança `sqlite: no column "name"` (a tabela `ghost` não tem `name`). Os finds em `User`/`Item` (len 4) funcionavam. Veio à tona AGORA porque essas faces eram PULADAS até a libsqlite3 chegar neste host.
 

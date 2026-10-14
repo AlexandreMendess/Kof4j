@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §710
+last: §711
 last: §664
 doing: close-open-rows
 next: triage-new-issues
@@ -17430,7 +17430,7 @@ The for-in PROLOGUE (`_coll = listOf(...)`; `_idx = 0`) and the increment (`_idx
 
 <!-- pt-switch --> **PT:** [§710](known-bugs.pt_BR.md#710--um-loop-for-in-cujo-corpo-e-um-tryfinally-terminando-num-return-trailing-perde-a-estrutura-de-loop-no-js-o-prologo-do-for-in-_coll_idx-init-e-o-incremento-sao-descartados-e-o-loop-vira-um-if-puro-_coll_idx-lidos-como-undefined---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
-## §710 — the native `kof_orm_ctors` suffix-match CUMULATIVELY SHIFTED the className pointer across entries: with 2+ registered entities, `orm.find` on an entity whose name is LONGER than an earlier one read the WRONG bytes and threw ORM001 "entity class not registered" — ✅ FIXED 14/10 (issue #835, blocks-0.6.5; found+fixed by lane ORM/native `192.168.100.14:0`)
+## §711 — the native `kof_orm_ctors` suffix-match CUMULATIVELY SHIFTED the className pointer across entries: with 2+ registered entities, `orm.find` on an entity whose name is LONGER than an earlier one read the WRONG bytes and threw ORM001 "entity class not registered" — ✅ FIXED 14/10 (issue #835, blocks-0.6.5; found+fixed by lane ORM/native `192.168.100.14:0`)
 
 **Symptom (measured 14/10, issue #835 — deterministic 2/2):** `KofOrmE2ETest#crossNativeF2bFindMatchesX86Oracle`: `orm.find<Ghost>(db, 1)` (the entity `Ghost` AFTER `User`/`Item` in the ctor table, len 5 vs 4) threw `orm.find: entity class not registered (ORM001)` where the x86 oracle throws `sqlite: no column "name"` (the table `ghost` lacks `name`). The finds on `User`/`Item` (len 4) worked. Surfaced NOW because these faces were SKIPPED until libsqlite3 landed on this host.
 
