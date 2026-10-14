@@ -100,12 +100,12 @@ class RegisterAssignmentTest {
 
     @Test
     void aReferenceLocalStaysInTheFrame() {
-        // A reference must NOT be register-placed (the conservative GC scans the
-        // frame; a ref held only in a register would be invisible to it).
-        var a = RegisterAssignment.of(
-                Map.of(1, new Type.ClassType("java.lang", "String", java.util.List.of())),
-                alloc(Map.of(1, 0), Set.of()));
-        assertFalse(RegisterAssignment.placeable(new Type.ClassType("java.lang", "String", java.util.List.of())));
+        // A reference stays in the FRAME: MEASURED, register-placing references
+        // crashes methods with try/catch/finally (the callee-saved spill is not a
+        // sufficient GC guarantee across every path).
+        var ref = new Type.ClassType("java.lang", "String", java.util.List.of());
+        var a = RegisterAssignment.of(Map.of(1, ref), alloc(Map.of(1, 0), Set.of()));
+        assertFalse(RegisterAssignment.placeable(ref));
         assertTrue(a.isInMemory(1), "a reference local stays in the frame");
     }
 
@@ -113,7 +113,8 @@ class RegisterAssignmentTest {
     void onlyIntAndBoolArePlaceable() {
         assertTrue(RegisterAssignment.placeable(Type.PrimitiveType.INT));
         assertTrue(RegisterAssignment.placeable(Type.PrimitiveType.BOOL));
-        assertFalse(RegisterAssignment.placeable(Type.PrimitiveType.LONG));
+        assertFalse(RegisterAssignment.placeable(new Type.ClassType("java.lang", "String", java.util.List.of())));
+        assertFalse(RegisterAssignment.placeable(Type.PrimitiveType.LONG), "long is double-width");
         assertFalse(RegisterAssignment.placeable(Type.PrimitiveType.DOUBLE));
     }
 }

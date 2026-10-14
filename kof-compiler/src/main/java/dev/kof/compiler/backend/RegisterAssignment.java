@@ -76,11 +76,14 @@ public final class RegisterAssignment {
     }
 
     /**
-     * Whether a local of this type may be REGISTER-PLACED. Only int/bool (scalars
-     * the conservative GC does not track) qualify; a REFERENCE must stay in the
-     * frame — the native GC is conservative and scans the frame, so a reference
-     * held only in a register would be invisible to it and could be collected
-     * while live. long/float/double are double-width and stay in the frame too.
+     * Whether a local of this type may be REGISTER-PLACED. Only int/bool qualify.
+     * A REFERENCE must stay in the FRAME: the x86-64 collector spills the
+     * callee-saved registers before marking ({@code kof_gc_collect_now}), which
+     * makes a ref in a register a root in the SIMPLE case — but MEASURED, methods
+     * with try/catch/finally (a reference local + the exception path) CRASH
+     * (SIGSEGV) when references are register-placed, so the spill is not a
+     * sufficient guarantee across every path. Conservative: references stay in the
+     * frame. long/float/double are double-width and stay in the frame too.
      */
     public static boolean placeable(Type t) {
         return t.equals(Type.PrimitiveType.INT) || t.equals(Type.PrimitiveType.BOOL);

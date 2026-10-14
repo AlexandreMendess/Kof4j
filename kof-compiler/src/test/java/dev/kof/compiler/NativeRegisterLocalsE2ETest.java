@@ -82,6 +82,29 @@ class NativeRegisterLocalsE2ETest {
         }
     }
 
+    @Test
+    void aReferenceLocalIsSafeInTheFrameAcrossGcPressure(@TempDir Path tempDir) throws IOException {
+        // A String local held live across 50000 allocations. References stay in the
+        // FRAME (not registers — measured unsafe with try/catch), so this proves the
+        // frame path keeps a live reference correct under heavy GC pressure.
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var keep = "alive" + "!"
+                var n = 0
+                for (var i = 0; i < 50000; i++) { var tmp = "x" + i; n = n + tmp.length() }
+                println(keep)
+                println(n)
+            }
+            """);
+        Path outDir = tempDir.resolve("out");
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(source, outDir, Target.NATIVE);
+        assertTrue(result.success(), "compile: " + result.diagnostics().getDiagnostics());
+        String out = run(outDir.resolve("Default/Main"));
+        assertTrue(out.startsWith("alive!\n"), "the live String survived GC: " + out);
+    }
+
     private static String run(Path bin) throws IOException {
         try {
             ProcessBuilder pb = new ProcessBuilder(bin.toString());
