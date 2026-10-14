@@ -70,6 +70,7 @@ final class NativeMethodEmitter {
         // `this`, sem parâmetros); era descartado, e os inicializadores
         // estáticos não-constantes nunca rodavam (ficavam 0/null/undefined).
         // O _start chama cada <clinit> antes de main.
+        int bodyStart = sb.length();
 
         nb.currentClass = clazz;
 
@@ -210,6 +211,10 @@ final class NativeMethodEmitter {
             nb.kofDwarf.add(mangled, method.name(), declLine,
                     NativeDwarf.dwarfKindOf(method.returnType()), params, locals);
         }
+        // §7 x86_64 ("lower-cost instruction selection"): collapse the stack
+        // machine's `pushq %X; popq %Y` pairs (adjacent, no label between) into
+        // `movq %X, %Y` — one instruction instead of two.
+        NativeX86Peephole.collapsePushPopPairs(sb, bodyStart);
     }
 
     /** The register a slot is placed in, or null when it is in the frame. */
