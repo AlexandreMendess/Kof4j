@@ -1730,6 +1730,48 @@ class DecompileTest {
         assertEquals("3.0\n1024.0\nello", output, "zero-drift: sqrt/pow id\u00eanticos ao Java");
     }
 
+    @Test
+    void arrayLoadInConditionRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): a CARGA DE ARRAY na CONDI\u00c7\u00c3O (`if (xs[i] > m)`
+        // dentro de um loop — o maxOf realista) — o xaload (0x2e-0x35) faltava
+        // no avaliador de condi\u00e7\u00f5es. A classe Stack inteira (construtor,
+        // push/pop/peek com fields) j\u00e1 recuperava. Zero-drift executado.
+        // (O countWords — if/else-if com incremento no corpo do loop — segue
+        // stub: recovery de join estruturado, trabalho futuro documentado.)
+        Path javaFile = dir.resolve("Ao.java");
+        Files.writeString(javaFile, """
+                public class Ao {
+                    static int maxOf(int[] xs) {
+                        int m = xs[0];
+                        for (int i = 1; i < xs.length; i++) { if (xs[i] > m) { m = xs[i]; } }
+                        return m;
+                    }
+                    static String repeat(String s, int n) {
+                        String r = "";
+                        for (int i = 0; i < n; i++) { r = r + s; }
+                        return r;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Ao.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("while ("), kof);
+        String kofRun = kof + "\nmain() {\n    var xs = new Int[4]\n    xs[0] = 3\n    xs[1] = 17\n    xs[2] = 5\n    xs[3] = 9\n    println(Ao.maxOf(xs))\n    println(Ao.repeat(\"ab\", 3))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 17 | ababab
+        assertEquals("17\nababab", output, "zero-drift: maxOf/repeat id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

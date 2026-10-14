@@ -128,6 +128,14 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
                 String obj = st.pop();
                 st.push(obj + "." + f[1]);
             }
+            case 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35 -> {   // xaload
+                // Fase E (14/10): carga de array na CONDIÇÃO (medido no
+                // maxOf: `if (xs[i] > m)` dentro do loop stubava)
+                if (st.size() < 2) return false;
+                String idx = st.pop();
+                String arr = st.pop();
+                st.push(arr + "[" + idx + "]");
+            }
             case 0xc1 -> {                                 // instanceof (Kof nativo)
                 String ct = BytecodeKofTypes.inlineKofType(cp, in.operands()[0]);
                 if (ct == null) {

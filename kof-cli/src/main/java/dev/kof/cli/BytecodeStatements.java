@@ -36,7 +36,10 @@ final class BytecodeStatements {
     /** Atribuição com declaração `var` na 1ª escrita do slot. */
     static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
         String name = BytecodeDecoderStack.slotName(slot, frame);
-        if (!declared.contains(slot)) {
+        // Fase E (14/10): slot NOMEADO (parâmetro/this) NUNCA redeclara — o
+        // `var arg1 = ...` criava local de BLOCO e o parâmetro nunca
+        // atualizava (medido: o gcd decompilado rodava para sempre, R6).
+        if (!frame.isNamedSlot(slot) && !declared.contains(slot)) {
             declared.add(slot);
             return "var " + name + " = " + value;
         }

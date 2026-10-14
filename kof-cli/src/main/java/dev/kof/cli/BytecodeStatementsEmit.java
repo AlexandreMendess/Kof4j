@@ -128,7 +128,7 @@ final class BytecodeStatementsEmit {
                 // Fase E: construção/teste-emit (0xbb new, 0xbd anewarray,
                 // 0x59 dup, 0xb7 init, 0x57 pop, 0xc0 cast, 0xc1 instanceof)
                 // — semântica em BytecodeKofTypes (gate ≤500); false = stub.
-                case 0x57, 0xc0, 0xc1, 0xbb, 0xbc, 0xbd, 0x59, 0xb7,
+                case 0x57, 0xc0, 0xc1, 0xbb, 0xbc, 0xbd, 0xc5, 0x59, 0xb7,
                      0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
                      0x4f, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0xbe -> {
                     if (!BytecodeKofTypes.statementOp(op, in, stack, cp, stmts, frame)) { refuse(opcodeTag); return null; }
@@ -206,7 +206,10 @@ final class BytecodeStatementsEmit {
 
     private static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
         String name = BytecodeDecoderStack.slotName(slot, frame);
-        if (!declared.contains(slot)) {
+        // Fase E (14/10): slot NOMEADO (parâmetro/this) NUNCA redeclara — o
+        // `var arg1 = ...` criava local de BLOCO e o parâmetro nunca
+        // atualizava (medido: o gcd decompilado rodava para sempre, R6).
+        if (!frame.isNamedSlot(slot) && !declared.contains(slot)) {
             declared.add(slot);
             return "var " + name + " = " + value;
         }
