@@ -88,4 +88,31 @@ class NativeX86PeepholeTest {
         assertEquals("    pushq %rbx\n    movq %rax, %rsi\n    popq %rax\n",
                 result("    pushq %rbx\n    movq %rax, %rsi\n    popq %rax\n"));
     }
+
+    @Test
+    void aScratchLoadIsFoldedIntoTheOp() {
+        // movq %r12, %rcx; addl %ecx, %eax  ->  addl %r12d, %eax
+        assertEquals("    movq %r12, %rax\n    addl %r13d, %eax\n",
+                result("    movq %r12, %rax\n    movq %r13, %rcx\n    addl %ecx, %eax\n"));
+    }
+
+    @Test
+    void aLongScratchLoadIsFolded() {
+        assertEquals("    movq %r12, %rax\n    addq %r13, %rax\n",
+                result("    movq %r12, %rax\n    movq %r13, %rcx\n    addq %rcx, %rax\n"));
+    }
+
+    @Test
+    void aScratchLoadIsNotFoldedWhenRcxIsUsedElsewhere() {
+        // rcx used as a real destination (a register-placed local) -> leave the whole region.
+        String body = "    movq %r12, %rax\n    movq %r13, %rcx\n    addl %ecx, %eax\n    movq %rax, %rcx\n";
+        assertEquals(body, result(body));
+    }
+
+    @Test
+    void aShiftCountIsNotSubstituted() {
+        // A shift must keep the count in %cl.
+        String body = "    movq %r12, %rax\n    movq %r13, %rcx\n    shll %cl, %eax\n";
+        assertEquals(body, result(body));
+    }
 }

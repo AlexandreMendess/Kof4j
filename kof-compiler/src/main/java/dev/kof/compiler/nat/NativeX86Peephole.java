@@ -76,9 +76,98 @@ final class NativeX86Peephole {
             }
         }
         collapsed += collapseSpannedPushPop(lines);
+        collapsed += foldScratchLoadIntoOp(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;
+    }
+
+    /** 64-bit register name -> its 32-bit name (for substituting a source operand). */
+    private static final java.util.Map<String, String> REG32 = java.util.Map.ofEntries(
+            java.util.Map.entry("%rax", "%eax"), java.util.Map.entry("%rcx", "%ecx"),
+            java.util.Map.entry("%rdx", "%edx"), java.util.Map.entry("%rbx", "%ebx"),
+            java.util.Map.entry("%rsp", "%esp"), java.util.Map.entry("%rbp", "%ebp"),
+            java.util.Map.entry("%rsi", "%esi"), java.util.Map.entry("%rdi", "%edi"),
+            java.util.Map.entry("%r8", "%r8d"), java.util.Map.entry("%r9", "%r9d"),
+            java.util.Map.entry("%r10", "%r10d"), java.util.Map.entry("%r11", "%r11d"),
+            java.util.Map.entry("%r12", "%r12d"), java.util.Map.entry("%r13", "%r13d"),
+            java.util.Map.entry("%r14", "%r14d"), java.util.Map.entry("%r15", "%r15d"));
+
+    /** The binary ops (not shifts — the shift count must be %cl) whose second operand
+     *  may be substituted from %rcx with the loading {@code movq %Y, %rcx} removed. */
+    private static final java.util.Set<String> SUBSTITUTABLE = java.util.Set.of(
+            "addl", "addq", "subl", "subq", "imull", "imulq", "andl", "andq",
+            "orl", "orq", "xorl", "xorq", "cmpl", "cmpq");
+
+    /**
+     * Folds {@code movq %Y, %rcx} + {@code OP %ecx/%rcx, %eax/%rax} into
+     * {@code OP %Y32/%Y, %eax/%rax}, dropping the scratch load. The op reads only
+     * the low 32 (or the full 64) of rcx, which the movq set to exactly Y, so the
+     * substitution is exact; the result and the flags are unchanged.
+     *
+     * <p>Conservative guard: only applied when {@code %rcx}/{@code %ecx} appears in
+     * the region SOLELY as such a scratch load and its immediately-following op —
+     * if rcx is used anywhere else (e.g. a register-placed local), nothing is folded.
+     */
+    private static int foldScratchLoadIntoOp(List<String> lines) {
+        // Guard: rcx must be scratch-only in this region — every mention is either
+        // a `movq X, %rcx` IMMEDIATELY followed by a substitutable op (a scratch
+        // load), or that op itself. Anything else (e.g. `movq %rax, %rcx` storing
+        // into a register-placed local) disables the whole fold.
+        for (int i = 0; i < lines.size(); i++) {
+            String t = lines.get(i).trim();
+            if (!mentionsRcx(t)) continue;
+            if (isSubstitutableOp(t)) continue;
+            boolean isLoad = t.startsWith("movq ") && t.endsWith(", %rcx");
+            int nx = i + 1;
+            while (nx < lines.size() && lines.get(nx).trim().startsWith(".loc ")) nx++;
+            boolean loadFollowedByOp = isLoad && nx < lines.size() && isSubstitutableOp(lines.get(nx).trim());
+            if (!loadFollowedByOp) return 0;
+        }
+        int folded = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 1 < lines.size(); i++) {
+                String load = lines.get(i).trim();
+                if (!load.startsWith("movq ") || !load.endsWith(", %rcx")) continue;
+                String y = load.substring("movq ".length(), load.length() - ", %rcx".length()).trim();
+                if (!y.startsWith("%") || y.equals("%rax") || y.equals("%rcx")) continue;
+                int j = i + 1;
+                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
+                if (j >= lines.size()) continue;
+                String op = lines.get(j).trim();
+                if (!isSubstitutableOp(op)) continue;
+                String mnemonic = op.substring(0, op.indexOf(' '));
+                String rest = op.substring(op.indexOf(' ') + 1);           // "src, dst"
+                int comma = rest.indexOf(',');
+                String src = rest.substring(0, comma).trim();
+                String dst = rest.substring(comma + 1).trim();
+                String newSrc = src.equals("%rcx") ? y : REG32.getOrDefault(y, y);
+                if (!src.equals("%ecx") && !src.equals("%rcx")) continue;
+                lines.set(j, "    " + mnemonic + " " + newSrc + ", " + dst);
+                lines.remove(i);
+                folded++;
+                changed = true;
+                break;
+            }
+        }
+        return folded;
+    }
+
+    private static boolean mentionsRcx(String t) {
+        return t.contains("%rcx") || t.contains("%ecx") || t.contains("%cl");
+    }
+
+    private static boolean isSubstitutableOp(String t) {
+        int sp = t.indexOf(' ');
+        if (sp < 0) return false;
+        if (!SUBSTITUTABLE.contains(t.substring(0, sp))) return false;
+        String rest = t.substring(sp + 1);
+        int comma = rest.indexOf(',');
+        if (comma < 0) return false;
+        String src = rest.substring(0, comma).trim();
+        return src.equals("%ecx") || src.equals("%rcx");
     }
 
     /**
