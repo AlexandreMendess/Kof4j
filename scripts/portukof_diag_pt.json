@@ -830,6 +830,11 @@
       "arity": 2,
       "en": "{0} is a top-level function, not a value in argument position — pass the call wrapped in a lambda: () -> {1}()",
       "pt": "{0} é uma função de nível de módulo, não um valor em posição de argumento — passe a chamada envolvida em uma lambda: () -> {1}()"
+    },
+    {
+      "arity": 3,
+      "en": "Undefined variable or type: '{0}' as the bound of type-parameter '{1}' in {2} — declare the bound type or fix the name (R6: an undefined bound must not compile)",
+      "pt": "variável ou tipo indefinido: '{0}' como bound do type-parameter '{1}' em {2} — declare o tipo do bound ou corrija o nome (R6: um bound indefinido não pode compilar)"
     }
   ],
   "SEM012": [
