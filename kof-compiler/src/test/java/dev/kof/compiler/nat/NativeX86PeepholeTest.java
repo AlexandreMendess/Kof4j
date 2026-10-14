@@ -115,4 +115,18 @@ class NativeX86PeepholeTest {
         String body = "    movq %r12, %rax\n    movq %r13, %rcx\n    shll %cl, %eax\n";
         assertEquals(body, result(body));
     }
+
+    @Test
+    void aScratchLoadIntoACompareDestinationIsFolded() {
+        // The loop-condition shape: the rcx load feeds the DESTINATION of a compare,
+        // with an independent rax operand load in between.
+        assertEquals("    movq %rbx, %rax\n    cmpl %eax, %r13d\n",
+                result("    movq %r13, %rcx\n    movq %rbx, %rax\n    cmpl %eax, %ecx\n"));
+    }
+
+    @Test
+    void aLongCompareDestinationUsesThe64BitName() {
+        assertEquals("    movq %rbx, %rax\n    cmpq %rax, %r13\n",
+                result("    movq %r13, %rcx\n    movq %rbx, %rax\n    cmpq %rax, %rcx\n"));
+    }
 }

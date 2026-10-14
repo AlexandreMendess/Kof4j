@@ -99,30 +99,30 @@ final class NativeX86Peephole {
             "addl", "addq", "subl", "subq", "imull", "imulq", "andl", "andq",
             "orl", "orq", "xorl", "xorq", "cmpl", "cmpq");
 
+    /** Flag-only ops: substituting their %rcx DESTINATION is safe because they do
+     *  not produce a value in the destination (only the flags change). */
+    private static final java.util.Set<String> FLAG_OPS = java.util.Set.of(
+            "cmpl", "cmpq", "testl", "testq");
+
     /**
-     * Folds {@code movq %Y, %rcx} + {@code OP %ecx/%rcx, %eax/%rax} into
-     * {@code OP %Y32/%Y, %eax/%rax}, dropping the scratch load. The op reads only
-     * the low 32 (or the full 64) of rcx, which the movq set to exactly Y, so the
-     * substitution is exact; the result and the flags are unchanged.
+     * Folds {@code movq %Y, %rcx} + a following op that reads or (flag-only) writes
+     * {@code %rcx} into the same op with {@code %Y32/%Y} in its place, dropping the
+     * scratch load. The op sees exactly the value the movq put in rcx, so the
+     * result and the flags are unchanged.
      *
-     * <p>Conservative guard: only applied when {@code %rcx}/{@code %ecx} appears in
-     * the region SOLELY as such a scratch load and its immediately-following op —
-     * if rcx is used anywhere else (e.g. a register-placed local), nothing is folded.
+     * <p>Conservative guard: only applied when {@code %rcx}/{@code %ecx}/{@code %cl}
+     * appears in the region SOLELY as such a scratch load and its immediately-
+     * following foldable op — if rcx is used anywhere else (e.g. a shift count that
+     * must stay in {@code %cl}, or a store to a register-placed local), nothing is
+     * folded.
      */
     private static int foldScratchLoadIntoOp(List<String> lines) {
-        // Guard: rcx must be scratch-only in this region — every mention is either
-        // a `movq X, %rcx` IMMEDIATELY followed by a substitutable op (a scratch
-        // load), or that op itself. Anything else (e.g. `movq %rax, %rcx` storing
-        // into a register-placed local) disables the whole fold.
         for (int i = 0; i < lines.size(); i++) {
             String t = lines.get(i).trim();
             if (!mentionsRcx(t)) continue;
-            if (isSubstitutableOp(t)) continue;
+            if (isFoldableOp(t)) continue;
             boolean isLoad = t.startsWith("movq ") && t.endsWith(", %rcx");
-            int nx = i + 1;
-            while (nx < lines.size() && lines.get(nx).trim().startsWith(".loc ")) nx++;
-            boolean loadFollowedByOp = isLoad && nx < lines.size() && isSubstitutableOp(lines.get(nx).trim());
-            if (!loadFollowedByOp) return 0;
+            if (!isLoad || !isFoldableOp(skipToFoldableOp(lines, i + 1))) return 0;
         }
         int folded = 0;
         boolean changed = true;
@@ -133,19 +133,35 @@ final class NativeX86Peephole {
                 if (!load.startsWith("movq ") || !load.endsWith(", %rcx")) continue;
                 String y = load.substring("movq ".length(), load.length() - ", %rcx".length()).trim();
                 if (!y.startsWith("%") || y.equals("%rax") || y.equals("%rcx")) continue;
-                int j = i + 1;
-                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
-                if (j >= lines.size()) continue;
+                int j = indexOfFoldableOp(lines, i + 1);
+                if (j < 0) continue;
                 String op = lines.get(j).trim();
-                if (!isSubstitutableOp(op)) continue;
+                if (!isFoldableOp(op)) continue;
                 String mnemonic = op.substring(0, op.indexOf(' '));
                 String rest = op.substring(op.indexOf(' ') + 1);           // "src, dst"
                 int comma = rest.indexOf(',');
                 String src = rest.substring(0, comma).trim();
                 String dst = rest.substring(comma + 1).trim();
-                String newSrc = src.equals("%rcx") ? y : REG32.getOrDefault(y, y);
-                if (!src.equals("%ecx") && !src.equals("%rcx")) continue;
-                lines.set(j, "    " + mnemonic + " " + newSrc + ", " + dst);
+                String y32 = REG32.getOrDefault(y, y);
+                boolean srcRcx32 = src.equals("%ecx");
+                boolean srcRcx64 = src.equals("%rcx");
+                boolean dstRcx32 = dst.equals("%ecx");
+                boolean dstRcx64 = dst.equals("%rcx");
+                // Substitute with the SAME width as the operand being replaced.
+                String srcVal = srcRcx32 ? y32 : y;
+                String dstVal = dstRcx32 ? y32 : y;
+                if ((srcRcx32 || srcRcx64) && (dstRcx32 || dstRcx64)) {
+                    // e.g. `testl %ecx, %ecx` (both operands the scratch): both are Y.
+                    lines.set(j, "    " + mnemonic + " " + srcVal + ", " + dstVal);
+                } else if (srcRcx32 || srcRcx64) {
+                    // The op READS rcx as its second operand: substitute the source.
+                    lines.set(j, "    " + mnemonic + " " + srcVal + ", " + dst);
+                } else if (dstRcx32 || dstRcx64) {
+                    // The op is flag-only and WRITES rcx: substitute the destination.
+                    lines.set(j, "    " + mnemonic + " " + src + ", " + dstVal);
+                } else {
+                    continue;
+                }
                 lines.remove(i);
                 folded++;
                 changed = true;
@@ -159,15 +175,43 @@ final class NativeX86Peephole {
         return t.contains("%rcx") || t.contains("%ecx") || t.contains("%cl");
     }
 
-    private static boolean isSubstitutableOp(String t) {
+    /**
+     * The index of the next foldable op after {@code from}, skipping {@code .loc}
+     * lines and intervening {@code movq ... , %rax} scratch loads (independent of
+     * the rcx load being folded — the operand load lands in a different register).
+     * Returns -1 if a non-skippable line comes first.
+     */
+    private static int indexOfFoldableOp(List<String> lines, int from) {
+        int j = from;
+        while (j < lines.size()) {
+            String t = lines.get(j).trim();
+            if (t.startsWith(".loc ")) { j++; continue; }
+            if (t.startsWith("movq ") && t.endsWith(", %rax")) { j++; continue; }
+            return isFoldableOp(t) ? j : -1;
+        }
+        return -1;
+    }
+
+    private static String skipToFoldableOp(List<String> lines, int from) {
+        int j = indexOfFoldableOp(lines, from);
+        return j < 0 ? "" : lines.get(j).trim();
+    }
+
+    /** A foldable op: reads {@code %ecx/%rcx} as its second operand (SUBSTITUTABLE),
+     *  or is flag-only and writes it as its destination (FLAG_OPS). */
+    private static boolean isFoldableOp(String t) {
         int sp = t.indexOf(' ');
         if (sp < 0) return false;
-        if (!SUBSTITUTABLE.contains(t.substring(0, sp))) return false;
+        String mnemonic = t.substring(0, sp);
         String rest = t.substring(sp + 1);
         int comma = rest.indexOf(',');
         if (comma < 0) return false;
         String src = rest.substring(0, comma).trim();
-        return src.equals("%ecx") || src.equals("%rcx");
+        String dst = rest.substring(comma + 1).trim();
+        if (SUBSTITUTABLE.contains(mnemonic) && (src.equals("%ecx") || src.equals("%rcx"))) {
+            return true;
+        }
+        return FLAG_OPS.contains(mnemonic) && (dst.equals("%ecx") || dst.equals("%rcx"));
     }
 
     /**
