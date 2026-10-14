@@ -65,4 +65,27 @@ class NativeX86PeepholeTest {
         String body = "    pushq %r13\n    popq %rax\n    shll $1, %eax\n    pushq %rax\n    popq %rcx\n";
         assertEquals("    movq %r13, %rax\n    shll $1, %eax\n    movq %rax, %rcx\n", result(body));
     }
+
+    @Test
+    void aSpannedPushPopBecomesTwoIndependentMoves() {
+        // pushq %rbx; movq %r12, %rsi; popq %rax  ->  movq %rbx, %rax; movq %r12, %rsi
+        assertEquals("    movq %rbx, %rax\n    movq %r12, %rsi\n",
+                result("    pushq %rbx\n    movq %r12, %rsi\n    popq %rax\n"));
+    }
+
+    @Test
+    void aSpannedSelfPopDropsOnlyThePushAndPop() {
+        // pushq %rax; movq %r12, %rsi; popq %rax  ->  movq %r12, %rsi
+        // (regression: removing the push before the pop shifted the index and
+        //  deleted the wrong line, leaving a stray pop -> SIGSEGV)
+        assertEquals("    movq %r12, %rsi\n",
+                result("    pushq %rax\n    movq %r12, %rsi\n    popq %rax\n"));
+    }
+
+    @Test
+    void aSpannedClobberHazardIsNotCollapsed() {
+        // The middle move reads %rax, which the new `movq %rbx, %rax` would clobber.
+        assertEquals("    pushq %rbx\n    movq %rax, %rsi\n    popq %rax\n",
+                result("    pushq %rbx\n    movq %rax, %rsi\n    popq %rax\n"));
+    }
 }
