@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3ay LANDADA: o cabeçalho de SEQUÊNCIA expõe `enable_filter_intra`/`enable_intra_edge_filter` (o walk lia e pulava, sem fonte para o driver) e um AVIF REAL de ffmpeg (`avif_real_64.avif`) fixa todo o caminho container→cabeçalho→tile-group. `AvifRealFileE2ETest` 2/2, `AvifSeqE2ETest` 8/8, `AvifFrameE2ETest` 14/16 (as 2 nativas são o §723 pré-existente). **Descobri que o ffmpeg (libaom-av1 + libdav1d) dá fixture E oráculo de pixels** — destranca a composição. Fronteira: o decode de tile do Kof RODA no payload real (21 blocos) mas os pixels ainda divergem do ffmpeg — próxima fatia.
-doing: 3ay landada (flags de sequência + fixture AVIF real); a composição de pixels é a próxima
-next: fazer os pixels do decode no payload AVIF real baterem com o ffmpeg (oráculo libdav1d/libaom-av1) — isso compõe `decodeRaster` AVIF
+last: 14/10 — AVIF slice 3az DIAGNOSTICADA: um item AVIF REAL (ffmpeg) começa com o SEQUENCE HEADER (0x0a, tipo 1) e o walk de OBU do item-data do Kof exige o temporal delimiter PRIMEIRO (`AvifObuE2ETest` tem a face `nodelim` que fixa isso) → `readAvifItemObus` RECUSA o arquivo real, então a composição não consegue o seq header real (enable_filter_intra, bit depth). É um GAP de subset (a regra é deliberada e testada) — não relaxei sozinho. Próximo: o mantenedor decide (aceitar seq-header-primeiro p/ ISOBMFF, ou exigir o seq no av1C/configOBUs); depois a reconciliação de pixels vs ffmpeg.
+doing: 3az diagnosticada (gap do delimiter-primeiro bloqueia a composição); nada landado
+next: decisão do mantenedor sobre o delimiter-first (aceitar OBU_SEQUENCE_HEADER primeiro ou exigir o seq no configOBUs) → destrava a composição `decodeRaster` AVIF; os pixels têm que bater com o ffmpeg (libdav1d/libaom-av1)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (23ª) — slice 3az: um item AVIF REAL começa com o SEQ HEADER, e o walk de OBU do Kof exige um delimitador
+- **O que eu fui fazer:** reconciliar os pixels do decode de tile no AVIF real com o ffmpeg (a composição).
+- **O bloqueio:** preciso do seq header REAL (bit depth, `enable_filter_intra`) do arquivo — `readAvifSeqHeader(path)` falha (o `av1C` do ffmpeg tem `configOBUs` VAZIO; o seq está no item data) e `readAvifItemObus(path)` RECUSA o item: ele começa com `0x0a` = `OBU_SEQUENCE_HEADER` (tipo 1), sem o temporal delimiter (tipo 2) que o walk exige PRIMEIRO.
+- **Verificação antes de consertar:** a regra está FIXADA por uma face de erro (`AvifObuE2ETest`'s `nodelim`, e o fixture `nodelim.avif` = `[configObu][delimiter]`). Ou seja, é uma escolha de conformidade DELIBERADA — relaxá-la é decisão de subset, não um conserto de agente. **Não mexi.**
+- **O que landei:** só docs (o diagnóstico no plano + DOING + myself). Árvore limpa.
+- **Prova executada:** o item data começa em `0x0a` (lido no `xxd`); `readAvifItemObus` lança `IMAGE: avif item does not begin with a temporal delimiter`; o fixture `nodelim` + a face de erro confirmam que a regra é intencional.
+- **Lição:** antes de "consertar" um comportamento que bloqueia, checar se ele é TESTADO — se há uma face de erro que o fixa, é uma decisão de design (aqui, de subset), e o certo é levar a decisão ao mantenedor, não virá-la sozinho.
 
 ## Sessão 14/10 (22ª) — slice 3ay: o cabeçalho de sequência + um AVIF REAL (e o ffmpeg como oráculo)
 - **O achado grande:** `ffmpeg` no host tem `libaom-av1` (encoder), o muxer `avif` E `libdav1d`/`libaom-av1` (decoders). Então posso GERAR um AVIF real e usá-lo como fixture, e usar o decode do ffmpeg como ORÁCULO de pixels. Isso destranca a composição (antes eu não tinha nem arquivo real nem oráculo).
