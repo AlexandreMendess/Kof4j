@@ -25,18 +25,26 @@ final class BytecodeDecoderCond {
         String inv = BytecodeCp.invCond(cmp.opcode());
         if (inv == null || cmp.target() != zero.offset()) return null;
 
+        // Fase E (13/10) CORRECAO (medido: cmpChain dava `if (arg0 > arg1) 1
+        // else 0`, DESCARTANDO o braco -1 = CODIGO ERRADO compilavel, anti-R6):
+        // o cmp tem que ser o INICIO do fluxo — os operandos sao exatamente as
+        // instrucoes imediatamente ANTES dele e NAO pode haver codigo antes.
+        // A versao antiga lia os 2 primeiros loads do METODO (nao os do cmp) e
+        // ignorava qualquer branch anterior, aceitando o TAIL de um ternario
+        // ANINHADO como se fosse flat (o operando `-1` era perdido).
+        int arity = (cmp.opcode() >= 0x9f && cmp.opcode() <= 0xa4) ? 2 : 1;
+        int operandStart = n - 5 - arity;
+        if (operandStart != 0) return null;   // ha codigo/branch antes do cmp → nao e flat
         java.util.List<String> operands = new java.util.ArrayList<>();
-        for (int i = 0; i < n - 5 && operands.size() < 2; i++) {
+        for (int i = operandStart; i < n - 5; i++) {
             String v = BytecodeDecoder.loadValue(insns.get(i), frame);
             if (v == null) return null;
             operands.add(v);
         }
         String cond;
-        if (cmp.opcode() >= 0x9f && cmp.opcode() <= 0xa4) {
-            if (operands.size() != 2) return null;
+        if (arity == 2) {
             cond = operands.get(0) + " " + inv + " " + operands.get(1);
         } else {
-            if (operands.isEmpty()) return null;
             cond = operands.get(0) + " " + inv;
         }
         // §236 (14/09): o shape cmp/iconst_1/goto/iconst_0/ireturn e AMBIGUO na
@@ -70,9 +78,53 @@ final class BytecodeDecoderCond {
         BytecodeReader.Block thenB = BytecodeDecoder.find(blocks, thenStart);
         BytecodeReader.Block elseB = BytecodeDecoder.find(blocks, elseStart);
         if (thenB == null || elseB == null) return null;
-        String thenE = BytecodeDecoder.blockReturnExpr(thenB, insns, cp, frame);
-        String elseE = BytecodeDecoder.blockReturnExpr(elseB, insns, cp, frame);
+        // Fase E (13/10) `&&`: se o braco THEN e ele mesmo um teste cujo FALSO
+        // converge no MESMO else (o falso externo), o shape e `if (A) { if (B)
+        // X else Y } else Y` = `if (A && B) X else Y` — a forma IDIOMATICA
+        // (sem isso a recursao o emitia como ternario aninhado, ofuscando o &&).
+        if (thenB != null && thenB.succ.size() == 2 && thenB.succ.get(0) == elseStart) {
+            String cInner = BytecodeDecoder.blockCondition(thenB, insns, frame, cp);
+            BytecodeReader.Block innerThen = BytecodeDecoder.find(blocks, thenB.succ.get(1));
+            String t = armExpr(innerThen, blocks, insns, cp, frame, 0);
+            String e = armExpr(elseB, blocks, insns, cp, frame, 0);
+            if (cInner != null && t != null && e != null) {
+                return "if (" + cond + " && " + cInner + ") " + t + " else " + e;
+            }
+        }
+        // Fase E (13/10): o braco pode ser ELE MESMO um teste (ternario
+        // ANINHADO — `a < b ? -1 : (a > b ? 1 : 0)`); o armExpr recursa.
+        String thenE = armExpr(thenB, blocks, insns, cp, frame, 0);
+        String elseE = armExpr(elseB, blocks, insns, cp, frame, 0);
         if (thenE == null || elseE == null) return null;
         return "if (" + cond + ") " + thenE + " else " + elseE;
+    }
+
+    /**
+     * Expressao do valor de um braco: primeiro tenta o caminho LINEAR (tirando
+     * o goto final que converge no join); se o bloco for um TESTE (2 sucessores)
+     * recursa — cobre o ternario ANINHADO. Profundidade limitada (o aninhamento
+     * e finito no codigo real). null = stub honesto (R6).
+     */
+    private static String armExpr(BytecodeReader.Block b, List<BytecodeReader.Block> blocks,
+                                  List<BytecodeReader.Insn> insns, String[] cp,
+                                  BytecodeFrame frame, int depth) {
+        if (b == null || depth > 6) return null;
+        List<BytecodeReader.Insn> bi = BytecodeDecoder.insnsWithin(b, insns);
+        if (bi.isEmpty()) return null;
+        List<BytecodeReader.Insn> core = bi;
+        if (bi.get(bi.size() - 1).opcode() == 0xa7) core = bi.subList(0, bi.size() - 1);
+        if (!core.isEmpty()) {
+            String lin = BytecodeDecoder.linearReturn(core, cp, frame);
+            if (lin != null) return lin;
+        }
+        if (b.succ.size() != 2) return null;
+        String cond = BytecodeDecoder.blockCondition(b, insns, frame, cp);
+        if (cond == null) return null;
+        BytecodeReader.Block elseB = BytecodeDecoder.find(blocks, b.succ.get(0));
+        BytecodeReader.Block thenB = BytecodeDecoder.find(blocks, b.succ.get(1));
+        String t = armExpr(thenB, blocks, insns, cp, frame, depth + 1);
+        String e = armExpr(elseB, blocks, insns, cp, frame, depth + 1);
+        if (t == null || e == null) return null;
+        return "if (" + cond + ") " + t + " else " + e;
     }
 }

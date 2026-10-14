@@ -315,7 +315,10 @@ class DecompileTest {
         assertFalse(kof.contains("body not recovered"),
                 "&& e ?: recuperam (nao stub):\n" + kof);
         assertTrue(kof.contains("arg0 > 0 && arg1 > arg0"), kof);
-        assertTrue(kof.contains("return if (arg0 > 0) 1 else -1"), kof);
+        // o ternário agora recupera pela via de EXPRESSÃO (armExpr do
+        // ifElseReturn, 13/10) — corpo `= if (..)`; a forma `return if (..)`
+        // (statement) é equivalente. O substring abaixo cobre as duas.
+        assertTrue(kof.contains("if (arg0 > 0) 1 else -1"), kof);
         // zero-drift executado contra o oráculo Java
         String kofRun = kof + "\nmain() {\n    var sc = Join()\n    println(Join.shortc(2, 5))\n    println(Join.shortc(2, 1))\n    println(Join.tern(4))\n    println(Join.tern(-4))\n}\n";
         CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
@@ -1251,6 +1254,43 @@ class DecompileTest {
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
         assertEquals("10\n0", output, "zero-drift executado");
+    }
+
+    @Test
+    void nestedTernaryRecoversAndNoWrongCode(@TempDir Path dir) throws Exception {
+        // Fase E (13/10) BUG CRÍTICO CORRIGIDO: `a < b ? -1 : (a > b ? 1 : 0)`
+        // era decompilado como `if (a > b) 1 else 0` — DESCARTAVA o braço -1
+        // = CÓDIGO ERRADO compilável (anti-R6). Causa: comparisonReturn lia
+        // os 2 primeiros loads do MÉTODO (não os do cmp) e ignorava branch
+        // anterior, aceitando o TAIL de um ternário aninhado como flat. Fix:
+        // o cmp tem que ser o INÍCIO do fluxo + armExpr RECURSIVO no
+        // ifElseReturn (braço que é ele mesmo um teste). Zero-drift executado.
+        Path javaFile = dir.resolve("Nt.java");
+        Files.writeString(javaFile, """
+                public class Nt {
+                    static int cmpChain(int a, int b) { return a < b ? -1 : (a > b ? 1 : 0); }
+                    static int nest(int a) { return a > 0 ? (a > 10 ? 2 : 1) : 0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Nt.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o tern\u00e1rio aninhado recupera:\n" + kof);
+        assertTrue(kof.contains("arg0 < arg1"), "o bra\u00e7o -1 n\u00e3o pode ser descartado:\n" + kof);
+        assertTrue(kof.contains("-1"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Nt.cmpChain(3, 5))\n    println(Nt.cmpChain(5, 3))\n    println(Nt.cmpChain(4, 4))\n    println(Nt.nest(5))\n    println(Nt.nest(15))\n    println(Nt.nest(-3))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: cmpChain -1/1/0; nest(5)=1 nest(15)=2 nest(-3)=0
+        assertEquals("-1\n1\n0\n1\n2\n0", output, "zero-drift: o bra\u00e7o -1 preservado");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {
