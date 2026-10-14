@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — §723 CATALOGADO ABERTO: a virada de locais-em-registradores do `D-CODEGEN-REWRITE` (`kof.native.register.locals` default TRUE, `c044a2add`) QUEBRA as faces nativas AVIF x86 (A/B na escotilha: OFF passa, ON falha) e sua mensagem de commit mis-atribui a falha como pré-existente. SEXTA PASSADA do §705: o bloco de argumentos de pilha nunca é alinhado a 16 bytes (15 args = 120 B, `%rsp ≡ 8 mod 16` no `call`); o pad `pushq $0` faz o probe girante sair limpo — pista MEDIDA, NÃO landada (as faces AVIF estão RED pelo §723, então não dá para verificar a correção de alinhamento)
-doing: nenhum — ciclo de diagnóstico/catálogo; árvore só com docs (o WIP de outras lanes intacto)
-next: a lane de codegen resolve o §723 (flag ON); só então landar o pad de 16 bytes do §705 em `nat/NativeX86Calls.java` e re-landar a 3au; depois retomar o slice do tile-group/OBU (que não depende da 3au) e por fim `decodeRaster` AVIF
+last: 14/10 — §705 SÉTIMA PASSAGEM: a hipótese do alinhamento de 16 bytes está ENFRAQUECIDA. Um reprodutor MÍNIMO de 21 argumentos roda correto COM e SEM o pad, e o runtime não tem SSE alinhado a 16 bytes para dar falta — então o pad é ABI-correto e zero-regressão (face do driver verde com a escotilha OFF + bateria nativa 114/114), mas NÃO é a causa do §705. §723 continua aberto (o pad não o corrige). Nada landado; árvore limpa.
+doing: nenhum — ciclo de diagnóstico; árvore limpa
+next: a lane de compilador/nativo decide landar o pad de 16 bytes em `nat/NativeX86Calls.java` como endurecimento de ABI (4 sítios: helper `padBytes` + `pushq $0` antes dos args + limpeza) e resolve o §723 (flag ON); depois re-landar a 3au, retomar o slice do tile-group/OBU e por fim `decodeRaster` AVIF
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (18ª) — §705 SÉTIMA PASSAGEM: a hipótese do alinhamento de 16 bytes ENFRAQUECIDA (a correção da passagem anterior foi uma super-generalização)
+- **O que eu tinha dito (17ª):** "o bloco de argumentos de pilha nunca é alinhado a 16 bytes; o pad `pushq $0` faz o probe girante sair limpo — pista MEDIDA". Isso tratou UMA observação como causa.
+- **As duas medições que a enfraquecem:** (1) um reprodutor MÍNIMO de 21 argumentos (15 args de pilha, ímpar — a mesma forma da chamada do `decodeBlock`) que aloca e concatena dentro do callee roda correto (`rc=0`, `21`) TANTO com o pad quanto SEM ele; (2) o runtime emitido não tem SSE alinhado a 16 bytes para dar falta — todo uso é de registrador (`movd`/`movq`/`ucomiss`/`ucomisd`) e o `kof_alloc` é `lock cmpxchg` + `futex`. Um frame desalinhado é benigno aqui.
+- **O que ficou provado sobre o pad:** é correto pela ABI SysV e ZERO-REGRESSÃO — com ele, `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` passa com a escotilha OFF, e uma bateria nativa de 114 testes (NativeE2ETest 68, Av1DecodeChroma 8, Av1FrameAssembly 6, Av1Coeffs 6, Av1Partition 16, NativeCallScratch 4, NativeCrossWideArgs 3, NativeRegisterLocals 3) está **114/114 verde**. NÃO corrige o §723 (a flag ON ainda falha com o pad).
+- **Decisão:** NÃO landei. `nat/` é a frente da lane de compilador/nativo (`D-CODEGEN-REWRITE` ativo); landar um endurecimento de ABI sem uma prova RED-first que ele corrige algo é mudança não verificável. Árvore limpa.
+- **Prova executada:** o probe mínimo com e sem o pad (ambos `rc=0`); a face do driver com o pad + flag OFF (passa); a bateria de 114 (verde); `check_ledger_anchors` rc=0; compile rc=0.
+- **Lição (a terceira vez nesta série):** "um experimento mudou o resultado" não é o mesmo que "o experimento explica o resultado" — num bug dependente da entrada, um antes/depois é um ponto. A pergunta certa é "o mecanismo prediz o sintoma em TODAS as entradas?", e a resposta aqui foi não (o reprodutor mínimo não falha).
 
 ## Sessão 14/10 (17ª) — §723 catalogado (a virada de locais-em-registradores quebrou as faces nativas AVIF) + a SEXTA PASSADA do §705 (o alinhamento de 16 bytes)
 - **Contexto ao retomar:** a 3au estava revertida, a árvore limpa, e o §705 (o giro nativo) aberto. O objetivo era landar a correção de alinhamento de pilha e re-landar a 3au.
