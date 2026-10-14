@@ -27,11 +27,13 @@ class FinancialMoneyE2ETest implements LibraryInstallSupport {
 
     @Override public String libraryName() { return "financial"; }
 
-    @Override public List<String> libraryMarkers() { return List.of("Money.kf", "Fees.kf"); }
+    @Override public List<String> libraryMarkers() { return List.of("Money.kf", "Fees.kf", "Events.kf", "Idempotency.kf"); }
 
     private static final String PROBE = """
             import financial.Money
 import financial.Fees
+import financial.Events
+import financial.Idempotency
 import financial.Fx
 
             main() {
@@ -64,6 +66,22 @@ import financial.Fx
                 } catch (String e) {
                     println(e)
                 }
+                var box = Outbox(listOf())
+                var o1 = publish(box, Event("e-1", "payment.created", "tx-1", "{}", 1000L, "c-1"))
+                var o2 = publish(o1, Event("e-2", "payment.captured", "tx-1", "{}", 1100L, "c-1"))
+                println(pending(o2).size)
+                var o3 = markDispatched(o2, "e-1")
+                println(pending(o3).size)
+                println(pending(o3).get(0).id)
+                var s = IdempotencyStore(listOf())
+                var s1 = remember(s, IdempotencyRecord("k-1", "hash-a", "{}", 1000L))
+                println(isReplay(s1, "k-1", "hash-a"))
+                try {
+                    remember(s1, IdempotencyRecord("k-1", "hash-b", "{}", 1100L))
+                    println("no-throw")
+                } catch (String e) {
+                    println(e)
+                }
                 var usd = convert(Money(200L, "BRL"), Rate("BRL", "USD", 1L, 5L, 1000L, "test"), Rounding.halfUp)
                 println(format(usd))
                 var brl = convert(usd, invert(Rate("BRL", "USD", 1L, 5L, 1000L, "test")), Rounding.halfUp)
@@ -76,7 +94,7 @@ import financial.Fx
     // 150+250=400 -> R$ 4.00 ; 250-150=100 -> R$ 1.00 ; negate 150 -> R$ -1.50 ;
     // roundTo(155, 1, halfEven) -> 160 -> R$ 1.60 ; scale(150, 3/2) = 225 -> R$ 2.25 ;
     // JPY has 0 minor units: Money(0,"JPY") -> "JPY 0" ; roundTo(12345, 0) -> "JPY 12345"
-    private static final String EXPECTED = "R$ 4.00\nR$ 1.00\nR$ -1.50\nR$ 1.60\nR$ 2.25\nJPY 0\nJPY 12345\ncurrency mismatch: BRL + USD (FIN001)\n50\n25\nR$ 10.75\nR$ 9.25\nunsupported fee kind: tiered (FIN007)\n$ 0.40\nR$ 2.00\nEUR 0.30";
+    private static final String EXPECTED = "R$ 4.00\nR$ 1.00\nR$ -1.50\nR$ 1.60\nR$ 2.25\nJPY 0\nJPY 12345\ncurrency mismatch: BRL + USD (FIN001)\n50\n25\nR$ 10.75\nR$ 9.25\nunsupported fee kind: tiered (FIN007)\n2\n1\ne-2\ntrue\nidempotency conflict: key k-1 reused with a different request (FIN005)\n$ 0.40\nR$ 2.00\nEUR 0.30";
 
     private <T> T withLibrary(Path root, CheckedSupplier<T> action) throws Exception {
         copyLibrary(root.resolve("kof-install/lib/kof-libs"));
