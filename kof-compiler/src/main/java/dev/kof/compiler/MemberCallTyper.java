@@ -185,7 +185,11 @@ public final class MemberCallTyper {
                     && !(elemType instanceof Type.UnknownType)) {
                 for (int i = 0; i < mc.arguments().size(); i++) {
                     if (mc.arguments().get(i) instanceof LambdaExpr le) {
-                        mc.arguments().set(i, contextualLambda(le, elemType));
+                        LambdaExpr rw = contextualLambda(le, elemType);
+                        if (rw != le) {
+                            mc.arguments().set(i, rw);
+                            sa.portuKofSurface().recordLambdaRewrite(le, rw);
+                        }
                     }
                 }
             }
