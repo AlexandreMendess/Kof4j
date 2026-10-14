@@ -164,6 +164,28 @@ class OptimizerBenchmarkE2ETest {
                 report.append(String.format("%-12s [%-10s] NATIVE not built: %s%n",
                         b.name(), b.category(), rn.diagnostics().getDiagnostics()));
             }
+
+            // Cross targets (aarch64 / riscv64 via qemu): correctness parity,
+            // skipped honestly when the cross toolchain/qemu is absent.
+            for (String[] cross : CROSS_TARGETS) {
+                Path outX = dir.resolve(b.name() + "-" + cross[0]);
+                CompilationResult rx = driver.compile(src, outX, Target.valueOf(cross[1]));
+                if (!rx.success()) {
+                    report.append(String.format("%-12s [%-10s] %s not built%n",
+                            b.name(), b.category(), cross[0]));
+                    continue;
+                }
+                Path bin = outX.resolve("Default").resolve("Main");
+                if (!Files.exists(bin) || !qemuAvailable(cross[0])) {
+                    report.append(String.format("%-12s [%-10s] %s skipped (no qemu)%n",
+                            b.name(), b.category(), cross[0]));
+                    continue;
+                }
+                String xOut = runQemu(cross[0], bin);
+                assertEquals(b.expected(), xOut, b.name() + " " + cross[0] + " output mismatch");
+                report.append(String.format("%-12s [%-10s] %s runs, matches JVM%n",
+                        b.name(), b.category(), cross[0]));
+            }
         }
         // Observation only — never a gate (§17: smaller assembly is not necessarily faster).
         System.out.println(report);
@@ -186,6 +208,38 @@ class OptimizerBenchmarkE2ETest {
 
     private static String runNative(Path bin) throws Exception {
         return run(new ProcessBuilder(bin.toString()), "NATIVE");
+    }
+
+    /** Cross targets (qemu arch name, {@link Target} enum name). */
+    private static final List<String[]> CROSS_TARGETS = List.of(
+            new String[]{"aarch64", "NATIVE_AARCH64"},
+            new String[]{"riscv64", "NATIVE_RISCV64"});
+
+    private static boolean qemuAvailable(String arch) {
+        try {
+            Process p = new ProcessBuilder("qemu-" + arch, "--version").redirectErrorStream(true).start();
+            p.getInputStream().readAllBytes();
+            return p.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static String runQemu(String arch, Path bin) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder("qemu-" + arch, bin.toString());
+        String prefix = qemuPrefix(arch);
+        if (prefix != null) pb.environment().put("QEMU_LD_PREFIX", prefix);
+        return run(pb, arch);
+    }
+
+    private static String qemuPrefix(String arch) {
+        String env = System.getenv("KOF_CROSS_SYSROOT");
+        String loader = arch.equals("riscv64") ? "ld-linux-riscv64-lp64d.so.1" : "ld-linux-aarch64.so.1";
+        if (env != null && !env.isBlank()
+                && Files.exists(Path.of(env, "usr", arch + "-linux-gnu", "lib", loader))) {
+            return env + "/usr/" + arch + "-linux-gnu";
+        }
+        return null;
     }
 
     private static String run(ProcessBuilder pb, String tag) throws Exception {
