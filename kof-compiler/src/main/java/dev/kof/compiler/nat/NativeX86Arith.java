@@ -258,6 +258,35 @@ public final class NativeX86Arith {
                 return;
             }
         }
+        // §7 x86_64 ("reduction of instructions for constants"): a CONSTANT right
+        // operand uses the immediate form `op{l,q} $N, %{e,r}ax` (or `imul{l,q}
+        // $N, %{e,r}ax`) instead of round-tripping it through %rcx. The constant is
+        // the LAST value pushed (the RHS); for a non-commutative op (SUB) that is
+        // exactly the operand the immediate form expects, so the result is
+        // identical. The immediate must fit a sign-extended imm32 (always true for
+        // int; a wide long falls back).
+        if (kb.op() == KofBinaryOp.ADD || kb.op() == KofBinaryOp.SUB || kb.op() == KofBinaryOp.MUL
+                || kb.op() == KofBinaryOp.AND || kb.op() == KofBinaryOp.OR || kb.op() == KofBinaryOp.XOR) {
+            Integer imm = constantPushedOnTop(sb);
+            if (imm != null) {
+                dropLastNonLocLine(sb);
+                boolean i32 = NativeTypeKinds.isInt32Type(opTy);
+                String mn = switch (kb.op()) {
+                    case ADD -> "add";
+                    case SUB -> "sub";
+                    case MUL -> "imul";
+                    case AND -> "and";
+                    case OR -> "or";
+                    default -> "xor";
+                };
+                sb.append("    popq %rax\n");
+                sb.append("    ").append(mn).append(i32 ? "l" : "q")
+                        .append(" $").append(imm)
+                        .append(", %").append(i32 ? "e" : "r").append("ax\n");
+                sb.append("    pushq %rax\n");
+                return;
+            }
+        }
         sb.append("    popq %rcx\n");
         sb.append("    popq %rax\n");
         boolean int32 = NativeTypeKinds.isInt32Type(opTy);
