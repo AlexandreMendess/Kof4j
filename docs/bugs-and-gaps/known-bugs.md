@@ -17521,7 +17521,7 @@ With EXPLICIT type arguments the same program is correct on all six: `Box<Int>(n
 
 <!-- pt-switch --> **PT:** [§713](known-bugs.pt_BR.md#713--uma-classe-generica-construida-sem-type-arguments-explicitos-boxn-nao-os-infere-o-acesso-a-campometodo-mantem-o-object-apagado-entao-o-jvm-lanca-verifyerror-bad-type-on-operand-stack-e-os-alvos-nativos-classcastexception---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
-## §714 — a class with a FIELD and a METHOD of the SAME name (`class H(Int item) { Int item() { return item } }`) compiles on JVM/JS but FAILS on Script (compile) and native (`as`: `symbol 'H_item' is already defined`) — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+## §714 — a class with a FIELD and a METHOD of the SAME name (`class H(Int item) { Int item() { return item } }`) compiles on JVM/JS but FAILS on Script (compile) and native (`as`: `symbol 'H_item' is already defined`) — ✅ FIXED 14/10 (found and fixed 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 
 **Symptom (measured 14/10 through the COMPILER MODULE):**
 
@@ -17540,11 +17540,36 @@ compiles and runs on JVM and JS, but: **Script** fails at compile, and **native 
 
 **Root (analysis):** the native symbol mangling (`Owner_member`) does not distinguish a field from a method, so a same-named field+method collide. This is the same class as the generic-record inference work (§713) — found while writing that E2E — but is INDEPENDENT of generics: a non-generic `class H(Int item)` with a same-named method reproduces it. Whether Kof INTENDS to allow a field and a method of the same name is a semantics question; the bug is that the targets DIVERGE (JVM/JS accept, Script/native reject) — per the contract they must agree, either all accepting (then fix the mangling + the Script) or all rejecting with a diagnostic.
 
-**Fix path (named, NOT landed):** disambiguate the native mangling (e.g. a `field$`/`method$` infix) OR make the semantic reject the collision uniformly; the Script face must be aligned either way. Must land with the native + Script class/method battery as the regression net.
+**Fix (LANDED 14/10):** as in Java records (where `record R(int x) { int x() {...} }` is legal and the explicit accessor REPLACES the implicit one), the user's explicit zero-arg method of the same name SUPPRESSES the synthetic component accessor in `CompilerIfaceRecordLowering.lowerRecord` (same for a non-component member field's accessor). All six targets then agree on the user's method. **Proof RED-first:** `RecordExplicitAccessorE2ETest` (new) **6 run / 0F** (JVM/Script/JS/native x86-64/riscv64/aarch64); with the fix reverted 5/6 faces fail (JVM `ClassFormatError`, native `symbol already defined`). Records/classes battery 386/0F.
 
 **Boundary:** Script + native x86-64/riscv64/aarch64; JVM/JS are correct. Distinct from §713 (type-argument inference) — this is a NAME collision.
 
-<!-- pt-switch --> **PT:** [§714](known-bugs.pt_BR.md#714--uma-classe-com-um-campo-e-um-metodo-de-mesmo-nome-class-hint-item--int-item--return-item---compila-em-jvmjs-mas-falha-no-script-compilacao-e-no-nativo-as-symbol-h_item-is-already-defined---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+<!-- pt-switch --> **PT:** [§714](known-bugs.pt_BR.md#714--uma-classe-com-um-campo-e-um-metodo-de-mesmo-nome-class-hint-item--int-item--return-item---compila-em-jvmjs-mas-falha-no-script-compilacao-e-no-nativo-as-symbol-h_item-is-already-defined---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §715 — a record component accessed as a FIELD (`p.x`) DIVERGES when the record declares an explicit accessor of the same name: the JVM routes `p.x` through the accessor (the overridden value) while Script/JS/native read the RAW field — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):**
+
+```kof
+record Point(Int x, Int y) {
+    Int x() { return x + 100 }
+}
+Int f() {
+    var p = Point(3, 4)
+    return p.x + p.y
+}
+main() { println(f()) }
+```
+
+returns `107` on the JVM (the `p.x` access routes through the OVERRIDDEN accessor: `x()+y = 103+4`) but `7` on Script/JS/native (the RAW field: `x+y = 3+4`). The divergence is specific to a record that declares an explicit accessor of the same name as a component and is then accessed with the FIELD syntax.
+
+**Root (analysis):** on the JVM a record field and its accessor share the name in the class file, so `p.x` (compiled as a field read) still resolves to the same slot the accessor reads — but the JVM emitter ALSO routes the Kof `p.x` through the accessor method, picking up the override. The Script/JS/native backends read the field slot directly. Which is the Kof contract — `p.x` is a FIELD read (raw) or a shorthand for the accessor — is a SEMANTICS question (a maintainer call); the bug is that the six targets DIVERGE.
+
+**Fix path (named, NOT landed, DECISION-GATED):** decide whether `p.x` is a raw field read (then the JVM must not route through the accessor) or an accessor call (then Script/JS/native must route through it); align all six. Because it changes what `p.x` MEANS when an accessor overrides it, it needs a frozen-semantics decision before implementation.
+
+**Boundary:** JVM vs Script/JS/native; distinct from §714 (the duplicate-method collision, now FIXED) — this is the FIELD-vs-ACCESSOR read semantics.
+
+<!-- pt-switch --> **PT:** [§715](known-bugs.pt_BR.md#715--um-componente-de-record-acessado-como-campo-px-diverge-quando-o-record-declara-um-acessor-explicito-de-mesmo-nome-o-jvm-roteia-px-pelo-acessor-o-valor-sobrescrito-enquanto-scriptjsnativo-leem-o-campo-cru---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 

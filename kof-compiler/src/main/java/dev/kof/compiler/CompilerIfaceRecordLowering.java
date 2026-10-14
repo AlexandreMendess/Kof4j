@@ -75,7 +75,21 @@ public final class CompilerIfaceRecordLowering {
         }
         methods.addAll(CompilerRecordSupport.generateRecordDefaultOverloads(driver, rec, internalName));
         Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, driver.semanticAnalyzer);
+        // §714: um acessor EXPLÍCITO declarado pelo usuário (método de mesmo
+        // nome e 0 parâmetros) SUBSTITUI o acessor sintético do componente —
+        // como no record do Java, onde `record R(int x) { int x() {...} }` é
+        // legal e o acesso explícito vence. Sem isto o IR ganha DOIS métodos
+        // `x()` idênticos: o JVM emite uma classe inválida (ClassFormatError
+        // no load), o native `as: symbol 'R_x' is already defined`, e o Script
+        // diverge (o sintético vencia). O método do usuário é lowered abaixo.
+        java.util.Set<String> explicitZeroArgMethods = new java.util.HashSet<>();
+        for (AstNode member : rec.members()) {
+            if (member instanceof MethodDeclarationNode m && m.parameters().isEmpty()) {
+                explicitZeroArgMethods.add(m.name());
+            }
+        }
         for (RecordComponentNode comp : rec.components()) {
+            if (explicitZeroArgMethods.contains(comp.name())) continue;
             Type compType = CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, driver.currentUnit, driver.semanticAnalyzer);
             List<KofOperation> body = new ArrayList<>();
             body.add(new KofLoadLocal(ownerType, 0));
@@ -87,6 +101,7 @@ public final class CompilerIfaceRecordLowering {
         }
         for (AstNode member : rec.members()) {
             if (member instanceof FieldDeclarationNode field && !field.modifiers().contains("static")) {
+                if (explicitZeroArgMethods.contains(field.name())) continue;
                 Type fieldType = CompilerTypes.resolveWithTypeParams(field.type(), typeParams, driver.currentUnit, driver.semanticAnalyzer);
                 List<KofOperation> body = new ArrayList<>();
                 body.add(new KofLoadLocal(ownerType, 0));
