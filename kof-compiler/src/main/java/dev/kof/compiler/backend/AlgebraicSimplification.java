@@ -75,10 +75,47 @@ public final class AlgebraicSimplification implements IrPass {
                     continue;
                 }
             }
+            if (op instanceof KofBinary b && selfAnnihilates(b) && out.size() >= 2) {
+                // x - x and x ^ x are always 0 for int/long (no trap). The two
+                // operands must be the SAME form: the same local slot, or the same
+                // literal value.
+                KofOperation right = out.get(out.size() - 1);
+                KofOperation left = out.get(out.size() - 2);
+                if (sameValue(b, left, right)) {
+                    KofLoadLiteral zero = b.operandType().equals(Type.PrimitiveType.LONG)
+                            ? KofLoadLiteral.ofLong(0L)
+                            : KofLoadLiteral.ofInt(0);
+                    SourcePosition p = positions.remove(right);
+                    positions.remove(left);
+                    out.remove(out.size() - 1);
+                    out.remove(out.size() - 1);
+                    if (p != null) positions.put(zero, p);
+                    out.add(zero);
+                    prev = zero;
+                    continue;
+                }
+            }
             out.add(op);
             prev = op;
         }
         return out;
+    }
+
+    /** True for the self-annihilating ops {@code x - x} / {@code x ^ x} (int/long). */
+    private static boolean selfAnnihilates(KofBinary b) {
+        if (!isIntOrLong(b.operandType())) return false;
+        return b.op() == KofBinaryOp.SUB || b.op() == KofBinaryOp.XOR;
+    }
+
+    /** Whether the two operand ops denote the same value (same slot, or same literal). */
+    private static boolean sameValue(KofBinary b, KofOperation left, KofOperation right) {
+        if (left instanceof KofLoadLocal l1 && right instanceof KofLoadLocal l2) {
+            return l1.index() == l2.index() && l1.type().equals(l2.type());
+        }
+        if (left instanceof KofLoadLiteral lit1 && right instanceof KofLoadLiteral lit2) {
+            return lit1.value().equals(lit2.value()) && lit1.type().equals(lit2.type());
+        }
+        return false;
     }
 
     /** True when {@code x OP literal} collapses to 0 for the literal on the stack. */

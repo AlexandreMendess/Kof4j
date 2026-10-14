@@ -111,4 +111,53 @@ class AlgebraicSimplificationTest {
                 new KofReturn(Type.PrimitiveType.LONG)));
         assertEquals(KofLoadLiteral.ofLong(0), out.get(0), "long x*0 -> long 0");
     }
+
+    @Test
+    void subtractSameLocalBecomesZero() {
+        List<KofOperation> out = run(List.of(
+                load(1), load(1),
+                new KofBinary(KofBinaryOp.SUB, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(2, out.size(), "x - x folds to a literal zero");
+        assertEquals(KofLoadLiteral.ofInt(0), out.get(0));
+    }
+
+    @Test
+    void xorSameLocalBecomesZero() {
+        List<KofOperation> out = run(List.of(
+                load(1), load(1),
+                new KofBinary(KofBinaryOp.XOR, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(KofLoadLiteral.ofInt(0), out.get(0), "x ^ x is always 0");
+    }
+
+    @Test
+    void subtractDifferentLocalsIsUnchanged() {
+        List<KofOperation> out = run(List.of(
+                load(1), load(2),
+                new KofBinary(KofBinaryOp.SUB, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(4, out.size(), "x - y (different slots) is not folded");
+    }
+
+    @Test
+    void addSameLocalIsNotFolded() {
+        // x + x is 2x, not an annihilator.
+        List<KofOperation> out = run(List.of(
+                load(1), load(1),
+                new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)));
+        assertEquals(4, out.size(), "x + x must not fold to 0");
+    }
+
+    @Test
+    void floatSubtractSameIsNotFolded() {
+        // NaN - NaN is NaN, not 0; float x - x must not fold.
+        List<KofOperation> out = run(List.of(
+                new KofLoadLocal(Type.PrimitiveType.DOUBLE, 1),
+                new KofLoadLocal(Type.PrimitiveType.DOUBLE, 1),
+                new KofBinary(KofBinaryOp.SUB, Type.PrimitiveType.DOUBLE),
+                new KofReturn(Type.PrimitiveType.DOUBLE)));
+        assertEquals(4, out.size(), "float x - x is not 0 (NaN)");
+    }
 }
