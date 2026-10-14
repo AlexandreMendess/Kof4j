@@ -1,15 +1,18 @@
 [English](value-records-plan.md) | [Português](value-records-plan.pt_BR.md)
 
-# Value Records — first-class value types (design plan · TIER 2.7)
+# Value Records — first-class value types (UNDER DEVELOPMENT · TIER 2.7)
 
-**Status:** Plan (design only) — **zero code**; the front is **authorized** (`D-VALUE-RECORD` 16/09 accepted; `D-VALUE-RECORDS-GO` 28/09 opens it, design resolved in `D-FUTURE-BATCH-2809B`), gated by R12 (the SYSTEMS stage closes first) + one-at-a-time promotion per `D-FUTURE-PROMOTION`
+state:
+last: PROMOTED 14/10 from `docs/development/future/` (maintainer order "puxa um de future" + `D-FUTURE-UNFREEZE`) — the plan with the front already
+doing: step 2.7.1 (the `value` front-end keyword) LANDED 14/10 — `value record Name(fields)` parses and types exactly like `record` + the `value` modifier, with NO identity semantics yet (that is 2.7.2–2.7.4, per the roadmap queue). `value` is a CONTEXTUAL keyword (IDENTIFIER in the lexer, like `sealed`): `ParseContext.valueModifierAhead()` makes it a modifier ONLY before `record`, so the capture-box `value` field, `kof.ui`'s `value` and any local named `value` keep working (additive, R2). PortuKof `valor registro` maps via the vocabulary (`value`→`valor`). `ValueRecordFrontEndE2ETest` 4/4 (JVM, native, the identifier guard, and the PortuKof face); RED-first (the modifier disabled → `PARSE010`).
+next: step 2.7.2 (JVM ABI — value/inline class, `invokevirtual` value semantics, no `Object` identity) → 2.7.3 (Native ABI, pass-by-value) → 2.7.4 (JS ABI, plain frozen object) → 2.7.5 (parity + docs). The ABI is an explicit scope decision before code (R7).
+location: docs/development/value-records-plan.md
+owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
+state: under-development
+
+**Status:** UNDER DEVELOPMENT — promoted from `future/` 14/10 (maintainer order; `D-FUTURE-UNFREEZE`). The front is authorized (`D-VALUE-RECORD` 16/09 accepted; `D-VALUE-RECORDS-GO` 28/09 resolved: `value` applies ONLY to `record`, collections hold them boxed, identity-required use is a compile-time error). **Step 2.7.1 (the front-end keyword) is LANDED**; 2.7.2–2.7.5 remain.
 **Source:** `DECISIONS.md` §D-VALUE-RECORD (16/09, accepted) · issue #275 ·
 `../roadmap.md` §23 TIER 2.7 (step queue 2.7.1–2.7.5)
-
-> **Rule of this document:** this is a **plan for the future** — it changes no
-> behavior and opens no front. It stays in `future/` until the first increment
-> ships (see `README.md` §"When to move from `future/` to `docs/`"). No lane may
-> attack it without a new authorization (rule 6 / R12).
 
 ## 1. Objective
 

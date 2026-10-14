@@ -1,15 +1,18 @@
 [English](value-records-plan.md) | [Português](value-records-plan.pt_BR.md)
 
-# Value Records — tipos-valor first-class (plano de design · TIER 2.7)
+# Value Records — tipos-valor first-class (EM DESENVOLVIMENTO · TIER 2.7)
 
-**Estado:** Plano (só design) — **zero código**; a frente está **autorizada** (`D-VALUE-RECORD` 16/09 aceita; `D-VALUE-RECORDS-GO` 28/09 abre a frente, design resolvido em `D-FUTURE-BATCH-2809B`), barrada pelo R12 (o estágio SYSTEMS fecha primeiro) + promoção uma-por-vez por `D-FUTURE-PROMOTION`
+estado:
+last: PROMOVIDO 14/10 de `docs/development/future/` (ordem da mantenedora "puxa um de future" + `D-FUTURE-UNFREEZE`)
+fazendo: passo 2.7.1 (a keyword de front-end `value`) POUSADO 14/10 — `value record Nome(campos)` parseia e tipa exatamente como `record` + o modificador `value`, SEM semântica de identidade ainda (isso é 2.7.2–2.7.4, pela fila do roadmap). `value` é keyword CONTEXTUAL (IDENTIFIER no lexer, como `sealed`): `ParseContext.valueModifierAhead()` o torna modificador SÓ antes de `record`, então o campo `value` das caixas de captura, o `value` do `kof.ui` e qualquer local chamado `value` seguem funcionando (aditivo, R2). PortuKof `valor registro` mapeia pelo vocabulário (`value`→`valor`). `ValueRecordFrontEndE2ETest` 4/4 (JVM, nativo, a guarda do identificador e a face PortuKof); RED-first (modificador desabilitado → `PARSE010`).
+próximo: passo 2.7.2 (ABI JVM — value/inline class, semântica de valor via `invokevirtual`, sem identidade `Object`) → 2.7.3 (ABI Native, pass-by-value) → 2.7.4 (ABI JS, objeto congelado) → 2.7.5 (paridade + docs). A ABI é uma decisão de escopo explícita antes do código (R7).
+local: docs/development/value-records-plan.pt_BR.md
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
+estado: under-development
+
+**Estado:** EM DESENVOLVIMENTO — promovido de `future/` 14/10 (ordem da mantenedora; `D-FUTURE-UNFREEZE`). A frente está autorizada (`D-VALUE-RECORD` 16/09 aceita; `D-VALUE-RECORDS-GO` 28/09 resolvida: `value` aplica SÓ a `record`, coleções guardam boxado, uso onde identidade é exigida = erro de compilação). **O passo 2.7.1 (a keyword de front-end) está POUSADO**; 2.7.2–2.7.5 restam.
 **Fonte:** `DECISIONS.md` §D-VALUE-RECORD (16/09, aceita) · issue #275 ·
 `../roadmap.md` §23 TIER 2.7 (fila de passos 2.7.1–2.7.5)
-
-> **Regra deste documento:** é um **plano para o futuro** — não muda comportamento
-> e não abre frente. Fica em `future/` até o primeiro incremento landar (ver
-> `README.md` §"When to move from `future/` to `docs/`"). Nenhuma lane pode
-> atacá-lo sem nova autorização (regra 6 / R12).
 
 ## 1. Objetivo
 

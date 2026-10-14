@@ -69,6 +69,13 @@ final class TypeDeclarations {
                 mods.add(ctx.advance().value());
                 continue;
             }
+            // TIER 2.7 (D-VALUE-RECORD, 2.7.1): `value` contextual antes de
+            // `record` — vira modificador; fora desse contexto segue IDENTIFIER
+            // (o campo `value` das caixas e o de kof.ui continuam válidos).
+            if (ctx.valueModifierAhead()) {
+                mods.add(ctx.advance().value());
+                continue;
+            }
             break;
         }
         return mods;
