@@ -78,7 +78,37 @@ class OptimizerBenchmarkE2ETest {
                         for (var i = 0; i < 8; i++) { x = x | (1 << i) }
                         println(x)
                     }
-                    """, "255"));
+                    """, "255"),
+            new Bench("arrays", "arrays", """
+                    main() {
+                        var xs = new Int[8]
+                        for (var i = 0; i < 8; i++) { xs[i] = i + 1 }
+                        var s = 0
+                        for (var i = 0; i < xs.length; i++) { s = s + xs[i] }
+                        println(s)
+                    }
+                    """, "36"),
+            new Bench("records", "structs", """
+                    record Point(Int x, Int y)
+                    main() {
+                        var p = new Point(3, 4)
+                        var q = new Point(p.x + 1, p.y + 2)
+                        println(q.x * q.y)
+                    }
+                    """, "24"),
+            new Bench("registerPressure", "regpressure", """
+                    main() {
+                        var a = 1
+                        var b = 2
+                        var c = 3
+                        var d = 4
+                        var e = 5
+                        var f = 6
+                        var g = 7
+                        var h = 8
+                        println(a + b + c + d + e + f + g + h)
+                    }
+                    """, "36"));
 
     @Test
     void benchmarkSuiteRunsAndReportsMetrics(@TempDir Path dir) throws Exception {
