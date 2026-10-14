@@ -171,8 +171,6 @@ final class NativeOpHelpers {
             sb.append("    jmp ").append(nb.resolveLabel(kc.falseLabel())).append("\n");
             return;
         }
-        sb.append("    popq %rax\n");
-        sb.append("    popq %rcx\n");
         String cond = switch (kc.comparison()) {
             case EQ -> "je";
             case NE -> "jne";
@@ -181,7 +179,32 @@ final class NativeOpHelpers {
             case GT -> "jg";
             case GE -> "jge";
         };
-        if (opTy != null && NativeTypeKinds.isInt32Type(opTy)) {
+        boolean int32 = opTy != null && NativeTypeKinds.isInt32Type(opTy);
+        // §7 x86_64 ("reduction of instructions for constants"): a CONSTANT right
+        // operand (the last value pushed) uses the immediate form `cmp{l,q} $N,
+        // %{e,r}ax` (or the canonical `test` for == 0/!= 0) instead of popping it
+        // into %rcx and comparing registers. The constant is the RHS, so the
+        // comparison direction is unchanged.
+        Integer imm = NativeX86Arith.constantPushedOnTop(sb);
+        if (imm != null) {
+            NativeX86Arith.dropLastNonLocLine(sb);
+            sb.append("    popq %rax\n");
+            if (imm == 0 && (kc.comparison() == KofComparison.EQ || kc.comparison() == KofComparison.NE)) {
+                sb.append("    test").append(int32 ? "l" : "q")
+                        .append(" %").append(int32 ? "e" : "r").append("ax, %")
+                        .append(int32 ? "e" : "r").append("ax\n");
+            } else {
+                sb.append("    cmp").append(int32 ? "l" : "q")
+                        .append(" $").append(imm)
+                        .append(", %").append(int32 ? "e" : "r").append("ax\n");
+            }
+            sb.append("    ").append(cond).append(" ").append(nb.resolveLabel(kc.trueLabel())).append("\n");
+            sb.append("    jmp ").append(nb.resolveLabel(kc.falseLabel())).append("\n");
+            return;
+        }
+        sb.append("    popq %rax\n");
+        sb.append("    popq %rcx\n");
+        if (int32) {
             sb.append("    cmpl %eax, %ecx\n");
         } else {
             sb.append("    cmpq %rax, %rcx\n");
@@ -189,6 +212,8 @@ final class NativeOpHelpers {
         sb.append("    ").append(cond).append(" ").append(nb.resolveLabel(kc.trueLabel())).append("\n");
         sb.append("    jmp ").append(nb.resolveLabel(kc.falseLabel())).append("\n");
     }
+
+
 
     /** B-6.2b: {@code ring1(fn)} — empilha o endereco do simbolo da funcao
      *  top-level (leaq <sym>(%rip),%rax; pushq %rax). */

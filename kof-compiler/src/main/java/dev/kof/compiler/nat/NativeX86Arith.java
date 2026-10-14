@@ -20,7 +20,7 @@ public final class NativeX86Arith {
      * Returns {@code null} when the top of the operand stack was produced by
      * something other than a literal push.
      */
-    private static Integer constantPushedOnTop(StringBuilder sb) {
+    static Integer constantPushedOnTop(StringBuilder sb) {
         java.util.List<String> lines = new java.util.ArrayList<>(
                 java.util.Arrays.asList(sb.toString().split("\n", -1)));
         int i = lines.size() - 1;
@@ -37,7 +37,7 @@ public final class NativeX86Arith {
     }
 
     /** Removes the last value-producing line (skipping trailing {@code .loc} lines). */
-    private static void dropLastNonLocLine(StringBuilder sb) {
+    static void dropLastNonLocLine(StringBuilder sb) {
         java.util.List<String> lines = new java.util.ArrayList<>(
                 java.util.Arrays.asList(sb.toString().split("\n", -1)));
         int i = lines.size() - 1;
