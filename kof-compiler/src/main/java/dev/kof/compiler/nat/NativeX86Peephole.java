@@ -50,15 +50,25 @@ final class NativeX86Peephole {
                 if (!pop.startsWith("popq ")) continue;
                 String src = push.substring("pushq ".length()).trim();
                 String dst = pop.substring("popq ".length()).trim();
-                // Only register-register pairs: `movq %reg, %reg` is exact and
-                // avoids immediate/memory encoding edge cases.
-                if (!src.startsWith("%") || !dst.startsWith("%")) continue;
-                if (src.equals(dst)) {
-                    lines.remove(j);        // no-op: drop the pop and the push
-                    lines.remove(i);
-                } else {
+                // The destination is always a register in this emitter.
+                if (!dst.startsWith("%")) continue;
+                if (src.startsWith("$")) {
+                    // An immediate fits the push only when it is an int or a small
+                    // long (see emitLoadLiteral), so `movq $imm, %reg` (imm32,
+                    // sign-extended) is exact.
                     lines.set(i, "    movq " + src + ", " + dst);
                     lines.remove(j);
+                } else if (src.startsWith("%")) {
+                    // Register-register: exact, avoids memory encoding edge cases.
+                    if (src.equals(dst)) {
+                        lines.remove(j);        // no-op: drop the pop and the push
+                        lines.remove(i);
+                    } else {
+                        lines.set(i, "    movq " + src + ", " + dst);
+                        lines.remove(j);
+                    }
+                } else {
+                    continue; // memory source: leave alone
                 }
                 collapsed++;
                 changed = true;

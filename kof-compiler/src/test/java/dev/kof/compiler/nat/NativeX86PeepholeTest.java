@@ -41,9 +41,15 @@ class NativeX86PeepholeTest {
     }
 
     @Test
-    void anImmediatePushIsNotCollapsed() {
-        // pushq $imm cannot become a move.
-        assertEquals("    pushq $5\n    popq %rax\n", result("    pushq $5\n    popq %rax\n"));
+    void anImmediatePushBecomesAMove() {
+        // `pushq $imm; popq %reg` is exactly `movq $imm, %reg` (imm32, sign-extended).
+        assertEquals("    movq $5, %rax\n", result("    pushq $5\n    popq %rax\n"));
+    }
+
+    @Test
+    void aMemoryPushIsNotCollapsed() {
+        // A memory source has no `movq mem, %reg` equivalent guaranteed here; leave it.
+        assertEquals("    pushq -8(%rbp)\n    popq %rax\n", result("    pushq -8(%rbp)\n    popq %rax\n"));
     }
 
     @Test
