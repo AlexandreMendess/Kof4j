@@ -127,6 +127,23 @@ class RegisterPlannerTest {
     }
 
     @Test
+    void aMethodWithATryIsNotEligible() {
+        // MEASURED: the interference graph under-approximates interference in
+        // exception methods (a caught var, the return temp and the exception temp
+        // all coloured into rbx → SIGSEGV), so exception methods stay on the
+        // frame-slot path.
+        LabelId start = new LabelId(0), end = new LabelId(1), handler = new LabelId(2), after = new LabelId(3);
+        IRMethod m = method(List.of(
+                new KofTryStart(start, end, handler, "String", 4),
+                new KofLabel(start), new KofLabel(end), new KofJump(after),
+                new KofCatchStart(handler, "String", 4), new KofReturnVoid(),
+                new KofLabel(after), new KofReturnVoid()),
+                List.of(new IRLocalVariable(1, "a", Type.PrimitiveType.INT)));
+        assertFalse(RegisterPlanner.eligibleForRegisterLocals(m),
+                "a method with a try/catch is not eligible (frame path)");
+    }
+
+    @Test
     void aMethodWithALongLocalIsEligibleButTheLongStaysInFrame() {
         IRMethod m = method(List.of(
                 KofLoadLiteral.ofLong(1L), store(1, Type.PrimitiveType.LONG),

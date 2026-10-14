@@ -97,13 +97,24 @@ public final class RegisterPlanner {
 
     /**
      * Whether a method is ELIGIBLE for the register-mapped local model (Phase D
-     * switch-over). Any method qualifies: {@link RegisterAssignment#placeable} keeps
-     * references (conservative GC) and double-width (long/float/double) locals in
-     * the frame, and only int/bool locals are placed in registers. A method with NO
-     * placeable local simply produces an empty placement and stays fully on the
-     * frame-slot path.
+     * switch-over). Any method qualifies EXCEPT those with a try/catch/finally:
+     * MEASURED, the interference graph under-approximates interference in exception
+     * methods — a caught variable, the return-value temp and the exception temp
+     * were all coloured into the SAME register (rbx), so the caught value read the
+     * wrong data and the program CRASHED (SIGSEGV). Exception methods stay on the
+     * proven frame-slot path. Within an eligible method, {@link
+     * RegisterAssignment#placeable} still keeps references and double-width locals
+     * in the frame, so only int/bool locals are register-placed.
      */
     public static boolean eligibleForRegisterLocals(IRMethod method) {
+        for (IRBasicBlock b : method.basicBlocks()) {
+            for (KofOperation op : b.operations()) {
+                if (op instanceof dev.kof.compiler.KofTryStart
+                        || op instanceof dev.kof.compiler.KofCatchStart) {
+                    return false;
+                }
+            }
+        }
         return true;
     }
 }
