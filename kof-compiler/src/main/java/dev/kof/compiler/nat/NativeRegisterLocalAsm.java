@@ -43,7 +43,7 @@ final class NativeRegisterLocalAsm {
                                         java.util.function.IntFunction<Integer> slotOffset) {
         int i = 0;
         for (String reg : regs) {
-            sb.append("    movq ").append(reg).append(", ")
+            sb.append("    movq ").append(at(reg)).append(", ")
                     .append(slotOffset.apply(i)).append("(%rbp)\n");
             i++;
         }
@@ -55,18 +55,54 @@ final class NativeRegisterLocalAsm {
         int i = 0;
         for (String reg : regs) {
             sb.append("    movq ").append(slotOffset.apply(i)).append("(%rbp), ")
-                    .append(reg).append("\n");
+                    .append(at(reg)).append("\n");
             i++;
         }
     }
 
     /** Load a register-placed local: push its register onto the value stack. */
     static void loadPlacedRegister(StringBuilder sb, String reg) {
-        sb.append("    pushq ").append(reg).append("\n");
+        sb.append("    pushq ").append(at(reg)).append("\n");
     }
 
     /** Store into a register-placed local: pop the value stack into its register. */
     static void storePlacedRegister(StringBuilder sb, String reg) {
-        sb.append("    popq ").append(reg).append("\n");
+        sb.append("    popq ").append(at(reg)).append("\n");
+    }
+
+    /** AT&T-syntax register reference: prefix the bare name (e.g. {@code rbx}) with
+     *  {@code %}. {@code X86_64RegisterFile} stores bare names. */
+    private static String at(String reg) {
+        return reg.startsWith("%") ? reg : "%" + reg;
+    }
+
+    /**
+     * Load a local slot: from its register when {@code reg} is non-null, else from
+     * its frame slot (the existing frame-slot path).
+     */
+    static void loadLocal(StringBuilder sb, int slot, String reg) {
+        if (reg != null) {
+            loadPlacedRegister(sb, reg);
+        } else {
+            sb.append("    movq -").append((slot + 1) * 8).append("(%rbp), %rax\n");
+            sb.append("    pushq %rax\n");
+        }
+    }
+
+    /** Store a local slot: into its register when {@code reg} is non-null, else
+     *  into its frame slot (the existing frame-slot path). */
+    static void storeLocal(StringBuilder sb, int slot, String reg) {
+        if (reg != null) {
+            storePlacedRegister(sb, reg);
+        } else {
+            sb.append("    popq %rax\n");
+            sb.append("    movq %rax, -").append((slot + 1) * 8).append("(%rbp)\n");
+        }
+    }
+
+    /** Copy a param's staged frame slot into its assigned register (prologue). */
+    static void copySlotToRegister(StringBuilder sb, int slot, String reg) {
+        sb.append("    movq -").append((slot + 1) * 8).append("(%rbp), ")
+                .append(at(reg)).append("\n");
     }
 }

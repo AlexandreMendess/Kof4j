@@ -58,6 +58,13 @@ final class NativeMethodEmitter {
     private final NativeBackend nb;
     NativeMethodEmitter(NativeBackend nb) { this.nb = nb; }
 
+    /**
+     * D-CODEGEN-REWRITE: register-mapped locals for the CURRENT method, or null
+     * when the method is not eligible / the feature is off. Set at the top of
+     * {@link #emitMethod} and consulted by the local load/store and the returns.
+     */
+    private NativeRegisterLocalSupport regLocals;
+
     void emitMethod(StringBuilder sb, IRClass clazz, IRMethod method) {
         // #133 (§186): <clinit> AGORA é emitido (método estático normal — sem
         // `this`, sem parâmetros); era descartado, e os inicializadores
@@ -95,8 +102,11 @@ final class NativeMethodEmitter {
         }
         int localsBytes = (maxSlot + 1) * 8;
         nb.frameLocalsBytes = localsBytes;
+        // D-CODEGEN-REWRITE: register-mapped locals for eligible int-only methods.
+        this.regLocals = NativeRegisterLocalSupport.forMethod(method, localsBytes);
+        int saveBytes = regLocals == null ? 0 : regLocals.saveBytes();
         int extraFrame = maxCallStackArgs > 0 ? maxCallStackArgs * 8 : 0;
-        int frameSize = Math.max(localsBytes, 16) + extraFrame;
+        int frameSize = Math.max(localsBytes + saveBytes, 16) + extraFrame;
         frameSize = (frameSize + 15) & ~15;
         if (frameSize > 0) {
             sb.append("    subq $").append(frameSize).append(", %rsp\n");
@@ -141,6 +151,12 @@ final class NativeMethodEmitter {
             intArgIdx++;
         }
 
+        if (regLocals != null) {
+            // Save the used callee-saved registers into the EXTENDED frame and
+            // copy each register-placed param from its staged frame slot.
+            regLocals.emitPrologue(sb, sortedLocals, paramSlotMax);
+        }
+
         boolean endsWithReturn = false;
         for (IRBasicBlock block : method.basicBlocks()) {
             for (KofOperation op : block.operations()) {
@@ -154,6 +170,7 @@ final class NativeMethodEmitter {
                 // join implícito: nenhuma tarefa spawnada fica orfa
                 sb.append("    call kof_spawn_join_all\n");
             }
+            restoreCalleeSavedForReturn(sb);
             sb.append("    movq %rbp, %rsp\n");
             sb.append("    popq %rbp\n");
             sb.append("    ret\n");
@@ -185,6 +202,16 @@ final class NativeMethodEmitter {
             nb.kofDwarf.add(mangled, method.name(), declLine,
                     dwarfKindOf(method.returnType()), params, locals);
         }
+    }
+
+    /** The register a slot is placed in, or null when it is in the frame. */
+    private String regOf(int slot) {
+        return regLocals == null ? null : regLocals.register(slot);
+    }
+
+    /** Restore the used callee-saved registers at a return (no-op when inactive). */
+    private void restoreCalleeSavedForReturn(StringBuilder sb) {
+        if (regLocals != null) regLocals.emitReturnRestore(sb);
     }
 
     static String dwarfKindOf(Type t) {
@@ -241,14 +268,8 @@ final class NativeMethodEmitter {
 
         switch (op) {
             case KofLoadLiteral lit -> nb.emitLoadLiteral(sb, lit);
-            case KofLoadLocal ll -> {
-                sb.append("    movq -").append((ll.index() + 1) * 8).append("(%rbp), %rax\n");
-                sb.append("    pushq %rax\n");
-            }
-            case KofStoreLocal sl -> {
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, -").append((sl.index() + 1) * 8).append("(%rbp)\n");
-            }
+            case KofLoadLocal ll -> NativeRegisterLocalAsm.loadLocal(sb, ll.index(), regOf(ll.index()));
+            case KofStoreLocal sl -> NativeRegisterLocalAsm.storeLocal(sb, sl.index(), regOf(sl.index()));
             case KofLoadField lf -> {
                 if (lf.ownerType() instanceof Type.ClassType ctLF && "MemEntry".equals(ctLF.name()) && "key".equals(lf.name())) {
                 }
@@ -281,6 +302,7 @@ final class NativeMethodEmitter {
                     sb.append("    call kof_spawn_join_all\n");
                 }
                 sb.append("    popq %rax\n");
+                restoreCalleeSavedForReturn(sb);
                 sb.append("    movq %rbp, %rsp\n");
                 sb.append("    popq %rbp\n");
                 sb.append("    ret\n");
@@ -289,6 +311,7 @@ final class NativeMethodEmitter {
                 if (nb.usesConcurrency && "main".equals(currentMethod.name())) {
                     sb.append("    call kof_spawn_join_all\n");
                 }
+                restoreCalleeSavedForReturn(sb);
                 sb.append("    movq %rbp, %rsp\n");
                 sb.append("    popq %rbp\n");
                 sb.append("    ret\n");

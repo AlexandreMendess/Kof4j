@@ -21,7 +21,7 @@ class NativeRegisterLocalAsmTest {
     void prologueSavesCalleeSavedIntoFrameSlots() {
         StringBuilder sb = new StringBuilder();
         NativeRegisterLocalAsm.prologueSaveCalleeSaved(sb, List.of("rbx", "r12"), OFFSETS);
-        assertEquals("    movq rbx, -128(%rbp)\n    movq r12, -136(%rbp)\n", sb.toString(),
+        assertEquals("    movq %rbx, -128(%rbp)\n    movq %r12, -136(%rbp)\n", sb.toString(),
                 "each used callee-saved register is saved into its frame slot");
     }
 
@@ -29,7 +29,7 @@ class NativeRegisterLocalAsmTest {
     void epilogueRestoresCalleeSavedFromFrameSlots() {
         StringBuilder sb = new StringBuilder();
         NativeRegisterLocalAsm.epilogueRestoreCalleeSaved(sb, List.of("rbx", "r12"), OFFSETS);
-        assertEquals("    movq -128(%rbp), rbx\n    movq -136(%rbp), r12\n", sb.toString(),
+        assertEquals("    movq -128(%rbp), %rbx\n    movq -136(%rbp), %r12\n", sb.toString(),
                 "each register is restored from its save slot before frame teardown");
     }
 
@@ -37,14 +37,14 @@ class NativeRegisterLocalAsmTest {
     void loadPlacedRegisterPushesIt() {
         StringBuilder sb = new StringBuilder();
         NativeRegisterLocalAsm.loadPlacedRegister(sb, "rbx");
-        assertEquals("    pushq rbx\n", sb.toString());
+        assertEquals("    pushq %rbx\n", sb.toString());
     }
 
     @Test
     void storePlacedRegisterPopsIntoIt() {
         StringBuilder sb = new StringBuilder();
         NativeRegisterLocalAsm.storePlacedRegister(sb, "rbx");
-        assertEquals("    popq rbx\n", sb.toString());
+        assertEquals("    popq %rbx\n", sb.toString());
     }
 
     @Test
@@ -57,9 +57,9 @@ class NativeRegisterLocalAsmTest {
         NativeRegisterLocalAsm.prologueSaveCalleeSaved(save, regs, OFFSETS);
         NativeRegisterLocalAsm.epilogueRestoreCalleeSaved(restore, regs, OFFSETS);
         for (int i = 0; i < regs.size(); i++) {
-            assertTrue(save.toString().contains("movq " + regs.get(i) + ", " + OFFSETS.apply(i) + "(%rbp)"),
+            assertTrue(save.toString().contains("movq %" + regs.get(i) + ", " + OFFSETS.apply(i) + "(%rbp)"),
                     "save of " + regs.get(i));
-            assertTrue(restore.toString().contains("movq " + OFFSETS.apply(i) + "(%rbp), " + regs.get(i)),
+            assertTrue(restore.toString().contains("movq " + OFFSETS.apply(i) + "(%rbp), %" + regs.get(i)),
                     "restore of " + regs.get(i));
         }
     }
