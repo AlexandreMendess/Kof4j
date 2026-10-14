@@ -115,4 +115,33 @@ class RegisterPlannerTest {
         assertTrue(p.calleeSavedUsed().isEmpty(),
                 "no SSE register is callee-saved on SysV");
     }
+
+    @Test
+    void anIntOnlyMethodIsEligibleForRegisterLocals() {
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofInt(1), store(1, Type.PrimitiveType.INT),
+                load(1, Type.PrimitiveType.INT), new KofReturn(Type.PrimitiveType.INT)),
+                List.of(new IRLocalVariable(1, "a", Type.PrimitiveType.INT)));
+        assertTrue(RegisterPlanner.eligibleForRegisterLocals(m));
+    }
+
+    @Test
+    void aMethodWithALongLocalIsNotEligible() {
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofLong(1L), store(1, Type.PrimitiveType.LONG),
+                load(1, Type.PrimitiveType.LONG), new KofReturn(Type.PrimitiveType.LONG)),
+                List.of(new IRLocalVariable(1, "a", Type.PrimitiveType.LONG)));
+        assertFalse(RegisterPlanner.eligibleForRegisterLocals(m),
+                "a double-width long local stays on the frame-slot path");
+    }
+
+    @Test
+    void aMethodWithADoubleLocalIsNotEligible() {
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofDouble(1.5), store(1, Type.PrimitiveType.DOUBLE),
+                load(1, Type.PrimitiveType.DOUBLE), new KofReturn(Type.PrimitiveType.DOUBLE)),
+                List.of(new IRLocalVariable(1, "d", Type.PrimitiveType.DOUBLE)));
+        assertFalse(RegisterPlanner.eligibleForRegisterLocals(m),
+                "an SSE local stays on the frame-slot path");
+    }
 }
