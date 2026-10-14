@@ -1057,7 +1057,7 @@ lanes must not attack without new authorization).
 | # | Step | Scope (one line) | Depends on |
 |---|------|------------------|------------|
 | 2.7.1 | **front-end `value` keyword** | `value record Name(fields)` parses and types like `record` + `value` modifier; no identity semantics yet | — |
-| 2.7.2 | **JVM ABI** | value/inline class mapping (`invokevirtual` value semantics, no `Object` identity) | 2.7.1 |
+| 2.7.2 | **JVM ABI** ✅ LANDED 14/10 | the JVM ABI (decided during implementation, `D-VALUE-RECORDS-GO`) is the COMMON record class — Java 25 has no stable value classes, so no layout change; structural equality is already the record contract, collections hold value records boxed; the `value` modifier is carried into `ClassSymbol.isValueRecord` (`ValueRecordFrontEndE2ETest` 6/6) | 2.7.1 |
 | 2.7.3 | **Native ABI** | pass-by-value (struct by value / registers) | 2.7.1 |
 | 2.7.4 | **JS ABI** | plain frozen object (no identity) | 2.7.1 |
 | 2.7.5 | **parity + docs** | conformance cells `valuerecord` + parity matrix + `training/` + `learn/` | 2.7.1–2.7.4 |

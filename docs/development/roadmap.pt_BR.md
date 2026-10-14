@@ -1058,7 +1058,7 @@ fechar; lanes não devem atacar sem nova autorização).
 | # | Etapa | Escopo (uma linha) | Depende de |
 |---|-------|--------------------|------------|
 | 2.7.1 | **keyword `value` no front-end** | `value record Name(campos)` faz parse e tipagem como `record` + modificador `value`; sem semântica de identidade ainda | — |
-| 2.7.2 | **ABI JVM** | mapeamento value/inline class (`invokevirtual` com semântica de valor, sem identidade `Object`) | 2.7.1 |
+| 2.7.2 | **ABI JVM** ✅ POUSADO 14/10 | a ABI JVM (decidida na implementação, `D-VALUE-RECORDS-GO`) é a classe record COMUM — o Java 25 não tem value classes estáveis, então nenhuma mudança de layout; igualdade estrutural já é o contrato do record, coleções guardam value records boxados; o modificador `value` é carregado em `ClassSymbol.isValueRecord` (`ValueRecordFrontEndE2ETest` 6/6) | 2.7.1 |
 | 2.7.3 | **ABI Native** | passagem por valor (struct por valor / registradores) | 2.7.1 |
 | 2.7.4 | **ABI JS** | objeto congelado comum (sem identidade) | 2.7.1 |
 | 2.7.5 | **paridade + docs** | células de conformidade `valuerecord` + matriz de paridade + `training/` + `learn/` | 2.7.1–2.7.4 |

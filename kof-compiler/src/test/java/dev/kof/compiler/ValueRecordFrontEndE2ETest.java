@@ -132,4 +132,77 @@ class ValueRecordFrontEndE2ETest {
         assertEquals(0, r.exitCode(), "PT exit/stderr: " + r.stdout() + " " + r.stderr());
         assertEquals("1.0\ntrue", r.stdout().trim(), "PortuKof `valor registro`");
     }
+    // ---- TIER 2.7 step 2.7.2 (JVM ABI) ------------------------------------
+
+    /**
+     * 2.7.2: the {@code value} modifier is carried from the parse into the
+     * class symbol ({@code isValueRecord}), so 2.7.3/2.7.4 and the future
+     * compile-time identity error can query it. A plain record reports false.
+     */
+    @Test
+    void valueModifierIsCarriedIntoTheClassSymbol(@TempDir Path tmp) throws Exception {
+        Path value = tmp.resolve("symv.kf");
+        Files.writeString(value, "value record Vec2(Float x, Float y)\n");
+        CompilationResult rv = driver.compile(value, tmp.resolve("symv-out"), Target.JVM);
+        assertTrue(rv.success(), () -> "compile: " + rv.diagnostics().getDiagnostics());
+        var valueSym = driver.semanticAnalyzer.getClass("Vec2");
+        assertNotNull(valueSym, "Vec2 symbol");
+        assertTrue(valueSym.isValueRecord(), "`value record` → isValueRecord=true");
+
+        Path plain = tmp.resolve("symp.kf");
+        Files.writeString(plain, "record Vec2(Float x, Float y)\n");
+        driver.compile(plain, tmp.resolve("symp-out"), Target.JVM);
+        var plainSym = driver.semanticAnalyzer.getClass("Vec2");
+        assertNotNull(plainSym, "plain Vec2 symbol");
+        assertFalse(plainSym.isValueRecord(), "plain `record` → isValueRecord=false");
+    }
+
+    /**
+     * 2.7.2 JVM ABI (R7): a {@code value record} on the JVM is the common
+     * record class — structural equality, and collections hold it BOXED
+     * (D-VALUE-RECORDS-GO). Every observable behavior is identical to a plain
+     * record, so the parity is pinned by running the SAME program both ways.
+     */
+    @Test
+    void valueRecordJvmAbiMatchesPlainRecord(@TempDir Path tmp) throws Exception {
+        String plain = """
+                record P(Int x, Int y)
+                main() {
+                    var a = P(1, 2)
+                    var b = P(1, 2)
+                    println(a == b)
+                    println(a)
+                    var l = listOf(a, b)
+                    println(l.size())
+                    println(l.get(0).x)
+                    println(l.get(0) == l.get(1))
+                    var m = mapOf("k", a)
+                    var got = m.get("k")
+                    if (got != null) {
+                        println(got.y)
+                        println(got == a)
+                    } else {
+                        println(-1)
+                        println(false)
+                    }
+                }
+                """;
+        Path p1 = tmp.resolve("plain-jvmabi.kf");
+        Files.writeString(p1, plain);
+        Path p1out = tmp.resolve("plain-jvmabi-out");
+        CompilationResult r1 = driver.compile(p1, p1out, Target.JVM);
+        assertTrue(r1.success(), () -> "compile: " + r1.diagnostics().getDiagnostics());
+        String plainResult = runJvm(p1out);
+
+        Path p2 = tmp.resolve("value-jvmabi.kf");
+        Files.writeString(p2, plain.replace("record P(", "value record P("));
+        Path p2out = tmp.resolve("value-jvmabi-out");
+        CompilationResult r2 = driver.compile(p2, p2out, Target.JVM);
+        assertTrue(r2.success(), () -> "compile: " + r2.diagnostics().getDiagnostics());
+        String valueResult = runJvm(p2out);
+
+        assertEquals(plainResult, valueResult,
+                "2.7.2: the JVM ABI of a `value record` is the common record (structural equality, boxed in collections)");
+        assertEquals("true\nP[x=1, y=2]\n2\n1\ntrue\n2\ntrue", valueResult, "the real values");
+    }
 }
