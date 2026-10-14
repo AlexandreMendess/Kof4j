@@ -62,38 +62,68 @@ class OptimizerBenchmarkE2ETest {
                         for (var i = 0; i < 100; i++) { t = t + square(i) }
                         println(t)
                     }
-                    """, "328350"));
+                    """, "328350"),
+            new Bench("constants", "constants", """
+                    main() {
+                        var a = 2 * 3
+                        var b = a + 4 * 5
+                        var c = 100
+                        c = 7
+                        println(b + c)
+                    }
+                    """, "33"),
+            new Bench("bitwise", "bitwise", """
+                    main() {
+                        var x = 0
+                        for (var i = 0; i < 8; i++) { x = x | (1 << i) }
+                        println(x)
+                    }
+                    """, "255"));
 
     @Test
     void benchmarkSuiteRunsAndReportsMetrics(@TempDir Path dir) throws Exception {
-        StringBuilder report = new StringBuilder("\n=== Phase F benchmark (JVM) ===\n");
+        StringBuilder report = new StringBuilder("\n=== Phase F benchmark ===\n");
         for (Bench b : BENCHES) {
             Path src = dir.resolve(b.name() + ".kf");
             Files.writeString(src, b.source());
-            Path out = dir.resolve(b.name() + "-out");
 
+            // JVM: correctness (run + assert output) + measured metrics.
+            Path outJvm = dir.resolve(b.name() + "-jvm");
             CompilerDriver driver = new CompilerDriver();
             IRModule[] unopt = new IRModule[1];
             IRModule[] opt = new IRModule[1];
             driver.irObserver = (u, o) -> { unopt[0] = u; opt[0] = o; };
-
-            CompilationResult r = driver.compile(src, out, Target.JVM);
-            assertTrue(r.success(), b.name() + " compile failed: " + r.diagnostics().getDiagnostics());
-
-            // Correctness half: run and assert the output.
+            CompilationResult r = driver.compile(src, outJvm, Target.JVM);
+            assertTrue(r.success(), b.name() + " JVM compile failed: " + r.diagnostics().getDiagnostics());
             long start = System.nanoTime();
-            String output = runJvm(out);
-            long millis = (System.nanoTime() - start) / 1_000_000;
-            assertEquals(b.expected(), output, b.name() + " output mismatch");
+            String jvmOut = runJvm(outJvm);
+            long jvmMs = (System.nanoTime() - start) / 1_000_000;
+            assertEquals(b.expected(), jvmOut, b.name() + " JVM output mismatch");
 
-            // Measured half: the optimizer's effect on the instruction metrics.
             IrMetrics before = IrMetrics.of(flatten(unopt[0]));
             IrMetrics after = IrMetrics.of(flatten(opt[0]));
-            report.append(String.format("%-12s [%-10s] instr %d -> %d  loads %d -> %d  stores %d -> %d  (%d ms)%n",
+            report.append(String.format("%-12s [%-10s] JVM instr %d -> %d  loads %d -> %d  stores %d -> %d  (%d ms)%n",
                     b.name(), b.category(),
                     before.instructions(), after.instructions(),
                     before.loads(), after.loads(),
-                    before.stores(), after.stores(), millis));
+                    before.stores(), after.stores(), jvmMs));
+
+            // Native x86-64: correctness (run + assert output) on the available target.
+            Path outNat = dir.resolve(b.name() + "-nat");
+            CompilationResult rn = driver.compile(src, outNat, Target.NATIVE);
+            if (rn.success()) {
+                Path bin = outNat.resolve("Default").resolve("Main");
+                assertTrue(Files.exists(bin), b.name() + " native binary missing");
+                long nStart = System.nanoTime();
+                String natOut = runNative(bin);
+                long natMs = (System.nanoTime() - nStart) / 1_000_000;
+                assertEquals(b.expected(), natOut, b.name() + " native output mismatch");
+                report.append(String.format("%-12s [%-10s] NATIVE runs, matches JVM  (%d ms)%n",
+                        b.name(), b.category(), natMs));
+            } else {
+                report.append(String.format("%-12s [%-10s] NATIVE not built: %s%n",
+                        b.name(), b.category(), rn.diagnostics().getDiagnostics()));
+            }
         }
         // Observation only — never a gate (§17: smaller assembly is not necessarily faster).
         System.out.println(report);
@@ -111,12 +141,19 @@ class OptimizerBenchmarkE2ETest {
     }
 
     private static String runJvm(Path outDir) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
+        return run(new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main"), "JVM");
+    }
+
+    private static String runNative(Path bin) throws Exception {
+        return run(new ProcessBuilder(bin.toString()), "NATIVE");
+    }
+
+    private static String run(ProcessBuilder pb, String tag) throws Exception {
         pb.redirectErrorStream(true);
         Process p = pb.start();
         String output = new String(p.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), "JVM exit code, output: " + output);
+        assertEquals(0, p.waitFor(), tag + " exit code, output: " + output);
         return output;
     }
 }
