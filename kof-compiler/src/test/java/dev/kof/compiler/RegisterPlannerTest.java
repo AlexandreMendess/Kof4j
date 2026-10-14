@@ -85,4 +85,34 @@ class RegisterPlannerTest {
         assertEquals(a.register(1), b.register(1));
         assertEquals(a.register(2), b.register(2));
     }
+
+    @Test
+    void calleeSavedUsedListsTheRegistersThePrologueMustSave() {
+        // Two disjoint int slots both take colour 0 (rbx, callee-saved) — the
+        // prologue must save exactly rbx.
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofInt(1), store(1, Type.PrimitiveType.INT),
+                load(1, Type.PrimitiveType.INT), new KofPop(),
+                KofLoadLiteral.ofInt(2), store(2, Type.PrimitiveType.INT),
+                load(2, Type.PrimitiveType.INT), new KofReturn(Type.PrimitiveType.INT)),
+                List.of(new IRLocalVariable(1, "a", Type.PrimitiveType.INT),
+                        new IRLocalVariable(2, "b", Type.PrimitiveType.INT)));
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 4);
+        if (p.isRegister(1)) {
+            assertEquals(java.util.List.of(p.register(1)), p.calleeSavedUsed(),
+                    "the callee-saved register in use is exactly the one to save");
+        }
+    }
+
+    @Test
+    void aDoubleInSseNeedsNoCalleeSavedSave() {
+        // SysV has no callee-saved SSE registers, so an SSE-placed value needs no save.
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofDouble(1.5), store(1, Type.PrimitiveType.DOUBLE),
+                load(1, Type.PrimitiveType.DOUBLE), new KofReturn(Type.PrimitiveType.DOUBLE)),
+                List.of(new IRLocalVariable(1, "d", Type.PrimitiveType.DOUBLE)));
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 4);
+        assertTrue(p.calleeSavedUsed().isEmpty(),
+                "no SSE register is callee-saved on SysV");
+    }
 }

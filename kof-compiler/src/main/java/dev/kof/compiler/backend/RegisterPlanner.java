@@ -41,6 +41,23 @@ public final class RegisterPlanner {
         public boolean isRegister(int slot) {
             return assignment.isRegister(slot);
         }
+
+        /**
+         * The callee-saved registers this method's placement USES, ascending — the
+         * registers the prologue must save and the epilogue restore (a callee-saved
+         * register the method never touches needs no save). rbx/r12–r15 are the
+         * INTEGER callee-saved file; SysV has no callee-saved SSE register.
+         */
+        public java.util.List<String> calleeSavedUsed() {
+            java.util.TreeSet<String> used = new java.util.TreeSet<>();
+            for (String reg : assignment.regOf().values()) {
+                if (X86_64RegisterFile.isCalleeSaved(X86_64RegisterFile.RegClass.INTEGER, reg)
+                        || X86_64RegisterFile.isCalleeSaved(X86_64RegisterFile.RegClass.SSE, reg)) {
+                    used.add(reg);
+                }
+            }
+            return List.copyOf(used);
+        }
     }
 
     private RegisterPlanner() {
