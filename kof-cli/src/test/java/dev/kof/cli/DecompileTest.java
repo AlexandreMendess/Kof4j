@@ -2048,6 +2048,46 @@ class DecompileTest {
         assertEquals("true\ntrue\nfalse\n8", output, "zero-drift: \u00e1rvore + collatz id\u00eanticos ao Java");
     }
 
+    @Test
+    void stringSwitchStatementRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o switch de STRING em forma STATEMENT (`r = 0;
+        // switch (s) { case "a": r = 1; break; ... } return r;`) — o desugar
+        // hashCode/equals com o PRÓLOGO REAL antes (`r = 0`), os braços
+        // STATEMENT ([push, istore, goto]) e o commonEnd = o ALVO DOS GOTOS
+        // (NÃO o offset do return — medido: 100 vs 101). Zero-drift.
+        Path javaFile = dir.resolve("Ssw.java");
+        Files.writeString(javaFile, """
+                public class Ssw {
+                    static int pick(String s) {
+                        int r = 0;
+                        switch (s) {
+                            case "a": r = 1; break;
+                            case "b": r = 2; break;
+                            default: r = -1;
+                        }
+                        return r;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Ssw.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("case \"a\""), kof);
+        String kofRun = kof + "\nmain() {\n    println(Ssw.pick(\"a\"))\n    println(Ssw.pick(\"b\"))\n    println(Ssw.pick(\"z\"))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1 | 2 | -1
+        assertEquals("1\n2\n-1", output, "zero-drift: string-switch statement id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

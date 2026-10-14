@@ -115,22 +115,40 @@ final class BytecodeSwitch {
     static List<String> stringSwitchExpr(byte[] code, List<BytecodeReader.Insn> insns,
                                          String[] cp, BytecodeFrame frame) {
         if (insns.size() < 12) return null;
-        // 1. o prefixo canônico: [aload D, astore T, iconst_m1, istore IDX,
-        //    aload T, invokevirtual String.hashCode, lookupswitch]
-        boolean a0 = insns.get(0).opcode() == 0x19 || (insns.get(0).opcode() >= 0x2a && insns.get(0).opcode() <= 0x2d);
-        boolean a1 = insns.get(1).opcode() == 0x3a || (insns.get(1).opcode() >= 0x4a && insns.get(1).opcode() <= 0x4d);
-        boolean a2 = insns.get(2).opcode() == 0x02;
-        boolean a3 = insns.get(3).opcode() == 0x36 || (insns.get(3).opcode() >= 0x3b && insns.get(3).opcode() <= 0x3e);
-        boolean a4 = insns.get(4).opcode() == 0x19 || (insns.get(4).opcode() >= 0x2a && insns.get(4).opcode() <= 0x2d);
-        String[] hm = insns.get(5).opcode() == 0xb6
-                ? BytecodeCp.resolveMethodRef(cp, insns.get(5).operands()[0]) : null;
-        boolean a5 = hm != null && "java/lang/String".equals(hm[0]) && "hashCode".equals(hm[1]);
-        boolean a6 = insns.get(6).opcode() == 0xab;
-        if (!(a0 && a1 && a2 && a3 && a4 && a5 && a6)) return null;
-        String disc = BytecodeDecoderStack.loadValue(insns.get(0), frame);
+        // 1. o desugar [aload D, astore T, iconst_m1, istore IDX, aload T,
+        //    hashCode, lookupswitch] — escaneado: a forma STATEMENT tem o
+        //    prólogo REAL antes (`r = 0`).
+        int hOff = -1;
+        for (int i = 5; i + 1 < insns.size(); i++) {
+            String[] hmP = insns.get(i).opcode() == 0xb6
+                    ? BytecodeCp.resolveMethodRef(cp, insns.get(i).operands()[0]) : null;
+            if (hmP == null || !"java/lang/String".equals(hmP[0])
+                    || !"hashCode".equals(hmP[1]) || insns.get(i + 1).opcode() != 0xab) continue;
+            int d = i - 5;
+            if (d < 0) continue;
+            boolean d0 = insns.get(d).opcode() == 0x19 || (insns.get(d).opcode() >= 0x2a && insns.get(d).opcode() <= 0x2d);
+            boolean d1 = insns.get(d + 1).opcode() == 0x3a || (insns.get(d + 1).opcode() >= 0x4a && insns.get(d + 1).opcode() <= 0x4d);
+            boolean d2 = insns.get(d + 2).opcode() == 0x02;
+            boolean d3 = insns.get(d + 3).opcode() == 0x36 || (insns.get(d + 3).opcode() >= 0x3b && insns.get(d + 3).opcode() <= 0x3e);
+            boolean d4 = insns.get(i - 1).opcode() == 0x19 || (insns.get(i - 1).opcode() >= 0x2a && insns.get(i - 1).opcode() <= 0x2d);
+            if (d0 && d1 && d2 && d3 && d4) { hOff = i; break; }
+        }
+        if (hOff < 0) return null;
+        int dBase = hOff - 5;
+        String disc = BytecodeDecoderStack.loadValue(insns.get(dBase), frame);
         if (disc == null) return null;
-        SwitchInfo hash = parseSwitch(code, insns.get(6).offset());
+        SwitchInfo hash = parseSwitch(code, insns.get(hOff + 1).offset());
         if (hash == null || hash.targets.length == 0) return null;
+        // o prólogo REAL (antes do desugar) vira statements via emitLinear;
+        // o set `declared` COMPARTILHADO (prólogo + braços + cauda) — sets
+        // frescos redeclaram `var v1` (SEM011; medido)
+        java.util.Set<Integer> shared = new java.util.HashSet<>();
+        List<String> prologue = null;
+        if (dBase > 0) {
+            prologue = BytecodeStatementsEmit.emitLinear(insns.subList(0, dBase), cp, frame,
+                    shared);
+            if (prologue == null) return null;
+        }
         // 2. as cadeias equals: [aload T, ldc LIT, invokevirtual String.equals,
         //    ifeq J, const K, istore IDX, goto J] — 7 insns, K distinto 0..N-1
         java.util.Map<Integer, String> caseLit = new java.util.TreeMap<>();
@@ -176,11 +194,20 @@ final class BytecodeSwitch {
         if (idx == null || idx.targets.length != caseLit.size()) return null;
         // 4. os braços: cada um deixa EXATAMENTE 1 valor e o fim é o return
         BytecodeReader.Insn last = insns.get(insns.size() - 1);
-        // o FIM COMUM é o alvo dos gotos dos braços = o return (o dflt do
-        // switch é o INÍCIO do braço default, não o fim — medido: dflt=98,
-        // return=100; usar o dflt como borda dava range [98,98) vazio)
         if (!last.isReturn()) return null;
-        int commonEnd = last.offset();
+        // o FIM COMUM é o ALVO DOS GOTOS dos braços — NÃO o offset do return
+        // (medido no strSwitchStmt: os gotos apontam p/ 100 [iload_1] e o
+        // ireturn está em 101; usar 101 dava ranges vazios). O primeiro goto
+        // APÓS o switch do índice define o fim; os demais têm que casar.
+        int swOff = insns.get(j + 1).offset();
+        int commonEnd = -1;
+        for (BytecodeReader.Insn g : insns) {
+            if (g.offset() <= swOff) continue;
+            if (g.opcode() != 0xa7) continue;
+            if (commonEnd == -1) commonEnd = g.target();
+            else if (commonEnd != g.target()) return null;
+        }
+        if (commonEnd < 0) return null;
         java.util.TreeSet<Integer> bounds = new java.util.TreeSet<>();
         bounds.add(idx.dflt);
         for (int tt : idx.targets) bounds.add(tt);
@@ -204,6 +231,12 @@ final class BytecodeSwitch {
                 if ((op >= 0xac && op <= 0xb1) || op == 0xbf) return null;
             }
             BytecodeDecoder.MachineRun r = BytecodeDecoder.machineRun(core, cp, frame);
+            // Fase E (14/10): braço STATEMENT ([push, istore, goto]) — o
+            // machineRun não modela store → cai p/ a forma statement
+            if (r == null || r.stopped || r.stack.size() != 1) {
+                return stringSwitchStmt(insns, cp, frame, disc, idx, caseLit,
+                        starts, commonEnd, prologue, shared);
+            }
             if (r == null || r.stopped || r.stack.size() != 1) return null;
             String val = r.stack.topExpr();
             if (s == idx.dflt) {
@@ -224,6 +257,58 @@ final class BytecodeSwitch {
         List<String> single = new ArrayList<>();
         single.add(sb.toString());
         return single;
+    }
+
+    /**
+     * Fase E (14/10): a forma STATEMENT do switch de STRING — os braços são
+     * statements ([pushes, istore, goto]) convergindo no fim comum; emite
+     * `switch (s) { case "a": <stmts> break ... default: <stmts> }` + a
+     * cauda. Qualquer desvio → null = stub honesto (R6).
+     */
+    private static List<String> stringSwitchStmt(List<BytecodeReader.Insn> insns,
+            String[] cp, BytecodeFrame frame, String disc, SwitchInfo idx,
+            java.util.Map<Integer, String> caseLit, List<Integer> starts,
+            int commonEnd, List<String> prologue, java.util.Set<Integer> shared) {
+        List<String> out = new ArrayList<>();
+        if (prologue != null) out.addAll(prologue);
+        out.add("switch (" + disc + ") {");
+        boolean sawDefault = false;
+        for (int i = 0; i < starts.size(); i++) {
+            int s = starts.get(i);
+            int e = (i + 1 < starts.size()) ? starts.get(i + 1) : commonEnd;
+            List<BytecodeReader.Insn> arm = range(insns, s, e);
+            if (arm.isEmpty()) return null;
+            List<BytecodeReader.Insn> core = arm;
+            if (arm.get(arm.size() - 1).opcode() == 0xa7) {
+                if (arm.get(arm.size() - 1).target() != commonEnd) return null;
+                core = arm.subList(0, arm.size() - 1);
+            }
+            if (core.isEmpty()) return null;
+            String label;
+            if (s == idx.dflt) {
+                label = "default:";
+                sawDefault = true;
+            } else {
+                Integer cv = null;
+                for (int k2 = 0; k2 < idx.targets.length; k2++)
+                    if (idx.targets[k2] == s) cv = idx.values[k2];
+                String lit = cv == null ? null : caseLit.get(cv);
+                if (lit == null) return null;
+                label = "case " + lit + ":";
+            }
+            out.add(label);
+            var stmts = BytecodeStatementsEmit.emitLinear(core, cp, frame, shared);
+            if (stmts == null) return null;
+            out.addAll(stmts);
+            if (s != idx.dflt) out.add("break");
+        }
+        if (!sawDefault) return null;
+        out.add("}");
+        var tail = BytecodeStatementsEmit.emitLinear(range(insns, commonEnd,
+                insns.get(insns.size() - 1).offset() + 1), cp, frame, shared);
+        if (tail == null) return null;
+        out.addAll(tail);
+        return out;
     }
 
     private static Integer constVal(BytecodeReader.Insn in) {
