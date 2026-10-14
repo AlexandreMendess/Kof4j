@@ -50,7 +50,7 @@ final class StructWalker {
                 String def = storeDefault(in.opcode());
                 if (def == null) return null;                 // float/ref: recusar (R6)
                 seen.add(slot);
-                hoisted.add("var " + BytecodeDecoder.slotName(slot, frame) + " = " + def);
+                hoisted.add("var " + BytecodeDecoderStack.slotName(slot, frame) + " = " + def);
             }
         }
         declared.addAll(seen);

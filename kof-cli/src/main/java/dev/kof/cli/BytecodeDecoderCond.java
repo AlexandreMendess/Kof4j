@@ -37,7 +37,7 @@ final class BytecodeDecoderCond {
         if (operandStart != 0) return null;   // ha codigo/branch antes do cmp → nao e flat
         java.util.List<String> operands = new java.util.ArrayList<>();
         for (int i = operandStart; i < n - 5; i++) {
-            String v = BytecodeDecoder.loadValue(insns.get(i), frame);
+            String v = BytecodeDecoderStack.loadValue(insns.get(i), frame);
             if (v == null) return null;
             operands.add(v);
         }

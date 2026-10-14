@@ -68,14 +68,14 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             List<BytecodeReader.Insn> body;
             if (op >= 0x99 && op <= 0x9e) {
                 if (block.size() < 2) { BytecodeStatements.refuse("do-while-short"); return false; }
-                String a = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
+                String a = BytecodeDecoderStack.loadValue(block.get(block.size() - 2), frame);
                 if (a == null) { BytecodeStatements.refuse("do-while-load-null"); return false; }
                 cond = a + " " + BytecodeStatements.contCond(op);
                 body = block.subList(0, block.size() - 2);
             } else if (op >= 0x9f && op <= 0xa4) {
                 if (block.size() < 3) { BytecodeStatements.refuse("do-while-short"); return false; }
-                String x = BytecodeDecoder.loadValue(block.get(block.size() - 3), frame);
-                String y = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
+                String x = BytecodeDecoderStack.loadValue(block.get(block.size() - 3), frame);
+                String y = BytecodeDecoderStack.loadValue(block.get(block.size() - 2), frame);
                 if (x == null || y == null) { BytecodeStatements.refuse("do-while-load-null"); return false; }
                 cond = x + " " + BytecodeStatements.contCond(op) + " " + y;
                 body = block.subList(0, block.size() - 3);
@@ -298,7 +298,7 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 String eVal = BytecodeStatements.stackValueStrip(eSeq, frame, cp);
                 if (tVal != null && eVal != null) {
                     int slot = BytecodeStatements.storeSlot(jPre.get(0));
-                    String name = BytecodeDecoder.slotName(slot, frame);
+                    String name = BytecodeDecoderStack.slotName(slot, frame);
                     boolean first = !declared.contains(slot);
                     declared.add(slot);
                     String assign0 = (first ? "var " + name + " = " : name + " = ")
@@ -343,7 +343,7 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                         String eVal = BytecodeDecoder.stackValue(
                                 eCore.subList(0, eCore.size() - 1), frame, cp);
                         if (tVal != null && eVal != null) {
-                            String name = BytecodeDecoder.slotName(tSlot, frame);
+                            String name = BytecodeDecoderStack.slotName(tSlot, frame);
                             boolean first = !declared.contains(tSlot);
                             declared.add(tSlot);
                             out.add("    " + (first ? "var " + name + " = " : name + " = ")

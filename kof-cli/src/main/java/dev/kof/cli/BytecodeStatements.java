@@ -35,12 +35,8 @@ final class BytecodeStatements {
     static int currentLoopExit = -1;
     /** Atribuição com declaração `var` na 1ª escrita do slot. */
     static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
-        String name = BytecodeDecoder.slotName(slot, frame);
-        // Fase E (14/10): slot NOMEADO (parâmetro/this) NUNCA redeclara — o
-        // `var arg1 = ...` criava um local de BLOCO e o parâmetro nunca
-        // atualizava (medido: o gcd decompilado rodava para sempre, R6). A
-        // declaração do parâmetro é a própria assinatura.
-        if (!frame.isNamedSlot(slot) && !declared.contains(slot)) {
+        String name = BytecodeDecoderStack.slotName(slot, frame);
+        if (!declared.contains(slot)) {
             declared.add(slot);
             return "var " + name + " = " + value;
         }
@@ -264,12 +260,12 @@ final class BytecodeStatements {
                     if (expr == null) { refuse(opcodeTag); return null; }
                     stack.push(expr);
                 }
-                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoder.slotName(op - 0x1a, frame));
-                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(BytecodeDecoder.slotName(op - 0x1e, frame));   // lload_0..3
-                case 0x26, 0x27, 0x28, 0x29 -> stack.push(BytecodeDecoder.slotName(op - 0x26, frame));   // dload_0..3
-                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(BytecodeDecoder.slotName(op - 0x2a, frame));
-                case 0x15, 0x19 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], frame));
-                case 0x16, 0x17, 0x18 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], frame));   // lload/fload/dload
+                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoderStack.slotName(op - 0x1a, frame));
+                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(BytecodeDecoderStack.slotName(op - 0x1e, frame));   // lload_0..3
+                case 0x26, 0x27, 0x28, 0x29 -> stack.push(BytecodeDecoderStack.slotName(op - 0x26, frame));   // dload_0..3
+                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(BytecodeDecoderStack.slotName(op - 0x2a, frame));
+                case 0x15, 0x19 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame));
+                case 0x16, 0x17, 0x18 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame));   // lload/fload/dload
                 case 0x36, 0x37, 0x38, 0x39, 0x3a -> { // istore..astore idx
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
@@ -297,15 +293,15 @@ final class BytecodeStatements {
                     int w = in.operands()[0];
                     int slot = (w >> 8) & 0xFF;
                     int k = (byte) (w & 0xFF);
-                    String name = BytecodeDecoder.slotName(slot, frame);
+                    String name = BytecodeDecoderStack.slotName(slot, frame);
                     declared.add(slot);
                     stmts.add(name + " = " + name + " + " + k);
                 }
-                case 0x60 -> { if (!BytecodeDecoder.bin(stack, "+")) { refuse(opcodeTag); return null; } }
-                case 0x64 -> { if (!BytecodeDecoder.bin(stack, "-")) { refuse(opcodeTag); return null; } }
-                case 0x68 -> { if (!BytecodeDecoder.bin(stack, "*")) { refuse(opcodeTag); return null; } }
-                case 0x6c -> { if (!BytecodeDecoder.bin(stack, "/")) { refuse(opcodeTag); return null; } }
-                case 0x70 -> { if (!BytecodeDecoder.bin(stack, "%")) { refuse(opcodeTag); return null; } }
+                case 0x60 -> { if (!BytecodeDecoderStack.bin(stack, "+")) { refuse(opcodeTag); return null; } }
+                case 0x64 -> { if (!BytecodeDecoderStack.bin(stack, "-")) { refuse(opcodeTag); return null; } }
+                case 0x68 -> { if (!BytecodeDecoderStack.bin(stack, "*")) { refuse(opcodeTag); return null; } }
+                case 0x6c -> { if (!BytecodeDecoderStack.bin(stack, "/")) { refuse(opcodeTag); return null; } }
+                case 0x70 -> { if (!BytecodeDecoderStack.bin(stack, "%")) { refuse(opcodeTag); return null; } }
                 case 0x74 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stack.push("-" + stack.pop()); }
                 // Fase E: construção/teste-emit (0xbb new, 0xbd anewarray,
                 // 0x59 dup, 0xb7 init, 0x57 pop, 0xc0 cast, 0xc1 instanceof)

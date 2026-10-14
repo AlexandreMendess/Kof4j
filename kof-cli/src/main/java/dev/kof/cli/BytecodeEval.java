@@ -52,16 +52,16 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
             }
             case 0x1a, 0x1b, 0x1c, 0x1d -> {
                 int slot = op - 0x1a;
-                st.push(locals.containsKey(slot) ? locals.get(slot) : BytecodeDecoder.slotName(slot, frame));
+                st.push(locals.containsKey(slot) ? locals.get(slot) : BytecodeDecoderStack.slotName(slot, frame));
             }
-            case 0x1e, 0x1f, 0x20, 0x21 -> st.push(BytecodeDecoder.slotName(op - 0x1e, frame));
-            case 0x26, 0x27, 0x28, 0x29 -> st.push(BytecodeDecoder.slotName(op - 0x26, frame));
+            case 0x1e, 0x1f, 0x20, 0x21 -> st.push(BytecodeDecoderStack.slotName(op - 0x1e, frame));
+            case 0x26, 0x27, 0x28, 0x29 -> st.push(BytecodeDecoderStack.slotName(op - 0x26, frame));
             case 0x2a, 0x2b, 0x2c, 0x2d -> {
                 int slot = op - 0x2a;
-                st.push(locals.containsKey(slot) ? locals.get(slot) : BytecodeDecoder.slotName(slot, frame));
+                st.push(locals.containsKey(slot) ? locals.get(slot) : BytecodeDecoderStack.slotName(slot, frame));
             }
-            case 0x15, 0x19 -> st.push(BytecodeDecoder.slotName(in.operands()[0], frame));
-            case 0x16, 0x17, 0x18 -> st.push(BytecodeDecoder.slotName(in.operands()[0], frame));
+            case 0x15, 0x19 -> st.push(BytecodeDecoderStack.slotName(in.operands()[0], frame));
+            case 0x16, 0x17, 0x18 -> st.push(BytecodeDecoderStack.slotName(in.operands()[0], frame));
             case 0xbe -> {                                 // arraylength
                 if (st.isEmpty()) return false;
                 st.push(st.pop() + ".length");
@@ -73,21 +73,21 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
             // antiga da face de guarda (`0 0 1 3 3 7 12`) estava
             // matematicamente errada para esse corpo — foi ela, não o
             // join, que fechava esta porta.
-            case 0x60, 0x61, 0x62, 0x63 -> { if (!BytecodeDecoder.bin2(st, "+")) return false; }
-            case 0x64, 0x65, 0x66, 0x67 -> { if (!BytecodeDecoder.bin2(st, "-")) return false; }
-            case 0x68, 0x69, 0x6a, 0x6b -> { if (!BytecodeDecoder.bin2(st, "*")) return false; }
-            case 0x6c, 0x6d, 0x6e, 0x6f -> { if (!BytecodeDecoder.bin2(st, "/")) return false; }
-            case 0x70, 0x71, 0x72, 0x73 -> { if (!BytecodeDecoder.bin2(st, "%")) return false; }
+            case 0x60, 0x61, 0x62, 0x63 -> { if (!BytecodeDecoderStack.bin2(st, "+")) return false; }
+            case 0x64, 0x65, 0x66, 0x67 -> { if (!BytecodeDecoderStack.bin2(st, "-")) return false; }
+            case 0x68, 0x69, 0x6a, 0x6b -> { if (!BytecodeDecoderStack.bin2(st, "*")) return false; }
+            case 0x6c, 0x6d, 0x6e, 0x6f -> { if (!BytecodeDecoderStack.bin2(st, "/")) return false; }
+            case 0x70, 0x71, 0x72, 0x73 -> { if (!BytecodeDecoderStack.bin2(st, "%")) return false; }
             case 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90 -> {
-                if (!BytecodeDecoder.conv(st, op)) return false;
+                if (!BytecodeDecoderStack.conv(st, op)) return false;
             }
             // Fase E (14/10): bitwise & | ^ (o Kof tem os tres; medido)
-            case 0x7e, 0x7f -> { if (!BytecodeDecoder.bin2(st, "&")) return false; }
-            case 0x80, 0x81 -> { if (!BytecodeDecoder.bin2(st, "|")) return false; }
-            case 0x82, 0x83 -> { if (!BytecodeDecoder.bin2(st, "^")) return false; }
-            case 0x78, 0x79 -> { if (!BytecodeDecoder.bin2(st, "<<")) return false; }
-            case 0x7a, 0x7b -> { if (!BytecodeDecoder.bin2(st, ">>")) return false; }
-            case 0x7c, 0x7d -> { if (!BytecodeDecoder.bin2(st, ">>>")) return false; }
+            case 0x7e, 0x7f -> { if (!BytecodeDecoderStack.bin2(st, "&")) return false; }
+            case 0x80, 0x81 -> { if (!BytecodeDecoderStack.bin2(st, "|")) return false; }
+            case 0x82, 0x83 -> { if (!BytecodeDecoderStack.bin2(st, "^")) return false; }
+            case 0x78, 0x79 -> { if (!BytecodeDecoderStack.bin2(st, "<<")) return false; }
+            case 0x7a, 0x7b -> { if (!BytecodeDecoderStack.bin2(st, ">>")) return false; }
+            case 0x7c, 0x7d -> { if (!BytecodeDecoderStack.bin2(st, ">>>")) return false; }
             // Fase C (13/10): CHAMADAS em condição (`s.isEmpty()`) — o
             // MESMO gate R6 do emitLinear (JDK-owner recusa; método em
             // objeto novo recusa; void em condição não existe).

@@ -137,19 +137,19 @@ import java.util.Set;
                     if (c == null) return null;
                     stack.push(c, c.endsWith("L") ? "J" : "D");
                 }
-                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(slotName(op - 0x1a, frame), "I");
-                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(slotName(op - 0x1e, frame), "J");   // lload_0..3
-                case 0x26, 0x27, 0x28, 0x29 -> stack.push(slotName(op - 0x26, frame), "D");   // dload_0..3
+                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoderStack.slotName(op - 0x1a, frame), "I");
+                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(BytecodeDecoderStack.slotName(op - 0x1e, frame), "J");   // lload_0..3
+                case 0x26, 0x27, 0x28, 0x29 -> stack.push(BytecodeDecoderStack.slotName(op - 0x26, frame), "D");   // dload_0..3
                 case 0x2a, 0x2b, 0x2c, 0x2d -> {
                     int slot = op - 0x2a;
                     if (locals.containsKey(slot)) stack.push(locals.get(slot)[0], locals.get(slot)[1]);
-                    else stack.push(slotName(slot, frame), "L");
+                    else stack.push(BytecodeDecoderStack.slotName(slot, frame), "L");
                 }
-                case 0x15 -> stack.push(slotName(in.operands()[0], frame), "I");
-                case 0x19 -> stack.push(slotName(in.operands()[0], frame), "L");
-                case 0x16 -> stack.push(slotName(in.operands()[0], frame), "J");   // lload
+                case 0x15 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame), "I");
+                case 0x19 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame), "L");
+                case 0x16 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame), "J");   // lload
                 case 0x17 -> { return null; }                                       // fload (fconst já recusado)
-                case 0x18 -> stack.push(slotName(in.operands()[0], frame), "D");   // dload
+                case 0x18 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame), "D");   // dload
                 case 0x60 -> { if (!stack.bin("+", "I")) return null; }
                 case 0x64 -> { if (!stack.bin("-", "I")) return null; }
                 case 0x68 -> { if (!stack.bin("*", "I")) return null; }
@@ -351,7 +351,7 @@ import java.util.Set;
         if (block.size() - 1 == arity) {
             List<String> operands = new java.util.ArrayList<>();
             for (int i = 0; i < block.size() - 1; i++) {
-                String v = loadValue(block.get(i), frame);
+                String v = BytecodeDecoderStack.loadValue(block.get(i), frame);
                 if (v == null) return null;
                 operands.add(v);
             }
@@ -380,7 +380,7 @@ import java.util.Set;
         if (block.size() - 1 == arity) {
             java.util.List<String> operands = new java.util.ArrayList<>();
             for (int i = 0; i < block.size() - 1; i++) {
-                String v = loadValue(block.get(i), frame);
+                String v = BytecodeDecoderStack.loadValue(block.get(i), frame);
                 if (v == null) return null;
                 operands.add(v);
             }
@@ -549,70 +549,6 @@ import java.util.Set;
     }
 
     /** Converte o topo da pilha com o metodo Kof do opcode (0x85-0x90), ou false. */
-    static boolean conv(java.util.Deque<String> st, int op) {
-        String m = switch (op) {
-            case 0x85 -> "toLong"; case 0x86 -> "toFloat"; case 0x87 -> "toDouble";
-            case 0x88 -> "toInt"; case 0x89 -> "toFloat"; case 0x8a -> "toDouble";
-            case 0x8b -> "toInt"; case 0x8c -> "toLong"; case 0x8d -> "toDouble";
-            case 0x8e -> "toInt"; case 0x8f -> "toLong"; case 0x90 -> "toFloat";
-            default -> null;
-        };
-        if (m == null || st.isEmpty()) return false;
-        st.push(st.pop() + "." + m + "()");
-        return true;
-    }
-
-    static boolean bin2(java.util.Deque<String> st, String op) {
-        if (st.size() < 2) return false;
-        String b = st.pop();
-        String a = st.pop();
-        st.push("(" + a + " " + op + " " + b + ")");
-        return true;
-    }
-
-    static String blockReturnExpr(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
-                                          String[] cp, BytecodeFrame frame) {
-        return linearReturn(insnsWithin(b, insns), cp, frame);
-    }
-
-    static String slotName(int slot, BytecodeFrame frame) {
-        return frame.name(slot);
-    }
-
-    static String loadValue(BytecodeReader.Insn in, BytecodeFrame frame) {
-        return switch (in.opcode()) {
-            case 0x1a, 0x1b, 0x1c, 0x1d -> slotName(in.opcode() - 0x1a, frame);
-            case 0x1e, 0x1f, 0x20, 0x21 -> slotName(in.opcode() - 0x1e, frame);
-            case 0x26, 0x27, 0x28, 0x29 -> slotName(in.opcode() - 0x26, frame);
-            case 0x2a, 0x2b, 0x2c, 0x2d -> slotName(in.opcode() - 0x2a, frame);
-            case 0x15, 0x19, 0x16, 0x17, 0x18 -> slotName(in.operands()[0], frame);
-            case 0x03 -> "0";
-            case 0x04 -> "1";
-            case 0x05 -> "2";
-            case 0x06 -> "3";
-            case 0x07 -> "4";
-            case 0x08 -> "5";
-            case 0x02 -> "-1";
-            case 0x01 -> "null";
-            case 0x10 -> String.valueOf((byte) in.operands()[0]);
-            case 0x11 -> String.valueOf((short) in.operands()[0]);   // sipush — 14/09
-            // espelha o machineRun (linha 114 ja tratava 0x11): o loadValue SEM
-            // sipush fazia `if (a == 30000)` (const > bipush-range) stubar em
-            // blockCondition/comparisonReturn = DIVERGENCIA de passada, nao
-            // forma-nova. Seguranca: so e emitido COM o hoist §238 no lugar (sem
-            // ele, o `int r` escapante viraria saida nao-compilavel — o que o
-            // re-medidor Roi3 marcou como pre-requisito).
-            default -> null;
-        };
-    }
-
-    static boolean bin(Deque<String> stack, String op) {
-        if (stack.size() < 2) return false;
-        String b = stack.pop();
-        String a = stack.pop();
-        stack.push("(" + a + " " + op + " " + b + ")");
-        return true;
-    }
 
 
     // ── statement-based body (loops / stores / multi-statement) ──────────

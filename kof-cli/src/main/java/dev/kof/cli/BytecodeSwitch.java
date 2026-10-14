@@ -127,7 +127,7 @@ final class BytecodeSwitch {
         boolean a5 = hm != null && "java/lang/String".equals(hm[0]) && "hashCode".equals(hm[1]);
         boolean a6 = insns.get(6).opcode() == 0xab;
         if (!(a0 && a1 && a2 && a3 && a4 && a5 && a6)) return null;
-        String disc = BytecodeDecoder.loadValue(insns.get(0), frame);
+        String disc = BytecodeDecoderStack.loadValue(insns.get(0), frame);
         if (disc == null) return null;
         SwitchInfo hash = parseSwitch(code, insns.get(6).offset());
         if (hash == null || hash.targets.length == 0) return null;
@@ -384,7 +384,7 @@ final class BytecodeSwitch {
         }
         for (int slot : hoist) {
             declared.add(slot);
-            out.add("var " + BytecodeDecoder.slotName(slot, frame));
+            out.add("var " + BytecodeDecoderStack.slotName(slot, frame));
         }
         out.add("switch (" + expr + ") {");
         // cases em ordem crescente de valor (determinístico); default por último.
