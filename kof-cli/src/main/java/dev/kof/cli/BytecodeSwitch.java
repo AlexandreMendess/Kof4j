@@ -118,11 +118,25 @@ final class BytecodeSwitch {
         SwitchInfo si = parseSwitch(code, swOff);
         if (si == null || si.targets.length == 0) return null;
 
-        String expr = BytecodeDecoder.linearExpr(range(insns, 0, swOff), cp, frame);
+        // Fase E (14/10): o discriminante pode ter PRÓLOGO com stores
+        // (`int r = 0; switch (x) ...`) — o machineRun é avaliador de
+        // EXPRESSÃO (sem store) e o switch inteiro stubava. Fatiar: os
+        // [pushes, xstore]* iniciais viram statements (emitLinear) e o
+        // resto é o discriminante (linearExpr + simDepth, como antes).
+        List<BytecodeReader.Insn> pre = range(insns, 0, swOff);
+        int cut = 0;
+        for (int i = 0; i < pre.size(); i++) {
+            if (pre.get(i).opcode() >= 0x3b && pre.get(i).opcode() <= 0x4e) cut = i + 1;
+        }
+        // (a emissão do prólogo é ADIADA para depois do Set `declared` —
+        // compartilhá-lo evita `var v2` do hoist + `var v2 = 0` do prólogo
+        // = redeclaração SEM011; medido na primeira tentativa)
+        List<BytecodeReader.Insn> disc = pre.subList(cut, pre.size());
+        String expr = BytecodeDecoder.linearExpr(disc, cp, frame);
         if (expr == null || expr.contains("$")) return null;
         // discriminante deixa EXATAMENTE a chave na pilha (sem lixo/lixeira):
         // prova por simulação (trecho straight-line até o switch).
-        Integer discDepth = simDepth(range(insns, 0, swOff), cp);
+        Integer discDepth = simDepth(disc, cp);
         if (discDepth == null || discDepth != 1) return null;
 
         TreeSet<Integer> bounds = new TreeSet<>();
@@ -159,13 +173,24 @@ final class BytecodeSwitch {
         // (SEM011; probe 11/09). Todo slot NÃO-parâmetro storeado numa região
         // de braço é pré-declarado ANTES do switch como `var` sem init
         // (executa e aceita atribuição de tipos diferentes — probe JVM).
+        // Fase E (14/10): o prólogo com stores vem ANTES do hoist — ele
+        // declara os slots COM init (`var v2 = 0`), e o hoist pula o que já
+        // está declarado (o `var v2` sem init fazia o compilador Kof boxar
+        // as atribuições → VerifyError no ireturn; medido).
+        if (cut > 0) {
+            List<String> prologue = BytecodeStatementsEmit.emitLinear(pre.subList(0, cut), cp, frame, declared);
+            if (prologue == null) return null;
+            out.addAll(prologue);
+        }
         List<Integer> hoist = new ArrayList<>();
         for (int slot : localSlotsStoredIn(insns, bounds.first(), end)) {
             if (frame.isNamedSlot(slot)) continue;   // parâmetro/`this` — nunca hoista
+            if (declared.contains(slot)) continue;   // já declarado no prólogo
             if (!hoist.contains(slot)) hoist.add(slot);
         }
         for (int slot : localSlotsStoredIn(insns, end, maxOff)) {
             if (frame.isNamedSlot(slot)) continue;
+            if (declared.contains(slot)) continue;
             if (!hoist.contains(slot)) hoist.add(slot);
         }
         for (int slot : hoist) {
