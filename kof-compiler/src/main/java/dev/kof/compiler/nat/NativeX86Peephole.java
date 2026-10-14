@@ -78,6 +78,7 @@ final class NativeX86Peephole {
         collapsed += collapseSpannedPushPop(lines);
         collapsed += foldScratchLoadIntoOp(lines);
         collapsed += foldShiftToLea(lines);
+        collapsed += foldAddToLea(lines);
         collapsed += foldLoadIntoCompare(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
@@ -175,6 +176,80 @@ final class NativeX86Peephole {
 
     private static boolean mentionsRcx(String t) {
         return t.contains("%rcx") || t.contains("%ecx") || t.contains("%cl");
+    }
+
+    /**
+     * §7 x86_64 ("choice between mov, lea and combined operations"): folds
+     * {@code movq %X, %rax} + {@code add{l,q} %Y/%imm, %{e,r}ax} into a single
+     * {@code lea} that computes the sum without a separate materialization:
+     *
+     * <pre>
+     *   movq %X, %rax        leaq (%X,%Y), %rax      (register add)
+     *   addq %Y, %rax   ==&gt;  leaq imm(%X), %rax      (immediate add)
+     * </pre>
+     *
+     * <p>Safe because the add's result is a value in rax and its FLAGS are unused
+     * (Kof comparisons are explicit {@code cmp}, never a flag-consuming jcc right
+     * after an add), so the flags-agnostic {@code lea} is equivalent. Only when the
+     * destination is {@code %rax}, X is a register other than rax, and (for the
+     * register form) Y is a register other than rax (so the base+index is legal).
+     */
+    private static int foldAddToLea(List<String> lines) {
+        int folded = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 1 < lines.size(); i++) {
+                String mv = lines.get(i).trim();
+                if (!mv.startsWith("movq ") || !mv.endsWith(", %rax")) continue;
+                String x = mv.substring("movq ".length(), mv.length() - ", %rax".length()).trim();
+                if (!x.startsWith("%") || x.equals("%rax")) continue;
+                int j = i + 1;
+                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
+                if (j >= lines.size()) continue;
+                String add = lines.get(j).trim();
+                String newOp = rewriteAddAsLea(add, x);
+                if (newOp == null) continue;
+                lines.set(j, newOp);
+                lines.remove(i);
+                folded++;
+                changed = true;
+                break;
+            }
+        }
+        return folded;
+    }
+
+    /** Rewrites {@code add{l,q} src, %{e,r}ax} (with X in rax) as a {@code lea}
+     *  computing X+src, or returns null when it is not such an add. */
+    private static String rewriteAddAsLea(String add, String x) {
+        int sp = add.indexOf(' ');
+        if (sp < 0) return null;
+        String mnemonic = add.substring(0, sp);
+        boolean wide;
+        if (mnemonic.equals("addq")) wide = true;
+        else if (mnemonic.equals("addl")) wide = false;
+        else return null;
+        String rest = add.substring(sp + 1);
+        int comma = rest.indexOf(',');
+        if (comma < 0) return null;
+        String src = rest.substring(0, comma).trim();
+        String dst = rest.substring(comma + 1).trim();
+        String ax = wide ? "%rax" : "%eax";
+        if (!dst.equals(ax)) return null;
+        String xw = wide ? x : REG32.getOrDefault(x, x);
+        String lea = wide ? "leaq" : "leal";
+        if (src.startsWith("$")) {
+            // add $imm, %rax  ->  lea imm(%X), %rax
+            return "    " + lea + " " + src.substring(1) + "(" + xw + "), " + ax;
+        }
+        if (src.startsWith("%")) {
+            String y = src;
+            if (y.equals("%rax") || y.equals("%eax")) return null; // index cannot be rax with base rax
+            String yw = wide ? y : REG32.getOrDefault(y, y);
+            return "    " + lea + " (" + xw + "," + yw + "), " + ax;
+        }
+        return null;
     }
 
     /**

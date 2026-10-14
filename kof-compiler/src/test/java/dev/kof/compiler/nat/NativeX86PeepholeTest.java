@@ -123,15 +123,34 @@ class NativeX86PeepholeTest {
 
     @Test
     void aScratchLoadIsFoldedIntoTheOp() {
-        // movq %r12, %rcx; addl %ecx, %eax  ->  addl %r12d, %eax
-        assertEquals("    movq %r12, %rax\n    addl %r13d, %eax\n",
+        // movq %r12, %rcx; addl %ecx, %eax  ->  (scratch fold) movq %r12, %rax;
+        //   addl %r13d, %eax  ->  (lea-add) leal (%r12d,%r13d), %eax
+        assertEquals("    leal (%r12d,%r13d), %eax\n",
                 result("    movq %r12, %rax\n    movq %r13, %rcx\n    addl %ecx, %eax\n"));
     }
 
     @Test
     void aLongScratchLoadIsFolded() {
-        assertEquals("    movq %r12, %rax\n    addq %r13, %rax\n",
+        assertEquals("    leaq (%r12,%r13), %rax\n",
                 result("    movq %r12, %rax\n    movq %r13, %rcx\n    addq %rcx, %rax\n"));
+    }
+
+    @Test
+    void anAddOfTwoRegistersBecomesLea() {
+        assertEquals("    leal (%ebx,%r13d), %eax\n",
+                result("    movq %rbx, %rax\n    addl %r13d, %eax\n"));
+    }
+
+    @Test
+    void anAddOfAnImmediateBecomesLea() {
+        assertEquals("    leal 7(%ebx), %eax\n",
+                result("    movq %rbx, %rax\n    addl $7, %eax\n"));
+    }
+
+    @Test
+    void aLongAddOfTwoRegistersBecomesLeaq() {
+        assertEquals("    leaq (%rbx,%r13), %rax\n",
+                result("    movq %rbx, %rax\n    addq %r13, %rax\n"));
     }
 
     @Test
@@ -183,9 +202,9 @@ class NativeX86PeepholeTest {
     }
 
     @Test
-    void aLoadIntoANonCompareIsNotFolded() {
-        // `addl $1, %eax` produces a value in rax -> the movq must stay.
-        String body = "    movq %rbx, %rax\n    addl $1, %eax\n";
+    void aLoadIntoAMultiplyIsNotFolded() {
+        // `imull $1, %eax` is neither a compare nor an add -> the movq must stay.
+        String body = "    movq %rbx, %rax\n    imull $3, %eax\n";
         assertEquals(body, result(body));
     }
 
