@@ -1293,6 +1293,41 @@ class DecompileTest {
         assertEquals("-1\n1\n0\n1\n2\n0", output, "zero-drift: o bra\u00e7o -1 preservado");
     }
 
+    @Test
+    void mixedAndOrPrecedenceRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (13/10): a PRECEDENCIA MISTA `a > 0 && b > 0 || c > 0` — o
+        // grupo && tem o falso convergindo no RHS do || (que E um teste). O
+        // ifElseReturn agora trata a SEGUNDA orientacao do teste interno do
+        // && (fall-through == o falso externo; takenCond) e devolve o shape
+        // `||` puro ao struct walker (que o emite idiomatico). Antes: stub.
+        Path javaFile = dir.resolve("Mx.java");
+        Files.writeString(javaFile, """
+                public class Mx {
+                    boolean mixed(int a, int b, int c) { return a > 0 && b > 0 || c > 0; }
+                    boolean mixed2(int a, int b, int c) { return a > 10 && b > 10 || c == 7; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Mx.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "a precedencia mista recupera:\n" + kof);
+        assertTrue(kof.contains("arg0 > 0 && arg1 > 0"), kof);
+        String kofRun = kof + "\nmain() {\n    var m = Mx()\n    println(m.mixed(1, 1, 0))\n    println(m.mixed(1, 0, 1))\n    println(m.mixed(0, 1, 0))\n    println(m.mixed(0, 0, 1))\n    println(m.mixed(0, 0, 0))\n    println(m.mixed2(11, 11, 0))\n    println(m.mixed2(11, 0, 7))\n    println(m.mixed2(0, 0, 0))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 5 casos do mixed + 3 do mixed2
+        assertEquals("true\ntrue\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse", output,
+                "zero-drift: precedencia mista identica ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

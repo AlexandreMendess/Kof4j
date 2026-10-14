@@ -78,17 +78,37 @@ final class BytecodeDecoderCond {
         BytecodeReader.Block thenB = BytecodeDecoder.find(blocks, thenStart);
         BytecodeReader.Block elseB = BytecodeDecoder.find(blocks, elseStart);
         if (thenB == null || elseB == null) return null;
+        // Fase E (13/10) `||`: se o braco ELSE (o alvo do jump) tem valor
+        // VERDADEIRO constante, o shape e `a > 0 || b` (o jump do teste e o
+        // braco TRUE) — o ifElseReturn so entende a orientacao &&/ternario;
+        // devolver null deixa o struct walker emitir o || IDIOMATICO (sem
+        // isso saia o De Morgan `a <= 0 && b <= 0`, correto porem ofuscado).
+        String elseProbe = armExpr(elseB, blocks, insns, cp, frame, 0);
+        if ("1".equals(elseProbe) || "true".equals(elseProbe)) return null;
         // Fase E (13/10) `&&`: se o braco THEN e ele mesmo um teste cujo FALSO
         // converge no MESMO else (o falso externo), o shape e `if (A) { if (B)
         // X else Y } else Y` = `if (A && B) X else Y` — a forma IDIOMATICA
         // (sem isso a recursao o emitia como ternario aninhado, ofuscando o &&).
-        if (thenB != null && thenB.succ.size() == 2 && thenB.succ.get(0) == elseStart) {
-            String cInner = BytecodeDecoder.blockCondition(thenB, insns, frame, cp);
-            BytecodeReader.Block innerThen = BytecodeDecoder.find(blocks, thenB.succ.get(1));
-            String t = armExpr(innerThen, blocks, insns, cp, frame, 0);
-            String e = armExpr(elseB, blocks, insns, cp, frame, 0);
-            if (cInner != null && t != null && e != null) {
-                return "if (" + cond + " && " + cInner + ") " + t + " else " + e;
+        if (thenB != null && thenB.succ.size() == 2) {
+            // DUAS orientacoes do teste interno do `&&` (medidas):
+            //  (a) jump=FALSO (succ[0]==elseStart) — invCond; o verdadeiro e
+            //      o fall-through (orientacao do && simples);
+            //  (b) fall-through=FALSO (succ[1]==elseStart) — takenCond; o
+            //      verdadeiro e o JUMP (a orientacao que javac usa quando o
+            //      resultado do && alimenta um `||` — a precedencia MISTA).
+            boolean orientA = thenB.succ.get(0) == elseStart;
+            boolean orientB = thenB.succ.get(1) == elseStart;
+            if (orientA || orientB) {
+                String cInner = orientA
+                        ? BytecodeDecoder.blockCondition(thenB, insns, frame, cp)
+                        : BytecodeDecoder.blockConditionTaken(thenB, insns, frame, cp);
+                BytecodeReader.Block innerThen = BytecodeDecoder.find(blocks,
+                        orientA ? thenB.succ.get(1) : thenB.succ.get(0));
+                String t = armExpr(innerThen, blocks, insns, cp, frame, 0);
+                String e = armExpr(elseB, blocks, insns, cp, frame, 0);
+                if (cInner != null && t != null && e != null) {
+                    return "if (" + cond + " && " + cInner + ") " + t + " else " + e;
+                }
             }
         }
         // Fase E (13/10): o braco pode ser ELE MESMO um teste (ternario
@@ -115,7 +135,23 @@ final class BytecodeDecoderCond {
         if (bi.get(bi.size() - 1).opcode() == 0xa7) core = bi.subList(0, bi.size() - 1);
         if (!core.isEmpty()) {
             String lin = BytecodeDecoder.linearReturn(core, cp, frame);
-            if (lin != null) return lin;
+            if (lin == null) {
+                // braco SEM return (termina em goto — o valor fica na pilha
+                // p/ o join, shape da precedencia mista): via LAX (topExpr,
+                // sem checagem de tipo de retorno)
+                boolean hasRet = core.stream().anyMatch(i ->
+                        (i.opcode() >= 0xac && i.opcode() <= 0xb1) || i.opcode() == 0xbf);
+                if (!hasRet) lin = BytecodeDecoder.linearReturn(core, cp, frame, true);
+            }
+            if (lin != null) {
+                // coercao Bool (medido SEM010): metodo `Z` com bracos
+                // iconst 1/0 → true/false (o Kof exige Bool)
+                if (frame != null && "Z".equals(frame.retType())) {
+                    if ("1".equals(lin)) return "true";
+                    if ("0".equals(lin)) return "false";
+                }
+                return lin;
+            }
         }
         if (b.succ.size() != 2) return null;
         String cond = BytecodeDecoder.blockCondition(b, insns, frame, cp);
