@@ -97,24 +97,13 @@ public final class RegisterPlanner {
 
     /**
      * Whether a method is ELIGIBLE for the register-mapped local model (Phase D
-     * switch-over). Conservative: only methods whose locals are ALL int/long/bool/
-     * reference (the INTEGER register class) and which use no {@code long}/{@code
-     * double} (double-width slots complicate the frame layout) qualify. Methods
-     * with SSE (float/double) locals, double-width slots, or a {@code this} that
-     * is not INTEGER-placed stay on the existing frame-slot path. This gate keeps
-     * the switch-over bounded and lets the frame-slot path remain correct for the
-     * rest.
+     * switch-over). Any method qualifies: {@link RegisterAssignment#placeable} keeps
+     * references (conservative GC) and double-width (long/float/double) locals in
+     * the frame, and only int/bool locals are placed in registers. A method with NO
+     * placeable local simply produces an empty placement and stays fully on the
+     * frame-slot path.
      */
     public static boolean eligibleForRegisterLocals(IRMethod method) {
-        for (IRLocalVariable lv : method.localVariables()) {
-            Type t = lv.type();
-            if (X86_64RegisterFile.classOf(t) != X86_64RegisterFile.RegClass.INTEGER) {
-                return false;   // SSE / double-width local
-            }
-            if (t.equals(Type.PrimitiveType.LONG)) {
-                return false;   // double-width even in INTEGER
-            }
-        }
         return true;
     }
 }

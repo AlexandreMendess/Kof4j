@@ -127,22 +127,40 @@ class RegisterPlannerTest {
     }
 
     @Test
-    void aMethodWithALongLocalIsNotEligible() {
+    void aMethodWithALongLocalIsEligibleButTheLongStaysInFrame() {
         IRMethod m = method(List.of(
                 KofLoadLiteral.ofLong(1L), store(1, Type.PrimitiveType.LONG),
                 load(1, Type.PrimitiveType.LONG), new KofReturn(Type.PrimitiveType.LONG)),
                 List.of(new IRLocalVariable(1, "a", Type.PrimitiveType.LONG)));
-        assertFalse(RegisterPlanner.eligibleForRegisterLocals(m),
-                "a double-width long local stays on the frame-slot path");
+        assertTrue(RegisterPlanner.eligibleForRegisterLocals(m),
+                "a method is eligible even with a long local");
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 4);
+        assertFalse(p.isRegister(1), "the double-width long local stays in the frame");
     }
 
     @Test
-    void aMethodWithADoubleLocalIsNotEligible() {
+    void aMethodWithADoubleLocalIsEligibleButTheDoubleStaysInFrame() {
         IRMethod m = method(List.of(
                 KofLoadLiteral.ofDouble(1.5), store(1, Type.PrimitiveType.DOUBLE),
                 load(1, Type.PrimitiveType.DOUBLE), new KofReturn(Type.PrimitiveType.DOUBLE)),
                 List.of(new IRLocalVariable(1, "d", Type.PrimitiveType.DOUBLE)));
-        assertFalse(RegisterPlanner.eligibleForRegisterLocals(m),
-                "an SSE local stays on the frame-slot path");
+        assertTrue(RegisterPlanner.eligibleForRegisterLocals(m));
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 4);
+        assertFalse(p.isRegister(1), "the SSE double local stays in the frame");
+    }
+
+    @Test
+    void aMixedMethodPlacesIntLocalsAndKeepsTheDoubleInFrame() {
+        // int + double locals: the int gets a register, the double stays in frame.
+        IRMethod m = method(List.of(
+                KofLoadLiteral.ofInt(3), store(1, Type.PrimitiveType.INT),
+                KofLoadLiteral.ofDouble(1.5), store(2, Type.PrimitiveType.DOUBLE),
+                load(1, Type.PrimitiveType.INT), new KofPop(),
+                load(2, Type.PrimitiveType.DOUBLE), new KofReturn(Type.PrimitiveType.DOUBLE)),
+                List.of(new IRLocalVariable(1, "n", Type.PrimitiveType.INT),
+                        new IRLocalVariable(2, "d", Type.PrimitiveType.DOUBLE)));
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 4);
+        assertTrue(p.isRegister(1), "the int local is placed in a register");
+        assertFalse(p.isRegister(2), "the double local stays in the frame");
     }
 }
