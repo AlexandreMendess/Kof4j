@@ -135,7 +135,7 @@ public final class RuntimeGc {
                 jae .Ltry_next
             .Ltry_found:
                 cmpb $0, 24(%rbx)
-                jne .Ltry_done
+                jne .Ltry_done_pop
                 movb $1, 24(%rbx)
                 jmp .Ltry_done
             .Ltry_next:
@@ -171,7 +171,7 @@ public final class RuntimeGc {
                 je .Ltry_done_pop
                 leaq -32(%r12), %rbx
                 cmpb $0, 24(%rbx)
-                jne .Ltry_done
+                jne .Ltry_done_pop
                 movb $1, 24(%rbx)
                 jmp .Ltry_done
 
