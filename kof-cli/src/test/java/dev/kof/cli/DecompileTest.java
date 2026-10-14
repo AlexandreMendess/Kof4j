@@ -1374,6 +1374,44 @@ class DecompileTest {
                 "zero-drift: fabricas identicas ao Java");
     }
 
+    @Test
+    void trueVarargsJoinAndAsListRecover(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): os VARARGS VERDADEIROS — `String.join(sep, a, b)` /
+        // `Arrays.asList(a, b)` compilam para iconst_N, anewarray, (dup,
+        // iconst_i, push, aastore)*N, invokestatic. O varargsCall reconstr\u00f3i
+        // os valores (join → concat com o sep ENTRE; asList → listOf) e
+        // recusa qualquer desvio (R6). Antes: stub (emitLinear-null:0xbd).
+        Path javaFile = dir.resolve("Tv.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                import java.util.Arrays;
+                public class Tv {
+                    static String j(String sep) { return String.join(sep, "a", "b"); }
+                    static String j3(String sep, String x) { return String.join(sep, x, "m", "n"); }
+                    static List<String> al() { return Arrays.asList("p", "q"); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Tv.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "os varargs verdadeiros recuperam:\n" + kof);
+        assertTrue(kof.contains("\"a\" + arg0 + \"b\""), kof);
+        assertTrue(kof.contains("listOf(\"p\", \"q\")"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Tv.j(\"-\"))\n    println(Tv.j3(\",\", \"z\"))\n    println(Tv.al())\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: a-b | z,m,n | [p, q]
+        assertEquals("a-b\nz,m,n\n[p, q]", output, "zero-drift: varargs id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

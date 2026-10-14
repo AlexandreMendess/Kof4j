@@ -47,6 +47,8 @@ import java.util.Set;
         if (lin != null) return lin;
         String cmp = BytecodeDecoderCond.comparisonReturn(insns, frame);
         if (cmp != null) return cmp;
+        String va = BytecodeDecoderCond.varargsCall(insns, cp, frame);
+        if (va != null) return va;
         return BytecodeDecoderCond.ifElseReturn(insns, cp, frame);
     }
 

@@ -119,6 +119,89 @@ final class BytecodeDecoderCond {
         return "if (" + cond + ") " + thenE + " else " + elseE;
     }
 
+    // ── chamada VARARGS com array literal (String.join / Arrays.asList) ──
+
+    /**
+     * Fase E (14/10): `String.join(sep, a, b)` / `Arrays.asList(a, b)`
+     * compilam para {@code iconst_N, anewarray, (dup, iconst_i, push,
+     * aastore)*N, invokestatic}. O shape reconstrói os valores e emite o
+     * idioma Kof; QUALQUER desvio (índice fora de ordem, valor não-linear,
+     * resto inesperado) → null = stub honesto (R6 — nunca código errado).
+     */
+    static String varargsCall(List<BytecodeReader.Insn> insns, String[] cp,
+                                      BytecodeFrame frame) {
+        int n = insns.size();
+        // 1. o anewarray com contagem literal imediatamente antes
+        int p = -1;
+        for (int i = 1; i < n; i++) {
+            if (insns.get(i).opcode() == 0xbd && constInt(insns.get(i - 1)) != null) { p = i; break; }
+        }
+        if (p < 0) return null;
+        int count = constInt(insns.get(p - 1));
+        if (count < 1 || count > 16) return null;
+        // 2. os args fixos: o prefixo [0..p-2] — vazio ou exatamente 1 valor
+        List<BytecodeReader.Insn> pre = insns.subList(0, p - 1);
+        String fixed = null;
+        if (!pre.isEmpty()) {
+            for (BytecodeReader.Insn in : pre) {
+                int op = in.opcode();
+                if ((op >= 0xac && op <= 0xb1) || op == 0xbf) return null;
+            }
+            BytecodeDecoder.MachineRun r = BytecodeDecoder.machineRun(pre, cp, frame);
+            if (r == null || r.stopped || r.stack.size() != 1) return null;
+            fixed = r.stack.topExpr();
+        }
+        // 3. o fill: (dup, iconst_i, pushes..., aastore) * count, em ordem
+        List<String> elems = new java.util.ArrayList<>();
+        int q = p + 1;
+        for (int i = 0; i < count; i++) {
+            if (q + 2 >= n || insns.get(q).opcode() != 0x59) return null;
+            Integer idx = constInt(insns.get(q + 1));
+            if (idx == null || idx != i) return null;
+            int end = q + 2;
+            while (end < n && insns.get(end).opcode() != 0x53) end++;
+            if (end >= n || end == q + 2) return null;
+            List<BytecodeReader.Insn> val = insns.subList(q + 2, end);
+            for (BytecodeReader.Insn in : val) {
+                int op = in.opcode();
+                if ((op >= 0xac && op <= 0xb1) || op == 0xbf) return null;
+            }
+            BytecodeDecoder.MachineRun r = BytecodeDecoder.machineRun(val, cp, frame);
+            if (r == null || r.stopped || r.stack.size() != 1) return null;
+            elems.add(r.stack.topExpr());
+            q = end + 1;
+        }
+        // 4. a chamada e SÓ o return depois
+        if (q != n - 2 || insns.get(q).opcode() != 0xb8) return null;
+        if (!insns.get(n - 1).isReturn()) return null;
+        String[] m = BytecodeCp.resolveMethodRef(cp, insns.get(q).operands()[0]);
+        if (m == null) return null;
+        // 5. o mapeamento Kof
+        if ("java/lang/String".equals(m[0]) && "join".equals(m[1])
+                && m[2].endsWith(")Ljava/lang/String;")) {
+            if (fixed == null) return null;
+            StringBuilder sb = new StringBuilder(elems.get(0));
+            for (int i = 1; i < elems.size(); i++)
+                sb.append(" + ").append(fixed).append(" + ").append(elems.get(i));
+            return sb.toString();
+        }
+        if ("java/util/Arrays".equals(m[0]) && "asList".equals(m[1])
+                && m[2].endsWith(")Ljava/util/List;")) {
+            if (fixed != null) return null;
+            return "listOf(" + String.join(", ", elems) + ")";
+        }
+        return null;
+    }
+
+    private static Integer constInt(BytecodeReader.Insn in) {
+        return switch (in.opcode()) {
+            case 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> in.opcode() - 0x03;
+            case 0x10 -> (int) (byte) in.operands()[0];
+            case 0x11 -> (int) (short) in.operands()[0];
+            default -> null;
+        };
+    }
+
     /**
      * Expressao do valor de um braco: primeiro tenta o caminho LINEAR (tirando
      * o goto final que converge no join); se o bloco for um TESTE (2 sucessores)
