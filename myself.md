@@ -8,6 +8,12 @@ next: decisão do mantenedor sobre o delimiter-first (aceitar OBU_SEQUENCE_HEADE
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
+## Sessão 14/10 (24ª) — consertei uma REGRESSÃO da 3ay (o suite cruzado do OBU) + confirmei a 3az por tentativa
+- **A regressão:** a 3ay adicionou `fi=`/`ie=` aos fatos de sequência e atualizou o leitor Java + o probe do `AvifSeqE2ETest` — mas NÃO o `facts()` do `AvifObuSupport` (o lado Kof do cross-check `javaObuReaderAgreesOnStreams`) nem o `GOLDEN` do `AvifObuE2ETest`. Eu não rodei o suite do OBU na 3ay, então a regressão passou. **Conserto:** `fi=0 ie=0` nos dois; agora `AvifObuE2ETest` só falha a face nativa pré-existente (§723).
+- **A tentativa da 3az (revertida):** tentei destravar a composição relaxando o guard `type != 2` do `avifItemObus` para aceitar `type == 1` (seq header) primeiro — o padrão do ffmpeg. **O teste refutou minha hipótese:** o fixture `nodelim` É `[seq header][delimiter]` (não payload cru como eu calculei), então a face de erro `obuRefusalsAreHonest` passou de 'delimiter' para 'obu truncated'. Ou seja, o teste PINa a recusa do seq-primeiro → a 3az está CONFIRMADA (é decisão de subset do mantenedor, não um conserto de agente). Revertido.
+- **Prova:** `AvifObuE2ETest` 8/8 → 1 falha (nativa §723 pré-existente); `javaObuReaderAgreesOnStreams` verde. compile rc=0.
+- **Lição (a que importa):** quando mudo um FATO compartilhado (o formato de `seq`), tenho que rodar TODOS os suites que o comparam — há cross-checks (Kof vs oráculo Java) em mais de um arquivo de teste. Rodar só o suite direto deixou a regressão passar.
+
 ## Sessão 14/10 (23ª) — slice 3az: um item AVIF REAL começa com o SEQ HEADER, e o walk de OBU do Kof exige um delimitador
 - **O que eu fui fazer:** reconciliar os pixels do decode de tile no AVIF real com o ffmpeg (a composição).
 - **O bloqueio:** preciso do seq header REAL (bit depth, `enable_filter_intra`) do arquivo — `readAvifSeqHeader(path)` falha (o `av1C` do ffmpeg tem `configOBUs` VAZIO; o seq está no item data) e `readAvifItemObus(path)` RECUSA o item: ele começa com `0x0a` = `OBU_SEQUENCE_HEADER` (tipo 1), sem o temporal delimiter (tipo 2) que o walk exige PRIMEIRO.
