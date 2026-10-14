@@ -258,4 +258,25 @@ class NativeX86PeepholeTest {
         String body = "    leal (%ebx,%ebx,2), %eax\n    addl %ecx, %eax\n";
         assertEquals(body, result(body));
     }
+
+    @Test
+    void aCompareAgainstZeroBecomesTest() {
+        assertEquals("    testl %ebx, %ebx\n", result("    cmpl $0, %ebx\n"));
+    }
+
+    @Test
+    void aLongCompareAgainstZeroBecomesTest() {
+        assertEquals("    testq %rbx, %rbx\n", result("    cmpq $0, %rbx\n"));
+    }
+
+    @Test
+    void anExtendedRegisterCompareAgainstZeroBecomesTest() {
+        assertEquals("    testl %r13d, %r13d\n", result("    cmpl $0, %r13d\n"));
+    }
+
+    @Test
+    void aCompareAgainstNonZeroIsKept() {
+        String body = "    cmpl $5, %ebx\n";
+        assertEquals(body, result(body));
+    }
 }

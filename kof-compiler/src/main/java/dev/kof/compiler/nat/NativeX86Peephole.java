@@ -81,6 +81,7 @@ final class NativeX86Peephole {
         collapsed += NativeX86LeaFold.foldAddToLea(lines);
         collapsed += foldLoadIntoCompare(lines);
         collapsed += NativeX86LeaFold.foldAddIntoLea(lines);
+        collapsed += cmpZeroToTest(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;
@@ -288,6 +289,37 @@ final class NativeX86Peephole {
             return true;
         }
         return FLAG_OPS.contains(mnemonic) && (dst.equals("%ecx") || dst.equals("%rcx"));
+    }
+
+    /**
+     * §7 x86_64 ("lower-cost instruction selection"): {@code cmp{l,q} $0, %reg} is
+     * rewritten to {@code test{l,q} %reg, %reg} — identical FLAGS (ZF set iff reg is
+     * zero; SF/CF=0 as for a compare against 0), shorter encoding, no immediate.
+     */
+    private static int cmpZeroToTest(List<String> lines) {
+        int folded = 0;
+        for (int i = 0; i < lines.size(); i++) {
+            String t = lines.get(i).trim();
+            int sp = t.indexOf(' ');
+            if (sp < 0) continue;
+            String mnem = t.substring(0, sp);
+            boolean wide;
+            if (mnem.equals("cmpl")) wide = false;
+            else if (mnem.equals("cmpq")) wide = true;
+            else continue;
+            String rest = t.substring(sp + 1);
+            int comma = rest.indexOf(',');
+            if (comma < 0) continue;
+            String src = rest.substring(0, comma).trim();
+            String dst = rest.substring(comma + 1).trim();
+            if (!src.equals("$0") || !dst.startsWith("%")) continue;
+            // A 64-bit register name is a key of REG32 (it maps to its 32-bit name).
+            if (wide != REG32.containsKey(dst)) continue; // width must match the register
+            String test = wide ? "testq" : "testl";
+            lines.set(i, "    " + test + " " + dst + ", " + dst);
+            folded++;
+        }
+        return folded;
     }
 
     /**
