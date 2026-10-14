@@ -14,6 +14,41 @@ public final class NativeX86Arith {
 
     private NativeX86Arith() {}
 
+    /**
+     * The integer value of the last value-producing line pushed, when it is a
+     * constant ({@code pushq $N}) — skipping any trailing {@code .loc} debug lines.
+     * Returns {@code null} when the top of the operand stack was produced by
+     * something other than a literal push.
+     */
+    private static Integer constantPushedOnTop(StringBuilder sb) {
+        java.util.List<String> lines = new java.util.ArrayList<>(
+                java.util.Arrays.asList(sb.toString().split("\n", -1)));
+        int i = lines.size() - 1;
+        if (i >= 0 && lines.get(i).isEmpty()) i--;
+        while (i >= 0 && lines.get(i).startsWith("    .loc ")) i--;
+        if (i < 0) return null;
+        String l = lines.get(i);
+        if (!l.startsWith("    pushq $")) return null;
+        try {
+            return Integer.parseInt(l.substring("    pushq $".length()).trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Removes the last value-producing line (skipping trailing {@code .loc} lines). */
+    private static void dropLastNonLocLine(StringBuilder sb) {
+        java.util.List<String> lines = new java.util.ArrayList<>(
+                java.util.Arrays.asList(sb.toString().split("\n", -1)));
+        int i = lines.size() - 1;
+        if (i >= 0 && lines.get(i).isEmpty()) i--;
+        while (i >= 0 && lines.get(i).startsWith("    .loc ")) i--;
+        if (i < 0) return;
+        lines.remove(i);
+        sb.setLength(0);
+        sb.append(String.join("\n", lines));
+    }
+
     static void emitBinary(StringBuilder sb, KofBinary kb) {
         Type opTy = kb.operandType();
         if (NativeTypeKinds.isFloatType(opTy)) {
@@ -198,6 +233,30 @@ public final class NativeX86Arith {
             sb.append("    movq %xmm0, %rax\n");
             sb.append("    pushq %rax\n");
             return;
+        }
+        // §7 x86_64 ("reduction of instructions for constants"): a CONSTANT shift
+        // count is the last value pushed (`pushq $N`); emit the immediate form
+        // `shl{l,q} $N, %{e,r}ax` and drop the push/pop instead of round-tripping
+        // the count through %rcx. A computed count (the tail is not a literal push)
+        // keeps the %cl form. The count is masked (31 for int, 63 for long) to match
+        // the JVM/hardware semantics exactly.
+        if (kb.op() == KofBinaryOp.SHL || kb.op() == KofBinaryOp.SHR || kb.op() == KofBinaryOp.USHR) {
+            Integer imm = constantPushedOnTop(sb);
+            if (imm != null) {
+                dropLastNonLocLine(sb);
+                boolean i32 = NativeTypeKinds.isInt32Type(opTy);
+                String mn = switch (kb.op()) {
+                    case SHL -> "shl";
+                    case SHR -> "sar";
+                    default -> "shr";
+                };
+                sb.append("    popq %rax\n");
+                sb.append("    ").append(mn).append(i32 ? "l" : "q")
+                        .append(" $").append(imm & (i32 ? 31 : 63))
+                        .append(", %").append(i32 ? "e" : "r").append("ax\n");
+                sb.append("    pushq %rax\n");
+                return;
+            }
         }
         sb.append("    popq %rcx\n");
         sb.append("    popq %rax\n");
