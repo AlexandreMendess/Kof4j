@@ -131,4 +131,68 @@ public final class RegisterAllocator {
         }
         return -1;
     }
+
+    /**
+     * Call-aware allocation: a slot in {@code callCrossing} is LIVE ACROSS A CALL,
+     * so it may only take a colour in {@code [0, calleeSavedCount)} — the
+     * callee-saved colours, which survive a call (the codegen maps colour → the
+     * register at that index of the class's callee-saved-first allocatable list,
+     * see {@code X86_64RegisterFile}). A call-crossing slot with no free
+     * callee-saved colour is SPILLED (the caller reloads it after the call).
+     *
+     * <p>Without this, the allocator could place a value live across a call in a
+     * caller-saved register and the call would clobber it — a miscompile.
+     */
+    public static Allocation allocate(InterferenceGraph graph, int registerCount,
+                                      SpillCost spillCost, Set<Integer> callCrossing,
+                                      int calleeSavedCount) {
+        if (registerCount < 1) {
+            throw new IllegalArgumentException("registerCount must be >= 1");
+        }
+        List<Integer> nodes = new ArrayList<>(graph.nodes());
+        nodes.sort(Comparator.<Integer>comparingInt(graph::degree).reversed()
+                .thenComparingInt(Integer::intValue));
+
+        Map<Integer, Integer> colorOf = new TreeMap<>();
+        Set<Integer> spills = new java.util.TreeSet<>();
+        for (int slot : nodes) {
+            boolean cross = callCrossing.contains(slot);
+            int budget = cross ? Math.max(1, Math.min(calleeSavedCount, registerCount)) : registerCount;
+            Set<Integer> used = usedColors(graph, colorOf, slot);
+            int chosen = lowestFree(used, budget);
+            if (chosen >= 0) {
+                colorOf.put(slot, chosen);
+                continue;
+            }
+            // No free colour: spill the cheapest node among {slot} and its
+            // coloured neighbours. Without a cost model, spill the current node.
+            int victim = slot;
+            if (spillCost != null) {
+                int best = spillCost.costOf(slot);
+                for (int n : graph.neighbors(slot)) {
+                    Integer c = colorOf.get(n);
+                    if (c == null || c < 0) continue;
+                    // A call-crossing victim can only be freed into the
+                    // callee-saved budget; do not evict one for a non-crossing slot.
+                    if (callCrossing.contains(n) && !cross) continue;
+                    int cost = spillCost.costOf(n);
+                    if (cost < best || (cost == best && n > victim && victim == slot)) {
+                        best = cost;
+                        victim = n;
+                    }
+                }
+            }
+            if (victim == slot) {
+                colorOf.put(slot, -1);
+                spills.add(slot);
+            } else {
+                colorOf.put(victim, -1);
+                spills.add(victim);
+                int freed = lowestFree(usedColors(graph, colorOf, slot), budget);
+                colorOf.put(slot, freed);
+                if (freed < 0) spills.add(slot);
+            }
+        }
+        return new Allocation(Map.copyOf(colorOf), Set.copyOf(spills));
+    }
 }

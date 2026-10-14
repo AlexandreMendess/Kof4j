@@ -61,6 +61,15 @@ public final class X86_64RegisterFile {
         return (c == RegClass.INTEGER ? INTEGER_CALLEE_SAVED : SSE_CALLEE_SAVED).contains(reg);
     }
 
+    /**
+     * The number of callee-saved registers at the FRONT of the allocatable list
+     * (colours {@code 0..count-1} are callee-saved). INTEGER has 5 (rbx, r12–r15);
+     * SSE has 0 (SysV has no callee-saved SSE registers).
+     */
+    public static int calleeSavedCount(RegClass c) {
+        return c == RegClass.INTEGER ? INTEGER_CALLEE_SAVED.size() : SSE_CALLEE_SAVED.size();
+    }
+
     // SysV: callee-saved rbx, r12-r15 (preferred first), then caller-saved
     // rax, rcx, rdx, rsi, rdi, r8-r11. rsp/rbp are reserved.
     private static final List<String> INTEGER_ALLOCATABLE = List.of(

@@ -61,6 +61,20 @@ class X86_64RegisterFileTest {
             assertFalse(X86_64RegisterFile.isCalleeSaved(RegClass.SSE, r),
                     "SysV x86-64 has no callee-saved SSE registers");
         }
+        assertEquals(0, X86_64RegisterFile.calleeSavedCount(RegClass.SSE));
+    }
+
+    @Test
+    void calleeSavedRegistersAreAtTheFrontOfTheAllocatableList() {
+        int k = X86_64RegisterFile.calleeSavedCount(RegClass.INTEGER);
+        assertEquals(5, k, "rbx + r12-r15");
+        var alloc = X86_64RegisterFile.allocatable(RegClass.INTEGER);
+        for (int i = 0; i < k; i++) {
+            assertTrue(X86_64RegisterFile.isCalleeSaved(RegClass.INTEGER, alloc.get(i)),
+                    "colour " + i + " (" + alloc.get(i) + ") must be callee-saved");
+        }
+        assertFalse(X86_64RegisterFile.isCalleeSaved(RegClass.INTEGER, alloc.get(k)),
+                "colour k is the first caller-saved register");
     }
 
     @Test

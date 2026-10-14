@@ -1,5 +1,6 @@
 package dev.kof.compiler.backend;
 
+import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofOperation;
@@ -13,6 +14,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Liveness analysis over the structured CFG (Phase C of
@@ -191,5 +193,20 @@ public final class LivenessAnalysis {
     /** Convenience: build the analysis directly from a flat op list. */
     public static LivenessAnalysis ofOps(List<KofOperation> ops) {
         return of(ControlFlowGraph.ofOps(ops));
+    }
+
+    /**
+     * The slots LIVE ACROSS A CALL: a slot live immediately after a {@link KofCall}
+     * may be clobbered by the call if it sits in a caller-saved register, so the
+     * allocator must place it in a callee-saved register or spill it. A call that
+     * returns void has nothing live after it in the value sense, but a slot read
+     * later is still live across the call — {@link #liveAfter} captures that.
+     */
+    public Set<Integer> liveAcrossCalls(List<KofOperation> ops) {
+        Set<Integer> out = new TreeSet<>();
+        for (KofOperation op : ops) {
+            if (op instanceof KofCall) out.addAll(liveAfter(op));
+        }
+        return out;
     }
 }
