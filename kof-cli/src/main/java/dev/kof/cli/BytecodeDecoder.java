@@ -386,6 +386,22 @@ import java.util.Set;
             }
             return operands.get(0) + " " + inv + (arity == 2 ? " " + operands.get(1) : "");
         }
+        // Fase E (14/10): comparação LONG — o javac emite [x, y, lcmp, ifXX]
+        // (o ifXX testa o SINAL do lcmp): a condição real tem DOIS operandos.
+        // A queda do ifXX é o inv de 2 operandos = invCond(ifXX + 0x06).
+        int lastOp = block.get(block.size() - 1).opcode();
+        if (lastOp >= 0x99 && lastOp <= 0x9e && block.size() >= 4
+                && block.get(block.size() - 2).opcode() == 0x94) {
+            String x = loadValue(block.get(block.size() - 4), frame);
+            String y = loadValue(block.get(block.size() - 3), frame);
+            String lcmpInv = switch (lastOp) {
+                case 0x99 -> "!="; case 0x9a -> "=="; case 0x9b -> ">=";
+                case 0x9c -> "<"; case 0x9d -> "<="; case 0x9e -> ">";
+                default -> null;
+            };
+            if (x != null && y != null && lcmpInv != null) return x + " " + lcmpInv + " " + y;
+            return null;
+        }
         // Fase E (fatia array-cond, 14/10): o teste tem CÁLCULO simples —
         // mini-avaliador de pilha com conjunto FECHADO de opcodes (cada um
         // modelado exatamente; qualquer outro → null = stub honesto). No fim

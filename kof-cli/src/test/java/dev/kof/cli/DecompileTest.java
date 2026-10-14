@@ -1626,6 +1626,42 @@ class DecompileTest {
         assertEquals("str:x\nother\ntrue\nfalse", output, "zero-drift: binding instanceof id\u00eantico ao Java");
     }
 
+    @Test
+    void longLoopAndGcdRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): dois achados. (1) A comparação LONG ([x, y, lcmp,
+        // ifXX]) — a condição real tem DOIS operandos e o inv da queda é o
+        // espelho do ifXX. (2) CRÍTICO: o `assign` REDECLARAVA PARÂMETROS
+        // (`var arg1 = ...` criava local de BLOCO; o parâmetro nunca
+        // atualizava — o gcd decompilado rodava PARA SEMPRE, R6). Slot
+        // nomeado nunca redeclara. Zero-drift executado.
+        Path javaFile = dir.resolve("Lg.java");
+        Files.writeString(javaFile, """
+                public class Lg {
+                    static long factorial(long n) { long r = 1; for (long i = 2; i <= n; i++) { r *= i; } return r; }
+                    static int gcd(int a, int b) { while (b != 0) { int t = b; b = a % b; a = t; } return a; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Lg.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "os dois recuperam:\n" + kof);
+        assertFalse(kof.contains("var arg0") || kof.contains("var arg1"),
+                "par\u00e2metro nunca redeclara:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Lg.factorial(5L))\n    println(Lg.factorial(10L))\n    println(Lg.gcd(48, 18))\n    println(Lg.gcd(7, 13))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 120 | 3628800 | 6 | 1
+        assertEquals("120\n3628800\n6\n1", output, "zero-drift: long loop + gcd id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

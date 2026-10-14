@@ -179,8 +179,22 @@ final class BytecodeStatementsEmit {
                     String val = stack.pop();
                     stmts.add(BytecodeCp.simpleOwner(f[0]) + "." + f[1] + " = " + val);
                 }
-                case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
-                case 0xb0 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stmts.add("return " + stack.pop()); return stmts; }
+                case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; }
+                    String rv = stack.pop();
+                    // coerção Bool (SEM010, medido no found): método `Z` com
+                    // retorno iconst 1/0 → true/false (espelho do ternário)
+                    if ("Z".equals(frame.retType())) {
+                        if ("1".equals(rv)) rv = "true";
+                        if ("0".equals(rv)) rv = "false";
+                    }
+                    stmts.add("return " + rv); return stmts; }
+                case 0xb0 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; }
+                    String rv2 = stack.pop();
+                    if ("Z".equals(frame.retType())) {
+                        if ("1".equals(rv2)) rv2 = "true";
+                        if ("0".equals(rv2)) rv2 = "false";
+                    }
+                    stmts.add("return " + rv2); return stmts; }
                 case 0xb1 -> { stmts.add("return"); return stmts; }
                 case 0xbf -> { // athrow → `throw x` (o Kof lança a exceção/String)
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
@@ -200,7 +214,10 @@ final class BytecodeStatementsEmit {
 
     private static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
         String name = BytecodeDecoder.slotName(slot, frame);
-        if (!declared.contains(slot)) {
+        // Fase E (14/10): slot NOMEADO (parâmetro/this) NUNCA redeclara
+        // (espelho do BytecodeStatements.assign; medido no gcd: `var arg1`
+        // criava local de bloco e o parâmetro nunca atualizava — loop infinito)
+        if (!frame.isNamedSlot(slot) && !declared.contains(slot)) {
             declared.add(slot);
             return "var " + name + " = " + value;
         }
