@@ -71,9 +71,15 @@ public final class RegisterPlanner {
         List<KofOperation> ops = flatten(method);
         LivenessAnalysis live = LivenessAnalysis.ofOps(ops);
         InterferenceGraph graph = InterferenceGraph.of(ops, live);
+        Map<Integer, Type> slotTypes = slotTypes(method);
+        // PARAM slots are defined by the ABI (they arrive in registers), never by
+        // a KofStoreLocal, so the def-driven graph omits them — leaving the register
+        // model inert for the common `f(a, b) { ... }` shape. Add them as nodes with
+        // their entry-live interference so they are coloured (and never share a
+        // register with another value live at the same time).
+        graph = graph.withParams(live, live.blockCount(), slotTypes.keySet());
         SpillCost cost = SpillCost.ofOps(ops);
         RegisterAllocator.Allocation alloc = RegisterAllocator.allocate(graph, registerCount, cost);
-        Map<Integer, Type> slotTypes = slotTypes(method);
         RegisterAssignment.Assignment assignment = RegisterAssignment.of(slotTypes, alloc);
         return new Placement(assignment, alloc, registerCount);
     }

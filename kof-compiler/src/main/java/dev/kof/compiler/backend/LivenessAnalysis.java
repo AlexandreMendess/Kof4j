@@ -66,6 +66,11 @@ public final class LivenessAnalysis {
         return liveIn.get(block);
     }
 
+    /** The number of blocks the analysis covers. */
+    public int blockCount() {
+        return liveIn.size();
+    }
+
     /** Slots live on exit from a block. */
     public Set<Integer> liveOut(int block) {
         return liveOut.get(block);

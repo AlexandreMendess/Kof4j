@@ -93,6 +93,38 @@ public final class InterferenceGraph {
         return of(ops, LivenessAnalysis.ofOps(ops));
     }
 
+    /**
+     * Adds the given slots as nodes and the interference their ABI-defined live
+     * ranges imply. A PARAM slot is defined by the ABI (it arrives in a register),
+     * never by a {@code KofStoreLocal}, so the def-driven build creates no node for
+     * it — leaving the register model inert for the common {@code f(a, b) { ... } }
+     * shape. A param is live from method entry, so two params live at entry
+     * interfere (they must not share a register), and a param interferes with
+     * whatever is live at the same block boundaries. This walks the block
+     * boundaries ({@code liveIn} ∪ {@code liveOut}) and adds an edge between every
+     * pair of co-live slots where at least one is an extra (param) slot; the
+     * def-driven edges already cover def-vs-param interference within a block. The
+     * result is conservative (extra edges only cost optimality) and deterministic.
+     */
+    public InterferenceGraph withParams(LivenessAnalysis liveness, int blockCount,
+                                        Set<Integer> extra) {
+        TreeMap<Integer, TreeSet<Integer>> adj = new TreeMap<>();
+        for (var e : adjacency.entrySet()) adj.put(e.getKey(), new TreeSet<>(e.getValue()));
+        for (int s : extra) adj.computeIfAbsent(s, k -> new TreeSet<>());
+        for (int b = 0; b < blockCount; b++) {
+            TreeSet<Integer> live = new TreeSet<>();
+            live.addAll(liveness.liveIn(b));
+            live.addAll(liveness.liveOut(b));
+            for (int s : extra) {
+                if (!live.contains(s)) continue;
+                for (int t : live) {
+                    if (t != s) addEdge(adj, s, t);
+                }
+            }
+        }
+        return new InterferenceGraph(adj);
+    }
+
     private static void addEdge(TreeMap<Integer, TreeSet<Integer>> adj, int a, int b) {
         adj.computeIfAbsent(a, k -> new TreeSet<>()).add(b);
         adj.computeIfAbsent(b, k -> new TreeSet<>()).add(a);

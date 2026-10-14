@@ -29,6 +29,26 @@ class RegisterPlannerTest {
     }
 
     @Test
+    void twoParamsArePlacedInDistinctRegisters() {
+        // MEASURED: params are ABI-defined (they arrive in registers), never
+        // KofStoreLocal'd, so the def-driven graph omitted them and the register
+        // model was inert for `f(a, b) { ... }`. They are now nodes; two params
+        // live at entry interfere and get DISTINCT registers.
+        IRMethod m = method(List.of(
+                load(0, Type.PrimitiveType.INT),
+                load(1, Type.PrimitiveType.INT),
+                new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT),
+                new KofReturn(Type.PrimitiveType.INT)),
+                List.of(new IRLocalVariable(0, "a", Type.PrimitiveType.INT),
+                        new IRLocalVariable(1, "b", Type.PrimitiveType.INT)));
+        RegisterPlanner.Placement p = RegisterPlanner.plan(m, 5);
+        assertTrue(p.isRegister(0), "param a is placed");
+        assertTrue(p.isRegister(1), "param b is placed");
+        assertNotEquals(p.register(0), p.register(1),
+                "two params live at entry must not share a register");
+    }
+
+    @Test
     void twoIndependentIntSlotsFitInRegisters() {
         // Two slots with disjoint lifetimes -> both get registers (one colour).
         IRMethod m = method(List.of(

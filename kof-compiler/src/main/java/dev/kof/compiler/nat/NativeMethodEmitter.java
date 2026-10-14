@@ -153,8 +153,16 @@ final class NativeMethodEmitter {
 
         if (regLocals != null) {
             // Save the used callee-saved registers into the EXTENDED frame and
-            // copy each register-placed param from its staged frame slot.
-            regLocals.emitPrologue(sb, sortedLocals, paramSlotMax);
+            // copy each register-placed param from its staged frame slot. Use the
+            // REAL param-slot count: paramSlotMax counts slot 0 as `this` even for
+            // a STATIC method, so it over-counts by one there — copying the extra
+            // slot would clobber a live register-placed param (MEASURED SIGSEGV).
+            boolean hasThis = false;
+            for (IRLocalVariable lv : sortedLocals) {
+                if (lv.name().equals("this")) { hasThis = true; break; }
+            }
+            int realParamSlots = hasThis ? paramSlotMax : paramSlotMax - 1;
+            regLocals.emitPrologue(sb, sortedLocals, realParamSlots);
         }
 
         boolean endsWithReturn = false;
