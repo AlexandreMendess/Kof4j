@@ -521,6 +521,26 @@ public final class Decompile {
             arraySuffix = "[]" + arraySuffix;
             base = base.substring(0, base.length() - 2);
         }
+        // Fase E (13/10): genéricos — os ARGUMENTOS de tipo mapeiam TAMBÉM
+        // (`List<Integer>` → `List<Int>`; antes só o base era mapeado e o
+        // `Integer` interno ficava indefinido, o decompilado não compilava).
+        int lt = base.indexOf('<');
+        if (lt > 0 && base.endsWith(">")) {
+            String inner = base.substring(lt + 1, base.length() - 1);
+            StringBuilder args = new StringBuilder();
+            int depth = 0, start = 0;
+            for (int i = 0; i < inner.length(); i++) {
+                char c = inner.charAt(i);
+                if (c == '<') depth++;
+                if (c == '>') depth--;
+                if (c == ',' && depth == 0) {
+                    args.append(capitalizePrimitive(inner.substring(start, i).trim())).append(", ");
+                    start = i + 1;
+                }
+            }
+            args.append(capitalizePrimitive(inner.substring(start).trim()));
+            return capitalizePrimitive(base.substring(0, lt)) + "<" + args + ">" + arraySuffix;
+        }
         String capitalized = switch (base) {
             case "int" -> "Int";
             case "long" -> "Long";
@@ -531,6 +551,15 @@ public final class Decompile {
             case "byte" -> "Byte";
             case "short" -> "Short";
             case "void" -> "void";
+            // Fase E (13/10): os WRAPPERS (assinatura generica
+            // `List<Integer>` mantinha `Integer` — tipo indefinido no Kof,
+            // o decompilado nao compilava) + a tabela JDK→stdlib do
+            // TranslateTypes.kofType (aprovada), espelhada.
+            case "Integer" -> "Int";
+            case "Boolean" -> "Bool";
+            case "Character" -> "Char";
+            case "ArrayList" -> "List";
+            case "HashMap" -> "Map";
             default -> base;
         };
         return capitalized + arraySuffix;

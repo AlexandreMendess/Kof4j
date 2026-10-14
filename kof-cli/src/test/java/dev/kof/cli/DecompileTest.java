@@ -71,7 +71,10 @@ class DecompileTest {
         String kof = Decompile.decompile(dir.resolve("Bag.class"));
         assertTrue(kof.contains("List<String> items"), "field genérico EXACT:\n" + kof);
         assertTrue(kof.contains("List<String> get"), "retorno genérico EXACT:\n" + kof);
-        assertTrue(kof.contains("Map<String, Integer> arg0"), "param genérico EXACT:\n" + kof);
+        // 14/10: os wrappers mapeiam p/ o primitivo Kof (Integer→Int) —
+        // o `Integer` cru era indefinido no Kof e o decompilado NÃO compilava
+        assertTrue(kof.contains("Map<String, Int> arg0"), "param genérico EXACT (Int):\n" + kof);
+        assertFalse(kof.contains("Integer"), "wrapper indefinido não sai:\n" + kof);
     }
 
     @Test
@@ -1326,6 +1329,49 @@ class DecompileTest {
         // oracle Java: 5 casos do mixed + 3 do mixed2
         assertEquals("true\ntrue\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse", output,
                 "zero-drift: precedencia mista identica ao Java");
+    }
+
+    @Test
+    void collectionFactoriesRecoverZeroDrift(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): as FABRICAS de colecao imutavel (List.of/Map.of/
+        // Set.of — os idiomas modernos) mapeiam p/ listOf/mapOf/setOf com os
+        // args (o javac usa os OVERLOADS de aridade fixa p/ ate 10 args —
+        // sem array no bytecode). E os WRAPPERS nas assinaturas genericas
+        // mapeiam p/ o primitivo Kof (Integer→Int) — antes o decompilado
+        // nem COMPILAVA (Integer indefinido). Zero-drift executado.
+        Path javaFile = dir.resolve("Cf.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                import java.util.Map;
+                import java.util.Set;
+                public class Cf {
+                    static List<String> two() { return List.of("a", "b"); }
+                    static List<Integer> nums() { return List.of(1, 2, 3); }
+                    static Map<String, Integer> pairs() { return Map.of("x", 1, "y", 2); }
+                    static Set<String> dup() { return Set.of("p", "q"); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cf.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "as fabricas recuperam:\n" + kof);
+        assertTrue(kof.contains("listOf(\"a\", \"b\")"), kof);
+        assertTrue(kof.contains("mapOf(\"x\", "), kof);
+        assertFalse(kof.contains("Integer"), "wrapper indefinido nao sai:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Cf.two())\n    println(Cf.nums())\n    println(Cf.pairs())\n    println(Cf.dup())\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: [a, b] [1, 2, 3] {x=1, y=2} [p, q]
+        assertEquals("[a, b]\n[1, 2, 3]\n{x=1, y=2}\n[p, q]", output,
+                "zero-drift: fabricas identicas ao Java");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {

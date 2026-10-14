@@ -82,6 +82,25 @@ final class BytecodeStdlib {
         if ("java/lang/String".equals(ownerInternal) && "valueOf".equals(name)) {
             return "\"\" + " + args;
         }
+        // Fase E (13/10): as FABRICAS de colecao imutavel (os idiomas modernos
+        // — medido: List.of/Map.of/Set.of stubavam). O javac usa os OVERLOADS
+        // de aridade FIXA p/ ate 10 args (sem array no bytecode), entao basta
+        // o mapeamento direto dos args: List.of(a, b) → listOf(a, b);
+        // Set.of(a, b) → setOf(a, b); Map.of(k1, v1, ...) → mapOf(...) —
+        // pares (contados do desc; impares → recusa honesta).
+        if ("java/util/List".equals(ownerInternal) && "of".equals(name)
+                && desc.endsWith(")Ljava/util/List;")) {
+            return "listOf(" + args + ")";
+        }
+        if ("java/util/Set".equals(ownerInternal) && "of".equals(name)
+                && desc.endsWith(")Ljava/util/Set;")) {
+            return "setOf(" + args + ")";
+        }
+        if ("java/util/Map".equals(ownerInternal) && "of".equals(name)
+                && desc.endsWith(")Ljava/util/Map;")) {
+            if (BytecodeCp.argCount(desc) % 2 != 0) return null;
+            return "mapOf(" + args + ")";
+        }
         if ("java/lang/Integer".equals(ownerInternal) && ("parseInt".equals(name) || "valueOf".equals(name))) {
             return args + ".toInt()";
         }
