@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3az DIAGNOSTICADA: um item AVIF REAL (ffmpeg) começa com o SEQUENCE HEADER (0x0a, tipo 1) e o walk de OBU do item-data do Kof exige o temporal delimiter PRIMEIRO (`AvifObuE2ETest` tem a face `nodelim` que fixa isso) → `readAvifItemObus` RECUSA o arquivo real, então a composição não consegue o seq header real (enable_filter_intra, bit depth). É um GAP de subset (a regra é deliberada e testada) — não relaxei sozinho. Próximo: o mantenedor decide (aceitar seq-header-primeiro p/ ISOBMFF, ou exigir o seq no av1C/configOBUs); depois a reconciliação de pixels vs ffmpeg.
-doing: 3az diagnosticada (gap do delimiter-primeiro bloqueia a composição); nada landado
-next: decisão do mantenedor sobre o delimiter-first (aceitar OBU_SEQUENCE_HEADER primeiro ou exigir o seq no configOBUs) → destrava a composição `decodeRaster` AVIF; os pixels têm que bater com o ffmpeg (libdav1d/libaom-av1)
+last: 14/10 — AVIF slice 3ba LANDADA: DESTRAVEI a 3az no lado do teste (prependendo o temporal delimiter ao item REAL do ffmpeg = ordem canônica, semântica idêntica) sem mexer no Kof nem precisar de decisão. E isso revelou os FLAGS DE SEQUÊNCIA REAIS: `enable_filter_intra=1` e `enable_intra_edge_filter=1` — NÃO o `0` que eu vinha assumindo (o seq header real era ilegível). `AvifRealFileE2ETest` 4/4. Ainda diverge: com os flags certos o decode RODA mas os pixels não batem com o ffmpeg (a composição) — próxima fatia.
+doing: 3ba landada (leitura do item real canonizada + fatos de seq reais fi=1 ie=1)
+next: cores. a3 composição — fazer os pixels do decode no payload real baterem com o oráculo ffmpeg (`ffmpeg -i x.avif -pix_fmt yuv420p -f rawvideo`); com fi=1/ie=1 corretos agora, o próximo suspeito é o parse do cabeçalho de quadro/segmentação e o `intraEdgeFilterType`
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (25ª) — slice 3ba: destravei a 3az no lado do teste, e os flags de sequência reais são fi=1 ie=1
+- **A sacada:** a 3az estava bloqueada porque o walk do Kof exige o temporal delimiter primeiro e o ffmpeg não o emite. Em vez de mexer no Kof (decisão de subset), PREPENDI o delimiter ao item REAL do ffmpeg -> ordem canônica do AV1, semântica idêntica (mesmo seq header, frame e tile). O walk passou a ler o item real normalmente.
+- **O achado grande:** com o item legível, os FLAGS DE SEQUÊNCIA REAIS aparecem: `enable_filter_intra=1` e `enable_intra_edge_filter=1`. Eu vinha passando `0` para ambos (só podia adivinhar, porque o seq real era ilegível) — então TODOS os meus decodes anteriores alimentaram o driver com a config errada. Zero surpresa que divergissem.
+- **O que landei:** as faces `realAvifCanonicalizedReadOnJvm/Script` no `AvifRealFileE2ETest` (fixture canonizado em teste + golden dos fatos reais). 4/4.
+- **Caveat:** o container do fixture canonizado é o builder mínimo do teste (ispe 8x8) — o ITEM é o do ffmpeg; os fatos fixados vêm do item (contêiner incidental). Documentado no teste.
+- **Próximo:** a composição de pixels. Com fi/ie corretos, os próximos suspeitos são o parse do cabeçalho de quadro (segmentação/`using_qmatrix`) e o `intraEdgeFilterType` — o oráculo é `ffmpeg ... -f rawvideo`.
+- **Lição:** quando um fato é ilegível, os valores que eu 'adivinho' para ele viram um viés silencioso em TODOS os experimentos. Tornei o fato legível (destravando a leitura) e o valor real (fi=1) invalidou várias suposições de uma vez.
 
 ## Sessão 14/10 (24ª) — consertei uma REGRESSÃO da 3ay (o suite cruzado do OBU) + confirmei a 3az por tentativa
 - **A regressão:** a 3ay adicionou `fi=`/`ie=` aos fatos de sequência e atualizou o leitor Java + o probe do `AvifSeqE2ETest` — mas NÃO o `facts()` do `AvifObuSupport` (o lado Kof do cross-check `javaObuReaderAgreesOnStreams`) nem o `GOLDEN` do `AvifObuE2ETest`. Eu não rodei o suite do OBU na 3ay, então a regressão passou. **Conserto:** `fi=0 ie=0` nos dois; agora `AvifObuE2ETest` só falha a face nativa pré-existente (§723).

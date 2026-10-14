@@ -144,4 +144,81 @@ main() {
     private interface CheckedSupplier<T> {
         T get() throws Exception;
     }
+
+    /**
+     * The CANONICALIZED read: ffmpeg writes the item WITHOUT a leading temporal
+     * delimiter (its data is `[OBU_SEQUENCE_HEADER][OBU_FRAME]`), and the Kof
+     * item walk requires the delimiter first. Prepending one yields the
+     * canonical AV1 order with IDENTICAL semantics — same real sequence header,
+     * same real frame, same real tile — so the reads below are the reference
+     * encoder's own bytes, not synthesized ones. The container shell is the
+     * test's minimal builder; only the ITEM is ffmpeg's.
+     */
+    private static byte[] realItem() throws Exception {
+        byte[] f = Files.readAllBytes(Path.of("src/test/resources/avif_real_64.avif"));
+        int m = -1;
+        for (int i = 0; i + 4 <= f.length; i++) {
+            if (f[i] == 'm' && f[i + 1] == 'd' && f[i + 2] == 'a' && f[i + 3] == 't') { m = i; break; }
+        }
+        if (m < 0) throw new IllegalStateException("no mdat in the real fixture");
+        int size = ((f[m - 4] & 0xff) << 24) | ((f[m - 3] & 0xff) << 16) | ((f[m - 2] & 0xff) << 8) | (f[m - 1] & 0xff);
+        byte[] item = new byte[size - 8];
+        System.arraycopy(f, m + 4, item, 0, item.length);
+        return item;
+    }
+
+    private Path canonicalized() throws Exception {
+        byte[] item = realItem();
+        byte[] delim = AvifSeqSupport.delimiter();
+        byte[] both = new byte[delim.length + item.length];
+        System.arraycopy(delim, 0, both, 0, delim.length);
+        System.arraycopy(item, 0, both, delim.length, item.length);
+        Path f = tmp.resolve("delim.avif");
+        Files.write(f, AvifObuSupport.containerWithItem(both));
+        return f;
+    }
+
+    private static final String DELIM_GOLDEN =
+            "obus total=3 seqH=1 fh=0 frames=1\n"
+          + "seq bd=8 sub=true sub=true fi=1 ie=1\n"
+          + "hdr bq=160 ll=0 tx=1 rts=0 payload=293";
+
+    private static String delimProbe(String path) {
+        return """
+import image.AvifFrame
+import image.AvifGroup
+import image.AvifObu
+
+main() {
+    var path = "%s"
+    var o = readAvifItemObus(path)
+    var seq = o.seq
+    var fi = 0
+    if (seq.enableFilterIntra) { fi = 1 }
+    var ie = 0
+    if (seq.enableIntraEdgeFilter) { ie = 1 }
+    println("obus total=" + o.total + " seqH=" + o.seqHeaders + " fh=" + o.frameHeaders + " frames=" + o.frames)
+    println("seq bd=" + seq.bitDepth + " sub=" + seq.subsamplingX + " sub=" + seq.subsamplingY + " fi=" + fi + " ie=" + ie)
+    var h = readAvifFrameHeader(path)
+    var p = readAvifTilePayloads(path).get(0)
+    println("hdr bq=" + h.baseQIdx + " ll=" + h.lossless + " tx=" + h.txModeSelect + " rts=" + h.reducedTxSet + " payload=" + p.size)
+}
+""".formatted(path);
+    }
+
+    @Test
+    void realAvifCanonicalizedReadOnJvm() throws Exception {
+        assertEquals(DELIM_GOLDEN, runJvm(delimProbe(canonicalized().toString())));
+    }
+
+    @Test
+    void realAvifCanonicalizedReadOnScript() throws Exception {
+        Path root = tmp.resolve("script-delim");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), delimProbe(canonicalized().toString()));
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(DELIM_GOLDEN, result.stdout().strip());
+    }
 }
