@@ -40,9 +40,6 @@ final class NativeOrmCtors {
         // entrada salta para a próxima; a última cai no retorno 0.
         int emitted = 0;
         int total = 0;
-        System.err.println("ORMCTORS-DEBUG: classNames=" + classNames
-                + " found=" + classNames.stream().filter(c -> findClass(nb, c) != null).count()
-                + " allClasses=" + nb.allClassesMap.size());
         for (String cn : classNames) {
             if (findClass(nb, cn) != null) total++;
         }
