@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3ax LANDADA: o cabeçalho de quadro agora expõe `lossless`/`txModeSelect`/`reducedTxSet` (o `frameTailWalk` já os calculava/pulava e os descartava) — é a cola que a composição `decodeRaster` AVIF precisa para dirigir o driver de tile a partir de um quadro real. `headerBytes` inalterado; probe Kof + leitor Java + golden concordam 3/3; `AvifFrameE2ETest` 14/16 (as 2 nativas são o §723 pré-existente, A/B contra a árvore upstream confirmou idêntico).
-doing: 3ax landada (fatos do cabeçalho de quadro para a composição)
-next: compor `decodeRaster` AVIF (frame header + tile-group + o driver de tile + a montagem de quadro) usando os fatos expostos pela 3ax; a face nativa AVIF só fica verde no caminho DEFAULT quando a lane de codegen resolver o §723
+last: 14/10 — AVIF slice 3ay LANDADA: o cabeçalho de SEQUÊNCIA expõe `enable_filter_intra`/`enable_intra_edge_filter` (o walk lia e pulava, sem fonte para o driver) e um AVIF REAL de ffmpeg (`avif_real_64.avif`) fixa todo o caminho container→cabeçalho→tile-group. `AvifRealFileE2ETest` 2/2, `AvifSeqE2ETest` 8/8, `AvifFrameE2ETest` 14/16 (as 2 nativas são o §723 pré-existente). **Descobri que o ffmpeg (libaom-av1 + libdav1d) dá fixture E oráculo de pixels** — destranca a composição. Fronteira: o decode de tile do Kof RODA no payload real (21 blocos) mas os pixels ainda divergem do ffmpeg — próxima fatia.
+doing: 3ay landada (flags de sequência + fixture AVIF real); a composição de pixels é a próxima
+next: fazer os pixels do decode no payload AVIF real baterem com o ffmpeg (oráculo libdav1d/libaom-av1) — isso compõe `decodeRaster` AVIF
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (22ª) — slice 3ay: o cabeçalho de sequência + um AVIF REAL (e o ffmpeg como oráculo)
+- **O achado grande:** `ffmpeg` no host tem `libaom-av1` (encoder), o muxer `avif` E `libdav1d`/`libaom-av1` (decoders). Então posso GERAR um AVIF real e usá-lo como fixture, e usar o decode do ffmpeg como ORÁCULO de pixels. Isso destranca a composição (antes eu não tinha nem arquivo real nem oráculo).
+- **A prova imediata:** o walk AVIF do Kof (metadados + cabeçalho de quadro + tile-group + payload) lê PERFEITAMENTE um AVIF real de ffmpeg — `AvifRealFileE2ETest` 2/2. É o primeiro container NÃO-sintetizado da suíte.
+- **O bug que destravei:** o walk da SEQUÊNCIA lia e PULAVA `enable_filter_intra`/`enable_intra_edge_filter` (AV1 §5.5.1) sem expô-los — o driver de tile recebia `enableFilterIntra` sem fonte. Expor os dois é a 3ay; com a adivinhação errada, o decode de um frame real DIVERGIA.
+- **A fronteira honesta:** dirigindo o decode de tile do Kof no payload real, ele RODA (21 blocos, sem exceção) mas os pixels NÃO batem com o ffmpeg. Não landei nenhuma reivindicação de pixel — o teste de arquivo real para no payload. A próxima fatia é fazer os pixels baterem.
+- **Prova:** `AvifRealFileE2ETest` 2/2; `AvifSeqE2ETest` 8/8 (os novos `fi=0 ie=0` batem com o leitor Java independente); `AvifFrameE2ETest` 14/16 (as 2 nativas são o §723 pré-existente, A/B idênticas antes); compile rc=0.
+- **Lição:** procurar a ferramenta no HOST antes de assumir que falta oráculo — o ffmpeg estava lá desde o início e teria economizado ciclos de "oracle-source gone".
 
 ## Sessão 14/10 (21ª) — AVIF slice 3ax: o cabeçalho de quadro expõe os fatos que a composição precisa
 - **O buraco:** `AvifFrame.frameTailWalk` derivava `CodedLossless` e pulava os bits de `tx_mode_select` e `reduced_tx_set`, mas retornava só `{bits, baseQ, lf0, cdefBits}`. A composição (`decodeRaster` AVIF) precisa exatamente desses três valores (`lossless`/`txMode`/`reducedTxSet`) para dirigir o driver de tile a partir de um quadro real — e não tinha como obtê-los.

@@ -75,7 +75,7 @@ AvifFrameHeader readAvifFrameHeader(String path) {
 AvifFrameHeader avifItemFrameHeader(Int[] item) {
     var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
                             false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
-                            false, false)
+                            false, false, false, false)
     var haveSeq = false
     var pos = 0
     var n = item.length
