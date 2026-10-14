@@ -106,6 +106,8 @@ public final class Optimizer {
         // their output.
         ops = LIVENESS_DEAD_STORES.run(ops, positions);
         ops = STRENGTH_REDUCTION.run(ops, positions);
+        // §3 O1: algebraic simplification of absorbing elements (x*0, x&0, x%1).
+        ops = ALGEBRAIC_SIMPLIFICATION.run(ops, positions);
         ops = deadEffects(ops, positions);
         ops = reachability(ops, positions);
         ops = removeJumpToNext(ops, positions);
@@ -117,6 +119,7 @@ public final class Optimizer {
     private static final DeadCodeElimination DEAD_CODE_ELIMINATION = new DeadCodeElimination();
     private static final LivenessDeadStores LIVENESS_DEAD_STORES = new LivenessDeadStores();
     private static final StrengthReduction STRENGTH_REDUCTION = new StrengthReduction();
+    private static final AlgebraicSimplification ALGEBRAIC_SIMPLIFICATION = new AlgebraicSimplification();
 
     // ── Dead stack effects ────────────────────────────────────────────
 

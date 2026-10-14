@@ -88,6 +88,7 @@ public final class PassPipeline {
         ps.add(new CopyPropagation());
         ps.add(new DeadCodeElimination());
         ps.add(new StrengthReduction());
+        ps.add(new AlgebraicSimplification());
         return new PassPipeline(ps);
     }
 }
