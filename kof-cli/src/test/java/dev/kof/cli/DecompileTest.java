@@ -1819,12 +1819,13 @@ class DecompileTest {
                     static int chain(int a, int b) { int r = 0; if (a > 0) { r = 1; } else if (b > 0) { r = 2; } return r; }
                     static int full(int a, int b) { int r = 0; if (a > 0) { r = 1; } else if (b > 0) { r = 2; } else { r = 3; } return r; }
                     static int inLoop(int n) { int s = 0; for (int i = 0; i < n; i++) { if (i % 2 == 0) { s += i; } else if (i % 3 == 0) { s += 1; } } return s; }
+                    static int deep(int a, int b, int c) { int r = 0; if (a > 0) { r = 1; } else if (b > 0) { r = 2; } else if (c > 0) { r = 3; } return r; }
                 }
                 """);
         runJavac(javaFile, dir);
         String kof = Decompile.decompile(dir.resolve("Ei.class"));
         assertFalse(kof.contains("body not recovered"), kof);
-        String kofRun = kof + "\nmain() {\n    println(Ei.chain(1, 1))\n    println(Ei.chain(0, 1))\n    println(Ei.chain(0, 0))\n    println(Ei.full(1, 1))\n    println(Ei.full(0, 1))\n    println(Ei.full(0, 0))\n    println(Ei.inLoop(10))\n}\n";
+        String kofRun = kof + "\nmain() {\n    println(Ei.chain(1, 1))\n    println(Ei.chain(0, 1))\n    println(Ei.chain(0, 0))\n    println(Ei.full(1, 1))\n    println(Ei.full(0, 1))\n    println(Ei.full(0, 0))\n    println(Ei.inLoop(10))\n    println(Ei.deep(1, 1, 1))\n    println(Ei.deep(0, 0, 1))\n    println(Ei.deep(0, 0, 0))\n}\n";
         CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
                 writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
         assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
@@ -1835,8 +1836,8 @@ class DecompileTest {
         String output = new String(proc.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
-        // oracle Java: 1 2 0 | 1 2 3 | 22
-        assertEquals("1\n2\n0\n1\n2\n3\n22", output, "zero-drift: cadeia else-if id\u00eantica ao Java");
+        // oracle Java: 1 2 0 | 1 2 3 | 22 | deep 1 3 0
+        assertEquals("1\n2\n0\n1\n2\n3\n22\n1\n3\n0", output, "zero-drift: cadeia else-if id\u00eantica ao Java");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {

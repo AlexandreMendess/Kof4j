@@ -413,6 +413,39 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             return struct(byStart.get(tail), insns, byStart, cp, frame,
                     out, emitted, declared, header, stops);
         }
+        // Fase E (14/10): CADEIA else-if PROFUNDA (3+ níveis) — o braço else
+        // é um teste PURO cujos braços alcançam o join (direto ou por outros
+        // testes puros) → RECURSA em struct(elseB) com o join como stop: o
+        // MESMO pureElseIfThen trata o nível seguinte da cadeia. Sem stores
+        // no bloco (senão é `else { stmt; if }` — outro shape).
+        if (!pureIfElse && !pureElseIfThen && elseIfElseInner < 0 && thenB != null
+                && tail >= 0 && thenB.succ.equals(List.of(tail))
+                && elseB != null && elseB.succ.size() == 2
+                && !emitted.contains(elseB.start)
+                && byStart.get(tail) != null
+                && !BytecodeReader.isLoopHeader(byStart.get(tail))) {
+            List<BytecodeReader.Insn> eblk = BytecodeDecoder.insnsWithin(elseB, insns);
+            boolean pureTest = !eblk.isEmpty();
+            for (BytecodeReader.Insn ein : eblk) {
+                int eop = ein.opcode();
+                if (eop >= 0x36 && eop <= 0x4e) { pureTest = false; break; }
+            }
+            if (pureTest
+                    && armReachesJoin(elseB.succ.get(0), tail, byStart, insns, 0)
+                    && armReachesJoin(elseB.succ.get(1), tail, byStart, insns, 0)) {
+                Set<Integer> bstops = new HashSet<>(stops);
+                bstops.add(tail);
+                out.add("if (" + cond + ") {");
+                if (!struct(thenB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
+                    { BytecodeStatements.refuse("struct-generic"); return false; }
+                out.add("} else {");
+                if (!struct(elseB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
+                    { BytecodeStatements.refuse("struct-generic"); return false; }
+                out.add("}");
+                return struct(byStart.get(tail), insns, byStart, cp, frame,
+                        out, emitted, declared, header, stops);
+            }
+        }
         out.add("if (" + cond + ") {");
         if (pureIfThen) {
             Set<Integer> jstops = new HashSet<>(stops);
@@ -461,4 +494,28 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
     }
     { BytecodeStatements.refuse("struct-generic"); return false; }
 }
+    /** Fase E (14/10): o braço alcança o join? Direto, por queda única, ou
+     *  por até 2 níveis de testes puros (a cadeia else-if). Limitado. */
+    private static boolean armReachesJoin(int start, int tail,
+            Map<Integer, BytecodeReader.Block> byStart,
+            List<BytecodeReader.Insn> insns, int depth) {
+        if (start == tail) return true;
+        if (depth > 2) return false;
+        BytecodeReader.Block b = byStart.get(start);
+        if (b == null) return false;
+        if (b.succ.equals(List.of(tail))) return true;
+        if (b.succ.size() == 2) {
+            List<BytecodeReader.Insn> blk = BytecodeDecoder.insnsWithin(b, insns);
+            boolean pure = !blk.isEmpty();
+            for (BytecodeReader.Insn ein : blk) {
+                int eop = ein.opcode();
+                if (eop >= 0x36 && eop <= 0x4e) { pure = false; break; }
+            }
+            if (pure
+                    && armReachesJoin(b.succ.get(0), tail, byStart, insns, depth + 1)
+                    && armReachesJoin(b.succ.get(1), tail, byStart, insns, depth + 1)) return true;
+        }
+        return false;
+    }
+
 }
