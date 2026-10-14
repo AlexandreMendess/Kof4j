@@ -2088,6 +2088,44 @@ class DecompileTest {
         assertEquals("1\n2\n-1", output, "zero-drift: string-switch statement id\u00eantico ao Java");
     }
 
+    @Test
+    void classicAlgorithmsRecoveZeroDrift(@TempDir Path dir) throws Exception {
+        // VALIDA\u00c7\u00c3O (14/10): os ALGORITMOS CL\u00c1SSICOS (fib recursivo,
+        // gcd, soma de d\u00edgitos, contagem de vogais com chamada de
+        // m\u00e9todo na condi\u00e7\u00e3o, pad por concat em loop, mid3 com
+        // Math.max/min aninhados, tern\u00e1rio Bool→String) — 0 stubs e as 9
+        // linhas de sa\u00edda id\u00eanticas ao Java.
+        Path javaFile = dir.resolve("Alg.java");
+        Files.writeString(javaFile, """
+                public class Alg {
+                    static int fib(int n) { if (n < 2) { return n; } return fib(n - 1) + fib(n - 2); }
+                    static int gcd(int a, int b) { if (b == 0) { return a; } return gcd(b, a % b); }
+                    static int sumDigits(int n) { int s = 0; while (n > 0) { s += n % 10; n = n / 10; } return s; }
+                    static boolean isVowel(char c) { return c == 'a' || c == 'e' || c == 'i'; }
+                    static int countVowels(String s) { int n = 0; for (int i = 0; i < s.length(); i++) { if (isVowel(s.charAt(i))) { n++; } } return n; }
+                    static String pad(String s, int w) { while (s.length() < w) { s = s + " "; } return s; }
+                    static String boolStr(boolean b) { return b ? "yes" : "no"; }
+                    static int mid3(int a, int b, int c) { return a + b + c - Math.max(a, Math.max(b, c)) - Math.min(a, Math.min(b, c)); }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Alg.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Alg.fib(10))\n    println(Alg.gcd(48, 18))\n    println(Alg.sumDigits(987))\n    println(Alg.countVowels(\"kotlin like\"))\n    println(Alg.pad(\"ab\", 5) + \"|\" )\n    println(Alg.boolStr(true))\n    println(Alg.mid3(5, 1, 9))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 55 | 6 | 24 | 4 | ab   | | yes | 5
+        assertEquals("55\n6\n24\n3\nab   |\nyes\n5", output, "zero-drift: algoritmos cl\u00e1ssicos id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
