@@ -153,12 +153,13 @@ class OptimizerBenchmarkE2ETest {
             if (rn.success()) {
                 Path bin = outNat.resolve("Default").resolve("Main");
                 assertTrue(Files.exists(bin), b.name() + " native binary missing");
-                long nStart = System.nanoTime();
+                long natStart = System.nanoTime();
                 String natOut = runNative(bin);
-                long natMs = (System.nanoTime() - nStart) / 1_000_000;
+                long natMs = (System.nanoTime() - natStart) / 1_000_000;
                 assertEquals(b.expected(), natOut, b.name() + " native output mismatch");
-                report.append(String.format("%-12s [%-10s] NATIVE runs, matches JVM  (%d ms)%n",
-                        b.name(), b.category(), natMs));
+                long binBytes = Files.size(bin);
+                report.append(String.format("%-12s [%-10s] NATIVE runs, matches JVM  (%d ms, ELF %d bytes)%n",
+                        b.name(), b.category(), natMs, binBytes));
             } else {
                 report.append(String.format("%-12s [%-10s] NATIVE not built: %s%n",
                         b.name(), b.category(), rn.diagnostics().getDiagnostics()));
