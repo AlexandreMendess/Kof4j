@@ -112,7 +112,16 @@ import java.util.Set;
         // referências (o tipo "L" basta p/ os usos no braço).
         java.util.Map<Integer, String[]> locals = new java.util.HashMap<>();
         BytecodeTypes.TStack stack = new BytecodeTypes.TStack();
+        // Fase E (14/10): o TERNÁRIO-EM-ARGUMENTO — branches no MEIO de uma
+        // expressão linear (`money`: `.. < 10 ? "0" : ""` alimentando o
+        // invokedynamic). O pcJump consome os 2 braços avaliados e salta p/
+        // o join.
+        int pcJump = -1;
         for (BytecodeReader.Insn in : insns) {
+            if (pcJump >= 0) {
+                if (in.offset() < pcJump) continue;
+                pcJump = -1;
+            }
             int op = in.opcode();
             switch (op) {
                 case 0x01 -> stack.push("null", "L");                 // aconst_null
@@ -307,6 +316,52 @@ import java.util.Set;
                     if (stack.isEmpty()) return null;
                     String v = stack.popExpr();
                     stack.push(ct.equals("Object") ? v : "(" + v + " as " + ct + ")", "L");
+                }
+                case 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xc6, 0xc7 -> {
+                    // Fase E (14/10): TERNÁRIO-EM-ARGUMENTO — o branch no meio
+                    // da expressão ([operandos, ifXX T, then..., goto J,
+                    // else..., J]). Os 2 braços avaliam standalone (insns
+                    // autocontidas); qualquer desvio → null = stub (R6).
+                    int t = in.target();
+                    int myIdx = -1;
+                    for (int k = 0; k < insns.size(); k++)
+                        if (insns.get(k).offset() == in.offset()) { myIdx = k; break; }
+                    if (myIdx < 0) return null;
+                    int gIdx = -1;
+                    int join = -1;
+                    for (int k = myIdx + 1; k < insns.size(); k++) {
+                        BytecodeReader.Insn g = insns.get(k);
+                        if (g.offset() >= t) break;
+                        if (g.opcode() == 0xa7 && g.target() > t) { gIdx = k; join = g.target(); break; }
+                    }
+                    if (gIdx < 0 || join <= t) return null;
+                    List<BytecodeReader.Insn> thenSeq = insns.subList(myIdx + 1, gIdx);
+                    List<BytecodeReader.Insn> elseSeq = new java.util.ArrayList<>();
+                    for (BytecodeReader.Insn g : insns)
+                        if (g.offset() >= t && g.offset() < join) elseSeq.add(g);
+                    if (thenSeq.isEmpty() || elseSeq.isEmpty()) return null;
+                    MachineRun ra = machineRun(thenSeq, cp, frame);
+                    if (ra == null || ra.stopped || ra.stack.size() != 1) return null;
+                    MachineRun rb = machineRun(elseSeq, cp, frame);
+                    if (rb == null || rb.stopped || rb.stack.size() != 1) return null;
+                    int arity = (op >= 0x9f && op <= 0xa4) ? 2 : 1;
+                    if (stack.size() < arity) return null;
+                    String c;
+                    if (arity == 2) {
+                        String b2 = stack.popExpr();
+                        String a2 = stack.popExpr();
+                        String iv = BytecodeCp.invCond(op);
+                        if (iv == null) return null;
+                        c = a2 + " " + iv + " " + b2;
+                    } else {
+                        String v = stack.popExpr();
+                        // o instanceof NÃO leva sufixo (a queda é o C-true);
+                        // os null-comps levam o inv dele (`== null`/`!= null`)
+                        if (op == 0x99 || op == 0x9a) c = v;
+                        else c = v + " " + BytecodeCp.invCond(op);
+                    }
+                    stack.push("(if (" + c + ") " + ra.stack.topExpr() + " else " + rb.stack.topExpr() + ")", "L");
+                    pcJump = join;
                 }
                 case 0xac -> { return new MachineRun(stack, stack.retTyped("I"), true); }
                 case 0xad -> { return new MachineRun(stack, stack.retTyped("J"), true); }

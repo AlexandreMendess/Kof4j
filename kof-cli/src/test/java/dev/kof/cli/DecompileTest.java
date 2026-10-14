@@ -2338,6 +2338,41 @@ class DecompileTest {
         assertEquals("true\n-2\n9", output, "zero-drift: array literal id\u00eantico ao Java");
     }
 
+    @Test
+    void ternaryInArgumentRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o TERN\u00c1RIO-EM-ARGUMENTO (`"$" + cents/100 + "." +
+        // (cents%100 < 10 ? "0" : "") + cents%100` — branches no MEIO da
+        // express\u00e3o linear). O machineRun avalia os 2 braços standalone e
+        // salta p/ o join (pcJump); o resultado \u00e9 PARENTESADO (o else
+        // sem o parens engolia o concat seguinte e PERDIA o `+ M` no braço
+        // verdadeiro). Zero-drift executado: 405/50/12000 = $4.05/$0.50/$120.00.
+        Path javaFile = dir.resolve("Mo.java");
+        Files.writeString(javaFile, """
+                public class Mo {
+                    static String money(int cents) {
+                        return "$" + cents / 100 + "." + (cents % 100 < 10 ? "0" : "") + cents % 100;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Mo.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("(if ("), "o ternário parentesado:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Mo.money(405))\n    println(Mo.money(50))\n    println(Mo.money(12000))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: $4.05 | $0.50 | $120.00
+        assertEquals("$4.05\n$0.50\n$120.00", output, "zero-drift: money id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
