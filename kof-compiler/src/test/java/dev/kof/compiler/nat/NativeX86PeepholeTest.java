@@ -161,4 +161,38 @@ class NativeX86PeepholeTest {
         assertEquals("    movq %rbx, %rax\n    cmpq %rax, %r13\n",
                 result("    movq %r13, %rcx\n    movq %rbx, %rax\n    cmpq %rax, %rcx\n"));
     }
+
+    @Test
+    void aLoadIntoACompareImmediateIsFolded() {
+        // movq %rbx, %rax; cmpl $2, %eax  ->  cmpl $2, %ebx
+        assertEquals("    cmpl $2, %ebx\n",
+                result("    movq %rbx, %rax\n    cmpl $2, %eax\n"));
+    }
+
+    @Test
+    void aLoadIntoATestIsFolded() {
+        // movq %rbx, %rax; testl %eax, %eax  ->  testl %ebx, %ebx
+        assertEquals("    testl %ebx, %ebx\n",
+                result("    movq %rbx, %rax\n    testl %eax, %eax\n"));
+    }
+
+    @Test
+    void aLongLoadIntoACompareUsesThe64BitName() {
+        assertEquals("    cmpq $5, %rbx\n",
+                result("    movq %rbx, %rax\n    cmpq $5, %rax\n"));
+    }
+
+    @Test
+    void aLoadIntoANonCompareIsNotFolded() {
+        // `addl $1, %eax` produces a value in rax -> the movq must stay.
+        String body = "    movq %rbx, %rax\n    addl $1, %eax\n";
+        assertEquals(body, result(body));
+    }
+
+    @Test
+    void aLoadIntoACompareRegisterSourceIsNotFolded() {
+        // The compared value must be rax; here rax is the SOURCE, so leave it alone.
+        String body = "    movq %rbx, %rax\n    cmpl %eax, %ecx\n";
+        assertEquals(body, result(body));
+    }
 }

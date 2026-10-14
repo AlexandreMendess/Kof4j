@@ -78,6 +78,7 @@ final class NativeX86Peephole {
         collapsed += collapseSpannedPushPop(lines);
         collapsed += foldScratchLoadIntoOp(lines);
         collapsed += foldShiftToLea(lines);
+        collapsed += foldLoadIntoCompare(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;
@@ -174,6 +175,78 @@ final class NativeX86Peephole {
 
     private static boolean mentionsRcx(String t) {
         return t.contains("%rcx") || t.contains("%ecx") || t.contains("%cl");
+    }
+
+    /**
+     * §7 x86_64 ("efficient use of flags"): folds {@code movq %X, %rax} into a
+     * following compare that reads {@code %rax} but does not depend on it surviving:
+     *
+     * <pre>
+     *   movq %X, %rax          cmpl $2, %X32        (branch/compare immediate)
+     *   cmpl $2, %eax     ==&gt;   (or) cmpl %ecx, %X32  (register compare)
+     *                          (or) testl %X32, %X32  (test self)
+     * </pre>
+     *
+     * <p>Safe because the compare READS only rax's low 32 (or full 64), which the
+     * movq set to exactly X, and everything after a compare either reads the FLAGS
+     * (jcc) or overwrites rax (setcc + movzbl) — never rax's value. So dropping the
+     * materialization is exact. The movq must be IMMEDIATELY followed by the compare
+     * (only {@code .loc} between), so X is unchanged. {@code %X} must be a register
+     * other than rax.
+     */
+    private static int foldLoadIntoCompare(List<String> lines) {
+        int folded = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 1 < lines.size(); i++) {
+                String mv = lines.get(i).trim();
+                if (!mv.startsWith("movq ") || !mv.endsWith(", %rax")) continue;
+                String x = mv.substring("movq ".length(), mv.length() - ", %rax".length()).trim();
+                if (!x.startsWith("%") || x.equals("%rax")) continue;
+                int j = i + 1;
+                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
+                if (j >= lines.size()) continue;
+                String newOp = rewriteCompareReadingRax(lines.get(j).trim(), x);
+                if (newOp == null) continue;
+                lines.set(j, newOp);
+                lines.remove(i);
+                folded++;
+                changed = true;
+                break;
+            }
+        }
+        return folded;
+    }
+
+    /** Rewrites a compare/test that reads {@code %eax/%rax} to read {@code %X}
+     *  (the same width), or returns null when the line is not such a compare. */
+    private static String rewriteCompareReadingRax(String op, String x) {
+        int sp = op.indexOf(' ');
+        if (sp < 0) return null;
+        String mnemonic = op.substring(0, sp);
+        String rest = op.substring(sp + 1);
+        int comma = rest.indexOf(',');
+        if (comma < 0) return null;
+        String src = rest.substring(0, comma).trim();
+        String dst = rest.substring(comma + 1).trim();
+        boolean dstRax = dst.equals("%eax") || dst.equals("%rax");
+        boolean srcRax = src.equals("%eax") || src.equals("%rax");
+        if (!dstRax && !srcRax) return null;
+        boolean isCmp = mnemonic.equals("cmpl") || mnemonic.equals("cmpq");
+        boolean isTest = mnemonic.equals("testl") || mnemonic.equals("testq");
+        if (!isCmp && !isTest) return null;
+        boolean wide = mnemonic.endsWith("q");
+        String xw = wide ? x : REG32.getOrDefault(x, x);
+        if (isTest) {
+            // testl %eax, %eax  ->  testl %X, %X
+            if (!srcRax || !dstRax) return null;
+            return "    " + mnemonic + " " + xw + ", " + xw;
+        }
+        // cmpl $N, %eax  or  cmpl %ecx, %eax  ->  cmpl $N/%ecx, %Xw
+        if (!dstRax) return null; // the compared value must be the destination (rax)
+        String newSrc = srcRax ? xw : src;
+        return "    " + mnemonic + " " + newSrc + ", " + xw;
     }
 
     /**
