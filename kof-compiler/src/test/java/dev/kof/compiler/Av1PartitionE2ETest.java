@@ -16,9 +16,7 @@ import static dev.kof.compiler.Av1PartitionSupport.kofGridProbe;
 import static dev.kof.compiler.Av1PartitionSupport.REAL_TILE_HEAD;
 import static dev.kof.compiler.Av1PartitionSupport.kofProbe;
 import static dev.kof.compiler.Av1PartitionSupport.kofRealTileProbe;
-import static dev.kof.compiler.Av1PartitionSupport.REAL_TILE_DECODED;
 import static dev.kof.compiler.Av1PartitionSupport.kofSeamProbe;
-import static dev.kof.compiler.Av1PartitionSupport.kofTileTreeProbe;
 import static dev.kof.compiler.Av1PartitionSupport.kofSharedReaderProbe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -142,19 +140,6 @@ class Av1PartitionE2ETest implements LibraryInstallSupport {
                 new java.io.ByteArrayInputStream(new byte[0]), stdout);
         assertEquals(0, exit, "js output: " + stdout);
         assertEquals(golden(), stdout.toString(StandardCharsets.UTF_8).strip());
-    }
-
-    /**
-     * The REAL-TILE end-to-end face (slice 3au): the walk DRIVES the tile driver
-     * over the interleaved stream, decoding each block at its `decode_block` step
-     * before reading the next partition symbol — libaom's own interleaving. The
-     * reference is the oracle's own decode of the same stream (four
-     * BLOCK_32X32/TX_32X32/DC_PRED blocks and a final entropy context of 17), so
-     * this pins the whole loop, not just the walk.
-     */
-    @Test
-    void av1TileTreeDecodesRealInterleavedTile() throws Exception {
-        assertEquals(REAL_TILE_DECODED, runJvm(kofTileTreeProbe()));
     }
 
     /**

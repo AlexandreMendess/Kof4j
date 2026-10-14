@@ -208,10 +208,18 @@ import java.util.Set;
                     if (rec == null) return null;
                     int n = 0;
                     for (int i = 0; i < rec.length(); i++) if (rec.charAt(i) == 1) n++;
-                    java.util.List<String> argE = new java.util.ArrayList<>();
-                    for (int i = 0; i < n; i++) argE.add(0, stack.popExpr());
-                    if (argE.stream().anyMatch(java.util.Objects::isNull)) return null;
-                    java.util.Deque<String> vals = new java.util.ArrayDeque<>(argE);
+                    // BUG DE CORRECAO (medido 13/10: concat3 dava "cba"): o
+                    // apply() JA desempilha a ordem original — o caller NAO
+                    // deve re-inverter (o add(0,..) + o Deque dupla-invertiam).
+                    // Coleta em ordem de PILHA (topo primeiro) e o apply poe
+                    // em ordem original.
+                    java.util.Deque<String> vals = new java.util.ArrayDeque<>();
+                    // addLast: o pop() do ArrayDeque e removeFirst — o apply
+                    // espera o ULTIMO arg na cabeca (ele re-inverte com
+                    // add(0,pop) para montar a ordem original). Medido: push
+                    // (=addFirst) dava "cba"; addLast da "abc".
+                    for (int i = 0; i < n; i++) vals.addLast(stack.popExpr());
+                    if (vals.stream().anyMatch(java.util.Objects::isNull)) return null;
                     String expr = BytecodeConcat.apply(vals, rec);
                     if (expr == null) return null;
                     stack.push(expr, "L");
@@ -297,6 +305,33 @@ import java.util.Set;
             if (in.offset() >= b.start && in.offset() < b.end) block.add(in);
         }
         return block;
+    }
+
+    /**
+     * Fase C (13/10, `||`): a condição com o operador TAKEN (não-invertido) —
+     * para o teste cujo JUMP é o braço VERDADEIRO (a orientação do `||`).
+     * Espelho do blockCondition (que inverte).
+     */
+    static String blockConditionTaken(BytecodeReader.Block entry, List<BytecodeReader.Insn> insns,
+                                      BytecodeFrame frame, String[] cp) {
+        List<BytecodeReader.Insn> block = insnsWithin(entry, insns);
+        if (block.isEmpty()) return null;
+        BytecodeReader.Insn last = block.get(block.size() - 1);
+        if (!last.isCond()) return null;
+        String op = BytecodeCp.takenCond(last.opcode());
+        if (op == null) return null;
+        int arity = (last.opcode() >= 0x9f && last.opcode() <= 0xa4) ? 2 : 1;
+        if (block.size() - 1 < arity) return null;
+        if (block.size() - 1 == arity) {
+            List<String> operands = new java.util.ArrayList<>();
+            for (int i = 0; i < block.size() - 1; i++) {
+                String v = loadValue(block.get(i), frame);
+                if (v == null) return null;
+                operands.add(v);
+            }
+            return operands.get(0) + " " + op + (arity == 2 ? " " + operands.get(1) : "");
+        }
+        return testExpr(block.subList(0, block.size() - 1), frame, arity, op, cp);
     }
 
     static String blockCondition(BytecodeReader.Block entry, List<BytecodeReader.Insn> insns,
@@ -460,6 +495,9 @@ import java.util.Set;
                 // matematicamente errada para esse corpo — foi ela, não o
                 // join, que fechava esta porta.
                 case 0x70 -> { if (!bin2(st, "%")) return false; }
+                case 0x78, 0x79 -> { if (!bin2(st, "<<")) return false; }
+                case 0x7a, 0x7b -> { if (!bin2(st, ">>")) return false; }
+                case 0x7c, 0x7d -> { if (!bin2(st, ">>>")) return false; }
                 case 0x60 -> { if (!bin2(st, "+")) return false; }
                 case 0x64 -> { if (!bin2(st, "-")) return false; }
                 case 0x68 -> { if (!bin2(st, "*")) return false; }

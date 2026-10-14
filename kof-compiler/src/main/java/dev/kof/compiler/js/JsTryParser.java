@@ -138,8 +138,16 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
                     pos[0]++;
                 }
                 if (pos[0] < ctx.ops.size()) pos[0]++;
-            } else if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel) {
-                // no-finally: the trailing empty label (done) ends the try
+            } else if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel doneLabel2
+                    && !ctx.isLoopLabel(doneLabel2.label())
+                    && !ctx.isTryEndLabel(doneLabel2.label())) {
+                // no-finally: the trailing empty label (done) ends the try.
+                // §702: o guard `!isTryEndLabel` (mesmo do ramo irmão, §617 face
+                // B) é OBRIGATÓRIO — quando o corpo do finally termina no caminho
+                // "label não-casado" (exits vazio) `done` fica null e este ramo
+                // consumia cegamente o próximo label, que num try/finally
+                // ANINHADO é o label de fim do try EXTERNO: consumi-lo deixava o
+                // KofCatchStart do outer solto no nível de statement (COMP002).
                 pos[0]++;
             }
         } else if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel doneLabel
