@@ -17468,6 +17468,33 @@ returns `100` on JVM/Script/native with the IR optimizer DISABLED, but with it E
 
 <!-- pt-switch --> **PT:** [§712](known-bugs.pt_BR.md#712--um-trycatchfinally-cujo-finally-le-um-local-que-o-trycatch-atribui-e-dead-stored-pelo-pass-phase-c-livenessdeadstores--jvm-verifyerror-bad-local-variable-type-o-handler-do-finally-ve-o-local-como-top---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
+## §713 — a generic class constructed WITHOUT explicit type arguments (`Box(n)`) does not INFER them: the field/method access keeps the erased `Object`, so the JVM throws `VerifyError: Bad type on operand stack` and the native targets `ClassCastException` — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE, all six targets):**
+
+```kof
+record Box<T>(T value)
+Int f(Int n) {
+    var b = Box(n)
+    return b.value + 1
+}
+main() { println(f(5)) }
+```
+
+returns `6` on Script and JS, but:
+- **JVM:** `VerifyError: Bad type on operand stack ... iadd ... Type 'java/lang/Object' is not assignable to integer` (the `b.value` load keeps the erased `Object` descriptor);
+- **native x86-64/riscv64/aarch64:** `type error: class java.lang.Integer cannot be cast` at runtime.
+
+With EXPLICIT type arguments the same program is correct on all six: `Box<Int>(n)` → `b.value + 1` = `6`. The divergence is specific to the INFERRED form. It affects both a record FIELD access (`b.value`) and a generic METHOD call (`b.get()`), and a multi-parameter generic (`Pair(n, n+1)`) too.
+
+**Root (analysis):** there is NO type-argument inference for constructor calls anywhere in the compiler — no unifier exists (`SemMethodCallTyper` and `SemNewExprTyper` both mirror each other and NEITHER infers; a grep finds no `inferTypeArguments`/`unify`/`bindTypeVar` helper). When `ne.typeArguments()` is empty, both the semantic (`SemNewExprTyper.infer`) and the emit (`ExpressionTyper` NewExpr arm) build a `ClassType` with EMPTY type arguments, so the receiver type has no concrete `T`; `TypeSubstitution.substituteTypeVariableIn` cannot resolve `T`, and the field/method type stays the erased `Object`. The JVM/native backends then use `Object` where the source says `Int`. Script/JS are lenient (dynamically typed) and happen to agree.
+
+**Fix path (named, NOT landed):** implement type-argument inference for `new C(args)` — unify the constructor's DECLARED parameter types (with `TypeVariable` leaves) against the inferred argument types to bind each class type-parameter, then build the `ClassType` with the inferred args — in BOTH `SemNewExprTyper.infer` AND the emit's NewExpr arm (`ExpressionTyper`), since both build the type independently. The class type-parameter NAMES must be exposed (they are registered in `ClassTypeRegistry.registerTypeParameters` but only their VARIANCE is stored). Must land with the generics battery (§706/§270/§582, records) as the regression net. A diagnostic (require explicit args) would be a BEHAVIOR change rejecting currently-accepted code, so it is NOT the fix — Kof's `var` implies inference is the intended contract.
+
+**Boundary:** the JVM + native backends (Script/JS are lenient); the explicit-type-argument form is correct on all six. Distinct from §706 (NESTED `Box<Box<Int>>` with EXPLICIT args) — this is the INFERENCE of the args themselves.
+
+<!-- pt-switch --> **PT:** [§713](known-bugs.pt_BR.md#713--uma-classe-generica-construida-sem-type-arguments-explicitos-boxn-nao-os-infere-o-acesso-a-campometodo-mantem-o-object-apagado-entao-o-jvm-lanca-verifyerror-bad-type-on-operand-stack-e-os-alvos-nativos-classcastexception---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):** `var d = 0` then `try { println(10 / d) } catch (String e) { ... }` printed **`-1` on riscv64 and `0` on aarch64** and left the `catch` UNREACHED, where every other target printed `caught`. Same for `%` and for `Long` (`10L / 0L`). The failure is the worst kind: the program keeps running with a wrong value instead of failing loudly.

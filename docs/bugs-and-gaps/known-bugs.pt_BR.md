@@ -14949,6 +14949,33 @@ devolve `100` em JVM/Script/nativo com o otimizador de IR DESLIGADO, mas LIGADO 
 
 <!-- en-switch --> **EN:** [§712](known-bugs.md#712--a-trycatchfinally-whose-finally-reads-a-local-that-the-trycatch-assigns-is-dead-stored-by-the-phase-c-livenessdeadstores-pass--jvm-verifyerror-bad-local-variable-type-the-finally-handler-sees-the-local-as-top---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
 
+## §713 — uma classe genérica construída SEM type-arguments explícitos (`Box(n)`) não os INFERE: o acesso a campo/método mantém o `Object` apagado, então o JVM lança `VerifyError: Bad type on operand stack` e os alvos nativos `ClassCastException` — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR, todos os seis alvos):**
+
+```kof
+record Box<T>(T value)
+Int f(Int n) {
+    var b = Box(n)
+    return b.value + 1
+}
+main() { println(f(5)) }
+```
+
+devolve `6` em Script e JS, mas:
+- **JVM:** `VerifyError: Bad type on operand stack ... iadd ... Type 'java/lang/Object' is not assignable to integer` (o load de `b.value` mantém o descritor `Object` apagado);
+- **nativo x86-64/riscv64/aarch64:** `type error: class java.lang.Integer cannot be cast` em runtime.
+
+Com type-arguments EXPLÍCITOS o mesmo programa está correto nos seis: `Box<Int>(n)` → `b.value + 1` = `6`. A divergência é específica da forma INFERIDA. Atinge tanto um acesso a CAMPO de record (`b.value`) quanto uma chamada de MÉTODO genérico (`b.get()`), e um genérico de vários parâmetros (`Pair(n, n+1)`).
+
+**Raiz (análise):** NÃO existe inferência de type-arguments para chamadas de construtor em lugar algum do compilador — nenhum unificador existe (`SemMethodCallTyper` e `SemNewExprTyper` se espelham e NENHUM infere; um grep não acha helper `inferTypeArguments`/`unify`/`bindTypeVar`). Quando `ne.typeArguments()` é vazio, tanto o semântico (`SemNewExprTyper.infer`) quanto o emit (braço NewExpr do `ExpressionTyper`) constroem um `ClassType` com type-arguments VAZIOS, então o tipo do receptor não tem um `T` concreto; o `TypeSubstitution.substituteTypeVariableIn` não resolve `T`, e o tipo do campo/método fica o `Object` apagado. Os backends JVM/nativo então usam `Object` onde a fonte diz `Int`. Script/JS são lenientes (tipagem dinâmica) e por acaso concordam.
+
+**Caminho de correção (nomeado, NÃO pousado):** implementar inferência de type-arguments para `new C(args)` — unificar os tipos de parâmetro DECLARADOS do construtor (com folhas `TypeVariable`) contra os tipos inferidos dos argumentos para ligar cada type-parameter da classe, então construir o `ClassType` com os args inferidos — em AMBOS `SemNewExprTyper.infer` E no braço NewExpr do emit (`ExpressionTyper`), já que ambos constroem o tipo independentemente. Os NOMES dos type-parameters da classe precisam ser expostos (eles são registrados em `ClassTypeRegistry.registerTypeParameters` mas só a VARIÂNCIA é guardada). Tem de pousar com a bateria de genéricos (§706/§270/§582, records) como rede de regressão. Um diagnóstico (exigir args explícitos) seria uma MUDANÇA DE COMPORTAMENTO rejeitando código hoje aceito, então NÃO é o fix — o `var` do Kof implica que a inferência é o contrato pretendido.
+
+**Fronteira:** os backends JVM + nativo (Script/JS são lenientes); a forma com type-arguments explícitos está correta nos seis. Distinto do §706 (`Box<Box<Int>>` ANINHADO com args EXPLÍCITOS) — isto é a INFERÊNCIA dos args em si.
+
+<!-- en-switch --> **EN:** [§713](known-bugs.md#713--a-generic-class-constructed-without-explicit-type-arguments-boxn-does-not-infer-them-the-fieldmethod-access-keeps-the-erased-object-so-the-jvm-throws-verifyerror-bad-type-on-operand-stack-and-the-native-targets-classcastexception---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
