@@ -98,7 +98,19 @@ public final class ExpressionLowerer {
                             // estático (aload_0 sem this → VerifyError no
                             // compilado, recv null no interpretador).
                             if ((fs.accessFlags() & AccessFlags.STATIC) != 0) {
-                                ops.add(new KofGetStatic(cs.type(), ie.name(), fs.type()));
+                                // §725: o campo pode estar DECLARADO numa
+                                // interface (ou superclasse) — o dono emitido
+                                // tem de ser a classe DECLARANTE, senão Script/
+                                // JS/nativo procuram o estático na classe ATUAL
+                                // e não o acham (o JVM resolve pela hierarquia /
+                                // inlina a constante). `cs.type()` (a classe
+                                // atual) só quando o campo é dela.
+                                Type staticOwner = cs.type();
+                                if (fs.ownerClass() != null && !fs.ownerClass().equals(cs.name())) {
+                                    SymbolTable.ClassSymbol decl = driver.semanticAnalyzer.getClass(fs.ownerClass());
+                                    if (decl != null) staticOwner = decl.type();
+                                }
+                                ops.add(new KofGetStatic(staticOwner, ie.name(), fs.type()));
                             } else {
                                 ops.add(new KofLoadLocal(cs.type(), 0));
                                 ops.add(new KofLoadField(cs.type(), ie.name(), fs.type()));
