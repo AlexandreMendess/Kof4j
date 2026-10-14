@@ -439,7 +439,21 @@ public final class CompilerRecordSupport {
                     // Já existe um método na classe com a MESMA assinatura
                     // apagada do pai? (chave por erasure — §356: um segundo
                     // bridge para o mesmo slot JVM = ClassFormatError)
-                    boolean alreadyExists = methods.stream().anyMatch(existing ->
+                    // §718: o MÉTODO CONCRETO `m` pode JÁ ocupar o slot apagado
+                    // do pai (ex.: interface `List<T> children()` erasure
+                    // `ArrayList` e classe `List<Int> children()` — MESMA
+                    // erasure). Nesse caso o bridge seria uma DUPLICATA do
+                    // concreto (ClassFormatError: Duplicate method name). O
+                    // guard `existing != m` ANTES o excluía, então o bridge era
+                    // gerado assim mesmo. Um bridge só é necessário quando a
+                    // ERASURE difere (ex.: filho `Int` vs pai `Object`, que
+                    // precisa do box). Inclui o próprio `m` no guard.
+                    boolean mOccupiesSlot = m.parameterTypes().size() == parentMethod.parameterTypes().size()
+                            && erasureKey(m.returnType()).equals(erasureKey(parentRet))
+                            && java.util.stream.IntStream.range(0, m.parameterTypes().size())
+                                    .allMatch(i -> erasureKey(m.parameterTypes().get(i))
+                                            .equals(erasureKey(parentMethod.parameterTypes().get(i))));
+                    boolean alreadyExists = mOccupiesSlot || methods.stream().anyMatch(existing ->
                             existing != m
                             && existing.name().equals(m.name())
                             && erasureKey(existing.returnType()).equals(erasureKey(parentRet))
