@@ -27,13 +27,14 @@ class FinancialLedgerE2ETest implements LibraryInstallSupport {
 
     @Override public String libraryName() { return "financial"; }
 
-    @Override public List<String> libraryMarkers() { return List.of("Money.kf", "Ledger.kf", "Recon.kf", "Compliance.kf"); }
+    @Override public List<String> libraryMarkers() { return List.of("Money.kf", "Ledger.kf", "Recon.kf", "Compliance.kf", "Jurisdiction.kf"); }
 
     private static final String PROBE = """
             import financial.Money
             import financial.Ledger
 import financial.Recon
 import financial.Compliance
+import financial.Jurisdiction
 
             main() {
                 var cash = Account("cash-1", "store-1", "BRL", "asset")
@@ -86,13 +87,27 @@ import financial.Compliance
                 println(allPassed(checks))
                 println(failures(checks).size)
                 println(failures(checks).get(0).detail)
+                var jt = defaultJurisdictions()
+                var brRow = jurisdictionOf(jt, "BR")
+                if (brRow != null) {
+                    println(brRow.currency)
+                    println(brRow.maxMinorPerTx)
+                    println(toProfile(brRow).code)
+                }
+                println(currencyFor(jt, "US"))
+                try {
+                    currencyFor(jt, "XX")
+                    println("no-throw")
+                } catch (String e) {
+                    println(e)
+                }
             }
             """;
 
     // 150+250=400 -> R$ 4.00 ; 250-150=100 -> R$ 1.00 ; negate 150 -> R$ -1.50 ;
     // roundTo(155, 1, halfEven) -> 160 -> R$ 1.60 ; scale(150, 3/2) = 225 -> R$ 2.25 ;
     // JPY has 0 minor units: Money(0,"JPY") -> "JPY 0" ; roundTo(12345, 0) -> "JPY 12345"
-    private static final String EXPECTED = "1\ntrue\n1000\n-1000\n1000\n700\nunbalanced journal (FIN004)\n3\nexact\ntolerance\nunmatched\ntrue\nfalse\ntrue\nfalse\nfalse\n2\n900000 exceeds the per-tx cap of 500000 (BR)";
+    private static final String EXPECTED = "1\ntrue\n1000\n-1000\n1000\n700\nunbalanced journal (FIN004)\n3\nexact\ntolerance\nunmatched\ntrue\nfalse\ntrue\nfalse\nfalse\n2\n900000 exceeds the per-tx cap of 500000 (BR)\nBRL\n500000\nBR\nUSD\nunknown jurisdiction: XX (FIN008)";
 
     private <T> T withLibrary(Path root, CheckedSupplier<T> action) throws Exception {
         copyLibrary(root.resolve("kof-install/lib/kof-libs"));
