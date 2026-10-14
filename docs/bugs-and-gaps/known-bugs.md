@@ -17619,6 +17619,46 @@ compiles CLEAN (no diagnostic) and the emitted class references `Foobar` — at 
 
 <!-- pt-switch --> **PT:** [§716](known-bugs.pt_BR.md#716--o-bound-de-um-type-parameter-generico-nao-e-validado-um-bound-desconhecido-t-foobar-ou-o-nao-tipo-t-any-compila-limpo-e-a-classe-emitida-referencia-uma-classe-inexistente-noclassdeffounderror-foobarany-no-load-do-jvm---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
+## §718 — a class implementing a GENERIC interface whose method returns `List<T>` produces a DUPLICATE method on the JVM (`ClassFormatError: Duplicate method name "children" with signature "()Ljava/util/ArrayList;"`): `interface Tree<T> { List<T> children() }` / `class Leaf implements Tree<Int>` — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):** `interface Tree<T> { List<T> children() }` with `class Leaf(Int v) implements Tree<Int> { List<Int> children() { return listOf(v) } }` — runs on Script/JS/native (`7`) but the JVM fails at load with `ClassFormatError: Duplicate method name "children" with signature "()Ljava/util/ArrayList;" in class file Leaf`. The override of a generic interface method (returning a generic collection) emits TWO identical methods (the concrete + a bridge with the SAME erased descriptor). Distinct from §714 (a field/method name collision) — this is an interface-override bridge DUPLICATE.
+
+**Boundary:** JVM only; Script/JS/native are correct. Fix path: the covariant/bridge emission must not duplicate a method whose erasure already matches.
+
+<!-- pt-switch --> **PT:** [§718](known-bugs.pt_BR.md#718--uma-classe-que-implementa-uma-interface-generica-cujo-metodo-retorna-listt-produz-um-metodo-duplicado-no-jvm-classformaterror-duplicate-method-name-children-with-signature-ljavautilarraylist-interface-treet--listt-children---class-leaf-implements-treeint---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §719 — implementing TWO generic interfaces gives a WRONG value on native: `class AB(Int v) implements A<Int>, B<Int>` — `y.b()` returns `5` instead of `6` on native x86-64/riscv64/aarch64 (JVM/Script/JS correct) — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):** `interface A<T> { T a() }` and `interface B<T> { T b() }` with `class AB(Int v) implements A<Int>, B<Int> { Int a() { return v }; Int b() { return v + 1 } }` — `x.a()` prints `5` (correct) but `y.b()` prints `5` on native (should be `6`); JVM/Script/JS print `5|6`. The vtable/method dispatch of the SECOND generic interface maps `b()` to the wrong slot.
+
+**Boundary:** native x86-64/riscv64/aarch64 only; JVM/Script/JS are correct. Fix path: trace the multi-interface vtable slot assignment for generic interfaces.
+
+<!-- pt-switch --> **PT:** [§719](known-bugs.pt_BR.md#719--implementar-duas-interfaces-genericas-da-um-valor-errado-no-nativo-class-abint-v-implements-aint-bint--yb-devolve-5-em-vez-de-6-no-nativo-x86-64riscv64aarch64-jvmscriptjs-corretos---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §720 — an ABSTRACT generic base class with a concrete subclass breaks the JVM (`VerifyError: Bad operand type when invoking <init>`) and the native (`ClassCastException`): `abstract class Base<T> { abstract T value() }` / `class Impl extends Base<Int>` — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):** `abstract class Base<T> { abstract T value(); T twice() { return value() } }` with `class Impl(Int n) extends Base<Int> { Int value() { return n } }` — `x.value()` runs on Script/JS (`4`) but the JVM throws `VerifyError: Bad operand type when invoking <init>` and the native `type error: class java.lang.Integer cannot be cast`. The generic abstract base's constructor/override path is mis-typed on the JVM and native.
+
+**Boundary:** JVM + native x86-64/riscv64/aarch64; Script/JS are correct. Fix path: trace the abstract generic base's `<init>`/override descriptor.
+
+<!-- pt-switch --> **PT:** [§720](known-bugs.pt_BR.md#720--uma-classe-base-generica-abstrata-com-subclasse-concreta-quebra-o-jvm-verifyerror-bad-operand-type-when-invoking-init-e-o-nativo-classcastexception-abstract-class-baset--abstract-t-value---class-impl-extends-baseint---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §721 — a DEFAULT method of a GENERIC interface is not dispatched on the Script: `interface Container<T> { T get(); default String describe() { return "c" } }` / `class CB implements Container<Int>` then `c.describe()` fails with `CB.describe` — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):** `interface Container<T> { T get(); default String describe() { return "c" } }` with `class CB(Int v) implements Container<Int>` — `c.get()` prints `3` but `c.describe()` (the interface DEFAULT) fails on the Script with `CB.describe`. JVM/JS/native print `3|c`. The default method of a GENERIC interface is not inherited/dispatched by the Script when the implementing class does not override it.
+
+**Boundary:** Script only; JVM/JS/native are correct. Fix path: the interpreter must resolve a generic interface default method through the implementing class.
+
+<!-- pt-switch --> **PT:** [§721](known-bugs.pt_BR.md#721--um-metodo-default-de-interface-generica-nao-e-despachado-no-script-interface-containert--t-get-default-string-describe--return-c----class-cb-implements-containerint-e-cdescribe-falha-com-cbdescribe---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §722 — a METHOD call on a GENERIC class instance is emitted as a FIELD access on JS: `class Factory<T> { T of(Int n) { return n } }` / `Factory<Int>().of(5)` emits `f._of(5)` (the method is DEFINED as `of`) → `TypeError: f._of is not a function` — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE):** `class Factory<T> { T of(Int n) { return n } }` then `Factory<Int>().of(5)` runs on JVM/Script/native (`5`) but on JS throws `TypeError: f._of is not a function` — the class DEFINES `of(n)` but the CALL SITE renders `f._of(5)`. The `_` prefix is the RECORD-FIELD marker (`JsExpressionParser` adds it when the owner is a record class), so a METHOD call on a generic class instance is mis-classified as a field access. Distinct from §714 (a field/method NAME collision) — this is a method MIS-CLASSIFICATION on JS.
+
+**Boundary:** JS only; JVM/Script/native are correct. Fix path: the JS call-site must not apply the record-field `_` prefix to a method call.
+
+<!-- pt-switch --> **PT:** [§722](known-bugs.pt_BR.md#722--uma-chamada-de-metodo-numa-instancia-de-classe-generica-e-emitida-como-acesso-a-campo-no-js-class-factoryt--t-ofint-n--return-n----factoryintof5-emite-f_of5-o-metodo-e-definido-como-of--typeerror-f_of-is-not-a-function---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
 **Symptom (measured 13/10 through the COMPILER MODULE):** `var d = 0` then `try { println(10 / d) } catch (String e) { ... }` printed **`-1` on riscv64 and `0` on aarch64** and left the `catch` UNREACHED, where every other target printed `caught`. Same for `%` and for `Long` (`10L / 0L`). The failure is the worst kind: the program keeps running with a wrong value instead of failing loudly.
