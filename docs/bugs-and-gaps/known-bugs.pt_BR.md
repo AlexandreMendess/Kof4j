@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §711
+last: §723
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -15114,6 +15114,25 @@ compila LIMPO (sem diagnóstico) e a classe emitida referencia `Foobar` — no l
 
 <!-- en-switch --> **EN:** [§722](known-bugs.md#722--a-method-call-on-a-generic-class-instance-is-emitted-as-a-field-access-on-js-class-factoryt--t-ofint-n--return-n----factoryintof5-emits-f_of5-the-method-is-defined-as-of--typeerror-f_of-is-not-a-function---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
 
+## §723 — a virada de locais-em-registradores do `D-CODEGEN-REWRITE` (`kof.native.register.locals` default TRUE, `c044a2add`) QUEBRA as faces nativas AVIF x86: `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` e `Av1CoeffsE2ETest#av1CoeffsOnNativeX86` PASSAM com a escotilha OFF e FALHAM com a flag ON — e a própria mensagem da virada registra a falha do coeffs como "PRÉ-EXISTENTE, independente desta mudança", o que esta medição contradiz — 🟡 ABERTO (medido 14/10 pela lane pipeline/image-vision `192.168.15.21:0`)
+
+**Sintoma (medido 14/10):** depois de puxar `c044a2add` ("flag de locais em registradores VIRADA PARA ON (default)"), o `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` falha com `native output: Runtime error: array index out of bounds` (esperado exit 0, veio 1).
+
+**Atribuição — um A/B na escotilha, mesma árvore no resto:**
+- `-Dkof.native.register.locals=false` (a escotilha OFF que a própria mensagem da virada anuncia): **PASSA** — `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` verde em 79,14 s.
+- default (flag ON): **FALHA** com o erro de limite.
+- O mesmo vale para o teste que a mensagem da virada nomeia: `Av1CoeffsE2ETest#av1CoeffsOnNativeX86` **PASSA** com a flag OFF (32,20 s) — onde a mensagem de `c044a2add` afirma que ele "falha com erro native de bounds de array TANTO com a flag ON quanto OFF — PRÉ-EXISTENTE, independente desta mudança".
+
+**A atribuição errada importa tanto quanto o bug:** a mensagem de `c044a2add` afirma que a falha nativa AVIF é pré-existente e independente da virada. O A/B acima contradiz isso para OS DOIS testes: estão verdes com a escotilha OFF e vermelhos com ela ON. Qualquer que seja a intenção, a mensagem como está escrita deixaria uma regressão real arquivada como conhecida-e-não-relacionada — exatamente o modo de falha que o portão de qualidade existe para impedir.
+
+**Fronteira:** o modelo de locais-em-registradores é a frente da lane de codegen (`.130:9093` dona da virada, `D-CODEGEN-REWRITE`); este registro reporta a medição, não reivindica a causa raiz dentro do alocador de registradores. Só as duas faces nativas AVIF nomeadas foram A/B'd aqui; uma varredura nativa completa com a escotilha OFF não foi rodada.
+
+**Não é o mesmo que o §705:** o giro do §705 ainda se reproduz com a flag OFF (medido no mesmo ciclo), então o §705 é um bug genuíno e independente desta virada. Os dois são achados separados.
+
+**Próximo passo sugerido para a lane de codegen:** rodar as faces nativas AVIF (e a bateria nativa mais ampla) com a flag ON e bisseccionar a emissão de locais-em-registrador num método que falha — o `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` é um reprodutor rápido e determinístico (só precisa dos dois arquivos de `libs/image` em `0f8ca55ff` no lugar).
+
+<!-- pt-switch --> **EN:** [§723 (en)](known-bugs.md#723--the-d-codegen-rewrite-register-locals-flip-kofnativeregisterlocals-default-true-c044a2add-breaks-the-avif-native-x86-faces-av1decodetilerecone2etestav1decodetilerecononnativex86-and-av1coeffse2etestav1coeffsonnativex86-both-pass-with-the-escape-hatch-off-and-fail-with-the-flag-on--and-the-flips-own-commit-message-records-the-coeffs-failure-as-pre-existent-independent-of-this-change-which-this-measurement-contradicts---open-measured-1410-by-lane-pipelineimage-vision-19216815210)
+
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):** `var d = 0` e então `try { println(10 / d) } catch (String e) { ... }` imprimia **`-1` no riscv64 e `0` no aarch64** e deixava o `catch` INALCANÇADO, onde todo outro alvo imprimia `caught`. Igual para `%` e para `Long` (`10L / 0L`). A falha é do pior tipo: o programa continua rodando com um valor errado em vez de falhar alto.
@@ -15512,6 +15531,14 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 **Limites de ambiente ao diagnosticar (registrados para o próximo agente orçar):** o `perf` está bloqueado (`perf_event_paranoid=4`) e o `gdb` não anexa (`ptrace_scope=1`, "ioctl inapropriado para dispositivo") nem roda o binário até o fim em batch (o próprio `gdb` em batch travou e teve de ser morto), então nenhum backtrace pôde ser tirado. O sandbox também mata execuções longas do `mvn test` no meio da montagem; as faces nativas devem rodar DESTACADAS (`setsid nohup timeout N mvn ... & disown`) e o resultado lido do mtime de `kof-compiler/target/surefire-reports/*.txt`, não do stdout.
 
 **Estado:** a fatia que o expôs (3au) está REVERTIDA; a árvore está verde. O defeito NÃO é de `libs/image` — é uma interação do backend nativo que qualquer método extraído suficientemente grande pode atingir, então pertence à lane compilador/nativo.
+
+**SEXTA PASSAGEM (14/10) — o bloco de argumentos de pilha nunca é alinhado a 16 bytes (uma pista concreta e medida; NÃO landada).** O x86-64 emitido para a chamada de `image_Av1TileDecode_decodeBlock` à função de 21 argumentos `av1DecodeCoeffsBlockEdgeTx` empurra 15 argumentos de pilha (120 bytes) e limpa com `addq $120, %rsp`. 120 não é múltiplo de 16, então `%rsp ≡ 8 (mod 16)` no `call` — a ABI SysV exige alinhamento de 16 bytes ali, e o callee passa a rodar com frame desalinhado, de modo que toda chamada C dentro dele (incluindo o caminho `lock cmpxchg`/futex do `kof_alloc`) roda desalinhada. Os quatro sítios de chamada com argumentos de pilha do emissor (`kof-compiler/src/main/java/dev/kof/compiler/nat/NativeX86Calls.java`: construtor, instância, interface, top-level) fazem `addq $stackArgs*8` sem preenchimento.
+
+**O experimento que isola isso:** inserir um `pushq $0` antes dos argumentos de pilha (para tornar ímpar em par) e somar 8 à limpeza fez o binário `Tmp705Probe`, que antes girava, sair LIMPO (`rc=1`, `Runtime error: array index out of bounds`) em vez de girar — o mesmo binário que gira sem o preenchimento. É um antes/depois direto sobre uma única variável.
+
+**Por que NÃO é landado aqui:** as duas faces nativas AVIF que isto exerceria estão VERMELHAS por um motivo DIFERENTE e mais novo (§723: a virada de locais-em-registradores do `D-CODEGEN-REWRITE` as quebra com a flag ON). Com o §723 na árvore, uma rodada das faces do driver não distingue "a correção de alinhamento funciona" de "o §723 continua quebrado", então landar a correção de alinhamento agora seria inverificável. A mudança em `NativeX86Calls` foi portanto revertida; a pista fica registrada aqui para quem pegar o §705 depois que o §723 for resolvido. (O preenchimento também precisa respeitar o padrão de save/restore dos scratch slots — o pad deve ficar ABAIXO do bloco de argumentos, nunca no índice de um argumento.)
+
+**Contraprova sobre o §723:** o giro do §705 ainda se reproduz com `-Dkof.native.register.locals=false` (medido no mesmo ciclo), então o §705 é um defeito genuíno e independente da virada de locais-em-registradores. Ver §723 para o A/B que os separa.
 
 <!-- pt-switch --> **EN:** [§705 (en)](known-bugs.md#705--a-class-methods-transform-block-loop-spins-the-native-x86-binary-when-the-entropy-reader-runs-out-mid-block-the-same-kof-is-correct-on-the-jvmscriptjs-pre-3au-reports-a-clean-bounds-error-on-the-same-input-and-the-hang-depends-on-the-input-bytes---open-measured-13-1410-by-lane-pipelineimage-vision-19216815210-surfaced-by-avif-slice-3au)
 

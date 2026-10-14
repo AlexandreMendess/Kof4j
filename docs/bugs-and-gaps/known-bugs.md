@@ -2,8 +2,8 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §711
-last: §664
+last: §723
+last: §718
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -17286,6 +17286,14 @@ So the block's transform grid is `n=16` and the loop completes iterations 0 and 
 
 **The sharpest reading of the futex evidence (worth testing first):** repeated `FUTEX_WAKE` on `kof_alloc_lock` means repeated SUCCESSFUL `kof_alloc` calls, so the runaway loop is one that ALLOCATES on every iteration. `av1InvTx2d` allocates exactly that way — `var T = new Int[w]` inside `while (i < h)` and `var T = new Int[h]` inside `while (col < w)` — so a bogus large bound there (`h = 1 << av1TxHeightLog2(txSz)`) would produce precisely this: an endless allocation loop with no output. Note `av1Dequant` printed CORRECT bounds (`log2W=5 log2H=5 tw=32 th=32`), so if the bound is wrong it is the SECOND call to the log2 helper (`av1InvTx2d` computes its own `log2W`/`log2H`), not the first — which is a much narrower thing to check than "the frame is corrupt".
 
+**SIXTH PASS (14/10) — the stack-argument block is never 16-byte aligned (a concrete, measured lead; NOT landed).** The emitted x86-64 for `image_Av1TileDecode_decodeBlock`'s call to the 21-argument `av1DecodeCoeffsBlockEdgeTx` pushes 15 stack args (120 bytes) and cleans up with `addq $120, %rsp`. 120 is not a multiple of 16, so `%rsp ≡ 8 (mod 16)` at the `call` — the SysV ABI requires 16-byte alignment there, and the callee then runs with a misaligned frame, so every C call inside it (including `kof_alloc`'s `lock cmpxchg`/futex path) runs misaligned. The emitter's four stack-argument call sites (`kof-compiler/src/main/java/dev/kof/compiler/nat/NativeX86Calls.java`: constructor, instance, interface, top-level) all do `addq $stackArgs*8` with no padding.
+
+**The experiment that isolates it:** inserting a `pushq $0` before the stack args (so an odd count becomes even) and adding 8 to the cleanup made the previously-hanging `Tmp705Probe` binary exit CLEANLY (`rc=1`, `Runtime error: array index out of bounds`) instead of spinning — the same binary that spins without the pad. That is a direct before/after on one variable.
+
+**Why it is NOT landed here:** the two AVIF native faces this would exercise are currently RED for a DIFFERENT, newer reason (§723: the `D-CODEGEN-REWRITE` register-locals flip breaks them with the flag ON). With §723 in the tree, a driver-face run cannot distinguish "the alignment fix works" from "§723 is still broken", so landing the alignment fix now would be unverifiable. The `NativeX86Calls` change was therefore reverted; the lead is recorded here for whoever takes §705 after §723 is resolved. (The padding also needs to respect the scratch-slot save/restore pattern — the pad must sit BELOW the argument block, never at an argument's index.)
+
+**Cross-check on §723:** §705's spin still reproduces with `-Dkof.native.register.locals=false` (measured the same cycle), so §705 is a genuine defect independent of the register-locals flip. See §723 for the A/B that separates them.
+
 <!-- pt-switch --> **PT:** [§705 (pt_BR)](known-bugs.pt_BR.md#705--o-laco-de-blocos-de-transformada-de-um-metodo-de-classe-faz-o-binario-nativo-x86-girar-quando-o-leitor-de-entropia-acaba-no-meio-de-um-bloco-o-mesmo-kof-e-correto-no-jvmscriptjs-a-pre-3au-reporta-um-erro-de-limite-limpo-na-mesma-entrada-e-o-travamento-depende-dos-bytes-de-entrada---aberto-medido-13-1410-pela-lane-pipelineimage-vision-19216815210-exposto-pela-fatia-3au-do-avif)
 ## §706 — a NESTED generic type argument (`Box<Box<Int>>`) breaks the OUTER accessor: on the JVM the call site expects `int Box.get()` and crashes with `NoSuchMethodError`, on native it reads GARBAGE — while Script/JS return the correct value — ✅ FIXED 14/10 (found 13/10, fixed 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 
@@ -17658,6 +17666,25 @@ compiles CLEAN (no diagnostic) and the emitted class references `Foobar` — at 
 **Root (TRACED 14/10 — NOT generic, NOT a record field):** `of` is in `JsTypeMapper.RESERVED` (a JS reserved word, alongside `async`/`arguments`/`eval`), so `JsTypeMapper.sanitizeName` prefixes it with `_`. The CALL SITE (`JsCallEmitter`) applies `sanitizeName` (→ `_of`), but the DEFINITION (`JsMethodParser.lowerFunction`) used the RAW name (`of`) — so the method did not exist on JS. A non-reserved method name (`make`) works, and a NON-generic class reproduces it (`class Factory { Int of(Int n) }`), so the bug is a reserved-WORD name mismatch, not generics. **Fix (LANDED):** the definition now passes through the SAME `sanitizeName` as the call site (`<init>`/`constructor` untouched). **Proof RED-first:** `JsReservedMethodNameE2ETest` (new) **3 run / 0F**; with the fix reverted the JS face fails. JS/class/method battery 549/0F.
 
 <!-- pt-switch --> **PT:** [§722](known-bugs.pt_BR.md#722--uma-chamada-de-metodo-numa-instancia-de-classe-generica-e-emitida-como-acesso-a-campo-no-js-class-factoryt--t-ofint-n--return-n----factoryintof5-emite-f_of5-o-metodo-e-definido-como-of--typeerror-f_of-is-not-a-function---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §723 — the `D-CODEGEN-REWRITE` register-locals flip (`kof.native.register.locals` default TRUE, `c044a2add`) BREAKS the AVIF native x86 faces: `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` and `Av1CoeffsE2ETest#av1CoeffsOnNativeX86` both PASS with the escape hatch OFF and FAIL with the flag ON — and the flip's own commit message records the coeffs failure as "PRE-EXISTENT, independent of this change", which this measurement contradicts — 🟡 OPEN (measured 14/10 by lane pipeline/image-vision `192.168.15.21:0`)
+
+**Symptom (measured 14/10):** after pulling `c044a2add` ("flag de locais em registradores VIRADA PARA ON (default)"), `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` fails with `native output: Runtime error: array index out of bounds` (expected exit 0, got 1).
+
+**Attribution — an A/B on the escape hatch, same tree otherwise:**
+- `-Dkof.native.register.locals=false` (the OFF hatch the flip's message advertises): **PASSES** — `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` green in 79.14 s.
+- default (flag ON): **FAILS** with the bounds error.
+- Same for the test the flip's message names: `Av1CoeffsE2ETest#av1CoeffsOnNativeX86` **PASSES** with the flag OFF (32.20 s) — where the flip's commit message states it "falha com erro native de bounds de array TANTO com a flag ON quanto OFF — PRE-EXISTENTE, independente desta mudança".
+
+**The mis-attribution matters as much as the bug:** `c044a2add`'s message asserts the AV1 native failure is pre-existing and independent of the flip. The A/B above contradicts that for BOTH tests: they are green with the hatch OFF and red with it ON. Whatever the intent, the message as written would let a real regression be filed as known-and-unrelated — the exact failure mode the quality gate exists to prevent.
+
+**Boundary:** the register-locals model is the codegen lane's front (`.130:9093` owned the flip, `D-CODEGEN-REWRITE`); this entry reports the measurement, it does not claim the root cause inside the register allocator. Only the two named AVIF native faces were A/B'd here; a full native sweep with the hatch OFF was not run.
+
+**Not the same as §705:** §705's spin still reproduces with the flag OFF (measured the same cycle), so §705 is a genuine bug independent of this flip. The two are separate findings.
+
+**Suggested next step for the codegen lane:** run the AVIF native faces (and the wider native battery) with the flag ON and bisect the register-mapped-local emission on a method that fails — `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` is a fast, deterministic reproducer (it needs only the two `libs/image` files at `0f8ca55ff` to be in place).
+
+<!-- pt-switch --> **PT:** [§723 (pt_BR)](known-bugs.pt_BR.md#723--a-virada-de-locais-em-registradores-do-d-codegen-rewrite-kofnativeregisterlocals-default-true-c044a2add-quebra-as-faces-nativas-avif-x86-av1decodetilerecone2etestav1decodetilerecononnativex86-e-av1coeffse2etestav1coeffsonnativex86-passam-com-a-escotilha-off-e-falham-com-a-flag-on--e-a-propria-mensagem-da-virada-registra-a-falha-do-coeffs-como-pre-existente-independente-desta-mudanca-o-que-esta-medicao-contradiz---aberto-medido-1410-pela-lane-pipelineimage-vision-19216815210)
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 
