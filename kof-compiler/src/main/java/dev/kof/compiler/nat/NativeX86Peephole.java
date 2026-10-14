@@ -80,6 +80,7 @@ final class NativeX86Peephole {
         collapsed += foldShiftToLea(lines);
         collapsed += foldAddToLea(lines);
         collapsed += foldLoadIntoCompare(lines);
+        collapsed += foldAddIntoLea(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;
@@ -341,6 +342,58 @@ final class NativeX86Peephole {
      * instead of two. Only when the destination is {@code %rax} (the value register)
      * and the source is not {@code %rax}.
      */
+    /**
+     * §7 x86_64 ("choice between mov, lea and combined operations"): folds an
+     * immediate add into an existing {@code lea}'s displacement:
+     *
+     * <pre>
+     *   leal (%ebx,%ebx,2), %eax     leal 1(%ebx,%ebx,2), %eax
+     *   addl $1, %eax           ==&gt;
+     * </pre>
+     *
+     * <p>Safe because the {@code lea} has no side effects but writing its
+     * destination, and the immediate add's FLAGS are unused (Kof uses explicit
+     * {@code cmp}), so combining the two displacements is exact. Only when the
+     * lea writes {@code %rax}, the add is an immediate add to the same width, and
+     * (to keep the match unambiguous) the lea has no existing displacement.
+     */
+    private static int foldAddIntoLea(List<String> lines) {
+        int folded = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 1 < lines.size(); i++) {
+                String lea = lines.get(i).trim();
+                boolean wide;
+                if (lea.startsWith("leal ") && lea.endsWith(", %eax")) wide = false;
+                else if (lea.startsWith("leaq ") && lea.endsWith(", %rax")) wide = true;
+                else continue;
+                int j = i + 1;
+                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
+                if (j >= lines.size()) continue;
+                String add = lines.get(j).trim();
+                String ax = wide ? "%rax" : "%eax";
+                String mnem = wide ? "addq" : "addl";
+                if (!add.startsWith(mnem + " $") || !add.endsWith(", " + ax)) continue;
+                int imm = parseImmediate(add);
+                if (imm == Integer.MIN_VALUE) continue;
+                // The lea operand is "disp(base,index,scale)" or "disp(base,...)".
+                String mem = lea.substring(lea.indexOf(' ') + 1, lea.lastIndexOf(',')).trim();
+                int paren = mem.indexOf('(');
+                String disp = paren < 0 ? mem : mem.substring(0, paren).trim();
+                String idx = paren < 0 ? "" : mem.substring(paren);
+                if (!disp.isEmpty()) continue; // no existing displacement -> unambiguous
+                int newDisp = imm;
+                lines.set(i, "    " + (wide ? "leaq" : "leal") + " " + newDisp + idx + ", " + ax);
+                lines.remove(j);
+                folded++;
+                changed = true;
+                break;
+            }
+        }
+        return folded;
+    }
+
     private static int foldShiftToLea(List<String> lines) {
         int folded = 0;
         boolean changed = true;

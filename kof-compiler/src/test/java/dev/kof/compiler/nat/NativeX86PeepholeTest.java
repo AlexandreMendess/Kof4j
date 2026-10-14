@@ -232,4 +232,30 @@ class NativeX86PeepholeTest {
         String body = "    movq %rbx, %rax\n    cmpl %eax, %ecx\n";
         assertEquals(body, result(body));
     }
+
+    @Test
+    void anImmediateAddIntoALeaBecomesTheDisplacement() {
+        // leal (%ebx,%ebx,2), %eax; addl $1, %eax  ->  leal 1(%ebx,%ebx,2), %eax
+        assertEquals("    leal 1(%ebx,%ebx,2), %eax\n",
+                result("    leal (%ebx,%ebx,2), %eax\n    addl $1, %eax\n"));
+    }
+
+    @Test
+    void anImmediateAddIntoALeaBaseBecomesTheDisplacement() {
+        assertEquals("    leal 7(%ebx), %eax\n",
+                result("    leal (%ebx), %eax\n    addl $7, %eax\n"));
+    }
+
+    @Test
+    void anAddIntoALeaWithAnExistingDisplacementIsNotFolded() {
+        // Keep the match unambiguous: a lea with a displacement is left alone.
+        String body = "    leal 3(%ebx), %eax\n    addl $1, %eax\n";
+        assertEquals(body, result(body));
+    }
+
+    @Test
+    void aNonImmediateAddIntoALeaIsNotFolded() {
+        String body = "    leal (%ebx,%ebx,2), %eax\n    addl %ecx, %eax\n";
+        assertEquals(body, result(body));
+    }
 }
