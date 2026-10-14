@@ -287,6 +287,40 @@ public final class NativeX86Arith {
                 return;
             }
         }
+        // §7 x86_64 ("reduction of instructions for constants"): a CONSTANT right
+        // operand of a comparison also uses the immediate form `cmp{l,q} $N,
+        // %{e,r}ax` instead of round-tripping it through %rcx. The constant is the
+        // RHS (pushed last), so `cmp $N, %eax` compares the same way the register
+        // form did (left - right). `x == 0` gets the canonical `testl %eax, %eax`.
+        if (kb.op() == KofBinaryOp.EQ || kb.op() == KofBinaryOp.NE || kb.op() == KofBinaryOp.LT
+                || kb.op() == KofBinaryOp.LE || kb.op() == KofBinaryOp.GT || kb.op() == KofBinaryOp.GE) {
+            Integer imm = constantPushedOnTop(sb);
+            if (imm != null) {
+                dropLastNonLocLine(sb);
+                boolean i32 = NativeTypeKinds.isInt32Type(opTy);
+                String setcc = switch (kb.op()) {
+                    case EQ -> "sete";
+                    case NE -> "setne";
+                    case LT -> "setl";
+                    case LE -> "setle";
+                    case GT -> "setg";
+                    default -> "setge";
+                };
+                sb.append("    popq %rax\n");
+                if (imm == 0 && (kb.op() == KofBinaryOp.EQ || kb.op() == KofBinaryOp.NE)) {
+                    sb.append("    test").append(i32 ? "l" : "q")
+                            .append(" %").append(i32 ? "e" : "r").append("ax, %")
+                            .append(i32 ? "e" : "r").append("ax\n");
+                } else {
+                    sb.append("    cmp").append(i32 ? "l" : "q")
+                            .append(" $").append(imm)
+                            .append(", %").append(i32 ? "e" : "r").append("ax\n");
+                }
+                sb.append("    ").append(setcc).append(" %al\n    movzbl %al, %eax\n");
+                sb.append("    pushq %rax\n");
+                return;
+            }
+        }
         sb.append("    popq %rcx\n");
         sb.append("    popq %rax\n");
         boolean int32 = NativeTypeKinds.isInt32Type(opTy);
