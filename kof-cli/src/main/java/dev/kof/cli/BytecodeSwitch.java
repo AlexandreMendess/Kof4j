@@ -105,6 +105,50 @@ final class BytecodeSwitch {
      * emitido), `default` vazio vira `default: break`, último braço pode
      * cair no fim sem `goto`.
      */
+    /**
+     * Fase E (14/10): a forma EXPRESSÃO do switch — cada braço é
+     * `[pushes..., goto join]` (o default cai) deixando 1 valor, o join é
+     * o return. Emite {@code return switch (x) { case 1 -> 10 ... default -> -1 }}.
+     * Qualquer desvio → null (a forma statement cuida).
+     */
+    private static String switchExprForm(SwitchInfo si, List<Integer> starts, int end,
+                                         List<BytecodeReader.Insn> insns, String[] cp,
+                                         BytecodeFrame frame, String expr) {
+        if (starts.size() < 2) return null;
+        StringBuilder sb = new StringBuilder("return switch (").append(expr).append(") { ");
+        boolean sawDefault = false;
+        for (int i = 0; i < starts.size(); i++) {
+            int s = starts.get(i);
+            int e = (i + 1 < starts.size()) ? starts.get(i + 1) : end;
+            List<BytecodeReader.Insn> arm = range(insns, s, e);
+            if (arm.isEmpty()) return null;
+            List<BytecodeReader.Insn> core = arm;
+            if (arm.get(arm.size() - 1).opcode() == 0xa7) core = arm.subList(0, arm.size() - 1);
+            if (core.isEmpty()) return null;
+            for (BytecodeReader.Insn in : core) {
+                int op = in.opcode();
+                if ((op >= 0xac && op <= 0xb1) || op == 0xbf) return null;
+            }
+            BytecodeDecoder.MachineRun r = BytecodeDecoder.machineRun(core, cp, frame);
+            if (r == null || r.stopped || r.stack.size() != 1) return null;
+            String val = r.stack.topExpr();
+            if (s == si.dflt) {
+                sb.append("default -> ").append(val);
+                sawDefault = true;
+            } else {
+                Integer cv = null;
+                for (int k = 0; k < si.targets.length; k++)
+                    if (si.targets[k] == s) cv = si.values[k];
+                if (cv == null) return null;
+                sb.append("case ").append(cv).append(" -> ").append(val);
+            }
+            if (i < starts.size() - 1) sb.append(" ");
+        }
+        if (!sawDefault) return null;
+        sb.append(" }");
+        return sb.toString();
+    }
+
     static List<String> recoverSwitchStmt(byte[] code, List<BytecodeReader.Insn> insns,
                                           String[] cp, BytecodeFrame frame) {
         int swOff = -1;
@@ -166,6 +210,21 @@ final class BytecodeSwitch {
         for (int i = 0; i < order.length; i++) order[i] = i;
         java.util.Arrays.sort(order, (a, b) -> Integer.compare(si.values[a], si.values[b]));
 
+        // Fase E (14/10): a FORMA EXPRESSÃO — todos os braços deixam
+        // EXATAMENTE 1 valor na pilha e o fim comum é um ÚNICO return →
+        // o switch-expression Kof (forma seta). Qualquer braço com
+        // statement (store, chamada void...) → null = cai na forma
+        // statement (abaixo), sem perda.
+        BytecodeReader.Insn lastInsn = insns.get(insns.size() - 1);
+        if (lastInsn.isReturn() && lastInsn.offset() == end) {
+            String exprForm = switchExprForm(si, new ArrayList<>(bounds), end,
+                    range(insns, bounds.first(), maxOff), cp, frame, expr);
+            if (exprForm != null) {
+                List<String> single = new ArrayList<>();
+                single.add(exprForm);
+                return single;
+            }
+        }
         List<String> out = new ArrayList<>();
         Set<Integer> declared = new HashSet<>();
         // Hoist (bug 134): cases Kof são blocos EXCLUDENTES — um `var`

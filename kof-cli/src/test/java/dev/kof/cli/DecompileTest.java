@@ -1520,6 +1520,39 @@ class DecompileTest {
         assertEquals("10\n20\n-1\n10\n-1", output, "zero-drift: switch id\u00eantico ao Java");
     }
 
+    @Test
+    void switchExpressionRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o SWITCH-EXPRESSION (`return switch (x) { case 1 ->
+        // 10; ... }`) — os bra\u00e7os deixam EXATAMENTE 1 valor na pilha e o fim
+        // comum \u00e9 um \u00fanico return → a forma seta do Kof. Qualquer bra\u00e7o com
+        // statement → cai na forma statement (sem perda). Zero-drift executado.
+        Path javaFile = dir.resolve("Se.java");
+        Files.writeString(javaFile, """
+                public class Se {
+                    static int num(int x) { return switch (x) { case 1 -> 10; case 2 -> 20; default -> -1; }; }
+                    static String label(int x) { return switch (x) { case 1 -> "A"; case 2 -> "B"; default -> "?"; }; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Se.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o switch-expression recupera:\n" + kof);
+        assertTrue(kof.contains("switch (arg0)"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Se.num(1))\n    println(Se.num(2))\n    println(Se.num(9))\n    println(Se.label(1))\n    println(Se.label(9))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10 20 -1 A ?
+        assertEquals("10\n20\n-1\nA\n?", output, "zero-drift: switch-expression id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
