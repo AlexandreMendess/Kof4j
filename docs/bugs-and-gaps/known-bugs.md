@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §705
+last: §710
 last: §664
 doing: close-open-rows
 next: triage-new-issues
@@ -17429,6 +17429,14 @@ The for-in PROLOGUE (`_coll = listOf(...)`; `_idx = 0`) and the increment (`_idx
 **Boundary:** the JS backend only; the other five targets are correct. Distinct from §703 (the return-finally EPILOGUE placement, now fixed for the non-loop/return-in-if shapes) — this is the for-in loop STRUCTURE.
 
 <!-- pt-switch --> **PT:** [§710](known-bugs.pt_BR.md#710--um-loop-for-in-cujo-corpo-e-um-tryfinally-terminando-num-return-trailing-perde-a-estrutura-de-loop-no-js-o-prologo-do-for-in-_coll_idx-init-e-o-incremento-sao-descartados-e-o-loop-vira-um-if-puro-_coll_idx-lidos-como-undefined---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §710 — the native `kof_orm_ctors` suffix-match CUMULATIVELY SHIFTED the className pointer across entries: with 2+ registered entities, `orm.find` on an entity whose name is LONGER than an earlier one read the WRONG bytes and threw ORM001 "entity class not registered" — ✅ FIXED 14/10 (issue #835, blocks-0.6.5; found+fixed by lane ORM/native `192.168.100.14:0`)
+
+**Symptom (measured 14/10, issue #835 — deterministic 2/2):** `KofOrmE2ETest#crossNativeF2bFindMatchesX86Oracle`: `orm.find<Ghost>(db, 1)` (the entity `Ghost` AFTER `User`/`Item` in the ctor table, len 5 vs 4) threw `orm.find: entity class not registered (ORM001)` where the x86 oracle throws `sqlite: no column "name"` (the table `ghost` lacks `name`). The finds on `User`/`Item` (len 4) worked. Surfaced NOW because these faces were SKIPPED until libsqlite3 landed on this host.
+
+**Root (disassembled):** the F2b suffix-match entry does `rdi += (len − entryLen)` to point at the LAST entryLen bytes — and NEVER RESTORED `%rdi` before the next entry, so with a longer className the shift CUMULATES across entries: entry `User` shifted `rdi` by 1 ("Ghost"→"host"), entry `Item` by 1 more ("ost"), and entry `Ghost` compared `"ost"` against `Ghost` → miss → ORM001. Single-entry tables were immune (why the entity-history faces stayed green).
+
+**Fix:** `kof_orm_ctors` saves the original body in `%r11` (scratch; the function is a leaf) at entry and EVERY entry restores `%rdi` from it before the `add`. Proof: the repro's tail now prints `sqlite: no column "name"` (the oracle line) and `KofOrmE2ETest` is **82 run / 0F / 38 honest skips** (was 4F). RED-first: pre-fix the same repro failed with the ORM001 diff (measured twice).
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
 

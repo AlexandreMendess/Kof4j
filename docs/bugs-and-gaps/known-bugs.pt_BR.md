@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §705
+last: §710
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -14910,6 +14910,14 @@ O PRÓLOGO do for-in (`_coll = listOf(...)`; `_idx = 0`) e o incremento (`_idx =
 **Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Distinto do §703 (a colocação do EPÍLOGO return-finally, agora corrigida para as formas non-loop/return-em-if) — isto é a ESTRUTURA do loop for-in.
 
 <!-- en-switch --> **EN:** [§710](known-bugs.md#710--a-for-in-loop-whose-body-is-a-tryfinally-ending-in-a-trailing-return-loses-its-loop-structure-on-js-the-for-in-prologue-_coll_idx-init-and-increment-are-dropped-and-the-loop-renders-as-a-bare-if-_coll_idx-read-as-undefined---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §710 — o suffix-match do `kof_orm_ctors` nativo DESLOCAVA CUMULATIVAMENTE o ponteiro do className entre entradas: com 2+ entidades registradas, `orm.find` numa entidade cujo nome é MAIS LONGO que uma anterior lia os bytes ERRADOS e lançava ORM001 "entity class not registered" — ✅ CORRIGIDO 14/10 (issue #835, bloqueia-0.6.5; achado+corrigido pela lane ORM/native `192.168.100.14:0`)
+
+**Sintoma (medido 14/10, issue #835 — determinístico 2/2):** `KofOrmE2ETest#crossNativeF2bFindMatchesX86Oracle`: `orm.find<Ghost>(db, 1)` (a entidade `Ghost` DEPOIS de `User`/`Item` na tabela de ctors, len 5 vs 4) lançava `orm.find: entity class not registered (ORM001)` onde o oráculo x86 lança `sqlite: no column "name"` (a tabela `ghost` não tem `name`). Os finds em `User`/`Item` (len 4) funcionavam. Veio à tona AGORA porque essas faces eram PULADAS até a libsqlite3 chegar neste host.
+
+**Raiz (disassemblado):** a entrada de suffix-match da F2b faz `rdi += (len − entryLen)` para apontar os ÚLTIMOS entryLen bytes — e NUNCA RESTAURAVA `%rdi` antes da entrada seguinte, então com um className mais longo o deslocamento ACUMULA entre as entradas: a entrada `User` deslocou `rdi` em 1 ("Ghost"→"host"), a `Item` em mais 1 ("ost"), e a entrada `Ghost` comparou `"ost"` contra `Ghost` → miss → ORM001. Tabelas de entrada única eram imunes (por isso as faces da entity-history ficaram verdes).
+
+**Correção:** o `kof_orm_ctors` salva o body original em `%r11` (scratch; a função é folha) na entrada e CADA entrada restaura `%rdi` dele antes do `add`. Prova: o tail do repro agora imprime `sqlite: no column "name"` (a linha do oráculo) e o `KofOrmE2ETest` está **82 corridas / 0F / 38 skips honestos** (era 4F). RED-first: pré-fix o mesmo repro falhava com o diff ORM001 (medido duas vezes).
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
