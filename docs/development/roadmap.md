@@ -1052,7 +1052,7 @@ origin issue #275). Additive, backward compatible. **Planned only — not
 current work** (R12: new fronts do not open before the SYSTEMS stage closes;
 lanes must not attack without new authorization).
 
-**Plan (PROMOTED 14/10):** [`value-records-plan.md`](value-records-plan.md) — moved out of `future/` (maintainer order + `D-FUTURE-UNFREEZE`); **step 2.7.1 (the `value` front-end keyword) LANDED 14/10**.
+**Plan (PROMOTED to `docs/` 14/10):** [`../../value-records-plan.md`](../../value-records-plan.md) — moved out of `future/` (maintainer order + `D-FUTURE-UNFREEZE`); **step 2.7.1 (the `value` front-end keyword) LANDED 14/10**.
 
 | # | Step | Scope (one line) | Depends on |
 |---|------|------------------|------------|

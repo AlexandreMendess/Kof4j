@@ -1053,7 +1053,7 @@ origem issue #275). Aditivo, retrocompatível. **Apenas planejado — não é
 trabalho atual** (R12: frentes novas não abrem antes de o estágio SYSTEMS
 fechar; lanes não devem atacar sem nova autorização).
 
-**Plano (PROMOVIDO 14/10):** [`value-records-plan.pt_BR.md`](value-records-plan.pt_BR.md) — saiu de `future/` (ordem da mantenedora + `D-FUTURE-UNFREEZE`); **o passo 2.7.1 (a keyword de front-end `value`) POUSOU 14/10**.
+**Plano (PROMOVIDO para `docs/` 14/10):** [`../../value-records-plan.pt_BR.md`](../../value-records-plan.pt_BR.md) — saiu de `future/` (ordem da mantenedora + `D-FUTURE-UNFREEZE`); **o passo 2.7.1 (a keyword de front-end `value`) POUSOU 14/10**.
 
 | # | Etapa | Escopo (uma linha) | Depende de |
 |---|-------|--------------------|------------|
