@@ -415,6 +415,39 @@ class DecompileTest {
     }
 
     @Test
+    void multiArgConcatKeepsArgumentOrder(@TempDir Path dir) throws Exception {
+        // REGRESSÃO (13/10): a concat com 2+ placeholders saía com a ORDEM
+        // INVERTIDA ("cba" p/ `a + b + c`) — o caller re-invertia a pilha e
+        // o BytecodeConcat.apply re-invertia de novo (double-reverse); a face
+        // antiga só tinha 1 placeholder, então nunca pegou. Zero-drift
+        // executado: o Kof decompilado RODA e dá o mesmo do Java.
+        Path javaFile = dir.resolve("Mc.java");
+        Files.writeString(javaFile, """
+                public class Mc {
+                    static String three(String a, String b, String c) { return a + b + c; }
+                    static String four(String a, String b, String c, String d) { return a + "-" + b + c + d; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Mc.class"));
+        assertTrue(kof.contains("arg0 + arg1 + arg2"),
+                "concat de 3 args mant\u00e9m a ordem:\n" + kof);
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + "\nmain() {\n    println(Mc.three(\"a\", \"b\", \"c\"))\n    println(Mc.four(\"w\", \"x\", \"y\", \"z\"))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("abc\nw-xyz", output, "zero-drift: ordem da concat correta");
+    }
+
+    @Test
     void recoversStringConcatInvokedynamic(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Cat.java");
         Files.writeString(javaFile, """
@@ -1009,6 +1042,107 @@ class DecompileTest {
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
         assertEquals("0\n3\n3", output, "zero-drift executado");
+    }
+
+    @Test
+    void orCombinationAndBoolCoercionRecover(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): o `||` (orientação ESPELHADA do &&) recupera +
+        // coerção Bool (braços 1/0 num método `Z` → true/false; antes o
+        // `&&` emitia `return if (..) 1 else 0` num Bool = SEM010).
+        Path javaFile = dir.resolve("Or.java");
+        Files.writeString(javaFile, """
+                public class Or {
+                    boolean or2(int a, int b) { return a > 0 || b > 0; }
+                    boolean and2(int a, int b) { return a > 0 && b > 0; }
+                    int orInIf(int a, int b) { if (a > 0 || b > 0) { return 1; } return 0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Or.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "|| e && recuperam:\n" + kof);
+        assertTrue(kof.contains("true") || kof.contains("false"),
+                "braços Bool viram true/false:\n" + kof);
+        // zero-drift executado
+        String kofRun = kof + "\nmain() {\n    var o = Or()\n    println(o.or2(1, 0))\n    println(o.or2(0, 0))\n    println(o.and2(1, 1))\n    println(o.and2(1, 0))\n    println(o.orInIf(0, 5))\n    println(o.orInIf(0, 0))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("true\nfalse\ntrue\nfalse\n1\n0", output, "zero-drift executado");
+    }
+
+    @Test
+    void shiftOperatorsRecoverNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase E (13/10): os opcodes de SHIFT (0x78-0x7d) faltavam no emitLinear
+        // (e no avaliador) — qualquer corpo com `<<`/`>>`/`>>>` stubava. A
+        // semântica por-target é do COMPILADOR (corrigida no §698).
+        Path javaFile = dir.resolve("Sh.java");
+        Files.writeString(javaFile, """
+                public class Sh {
+                    static int shl(int a, int b) { return a << b; }
+                    static int shr(int a, int b) { return a >> b; }
+                    static int ushr(int a, int b) { return a >>> b; }
+                    static long lshl(long a, int b) { return a << b; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Sh.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "os shifts recuperam:\n" + kof);
+        assertTrue(kof.contains("<<") && kof.contains(">>") && kof.contains(">>>"), kof);
+        // zero-drift executado (contagens VARIÁVEIS — literais são const-folded)
+        String kofRun = kof + "\nmain() {\n    var sh = Sh()\n    println(Sh.shl(1, 4))\n    println(Sh.shr(-16, 2))\n    println(Sh.ushr(-5, 1))\n    println(Sh.lshl(1L, 40))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1<<4=16, -16>>2=-4, -5>>>1=2147483645, 1L<<40=1099511627776
+        assertEquals("16\n-4\n2147483645\n1099511627776", output, "zero-drift dos shifts");
+    }
+
+    @Test
+    void orChain3TermsRecoversNotStubbed(@TempDir Path dir) throws Exception {
+        // Fase C (13/10): a cadeia `||` de 3+ termos (orChain) — os testes
+        // NAO-finais saltam para o VERDADEIRO (takenCond) e o ULTIMO cai no
+        // verdadeiro (invCond), diferente do `||` de 2 termos (assimetria
+        // medida). Antes: stub do método inteiro.
+        Path javaFile = dir.resolve("Oc.java");
+        Files.writeString(javaFile, """
+                public class Oc {
+                    boolean or3(int a, int b, int c) { return a > 0 || b > 0 || c > 0; }
+                    boolean or4(int a, int b, int c, int d) { return a > 0 || b > 0 || c > 0 || d > 0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Oc.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "a cadeia || de 3/4 termos recupera:\n" + kof);
+        assertTrue(kof.contains("arg0 > 0 || arg1 > 0 || arg2 > 0"), kof);
+        String kofRun = kof + "\nmain() {\n    var oc = Oc()\n    println(oc.or3(0, 0, 1))\n    println(oc.or3(0, 0, 0))\n    println(oc.or4(0, 0, 0, 5))\n    println(oc.or4(0, 0, 0, 0))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("true\nfalse\ntrue\nfalse", output, "zero-drift executado");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {

@@ -171,6 +171,29 @@ JsIr.JsStatement parseSwitchStatement(MethodCtx ctx, int[] pos) {
         if (subjectName == null) {
             throw new IllegalStateException("KofJS: switch subject not found");
         }
+        // §701: o label de FIM do switch é o alvo do jump de auto-término dos
+        // corpos de case (o último KofJump antes do label do default). O
+        // `endLabel` derivado do CJump acima NÃO serve: ele fica com o label do
+        // DEFAULT (o nextTest do último case), não com o fim real. Registrado
+        // em ctx.switchEnds para que o parseStatements resolva um `break`
+        // (mesmo aninhado num if/loop dentro do case) num JsBreak, em vez de
+        // cair no region-exit genérico e TRUNCAR o corpo.
+        LabelId switchEnd = null;
+        if (defaultLabel != null) {
+            for (int k = pos[0]; k < ctx.ops.size(); k++) {
+                KofOperation o = ctx.ops.get(k);
+                if (o instanceof KofLabel kl && kl.label().equals(defaultLabel)) break;
+                if (o instanceof KofJump kj) switchEnd = kj.target();
+            }
+        }
+        if (switchEnd != null) ctx.switchEnds.add(switchEnd);
+        // §701: registra TODOS os labels estruturais do switch para que um
+        // if/else INTERNO não os consuma como seu "end" (o parseIfBody engolia
+        // o label do default e o corpo do default vazava para o case anterior).
+        java.util.List<LabelId> registeredStruct = new ArrayList<>(bodyLabels);
+        if (defaultLabel != null) registeredStruct.add(defaultLabel);
+        if (switchEnd != null) registeredStruct.add(switchEnd);
+        ctx.switchStructLabels.addAll(registeredStruct);
         List<JsIr.JsSwitchCase> fullCases = new ArrayList<>();
         for (LabelId bodyLabel : bodyLabels) {
             if (pos[0] >= ctx.ops.size() || !(ctx.ops.get(pos[0]) instanceof KofLabel kl)
@@ -195,6 +218,8 @@ JsIr.JsStatement parseSwitchStatement(MethodCtx ctx, int[] pos) {
             // Label(end) — end of the switch
             pos[0]++;
         }
+        if (switchEnd != null) ctx.switchEnds.remove(ctx.switchEnds.size() - 1);
+        ctx.switchStructLabels.removeAll(registeredStruct);
         JsIr.JsExpression subject = new JsIr.JsIdentifier(subjectName);
         return new JsIr.JsSwitch(subject, fullCases, defaultCase);
     }

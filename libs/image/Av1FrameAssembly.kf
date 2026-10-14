@@ -1,0 +1,69 @@
+package image
+
+import image.Av1DecodeChroma
+
+// kof.image — AV1 frame ASSEMBLY (slice 3av of the AVIF front, plan §34).
+//
+// The tile driver (`Av1TileDecode`, slice 3au) reconstructs the frame one block
+// at a time into BORDERED plane buffers: the luma plane it returns already flat,
+// but the chroma planes travel in the `Av1ChromaPlanes` bundle still carrying
+// their one-sample border (`stride = width + 2`, interior at `[1 .. width]`).
+// libaom's own frame store is the same shape — a plane with a border, addressed
+// with a stride — and the border exists so the intra predictors can read
+// neighbours one sample outside the visible area.
+//
+// Assembly is where the border stops: it turns the driver's outputs into the
+// frame the rest of `kof.image` consumes — every plane flat, row-major, no
+// border. `decodeRaster` keeps refusing AVIF until the OBU/tile-group layer
+// feeds a real payload into the tree walk.
+
+// A decoded AV1 frame in PLANAR form, every plane border-stripped.
+//
+//   - `y`: the luma plane, flat row-major, `width * height` samples.
+//   - `u`/`v`: the chroma planes, flat row-major, `chromaWidth * chromaHeight`
+//     samples each — EMPTY (size 0) for a monochrome frame, which is why the
+//     chroma extent travels alongside instead of being derived from `width`.
+//   - `chromaWidth`/`chromaHeight`: 0 for a monochrome frame.
+record Av1Frame(Int[] y, Int width, Int height,
+                Int[] u, Int[] v, Int chromaWidth, Int chromaHeight)
+
+// Strips the one-sample border of a plane buffer: `buf` is `(w + 2) x (h + 2)`
+// with row stride `stride`, and the interior lives at `[1 .. w] x [1 .. h]`.
+Int[] av1StripPlaneBorder(Int[] buf, Int stride, Int w, Int h) {
+    var out = new Int[w * h]
+    var r = 0
+    while (r < h) {
+        var c = 0
+        while (c < w) {
+            out[r * w + c] = buf[(r + 1) * stride + (c + 1)]
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+// Assembles the tile driver's outputs into a frame.
+//
+//   - `luma`: the driver's return value, ALREADY flat (`frameW * frameH`).
+//   - `chroma`: the bundle the driver filled — its `u`/`v` are still bordered.
+//   - `hasChroma`: libaom's `xd->is_chroma_ref` gate; 0 leaves the chroma planes
+//     empty rather than fabricating a plane the stream never carried.
+//
+// The chroma extent comes from the bundle's own `wU`/`hU` (libaom derives the
+// plane size from the block size and the subsampling, so it is NOT always
+// `frameW >> 1`), and V is checked against U instead of assumed equal.
+Av1Frame av1AssembleFrame(Int[] luma, Int frameW, Int frameH,
+                          Av1ChromaPlanes chroma, Int hasChroma) {
+    var u = new Int[0]
+    var v = new Int[0]
+    var cw = 0
+    var ch = 0
+    if (hasChroma == 1) {
+        cw = chroma.wU
+        ch = chroma.hU
+        u = av1StripPlaneBorder(chroma.u, chroma.strideU, cw, ch)
+        v = av1StripPlaneBorder(chroma.v, chroma.strideV, chroma.wV, chroma.hV)
+    }
+    return Av1Frame(luma, frameW, frameH, u, v, cw, ch)
+}

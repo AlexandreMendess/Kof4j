@@ -131,7 +131,22 @@ public final class ExpressionBareCallLowerer {
             ops.add(new KofCall(cs.type(), "<init>", ctorParamTypes, Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
         } else {
             IRLocalVariable lambdaVar = driver.findLocalVar(mc.methodName(), locals);
-            if (lambdaVar != null && lambdaVar.type() instanceof Type.FunctionType lft) {
+            Type boxedFn = lambdaVar != null && driver.boxFactory.isBoxType(lambdaVar.type())
+                    ? driver.boxFactory.boxValueType(lambdaVar.type()) : null;
+            if (lambdaVar != null && boxedFn instanceof Type.FunctionType blft) {
+                // §664 captured twin: o local capturado é uma CAIXA cujo valor
+                // é um tipo de função (mutado dentro da closure). Lê o campo
+                // `value` (a função) e invoca na interface sintética — o
+                // caminho do local direto não a vê (a caixa é um ClassType) e
+                // caía no invokestatic fantasma.
+                ops.add(new KofLoadLocal(lambdaVar.type(), lambdaVar.index()));
+                ops.add(new KofLoadField(lambdaVar.type(), "value", blft));
+                localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), blft.parameterTypes(),
+                        ops, owner, localIdx, locals);
+                Type boxIface = driver.lambdaInterfaceType(blft);
+                ops.add(new KofCall(boxIface, "invoke", blft.parameterTypes(), blft.returnType(),
+                        KofCallKind.INTERFACE));
+            } else if (lambdaVar != null && lambdaVar.type() instanceof Type.FunctionType lft) {
                 if (lft.className() == null) {
                     // bug 8: valor de TIPO DE FUNÇÃO DECLARADO (param
                     // (s: (Int) -> Int), sem classe sintética). Todas
