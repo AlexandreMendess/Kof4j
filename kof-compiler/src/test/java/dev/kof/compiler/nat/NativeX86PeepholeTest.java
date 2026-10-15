@@ -291,4 +291,16 @@ class NativeX86PeepholeTest {
         String body = "    movq %rbp, %rsp\n    ret\n";
         assertEquals(body, result(body));
     }
+
+    @Test
+    void aJumpToTheNextLabelIsDropped() {
+        assertEquals(".Lkof_0:\n    ret\n",
+                result("    jmp .Lkof_0\n.Lkof_0:\n    ret\n"));
+    }
+
+    @Test
+    void aJumpToANonAdjacentLabelIsKept() {
+        String body = "    jmp .Lkof_0\n    ret\n.Lkof_0:\n    ret\n";
+        assertEquals(body, result(body));
+    }
 }

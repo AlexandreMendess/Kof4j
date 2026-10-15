@@ -83,6 +83,7 @@ final class NativeX86Peephole {
         collapsed += NativeX86LeaFold.foldAddIntoLea(lines);
         collapsed += cmpZeroToTest(lines);
         collapsed += epilogueToLeave(lines);
+        collapsed += dropJumpToNext(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;
@@ -302,6 +303,34 @@ final class NativeX86Peephole {
      * {@code popq %rbp} is exactly the {@code leave} instruction — one instruction
      * and one byte shorter, same effect (rsp = rbp; rbp = [rsp]).
      */
+    /**
+     * §7 x86_64 ("lower-cost instruction selection"): an unconditional
+     * {@code jmp L} immediately followed by the label {@code L:} jumps to the very
+     * next instruction — the jump is a no-op and is dropped. Only {@code .loc}
+     * debug lines may sit between them.
+     */
+    private static int dropJumpToNext(List<String> lines) {
+        int dropped = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 1 < lines.size(); i++) {
+                String j = lines.get(i).trim();
+                if (!j.startsWith("jmp ")) continue;
+                String target = j.substring("jmp ".length()).trim();
+                int k = i + 1;
+                while (k < lines.size() && lines.get(k).trim().startsWith(".loc ")) k++;
+                if (k >= lines.size()) continue;
+                if (!lines.get(k).trim().equals(target + ":")) continue;
+                lines.remove(i);
+                dropped++;
+                changed = true;
+                break;
+            }
+        }
+        return dropped;
+    }
+
     private static int epilogueToLeave(List<String> lines) {
         int folded = 0;
         for (int i = 0; i + 1 < lines.size(); i++) {
