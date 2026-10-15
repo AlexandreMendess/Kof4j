@@ -119,6 +119,29 @@ import cobol.ProcDiv
             System.setOut(prev);
         }
         assertEquals("HELLO KOF\nBYE", genStdout.toString(StandardCharsets.UTF_8).strip());
+        // PHASE 8 (plan §30): the generated source survives the CANONICAL
+        // FORMATTER — format → compile → run → the SAME output, and the
+        // formatter is idempotent on it.
+        var canon = dev.kof.compiler.KofFormatter.format(kofText, "Generated.kf");
+        assertEquals(canon, dev.kof.compiler.KofFormatter.format(canon, "Generated.kf"),
+                "the formatter is not idempotent on the generated source");
+        var canonSrc = root.resolve("Canonical.kf");
+        Files.writeString(canonSrc, canon);
+        Path cout = root.resolve("canon-out");
+        CompilationResult cr = driver.compileSources(List.of(canonSrc), cout, Target.JVM, root);
+        assertTrue(cr.success(), () -> "canonical compile: " + cr.diagnostics().getDiagnostics());
+        var canonStdout = new ByteArrayOutputStream();
+        var prev2 = System.out;
+        System.setOut(new java.io.PrintStream(canonStdout, true, StandardCharsets.UTF_8));
+        try (var loader2 = new java.net.URLClassLoader(
+                new java.net.URL[]{cout.toUri().toURL()}, getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, loader2)
+                    .getMethod("main", String[].class)
+                    .invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(prev2);
+        }
+        assertEquals("HELLO KOF\nBYE", canonStdout.toString(StandardCharsets.UTF_8).strip());
     }
 
     @Test
