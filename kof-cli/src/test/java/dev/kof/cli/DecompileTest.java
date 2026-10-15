@@ -3454,6 +3454,84 @@ class DecompileTest {
                 "zero-drift: balance/overLimit/report/positives id\u00eanticos ao Java");
     }
 
+    @Test
+    void authDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o dom\u00ednio AUTH — 4 shapes sem c\u00f3digo novo: a
+        // procura em DUAS listas com indexOf/get (check — o indexOf de
+        // String + o get pelo \u00edndice + o equals de conte\u00fado), a
+        // cadeia de pap\u00e9is com equals/startsWith (role), a extra\u00e7\u00e3o de
+        // nomes com indexOf/substring dentro de for-each (names) e o
+        // anyMatch com startsWith e return antecipado. Zero-drift
+        // executado: true/false/false/root/service/user/2/ana,bob,/true/
+        // false — 11/11 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Auth.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Auth {
+                    static boolean check(String user, String pass, List<String> users, List<String> passes) {
+                        int ui = users.indexOf(user);
+                        if (ui < 0) { return false; }
+                        return passes.get(ui).equals(pass);
+                    }
+                    static String role(String user) {
+                        if (user.equals("admin")) { return "root"; }
+                        if (user.startsWith("svc_")) { return "service"; }
+                        return "user";
+                    }
+                    static List<String> names(List<String> emails) {
+                        List<String> out = new java.util.ArrayList<>();
+                        for (String e : emails) {
+                            int at = e.indexOf("@");
+                            out.add(e.substring(0, at));
+                        }
+                        return out;
+                    }
+                    static boolean anyMatch(List<String> xs, String prefix) {
+                        for (String x : xs) {
+                            if (x.startsWith(prefix)) { return true; }
+                        }
+                        return false;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Auth.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var us = listOf("admin", "ana", "svc_backup")
+                    var ps = listOf("root123", "ana123", "svc456")
+                    println(Auth.check("ana", "ana123", us, ps))
+                    println(Auth.check("ana", "errado", us, ps))
+                    println(Auth.check("ghost", "x", us, ps))
+                    println(Auth.role("admin"))
+                    println(Auth.role("svc_backup"))
+                    println(Auth.role("ana"))
+                    var ns = Auth.names(listOf("ana@x", "bob@y"))
+                    println(ns.size())
+                    var j = ""
+                    for (var n in ns) { j = j + n + "," }
+                    println(j)
+                    println(Auth.anyMatch(us, "svc_"))
+                    println(Auth.anyMatch(us, "zz"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | false | root | service | user | 2 |
+        // ana,bob, | true | false
+        assertEquals("true\nfalse\nfalse\nroot\nservice\nuser\n2\nana,bob,\ntrue\nfalse", output,
+                "zero-drift: check/role/names/anyMatch id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
