@@ -1,5 +1,5 @@
 last: PROMOTED from `docs/development/future/` 15/10 (maintainer order "pega um de future" + `D-FUTURE-PROMOTION`); `D-COBOL-TRANSLATOR-GO`
-doing: Phase 1 (the project scanner) LANDED 15/10 — pure-Kof `libs/cobol/Scanner.kf` (discovery order, the per-file inventory, format detection with evidence, the CB001–CB004 diagnostics)
+doing: Phase 2 (the lexer MVP) LANDED 15/10 — `libs/cobol/Lexer.kf`: `tokenize(text, format)` → `Token(kind, text, line)` — WORD/NUMBER/STRING/PERIOD/LPAREN/RPAREN/PSEUDO with the §6 rules (the fixed col-7 comment, the free `*>`, the `>>` directive lines as PSEUDO), the 1-based lines, and CB005 (unterminated string) / CB006 (unexpected character) — never a silent skip. Proof: `CobolLexerE2ETest` 2/2 (JVM + Script). doing: Phase 1 (the project scanner) LANDED 15/10 — pure-Kof `libs/cobol/Scanner.kf` (discovery order, the per-file inventory, format detection with evidence, the CB001–CB004 diagnostics)
 next: Phase 2 (the lexer/parser) — the roadmap is §30
 location: docs/development/kof-cobol-translator-plan.md
 state: under-development

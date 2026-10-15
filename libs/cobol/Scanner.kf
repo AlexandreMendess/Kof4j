@@ -1,5 +1,6 @@
 package cobol
 
+import legacy.Legacy
 // kof.cobol — the COBOL→Kof translator front-end, PHASE 1 (plan §30): the
 // PROJECT SCANNER as a pure-Kof library. Discovery ORDER (the §5 determinism
 // rule), the per-file INVENTORY and the FORMAT detection (evidence-backed,

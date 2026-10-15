@@ -26,8 +26,9 @@ class CobolScannerE2ETest implements LibraryInstallSupport {
     private final CompilerDriver driver = new CompilerDriver();
 
     @Override public String libraryName() { return "cobol"; }
+    @Override public List<String> libraryNames() { return List.of("cobol", "legacy"); }
 
-    @Override public List<String> libraryMarkers() { return List.of("Scanner.kf"); }
+    @Override public List<String> libraryMarkers() { return List.of("Legacy.kf", "Scanner.kf"); }
 
     private static final String PROBE = """
             import cobol.Scanner
