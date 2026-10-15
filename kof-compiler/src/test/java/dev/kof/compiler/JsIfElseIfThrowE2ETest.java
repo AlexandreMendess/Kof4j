@@ -83,17 +83,75 @@ class JsIfElseIfThrowE2ETest {
                 }
                 return "label" + neg
             }
+            Int chain(Int s) {
+                var r = 0
+                if (s == 1) {
+                    r = 10
+                } else if (s == 2) {
+                    throw "bad2"
+                } else {
+                    r = 30
+                }
+                r = r + 1
+                return r
+            }
+            Int retChain(Int s) {
+                var r = 0
+                if (s == 1) {
+                    r = 10
+                } else if (s == 2) {
+                    return 20
+                }
+                r = r + 1
+                return r
+            }
+            Int nestedThen(Int s) {
+                var r = 0
+                if (s == 1) {
+                    if (s != 99) {
+                        r = 5
+                    }
+                    r = r + 2
+                } else if (s == 2) {
+                    throw "x"
+                }
+                return r + 1
+            }
+            Int loopSeq(Int s) {
+                var r = 0
+                while (r < s) {
+                    if (r == 1) {
+                        break
+                    } else if (r == 2) {
+                        throw "y"
+                    }
+                    r = r + 1
+                }
+                return r
+            }
             main() {
                 println(unpackComp3(listOf(1, 35, 77), 4, 2))
                 println(unpackComp3(listOf(4, 35, 77), 4, 2))
                 println(label(11))
                 println(label(5))
                 try { println(label(10)) } catch (String e) { println("caught") }
+                println(chain(1))
+                println(chain(3))
+                try { println(chain(2)) } catch (String e) { println("chain2caught") }
+                println(retChain(1))
+                println(retChain(2))
+                println(retChain(5))
+                println(nestedThen(1))
+                println(nestedThen(5))
+                println(loopSeq(0))
+                println(loopSeq(2))
             }
             """;
 
     private static final String GOLDEN = String.join("\n",
-            "-12.34", "-42.34", "labeltrue", "labelfalse", "caught");
+            "-12.34", "-42.34", "labeltrue", "labelfalse", "caught",
+            "11", "31", "chain2caught",
+            "11", "20", "1", "8", "1", "0", "1");
 
     @Test
     void jvmIsTheContractForJsIfElseIfThrow() throws Exception {

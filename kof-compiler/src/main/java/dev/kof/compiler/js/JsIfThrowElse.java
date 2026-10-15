@@ -70,6 +70,10 @@ public final class JsIfThrowElse {
                 // §701: um label ESTRUTURAL de switch (corpo/default/fim) não é
                 // o fim do else — consumi-lo faz o corpo do default vazar.
                 if (ctx.isSwitchStruct(kl.label())) return out;
+                // §734: o fim (merge) do if ENVOLVENTE não é o fim deste else —
+                // consumi-lo faz o if aninhado roubar o end label e o epílogo
+                // cair dentro do else externo (a função devolve `undefined`).
+                if (ctx.isEnclosingIfEnd(kl.label())) return out;
                 pos[0]++;
                 return out;
             }

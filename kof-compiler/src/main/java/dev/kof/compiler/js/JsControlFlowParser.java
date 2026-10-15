@@ -236,7 +236,8 @@ JsIr.JsStatement parseIfBody(MethodCtx ctx, int[] pos, KofConditionalJump cj,
         ctx.enclosingIfEnds.removeAll(thenExits);
         if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel kl3
                 && ctx.isIfEndLabel(pos, kl3.label())
-                && !ctx.isEnclosingIfFalse(kl3.label())) { // §380
+                && !ctx.isEnclosingIfFalse(kl3.label())   // §380
+                && !ctx.isEnclosingIfEnd(kl3.label())) {  // §734: fim do if envolvente
             // Label(end) — end of else branch (loop labels belong to the loop)
             pos[0]++;
         }
