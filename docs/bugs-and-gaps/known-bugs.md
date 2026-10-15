@@ -19474,6 +19474,8 @@ O receptor empilhado é `aload_0` — a PRÓPRIA lambda — em vez da instância
 
 **Boundary:** o receptor implícito dentro de lambda. Chaves explícitas (`this.x`) e capturas de variáveis locais continuam corretas (medido no mesmo probe).
 
+**RE-MEASURED 15/10 pela lane compiler/JVM/native `192.168.15.30:9092` (os QUATRO alvos):** o `VerifyError` do JVM é só UMA das faces — `class Contador { Int somar(Int n) { return n + 1 }  (Int) -> Int implicito() { return (n: Int) -> somar(n) } }` + `c.implicito()(5)` diverge em toda parte: **JVM** `VerifyError: Bad type on operand stack` (a face registrada); **Script** imprime `Lambda0.somar` (um valor ERRADO, silencioso); **JS** lança em runtime (`return this.somar(n)` — `this` é a lambda); **native x86 dá SIGSEGV (rc=139)**. O caminho explícito `this.somar(n)` devolve `6` correto nos quatro, confirmando o diagnóstico do capture-scanner (a chamada nua não menciona `this`, então o `this` externo nunca é capturado).
+
 <!-- pt-switch --> **PT:** [§735 (pt_BR)](known-bugs.pt_BR.md#735--bug-846-uma-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---aberto-medido-1510-pela-lane-issuestooling-192168100219093-acao-de-codigo-da-lane-compilerfrontend)
 
 ## §736 — [BUG #845] um `T?` ESTREITADO (`if (i != null)` → `Int j = i`) chega ao `istore` ainda BOXED: o valor na pilha é `java/lang/Integer` e o JVM recusa a classe (`VerifyError`) — 🟡 OPEN (medido 15/10 pela lane issues/tooling `192.168.100.21:9093`; ação de código da lane compiler/frontend, família §609/§610)
@@ -19494,5 +19496,7 @@ O estreitamento faz o TYPER dizer `Int` (e o `check` concorda), mas o EMIT não 
 **Onde o fix mora:** na fronteira do estreitamento `T?` → `T` usado como PRIMITIVO, o valor precisa passar por `intValue()`/`longValue()`/… antes do store — a mesma família do §609/§610 (`emitErasureUnboxSoft` + o unbox no boundary), que já cobre o caminho de ARGUMENTO; aqui o buraco é o caminho de **atribuição/local**. Vale cobrir `Long?`/`Float?`/`Double?`/`Bool?` com o unbox correspondente.
 
 **Boundary:** o caso medido é `Map.get` (erasure por genérico). Não afirmei outros produtores de `T?` (getter de record, campo nullable) — não medidos aqui.
+
+**RE-MEASURED 15/10 pela lane compiler/JVM/native `192.168.15.30:9092` (um SEGUNDO produtor, e uma face NATIVA):** o getter de CAMPO DE RECORD NULÁVEL também reproduz — `record Box(Int? v)` + `var x = Box(5).v` + `if (x != null) { Int k = x }` → **JVM** `VerifyError` E, pior, **o native x86 imprime LIXO (`field=-1308622688` em vez de `5`)** — um valor ERRADO SILENCIOSO (regra 5), enquanto o JS imprime `5` corretamente. Então o produtor de erasure (`Map.get`) NÃO é o único (o getter de record era marcado 'não medido' acima — agora medido). `listOf(Int).get(0)` NÃO é produtor de `T?` (é um `Int`, sem estreitamento) e está ok.
 
 <!-- pt-switch --> **PT:** [§736 (pt_BR)](known-bugs.pt_BR.md#736--bug-845-um-t-estreitado-if-i--null--int-j--i-chega-ao-istore-ainda-boxed-o-valor-na-pilha-e-javalanginteger-e-o-jvm-recusa-a-classe-verifyerror---aberto-medido-1510-pela-lane-issuestooling-192168100219093-acao-de-codigo-da-lane-compilerfrontend-familia-609610)
