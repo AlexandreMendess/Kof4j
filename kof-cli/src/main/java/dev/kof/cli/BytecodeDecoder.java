@@ -560,13 +560,25 @@ import java.util.Set;
      */
     static TestSplit testSplit(java.util.List<BytecodeReader.Insn> blk, BytecodeFrame frame,
                                String[] cp, int arity, String inv) {
+        return testSplit(blk, frame, cp, arity, inv, false);
+    }
+
+    /**
+     * Fase E (15/10): o overload com allowLoad — o pre terminando em LOAD
+     * (o aload: o RECEIVER da call do join andando na pilha). O caller TEM
+     * que validar o shape callarg (o join = [call 1-arg, pop]) ANTES de
+     * usar — sem o consumo o receiver se perde = código errado (R6).
+     */
+    static TestSplit testSplit(java.util.List<BytecodeReader.Insn> blk, BytecodeFrame frame,
+                               String[] cp, int arity, String inv, boolean allowLoad) {
         int max = Math.min(blk.size() - 1, 24);
         for (int len = arity; len <= max; len++) {
             java.util.List<BytecodeReader.Insn> pre = blk.subList(0, blk.size() - 1 - len);
             java.util.List<BytecodeReader.Insn> suf = blk.subList(blk.size() - 1 - len, blk.size() - 1);
             if (!pre.isEmpty()) {
                 int lo = pre.get(pre.size() - 1).opcode();
-                boolean stmtEnd = (lo >= 0x36 && lo <= 0x4e) || lo == 0x57;
+                boolean stmtEnd = (lo >= 0x36 && lo <= 0x4e) || lo == 0x57
+                        || (allowLoad && (lo == 0x19 || (lo >= 0x2a && lo <= 0x2d)));
                 if (!stmtEnd) continue;
             }
             java.util.Deque<String> st = new java.util.ArrayDeque<>();
