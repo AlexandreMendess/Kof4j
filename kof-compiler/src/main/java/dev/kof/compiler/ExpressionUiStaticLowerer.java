@@ -254,6 +254,13 @@ if (mc.receiver() == null && "Grid".equals(mc.methodName()) && mc.arguments().si
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && "Spacer".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_spacer_new", List.of(Type.PrimitiveType.INT),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && "Spacer".equals(mc.methodName()) && mc.arguments().size() == 1) {
     localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
     ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
