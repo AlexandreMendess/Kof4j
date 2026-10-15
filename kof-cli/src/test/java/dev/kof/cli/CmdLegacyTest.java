@@ -38,7 +38,8 @@ class CmdLegacyTest {
     @Test
     void refusesUnsupportedClausesByName(@TempDir Path tmp) throws Exception {
         Path cpy = tmp.resolve("BAD.cpy");
-        Files.writeString(cpy, "       05  Q  PIC 9(3) OCCURS 3 TIMES.\n", StandardCharsets.UTF_8);
+        // OCCURS is SUPPORTED since slice 5 — REDEFINES is the honest refusal.
+        Files.writeString(cpy, "       05  A PIC X(4).\n       05  B REDEFINES A PIC 9(4).\n", StandardCharsets.UTF_8);
         ByteArrayOutputStream outB = new ByteArrayOutputStream();
         ByteArrayOutputStream errB = new ByteArrayOutputStream();
         int rc = CmdLegacy.run(new String[]{"legacy", cpy.toString()},

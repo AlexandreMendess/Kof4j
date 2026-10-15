@@ -230,3 +230,130 @@ String renderLayout(Layout l, String varName) {
     }
     return out + "))"
 }
+
+
+// ------------------------------------------------------------------
+// Fatia 5b — the 88-LEVEL condition names (plan §20 slice 5). `parseCopybook`
+// keeps refusing 88 (a silent drop is never an option); `parseCopybookFull`
+// parses them into named value constants the application can compare against
+// the parent field's decoded value. MVP: ONE literal per condition — multiple
+// values / THRU ranges are refused LEG014, malformed lines LEG015.
+
+record Condition(String name, String value)
+
+record Copybook(Layout layout, List<Condition> conditions)
+
+Copybook parseCopybookFull(String text) {
+    var fields: List<Field> = listOf()
+    var conds: List<Condition> = listOf()
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        var raw = lines[i]
+        var comment = raw.length > 6 && raw.charAt(6) == '*'
+        var line = raw.trim()
+        if (!comment && line.length > 0) {
+            var parts = line.split(" ")
+            var tok: List<String> = listOf()
+            var j = 0
+            while (j < parts.length) {
+                if (parts[j].length > 0) {
+                    tok.add(parts[j])
+                }
+                j = j + 1
+            }
+            if (tok.size >= 2) {
+                var level = tok.get(0)
+                if (!allDigits(level) || level.length > 2) {
+                    throw "malformed level: " + level + " (LEG015)"
+                }
+                var lv = level.toInt()
+                if (lv == 88) {
+                    if (tok.size < 4 || tok.get(2) != "VALUE") {
+                        throw "malformed 88 condition: " + tok.get(1) + " (LEG015)"
+                    }
+                    if (tok.size > 4) {
+                        throw "clause not supported yet: multiple 88 values / THRU (LEG014)"
+                    }
+                    var lit = tok.get(3)
+                    while (lit.length > 0 && lit.charAt(lit.length - 1) == '.') {
+                        lit = lit.substring(0, lit.length - 1)
+                    }
+                    if (lit.length < 2 || lit.charAt(0) != '\'' || lit.charAt(lit.length - 1) != '\'') {
+                        throw "malformed 88 literal: " + tok.get(3) + " (LEG015)"
+                    }
+                    conds.add(Condition(tok.get(1), lit.substring(1, lit.length - 1)))
+                } else if (lv >= 1 && lv <= 49) {
+                    var name = tok.get(1)
+                    var pic = ""
+                    var k = 2
+                    var hasPic = false
+                    var occurs = 0
+                    while (k < tok.size) {
+                        var t = tok.get(k)
+                        if (t == "PIC" || t == "PICTURE") {
+                            hasPic = true
+                            if (k + 1 >= tok.size) {
+                                throw "PIC without a clause on " + name + " (LEG015)"
+                            }
+                            pic = tok.get(k + 1)
+                            k = k + 1
+                        } else if (t == "OCCURS") {
+                            if (k + 1 >= tok.size) {
+                                throw "OCCURS without a count on " + name + " (LEG015)"
+                            }
+                            var cnt = tok.get(k + 1)
+                            if (!allDigits(cnt)) {
+                                throw "malformed OCCURS count on " + name + " (LEG015)"
+                            }
+                            occurs = cnt.toInt()
+                            if (occurs < 1) {
+                                throw "OCCURS count must be >= 1 on " + name + " (LEG015)"
+                            }
+                            if (k + 2 < tok.size && tok.get(k + 2) == "TIMES") {
+                                k = k + 1
+                            }
+                            k = k + 1
+                        } else if (t == "REDEFINES" || t == "COMP"
+                                || t == "COMP-3" || t == "COMP-1" || t == "COMP-2"
+                                || t == "COMP-4" || t == "USAGE" || t == "VALUE"
+                                || t == "BINARY" || t == "PACKED-DECIMAL" || t == "DISPLAY") {
+                            throw "clause not supported yet: " + t + " (LEG014)"
+                        }
+                        k = k + 1
+                    }
+                    if (hasPic) {
+                        if (occurs == 0) {
+                            fields.add(picField(name, pic))
+                        } else {
+                            var n = 1
+                            while (n <= occurs) {
+                                fields.add(picField(name + "(" + n + ")", pic))
+                                n = n + 1
+                            }
+                        }
+                    } else if (occurs > 0) {
+                        throw "clause not supported yet: OCCURS on a group item (LEG014)"
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return Copybook(Layout(fields), conds)
+}
+
+// renderConditions — the generated named constants (one `var` per 88).
+String renderConditions(List<Condition> cs) {
+    var out = ""
+    var i = 0
+    while (i < cs.size) {
+        var c = cs.get(i)
+        out = out + "var " + c.name + " = \"" + c.value + "\""
+        i = i + 1
+        if (i < cs.size) {
+            out = out + "\n"
+        }
+    }
+    return out
+}
