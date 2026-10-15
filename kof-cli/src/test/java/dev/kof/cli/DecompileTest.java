@@ -2850,6 +2850,89 @@ class DecompileTest {
                 "zero-drift: withTax/loyalty/receipt/freeShip id\u00eanticos ao Java");
     }
 
+    @Test
+    void ternaryArmsSeeOuterLocalsRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): os BRA\u00c7OS do tern\u00e1rio avaliam com o mapa de
+        // locals do run EXTERNO (o overload machineRun(.., seed)) — sem o
+        // seed o `g` do astore_1 virava o `v1` FANTASMA no bra\u00e7o else
+        // (`"pass: " + v1` = SEM011; o bra\u00e7o standalone n\u00e3o v\u00ea o
+        // binding do pr\u00f3logo). Medido no verdict: `return g.equals("F") ?
+        // "fail" : "pass: " + g` → `(if (Grade.letter(arg0) == "F") "fail"
+        // else "pass: " + Grade.letter(arg0))` — o local PURE + usado 3x
+        // inline (o store eliminado por inlining \u00e9 equivalente). A classe
+        // grade completa: a cadeia else-if 4 n\u00edveis (letter), o guard
+        // vazio + for-each + cast/div (average — o 0-length early return), o
+        // tern\u00e1rio com o local externo (verdict) e o max-loop indexado
+        // (best). Zero-drift executado: A/B/C/D/F/8.5/0.0/fail/pass: B/10 —
+        // 10/10 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Grade.java");
+        Files.writeString(javaFile, """
+                public class Grade {
+                    static String letter(int score) {
+                        if (score >= 90) { return "A"; }
+                        if (score >= 80) { return "B"; }
+                        if (score >= 70) { return "C"; }
+                        if (score >= 60) { return "D"; }
+                        return "F";
+                    }
+                    static double average(int[] scores) {
+                        if (scores.length == 0) { return 0.0; }
+                        int sum = 0;
+                        for (int s : scores) { sum += s; }
+                        return (double) sum / scores.length;
+                    }
+                    static String verdict(int score) {
+                        String g = letter(score);
+                        return g.equals("F") ? "fail" : "pass: " + g;
+                    }
+                    static int best(int[] scores) {
+                        int b = scores[0];
+                        for (int i = 1; i < scores.length; i++) {
+                            if (scores[i] > b) { b = scores[i]; }
+                        }
+                        return b;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Grade.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertFalse(kof.contains("+ v1"), "o fantasma v1:\n" + kof);
+        assertTrue(kof.contains("\"pass: \" + Grade.letter(arg0)"), "o else-arm com o local externo:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Grade.letter(95))
+                    println(Grade.letter(85))
+                    println(Grade.letter(72))
+                    println(Grade.letter(60))
+                    println(Grade.letter(10))
+                    var xs = new Int[4]
+                    xs[0] = 8
+                    xs[1] = 7
+                    xs[2] = 9
+                    xs[3] = 10
+                    println(Grade.average(xs))
+                    println(Grade.average(new Int[0]))
+                    println(Grade.verdict(55))
+                    println(Grade.verdict(88))
+                    println(Grade.best(xs))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: A | B | C | D | F | 8.5 | 0.0 | fail | pass: B | 10
+        assertEquals("A\nB\nC\nD\nF\n8.5\n0.0\nfail\npass: B\n10", output,
+                "zero-drift: letter/average/verdict/best id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

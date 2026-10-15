@@ -107,10 +107,19 @@ import java.util.Set;
 
     static MachineRun machineRun(List<BytecodeReader.Insn> insns, String[] cp,
                                        BytecodeFrame frame) {
+        return machineRun(insns, cp, frame, null);
+    }
+
+    static MachineRun machineRun(List<BytecodeReader.Insn> insns, String[] cp,
+                                       BytecodeFrame frame, java.util.Map<Integer, String[]> seed) {
         // Fase E (14/10): memória de LOCAIS da fatia (o binding do
         // `instanceof String s` compila p/ checkcast+astore+aload); só
         // referências (o tipo "L" basta p/ os usos no braço).
-        java.util.Map<Integer, String[]> locals = new java.util.HashMap<>();
+        // Fase E (15/10): o SEED — os braços do ternário avaliam com o mapa
+        // do run EXTERNO (medido no verdict: o `g` do astore_1 virava o
+        // `v1` fantasma no braço else = SEM011).
+        java.util.Map<Integer, String[]> locals = seed != null
+                ? new java.util.HashMap<>(seed) : new java.util.HashMap<>();
         BytecodeTypes.TStack stack = new BytecodeTypes.TStack();
         // Fase E (14/10): o TERNÁRIO-EM-ARGUMENTO — branches no MEIO de uma
         // expressão linear (`money`: `.. < 10 ? "0" : ""` alimentando o
@@ -340,9 +349,9 @@ import java.util.Set;
                     for (BytecodeReader.Insn g : insns)
                         if (g.offset() >= t && g.offset() < join) elseSeq.add(g);
                     if (thenSeq.isEmpty() || elseSeq.isEmpty()) return null;
-                    MachineRun ra = machineRun(thenSeq, cp, frame);
+                    MachineRun ra = machineRun(thenSeq, cp, frame, locals);
                     if (ra == null || ra.stopped || ra.stack.size() != 1) return null;
-                    MachineRun rb = machineRun(elseSeq, cp, frame);
+                    MachineRun rb = machineRun(elseSeq, cp, frame, locals);
                     if (rb == null || rb.stopped || rb.stack.size() != 1) return null;
                     int arity = (op >= 0x9f && op <= 0xa4) ? 2 : 1;
                     if (stack.size() < arity) return null;
