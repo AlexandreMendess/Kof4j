@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd SEXTA PASSAGEM: o limiar foi achado e move o suspeito para a PARTIÇÃO. Xadrez 32x32 (4 blocos) e 16x16 (37 blocos) decodificam EXATO; só o 8x8 falha — e reporta `blocks=1` onde o encoder PRECISA ter dividido (64 tiles 8x8). Então é um erro de PARTIÇÃO: o walk para em 1 bloco e os coeficientes saem all-zero. Isso SUBSTITUI a hipótese de conteúdo (o caminho de coeficientes está correto pelo 16x16). Próximo: dumpar os primeiros símbolos de partição do 8x8 vs a divisão do encoder. Exatos até agora: sólido, cinza-escuro, 2-tons, diagonal, xadrez 32, xadrez 16.
+last: 15/10 — AVIF slice 3bd OITAVA PASSAGEM: RETRATEI a conclusão de partiÇão da sexta passagem. `blocks=1` no xadrez-8 está CORRETO: a aritmética do payload exclui a divisão (testsrc 21 blocos = 293 B de tile; checker-16 37 blocos = 111 B; o ITEM inteiro do checker-8 = 36 B — pequeno demais para 64 blocos). Um xadrez perfeito é UMA frequência espacial -> libaom usa 1 bloco 64x64 com poucos coeficientes de alta frequência. Então a falha é o DECODE DE COEFICIENTES: o diagonal (1 bloco, EOB moderado) bate exato, o checker-8 (1 bloco, EOB GRANDE) lê all-zero. Discriminador: magnitude do EOB (`eob_pt`/`eob_extra`/walk de coeficientes).
 doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
-next: §3bd — dumpar os primeiros SÍMBOLOS DE PARTIÇÃO do xadrez 8x8 (que lê 1 bloco onde o encoder dividiu) e comparar com a divisão esperada; o suspeito agora é o decode do símbolo de partição (contexto above/left na origem)
+next: §3bd — dumpar `all_zero` + `eob_pt` + o valor do EOB no sólido (nz=1, exato) vs checker-8 (lê 0); o suspeito agora é o decode de coeficientes de EOB grande
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (35ª) — 3bd oitava passagem: retratei a partição; a falha é o DECODE DE COEFICIENTES (EOB grande)
+- **A retratação:** na sexta passagem concluí "a partição está errada" porque o xadrez-8 lê 1 bloco. A aritmética do PAYLOAD mostrou que 1 bloco está CORRETO.
+- **A aritmética (a prova):** testsrc 21 blocos = 293 B de tile; checker-16 37 blocos = 111 B; o ITEM INTEIRO do checker-8 = 36 B. Não cabem 64 blocos ali. Um xadrez perfeito é UMA frequência espacial -> 1 bloco 64x64 com poucos coeficientes de alta frequência.
+- **A conclusão correta:** a falha é o DECODE DE COEFICIENTES daquele bloco. O diagonal (1 bloco, TX_64X64, EOB moderado) bate EXATO; o checker-8 (1 bloco, TX_64X64, EOB grande) lê all-zero — mas o stream tem os coeficientes (36 bytes!).
+- **O discriminador:** a magnitude do EOB (`eob_pt`/`eob_extra`/walk de coeficientes além de um limiar).
+- **Seis exatos:** sólido, cinza-escuro, 2-tons, diagonal, checker-32, checker-16.
+- **Próximo:** dumpar `all_zero` + `eob_pt` + o EOB para o sólido (nz=1, exato) vs checker-8 (lê 0).
+- **Lições:** (1) a aritmética de BYTES é um oráculo barato e decisivo — excluiu "64 blocos" sem precisar de um decodificador de referência; (2) QUATRO hipóteses minhas caíram nesta série; o padrão que funcionou foi sempre achar um invariante mensurável (tamanho de payload, contagem de blocos, nz) que separe o que passa do que falha.
 
 ## Sessão 15/10 (34ª) — 3bd sexta passagem: o limiar está entre xadrez 16 (bate) e 8 (falha) — e o 8 lê 1 BLOCO
 - **A família monotônica:** xadrez 32x32 (4 blocos) e 16x16 (37 blocos) decodificam EXATO. Só o 8x8 falha.
