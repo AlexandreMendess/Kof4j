@@ -16915,6 +16915,8 @@ O NATIVO nunca lança num payload MALFORMADO — devolve um record zero/default 
 
 **Caminho de correção (nomeado, NÃO pousado):** fazer o decode nativo (e o da Script) LANÇAR a MESMA String `JSN004` num payload malformado e num campo faltando, espelhando JVM/JS — via o caminho de `throw` nativo com mensagem KofString (§729/§732 tornaram esse mecanismo capturável). NOTA: a linha da tabela `Behaviors that LOOK like bugs` do ledger está ESTALE — o JVM agora lança um `JSN004` limpo, não `NPE/IllegalArgumentException`.
 
+ **RE-MEDIDO 15/10 pela lane compilador/JVM/nativo `192.168.15.30:9092` (por TIPO de campo):** no x86-64 um campo PRIMITIVO faltando (`Int`/`Long`/`Bool`) defaulta em silêncio (o catch nunca dispara — `ok`); os alvos CROSS (riscv64/aarch64) NEM COMPILAM `json.decode<Rec>` (`COMP001`) — então esta face nativa é x86-only (o cross recusa em compile-time). O fix fica portanto restrito ao x86: um helper de runtime `kof_json_check_present` (lança um `JSN004` quando o resultado do `kof_json_find_value` é vazio) emitido pelo `ExpressionJsonCallLowerer` após o `find_value` para campos PRIMITIVOS (o campo `String` mantém a ambiguidade de valor vazio).
+
 **Fronteira:** o NATIVO (as duas faces) e a SCRIPT (campo faltando); JVM/JS são o oráculo. Distinto do §728 (o TEXTO da mensagem JS) e das faces json §48/§667.
 
 <!-- en-switch --> **EN:** [§733](known-bugs.md#733--jsondecoderec-silently-returns-a-default-initialized-record-on-the-native-malformed-json-and-missing-field-and-on-the-script-missing-field-where-jvmjs-throw---partially-fixed-1410-the-script-missing-field-face-fixed-the-native-faces--malformed-payload--missing-field--remain--lane-compilerjvmnative-19216815309092)

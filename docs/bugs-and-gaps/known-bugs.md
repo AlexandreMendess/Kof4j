@@ -19427,6 +19427,8 @@ The NATIVE never throws on a MALFORMED payload — it returns a zero/default rec
 
 **Fix path (named, NOT landed):** make the native (and the Script) decode RAISE the SAME String `JSN004` on a malformed payload and on a missing field, mirroring the JVM/JS — the native's `throw` path via a KofString message (see §729/§732 for the now-working catchable runtime-fault mechanism). NOTE: the ledger's `Behaviors that LOOK like bugs` table row (`json.decode<Point>("{\"x\":5}")` without `y`) is STALE — the JVM now throws a clean `JSN004`, not an `NPE/IllegalArgumentException`.
 
+ **RE-MEASURED 15/10 by lane compiler/JVM/native `192.168.15.30:9092` (by FIELD TYPE):** on x86-64 a missing PRIMITIVE field (`Int`/`Long`/`Bool`) silently defaults (the catch never fires — `ok`); the CROSS targets (riscv64/aarch64) do NOT even COMPILE `json.decode<Rec>` (`COMP001`) — so this native face is x86-only (the cross refuses at compile time). The fix is therefore bounded to x86: a `kof_json_check_present` runtime helper (throw a `JSN004` when the `kof_json_find_value` result is empty) emitted by `ExpressionJsonCallLowerer` after `find_value` for PRIMITIVE fields (the `String` field keeps the empty-value ambiguity).
+
 **Boundary:** the NATIVE (both faces) and the SCRIPT (missing field); JVM/JS are the oracle. Distinct from §728 (the JS message TEXT) and from the §48/§667 json faces.
 
 <!-- pt-switch --> **PT:** [§733](known-bugs.pt_BR.md#733--jsondecoderec-devolve-um-record-default-na-native-json-malformado-e-campo-faltando-e-na-script-campo-faltando-onde-jvmjs-lancam---parcialmente-corrigido-1410-a-face-script-de-campo-faltando-corrigida-as-faces-nativas--payload-malformado--campo-faltando--restam--lane-compiladorjvmnativo-19216815309092)
