@@ -208,6 +208,9 @@ final class NativeArchEmitter {
         Files.createDirectories(asmFile.getParent());
         if (nb.debugInfo) nb.kofDwarf.emit(sb, nb.sourceFile);
         String prunedRiscv = pruneRiscvRuntime(sb, rtStart, rtEnd, "riscv64");
+        // §7 RISC-V "lower-cost instruction selection": collapse the stack machine's
+        // push+pop triples (addi sp,sp,-8 / sd X,0(sp) / pop Y == mv Y, X).
+        prunedRiscv = applyRiscvPeephole(prunedRiscv);
         Files.writeString(asmFile, prunedRiscv);
         System.err.println("NativeBackend: generated riscv64 " + asmFile);
 
@@ -422,6 +425,7 @@ final class NativeArchEmitter {
         // traduz linha-a-linha (runtime já podado — a poda no riscv vale p/ os 2)
         if (nb.debugInfo) nb.kofDwarf.emit(riscvSb, nb.sourceFile);
         String prunedRiscv = pruneRiscvRuntime(riscvSb, rtStart, rtEnd, "aarch64");
+        prunedRiscv = applyRiscvPeephole(prunedRiscv);
         List<String> a64Lines = new ArrayList<>();
         for (String line : prunedRiscv.split("\n", -1)) {
             a64Lines.addAll(NativeAarch64Translator.translateRiscvToAarch64(line));
@@ -480,6 +484,13 @@ final class NativeArchEmitter {
      *  pré-S-4, zero regressão). Mapa falho → runtime COMPLETO + stderr
      *  (R6: nunca link quebrado silencioso). aarch64: o chamador poda o
      *  riscvSb ANTES do tradutor — aarch herda a poda linha-a-linha. */
+    /** Applies the riscv text peephole; identity when nothing folds. */
+    private static String applyRiscvPeephole(String asm) {
+        List<String> lines = new ArrayList<>(java.util.Arrays.asList(asm.split("\n", -1)));
+        if (NativeRiscvPeephole.collapsePushPopPairs(lines) == 0) return asm;
+        return String.join("\n", lines);
+    }
+
     static String pruneRiscvRuntime(StringBuilder sb, int rtStart, int rtEnd, String arch) {
         String all = sb.toString();
         try {
