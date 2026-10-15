@@ -262,10 +262,10 @@ public final class KofInterpreterRuntime {
         if (parsed instanceof java.util.Map<?, ?> m) {
             for (IRField f : c.fields()) {
                 if (java.lang.reflect.Modifier.isStatic(f.accessFlags())) continue;
-                // §733: um campo AUSENTE e' erro (o JVM/JS lancam `JSN004:
-                // missing field '..' for ..`); antes vinha null -> default 0
-                // SILENCIOSO. `containsKey` distingue ausente de JSON null.
-                if (!m.containsKey(f.name())) {
+                // §733+§565: só campo PRIMITIVO ausente é erro (JSN004); um
+                // componente de REFERENCIA ausente (String/record/List/Map)
+                // fica NULL. `containsKey` distingue ausente de JSON null.
+                if (!m.containsKey(f.name()) && f.type() instanceof Type.PrimitiveType) {
                     String nm = c.name();
                     int sl = nm.lastIndexOf('/');
                     throw KofInterpreterFrame.asThrowable(

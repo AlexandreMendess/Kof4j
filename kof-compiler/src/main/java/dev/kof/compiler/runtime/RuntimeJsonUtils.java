@@ -284,16 +284,11 @@ public final class RuntimeJsonUtils {
                 call .Ljf_mkstr
                 jmp .Jfv_exit
             .Jfv_empty:
-                movl $25, %edi
-                call kof_alloc
-                movq %rax, %rcx
-                movl $1, 0(%rcx)
-                movl $0, 4(%rcx)
-                movq $0, 8(%rcx)
-                movl $0, 16(%rcx)
-                movl $0, 20(%rcx)
-                movb $0, 24(%rcx)
-                movq %rcx, %rax
+                # §733 (face STRING): a AUSENCIA devolve NULL, distinto de um
+                # valor de string VAZIO mas LEGITIMO (KofString de len 0). Um
+                # componente de REFERENCIA ausente fica NULL (contrato §565);
+                # um PRIMITIVO ausente e' pego por kof_json_require.
+                xorq %rax, %rax
             .Jfv_exit:
                 popq %r15
                 popq %r14
@@ -429,6 +424,10 @@ public final class RuntimeJsonUtils {
             .globl kof_json_require
             .type kof_json_require, @function
             kof_json_require:
+                # §733: NULL = ausencia; uma KofString VAZIA (len 0) tambem
+                # conta como ausencia p/ um PRIMITIVO ("" nao e' numero/bool).
+                testq %rdi, %rdi
+                jz   .Ljr_miss
                 movl 16(%rdi), %eax
                 testl %eax, %eax
                 jz   .Ljr_miss
