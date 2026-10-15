@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §738 (CATALOGUED)
 last: §731 (FIXED/RETRACTED)
 last: §718
 doing: close-open-rows
@@ -19481,7 +19482,7 @@ O receptor empilhado é `aload_0` — a PRÓPRIA lambda — em vez da instância
 
 
 **Fix (15/10, lane issues/tooling `192.168.100.21:9093` — DOIS sítios, medidos):** (a) `CompilerCaptures` passa a tratar a chamada nua de um método de INSTÂNCIA da classe envolvente como uso do `this` EXTERNO, resolvida pela **CLASSE + aridade** (`semanticAnalyzer.getClass` + `members().resolve`) — o lookup por nome simples não bastava (os dois attempts revertidos pararam aqui e o instrumentado mostrava `captures=[]`; agora o membro resolve e o `this` externo entra nas capturas); (b) **`ExpressionBareCallLowerer` carregava SEMPRE o slot 0 FIXO como receptor** (`new KofLoadLocal(ownerType, 0)`) — É AQUI que morava o `aload_0` da issue, e não em `ExpressionMethodCallLowerer:107`; agora resolve pelo NOME (`findLocalVar("this", locals)`), que varre de trás para frente e por isso encontra a captura re-hospedada depois de `locals[0]`. **Prova RED-first (executada):** `LambdaImplicitReceiverE2ETest` **2/2** — oráculo da JVM (`6`) asserted byte-idêntico em **Script** e **JS**, mais o controle explícito; antes do fix: JVM rc=1 (`VerifyError`) e Script rc=1. Não-regressão: `LambdaE2ETest` 38/38, `LambdaBranchUnificationE2ETest` 3/3, `CapturedFunctionTypeE2ETest` 2/2, `LambdaInGenericContainerE2ETest` 5/5; golden 328 passed (as 12 falhas da suíte são da família cobol, outra lane). **FACE NATIVA SEPARADA (§876, aberta):** no native x86-64 o controle EXPLÍCITO `this.somar(n)` TAMBÉM dá SIGSEGV (rc=139) e uma lambda SEM captura roda (`6/6`) — o crash é de "lambda que CAPTURA" no backend nativo, NÃO deste sítio; a face nativa não é travada no teste desta issue de propósito.
-<!-- pt-switch --> **PT:** [§735 (pt_BR)](known-bugs.pt_BR.md#735--bug-846-uma-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---aberto-medido-1510-pela-lane-issuestooling-192168100219093-acao-de-codigo-da-lane-compilerfrontend)
+<!-- pt-switch --> **PT:** [§735 (pt_BR)](known-bugs.pt_BR.md#735--bug-846-uma-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---corrigido-1510-lane-issuestooling-192168100219093)
 
 ## §736 — [BUG #845] um `T?` ESTREITADO (`if (i != null)` → `Int j = i`) chega ao `istore` ainda BOXED: o valor na pilha é `java/lang/Integer` e o JVM recusa a classe (`VerifyError`) — ✅ FIXED 15/10 (medido 15/10 pela lane issues/tooling `192.168.100.21:9093`; ação de código da lane compiler/frontend, família §609/§610)
 
@@ -19520,3 +19521,26 @@ O estreitamento faz o TYPER dizer `Int` (e o `check` concorda), mas o EMIT não 
 **SIBLING FACE FIXED 15/10 (same family, lane compiler/JVM/native `192.168.15.30:9092`):** the same audit found the `SEM025` hints for **`Map` and `Set` were ALSO incomplete** — both listed `size` but OMITTED `length` and `count`, while the member-call typer accepts the size-like triple `size`/`length`/`count` for BOTH, measured working (`s.length`=2, `s.count()`=2, `m.length`=1, `m.count()`=1; note the bare `s.count`/`m.count` PROPERTY is `SEM102` — `size` is the only property; the METHOD `count()` is the real form). Fix: added `length`/`count` to BOTH the Map and Set hint literals (two string edits, zero behavior change). Proof RED-first: new `MapSetValidMethodsDiagnosticE2ETest` (a positive control + a hint assertion per type); the reverted-source run FAILS on the Set hint's `length`. With them, the three `SEM025` valid-lists (List §737, Map, Set) now match the typer's accepted sets.
 
 **THIRD FACE FIXED 15/10 (same family, lane compiler/JVM/native `192.168.15.30:9092`): the `SEM025` hint for `String` OMITTED `getBytes` —** a real String method the guard itself accepts (measured `"abc".getBytes().size` = 3) but the hardcoded hint did not list. COUNTER-CHECK (do NOT add): `isBlank`/`strip` are **REJECTED** (`SEM025`) — the file's own comment claimed they were 'classpath-legal'; the comment was STALE and is corrected here (only `getBytes` is added to the hint). Also synced the THREE defensive `SEM025` valid-lists in `CollectionCallLowerer` (List/Map/Set) — UNREACHABLE duplicates the typer pre-empts, but stale copies of the pre-§737 text (a latent hazard) — to the fixed `MemberCallTyper` text. Proof RED-first: new `StringValidMethodsDiagnosticE2ETest` (positive control `getBytes` + the hint assertion, incl. the NEGATIVE that `isBlank`/`strip` must NOT appear); the pre-fix hint (captured verbatim earlier this cycle) lacked `getBytes`. With this, ALL the `SEM025` valid-lists (typer List/Map/Set + String + the 3 lowerer duplicates) are consistent with the typer's accepted sets.
+
+## §738 — String empty-pattern divergence on NATIVE x86 and JS
+
+**Status:** 🟡 OPEN (CATALOGUED 15/10) — the fix needs a §730-style JS runtime helper + per-char split/insert-at-every-position in the x86 runtime asm (NATIVE); no fix landed.
+
+**CATALOGUED (measured) 15/10 — lane compiler/JVM/native `192.168.15.30:9092`.** A probe of the `String` search/replace/split family (previously UNPROBED as a group) found the EMPTY-pattern boundary diverging SILENTLY — the code runs and prints a plausible WRONG value (rule 5). Probe source `S = "aXbXc"`, measured on the `lab` jar on all four targets:
+
+```
+S.replace("X","-")     JVM/Script/JS/native = [a-b-c]        (agree)
+S.replace("","-")      JVM/Script = [-a-X-b-X-c-]            JS = [-a-X-b-X-c]   NATIVE = [aXbXc]
+"abc".split("")        JVM/Script/JS = 3 elements            NATIVE = 1 element
+```
+
+**Root causes (read in the emitter, not guessed):**
+- **JS** — `JsCallEmitter` lowers `replace` to `receiver.split(from).join(to)`, a CORRECT emulation of the JVM's replace-all for a NON-empty needle; for an EMPTY needle JS `split("")` yields no leading/trailing element, so the boundary separators are lost (the trailing `-` in the probe).
+- **NATIVE x86** — `NativeX86StringCalls` detects the empty separator (`testl %ecx,%ecx; jz empty`) and passes `sep_char = 0` (NUL) to `kof_string_split` (`RuntimeStringEdit`); a NUL is never present in the text, so the split is the whole string. `replace("",x)` rides the same path.
+
+**Boundary (do NOT re-decide here):** `"ß".toUpperCase()` was measured too — JVM/Script/JS = `SS`, NATIVE x86 = `ß` (simple per-code-unit mapping, i.e. the `NAT-STR01` / `D-STR-UNICODE` DECIDED area, whose golden covers other cases). Flagged for the `D-STR-UNICODE` owner; NOT changed here.
+
+**Why CATALOGUED and not fixed this cycle:** the JS face needs a runtime helper (the §730 `kofStr*` slice shape); the NATIVE face needs per-char split + insert-at-every-position in the x86 runtime asm (`RuntimeStringEdit`) — neither is a one-liner. No stub, no test asserts the wrong value, no weakened assertion.
+
+**Reproducer:** `tests/golden/`-style `Main.kf` with the three lines above; `java -jar kof-cli/target/kof-cli-*.jar run --target script Main.kf` (oracle) vs `build --target js` / `--target native`.
+<!-- pt-switch --> **PT:** [§738 (pt_BR)](known-bugs.pt_BR.md#738--divergencia-de-padrao-vazio-em-string-no-native-x86-e-js)

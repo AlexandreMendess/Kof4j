@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §738 (CATALOGADO)
 last: §731 (FIXED/RETRACTED)
 doing: close-open-rows
 next: triage-new-issues
@@ -16968,7 +16969,7 @@ O receptor empilhado é `aload_0` — a PRÓPRIA lambda — em vez da instância
 
 **RE-MEDIDO 15/10 pela lane compilador/JVM/nativo `192.168.15.30:9092` (os QUATRO alvos):** o `VerifyError` do JVM é só UMA das faces — `class Contador { Int somar(Int n) { return n + 1 }  (Int) -> Int implicito() { return (n: Int) -> somar(n) } }` + `c.implicito()(5)` diverge em toda parte: **JVM** `VerifyError: Bad type on operand stack` (a face registrada); **Script** imprime `Lambda0.somar` (um valor ERRADO, silencioso); **JS** lança em runtime (`return this.somar(n)` — `this` é a lambda); **native x86 dá SIGSEGV (rc=139)**. O caminho explícito `this.somar(n)` devolve `6` correto nos quatro, confirmando o diagnóstico do capture-scanner.
 
-<!-- en-switch --> **EN:** [§735 (en)](known-bugs.md#735--bug-846-a-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---open-medido-1510-pela-lane-issuestooling-192168100219093-acao-de-codigo-da-lane-compilerfrontend)
+<!-- en-switch --> **EN:** [§735 (en)](known-bugs.md#735--bug-846-a-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---fixed-1510-lane-issuestooling-192168100219093)
 
 ## §736 — [BUG #845] um `T?` ESTREITADO (`if (i != null)` → `Int j = i`) chega ao `istore` ainda BOXED: o valor na pilha é `java/lang/Integer` e o JVM recusa a classe (`VerifyError`) — ✅ CORRIGIDO 15/10 (medido 15/10 pela lane issues/tooling `192.168.100.21:9093`; ação de código da lane compiler/frontend, família §609/§610)
 
@@ -17007,3 +17008,26 @@ O estreitamento faz o TYPER dizer `Int` (e o `check` concorda), mas o EMIT não 
 **FACE IRMÃ CORRIGIDA 15/10 (mesma família, lane compilador/JVM/nativo `192.168.15.30:9092`):** a mesma auditoria achou que as dicas `SEM025` de **`Map` e `Set` também estavam incompletas** — ambas listavam `size` mas OMITIAM `length` e `count`, sendo que o typer aceita o triplo size-like `size`/`length`/`count` em AMBOS, medido a funcionar (`s.length`=2, `s.count()`=2, `m.length`=1, `m.count()`=1; nota: a PROPRIEDADE nua `s.count`/`m.count` dá `SEM102` — só `size` é propriedade; a forma real é o MÉTODO `count()`). Correção: adicionei `length`/`count` aos literais das dicas de Map e Set (duas edições de string, zero mudança de comportamento). Prova RED-first: novo `MapSetValidMethodsDiagnosticE2ETest` (um controle positivo + uma asserção de dica por tipo); a corrida com o fonte revertido FALHA no `length` da dica do Set. Com eles, as três listas 'valid' do `SEM025` (List §737, Map, Set) batem agora com os conjuntos aceitos pelo typer.
 
 **TERCEIRA FACE CORRIGIDA 15/10 (mesma família, lane compilador/JVM/nativo `192.168.15.30:9092`): a dica `SEM025` de `String` OMITIA `getBytes` —** um método real de String que o próprio guard aceita (medido `"abc".getBytes().size` = 3) mas a dica hardcoded não listava. CONTRA-CHECAGEM (NÃO adicionar): `isBlank`/`strip` são **RECUSADOS** (`SEM025`) — o comentário do próprio ficheiro dizia que eram 'legais via classpath'; o comentário estava ESTALE e é corrigido aqui (só `getBytes` entra na dica). Também sincronizei as TRÊS listas 'valid' defensivas do `CollectionCallLowerer` (List/Map/Set) — duplicatas INALCANÇÁVEIS que o typer pré-empta, mas cópias estale do texto pré-§737 (hazard latente) — ao texto corrigido do `MemberCallTyper`. Prova RED-first: novo `StringValidMethodsDiagnosticE2ETest` (controle positivo `getBytes` + a asserção da dica, incl. o NEGATIVO de que `isBlank`/`strip` NÃO podem aparecer); a dica pré-fix (capturada verbatim antes) não tinha `getBytes`. Com isto, TODAS as listas 'valid' do `SEM025` (typer List/Map/Set + String + as 3 duplicatas do lowerer) estão consistentes com os conjuntos aceitos pelo typer.
+
+## §738 — Divergência de padrão-vazio em String no NATIVE x86 e JS
+
+**Status:** 🟡 ABERTO (CATALOGADO 15/10) — o fix precisa de um helper de runtime JS no estilo §730 + split por caractere/inserção em toda posição no asm do runtime x86 (NATIVO); nenhum fix pousado.
+
+**CATALOGADO (medido) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Uma sondagem da família busca/substituição/split de `String` (antes NÃO sondada como grupo) achou a fronteira do PADRÃO VAZIO divergindo em SILÊNCIO — o código roda e imprime um valor ERRADO plausível (regra 5). Fonte da sonda `S = "aXbXc"`, medido no jar da `lab` nos quatro alvos:
+
+```
+S.replace("X","-")     JVM/Script/JS/nativo = [a-b-c]        (concordam)
+S.replace("","-")      JVM/Script = [-a-X-b-X-c-]            JS = [-a-X-b-X-c]   NATIVO = [aXbXc]
+"abc".split("")        JVM/Script/JS = 3 elementos           NATIVO = 1 elemento
+```
+
+**Causas raiz (lidas no emissor, não adivinhadas):**
+- **JS** — `JsCallEmitter` rebaixa `replace` para `receiver.split(from).join(to)`, emulação CORRETA do replace-all do JVM para agulha NÃO-vazia; para agulha VAZIA o `split("")` do JS não produz elemento nas pontas, então os separadores de borda se perdem (o `-` final na sonda).
+- **NATIVO x86** — `NativeX86StringCalls` detecta o separador vazio (`testl %ecx,%ecx; jz empty`) e passa `sep_char = 0` (NUL) ao `kof_string_split` (`RuntimeStringEdit`); um NUL nunca existe no texto, então o split é a string inteira. O `replace("",x)` pega o mesmo caminho.
+
+**Fronteira (NÃO re-decidir aqui):** `"ß".toUpperCase()` também foi medido — JVM/Script/JS = `SS`, NATIVO x86 = `ß` (mapeamento simples por code-unit, ou seja, a área DECIDIDA `NAT-STR01` / `D-STR-UNICODE`, cujo golden cobre outros casos). Sinalizado para a dona do `D-STR-UNICODE`; NÃO alterado aqui.
+
+**Por que CATALOGADO e não corrigido neste ciclo:** a face JS precisa de um helper de runtime (a forma da fatia `kofStr*` do §730); a face NATIVA precisa de split por caractere + inserção em toda posição no asm do runtime x86 (`RuntimeStringEdit`) — nenhuma é uma linha. Sem stub, nenhum teste assevera o valor errado, nenhuma asserção enfraquecida.
+
+**Reprodutor:** `Main.kf` no estilo de `tests/golden/` com as três linhas acima; `java -jar kof-cli/target/kof-cli-*.jar run --target script Main.kf` (oráculo) vs `build --target js` / `--target native`.
+<!-- pt-switch --> **EN:** [§738 (en)](known-bugs.md#738--string-empty-pattern-divergence-on-native-x86-and-js)
