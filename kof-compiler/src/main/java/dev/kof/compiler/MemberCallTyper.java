@@ -327,7 +327,7 @@ public final class MemberCallTyper {
             if ("values".equals(mn)) return new Type.ClassType("kof", "List", List.of(valueType));
             if (sa.diagnostics() != null) {
                 sa.diagnostics().error(mc,
-                        "Cannot resolve method '" + mn + "' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)",
+                        "Cannot resolve method '" + mn + "' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/length/count/clear/isEmpty/keys/values)",
                         "SEM025");
             }
         }
@@ -342,7 +342,7 @@ public final class MemberCallTyper {
             if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
             if (sa.diagnostics() != null && !"toArray".equals(mn) && !"subSet".equals(mn) && !"sublist".equals(mn)) {
                 sa.diagnostics().error(mc,
-                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/remove/size/clear/isEmpty)",
+                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
                         "SEM025");
             }
         }
