@@ -11,6 +11,56 @@ final class BytecodeDecoderCond {
 
     private BytecodeDecoderCond() {}
 
+    /**
+     * Fase E (14/10): a comparação por SINAL (lcmp/dcmpl/dcmpg) COM prólogo:
+     * [prologue, op2, op1, cmp, ifXX, iconst_1, goto J, iconst_0, ireturn].
+     * O prólogo (as operandas computadas) vira statements via emitLinear e o
+     * return é `op2 OP op1` (o espelho 2-op do ifXX). Medido no inCircle:
+     * `return d <= r*r`. Qualquer desvio → null = stub honesto (R6).
+     */
+    static java.util.List<String> comparisonReturnPrologue(List<BytecodeReader.Insn> insns,
+            String[] cp, BytecodeFrame frame) {
+        int n = insns.size();
+        if (n < 8) return null;
+        int cmpOp = insns.get(n - 6).opcode();
+        if (cmpOp != 0x94 && cmpOp != 0x97 && cmpOp != 0x98) return null;
+        int brOp = insns.get(n - 5).opcode();
+        if (brOp < 0x99 || brOp > 0x9e) return null;
+        if (insns.get(n - 4).opcode() != 0x04) return null;   // iconst_1
+        if (insns.get(n - 3).opcode() != 0xa7) return null;   // goto
+        if (insns.get(n - 2).opcode() != 0x03) return null;   // iconst_0
+        if (!insns.get(n - 1).isReturn()) return null;
+        if (insns.get(n - 3).target() != insns.get(n - 1).offset()) return null;
+        if (insns.get(n - 5).target() != insns.get(n - 2).offset()) return null;
+        // as OPERANDAS: o scan k desce do n-7 até achar a fatia que deixa
+        // EXATAMENTE 2 valores na pilha (medido no inCircle: k = n-11 —
+        // [dload d, dload r, dload r, dmul] antes do dcmpg)
+        for (int k = n - 7; k >= Math.max(0, n - 17); k--) {
+            BytecodeDecoder.MachineRun rr = BytecodeDecoder.machineRun(insns.subList(k, n - 6), cp, frame);
+            if (rr == null || rr.stopped || rr.stack.size() != 2) continue;
+            String op1 = rr.stack.topExpr();          // o topo = op1 do cmp
+            rr.stack.pop();
+            String op2 = rr.stack.topExpr();          // o fundo = op2
+            // o espelho FALL-THROUGH-TRUE (o braço iconst_1 é o FALL do
+            // ifXX): value1 OP value2 com a negação do jump-true — a forma
+            // limpa `v10 <= (r*r)`, não a invertida
+            String op = switch (brOp) {
+                case 0x99 -> "!="; case 0x9a -> "=="; case 0x9b -> ">=";
+                case 0x9c -> "<"; case 0x9d -> "<="; case 0x9e -> ">";
+                default -> null;
+            };
+            if (op == null) return null;
+            var declared = new java.util.HashSet<Integer>();
+            var pre = BytecodeStatementsEmit.emitLinear(insns.subList(0, k), cp, frame, declared);
+            if (pre == null) return null;
+            var out = new java.util.ArrayList<String>();
+            out.addAll(pre);
+            out.add("return " + op2 + " " + op + " " + op1);
+            return out;
+        }
+        return null;
+    }
+
     static String comparisonReturn(List<BytecodeReader.Insn> insns, BytecodeFrame frame) {
         int n = insns.size();
         if (n < 5) return null;

@@ -94,6 +94,10 @@ final class BytecodeStatements {
         // no linearExpr e o método inteiro stubaria.
         List<String> ssw = BytecodeSwitch.stringSwitchExpr(code, insns, cp, frame);
         if (ssw != null) return ssw;
+        // Fase E (14/10): a comparação por sinal COM prólogo (o inCircle:
+        //  com d computado no prólogo)
+        List<String> cmpP = BytecodeDecoderCond.comparisonReturnPrologue(insns, cp, frame);
+        if (cmpP != null) return cmpP;
         List<String> sws = BytecodeSwitch.recoverSwitchStmt(code, insns, cp, frame);
         if (sws != null) return sws;
         if (handlers != null && handlers.length > 0) {

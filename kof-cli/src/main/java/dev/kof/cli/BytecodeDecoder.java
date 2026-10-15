@@ -466,8 +466,14 @@ import java.util.Set;
         // (o ifXX testa o SINAL do lcmp): a condição real tem DOIS operandos.
         // A queda do ifXX é o inv de 2 operandos = invCond(ifXX + 0x06).
         int lastOp = block.get(block.size() - 1).opcode();
+        // Fase E (14/10): a família de comparação por SINAL alarga — o lcmp
+        // (0x94, Long) E o dcmpg/dcmpl (0x98/0x97, Double; o NaN-handling
+        // difere mas o shape [a, b, cmp, ifXX] é o mesmo, medido no
+        // inCircle: `d <= r*r`).
         if (lastOp >= 0x99 && lastOp <= 0x9e && block.size() >= 4
-                && block.get(block.size() - 2).opcode() == 0x94) {
+                && (block.get(block.size() - 2).opcode() == 0x94
+                    || block.get(block.size() - 2).opcode() == 0x97
+                    || block.get(block.size() - 2).opcode() == 0x98)) {
             String x = BytecodeDecoderStack.loadValue(block.get(block.size() - 4), frame);
             String y = BytecodeDecoderStack.loadValue(block.get(block.size() - 3), frame);
             String lcmpInv = switch (lastOp) {

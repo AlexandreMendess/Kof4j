@@ -2373,6 +2373,62 @@ class DecompileTest {
         assertEquals("$4.05\n$0.50\n$120.00", output, "zero-drift: money id\u00eantico ao Java");
     }
 
+    @Test
+    void signComparisonWithPrologueRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): a COMPARA\u00c7\u00c3O-POR-SINAL COM PR\u00d3LOGO
+        // (lcmp 0x94 / dcmpl 0x97 / dcmpg 0x98): [prologue, op2, op1, cmp,
+        // ifXX, iconst_1, goto J, iconst_0, ireturn]. O scan k desce do n-7
+        // at\u00e9 a fatia que deixa EXATAMENTE 2 valores na pilha (medido:
+        // k = n-11 — [dload d, dload r, dload r, dmul] antes do dcmpg); o
+        // esp\u00e9lhete \u00e9 o FALL-THROUGH-TRUE (a forma limpa
+        // `v10 <= (r*r)`, n\u00e3o a invertida). Zero-drift executado:
+        // dist(0,0,3,4)=5.0, quadrantes I..IV+axis, poly(2.5)=6.0,
+        // inCircle true/false — 9/9 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Geo.java");
+        Files.writeString(javaFile, """
+                public class Geo {
+                    static double dist(double x1, double y1, double x2, double y2) {
+                        double dx = x2 - x1;
+                        double dy = y2 - y1;
+                        return Math.sqrt(dx * dx + dy * dy);
+                    }
+                    static String quad(int x, int y) {
+                        if (x > 0 && y > 0) { return "I"; }
+                        if (x < 0 && y > 0) { return "II"; }
+                        if (x < 0 && y < 0) { return "III"; }
+                        if (x > 0 && y < 0) { return "IV"; }
+                        return "axis";
+                    }
+                    static boolean inCircle(double px, double py, double cx, double cy, double r) {
+                        double d = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+                        return d <= r * r;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Geo.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("return v10 <= (arg4 * arg4)") || kof.contains("<="),
+                "a compara\u00e7\u00e3o por sinal:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Geo.dist(0, 0, 3, 4))\n    println(Geo.quad(1, 2))\n"
+                + "    println(Geo.quad(-1, 2))\n    println(Geo.quad(-1, -2))\n    println(Geo.quad(1, -2))\n"
+                + "    println(Geo.quad(0, 5))\n    println(Geo.inCircle(1, 1, 0, 0, 2))\n"
+                + "    println(Geo.inCircle(5, 5, 0, 0, 2))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 5.0 | I | II | III | IV | axis | true | false
+        assertEquals("5.0\nI\nII\nIII\nIV\naxis\ntrue\nfalse", output,
+                "zero-drift: dist/quadrantes/inCircle id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
