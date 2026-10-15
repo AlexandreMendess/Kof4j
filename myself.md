@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd OITAVA PASSAGEM: RETRATEI a conclusão de partiÇão da sexta passagem. `blocks=1` no xadrez-8 está CORRETO: a aritmética do payload exclui a divisão (testsrc 21 blocos = 293 B de tile; checker-16 37 blocos = 111 B; o ITEM inteiro do checker-8 = 36 B — pequeno demais para 64 blocos). Um xadrez perfeito é UMA frequência espacial -> libaom usa 1 bloco 64x64 com poucos coeficientes de alta frequência. Então a falha é o DECODE DE COEFICIENTES: o diagonal (1 bloco, EOB moderado) bate exato, o checker-8 (1 bloco, EOB GRANDE) lê all-zero. Discriminador: magnitude do EOB (`eob_pt`/`eob_extra`/walk de coeficientes).
+last: 15/10 — AVIF slice 3bd NONA PASSAGEM: a contagem de BITS prova que o stream de coeficientes é PULADO. `Av1Symbol.position()` é em BITS: SÓLIDO consome 16 bits do payload de 2 B (tudo, nz=1, exato); DIAG 144 bits de 18 B (tudo, nz=13, exato); CHECKER só 21 bits de um payload de 19 B (152 bits) e devolve nz=0. O `all_zero` do bloco do checker é lido como 1 (skip) e o walk para, deixando ~16 B de coeficientes por consumir. O mode-info do checker é IDÊNTICO ao do diagonal (mesmo skip/txSz/modo/contexto) -> a divergência está A MONTANTE no stream de entropia. Próximo: instrumentar a POSIÇÃO imediatamente antes do `all_zero` nos dois e comparar a SEQUÊNCIA de símbolos.
 doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
-next: §3bd — dumpar `all_zero` + `eob_pt` + o valor do EOB no sólido (nz=1, exato) vs checker-8 (lê 0); o suspeito agora é o decode de coeficientes de EOB grande
+next: §3bd — instrumentar a posição do leitor imediatamente ANTES do `all_zero` no sólido/diag (corretos) vs checker (falha) e comparar a SEQUÊNCIA de símbolos; a divergência está a montante (mode-info consumiu bits errados sem mudar os valores, ou uma CDF divergente)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (36ª) — 3bd nona passagem: a contagem de BITS prova que o stream de coeficientes é pulado
+- **O instrumento novo:** `Av1Symbol.position()` (em BITS) depois do walk, contra o tamanho do payload.
+- **O resultado:** SÓLIDO 16 bits / payload 2 B -> consome TUDO (2 B = 16 bits), nz=1, exato. DIAG 144 bits / payload 18 B -> consome TUDO (144 bits), nz=13, exato. CHECKER 21 bits / payload 19 B (152 bits) -> consome 2,6 bytes e PARA, nz=0.
+- **A leitura:** o `all_zero` do bloco do checker é lido como 1 (skip) e o walk para, deixando ~16 B de coeficientes no stream.
+- **O que isso descarta:** NÃO é truncamento, NÃO é o walk parando na partição, NÃO é o payload errado — é o SÍMBOLO `all_zero` do bloco lido errado.
+- **E o mais forte:** o mode-info do checker é IDÊNTICO ao do diagonal (skip=0 txSz=4 y=0 uv=0 fi=0, TX_64X64 na origem, mesmo contexto) — MAS o all_zero sai errado. Logo a divergência está A MONTANTE: ou o read do mode-info consumiu bits errados sem mudar os valores reportados, ou uma CDF em que os dois quadros divergem.
+- **Próximo:** instrumentar a POSIÇÃO imediatamente ANTES do `all_zero` nos dois casos e comparar a SEQUÊNCIA de símbolos, não só os valores finais.
+- **Lições:** (1) `position()` de um decoder de entropia é um instrumento de primeira linha para separar "leu errado" de "pulou demais" — medi-lo contra o tamanho do payload é barato e decisivo; (2) comparar dois casos que REPORTAM os mesmos valores mas divergem no resultado aponta para "os valores reportados não capturam o estado" — o próximo instrumento tem de olhar o ESTADO (posição/contexto), não os valores.
 
 ## Sessão 15/10 (35ª) — 3bd oitava passagem: retratei a partição; a falha é o DECODE DE COEFICIENTES (EOB grande)
 - **A retratação:** na sexta passagem concluí "a partição está errada" porque o xadrez-8 lê 1 bloco. A aritmética do PAYLOAD mostrou que 1 bloco está CORRETO.
