@@ -335,6 +335,12 @@ main() {
      * `decode_partition` partitions the fixed frame rectangle BY CONSTRUCTION —
      * any symbols yield a valid tiling. An exact tiling is therefore NOT evidence
      * the stream is in sync; only the consumption is.
+     *
+     * <p>The consumption reading is itself validated: corrupting a byte in the
+     * UNREAD tail (byte 285) leaves the whole dump IDENTICAL to the baseline,
+     * while corrupting a CONSUMED byte (byte 10) changes it (blocks 21 -> 25,
+     * symBits 862 -> 1302). So {@code position()} is a consumed counter and the
+     * 63% shortfall is real, not a reader-window artifact.
      */
     private static String tilingProbe(String path) {
         return """

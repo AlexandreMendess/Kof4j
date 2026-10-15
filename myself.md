@@ -2,11 +2,17 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 27ª PASSAGEM: a ORDEM DE VARREDURA (scan order) estava SEM TESTE e agora está fixada na SPEC e EXONERADA. Nova suíte `Av1ScanOrderE2ETest` (+`Av1ScanOrderSupport` + `av1_scan_order_golden.txt.b64`): o probe despeja a varredura default/mrow/mcol de cada tamanho de transformada; o golden vem da SPEC §9.3. Prova: 2/2 (JVM + Script), BUILD SUCCESS — as 14 varreduras default da spec e as 9 mrow/mcol batem com o gerador Kof. ARMADILHA registrada: as tabelas do `scan.c` do libaom são a TRANSPOSTA das da spec, então comparar Kof com o libaom acusa divergência em toda entrada (bug falso); para scan order o oracle é a SPEC. Próximo: instrumentar a posição do leitor POR BLOCO.
-doing: §3bd — caminho dos coeficientes exonerado no que é tabela (CDFs 23ª–24ª, ordem da caminhada 3x, scan order 27ª); resta o suspeito de posição do leitor por bloco
-next: §3bd — instrumentar a posição do leitor POR BLOCO (início/fim do mode-info, posição do `all_zero`) e achar o primeiro bloco que sub-lê
+last: 15/10 — AVIF slice 3bd 28ª PASSAGEM: o INSTRUMENTO DE CONSUMO está VALIDADO (executado) e as tabelas de contexto de coeficiente foram confirmadas contra a SPEC. (1) Corromper um byte na CAUDA NÃO LIDA (byte 285) deixa o dump IDÊNTICO ao baseline, enquanto um byte CONSUMIDO (byte 10) muda tudo (blocks 21->25, symBits 862->1302) ⇒ position() é contador de consumido e o déficit de 63% é real. (2) `Av1CoeffCtx.kf` reconferido contra a SPEC §10: Coeff_Base_Ctx_Offset 475/475, Sig_Ref_Diff_Offset 30/30, Mag_Ref_Offset 18/18, Coeff_Base_Pos_Ctx_Offset={26,31,36} — todas exatas, sem artefato de transposição. `Av1CoeffCtxE2ETest` 6/6. Próximo: posição do leitor POR BLOCO.
+doing: §3bd — caminho dos coeficientes exonerado contra a SPEC (CDFs, tx-size, contextos, varredura) e ordem da sintaxe; único dado discriminante = consumo de 37% do payload
+next: §3bd — instrumentar a posição do leitor POR BLOCO (início/fim do mode-info, posição do `all_zero`) para achar o primeiro bloco que sub-lê
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (55ª) — 3bd 28ª: instrumento validado + contextos conferidos na SPEC
+- **Medição (executada):** corromper o byte 285 (cauda NÃO lida) deixa o dump IDÊNTICO ao baseline; o byte 10 (consumido) muda tudo. ⇒ `position()` = consumido; o déficit de 63% do tile é REAL. Isto blinda a premissa das passagens 25–26.
+- **Verificação (executada):** `Av1CoeffCtx.kf` contra a SPEC §10 — `Coeff_Base_Ctx_Offset` 475/475, `Sig_Ref_Diff_Offset` 30/30, `Mag_Ref_Offset_With_Tx_Class` 18/18, `Coeff_Base_Pos_Ctx_Offset` = {26,31,36}: EXATAS. Motivada pela armadilha da transposição do libaom (o header do módulo citava verificação contra o libaom).
+- **Cobertura:** `Av1CoeffCtxE2ETest` já re-deriva cada contexto da spec num leitor Java independente — re-rodado **6/6**, BUILD SUCCESS (corrobora, não acrescenta).
+- **Caveat:** o teste `AvifRealFileE2ETest` continua asserindo só as invariantes que passam (consumo total do payload NÃO é asserido — falha hoje); sem `cmake`/`ninja` não há oracle instrumentado do libaom aqui.
 
 ## Sessão 15/10 (54ª) — 3bd 27ª: scan order sem teste → fixada na SPEC (e armadilha do libaom)
 - **Unidade landada:** nova suíte `Av1ScanOrderE2ETest` + `Av1ScanOrderSupport` + recurso `av1_scan_order_golden.txt.b64`.
