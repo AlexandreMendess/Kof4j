@@ -242,26 +242,14 @@ public final class SemMethodCallTyper {
         // SEM014 ("expected 'function' but got 'function'"). Espelha o typer do
         // emit (MethodCallTyper, ramo KofIo.isIoType) — mesma tabela, nenhum
         // contrato novo.
+        if (KofIo.isStringIdentityCall(recv, mc.methodName())) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            return BuiltinTypes.STRING;
+        }
         if (KofIo.isIoType(recv)) {
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             KofIo.IoCall ioCall = KofIo.instanceMethod(recv, mc.methodName(), mc.arguments().size());
             if (ioCall != null) return ioCall.returnType();
-            // #847: `path()` é IDENTIDADE no valor (o emissor não gera chamada —
-            // o valor É a String do caminho), mas o TIPO devolvido era o do
-            // RECEPTOR (`File`/`Path`), contradizendo a doc (`IO.md`: `name()`/
-            // `path()` → String) e quebrando o primeiro uso de String
-            // (`SEM102: 'File' has no field 'length'`). O tipo é String.
-            if (KofIo.isIdentityMethod(mc.methodName())) return BuiltinTypes.STRING;
-        }
-        // #847 face 2: `path()` num receptor STRING também é identidade — a
-        // própria String é o caminho. É a decisão que a forma de CAMPO já toma
-        // (SemFieldAccessTyper/ExpressionFieldAccessTyper: `.path`/`.name` num
-        // String devolvem String); sem este ramo a chamada escapava para o
-        // caminho genérico e o emit saía `java.lang.String.path()` →
-        // NoSuchMethodError em execução.
-        if (Type.isString(recv) && KofIo.isIdentityMethod(mc.methodName())) {
-            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-            return BuiltinTypes.STRING;
         }
         // D-R3-BUFFER: espelha o ramo do emit (MethodCallTyper) para Buffer(U8).
         if (KofBuffer.isBufferType(recv)) {
