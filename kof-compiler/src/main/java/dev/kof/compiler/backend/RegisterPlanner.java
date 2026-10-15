@@ -72,6 +72,18 @@ public final class RegisterPlanner {
         LivenessAnalysis live = LivenessAnalysis.ofOps(ops);
         InterferenceGraph graph = InterferenceGraph.of(ops, live);
         Map<Integer, Type> slotTypes = slotTypes(method);
+        // #866 (5ª face): um slot que NUNCA é LIDO não precisa de registrador — e
+        // atribuir um a ele era o defeito: um slot morto não interfere com
+        // ninguém no grafo, então o alocador lhe dá a cor mais baixa e o PRÓLOGO
+        // copia o parâmetro para esse registrador COMPARTILHADO. Medido no
+        // disassembly: `Int g(10 params) { return a + j }` (só `a` e `j` são
+        // usados) carregava NOVE parâmetros em `%rbx`, um sobrescrevendo o outro —
+        // `rbx` acabava com `i = 9` e o retorno virava `9 + 10 = 19` em vez de
+        // `1 + 10 = 11`. Filtrar os slots lidos deixa os não-lidos no FRAME (o
+        // prólogo sempre guarda os params nos seus slots) e só coloca em
+        // registrador quem é de fato lido (colisão impossível: valores vivos
+        // interferem).
+        slotTypes.keySet().retainAll(readSlots(ops));
         // PARAM slots are defined by the ABI (they arrive in registers), never by
         // a KofStoreLocal, so the def-driven graph omits them — leaving the register
         // model inert for the common `f(a, b) { ... }` shape. Add them as nodes with
@@ -82,6 +94,15 @@ public final class RegisterPlanner {
         RegisterAllocator.Allocation alloc = RegisterAllocator.allocate(graph, registerCount, cost);
         RegisterAssignment.Assignment assignment = RegisterAssignment.of(slotTypes, alloc);
         return new Placement(assignment, alloc, registerCount);
+    }
+
+    /** Slots READ anywhere in the method ({@code KofLoadLocal}). */
+    private static java.util.Set<Integer> readSlots(List<KofOperation> ops) {
+        java.util.Set<Integer> read = new java.util.TreeSet<>();
+        for (KofOperation op : ops) {
+            if (op instanceof dev.kof.compiler.KofLoadLocal ll) read.add(ll.index());
+        }
+        return read;
     }
 
     /** The declared type of each local slot of the method. */
