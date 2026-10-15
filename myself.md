@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3bd SEGUNDA PASSAGEM: o dump por estágio mostra `D0 skip=0 txSz=1 y=0` (DC_PRED, coeficientes PRESENTES) mas `K0 nz=0`/`K1 nz=0` (ALL-ZERO) enquanto `K2 nz=26`/`K3 nz=8`. O PRIMEIRO bloco de transformada lê all_zero errado → reconstrói a DC nua 128 onde a referência é 16. Suspeito: o CONTEXTO de all_zero/txb_skip do primeiro bloco (above/left = 0 na origem) ou o CDF inicial do tile — NÃO a reconstrução (K2/K3 provam que o resíduo funciona neste quadro).
+last: 15/10 — AVIF slice 3bd TERCEIRA PASSAGEM: mais DOIS quadros reais isolam a falha no MULTI-BLOCO. O `#404040` uniforme (resíduo REAL, c0=-237) dá `Y=71` EXATO e o cinza-sólido dá `126` — ambos de BLOCO ÚNICO. O testsrc é o único MULTI-bloco (21 blocos) e falha nos PRIMEIROS. Então resíduo/coeficiente/predição/reconstrução estão CORRETOS em quadros reais; o bug é a maquinaria multi-bloco (walk de partição / ordem da grade / seleção de tx-size). Próximo: dumpar a árvore de partição + `(r,c,bs,txSz)` por bloco vs libaom.
 doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
-next: §3bd — dumpar o `all_zero`/níveis/predição do primeiro bloco do quadro testsrc (2 bytes de coordenadas? não — 293 bytes de payload, 21 blocos); o oráculo é ffmpeg (Y0=16,145,235)
+next: §3bd — dumpar a árvore de partição e o `(r,c,bs,txSz)` por bloco do quadro testsrc vs o layout do libaom (o bug está na maquinaria multi-bloco, não no resíduo)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (31ª) — 3bd terceira passagem: dois quadros reais EXATOS isolam a falha no MULTI-BLOCO
+- **O experimento:** em vez de caçar o quadro complexo, encodei mais um caso de controle — um `#404040` 64x64 uniforme, que tem um resíduo REAL (não zero).
+- **O resultado:** decodifica para `Y=71`, EXATO do ffmpeg (`K0 n=1024 nz=1 c0=-237`). Junto com o cinza-sólido (`126` exato), TENHO DOIS quadros reais corretos.
+- **O contraste:** ambos são de BLOCO ÚNICO (`blocks=1 txSz=4`). O testsrc é o único MULTI-bloco (21 blocos, txSz=1) e falha nos PRIMEIROS blocos.
+- **A conclusão:** o resíduo, os coeficientes, a predição e a reconstrução estão TODOS corretos em quadros reais. O bug está na maquinaria MULTI-bloco: o walk de partição, a ordem da grade de blocos de transformada, ou a seleção de tx-size por bloco.
+- **O que landei:** o diagnóstico no plano + DOING + myself. Árvore limpa.
+- **Lições:** (1) um caso de controle positivo (um quadro real que TAMBÉM exercita o caminho suspeito — aqui, um resíduo real) é o que separa "caminho quebrado" de "caminho não exercitado"; (2) comparar o que passa com o que falha NO MESMO instrumento é o que isola a variável — aqui, 1 bloco vs 21 blocos.
 
 ## Sessão 14/10 (30ª) — 3bd segunda passagem: o PRIMEIRO bloco lê all_zero errado
 - **O dump:** `blocks=21 levels=63`, cada K com n=64 (TX_8X8). `K0 nz=0`, `K1 nz=0` (vazios), `K2 nz=26`, `K3 nz=8` (com coeficientes).
