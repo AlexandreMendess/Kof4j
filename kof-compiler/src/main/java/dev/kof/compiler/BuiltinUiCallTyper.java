@@ -40,6 +40,10 @@ final class BuiltinUiCallTyper {
                 && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
             return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
         }
+        if (mc.receiver() == null && "Scroll".equals(mc.methodName())
+                && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
+            return KofUi.SCROLL;
+        }
         if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
             SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.VIEW;

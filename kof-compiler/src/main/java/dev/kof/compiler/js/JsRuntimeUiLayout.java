@@ -65,6 +65,13 @@ public final class JsRuntimeUiLayout {
                         { overflow: "auto" });
             }
 
+            export function kofUiScrollBind(scroll, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[scroll]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[scroll].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiAlignNew(horizontal, vertical, ids) {
                 // horizontal/vertical: 0=start, 1=center, 2=end
                 const justify = horizontal === 1 ? "center" : horizontal === 2 ? "flex-end" : "flex-start";
