@@ -38,8 +38,10 @@ class CmdLegacyTest {
     @Test
     void refusesUnsupportedClausesByName(@TempDir Path tmp) throws Exception {
         Path cpy = tmp.resolve("BAD.cpy");
-        // OCCURS is SUPPORTED since slice 5 — REDEFINES is the honest refusal.
-        Files.writeString(cpy, "       05  A PIC X(4).\n       05  B REDEFINES A PIC 9(4).\n", StandardCharsets.UTF_8);
+        // OCCURS + REDEFINES + 88 are SUPPORTED since slice 5 — the COMP-3
+        // USAGE clause is the honest refusal (the manual packComp3 codec exists;
+        // the copybook USAGE attribute does not map yet).
+        Files.writeString(cpy, "       05  D PIC 9(3) COMP-3.\n", StandardCharsets.UTF_8);
         ByteArrayOutputStream outB = new ByteArrayOutputStream();
         ByteArrayOutputStream errB = new ByteArrayOutputStream();
         int rc = CmdLegacy.run(new String[]{"legacy", cpy.toString()},

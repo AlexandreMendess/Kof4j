@@ -344,3 +344,24 @@ String unpackComp3(List<Int> bytes, Int digits, Int scale) {
     }
     return out
 }
+
+
+// decodeFrom — the overlay read: the field values of a REDEFINES view
+// starting at `start` (the base `decode` stays byte-exact at 0).
+List<String> decodeFrom(Layout l, String rec, Int start) {
+    var expected = totalLength(l)
+    if (rec.length < start + expected) {
+        throw "record length " + rec.length + " too short for offset " + start + " + " + expected + " (LEG001)"
+    }
+    var out: List<String> = listOf()
+    var at = start
+    for (var f in l.fields) {
+        var raw = rec.substring(at, at + f.length)
+        if (f.kind == "9" && !allDigits(raw)) {
+            throw "non-digit in numeric field " + f.name + " (LEG002)"
+        }
+        out.add(raw)
+        at = at + f.length
+    }
+    return out
+}

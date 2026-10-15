@@ -41,8 +41,16 @@ final class CmdLegacy {
             outRoot = Files.createTempDirectory("kof-legacy-out-");
             String mainSource = "import legacy.Copybook\n\n"
                     + "main() {\n"
-                    + "    var lay = parseCopybook(\"\" " + literal(text) + ")\n"
-                    + "    println(renderLayout(lay, \"" + varName + "\"))\n"
+                    + "    var cb = parseCopybookFull(\"\" " + literal(text) + ")\n"
+                    + "    println(renderLayout(cb.layout, \"" + varName + "\"))\n"
+                    + "    var rc = renderRedefines(cb.redefines)\n"
+                    + "    if (rc.length > 0) {\n"
+                    + "        println(rc)\n"
+                    + "    }\n"
+                    + "    var cc = renderConditions(cb.conditions)\n"
+                    + "    if (cc.length > 0) {\n"
+                    + "        println(cc)\n"
+                    + "    }\n"
                     + "}\n";
             URLClassLoader loader = LegacyLibrary.compile("Main.kf", mainSource, srcRoot, outRoot);
             if (loader == null) {
