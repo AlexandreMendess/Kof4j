@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd QUINTA PASSAGEM: o discriminador NÃO é a contagem de blocos. Um GRADIENTE DIAGONAL (bloco único) decodifica EXATO (4º match real), mas um XADREZ 8x8 (também bloco único pelo walk) FALHA com Y=128 (all_zero lido errado). O que difere é o CONTEÚDO: diagonal suave = EOB baixo; xadrez = ALTA FREQUÊNCIA, EOB grande. Hipótese: o decode de coeficientes lê blocos de alta frequência (EOB grande / bordas de eob_pt/dc_sign) como all-zero. Próximo: família monotônica de alta frequência para achar o limiar.
+last: 15/10 — AVIF slice 3bd SEXTA PASSAGEM: o limiar foi achado e move o suspeito para a PARTIÇÃO. Xadrez 32x32 (4 blocos) e 16x16 (37 blocos) decodificam EXATO; só o 8x8 falha — e reporta `blocks=1` onde o encoder PRECISA ter dividido (64 tiles 8x8). Então é um erro de PARTIÇÃO: o walk para em 1 bloco e os coeficientes saem all-zero. Isso SUBSTITUI a hipótese de conteúdo (o caminho de coeficientes está correto pelo 16x16). Próximo: dumpar os primeiros símbolos de partição do 8x8 vs a divisão do encoder. Exatos até agora: sólido, cinza-escuro, 2-tons, diagonal, xadrez 32, xadrez 16.
 doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
-next: §3bd — família monotônica de quadros de alta frequência crescente (gradiente -> xadrez 16 -> 8 -> 4) para achar o limiar de EOB/complexidade onde o decode de coeficientes quebra
+next: §3bd — dumpar os primeiros SÍMBOLOS DE PARTIÇÃO do xadrez 8x8 (que lê 1 bloco onde o encoder dividiu) e comparar com a divisão esperada; o suspeito agora é o decode do símbolo de partição (contexto above/left na origem)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (34ª) — 3bd sexta passagem: o limiar está entre xadrez 16 (bate) e 8 (falha) — e o 8 lê 1 BLOCO
+- **A família monotônica:** xadrez 32x32 (4 blocos) e 16x16 (37 blocos) decodificam EXATO. Só o 8x8 falha.
+- **O sinal:** o 8x8 reporta `blocks=1` — onde um xadrez 8x8 são 64 tiles alternados, o encoder NÃO codifica como 1 bloco 64x64. Então o walk leu a partição errada (parou em 1 bloco).
+- **A correção:** minha hipótese da quinta passagem (conteúdo de coeficientes / EOB grande) caiu — o xadrez 16x16 exercita 37 blocos com 24 coeficientes não-zero e bate EXATO. O caminho de coeficientes está correto.
+- **O suspeito agora:** o SÍMBOLO de partição. Se o primeiro símbolo é mal lido, o walk para (ou divide demais), e tudo depois lê lixo.
+- **Seis quadros reais exatos:** sólido, cinza-escuro, 2-tons, diagonal, xadrez 32, xadrez 16.
+- **Próximo:** dumpar os primeiros símbolos de partição do 8x8 com seus contextos (above/left na origem, que são 0) e comparar com o split que o encoder escreveu.
+- **Lições:** (1) uma FAMÍLIA monotônica (32 -> 16 -> 8) localizou o limiar em duas medidas; (2) a contagem de blocos que o walk REPORTA é um oráculo barato — `blocks=1` num xadrez já dizia que a partição estava errada; (3) três hipóteses minhas caíram nesta série, cada uma derrubada por um controle positivo novo.
 
 ## Sessão 15/10 (33ª) — 3bd quinta passagem: NÃO é a contagem de blocos, é o conteúdo (EOB grande)
 - **O controle do gradiente diagonal:** esperava provocar modos ANGULARES; o encoder usou 1 bloco DC_PRED com coeficientes ricos — e decodificou EXATO (`Yr0=19,73,126`...). QUARTO match real exato.
