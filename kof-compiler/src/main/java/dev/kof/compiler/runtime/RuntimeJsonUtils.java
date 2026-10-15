@@ -417,4 +417,34 @@ public final class RuntimeJsonUtils {
             """);
     }
 
+
+    /** §733 (face nativa x86): o `json.decode<Rec>` defaultava SILENCIOSAMENTE
+     *  um campo PRIMITIVO ausente (o `kof_json_find_value` devolve uma KofString
+     *  VAZIA). Este helper LANÇA `JSN004` quando o valor é vazio — emitido pelo
+     *  lowering SÓ para campos primitivos (o campo String mantém a ambiguidade
+     *  vazio-vs-ausente). Só o x86 chega aqui (os alvos cross recusam o decode
+     *  com COMP001 em compile-time). */
+    public static void emitJsonRequire(StringBuilder sb) {
+        sb.append("""
+            .globl kof_json_require
+            .type kof_json_require, @function
+            kof_json_require:
+                movl 16(%rdi), %eax
+                testl %eax, %eax
+                jz   .Ljr_miss
+                movq %rdi, %rax
+                ret
+            .Ljr_miss:
+                leaq .Ljr_msg(%rip), %rdi
+                movl $21, %esi
+                call kof_string_from_literal
+                movq %rax, %rdi
+                call kof_throw_string
+                ud2
+            .pushsection .rodata
+            .Ljr_msg: .asciz "JSN004: missing field"
+            .popsection
+            """);
+    }
+
 }

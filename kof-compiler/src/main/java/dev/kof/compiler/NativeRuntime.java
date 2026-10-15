@@ -156,6 +156,7 @@ public final class NativeRuntime {
         RuntimeJsonArrayDecode2.emit(sb);
         RuntimeJsonUtils.emitJsonQuote(sb);
         RuntimeJsonUtils.emitJsonFindValue(sb);
+        RuntimeJsonUtils.emitJsonRequire(sb);
         RuntimeMemory.emitAlloc(sb);
         RuntimeMemory.emitFree(sb);
         RuntimeGc.emitGc(sb);
