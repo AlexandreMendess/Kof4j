@@ -103,6 +103,9 @@ final class BytecodeStatements {
         if (handlers != null && handlers.length > 0) {
             List<String> fin = recoverFinally(insns, cp, frame, handlers);
             if (fin != null) return fin;
+            // Fase E (15/10): o finally com valor (a fatia nomeada)
+            List<String> fs = finallyStored(insns, cp, frame, handlers);
+            if (fs != null) return fs;
             List<String> tc = tryCatch(insns, cp, frame, handlers);
             if (tc != null) return tc;
             // Fase E (15/10): o try/catch NÃO-LINEAR (o if dentro do try —
@@ -249,6 +252,60 @@ final class BytecodeStatements {
         out.add("    " + name + " = " + lit);
         out.add("}");
         out.add(ret);
+        return out;
+    }
+
+    /**
+     * Fase E (15/10): o FINALLY com valor — o shape do javac (o corpo do
+     * finally DUPLICADO: a cópia no main-flow + a cópia no handler catch-all
+     * seguida de aload/athrow). O main-flow struct sobre o método inteiro
+     * recupera a cópia do main; o handler dá a cópia canônica; o GUARD R6:
+     * as duas cópias têm que ser IDÊNTICAS (o texto exato) e a cópia do
+     * main tem que estar imediatamente antes do return. Kof: try/finally
+     * nativo (medido: compila e roda, 21).
+     */
+    static List<String> finallyStored(List<BytecodeReader.Insn> insns, String[] cp,
+                                             BytecodeFrame frame, int[][] handlers) {
+        if (handlers.length != 1 || handlers[0].length < 4 || handlers[0][3] != 1) return null;
+        int handler = handlers[0][2];
+        List<BytecodeReader.Insn> handlerSeq = BytecodeSwitch.range(insns, handler, Integer.MAX_VALUE);
+        if (handlerSeq.size() < 3) return null;
+        int last = handlerSeq.get(handlerSeq.size() - 1).opcode();
+        int pen = handlerSeq.get(handlerSeq.size() - 2).opcode();
+        if (last != 0xbf) return null;
+        if (!(pen == 0x2a || pen == 0x19 || pen == 0x2c || (pen >= 0x4b && pen <= 0x4e))) return null;
+        List<BytecodeReader.Insn> finBody = handlerSeq.subList(0, handlerSeq.size() - 2);
+        // o strip do bind da exceção (o catch-all abre com astore do objeto —
+        // o corpo do finally não o usa; o emitLinear recusaria o pop vazio)
+        if (!finBody.isEmpty()) {
+            int fb0 = finBody.get(0).opcode();
+            if (fb0 == 0x3a || (fb0 >= 0x4b && fb0 <= 0x4e)) {
+                finBody = finBody.subList(1, finBody.size());
+            }
+        }
+        if (finBody.isEmpty()) return null;
+        var declared = new HashSet<Integer>();
+        List<String> finStmts = BytecodeStatementsEmit.emitLinear(finBody, cp, frame, declared);
+        if (finStmts == null || finStmts.isEmpty()) return null;
+        // o main-flow struct sobre o método inteiro (o handler sem preds)
+        declared = new HashSet<>();
+        List<String> main = BytecodeStatementsRecover.recoverRegionStruct(insns, cp, frame, declared);
+        if (main == null || main.size() < finStmts.size() + 2) return null;
+        if (!main.get(main.size() - 1).startsWith("return ")) return null;
+        // a cópia DUPLICADA no main: a sequência EXATA, imediatamente antes
+        // do return (qualquer desvio → null = stub honesto, R6)
+        int idx = -1;
+        for (int i = main.size() - 1 - finStmts.size(); i >= 0; i--) {
+            if (main.subList(i, i + finStmts.size()).equals(finStmts)) { idx = i; break; }
+        }
+        if (idx < 0) return null;
+        List<String> out = new ArrayList<>();
+        out.add("try {");
+        for (int i = 0; i < idx; i++) out.add(main.get(i));
+        out.add("} finally {");
+        out.addAll(finStmts);
+        out.add("}");
+        out.add(main.get(main.size() - 1));
         return out;
     }
 
