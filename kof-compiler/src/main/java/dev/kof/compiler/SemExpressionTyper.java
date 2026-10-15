@@ -205,7 +205,7 @@ public final class SemExpressionTyper {
                 // (o lado só é avaliado se o esquerdo passou; short-circuit).
                 if ("&&".equals(bin.operator())) {
                     Type leftT = inferType(sa, bin.left(), scope);
-                    SymbolTable rightScope = SemNarrowing.narrowedScope(bin.left(), scope);
+                    SymbolTable rightScope = SemNarrowing.narrowedScope(sa, bin.left(), scope);
                     Type rightT = inferType(sa, bin.right(), rightScope);
                     yield SemBinaryResultTyper.inferBinaryResultType(sa.diagnostics(), "&&", leftT, rightT);
                 }
@@ -383,9 +383,9 @@ public final class SemExpressionTyper {
                 // como o `if`-statement (collectNarrowing) e o lado direito de
                 // `&&` (SG-005).
                 Type thenType = inferType(sa, ie.thenExpr(),
-                        SemNarrowing.narrowedScope(ie.condition(), scope, false));
+                        SemNarrowing.narrowedScope(sa, ie.condition(), scope, false));
                 Type elseType = ie.elseExpr() != null
-                        ? inferType(sa, ie.elseExpr(), SemNarrowing.narrowedScope(ie.condition(), scope, true))
+                        ? inferType(sa, ie.elseExpr(), SemNarrowing.narrowedScope(sa, ie.condition(), scope, true))
                         : Type.UnknownType.UNKNOWN;
                 if (thenType.equals(elseType)) yield thenType;
                 yield HierarchyResolver.commonSupertype(sa, thenType, elseType);

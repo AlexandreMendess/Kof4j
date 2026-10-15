@@ -342,18 +342,28 @@ public final class ExpressionLowerer {
                             ops, owner, localIdx, locals, thenLabel, elseLabel);
                 }
                 ops.add(new KofLabel(thenLabel));
-                localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
-                // #57/§70: ramos com tipos distintos — cada ramo primitivo é
-                // boxeado p/ SEU boxed aqui dentro (join só de referências);
-                // os callers pulam o pós-box (mesmo predicado, sem canal).
+                // #870: a unificação usa o tipo EFETIVO do ramo (com o narrowing da
+                // condição), mas quem decide box/unbox é a REPRESENTAÇÃO FÍSICA: um
+                // `Int?` já está boxeado (D-NULL-INTENT) e só ABRE quando o join
+                // unifica no primitivo; um primitivo cru só é BOXEADO quando o join
+                // unifica em referências (ramos heterogêneos) — #57/§70.
                 List<Type> bts = ie.elseExpr() != null
                         ? ExpressionBranchJoin.ifBranchTypes(driver, ie, locals) : List.of();
                 boolean differ = !bts.isEmpty() && ExpressionBranchJoin.branchTypesDiffer(bts);
-                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(0));
+                Type thenPhys = ExpressionTyper.inferExprType(driver, ie.thenExpr(), locals);
+                localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
+                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, thenPhys);
+                else if (!bts.isEmpty()) {
+                    CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, thenPhys, bts.get(0));
+                }
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
+                Type elsePhys = ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals);
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.elseExpr(), ops, owner, localIdx, locals);
-                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(1));
+                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, elsePhys);
+                else if (!bts.isEmpty()) {
+                    CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, elsePhys, bts.get(1));
+                }
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
             }
