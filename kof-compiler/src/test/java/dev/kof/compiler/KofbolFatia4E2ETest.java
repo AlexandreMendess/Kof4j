@@ -40,6 +40,7 @@ class KofbolFatia4E2ETest implements LibraryInstallSupport {
                 var lay = parseCopybook(cpy)
                 println(lay.fields.size)
                 println(renderLayout(lay, "customer"))
+                // OCCURS is SUPPORTED since slice 5 — this face now parses silently.
                 var bad = "       05  Q  PIC 9(3) OCCURS 3 TIMES.\n"
                 try { parseCopybook(bad) } catch (String e) { println(e) }
                 var cond = "       88  FLAG  VALUE 'Y'.\n"
@@ -55,7 +56,7 @@ class KofbolFatia4E2ETest implements LibraryInstallSupport {
     // 150+250=400 -> R$ 4.00 ; 250-150=100 -> R$ 1.00 ; negate 150 -> R$ -1.50 ;
     // roundTo(155, 1, halfEven) -> 160 -> R$ 1.60 ; scale(150, 3/2) = 225 -> R$ 2.25 ;
     // JPY has 0 minor units: Money(0,"JPY") -> "JPY 0" ; roundTo(12345, 0) -> "JPY 12345"
-    private static final String EXPECTED = "3\nvar customer = Layout(listOf(textOf(\"CUST-NAME\", 10), decimalOf(\"CUST-BALANCE\", 7, 2), digitsOf(\"CUST-QTY\", 3)))\nclause not supported yet: OCCURS (LEG014)\nclause not supported yet: level 88 (LEG014)\nmalformed level: hello (LEG015)\nvar w = Layout(listOf(digitsOf(\"A\", 2), decimalOf(\"B\", 5, 2)))";
+    private static final String EXPECTED = "3\nvar customer = Layout(listOf(textOf(\"CUST-NAME\", 10), decimalOf(\"CUST-BALANCE\", 7, 2), digitsOf(\"CUST-QTY\", 3)))\nclause not supported yet: level 88 (LEG014)\nmalformed level: hello (LEG015)\nvar w = Layout(listOf(digitsOf(\"A\", 2), decimalOf(\"B\", 5, 2)))";
 
 
 
