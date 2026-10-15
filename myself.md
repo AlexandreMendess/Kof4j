@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 25ª PASSAGEM: o fixture REAL commitado ganhou um instrumento SEM REFERÊNCIA e a falha fica fixada numa subconsumo de ORDEM DE GRANDEZA. `AvifRealFileE2ETest#realTileGridTilesTheFrameOnJvm` mede `blocks=21 covered=256 frame=256 overlap=0 symBits=862 payloadBits=2344 txb=63 nzTot=102 nzHead=0,0,26,8,0,0,2,0,...`: (1) a grade COBRE o quadro exatamente ⇒ partição EXONERADA (sem deslocamento de bits); (2) consome só 862/2344 bits (37%) ⇒ 63% do fluxo lido como `all_zero` e pulado. Geometria certa + residual colapsando ⇒ falha no caminho do residual por bloco. Prova: `AvifRealFileE2ETest` 7/7 (era 6/6). O consumo total do payload é o critério de correção e NÃO está asserido (falha hoje; suíte vermelha não é permitida) — registrado no plano.
-doing: §3bd — partição EXONERADA (tiling exato 256/256); o residual por bloco colapsa (37% do payload consumido); instrumento sem referência landado
-next: §3bd — instrumentar a posição do leitor POR BLOCO (início/fim do mode-info, posição do `all_zero`) para achar o primeiro bloco que sub-lê
+last: 15/10 — AVIF slice 3bd 26ª PASSAGEM: CORREÇÃO DE MÉTODO MEDIDA — a "partição exonerada" da 25ª está RETRATADA, porque a cobertura exata é GARANTIDA POR CONSTRUÇÃO. Perturbar UM byte do payload e re-percorrer AINDA dá `covered=256 overlap=0` (mas blocks 21->25, symBits 862->1302, txb 63->67, nzTot 102->174): `decode_partition` particiona o retângulo FIXO do quadro, então qualquer sequência dá um tiling válido — controle fraco. ⇒ partição NÃO exonerada, dessincronismo VOLTA, e o único dado discriminante é o CONSUMO (862/2344 = 37%); o ffprobe confirma 311 bytes de OBU = 293 de tile após 18 de cabeçalho. Teste corrigido (asserção real `symBits <= payloadBits` + guarda documentada como não-discriminante). Prova: `AvifRealFileE2ETest` 7/7. Próximo: instrumentar a posição do leitor POR BLOCO.
+doing: §3bd — a partição NÃO está exonerada (o tiling é garantido por construção); o dessincronismo volta; único dado discriminante = consumo 862/2344 bits (37%)
+next: §3bd — instrumentar a posição do leitor POR BLOCO (início/fim do mode-info, posição do `all_zero`) e despejar os campos do mode-info, sem apoiar no tiling
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (53ª) — 3bd 26ª: retratação MEDIDA do instrumento (controle fraco)
+- **O que fiz:** testei a premissa da passagem anterior ("o tiling exato exonera a partição") perturbando UM byte do payload e re-percorrendo o tile. **Ela é FALSA.**
+- **Medição:** com o byte 10 corrompido, AINDA dá `covered=256 overlap=0` — mas `blocks` 21->25, `symBits` 862->1302, `txb` 63->67, `nzTot` 102->174. `decode_partition` particiona o retângulo FIXO do quadro e corta nas bordas ⇒ qualquer sequência de símbolos gera um tiling válido. O tiling NÃO distingue decodificação correta de corrompida (armadilha do controle fraco, ver [[kof4j-weak-control-trap]]).
+- **Consequências:** (1) a partição NÃO está exonerada; (2) a hipótese de dessincronismo VOLTA; (3) o único dado discriminante é o CONSUMO do payload — 862/2344 bits (37%), com `ffprobe` confirmando que o OBU de quadro tem 311 bytes = 293 de tile após 18 de cabeçalho, exatamente o payload.
+- **Unidade landada:** o teste foi corrigido para asserir só a invariante real (`symBits <= payloadBits`) + uma guarda de cobertura explicitamente documentada como NÃO discriminante; o experimento de corrupção ficou no javadoc como prova.
+- **Prova executada:** `AvifRealFileE2ETest` **7/7**, BUILD SUCCESS.
+- **Próximo passo:** instrumentar a posição do leitor POR BLOCO (início/fim do mode-info, posição do `all_zero`) e despejar os campos do mode-info — agora SEM apoiar no tiling.
+- **Caveat de ambiente:** sem `cmake`/`ninja`, o oracle instrumentado do libaom continua inviável aqui.
 
 ## Sessão 15/10 (52ª) — 3bd 25ª: instrumento sem referência; subconsumo do payload fixado
 - **Unidade landada (teste+docs):** `AvifRealFileE2ETest#realTileGridTilesTheFrameOnJvm` — invariantes SEM referência sobre o fixture REAL commitado (`avif_real_64.avif`): (1) a grade de blocos cobre o quadro exatamente; (2) a travessia não lê além do payload.

@@ -314,27 +314,27 @@ main() {
     }
 
     /**
-     * Two REFERENCE-FREE invariants of the tile walk over the committed real
-     * 64x64 testsrc fixture (`avif_real_64.avif`): (1) the partition walk's block
-     * grid must TILE the frame — every 4x4 mi cell covered exactly once, none
-     * twice, total == the frame's cell count (a self-consistency invariant of
-     * `decode_partition`, spec §5.11.4); (2) the walk must not read PAST the
-     * payload. Neither needs a reference decoder, so together they isolate the
-     * partition/geometry path from the entropy, coefficient and reconstruction
-     * paths.
+     * Instrument over the committed real 64x64 testsrc fixture
+     * (`avif_real_64.avif`), walking the tile with the decoder bound. It reports
+     * the block grid, the payload CONSUMPTION and the per-transform-block
+     * non-zero counts, and asserts only that the walk does not read PAST the
+     * payload.
      *
-     * <p>MEASURED 15/10 (the OPEN `3bd` symptom, recorded here because this line
-     * is the reproducible instrument): `blocks=21 covered=256 frame=256 overlap=0
-     * symBits=862 payloadBits=2344 txb=63 nzTot=102 nzHead=0,0,26,8,0,0,2,0,...`.
-     * The grid tiles EXACTLY, yet the walk consumes only 862 of 2344 payload bits
-     * (37%) — a correct decoder must consume essentially the whole tile, so 63% of
-     * the stream is read as `all_zero` and skipped. That is the under-consumption
-     * signature of the residual path, and it is why the first TX blocks reconstruct
-     * as bare DC. The tiling being exact is itself evidence the partition symbols
-     * were NOT shifted, which localises the fault to the per-block residual read.
-     * Full consumption is the correctness criterion; it is NOT asserted yet because
-     * it fails today (a red suite is not allowed) — the gap is recorded in the plan
-     * (`image-vision-plan.md`, 25th pass).
+     * <p>MEASURED 15/10 (the OPEN `3bd` symptom): `blocks=21 covered=256
+     * frame=256 overlap=0 symBits=862 payloadBits=2344 txb=63 nzTot=102
+     * nzHead=0,0,26,8,0,0,2,0,...`. The walk consumes only 862 of the 2344
+     * payload bits (37%) — a correct tile decode consumes essentially the whole
+     * payload, and `ffprobe` puts the frame OBU at 311 bytes (293 of tile data
+     * after the 18 header bytes, matching the payload) — so ~63% of the stream is
+     * read as `all_zero` and skipped. THAT is the discriminating datum.
+     *
+     * <p>What does NOT discriminate, and it RETRACTS the 25th pass's "the
+     * partition is exonerated": the grid always TILES the frame. Perturbing ONE
+     * payload byte and re-walking still yields `covered=256 overlap=0` (while
+     * `blocks` moves 21 -> 25 and `symBits` 862 -> 1302), because
+     * `decode_partition` partitions the fixed frame rectangle BY CONSTRUCTION —
+     * any symbols yield a valid tiling. An exact tiling is therefore NOT evidence
+     * the stream is in sync; only the consumption is.
      */
     private static String tilingProbe(String path) {
         return """
@@ -443,7 +443,7 @@ main() {
     }
 
     @Test
-    void realTileGridTilesTheFrameOnJvm() throws Exception {
+    void realTileWalkDoesNotReadPastThePayloadOnJvm() throws Exception {
         var line = runJvm(tilingProbe(canonicalized().toString()));
         var parts = line.split(" ");
         var covered = Integer.parseInt(parts[1].split("=")[1]);
@@ -451,8 +451,12 @@ main() {
         var overlap = Integer.parseInt(parts[3].split("=")[1]);
         var symBits = Integer.parseInt(parts[4].split("=")[1]);
         var payloadBits = Integer.parseInt(parts[5].split("=")[1]);
-        assertEquals(frameMi, covered, () -> "the block grid does not tile the frame: " + line);
+        // Guard, NOT a correctness discriminator: a skipped superblock would show
+        // as low coverage — though the tiling is guaranteed by construction even
+        // for a desynced stream (see the javadoc).
+        assertEquals(frameMi, covered, () -> "the block grid does not cover the frame: " + line);
         assertEquals(0, overlap, () -> "the block grid overlaps blocks: " + line);
+        // The real invariant: a tile decode must not consume more than the payload.
         assertTrue(symBits <= payloadBits, () -> "the walk read past the payload: " + line);
     }
 
