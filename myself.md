@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 19ª PASSAGEM: o caminho ctx/CDF está VERIFICADO pela spec (`av1TxSzCtx` bate a AV1 8.3.2; `av1AllZeroCtxY` = 0 sse tx==bloco, 1 sse vizinhos 0; as tabelas txbSkip são 3c-verificadas). O discriminador é o `bs` que os chamadores passam: `planePsize == av1TxSizeToBsize(txSz)` toma `skipCtx=0` determinístico; um `bs` errado inverte isso, muda o ctx 0->1 e lê all_zero errado. Suspeitos estreitos: (a) o `bs` da partição nos primeiros blocos de tx pequena, (b) um erro de bit a montante no mode-info. Correção de instrumento: ler a grade COM decoder ligado (sem bind: 35 blocos espúrios vs 22 reais).
+last: 15/10 — AVIF slice 3bd 20ª PASSAGEM: correções de instrumento. Com o decoder LIGADO a grade é `22 == modes=22` (o `35` era o artefato SEM bind). B0: `bs=5` (BLOCK_16X8) com `txSz=1` (TX_8X8) -> tx != bloco -> ctx pelo ramo de vizinhos (spec -> skipCtx=1 na origem), então o caminho de ctx não é obviamente errado. **CORREÇÃO: `levels` é por BLOCO DE TX e `modes` por BLOCO DE MODO** — a 18ª imprimiu `modes[b*17]` ao lado de `levels.get(b)` com o MESMO b, então os rótulos `txSz` além de b=0 estavam trocados (nz estava certo). Um bloco 16x8 tem 2 TX de 8x8 -> o bloco de modo b possui os TX 2b, 2b+1. Estado: a leitura errada de all_zero na origem permanece; ctx/CDF são spec-corretos. Próximo: re-dumpar com os índices SEPARADOS.
 doing: §3bd — oracle ffprobe fixado no teste real (6/6); dessincronizado do tile aberto
 next: §3bd — comparar o `bs` da partição com o `av1TxSizeToBsize(txSz)` para os primeiros blocos do STRIPES (com decoder LIGADO); se divergirem, o `bs` do walk é a causa do ctx errado
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (47ª) — 3bd 20ª: correções de instrumento (grade 22, e os rótulos da 18ª estavam trocados)
+- **A grade com bind:** `gridTriples=22 == modes=22`. O `35` que eu vi era o artefato de ler a grade SEM bind.
+- **B0:** `bs=5` (BLOCK_16X8, 4x2 unidades) com `txSz=1` (TX_8X8) -> `av1TxSizeToBsize(1)=3 != 5` -> a tx difere do bloco -> ctx pelo ramo de vizinhos (spec: skipCtx=1 na origem). Ou seja, o caminho de ctx NÃO é obviamente errado neste bloco.
+- **A CORREÇÃO:** `levels` é indexado por BLOCO DE TX; `modes` por BLOCO DE MODO. A 18ª passagem imprimiu `modes[b*17 ..]` ao lado de `levels.get(b)` com o MESMO `b` -> todo rótulo `txSz` além de b=0 estava TROCADO (os `nz` estavam certos, vêm de `levels`). Um bloco 16x8 tem dois TX de 8x8 -> o bloco de modo b possui os TX 2b e 2b+1.
+- **O estado:** a leitura errada de `all_zero` na origem permanece a falha; o código de ctx/CDF é correto pela spec; sobram (a) a posição de bit do mode-info para os blocos de tx pequena ou (b) uma interação que o dump pareado escondia.
+- **O que landei:** só docs (correção de instrumento + estado).
+- **Lições:** (1) ao dumpar duas listas paralelas, CONFERIR que compartilham o índice — aqui `levels` (por TX) e `modes` (por modo) NÃO compartilham; (2) conferir o invariante conhecido (22 blocos com bind) antes de confiar no dump; (3) em séries longas, as correções de instrumento acumulam-se e valem registro.
 
 ## Sessão 15/10 (46ª) — 3bd 19ª: verifiquei ctx/CDF contra a spec; sobrou o tamanho de bloco
 - **O que verifiquei (leitura contra a spec, sem medição nova):** `av1TxSzCtx` = `(Sqr + SqrUp + 1) >> 1` — exatamente a AV1 8.3.2; `av1AllZeroCtxY` = 0 sse tx==bloco, 1 sse ambos vizinhos 0 — exatamente o `get_txb_ctx` da spec; as tabelas `txbSkip` são verificadas vs libaom (fatia 3c).
