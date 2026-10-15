@@ -48,6 +48,22 @@ public final class LivenessDeadStores implements IrPass {
     @Override
     public List<KofOperation> run(List<KofOperation> ops,
                                   Map<KofOperation, SourcePosition> positions) {
+        return run(ops, positions, Set.of());
+    }
+
+    /** #866: {@code declaredSlots} são os slots dos locais DECLARADOS pelo método
+     *  (`IRMethod.localVariables()`). O store de um deles NUNCA é removido, por
+     *  mais morto que esteja pela liveness: o local é estado OBSERVÁVEL do
+     *  programa (o contrato de depuração — a LVT do JVM começa a visibilidade no
+     *  primeiro store e o DAP lê os frames de lá). Sem isto, `var x = 1` cujo
+     *  valor é propagado para o consumidor perde o store, o local deixa de
+     *  existir na classe e (a) a LVT cai no fallback `Start=0` para todos os
+     *  slots e (b) o depurador responde "no local named 'x' in this frame".
+     *  Medido: `main` com `var x = 1; var y = 2; var z = add(x, y)` emitia
+     *  `load 1; load 2; call add; store 3` — nenhum store para os slots 1 e 2. */
+    public List<KofOperation> run(List<KofOperation> ops,
+                                  Map<KofOperation, SourcePosition> positions,
+                                  Set<Integer> declaredSlots) {
         // §709 + §712 (both found in the wild): a store's liveness is UNSOUND
         // around exception regions — a local assigned in a try/catch and read only
         // in a catch/finally handler must survive, but the exception edge is easy
@@ -71,7 +87,8 @@ public final class LivenessDeadStores implements IrPass {
                 // load(slot) makes the slot live, so it is never removed here.
                 // A store is only removable together with a pure producer (an
                 // opaque producer would leave its pushed value on the stack).
-                if (!live.isLiveAfter(op, slot) && isPureProducer(prev)) {
+                if (!live.isLiveAfter(op, slot) && isPureProducer(prev)
+                        && !declaredSlots.contains(slot)) {
                     dead.add(prev);
                     dead.add(op);
                 }

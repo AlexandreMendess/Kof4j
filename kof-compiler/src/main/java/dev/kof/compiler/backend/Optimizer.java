@@ -75,8 +75,12 @@ public final class Optimizer {
         if (method.debugInfo() != null) {
             positions.putAll(method.debugInfo().positions());
         }
+        // #866: os slots dos locais DECLARADOS — o otimizador nunca remove o
+        // store deles (o local é estado observável: a LVT/DAP o leem de lá).
+        java.util.Set<Integer> declaredSlots = new java.util.HashSet<>();
+        for (var lv : method.localVariables()) declaredSlots.add(lv.index());
         for (int i = 0; i < 8; i++) {
-            List<KofOperation> next = passes(ops, positions);
+            List<KofOperation> next = passes(ops, positions, declaredSlots);
             if (next.size() == ops.size() && next.equals(ops)) break;
             ops = next;
         }
@@ -90,7 +94,8 @@ public final class Optimizer {
     }
 
     private static List<KofOperation> passes(List<KofOperation> ops,
-                                             Map<KofOperation, SourcePosition> positions) {
+                                             Map<KofOperation, SourcePosition> positions,
+                                             java.util.Set<Integer> declaredSlots) {
         ops = OptimizerConstantFold.constantFold(ops, positions);
         // Phase B of docs/development/assembly-optimization-plan.md: the new
         // passes are stack-balanced load rewrites (a LoadLocal becomes a
@@ -105,7 +110,7 @@ public final class Optimizer {
         // remove stores whose slot is never read (the §21 "reduction in
         // artificial loads/stores"). Runs after the Phase B passes so it sees
         // their output.
-        ops = LIVENESS_DEAD_STORES.run(ops, positions);
+        ops = LIVENESS_DEAD_STORES.run(ops, positions, declaredSlots);
         ops = STRENGTH_REDUCTION.run(ops, positions);
         // §3 O1: algebraic simplification of absorbing elements (x*0, x&0, x%1).
         ops = ALGEBRAIC_SIMPLIFICATION.run(ops, positions);
