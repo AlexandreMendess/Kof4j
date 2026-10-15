@@ -10,17 +10,23 @@ package legacy
 // refuses anything that would lose data. Gap codes LEG001..LEG006 — never a
 // silent fallback.
 
-record Field(String name, String kind, Int length)
+record Field(String name, String kind, Int length, Int scale)
 
 record Layout(List<Field> fields)
 
 // textOf / digitsOf — the explicit constructors (no PIC parsing needed).
 Field textOf(String name, Int length) {
-    return Field(name, "X", length)
+    return Field(name, "X", length, 0)
 }
 
 Field digitsOf(String name, Int length) {
-    return Field(name, "9", length)
+    return Field(name, "9", length, 0)
+}
+
+// decimalOf — a signed packed field: `digits` digit positions, `scale`
+// implied decimals (the PIC S9(n)V9(m) shape; the COMP-3/fixed route).
+Field decimalOf(String name, Int digits, Int scale) {
+    return Field(name, "9", digits, scale)
 }
 
 // fieldPic — the simple fixed-width PIC clause: `X`, `9`, `X(n)`, `9(n)`.
@@ -45,7 +51,7 @@ Field fieldPic(String name, String pic) {
         }
         len = digits.toInt()
     }
-    return Field(name, kind, len)
+    return Field(name, kind, len, 0)
 }
 
 Bool allDigits(String s) {
