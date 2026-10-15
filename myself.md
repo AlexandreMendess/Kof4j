@@ -2,11 +2,21 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 17ª PASSAGEM: DIVISÃO DECISIVA. RAMP (rampa íngreme) decodifica EXATO (7º quadro exato). STRIPES (faixas 4px, 22 blocos) consomem o payload INTEIRO (symPos=216=27x8) e decodificam 481 coeficientes não-zero — SEM dessincronizado — mas reconstroem Y≈128 (DC nua) vs a referência 16/235. Então STRIPES é falha de PREDIÇÃO/RECONSTRUÇÃO, não de entropia: os vizinhos multi-bloco deveriam dar a referência mas caem na DC sem vizinhos. O problema se DIVIDE em dois modos de falha; este está na disponibilidade intra / referência de vizinhos no `av1IntraPredictBlock` (blocos depois do 1º).
+last: 15/10 — AVIF slice 3bd 18ª PASSAGEM: os PRIMEIROS blocos do STRIPES leem `all_zero` errado (nz=0) enquanto os posteriores decodificam (total 481) e o payload é consumido por inteiro (symPos=216) -> o stream é consistente e a falha é a leitura de `all_zero`/txb_skip na ORIGEM. O discriminador é o TAMANHO DA TRANSFORMADA: os 7 quadros exatos são TX_64X64 (txSz=4; contexto de origem lê certo); os primeiros blocos do STRIPES são tx pequenas (txSz=1/6/14). Suspeito: `av1TxbCtx`/`av1TxbEntropyContext` para tx pequena na origem. Próximo: dumpar esse contexto no bloco 0 e comparar com `get_txb_ctx` do libaom.
 doing: §3bd — oracle ffprobe fixado no teste real (6/6); dessincronizado do tile aberto
-next: §3bd — dumpar haveAbove/haveLeft/haveAboveRight/haveBelowLeft e as entradas de predição do bloco 2+ do quadro STRIPES (a falha de PREDIÇÃO multi-bloco)
+next: §3bd — dumpar as entradas/saídas de `av1TxbCtx`/`av1TxbEntropyContext` para o bloco 0 do STRIPES (txSz=1, above/left=0) e comparar com o `get_txb_ctx` do libaom (oráculo: reconstruir o C com as fontes do aom)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (45ª) — 3bd 18ª: all_zero errado na ORIGEM; o discriminador é o tamanho da transformada
+- **O dump por bloco das FAIXAS:** 22 blocos; os SEIS primeiros com `nz=0` (`txSz=1`, `1`, `6`, `14`, `14`, `14`); o total da rodada é 481 não-zero -> os posteriores decodificam.
+- **A consistência:** `symPos=216` = o payload inteiro -> o stream NÃO dessincronizou. A falha é a leitura de `all_zero` nos primeiros blocos.
+- **O discriminador NOVO:** o TAMANHO DA TRANSFORMADA. Os 7 quadros exatos são de bloco ÚNICO **TX_64X64 (txSz=4)**; os primeiros blocos das FAIXAS são tx PEQUENAS (1/6/14) na origem.
+- **A leitura:** o mapa de contexto de `all_zero` (txb_skip) para uma tx pequena na ORIGEM (above/left = 0) está errado -> o índice de CDF aponta para a entrada errada -> o bloco lê como vazio.
+- **Por que isso explica o padrão todo:** os quadros de 1 bloco grande passam (tx grande, contexto lê certo); os de blocos pequenos falham na origem (checker-8 e STRIPES).
+- **Onde olhar:** `av1TxbCtx` / `av1TxbEntropyContext` (Av1CoeffCtx/Av1Block) — a derivação do contexto e o índice da CDF.
+- **Próximo:** dumpar o contexto do bloco 0 e comparar com `get_txb_ctx` do libaom.
+- **Lições:** (1) contar nz POR BLOCO (não só o total) foi o que mostrou que a falha é nos PRIMEIROS; (2) comparar o TAMANHO DA TX entre o que passa e o que falha deu o discriminador — e ele explica por que 7 quadros passaram; (3) esta série mostrou 3 vezes que o instrumento estava errado; agora o padrão (tx pequena na origem) é consistente com TODAS as observações.
 
 ## Sessão 15/10 (44ª) — 3bd 17ª: DIVISÃO — entropia OK, PREDIÇÃO errada (STRIPES)
 - **Os dois controles:** RAMP (rampa `clip(X*4)`) e STRIPES (faixas verticais de 4px).
