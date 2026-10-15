@@ -960,18 +960,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
-      "pt": "não é possível resolver o método '{0}' no tipo 'List' (válidos: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
-    },
-    {
-      "arity": 1,
       "en": "Cannot resolve method '{0}' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
       "pt": "Método '{0}' não resolvido no tipo 'List' (válidos: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
-    },
-    {
-      "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)",
-      "pt": "não é possível resolver o método '{0}' no tipo 'Map' (válidos: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)"
     },
     {
       "arity": 1,
@@ -980,18 +970,13 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/clear/isEmpty)",
-      "pt": "não é possível resolver o método '{0}' no tipo 'Set' (válidos: add/contains/remove/size/clear/isEmpty)"
-    },
-    {
-      "arity": 1,
       "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
       "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/remove/size/length/count/clear/isEmpty)"
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/toInt/toLong/toFloat/toDouble)",
-      "pt": "Método '{0}' não resolvido no tipo 'String' (válidos: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/toInt/toLong/toFloat/toDouble)"
+      "en": "Cannot resolve method '{0}' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)",
+      "pt": "Método não resolvido '{0}' no tipo 'String' (válidos: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)"
     },
     {
       "arity": 1,
