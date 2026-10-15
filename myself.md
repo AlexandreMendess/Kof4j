@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3bd DIAGNOSTICADA: com o `txMode` corrigido (3bc), o quadro real SÓLIDO bate (`Y=126`==libdav1d) mas o COMPLEXO (testsrc) ainda diverge com assinatura ESTREITA — lê `Y0=128,0,10` vs ffmpeg `16,145,235`. `128` = predição DC sem vizinhos → o RESÍDUO do primeiro bloco não está sendo aplicado (no sólido ESTÁ, 126≠128). Localizado no caminho de resíduo multi-bloco; próximo: dumpar `all_zero`/níveis/predição do primeiro bloco.
+last: 14/10 — AVIF slice 3bd SEGUNDA PASSAGEM: o dump por estágio mostra `D0 skip=0 txSz=1 y=0` (DC_PRED, coeficientes PRESENTES) mas `K0 nz=0`/`K1 nz=0` (ALL-ZERO) enquanto `K2 nz=26`/`K3 nz=8`. O PRIMEIRO bloco de transformada lê all_zero errado → reconstrói a DC nua 128 onde a referência é 16. Suspeito: o CONTEXTO de all_zero/txb_skip do primeiro bloco (above/left = 0 na origem) ou o CDF inicial do tile — NÃO a reconstrução (K2/K3 provam que o resíduo funciona neste quadro).
 doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
 next: §3bd — dumpar o `all_zero`/níveis/predição do primeiro bloco do quadro testsrc (2 bytes de coordenadas? não — 293 bytes de payload, 21 blocos); o oráculo é ffmpeg (Y0=16,145,235)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (30ª) — 3bd segunda passagem: o PRIMEIRO bloco lê all_zero errado
+- **O dump:** `blocks=21 levels=63`, cada K com n=64 (TX_8X8). `K0 nz=0`, `K1 nz=0` (vazios), `K2 nz=26`, `K3 nz=8` (com coeficientes).
+- **A leitura:** `D0` tem `skip=0` → o bloco TEM resíduo. Mas K0 (o primeiro bloco de transformada) lê all_zero → reconstrói a predição DC nua (128). A referência é 16 → o resíduo (≈ -112) sumiu.
+- **O que isso prova:** o caminho de resíduo/reconstrução FUNCIONA neste mesmo quadro (K2/K3 são não-zero). O erro está no SÍMBOLO `all_zero` (txb_skip) do PRIMEIRO bloco.
+- **Suspeito:** o CONTEXTO do txb_skip/all_zero na origem do quadro (above/left = 0) — ou o estado inicial de CDF do tile.
+- **Próximo:** dumpar as ENTRADAS de contexto (allZeroCtx, dcSignCtx) do K0 e comparar com o que libaom usaria.
+- **Lições:** (1) `nz=0` num bloco com `skip=0` é autocontraditório — o resíduo deveria estar lá; usei isso para localizar o estágio; (2) comparar blocos que passam (K2/K3) com blocos que falham (K0/K1) NO MESMO quadro é o que dá o contraste.
 
 ## Sessão 14/10 (29ª) — slice 3bd: o caso sólido bate, o complexo diverge com assinatura ESTREITA (resíduo do 1º bloco)
 - **O que apliquei:** o mapeamento `txMode` corrigido (3bc) no quadro real COMPLEXO (testsrc).
