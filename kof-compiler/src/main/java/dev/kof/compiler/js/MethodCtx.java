@@ -72,6 +72,15 @@ public final class MethodCtx {
      */
     final java.util.Deque<LabelId> enclosingIfFalses = new java.util.ArrayDeque<>();
     boolean isEnclosingIfFalse(LabelId label) { return enclosingIfFalses.contains(label); }
+    /**
+     * §734: labels de FIM (merge) do if ENVOLVENTE — o alvo do Jump de saída do
+     * then. Um if ANINHADO branco pode TOMAR esse label como o seu próprio fim
+     * (isIfEndLabel é genérico), e então o epílogo do método é absorvido no
+     * else externo. Guardar os alvos do then do if envolvente durante o parse do
+     * else impede o roubo (§380 é o análogo para o falseLabel).
+     */
+    final java.util.Set<LabelId> enclosingIfEnds = new java.util.HashSet<>();
+    boolean isEnclosingIfEnd(LabelId label) { return enclosingIfEnds.contains(label); }
     final boolean instanceMethod;
     final String kofClassName;
     final String methodName;
