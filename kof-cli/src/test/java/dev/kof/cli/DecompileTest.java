@@ -2553,6 +2553,76 @@ class DecompileTest {
                 "zero-drift: os loops de array id\u00eanticos ao Java");
     }
 
+    @Test
+    void stringSearchLoopsRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o dom\u00ednio STRING — 4 shapes travados SEM c\u00f3digo
+        // novo (a 4\u00aa valida\u00e7\u00e3o consecutiva out-of-the-box): o concat
+        // multi-parte com repeti\u00e7\u00e3o do par\u00e2metro (tag), o while-pad
+        // (pad), o loop de busca com o indexOf de DOIS ARGUMENTOS (count —
+        // a forma (String, Int); o teto \u00e9 o overload por CHAR) e o
+        // two-pointer com charAt (isPalindrome). Zero-drift executado:
+        // <b>hi</b>/ab   |/3/2/true/false — 6/6 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Lib.java");
+        Files.writeString(javaFile, """
+                public class Lib {
+                    static String tag(String name, String value) {
+                        return "<" + name + ">" + value + "</" + name + ">";
+                    }
+                    static String pad(String s, int width) {
+                        String r = s;
+                        while (r.length() < width) { r = r + " "; }
+                        return r;
+                    }
+                    static int count(String hay, String needle) {
+                        int n = 0;
+                        int i = hay.indexOf(needle);
+                        while (i >= 0) {
+                            n++;
+                            i = hay.indexOf(needle, i + 1);
+                        }
+                        return n;
+                    }
+                    static boolean isPalindrome(String s) {
+                        int lo = 0;
+                        int hi = s.length() - 1;
+                        while (lo < hi) {
+                            if (s.charAt(lo) != s.charAt(hi)) { return false; }
+                            lo++;
+                            hi--;
+                        }
+                        return true;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Lib.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("while (") && kof.contains("indexOf"), "os loops de string:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Lib.tag("b", "hi"))
+                    println(Lib.pad("ab", 5) + "|")
+                    println(Lib.count("aXbXcX", "X"))
+                    println(Lib.count("aaa", "aa"))
+                    println(Lib.isPalindrome("arara"))
+                    println(Lib.isPalindrome("java"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: <b>hi</b> | ab   | | 3 | 2 | true | false
+        assertEquals("<b>hi</b>\nab   |\n3\n2\ntrue\nfalse", output,
+                "zero-drift: os loops de string id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
