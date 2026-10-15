@@ -138,3 +138,77 @@ Int numericOf(String digits) {
     }
     return digits.toInt()
 }
+
+
+// ------------------------------------------------------------------
+// Fatia 2 — the EBCDIC codec, code page CP037 (US English), ONE page
+// with EXPLICIT tables (plan §20 fatia 2; Q5 stays open for MORE pages).
+// The tables were generated from a real CP037 codec and are embedded as
+// decimal byte lists (the Av1ModeCdf split/toInt pattern — pure Kof, all
+// targets). Round-trip verified over the full printable ASCII range.
+//
+// EBCDIC37_TO_ASCII: index = byte - 0x40 (192 entries) → the ASCII code.
+// ASCII_TO_EBCDIC37: index = code - 0x20 (95 entries) → the EBCDIC byte.
+
+String EBCDIC37_TO_ASCII() {
+    return "32,160,226,228,224,225,227,229,231,241,162,46,60,40,43,124,38,233,234,235,232,237,238,239,236,223,33,36,42,41,59,172,45,47,194,196,192,193,195,197,199,209,166,44,37,95,62,63,248,201,202,203,200,205,206,207,204,96,58,35,64,39,61,34,216,97,98,99,100,101,102,103,104,105,171,187,240,253,254,177,176,106,107,108,109,110,111,112,113,114,170,186,230,184,198,164,181,126,115,116,117,118,119,120,121,122,161,191,208,221,222,174,94,163,165,183,169,167,182,188,189,190,91,93,175,168,180,215,123,65,66,67,68,69,70,71,72,73,173,244,246,242,243,245,125,74,75,76,77,78,79,80,81,82,185,251,252,249,250,255,92,247,83,84,85,86,87,88,89,90,178,212,214,210,211,213,48,49,50,51,52,53,54,55,56,57,179,219,220,217,218,159"
+}
+
+String ASCII_TO_EBCDIC37() {
+    return "64,90,127,123,91,108,80,125,77,93,92,78,107,96,75,97,240,241,242,243,244,245,246,247,248,249,122,94,76,126,110,111,124,193,194,195,196,197,198,199,200,201,209,210,211,212,213,214,215,216,217,226,227,228,229,230,231,232,233,186,224,187,176,109,121,129,130,131,132,133,134,135,136,137,145,146,147,148,149,150,151,152,153,162,163,164,165,166,167,168,169,192,79,208,161"
+}
+
+List<Int> tableOf(String csv) {
+    var out: List<Int> = listOf()
+    var parts = csv.split(",")
+    var i = 0
+    while (i < parts.size) {
+        out.add(parts[i].toInt())
+        i = i + 1
+    }
+    return out
+}
+
+// encode37 — ASCII text → CP037 bytes. Chars outside the printable ASCII
+// range are refused: LEG008 (no silent substitution).
+List<Int> encode37(String s) {
+    var tbl = tableOf(ASCII_TO_EBCDIC37())
+    var out: List<Int> = listOf()
+    var i = 0
+    while (i < s.length) {
+        var code = s.charAt(i) as Int
+        if (code < 0x20 || code > 0x7e) {
+            throw "char outside the CP037 printable range at " + i + " (LEG008)"
+        }
+        out.add(tbl.get(code - 0x20))
+        i = i + 1
+    }
+    return out
+}
+
+// decode37 — CP037 bytes → ASCII text. Bytes outside the CP037 text range
+// (0x40..0xFF) are refused: LEG007 (no silent substitution).
+String decode37(List<Int> bytes) {
+    var tbl = tableOf(EBCDIC37_TO_ASCII())
+    var out = ""
+    var i = 0
+    while (i < bytes.size) {
+        var b = bytes.get(i)
+        if (b < 0x40 || b > 0xff) {
+            throw "byte outside the CP037 text range at " + i + ": " + b + " (LEG007)"
+        }
+        out = out + (tbl.get(b - 0x40) as Char)
+        i = i + 1
+    }
+    return out
+}
+
+// encodeLayout37 — the fixed-width record (fatia 1) → CP037 bytes.
+List<Int> encodeLayout37(Layout l, List<String> values) {
+    return encode37(encode(l, values))
+}
+
+// decodeLayout37 — CP037 bytes → the fixed-width record → the field values.
+List<String> decodeLayout37(Layout l, List<Int> bytes) {
+    return decode(l, decode37(bytes))
+}

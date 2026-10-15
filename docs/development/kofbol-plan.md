@@ -1,5 +1,5 @@
 last: PROMOTED from `docs/development/future/` 14/10 (maintainer order "assume um novo plano em future" + `D-FUTURE-PROMOTION`); `D-KOFBOL`
-doing: slice 1 (fixed-width `PIC X`/`PIC 9` encode/decode, ASCII) LANDED 14/10 — pure-Kof library `libs/legacy/Legacy.kf` (`textOf`/`digitsOf`/`fieldPic`/`totalLength`/`decode`/`encode`/`numericOf` + gap codes LEG001–LEG006) with byte-exact goldens; `KofbolFatia1E2ETest` 2/2 (JVM + Script)
+doing: slice 2 (the CP037 EBCDIC codec, ONE code page with EXPLICIT tables) LANDED 14/10 — `encode37`/`decode37` + the layout composites `encodeLayout37`/`decodeLayout37`, gap codes LEG007 (byte outside the CP037 text range) / LEG008 (char outside the printable range), the tables generated from a REAL CP037 codec and round-trip-verified over the full printable ASCII range (embedded as decimal byte lists, the split/toInt pattern — pure Kof, all targets); Q5 stays open for MORE pages. `KofbolFatia2E2ETest` 2/2 (JVM + Script). doing: slice 1 (fixed-width `PIC X`/`PIC 9` encode/decode, ASCII) LANDED 14/10 — pure-Kof library `libs/legacy/Legacy.kf` (`textOf`/`digitsOf`/`fieldPic`/`totalLength`/`decode`/`encode`/`numericOf` + gap codes LEG001–LEG006) with byte-exact goldens; `KofbolFatia1E2ETest` 2/2 (JVM + Script)
 next: slice 2 (EBCDIC codecs) — the roadmap is §20
 location: docs/development/kofbol-plan.md
 state: under-development
