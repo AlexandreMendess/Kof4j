@@ -350,6 +350,13 @@ public final class JsRuntimeUiWidgets {
                 }
             }
 
+            export function kofUiBoxBind(box, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[box]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[box].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiStyleNew(background, foreground, padding, radius) {
                 if (typeof document === "undefined") {
                     return -1;

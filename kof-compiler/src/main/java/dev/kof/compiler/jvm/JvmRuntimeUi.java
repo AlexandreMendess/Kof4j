@@ -472,6 +472,9 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_column_bind(int column, int child) {
                 }
 
+                public static void kof_ui_box_bind(int box, int child) {
+                }
+
                 public static void kof_ui_view_remove(int view) {
                 }
 
