@@ -39,6 +39,13 @@ public final class JsRuntimeUiLayout {
                         { display: "grid" });
             }
 
+            export function kofUiStackBind(stack, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[stack]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[stack].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiWrapNew(ids) {
                 return kofUiLayoutContainerNew("div", "kof-wrap", ids,
                         { display: "flex", flexDirection: "row", flexWrap: "wrap" });

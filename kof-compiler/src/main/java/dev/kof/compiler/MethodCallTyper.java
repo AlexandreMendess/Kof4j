@@ -218,6 +218,10 @@ if (mc.receiver() == null && "Box".equals(mc.methodName())
         && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
     return KofUi.BOX;
 }
+if (mc.receiver() == null && "Stack".equals(mc.methodName())
+        && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
+    return KofUi.STACK;
+}
 if (mc.receiver() == null && ("Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
     if ("Form".equals(mc.methodName())) return KofUi.FORM;
