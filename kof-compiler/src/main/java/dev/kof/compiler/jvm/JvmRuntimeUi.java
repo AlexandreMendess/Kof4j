@@ -472,6 +472,9 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_scroll_bind(int scroll, int child) {
                 }
 
+                public static void kof_ui_grid_bind(int grid, int child) {
+                }
+
                 public static void kof_ui_row_bind(int row, int child) {
                 }
 

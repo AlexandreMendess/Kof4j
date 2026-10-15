@@ -57,6 +57,13 @@ public final class JsRuntimeUiLayout {
                           gridTemplateColumns: "repeat(" + (cols > 0 ? cols : 1) + ", 1fr)" });
             }
 
+            export function kofUiGridBind(grid, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[grid]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[grid].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiSpacerNew(size) {
                 return kofUiLayoutContainerNew("div", "kof-spacer", null,
                         { flex: size > 0 ? String(size) : "1" });

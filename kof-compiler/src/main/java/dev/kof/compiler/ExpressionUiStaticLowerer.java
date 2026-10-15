@@ -260,6 +260,16 @@ if (mc.receiver() == null && "Wrap".equals(mc.methodName())
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && "Grid".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_grid_new", List.of(Type.PrimitiveType.INT,
+            new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && ("Box".equals(mc.methodName())
         || "Stack".equals(mc.methodName()) || "Wrap".equals(mc.methodName())
         || "Center".equals(mc.methodName()) || "Scroll".equals(mc.methodName()))
