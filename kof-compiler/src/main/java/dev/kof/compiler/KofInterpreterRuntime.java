@@ -262,6 +262,15 @@ public final class KofInterpreterRuntime {
         if (parsed instanceof java.util.Map<?, ?> m) {
             for (IRField f : c.fields()) {
                 if (java.lang.reflect.Modifier.isStatic(f.accessFlags())) continue;
+                // §733: um campo AUSENTE e' erro (o JVM/JS lancam `JSN004:
+                // missing field '..' for ..`); antes vinha null -> default 0
+                // SILENCIOSO. `containsKey` distingue ausente de JSON null.
+                if (!m.containsKey(f.name())) {
+                    String nm = c.name();
+                    int sl = nm.lastIndexOf('/');
+                    throw KofInterpreterFrame.asThrowable(
+                            "JSN004: missing field '" + f.name() + "' for " + (sl >= 0 ? nm.substring(sl + 1) : nm));
+                }
                 obj.fields.put(f.name(), bindKof(f.type(), m.get(f.name())));
             }
         }

@@ -17602,7 +17602,7 @@ prints `5` on JVM/Script/JS but a GARBAGE value on native x86-64/riscv64/aarch64
 
 **Root (TRACED 14/10 — a boxed-vs-raw representation MISMATCH):** the main IR is IDENTICAL for `List<T>` and `List<Int>`, but the `asList` BODY differs. For `List<Int>` the `kof_list_add` is preceded by `KofCheckCast[Int]` + `kof_unbox`, so it stores a RAW int; for `List<T>` (element erased to Object) the value is added BOXED (no unbox). At the CALL site the return `List<T>` is SUBSTITUTED to `List<Int>` (the receiver is `Box<Int>`), so `kof_list_get` reads the slot as a RAW int. `List<Int>` (add raw × get raw) agrees and works; `List<T>` (add boxed × get raw) disagrees — the boxed pointer is mis-read as garbage. The invariant that makes the JVM work is that it ALWAYS boxes (erasure) and unboxes on read; the native uses RAW for a concrete primitive element and BOXED for an erased type-variable element, so the two sides of the SAME substituted type disagree. Distinct from §706 (a WRONG DESCRIPTOR, fixed by the declared return type) — this is the physical ELEMENT REPRESENTATION. Fix path: make the builder and the reader agree — either the generic-built list is read as boxed+unboxed (JVM parity), or the list carries its physical element representation. Needs the representation decision, so recorded with the exact mechanism.
 
-**Fix path (named, NOT landed):** trace the native call-site/return type for a generic collection return; align it with the JVM/Script/JS. Must land with the generics + native battery as the regression net.
+**SCRIPT face FIXED 14/10:** `KofInterpreterRuntime.decodeKofValue` now raises the SAME String the JVM/JS raise — `JSN004: missing field '<name>' for <Class>` (via `KofInterpreterFrame.asThrowable`) — when the parsed object does not contain a declared field; `containsKey` distinguishes absent from a JSON null. **Proof RED-first:** the new `JsonDecodeMissingFieldE2ETest` **3 run / 0F** (JVM/Script/JS) — with the fix reverted `scriptRaisesTheMissingFieldInsteadOfDefaulting` FAILS. **NATIVE faces REMAIN:** the native `kof_json_find_value` (`RuntimeJsonUtils`) returns an EMPTY KofString for BOTH "not found" AND a legitimately empty value, so the lowering's per-field decode (`ExpressionJsonCallLowerer`) cannot tell a missing field from `""` — the native fix needs a not-found SENTINEL from the runtime (a separate unit). A malformed payload yields the same silent default on the native.
 
 **Boundary:** native x86-64/riscv64/aarch64 only; JVM/Script/JS are correct.
 
@@ -19410,7 +19410,7 @@ SIGSEGV'd (exit 139) instead of printing `caught=[/ by zero]` — the catch FIRE
 
 <!-- pt-switch --> **PT:** [§732](known-bugs.pt_BR.md#732--nativo-x86-uma-mensagem-de-falha-de-runtime-capturada-era-um-asciz-c-string-nao-uma-kofstring-um-catch-string-e-que-usesse-e-e---elength-sigsegvava--mascarado-porque-o-e2e-do-693-nunca-usou-e---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
-## §733 — json.decode<Rec> silently returns a DEFAULT-INITIALIZED record on the NATIVE (malformed JSON AND missing field) and on the SCRIPT (missing field), where JVM/JS throw — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+## §733 — json.decode<Rec> silently returns a DEFAULT-INITIALIZED record on the NATIVE (malformed JSON AND missing field) and on the SCRIPT (missing field), where JVM/JS throw — 🟡 PARTIALLY FIXED 14/10 (the SCRIPT missing-field face FIXED; the NATIVE faces — malformed payload + missing field — remain) — lane compiler/JVM/native `192.168.15.30:9092`
 
 **Symptom (measured 14/10 through the COMPILER MODULE), `record Point(Int x, Int y)`, `json.decode<Point>(j)` in a `try`/`catch (String e)`:**
 
@@ -19429,5 +19429,5 @@ The NATIVE never throws on a MALFORMED payload — it returns a zero/default rec
 
 **Boundary:** the NATIVE (both faces) and the SCRIPT (missing field); JVM/JS are the oracle. Distinct from §728 (the JS message TEXT) and from the §48/§667 json faces.
 
-<!-- pt-switch --> **PT:** [§733](known-bugs.pt_BR.md#733--jsondecoderec-devolve-um-record-default-na-native-json-malformado-e-campo-faltando-e-na-script-campo-faltando-onde-jvmjs-lancam---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+<!-- pt-switch --> **PT:** [§733](known-bugs.pt_BR.md#733--jsondecoderec-devolve-um-record-default-na-native-json-malformado-e-campo-faltando-e-na-script-campo-faltando-onde-jvmjs-lancam---parcialmente-corrigido-1410-a-face-script-de-campo-faltando-corrigida-as-faces-nativas--payload-malformado--campo-faltando--restam--lane-compiladorjvmnativo-19216815309092)
 
