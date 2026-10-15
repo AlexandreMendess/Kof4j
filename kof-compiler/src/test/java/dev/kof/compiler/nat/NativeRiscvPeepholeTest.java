@@ -52,4 +52,19 @@ class NativeRiscvPeepholeTest {
         assertEquals(List.of("    addi sp, sp, -8", "    sd t0, 8(sp)", "    pop a0"),
                 run("    addi sp, sp, -8", "    sd t0, 8(sp)", "    pop a0"));
     }
+
+    @Test
+    void aSelfMoveIsDropped() {
+        List<String> lines = new ArrayList<>(Arrays.asList(
+                "    mv t0, t0", "    addi t0, t0, 1"));
+        assertEquals(1, NativeRiscvPeephole.dropSelfMoves(lines));
+        assertEquals(List.of("    addi t0, t0, 1"), lines);
+    }
+
+    @Test
+    void aRealMoveIsKept() {
+        List<String> lines = new ArrayList<>(Arrays.asList("    mv t0, t1"));
+        assertEquals(0, NativeRiscvPeephole.dropSelfMoves(lines));
+        assertEquals(List.of("    mv t0, t1"), lines);
+    }
 }

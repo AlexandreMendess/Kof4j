@@ -487,7 +487,9 @@ final class NativeArchEmitter {
     /** Applies the riscv text peephole; identity when nothing folds. */
     private static String applyRiscvPeephole(String asm) {
         List<String> lines = new ArrayList<>(java.util.Arrays.asList(asm.split("\n", -1)));
-        if (NativeRiscvPeephole.collapsePushPopPairs(lines) == 0) return asm;
+        int folded = NativeRiscvPeephole.collapsePushPopPairs(lines);
+        folded += NativeRiscvPeephole.dropSelfMoves(lines);
+        if (folded == 0) return asm;
         return String.join("\n", lines);
     }
 

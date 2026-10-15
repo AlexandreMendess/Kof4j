@@ -35,6 +35,22 @@ final class NativeRiscvPeephole {
 
     /** Collapses {@code addi sp,sp,-8} + {@code sd X,0(sp)} + {@code pop Y} into
      *  {@code mv Y, X} (or nothing when X == Y). Returns the number folded. */
+    /** Drops {@code mv X, X} self-moves (a no-op). Returns the number dropped. */
+    static int dropSelfMoves(List<String> lines) {
+        int dropped = 0;
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            String t = lines.get(i).strip();
+            if (t.startsWith("mv ")) {
+                String[] a = t.substring(3).split(",");
+                if (a.length == 2 && a[0].strip().equals(a[1].strip())) {
+                    lines.remove(i);
+                    dropped++;
+                }
+            }
+        }
+        return dropped;
+    }
+
     static int collapsePushPopPairs(List<String> lines) {
         int folded = 0;
         boolean changed = true;
