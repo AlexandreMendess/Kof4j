@@ -221,7 +221,7 @@ Do not reimplement Spring. Instead, transform recurring capabilities into Kof Ru
 Future objectives:
 - HTTP / REST / WebSocket / SSE (WebSocket/SSE + JVM hardening completed 04/09; JS/Native follow-up);
 - HTTP client;
-- **Unified `kof.net` network front (TCP + UDP)** — ✅ CONCLUDED 02/10/2026 (`D-KOF-NET`, maintainer rule-6 votes; subsumes `D-UDP` from the 01/10 maintainer directive): all five slices LANDED — surface + real JVM runtime + real Native x86-64 runtime + real JS host bridge + real Native riscv64/aarch64 (x86 front ported to riscv asm, aarch64 via translator) + Script parity by construction; plan moved to [`../stdlib/network-kofnet-plan.md`](../stdlib/network-kofnet-plan.md); the `future/network-udp-plan.md` is superseded;
+- **Unified `kof.net` network front (TCP + UDP)** — ✅ CONCLUDED 02/10/2026 (`D-KOF-NET`, maintainer rule-6 votes; subsumes `D-UDP` from the 01/10 maintainer directive): all five slices LANDED — surface + real JVM runtime + real Native x86-64 runtime + real JS host bridge + real Native riscv64/aarch64 (x86 front ported to riscv asm, aarch64 via translator) + Script parity by construction; plan moved to [`../stdlib/network-kofnet-plan.md`](../stdlib/network-kofnet-plan.md); the the former UDP tombstone (KILLED 15/10: superseded, file removed) is superseded;
 - JSON;
 - RPC;
 - events / queues / pub/sub;
