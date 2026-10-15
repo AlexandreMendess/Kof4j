@@ -215,8 +215,9 @@ if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(m
     return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
 }
 if (mc.receiver() == null && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
-    Type emptyContainer = KofUiContainers.emptyContainerType(mc.methodName());
-    if (emptyContainer != null) return emptyContainer;
+    Type empty = KofUiContainers.emptyContainerType(mc.methodName());
+    if (empty == null && mc.arguments().isEmpty()) empty = KofUiContainers.emptyWidgetType(mc.methodName()); // #873: 0-arg só
+    if (empty != null) return empty;
 }
 if (mc.receiver() == null && ("Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
