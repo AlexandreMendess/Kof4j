@@ -115,8 +115,7 @@ public final class KofUi {
                 || isUl(t) || isOl(t) || isTable(t)
                 || isView(t) || isLink(t)
                 || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t)
-                || isBox(t) || isStack(t) || isScroll(t) || isCenter(t)
-                || isBox(t) || isStack(t) || isScroll(t) || isWrap(t) || isGrid(t)
+                || isBox(t) || isStack(t) || isScroll(t) || isWrap(t) || isGrid(t) || isCenter(t)
                 || isFieldset(t) || isIframe(t) || isVideo(t) || isAudio(t) || isHr(t);
     }
 
