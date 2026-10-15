@@ -2,11 +2,21 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 12ª PASSAGEM: O ORÁCULO INDEPENDENTE achou. O registro `av1C` (contêiner) do arquivo real diz `monochrome=true, subX=false, subY=false`; o walk da SEQUÊNCIA do Kof diz `monochrome=false, subX=true, subY=true`. Dois parses do mesmo arquivo TÊM de concordar; o conteúdo é cinza -> mono=true é a verdade. Isso amarra a cadeia: `monochrome` define `numPlanes` -> errado, o cabeçalho lê campos FANTASMA de delta-Q de UV -> desloca todo campo -> `segEnabled` lê 0 (verdade 1) -> o tile dessincroniza. Próximo: conferir a posição de `mono_chrome` no walk da seq vs a spec (só quando seq_profile != 1).
+last: 15/10 — AVIF slice 3bd 13ª PASSAGEM: DECISIVA — a causa é `numPlanes`/`monochrome`, NÃO a segmentação. Com `numPlanes=1` (mono, segEnabled=0) o checker DECODIFICA os coeficientes (symPos=130, nz=28); com `numPlanes=3` pula (symPos=21, nz=0). O driver consumia símbolos de CHROMA inexistentes. O av1C (oráculo) diz `monochrome=true`; o walk da SEQUÊNCIA do Kof diz `false`. Isto SUPERA a leitura de segmentação (o "segEnabled=1" era coincidência). A reconstrução ainda erra com np=1 (Y=130,128,... vs 16,235,...) -> segundo defeito. Próximo: consertar o `mono_chrome` do walk da seq.
 doing: exposição de segmentação landada (16/16); bug real de parse do cabeçalho achado (segEnabled mal lido)
-next: §3bd — achar o campo mal dimensionado ANTES do `mono_chrome` no walk da SEQUÊNCIA (o `av1C` é o oráculo: mono=true); provável bloco de capabilities/order-hint
+next: §3bd — consertar a posição de leitura de `mono_chrome` no walk da SEQUÊNCIA (o av1C é o oráculo: mono=true, sub=0/0) e re-dirigir; depois o segundo defeito (qindex/predição) na reconstrução
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (40ª) — 3bd 13ª: DECISIVO — numPlanes/monochrome é a causa (não a segmentação)
+- **O experimento:** rodar o checker com `numPlanes=1` (mono, segEnabled=0) vs `numPlanes=3`.
+- **O resultado:** np=1 -> symPos=130, nz=28 (DECODIFICA); np=3 -> symPos=21, nz=0 (PULA).
+- **A conclusão:** o driver consumia símbolos de CHROMA que um stream monocromático não tem -> dessincronizava. O campo errado é `numPlanes`, que vem de `monochrome`.
+- **A retratação:** a hipótese de segmentação (12ª) cai — "passar segEnabled=1 funcionou" foi COINCIDÊNCIA (ressincronizou o stream, mas não era o campo). Eu tinha avisado que era suspeito; a medição derrubou.
+- **O oráculo:** o `av1C` (contêiner) diz `monochrome=true`; o walk da SEQUÊNCIA do Kof diz `false`. O av1C está certo (o conteúdo é cinza) e o walk da seq está errado.
+- **Segundo defeito já visível:** com np=1 a reconstrução ainda sai `Y=130,128,127,127` vs `16,235,16,235` -> falta algo (qindex/predição) além do dessincronizado.
+- **Próximo:** consertar a posição de `mono_chrome` no walk da seq (per `color_config`, só quando `seq_profile != 1`), contra o oráculo av1C; depois o segundo defeito.
+- **Lições:** (1) um "fix" que funciona por COINCIDÊNCIA (ressincronizar o stream) é uma armadilha — testar a hipótese com o campo CERTO (numPlanes) derrubou a errada; (2) o oráculo independente (av1C) apontou o campo JÁ na passagem anterior; a medição seguinte só confirmou; (3) quando o dessincronizado some mas a saída ainda erra, é SEGUNDO defeito — separar os dois é essencial para não atribuir tudo a uma causa.
 
 ## Sessão 15/10 (39ª) — 3bd 12ª: o av1C (oráculo independente) discorda do walk da sequência (monochrome)
 - **O instrumento novo (o que faltava):** o registro `av1C` do contêiner — um parse INDEPENDENTE dos fatos da sequência, que eu nunca tinha usado como oráculo.
