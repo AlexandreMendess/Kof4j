@@ -2,11 +2,21 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd NONA PASSAGEM: a contagem de BITS prova que o stream de coeficientes é PULADO. `Av1Symbol.position()` é em BITS: SÓLIDO consome 16 bits do payload de 2 B (tudo, nz=1, exato); DIAG 144 bits de 18 B (tudo, nz=13, exato); CHECKER só 21 bits de um payload de 19 B (152 bits) e devolve nz=0. O `all_zero` do bloco do checker é lido como 1 (skip) e o walk para, deixando ~16 B de coeficientes por consumir. O mode-info do checker é IDÊNTICO ao do diagonal (mesmo skip/txSz/modo/contexto) -> a divergência está A MONTANTE no stream de entropia. Próximo: instrumentar a POSIÇÃO imediatamente antes do `all_zero` nos dois e comparar a SEQUÊNCIA de símbolos.
+last: 15/10 — AVIF slice 3bd CAUSA RAIZ CONFIRMADA: é o ESTADO DE SEGMENTAÇÃO AUSENTE. Com `segEnabled=0` o checker-8 consome 21 bits e nz=0 (coeficientes PULADOS); com `segEnabled=1, segIdPreSkip=0` consome 152 bits (o payload INTEIRO) e nz=13 (DECODIFICAM). O quadro É segmentado (crf 20); o header PARSEIA a segmentação (`segEnabled`, `segAltQ[8]`) mas NÃO a expõe -> o driver toma o ramo segEnabled==0 -> dessincroniza. A reconstrução ainda está errada porque falta o qindex por segmento (baseQ + segAltQ[seg]). Conserto = fatia de exposição (padrão 3ax/3bb/3bc) + o qindex do segmento. Isso também explica o testsrc e aposenta as hipóteses de alta-frequência e de partição.
 doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
-next: §3bd — instrumentar a posição do leitor imediatamente ANTES do `all_zero` no sólido/diag (corretos) vs checker (falha) e comparar a SEQUÊNCIA de símbolos; a divergência está a montante (mode-info consumiu bits errados sem mudar os valores, ou uma CDF divergente)
+next: §3bd — expor o estado de SEGMENTAÇÃO no `AvifFrameHeader` (segEnabled, segAltQ[8], lastActiveSegId, segSkipActive), passar `segEnabled` ao driver e aplicar `qIndex = baseQ + segAltQ[seg]`; re-rodar o checker-8 e o testsrc
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (37ª) — 3bd CAUSA RAIZ: o quadro é SEGMENTADO e a composição não passa o estado de segmentação
+- **O instrumento:** posição do leitor (BITS) passo a passo pelo mode-info nos três quadros.
+- **O achado:** o prefix do CHECKER lê `seg=1` e consome 4 bits (15->19); o SÓLIDO/DIAG leem `seg=0` em 1 bit (15->16). O checker é SEGMENTADO, os outros não.
+- **A confirmação (decisiva):** re-rodando o checker com `segEnabled=1` -> `symPos=152` (o payload INTEIRO) e `nz=13`; com `segEnabled=0` -> `symPos=21` e `nz=0`. Os coeficientes estavam sendo PULADOS por causa do ramo segEnabled==0.
+- **O mecanismo:** `AvifFrame.frameTailWalk` PARSEIA a segmentação mas o `AvifFrameHeader` não a expõe -> a composição não pode passá-la -> o driver pula o segment id -> dessincroniza -> os blocos leem all_zero.
+- **Segunda metade:** a reconstrução ainda sai errada (`Y=128,129,...`) porque falta o qindex por segmento (`baseQ + segAltQ[seg]`).
+- **O conserto:** uma fatia de EXPOSIÇÃO (o padrão 3ax/3bb/3bc que já usei duas vezes) + passar segEnabled + aplicar o qindex do segmento.
+- **A limpeza:** isto também explica o testsrc e APOSENTA as hipóteses "alta-frequência/EOB" (5ª) e "partição" (6ª) — as duas eram sintomas do mesmo desync.
+- **Lições:** (1) instrumentar a POSIÇÃO (estado) e não os valores foi o que achou isto — os campos reportados eram idênticos; (2) quando um campo reportado coincide entre o que passa e o que falha, o estado NÃO está nos valores — olhe o estado; (3) um quadro real exercita features que a família de controle não tem — a segmentação apareceu só agora.
 
 ## Sessão 15/10 (36ª) — 3bd nona passagem: a contagem de BITS prova que o stream de coeficientes é pulado
 - **O instrumento novo:** `Av1Symbol.position()` (em BITS) depois do walk, contra o tamanho do payload.
