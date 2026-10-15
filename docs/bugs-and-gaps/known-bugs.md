@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §731
+last: §731 (FIXED/RETRACTED)
 last: §718
 doing: close-open-rows
 next: triage-new-issues
@@ -19365,7 +19365,7 @@ JVM/Script/JS print `caught=true`; **native x86-64 prints `Runtime error: array 
 
 <!-- pt-switch --> **PT:** [§730 (pt_BR)](known-bugs.pt_BR.md#730--js-stringsubstringcharat-fora-de-faixa-trancam-em-silencio-string-vazia-onde-o-jvmscript-lancam-a-mensagem-nomeada-de-rangeindex---corrigido-1410-achado-1410-pela-lane-issuestooling-192168100219093-na-sondagem-da-843-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
-## §731 — the pure-Kof AVIF tile decode DIVERGES from the reference decoder even on the SIMPLEST real frame: a solid gray 64x64 AVIF (one block, a 2-byte tile payload) reconstructs as `Y = 0,173,165` where ffmpeg's `libdav1d` reads a flat `126` — 🟡 OPEN (measured 14/10 by lane pipeline/image-vision `192.168.15.21:0`)
+## §731 — the pure-Kof AVIF tile decode DIVERGES from the reference decoder even on the SIMPLEST real frame: a solid gray 64x64 AVIF (one block, a 2-byte tile payload) reconstructs as `Y = 0,173,165` where ffmpeg's `libdav1d` reads a flat `126` — ✅ FIXED 14/10 — MISDIAGNOSIS RETRACTED: the Kof tile decode is CORRECT; the 'divergence' was the COMPOSITION GLUE passing the raw `tx_mode_select` bit where the driver wants the AV1 `TxMode` VALUE (0=ONLY_4X4, 1=LARGEST, 2=SELECT) — see the resolution below (measured by lane pipeline/image-vision `192.168.15.21:0`)
 
 **Symptom (measured 14/10):** the whole AVIF chain reads a REAL encoder's file correctly — container, sequence header (slice 3ay/3ba) and frame header (3ax/3bb) all match — but the TILE DECODE's reconstructed luma disagrees with the reference. It is not a config problem: the real frame reads `deltaQPresent=0`, `deltaLfPresent=0`, `cdefBits=0` (slice 3bb), so `Av1ModeTail` is already correct.
 
@@ -19381,4 +19381,6 @@ ffmpeg's item is `[OBU_SEQUENCE_HEADER][OBU_FRAME]` with no leading temporal del
 
 **Boundary:** JVM only here (the native faces are unaffected by the codegen lane's work). This is NOT the §723 register-locals issue. It is NOT a container/header bug (those are pinned green).
 
-<!-- pt-switch --> **PT:** [§731 (pt_BR)](known-bugs.pt_BR.md#731--o-decode-de-tile-avif-em-kof-puro-diverge-do-decoder-de-referencia-mesmo-no-frame-real-mais-simples-um-avif-verde-cinza-solido-64x64-um-bloco-payload-de-tile-de-2-bytes-reconstroi-como-y--0173165-onde-o-libdav1d-do-ffmpeg-le-um-plano-126---aberto-medido-1410-pela-lane-pipelineimage-vision-19216815210)
+**RESOLVED 14/10 — the divergence was in the COMPOSITION GLUE, not the decoder.** Driving the solid-gray reproducer with a per-stage dump showed ONE mode-info block but 256 transform blocks with garbage coefficients and `txSz=0` (TX_4X4) for a 64x64 block. The tile driver's `txMode` parameter takes the AV1 `TxMode` VALUE (0=ONLY_4X4, 1=LARGEST, 2=SELECT), NOT the raw frame-header `tx_mode_select` bit — the glue passed the bit, so `tx_mode_select == 0` became TX_MODE_ONLY_4X4 and a 64x64 block decoded as 256 4x4 blocks. Mapping it (bit 0 -> LARGEST(1), bit 1 -> SELECT(2)) makes the frame read ONE block, one TX_64X64 transform, and reconstruct `Y=126` — EXACTLY ffmpeg's `libdav1d` output. Proof: `AvifRealFileE2ETest#realSolidGrayDecodesToReferenceOnJvm/OnScript`. **The Kof AVIF decoder was correct the whole time; this entry is retracted as a decoder bug and kept as the record of a real integration pitfall (the TxMode-value mapping) the composition must get right.**
+
+<!-- pt-switch --> **PT:** [§731 (pt_BR)](known-bugs.pt_BR.md#731--o-decode-de-tile-avif-em-kof-puro-diverge-do-decoder-de-referencia-mesmo-no-frame-real-mais-simples-um-avif-verde-cinza-solido-64x64-um-bloco-payload-de-tile-de-2-bytes-reconstroi-como-y--0173165-onde-o-libdav1d-do-ffmpeg-le-um-plano-126---corrigido-1410--diagnostico-errado-retratado-o-decode-de-tile-do-kof-esta-correto-a-divergencia-era-a-cola-da-composicao-passando-o-bit-cru-tx_mode_select-onde-o-driver-quer-o-valor-txmode-do-av1-0only_4x4-1largest-2select--ver-a-resolucao-abaixo-medido-pela-lane-pipelineimage-vision-19216815210)

@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — `known-bugs` §731 CATALOGADO: o decode de tile AVIF do Kof DIVERGE da referência mesmo no frame real MAIS SIMPLES — um AVIF cinza-sólido 64x64 (1 bloco, payload de 2 bytes) reconstrói `Y=0,173,165` onde o ffmpeg lê `126` uniforme. Tudo acima do decode de tile está verde contra os bytes do encoder real (contêiner, seq 3ay/3ba, cabeçalho 3ax/3bb, cfg correto). Fila do README 10→11. Próximo: dirigir o reprodutor de 2 bytes com trilha de marcadores (mode-info tail / tx size / walk de coeficientes / reconstruct).
-doing: §731 catalogado (diagnóstico); nada landado em libs
-next: investigar §731 — o único bloco 64x64 do reprodutor cinza-sólido (2 bytes de tile): cauda de mode-info, transform size, walk de coeficientes, reconstruct; oráculo ffmpeg/libdav1d (Y=126)
+last: 14/10 — AVIF slice 3bc LANDADA: a composição decodifica um AVIF REAL corretamente — o cinza-sólido 64x64 dá `Y=126`, EXATO do libdav1d (primeiro match de pixels ponta-a-ponta num arquivo real). §731 RETRATADO: era um bug da MINHA cola, não do decoder — o `txMode` do driver toma o VALOR `TxMode` do AV1 (0/1/2), não o bit cru `tx_mode_select`; passar o bit fazia um bloco 64x64 virar 256 blocos 4x4 de lixo. `AvifRealFileE2ETest` 6/6. Próximo: aplicar o mapeamento ao quadro real complexo, depois multi-bloco/chroma/assembly + `decodeRaster` AVIF.
+doing: 3bc landada (a composição decodifica um AVIF real; §731 retratado)
+next: o mapeamento `txMode` no quadro real complexo (testsrc), depois a composição multi-bloco/chroma/montagem de quadro e a rota `decodeRaster` AVIF
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (28ª) — slice 3bc: a composição decodifica um AVIF REAL (e o §731 era bug MEU)
+- **O dump por estágio resolveu:** no cinza-sólido, `blocks=1` mas `levels=256` e `txSz=0` (4x4) para um bloco 64x64. Um bloco virando 256 blocos de 4x4 = o transform size estava errado.
+- **A causa:** o `txMode` do driver toma o VALOR `TxMode` do AV1 (0=ONLY_4X4, 1=LARGEST, 2=SELECT), não o bit cru `tx_mode_select`. Eu passava o bit -> bit 0 virava ONLY_4X4 -> 4x4. Mapeando (bit 0 -> 1, bit 1 -> 2): `blocks=1 levels=1 txSz=4` (TX_64X64) e **`Y=126`, igual ao ffmpeg**.
+- **Correção honesta:** o §731 que eu cataloguei como bug do DECODER era um bug da MINHA cola de composição. Retratei o §731 (o decoder está correto o tempo todo) e mantive a entrada como registro da armadilha de integração. Não deixei um falso bug no ledger.
+- **Marco:** primeiro casamento de pixels PONTA-A-PONTA num arquivo de encoder REAL (antes só estágios em streams sintéticos).
+- **O que landei:** as duas faces do cinza-sólido no `AvifRealFileE2ETest` (fixture real commitado) + a retratação do §731 + README 11→10. 6/6.
+- **Lição:** quando eu sou o único consumidor do que estou testando, "bug do decoder" tem que passar por "o bug está no MEU chamador?" primeiro — o dump por estágio é o que separa os dois.
 
 ## Sessão 14/10 (27ª) — §731: a cadeia composite DIVERGE da referência no frame real mais simples
 - **O instrumento:** em vez de caçar o arquivo complexo (testsrc 64x64), encodei o AVIF MAIS SIMPLES possível — `color=c=gray:s=64x64` — porque se o caso trivial falha, o caminho básico está errado.

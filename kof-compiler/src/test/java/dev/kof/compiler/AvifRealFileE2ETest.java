@@ -221,4 +221,109 @@ main() {
         assertEquals(0, result.exitCode(), "script output: " + result.stdout());
         assertEquals(DELIM_GOLDEN, result.stdout().strip());
     }
+
+    /**
+     * The COMPOSITION, corrected (slice 3bc): decode a REAL solid-gray 64x64
+     * AVIF and match the reference decoder's flat Y. The earlier "divergence"
+     * was a GLUE bug, not a decoder bug: the tile driver's `txMode` takes the
+     * AV1 TxMode VALUE (0=ONLY_4X4, 1=LARGEST, 2=SELECT), NOT the raw
+     * `tx_mode_select` bit. Passing the bit put tx_mode at TX_MODE_ONLY_4X4, so
+     * a 64x64 block was decoded as 256 4x4 transform blocks of garbage. With
+     * the value mapped (bit 0 -> 1, bit 1 -> 2) the frame reads ONE block, one
+     * TX_64X64 transform, and reconstructs Y=126 — exactly what ffmpeg's
+     * libdav1d reads for the same file.
+     */
+    private Path solidFixture(String name) throws Exception {
+        byte[] f = Files.readAllBytes(Path.of("src/test/resources/avif_real_solid64.avif"));
+        int m = -1;
+        for (int i = 0; i + 4 <= f.length; i++) {
+            if (f[i] == 'm' && f[i + 1] == 'd' && f[i + 2] == 'a' && f[i + 3] == 't') { m = i; break; }
+        }
+        int size = ((f[m - 4] & 0xff) << 24) | ((f[m - 3] & 0xff) << 16) | ((f[m - 2] & 0xff) << 8) | (f[m - 1] & 0xff);
+        byte[] item = new byte[size - 8];
+        System.arraycopy(f, m + 4, item, 0, item.length);
+        byte[] delim = AvifSeqSupport.delimiter();
+        byte[] both = new byte[delim.length + item.length];
+        System.arraycopy(delim, 0, both, 0, delim.length);
+        System.arraycopy(item, 0, both, delim.length, item.length);
+        Path out = tmp.resolve(name);
+        Files.write(out, AvifObuSupport.containerWithItem(both));
+        return out;
+    }
+
+    private static final String SOLID_GOLDEN =
+            "blocks=1 levels=1 txSz=4\n"
+          + "Y 126 126 126";
+
+    private static String solidProbe(String path) {
+        return """
+import image.Av1DecodeChroma
+import image.Av1DecodeTileRecon
+import image.Av1ModeInfo
+import image.Av1Partition
+import image.Av1Quant
+import image.Av1Symbol
+import image.Av1TxType
+import image.AvifFrame
+import image.AvifGroup
+import image.AvifObu
+
+main() {
+    var path = "%s"
+    var h = readAvifFrameHeader(path)
+    var seq = readAvifItemObus(path).seq
+    var data = readAvifTilePayloads(path).get(0)
+    var mw = h.codedWidth
+    var mh = h.codedHeight
+    var miw = mw >> 2
+    var mih = mh >> 2
+    var txMode = 1
+    if (h.txModeSelect == 1) { txMode = 2 }
+    var stride = mw + 2
+    var frame = new Int[stride * (mh + 2)]
+    var cw = mw >> 1
+    var ch = mh >> 1
+    var cstride = cw + 2
+    var chroma = Av1ChromaPlanes(new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[miw], new Int[mih], new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[miw], new Int[mih])
+    var sym = Av1Symbol(data)
+    var store = Av1CoeffCdfStore(h.baseQIdx)
+    var txStore = Av1TxType(sym)
+    var qt = Av1QuantTables()
+    var dcq = qt.dcQ(seq.bitDepth, h.baseQIdx)
+    var acq = qt.acQ(seq.bitDepth, h.baseQIdx)
+    var fi = 0
+    if (seq.enableFilterIntra) { fi = 1 }
+    var de = 1
+    if (seq.enableIntraEdgeFilter) { de = 0 }
+    var ec = 0
+    if (seq.enableCdef) { ec = 1 }
+    var modes = listOf<Int>()
+    var levels = listOf<Int[]>()
+    var cfg = Av1ModeTail(12, h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, 0, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, store, txStore, new Int[miw * mih], new Int[miw], new Int[mih], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
+    var walk = Av1Partition(data, miw, mih)
+    walk.useReader(sym)
+    walk.bindDecoder(tile)
+    walk.walk()
+    println("blocks=" + (modes.size / 17) + " levels=" + levels.size + " txSz=" + modes[4])
+    println("Y " + frame[(0 + 1) * stride + (0 + 1)] + " " + frame[(32 + 1) * stride + (32 + 1)] + " " + frame[(63 + 1) * stride + (63 + 1)])
+}
+""".formatted(path);
+    }
+
+    @Test
+    void realSolidGrayDecodesToReferenceOnJvm() throws Exception {
+        assertEquals(SOLID_GOLDEN, runJvm(solidProbe(solidFixture("solid-jvm.avif").toString())));
+    }
+
+    @Test
+    void realSolidGrayDecodesToReferenceOnScript() throws Exception {
+        Path root = tmp.resolve("script-solid");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), solidProbe(solidFixture("solid-scr.avif").toString()));
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(SOLID_GOLDEN, result.stdout().strip());
+    }
 }

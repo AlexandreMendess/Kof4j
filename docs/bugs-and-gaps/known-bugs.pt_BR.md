@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §731
+last: §731 (FIXED/RETRACTED)
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -16853,7 +16853,7 @@ JVM/Script/JS imprimem `caught=true`; **o native x86-64 imprime `Runtime error: 
 
 <!-- en-switch --> **EN:** [§730 (en)](known-bugs.md.md#730--js-stringsubstringcharat-out-of-range-silently-clamp-empty-string-where-the-jvmscript-raise-the-named-rangeindex-message---open-measured-1410-by-lane-issuestooling-192168100219093-during-the-843-probe)
 
-## §731 — o decode de tile AVIF em Kof puro DIVERGE do decoder de referência mesmo no frame real MAIS SIMPLES: um AVIF verde-cinza sólido 64x64 (um bloco, payload de tile de 2 bytes) reconstrói como `Y = 0,173,165` onde o `libdav1d` do ffmpeg lê um plano `126` — 🟡 ABERTO (medido 14/10 pela lane pipeline/image-vision `192.168.15.21:0`)
+## §731 — o decode de tile AVIF em Kof puro DIVERGE do decoder de referência mesmo no frame real MAIS SIMPLES: um AVIF verde-cinza sólido 64x64 (um bloco, payload de tile de 2 bytes) reconstrói como `Y = 0,173,165` onde o `libdav1d` do ffmpeg lê um plano `126` — ✅ CORRIGIDO 14/10 — DIAGNÓSTICO ERRADO RETRATADO: o decode de tile do Kof está CORRETO; a 'divergência' era a COLA DA COMPOSIÇÃO passando o bit cru `tx_mode_select` onde o driver quer o VALOR `TxMode` do AV1 (0=ONLY_4X4, 1=LARGEST, 2=SELECT) — ver a resolução abaixo (medido pela lane pipeline/image-vision `192.168.15.21:0`)
 
 **Sintoma (medido 14/10):** a cadeia AVIF inteira lê corretamente o arquivo de um encoder REAL — contêiner, sequence header (fatias 3ay/3ba) e cabeçalho de quadro (3ax/3bb) todos batem — mas a RECONSTRUÇÃO da luma no DECODE DE TILE discorda da referência. Não é problema de config: o quadro real lê `deltaQPresent=0`, `deltaLfPresent=0`, `cdefBits=0` (fatia 3bb), então o `Av1ModeTail` já está correto.
 
@@ -16869,4 +16869,6 @@ O item do ffmpeg é `[OBU_SEQUENCE_HEADER][OBU_FRAME]` sem temporal delimiter li
 
 **Fronteira:** só JVM aqui (as faces nativas não são afetadas pelo trabalho da lane de codegen). NÃO é o problema de locais-em-registradores §723. NÃO é um bug de contêiner/cabeçalho (esses estão fixados em verde).
 
-<!-- pt-switch --> **EN:** [§731 (en)](known-bugs.md#731--the-pure-kof-avif-tile-decode-diverges-from-the-reference-decoder-even-on-the-simplest-real-frame-a-solid-gray-64x64-avif-one-block-a-2-byte-tile-payload-reconstructs-as-y--0173165-where-ffmpegs-libdav1d-reads-a-flat-126---open-measured-1410-by-lane-pipelineimage-vision-19216815210)
+**RESOLVIDO 14/10 — a divergência estava na COLA DA COMPOSIÇÃO, não no decoder.** Dirigindo o reprodutor cinza-sólido com um dump por estágio, apareceu UM bloco de mode-info mas 256 blocos de transformada com coeficientes lixo e `txSz=0` (TX_4X4) para um bloco 64x64. O parâmetro `txMode` do driver de tile toma o VALOR `TxMode` do AV1 (0=ONLY_4X4, 1=LARGEST, 2=SELECT), NÃO o bit cru `tx_mode_select` do cabeçalho — a cola passava o bit, então `tx_mode_select == 0` virava TX_MODE_ONLY_4X4 e um bloco 64x64 decodificava como 256 blocos 4x4. Mapeando (bit 0 -> LARGEST(1), bit 1 -> SELECT(2)) o quadro lê UM bloco, uma transformada TX_64X64, e reconstrói `Y=126` — EXATAMENTE a saída do `libdav1d` do ffmpeg. Prova: `AvifRealFileE2ETest#realSolidGrayDecodesToReferenceOnJvm/OnScript`. **O decoder AVIF do Kof estava correto o tempo todo; esta entrada é retratada como bug de decoder e mantida como registro de uma armadilha de integração real (o mapeamento do valor TxMode) que a composição precisa acertar.**
+
+<!-- pt-switch --> **EN:** [§731 (en)](known-bugs.md#731--the-pure-kof-avif-tile-decode-diverges-from-the-reference-decoder-even-on-the-simplest-real-frame-a-solid-gray-64x64-avif-one-block-a-2-byte-tile-payload-reconstructs-as-y--0173165-where-ffmpegs-libdav1d-reads-a-flat-126---fixed-1410--misdiagnosis-retracted-the-kof-tile-decode-is-correct-the-divergence-was-the-composition-glue-passing-the-raw-tx_mode_select-bit-where-the-driver-wants-the-av1-txmode-value-0only_4x4-1largest-2select--see-the-resolution-below-measured-by-lane-pipelineimage-vision-19216815210)
