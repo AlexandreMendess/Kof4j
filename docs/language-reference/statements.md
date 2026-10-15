@@ -186,6 +186,12 @@ catch-clause = "catch" , "(" , type-ref , identifier , ")" , block
 
 - `catch (String e)` catches Kof exceptions (strings). The catch type is
   resolved as `String` on the JVM (because `throw` became `RuntimeException`).
+- **The binding is always a String on every target.** On **JS** the runtime's
+  internal throws are host `Error` objects, so the emission normalises the
+  caught value back to a String (`Error.message`, else `String(value)`) before
+  the catch body runs — `e == "msg"`, `e.length()` and `e.startsWith(...)` are
+  valid on the JS target too (issue #843, `JsEmitter`). The TEXT of the message
+  is not part of this contract.
 - `catch (Int e)` **compiles** (*probe*) but the catching behavior is
   **Unspecified** (the thrown exception is always String/RuntimeException).
 - `finally` always executes (including on `return`/`throw` of the try).

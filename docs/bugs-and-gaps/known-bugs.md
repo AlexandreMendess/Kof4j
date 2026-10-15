@@ -19296,3 +19296,71 @@ libaom's `CFL_SIGN_TYPE` is `{ CFL_SIGN_ZERO, CFL_SIGN_NEG, CFL_SIGN_POS }` (`av
 **Proof (executed, RED-first):** the two cases joined `RecordExtendsUserClassValueSemanticsE2ETest`; reverting only the two fix files → **2/6 RED** with the exact reported errors; with the fix → **6/6 GREEN**. Battery `*Record*`/interpreter **99/0F**, **golden 284/284** (four targets).
 
 **Boundary:** JVM only (native unchanged, already correct; JS/Script use their own record emitters).
+
+## §728 — [JS] the internal runtime throws now bind a String, but carry the JS runtime's OWN message TEXT (bounds, Int/Double parse, JWT, …) — issue #843's message-EQUALITY line stays false on JS — 🟡 OPEN (found 14/10 by lane issues/tooling `192.168.100.21:9093` while fixing #843; the text-parity change spans ≈61 throw sites in 16 `js/JsRuntime*.java` files)
+
+**Measured (14/10, `kof-cli-0.6.5.jar` built WITH the #843 fix):** the same program on each target —
+
+```kof
+try { println(listOf(1, 2).get(99)) } catch (String e) { println("msg=[" + e + "]") }
+```
+
+**JVM** `msg=[Index 99 out of bounds for length 2]` · **Script** `msg=[Index 99 out of bounds for length 2]` · **JS** `msg=[Index out of bounds: 99 (size 2)]`. The same shape holds for `"nope".toInt()` (JVM/Script `For input string: "nope"` ↔ JS `Cannot parse "nope" as Int`), for `.toDouble()`, for `List.set` out of range and for the `list[i]` operator. JVM and Script agree BYTE-FOR-BYTE — the interpreter mirrors the JDK wording — while the JS runtime words its own messages.
+
+**Why it is catalogued and not dismissed:** the frozen contract (`docs/language-reference/statements.md` §8, `semantics.md` §5) fixes the TYPE — exceptions are Strings and `catch (String e)` binds that String — and is SILENT about the text. But this project already treats a text-only divergence BETWEEN targets as a real parity defect (the `file not found: ` prefix family, reconciled by making the cross target emit the same text), and issue #843's repro asserts `e == "Index 99 out of bounds for length 2"`, i.e. the JVM/Script wording.
+
+**The OTHER half of #843 is FIXED (same day, same lane):** the typed binding. `JsEmitter` now normalises the catch binding to a String (`typeof <e> !== "string"` → `.message`, else `String(e)`), so `e.length()`/`e.startsWith(...)` work and the `TypeError: e.startsWith is not a function` that killed real programs is gone — `JsCatchStringContractE2ETest` 5/0F, RED-first (reverting the normalisation makes the JS face die with exactly that TypeError).
+
+**Fix (not attempted — decision + front):** aligning JS to the JVM/Script text means adopting the JDK-derived wording in the JS runtime (`"Index " + i + " out of bounds for length " + n`, `For input string: "…"`) at ≈61 `new Error(` sites in 16 files (`JsRuntimeUiLayout`, `JsRuntimeUiSecurity`, `JsRuntimeCollections`, `JsRuntimeCron`, `JsRuntimeUiChacha`/`Crypto`, …). Whether the Kof runtime messages become a NORMATIVE text (identical on every target, extended as new throws land) or stay target-specific is a maintainer decision; the code change is the JS/codegen lane's front — the same files that lane edits.
+
+**Boundary:** the JS `substring`/`charAt` out-of-range face is a different divergence (§730) and the native bounds face another (§729) — the three were measured in the same probe of the exception surface.
+
+<!-- pt-switch --> **PT:** [§728 (pt_BR)](known-bugs.pt_BR.md#728--js-os-throws-internos-do-runtime-agora-ligam-uma-string-mas-carregam-o-texto-proprio-do-runtime-js-bounds-parse-de-intdouble-jwt---a-linha-de-igualdade-de-mensagem-da-issue-843-continua-falsa-no-js---aberto-achado-1410-pela-lane-issuestooling-192168100219093-ao-corrigir-a-843-a-mudanca-de-texto-abrange-61-sitios-de-throw-em-16-arquivos-jsjsruntimejava)
+
+## §729 — NATIVE: a bounds error is a hard ABORT (kof_bounds_error → kof_panic), so a catch (String e) never sees it, while JVM/Script/JS catch the same out-of-range access — 🟡 OPEN (measured 14/10 by lane issues/tooling `192.168.100.21:9093` during the #843 probe; the native runtime lane's front)
+
+**Symptom (measured 14/10, `kof-cli-0.6.5.jar`):**
+
+```kof
+Int get1(List<Int> xs, Int i) { return xs.get(i) }
+main() {
+    var xs = listOf(1, 2)
+    try { println(get1(xs, 99)) } catch (String e) { println("caught=" + (e.length() > 0)) }
+}
+```
+
+JVM/Script/JS print `caught=true`; **native x86-64 prints `Runtime error: array index out of bounds` and the `catch` NEVER runs**. A USER `throw "boom"` inside the same `try` IS caught on native, so the divergence is specific to the RUNTIME faults — not to the handler chain.
+
+**Root:** the native runtime's bounds helpers call `kof_panic` (`NativeRiscvAsmRt0.kof_bounds_error` → `la a0, .Lstr_bounds_err; call kof_panic`, with the x86 and cross blobs mirroring it) — a hard abort. `kof_throw_string` — the helper `throw "msg"` uses, and the one the whole `catch (String e)` machinery is built on — is never reached from there, so no handler is ever consulted.
+
+**Why this is a divergence and not a design choice:** §699 (the §693 cross face) took the OPPOSITE route for the SIBLING fault — integer division by a runtime zero was routed to `kof_throw_string` on the cross targets precisely because "Kof's own `try`/`catch` did not catch it" — and the runtime-fault → catchable-String direction is the one the docs promise (`semantics.md` §5: `throw` propagates to the nearest `catch (String e)`).
+
+**Impact:** any Kof program that guards an out-of-range access with the documented `try`/`catch (String e)` idiom behaves differently on native — it ABORTS instead of taking the recovery path. The engine suites do not hit it (the AV1/WebP decoders are written never to read out of range), which is why it survived.
+
+**Fix (not attempted — the native runtime lane's front):** route `kof_bounds_error` to `kof_throw_string` — the uncaught behaviour stays identical (that helper already prints the message and exits 1 when no handler is installed) — with the per-arch blobs (x86/riscv64/aarch64 + the cross emitters) updated in lockstep.
+
+**Boundary:** out-of-range faults only. The native NULL fault (`kof_null_error`, the same `kof_panic` shape) was NOT measured this cycle and is not claimed here.
+
+<!-- pt-switch --> **PT:** [§729 (pt_BR)](known-bugs.pt_BR.md#729--native-um-erro-de-bounds-e-aborto-duro-kof_bounds_error--kof_panic-entao-o-catch-string-e-nunca-o-ve-enquanto-jvmscriptjs-capturam-o-mesmo-acesso-fora-de-faixa---aberto-medido-1410-pela-lane-issuestooling-192168100219093-na-sondagem-da-843-frente-da-lane-do-runtime-nativo)
+
+## §730 — [JS] String.substring/charAt OUT OF RANGE silently clamp (empty string) where the JVM/Script raise the named Range/Index message — 🟡 OPEN (measured 14/10 by lane issues/tooling `192.168.100.21:9093` during the #843 probe)
+
+**Measured (14/10, `kof-cli-0.6.5.jar`), same source on every target:**
+
+| expression | JVM | Script | JS |
+|---|---|---|---|
+| `"abc".substring(9)` | throws `Range [9, 3) out of bounds for length 3` | idem | `""` |
+| `"abc".substring(2, 1)` | throws `Range [2, 1) out of bounds for length 3` | idem | `"b"` (the args are SWAPPED) |
+| `"abc".substring(-1)` | throws `Range [-1, 3) out of bounds for length 3` | idem | `"abc"` |
+| `"abc".charAt(9)` | throws `Index 9 out of bounds for length 3` | idem | `""` |
+| `"abc".charAt(-1)` | throws `Index -1 out of bounds for length 3` | idem | `""` |
+
+**Root:** the JS target delegates to the host `String.prototype`, which CLAMPS by definition and SWAPS the arguments of `substring`, instead of performing the range check the other targets perform. Same family as bug 102 (where `indexOf`/`lastIndexOf`/`startsWith` WITH a `from` diverged from the JDK clamps and were reconciled on JS) — here it is the bounds of the method itself.
+
+**Impact:** this is the SILENT variant, the worst class the ledger tracks (rule 5): the program keeps running with an empty or short string and the wrong value propagates, where JVM/Script fail loudly.
+
+**Fix (not attempted — the JS runtime lane's front):** add the explicit range check (with the JDK messages above) to the JS String helpers before delegating to the host method — the same shape the JS div-by-zero and JSON faces already use.
+
+**Boundary:** out-of-range only. The IN-RANGE UTF-16 behaviour of the JS target is the reference convention (§43) and is untouched; `indexOf`/`lastIndexOf`/`startsWith` WITH `from` were reconciled by bug 102.
+
+<!-- pt-switch --> **PT:** [§730 (pt_BR)](known-bugs.pt_BR.md#730--js-stringsubstringcharat-fora-de-faixa-trancam-em-silencio-string-vazia-onde-o-jvmscript-lancam-a-mensagem-nomeada-de-rangeindex---aberto-medido-1410-pela-lane-issuestooling-192168100219093-na-sondagem-da-843)
