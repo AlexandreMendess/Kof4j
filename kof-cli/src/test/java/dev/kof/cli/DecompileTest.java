@@ -3217,6 +3217,99 @@ class DecompileTest {
                 "zero-drift: kelvin/fahrenheit/bmi/label/discount id\u00eanticos ao Java");
     }
 
+    @Test
+    void statsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o dom\u00ednio ESTAT\u00cdSTICA sobre arrays TIPADOS —
+        // 5 shapes sem c\u00f3digo novo: o max-loop cl\u00e1ssico (max), o
+        // arg-min com compara\u00e7\u00e3o INDIRETA `xs[i] < xs[mi]` (minIndex —
+        // Double[]), o all-positive com return antecipado (allPositive), o
+        // SOMAT\u00d3RIO Long[] (sum — o Long de 3B n\u00e3o vira Int) e a
+        // contagem com CHAR comparado `s.charAt(i) == target` (countChar —
+        // o param sai tipado `Char` no Kof e o literal 'a' compila).
+        // Zero-drift executado: 9/1/true/false/6000000000/3 — 6/6
+        // id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Stats.java");
+        Files.writeString(javaFile, """
+                public class Stats {
+                    static int max(int[] xs) {
+                        int m = xs[0];
+                        for (int i = 1; i < xs.length; i++) {
+                            if (xs[i] > m) { m = xs[i]; }
+                        }
+                        return m;
+                    }
+                    static int minIndex(double[] xs) {
+                        int mi = 0;
+                        for (int i = 1; i < xs.length; i++) {
+                            if (xs[i] < xs[mi]) { mi = i; }
+                        }
+                        return mi;
+                    }
+                    static boolean allPositive(int[] xs) {
+                        for (int x : xs) {
+                            if (x <= 0) { return false; }
+                        }
+                        return true;
+                    }
+                    static long sum(long[] xs) {
+                        long s = 0;
+                        for (long x : xs) { s += x; }
+                        return s;
+                    }
+                    static int countChar(String s, char target) {
+                        int n = 0;
+                        for (int i = 0; i < s.length(); i++) {
+                            if (s.charAt(i) == target) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Stats.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("Char arg1"), "o param Char:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    var xs = new Int[4]
+                    xs[0] = 3
+                    xs[1] = 9
+                    xs[2] = 4
+                    xs[3] = 9
+                    println(Stats.max(xs))
+                    var ds = new Double[3]
+                    ds[0] = 2.5
+                    ds[1] = 0.5
+                    ds[2] = 1.5
+                    println(Stats.minIndex(ds))
+                    println(Stats.allPositive(xs))
+                    var neg = new Int[2]
+                    neg[0] = 1
+                    neg[1] = -1
+                    println(Stats.allPositive(neg))
+                    var ls = new Long[3]
+                    ls[0] = 1000000000
+                    ls[1] = 2000000000
+                    ls[2] = 3000000000
+                    println(Stats.sum(ls))
+                    println(Stats.countChar("banana", 'a'))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 9 | 1 | true | false | 6000000000 | 3
+        assertEquals("9\n1\ntrue\nfalse\n6000000000\n3", output,
+                "zero-drift: max/minIndex/allPositive/sum/countChar id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
