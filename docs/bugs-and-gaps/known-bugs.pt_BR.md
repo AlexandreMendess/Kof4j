@@ -1855,7 +1855,7 @@ EXTERNA produzia lixo (JVM correto) — a causa era o prólogo tratando captura 
 |---------|---------------|---------|
 | `l.get(5)` em lista de 3 | `IndexOutOfBoundsException` | bounds check (verificado 27/08) |
 | `json.decode<Int>("abc")` | `NumberFormatException` | parse inválido |
-| `json.decode<Point>("{\"x\":5}")` sem `y` | NPE/IllegalArgumentException | campo ausente — erro pouco claro (gap de mensagem, não bug de semântica) |
+| `json.decode<Point>("{\"x\":5}")` sem `y` | JVM/JS lançam `JSN004`, nativo/Script defaultam o campo a 0 (§733 — 14/10) | campo ausente — erro pouco claro (gap de mensagem, não bug de semântica) |
 | `"abc".toInt()` | `NumberFormatException` | parse inválido |
 | `10 / 0` (variáveis) | `ArithmeticException` runtime | ARITH001 só pega constantes |
 | `"Olá 😀".length` | 6 (JVM UTF-16) | gap `STR001` documentado |
@@ -16897,3 +16897,25 @@ SIGSEGVava (exit 139) em vez de imprimir `caught=[/ by zero]` — o catch DISPAR
 **Fronteira:** a face x86; o guard do CROSS já estava correto (usava `kof_string_from_literal`).
 
 <!-- en-switch --> **EN:** [§732](known-bugs.md#732--native-x86-a-caught-runtime-fault-message-was-an-asciz-c-string-not-a-kofstring-a-catch-string-e-that-used-e-e---elength-sigsegvd--masked-because-693s-e2e-never-used-e---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §733 — json.decode<Rec> devolve um record DEFAULT na NATIVE (JSON malformado E campo faltando) e na SCRIPT (campo faltando), onde JVM/JS lançam — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO COMPILADOR), `record Point(Int x, Int y)`, `json.decode<Point>(j)` num `try`/`catch (String e)`:**
+
+| `j` | JVM | Script | JS | nativo |
+|---|---|---|---|---|
+| `"{bad"` | captura | captura | captura | **`Point(x=0, y=0)` — NÃO lança** |
+| `"xyz"` | captura | captura | captura | **`Point(x=0, y=0)` — NÃO lança** |
+| `"{\"x\":1}"` (sem `y`) | captura `JSN004: missing field 'y' for Point` | **`Point(x=1, y=0)` — NÃO lança** | captura `JSN004` | **`Point(x=1, y=0)` — NÃO lança** |
+| `"{\"x\":1,\"y\":2}"` | `Point(x=1, y=2)` | idem | idem | idem |
+
+O NATIVO nunca lança num payload MALFORMADO — devolve um record zero/default e o programa segue com um valor ERRADO (a variante SILENCIOSA, a pior classe, regra 5). NATIVO e SCRIPT ignoram um campo FALTANDO (default 0) onde JVM/JS levantam `JSN004`.
+
+**Raiz (análise):** o decode JSON nativo (o runtime `kof_json_decode_*`, `runtime/RuntimeJsonDecode.java`) lê campos por nome e deixa o slot do record no default quando o campo está ausente, e não valida o payload; o decode da SCRIPT espelha esse default de campo faltando. O decode JVM/JS levanta uma String `JSN004`, que um `catch (String e)` recupera — o contrato.
+
+**Caminho de correção (nomeado, NÃO pousado):** fazer o decode nativo (e o da Script) LANÇAR a MESMA String `JSN004` num payload malformado e num campo faltando, espelhando JVM/JS — via o caminho de `throw` nativo com mensagem KofString (§729/§732 tornaram esse mecanismo capturável). NOTA: a linha da tabela `Behaviors that LOOK like bugs` do ledger está ESTALE — o JVM agora lança um `JSN004` limpo, não `NPE/IllegalArgumentException`.
+
+**Fronteira:** o NATIVO (as duas faces) e a SCRIPT (campo faltando); JVM/JS são o oráculo. Distinto do §728 (o TEXTO da mensagem JS) e das faces json §48/§667.
+
+<!-- en-switch --> **EN:** [§733](known-bugs.md#733--jsondecoderec-silently-returns-a-default-initialized-record-on-the-native-malformed-json-and-missing-field-and-on-the-script-missing-field-where-jvmjs-throw---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+

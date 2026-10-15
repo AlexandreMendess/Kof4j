@@ -1852,7 +1852,7 @@ EXTERNAL mutation produced garbage (JVM correct) — the cause was the prologue 
 |---------|---------------|---------|
 | `l.get(5)` on a list of 3 | `IndexOutOfBoundsException` | bounds check (verified 27/08) |
 | `json.decode<Int>("abc")` | `NumberFormatException` | invalid parse |
-| `json.decode<Point>("{\"x\":5}")` without `y` | NPE/IllegalArgumentException | missing field — unclear error (message gap, not a semantics bug) |
+| `json.decode<Point>("{\"x\":5}")` without `y` | JVM/JS throw `JSN004`, native/Script default the field to 0 (§733 — 14/10) | missing field — unclear error (message gap, not a semantics bug) |
 | `"abc".toInt()` | `NumberFormatException` | invalid parse |
 | `10 / 0` (variables) | `ArithmeticException` runtime | ARITH001 only catches constants |
 | `"Olá 😀".length` | 6 (JVM UTF-16) | documented gap `STR001` |
@@ -19409,3 +19409,25 @@ SIGSEGV'd (exit 139) instead of printing `caught=[/ by zero]` — the catch FIRE
 **Boundary:** the x86 face; the CROSS guard was already correct (it used `kof_string_from_literal`).
 
 <!-- pt-switch --> **PT:** [§732](known-bugs.pt_BR.md#732--nativo-x86-uma-mensagem-de-falha-de-runtime-capturada-era-um-asciz-c-string-nao-uma-kofstring-um-catch-string-e-que-usesse-e-e---elength-sigsegvava--mascarado-porque-o-e2e-do-693-nunca-usou-e---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §733 — json.decode<Rec> silently returns a DEFAULT-INITIALIZED record on the NATIVE (malformed JSON AND missing field) and on the SCRIPT (missing field), where JVM/JS throw — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10 through the COMPILER MODULE), `record Point(Int x, Int y)`, `json.decode<Point>(j)` in a `try`/`catch (String e)`:**
+
+| `j` | JVM | Script | JS | native |
+|---|---|---|---|---|
+| `"{bad"` | caught | caught | caught | **`Point(x=0, y=0)` — NO throw** |
+| `"xyz"` | caught | caught | caught | **`Point(x=0, y=0)` — NO throw** |
+| `"{\"x\":1}"` (no `y`) | caught `JSN004: missing field 'y' for Point` | **`Point(x=1, y=0)` — NO throw** | caught `JSN004: missing field 'y' for Point` | **`Point(x=1, y=0)` — NO throw** |
+| `"{\"x\":1,\"y\":2}"` | `Point(x=1, y=2)` | idem | idem | idem |
+
+The NATIVE never throws on a MALFORMED payload — it returns a zero/default record and the program continues with a WRONG value (the SILENT variant, the worst class, rule 5). The NATIVE and the SCRIPT both ignore a MISSING field (default 0) where the JVM/JS raise `JSN004`.
+
+**Root (analysis):** the native json decode (the `kof_json_decode_*` runtime, `runtime/RuntimeJsonDecode.java`) reads fields by name and leaves the record's slot at its default when the field is absent, and does not validate the payload; the SCRIPT's decode mirrors that missing-field default. The JVM/JS decode raises a String `JSN004`, which a `catch (String e)` recovers — the contract (`semantics.md` §5 / the `Behaviors that LOOK like bugs` table: an invalid/missing-field decode is EXPECTED to throw).
+
+**Fix path (named, NOT landed):** make the native (and the Script) decode RAISE the SAME String `JSN004` on a malformed payload and on a missing field, mirroring the JVM/JS — the native's `throw` path via a KofString message (see §729/§732 for the now-working catchable runtime-fault mechanism). NOTE: the ledger's `Behaviors that LOOK like bugs` table row (`json.decode<Point>("{\"x\":5}")` without `y`) is STALE — the JVM now throws a clean `JSN004`, not an `NPE/IllegalArgumentException`.
+
+**Boundary:** the NATIVE (both faces) and the SCRIPT (missing field); JVM/JS are the oracle. Distinct from §728 (the JS message TEXT) and from the §48/§667 json faces.
+
+<!-- pt-switch --> **PT:** [§733](known-bugs.pt_BR.md#733--jsondecoderec-devolve-um-record-default-na-native-json-malformado-e-campo-faltando-e-na-script-campo-faltando-onde-jvmjs-lancam---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+
