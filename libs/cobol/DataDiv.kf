@@ -1,8 +1,7 @@
 package cobol
 
-import cobol.Scanner
-import cobol.Lexer
-import cobol.Copybook
+import legacy.Legacy
+import legacy.Copybook
 
 // kof.cobol.datadiv — the COBOL→Kof translator, PHASE 5 MVP (plan §30): the
 // DATA DIVISION of a full program → the Layout + the VALUE initial values.
@@ -37,9 +36,14 @@ String dataSection(String text) {
     var out = ""
     i = start + 1
     while (i < stop) {
-        out = out + lines[i]
-        if (i < stop - 1) {
-            out = out + "\n"
+        // the SECTION headers (WORKING-STORAGE SECTION. etc.) are structure,
+        // not data items — the copybook parser has no levels for them.
+        var up = lines[i].toUpperCase()
+        if (up.indexOf("SECTION") < 0 || up.indexOf("DIVISION") >= 0) {
+            out = out + lines[i]
+            if (i < stop - 1) {
+                out = out + "\n"
+            }
         }
         i = i + 1
     }
@@ -47,9 +51,30 @@ String dataSection(String text) {
 }
 
 // parseDataDivision — the program text → the Layout of its DATA DIVISION
-// (the copybook machinery over the extracted region).
+// (the copybook machinery over the extracted region). The VALUE clauses on
+// ELEMENTARY items are stripped here: the initialValues pass captures them
+// (the copybook parser refuses VALUE outside the 88-levels by design). The
+// 88-level lines keep their VALUE (it IS their semantics).
 Copybook parseDataDivision(String text) {
-    return parseCopybookFull(dataSection(text))
+    var lines = dataSection(text).split("\n")
+    var out = ""
+    var i = 0
+    while (i < lines.length) {
+        var line = lines[i]
+        var t = line.trim()
+        if (!(t.startsWith("88 ") || t.startsWith("88.")) && t.indexOf(" VALUE ") >= 0) {
+            var v = line.toUpperCase().indexOf(" VALUE ")
+            if (v >= 0) {
+                line = line.substring(0, v) + "."
+            }
+        }
+        out = out + line
+        if (i < lines.length - 1) {
+            out = out + "\n"
+        }
+        i = i + 1
+    }
+    return parseCopybookFull(out)
 }
 
 record Init(String field, String literal)
