@@ -16831,7 +16831,7 @@ JVM/Script/JS imprimem `caught=true`; **o native x86-64 imprime `Runtime error: 
 
 <!-- en-switch --> **EN:** [§729 (en)](known-bugs.md.md#729--native-a-bounds-error-is-a-hard-abort-kof_bounds_error--kof_panic-so-a-catch-string-e-never-sees-it-while-jvmscriptjs-catch-the-same-out-of-range-access---open-measured-1410-by-lane-issuestooling-192168100219093-during-the-843-probe-the-native-runtime-lanes-front)
 
-## §730 — [JS] String.substring/charAt FORA DE FAIXA trancam em silêncio (string vazia) onde o JVM/Script lançam a mensagem nomeada de Range/Index — 🟡 ABERTO (medido 14/10 pela lane issues/tooling `192.168.100.21:9093` na sondagem da #843)
+## §730 — [JS] String.substring/charAt FORA DE FAIXA trancam em silêncio (string vazia) onde o JVM/Script lançam a mensagem nomeada de Range/Index — ✅ CORRIGIDO 14/10 (achado 14/10 pela lane issues/tooling `192.168.100.21:9093` na sondagem da #843; corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Medido (14/10, `kof-cli-0.6.5.jar`), mesma fonte em todo alvo:**
 
@@ -16847,7 +16847,7 @@ JVM/Script/JS imprimem `caught=true`; **o native x86-64 imprime `Runtime error: 
 
 **Impacto:** esta é a variante SILENCIOSA, a pior classe que o ledger rastreia (regra 5): o programa segue rodando com uma string vazia ou curta e o valor errado se propaga, onde JVM/Script falham alto.
 
-**Fix (não tentado — frente da lane do runtime JS):** adicionar a checagem explícita de faixa (com as mensagens do JDK acima) nos helpers de String do JS antes de delegar ao método do host — a mesma forma que as faces de divisão por zero e de JSON do JS já usam.
+**Correção (POUSADA 14/10):** o emitter do JS agora roteia `charAt`/`substring` para `kofStrCharAt`/`kofStrSubstring`, que fazem a checagem de faixa e LANÇAM a mensagem EXATA do JVM (uma string do JS que o `catch (String e)` do Kof recebe) — a mesma forma do `kofDivZero` (§693), num bloco de runtime próprio (`JsRuntimeStrBounds`, registrado como bloco `strbounds`). `JsCallEmitter`. **Prova (executada, RED-first):** o novo `JsStringBoundsE2ETest` **3 run / 0F** (JVM/Script/JS); com o emitter revertido a face JS falha (o clamp silencioso). **Fronteira:** só a face JS. A face NATIVA ABORTA no mesmo acesso (o bug §729 — uma falha de bounds que nunca é capturável); a tabela original do ledger cobria só JVM/Script/JS.
 
 **Fronteira:** só fora de faixa. O comportamento UTF-16 DENTRO da faixa no alvo JS é a convenção de referência (§43) e não é tocado; `indexOf`/`lastIndexOf`/`startsWith` COM `from` foram reconciliados pelo bug 102.
 

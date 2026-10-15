@@ -456,8 +456,22 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                     stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
                 }
             }
-            case "charAt" -> stack.add(new JsIr.JsCall(
-                    new JsIr.JsMember(receiver, "charCodeAt"), List.of(args.get(0))));
+            case "charAt" -> {
+                // §730: o host `charCodeAt` devolve NaN fora de faixa (→ "");
+                // o JVM/Script lançam `Index i out of bounds for length N`.
+                p.lc.registerRuntime("kofStrCharAt");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStrCharAt"),
+                        List.of(receiver, args.get(0))));
+            }
+            case "substring" -> {
+                // §730: o `String.prototype.substring` do host CLAMPA e TROCA
+                // os args; o JVM/Script lançam `Range [a, b) out of bounds ...`.
+                p.lc.registerRuntime("kofStrSubstring");
+                java.util.List<JsIr.JsExpression> sa = new java.util.ArrayList<>();
+                sa.add(receiver);
+                sa.addAll(args);
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStrSubstring"), sa));
+            }
             case "length" -> stack.add(new JsIr.JsMember(receiver, "length"));
             // §145 (12/09, #101): String.prototype NÃO tem isEmpty (é Java);
             // o default gerava `t.isEmpty()` = TypeError. length === 0.

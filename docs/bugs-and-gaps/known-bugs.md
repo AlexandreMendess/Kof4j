@@ -19343,7 +19343,7 @@ JVM/Script/JS print `caught=true`; **native x86-64 prints `Runtime error: array 
 
 <!-- pt-switch --> **PT:** [§729 (pt_BR)](known-bugs.pt_BR.md#729--native-um-erro-de-bounds-e-aborto-duro-kof_bounds_error--kof_panic-entao-o-catch-string-e-nunca-o-ve-enquanto-jvmscriptjs-capturam-o-mesmo-acesso-fora-de-faixa---aberto-medido-1410-pela-lane-issuestooling-192168100219093-na-sondagem-da-843-frente-da-lane-do-runtime-nativo)
 
-## §730 — [JS] String.substring/charAt OUT OF RANGE silently clamp (empty string) where the JVM/Script raise the named Range/Index message — 🟡 OPEN (measured 14/10 by lane issues/tooling `192.168.100.21:9093` during the #843 probe)
+## §730 — [JS] String.substring/charAt OUT OF RANGE silently clamp (empty string) where the JVM/Script raise the named Range/Index message — ✅ FIXED 14/10 (found 14/10 by lane issues/tooling `192.168.100.21:9093` during the #843 probe; fixed 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 
 **Measured (14/10, `kof-cli-0.6.5.jar`), same source on every target:**
 
@@ -19359,11 +19359,11 @@ JVM/Script/JS print `caught=true`; **native x86-64 prints `Runtime error: array 
 
 **Impact:** this is the SILENT variant, the worst class the ledger tracks (rule 5): the program keeps running with an empty or short string and the wrong value propagates, where JVM/Script fail loudly.
 
-**Fix (not attempted — the JS runtime lane's front):** add the explicit range check (with the JDK messages above) to the JS String helpers before delegating to the host method — the same shape the JS div-by-zero and JSON faces already use.
+**Fix (LANDED 14/10):** the JS emitter now routes `charAt`/`substring` to `kofStrCharAt`/`kofStrSubstring`, which perform the range check and THROW the JVM's exact message (a JS string the Kof `catch (String e)` receives) — the same shape as `kofDivZero` (§693), in their own runtime slice (`JsRuntimeStrBounds`, registered as the `strbounds` block). `JsCallEmitter`. **Proof (executed, RED-first):** the new `JsStringBoundsE2ETest` **3 run / 0F** (JVM/Script/JS); with the emitter reverted the JS face fails (the silent clamp). **Boundary:** the JS face only. The NATIVE face ABORTS on the same access (the §729 bug — a catchable-able bounds fault that never fires); the ledger's original table covered JVM/Script/JS only.
 
 **Boundary:** out-of-range only. The IN-RANGE UTF-16 behaviour of the JS target is the reference convention (§43) and is untouched; `indexOf`/`lastIndexOf`/`startsWith` WITH `from` were reconciled by bug 102.
 
-<!-- pt-switch --> **PT:** [§730 (pt_BR)](known-bugs.pt_BR.md#730--js-stringsubstringcharat-fora-de-faixa-trancam-em-silencio-string-vazia-onde-o-jvmscript-lancam-a-mensagem-nomeada-de-rangeindex---aberto-medido-1410-pela-lane-issuestooling-192168100219093-na-sondagem-da-843)
+<!-- pt-switch --> **PT:** [§730 (pt_BR)](known-bugs.pt_BR.md#730--js-stringsubstringcharat-fora-de-faixa-trancam-em-silencio-string-vazia-onde-o-jvmscript-lancam-a-mensagem-nomeada-de-rangeindex---corrigido-1410-achado-1410-pela-lane-issuestooling-192168100219093-na-sondagem-da-843-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
 ## §731 — the pure-Kof AVIF tile decode DIVERGES from the reference decoder even on the SIMPLEST real frame: a solid gray 64x64 AVIF (one block, a 2-byte tile payload) reconstructs as `Y = 0,173,165` where ffmpeg's `libdav1d` reads a flat `126` — 🟡 OPEN (measured 14/10 by lane pipeline/image-vision `192.168.15.21:0`)
 
