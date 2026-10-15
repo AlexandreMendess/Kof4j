@@ -326,14 +326,16 @@ String unpackComp3(List<Int> bytes, Int digits, Int scale) {
         throw "bad sign nibble: " + sign + " (LEG012)"
     }
     var all = ""
-    i = total - 1 - digits
-    while (i < total - 1) {
-        var d = nibs.get(i)
+    // a FRESH loop variable: reusing the first loop's `i` here trips a JS
+    // backend bug (the function returns undefined — catalogued §734).
+    var j = total - 1 - digits
+    while (j < total - 1) {
+        var d = nibs.get(j)
         if (d > 9) {
             throw "bad digit nibble: " + d + " (LEG011)"
         }
         all = all + ((d + 48) as Char)
-        i = i + 1
+        j = j + 1
     }
     var out = all
     if (scale > 0) {

@@ -16923,3 +16923,14 @@ O NATIVO nunca lança num payload MALFORMADO — devolve um record zero/default 
 
 <!-- en-switch --> **EN:** [§733](known-bugs.md#733--jsondecoderec-silently-returns-a-default-initialized-record-on-the-native-malformed-json-and-missing-field-and-on-the-script-missing-field-where-jvmjs-throw---mostly-fixed-1510-the-script-missing-field-face-fixed-1410-the-native-x86-missing-primitive-field-face-fixed-1510--the-cross-refuses-jsondecoderec-at-compile-time-with-comp001-a-malformed-payload-message-text-divergence-remains--lane-compilerjvmnative-19216815309092)
 
+
+## §734 — [JS] uma função Kof pura que constrói uma String a partir de nibbles `List<Int>` devolve `undefined` no alvo JS (JVM/Script/Native x86 todos corretos) — 🟡 ABERTA (medido 15/10 pela lane KofBOL `192.168.100.14:0`; bloqueia a face JS do COMP-3 da paridade `kof.legacy`)
+
+**Sintoma (repro single-file mínimo, medido em isolamento):** uma função que (1) constrói uma `List<Int>` de nibbles via `bytes.get(i) / 16` e `bytes.get(i) % 16` num `listOf()` novo, (2) lê um elemento de SINAL e ramifica (`sign == 11 || sign == 13` …), (3) constrói uma String com `all = all + ((d + 48) as Char)` num segundo loop sobre a lista, (4) aplica `substring(0, all.length - scale) + "." + …` e um prefixo `"-"` — devolve **`undefined`** no alvo JS; JVM, Script e Native x86 devolvem `-12.34` para a mesma entrada `[1, 35, 77]`. Medido COM o corpo exato do `unpackComp3` inline no Main.kf (sem biblioteca envolvida) — e ainda `undefined`.
+
+**Estreitado (medido):** `/`, `%`, `as Char` e o concat de char funcionam no JS **em isolamento** (um probe com `95 / 16`, `95 % 16`, `(12 + 48) as Char` está correto nos dois alvos); uma variável de loop fresca NÃO conserta a função. O gatilho é uma COMBINAÇÃO dentro da função — o emitter JS desce mal um dos construtos (o round-trip de lista, o check de sinal multi-ramo, ou o substring de limites computados) — ainda não bisecado ao construto único.
+
+**Impacto:** qualquer programa Kof que exercite essa forma no JS recebe um `undefined` silencioso (sem diagnóstico). A face JS do COMP-3 do `kof.legacy` está bloqueada; o E2E de paridade documenta a face como §734 e cobre o resto do núcleo portável nos 4 alvos.
+
+**Fronteira:** lane compiler (o emitter JS), NÃO a lib — a forma da lib está sob suspeita, então o repro é o corpo puro acima.
+
