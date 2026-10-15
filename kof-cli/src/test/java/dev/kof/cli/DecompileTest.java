@@ -3310,6 +3310,85 @@ class DecompileTest {
                 "zero-drift: max/minIndex/allPositive/sum/countChar id\u00eanticos ao Java");
     }
 
+    @Test
+    void doubleForEachSecondLoopStubsHonest(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o M\u00c9TODO com DOIS loops for-each — o javac
+        // REUTILIZA o slot do iterator (o escopo do 1º loop morre) e o decl
+        // do 2º sai SEM `var` (`v3 = arg1.iterator()`), logo o recovery do
+        // for-each (que exige o decl como \u00daLTIMA linha de out) n\u00e3o
+        // pega o segundo loop. A tentativa de busca backward CORROMPIA o
+        // out (a re-entr\u00e2ncia do struct re-processa o walk e o remove
+        // pegava a linha errada — medido no FSCAN trace) → REVERTIDO. A
+        // recusa HONESTA agora cobre o shape: o while-iterator que o
+        // recovery n\u00e3o pegou \u00e9 STUB (`iterator-loop-unrecovered`),
+        // nunca o while cru com locals n\u00e3o-declarados (R6). Os OUTROS
+        // m\u00e9todos da classe (o domain com o indexOf/substring, o
+        // isValid com o indexOf de 2 args + contains, o quotaBytes com o
+        // break de quota) recuperam. Zero-drift executado (os 3):
+        // kof.dev//true/false/false/6000 — 6/6 id\u00eanticos ao Java.
+        // FATIA NOMEADA (a pr\u00f3xima): o recovery backward para o 2º
+        // for-each, sem a re-entr\u00e2ncia.
+        Path javaFile = dir.resolve("Mail.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                import java.util.ArrayList;
+                public class Mail {
+                    static List<String> recipients(List<String> to, List<String> cc) {
+                        List<String> all = new ArrayList<>();
+                        for (String r : to) { all.add(r); }
+                        for (String r : cc) { if (!all.contains(r)) { all.add(r); } }
+                        return all;
+                    }
+                    static String domain(String email) {
+                        int at = email.indexOf("@");
+                        if (at < 0) { return ""; }
+                        return email.substring(at + 1);
+                    }
+                    static boolean isValid(String email) {
+                        int at = email.indexOf("@");
+                        if (at <= 0) { return false; }
+                        return email.indexOf("@", at + 1) < 0 && email.contains(".");
+                    }
+                    static int quotaBytes(List<Integer> sizes) {
+                        int total = 0;
+                        for (int s : sizes) {
+                            if (total + s > 25000000) { break; }
+                            total += s;
+                        }
+                        return total;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Mail.class"));
+        assertTrue(kof.contains("body not recovered"),
+                "o 2º for-each do recipients TEM que stubar honesto:\n" + kof);
+        assertFalse(kof.contains(".hasNext()"), "nunca o while cru:\n" + kof);
+        String kofRun = kof.replace("throw \"body not recovered\"   // unknown", "return listOf()") + """
+                main() {
+                    println(Mail.domain("user@kof.dev"))
+                    println(Mail.domain("noat"))
+                    println(Mail.isValid("user@kof.dev"))
+                    println(Mail.isValid("a@b@c"))
+                    println(Mail.isValid("noat"))
+                    println(Mail.quotaBytes(listOf(1000, 2000, 3000)))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: kof.dev | (vazio) | true | false | false | 6000
+        assertEquals("kof.dev\n\ntrue\nfalse\nfalse\n6000", output,
+                "zero-drift: domain/isValid/quotaBytes id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

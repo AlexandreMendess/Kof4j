@@ -385,6 +385,16 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                         }
                     }
                 }
+                // Fase E (15/10): o shape ITERATOR que o recovery NÃO pegou
+                // (o decl do iterator não é a última linha — o 2º loop do
+                // método, medido no Mail.recipients: o javac REUTILIZA o slot
+                // e o decl sai sem `var`) emitia o while CRU com locals não-
+                // declarados = código não-compilável. Recusa honesta → stub
+                // (R6); a fatia nomeada fica registrada no DOING.
+                if (cond.contains(".hasNext()")) {
+                    BytecodeStatements.refuse("iterator-loop-unrecovered");
+                    return false;
+                }
             }
             out.add("while (" + cond + ") {");
             int savedExit = BytecodeStatements.currentLoopExit;
