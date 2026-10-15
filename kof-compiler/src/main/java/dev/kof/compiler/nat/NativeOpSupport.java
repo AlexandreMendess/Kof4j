@@ -79,4 +79,21 @@ final class NativeOpSupport {
     static boolean supports(Class<?> opType) {
         return X86_64.contains(opType);
     }
+
+    /**
+     * The IR operations the RISC-V 64 (and, via translation, AArch64) CROSS
+     * backend lowers, explicitly. It is {@link #X86_64} MINUS
+     * {@link KofFunctionAddress} — the cross lowering never materializes a bare
+     * function address (higher-order calls go through {@link KofCall}); verified
+     * by {@code NativeOpSupportTest} (the cross emitter's cases must equal this
+     * set) and by the higher-order E2E tests passing on both cross targets.
+     */
+    static final Set<Class<?>> RISCV64_CROSS = X86_64.stream()
+            .filter(c -> c != KofFunctionAddress.class)
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+    /** True when the cross (riscv64/aarch64) backend declares support for the op. */
+    static boolean supportsCross(Class<?> opType) {
+        return RISCV64_CROSS.contains(opType);
+    }
 }

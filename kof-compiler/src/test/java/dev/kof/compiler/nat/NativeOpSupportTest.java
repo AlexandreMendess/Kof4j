@@ -77,4 +77,23 @@ class NativeOpSupportTest {
                 "a NEW KofOperation exists but is not declared in NativeOpSupport.X86_64 "
                 + "(add its x86 lowering AND this declaration in the same change)");
     }
+
+    /** The op classes the CROSS emitter's switch names as `case KofX ...`. */
+    private static Set<String> crossEmitterCases() throws IOException {
+        String src = Files.readString(
+                Path.of("src/main/java/dev/kof/compiler/nat/NativeRiscvCrossEmit.java"),
+                StandardCharsets.UTF_8);
+        Matcher m = Pattern.compile("case (Kof[A-Za-z0-9]+)").matcher(src);
+        Set<String> out = new TreeSet<>();
+        while (m.find()) out.add(m.group(1));
+        return out;
+    }
+
+    @Test
+    void theCrossDeclarationMatchesTheCrossEmitterExactly() throws IOException {
+        Set<String> decl = new TreeSet<>();
+        for (Class<?> c : NativeOpSupport.RISCV64_CROSS) decl.add(c.getSimpleName());
+        assertEquals(crossEmitterCases(), decl,
+                "NativeOpSupport.RISCV64_CROSS must equal the cross emitter's handled ops");
+    }
 }
