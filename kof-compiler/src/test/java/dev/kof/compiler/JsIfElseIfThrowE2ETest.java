@@ -129,6 +129,28 @@ class JsIfElseIfThrowE2ETest {
                 }
                 return r
             }
+            Int loopTrail(Int n) {
+                var r = 0
+                while (r < 5) {
+                    if (r == n) {
+                        r = r + 10
+                        if (r > 12) { return r }
+                    } else if (r == 4) {
+                        break
+                    }
+                    r = r + 1
+                }
+                return r
+            }
+            Int chain4(Int s) {
+                var r = 0
+                if (s == 1) { r = 1 }
+                else if (s == 2) { r = 2 }
+                else if (s == 3) { return 30 }
+                else if (s == 4) { throw "e4" }
+                else { r = 9 }
+                return r + 100
+            }
             main() {
                 println(unpackComp3(listOf(1, 35, 77), 4, 2))
                 println(unpackComp3(listOf(4, 35, 77), 4, 2))
@@ -145,13 +167,22 @@ class JsIfElseIfThrowE2ETest {
                 println(nestedThen(5))
                 println(loopSeq(0))
                 println(loopSeq(2))
+                println(loopTrail(0))
+                println(loopTrail(9))
+                println(chain4(1))
+                println(chain4(2))
+                println(chain4(3))
+                println(chain4(7))
+                try { println(chain4(4)) } catch (String e) { println("e4c") }
             }
             """;
 
     private static final String GOLDEN = String.join("\n",
             "-12.34", "-42.34", "labeltrue", "labelfalse", "caught",
             "11", "31", "chain2caught",
-            "11", "20", "1", "8", "1", "0", "1");
+            "11", "20", "1", "8", "1", "0", "1",
+            "11", "4",
+            "101", "102", "30", "109", "e4c");
 
     @Test
     void jvmIsTheContractForJsIfElseIfThrow() throws Exception {

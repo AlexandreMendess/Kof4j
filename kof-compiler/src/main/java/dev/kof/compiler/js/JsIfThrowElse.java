@@ -78,6 +78,15 @@ public final class JsIfThrowElse {
                 return out;
             }
             if (op instanceof KofJump) {
+                // §734: um else VAZIO não tem terminador próprio — o Jump
+                // seguinte é a saída da região ENVOLVENTE (o alvo é o fim do if
+                // EXTERNO, ex.: `if (r>12) { return r }` seguido do Jump de
+                // saída do então externo). Consumi-lo aqui ESCONDE o end label
+                // do if envolvente: o if aninhado no else externo o rouba e
+                // absorve o epílogo (a função/loop pula o statement seguinte).
+                // Deixa o dono (parseStatements do então envolvente) registrar
+                // o exit no seu `exits`.
+                if (out.isEmpty()) return out;
                 pos[0]++;
                 return out;
             }
