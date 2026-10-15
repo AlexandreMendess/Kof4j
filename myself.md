@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 31ª PASSAGEM: posições POR SÍMBOLO medidas (`n:sym@pos`) e um ORACLE INDEPENDENTE em Python (decodificador de símbolos da spec; NÃO precisa de cmake) que reproduz o PRIMEIRO símbolo de partição do cb8 (0=NONE) igual ao Kof ⇒ init e símbolo 0 CORRETOS. Prefixos cb8 vs cb16: diferem só onde os tamanhos de bloco diferem e ambos corretos. Custos conferidos na CDF do tx-size (P(2)=0.65, P(1)=0.17) ⇒ plausíveis. Pista: a decodificação lê valores de ALTA PROBABILIDADE o tempo todo ⇒ leitor DESLOCADO, coerente com o consumo de 15%. Prova: AvifRealFileE2ETest 9/9 + Av1CoeffsE2ETest 6/6.
-doing: §3bd — leitor correto no init e no símbolo 0 (oracle independente); prefixo do mode info plausível nos dois fixtures; a falha acompanha EOB GRANDE e o consumo lê valores de alta probabilidade (drift)
-next: §3bd — estender o oracle Python independente aos primeiros N símbolos (renorm + linhas default de skip/kf-y/uv/tx-depth) e achar o símbolo exato da divergência
+last: 15/10 — AVIF slice 3bd 32ª PASSAGEM: CAUSA RAIZ = HARNESS. `allowScreenContent` é TRUE para cb8 e testsrc (os que FALHAM) e FALSE para cb16/solid (os que decodificam exatamente); essa flag governa a sintaxe de PALETA e o probe fixava `palettePossible=0`. O oracle independente reproduziu os 6 símbolos do prefixo do cb8 ⇒ leitor e ordem de sintaxe fiéis. Ligando `palettePossible` ao quadro: cb8 ganha a leitura de paleta, `txb` 16->1, `nzTot` 0->6, consumo 23->76/152 bits. DEFEITO NOVO: com o portão ligado o testsrc LANÇA `Index -2 out of bounds for length 21` no caminho de paleta ⇒ a paleta é lida mas a reconstrução está inacabada. Prova: AvifRealFileE2ETest 9/9.
+doing: §3bd — causa raiz identificada (harness: palettePossible fixo em 0 para quadros com allow_screen_content_tools); caminho de paleta inacabado (throw Index -2 no testsrc)
+next: §3bd — terminar o caminho de paleta (o throw `Index -2`) e confirmar que a reconstrução aplica as cores decodificadas; depois remedir o consumo do testsrc
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (59ª) — 3bd 32ª: CAUSA RAIZ = o HARNESS (palettePossible), não o leitor
+- **Descoberta:** `allowScreenContent` é TRUE nos dois fixtures que FALHAM (cb8, testsrc) e FALSE nos dois que decodificam EXATAMENTE (cb16, solid). `allowIntrabc` = false em todos. Essa flag governa `read_palette_mode_info` (libaom) — o símbolo de paleta é escrito em todo bloco elegível.
+- **Correlação:** 4/4 fixtures explicados pela flag. O oracle independente (31ª) já provara que o leitor e a ordem de sintaxe são fiéis ao fluxo ⇒ o suspeito tinha de ser a própria ordem/sintaxe.
+- **Correção:** `palettePossible` agora vem do quadro (`h.allowScreenContent`) no probe. Efeito medido no cb8: `2:1` (has_palette_y) + símbolo de aridade 7, `txb` 16->1, `nzTot` 0->6, consumo 23->76 de 152 bits.
+- **Defeito novo:** com o portão ligado o testsrc LANÇA `Index -2 out of bounds for length 21` no caminho de paleta (antes subconsumia). O instrumento foi reapontado para cb16 (controle de consumo total) e o teste do cb8 assere a leitura de paleta.
+- **Prova:** AvifRealFileE2ETest 9/9, BUILD SUCCESS.
+- **Caveat:** `decodeRaster` segue sem poder anunciar AVIF (reconstrução de paleta inacabada); sem cmake/ninja/pip não há oracle instrumentado do libaom — mas o oracle independente em Python passou a cobrir o leitor.
 
 ## Sessão 15/10 (58ª) — 3bd 31ª: oracle INDEPENDENTE do leitor (sem cmake) + posições por símbolo
 - **Fatia:** rastro por símbolo com POSIÇÃO (`n:sym@pos`) e despejo dos bytes do payload pelo probe.

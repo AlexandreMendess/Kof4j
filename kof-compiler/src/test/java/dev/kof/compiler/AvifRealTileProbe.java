@@ -17,6 +17,12 @@ package dev.kof.compiler;
  * the bare DC prediction, i.e. block 0's residual was skipped. So the WRONG
  * decode and the under-consumption are the same event.
  *
+ * <p>`palettePossible` is wired from the frame's `allow_screen_content_tools`
+ * (`avif_real_cb8.avif` and `avif_real_64.avif` set it, `cb16`/`solid` do not): with
+ * the flag hardcoded to 0 the screen-content fixtures desynced at the palette
+ * syntax (cb8: 23/152 bits, `all_zero=1` everywhere); wired from the frame they
+ * read the palette size symbol and consume 76/152 bits with 6 non-zero coefficients.
+ *
  * <p>What does NOT discriminate: an exact block tiling is GUARANTEED BY
  * CONSTRUCTION (`decode_partition` partitions the fixed frame rectangle; a
  * corrupted stream still tiles), so it is not evidence the stream is in sync.
@@ -103,8 +109,10 @@ main() {
     if (seq.enableCdef) { ec = 1 }
     var modes = listOf<Int>()
     var levels = listOf<Int[]>()
+    var pal = 0
+    if (h.allowScreenContent) { pal = 1 }
     var cfg = Av1ModeTail(12, h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
-    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, 0, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, store, txStore, new Int[miw * mih], new Int[miw], new Int[mih], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, store, txStore, new Int[miw * mih], new Int[miw], new Int[mih], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
     var walk = Av1Partition(data, miw, mih)
     walk.useReader(sym)
     walk.bindDecoder(tile)

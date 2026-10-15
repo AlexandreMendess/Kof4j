@@ -370,11 +370,24 @@ main() {
         assertEquals(frameMi, covered, () -> "the block grid does not cover the frame: " + line);
         assertEquals(0, overlap, () -> "the block grid overlaps blocks: " + line);
         assertTrue(symBits <= payloadBits, () -> "the walk read past the payload: " + line);
+        // The frame sets `allow_screen_content_tools`, so the stream carries the
+        // PALETTE syntax and the walk MUST read it: without the palette read this
+        // fixture consumed only 23/152 bits and read `all_zero = 1` for every TX
+        // block; with it the walk reads the palette size symbol (arity 7) and
+        // consumes 76 bits with 6 non-zero coefficients.
+        assertTrue(line.contains(" 7:"), () -> "the palette size symbol was not read: " + line);
+        assertTrue(symBits > 40, () -> "the palette reads must be consumed: " + line);
     }
 
     @Test
     void realTileWalkDoesNotReadPastThePayloadOnJvm() throws Exception {
-        var line = runJvm(AvifRealTileProbe.probe(canonicalized().toString()));
+        // `avif_real_cb16.avif` (no screen-content tools) decodes to a FULL
+        // payload consumption, so it is the instrument's control. The testsrc
+        // fixture (`avif_real_64.avif`) sets `allow_screen_content_tools` and now
+        // THROWS inside the palette path (`Index -2 out of bounds`, recorded in
+        // the plan's 32nd pass) instead of under-consuming — progress, but the
+        // palette reconstruction is not finished.
+        var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_cb16.avif", "i16.avif").toString()));
         var parts = summary(line).split(" ");
         var covered = Integer.parseInt(parts[1].split("=")[1]);
         var frameMi = Integer.parseInt(parts[2].split("=")[1]);
@@ -406,7 +419,8 @@ main() {
             last = p1;
             blocks++;
         }
-        assertEquals(21, blocks, () -> "one position record per mode block: " + line);
+        var declared = Integer.parseInt(parts[0].split("=")[1]);  // blocks=N
+        assertEquals(declared, blocks, () -> "one position record per mode block: " + line);
         assertEquals(symBits, last, () -> "the last block position must equal the walk's: " + line);
     }
 
