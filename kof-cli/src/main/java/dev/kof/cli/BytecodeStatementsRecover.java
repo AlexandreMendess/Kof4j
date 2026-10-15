@@ -479,7 +479,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             List<BytecodeReader.Insn> tSeq = BytecodeDecoder.insnsWithin(thenB, insns);
             List<BytecodeReader.Insn> eSeq = BytecodeDecoder.insnsWithin(elseB, insns);
             boolean jStore = !jPre.isEmpty() && BytecodeStatements.isStore(jPre.get(0).opcode());
-            boolean bothReach = thenB.succ.contains(tail) && elseB.succ.contains(tail);
+            // Fase E (15/10): o then alcança o tail DIRETO e o else por
+            // QUALQUER caminho curto (direto ou pela cadeia de testes —
+            // medido no Warehouse.grade: o else é o teste interno que
+            // converge via 21/26; o contains estrito recusava)
+            boolean bothReach = thenB.succ.contains(tail)
+                    && armReachesJoin(elseB.start, tail, byStart, insns, 0);
             // Fase E (15/10): o guard de REGIÃO — o pureIfElse (2 preds)
             // recusava a CADEIA ternária armazenada (medido no Warehouse.grade:
             // o join tinha 3 preds — o goto do then, o goto do then interno e

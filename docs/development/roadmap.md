@@ -1006,6 +1006,11 @@ All remaining `future/` plans are authorized with their
 > **ALL 11 §20 slices LANDED with executed proof** (fixed-width, EBCDIC CP037, COMP-3, the copybook import with OCCURS/88/REDEFINES, the adapter + the
 > return-code model, the transport matrix, messaging + batch, transactions, the guide + the LEG001–LEG019 table) — the plan moved to
 > [`docs/kofbol.md`](../kofbol.md) (+PT +the guide); the EBCDIC pages = Q5, the JS COMP-3 face = §734, the advanced clauses = LEG014 (all bounded).
+>
+> **PROMOTED (16th front):** `kof-cobol-translator` — promoted 15/10 (maintainer order "pega um de future" + `D-FUTURE-PROMOTION`) to
+> [`kof-cobol-translator-plan.md`](kof-cobol-translator-plan.md) (+PT). **Phase 1 (the project scanner) LANDED** as pure-Kof `libs/cobol/Scanner.kf`
+> (the §5 deterministic discovery order, the per-file inventory, evidence-backed format detection, the CB001–CB004 diagnostics); the tool home
+> and the exact CLI grammar (open decisions Q1/Q2) stay the maintainer’s — no CLI surface invented. The Data-Division mapping stays KofBOL’s.
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 

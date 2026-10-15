@@ -975,6 +975,11 @@
     },
     {
       "arity": 1,
+      "en": "Cannot resolve method '{0}' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/toInt/toLong/toFloat/toDouble)",
+      "pt": "Método '{0}' não resolvido no tipo 'String' (válidos: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/toInt/toLong/toFloat/toDouble)"
+    },
+    {
+      "arity": 1,
       "en": "Handle<T> has no method '{0}()'; use `await h` to get the value",
       "pt": "Handle<T> não tem o método '{0}()'; use `await h` para obter o valor"
     },

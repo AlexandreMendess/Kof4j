@@ -1,10 +1,13 @@
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+last: PROMOTED from `docs/development/future/` 15/10 (maintainer order "pega um de future" + `D-FUTURE-PROMOTION`); `D-COBOL-TRANSLATOR-GO`
+doing: Phase 2 (the lexer MVP) LANDED 15/10 — `libs/cobol/Lexer.kf`: `tokenize(text, format)` → `Token(kind, text, line)` — WORD/NUMBER/STRING/PERIOD/LPAREN/RPAREN/PSEUDO with the §6 rules (the fixed col-7 comment, the free `*>`, the `>>` directive lines as PSEUDO), the 1-based lines, and CB005 (unterminated string) / CB006 (unexpected character) — never a silent skip. Proof: `CobolLexerE2ETest` 2/2 (JVM + Script). doing: Phase 1 (the project scanner) LANDED 15/10 — pure-Kof `libs/cobol/Scanner.kf` (discovery order, the per-file inventory, format detection with evidence, the CB001–CB004 diagnostics)
+next: Phase 2 (the lexer/parser) — the roadmap is §30
+location: docs/development/kof-cobol-translator-plan.md
+state: under-development
+owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 
 intent: kof-cobol-translator-source-to-source
+
+**Decision `D-COBOL-TRANSLATOR-GO` (maintainer 15/10):** PROMOTED to current work — the plan moved `future/` → `docs/development/`. **Phase 1 landed as a PURE-KOF library** (`libs/cobol/Scanner.kf`): the open decisions **Q1** (the tool’s home) and **Q2** (the exact CLI grammar) are the maintainer’s and are DEFERRED — the scanner library takes text values, so no CLI surface is invented here. `Q3` (naming policy) and `Q4` (money output) are untouched; the Data-Division mapping stays KofBOL’s (`docs/kofbol.md`), per the plan’s own "not to duplicate".
 
 > **EN canonical** · PT: [`kof-cobol-translator-plan.pt_BR.md`](kof-cobol-translator-plan.pt_BR.md)
 

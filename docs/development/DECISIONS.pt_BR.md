@@ -77,6 +77,7 @@ Auxílio de navegação, não é uma decisão por si só. Ordenado como neste ar
 - **D-FUTURE-FREEZE** — a promoção de `docs/development/future/` está CONGELADA até segunda ordem (mantenedora 02/10) *(SUPERSEDIDA 11/10 por D-FUTURE-UNFREEZE)*
 - **D-FUTURE-UNFREEZE** — o congelamento de `future/` está LEVANTADO: agentes promovem/implementam planos futuros de novo, um por vez, lanes ativas terminando primeiro (mantenedora 11/10)
 - **D-KOFBOL** — KofBOL (interoperabilidade legada bancária nativa, `kofbol-plan.md`) PROMOVIDO `future/` → `docs/development/`; biblioteca-primeiro por construção, fatia 1 = encode/decode fixed-width (ordem da mantenedora 14/10, chat)
+- **D-COBOL-TRANSLATOR-GO** — `kof-cobol-translator` (fonte COBOL → fonte Kof) PROMOVIDO `future/` → `docs/development/`; Fase 1 (o scanner de projeto) pousou como `libs/cobol/Scanner.kf` em Kof puro (ordem da mantenedora 15/10, chat)
 - **D-RELEASE-CADENCE** — cadência semanal de minors até `0.9.0`; linha de contingência `1.0.0-RC-n`; `1.0.0` só no exit gate completo (mantenedora 02/10)
 - **D-LAB-STABILITY** — um minor só é cortado de um `lab` ESTÁVEL (todos os checks obrigatórios PASS, 0 bloqueantes); senão o corte escorrega (mantenedora 02/10)
 - **D-MAINT-BATCH-1110** — lote da mantenedora 11/10: sombra do local `db` (#786), fixpoint da inferência de retorno (#785), acessibilidade do `kof.ui` (#789)
@@ -5085,3 +5086,17 @@ trabalho pós-1.0, cada uma ainda exigindo sua própria decisão quando pegas.
 - **Escopo da primeira entrega:** spike-0 (o modelo de descritor) + **Fatia 1** — `encode`/`decode` fixed-width para `PIC X` / `PIC 9` (só ASCII) com goldens byte-exact, JVM + Script. RED-first. As fatias 2–11 (EBCDIC, COMP-3, import de copybook, o contrato `legacy`, adapters, transportes, mensageria, transações, paridade cross-target, docs) seguem abertas e ordenadas pelo plano §20.
 - **Não autorizado por esta decisão:** nenhuma sintaxe `legacy` nova, nenhuma primitiva de core, nenhum atalho de EBCDIC/COMP-3, nenhum stub — o contrato de não-regressão §22 do plano vale.
 - **Relacionamentos:** `Relacionados: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOF-FIRST (regra 12), D-CONNECTORS-GO (o enquadramento `kof-cobol-connector`; a Q6 do KofBOL permanece aberta para a mantenedora), D-KOF-FIRST-IMPL, regra 6, regra 11, regra 12`.
+
+---
+
+## D-COBOL-TRANSLATOR-GO — `kof-cobol-translator` é PROMOVIDO a trabalho corrente: o tradutor COBOL→Kof, Fase 1 pousou como **scanner Kof puro** (ordem da mantenedora 15/10/2026, diretiva de chat "pega um de future")
+
+**Data:** 2026-10-15 · **Estado:** `DECIDED` (mantenedora) — o plano move `docs/development/future/` → `docs/development/` por `D-FUTURE-PROMOTION` (a ordem da mantenedora ativa o gate do próprio plano).
+
+- **Diretiva (verbatim, chat):** *"pega um de future"* — a mantenedora ordenou a esta lane pegar um plano de `docs/development/future/` e implementá-lo. Por `D-FUTURE-PROMOTION` o agente escolhe o plano **MAIS FÁCIL** elegível.
+- **Por que este plano:** a dependência central dele — o **mapeamento de dados** COBOL — JÁ EXISTE e está promovido (`docs/kofbol.md`, `libs/legacy`, fatias 1–11 completas). O próprio plano é explícito: ele **não** deve duplicar esse mapeamento nem a IR/formatter/money; ele é dono apenas do front-end COBOL + o pipeline de projeto + a política de geração.
+- **Escopo da Fase 1 (POUSADO):** `libs/cobol/Scanner.kf` — biblioteca Kof PURA sobre valores de texto: `discoveryOrder` (a ordem determinística estável do §5; o Kof recusa `<`/`<=` em String POR DESIGN, então a ordem é DEFINIDA explicitamente por pontos de código), `scanSource` (o inventário por arquivo: PROGRAM-ID, as divisões presentes, contagens de linha/comentário, formato fixed-vs-free pelas marcas do §6), `scanProject` (o inventário de projeto + os diagnósticos CB001–CB004: sem PROGRAM-ID, dialeto não determinado recusado em vez de adivinhado, extensão não suportada, formatos mistos), mais `isProgram`/`isCopybook`.
+- **O que é ADIADO (não inventado):** as decisões abertas **Q1** (a casa da ferramenta) e **Q2** (a gramática exata do CLI) são da mantenedora — a biblioteca recebe VALORES, então nenhuma superfície de CLI é inventada; **Q3**/**Q4** intocadas; o mapeamento da Data Division segue do KofBOL.
+- **Prova:** `CobolScannerE2ETest` 2/2 (JVM + Script) — a ordem determinística, o inventário, a detecção de formato e as três faces de recusa.
+- **Não autorizado por esta decisão:** sintaxe nova de Kof, superfície de CLI, mudança no mapeamento do KofBOL, stub.
+- **Relacionamentos:** `Relacionados: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOFBOL (o mapeamento que este plano reutiliza), D-KOF-FIRST (regra 12), regra 6, regra 11`.

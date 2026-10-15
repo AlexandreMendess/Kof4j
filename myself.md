@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 18ª PASSAGEM: os PRIMEIROS blocos do STRIPES leem `all_zero` errado (nz=0) enquanto os posteriores decodificam (total 481) e o payload é consumido por inteiro (symPos=216) -> o stream é consistente e a falha é a leitura de `all_zero`/txb_skip na ORIGEM. O discriminador é o TAMANHO DA TRANSFORMADA: os 7 quadros exatos são TX_64X64 (txSz=4; contexto de origem lê certo); os primeiros blocos do STRIPES são tx pequenas (txSz=1/6/14). Suspeito: `av1TxbCtx`/`av1TxbEntropyContext` para tx pequena na origem. Próximo: dumpar esse contexto no bloco 0 e comparar com `get_txb_ctx` do libaom.
+last: 15/10 — AVIF slice 3bd 19ª PASSAGEM: o caminho ctx/CDF está VERIFICADO pela spec (`av1TxSzCtx` bate a AV1 8.3.2; `av1AllZeroCtxY` = 0 sse tx==bloco, 1 sse vizinhos 0; as tabelas txbSkip são 3c-verificadas). O discriminador é o `bs` que os chamadores passam: `planePsize == av1TxSizeToBsize(txSz)` toma `skipCtx=0` determinístico; um `bs` errado inverte isso, muda o ctx 0->1 e lê all_zero errado. Suspeitos estreitos: (a) o `bs` da partição nos primeiros blocos de tx pequena, (b) um erro de bit a montante no mode-info. Correção de instrumento: ler a grade COM decoder ligado (sem bind: 35 blocos espúrios vs 22 reais).
 doing: §3bd — oracle ffprobe fixado no teste real (6/6); dessincronizado do tile aberto
-next: §3bd — dumpar as entradas/saídas de `av1TxbCtx`/`av1TxbEntropyContext` para o bloco 0 do STRIPES (txSz=1, above/left=0) e comparar com o `get_txb_ctx` do libaom (oráculo: reconstruir o C com as fontes do aom)
+next: §3bd — comparar o `bs` da partição com o `av1TxSizeToBsize(txSz)` para os primeiros blocos do STRIPES (com decoder LIGADO); se divergirem, o `bs` do walk é a causa do ctx errado
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (46ª) — 3bd 19ª: verifiquei ctx/CDF contra a spec; sobrou o tamanho de bloco
+- **O que verifiquei (leitura contra a spec, sem medição nova):** `av1TxSzCtx` = `(Sqr + SqrUp + 1) >> 1` — exatamente a AV1 8.3.2; `av1AllZeroCtxY` = 0 sse tx==bloco, 1 sse ambos vizinhos 0 — exatamente o `get_txb_ctx` da spec; as tabelas `txbSkip` são verificadas vs libaom (fatia 3c).
+- **O discriminador que sobra:** `av1TxbCtx` escolhe `skipCtx = 0` DETERMINÍSTICO quando `planeBsize == av1TxSizeToBsize(txSz)` (o caso dos 7 quadros exatos: tx == bloco). Para tx < bloco, o ctx vem dos vizinhos (0 no origem -> 1). **Um `bs` errado inverte esse teste** -> ctx 0 vs 1 -> CDF diferente -> `all_zero` mal lido. É a assinatura só-na-origem.
+- **Suspeitos estreitos:** (a) o `bs` que o walk de partição dá para os primeiros blocos de tx pequena; (b) um erro de posição de bit no mode-info a montante.
+- **A correção de instrumento (medida agora):** tentei dumpar a grade de blocos SEM `bindDecoder` e deu **35 blocos** contra os **22** reais — o walk precisa do decoder ligado para avançar o leitor pelos payloads (a nota do `addStep`). Dump sem bind é INVÁLIDO.
+- **O que landei:** só docs (diagnóstico).
+- **Lições:** (1) ler o código de contexto CONTRA a spec descarta três suspeitos de uma vez — nem toda verificação precisa de execução; (2) um instrumento sem o bind produz uma árvore FALSA (35 vs 22) — conferir o invariante conhecido (o número de blocos do dump com decoder) antes de tirar conclusões da grade.
 
 ## Sessão 15/10 (45ª) — 3bd 18ª: all_zero errado na ORIGEM; o discriminador é o tamanho da transformada
 - **O dump por bloco das FAIXAS:** 22 blocos; os SEIS primeiros com `nz=0` (`txSz=1`, `1`, `6`, `14`, `14`, `14`); o total da rodada é 481 não-zero -> os posteriores decodificam.

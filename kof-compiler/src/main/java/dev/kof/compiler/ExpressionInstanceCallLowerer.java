@@ -576,6 +576,12 @@ public final class ExpressionInstanceCallLowerer {
                         + rtc.internalName().replace('/', '.') + "'");
         return localIdx;
     }
+    // probe QA 15/10 (#867): método inexistente em receptor String → SEM025
+    // honesto em vez do descritor fallback `()Object` (guard extraído p/
+    // StringUnknownMethodGuard — gate ≤600 REFACTOR-500).
+    if (StringUnknownMethodGuard.refuses(driver, mc, methodReturnType, recvType)) {
+        return localIdx;
+    }
     ops.add(new KofCall(recvType,
             runtimeMethod != null ? runtimeMethod : mc.methodName(),
             methodParamTypes, methodReturnType, callKind));
