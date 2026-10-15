@@ -71,7 +71,7 @@ class CobolSemanticE2ETest implements LibraryInstallSupport {
     // 150+250=400 -> R$ 4.00 ; 250-150=100 -> R$ 1.00 ; negate 150 -> R$ -1.50 ;
     // roundTo(155, 1, halfEven) -> 160 -> R$ 1.60 ; scale(150, 3/2) = 225 -> R$ 2.25 ;
     // JPY has 0 minor units: Money(0,"JPY") -> "JPY 0" ; roundTo(12345, 0) -> "JPY 12345"
-    private static final String EXPECTED = "6\n2\n6\n1\nknown\nTELEPORT\nunknown\nPROCEDURE\n1>\" type=\"org.opentest4j.AssertionFailedError\"><![CDATA[org.opentest4j.AssertionFailedError: \nexpected: <IGNORE> but was: <6\n2\n6\n1\nknown\nTELEPORT\nunknown\nPROCEDURE\n1";
+    private static final String EXPECTED = "6\n2\n6\n1\nknown\nTELEPORT\nunknown\nPROCEDURE\n1";
 
 
 
