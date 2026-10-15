@@ -281,7 +281,7 @@ final class BytecodeDecoderCond {
      * recursa — cobre o ternario ANINHADO. Profundidade limitada (o aninhamento
      * e finito no codigo real). null = stub honesto (R6).
      */
-    private static String armExpr(BytecodeReader.Block b, List<BytecodeReader.Block> blocks,
+    static String armExpr(BytecodeReader.Block b, List<BytecodeReader.Block> blocks,
                                   List<BytecodeReader.Insn> insns, String[] cp,
                                   BytecodeFrame frame, int depth) {
         if (b == null || depth > 6) return null;

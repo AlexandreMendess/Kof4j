@@ -480,9 +480,34 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             List<BytecodeReader.Insn> eSeq = BytecodeDecoder.insnsWithin(elseB, insns);
             boolean jStore = !jPre.isEmpty() && BytecodeStatements.isStore(jPre.get(0).opcode());
             boolean bothReach = thenB.succ.contains(tail) && elseB.succ.contains(tail);
-            if (pureIfElse && bothReach && jStore) {
+            // Fase E (15/10): o guard de REGIÃO — o pureIfElse (2 preds)
+            // recusava a CADEIA ternária armazenada (medido no Warehouse.grade:
+            // o join tinha 3 preds — o goto do then, o goto do then interno e
+            // a queda do else interno). Os preds TODOS dentro de
+            // [b.start, tail) = dentro do próprio if (um pred externo —
+            // back-edge de loop posterior ou goto de código seguinte — teria
+            // offset fora da região)
+            boolean regionJoin = false;
+            if (!pureIfElse && jStore) {
+                regionJoin = true;
+                for (int pr : joinB.pred) {
+                    if (pr < b.start || pr >= tail) { regionJoin = false; break; }
+                }
+            }
+            if ((pureIfElse || regionJoin) && bothReach && jStore) {
                 String tVal = BytecodeStatements.stackValueStrip(tSeq, frame, cp);
                 String eVal = BytecodeStatements.stackValueStrip(eSeq, frame, cp);
+                // Fase E (15/10): o braço TESTE (a cadeia ternária aninhada)
+                // vira if-expression via o armExpr (o mesmo builder do
+                // ifElseReturn; medido no grade: o else = o teste interno)
+                if (tVal == null && thenB.succ.size() == 2) {
+                    tVal = BytecodeDecoderCond.armExpr(thenB, byStart.values().stream().toList(),
+                            insns, cp, frame, 0);
+                }
+                if (eVal == null && elseB.succ.size() == 2) {
+                    eVal = BytecodeDecoderCond.armExpr(elseB, byStart.values().stream().toList(),
+                            insns, cp, frame, 0);
+                }
                 if (tVal != null && eVal != null) {
                     int slot = BytecodeStatements.storeSlot(jPre.get(0));
                     String name = BytecodeDecoderStack.slotName(slot, frame);
