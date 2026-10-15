@@ -3532,6 +3532,70 @@ class DecompileTest {
                 "zero-drift: check/role/names/anyMatch id\u00eanticos ao Java");
     }
 
+    @Test
+    void recursionEmptyConcatTypeRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): a RECURSÃO clássica + o concat do literal VAZIO —
+        // `"" + n` produz a receita de UM placeholder SEM literal (o javac
+        // nem põe o literal vazio na receita), e a dobragem para `n` mudava
+        // o TIPO (Int no lugar de String → SEM010 no return, medido no
+        // Trib.binary). O apply reemite `"" + x` — fiel (o valor é
+        // idêntico e o tipo String preservado). 5 métodos recursivos: fib
+        // (dupla chamada), fact (Long), gcd (módulo trocado), power,
+        // binary (a String recursiva). Zero-drift executado:
+        // 55/3628800/6/81/1010 — 5/5 idênticos ao Java.
+        Path javaFile = dir.resolve("Trib.java");
+        Files.writeString(javaFile, """
+                public class Trib {
+                    static int fib(int n) {
+                        if (n <= 1) { return n; }
+                        return fib(n - 1) + fib(n - 2);
+                    }
+                    static long fact(int n) {
+                        if (n <= 1) { return 1L; }
+                        return n * fact(n - 1);
+                    }
+                    static int gcd(int a, int b) {
+                        if (b == 0) { return a; }
+                        return gcd(b, a % b);
+                    }
+                    static int power(int base, int exp) {
+                        if (exp == 0) { return 1; }
+                        return base * power(base, exp - 1);
+                    }
+                    static String binary(int n) {
+                        if (n <= 1) { return "" + n; }
+                        return binary(n / 2) + (n % 2);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Trib.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("\"\" + arg0"), "o concat do literal vazio:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Trib.fib(10))
+                    println(Trib.fact(10))
+                    println(Trib.gcd(48, 18))
+                    println(Trib.power(3, 4))
+                    println(Trib.binary(10))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 55 | 3628800 | 6 | 81 | 1010
+        assertEquals("55\n3628800\n6\n81\n1010", output,
+                "zero-drift: fib/fact/gcd/power/binary id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

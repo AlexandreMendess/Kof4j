@@ -65,6 +65,12 @@ final class BytecodeConcat {
         }
         if (lit.length() > 0) parts.add("\"" + escape(lit.toString()) + "\"");
         if (parts.isEmpty()) return "\"\"";
+        // Fase E (15/10): a receita com UM placeholder e NENHUM literal só é
+        // produzida pelo `"" + x` do Java (o javac nem põe o literal vazio
+        // na receita) — a dobragem para `x` mudava o TIPO (Int no lugar de
+        // String → SEM010, medido no Trib.binary). Reemitir `"" + x` é fiel
+        // (o valor é idêntico e o tipo String preservado).
+        if (placeholders == 1 && parts.size() == 1) return "\"\" + " + parts.get(0);
         return String.join(" + ", parts);
     }
 
