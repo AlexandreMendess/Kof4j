@@ -576,6 +576,28 @@ public final class ExpressionInstanceCallLowerer {
                         + rtc.internalName().replace('/', '.') + "'");
         return localIdx;
     }
+    // probe QA 15/10 (família §145/#101 + #711): método inexistente em receptor
+    // String caía no descritor fallback `()Object` — NoSuchMethodError no JVM /
+    // link-fail no Native / TypeError no JS. Neste ponto TODAS as fontes já
+    // resolveram (registry, Object, classpath externo, símbolos de usuário);
+    // retorno ainda Unknown + receiver String = método realmente inexistente.
+    // SEM025 honesto (mesma família List/Map/kof.ui), sem surface nova.
+    if (methodReturnType instanceof Type.UnknownType && BuiltinTypes.isString(recvType)
+            && driver.currentDiagnostics != null
+            && StringMethodRegistry.stringMethodSignature(mc.methodName(), mc.arguments().size()) == null
+            && StringMethodRegistry.objectMethodSignature(mc.methodName(), mc.arguments().size()) == null
+            && StringMethodRegistry.stringRuntimeMethod(mc.methodName()) == null) {
+        driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                mc.position() != null ? mc.position().line() : 0,
+                mc.position() != null ? mc.position().column() : 0, 0,
+                "Cannot resolve method '" + mc.methodName()
+                    + "' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/"
+                    + "endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/"
+                    + "toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/"
+                    + "split/toCharArray/toInt/toLong/toFloat/toDouble)",
+                "SEM025");
+        return localIdx;
+    }
     ops.add(new KofCall(recvType,
             runtimeMethod != null ? runtimeMethod : mc.methodName(),
             methodParamTypes, methodReturnType, callKind));
