@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd QUARTA PASSAGEM: um quadro real MULTI-bloco SIMPLES (2-tons) também decodifica EXATO (`Y=16,235,235`). TRÊS quadros reais agora batem (sólido 126, cinza-escuro 71, 2-tons 16/235); só o COMPLEXO testsrc diverge. A maquinaria multi-bloco NÃO está quebrada em geral — o que difere no testsrc é: 21 blocos, modos angulares, CFL (`uv_mode=13`) e filter-intra (`fi=1`). Próximo: bisseccionar por feature (angulares -> CFL -> filter-intra) para achar o primeiro quadro que para de bater.
+last: 15/10 — AVIF slice 3bd QUINTA PASSAGEM: o discriminador NÃO é a contagem de blocos. Um GRADIENTE DIAGONAL (bloco único) decodifica EXATO (4º match real), mas um XADREZ 8x8 (também bloco único pelo walk) FALHA com Y=128 (all_zero lido errado). O que difere é o CONTEÚDO: diagonal suave = EOB baixo; xadrez = ALTA FREQUÊNCIA, EOB grande. Hipótese: o decode de coeficientes lê blocos de alta frequência (EOB grande / bordas de eob_pt/dc_sign) como all-zero. Próximo: família monotônica de alta frequência para achar o limiar.
 doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
-next: §3bd — bisseccionar a divergência do testsrc por FEATURE: encodar um quadro com modo angular, depois CFL, depois filter-intra, e achar o primeiro que para de bater com o ffmpeg
+next: §3bd — família monotônica de quadros de alta frequência crescente (gradiente -> xadrez 16 -> 8 -> 4) para achar o limiar de EOB/complexidade onde o decode de coeficientes quebra
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (33ª) — 3bd quinta passagem: NÃO é a contagem de blocos, é o conteúdo (EOB grande)
+- **O controle do gradiente diagonal:** esperava provocar modos ANGULARES; o encoder usou 1 bloco DC_PRED com coeficientes ricos — e decodificou EXATO (`Yr0=19,73,126`...). QUARTO match real exato.
+- **O controle do xadrez 8x8:** o walk reporta `blocks=1` (1 bloco também!), mas a saída é `Y=128` (DC nua). FALHA.
+- **A correção:** eu achava que a contagem de blocos era o discriminador (todos os 4 que passam têm blocks=1). O xadrez também tem blocks=1 e falha -> NÃO é a contagem.
+- **O que difere de verdade:** o CONTEÚDO de coeficientes. Diagonal suave = EOB baixo (poucos coeficientes não-zero, energia no DC/baixa freq). Xadrez = ALTA frequência, EOB grande.
+- **A hipótese:** o decode de coeficientes lê blocos de ALTA frequência (EOB grande, casos de borda de `eob_pt`/`dc_sign`) como all-zero -> reconstrói a DC nua. Isso também explicaria os primeiros blocos all-zero do testsrc (textura).
+- **Próximo:** uma família monotônica (gradiente -> xadrez 16 -> 8 -> 4) para achar o limiar exato de EOB/complexidade onde o decode quebra — o primeiro xadrez que falhar dá o caso mínimo.
+- **Lições:** (1) DUAS hipóteses minhas caíram nesta sequência ("multi-bloco quebrado", depois "contagem de blocos") — cada controle positivo novo derrubou a anterior, e é assim que se converge; (2) manter uma família de casos de controle que variam UMA dimensão é o instrumento que faz isso.
 
 ## Sessão 15/10 (32ª) — 3bd quarta passagem: um multi-bloco SIMPLES também bate; o testsrc é a exceção
 - **O controle novo:** um 2-tons 64x64 (esquerda preto, direita branco) — multi-bloco, mas simples.
