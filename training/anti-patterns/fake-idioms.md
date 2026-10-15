@@ -162,7 +162,7 @@ this corpus/docs and the compiler *disagrees with its own docs*.
 | `v is Car` (Kotlin type-check) | `if (v instanceof Car) { var c = v as Car … }` or `case Car c:` in `switch` |
 | `"""triple quotes"""` | normal `"…"` strings (no raw/block literal). Rejected with `LEX008` (#364: it used to fold to an **empty** string and compile silently) |
 | `Pair(a, b)` / `Triple` | a `record` with named fields |
-| `xs.any { it > 3 }` / `all`/`none`/`count { }` / `it` | `xs.filter((x: Int) -> x > 3)` then check `.size()`; the lambda param is **always explicit** |
+| `xs.any { it > 3 }` / `all`/`none`/`count { }` / `it` (the trailing-lambda + implicit-`it` SYNTAX is foreign) | ✅ **`any`/`all`/`none`/`count` ARE real Kof** (measured 15/10) — use an EXPLICIT lambda: `xs.any((x: Int) -> x > 3)` / `xs.all((x: Int) -> …)` / `xs.none((x: Int) -> …)` / `xs.count((x: Int) -> …)`. The FOREIGN part is only the trailing-lambda `{ it > 3 }` + the implicit `it`; the lambda parameter is **always explicit**. (`xs.filter((x: Int) -> x > 3).size()` is a valid ALTERNATIVE, not the required form.) This row used to imply the methods themselves were fake — corrected 15/10 (the stale claim made readers avoid real idioms; cf. #858) |
 | `mutableListOf()` / `setOf(...)` variadic is fine | `listOf(...)` (Kof lists are already mutable) |
 | `object` (Kotlin singleton) | a `class` with fields + constructor, or top-level functions |
 | `a ?: b` (Elvis), `x?.y` (safe call), `x!!` | `if (x != null) …` (nullability by narrowing) |

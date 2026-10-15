@@ -163,7 +163,7 @@ construto neste corpus/docs e o compilador *discorda da própria doc*.
 | `v is Car` (type-check Kotlin) | `if (v instanceof Car) { var c = v as Car … }` ou `case Car c:` no `switch` |
 | `"""três aspas"""` | strings normais `"…"` (sem literal raw/bloco). Rejeitado com `LEX008` (#364: antes dobrava para string **vazia** e compilava em silêncio) |
 | `Pair(a, b)` / `Triple` | um `record` com campos nomeados |
-| `xs.any { it > 3 }` / `all`/`none`/`count { }` / `it` | `xs.filter((x: Int) -> x > 3)` e checar `.size()`; o parâmetro do lambda é **sempre explícito** |
+| `xs.any { it > 3 }` / `all`/`none`/`count { }` / `it` (a SINTAXE de trailing-lambda + `it` implícito é estrangeira) | ✅ **`any`/`all`/`none`/`count` SÃO Kof real** (medido 15/10) — use um lambda EXPLÍCITO: `xs.any((x: Int) -> x > 3)` / `xs.all((x: Int) -> …)` / `xs.none((x: Int) -> …)` / `xs.count((x: Int) -> …)`. A parte ESTRANGEIRA é só o trailing-lambda `{ it > 3 }` + o `it` implícito; o parâmetro do lambda é **sempre explícito**. (`xs.filter((x: Int) -> x > 3).size()` é uma ALTERNATIVA válida, não a forma exigida.) Esta linha implicava que os próprios métodos eram fake — corrigida 15/10 (a afirmação estale fazia leitores evitarem idiomas reais; cf. #858) |
 | `mutableListOf()` | `listOf(...)` (a lista do Kof já é mutável) |
 | `object` (singleton Kotlin) | uma `class` com campos + construtor, ou funções top-level |
 | Elvis `a ?: b`, safe-call `x?.y`, `x!!` | `if (x != null) …` (nulabilidade por narrowing) |
