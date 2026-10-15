@@ -53,4 +53,18 @@ class NativeAarch64PeepholeTest {
         assertEquals(List.of("    sub sp, sp, #8", "    str x9, [sp]", "    mov x0, #0"),
                 run("    sub sp, sp, #8", "    str x9, [sp]", "    mov x0, #0"));
     }
+
+    @Test
+    void anAarch64SelfMoveIsDropped() {
+        List<String> lines = new ArrayList<>(Arrays.asList("    mov x9, x9", "    add x10, x10, #1"));
+        assertEquals(1, NativeAarch64Peephole.dropSelfMoves(lines));
+        assertEquals(List.of("    add x10, x10, #1"), lines);
+    }
+
+    @Test
+    void anAarch64RealMoveIsKept() {
+        List<String> lines = new ArrayList<>(Arrays.asList("    mov x9, x10"));
+        assertEquals(0, NativeAarch64Peephole.dropSelfMoves(lines));
+        assertEquals(List.of("    mov x9, x10"), lines);
+    }
 }

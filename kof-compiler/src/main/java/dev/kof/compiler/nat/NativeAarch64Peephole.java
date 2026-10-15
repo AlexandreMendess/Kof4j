@@ -65,6 +65,22 @@ final class NativeAarch64Peephole {
         return folded;
     }
 
+    /** Drops {@code mov X, X} self-moves (a no-op). Returns the number dropped. */
+    static int dropSelfMoves(List<String> lines) {
+        int dropped = 0;
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            String t = lines.get(i).strip();
+            if (t.startsWith("mov ")) {
+                String[] a = t.substring(4).split(",");
+                if (a.length == 2 && a[0].strip().equals(a[1].strip())) {
+                    lines.remove(i);
+                    dropped++;
+                }
+            }
+        }
+        return dropped;
+    }
+
     private static boolean isDebug(String line) {
         String t = line.strip();
         return t.isEmpty() || t.startsWith(".loc ") || t.startsWith(".file ");

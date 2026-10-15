@@ -433,6 +433,7 @@ final class NativeArchEmitter {
         // §7 AArch64 "lower-cost instruction selection": collapse the riscv stack
         // machine's push+pop pairs (sub sp,sp,#8 / str X,[sp] / pop Y == Y = X).
         NativeAarch64Peephole.collapsePushPopPairs(a64Lines);
+        NativeAarch64Peephole.dropSelfMoves(a64Lines);
         StringBuilder sb = new StringBuilder();
         for (String t : a64Lines) sb.append(t).append("\n");
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
