@@ -3385,6 +3385,75 @@ class DecompileTest {
                 "zero-drift: recipients/domain/isValid/quotaBytes id\u00eanticos ao Java");
     }
 
+    @Test
+    void ternaryStoreTerminalBlockRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o TERNC\u00c1RIO armazenado em local + o bloco
+        // TERMINAL do m\u00e9todo (`String sign = b >= 0 ? "+" : "-";
+        // return who + ": " + sign + Math.abs(b)`). Duas pe\u00e7as: (1) o
+        // if-expression da Fase C emite o store simbolicamente e marca
+        // skipFirst no join; (2) o caminho do BLOCO TERMINAL (succ vazio)
+        // usava insnsWithin DIRETO, bypassando o blkSeq — o astore do join
+        // era re-emitido com a pilha VAZIA (emitLinear-null). O fix = 1
+        // linha: blkSeq no terminal. O math.abs(I)I mapeia math.abs (o
+        // guard de descriptor). Zero-drift executado: 115/true/false/
+        // ana: +115/bob: -11/2 — 6/6 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Ledger.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Ledger {
+                    static int balance(List<Integer> entries) {
+                        int b = 0;
+                        for (int e : entries) { b += e; }
+                        return b;
+                    }
+                    static boolean overLimit(List<Integer> entries, int limit) {
+                        return balance(entries) > limit;
+                    }
+                    static String report(String who, List<Integer> entries) {
+                        int b = balance(entries);
+                        String sign = b >= 0 ? "+" : "-";
+                        return who + ": " + sign + Math.abs(b);
+                    }
+                    static List<Integer> positives(List<Integer> xs) {
+                        List<Integer> out = new java.util.ArrayList<>();
+                        for (int x : xs) {
+                            if (x > 0) { out.add(x); }
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Ledger.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("math.abs(v2)"), "o abs mapeado:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    var es = listOf(100, -30, 45)
+                    println(Ledger.balance(es))
+                    println(Ledger.overLimit(es, 100))
+                    println(Ledger.overLimit(es, 200))
+                    println(Ledger.report("ana", es))
+                    println(Ledger.report("bob", listOf(-5, -6)))
+                    var ps = Ledger.positives(es)
+                    println(ps.size())
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 115 | true | false | ana: +115 | bob: -11 | 2
+        assertEquals("115\ntrue\nfalse\nana: +115\nbob: -11\n2", output,
+                "zero-drift: balance/overLimit/report/positives id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

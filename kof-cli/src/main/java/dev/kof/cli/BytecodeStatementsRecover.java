@@ -41,7 +41,11 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
     emitted.add(b.start);
 
     if (b.succ.isEmpty()) {
-        List<String> stmts = BytecodeStatementsEmit.emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
+        // Fase E (15/10): blkSeq (não insnsWithin) — o skipFirst do
+        // if-expression (medido no Ledger.report: o astore_3 do join era
+        // re-emitido com a pilha vazia → emitLinear-null) só é consumido
+        // pelo blkSeq
+        List<String> stmts = BytecodeStatementsEmit.emitLinear(BytecodeStatements.blkSeq(b, insns), cp, frame, declared);
         if (stmts == null) { BytecodeStatements.refuse("emitLinear-null"); return false; }
         out.addAll(stmts);
         return true;
