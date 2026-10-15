@@ -3005,6 +3005,83 @@ class DecompileTest {
                 "zero-drift: strong/bits/mask id\u00eanticos ao Java");
     }
 
+    @Test
+    void cartDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o dom\u00ednio CARRINHO — 4 shapes travados SEM
+        // c\u00f3digo novo: o CONTINUE dentro do for-each somando com filtro
+        // (total), o loop INDEXADO com .get() e return antecipado
+        // (firstNegative), o concat acumulador com o sufixo de size
+        // (describe) e o continue-com-acumulador duplo + o tern\u00e1rio do
+        // avg (avgNonZero). Zero-drift executado: 60/0/2/-1/a;b; (2)/empty/
+        // 4.0/0.0 — 8/8 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Cart.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Cart {
+                    static int total(List<Integer> prices) {
+                        int t = 0;
+                        for (int p : prices) {
+                            if (p < 0) { continue; }
+                            t += p;
+                        }
+                        return t;
+                    }
+                    static int firstNegative(List<Integer> xs) {
+                        for (int i = 0; i < xs.size(); i++) {
+                            if (xs.get(i) < 0) { return i; }
+                        }
+                        return -1;
+                    }
+                    static String describe(List<String> items) {
+                        if (items.isEmpty()) { return "empty"; }
+                        String s = "";
+                        for (String it : items) {
+                            s = s + it + ";";
+                        }
+                        return s + " (" + items.size() + ")";
+                    }
+                    static double avgNonZero(List<Integer> xs) {
+                        int sum = 0;
+                        int n = 0;
+                        for (int x : xs) {
+                            if (x == 0) { continue; }
+                            sum += x;
+                            n++;
+                        }
+                        return n == 0 ? 0 : (double) sum / n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cart.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Cart.total(listOf(10, -5, 20, 30)))
+                    println(Cart.total(listOf()))
+                    println(Cart.firstNegative(listOf(3, 7, -1, 9)))
+                    println(Cart.firstNegative(listOf(3, 7)))
+                    println(Cart.describe(listOf("a", "b")))
+                    println(Cart.describe(listOf()))
+                    println(Cart.avgNonZero(listOf(2, 0, 4, 6)))
+                    println(Cart.avgNonZero(listOf(0, 0)))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 60 | 0 | 2 | -1 | a;b; (2) | empty | 4.0 | 0.0
+        assertEquals("60\n0\n2\n-1\na;b; (2)\nempty\n4.0\n0.0", output,
+                "zero-drift: total/firstNegative/describe/avgNonZero id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
