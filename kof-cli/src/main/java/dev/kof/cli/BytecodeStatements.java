@@ -105,6 +105,10 @@ final class BytecodeStatements {
             if (fin != null) return fin;
             List<String> tc = tryCatch(insns, cp, frame, handlers);
             if (tc != null) return tc;
+            // Fase E (15/10): o try/catch NÃO-LINEAR (o if dentro do try —
+            // a fatia nomeada)
+            List<String> tcs = tryCatchStored(insns, cp, frame, handlers);
+            if (tcs != null) return tcs;
             // Fase E (15/10): handlers NÃO-recuperados → stub honesto. O
             // walk cego (que ignora a tabela de handlers) emitia o catch
             // DERRUBADO e a cauda absorvida no else — código compilável
@@ -174,6 +178,69 @@ final class BytecodeStatements {
         out.add("} catch (String e) {");
         out.addAll(handlerStmts);
         out.add("}");
+        return out;
+    }
+
+    /**
+     * Fase E (15/10): o try/catch NÃO-LINEAR — os DOIS lados terminam na
+     * store do MESMO slot (o local hoisted `var v = ""`), o handler termina
+     * em goto J e o tail [J..) usa o slot. Shape medido no Res.describe
+     * (`String base; try { if (c<0) throw ..; base = "ok:"+c; } catch (..)
+     * { base = "bad"; } return base + "!"`). R6: o valor do handler tem que
+     * ser ldc-String e ambos os stores astore — qualquer desvio → null (o
+     * stub honesto do caller).
+     */
+    static List<String> tryCatchStored(List<BytecodeReader.Insn> insns, String[] cp,
+                                              BytecodeFrame frame, int[][] handlers) {
+        if (handlers.length != 1) return null;
+        int start = handlers[0][0];
+        int end = handlers[0][1];
+        int handler = handlers[0][2];
+        List<BytecodeReader.Insn> trySeq = BytecodeSwitch.range(insns, start, end);
+        List<BytecodeReader.Insn> handlerSeq = BytecodeSwitch.range(insns, handler, Integer.MAX_VALUE);
+        if (trySeq.isEmpty() || handlerSeq.size() < 3) return null;
+        // o strip do bind implícito da exceção
+        int hop = handlerSeq.get(0).opcode();
+        if (hop == 0x4b || hop == 0x4c || hop == 0x4d || hop == 0x4e || hop == 0x3a) {
+            handlerSeq = handlerSeq.subList(1, handlerSeq.size());
+        } else return null;
+        // o try termina na store do slot S; o handler em [valor, store S, goto J]
+        BytecodeReader.Insn tryStore = trySeq.get(trySeq.size() - 1);
+        int top = tryStore.opcode();
+        if (top != 0x3a && !(top >= 0x4b && top <= 0x4e)) return null;
+        int slot = top == 0x3a ? tryStore.operands()[0] : top - 0x4b;
+        int hLast = handlerSeq.get(handlerSeq.size() - 1).opcode();
+        if (hLast != 0xa7) return null;
+        int join = handlerSeq.get(handlerSeq.size() - 1).target();
+        BytecodeReader.Insn hStore = handlerSeq.get(handlerSeq.size() - 2);
+        int hop2 = hStore.opcode();
+        if (hop2 != 0x3a && !(hop2 >= 0x4b && hop2 <= 0x4e)) return null;
+        int hSlot = hop2 == 0x3a ? hStore.operands()[0] : hop2 - 0x4b;
+        if (hSlot != slot) return null;
+        // o valor do handler = ldc-String (o R6 do default)
+        if (handlerSeq.size() < 3) return null;
+        BytecodeReader.Insn hVal = handlerSeq.get(handlerSeq.size() - 3);
+        if (hVal.opcode() != 0x12 && hVal.opcode() != 0x13) return null;
+        String lit = BytecodeCp.ldc(cp, hVal.operands()[0]);
+        if (lit == null || !lit.startsWith("\"")) return null;
+        // o tail [J..): não-vazio e emittable
+        List<BytecodeReader.Insn> tailSeq = BytecodeSwitch.range(insns, join, Integer.MAX_VALUE);
+        if (tailSeq.isEmpty()) return null;
+        var declared = new HashSet<Integer>();
+        List<String> tailStmts = BytecodeStatementsEmit.emitLinear(tailSeq, cp, frame, declared);
+        if (tailStmts == null) return null;
+        // o corpo do try (com a store — ela converge os braços do if)
+        List<String> tryStmts = BytecodeStatementsRecover.recoverRegionStruct(trySeq, cp, frame, declared);
+        if (tryStmts == null) return null;
+        String name = BytecodeDecoderStack.slotName(slot, frame);
+        List<String> out = new ArrayList<>();
+        out.add("var " + name + " = \"\"");
+        out.add("try {");
+        out.addAll(tryStmts);
+        out.add("} catch (String e) {");
+        out.add("    " + name + " = " + lit);
+        out.add("}");
+        out.addAll(tailStmts);
         return out;
     }
 

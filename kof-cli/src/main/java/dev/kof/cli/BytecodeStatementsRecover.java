@@ -15,6 +15,30 @@ final class BytecodeStatementsRecover {
 
     private BytecodeStatementsRecover() {}
 
+    /**
+     * Fase E (15/10): a recovery de REGIAO — o struct sobre UMA SUB-REGIAO
+     * (o corpo do try nao-linear), estado global fresco + um `declared`
+     * EXTERNO compartilhado (o local hoisted pelo caller). null = o stub
+     * honesto do caller (R6).
+     */
+    static java.util.List<String> recoverRegionStruct(java.util.List<BytecodeReader.Insn> region,
+            String[] cp, BytecodeFrame frame, java.util.Set<Integer> declared) {
+        java.util.List<BytecodeReader.Block> blocks = BytecodeReader.cfg(region, new int[0]);
+        if (blocks.isEmpty()) return null;
+        Map<Integer, BytecodeReader.Block> byStart = new java.util.HashMap<>();
+        for (BytecodeReader.Block b : blocks) byStart.put(b.start, b);
+        BytecodeStatements.skipFirst = null;
+        BytecodeStatements.currentLoopExit = -1;
+        BytecodeStatements.builderSlots = new HashSet<>();
+        if (BytecodeStatements.skipCount == null) BytecodeStatements.skipCount = new java.util.HashMap<>();
+        BytecodeStatements.skipCount.clear();
+        java.util.List<String> out = new ArrayList<>();
+        Set<Integer> emitted = new HashSet<>();
+        boolean ok = struct(blocks.get(0), region, byStart, cp, frame, out, emitted, declared, -1,
+                new HashSet<>());
+        return ok ? out : null;
+    }
+
 static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                               Map<Integer, BytecodeReader.Block> byStart, String[] cp,
                               BytecodeFrame frame, List<String> out,
