@@ -19452,3 +19452,47 @@ The NATIVE never throws on a MALFORMED payload — it returns a zero/default rec
 
 **THIRD FACE FIXED 15/10 (same family, lane compiler/JVM/native `192.168.15.30:9092`):** a further probe round found the theft in a LOOP — `Int loopTrail(Int n) { var r = 0  while (r < 5) { if (r == n) { r = r + 10  if (r > 12) { return r } } else if (r == 4) { break }  r = r + 1 }  return r }` — measured JVM/Script/native `11` for `n == 0`, JS `10`. ROOT (dumped IR): the INNER if `if (r > 12) { return r }` (its then ends in `return` → the `JsIfThrowElse` path) has an EMPTY else, and `JsIfThrowElse.parseElse` CONSUMED the enclosing then's exit `Jump(end)` as if it were that empty else's terminator — so the OUTER if never recorded its end label (`thenExits` empty), the nested `if (r == 4) { break }` stole `Label(end)`, and the outer else absorbed the trailing `r = r + 1` (the loop's increment was skipped on the `if` path). FIX: `JsIfThrowElse.parseElse` does NOT consume a KofJump when the else branch is EMPTY (`out.isEmpty()`) — an empty else has no terminator of its own, so the jump belongs to the ENCLOSING region and must reach its `parseStatements` to be recorded as an exit. Proof: the SAME `JsIfElseIfThrowE2ETest` now pins SEVEN shapes (adding the loop-with-trailing-statement and a 4-branch `else if` chain whose middle branch RETURNS/THROWS) — **4 run / 0F** (JVM/Script/JS/native x86); RED-first (reverting the guards makes the JS face fail); non-regression JS/control-flow battery **563 run / 0F / 25 skip** + the golden suite **308 passed / 0F / 0 skip**.
 
+
+## §735 — [BUG #846] a lambda cujo corpo chama um MÉTODO DE INSTÂNCIA da classe envolvente com receptor IMPLÍCITO (`somar(n)`, sem `this.`) valida como `VerifyError: Bad type on operand stack` no JVM — 🟡 OPEN (medido 15/10 pela lane issues/tooling `192.168.100.21:9093`; ação de código da lane compiler/frontend)
+
+**Sintoma (medido, jar da `lab`):** `class Contador { somar(Int n) {…} (Int) -> void implicito() { return (n: Int) -> somar(n) } }` — `kof check` passa, e `c.implicito()` morre na CARGA da classe. Isolado nos dois caminhos: com `this.somar(n)` → roda (`total=1`); com `somar(n)` nu → `VerifyError`.
+
+**Causa raiz (bytecode da classe sintética, medida):**
+
+```
+Location: Lambda0.invoke(I)V @2: invokevirtual
+Reason:   Type 'Lambda0' (current frame, stack[0]) is not assignable to 'Contador'
+locals:   { 'Lambda0', integer }
+Bytecode: 2a 1b b6 000e b1     // aload_0; iload_1; invokevirtual; return
+```
+
+O receptor empilhado é `aload_0` — a PRÓPRIA lambda — em vez da instância externa capturada. No caminho que funciona, a mesma chamada compila para `aload_2` (slot re-homed do campo `this:LContador;`).
+
+**Mecanismo:** `CompilerCaptures`/`CompilerCaptureScanner` capturam os nomes que o corpo da lambda **menciona**; uma chamada NUA não menciona `this`, então o `this` externo nunca é capturado. Sem captura a lambda tem só `locals[0] = ("this", Lambda0)` (`CompilerLambdaClass:112`) e o lowering da chamada de instância resolve o receptor por `findLocalVar("this")` → slot 0 = a lambda. Com `this.` explícito a captura acontece e o prólogo re-homed a coloca num slot próprio — por isso só o caminho explícito funciona.
+
+**Onde o fix mora:** no scanner de capturas (`CompilerCaptures.collectCaptures`), tratar uma chamada de instância NUA da classe envolvente como uso de `this` (capturar o `this` externo), como o caminho explícito já faz — não no emissor, que só materializa o receptor escolhido pelo lowering. O cuidado é a detecção (chamada nua de método de INSTÂNCIA da classe envolvente vs. função top-level), porque capturar sem critério muda a forma de TODA lambda (campo + parâmetro de construtor).
+
+**Boundary:** o receptor implícito dentro de lambda. Chaves explícitas (`this.x`) e capturas de variáveis locais continuam corretas (medido no mesmo probe).
+
+<!-- pt-switch --> **PT:** [§735 (pt_BR)](known-bugs.pt_BR.md#735--bug-846-uma-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---aberto-medido-1510-pela-lane-issuestooling-192168100219093-acao-de-codigo-da-lane-compilerfrontend)
+
+## §736 — [BUG #845] um `T?` ESTREITADO (`if (i != null)` → `Int j = i`) chega ao `istore` ainda BOXED: o valor na pilha é `java/lang/Integer` e o JVM recusa a classe (`VerifyError`) — 🟡 OPEN (medido 15/10 pela lane issues/tooling `192.168.100.21:9093`; ação de código da lane compiler/frontend, família §609/§610)
+
+**Sintoma (medido, jar da `lab`):** `var i = m.get("a")` num `Map<String, Int>` (o `get` ERASADO devolve `Object`/`Integer`) + `if (i != null) { Int j = i; … }` → `kof check` limpo e, na carga da classe, `VerifyError`.
+
+**Causa raiz (bytecode medido):**
+
+```
+Location: Default/Main.main([Ljava/lang/String;)V @84: istore
+Reason:   Type 'java/lang/Integer' (current frame, stack[0]) is not assignable to integer
+locals:   { String[], HashMap, ArrayList, java/lang/Integer }
+stack:    { java/lang/Integer }
+```
+
+O estreitamento faz o TYPER dizer `Int` (e o `check` concorda), mas o EMIT não materializa o unbox na fronteira: o slot do local `i` é `java/lang/Integer` e o `Int j = i` é baixado como um `istore` de valor `Int`. Um `Integer` não é atribuível a `int` no `istore` → a JVM recusa a classe no validate (e o launcher mascara com a mensagem enganosa de JavaFX — ver o anti-padrão no `training/anti-patterns/common-mistakes`: o remédio é `java -Xdiag`).
+
+**Onde o fix mora:** na fronteira do estreitamento `T?` → `T` usado como PRIMITIVO, o valor precisa passar por `intValue()`/`longValue()`/… antes do store — a mesma família do §609/§610 (`emitErasureUnboxSoft` + o unbox no boundary), que já cobre o caminho de ARGUMENTO; aqui o buraco é o caminho de **atribuição/local**. Vale cobrir `Long?`/`Float?`/`Double?`/`Bool?` com o unbox correspondente.
+
+**Boundary:** o caso medido é `Map.get` (erasure por genérico). Não afirmei outros produtores de `T?` (getter de record, campo nullable) — não medidos aqui.
+
+<!-- pt-switch --> **PT:** [§736 (pt_BR)](known-bugs.pt_BR.md#736--bug-845-um-t-estreitado-if-i--null--int-j--i-chega-ao-istore-ainda-boxed-o-valor-na-pilha-e-javalanginteger-e-o-jvm-recusa-a-classe-verifyerror---aberto-medido-1510-pela-lane-issuestooling-192168100219093-acao-de-codigo-da-lane-compilerfrontend-familia-609610)
