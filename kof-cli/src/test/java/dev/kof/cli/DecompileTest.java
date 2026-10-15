@@ -3597,22 +3597,19 @@ class DecompileTest {
     }
 
     @Test
-    void nestedTernaryStoreTailStubsHonest(@TempDir Path dir) throws Exception {
-        // Fase E (15/10): a fronteira R6 FECHADA — o tern\u00e1rio ANINHADO
-        // armazenado em local com CAUDA depois do join (`String g = a >= 90
-        // ? "A" : a >= 80 ? "B" : "C"; return g + "(" + (int) a + ")"`). O
-        // ifElseReturn emitia o if-expression como corpo INTEIRO e a cauda
-        // (o astore + o concat) era DERRUBADA — c\u00f3digo compilável
-        // ERRADO (o Kof imprimia "A" em vez de "A(95)", pego pelo
-        // zero-drift!). O guard joinIsBareReturn: o join dos bra\u00e7os tem
-        // que ser um xreturn SOLIT\u00c1RIO; caso contr\u00e1rio o recovery
-        // recusa → o m\u00e9todo stuba honesto. Os OUTROS m\u00e9todos da
-        // classe (o pick com a condi\u00e7\u00e3o composta no loop, o
-        // sumDigits com o while de d\u00edgitos, o fits com o range duplo)
-        // recuperam. Zero-drift executado (os 3): 45/30/true/false/false —
-        // 6/6 id\u00eanticos ao Java. FATIA NOMEADA (a pr\u00f3xima): a
-        // cadeia-tern\u00e1rio armazenada como express\u00e3o (`var v2 = if
-        // (...) ... else ...`) + a emiss\u00e3o do cast d2i.
+    void nestedTernaryStoreRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): a FATIA NOMEADA pousada — a CADEIA-TERN\u00c1RIO
+        // armazenada em local com cauda de concat (`String g = pct >= 90 ?
+        // "A" : pct >= 80 ? "B" : "C"; return g + "(" + (int) pct + ")"`).
+        // Duas corre\u00e7\u00f5es: (1) o bothReach do if-expression-store
+        // exigia o else DIRETO no join — o else \u00e9 o TESTE INTERNO que
+        // converge indireto (via 21/26) → o armReachesJoin; (2) o bra\u00e7o
+        // TESTE vira if-expression via o armExpr (o fallback da rodada
+        // anterior). O guard de REGI\u00c3O (os preds do join todos dentro
+        // de [b.start, tail)) autoriza o join de 3 preds. O cast d2i emite
+        // `toInt()`. O ciclo stub-vira-c\u00f3digo-real fechado na rodada
+        // seguinte ao R6. Zero-drift executado: 45/A(95)/B(85)/C(70)/30/
+        // true/false/false — 8/8 id\u00eanticos ao Java.
         Path javaFile = dir.resolve("Warehouse.java");
         Files.writeString(javaFile, """
                 import java.util.List;
@@ -3642,13 +3639,18 @@ class DecompileTest {
                 """);
         runJavac(javaFile, dir);
         String kof = Decompile.decompile(dir.resolve("Warehouse.class"));
-        assertTrue(kof.contains("body not recovered"),
-                "o grade TEM que stubar honesto (nunca o if-expression sem a cauda):\n" + kof);
-        String kofRun = kof.replace("throw \"body not recovered\"   // unknown", "return \"?\"") + """
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("var v2 = if (arg0 >= 90.0) \"A\" else if (arg0 >= 80.0) \"B\" else \"C\""),
+                "a cadeia armazenada:\n" + kof);
+        assertTrue(kof.contains("toInt()"), "o cast d2i:\n" + kof);
+        String kofRun = kof + """
                 main() {
                     var stock = listOf(10, 20, 30)
                     var order = listOf(5, 15, 25)
                     println(Warehouse.pick(stock, order))
+                    println(Warehouse.grade(95.0))
+                    println(Warehouse.grade(85.5))
+                    println(Warehouse.grade(70.0))
                     println(Warehouse.sumDigits(9876))
                     println(Warehouse.fits(100, 500))
                     println(Warehouse.fits(500, 100))
@@ -3665,9 +3667,9 @@ class DecompileTest {
         String output = new String(proc.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
-        // oracle Java: 45 | 30 | true | false | false
-        assertEquals("45\n30\ntrue\nfalse\nfalse", output,
-                "zero-drift: pick/sumDigits/fits id\u00eanticos ao Java");
+        // oracle Java: 45 | A(95) | B(85) | C(70) | 30 | true | false | false
+        assertEquals("45\nA(95)\nB(85)\nC(70)\n30\ntrue\nfalse\nfalse", output,
+                "zero-drift: pick/grade/sumDigits/fits id\u00eanticos ao Java");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {
