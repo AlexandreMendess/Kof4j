@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 16ª PASSAGEM: o oráculo ffprobe está FIXADO no teste commitado (`AvifRealFileE2ETest` meta agora afirma sub=true/true bd=8/8 prof=0 + monochrome=false). Os três — parse de contêiner, walk da seq, ffprobe — concordam (4:2:0, 8-bit, cor). 6/6. Este pin teria pego o artefato de harness (passagens 12ª/14ª) na hora. Item aberto: o dessincronizado do decode de TILE -> caçar com MULTI-bloco (testsrc 21 falha vs checker-16 37 exato).
+last: 15/10 — AVIF slice 3bd 17ª PASSAGEM: DIVISÃO DECISIVA. RAMP (rampa íngreme) decodifica EXATO (7º quadro exato). STRIPES (faixas 4px, 22 blocos) consomem o payload INTEIRO (symPos=216=27x8) e decodificam 481 coeficientes não-zero — SEM dessincronizado — mas reconstroem Y≈128 (DC nua) vs a referência 16/235. Então STRIPES é falha de PREDIÇÃO/RECONSTRUÇÃO, não de entropia: os vizinhos multi-bloco deveriam dar a referência mas caem na DC sem vizinhos. O problema se DIVIDE em dois modos de falha; este está na disponibilidade intra / referência de vizinhos no `av1IntraPredictBlock` (blocos depois do 1º).
 doing: §3bd — oracle ffprobe fixado no teste real (6/6); dessincronizado do tile aberto
-next: §3bd — (a) consertar a infra de teste para o fixture canonizado preservar o av1C do encoder; (b) caçar o dessincronizado SÓ com multi-bloco (testsrc 21 blocos falha vs checker-16 37 blocos passa)
+next: §3bd — dumpar haveAbove/haveLeft/haveAboveRight/haveBelowLeft e as entradas de predição do bloco 2+ do quadro STRIPES (a falha de PREDIÇÃO multi-bloco)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (44ª) — 3bd 17ª: DIVISÃO — entropia OK, PREDIÇÃO errada (STRIPES)
+- **Os dois controles:** RAMP (rampa `clip(X*4)`) e STRIPES (faixas verticais de 4px).
+- **RAMP:** blocks=1, nz=13, `Y=1,64,128,240` == referência -> SÉTIMO quadro real exato.
+- **STRIPES:** blocks=22, payload=27 B, **symPos=216 bits = 27x8 -> consome o payload INTEIRO**, nz=481 (muitos coeficientes!) -> **NÃO dessincronizou**; mas `Y≈128` (DC nua) vs 16/235.
+- **A conclusão:** o decode de ENTROPIA está correto nas FAIXAS; a RECONSTRUÇÃO está errada. É um SEGUNDO modo de falha, distinto do dessincronizado (checker-8/testsrc).
+- **O mecanismo provável:** num quadro multi-bloco, os vizinhos (acima/esquerda) deveriam fornecer as amostras de referência para a predição intra; se a DISPONIBILIDADE estiver errada, cada bloco prediz a DC sem vizinhos -> Y≈128.
+- **Onde olhar:** `av1IntraPredictBlock` / `av1IntraAvail` e o cálculo de haveTop/haveLeft do driver (que usa `br != 0`/`bc != 0`).
+- **Lições:** (1) medir `symPos` contra o payload SEPARA "dessincronizou" de "decodificou e errou a saída" — duas causas com remédios diferentes; (2) eu vinha enquadrando TUDO como dessincronizado; a FAIXAS provou que há dois modos; (3) 7 quadros exatos (sólido, cinza-escuro, 2-tons, diagonal, checker-32, checker-16, rampa) delimitam o que funciona.
 
 ## Sessão 15/10 (43ª) — 3bd 16ª: fixei o oráculo ffprobe no teste commitado
 - **O que faltava:** o teste commitado do arquivo real pinava `monochrome=false` mas NÃO a subsampling/bit depth — então o artefato do harness (av1C do builder) não era pego por um pin.
