@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd TERCEIRA PASSAGEM: mais DOIS quadros reais isolam a falha no MULTI-BLOCO. O `#404040` uniforme (resíduo REAL, c0=-237) dá `Y=71` EXATO e o cinza-sólido dá `126` — ambos de BLOCO ÚNICO. O testsrc é o único MULTI-bloco (21 blocos) e falha nos PRIMEIROS. Então resíduo/coeficiente/predição/reconstrução estão CORRETOS em quadros reais; o bug é a maquinaria multi-bloco (walk de partição / ordem da grade / seleção de tx-size). Próximo: dumpar a árvore de partição + `(r,c,bs,txSz)` por bloco vs libaom.
+last: 15/10 — AVIF slice 3bd QUARTA PASSAGEM: um quadro real MULTI-bloco SIMPLES (2-tons) também decodifica EXATO (`Y=16,235,235`). TRÊS quadros reais agora batem (sólido 126, cinza-escuro 71, 2-tons 16/235); só o COMPLEXO testsrc diverge. A maquinaria multi-bloco NÃO está quebrada em geral — o que difere no testsrc é: 21 blocos, modos angulares, CFL (`uv_mode=13`) e filter-intra (`fi=1`). Próximo: bisseccionar por feature (angulares -> CFL -> filter-intra) para achar o primeiro quadro que para de bater.
 doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
-next: §3bd — dumpar a árvore de partição e o `(r,c,bs,txSz)` por bloco do quadro testsrc vs o layout do libaom (o bug está na maquinaria multi-bloco, não no resíduo)
+next: §3bd — bisseccionar a divergência do testsrc por FEATURE: encodar um quadro com modo angular, depois CFL, depois filter-intra, e achar o primeiro que para de bater com o ffmpeg
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (32ª) — 3bd quarta passagem: um multi-bloco SIMPLES também bate; o testsrc é a exceção
+- **O controle novo:** um 2-tons 64x64 (esquerda preto, direita branco) — multi-bloco, mas simples.
+- **O resultado:** `Y=16,235,235` == ffmpeg EXATO. Terceiro quadro real correto.
+- **A correção da leitura:** eu tinha concluído (terceira passagem) que a maquinaria multi-bloco estava quebrada — o 2-tons REFUTA isso. Multi-bloco funciona.
+- **O que realmente difere no testsrc:** 21 blocos (vs 1), modos intra ANGULARES, CFL (`uv_mode=13`) e filter-intra (`fi=1`) — features que nenhum dos três quadros que passam usa.
+- **Próximo:** bisseccionar por FEATURE — somar uma por vez (angular -> CFL -> filter-intra) até um quadro parar de bater; a primeira que falhar é o bug.
+- **Lições:** (1) eu ia por um caminho errado ("multi-bloco quebrado") e o controle simples me corrigiu — vale SEMPRE testar a afirmação com o caso mais simples que a exercita; (2) três positivos exatos (sólido/uniforme/2-tons) dão confiança muito maior que um só.
 
 ## Sessão 15/10 (31ª) — 3bd terceira passagem: dois quadros reais EXATOS isolam a falha no MULTI-BLOCO
 - **O experimento:** em vez de caçar o quadro complexo, encodei mais um caso de controle — um `#404040` 64x64 uniforme, que tem um resíduo REAL (não zero).
