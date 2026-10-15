@@ -105,6 +105,14 @@ final class BytecodeStatements {
             if (fin != null) return fin;
             List<String> tc = tryCatch(insns, cp, frame, handlers);
             if (tc != null) return tc;
+            // Fase E (15/10): handlers NÃO-recuperados → stub honesto. O
+            // walk cego (que ignora a tabela de handlers) emitia o catch
+            // DERRUBADO e a cauda absorvida no else — código compilável
+            // ERRADO (medido no Res.describe: `describe(-3)` THREW onde o
+            // Java imprime `bad!`; e o Res.withFinally perdeu o return).
+            // R6: recusa antes do código errado.
+            refuse("handlers-unrecovered");
+            return null;
         }
         skipFirst = null;   // por-método: nenhum skip vaza entre corpos
         currentLoopExit = -1;

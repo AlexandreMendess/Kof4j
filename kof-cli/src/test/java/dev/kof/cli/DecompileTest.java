@@ -3737,6 +3737,83 @@ class DecompileTest {
                 "zero-drift: total/headline/needsReview/badge id\u00eanticos ao Java");
     }
 
+    @Test
+    void unrecoveredHandlersStubHonest(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): a fronteira R6 FECHADA — os HANDLERS não-
+        // recuperados STUBAM honestos. O walk cego (que ignora a tabela de
+        // handlers) emitia: o describe com o catch DERRUBADO (o `throw
+        // "neg"` num if/else sem o catch — `describe(-3)` THREW onde o Java
+        // imprime `bad!` — código compilável ERRADO, pego pelo zero-drift)
+        // e o withFinally SEM o return. O refuse `handlers-unrecovered`
+        // cobre: try/catch não-linear (o if dentro do try), o finally com
+        // valor + return. O parse (o try/catch LINEAR) segue recuperando —
+        // zero-drift: 42/7/-1/0 == Java. A bateria 237/237 provou ZERO
+        // regressão (as faces de exceção que passavam vão pelo caminho de
+        // sucesso do tryCatch/recoverFinally).
+        Path javaFile = dir.resolve("Res.java");
+        Files.writeString(javaFile, """
+                public class Res {
+                    static int parse(String s) {
+                        try {
+                            return Integer.parseInt(s.trim());
+                        } catch (NumberFormatException e) {
+                            return -1;
+                        }
+                    }
+                    static String describe(int code) {
+                        String base;
+                        try {
+                            if (code < 0) { throw new IllegalArgumentException("neg"); }
+                            base = "ok:" + code;
+                        } catch (IllegalArgumentException e) {
+                            base = "bad";
+                        }
+                        return base + "!";
+                    }
+                    static int withFinally(boolean fail) {
+                        int v = 0;
+                        try {
+                            v = 10;
+                            if (fail) { throw new IllegalStateException("x"); }
+                            v = 20;
+                        } finally {
+                            v = v + 1;
+                        }
+                        return v;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Res.class"));
+        assertTrue(kof.contains("body not recovered"),
+                "describe/withFinally TEM que stubar honestos (nunca o catch derrubado):\n" + kof);
+        assertFalse(kof.contains("throw \"neg\""), "nunca o throw fora do try:\n" + kof);
+        String kofRun = kof
+                .replace("throw \"body not recovered\"   // unknown", "return -1")
+                .replace("static String describe(Int arg0) {\n        return -1\n    }",
+                        "static String describe(Int arg0) {\n        return \"\"\n    }") + """
+                main() {
+                    println(Res.parse("42"))
+                    println(Res.parse(" 7 "))
+                    println(Res.parse("abc"))
+                    println(Res.parse("0"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 42 | 7 | -1 | 0
+        assertEquals("42\n7\n-1\n0", output,
+                "zero-drift: parse id\u00eantico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
