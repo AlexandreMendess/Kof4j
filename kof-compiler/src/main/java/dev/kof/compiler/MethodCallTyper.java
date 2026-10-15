@@ -450,7 +450,16 @@ if (mc.receiver() != null) {
     if (KofIo.isIoType(recvType)) {
         KofIo.IoCall ioCall = KofIo.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
         if (ioCall != null) return ioCall.returnType();
-        if (KofIo.isIdentityMethod(mc.methodName())) return recvType;
+        // #847: `path()` é identidade no valor, e o TIPO é String (IO.md:
+        // `name()`/`path()` → String). Devolver o receptor Io fazia o primeiro
+        // uso de String morrer em `SEM102: 'File' has no field 'length'`.
+        if (KofIo.isIdentityMethod(mc.methodName())) return BuiltinTypes.STRING;
+    }
+    // #847 face 2 — espelha o ramo do sem-typer e o que a forma de CAMPO já faz
+    // (SemFieldAccessTyper/ExpressionFieldAccessTyper): `path` num STRING é
+    // identidade tipada String.
+    if (Type.isString(recvType) && KofIo.isIdentityMethod(mc.methodName())) {
+        return BuiltinTypes.STRING;
     }
     if (recvType instanceof Type.FunctionType ft) {
         return ft.returnType();
