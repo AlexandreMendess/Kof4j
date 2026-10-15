@@ -228,6 +228,14 @@ if (mc.receiver() == null && "Hr".equals(mc.methodName()) && mc.arguments().size
     return localIdx;
 }
 // ── Fase 4: primitivas de layout (docs/ui/architecture.md §2.8)
+if (mc.receiver() == null && "Stack".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_stack_new", List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && ("Box".equals(mc.methodName())
         || "Stack".equals(mc.methodName()) || "Wrap".equals(mc.methodName())
         || "Center".equals(mc.methodName()) || "Scroll".equals(mc.methodName()))

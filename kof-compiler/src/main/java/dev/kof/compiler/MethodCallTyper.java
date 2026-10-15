@@ -214,6 +214,10 @@ if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(m
         && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
     return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
 }
+if (mc.receiver() == null && "Stack".equals(mc.methodName())
+        && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
+    return KofUi.STACK;
+}
 if (mc.receiver() == null && ("Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
     if ("Form".equals(mc.methodName())) return KofUi.FORM;
