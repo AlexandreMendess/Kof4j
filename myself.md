@@ -2,11 +2,21 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 14ª PASSAGEM: o ffprobe RETRATA as duas anteriores. O checker é `yuv420p` (NÃO mono) -> o walk da SEQUÊNCIA está CERTO e o parse do `av1C` em `readAvifMetadata` (mono=true, sub=0/0) é BUGADO (bug NOVO, oráculo ffprobe). Logo o `numPlanes=1` da 13ª foi COINCIDÊNCIA (1 bloco não dessincroniza nada depois). **Correção metodológica: experimentos de 1 bloco são FRACOS** — só multi-bloco discrimina (checker-16 passa, testsrc falha). A causa do dessincronizado segue ABERTA. Próximo: catalogar o misparse do av1C + continuar a caça multi-bloco.
+last: 15/10 — AVIF slice 3bd 15ª PASSAGEM: a afirmação do av1C é RETRATADA — era o MEU HARNESS. Os bytes reais são `81 00 0c` -> mono=0 subX=1 subY=1; o parse do Kof está CERTO. Meus probes liam mono=true porque o fixture canonizado usa o av1C do BUILDER DE TESTE em volta do item do ffmpeg (fontes diferentes). Sem bug de av1C; 12ª/14ª retiradas. O que fica: o arquivo é yuv420p, o walk da seq está certo, e com numPlanes=3 o checker-8 dessincroniza enquanto o checker-16 (37 blocos) decodifica exato. O dessincronizado segue ABERTO e só multi-bloco discrimina.
 doing: exposição de segmentação landada (16/16); bug real de parse do cabeçalho achado (segEnabled mal lido)
-next: §3bd — catalogar o misparse do `av1C` (mono/subsampling; oráculo ffprobe) e retomar a caça ao dessincronizado usando SÓ quadros MULTI-bloco (1-bloco é fraco); testsrc (21 blocos) é o caso que falha
+next: §3bd — (a) consertar a infra de teste para o fixture canonizado preservar o av1C do encoder; (b) caçar o dessincronizado SÓ com multi-bloco (testsrc 21 blocos falha vs checker-16 37 blocos passa)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (42ª) — 3bd 15ª: retratei o av1C (era o meu harness) e a caça multi-bloco
+- **O que eu afirmei (12ª/14ª):** "o contêiner av1C discorda do walk da sequência" -> bug do av1C.
+- **A verificação decisiva:** os BYTES do av1C real são `81 00 0c`; byte2 = 0x0c = 0000 1100 -> mono=0, subX=1, subY=1. O parse do Kof (`mono=(b2>>4)&1`) dá exatamente isso. **O parse está CERTO.**
+- **A causa do erro:** meu fixture canonizado é construído por `containerWithItem` (helper de TESTE), que escreve o SEU PRÓPRIO av1C (`AvifMetadataSupport.av1c(..., true, ...)`) em volta dos bytes do ITEM do ffmpeg. Contêiner e item vinham de fontes DIFERENTES -> a "discordância" era do harness.
+- **A retratação:** 12ª e 14ª passagens retiradas. Sem bug de av1C.
+- **O que permanece sólido:** ffprobe diz yuv420p; o walk da seq do Kof está certo; com np=3 o checker-8 dessincroniza (nz=0) e o checker-16 (37 blocos) decodifica EXATO.
+- **O estado:** dessincronizado ABERTO. A regra: caçar SÓ com multi-bloco.
+- **Próximo:** (a) consertar a infra (o fixture canonizado deve preservar o av1C do encoder); (b) diff testsrc (falha) vs checker-16 (passa), ambos multi-bloco.
+- **Lições:** (1) ANTES de acusar o código sob teste, conferir se o meu INSTRUMENTO mistura fontes (aqui: item do ffmpeg + av1C do builder) — dois oráculos conflitantes apontam para o harness, não para o código; (2) conferir os BYTES crus antes de concluir um bit mal lido (0x0c é 5 segundos de xxd); (3) é a TERCEIRA vez nesta série que o culpado é o meu harness — checar o instrumento primeiro é regra, não reflexo.
 
 ## Sessão 15/10 (41ª) — 3bd 14ª: o ffprobe retrata tudo; e um bug NOVO no parse do av1C
 - **O oráculo definitivo:** `ffprobe -show_entries stream=pix_fmt` -> o checker é `yuv420p`. NÃO é monocromático.
