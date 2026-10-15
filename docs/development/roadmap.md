@@ -1001,10 +1001,11 @@ All remaining `future/` plans are authorized with their
 > Gates 0–5 (feasibility → target infra → minimal runtime → HAL → workflow → verified on physical
 > hardware); 8 hardware stages H1–H8. The plan touches zero code.
 >
-> **PROMOTED (15th front):** `kofbol` — promoted 14/10 (maintainer order "assume um novo plano em future" + `D-FUTURE-PROMOTION`,
-> cheapest eligible plan) to [`kofbol-plan.md`](kofbol-plan.md) (+PT); library-first by construction, the rule-6 gate resolved in the
-> non-rule-6 direction (descriptor over `record`, no new syntax). Slice 1 = fixed-width `PIC X`/`PIC 9` encode/decode (ASCII) in
-> pure-Kof `libs/legacy/`; the ordered roadmap is the plan §20.
+> **PROMOTED (15th front) → LANDED AT `docs/` 15/10:** `kofbol` — promoted 14/10 (maintainer order "assume um novo plano em future" + `D-FUTURE-PROMOTION`,
+> cheapest eligible plan); library-first by construction, the rule-6 gate resolved in the non-rule-6 direction (descriptor over `record`, no new syntax).
+> **ALL 11 §20 slices LANDED with executed proof** (fixed-width, EBCDIC CP037, COMP-3, the copybook import with OCCURS/88/REDEFINES, the adapter + the
+> return-code model, the transport matrix, messaging + batch, transactions, the guide + the LEG001–LEG019 table) — the plan moved to
+> [`docs/kofbol.md`](../kofbol.md) (+PT +the guide); the EBCDIC pages = Q5, the JS COMP-3 face = §734, the advanced clauses = LEG014 (all bounded).
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 

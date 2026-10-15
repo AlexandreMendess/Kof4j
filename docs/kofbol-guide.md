@@ -3,7 +3,7 @@
 last: the guide for `kof.legacy` (KofBOL, `D-KOFBOL`) — slices 1–11 landed
 doing: slice 11 (docs + guide + the conformance matrix) — THIS document
 next: the plan's promotion decision (all §20 slices landed or bounded)
-location: docs/development/kofbol-guide.md
+location: docs/kofbol-guide.md
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 state: under-development
 

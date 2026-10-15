@@ -3,7 +3,7 @@
 last: o guia do `kof.legacy` (KofBOL, `D-KOFBOL`) — fatias 1–11 pousadas
 doing: fatia 11 (docs + guia + a matriz de conformância) — ESTE documento
 next: a decisão de promoção do plano (todas as fatias do §20 pousadas ou delimitadas)
-local: docs/development/kofbol-guide.pt_BR.md
+local: docs/kofbol-guide.pt_BR.md
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 state: under-development
 
