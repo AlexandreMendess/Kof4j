@@ -34,6 +34,23 @@ class EmptyWidgetsE2ETest {
         }
     }
 
+    /** Executa o .mjs emitido com node. A face JS desta issue era
+     *  `ReferenceError` em TEMPO DE EXECUÇÃO — a checagem textual sozinha não
+     *  pega uma chamada com forma errada (arg count), só o nome ausente. */
+    private String runNode(Path jsOutDir) throws IOException {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("node", jsOutDir.resolve("Default.mjs").toString());
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            assertEquals(0, p.waitFor(), "node exit code, output:\n" + output);
+            return output;
+        } catch (InterruptedException e) {
+            throw new IOException("Interrupted", e);
+        }
+    }
+
     @Test
     void emptyWidgetsLowerToRuntimeConstructors(@TempDir Path tempDir) throws IOException {
         String program = """
@@ -71,5 +88,7 @@ class EmptyWidgetsE2ETest {
         for (String b : bare) {
             assertFalse(emitted.contains(b), "must not emit a bare global " + b + " (ReferenceError at runtime)");
         }
+        assertEquals("done", runNode(tempDir.resolve("js")),
+                "the emitted .mjs must RUN to completion — the issue's JS face was a runtime ReferenceError");
     }
 }
