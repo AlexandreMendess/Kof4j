@@ -3311,23 +3311,17 @@ class DecompileTest {
     }
 
     @Test
-    void doubleForEachSecondLoopStubsHonest(@TempDir Path dir) throws Exception {
-        // Fase E (15/10): o M\u00c9TODO com DOIS loops for-each — o javac
-        // REUTILIZA o slot do iterator (o escopo do 1º loop morre) e o decl
-        // do 2º sai SEM `var` (`v3 = arg1.iterator()`), logo o recovery do
-        // for-each (que exige o decl como \u00daLTIMA linha de out) n\u00e3o
-        // pega o segundo loop. A tentativa de busca backward CORROMPIA o
-        // out (a re-entr\u00e2ncia do struct re-processa o walk e o remove
-        // pegava a linha errada — medido no FSCAN trace) → REVERTIDO. A
-        // recusa HONESTA agora cobre o shape: o while-iterator que o
-        // recovery n\u00e3o pegou \u00e9 STUB (`iterator-loop-unrecovered`),
-        // nunca o while cru com locals n\u00e3o-declarados (R6). Os OUTROS
-        // m\u00e9todos da classe (o domain com o indexOf/substring, o
-        // isValid com o indexOf de 2 args + contains, o quotaBytes com o
-        // break de quota) recuperam. Zero-drift executado (os 3):
-        // kof.dev//true/false/false/6000 — 6/6 id\u00eanticos ao Java.
-        // FATIA NOMEADA (a pr\u00f3xima): o recovery backward para o 2º
-        // for-each, sem a re-entr\u00e2ncia.
+    void doubleForEachBothLoopsRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): a FATIA NOMEADA pousada — o M\u00c9TODO com DOIS
+        // loops for-each. O javac REUTILIZA o slot do iterator (o escopo do
+        // 1\u00ba loop morre), ent\u00e3o o decl do 2\u00ba sai SEM `var`
+        // (`v3 = arg1.iterator()`) — a forma sem-var \u00e9 aceita na
+        // \u00daLTIMA linha de out (emitida pelo bloco linear imediatamente
+        // anterior; a busca backward CORROMPIA via re-entr\u00e2ncia do struct
+        // — FSCAN-provado — e foi revertida; o `out.remove(last)` \u00e9
+        // seguro por constru\u00e7\u00e3o). Zero-drift executado: recipients
+        // dedupe 3/true, domain kof.dev/"", isValid true/false/false,
+        // quotaBytes 6000 — 8/8 id\u00eanticos ao Java.
         Path javaFile = dir.resolve("Mail.java");
         Files.writeString(javaFile, """
                 import java.util.List;
@@ -3361,11 +3355,13 @@ class DecompileTest {
                 """);
         runJavac(javaFile, dir);
         String kof = Decompile.decompile(dir.resolve("Mail.class"));
-        assertTrue(kof.contains("body not recovered"),
-                "o 2º for-each do recipients TEM que stubar honesto:\n" + kof);
-        assertFalse(kof.contains(".hasNext()"), "nunca o while cru:\n" + kof);
-        String kofRun = kof.replace("throw \"body not recovered\"   // unknown", "return listOf()") + """
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("for (var v4 in arg1)"), "o 2\u00ba for-each:\n" + kof);
+        String kofRun = kof + """
                 main() {
+                    var all = Mail.recipients(listOf("a@x", "b@x"), listOf("b@x", "c@x"))
+                    println(all.size())
+                    println(all.contains("c@x"))
                     println(Mail.domain("user@kof.dev"))
                     println(Mail.domain("noat"))
                     println(Mail.isValid("user@kof.dev"))
@@ -3384,9 +3380,9 @@ class DecompileTest {
         String output = new String(proc.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
-        // oracle Java: kof.dev | (vazio) | true | false | false | 6000
-        assertEquals("kof.dev\n\ntrue\nfalse\nfalse\n6000", output,
-                "zero-drift: domain/isValid/quotaBytes id\u00eanticos ao Java");
+        // oracle Java: 3 | true | kof.dev | (vazio) | true | false | false | 6000
+        assertEquals("3\ntrue\nkof.dev\n\ntrue\nfalse\nfalse\n6000", output,
+                "zero-drift: recipients/domain/isValid/quotaBytes id\u00eanticos ao Java");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {

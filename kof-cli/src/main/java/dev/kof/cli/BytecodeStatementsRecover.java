@@ -332,9 +332,24 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 if (itVar != null && !out.isEmpty()) {
                     String last = out.get(out.size() - 1);
                     String declPrefix = "var " + itVar + " = ";
+                    // Fase E (15/10): a fatia nomeada — o 2º for-each do
+                    // método: o javac REUTILIZA o slot do iterator (o escopo
+                    // do 1º loop morre) e o decl sai SEM `var`
+                    // (`v3 = arg1.iterator()`), MAS é a ÚLTIMA linha de out
+                    // (emitida pelo bloco linear imediatamente anterior) — a
+                    // forma sem-var aceita AQUI (não em busca backward, que
+                    // corrompia via re-entrância). O `out.remove(last)` de
+                    // baixo já é seguro por construção.
+                    String barePrefix = itVar + " = ";
+                    String src = null;
                     if (last.startsWith(declPrefix) && last.endsWith(".iterator()")) {
-                        String src = last.substring(declPrefix.length(),
+                        src = last.substring(declPrefix.length(),
                                 last.length() - ".iterator()".length());
+                    } else if (last.startsWith(barePrefix) && last.endsWith(".iterator()")) {
+                        src = last.substring(barePrefix.length(),
+                                last.length() - ".iterator()".length());
+                    }
+                    if (src != null) {
                         BytecodeReader.Block bodyFirst = byStart.get(thenStart);
                         List<BytecodeReader.Insn> fblk = bodyFirst == null
                                 ? List.of() : BytecodeDecoder.insnsWithin(bodyFirst, insns);
