@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 11ª PASSAGEM: LANDADA a EXPOSIÇÃO de `segEnabled`+`segAltQ[8]` no `AvifFrameHeader` (aditiva; AvifFrameE2ETest 16/16). E ACHADO o bug real: para o checker o cabeçalho lê `segEnabled=0` MAS o stream de tile se comporta como segmentado (passar 1 conserta: symPos 21->152, nz 0->13). O `using_qmatrix` É lido (verifiquei); então um campo ANTERIOR desloca — suspeito: o `separate_uv_delta_q` da SEQUÊNCIA. Os fixtures sintéticos não pegam (todos seg=0); só um arquivo REAL. Próximo: cruzar os fatos de seq reais e consertar a posição de bit do walk da seq.
+last: 15/10 — AVIF slice 3bd 12ª PASSAGEM: O ORÁCULO INDEPENDENTE achou. O registro `av1C` (contêiner) do arquivo real diz `monochrome=true, subX=false, subY=false`; o walk da SEQUÊNCIA do Kof diz `monochrome=false, subX=true, subY=true`. Dois parses do mesmo arquivo TÊM de concordar; o conteúdo é cinza -> mono=true é a verdade. Isso amarra a cadeia: `monochrome` define `numPlanes` -> errado, o cabeçalho lê campos FANTASMA de delta-Q de UV -> desloca todo campo -> `segEnabled` lê 0 (verdade 1) -> o tile dessincroniza. Próximo: conferir a posição de `mono_chrome` no walk da seq vs a spec (só quando seq_profile != 1).
 doing: exposição de segmentação landada (16/16); bug real de parse do cabeçalho achado (segEnabled mal lido)
-next: §3bd — cruzar os fatos da SEQUÊNCIA de um arquivo real (separateUvDeltaQ, monochrome, bitDepth, subsampling) com o encoder e consertar a posição de bit do walk da seq; o `segEnabled` mal lido é o sintoma
+next: §3bd — achar o campo mal dimensionado ANTES do `mono_chrome` no walk da SEQUÊNCIA (o `av1C` é o oráculo: mono=true); provável bloco de capabilities/order-hint
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (39ª) — 3bd 12ª: o av1C (oráculo independente) discorda do walk da sequência (monochrome)
+- **O instrumento novo (o que faltava):** o registro `av1C` do contêiner — um parse INDEPENDENTE dos fatos da sequência, que eu nunca tinha usado como oráculo.
+- **A divergência:** av1C `mono=true subX=false subY=false` vs seqWalk `mono=false subX=true subY=true`. Dois parses do MESMO arquivo não podem discordar. O conteúdo é um xadrez p/b (croma constante) -> mono=true é a verdade.
+- **Por que isso amarra tudo:** `monochrome` define `numPlanes` (1 vs 3). Com numPlanes errado (3), o cabeçalho de quadro lê os campos de delta-Q de UV que NÃO existem num stream mono -> todo campo seguinte desloca -> `segEnabled` lê 0 onde é 1 -> o driver pula o segment id -> o tile dessincroniza.
+- **A cadeia completa agora:** seq misparsed (mono) -> numPlanes errado -> frame header deslocado -> segEnabled errado -> tile desync -> all_zero. Cada elo foi medido.
+- **O que landei:** o diagnóstico nos docs (nada em libs neste passo).
+- **Lições:** (1) procurar um ORÁCULO INDEPENDENTE para os fatos que eu estava assumindo — o av1C estava no arquivo desde o começo; (2) quando dois parses do mesmo dado discordam, é BUG, não ambiguidade — e a discordância é o teste mais afiado que existe; (3) a cadeia de causas (mono -> numPlanes -> shift -> seg -> tile) só ficou visível depois que cada elo foi medido isoladamente.
 
 ## Sessão 15/10 (38ª) — 3bd 11ª: exposição de segmentação LANDADA + achado um bug REAL de parse do cabeçalho
 - **A exposição:** `AvifFrameHeader` agora carrega `segEnabled` + `segAltQ[8]` (o walk já os calculava e descartava). Aditiva: `headerBytes` inalterado, os 8 fixtures sintéticos leem `seg=0`, AvifFrameE2ETest 16/16.
