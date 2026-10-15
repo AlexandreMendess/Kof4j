@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3ba LANDADA: DESTRAVEI a 3az no lado do teste (prependendo o temporal delimiter ao item REAL do ffmpeg = ordem canônica, semântica idêntica) sem mexer no Kof nem precisar de decisão. E isso revelou os FLAGS DE SEQUÊNCIA REAIS: `enable_filter_intra=1` e `enable_intra_edge_filter=1` — NÃO o `0` que eu vinha assumindo (o seq header real era ilegível). `AvifRealFileE2ETest` 4/4. Ainda diverge: com os flags certos o decode RODA mas os pixels não batem com o ffmpeg (a composição) — próxima fatia.
-doing: 3ba landada (leitura do item real canonizada + fatos de seq reais fi=1 ie=1)
-next: cores. a3 composição — fazer os pixels do decode no payload real baterem com o oráculo ffmpeg (`ffmpeg -i x.avif -pix_fmt yuv420p -f rawvideo`); com fi=1/ie=1 corretos agora, o próximo suspeito é o parse do cabeçalho de quadro/segmentação e o `intraEdgeFilterType`
+last: 14/10 — AVIF slice 3bb LANDADA: o cabeçalho de quadro expõe os fatos delta-Q/LF que o `Av1ModeTail` precisa — e o quadro REAL do ffmpeg lê `dq=0 dfl=0`, REFUTANDO a hipótese do "cfg errado" (o cfg já estava certo). Prova: 36/36 (AvifFrame 16/16, AvifSeq 8/8, AvifObu 8/8, AvifRealFile 4/4) — e as faces NATIVAS passam, o §723 foi corrigido pela lane de codegen. **A divergência persiste e está no parse de mode-info/coeficientes do tile real:** Kof Y0=129,112,122 vs ffmpeg Y0=16,145,235 (o ref anterior que eu citei, 16,81,81, estava ERRADO — corrigi).
+doing: 3bb landada (fatos delta-Q/LF expostos); a divergência do tile real é a próxima
+next: a divergência de pixels no tile REAL — o cfg está certo (dq=0), então investigar o parse de mode-info (skip/segmento/paleta) e o de coeficientes num tile de encoder real; oráculo `ffmpeg -i x.avif -pix_fmt yuv420p -f rawvideo` (Y0 real = 16,145,235)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (26ª) — slice 3bb: expus delta-Q/LF e REFUTEI a hipótese do cfg
+- **Hipótese:** a divergência de pixels vinha do `cfg` (`Av1ModeTail`) que eu passava com defaults — o driver pularia a sintaxe delta-q do stream e dessincronizaria.
+- **A refutação:** expus os fatos reais (`deltaQPresent`/`Res`, `deltaLfPresent`/`Res`/`Multi`) no `AvifFrameHeader` e li o quadro real: `dq=0 dfl=0 cdefBits=0 seq.enableCdef=1`. Ou seja, o cfg JÁ estava correto nesses campos → o cfg NÃO é a causa. (Um experimento anterior com variantes de cfg já mostrava que mexer nele mudava os pixels sem casar com o ffmpeg — sinal de que era ruído, não a causa.)
+- **Correção de registro:** o valor de referência do ffmpeg que eu citei antes (`Y0=16,81,81`) estava ERRADO — li o `/tmp/ref.yuv` errado. O correto é `Y0=16,145,235`, `Y32=16,106,16`. Regenerei e conferi.
+- **O que landei:** a exposição (slice 3bb), com probe + leitor Java + golden em passo; `headerBytes` inalterado. 36/36 nos quatro suites.
+- **Bônus:** as faces NATIVAS agora passam (incl. a que era o §723 pré-existente) — a lane de codegen corrigiu o default de locais-em-registradores.
+- **Lição:** quando um experimento 'muda o resultado' em várias direções sem casar com o oráculo, é ruído — não confirmei a hipótese, e a medição direta (ler os fatos reais) foi o que a matou.
 
 ## Sessão 14/10 (25ª) — slice 3ba: destravei a 3az no lado do teste, e os flags de sequência reais são fi=1 ie=1
 - **A sacada:** a 3az estava bloqueada porque o walk do Kof exige o temporal delimiter primeiro e o ffmpeg não o emite. Em vez de mexer no Kof (decisão de subset), PREPENDI o delimiter ao item REAL do ffmpeg -> ordem canônica do AV1, semântica idêntica (mesmo seq header, frame e tile). O walk passou a ler o item real normalmente.

@@ -427,6 +427,9 @@ final class AvifFrameSupport {
                     + " lf=" + f.loopFilterLevel0 + " cd=" + f.cdefBits
                     + " ll=" + f.lossless + " tx=" + f.txModeSelect
                     + " rts=" + f.reducedTxSet
+                    + " dq=" + f.deltaQPresent + " dqr=" + f.deltaQRes
+                    + " dfl=" + f.deltaLfPresent + " dlr=" + f.deltaLfRes
+                    + " dlm=" + f.deltaLfMulti
             }
 
             main() {

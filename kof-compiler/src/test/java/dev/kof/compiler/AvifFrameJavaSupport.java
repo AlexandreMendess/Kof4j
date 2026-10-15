@@ -267,13 +267,19 @@ final class AvifFrameJavaSupport {
                 int segEnabled = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
                 boolean codedLossless = baseQ == 0 && segEnabled == 0;
                 int lf0Out = 0, cdefBitsOut = 0;
+                int dqPresent = 0, dqRes = 0, dflPresent = 0, dlRes = 0, dlMulti = 0;
                 if (baseQ > 0) {
                     int dqp = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                    dqPresent = dqp;
                     if (dqp == 1) {
-                        bits += 2;                          // delta_q_res
+                        dqRes = AvifSeqSupport.readBits(item, bits, 2); bits += 2;
                         if (intrabc == 0) {
                             int dflp = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
-                            if (dflp == 1) bits += 3;
+                            dflPresent = dflp;
+                            if (dflp == 1) {
+                                dlRes = AvifSeqSupport.readBits(item, bits, 2); bits += 2;
+                                dlMulti = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                            }
                         }
                     }
                 }
@@ -324,7 +330,9 @@ final class AvifFrameJavaSupport {
                         + " hb=" + headerBytes + " bq=" + baseQ
                         + " lf=" + lf0Out + " cd=" + cdefBitsOut
                         + " ll=" + (codedLossless ? 1 : 0) + " tx=" + txModeSelect
-                        + " rts=" + reducedTxSet;
+                        + " rts=" + reducedTxSet
+                        + " dq=" + dqPresent + " dqr=" + dqRes
+                        + " dfl=" + dflPresent + " dlr=" + dlRes + " dlm=" + dlMulti;
             }
             pos = limit;
         }

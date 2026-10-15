@@ -64,7 +64,9 @@ record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
                       Int tileColumns, Int tileRows, Int tileBits,
                       Int tileSizeBytes, Int headerBytes,
                       Int baseQIdx, Int loopFilterLevel0, Int cdefBits,
-                      Int lossless, Int txModeSelect, Int reducedTxSet)
+                      Int lossless, Int txModeSelect, Int reducedTxSet,
+                      Int deltaQPresent, Int deltaQRes,
+                      Int deltaLfPresent, Int deltaLfRes, Int deltaLfMulti)
 
 AvifFrameHeader readAvifFrameHeader(String path) {
     var bytes = File(path).readRange(0, 65536)
@@ -278,7 +280,8 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
                            tiles[1], tiles[2], tiles[3], tiles[4],
                            (hb - p * 8) / 8,
                            tail[1], tail[2], tail[3],
-                           tail[4], tail[5], tail[6])
+                           tail[4], tail[5], tail[6],
+                           tail[7], tail[8], tail[9], tail[10], tail[11])
 }
 
 // uncompressed_header() tail per AV1 5.9.2, after tile_info() and before the
@@ -381,16 +384,28 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
             i = i + 1
         }
     }
-    // delta_q_params() / delta_lf_params()
+    // delta_q_params() / delta_lf_params() (5.9.12/5.9.13). The mode-info
+    // TAIL the tile driver reads (`Av1ModeTail`) needs the PRESENCE and
+    // RESOLUTION of both, so carry them out instead of only counting bits.
+    var dqPresent = 0
+    var dqRes = 0
+    var dflPresent = 0
+    var dlRes = 0
+    var dlMulti = 0
     if (baseQ > 0) {
         var dqp = seqRead(b, bits, 1)
         bits = bits + 1
+        dqPresent = dqp
         if (dqp == 1) {
+            dqRes = seqRead(b, bits, 2)
             bits = bits + 2
             if (allowIntrabc == 0) {
                 var dflp = seqRead(b, bits, 1)
                 bits = bits + 1
+                dflPresent = dflp
                 if (dflp == 1) {
+                    dlRes = seqRead(b, bits, 2)
+                    dlMulti = seqRead(b, bits + 2, 1)
                     bits = bits + 2 + 1
                 }
             }
@@ -497,7 +512,7 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     // The frame-level facts the TILE DECODE consumes: `codedLossless`
     // (drives the driver's `lossless`), `tx_mode_select` and
     // `reduced_tx_set`. Exposed so the composition never re-derives them.
-    var out = new Int[7]
+    var out = new Int[12]
     out[0] = bits
     out[1] = baseQ
     out[2] = lf0Out
@@ -505,6 +520,11 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     out[4] = codedLossless
     out[5] = txModeSelect
     out[6] = reducedTxSet
+    out[7] = dqPresent
+    out[8] = dqRes
+    out[9] = dflPresent
+    out[10] = dlRes
+    out[11] = dlMulti
     return out
 }
 
