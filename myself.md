@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 13ª PASSAGEM: DECISIVA — a causa é `numPlanes`/`monochrome`, NÃO a segmentação. Com `numPlanes=1` (mono, segEnabled=0) o checker DECODIFICA os coeficientes (symPos=130, nz=28); com `numPlanes=3` pula (symPos=21, nz=0). O driver consumia símbolos de CHROMA inexistentes. O av1C (oráculo) diz `monochrome=true`; o walk da SEQUÊNCIA do Kof diz `false`. Isto SUPERA a leitura de segmentação (o "segEnabled=1" era coincidência). A reconstrução ainda erra com np=1 (Y=130,128,... vs 16,235,...) -> segundo defeito. Próximo: consertar o `mono_chrome` do walk da seq.
+last: 15/10 — AVIF slice 3bd 14ª PASSAGEM: o ffprobe RETRATA as duas anteriores. O checker é `yuv420p` (NÃO mono) -> o walk da SEQUÊNCIA está CERTO e o parse do `av1C` em `readAvifMetadata` (mono=true, sub=0/0) é BUGADO (bug NOVO, oráculo ffprobe). Logo o `numPlanes=1` da 13ª foi COINCIDÊNCIA (1 bloco não dessincroniza nada depois). **Correção metodológica: experimentos de 1 bloco são FRACOS** — só multi-bloco discrimina (checker-16 passa, testsrc falha). A causa do dessincronizado segue ABERTA. Próximo: catalogar o misparse do av1C + continuar a caça multi-bloco.
 doing: exposição de segmentação landada (16/16); bug real de parse do cabeçalho achado (segEnabled mal lido)
-next: §3bd — consertar a posição de leitura de `mono_chrome` no walk da SEQUÊNCIA (o av1C é o oráculo: mono=true, sub=0/0) e re-dirigir; depois o segundo defeito (qindex/predição) na reconstrução
+next: §3bd — catalogar o misparse do `av1C` (mono/subsampling; oráculo ffprobe) e retomar a caça ao dessincronizado usando SÓ quadros MULTI-bloco (1-bloco é fraco); testsrc (21 blocos) é o caso que falha
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (41ª) — 3bd 14ª: o ffprobe retrata tudo; e um bug NOVO no parse do av1C
+- **O oráculo definitivo:** `ffprobe -show_entries stream=pix_fmt` -> o checker é `yuv420p`. NÃO é monocromático.
+- **A retratação:** o walk da SEQUÊNCIA do Kof (`mono=false subX=true subY=true`) está CERTO. O parse do `av1C` em `readAvifMetadata` (`mono=true subX=false subY=false`) é que está ERRADO -> um bug NOVO e real de parse de contêiner (oráculo ffprobe).
+- **A segunda retratação:** o `numPlanes=1` da 13ª foi COINCIDÊNCIA — com UM bloco, pular o croma não dessincroniza NADA depois, então um campo errado "funciona" por acidente.
+- **A correção metodológica (a lição desta passagem):** TODO experimento de 1 bloco desta série é FRACO. Um campo errado sobrevive se nada vier depois. Só MULTI-bloco discrimina — e o checker-16 (37 blocos) PASSA enquanto o testsrc (21 blocos) FALHA.
+- **O estado:** a causa do dessincronizado do decode de tile segue ABERTA. O misparse do av1C é um bug novo, independente e verificável.
+- **Próximo:** catalogar o av1C (ffprobe como oráculo) e retomar a caça usando SÓ multi-bloco; o testsrc é o caso que falha.
+- **Lições:** (1) procurar um oráculo FORA do código sob teste (ffprobe) — ele derrubou duas conclusões minhas de uma vez; (2) desenhar o experimento para DISCRIMINAR: com 1 bloco quase tudo "passa", então a família de controle precisa de multi-bloco; (3) eu flipei de hipótese 6 vezes — o padrão é que cada oráculo novo derruba a anterior, o que significa que eu estava testando com instrumentos fracos, não que as hipóteses fossem boas.
 
 ## Sessão 15/10 (40ª) — 3bd 13ª: DECISIVO — numPlanes/monochrome é a causa (não a segmentação)
 - **O experimento:** rodar o checker com `numPlanes=1` (mono, segEnabled=0) vs `numPlanes=3`.
