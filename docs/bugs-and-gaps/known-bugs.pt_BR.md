@@ -15201,6 +15201,8 @@ O JVM imprime `kof`; Script/nativo imprimem `null` e o JS imprime `undefined`. A
 
 **Impacto:** toda biblioteca que quiser o padrão de typed-rows (entidades ORM ou queries db tipadas) está bloqueada — bibliotecas precisam recorrer ao `db.query` bruto + `json.decode<Rec>` (funciona: o caminho de decode no runtime, medido). O OrmLedgerStore do `kof.financial` (plano §5.2) fica adiado até o conserto; o DbLedgerStore cobre a costura de persistência enquanto isso.
 
+ **RE-MEDIDO 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092` (tentativa de repro, não um fix):** repros multi-arquivo no formato módulo — um arquivo de lib declarando `entity Row`/`record Row` no pacote RAIZ e num pacote NOMEADO (`app/Row.kf`) com outro arquivo chamando `orm.save<Row>(db, …)` / `db.query<Row>(db, …)` — COMPILAM LIMPO nesta árvore (sem ORM002), então o gatilho é MAIS ESTREITO que um arquivo-fonte comum no mesmo módulo: precisa do contexto de DEPENDÊNCIA `libs/` (um module root compilado à parte, com o runtime H2 para a face de emit a) em que a lane ORM/nativo (`.100.14:0`) o reproduziu.
+
 **Fronteira:** NÃO é o §726 (a ATRIBUIBILIDADE de interface cross-file — um check diferente, também de fronteira de lib). O gap do registro é território da lane compiler (o lowering ORM/db).
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)

@@ -17756,6 +17756,8 @@ JVM prints `kof`; Script/native print `null` and JS prints `undefined`. The QUAL
 
 **Impact:** every library that wants the typed-rows pattern (ORM entities or typed db queries) is blocked — libraries must fall back to raw `db.query` + `json.decode<Rec>` (works: the runtime decode path, measured). The `kof.financial` OrmLedgerStore (plan §5.2) is deferred until this is fixed; the DbLedgerStore covers the persistence seam meanwhile.
 
+ **RE-MEASURED 14/10 by lane compiler/JVM/native `192.168.15.30:9092` (a repro attempt, not a fix):** module-shaped multi-file repros — a lib file declaring `entity Row`/`record Row` in the ROOT and in a NAMED package (`app/Row.kf`) with another file calling `orm.save<Row>(db, …)` / `db.query<Row>(db, …)` — COMPILE CLEAN in this tree (no ORM002), so the trigger is NARROWER than a plain source file in the same module: it needs the `libs/`-DEPENDENCY context (a module root compiled separately, with the H2 runtime for the emit face a) that the ORM/native lane (`.100.14:0`) reproduced it in.
+
 **Boundary:** NOT §726 (the cross-file interface ASSIGNABILITY — a different check, also lib-boundary). The registry gap is compiler-lane territory (the ORM/db lowering).
 
 ## §699 — integer division by a RUNTIME zero did NOT throw on the CROSS targets: riscv `div`/`rem` do not raise on a zero divisor (they return the ISA's "undefined" value), so the Kof `try`/`catch` never fired and the program continued with a SILENT garbage value — riscv64 `10 / 0` → `-1`, aarch64 → `0`, where JVM/Script/JS/native-x86 all throw a catchable `/ by zero` — ✅ FIXED 13/10 (found 13/10 by lane compiler/JVM/native `192.168.15.30:9092`; fixed by the same lane)
