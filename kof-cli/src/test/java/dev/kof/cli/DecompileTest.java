@@ -2476,6 +2476,83 @@ class DecompileTest {
                 "zero-drift: tier/avg id\u00eanticos ao Java");
     }
 
+    @Test
+    void arrayLoopsWithEarlyReturnRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o dom\u00ednio ARRAY — 4 shapes travados SEM c\u00f3digo
+        // novo (a 3\u00aa valida\u00e7\u00e3o consecutiva out-of-the-box): o loop
+        // indexado somando (total), o loop de PREENCHIMENTO de array
+        // (doubled: newarray + astore no \u00edndice), o for-each com return
+        // antecipado (hasNegative), o find com return dentro do if do loop
+        // (find). Zero-drift executado: 100/20/80/false/true/2/-1 — 7/7
+        // id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Inv.java");
+        Files.writeString(javaFile, """
+                public class Inv {
+                    static int total(int[] prices) {
+                        int t = 0;
+                        for (int i = 0; i < prices.length; i++) { t += prices[i]; }
+                        return t;
+                    }
+                    static int[] doubled(int[] xs) {
+                        int[] out = new int[xs.length];
+                        for (int i = 0; i < xs.length; i++) { out[i] = xs[i] * 2; }
+                        return out;
+                    }
+                    static boolean hasNegative(int[] xs) {
+                        for (int x : xs) { if (x < 0) { return true; } }
+                        return false;
+                    }
+                    static int find(int[] xs, int target) {
+                        for (int i = 0; i < xs.length; i++) {
+                            if (xs[i] == target) { return i; }
+                        }
+                        return -1;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Inv.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        // Fase E (14/10): os loops INDEXADOS de array saem como WHILE (o
+        // idioma while-era-um-for do bytecode); o for-in do Kof é o shape
+        // ITERATOR (List), não o arraylength
+        assertTrue(kof.contains("while (") && kof.contains("["), "os loops de array:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    var ps = new Int[4]
+                    ps[0] = 10
+                    ps[1] = 20
+                    ps[2] = 30
+                    ps[3] = 40
+                    println(Inv.total(ps))
+                    var db = Inv.doubled(ps)
+                    println(db[0])
+                    println(db[3])
+                    println(Inv.hasNegative(ps))
+                    var neg = new Int[3]
+                    neg[0] = 5
+                    neg[1] = -1
+                    neg[2] = 7
+                    println(Inv.hasNegative(neg))
+                    println(Inv.find(ps, 30))
+                    println(Inv.find(ps, 99))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 100 | 20 | 80 | false | true | 2 | -1
+        assertEquals("100\n20\n80\nfalse\ntrue\n2\n-1", output,
+                "zero-drift: os loops de array id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
