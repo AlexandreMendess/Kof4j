@@ -422,11 +422,15 @@ final class NativeArchEmitter {
         // traduz linha-a-linha (runtime já podado — a poda no riscv vale p/ os 2)
         if (nb.debugInfo) nb.kofDwarf.emit(riscvSb, nb.sourceFile);
         String prunedRiscv = pruneRiscvRuntime(riscvSb, rtStart, rtEnd, "aarch64");
-        StringBuilder sb = new StringBuilder();
+        List<String> a64Lines = new ArrayList<>();
         for (String line : prunedRiscv.split("\n", -1)) {
-            List<String> tr = NativeAarch64Translator.translateRiscvToAarch64(line);
-            for (String t : tr) sb.append(t).append("\n");
+            a64Lines.addAll(NativeAarch64Translator.translateRiscvToAarch64(line));
         }
+        // §7 AArch64 "lower-cost instruction selection": collapse the riscv stack
+        // machine's push+pop pairs (sub sp,sp,#8 / str X,[sp] / pop Y == Y = X).
+        NativeAarch64Peephole.collapsePushPopPairs(a64Lines);
+        StringBuilder sb = new StringBuilder();
+        for (String t : a64Lines) sb.append(t).append("\n");
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
         Path asmFile = outputDir.resolve(className + ".s");
         Path binFile = outputDir.resolve(className);
