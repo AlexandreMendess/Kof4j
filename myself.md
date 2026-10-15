@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 28ª PASSAGEM: o INSTRUMENTO DE CONSUMO está VALIDADO (executado) e as tabelas de contexto de coeficiente foram confirmadas contra a SPEC. (1) Corromper um byte na CAUDA NÃO LIDA (byte 285) deixa o dump IDÊNTICO ao baseline, enquanto um byte CONSUMIDO (byte 10) muda tudo (blocks 21->25, symBits 862->1302) ⇒ position() é contador de consumido e o déficit de 63% é real. (2) `Av1CoeffCtx.kf` reconferido contra a SPEC §10: Coeff_Base_Ctx_Offset 475/475, Sig_Ref_Diff_Offset 30/30, Mag_Ref_Offset 18/18, Coeff_Base_Pos_Ctx_Offset={26,31,36} — todas exatas, sem artefato de transposição. `Av1CoeffCtxE2ETest` 6/6. Próximo: posição do leitor POR BLOCO.
-doing: §3bd — caminho dos coeficientes exonerado contra a SPEC (CDFs, tx-size, contextos, varredura) e ordem da sintaxe; único dado discriminante = consumo de 37% do payload
-next: §3bd — instrumentar a posição do leitor POR BLOCO (início/fim do mode-info, posição do `all_zero`) para achar o primeiro bloco que sub-lê
+last: 15/10 — AVIF slice 3bd 29ª PASSAGEM: a instrumentação de posição POR BLOCO foi LANDADA e a decodificação ERRADA + o subconsumo de 63% ficam confirmados JUNTOS contra o oracle de pixels no fixture commitado. `Av1TileDecode` registra por bloco a posição após o mode info e após os residuais (`posOut` + getter `positions()`, sem mudar o construtor); o instrumento assere a estrutura (1 registro/bloco, não-decrescente, último == walk). Medição: mode info do bloco 0 = 0->32 bits e RESIDUAL 0 bits (all_zero=1); total 862. Oracle: ffmpeg Y (0,0)=16,(0,32)=41,(0,63)=235 vs Kof 128,2,10 ⇒ decodificação errada e subconsumo são o MESMO evento. Verificado contra libaom: `update_ext_partition_context` (incl. o fallthrough do SPLIT em 8x8) e `partition_plane_context` batem. Prova: AvifRealFileE2ETest 7/7.
+doing: §3bd — instrumentação por bloco landada; decodificação errada e subconsumo confirmados juntos pelo oracle; resta localizar a leitura errada (por SÍMBOLO no bloco 0 e seus ancestrais de partição)
+next: §3bd — instrumentar a posição do leitor por SÍMBOLO dentro do bloco 0 e de seus ancestrais de partição e conferir o custo em bits de cada símbolo contra sua probabilidade
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (56ª) — 3bd 29ª: instrumentação por bloco landada; errado+subconsumo confirmados juntos
+- **Fatia (código):** `Av1TileDecode` (libs/image/Av1DecodeTileRecon.kf) ganhou `posOut` + o getter aditivo `positions()` — 2 ints por bloco (posição após o mode info, após os residuais). SEM mudar o construtor ⇒ nenhum harness existente quebra.
+- **Teste:** `AvifRealFileE2ETest` assere a estrutura do registro (1 por bloco = 21, não-decrescente, último == `walk.position()`). **7/7**, BUILD SUCCESS.
+- **Medição:** bloco 0 = mode info 0->32 bits, residual 0 bits (all_zero=1); demais = 7-13 bits de mode info, 0-170 de residual; total 862.
+- **Oracle de pixels (executado):** ffmpeg Y (0,0)=16 (0,32)=41 (0,63)=235 (32,0)=16 (32,32)=210 (32,63)=16 vs Kof 128 2 10 128 127 83. `128` = DC nua ⇒ o residual do bloco 0 foi pulado. **Decodificação errada e subconsumo de 63% são o MESMO evento** — base reprodutível para as afirmações de pixel das passagens anteriores.
+- **Verificado contra libaom:** `update_ext_partition_context` bate EXATAMENTE (incl. `PARTITION_SPLIT: if (bsize != BLOCK_8X8) break;` — o split atualiza o contexto só em 8x8; minha 1ª leitura sugeria inversão e NÃO há) e `partition_plane_context` bate.
+- **Caveat:** o consumo total do payload segue NÃO asserido (falha hoje); sem `cmake`/`ninja` não há oracle instrumentado do libaom aqui.
 
 ## Sessão 15/10 (55ª) — 3bd 28ª: instrumento validado + contextos conferidos na SPEC
 - **Medição (executada):** corromper o byte 285 (cauda NÃO lida) deixa o dump IDÊNTICO ao baseline; o byte 10 (consumido) muda tudo. ⇒ `position()` = consumido; o déficit de 63% do tile é REAL. Isto blinda a premissa das passagens 25–26.

@@ -117,6 +117,7 @@ class Av1TileDecode {
     List<Int[]> levelsOut
     List<Int> txTypeOut
     List<Int> modeOut
+    List<Int> posOut
     Av1ChromaPlanes chroma
     Int ssX
     Int ssY
@@ -196,6 +197,9 @@ class Av1TileDecode {
         }
         this.cur = listOf(0, 0, 0, 0)
         this.qIndex = this.baseQIndex
+        // Per-block reader positions (diagnostic): two ints per block,
+        // the position after the mode info and after the block's residuals.
+        this.posOut = listOf()
         // The 64x64 CDEF-unit strengths, keyed by the unit origin (row*miCols+col).
         this.cdefUnits = new Int[(this.frameW >> 2) * (this.frameH >> 2)]
         var ci = 0
@@ -300,6 +304,7 @@ class Av1TileDecode {
         // 2. Transform size + the transform-context broadcast.
         var txSz = txSize.readTxSize(r, c, bs, skip, txMode, 0, lossless)
         txSize.setTxfmCtxs(r, c, bs, txSz, 0)
+        this.posOut.add(this.reader.position())
 
         modeOut.add(skip)
         modeOut.add(segId)
@@ -397,6 +402,7 @@ class Av1TileDecode {
                     frameW >> 2, frameW, frameH, levelsUOut, levelsVOut,
                     txTypeUOut, txTypeVOut)
         }
+        this.posOut.add(this.reader.position())
         this.qIndex = qIndex
         this.cur = cur
     }
@@ -411,6 +417,11 @@ class Av1TileDecode {
                              blocks.get(base + 2))
             b = b + 1
         }
+    }
+
+    // The per-block reader positions (diagnostic), two ints per block.
+    List<Int> positions() {
+        return this.posOut
     }
 
     // The reconstructed plane, flat row-major of size `frameW * frameH`
