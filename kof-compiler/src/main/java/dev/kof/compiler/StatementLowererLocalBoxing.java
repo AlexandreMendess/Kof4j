@@ -89,6 +89,9 @@ final class StatementLowererLocalBoxing {
                         && dft.returnType().equals(ift.returnType())) {
                     varType = ift;
                 } else {
+                    // #845: `Int j = i` com `i: Int?` estreitado — abre a caixa
+                    // pela origem antes do widening (o slot de i segue boxed)
+                    initT = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, initT, varType);
                     driver.emitWideningIfNeeded(ops, initT, varType);
                     // §696: estreita o store num slot Byte/Short (o widening
                     // acima é NO-OP para esses destinos)

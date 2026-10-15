@@ -282,6 +282,11 @@ public final class ExpressionLowerer {
                 localIdx = ExpressionLowerer.emitExpression(driver, aa.receiver(), ops, owner, localIdx, locals);
                  localIdx = ExpressionLowerer.emitExpression(driver, aa.index(), ops, owner, localIdx, locals);
                  Type recvType = ExpressionTyper.inferExprType(driver, aa.receiver(), locals);
+                 // #845: índice `Int?` estreitado de array/List (a chave de Map é referência)
+                 if (!BuiltinTypes.isMap(recvType)) {
+                     CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops,
+                             ExpressionTyper.inferExprType(driver, aa.index(), locals), Type.PrimitiveType.INT);
+                 }
                  // #152/#149: `list[i]` sobre List/Map NÃO é array — emitir
                  // KofArrayLoad gerava AALOAD sobre java/util/ArrayList →
                  // VerifyError (o receptor é referência, não array). Baixa p/

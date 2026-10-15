@@ -303,7 +303,7 @@ public final class SemExpressionTyper {
             }
             case ArrayAccessExpr aa -> {
                 Type recvType = inferType(sa, aa.receiver(), scope);
-                inferType(sa, aa.index(), scope);
+                CollectionMethodGates.subscriptIndex(sa, aa.index(), inferType(sa, aa.index(), scope)); // #845
                 if (recvType instanceof Type.ArrayType at) {
                     yield at.componentType();
                 }
