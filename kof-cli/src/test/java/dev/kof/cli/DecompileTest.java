@@ -3738,18 +3738,19 @@ class DecompileTest {
     }
 
     @Test
-    void unrecoveredHandlersStubHonest(@TempDir Path dir) throws Exception {
-        // Fase E (15/10): a fronteira R6 FECHADA — os HANDLERS não-
-        // recuperados STUBAM honestos. O walk cego (que ignora a tabela de
-        // handlers) emitia: o describe com o catch DERRUBADO (o `throw
-        // "neg"` num if/else sem o catch — `describe(-3)` THREW onde o Java
-        // imprime `bad!` — código compilável ERRADO, pego pelo zero-drift)
-        // e o withFinally SEM o return. O refuse `handlers-unrecovered`
-        // cobre: try/catch não-linear (o if dentro do try), o finally com
-        // valor + return. O parse (o try/catch LINEAR) segue recuperando —
-        // zero-drift: 42/7/-1/0 == Java. A bateria 237/237 provou ZERO
-        // regressão (as faces de exceção que passavam vão pelo caminho de
-        // sucesso do tryCatch/recoverFinally).
+    void nonLinearTryCatchRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): a FATIA pousada — o try/catch NÃO-LINEAR
+        // (o if + o throw dentro do try, o valor armazenado, o catch
+        // reatribuindo, o tail depois). O HANDLER-AWARE: o main-flow struct
+        // sobre o MÉTODO INTEIRO (o bloco do handler fica sem preds no CFG e
+        // nunca é andado; os braços convergem no join REAL) + o transform
+        // (o out termina [.., "return X", "}"] — o return SAI do try e vira
+        // o tail; o } do else fica DENTRO). O hoist `var v1 = ""` + os
+        // guards: o valor do catch = ldc-String, a store do MESMO slot nos
+        // DOIS lados. O ciclo stub-vira-código-real fechado na rodada
+        // seguinte ao R6. Zero-drift executado: 42/7/-1/0/ok:5!/bad! — 6/6
+        // idênticos ao Java; o withFinally (o finally com valor) segue o
+        // stub honesto (a próxima fatia).
         Path javaFile = dir.resolve("Res.java");
         Files.writeString(javaFile, """
                 public class Res {
@@ -3785,18 +3786,17 @@ class DecompileTest {
                 """);
         runJavac(javaFile, dir);
         String kof = Decompile.decompile(dir.resolve("Res.class"));
-        assertTrue(kof.contains("body not recovered"),
-                "describe/withFinally TEM que stubar honestos (nunca o catch derrubado):\n" + kof);
-        assertFalse(kof.contains("throw \"neg\""), "nunca o throw fora do try:\n" + kof);
-        String kofRun = kof
-                .replace("throw \"body not recovered\"   // unknown", "return -1")
-                .replace("static String describe(Int arg0) {\n        return -1\n    }",
-                        "static String describe(Int arg0) {\n        return \"\"\n    }") + """
+        assertTrue(kof.contains("var v1 = \"\"") && kof.contains("} catch (String e) {"),
+                "o try/catch não-linear:\n" + kof);
+        assertTrue(kof.contains("throw \"neg\""), "o throw dentro do try:\n" + kof);
+        String kofRun = kof.replace("throw \"body not recovered\"   // unknown", "return -1") + """
                 main() {
                     println(Res.parse("42"))
                     println(Res.parse(" 7 "))
                     println(Res.parse("abc"))
                     println(Res.parse("0"))
+                    println(Res.describe(5))
+                    println(Res.describe(-3))
                 }
                 """;
         CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
@@ -3809,9 +3809,9 @@ class DecompileTest {
         String output = new String(proc.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
-        // oracle Java: 42 | 7 | -1 | 0
-        assertEquals("42\n7\n-1\n0", output,
-                "zero-drift: parse id\u00eantico ao Java");
+        // oracle Java: 42 | 7 | -1 | 0 | ok:5! | bad!
+        assertEquals("42\n7\n-1\n0\nok:5!\nbad!", output,
+                "zero-drift: parse/describe id\u00eanticos ao Java");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {
