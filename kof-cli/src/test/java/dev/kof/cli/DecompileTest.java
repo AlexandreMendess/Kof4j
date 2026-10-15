@@ -3672,6 +3672,71 @@ class DecompileTest {
                 "zero-drift: pick/grade/sumDigits/fits id\u00eanticos ao Java");
     }
 
+    @Test
+    void reportDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o dom\u00ednio RELAT\u00d3RIO — 4 shapes sem c\u00f3digo
+        // novo: a call cross-m\u00e9todo no total (total/headline), a
+        // CADEIA-TERN\u00c1RIO armazenada com BRA\u00c7OS DE CALL VALUE
+        // (headline: `t > 100 ? "high" : t > 50 ? "mid" : "low"` — a fatia
+        // do grade GENERALIZA: o guard de regi\u00e3o + o armReachesJoin + o
+        // armExpr comp\u00f5em de gra\u00e7a), o `||` com a call no 1\u00ba
+        // termo (needsReview) e a cadeia com toUpperCase (badge).
+        // Zero-drift executado: 130/T=130 [high]/false/true/GOLD:950/
+        // SILVER:600/BRONZE:100 — 7/7 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Report.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Report {
+                    static int total(List<Integer> xs) {
+                        int t = 0;
+                        for (int x : xs) { t += x; }
+                        return t;
+                    }
+                    static String headline(List<Integer> xs) {
+                        int t = total(xs);
+                        String trend = t > 100 ? "high" : t > 50 ? "mid" : "low";
+                        return "T=" + t + " [" + trend + "]";
+                    }
+                    static boolean needsReview(List<Integer> xs) {
+                        return total(xs) == 0 || xs.isEmpty();
+                    }
+                    static String badge(int score) {
+                        String b = score > 900 ? "gold" : score > 500 ? "silver" : "bronze";
+                        return b.toUpperCase() + ":" + score;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Report.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var xs = listOf(40, 60, 30)
+                    println(Report.total(xs))
+                    println(Report.headline(xs))
+                    println(Report.needsReview(xs))
+                    println(Report.needsReview(listOf()))
+                    println(Report.badge(950))
+                    println(Report.badge(600))
+                    println(Report.badge(100))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 130 | T=130 [high] | false | true | GOLD:950 |
+        // SILVER:600 | BRONZE:100
+        assertEquals("130\nT=130 [high]\nfalse\ntrue\nGOLD:950\nSILVER:600\nBRONZE:100", output,
+                "zero-drift: total/headline/needsReview/badge id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

@@ -2,11 +2,28 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 19ª PASSAGEM: o caminho ctx/CDF está VERIFICADO pela spec (`av1TxSzCtx` bate a AV1 8.3.2; `av1AllZeroCtxY` = 0 sse tx==bloco, 1 sse vizinhos 0; as tabelas txbSkip são 3c-verificadas). O discriminador é o `bs` que os chamadores passam: `planePsize == av1TxSizeToBsize(txSz)` toma `skipCtx=0` determinístico; um `bs` errado inverte isso, muda o ctx 0->1 e lê all_zero errado. Suspeitos estreitos: (a) o `bs` da partição nos primeiros blocos de tx pequena, (b) um erro de bit a montante no mode-info. Correção de instrumento: ler a grade COM decoder ligado (sem bind: 35 blocos espúrios vs 22 reais).
+last: 15/10 — AVIF slice 3bd 21ª PASSAGEM: os dados por bloco CORRIGIDOS (levels por TX, modes por modo) estreitam para uma ENTRADA de CDF. M0/M1/M2 (os 3 primeiros) leem nzSum=0; M3 nzSum=6, M4 nzSum=1 decodificam. A grade de tx está certa (txCnt=2 p/ 16x8 com tx 8x8). **A pista:** os que falham usam txSz=1 (txSzCtx=1) com vizinhos 0 (ctx=1) -> `txbSkip[1][1]`; os 7 exatos usam txSz=4 (txSzCtx=4, ctx=0) -> `txbSkip[4][0]` — os exatos NUNCA tocam [1][1]. Próximo: comparar o default de `txbSkip[1][1]` com o token_cdfs.h do libaom.
 doing: §3bd — oracle ffprobe fixado no teste real (6/6); dessincronizado do tile aberto
-next: §3bd — comparar o `bs` da partição com o `av1TxSizeToBsize(txSz)` para os primeiros blocos do STRIPES (com decoder LIGADO); se divergirem, o `bs` do walk é a causa do ctx errado
+next: §3bd — conferir o default da CDF `txbSkip[txSzCtx=1][ctx=1]` (e [1][*]) contra libaom token_cdfs.h; é a entrada que só os quadros que falham tocam
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (48ª) — 3bd 21ª: os dados corrigidos apontam para `txbSkip[1][1]`
+- **O dump corrigido** (levels por TX, modes por modo): M0/M1 `bs=5 txSz=1 txCnt=2 nzSum=0`; M2 `bs=17 txSz=6 txCnt=2 nzSum=0`; M3 `txSz=14 nzSum=6`; M4 `nzSum=1`.
+- **A grade está certa:** um bloco 16x8 com tx 8x8 -> `txCnt=2` ✓ (o par tx/bloco está correto).
+- **Os 3 primeiros blocos leem all-zero** onde o conteúdo (faixas 16/235) exige resíduos. Os seguintes decodificam.
+- **A pista nova e concreta:** os que falham usam `txSz=1` (TX_8X8) e ambos vizinhos 0 na origem -> `txSzCtx=1`, `ctx=1` -> a entrada **`txbSkip[1][1]`**. Os 7 quadros exatos usam `txSz=4` (TX_64X64) com `tx==bloco` -> `txSzCtx=4`, `ctx=0` -> **`txbSkip[4][0]`**.
+- **A consequência:** os quadros exatos NUNCA exercitam `txbSkip[1][1]`; os que falham a atingem só na origem. Uma entrada de CDF default errada ali produziria EXATAMENTE o padrão observado.
+- **A verificação a fazer:** comparar o default de `txbSkip[1][1]` com o `token_cdfs.h` do libaom. A fatia 3c verificou 15.996 números, mas a evidência dos quadros exatos nunca tocou essa entrada — a verificação pode ter deixado passar um erro justamente onde nenhum teste olhava.
+- **Lições:** (1) `levels`/`modes` têm índices DIFERENTES — corrigir isso deu a primeira leitura confiável do padrão; (2) o argumento "os quadros exatos nunca tocam essa entrada" é o que dá confiança à pista: uma CDF só erra onde ninguém olhou; (3) a série inteira mostra que o instrumento errado precede o bug real — verificar o INVARIANTE antes de concluir.
+
+## Sessão 15/10 (47ª) — 3bd 20ª: correções de instrumento (grade 22, e os rótulos da 18ª estavam trocados)
+- **A grade com bind:** `gridTriples=22 == modes=22`. O `35` que eu vi era o artefato de ler a grade SEM bind.
+- **B0:** `bs=5` (BLOCK_16X8, 4x2 unidades) com `txSz=1` (TX_8X8) -> `av1TxSizeToBsize(1)=3 != 5` -> a tx difere do bloco -> ctx pelo ramo de vizinhos (spec: skipCtx=1 na origem). Ou seja, o caminho de ctx NÃO é obviamente errado neste bloco.
+- **A CORREÇÃO:** `levels` é indexado por BLOCO DE TX; `modes` por BLOCO DE MODO. A 18ª passagem imprimiu `modes[b*17 ..]` ao lado de `levels.get(b)` com o MESMO `b` -> todo rótulo `txSz` além de b=0 estava TROCADO (os `nz` estavam certos, vêm de `levels`). Um bloco 16x8 tem dois TX de 8x8 -> o bloco de modo b possui os TX 2b e 2b+1.
+- **O estado:** a leitura errada de `all_zero` na origem permanece a falha; o código de ctx/CDF é correto pela spec; sobram (a) a posição de bit do mode-info para os blocos de tx pequena ou (b) uma interação que o dump pareado escondia.
+- **O que landei:** só docs (correção de instrumento + estado).
+- **Lições:** (1) ao dumpar duas listas paralelas, CONFERIR que compartilham o índice — aqui `levels` (por TX) e `modes` (por modo) NÃO compartilham; (2) conferir o invariante conhecido (22 blocos com bind) antes de confiar no dump; (3) em séries longas, as correções de instrumento acumulam-se e valem registro.
 
 ## Sessão 15/10 (46ª) — 3bd 19ª: verifiquei ctx/CDF contra a spec; sobrou o tamanho de bloco
 - **O que verifiquei (leitura contra a spec, sem medição nova):** `av1TxSzCtx` = `(Sqr + SqrUp + 1) >> 1` — exatamente a AV1 8.3.2; `av1AllZeroCtxY` = 0 sse tx==bloco, 1 sse ambos vizinhos 0 — exatamente o `get_txb_ctx` da spec; as tabelas `txbSkip` são verificadas vs libaom (fatia 3c).
