@@ -193,8 +193,8 @@ public final class MemberCallTyper {
                     }
                 }
             }
-            // inferir args para detectar identificadores não declarados (ghost) nos argumentos/lambdas
-            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            // inferir args p/ detectar ghosts nos argumentos/lambdas + #845: índice `T?` sem narrowing = SEM014
+            CollectionMethodGates.inferListArgs(sa, mc, scope, elemType);
             // #336 — `add`/`push`/`append` são APPEND de UM elemento no Kof
             // (learn/12, training/idioms/collections). `l.add(i, v)` (o
             // insert posicional do Java) compilava e quebrava DIFERENTE em

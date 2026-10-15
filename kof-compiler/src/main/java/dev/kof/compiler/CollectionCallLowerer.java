@@ -250,7 +250,7 @@ public final class CollectionCallLowerer {
             // Índice (set arg0) e buscas ficam raw (família §126 miss).
             int storeValIdx = "kof_list_set".equals(listFn) ? 1 : 0;
             localIdx = CompilerEmissionHelpers.emitArgsCoercingValue(driver, mc, ops, owner,
-                    localIdx, locals, argTypes, elemType,
+                    localIdx, locals, argTypes, elemType, listFn,
                     ("kof_list_add".equals(listFn) || "kof_list_set".equals(listFn)) ? storeValIdx : -1,
                     // §383: bool→long e conversao de store SO no site de List
                     // (Map/Set toleram heterogeneidade pelo consenso 3/4).
