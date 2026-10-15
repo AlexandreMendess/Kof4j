@@ -469,6 +469,9 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_stack_bind(int stack, int child) {
                 }
 
+                public static void kof_ui_align_bind(int align, int child) {
+                }
+
                 public static void kof_ui_scroll_bind(int scroll, int child) {
                 }
 

@@ -244,6 +244,17 @@ if (mc.receiver() == null && "Stack".equals(mc.methodName())
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && "Align".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_align_new", List.of(Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+            new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && "Scroll".equals(mc.methodName())
         && mc.arguments().isEmpty()) {
     ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
