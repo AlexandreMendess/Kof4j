@@ -2784,6 +2784,72 @@ class DecompileTest {
                 "zero-drift: a matriz 2D id\u00eantica ao Java");
     }
 
+    @Test
+    void signCompareFusedPrologueRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): a compara\u00e7\u00e3o-por-sinal com PR\u00d3LOGO FUNDIDO
+        // no MESMO bloco do teste (`if (sub > 200.0) { sub = sub * 0.9 }`).
+        // Tr\u00eas pe\u00e7as: (1) o loadValue ganhou o overload cp-aware — o
+        // `ldc2_w` (0x14, const Double do CP) resolve na extra\u00e7\u00e3o de
+        // condi\u00e7\u00f5es; (2) o pair-case do blockCondition ganhou a guarda
+        // PUREZA (s\u00f3 o bloco exato [op2, op1, cmp, ifXX]) — sem ela o cond
+        // sa\u00eda do rabo de um bloco fundido e o PR\u00d3LOGO era engolido (cond
+        // referenciando local n\u00e3o-declarada = c\u00f3digo errado, bug latente
+        // da fam\u00edlia lcmp tamb\u00e9m); (3) o testSplit ganhou a fam\u00edlia de
+        // sinal no sufixo com o espelho 2-op (o inv do caller \u00e9 o
+        // valor-teste `> 0` — medido: sa\u00eda `v3 > 0 200.0`). Zero-drift
+        // executado: 100.0/270.0/1200/200/receipt/true/false — 7/7 id\u00eanticos
+        // ao Java; o receipt (concat de args MISTOS String/Int/Double com
+        // invokedynamic) recupera de gra\u00e7a.
+        Path javaFile = dir.resolve("Store.java");
+        Files.writeString(javaFile, """
+                public class Store {
+                    static double withTax(double price, int qty) {
+                        double sub = price * qty;
+                        if (sub > 200) { sub = sub * 0.9; }
+                        return sub;
+                    }
+                    static int loyalty(int cents) {
+                        int pts = cents / 100;
+                        if (pts > 500) { return pts * 2; }
+                        return pts;
+                    }
+                    static String receipt(String item, int qty, double price) {
+                        return item + " x" + qty + " = " + withTax(price, qty);
+                    }
+                    static boolean freeShip(int cents) { return cents >= 9900; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Store.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("if (v3 > 200.0)") && kof.contains("var v3 = (arg0 * arg1.toDouble())"),
+                "o prólogo fundido + o cond ldc2:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Store.withTax(50.0, 2))
+                    println(Store.withTax(150.0, 2))
+                    println(Store.loyalty(60000))
+                    println(Store.loyalty(20000))
+                    println(Store.receipt(" mug", 2, 150.0))
+                    println(Store.freeShip(9900))
+                    println(Store.freeShip(5000))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 100.0 | 270.0 | 1200 | 200 | mug x2 = 270.0 | true | false
+        assertEquals("100.0\n270.0\n1200\n200\n mug x2 = 270.0\ntrue\nfalse", output,
+                "zero-drift: withTax/loyalty/receipt/freeShip id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

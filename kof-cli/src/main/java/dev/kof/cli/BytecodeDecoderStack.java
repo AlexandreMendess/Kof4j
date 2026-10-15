@@ -42,6 +42,20 @@ static String slotName(int slot, BytecodeFrame frame) {
     return frame.name(slot);
 }
 
+/**
+ * Fase E (15/10): o overload COM pool de constantes — o `ldc2_w` (0x14,
+ * const Long/Double do CP) agora resolve na extração de condições (medido no
+ * withTax: `if (sub > 200.0)` via [dload, ldc2_w, dcmpl, ifle] stubava porque
+ * o loadValue de 2 args não tem o cp). Sem cp (null) o 0x14 continua null =
+ * recusa honesta.
+ */
+static String loadValue(BytecodeReader.Insn in, BytecodeFrame frame, String[] cp) {
+    if (in.opcode() == 0x14 && cp != null) {
+        return BytecodeCp.ldc2(cp, in.operands()[0]);
+    }
+    return loadValue(in, frame);
+}
+
 static String loadValue(BytecodeReader.Insn in, BytecodeFrame frame) {
     return switch (in.opcode()) {
         case 0x1a, 0x1b, 0x1c, 0x1d -> BytecodeDecoderStack.slotName(in.opcode() - 0x1a, frame);

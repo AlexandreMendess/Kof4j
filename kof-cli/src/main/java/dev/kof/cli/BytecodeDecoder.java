@@ -421,7 +421,7 @@ import java.util.Set;
         if (block.size() - 1 == arity) {
             List<String> operands = new java.util.ArrayList<>();
             for (int i = 0; i < block.size() - 1; i++) {
-                String v = BytecodeDecoderStack.loadValue(block.get(i), frame);
+                String v = BytecodeDecoderStack.loadValue(block.get(i), frame, cp);
                 if (v == null) return null;
                 operands.add(v);
             }
@@ -454,7 +454,7 @@ import java.util.Set;
             java.util.List<String> operands = new java.util.ArrayList<>();
             boolean exactOk = true;
             for (int i = 0; i < block.size() - 1; i++) {
-                String v = BytecodeDecoderStack.loadValue(block.get(i), frame);
+                String v = BytecodeDecoderStack.loadValue(block.get(i), frame, cp);
                 if (v == null) { exactOk = false; break; }
                 operands.add(v);
             }
@@ -470,12 +470,17 @@ import java.util.Set;
         // (0x94, Long) E o dcmpg/dcmpl (0x98/0x97, Double; o NaN-handling
         // difere mas o shape [a, b, cmp, ifXX] é o mesmo, medido no
         // inCircle: `d <= r*r`).
-        if (lastOp >= 0x99 && lastOp <= 0x9e && block.size() >= 4
+        // Fase E (15/10): a guarda PUREZA — o par-case só vale no bloco
+        // EXATO [op2, op1, cmp, ifXX]; com prólogo fundido (medido no
+        // withTax: [dstore, dload, ldc2, dcmpl, ifle]) o cond saía do rabo
+        // e o PRÓLOGO era engolido (cond referenciava local não-declarada =
+        // código errado). O prólogo é do caminho fundido (testSplit).
+        if (lastOp >= 0x99 && lastOp <= 0x9e && block.size() == 4
                 && (block.get(block.size() - 2).opcode() == 0x94
                     || block.get(block.size() - 2).opcode() == 0x97
                     || block.get(block.size() - 2).opcode() == 0x98)) {
-            String x = BytecodeDecoderStack.loadValue(block.get(block.size() - 4), frame);
-            String y = BytecodeDecoderStack.loadValue(block.get(block.size() - 3), frame);
+            String x = BytecodeDecoderStack.loadValue(block.get(block.size() - 4), frame, cp);
+            String y = BytecodeDecoderStack.loadValue(block.get(block.size() - 3), frame, cp);
             String lcmpInv = switch (lastOp) {
                 case 0x99 -> "!="; case 0x9a -> "=="; case 0x9b -> ">=";
                 case 0x9c -> "<"; case 0x9d -> "<="; case 0x9e -> ">";
@@ -556,6 +561,28 @@ import java.util.Set;
                 if (sop >= 0x36 && sop <= 0x4e) { hasStore = true; break; }
             }
             if (hasStore) continue;   // stores = statements (fusion-path)
+            // Fase E (15/10): a família de SINAL no sufixo — [ops.., lcmp/
+            // dcmpl/dcmpg]: a fatia ANTES do cmp deixa EXATAMENTE 2 valores
+            // (evalInto avalia loads/consts/arith) e o cond é a composição
+            // DIRETA `a inv b` (o espelho do pair-case do blockCondition;
+            // medido no withTax: `if (v3 > 200.0)` com o prólogo emitido).
+            int tailOp = suf.get(suf.size() - 1).opcode();
+            if (tailOp == 0x94 || tailOp == 0x97 || tailOp == 0x98) {
+                java.util.Deque<String> st2 = new java.util.ArrayDeque<>();
+                if (!evalInto(suf.subList(0, suf.size() - 1), frame, cp, st2)) continue;
+                if (st2.size() != 2) continue;
+                String b2 = st2.pop();
+                String a2 = st2.pop();
+                // o inv AQUI é o espelho 2-op (o inv do caller é o
+                // valor-teste `> 0` — medido: saía `v3 > 0 200.0`)
+                String cmpInv = switch (blk.get(blk.size() - 1).opcode()) {
+                    case 0x99 -> "!="; case 0x9a -> "=="; case 0x9b -> ">=";
+                    case 0x9c -> "<"; case 0x9d -> "<="; case 0x9e -> ">";
+                    default -> null;
+                };
+                if (cmpInv == null) continue;
+                return new TestSplit(a2 + " " + cmpInv + " " + b2, blk.size() - 1 - len);
+            }
             if (!evalInto(suf, frame, cp, st)) continue;
             if (st.size() != arity) continue;
             String cond;
