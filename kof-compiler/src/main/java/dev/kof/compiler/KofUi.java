@@ -114,7 +114,7 @@ public final class KofUi {
                 || isUl(t) || isOl(t) || isTable(t)
                 || isView(t) || isLink(t)
                 || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t)
-                || isBox(t)
+                || isBox(t) || isWrap(t)
                 || isFieldset(t) || isIframe(t) || isVideo(t) || isAudio(t) || isHr(t);
     }
 
@@ -410,6 +410,12 @@ public final class KofUi {
         if (isBox(receiver)) {
             return switch (name) {
                 case "bind" -> argCount == 1 ? new UiCall("kof_ui_box_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                default -> null;
+            };
+        }
+        if (isWrap(receiver)) {
+            return switch (name) {
+                case "bind" -> argCount == 1 ? new UiCall("kof_ui_wrap_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 default -> null;
             };
         }

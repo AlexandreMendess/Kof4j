@@ -44,6 +44,10 @@ final class BuiltinUiCallTyper {
                 && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
             return KofUi.BOX;
         }
+        if (mc.receiver() == null && "Wrap".equals(mc.methodName())
+                && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
+            return KofUi.WRAP;
+        }
         if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
             SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.VIEW;

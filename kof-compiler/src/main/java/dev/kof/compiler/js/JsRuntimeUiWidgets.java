@@ -357,6 +357,13 @@ public final class JsRuntimeUiWidgets {
                 }
             }
 
+            export function kofUiWrapBind(wrap, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[wrap]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[wrap].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiStyleNew(background, foreground, padding, radius) {
                 if (typeof document === "undefined") {
                     return -1;
