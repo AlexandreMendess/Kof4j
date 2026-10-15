@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3bc LANDADA: a composição decodifica um AVIF REAL corretamente — o cinza-sólido 64x64 dá `Y=126`, EXATO do libdav1d (primeiro match de pixels ponta-a-ponta num arquivo real). §731 RETRATADO: era um bug da MINHA cola, não do decoder — o `txMode` do driver toma o VALOR `TxMode` do AV1 (0/1/2), não o bit cru `tx_mode_select`; passar o bit fazia um bloco 64x64 virar 256 blocos 4x4 de lixo. `AvifRealFileE2ETest` 6/6. Próximo: aplicar o mapeamento ao quadro real complexo, depois multi-bloco/chroma/assembly + `decodeRaster` AVIF.
-doing: 3bc landada (a composição decodifica um AVIF real; §731 retratado)
-next: o mapeamento `txMode` no quadro real complexo (testsrc), depois a composição multi-bloco/chroma/montagem de quadro e a rota `decodeRaster` AVIF
+last: 14/10 — AVIF slice 3bd DIAGNOSTICADA: com o `txMode` corrigido (3bc), o quadro real SÓLIDO bate (`Y=126`==libdav1d) mas o COMPLEXO (testsrc) ainda diverge com assinatura ESTREITA — lê `Y0=128,0,10` vs ffmpeg `16,145,235`. `128` = predição DC sem vizinhos → o RESÍDUO do primeiro bloco não está sendo aplicado (no sólido ESTÁ, 126≠128). Localizado no caminho de resíduo multi-bloco; próximo: dumpar `all_zero`/níveis/predição do primeiro bloco.
+doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
+next: §3bd — dumpar o `all_zero`/níveis/predição do primeiro bloco do quadro testsrc (2 bytes de coordenadas? não — 293 bytes de payload, 21 blocos); o oráculo é ffmpeg (Y0=16,145,235)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (29ª) — slice 3bd: o caso sólido bate, o complexo diverge com assinatura ESTREITA (resíduo do 1º bloco)
+- **O que apliquei:** o mapeamento `txMode` corrigido (3bc) no quadro real COMPLEXO (testsrc).
+- **O resultado:** `blocks=21 levels=63`, e `Y0=128,0,10` / `Y32=128,128,83` vs ffmpeg `16,145,235` / `16,106,16`.
+- **A leitura:** `128` é a predição DC de um bloco SEM vizinhos. O primeiro bloco (canto superior esquerdo) prediz 128 e o resíduo NÃO é somado — enquanto no quadro sólido o resíduo É aplicado (`126`, não `128`).
+- **O que isso descarta:** o mapeamento txMode (corrigido), contêiner/cabeçalho/cfg (verde), e o caminho de resíduo em geral (o sólido funciona). Sobra o RESÍDUO MULTI-BLOCO: `all_zero` mal lido, ou o resíduo não somado para um bloco sem vizinhos.
+- **O que landei:** o diagnóstico no plano + DOING + myself. Árvore limpa.
+- **Lições:** (1) corrigir uma causa não significa que TODOS os casos passam — re-medir o caso complexo depois do fix foi o que expôs a segunda causa; (2) `128` como valor de saída num decodificador é a assinatura da predição DC sem vizinhos — reconhecê-la poupa um passo.
 
 ## Sessão 14/10 (28ª) — slice 3bc: a composição decodifica um AVIF REAL (e o §731 era bug MEU)
 - **O dump por estágio resolveu:** no cinza-sólido, `blocks=1` mas `levels=256` e `txSz=0` (4x4) para um bloco 64x64. Um bloco virando 256 blocos de 4x4 = o transform size estava errado.
