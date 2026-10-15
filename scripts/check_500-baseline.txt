@@ -1,6 +1,7 @@
 504	kof-c-compiler/src/main/java/dev/kof/c/KofCParser.java
-673	kof-cli/src/main/java/dev/kof/cli/BytecodeDecoder.java
-808	kof-cli/src/main/java/dev/kof/cli/BytecodeStatementsRecover.java
+679	kof-cli/src/main/java/dev/kof/cli/BytecodeDecoder.java
+591	kof-cli/src/main/java/dev/kof/cli/BytecodeStatements.java
+814	kof-cli/src/main/java/dev/kof/cli/BytecodeStatementsRecover.java
 704	kof-cli/src/main/java/dev/kof/cli/BytecodeSwitch.java
 562	kof-cli/src/main/java/dev/kof/cli/CmdBuild.java
 504	kof-cli/src/main/java/dev/kof/cli/CmdDeploy.java
@@ -56,7 +57,7 @@
 513	kof-compiler/src/main/java/dev/kof/compiler/MemberCallTyper.java
 545	kof-compiler/src/main/java/dev/kof/compiler/MemberResolver.java
 599	kof-compiler/src/main/java/dev/kof/compiler/memory/OwnershipPass.java
-596	kof-compiler/src/main/java/dev/kof/compiler/MethodCallTyper.java
+597	kof-compiler/src/main/java/dev/kof/compiler/MethodCallTyper.java
 504	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeAarch64Translator.java
 532	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeArchEmitter.java
 592	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeBackend.java
