@@ -3151,6 +3151,72 @@ class DecompileTest {
                 "zero-drift: overlaps/clamp/size/mid id\u00eanticos ao Java");
     }
 
+    @Test
+    void scaleDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o dom\u00ednio CONVERS\u00d3ES/escala — 5 shapes sem
+        // c\u00f3digo novo: as convers\u00f5es lineares de temperatura (kelvin/
+        // fahrenheit — a aritm\u00e9tica Double com constantes), o \u00cdNDICE
+        // com matem\u00e1tica intermedi\u00e1ria (bmi: h/100, m*m, w/(m*m)), os
+        // limiares encadeados de Double (label — 3 ifs de retorno) e a
+        // cadeia else-if com local acumulador de Double (discount). Zero-
+        // drift executado: 298.15/212.0/22.857142857142858/under/normal/
+        // over/obese/108.0/57.0/30.0 — 10/10 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Scale.java");
+        Files.writeString(javaFile, """
+                public class Scale {
+                    static double kelvin(double c) { return c + 273.15; }
+                    static double fahrenheit(double c) { return c * 9 / 5 + 32; }
+                    static double bmi(double w, double h) {
+                        double m = h / 100;
+                        return w / (m * m);
+                    }
+                    static String label(double bmi) {
+                        if (bmi < 18.5) { return "under"; }
+                        if (bmi < 25) { return "normal"; }
+                        if (bmi < 30) { return "over"; }
+                        return "obese";
+                    }
+                    static double discount(double amount) {
+                        double d = 0;
+                        if (amount >= 100) { d = amount * 0.1; }
+                        else if (amount >= 50) { d = amount * 0.05; }
+                        return amount - d;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Scale.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Scale.kelvin(25.0))
+                    println(Scale.fahrenheit(100.0))
+                    println(Scale.bmi(70.0, 175.0))
+                    println(Scale.label(17.0))
+                    println(Scale.label(22.0))
+                    println(Scale.label(27.0))
+                    println(Scale.label(35.0))
+                    println(Scale.discount(120.0))
+                    println(Scale.discount(60.0))
+                    println(Scale.discount(30.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 298.15 | 212.0 | 22.857142857142858 | under | normal |
+        // over | obese | 108.0 | 57.0 | 30.0
+        assertEquals("298.15\n212.0\n22.857142857142858\nunder\nnormal\nover\nobese\n108.0\n57.0\n30.0", output,
+                "zero-drift: kelvin/fahrenheit/bmi/label/discount id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
