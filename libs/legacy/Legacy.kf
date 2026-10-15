@@ -367,3 +367,26 @@ List<String> decodeFrom(Layout l, String rec, Int start) {
     }
     return out
 }
+
+record BatchReport(Int total, Int ok, Int failed, List<Int> failedIndexes)
+
+// batchDecode — the BATCH discipline (§4.6): decode every record; one bad
+// record NEVER kills the batch and is NEVER silent — it is counted and its
+// index is reported. The caller decides what a failed record means.
+BatchReport batchDecode(Layout l, List<String> records) {
+    var ok = 0
+    var failed = 0
+    var idx: List<Int> = listOf()
+    var i = 0
+    while (i < records.size) {
+        try {
+            decode(l, records.get(i))
+            ok = ok + 1
+        } catch (String e) {
+            failed = failed + 1
+            idx.add(i)
+        }
+        i = i + 1
+    }
+    return BatchReport(records.size, ok, failed, idx)
+}
