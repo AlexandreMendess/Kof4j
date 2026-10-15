@@ -3819,6 +3819,82 @@ class DecompileTest {
                 "zero-drift: parse/describe/withFinally id\u00eanticos ao Java");
     }
 
+    @Test
+    void inv2DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o domínio INVENTÁRIO-2 — 4 shapes sem código novo:
+        // o filtro com && de startsWith/endsWith no for-each (countTags), o
+        // switch de Int com 3 cases + default e RETURNS nos braços (pick —
+        // o switch STATEMENT de return), o clamp de Double com os DOIS ifs
+        // de reatribuição (clamp01) e o anyOver com startsWith-like no
+        // limiar. Zero-drift executado: 2/ok/missing/error/?/0.5/0.0/1.0/
+        // true/false — 10/10 idênticos ao Java.
+        Path javaFile = dir.resolve("Inv2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Inv2 {
+                    static int countTags(List<String> rows) {
+                        int n = 0;
+                        for (String r : rows) {
+                            if (r.startsWith("<") && r.endsWith(">")) { n++; }
+                        }
+                        return n;
+                    }
+                    static String pick(int code) {
+                        switch (code) {
+                            case 200: return "ok";
+                            case 404: return "missing";
+                            case 500: return "error";
+                            default: return "?";
+                        }
+                    }
+                    static double clamp01(double v) {
+                        double r = v;
+                        if (r < 0) { r = 0; }
+                        if (r > 1) { r = 1; }
+                        return r;
+                    }
+                    static boolean anyOver(List<Integer> xs, int lim) {
+                        for (int x : xs) {
+                            if (x > lim) { return true; }
+                        }
+                        return false;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Inv2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var rows = listOf("<a>", "text", "<b>")
+                    println(Inv2.countTags(rows))
+                    println(Inv2.pick(200))
+                    println(Inv2.pick(404))
+                    println(Inv2.pick(500))
+                    println(Inv2.pick(302))
+                    println(Inv2.clamp01(0.5))
+                    println(Inv2.clamp01(-2.0))
+                    println(Inv2.clamp01(3.0))
+                    var xs = listOf(1, 5, 9)
+                    println(Inv2.anyOver(xs, 7))
+                    println(Inv2.anyOver(xs, 20))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2 | ok | missing | error | ? | 0.5 | 0.0 | 1.0 | true | false
+        assertEquals("2\nok\nmissing\nerror\n?\n0.5\n0.0\n1.0\ntrue\nfalse", output,
+                "zero-drift: countTags/pick/clamp01/anyOver id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
