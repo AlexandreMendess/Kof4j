@@ -313,6 +313,149 @@ main() {
 """.formatted(path);
     }
 
+    /**
+     * Two REFERENCE-FREE invariants of the tile walk over the committed real
+     * 64x64 testsrc fixture (`avif_real_64.avif`): (1) the partition walk's block
+     * grid must TILE the frame — every 4x4 mi cell covered exactly once, none
+     * twice, total == the frame's cell count (a self-consistency invariant of
+     * `decode_partition`, spec §5.11.4); (2) the walk must not read PAST the
+     * payload. Neither needs a reference decoder, so together they isolate the
+     * partition/geometry path from the entropy, coefficient and reconstruction
+     * paths.
+     *
+     * <p>MEASURED 15/10 (the OPEN `3bd` symptom, recorded here because this line
+     * is the reproducible instrument): `blocks=21 covered=256 frame=256 overlap=0
+     * symBits=862 payloadBits=2344 txb=63 nzTot=102 nzHead=0,0,26,8,0,0,2,0,...`.
+     * The grid tiles EXACTLY, yet the walk consumes only 862 of 2344 payload bits
+     * (37%) — a correct decoder must consume essentially the whole tile, so 63% of
+     * the stream is read as `all_zero` and skipped. That is the under-consumption
+     * signature of the residual path, and it is why the first TX blocks reconstruct
+     * as bare DC. The tiling being exact is itself evidence the partition symbols
+     * were NOT shifted, which localises the fault to the per-block residual read.
+     * Full consumption is the correctness criterion; it is NOT asserted yet because
+     * it fails today (a red suite is not allowed) — the gap is recorded in the plan
+     * (`image-vision-plan.md`, 25th pass).
+     */
+    private static String tilingProbe(String path) {
+        return """
+import image.Av1Block
+import image.Av1DecodeChroma
+import image.Av1DecodeTileRecon
+import image.Av1ModeInfo
+import image.Av1Partition
+import image.Av1Quant
+import image.Av1Symbol
+import image.Av1TxType
+import image.AvifFrame
+import image.AvifGroup
+import image.AvifObu
+
+main() {
+    var path = "%s"
+    var h = readAvifFrameHeader(path)
+    var seq = readAvifItemObus(path).seq
+    var data = readAvifTilePayloads(path).get(0)
+    var mw = h.codedWidth
+    var mh = h.codedHeight
+    var miw = mw >> 2
+    var mih = mh >> 2
+    var txMode = 1
+    if (h.txModeSelect == 1) { txMode = 2 }
+    var stride = mw + 2
+    var frame = new Int[stride * (mh + 2)]
+    var cw = mw >> 1
+    var ch = mh >> 1
+    var cstride = cw + 2
+    var chroma = Av1ChromaPlanes(new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[miw], new Int[mih], new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[miw], new Int[mih])
+    var sym = Av1Symbol(data)
+    var store = Av1CoeffCdfStore(h.baseQIdx)
+    var txStore = Av1TxType(sym)
+    var qt = Av1QuantTables()
+    var dcq = qt.dcQ(seq.bitDepth, h.baseQIdx)
+    var acq = qt.acQ(seq.bitDepth, h.baseQIdx)
+    var fi = 0
+    if (seq.enableFilterIntra) { fi = 1 }
+    var de = 1
+    if (seq.enableIntraEdgeFilter) { de = 0 }
+    var ec = 0
+    if (seq.enableCdef) { ec = 1 }
+    var modes = listOf<Int>()
+    var levels = listOf<Int[]>()
+    var cfg = Av1ModeTail(12, h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, 0, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, store, txStore, new Int[miw * mih], new Int[miw], new Int[mih], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
+    var walk = Av1Partition(data, miw, mih)
+    walk.useReader(sym)
+    walk.bindDecoder(tile)
+    var steps = walk.walk()
+    var cover = new Int[miw * mih]
+    var blocks = 0
+    var overlap = 0
+    var i = 0
+    while (i < steps.size) {
+        var s = steps.get(i)
+        if (s[0] == 1) {
+            var w = av1BlockNum4x4Wide(s[3])
+            var bh = av1BlockNum4x4High(s[3])
+            blocks = blocks + 1
+            var rr = 0
+            while (rr < bh) {
+                var cc = 0
+                while (cc < w) {
+                    var idx = (s[1] + rr) * miw + (s[2] + cc)
+                    if (idx >= 0 && idx < cover.size) {
+                        if (cover[idx] == 1) { overlap = overlap + 1 }
+                        cover[idx] = 1
+                    }
+                    cc = cc + 1
+                }
+                rr = rr + 1
+            }
+        }
+        i = i + 1
+    }
+    var covered = 0
+    var k = 0
+    while (k < cover.size) {
+        covered = covered + cover[k]
+        k = k + 1
+    }
+    var totNz = 0
+    var head = ""
+    var b = 0
+    while (b < levels.size) {
+        var lv = levels.get(b)
+        var nz = 0
+        var q = 0
+        while (q < lv.size) {
+            if (lv[q] != 0) { nz = nz + 1 }
+            q = q + 1
+        }
+        totNz = totNz + nz
+        if (b < 12) {
+            if (b > 0) { head = head + "," }
+            head = head + nz
+        }
+        b = b + 1
+    }
+    println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + walk.position() + " payloadBits=" + (data.size * 8) + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head)
+}
+""".formatted(path);
+    }
+
+    @Test
+    void realTileGridTilesTheFrameOnJvm() throws Exception {
+        var line = runJvm(tilingProbe(canonicalized().toString()));
+        var parts = line.split(" ");
+        var covered = Integer.parseInt(parts[1].split("=")[1]);
+        var frameMi = Integer.parseInt(parts[2].split("=")[1]);
+        var overlap = Integer.parseInt(parts[3].split("=")[1]);
+        var symBits = Integer.parseInt(parts[4].split("=")[1]);
+        var payloadBits = Integer.parseInt(parts[5].split("=")[1]);
+        assertEquals(frameMi, covered, () -> "the block grid does not tile the frame: " + line);
+        assertEquals(0, overlap, () -> "the block grid overlaps blocks: " + line);
+        assertTrue(symBits <= payloadBits, () -> "the walk read past the payload: " + line);
+    }
+
     @Test
     void realSolidGrayDecodesToReferenceOnJvm() throws Exception {
         assertEquals(SOLID_GOLDEN, runJvm(solidProbe(solidFixture("solid-jvm.avif").toString())));

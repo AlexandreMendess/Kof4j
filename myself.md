@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 24ª PASSAGEM: o caminho sintático está exonerado mais um passo e a LACUNA de paridade das CDFs de modo está FECHADA com prova executada. O teste de paridade cobria 15 tabelas mas NÃO seis que o prefixo de cada bloco lê (segment id, segment id predicted, palette Y/UV size e mode) — agora estão FIXADAS com um golden gerado do `entropymode.c` do libaom (`goldenExt()` + `av1_mode_cdf_ext_golden.txt.b64`) e as tabelas Kof batem: `Av1ModeCdfE2ETest` 8/8 (era 6/6). Além disso, verificado contra libaom: caminho do TX-SIZE (tabelas + `read_tx_size` + `get_tx_size_context`), `intra_mode_context`, a ORDEM da sintaxe do mode-info (`read_intra_frame_mode_info`) e o caminho LOSSY do `is_cfl_allowed` — todos IDÊNTICOS. Observação aberta (NÃO bug confirmado): no ramo LOSSLESS o libaom aceita CFL para 4:2:0 BLOCK_8X8 e o Kof só para bs==0; a spec não foi alcançável para decidir — NÃO RESOLVIDO e LATENTE.
-doing: §3bd — tabelas/CDFs (coeff 260/260 + modo 15+6), tx-size, ordem do mode-info e CFL lossy EXONERADOS; resta o suspeito da POSIÇÃO DE BIT do leitor a montante
-next: §3bd — despejar a sequência de símbolos (elemento + pos de bit) em volta do bloco 0 do STRIPES; e decidir o ramo LOSSESS do `is_cfl_allowed` contra a spec antes de um fixture lossless com CFL
+last: 15/10 — AVIF slice 3bd 25ª PASSAGEM: o fixture REAL commitado ganhou um instrumento SEM REFERÊNCIA e a falha fica fixada numa subconsumo de ORDEM DE GRANDEZA. `AvifRealFileE2ETest#realTileGridTilesTheFrameOnJvm` mede `blocks=21 covered=256 frame=256 overlap=0 symBits=862 payloadBits=2344 txb=63 nzTot=102 nzHead=0,0,26,8,0,0,2,0,...`: (1) a grade COBRE o quadro exatamente ⇒ partição EXONERADA (sem deslocamento de bits); (2) consome só 862/2344 bits (37%) ⇒ 63% do fluxo lido como `all_zero` e pulado. Geometria certa + residual colapsando ⇒ falha no caminho do residual por bloco. Prova: `AvifRealFileE2ETest` 7/7 (era 6/6). O consumo total do payload é o critério de correção e NÃO está asserido (falha hoje; suíte vermelha não é permitida) — registrado no plano.
+doing: §3bd — partição EXONERADA (tiling exato 256/256); o residual por bloco colapsa (37% do payload consumido); instrumento sem referência landado
+next: §3bd — instrumentar a posição do leitor POR BLOCO (início/fim do mode-info, posição do `all_zero`) para achar o primeiro bloco que sub-lê
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (52ª) — 3bd 25ª: instrumento sem referência; subconsumo do payload fixado
+- **Unidade landada (teste+docs):** `AvifRealFileE2ETest#realTileGridTilesTheFrameOnJvm` — invariantes SEM referência sobre o fixture REAL commitado (`avif_real_64.avif`): (1) a grade de blocos cobre o quadro exatamente; (2) a travessia não lê além do payload.
+- **Prova executada:** `AvifRealFileE2ETest` **7/7** (era 6/6), BUILD SUCCESS. Medição: `blocks=21 covered=256 frame=256 overlap=0 symBits=862 payloadBits=2344 txb=63 nzTot=102`.
+- **Fato 1 (exonera a partição):** o tiling é EXATO (256/256 células, 0 sobreposição) ⇒ os símbolos de partição não foram deslocados; um dessincronismo de posição de bit no nível da partição fica insustentável.
+- **Fato 2 (localiza a falha):** a travessia consome só 862/2344 bits (37%) — ~63% do fluxo é lido como `all_zero` e pulado. Geometria certa + residual colapsando ⇒ o defeito está no caminho do RESIDUAL por bloco (contabilidade de bits do mode-info/tx-size ou a leitura dos coeficientes).
+- **Correção de método:** os probes ad-hoc de STRIPES (passagens 17–22) davam números que se contradiziam; este instrumento é reprodutível e vive no teste. Também re-verifiquei por leitura que `av1DecodeBlockGridOrder` está correto (16x64 com TX_8X4 = 32 blocos de TX, não os 2 que uma passagem registrou).
+- **Caveat:** o consumo total do payload é o critério de correção e NÃO está asserido — falha hoje; asserir o valor errado seria false-green e um teste vermelho não é permitido. Fica registrado no plano. `mvn -o` não funciona (asm 9.11): usei mvn online; execuções longas em `setsid nohup`.
+- **Ambiente:** falta `cmake`/`ninja` ⇒ NÃO é possível construir o oracle instrumentado do libaom aqui (o instrumento decisivo continua indisponível).
 
 ## Sessão 15/10 (51ª) — 3bd 24ª: paridade das CDFs de modo FECHADA; caminho sintático exonerado
 - **Unidade landada (código+teste+docs):** teste estendido — `Av1ModeCdfE2ETest` + `Av1ModeCdfSupport` (+ recurso `av1_mode_cdf_ext_golden.txt.b64`) cobrindo as SEIS tabelas que faltavam (segment id, segment id predicted, palette Y/UV size, palette Y/UV mode).
