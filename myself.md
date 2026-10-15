@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 29ª PASSAGEM: a instrumentação de posição POR BLOCO foi LANDADA e a decodificação ERRADA + o subconsumo de 63% ficam confirmados JUNTOS contra o oracle de pixels no fixture commitado. `Av1TileDecode` registra por bloco a posição após o mode info e após os residuais (`posOut` + getter `positions()`, sem mudar o construtor); o instrumento assere a estrutura (1 registro/bloco, não-decrescente, último == walk). Medição: mode info do bloco 0 = 0->32 bits e RESIDUAL 0 bits (all_zero=1); total 862. Oracle: ffmpeg Y (0,0)=16,(0,32)=41,(0,63)=235 vs Kof 128,2,10 ⇒ decodificação errada e subconsumo são o MESMO evento. Verificado contra libaom: `update_ext_partition_context` (incl. o fallthrough do SPLIT em 8x8) e `partition_plane_context` batem. Prova: AvifRealFileE2ETest 7/7.
-doing: §3bd — instrumentação por bloco landada; decodificação errada e subconsumo confirmados juntos pelo oracle; resta localizar a leitura errada (por SÍMBOLO no bloco 0 e seus ancestrais de partição)
-next: §3bd — instrumentar a posição do leitor por SÍMBOLO dentro do bloco 0 e de seus ancestrais de partição e conferir o custo em bits de cada símbolo contra sua probabilidade
+last: 15/10 — AVIF slice 3bd 30ª PASSAGEM: rastro de símbolos landado e CONTROLES estreitam a falha a um EOB GRANDE. `avif_real_cb16.avif` (xadrez 16x16) é MULTI-BLOCO (4 blocos) com tx=1 e consome 384/384 bits reconstruindo EXATAMENTE (ffmpeg 17/17/235) ⇒ partição multi-bloco e txModeSelect EXONERADOS. `avif_real_cb8.avif` (xadrez 8x8, alta frequência) = 1 bloco, 16 TX, todos lendo all_zero=1, consumindo 23/152 (15%) e dando DC nua 128 vs 16/235 ⇒ par RED minimal commitado. `adaptCdf` verificado contra o `update_cdf` do libaom: equivalente (taxa+direção, traduzindo as representações) ⇒ adaptação exonerada. Prova: AvifRealFileE2ETest 9/9. Próximo: posição do leitor após cada símbolo do mode info no cb8.
+doing: §3bd — falha estreitada a EOB GRANDE; multi-bloco, txModeSelect, adaptação de CDF e todas as tabelas/sintaxe exonerados; par RED cb8×cb16 commitado
+next: §3bd — imprimir a posição do leitor após CADA símbolo do mode info no cb8 (partição, skip, y, uv, tx-depth) e conferir o custo do tx-depth contra as probabilidades da linha
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (57ª) — 3bd 30ª: CONTROLES estreitam a falha a um EOB grande (par RED commitado)
+- **Fatia:** `Av1Symbol.enableTrace()`/`log()` (rastro por símbolo; readBool/readLiteral passam por readSymbol ⇒ captura tudo).
+- **Controles (decisivos, commitados):** cb16 (xadrez 16x16, **4 blocos**, tx=1) consome **384/384 = 100%** e reconstrói EXATAMENTE; cb8 (xadrez 8x8, alta frequência, 1 bloco/16 TX) consome **23/152 = 15%** com todos os TX lendo all_zero=1 e DC nua 128 vs 16/235.
+- **Exonerados por esses controles:** partição MULTI-BLOCO e o caminho `txModeSelect=1`. **Fica:** a falha acompanha EOB GRANDE.
+- **Também:** `adaptCdf` vs `update_cdf` do libaom = EQUIVALENTE (taxa da spec `3+(c>15)+(c>31)+Min(Log2(N),2)` e direção, traduzindo entre as representações inversa/forward) ⇒ adaptação de CDF exonerada.
+- **Teste:** `AvifRealFileE2ETest` **9/9** (cb16 = pixels exatos + consumo total; cb8 = reproducer com invariantes sem referência), BUILD SUCCESS.
+- **Caveat:** o cb8 assere só invariantes (asserir o valor errado seria false-green; suíte vermelha não é permitida); sem `cmake`/`ninja` (e sem `pip`) não há oracle instrumentado do libaom aqui.
 
 ## Sessão 15/10 (56ª) — 3bd 29ª: instrumentação por bloco landada; errado+subconsumo confirmados juntos
 - **Fatia (código):** `Av1TileDecode` (libs/image/Av1DecodeTileRecon.kf) ganhou `posOut` + o getter aditivo `positions()` — 2 ints por bloco (posição após o mode info, após os residuais). SEM mudar o construtor ⇒ nenhum harness existente quebra.

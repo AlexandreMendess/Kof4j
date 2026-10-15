@@ -236,7 +236,16 @@ main() {
      * libdav1d reads for the same file.
      */
     private Path solidFixture(String name) throws Exception {
-        byte[] f = Files.readAllBytes(Path.of("src/test/resources/avif_real_solid64.avif"));
+        return canonResource("avif_real_solid64.avif", name);
+    }
+
+    /**
+     * Canonicalize a committed real fixture: the mdat item (ffmpeg writes it
+     * WITHOUT a leading temporal delimiter) with the delimiter prepended, in the
+     * test's minimal container. Only the ITEM is the encoder's.
+     */
+    private Path canonResource(String resource, String name) throws Exception {
+        byte[] f = Files.readAllBytes(Path.of("src/test/resources/" + resource));
         int m = -1;
         for (int i = 0; i + 4 <= f.length; i++) {
             if (f[i] == 'm' && f[i + 1] == 'd' && f[i + 2] == 'a' && f[i + 3] == 't') { m = i; break; }
@@ -313,11 +322,60 @@ main() {
 """.formatted(path);
     }
 
-        @Test
+        /**
+     * POSITIVE CONTROL for the open `3bd` bug: `avif_real_cb16.avif` (a 64x64
+     * 16x16-checkerboard, ffmpeg/libaom) is MULTI-BLOCK (4 blocks) and has
+     * `tx_mode_select = 1`, yet it decodes EXACTLY and consumes its WHOLE payload.
+     * ffmpeg's reference Y is (0,0)=17 (0,32)=17 (0,63)=235 (32,0)=17 (32,32)=17
+     * (32,63)=235. So neither multi-block partitioning nor the `txModeSelect`
+     * path is the fault; the failure tracks a large EOB (see the cb8 case in the
+     * plan's 30th pass).
+     */
+    /** The probe's `blocks=...` summary line (the trace line comes first). */
+    private static String summary(String out) {
+        for (var l : out.split("\\n")) {
+            if (l.startsWith("blocks=")) return l;
+        }
+        throw new IllegalStateException("no summary line in: " + out);
+    }
+
+    @Test
+    void realChecker16DecodesToReferenceOnJvm() throws Exception {
+        var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_cb16.avif", "cb16.avif").toString()));
+        assertTrue(line.contains("blocks=4 "), () -> "expected 4 mode blocks: " + line);
+        assertTrue(line.contains("symBits=384 payloadBits=384"),
+                () -> "the whole payload must be consumed: " + line);
+        assertTrue(line.contains("Y 00=17 032=17 063=235 320=17 3232=17 3263=235"),
+                () -> "must match the ffmpeg reference: " + line);
+    }
+
+    /**
+     * The RED case, committed as a REPRODUCER: `avif_real_cb8.avif` (64x64
+     * 8x8-checkerboard, high frequency -> large EOB) is ONE 64x64 block with 16
+     * TX blocks, and every TX block reads `all_zero = 1` where the content needs
+     * a large residual: it consumes only 23 of 152 payload bits (15%) and
+     * reconstructs bare DC 128 against ffmpeg's 16/235. Only the REFERENCE-FREE
+     * invariants are asserted (a red suite is not allowed); the wrong values are
+     * recorded in the plan's 30th pass.
+     */
+    @Test
+    void realChecker8UnderConsumptionRecordedOnJvm() throws Exception {
+        var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_cb8.avif", "cb8.avif").toString()));
+        var parts = summary(line).split(" ");
+        var covered = Integer.parseInt(parts[1].split("=")[1]);
+        var frameMi = Integer.parseInt(parts[2].split("=")[1]);
+        var overlap = Integer.parseInt(parts[3].split("=")[1]);
+        var symBits = Integer.parseInt(parts[4].split("=")[1]);
+        var payloadBits = Integer.parseInt(parts[5].split("=")[1]);
+        assertEquals(frameMi, covered, () -> "the block grid does not cover the frame: " + line);
+        assertEquals(0, overlap, () -> "the block grid overlaps blocks: " + line);
+        assertTrue(symBits <= payloadBits, () -> "the walk read past the payload: " + line);
+    }
+
+    @Test
     void realTileWalkDoesNotReadPastThePayloadOnJvm() throws Exception {
         var line = runJvm(AvifRealTileProbe.probe(canonicalized().toString()));
-        System.err.println("PBSTART\n" + line + "\nPBEND");
-        var parts = line.split(" ");
+        var parts = summary(line).split(" ");
         var covered = Integer.parseInt(parts[1].split("=")[1]);
         var frameMi = Integer.parseInt(parts[2].split("=")[1]);
         var overlap = Integer.parseInt(parts[3].split("=")[1]);

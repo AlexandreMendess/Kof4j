@@ -89,6 +89,7 @@ main() {
     var cstride = cw + 2
     var chroma = Av1ChromaPlanes(new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[miw], new Int[mih], new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[miw], new Int[mih])
     var sym = Av1Symbol(data)
+    sym.enableTrace()
     var store = Av1CoeffCdfStore(h.baseQIdx)
     var txStore = Av1TxType(sym)
     var qt = Av1QuantTables()
@@ -158,6 +159,15 @@ main() {
         }
         b = b + 1
     }
+    var sl = sym.log()
+    var sc = 0
+    var sline = ""
+    while (sc < sl.size / 2 && sc < 40) {
+        if (sc > 0) { sline = sline + " " }
+        sline = sline + sl[sc * 2] + ":" + sl[sc * 2 + 1]
+        sc = sc + 1
+    }
+    println("TRACE n=" + (sl.size / 2) + " " + sline)
     println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + walk.position() + " payloadBits=" + (data.size * 8) + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head)
     println("Y 00=" + frame[1 * stride + 1] + " 032=" + frame[1 * stride + 33] + " 063=" + frame[1 * stride + 64] + " 320=" + frame[33 * stride + 1] + " 3232=" + frame[33 * stride + 33] + " 3263=" + frame[33 * stride + 64])
     var pos = tile.positions()
