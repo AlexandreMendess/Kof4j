@@ -591,6 +591,16 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             if (pureTest
                     && armReachesJoin(elseB.succ.get(0), tail, byStart, insns, 0)
                     && armReachesJoin(elseB.succ.get(1), tail, byStart, insns, 0)) {
+                // Fase E (15/10): o hoist PROFUNDO — o local sem init
+                // (`String s;`) armazenado nos DOIS lados da cadeia escapa
+                // do if e precisa da declaração default ANTES (medido no
+                // Range.size: o `var` nascia no 1º braço e os demais
+                // atribuíam slot não-declarado = SEM011)
+                StructWalker.cpRef = cp;
+                List<String> deepHoist = StructWalker.hoistEscapingLocalsDeep(insns,
+                        thenB.start, tail, elseB.start, tail, frame, declared);
+                if (deepHoist == null) { BytecodeStatements.refuse("deep-hoist-null"); return false; }
+                out.addAll(deepHoist);
                 Set<Integer> bstops = new HashSet<>(stops);
                 bstops.add(tail);
                 out.add("if (" + cond + ") {");

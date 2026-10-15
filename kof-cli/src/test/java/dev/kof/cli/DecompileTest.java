@@ -3082,6 +3082,75 @@ class DecompileTest {
                 "zero-drift: total/firstNegative/describe/avgNonZero id\u00eanticos ao Java");
     }
 
+    @Test
+    void uninitializedLocalChainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o local SEM INIT na cadeia else-if — `String s;`
+        // do Java NÃO gera store no prólogo (o `String g = "";` do Conv
+        // gerava, por isso o level passava e o size stubava): o primeiro
+        // `var` nascia DENTRO do 1º braço e os demais atribuíam slot
+        // não-declarado = SEM011. O hoist PROFUNDO (scan por RANGE de
+        // offsets do then e do else-subtree — os stores aninhados que o
+        // hoist raso não vê) sobe a declaração default ANTES do if. O
+        // default de REFERÊNCIA só existe honestamente quando TODOS os
+        // valores armazenados são LITERAIS String (o `""` é o tipo real
+        // medido; SEM048 bane o null). Zero-drift executado: overlaps
+        // true/false, clamp 5/0/10, size tiny:5/small:50/medium:500/large:
+        // 5000, mid 3.5 — 10/10 idênticos ao Java.
+        Path javaFile = dir.resolve("Range.java");
+        Files.writeString(javaFile, """
+                public class Range {
+                    static boolean overlaps(int a1, int a2, int b1, int b2) {
+                        return a1 <= b2 && b1 <= a2;
+                    }
+                    static int clamp(int v, int lo, int hi) {
+                        if (v < lo) { return lo; }
+                        if (v > hi) { return hi; }
+                        return v;
+                    }
+                    static String size(int n) {
+                        String s;
+                        if (n < 10) { s = "tiny"; }
+                        else if (n < 100) { s = "small"; }
+                        else if (n < 1000) { s = "medium"; }
+                        else { s = "large"; }
+                        return s + ":" + n;
+                    }
+                    static double mid(int lo, int hi) { return (lo + hi) / 2.0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Range.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("var v1 = \"\""), "o hoist profundo:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Range.overlaps(1, 5, 4, 8))
+                    println(Range.overlaps(1, 5, 6, 8))
+                    println(Range.clamp(5, 0, 10))
+                    println(Range.clamp(-3, 0, 10))
+                    println(Range.clamp(99, 0, 10))
+                    println(Range.size(5))
+                    println(Range.size(50))
+                    println(Range.size(500))
+                    println(Range.size(5000))
+                    println(Range.mid(3, 4))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | 5 | 0 | 10 | tiny:5 | small:50 | medium:500 | large:5000 | 3.5
+        assertEquals("true\nfalse\n5\n0\n10\ntiny:5\nsmall:50\nmedium:500\nlarge:5000\n3.5", output,
+                "zero-drift: overlaps/clamp/size/mid id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
