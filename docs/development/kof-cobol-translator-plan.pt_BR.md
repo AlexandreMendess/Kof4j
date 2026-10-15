@@ -1,10 +1,13 @@
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+last: PROMOVIDO de `docs/development/future/` 15/10 (ordem da mantenedora "pega um de future" + `D-FUTURE-PROMOTION`); `D-COBOL-TRANSLATOR-GO`
+doing: Fase 1 (o scanner de projeto) POUSADA 15/10 — `libs/cobol/Scanner.kf` em Kof puro (ordem de descoberta, o inventário por arquivo, detecção de formato com evidência, os diagnósticos CB001–CB004)
+next: Fase 2 (o lexer/parser) — o roadmap é o §30
+local: docs/development/kof-cobol-translator-plan.pt_BR.md
+state: under-development
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 
 intent: kof-cobol-translator-source-to-source
+
+**Decisão `D-COBOL-TRANSLATOR-GO` (mantenedora 15/10):** PROMOVIDO a trabalho corrente — o plano moveu `future/` → `docs/development/`. **A Fase 1 pousou como biblioteca Kof PURA** (`libs/cobol/Scanner.kf`): as decisões abertas **Q1** (a casa da ferramenta) e **Q2** (a gramática exata do CLI) são da mantenedora e ficam ADIADAS — a biblioteca do scanner recebe valores de texto, então nenhuma superfície de CLI é inventada aqui. `Q3` (política de nomes) e `Q4` (saída de money) intocadas; o mapeamento da Data Division segue do KofBOL (`docs/kofbol.md`), conforme o próprio "não duplicar" do plano.
 
 > **PT** · EN canônico: [`kof-cobol-translator-plan.md`](kof-cobol-translator-plan.md)
 

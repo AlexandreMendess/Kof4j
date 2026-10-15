@@ -79,6 +79,7 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-FUTURE-FREEZE** — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10) *(SUPERSEDED 11/10 by D-FUTURE-UNFREEZE)*
 - **D-FUTURE-UNFREEZE** — the `future/` freeze is LIFTED: agents promote/implement future plans again, one at a time, active lanes finishing first (maintainer 11/10)
 - **D-KOFBOL** — KofBOL (native legacy-banking interoperability, `kofbol-plan.md`) PROMOTED `future/` → `docs/development/`; library-first by construction, slice 1 = fixed-width encode/decode (maintainer order 14/10, chat)
+- **D-COBOL-TRANSLATOR-GO** — `kof-cobol-translator` (COBOL source → Kof source) PROMOTED `future/` → `docs/development/`; Phase 1 (the project scanner) landed as pure-Kof `libs/cobol/Scanner.kf` (maintainer order 15/10, chat)
 - **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
 - **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
 - **D-MAINT-BATCH-1110** — maintainer batch 11/10: `db` local shadow (#786), return-inference fixpoint (#785), `kof.ui` accessibility (#789)
@@ -5095,3 +5096,17 @@ each still requiring its own decision when picked up.
 - **Scope of the first delivery:** spike-0 (the descriptor model) + **Fatia 1** — fixed-width `encode`/`decode` for `PIC X` / `PIC 9` (ASCII only) with byte-exact goldens, JVM + Script. RED-first. Fátias 2–11 (EBCDIC, COMP-3, copybook import, the `legacy` contract, adapters, transports, messaging, transactions, cross-target parity, docs) stay open and ordered by the plan §20.
 - **Not authorized by this decision:** any new `legacy` syntax, any core primitive, any EBCDIC/COMP-3 shortcut, any stub — the plan's §22 non-regression contract applies.
 - **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOF-FIRST (rule 12), D-CONNECTORS-GO (the `kof-cobol-connector` framing; KofBOL Q6 remains open for the maintainer), D-KOF-FIRST-IMPL, rule 6, rule 11, rule 12`.
+
+---
+
+## D-COBOL-TRANSLATOR-GO — `kof-cobol-translator` is PROMOTED to current work: the COBOL→Kof translator, Phase 1 landed as a **pure-Kof scanner** (maintainer order 15/10/2026, chat directive "pega um de future")
+
+**Date:** 2026-10-15 · **State:** `DECIDED` (maintainer) — the plan moves `docs/development/future/` → `docs/development/` per `D-FUTURE-PROMOTION` (the maintainer's order activates the plan's own stated gate).
+
+- **Directive (verbatim, chat):** *"pega um de future"* — the maintainer ordered this lane to take a plan out of `docs/development/future/` and implement it. Per `D-FUTURE-PROMOTION` the agent picks the **EASIEST** eligible plan.
+- **Why this plan:** its central dependency — the COBOL **data mapping** — ALREADY EXISTS and is promoted (`docs/kofbol.md`, `libs/legacy`, slices 1–11 complete). The plan itself is explicit: it must **not** duplicate that mapping nor the IR/formatter/money model; it owns only the COBOL front-end + the project pipeline + the generation policy.
+- **Phase 1 scope (LANDED):** `libs/cobol/Scanner.kf` — a PURE-KOF library over text values: `discoveryOrder` (the §5 deterministic stable order; Kof refuses `<`/`<=` on String BY DESIGN, so the order is DEFINED explicitly by code points), `scanSource` (the per-file inventory: PROGRAM-ID, the divisions present, the line/comment counts, fixed-vs-free format by the §6 marks), `scanProject` (the project inventory + the CB001–CB004 diagnostics: no PROGRAM-ID, undetermined dialect refused rather than guessed, unsupported extension, mixed formats), plus `isProgram`/`isCopybook`.
+- **What is DEFERRED (not invented):** the open decisions **Q1** (the tool's home: `kof-cli` vs a separate module) and **Q2** (the exact CLI grammar) are the maintainer's — the library takes VALUES, so no CLI surface is invented; **Q3** (naming policy) / **Q4** (money output) untouched; the Data-Division mapping stays KofBOL's.
+- **Proof:** `CobolScannerE2ETest` 2/2 (JVM + Script) — the deterministic order, the inventory, the format detection and the three refusal faces.
+- **Not authorized by this decision:** any new Kof syntax, any CLI surface, any change to the KofBOL mapping, any stub.
+- **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOFBOL (the mapping this plan reuses), D-KOF-FIRST (rule 12), rule 6, rule 11`.
