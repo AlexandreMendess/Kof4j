@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §723
+last: §731
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -16852,3 +16852,21 @@ JVM/Script/JS imprimem `caught=true`; **o native x86-64 imprime `Runtime error: 
 **Fronteira:** só fora de faixa. O comportamento UTF-16 DENTRO da faixa no alvo JS é a convenção de referência (§43) e não é tocado; `indexOf`/`lastIndexOf`/`startsWith` COM `from` foram reconciliados pelo bug 102.
 
 <!-- en-switch --> **EN:** [§730 (en)](known-bugs.md.md#730--js-stringsubstringcharat-out-of-range-silently-clamp-empty-string-where-the-jvmscript-raise-the-named-rangeindex-message---open-measured-1410-by-lane-issuestooling-192168100219093-during-the-843-probe)
+
+## §731 — o decode de tile AVIF em Kof puro DIVERGE do decoder de referência mesmo no frame real MAIS SIMPLES: um AVIF verde-cinza sólido 64x64 (um bloco, payload de tile de 2 bytes) reconstrói como `Y = 0,173,165` onde o `libdav1d` do ffmpeg lê um plano `126` — 🟡 ABERTO (medido 14/10 pela lane pipeline/image-vision `192.168.15.21:0`)
+
+**Sintoma (medido 14/10):** a cadeia AVIF inteira lê corretamente o arquivo de um encoder REAL — contêiner, sequence header (fatias 3ay/3ba) e cabeçalho de quadro (3ax/3bb) todos batem — mas a RECONSTRUÇÃO da luma no DECODE DE TILE discorda da referência. Não é problema de config: o quadro real lê `deltaQPresent=0`, `deltaLfPresent=0`, `cdefBits=0` (fatia 3bb), então o `Av1ModeTail` já está correto.
+
+**O reprodutor mínimo:** um frame de cor sólida é o AVIF mais simples possível, então se ele diverge o caminho básico está errado, não uma feature rara:
+```
+ffmpeg -f lavfi -i "color=c=gray:s=64x64" -frames:v 1 -pix_fmt yuv420p \
+       -c:v libaom-av1 -crf 30 -cpu-used 8 -still-picture 1 -f avif solid.avif
+ffmpeg -i solid.avif -pix_fmt yuv420p -f rawvideo solid.yuv   # oráculo: Y = 126 em tudo
+```
+O item do ffmpeg é `[OBU_SEQUENCE_HEADER][OBU_FRAME]` sem temporal delimiter liderando, que o walk de item do Kof exige; prependa um (`AvifSeqSupport.delimiter()`) para a ordem canônica (receita da fatia 3ba). O quadro então lê `bq=120 tx=0 ll=0 64x64 cdef=0/1 fi=1 ie=1 payload=2`, o walk reporta **1 bloco**, e o driver reconstrói `Y = 0,173,165` — não `126`.
+
+**Por que é a próxima investigação certa:** toda fatia anterior fixou um ESTÁGIO contra libaom em streams SINTÉTICOS; esta é a primeira checagem ponta-a-ponta da cadeia composta contra os bytes de um encoder REAL, e ela falha na entrada MAIS SIMPLES. Os suspeitos agora são estreitos — a cauda de mode-info / transform size / walk de coeficientes / reconstruct do único bloco 64x64 — e o reprodutor é 2 bytes de tile, então é barato de dirigir com uma trilha de marcadores.
+
+**Fronteira:** só JVM aqui (as faces nativas não são afetadas pelo trabalho da lane de codegen). NÃO é o problema de locais-em-registradores §723. NÃO é um bug de contêiner/cabeçalho (esses estão fixados em verde).
+
+<!-- pt-switch --> **EN:** [§731 (en)](known-bugs.md#731--the-pure-kof-avif-tile-decode-diverges-from-the-reference-decoder-even-on-the-simplest-real-frame-a-solid-gray-64x64-avif-one-block-a-2-byte-tile-payload-reconstructs-as-y--0173165-where-ffmpegs-libdav1d-reads-a-flat-126---open-measured-1410-by-lane-pipelineimage-vision-19216815210)

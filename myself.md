@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — AVIF slice 3bb LANDADA: o cabeçalho de quadro expõe os fatos delta-Q/LF que o `Av1ModeTail` precisa — e o quadro REAL do ffmpeg lê `dq=0 dfl=0`, REFUTANDO a hipótese do "cfg errado" (o cfg já estava certo). Prova: 36/36 (AvifFrame 16/16, AvifSeq 8/8, AvifObu 8/8, AvifRealFile 4/4) — e as faces NATIVAS passam, o §723 foi corrigido pela lane de codegen. **A divergência persiste e está no parse de mode-info/coeficientes do tile real:** Kof Y0=129,112,122 vs ffmpeg Y0=16,145,235 (o ref anterior que eu citei, 16,81,81, estava ERRADO — corrigi).
-doing: 3bb landada (fatos delta-Q/LF expostos); a divergência do tile real é a próxima
-next: a divergência de pixels no tile REAL — o cfg está certo (dq=0), então investigar o parse de mode-info (skip/segmento/paleta) e o de coeficientes num tile de encoder real; oráculo `ffmpeg -i x.avif -pix_fmt yuv420p -f rawvideo` (Y0 real = 16,145,235)
+last: 14/10 — `known-bugs` §731 CATALOGADO: o decode de tile AVIF do Kof DIVERGE da referência mesmo no frame real MAIS SIMPLES — um AVIF cinza-sólido 64x64 (1 bloco, payload de 2 bytes) reconstrói `Y=0,173,165` onde o ffmpeg lê `126` uniforme. Tudo acima do decode de tile está verde contra os bytes do encoder real (contêiner, seq 3ay/3ba, cabeçalho 3ax/3bb, cfg correto). Fila do README 10→11. Próximo: dirigir o reprodutor de 2 bytes com trilha de marcadores (mode-info tail / tx size / walk de coeficientes / reconstruct).
+doing: §731 catalogado (diagnóstico); nada landado em libs
+next: investigar §731 — o único bloco 64x64 do reprodutor cinza-sólido (2 bytes de tile): cauda de mode-info, transform size, walk de coeficientes, reconstruct; oráculo ffmpeg/libdav1d (Y=126)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 14/10 (27ª) — §731: a cadeia composite DIVERGE da referência no frame real mais simples
+- **O instrumento:** em vez de caçar o arquivo complexo (testsrc 64x64), encodei o AVIF MAIS SIMPLES possível — `color=c=gray:s=64x64` — porque se o caso trivial falha, o caminho básico está errado.
+- **O resultado:** ffmpeg lê Y=126 uniforme; o Kof lê `Y=0,173,165`, com 1 bloco e um payload de tile de só 2 bytes. Divergência no caso mais simples.
+- **O que isso descarta:** todas as fatias acima (contêiner, seq header, cabeçalho de quadro, cfg) estão fixadas em verde contra os bytes reais — então a divergência está DENTRO do decode de tile composto.
+- **Descartei o cfg antes:** a 3bb expôs delta-Q/LF e o quadro real lê `dq=0 dfl=0` → o cfg já estava certo; a hipótese do cfg foi refutada por medição. Também corrigi um valor de referência que eu tinha lido errado (o Y real do ffmpeg é 16,145,235, não 16,81,81).
+- **O que landei:** o §731 no ledger (EN+PT) + README (10→11) + o plano + DOING/myself. Árvore limpa (nada em libs).
+- **Próximo:** o reprodutor de 2 bytes é barato de dirigir com uma trilha de marcadores (mode-info tail -> tx size -> walk de coeficientes -> reconstruct) para achar o primeiro marcador que diverge.
 
 ## Sessão 14/10 (26ª) — slice 3bb: expus delta-Q/LF e REFUTEI a hipótese do cfg
 - **Hipótese:** a divergência de pixels vinha do `cfg` (`Av1ModeTail`) que eu passava com defaults — o driver pularia a sintaxe delta-q do stream e dessincronizaria.
