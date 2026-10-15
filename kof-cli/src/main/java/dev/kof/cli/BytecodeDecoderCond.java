@@ -113,6 +113,27 @@ final class BytecodeDecoderCond {
 
     // ── if/else de retorno (via CFG) ─────────────────────────────────────
 
+    /**
+     * Fase E (15/10): o JOIN dos bracos tem que ser um xreturn SOLITARIO
+     * (o corpo inteiro e o if-expression). Medido no Warehouse.grade
+     * (`String g = a >= 90 ? "A" : a >= 80 ? "B" : "C"; return g + "(" +
+     * (int) a + ")"`): o join tinha astore+concat DEPOIS do if-expression e
+     * a cauda era DERRUBADA — codigo compilavel ERRADO (R6). O then e o
+     * guia (o goto dele aponta o join); sem goto (os bracos retornam
+     * direto) o guard nao se aplica.
+     */
+    private static boolean joinIsBareReturn(BytecodeReader.Block thenB,
+            List<BytecodeReader.Block> blocks, List<BytecodeReader.Insn> insns) {
+        if (thenB == null) return true;
+        List<BytecodeReader.Insn> bi = BytecodeDecoder.insnsWithin(thenB, insns);
+        if (bi.isEmpty() || bi.get(bi.size() - 1).opcode() != 0xa7) return true;
+        int j = bi.get(bi.size() - 1).target();
+        BytecodeReader.Block jb = BytecodeDecoder.find(blocks, j);
+        if (jb == null) return false;
+        List<BytecodeReader.Insn> ji = BytecodeDecoder.insnsWithin(jb, insns);
+        return ji.size() == 1 && ji.get(0).isReturn();
+    }
+
     static String ifElseReturn(List<BytecodeReader.Insn> insns, String[] cp,
                                        BytecodeFrame frame) {
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
@@ -156,7 +177,8 @@ final class BytecodeDecoderCond {
                         orientA ? thenB.succ.get(1) : thenB.succ.get(0));
                 String t = armExpr(innerThen, blocks, insns, cp, frame, 0);
                 String e = armExpr(elseB, blocks, insns, cp, frame, 0);
-                if (cInner != null && t != null && e != null) {
+                if (cInner != null && t != null && e != null
+                        && joinIsBareReturn(thenB, blocks, insns)) {
                     return "if (" + cond + " && " + cInner + ") " + t + " else " + e;
                 }
             }
@@ -166,6 +188,7 @@ final class BytecodeDecoderCond {
         String thenE = armExpr(thenB, blocks, insns, cp, frame, 0);
         String elseE = armExpr(elseB, blocks, insns, cp, frame, 0);
         if (thenE == null || elseE == null) return null;
+        if (!joinIsBareReturn(thenB, blocks, insns)) return null;
         return "if (" + cond + ") " + thenE + " else " + elseE;
     }
 

@@ -3596,6 +3596,80 @@ class DecompileTest {
                 "zero-drift: fib/fact/gcd/power/binary id\u00eanticos ao Java");
     }
 
+    @Test
+    void nestedTernaryStoreTailStubsHonest(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): a fronteira R6 FECHADA — o tern\u00e1rio ANINHADO
+        // armazenado em local com CAUDA depois do join (`String g = a >= 90
+        // ? "A" : a >= 80 ? "B" : "C"; return g + "(" + (int) a + ")"`). O
+        // ifElseReturn emitia o if-expression como corpo INTEIRO e a cauda
+        // (o astore + o concat) era DERRUBADA — c\u00f3digo compilável
+        // ERRADO (o Kof imprimia "A" em vez de "A(95)", pego pelo
+        // zero-drift!). O guard joinIsBareReturn: o join dos bra\u00e7os tem
+        // que ser um xreturn SOLIT\u00c1RIO; caso contr\u00e1rio o recovery
+        // recusa → o m\u00e9todo stuba honesto. Os OUTROS m\u00e9todos da
+        // classe (o pick com a condi\u00e7\u00e3o composta no loop, o
+        // sumDigits com o while de d\u00edgitos, o fits com o range duplo)
+        // recuperam. Zero-drift executado (os 3): 45/30/true/false/false —
+        // 6/6 id\u00eanticos ao Java. FATIA NOMEADA (a pr\u00f3xima): a
+        // cadeia-tern\u00e1rio armazenada como express\u00e3o (`var v2 = if
+        // (...) ... else ...`) + a emiss\u00e3o do cast d2i.
+        Path javaFile = dir.resolve("Warehouse.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Warehouse {
+                    static int pick(List<Integer> stock, List<Integer> order) {
+                        int picked = 0;
+                        for (int i = 0; i < order.size() && picked < 100; i++) {
+                            int want = order.get(i);
+                            if (stock.get(i) >= want) { picked += want; }
+                        }
+                        return picked;
+                    }
+                    static String grade(double pct) {
+                        String g = pct >= 90 ? "A" : pct >= 80 ? "B" : "C";
+                        return g + "(" + (int) pct + ")";
+                    }
+                    static int sumDigits(int n) {
+                        int s = 0;
+                        while (n > 0) { s += n % 10; n /= 10; }
+                        return s;
+                    }
+                    static boolean fits(int used, int free) {
+                        int left = free - used;
+                        return left >= 0 && left <= 512;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Warehouse.class"));
+        assertTrue(kof.contains("body not recovered"),
+                "o grade TEM que stubar honesto (nunca o if-expression sem a cauda):\n" + kof);
+        String kofRun = kof.replace("throw \"body not recovered\"   // unknown", "return \"?\"") + """
+                main() {
+                    var stock = listOf(10, 20, 30)
+                    var order = listOf(5, 15, 25)
+                    println(Warehouse.pick(stock, order))
+                    println(Warehouse.sumDigits(9876))
+                    println(Warehouse.fits(100, 500))
+                    println(Warehouse.fits(500, 100))
+                    println(Warehouse.fits(1000, 100))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 45 | 30 | true | false | false
+        assertEquals("45\n30\ntrue\nfalse\nfalse", output,
+                "zero-drift: pick/sumDigits/fits id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
