@@ -2623,6 +2623,80 @@ class DecompileTest {
                 "zero-drift: os loops de string id\u00eanticos ao Java");
     }
 
+    @Test
+    void collectionAccumulatorsRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): os ACUMULADORES de coleção — 3 shapes: o tally
+        // (containsKey/put/get com o round-trip de boxing do javac: `((m.get
+        // (w) as Int) + 1).toInt()`), os for-each ANINHADOS sobre
+        // List<List<String>> e a iteração de keySet (mapeada p/ keys do Kof —
+        // medido SEM025: o verbatim keySet() não resolve). A ORDEM do Map é
+        // não-especificada NOS DOIS lados — a face \u00e9 order-free (size +
+        // contains, nunca a concat direta). Zero-drift executado:
+        // 3/2/1/6/2/true/true == Java.
+        Path javaFile = dir.resolve("Board.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                import java.util.Map;
+                import java.util.ArrayList;
+                import java.util.HashMap;
+                public class Board {
+                    static Map<String, Integer> tally(List<String> words) {
+                        Map<String, Integer> m = new HashMap<>();
+                        for (String w : words) {
+                            if (m.containsKey(w)) { m.put(w, m.get(w) + 1); }
+                            else { m.put(w, 1); }
+                        }
+                        return m;
+                    }
+                    static int totalLengths(List<List<String>> groups) {
+                        int t = 0;
+                        for (List<String> g : groups) {
+                            for (String s : g) { t += s.length(); }
+                        }
+                        return t;
+                    }
+                    static List<String> names(Map<Integer, String> m) {
+                        List<String> out = new ArrayList<>();
+                        for (Integer k : m.keySet()) {
+                            out.add(m.get(k));
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Board.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("keys()") && kof.contains("for (var "), "o tally/keys:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    var m = Board.tally(listOf("a", "b", "a", "c", "b", "a"))
+                    println(m.get("a"))
+                    println(m.get("b"))
+                    println(m.get("c"))
+                    var gs = listOf(listOf("ab", "cde"), listOf("f"))
+                    println(Board.totalLengths(gs))
+                    var nm = Board.names(mapOf(1, "x", 2, "y"))
+                    println(nm.size())
+                    println(nm.contains("x"))
+                    println(nm.contains("y"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3 | 2 | 1 | 6 | 2 | true | true (order-free p/ o Map)
+        assertEquals("3\n2\n1\n6\n2\ntrue\ntrue", output,
+                "zero-drift: tally/totalLengths/names id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

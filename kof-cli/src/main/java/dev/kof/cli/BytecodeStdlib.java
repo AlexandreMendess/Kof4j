@@ -34,6 +34,12 @@ final class BytecodeStdlib {
                 && !args.isEmpty() && !args.startsWith("\"")) {
             return null;
         }
+        // Fase E (14/10): o keySet do Map do JDK → keys do Kof (medido
+        // SEM025: o verbatim `keySet()` não resolve — os válidos do Map Kof
+        // incluem keys/values)
+        if ("java/util/Map".equals(ownerInternal) && "keySet".equals(name) && args.isEmpty()) {
+            return receiver + ".keys()";
+        }
         // métodos sem-argumento que em Kof são PROPRIEDADES (não métodos).
         // `isEmpty` NÃO é propriedade (13/10, medido: `.isEmpty` compilava e
         // quebrava em runtime com NoSuchField — nem String nem ArrayList têm
