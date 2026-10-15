@@ -208,11 +208,13 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // para a MESMA saída; a combinação não altera then/exit (o corpo
         // já é o fall-through do teste interno). Medido: whileComplex
         // stubava porque o guard `!loop0` pulava a combinação.
+        java.util.Set<Integer> chainTests = new java.util.HashSet<>();
         {
             int guard = 0;
             BytecodeReader.Block tb = byStart.get(thenStart);
             while (guard < 4 && tb != null && tb.succ.size() == 2
                     && tb.succ.get(0) == exitStart && !BytecodeReader.isLoopHeader(tb)) {
+                chainTests.add(tb.start);
                 // succ.size() == 2 EXIGIDO: o && clássico tem then-de-teste
                 // com DOIS sucessores (o falso-alvo compartilhado + a
                 // queda); um teste com succ único (braços que caem no
@@ -400,9 +402,21 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // o braço para no join via `stops` (linhas acima); a sequela
         // emite o join UMA vez (caminho falso = queda natural do if).
         BytecodeReader.Block join = byStart.get(exitStart);
+        // Fase E (15/10): o join do && tem os falsos de TODOS os testes da
+        // cadeia convergindo (preds > 2 POR DESENHO) — os preds extras
+        // permitidos são exatamente os testes coletados no walk; qualquer
+        // OUTRO pred segue recusando (R6)
+        boolean chainJoin = false;
+        if (join != null && !chainTests.isEmpty()
+                && join.pred.contains(b.start) && join.pred.contains(thenStart)) {
+            chainJoin = true;
+            for (int pr : join.pred) {
+                if (pr != b.start && pr != thenStart && !chainTests.contains(pr)) { chainJoin = false; break; }
+            }
+        }
         boolean pureIfThen = join != null
-                && join.pred.size() == 2 && join.pred.contains(b.start)
-                && join.pred.contains(thenStart)
+                && ((join.pred.size() == 2 && join.pred.contains(b.start)
+                        && join.pred.contains(thenStart)) || chainJoin)
                 && !BytecodeReader.isLoopHeader(join)
                 && byStart.get(thenStart) != null
                 && byStart.get(thenStart).succ.equals(List.of(exitStart));

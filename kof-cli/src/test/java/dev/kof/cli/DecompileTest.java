@@ -2933,6 +2933,78 @@ class DecompileTest {
                 "zero-drift: letter/average/verdict/best id\u00eanticos ao Java");
     }
 
+    @Test
+    void chainJoinSiblingIfsRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o JOIN do && dentro de LOOP — os falsos de TODOS
+        // os testes da cadeia convergem no mesmo alvo (preds > 2 POR
+        // DESENHO); o pureIfThen exigia exatamente 2 preds e recusava → o
+        // bra\u00e7o then andava pelo IF-IRM\u00c3O (que aninhava dentro do then,
+        // com o incremento do loop dentro do if!) e o m\u00e9todo inteiro
+        // stubava. O relax: os preds extras permitidos s\u00e3o EXATAMENTE os
+        // testes coletados no walk do &&; qualquer outro pred segue
+        // recusando (R6). Medido no strong: dois `if (c >= X && c <= Y)
+        // { flag = true }` IRM\u00c3OS dentro do while + o return-if com &&
+        // no fim. ORACLE LESSON re-aplicada: os primeiros inputs nunca
+        // chegavam ao true (7 chars < 8) — a face usa 8+ de verdade.
+        // Zero-drift executado: true/false/true/false/5/0/****ey/*** — 8/8.
+        Path javaFile = dir.resolve("Pass.java");
+        Files.writeString(javaFile, """
+                public class Pass {
+                    static boolean strong(String pwd) {
+                        if (pwd.length() < 8) { return false; }
+                        boolean hasDigit = false;
+                        boolean hasUpper = false;
+                        for (int i = 0; i < pwd.length(); i++) {
+                            char c = pwd.charAt(i);
+                            if (c >= '0' && c <= '9') { hasDigit = true; }
+                            if (c >= 'A' && c <= 'Z') { hasUpper = true; }
+                        }
+                        return hasDigit && hasUpper;
+                    }
+                    static int bits(boolean a, boolean b, boolean c) {
+                        int n = 0;
+                        if (a) { n += 1; }
+                        if (b) { n += 2; }
+                        if (c) { n += 4; }
+                        return n;
+                    }
+                    static String mask(String s) {
+                        if (s.length() <= 4) { return "***"; }
+                        return "****" + s.substring(s.length() - 2);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Pass.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("&&"), "a cadeia &&:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Pass.strong("Abcdefg1"))
+                    println(Pass.strong("abcdefg1"))
+                    println(Pass.strong("ABCDEFG1"))
+                    println(Pass.strong("a1"))
+                    println(Pass.bits(true, false, true))
+                    println(Pass.bits(false, false, false))
+                    println(Pass.mask("secretkey"))
+                    println(Pass.mask("abc"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | true | false | 5 | 0 | ****ey | ***
+        assertEquals("true\nfalse\ntrue\nfalse\n5\n0\n****ey\n***", output,
+                "zero-drift: strong/bits/mask id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
