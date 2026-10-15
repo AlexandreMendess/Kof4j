@@ -82,6 +82,7 @@ public final class KofUi {
     static boolean isComponent(Type t) { return COMPONENT.equals(t); }
     static boolean isEvent(Type t) { return EVENT.equals(t); }
     static boolean isBox(Type t) { return BOX.equals(t); }
+
     static boolean isStack(Type t) { return STACK.equals(t); }
     static boolean isSpacer(Type t) { return SPACER.equals(t); }
     static boolean isWrap(Type t) { return WRAP.equals(t); }
