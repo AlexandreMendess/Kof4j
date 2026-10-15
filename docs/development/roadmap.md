@@ -1000,6 +1000,11 @@ All remaining `future/` plans are authorized with their
 > `NATIVE_MCU_ARM` (B-4.3) and the `kof_plat_*` HAL seam (B-0) — as its architectural pattern.
 > Gates 0–5 (feasibility → target infra → minimal runtime → HAL → workflow → verified on physical
 > hardware); 8 hardware stages H1–H8. The plan touches zero code.
+>
+> **PROMOTED (15th front):** `kofbol` — promoted 14/10 (maintainer order "assume um novo plano em future" + `D-FUTURE-PROMOTION`,
+> cheapest eligible plan) to [`kofbol-plan.md`](kofbol-plan.md) (+PT); library-first by construction, the rule-6 gate resolved in the
+> non-rule-6 direction (descriptor over `record`, no new syntax). Slice 1 = fixed-width `PIC X`/`PIC 9` encode/decode (ASCII) in
+> pure-Kof `libs/legacy/`; the ordered roadmap is the plan §20.
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 

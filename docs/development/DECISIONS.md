@@ -78,6 +78,7 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-KOF-IS-KOF** — Kof source never embeds HTML/CSS/JS (absolute rule)
 - **D-FUTURE-FREEZE** — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10) *(SUPERSEDED 11/10 by D-FUTURE-UNFREEZE)*
 - **D-FUTURE-UNFREEZE** — the `future/` freeze is LIFTED: agents promote/implement future plans again, one at a time, active lanes finishing first (maintainer 11/10)
+- **D-KOFBOL** — KofBOL (native legacy-banking interoperability, `kofbol-plan.md`) PROMOTED `future/` → `docs/development/`; library-first by construction, slice 1 = fixed-width encode/decode (maintainer order 14/10, chat)
 - **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
 - **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
 - **D-MAINT-BATCH-1110** — maintainer batch 11/10: `db` local shadow (#786), return-inference fixpoint (#785), `kof.ui` accessibility (#789)
@@ -5081,3 +5082,16 @@ each still requiring its own decision when picked up.
 **Relationships:** `Related: D-ENTITY-HISTORY (the original Q1–Q15 authorization), D-FUTURE-BATCH-2809B (the resolved declaration/query surfaces).`
 
 ---
+
+---
+
+## D-KOFBOL — KofBOL is PROMOTED to current work: native legacy-banking interoperability implemented as **pure-Kof libraries** (maintainer order 14/10/2026, chat directive "assume um novo plano em future")
+
+**Date:** 2026-10-14 · **State:** `DECIDED` (maintainer) — the plan moves `docs/development/future/` → `docs/development/` per `D-FUTURE-PROMOTION` (the maintainer's order activates the plan's own stated gate).
+
+- **Directive (verbatim, chat):** *"assume um novo plano em future"* — the maintainer ordered this lane to take a plan out of `docs/development/future/` and implement it. Per `D-FUTURE-PROMOTION` the agent picks the **EASIEST** eligible plan (cheapest complete increment), never the most interesting.
+- **Eligibility resolution (measured, this session):** every remaining `future/` plan carries a rule-6 gate (`kof-expr` = new syntax; `kofscript-embedding` = a public runtime contract; `kof-cobol-translator` = new tooling surface; `PLAN-BOOTSTRAP` = gated behind the 1.0 EXIT GATE; `IMPLEMENTATION-UNIVERSAL-PLATFORM-future` = R12 new fronts; `kof-esp8266` = a new target + R12). **KofBOL** is the one whose own gate states it is **library-first by construction** (*"the first version must be expressible as pure-Kof libraries over primitives that already exist"*), with its dependencies already measured in code (`libs/interop/` 13 pure-Kof files, `AbiLayout.java`/`FfiStructLayout.java`, `KofBuffer`/`D-R3-BUFFER`, `KofDb`/`KofOrm` transactions, `KofObservability`).
+- **No language surface change (rule 6 honored):** KofBOL's open decision **Q1** (`legacy` declaration vs `record` + descriptor) is resolved here in the **non-rule-6 direction** — the descriptor model over `record`, parser-free. No new syntax, no new core primitive. **Q3** (decimal representation) takes the plan's recommended pure-Kof scaled-integer route, no core change.
+- **Scope of the first delivery:** spike-0 (the descriptor model) + **Fatia 1** — fixed-width `encode`/`decode` for `PIC X` / `PIC 9` (ASCII only) with byte-exact goldens, JVM + Script. RED-first. Fátias 2–11 (EBCDIC, COMP-3, copybook import, the `legacy` contract, adapters, transports, messaging, transactions, cross-target parity, docs) stay open and ordered by the plan §20.
+- **Not authorized by this decision:** any new `legacy` syntax, any core primitive, any EBCDIC/COMP-3 shortcut, any stub — the plan's §22 non-regression contract applies.
+- **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOF-FIRST (rule 12), D-CONNECTORS-GO (the `kof-cobol-connector` framing; KofBOL Q6 remains open for the maintainer), D-KOF-FIRST-IMPL, rule 6, rule 11, rule 12`.

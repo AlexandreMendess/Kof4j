@@ -76,6 +76,7 @@ Auxílio de navegação, não é uma decisão por si só. Ordenado como neste ar
 - **D-KOF-IS-KOF** — código Kof nunca embute HTML/CSS/JS (regra absoluta)
 - **D-FUTURE-FREEZE** — a promoção de `docs/development/future/` está CONGELADA até segunda ordem (mantenedora 02/10) *(SUPERSEDIDA 11/10 por D-FUTURE-UNFREEZE)*
 - **D-FUTURE-UNFREEZE** — o congelamento de `future/` está LEVANTADO: agentes promovem/implementam planos futuros de novo, um por vez, lanes ativas terminando primeiro (mantenedora 11/10)
+- **D-KOFBOL** — KofBOL (interoperabilidade legada bancária nativa, `kofbol-plan.md`) PROMOVIDO `future/` → `docs/development/`; biblioteca-primeiro por construção, fatia 1 = encode/decode fixed-width (ordem da mantenedora 14/10, chat)
 - **D-RELEASE-CADENCE** — cadência semanal de minors até `0.9.0`; linha de contingência `1.0.0-RC-n`; `1.0.0` só no exit gate completo (mantenedora 02/10)
 - **D-LAB-STABILITY** — um minor só é cortado de um `lab` ESTÁVEL (todos os checks obrigatórios PASS, 0 bloqueantes); senão o corte escorrega (mantenedora 02/10)
 - **D-MAINT-BATCH-1110** — lote da mantenedora 11/10: sombra do local `db` (#786), fixpoint da inferência de retorno (#785), acessibilidade do `kof.ui` (#789)
@@ -5071,3 +5072,16 @@ trabalho pós-1.0, cada uma ainda exigindo sua própria decisão quando pegas.
 **Relacionamentos:** `Relacionados: D-ENTITY-HISTORY (a autorização original Q1–Q15), D-FUTURE-BATCH-2809B (as superfícies de declaração/consulta resolvidas).`
 
 ---
+
+---
+
+## D-KOFBOL — KofBOL é PROMOVIDO a trabalho corrente: interoperabilidade legada bancária nativa implementada como **bibliotecas Kof puras** (ordem da mantenedora 14/10/2026, diretiva de chat "assume um novo plano em future")
+
+**Data:** 2026-10-14 · **Estado:** `DECIDED` (mantenedora) — o plano move `docs/development/future/` → `docs/development/` por `D-FUTURE-PROMOTION` (a ordem da mantenedora ativa o gate declarado pelo próprio plano).
+
+- **Diretiva (verbatim, chat):** *"assume um novo plano em future"* — a mantenedora ordenou a esta lane pegar um plano de `docs/development/future/` e implementá-lo. Por `D-FUTURE-PROMOTION` o agente escolhe o plano **MAIS FÁCIL** elegível (incremento completo mais barato), nunca o mais interessante.
+- **Resolução da elegibilidade (medida, esta sessão):** todo plano restante de `future/` carrega um gate de regra 6 (`kof-expr` = sintaxe nova; `kofscript-embedding` = um contrato público de runtime; `kof-cobol-translator` = superfície nova de tooling; `PLAN-BOOTSTRAP` = barrado atrás do 1.0 EXIT GATE; `IMPLEMENTATION-UNIVERSAL-PLATFORM-future` = frentes novas do R12; `kof-esp8266` = alvo novo + R12). **KofBOL** é o único cujo próprio gate o declara **biblioteca-primeiro por construção** (*"a primeira versão precisa ser expressável como bibliotecas Kof puras sobre primitivas que já existem"*), com dependências já medidas no código (`libs/interop/` 13 arquivos Kof puros, `AbiLayout.java`/`FfiStructLayout.java`, `KofBuffer`/`D-R3-BUFFER`, transações `KofDb`/`KofOrm`, `KofObservability`).
+- **Sem mudança de superfície de linguagem (regra 6 honrada):** a decisão aberta **Q1** do KofBOL (declaração `legacy` vs `record` + descritor) é resolvida aqui na direção **que não é de regra 6** — o modelo de descritor sobre `record`, sem parser. Nenhuma sintaxe nova, nenhuma primitiva nova de core. **Q3** (representação decimal) toma a rota recomendada pelo plano, inteiro-escalonado em Kof puro, sem mudança de core.
+- **Escopo da primeira entrega:** spike-0 (o modelo de descritor) + **Fatia 1** — `encode`/`decode` fixed-width para `PIC X` / `PIC 9` (só ASCII) com goldens byte-exact, JVM + Script. RED-first. As fatias 2–11 (EBCDIC, COMP-3, import de copybook, o contrato `legacy`, adapters, transportes, mensageria, transações, paridade cross-target, docs) seguem abertas e ordenadas pelo plano §20.
+- **Não autorizado por esta decisão:** nenhuma sintaxe `legacy` nova, nenhuma primitiva de core, nenhum atalho de EBCDIC/COMP-3, nenhum stub — o contrato de não-regressão §22 do plano vale.
+- **Relacionamentos:** `Relacionados: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOF-FIRST (regra 12), D-CONNECTORS-GO (o enquadramento `kof-cobol-connector`; a Q6 do KofBOL permanece aberta para a mantenedora), D-KOF-FIRST-IMPL, regra 6, regra 11, regra 12`.

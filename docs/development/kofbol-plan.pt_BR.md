@@ -1,19 +1,13 @@
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+last: PROMOVIDO de `docs/development/future/` 14/10 (ordem da mantenedora "assume um novo plano em future" + `D-FUTURE-PROMOTION`); `D-KOFBOL`
+doing: fatia 1 (encode/decode fixed-width `PIC X`/`PIC 9`, ASCII) POUSADA 14/10 — biblioteca Kof pura `libs/legacy/Legacy.kf` (`textOf`/`digitsOf`/`fieldPic`/`totalLength`/`decode`/`encode`/`numericOf` + códigos de gap LEG001–LEG006) com goldens byte-exact; `KofbolFatia1E2ETest` 2/2 (JVM + Script)
+next: fatia 2 (codecs EBCDIC) — o roadmap é o §20
+local: docs/development/kofbol-plan.pt_BR.md
+state: under-development
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 
 intent: kofbol-legacy-banking-interop
 
-**Gate regra 6:** o KofBOL introduz namespaces NOVOS de stdlib e, se algum
-primitivo de núcleo for julgado necessário depois (ex.: um escalar decimal),
-superfície NOVA de semântica congelada. Este documento é **apenas plano, zero
-código**. A promoção exige decisão da mantenedora (`D-KOFBOL`) mais o fluxo de
-promoção de futuro (`docs/development/future/README.md` §"When to move",
-`AGENTS.md` §"Future promotion"). O plano é library-first por construção
-(`D-KOF-FIRST`): a primeira versão deve ser expressável como bibliotecas Kof
-puras sobre primitivos que já existem.
+**Decisão `D-KOFBOL` (mantenedora 14/10):** PROMOVIDO a trabalho corrente — o plano moveu `future/` → `docs/development/`. O gate de regra 6 é **resolvido na direção que não é de regra 6**: o modelo de descritor sobre `record` (a decisão aberta **Q1** toma a opção record+descritor, NÃO uma declaração `legacy` nova) e a rota decimal inteiro-escalonado em Kof puro (**Q3**) — **sem mudança de superfície de linguagem, sem primitiva nova de core**. O plano segue **biblioteca-primeiro por construção** (`D-KOF-FIRST`): a primeira versão é expressável como bibliotecas Kof puras sobre primitivas que já existem.
 
 **Fonte:** pedido da mantenedora (30/09/2026).
 

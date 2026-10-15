@@ -21,7 +21,7 @@ promoção de future (`docs/development/future/README.md` §"When to move",
 **Fonte:** pedido da mantenedora (02/10/2026).
 
 **Trabalho relacionado já decidido que este plano DEVE reutilizar (não duplicar):**
-- `docs/development/future/kofbol-plan.md` — **KofBOL**, a ponte de
+- `docs/development/kofbol-plan.md` — **KofBOL**, a ponte de
   *interoperabilidade* de legado bancário. Seu §5 **mapeamento de tipos COBOL**
   (PIC/COMP/COMP-3/DISPLAY/EBCDIC/fixed-width/OCCURS/REDEFINES/88) e §6
   (fixed-width, packed decimal, code pages EBCDIC) são a **fonte de verdade
@@ -47,7 +47,7 @@ promoção de future (`docs/development/future/README.md` §"When to move",
   *greenfield* (`Money` = `Long` minor units + ISO-4217); a saída
   financeiro-decimal do tradutor mira isto, nunca `Float`/`Double`.
 - `docs/stdlib/kof-connector-ecosystem-plan.md` fase 7 +
-  `docs/development/future/kofbol-plan.md` — `kof-cobol-connector` para o
+  `docs/development/kofbol-plan.md` — `kof-cobol-connector` para o
   caminho híbrido/gradual.
 - `KofProjectConfig` `[sources]` (`D-CLI-SOURCE-ROOTS`, #708) — o modelo de
   raízes de código declaradas que o projeto gerado usa.

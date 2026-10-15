@@ -1,19 +1,20 @@
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+last: PROMOTED from `docs/development/future/` 14/10 (maintainer order "assume um novo plano em future" + `D-FUTURE-PROMOTION`); `D-KOFBOL`
+doing: slice 1 (fixed-width `PIC X`/`PIC 9` encode/decode, ASCII) LANDED 14/10 — pure-Kof library `libs/legacy/Legacy.kf` (`textOf`/`digitsOf`/`fieldPic`/`totalLength`/`decode`/`encode`/`numericOf` + gap codes LEG001–LEG006) with byte-exact goldens; `KofbolFatia1E2ETest` 2/2 (JVM + Script)
+next: slice 2 (EBCDIC codecs) — the roadmap is §20
+location: docs/development/kofbol-plan.md
+state: under-development
+owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 
 intent: kofbol-legacy-banking-interop
 
-**Rule 6 gate:** KofBOL introduces NEW stdlib namespaces and, if any core
-primitive is later deemed necessary (e.g. a decimal scalar), NEW
-frozen-semantics surface. This document is **plan only, zero code**. Promotion
-requires a maintainer decision (`D-KOFBOL`) plus the future-promotion flow
-(`docs/development/future/README.md` §"When to move", `AGENTS.md` §"Future
-promotion"). The plan is library-first by construction (`D-KOF-FIRST`): the
-first version must be expressible as pure-Kof libraries over primitives that
-already exist.
+**Decision `D-KOFBOL` (maintainer 14/10):** PROMOTED to current work — the plan
+moved `future/` → `docs/development/`. The rule-6 gate is **resolved in the
+non-rule-6 direction**: the descriptor model over `record` (open decision **Q1**
+takes the record+descriptor option, NOT a new `legacy` declaration) and the
+pure-Kof scaled-integer decimal route (open decision **Q3**) — **no language
+surface change, no new core primitive**. The plan stays **library-first by
+construction** (`D-KOF-FIRST`): the first version is expressible as pure-Kof
+libraries over primitives that already exist.
 
 **Source:** maintainer request (30/09/2026).
 

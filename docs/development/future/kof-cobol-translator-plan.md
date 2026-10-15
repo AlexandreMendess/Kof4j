@@ -21,7 +21,7 @@ authored under that freeze, not promoted.
 **Source:** maintainer request (02/10/2026).
 
 **Related, already-decided work this plan MUST reuse (not duplicate):**
-- `docs/development/future/kofbol-plan.md` — **KofBOL**, the legacy-banking
+- `docs/development/kofbol-plan.md` — **KofBOL**, the legacy-banking
   *interop* bridge. Its §5 **COBOL type mapping** (PIC/COMP/COMP-3/DISPLAY/
   EBCDIC/fixed-width/OCCURS/REDEFINES/88-level) and §6 (fixed-width, packed
   decimal, EBCDIC code pages) are the **semantic source of truth for COBOL data
@@ -46,7 +46,7 @@ authored under that freeze, not promoted.
   model (`Money` = `Long` minor units + ISO-4217); the translator's
   financial-decimal output targets this, never `Float`/`Double`.
 - `docs/stdlib/kof-connector-ecosystem-plan.md` phase 7 +
-  `docs/development/future/kofbol-plan.md` — `kof-cobol-connector` for the
+  `docs/development/kofbol-plan.md` — `kof-cobol-connector` for the
   hybrid/gradual path.
 - `KofProjectConfig` `[sources]` (`D-CLI-SOURCE-ROOTS`, #708) — the declared
   source-root model the generated project uses.

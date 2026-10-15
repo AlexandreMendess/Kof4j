@@ -31,7 +31,7 @@ idempotência/retentativas/reconciliação, provedores/adaptadores, fronteira de
 compliance, perfis de jurisdição.
 
 **Trabalho já decidido que este plano DEVE reutilizar (não duplicar):**
-- `docs/development/future/kofbol-plan.md` — interop de banco legado; já
+- `docs/development/kofbol-plan.md` — interop de banco legado; já
   declara a mesma regra de dinheiro (`Never convert money to float/double`) e a
   mesma ausência medida de um tipo decimal. O `kof.financial` é a contraparte
   **greenfield**: o KofBOL fala com o sistema antigo, o `kof.financial` modela

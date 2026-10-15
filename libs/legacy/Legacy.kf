@@ -1,0 +1,140 @@
+package legacy
+
+// kof.legacy — KofBOL Fatia 1: FIXED-WIDTH records (PIC X / PIC 9, ASCII
+// only). `D-KOFBOL`, plan slice 1 (§20). The descriptor model over `record`
+// — the plan's open decision Q1 is resolved WITHOUT a new `legacy`
+// declaration, so the Kof language surface is untouched (rule 6 honored).
+//
+// Byte-exact by construction: `decode` returns the RAW slices (never trimmed
+// silently); `encode` pads (X → right with spaces, 9 → left with '0') and
+// refuses anything that would lose data. Gap codes LEG001..LEG006 — never a
+// silent fallback.
+
+record Field(String name, String kind, Int length)
+
+record Layout(List<Field> fields)
+
+// textOf / digitsOf — the explicit constructors (no PIC parsing needed).
+Field textOf(String name, Int length) {
+    return Field(name, "X", length)
+}
+
+Field digitsOf(String name, Int length) {
+    return Field(name, "9", length)
+}
+
+// fieldPic — the simple fixed-width PIC clause: `X`, `9`, `X(n)`, `9(n)`.
+// Anything else is refused: LEG005 (unsupported clause), LEG006 (malformed).
+Field fieldPic(String name, String pic) {
+    var p = pic.trim()
+    if (p.length == 0) {
+        throw "malformed PIC clause: " + pic + " (LEG006)"
+    }
+    var kind = p.substring(0, 1)
+    if (kind != "X" && kind != "9") {
+        throw "unsupported PIC clause: " + pic + " (LEG005)"
+    }
+    var len = 1
+    if (p.length > 1) {
+        if (p.charAt(1) != '(' || p.charAt(p.length - 1) != ')') {
+            throw "malformed PIC clause: " + pic + " (LEG006)"
+        }
+        var digits = p.substring(2, p.length - 1)
+        if (digits.length == 0 || !allDigits(digits)) {
+            throw "malformed PIC count: " + pic + " (LEG006)"
+        }
+        len = digits.toInt()
+    }
+    return Field(name, kind, len)
+}
+
+Bool allDigits(String s) {
+    var i = 0
+    while (i < s.length) {
+        var c = s.charAt(i)
+        if (c < '0' || c > '9') {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+// totalLength — the width of one record for this layout.
+Int totalLength(Layout l) {
+    var n = 0
+    for (var f in l.fields) {
+        n = n + f.length
+    }
+    return n
+}
+
+// decode — the fixed-width record → the field values, in order, RAW (byte-exact).
+List<String> decode(Layout l, String rec) {
+    var expected = totalLength(l)
+    if (rec.length != expected) {
+        throw "record length " + rec.length + " != layout length " + expected + " (LEG001)"
+    }
+    var out: List<String> = listOf()
+    var at = 0
+    for (var f in l.fields) {
+        var raw = rec.substring(at, at + f.length)
+        if (f.kind == "9" && !allDigits(raw)) {
+            throw "non-digit in numeric field " + f.name + " (LEG002)"
+        }
+        out.add(raw)
+        at = at + f.length
+    }
+    return out
+}
+
+// encode — the field values → the fixed-width record.
+String encode(Layout l, List<String> values) {
+    if (values.size != l.fields.size) {
+        throw "value count " + values.size + " != field count " + l.fields.size + " (LEG004)"
+    }
+    var out = ""
+    var i = 0
+    while (i < l.fields.size) {
+        var f = l.fields.get(i)
+        var v = values.get(i)
+        if (v.length > f.length) {
+            throw "value too long for field " + f.name + ": " + v.length + " > " + f.length + " (LEG003)"
+        }
+        if (f.kind == "9") {
+            if (!allDigits(v)) {
+                throw "non-digit in numeric field " + f.name + " (LEG002)"
+            }
+            out = out + padLeft(v, f.length, "0")
+        } else {
+            out = out + padRight(v, f.length, " ")
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// padLeft / padRight — explicit, never silent truncation.
+String padLeft(String v, Int width, String fill) {
+    var out = v
+    while (out.length < width) {
+        out = fill + out
+    }
+    return out
+}
+
+String padRight(String v, Int width, String fill) {
+    var out = v
+    while (out.length < width) {
+        out = out + fill
+    }
+    return out
+}
+
+// numericOf — the number carried by a `9` field (leading zeros are padding).
+Int numericOf(String digits) {
+    if (!allDigits(digits)) {
+        throw "non-digit in numeric value (LEG002)"
+    }
+    return digits.toInt()
+}

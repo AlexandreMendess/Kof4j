@@ -31,7 +31,7 @@ reconciliation, providers/adapters, compliance boundary, jurisdiction
 profiles.
 
 **Related, already-decided work this plan MUST reuse (not duplicate):**
-- `docs/development/future/kofbol-plan.md` — legacy-banking interop; already
+- `docs/development/kofbol-plan.md` — legacy-banking interop; already
   states the same money rule (`Never convert money to float/double`) and the
   same measured absence of a decimal type. `kof.financial` is the
   **greenfield** counterpart: KofBOL talks to the old system, `kof.financial`
