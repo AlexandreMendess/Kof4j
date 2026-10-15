@@ -746,6 +746,8 @@ Machine instruction
 
 Each backend must explicitly declare which operations it supports.
 
+**Phase D slice 1 LANDED (14/10):** `NativeOpSupport` — the native x86-64 backend's op-support declaration as explicit DATA (`Set<Class<?>> X86_64`, all 37 IR ops); the emitter's `switch` is its materialization and its `default` now asserts the op is NOT declared (R6: never silent). `NativeOpSupportTest` guards the contract three ways: (1) the declaration must EQUAL the emitter's handled ops (drift in either direction fails); (2) it must be COMPLETE against every `KofOperation` in the compiler — a NEW op fails here, a deliberate decision point, instead of a runtime `UnsupportedOperationException` in the field; (3) PROVEN RED on a deliberately-removed op (`KofUnary`) before restore. Pure data — no emission change; full native batch 482/482. The remaining Phase D work (a per-backend declaration for the cross backends too, and formalizing the lowering of ops that require multi-instruction sequences) is larger and, touching backend architecture, is maintainer-scoped per AGENTS.md.
+
 ---
 
 ## Phase E — ISA optimizations

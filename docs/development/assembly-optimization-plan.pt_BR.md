@@ -746,6 +746,8 @@ Machine instruction
 
 Cada backend deve declarar explicitamente quais operações suporta.
 
+**Fatia 1 da Fase D POUSADA (14/10):** `NativeOpSupport` — a declaracao de suporte a ops do backend native x86-64 como DADOS explicitos (`Set<Class<?>> X86_64`, as 37 ops de IR); o `switch` do emissor e a sua materializacao e o seu `default` agora assevera que a op NAO e declarada (R6: nunca silencioso). `NativeOpSupportTest` protege o contrato de tres formas: (1) a declaracao deve IGUALAR as ops tratadas pelo emissor (drift em qualquer direcao falha); (2) deve ser COMPLETA contra toda `KofOperation` do compilador — uma op NOVA falha aqui, um ponto de decisao deliberado, em vez de uma `UnsupportedOperationException` em runtime no campo; (3) PROVADO RED numa op removida de proposito (`KofUnary`) antes de restaurar. Dados puros — sem mudanca de emissao; lote native completo 482/482. O restante da Fase D (uma declaracao por backend tambem para os backends cross, e formalizar o lowering das ops que exigem sequencias multi-instrucao) e maior e, por tocar arquitetura de backend, e escopo da mantenedora per AGENTS.md.
+
 ---
 
 ## Fase E — ISA optimization

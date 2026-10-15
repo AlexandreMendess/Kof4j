@@ -428,9 +428,17 @@ final class NativeMethodEmitter {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_throw_string\n");
             }
-            default -> throw new UnsupportedOperationException(
-                    "operation with no x86 lowering: " + op.getClass().getSimpleName()
-                    + " (R6: never silent) in method " + currentMethod.name());
+            default -> {
+                // Phase D contract (docs/development/assembly-optimization-plan.md):
+                // the emitter lowers exactly NativeOpSupport.X86_64; the switch's
+                // cases are its materialization (drift is caught by
+                // NativeOpSupportTest BEFORE this can run). R6: never silent.
+                assert !NativeOpSupport.supports(op.getClass())
+                        : "declared-but-unhandled x86 op: " + op.getClass().getSimpleName();
+                throw new UnsupportedOperationException(
+                        "operation with no x86 lowering: " + op.getClass().getSimpleName()
+                        + " (R6: never silent) in method " + currentMethod.name());
+            }
         }
     }
 
