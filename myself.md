@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 32ª PASSAGEM: CAUSA RAIZ = HARNESS. `allowScreenContent` é TRUE para cb8 e testsrc (os que FALHAM) e FALSE para cb16/solid (os que decodificam exatamente); essa flag governa a sintaxe de PALETA e o probe fixava `palettePossible=0`. O oracle independente reproduziu os 6 símbolos do prefixo do cb8 ⇒ leitor e ordem de sintaxe fiéis. Ligando `palettePossible` ao quadro: cb8 ganha a leitura de paleta, `txb` 16->1, `nzTot` 0->6, consumo 23->76/152 bits. DEFEITO NOVO: com o portão ligado o testsrc LANÇA `Index -2 out of bounds for length 21` no caminho de paleta ⇒ a paleta é lida mas a reconstrução está inacabada. Prova: AvifRealFileE2ETest 9/9.
-doing: §3bd — causa raiz identificada (harness: palettePossible fixo em 0 para quadros com allow_screen_content_tools); caminho de paleta inacabado (throw Index -2 no testsrc)
-next: §3bd — terminar o caminho de paleta (o throw `Index -2`) e confirmar que a reconstrução aplica as cores decodificadas; depois remedir o consumo do testsrc
+last: 15/10 — AVIF slice 3bd 33ª PASSAGEM: o throw `Index -2` do caminho de PALETA foi CORRIGIDO (RED-first). Causa: o portão não tinha o limite inferior `BLOCK_8X8` do `av1_allow_palette` do libaom, então um bloco 4x8/8x4 dava `palette_bsize_ctx = num_pels_log2-6 = -1` ⇒ `PalYModeStore[-2]` no store de 21. Fix: `av1AllowPalette(sct, bs)`. Prova: com o código antigo o testsrc LANÇAVA; com o fix `blocks` 21->25, `symBits` 862->1351 de 2344 (37%->58%), `nzTot` 0->171, `nzHead` 7,21,6,8,... (os primeiros blocos de TX agora decodificam coeficientes). Restante: pixels ainda errados (cores de paleta não aplicadas) e 58% de consumo (índices de paleta por pixel provavelmente não lidos). Prova: AvifRealFileE2ETest 9/9.
+doing: §3bd — throw da paleta CORRIGIDO (gate `av1AllowPalette` com o limite BLOCK_8X8); residual do testsrc agora real (nzTot 171, consumo 58%); falta a reconstrução por paleta + os índices de paleta
+next: §3bd — ler os ÍNDICES de paleta por pixel e implementar a reconstrução por paleta; depois remedir o consumo/pixels do testsrc
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (60ª) — 3bd 33ª: FIX RED-first do throw de paleta (`av1AllowPalette`)
+- **Bug:** `read_palette_mode_info` deve ser guardado por `av1_allow_palette` = screen-content tools **E `sb_type >= BLOCK_8X8`** (e bloco ≤ 64x64). O port do Kof checava só `palettePossible == 1`.
+- **Mecanismo:** num bloco 4x8/8x4, `palette_bsize_ctx = num_pels_log2[bs] - 6 = -1` ⇒ `PalYModeStore.get(-1*3 + ctx)` = índice **-2** num store de 21 entradas ⇒ `Index -2 out of bounds for length 21` (o libaom faz assert).
+- **Fix:** `av1AllowPalette(sct, bs)` espelhando o libaom, usado no guard do `readBodyBd`.
+- **Prova RED-first:** código antigo ⇒ testsrc LANÇA; com o fix ⇒ decodifica: `blocks` 21->25, `symBits` 862->**1351**/2344 (37%->58%), `nzTot` 0->**171**, `nzHead` de tudo-zero a `7,21,6,8,0,2,3,8,4,1,3,1` ⇒ o caminho de residual ficou REAL. A leitura de paleta aparece (`2:1` + aridade 7) e o teste assere isso + `nzTot > 0`.
+- **Restante (próximo):** as cores de paleta não são aplicadas à reconstrução (Y 133/91/87 vs 16/41/235) e o consumo de 58% ⇒ provavelmente os ÍNDICES de paleta por pixel ainda não são lidos.
+- **Prova:** AvifRealFileE2ETest 9/9, BUILD SUCCESS.
 
 ## Sessão 15/10 (59ª) — 3bd 32ª: CAUSA RAIZ = o HARNESS (palettePossible), não o leitor
 - **Descoberta:** `allowScreenContent` é TRUE nos dois fixtures que FALHAM (cb8, testsrc) e FALSE nos dois que decodificam EXATAMENTE (cb16, solid). `allowIntrabc` = false em todos. Essa flag governa `read_palette_mode_info` (libaom) — o símbolo de paleta é escrito em todo bloco elegível.

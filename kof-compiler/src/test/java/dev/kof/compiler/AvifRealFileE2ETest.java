@@ -381,13 +381,7 @@ main() {
 
     @Test
     void realTileWalkDoesNotReadPastThePayloadOnJvm() throws Exception {
-        // `avif_real_cb16.avif` (no screen-content tools) decodes to a FULL
-        // payload consumption, so it is the instrument's control. The testsrc
-        // fixture (`avif_real_64.avif`) sets `allow_screen_content_tools` and now
-        // THROWS inside the palette path (`Index -2 out of bounds`, recorded in
-        // the plan's 32nd pass) instead of under-consuming — progress, but the
-        // palette reconstruction is not finished.
-        var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_cb16.avif", "i16.avif").toString()));
+        var line = runJvm(AvifRealTileProbe.probe(canonicalized().toString()));
         var parts = summary(line).split(" ");
         var covered = Integer.parseInt(parts[1].split("=")[1]);
         var frameMi = Integer.parseInt(parts[2].split("=")[1]);
@@ -401,6 +395,14 @@ main() {
         assertEquals(0, overlap, () -> "the block grid overlaps blocks: " + line);
         // The real invariant: a tile decode must not consume more than the payload.
         assertTrue(symBits <= payloadBits, () -> "the walk read past the payload: " + line);
+        // This fixture sets `allow_screen_content_tools`, so the stream carries the
+        // palette syntax. With the palette gate missing its BLOCK_8X8 lower bound
+        // the walk THREW (`Index -2 out of bounds`, palette-bsize-ctx -1 on a 4x8
+        // block); with it, the walk reads the palette and the residual path is
+        // real: nzTot 0 -> 171 with the first TX blocks non-zero (nzHead 7,21,6,8).
+        var nzTot = Integer.parseInt(summary(line).split("nzTot=")[1].split(" ")[0]);
+        assertTrue(line.contains(" 7:"), () -> "the palette size symbol was not read: " + line);
+        assertTrue(nzTot > 0, () -> "the residual path must decode coefficients: " + line);
 
         // The per-block position record must be consistent: 2 ints per block,
         // non-decreasing across the tile, ending exactly at the walk's position.
