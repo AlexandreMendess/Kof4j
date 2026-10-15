@@ -113,6 +113,7 @@ class Av1Symbol {
         if (this.trace) {
             this.symLog.add(n)
             this.symLog.add(symbol)
+            this.symLog.add(this.position())
         }
         return symbol
     }

@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 30ª PASSAGEM: rastro de símbolos landado e CONTROLES estreitam a falha a um EOB GRANDE. `avif_real_cb16.avif` (xadrez 16x16) é MULTI-BLOCO (4 blocos) com tx=1 e consome 384/384 bits reconstruindo EXATAMENTE (ffmpeg 17/17/235) ⇒ partição multi-bloco e txModeSelect EXONERADOS. `avif_real_cb8.avif` (xadrez 8x8, alta frequência) = 1 bloco, 16 TX, todos lendo all_zero=1, consumindo 23/152 (15%) e dando DC nua 128 vs 16/235 ⇒ par RED minimal commitado. `adaptCdf` verificado contra o `update_cdf` do libaom: equivalente (taxa+direção, traduzindo as representações) ⇒ adaptação exonerada. Prova: AvifRealFileE2ETest 9/9. Próximo: posição do leitor após cada símbolo do mode info no cb8.
-doing: §3bd — falha estreitada a EOB GRANDE; multi-bloco, txModeSelect, adaptação de CDF e todas as tabelas/sintaxe exonerados; par RED cb8×cb16 commitado
-next: §3bd — imprimir a posição do leitor após CADA símbolo do mode info no cb8 (partição, skip, y, uv, tx-depth) e conferir o custo do tx-depth contra as probabilidades da linha
+last: 15/10 — AVIF slice 3bd 31ª PASSAGEM: posições POR SÍMBOLO medidas (`n:sym@pos`) e um ORACLE INDEPENDENTE em Python (decodificador de símbolos da spec; NÃO precisa de cmake) que reproduz o PRIMEIRO símbolo de partição do cb8 (0=NONE) igual ao Kof ⇒ init e símbolo 0 CORRETOS. Prefixos cb8 vs cb16: diferem só onde os tamanhos de bloco diferem e ambos corretos. Custos conferidos na CDF do tx-size (P(2)=0.65, P(1)=0.17) ⇒ plausíveis. Pista: a decodificação lê valores de ALTA PROBABILIDADE o tempo todo ⇒ leitor DESLOCADO, coerente com o consumo de 15%. Prova: AvifRealFileE2ETest 9/9 + Av1CoeffsE2ETest 6/6.
+doing: §3bd — leitor correto no init e no símbolo 0 (oracle independente); prefixo do mode info plausível nos dois fixtures; a falha acompanha EOB GRANDE e o consumo lê valores de alta probabilidade (drift)
+next: §3bd — estender o oracle Python independente aos primeiros N símbolos (renorm + linhas default de skip/kf-y/uv/tx-depth) e achar o símbolo exato da divergência
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (58ª) — 3bd 31ª: oracle INDEPENDENTE do leitor (sem cmake) + posições por símbolo
+- **Fatia:** rastro por símbolo com POSIÇÃO (`n:sym@pos`) e despejo dos bytes do payload pelo probe.
+- **Medição:** cb8 `10:0@16 2:0@16 13:0@17 13:0@18 3:2@18 2:1@19...`; cb16 `10:3@18 10:0@19 2:0@19 13:0@20 14:0@21 2:0@22 3:1@26...`. Diferem só onde o tamanho de bloco difere (64x64: sem filter-intra, uv 13; 32x32: filter-intra, uv 14 com CFL) — AMBOS corretos.
+- **Custos:** CDF do tx-size cat3/ctx0 → P(0)=0.1765 P(1)=0.1737 P(2)=0.6498 ⇒ `3:2` 0 bits (cb8) e `3:1` 4 bits (cb16) plausíveis.
+- **Pista-chave:** a decodificação lê valores de ALTA PROBABILIDADE em todo lugar (all_zero=1 com P≈0.9) ⇒ assinatura de leitor DESLOCADO — o mesmo mecanismo que produz o consumo de 15%.
+- **ORACLE NOVO (importante):** decodificador de símbolos da spec em Python (init_symbol + read_symbol) + a linha de CDF de partição verificada ⇒ primeiro símbolo = 0 (NONE) = **igual ao Kof** ⇒ init e símbolo 0 CORRETOS. **Isto destrava a verificação sem cmake** (que não existe neste host, nem pip).
+- **Prova:** AvifRealFileE2ETest 9/9 + Av1CoeffsE2ETest 6/6, BUILD SUCCESS.
+- **Próximo:** estender o oracle aos primeiros N símbolos (renorm + linhas default) e localizar o símbolo exato da divergência.
 
 ## Sessão 15/10 (57ª) — 3bd 30ª: CONTROLES estreitam a falha a um EOB grande (par RED commitado)
 - **Fatia:** `Av1Symbol.enableTrace()`/`log()` (rastro por símbolo; readBool/readLiteral passam por readSymbol ⇒ captura tudo).

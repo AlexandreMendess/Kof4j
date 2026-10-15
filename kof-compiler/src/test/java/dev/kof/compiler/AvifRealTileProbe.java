@@ -159,15 +159,23 @@ main() {
         }
         b = b + 1
     }
+    var ph = ""
+    var pi = 0
+    while (pi < data.size && pi < 12) {
+        if (pi > 0) { ph = ph + "," }
+        ph = ph + data[pi]
+        pi = pi + 1
+    }
+    println("PAYLOAD " + data.size + " " + ph + " path=" + path)
     var sl = sym.log()
     var sc = 0
     var sline = ""
-    while (sc < sl.size / 2 && sc < 40) {
+    while (sc < sl.size / 3 && sc < 24) {
         if (sc > 0) { sline = sline + " " }
-        sline = sline + sl[sc * 2] + ":" + sl[sc * 2 + 1]
+        sline = sline + sl[sc * 3] + ":" + sl[sc * 3 + 1] + "@" + sl[sc * 3 + 2]
         sc = sc + 1
     }
-    println("TRACE n=" + (sl.size / 2) + " " + sline)
+    println("TRACE n=" + (sl.size / 3) + " " + sline)
     println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + walk.position() + " payloadBits=" + (data.size * 8) + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head)
     println("Y 00=" + frame[1 * stride + 1] + " 032=" + frame[1 * stride + 33] + " 063=" + frame[1 * stride + 64] + " 320=" + frame[33 * stride + 1] + " 3232=" + frame[33 * stride + 33] + " 3263=" + frame[33 * stride + 64])
     var pos = tile.positions()
