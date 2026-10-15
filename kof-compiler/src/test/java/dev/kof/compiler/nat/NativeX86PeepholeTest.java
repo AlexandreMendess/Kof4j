@@ -323,4 +323,30 @@ class NativeX86PeepholeTest {
         String body = "    leal (%ebx), %eax\n    movq %rcx, %r15\n";
         assertEquals(body, result(body));
     }
+
+    @Test
+    void aRedundantTestAfterAnAndIsDropped() {
+        // andl sets SF/ZF/PF and clears CF/OF exactly as testl %eax,%eax does.
+        assertEquals("    andl $8388607, %eax\n",
+                result("    andl $8388607, %eax\n    testl %eax, %eax\n"));
+    }
+
+    @Test
+    void aRedundantCmpZeroAfterAnOrIsDropped() {
+        assertEquals("    orl %ecx, %eax\n",
+                result("    orl %ecx, %eax\n    cmpl $0, %eax\n"));
+    }
+
+    @Test
+    void anAddBeforeATestIsKept() {
+        // addl sets CF differently from testl; the test is NOT redundant.
+        String body = "    addl $1, %eax\n    testl %eax, %eax\n";
+        assertEquals(body, result(body));
+    }
+
+    @Test
+    void anAndFollowedByATestOfADifferentRegisterIsKept() {
+        String body = "    andl $1, %eax\n    testl %ebx, %ebx\n";
+        assertEquals(body, result(body));
+    }
 }

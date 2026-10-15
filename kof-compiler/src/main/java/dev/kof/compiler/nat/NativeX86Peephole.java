@@ -82,6 +82,7 @@ final class NativeX86Peephole {
         collapsed += foldLoadIntoCompare(lines);
         collapsed += NativeX86LeaFold.foldAddIntoLea(lines);
         collapsed += cmpZeroToTest(lines);
+        collapsed += dropRedundantFlagTest(lines);
         collapsed += epilogueToLeave(lines);
         collapsed += dropJumpToNext(lines);
         collapsed += NativeX86LeaFold.foldLeaIntoDestination(lines);
@@ -368,6 +369,67 @@ final class NativeX86Peephole {
             folded++;
         }
         return folded;
+    }
+
+    /**
+     * §7 x86_64 ("efficient use of flags"): {@code and/or/xor/test <src>, %R}
+     * immediately followed by {@code testl/testq %R, %R} (or {@code cmpl $0, %R}) is
+     * redundant — the AND/OR/XOR/TEST already set SF/ZF/PF from the SAME register and
+     * clear CF/OF exactly as {@code test %R,%R} does, so the following flag-only test
+     * is a no-op and is dropped. ONLY and/or/xor/test qualify: {@code add}/{@code sub}
+ * set CF (carry/borrow) differently from {@code test} (CF=0), so they are NOT
+ * folded (a following {@code jb}/{@code jae} would change meaning).
+     */
+    private static int dropRedundantFlagTest(List<String> lines) {
+        int folded = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 1 < lines.size(); i++) {
+                String prev = lines.get(i).trim();
+                int sp = prev.indexOf(' ');
+                if (sp < 0) continue;
+                String mnem = prev.substring(0, sp);
+                boolean wide;
+                if (mnem.equals("andl") || mnem.equals("orl") || mnem.equals("xorl")
+                        || mnem.equals("testl")) {
+                    wide = false;
+                } else if (mnem.equals("andq") || mnem.equals("orq") || mnem.equals("xorq")
+                        || mnem.equals("testq")) {
+                    wide = true;
+                } else {
+                    continue;
+                }
+                // The flag-producing op must write the FULL register 32/64 bits, so the
+                // width name is the register itself (e.g. `andl $mask, %eax` / `%r8d`).
+                String rest = prev.substring(sp + 1);
+                int comma = rest.indexOf(',');
+                if (comma < 0) continue;
+                String dst = rest.substring(comma + 1).trim();
+                if (!dst.startsWith("%")) continue;
+                if (wide != REG32.containsKey(dst)) continue;
+                int j = i + 1;
+                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
+                if (j >= lines.size()) continue;
+                String t = lines.get(j).trim();
+                if (isSelfFlagTest(t, dst)) {
+                    lines.remove(j);
+                    folded++;
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        return folded;
+    }
+
+    /** True when {@code t} is a flag-only test of {@code reg} alone
+     *  ({@code testl %reg,%reg} or {@code cmpl $0, %reg}). */
+    private static boolean isSelfFlagTest(String t, String reg) {
+        if (t.equals("testl " + reg + ", " + reg) || t.equals("testq " + reg + ", " + reg)) {
+            return true;
+        }
+        return t.equals("cmpl $0, " + reg) || t.equals("cmpq $0, " + reg);
     }
 
     /**
