@@ -46,7 +46,7 @@ class AvifRealFileE2ETest implements LibraryInstallSupport {
      * tile-group walk, {@code payload} = the first tile's byte length and head.
      */
     private static final String GOLDEN =
-            "meta 64 64 avif 1 false false\n"
+            "meta 64 64 avif 1 false false sub=true/true bd=8/8 prof=0\n"
           + "hdr t=0 w=64 h=64 tiles=1x1 hb=7 bq=160 ll=0 tx=1 rts=0\n"
           + "groups n=1 start=0 end=0 count=1\n"
           + "payload n=1 len=293 head=220 133 40 245 33 125 18 124 164 116 147 164";
@@ -61,7 +61,9 @@ main() {
     var path = "%s"
     var md = readAvifMetadata(path)
     println("meta " + md.width + " " + md.height + " " + md.brand + " " + md.primaryId
-        + " " + md.monochrome + " " + md.hasAlpha)
+        + " " + md.monochrome + " " + md.hasAlpha
+        + " sub=" + md.chromaSubX + "/" + md.chromaSubY
+        + " bd=" + md.bitDepthLuma + "/" + md.bitDepthChroma + " prof=" + md.seqProfile)
     var h = readAvifFrameHeader(path)
     println("hdr t=" + h.frameType + " w=" + h.codedWidth + " h=" + h.codedHeight
         + " tiles=" + h.tileColumns + "x" + h.tileRows + " hb=" + h.headerBytes

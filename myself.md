@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 15ª PASSAGEM: a afirmação do av1C é RETRATADA — era o MEU HARNESS. Os bytes reais são `81 00 0c` -> mono=0 subX=1 subY=1; o parse do Kof está CERTO. Meus probes liam mono=true porque o fixture canonizado usa o av1C do BUILDER DE TESTE em volta do item do ffmpeg (fontes diferentes). Sem bug de av1C; 12ª/14ª retiradas. O que fica: o arquivo é yuv420p, o walk da seq está certo, e com numPlanes=3 o checker-8 dessincroniza enquanto o checker-16 (37 blocos) decodifica exato. O dessincronizado segue ABERTO e só multi-bloco discrimina.
-doing: exposição de segmentação landada (16/16); bug real de parse do cabeçalho achado (segEnabled mal lido)
+last: 15/10 — AVIF slice 3bd 16ª PASSAGEM: o oráculo ffprobe está FIXADO no teste commitado (`AvifRealFileE2ETest` meta agora afirma sub=true/true bd=8/8 prof=0 + monochrome=false). Os três — parse de contêiner, walk da seq, ffprobe — concordam (4:2:0, 8-bit, cor). 6/6. Este pin teria pego o artefato de harness (passagens 12ª/14ª) na hora. Item aberto: o dessincronizado do decode de TILE -> caçar com MULTI-bloco (testsrc 21 falha vs checker-16 37 exato).
+doing: §3bd — oracle ffprobe fixado no teste real (6/6); dessincronizado do tile aberto
 next: §3bd — (a) consertar a infra de teste para o fixture canonizado preservar o av1C do encoder; (b) caçar o dessincronizado SÓ com multi-bloco (testsrc 21 blocos falha vs checker-16 37 blocos passa)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (43ª) — 3bd 16ª: fixei o oráculo ffprobe no teste commitado
+- **O que faltava:** o teste commitado do arquivo real pinava `monochrome=false` mas NÃO a subsampling/bit depth — então o artefato do harness (av1C do builder) não era pego por um pin.
+- **O que fiz:** estendi a linha `meta` para afirmar `sub=true/true bd=8/8 prof=0` (valores do ffprobe). 6/6.
+- **O efeito:** o parse de contêiner, o walk da sequência e o ffprobe agora são CHECADOS para concordar. Se algum divergir, o teste falha — o que teria impedido as passagens 12ª/14ª.
+- **O que landei:** a extensão do pin (teste) + os docs. compile rc=0.
+- **O item aberto:** o dessincronizado do decode de TILE. Regra que fica: caçar SÓ com multi-bloco.
+- **Lições:** (1) um pin deve ancorar contra um oráculo EXTERNO (ffprobe), não só contra o que o código produz; (2) se eu tivesse fixado os fatos de contêiner antes, as duas hipóteses erradas (12ª/14ª) teriam morrido no primeiro teste.
 
 ## Sessão 15/10 (42ª) — 3bd 15ª: retratei o av1C (era o meu harness) e a caça multi-bloco
 - **O que eu afirmei (12ª/14ª):** "o contêiner av1C discorda do walk da sequência" -> bug do av1C.
