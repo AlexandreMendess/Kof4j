@@ -314,6 +314,12 @@ import java.util.Set;
                     if (stack.isEmpty()) return null;
                     int slot = op == 0x3a ? in.operands()[0] : op - 0x4b;
                     String v = stack.popExpr();
+                    // Fase E (15/10): o inline de um CONCAT sem parênteses
+                    // quebra a PRECEDÊNCIA quando uma call anda em cima
+                    // (medido no Sess.token: `raw = user + ":" + now` +
+                    // `.hashCode()` emitia `arg1.hashCode()` — o hashCode
+                    // anexava ao ÚLTIMO ARG). O store guarda PARENTEZADO.
+                    if (v.contains(" + ")) v = "(" + v + ")";
                     locals.put(slot, new String[]{v, "L"});
                 }
                 case 0xc0 -> {                            // checkcast → `as`

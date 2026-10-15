@@ -3895,6 +3895,80 @@ class DecompileTest {
                 "zero-drift: countTags/pick/clamp01/anyOver id\u00eanticos ao Java");
     }
 
+    @Test
+    void sessDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o domínio SESSÃO (Long/keys) — 5 shapes: o expired
+        // (a compara\u00e7\u00e3o Long >=), o token (o concat armazenado com
+        // a call hashCode em cima — o BUG de PRECED\u00caNCIA fechado: o
+        // inline do local sem par\u00eanteses anexava o hashCode ao
+        // \u00daLTIMO ARG (`arg1.hashCode()` onde o Java computa o hashCode
+        // do CONCAT INTEIRO — pego pelo zero-drift: o token divergia);
+        // o store agora guarda PARENTEZADO) + o Integer.toString(I) mapeado
+        // p/ `"" + x` (o idioma do String.valueOf; o Kof Int TEM toString);
+        // o remaining (o Long menos + o cast toInt), o isValidFormat (o
+        // length == 8 && !contains) e o purge (o \u00edndice paralelo com
+        // o get nas DUAS listas). Zero-drift executado: false/-1072647258/
+        // 3/0/true/false/1 — 7/7 id\u00eanticos ao Java (o token EXATO).
+        Path javaFile = dir.resolve("Sess.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Sess {
+                    static boolean expired(long now, long until) { return now >= until; }
+                    static String token(String user, long now) {
+                        String raw = user + ":" + now;
+                        return Integer.toString(raw.hashCode());
+                    }
+                    static int remaining(long now, long until) {
+                        if (expired(now, until)) { return 0; }
+                        long d = until - now;
+                        return (int) (d / 1000);
+                    }
+                    static boolean isValidFormat(String tok) {
+                        return tok.length() == 8 && !tok.contains(" ");
+                    }
+                    static List<String> purge(List<String> users, long now, List<Long> untils) {
+                        List<String> keep = new java.util.ArrayList<>();
+                        for (int i = 0; i < users.size(); i++) {
+                            if (!expired(now, untils.get(i))) { keep.add(users.get(i)); }
+                        }
+                        return keep;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Sess.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("(arg0 + \":\" + arg1).hashCode()"),
+                "o concat parentesado + o hashCode:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    var us = listOf("ana", "bob")
+                    var un = listOf(1000L, 5000L)
+                    println(Sess.expired(2000L, 5000L))
+                    println(Sess.token("ana", 7777L))
+                    println(Sess.remaining(2000L, 5000L))
+                    println(Sess.remaining(6000L, 5000L))
+                    println(Sess.isValidFormat("abcd1234"))
+                    println(Sess.isValidFormat("abc 1234"))
+                    var k = Sess.purge(us, 2000L, un)
+                    println(k.size())
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: false | -1072647258 | 3 | 0 | true | false | 1
+        assertEquals("false\n-1072647258\n3\n0\ntrue\nfalse\n1", output,
+                "zero-drift: expired/token/remaining/isValidFormat/purge id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

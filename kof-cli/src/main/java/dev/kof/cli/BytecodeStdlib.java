@@ -71,6 +71,13 @@ final class BytecodeStdlib {
     /** Chamada estática → idiom Kof ({@code Integer.parseInt -> .toInt},
      *  {@code Math.abs -> math.abs} com o guard de descriptor). null = não mapeia. */
     static String statics(String ownerInternal, String name, String args, String desc) {
+        // Fase E (15/10): o Integer.toString(I) → `"" + x` (o idioma do
+        // String.valueOf existente; o Kof Int TEM toString — medido:
+        // `s.hashCode().toString()` compila e roda == Java)
+        if ("java/lang/Integer".equals(ownerInternal) && "toString".equals(name)
+                && "(I)Ljava/lang/String;".equals(desc)) {
+            return "\"\" + " + args;
+        }
         if ("java/lang/Math".equals(ownerInternal)) {
             switch (desc) {
                 case "(I)I":
