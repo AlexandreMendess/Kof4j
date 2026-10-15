@@ -303,4 +303,24 @@ class NativeX86PeepholeTest {
         String body = "    jmp .Lkof_0\n    ret\n.Lkof_0:\n    ret\n";
         assertEquals(body, result(body));
     }
+
+    @Test
+    void aLeaIntoARegisterDropsTheMove() {
+        // leal 1(%r15d), %eax; movq %rax, %r15  ->  leal 1(%r15d), %r15d
+        assertEquals("    leal 1(%r15d), %r15d\n",
+                result("    leal 1(%r15d), %eax\n    movq %rax, %r15\n"));
+    }
+
+    @Test
+    void aLeaqIntoARegisterDropsTheMove() {
+        assertEquals("    leaq 8(%rbx), %rbx\n",
+                result("    leaq 8(%rbx), %rax\n    movq %rax, %rbx\n"));
+    }
+
+    @Test
+    void aLeaIntoANonDestinationMoveIsKept() {
+        // The following move must come FROM %rax for the fold; here it does not.
+        String body = "    leal (%ebx), %eax\n    movq %rcx, %r15\n";
+        assertEquals(body, result(body));
+    }
 }

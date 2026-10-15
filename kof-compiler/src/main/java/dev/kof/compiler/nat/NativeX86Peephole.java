@@ -84,6 +84,7 @@ final class NativeX86Peephole {
         collapsed += cmpZeroToTest(lines);
         collapsed += epilogueToLeave(lines);
         collapsed += dropJumpToNext(lines);
+        collapsed += NativeX86LeaFold.foldLeaIntoDestination(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;

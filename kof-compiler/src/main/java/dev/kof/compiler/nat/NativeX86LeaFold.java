@@ -104,6 +104,55 @@ final class NativeX86LeaFold {
      * lea writes {@code %rax}, the add is an immediate add to the same width, and
      * (to keep the match unambiguous) the lea has no existing displacement.
      */
+    /**
+     * §7 x86_64 ("choice between mov, lea and combined operations"): folds
+     * {@code lea{l,q} OP, %{e,r}ax} + {@code movq %rax, %rN} into
+     * {@code lea{l,q} OP, %rN} — the lea writes the callee's destination directly,
+     * dropping the move. Safe because a lea has no side effects but writing its
+     * destination (no flags), and its memory operand is READ-ONLY — the lea reads
+     * the operand BEFORE writing the destination register in the same instruction,
+     * so even if {@code %rN} appears in the operand the computed value is unchanged.
+     * Any allocatable destination register works; the operand width is matched to the
+     * lea ({@code leal} needs the 32-bit name {@code %r15d}, {@code leaq} the 64-bit
+     * one), and the 32-bit lea zero-extends into the 64-bit register, so it is exactly
+     * {@code leal …,%eax; movq %rax,%r15}. Only callee-saved / allocatable registers
+     * are folded (a lea into {@code %rax} itself is not a pair).
+     */
+    static int foldLeaIntoDestination(List<String> lines) {
+        int folded = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 1 < lines.size(); i++) {
+                String lea = lines.get(i).trim();
+                boolean wide;
+                if (lea.startsWith("leal ") && lea.endsWith(", %eax")) wide = false;
+                else if (lea.startsWith("leaq ") && lea.endsWith(", %rax")) wide = true;
+                else continue;
+                int j = i + 1;
+                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
+                if (j >= lines.size()) continue;
+                String mv = lines.get(j).trim();
+                if (!mv.startsWith("movq %rax, ")) continue;
+                String dst = mv.substring("movq %rax, ".length()).trim();
+                // A 64-bit destination register with a known 32-bit name (rbx/r12-r15
+                // — the allocator's callee-saved file).
+                if (!NativeX86Peephole.REG32.containsKey(dst)) continue;
+                String mem = lea.substring(lea.indexOf(' ') + 1, lea.lastIndexOf(',')).trim();
+                // Match the operand width to the lea: a 32-bit `leal` needs the
+                // 32-bit destination name (`%r15d`), a `leaq` the 64-bit one.
+                String dstW = wide ? dst : NativeX86Peephole.REG32.get(dst);
+                String newOp = (wide ? "leaq" : "leal") + " " + mem + ", " + dstW;
+                lines.set(i, "    " + newOp);
+                lines.remove(j);
+                folded++;
+                changed = true;
+                break;
+            }
+        }
+        return folded;
+    }
+
     static int foldAddIntoLea(List<String> lines) {
         int folded = 0;
         boolean changed = true;
