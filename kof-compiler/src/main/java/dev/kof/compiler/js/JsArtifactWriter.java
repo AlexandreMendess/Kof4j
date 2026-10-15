@@ -133,6 +133,7 @@ public class JsArtifactWriter {
                     }
                     .kof-column { display: flex; flex-direction: column; gap: 8px; }
                     .kof-row { display: flex; flex-direction: row; gap: 8px; align-items: center; }
+                    .kof-box { display: flex; gap: 8px; }
                     .kof-view { box-sizing: border-box; }
                     .kof-canvas { align-self: flex-start; max-width: 100%; height: auto; }
                     .kof-window {

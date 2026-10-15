@@ -479,6 +479,7 @@ public final class JsRuntimeCore {
                     ".kof-column { display:flex; flex-direction:column; gap:8px; }",
                     ".kof-row { display:flex; flex-direction:row; flex-wrap:wrap;",
                     "  gap:8px; align-items:flex-start; }",
+                    ".kof-box { display:flex; gap:8px; }",
                     ".kof-button { font-size:13px; padding:6px 14px; cursor:pointer;",
                     "  background:var(--panel); color:var(--fg);",
                     "  border:1px solid var(--border); border-radius:6px; }",
