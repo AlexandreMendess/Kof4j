@@ -234,7 +234,8 @@ final class BytecodeStatements {
         // return v + ...). Medido no Res.describe.
         var declared = new HashSet<Integer>();
         declared.add(hSlot);
-        List<String> main = BytecodeStatementsRecover.recoverRegionStruct(insns, cp, frame, declared);
+        List<String> main = BytecodeStatementsRecover.recoverRegionStruct(insns, cp, frame, declared,
+                new int[]{handler});
         if (main == null || main.size() < 3) return null;
         if (!main.get(main.size() - 1).equals("}")) return null;
         String ret = main.get(main.size() - 2);
@@ -270,11 +271,19 @@ final class BytecodeStatements {
         int handler = handlers[0][2];
         List<BytecodeReader.Insn> handlerSeq = BytecodeSwitch.range(insns, handler, Integer.MAX_VALUE);
         if (handlerSeq.size() < 3) return null;
-        int last = handlerSeq.get(handlerSeq.size() - 1).opcode();
-        int pen = handlerSeq.get(handlerSeq.size() - 2).opcode();
-        if (last != 0xbf) return null;
+        // Fase E (15/10): o handler NAO vai ate o fim do metodo — o JOIN
+        // (o return do main) vem DEPOIS do re-throw (medido no withFinally:
+        // o range(29, MAX) incluia o [iload, ireturn] do join e o 'last'
+        // era o IRETURN, nao o athrow). O re-throw = o ULTIMO athrow do
+        // handler; o core = [bind strip, corpo, aload, athrow].
+        int athIdx = -1;
+        for (int i = handlerSeq.size() - 1; i >= 0; i--) {
+            if (handlerSeq.get(i).opcode() == 0xbf) { athIdx = i; break; }
+        }
+        if (athIdx < 2) return null;
+        int pen = handlerSeq.get(athIdx - 1).opcode();
         if (!(pen == 0x2a || pen == 0x19 || pen == 0x2c || (pen >= 0x4b && pen <= 0x4e))) return null;
-        List<BytecodeReader.Insn> finBody = handlerSeq.subList(0, handlerSeq.size() - 2);
+        List<BytecodeReader.Insn> finBody = handlerSeq.subList(0, athIdx - 1);
         // o strip do bind da exceção (o catch-all abre com astore do objeto —
         // o corpo do finally não o usa; o emitLinear recusaria o pop vazio)
         if (!finBody.isEmpty()) {
@@ -284,28 +293,65 @@ final class BytecodeStatements {
             }
         }
         if (finBody.isEmpty()) return null;
+        // o declared SEMEADO com o slot do valor — a cópia sai SEM o prefixo
+        // var (o main-flow a emite como assign; o guard da cópia exata
+        // compara os TEXTOS — medido: 'var v1 = ...' != 'v1 = ...')
+        int vSlot = finBody.get(finBody.size() - 1).opcode();
         var declared = new HashSet<Integer>();
+        // o slot do store: as famílias INT (0x36/0x3b-0x3e) E REF (0x3a/0x4b-0x4e)
+        // — o istore_1 do withFinally é 0x3c (a cópia saía com o prefixo var
+        // porque o declared nunca semeava — medido)
+        if (vSlot == 0x36 || (vSlot >= 0x3b && vSlot <= 0x3e)) {
+            declared.add(vSlot == 0x36 ? finBody.get(finBody.size() - 1).operands()[0] : vSlot - 0x3b);
+        } else if (vSlot == 0x3a || (vSlot >= 0x4b && vSlot <= 0x4e)) {
+            declared.add(vSlot == 0x3a ? finBody.get(finBody.size() - 1).operands()[0] : vSlot - 0x4b);
+        }
         List<String> finStmts = BytecodeStatementsEmit.emitLinear(finBody, cp, frame, declared);
         if (finStmts == null || finStmts.isEmpty()) return null;
         // o main-flow struct sobre o método inteiro (o handler sem preds)
         declared = new HashSet<>();
-        List<String> main = BytecodeStatementsRecover.recoverRegionStruct(insns, cp, frame, declared);
+        List<String> main = BytecodeStatementsRecover.recoverRegionStruct(insns, cp, frame, declared,
+                new int[]{handler});
         if (main == null || main.size() < finStmts.size() + 2) return null;
-        if (!main.get(main.size() - 1).startsWith("return ")) return null;
-        // a cópia DUPLICADA no main: a sequência EXATA, imediatamente antes
-        // do return (qualquer desvio → null = stub honesto, R6)
-        int idx = -1;
-        for (int i = main.size() - 1 - finStmts.size(); i >= 0; i--) {
-            if (main.subList(i, i + finStmts.size()).equals(finStmts)) { idx = i; break; }
-        }
-        if (idx < 0) return null;
+        // Fase E (15/10): o main termina [.., COPY, return, }] — o } do
+        // if/else interno é o ÚLTIMO (medido: o return em size-2 e o } em
+        // size-1; o transform extrai o return e o } fecha o else DENTRO do
+        // try)
+        if (!main.get(main.size() - 1).equals("}")) return null;
+        String ret = main.get(main.size() - 2);
+        if (!ret.startsWith("return ")) return null;
+        int copyEnd = main.size() - 2;
+        int idx = copyEnd - finStmts.size();
+        if (idx < 1) return null;
+        if (!main.subList(idx, copyEnd).equals(finStmts)) return null;
+        // a declaração var do slot sai ANTES do try (o bounded: main[0] é o
+        // var do slot)
+        int vOp = finBody.get(finBody.size() - 1).opcode();
+        String name = BytecodeDecoderStack.slotName(
+                vOp == 0x36 || (vOp >= 0x3b && vOp <= 0x3e)
+                        ? (vOp == 0x36 ? finBody.get(finBody.size() - 1).operands()[0] : vOp - 0x3b)
+                        : (vOp == 0x3a ? finBody.get(finBody.size() - 1).operands()[0] : vOp - 0x4b),
+                frame);
+        if (!main.get(0).startsWith("var ") || !main.get(0).contains(name + " = ")) return null;
         List<String> out = new ArrayList<>();
+        out.add(main.get(0));
         out.add("try {");
-        for (int i = 0; i < idx; i++) out.add(main.get(i));
+        for (int i = 1; i < idx; i++) out.add(main.get(i));
+        // o fecho do bloco aberto entre o if/else e a cópia (o bounded: 1
+        // chave aberta = o } do else; balanceado = nada; outro = recusa)
+        int opens = 0;
+        for (int i = 1; i < idx; i++) {
+            for (char c : main.get(i).toCharArray()) {
+                if (c == '{') opens++;
+                if (c == '}') opens--;
+            }
+        }
+        if (opens == 1) out.add("}");
+        else if (opens != 0) return null;
         out.add("} finally {");
         out.addAll(finStmts);
         out.add("}");
-        out.add(main.get(main.size() - 1));
+        out.add(ret);
         return out;
     }
 

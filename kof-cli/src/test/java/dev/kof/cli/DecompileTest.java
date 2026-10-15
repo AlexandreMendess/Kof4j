@@ -3789,7 +3789,11 @@ class DecompileTest {
         assertTrue(kof.contains("var v1 = \"\"") && kof.contains("} catch (String e) {"),
                 "o try/catch não-linear:\n" + kof);
         assertTrue(kof.contains("throw \"neg\""), "o throw dentro do try:\n" + kof);
-        String kofRun = kof.replace("throw \"body not recovered\"   // unknown", "return -1") + """
+        assertTrue(kof.contains("} finally {") && kof.contains("v1 = (v1 + 1)"),
+                "o finally com valor:\n" + kof);
+        assertFalse(kof.contains("body not recovered"),
+                "a classe INTEIRA recupera (o finally com valor incluso):\n" + kof);
+        String kofRun = kof + """
                 main() {
                     println(Res.parse("42"))
                     println(Res.parse(" 7 "))
@@ -3797,6 +3801,7 @@ class DecompileTest {
                     println(Res.parse("0"))
                     println(Res.describe(5))
                     println(Res.describe(-3))
+                    println(Res.withFinally(false))
                 }
                 """;
         CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
@@ -3810,8 +3815,8 @@ class DecompileTest {
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
         // oracle Java: 42 | 7 | -1 | 0 | ok:5! | bad!
-        assertEquals("42\n7\n-1\n0\nok:5!\nbad!", output,
-                "zero-drift: parse/describe id\u00eanticos ao Java");
+        assertEquals("42\n7\n-1\n0\nok:5!\nbad!\n21", output,
+                "zero-drift: parse/describe/withFinally id\u00eanticos ao Java");
     }
 
     private Path writeKof(Path dir, String kof) throws Exception {

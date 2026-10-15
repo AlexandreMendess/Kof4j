@@ -22,8 +22,12 @@ final class BytecodeStatementsRecover {
      * honesto do caller (R6).
      */
     static java.util.List<String> recoverRegionStruct(java.util.List<BytecodeReader.Insn> region,
-            String[] cp, BytecodeFrame frame, java.util.Set<Integer> declared) {
-        java.util.List<BytecodeReader.Block> blocks = BytecodeReader.cfg(region, new int[0]);
+            String[] cp, BytecodeFrame frame, java.util.Set<Integer> declared, int[] extraLeaders) {
+        // Fase E (15/10): os alvos dos HANDLERS como LIDERES — sem eles o
+        // athrow do handler funde-se ao bloco precedente e MATA a aresta do
+        // goto (medido no withFinally: o blk[19) saia succ=[] e o walk
+        // parava no finally-inline com early-true)
+        java.util.List<BytecodeReader.Block> blocks = BytecodeReader.cfg(region, extraLeaders);
         if (blocks.isEmpty()) return null;
         Map<Integer, BytecodeReader.Block> byStart = new java.util.HashMap<>();
         for (BytecodeReader.Block b : blocks) byStart.put(b.start, b);
@@ -44,6 +48,8 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                               BytecodeFrame frame, List<String> out,
                               Set<Integer> emitted, Set<Integer> declared, int header,
                               Set<Integer> stops) {
+        if (System.getenv("KOF_WALK") != null && b != null)
+            System.out.println("WALK enter blk[" + b.start + ") succ=" + b.succ + " header=" + header);
     // Fase C: bloco do PÓS-IF (join de if-sem-else) que ainda NÃO foi
     // emitido = borda do braço: para AQUI sem emitir (a sequela cuida do
     // join). If-aninhado sem else no fim do braço para natural (join do
