@@ -3,7 +3,7 @@
 last: o guia do `kof-cobol-translator` (`D-COBOL-TRANSLATOR-GO`) — Fases 1–13 pousadas
 doing: o entregável de promoção do §17 — ESTE documento
 next: a decisão de promoção do plano
-local: docs/development/kof-cobol-guide.pt_BR.md
+local: docs/kof-cobol-guide.pt_BR.md
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 state: under-development
 

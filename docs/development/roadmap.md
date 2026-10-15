@@ -1007,10 +1007,12 @@ All remaining `future/` plans are authorized with their
 > return-code model, the transport matrix, messaging + batch, transactions, the guide + the LEG001–LEG019 table) — the plan moved to
 > [`docs/kofbol.md`](../kofbol.md) (+PT +the guide); the EBCDIC pages = Q5, the JS COMP-3 face = §734, the advanced clauses = LEG014 (all bounded).
 >
-> **PROMOTED (16th front):** `kof-cobol-translator` — promoted 15/10 (maintainer order "pega um de future" + `D-FUTURE-PROMOTION`) to
-> [`kof-cobol-translator-plan.md`](kof-cobol-translator-plan.md) (+PT). **Phase 1 (the project scanner) LANDED** as pure-Kof `libs/cobol/Scanner.kf`
-> (the §5 deterministic discovery order, the per-file inventory, evidence-backed format detection, the CB001–CB004 diagnostics); the tool home
-> and the exact CLI grammar (open decisions Q1/Q2) stay the maintainer’s — no CLI surface invented. The Data-Division mapping stays KofBOL’s.
+> **PROMOTED (16th front) → LANDED AT `docs/` 15/10:** `kof-cobol-translator` — promoted 15/10 (maintainer order "pega um de future" + `D-FUTURE-PROMOTION`).
+> **ALL §30 Phases 1–13 LANDED with executed proof** (the scanner, the lexer, the AST, the semantic model, the Data Division → the KofBOL mapping,
+> the Procedure Division + the call graph, the Kof generation — the acceptance seed PROVEN: the generated source compiles and runs, the formatter
+> integration idempotent, the project generation, the diagnostics, the golden corpus, the behavioral equivalence, the advanced constructs named and
+> refused) — the plan moved to [`docs/kof-cobol-translator.md`](../kof-cobol-translator.md) (+PT +the guide); the tool home and the exact CLI grammar
+> (Q1/Q2) stay the maintainer’s — no CLI surface invented; the phases 14/15 are future by design.
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 

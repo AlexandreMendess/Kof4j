@@ -3,7 +3,7 @@
 last: the guide for `kof-cobol-translator` (`D-COBOL-TRANSLATOR-GO`) — Phases 1–13 landed
 doing: the §17 promotion deliverable — THIS document
 next: the plan's promotion decision
-location: docs/development/kof-cobol-guide.md
+location: docs/kof-cobol-guide.md
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 state: under-development
 
