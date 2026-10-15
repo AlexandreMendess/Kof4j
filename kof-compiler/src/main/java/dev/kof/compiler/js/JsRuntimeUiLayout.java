@@ -101,6 +101,13 @@ public final class JsRuntimeUiLayout {
                         { display: "flex", justifyContent: justify, alignItems: align });
             }
 
+            export function kofUiAlignBind(align, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[align]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[align].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiViewRemove(view) {
                 if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[view]) {
                     const node = window.__kofNodes[view];

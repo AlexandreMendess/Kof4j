@@ -135,6 +135,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_box_bind") || name.equals("kof_ui_stack_bind")
                 || name.equals("kof_ui_center_bind") || name.equals("kof_ui_scroll_bind")
                 || name.equals("kof_ui_wrap_bind") || name.equals("kof_ui_grid_bind")
+                || name.equals("kof_ui_align_bind")
                 || name.equals("kof_ui_box_new") || name.equals("kof_ui_stack_new")
                 || name.equals("kof_ui_wrap_new") || name.equals("kof_ui_grid_new")
                 || name.equals("kof_ui_spacer_new") || name.equals("kof_ui_center_new")

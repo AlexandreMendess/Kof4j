@@ -16,6 +16,38 @@ final class KofUiContainers {
     private KofUiContainers() {
     }
 
+
+    /** O receptor É um container de layout? (o `KofUi` testava cada um em 7 blocos) */
+    static boolean isLayoutContainer(Type t) {
+        return KofUi.isBox(t) || KofUi.isStack(t) || KofUi.isCenter(t) || KofUi.isAlign(t)
+                || KofUi.isScroll(t) || KofUi.isWrap(t) || KofUi.isGrid(t) || KofUi.isSpacer(t);
+    }
+
+    /**
+     * O membro de INSTÂNCIA dos containers de layout: {@code bind(filho)}. Devolve
+     * a chamada, ou {@code null} quando o membro pedido não existe — o chamador
+     * trata um receiver de container como "resolvido" (um container nunca cai nos
+     * despachos de outros widgets). {@code Spacer} não tem filhos, logo não tem
+     * {@code bind}.
+     */
+    static KofUi.UiCall bindCall(Type receiver, String name, int argCount) {
+        if (!"bind".equals(name) || argCount != 1) return null;
+        String fn = bindFunction(receiver);
+        return fn == null ? null
+                : new KofUi.UiCall(fn, Type.PrimitiveType.VOID, java.util.List.of(Type.PrimitiveType.INT));
+    }
+
+    private static String bindFunction(Type t) {
+        if (KofUi.isBox(t)) return "kof_ui_box_bind";
+        if (KofUi.isStack(t)) return "kof_ui_stack_bind";
+        if (KofUi.isCenter(t)) return "kof_ui_center_bind";
+        if (KofUi.isAlign(t)) return "kof_ui_align_bind";
+        if (KofUi.isScroll(t)) return "kof_ui_scroll_bind";
+        if (KofUi.isWrap(t)) return "kof_ui_wrap_bind";
+        if (KofUi.isGrid(t)) return "kof_ui_grid_bind";
+        return null; // Spacer
+    }
+
     /** Tipo do container, ou {@code null} quando o nome não é um container de layout. */
     static Type emptyContainerType(String name) {
         return switch (name) {
