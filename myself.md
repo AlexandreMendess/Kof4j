@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 22ª PASSAGEM: verificar a pista `txbSkip[1][1]` está BLOQUEADO. As fontes do aom sumiram (/tmp apagado); o espelho GitHub de token_cdfs.h dá 404; o repo não guarda os valores; e a busca posicional no libaom.so.3.8.2 é INCONCLUSIVA (método verificado — 48 corridas de 32768 — mas NENHUMA das 20 linhas Kof aparece como sequência contígua). A pista segue NÃO VERIFICADA. Destravamento: re-clonar o aom na revisão d53e6d0b... e comparar `default_txb_skip_cdfs[1][1]`.
-doing: §3bd — oracle ffprobe fixado no teste real (6/6); dessincronizado do tile aberto
-next: §3bd — conferir o default da CDF `txbSkip[txSzCtx=1][ctx=1]` (e [1][*]) contra libaom token_cdfs.h; é a entrada que só os quadros que falham tocam
+last: 15/10 — AVIF slice 3bd 23ª PASSAGEM: a pista `txbSkip[1][1]` está REFUTADA com prova executada. A referência do libaom NUNCA se perdeu — está embutida em `kof-compiler/src/test/java/dev/kof/compiler/Av1CoeffCdfSupport.java` (`TXB_SKIP_B64`), e `Av1CoeffCdfE2ETest` percorre as tabelas Kof contra ela. Decodificado o blob: a referência in-repo == a tabela Kof `txbSkip` em TODAS as 260 entradas (4 qctx x 5 txSzCtx x 13 ctx), ZERO divergências. Prova: `Av1CoeffCdfE2ETest` 6/6 (todos os ~16k números; BUILD SUCCESS) + re-derivação independente da fonte canônica (aomedia.googlesource.com refs/heads/main) 260/260 idênticos. O bloqueio da 22ª era um ERRO DE BUSCA, e o 'SHA pinado' que ela citava era FABRICADO (o `check_doc_refs` o sinaliza).
+doing: §3bd — CDF e ctx EXONERADOS (260/260 + 6/6); o suspeito restante é a POSIÇÃO DE BIT a montante (mode-info / readSelectedTxSize @@tx_depth para tx PEQUENO)
+next: §3bd — despejar a sequência de símbolos (elemento + pos de bit) em volta do bloco 0 do STRIPES e diferenciar `readSelectedTxSize` do `read_selected_tx_size` do libaom (spec §5.11.31)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (50ª) — 3bd 23ª: a pista txbSkip[1][1] está REFUTADA (e o bloqueio da 22ª era erro de busca)
+- **Unidade landada:** docs-only (plan EN+PT 23ª passagem + DOING EN+PT). Sem mudança de código — a pista era sobre uma tabela já coberta por teste.
+- **Prova executada:** (1) `Av1CoeffCdfE2ETest` **6/6** (BUILD SUCCESS) — compara TODOS os ~16k números de CDF, incluindo as 260 entradas `txbSkip`, contra a referência derivada do libaom embutida em `Av1CoeffCdfSupport.TXB_SKIP_B64`; (2) decodifiquei o blob e comparei valor-a-valor com a tabela Kof: **260/260, ZERO divergências**; (3) re-derivei da fonte canônica (`aomedia.googlesource.com/aom/+/refs/heads/main/av1/common/token_cdfs.h`, via `curl` + `base64 -d`): os 260 valores canônicos == o blob in-repo == a tabela Kof.
+- **Conclusão:** `txbSkip[1][1]` (e todas as 260) já estava provado correto. Nem a CDF nem o ctx explicam o `all_zero` mal-lido na origem.
+- **Suspeito restante:** a POSIÇÃO DE BIT do leitor A MONTANTE — a sintaxe de mode-info / tx-size para blocos de TX PEQUENO (o `readSelectedTxSize`/`@@tx_depth` lido ANTES do residual sob txMode=SELECT), exatamente a sintaxe que os 7 quadros exatos de bloco único 64x64 nunca leem.
+- **Lição de método (registrada):** alegação de "referência inalcançável" deve primeiro procurar os dados de teste derivados do PRÓPRIO repo e os testes que já a fixam. E o gate `check_doc_refs` pegou um SHA FANTASMA inventado na 22ª passagem — nunca citar um SHA/revisão sem verificar que existe.
+- **Caveat:** a árvore carrega WIP de lanes irmãs; usei `git add` por caminho explícito. Porta `0` (sessão flatt CLI, sem servidor opencode).
 
 ## Sessão 15/10 (49ª) — 3bd 22ª: a verificação da pista está BLOQUEADA (sem referência do libaom)
 - **O que tentei (4 rotas para a referência):** (1) `/tmp/opencode` + `/tmp/s3ag` apagados; (2) GitHub mirror de `av1/common/token_cdfs.h` -> HTTP 404 (duas revisões); (3) o repo só menciona token_cdfs.h em prosa, sem valores; (4) busca posicional no `libaom.so.3.8.2`.
