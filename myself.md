@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 21ª PASSAGEM: os dados por bloco CORRIGIDOS (levels por TX, modes por modo) estreitam para uma ENTRADA de CDF. M0/M1/M2 (os 3 primeiros) leem nzSum=0; M3 nzSum=6, M4 nzSum=1 decodificam. A grade de tx está certa (txCnt=2 p/ 16x8 com tx 8x8). **A pista:** os que falham usam txSz=1 (txSzCtx=1) com vizinhos 0 (ctx=1) -> `txbSkip[1][1]`; os 7 exatos usam txSz=4 (txSzCtx=4, ctx=0) -> `txbSkip[4][0]` — os exatos NUNCA tocam [1][1]. Próximo: comparar o default de `txbSkip[1][1]` com o token_cdfs.h do libaom.
+last: 15/10 — AVIF slice 3bd 22ª PASSAGEM: verificar a pista `txbSkip[1][1]` está BLOQUEADO. As fontes do aom sumiram (/tmp apagado); o espelho GitHub de token_cdfs.h dá 404; o repo não guarda os valores; e a busca posicional no libaom.so.3.8.2 é INCONCLUSIVA (método verificado — 48 corridas de 32768 — mas NENHUMA das 20 linhas Kof aparece como sequência contígua). A pista segue NÃO VERIFICADA. Destravamento: re-clonar o aom na revisão d53e6d0b... e comparar `default_txb_skip_cdfs[1][1]`.
 doing: §3bd — oracle ffprobe fixado no teste real (6/6); dessincronizado do tile aberto
 next: §3bd — conferir o default da CDF `txbSkip[txSzCtx=1][ctx=1]` (e [1][*]) contra libaom token_cdfs.h; é a entrada que só os quadros que falham tocam
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (49ª) — 3bd 22ª: a verificação da pista está BLOQUEADA (sem referência do libaom)
+- **O que tentei (4 rotas para a referência):** (1) `/tmp/opencode` + `/tmp/s3ag` apagados; (2) GitHub mirror de `av1/common/token_cdfs.h` -> HTTP 404 (duas revisões); (3) o repo só menciona token_cdfs.h em prosa, sem valores; (4) busca posicional no `libaom.so.3.8.2`.
+- **A 4ª rota é inconclusiva, mas o MÉTODO se verifica:** encontrei 48 corridas do terminador de CDF `32768` (16-bit LE), e os valores individuais da linha Kof (`31957` 12x, `3230` 14x, `11153` 25x) — mas NENHUMA das 20 linhas Kof aparece como sequência CONTÍGUA, então o layout da tabela difere e não dá para casar posicionalmente.
+- **A conclusão honesta:** a pista (`txbSkip[1][1]`) segue NÃO VERIFICADA. Não afirmo que a entrada está errada.
+- **O destravamento (concreto):** re-clonar o aom na revisão pinada `d53e6d0b14568ddbd36ad7354bfb9a59a127346e` e comparar `default_txb_skip_cdfs[1][1]`. Com os 7 quadros exatos + os 2 que falham, o par RED-first fica completo.
+- **O que landei:** só docs (a rota de verificação + o bloqueio + o destravamento). Árvore limpa.
+- **Lições:** (1) uma pista não é uma prova — registrar o BLOQUEIO e a rota de destravamento é mais útil que afirmar; (2) antes de buscar numa fonte, conferir que ela ainda existe (o /tmp foi apagado em algum momento desta série longa); (3) um método de busca precisa de um controle (aqui: o terminador 32768) para separar "não achei" de "não existe".
 
 ## Sessão 15/10 (48ª) — 3bd 21ª: os dados corrigidos apontam para `txbSkip[1][1]`
 - **O dump corrigido** (levels por TX, modes por modo): M0/M1 `bs=5 txSz=1 txCnt=2 nzSum=0`; M2 `bs=17 txSz=6 txCnt=2 nzSum=0`; M3 `txSz=14 nzSum=6`; M4 `nzSum=1`.
