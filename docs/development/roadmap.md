@@ -990,6 +990,16 @@ science) **without** destroying the language's simplicity.
 All remaining `future/` plans are authorized with their
 > design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
 > one-at-a-time (`D-FUTURE-PROMOTION`).
+>
+> **NEW PLAN-ONLY (`future/`, 14/10 — maintainer request "Kof Future — ESP8266 Embedded Target"):**
+> [`kof-esp8266-plan.md`](future/kof-esp8266-plan.md) (+PT) — the ESP8266 (Xtensa L106, 32-bit
+> single-core Wi-Fi SoC) as a **planned** Kof target. **NOT promoted and NOT authorized**: it needs a
+> rule-6 maintainer decision (no `D-*` id is invented) and an **R12 override** (the same pattern as
+> `D-BAREMETAL-BOOT`) because it opens a new front. It deliberately does **not** re-invent the MCU
+> machinery: it reuses the CLOSED bare-metal front's precedent — the targets `NATIVE_RISCV32` (B-4) /
+> `NATIVE_MCU_ARM` (B-4.3) and the `kof_plat_*` HAL seam (B-0) — as its architectural pattern.
+> Gates 0–5 (feasibility → target infra → minimal runtime → HAL → workflow → verified on physical
+> hardware); 8 hardware stages H1–H8. The plan touches zero code.
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 
