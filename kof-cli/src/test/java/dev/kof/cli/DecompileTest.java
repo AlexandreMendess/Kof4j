@@ -2697,6 +2697,93 @@ class DecompileTest {
                 "zero-drift: tally/totalLengths/names id\u00eanticos ao Java");
     }
 
+    @Test
+    void matrix2dDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o dom\u00ednio MATRIZ 2D — 4 shapes travados SEM
+        // c\u00f3digo novo (a 5\u00aa valida\u00e7\u00e3o consecutiva
+        // out-of-the-box): o multianewarray quadrado + a diagonal
+        // (identity), o somat\u00f3rio com o loop ANINHADO indexado
+        // (sumAll: m[i].length no interno), o preenchimento de linhas com
+        // acumulador interno (rowSums) e a transposta com os \u00edndices
+        // TROCADOS (t[j][i] = m[i][j]). Zero-drift executado:
+        // 3/36/6/30/1/0 — 7/7 id\u00eanticos ao Java. Sintaxe do harness
+        // medida: o array ragged do Kof \u00e9 `new Int[n][0]` (o
+        // `new Int[n][]` \u00e9 PARSE041).
+        Path javaFile = dir.resolve("Matrix.java");
+        Files.writeString(javaFile, """
+                public class Matrix {
+                    static int[][] identity(int n) {
+                        int[][] m = new int[n][n];
+                        for (int i = 0; i < n; i++) { m[i][i] = 1; }
+                        return m;
+                    }
+                    static int sumAll(int[][] m) {
+                        int s = 0;
+                        for (int i = 0; i < m.length; i++) {
+                            for (int j = 0; j < m[i].length; j++) { s += m[i][j]; }
+                        }
+                        return s;
+                    }
+                    static int[] rowSums(int[][] m) {
+                        int[] out = new int[m.length];
+                        for (int i = 0; i < m.length; i++) {
+                            int r = 0;
+                            for (int j = 0; j < m[i].length; j++) { r += m[i][j]; }
+                            out[i] = r;
+                        }
+                        return out;
+                    }
+                    static int[][] transpose(int[][] m) {
+                        int[][] t = new int[m[0].length][m.length];
+                        for (int i = 0; i < m.length; i++) {
+                            for (int j = 0; j < m[i].length; j++) { t[j][i] = m[i][j]; }
+                        }
+                        return t;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Matrix.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("Int[][]") && kof.contains("while ("), "a matriz:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    var id = Matrix.identity(3)
+                    println(Matrix.sumAll(id))
+                    var g = new Int[2][0]
+                    var g0 = new Int[3]
+                    g0[0] = 1
+                    g0[1] = 2
+                    g0[2] = 3
+                    var g1 = new Int[2]
+                    g1[0] = 10
+                    g1[1] = 20
+                    g[0] = g0
+                    g[1] = g1
+                    println(Matrix.sumAll(g))
+                    var rs = Matrix.rowSums(g)
+                    println(rs[0])
+                    println(rs[1])
+                    var t = Matrix.transpose(g)
+                    println(t[0][0])
+                    println(t[2][1])
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3 | 36 | 6 | 30 | 1 | 0
+        assertEquals("3\n36\n6\n30\n1\n0", output,
+                "zero-drift: a matriz 2D id\u00eantica ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
