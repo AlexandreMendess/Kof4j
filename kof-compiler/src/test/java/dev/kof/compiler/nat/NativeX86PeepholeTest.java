@@ -349,4 +349,31 @@ class NativeX86PeepholeTest {
         String body = "    andl $1, %eax\n    testl %ebx, %ebx\n";
         assertEquals(body, result(body));
     }
+
+    @Test
+    void aConditionalJumpOverAJumpIsInverted() {
+        // jl X; jmp Y; X:   ->   jge Y
+        assertEquals("    jge .Lkof_1\n.Lkof_0:\n",
+                result("    jl .Lkof_0\n    jmp .Lkof_1\n.Lkof_0:\n"));
+    }
+
+    @Test
+    void anEqualityJumpOverAJumpIsInverted() {
+        assertEquals("    jne .Lkof_1\n.Lkof_0:\n",
+                result("    je .Lkof_0\n    jmp .Lkof_1\n.Lkof_0:\n"));
+    }
+
+    @Test
+    void aJumpOverAJumpToTheSameLabelIsNotInverted() {
+        // X == Y: not inverted. (The standalone jmp-to-next is dropped by
+        // dropJumpToNext, leaving `jl .Lkof_0` + the label — semantics unchanged.)
+        String body = "    jl .Lkof_0\n    jmp .Lkof_0\n.Lkof_0:\n";
+        assertEquals("    jl .Lkof_0\n.Lkof_0:\n", result(body));
+    }
+
+    @Test
+    void anIndirectJumpIsNotInverted() {
+        String body = "    jl .Lkof_0\n    jmp *%rcx\n.Lkof_0:\n";
+        assertEquals(body, result(body));
+    }
 }

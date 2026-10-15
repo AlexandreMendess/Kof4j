@@ -85,6 +85,7 @@ final class NativeX86Peephole {
         collapsed += dropRedundantFlagTest(lines);
         collapsed += epilogueToLeave(lines);
         collapsed += dropJumpToNext(lines);
+        collapsed += invertJumpOverJump(lines);
         collapsed += NativeX86LeaFold.foldLeaIntoDestination(lines);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
@@ -331,6 +332,62 @@ final class NativeX86Peephole {
             }
         }
         return dropped;
+    }
+
+    /** The inverse of an x86 condition code ({@code je}<->{@code jne}, {@code jl}<->{@code jge},
+     *  {@code jle}<->{@code jg}, {@code jb}<->{@code jae}, {@code jbe}<->{@code ja}). */
+    private static final java.util.Map<String, String> INVERT = java.util.Map.ofEntries(
+            java.util.Map.entry("je", "jne"), java.util.Map.entry("jne", "je"),
+            java.util.Map.entry("jz", "jnz"), java.util.Map.entry("jnz", "jz"),
+            java.util.Map.entry("jl", "jge"), java.util.Map.entry("jge", "jl"),
+            java.util.Map.entry("jle", "jg"), java.util.Map.entry("jg", "jle"),
+            java.util.Map.entry("jb", "jae"), java.util.Map.entry("jae", "jb"),
+            java.util.Map.entry("jbe", "ja"), java.util.Map.entry("ja", "jbe"),
+            java.util.Map.entry("js", "jns"), java.util.Map.entry("jns", "js"),
+            java.util.Map.entry("jp", "jnp"), java.util.Map.entry("jnp", "jp"));
+
+    /**
+     * §7 x86_64 ("lower-cost instruction selection"): {@code jcc X} + {@code jmp Y}
+     * where {@code X} is the label IMMEDIATELY after the {@code jmp} means "if cc go
+     * to X (fall through), else to Y" — which is exactly {@code j!cc Y}. Invert the
+     * condition and drop the {@code jmp}: one instruction fewer per site. Only when
+     * {@code X != Y} (otherwise {@code jcc X} is itself a jump-to-next, handled by
+     * {@link #dropJumpToNext}). Only {@code .loc}/blank lines may separate the three.
+     */
+    private static int invertJumpOverJump(List<String> lines) {
+        int folded = 0;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i + 2 < lines.size(); i++) {
+                String jcc = lines.get(i).trim();
+                int sp = jcc.indexOf(' ');
+                if (sp < 0) continue;
+                String mnem = jcc.substring(0, sp);
+                String inv = INVERT.get(mnem);
+                if (inv == null) continue;
+                String xLabel = jcc.substring(sp + 1).trim();
+                if (xLabel.startsWith("*")) continue; // indirect: skip
+                int j = i + 1;
+                while (j < lines.size() && lines.get(j).trim().startsWith(".loc ")) j++;
+                if (j >= lines.size()) continue;
+                String jmp = lines.get(j).trim();
+                if (!jmp.startsWith("jmp ") || jmp.substring(4).trim().startsWith("*")) continue;
+                String yLabel = jmp.substring("jmp ".length()).trim();
+                if (xLabel.equals(yLabel)) continue;
+                int k = j + 1;
+                while (k < lines.size() && lines.get(k).trim().startsWith(".loc ")) k++;
+                if (k >= lines.size()) continue;
+                if (!lines.get(k).trim().equals(xLabel + ":")) continue;
+                String indent = lines.get(i).substring(0, lines.get(i).length() - lines.get(i).stripLeading().length());
+                lines.set(i, indent + inv + " " + yLabel);
+                lines.remove(j);
+                folded++;
+                changed = true;
+                break;
+            }
+        }
+        return folded;
     }
 
     private static int epilogueToLeave(List<String> lines) {
