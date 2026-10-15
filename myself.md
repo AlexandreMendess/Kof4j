@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd CAUSA RAIZ CONFIRMADA: é o ESTADO DE SEGMENTAÇÃO AUSENTE. Com `segEnabled=0` o checker-8 consome 21 bits e nz=0 (coeficientes PULADOS); com `segEnabled=1, segIdPreSkip=0` consome 152 bits (o payload INTEIRO) e nz=13 (DECODIFICAM). O quadro É segmentado (crf 20); o header PARSEIA a segmentação (`segEnabled`, `segAltQ[8]`) mas NÃO a expõe -> o driver toma o ramo segEnabled==0 -> dessincroniza. A reconstrução ainda está errada porque falta o qindex por segmento (baseQ + segAltQ[seg]). Conserto = fatia de exposição (padrão 3ax/3bb/3bc) + o qindex do segmento. Isso também explica o testsrc e aposenta as hipóteses de alta-frequência e de partição.
-doing: 3bd diagnosticada (o resíduo do primeiro bloco não é aplicado no quadro complexo); nada landado
-next: §3bd — expor o estado de SEGMENTAÇÃO no `AvifFrameHeader` (segEnabled, segAltQ[8], lastActiveSegId, segSkipActive), passar `segEnabled` ao driver e aplicar `qIndex = baseQ + segAltQ[seg]`; re-rodar o checker-8 e o testsrc
+last: 15/10 — AVIF slice 3bd 11ª PASSAGEM: LANDADA a EXPOSIÇÃO de `segEnabled`+`segAltQ[8]` no `AvifFrameHeader` (aditiva; AvifFrameE2ETest 16/16). E ACHADO o bug real: para o checker o cabeçalho lê `segEnabled=0` MAS o stream de tile se comporta como segmentado (passar 1 conserta: symPos 21->152, nz 0->13). O `using_qmatrix` É lido (verifiquei); então um campo ANTERIOR desloca — suspeito: o `separate_uv_delta_q` da SEQUÊNCIA. Os fixtures sintéticos não pegam (todos seg=0); só um arquivo REAL. Próximo: cruzar os fatos de seq reais e consertar a posição de bit do walk da seq.
+doing: exposição de segmentação landada (16/16); bug real de parse do cabeçalho achado (segEnabled mal lido)
+next: §3bd — cruzar os fatos da SEQUÊNCIA de um arquivo real (separateUvDeltaQ, monochrome, bitDepth, subsampling) com o encoder e consertar a posição de bit do walk da seq; o `segEnabled` mal lido é o sintoma
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (38ª) — 3bd 11ª: exposição de segmentação LANDADA + achado um bug REAL de parse do cabeçalho
+- **A exposição:** `AvifFrameHeader` agora carrega `segEnabled` + `segAltQ[8]` (o walk já os calculava e descartava). Aditiva: `headerBytes` inalterado, os 8 fixtures sintéticos leem `seg=0`, AvifFrameE2ETest 16/16.
+- **A verificação ponta-a-ponta levou ao bug de verdade:** passando `h.segEnabled` (que lê 0) o checker NÃO conserta; passando 1 conserta. Logo o cabeçalho lê o bit ERRADO.
+- **Onde:** `using_qmatrix` É lido (grep 0 para o nome da spec, mas o código usa `usingQm` e trata certo) — então a falha está ANTES. Suspeito nº1: o `separate_uv_delta_q` da SEQUÊNCIA (ler 0 onde é 1 pula o bit `diff_uv_delta` e desloca todo o resto).
+- **Por que os testes sintéticos não pegam:** os 8 fixtures leem `seg=0` — nenhum exercita uma sequência real com `separate_uv_delta_q=1`. Só um arquivo de ENCODER REAL expõe isso.
+- **O que landei:** a exposição (libs + oráculo Java + golden, 16/16) + o diagnóstico nos docs. Próximo: cruzar os fatos de seq reais e consertar a posição de bit do walk da seq.
+- **Lições:** (1) um teste sintético só cobre o que ele EXERCITA — 8 fixtures com o mesmo shape não valem por um arquivo real; (2) "a exposição é aditiva e verde" não significa "a feature funciona" — a verificação ponta-a-ponta com um arquivo real foi o que revelou que o VALOR exposto estava errado; (3) grep pelo nome da SPEC (using_qmatrix) não acha o identificador do código (usingQm) — conferir os dois.
 
 ## Sessão 15/10 (37ª) — 3bd CAUSA RAIZ: o quadro é SEGMENTADO e a composição não passa o estado de segmentação
 - **O instrumento:** posição do leitor (BITS) passo a passo pelo mode-info nos três quadros.

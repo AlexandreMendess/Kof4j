@@ -66,7 +66,8 @@ record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
                       Int baseQIdx, Int loopFilterLevel0, Int cdefBits,
                       Int lossless, Int txModeSelect, Int reducedTxSet,
                       Int deltaQPresent, Int deltaQRes,
-                      Int deltaLfPresent, Int deltaLfRes, Int deltaLfMulti)
+                      Int deltaLfPresent, Int deltaLfRes, Int deltaLfMulti,
+                      Int segEnabled, Int[] segAltQ)
 
 AvifFrameHeader readAvifFrameHeader(String path) {
     var bytes = File(path).readRange(0, 65536)
@@ -281,7 +282,8 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
                            (hb - p * 8) / 8,
                            tail[1], tail[2], tail[3],
                            tail[4], tail[5], tail[6],
-                           tail[7], tail[8], tail[9], tail[10], tail[11])
+                           tail[7], tail[8], tail[9], tail[10], tail[11],
+                           tail[12], segAltQOut(tail))
 }
 
 // uncompressed_header() tail per AV1 5.9.2, after tile_info() and before the
@@ -295,6 +297,16 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
 // byte-aligns. CodedLossless/AllLossless are derived exactly per 5.9.2 (no
 // superres, so AllLossless == CodedLossless), which is what makes the
 // loop-filter/cdef/restoration/tx-mode guards parse-correct.
+Int[] segAltQOut(Int[] tail) {
+    var q = new Int[8]
+    var i = 0
+    while (i < 8) {
+        q[i] = tail[13 + i]
+        i = i + 1
+    }
+    return q
+}
+
 Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
                     Int allowSct, Int allowIntrabc, Int numPlanes) {
     var separateUv = 0
@@ -512,7 +524,12 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     // The frame-level facts the TILE DECODE consumes: `codedLossless`
     // (drives the driver's `lossless`), `tx_mode_select` and
     // `reduced_tx_set`. Exposed so the composition never re-derives them.
-    var out = new Int[12]
+    // The SEGMENTATION state the tile decode needs: `segEnabled` gates whether
+    // `intra_frame_mode_info` reads a segment id at all, and `segAltQ[seg]` is
+    // the per-segment qindex offset (`qIndex = baseQ + segAltQ[seg]`). Parsed
+    // here but never surfaced before — the driver took the segEnabled==0 branch
+    // and the stream desynced.
+    var out = new Int[21]
     out[0] = bits
     out[1] = baseQ
     out[2] = lf0Out
@@ -525,6 +542,12 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     out[9] = dflPresent
     out[10] = dlRes
     out[11] = dlMulti
+    out[12] = segEnabled
+    var si = 0
+    while (si < 8) {
+        out[13 + si] = segAltQ[si]
+        si = si + 1
+    }
     return out
 }
 

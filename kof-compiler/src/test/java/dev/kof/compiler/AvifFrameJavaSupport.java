@@ -265,6 +265,7 @@ final class AvifFrameJavaSupport {
                 bits += 1;                                  // DeltaQYDc coded flag
                 bits += 1;                                  // using_qmatrix
                 int segEnabled = AvifSeqSupport.readBits(item, bits, 1); bits += 1;
+                int[] segAltQ = new int[8];
                 boolean codedLossless = baseQ == 0 && segEnabled == 0;
                 int lf0Out = 0, cdefBitsOut = 0;
                 int dqPresent = 0, dqRes = 0, dflPresent = 0, dlRes = 0, dlMulti = 0;
@@ -332,7 +333,8 @@ final class AvifFrameJavaSupport {
                         + " ll=" + (codedLossless ? 1 : 0) + " tx=" + txModeSelect
                         + " rts=" + reducedTxSet
                         + " dq=" + dqPresent + " dqr=" + dqRes
-                        + " dfl=" + dflPresent + " dlr=" + dlRes + " dlm=" + dlMulti;
+                        + " dfl=" + dflPresent + " dlr=" + dlRes + " dlm=" + dlMulti
+                        + " seg=" + segEnabled + " aq=" + aqOf(segAltQ);
             }
             pos = limit;
         }
@@ -376,4 +378,13 @@ final class AvifFrameJavaSupport {
             return "REFUSED:" + e.getMessage();
         }
     }
+
+            static String aqOf(int[] q) {
+                StringBuilder b = new StringBuilder();
+                for (int i = 0; i < q.length; i++) {
+                    if (i > 0) b.append(",");
+                    b.append(q[i]);
+                }
+                return b.toString();
+            }
 }
