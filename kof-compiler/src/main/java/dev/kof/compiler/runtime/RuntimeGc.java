@@ -445,8 +445,13 @@ public final class RuntimeGc {
             .globl kof_bounds_error
             .type kof_bounds_error, @function
             kof_bounds_error:
+                # §729: erro de bounds CAPTURAVEL (era kof_panic/aborto);
+                # a mensagem e' uma KofString (o catch LE o header).
                 leaq .Lstr_bounds_err(%rip), %rdi
-                call kof_panic
+                movl $40, %esi
+                call kof_string_from_literal
+                movq %rax, %rdi
+                call kof_throw_string
             """);
     }
 

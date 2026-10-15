@@ -364,7 +364,13 @@ public final class NativeX86Arith {
     private static void emitDivZeroGuardEnd(StringBuilder sb, String sfx) {
         sb.append("    jmp .Ldivz_done_").append(sfx).append("\n");
         sb.append(".Ldivz_").append(sfx).append(":\n");
+        // §693/§729: a mensagem precisa ser uma KofString (o catch do usuario
+        // LE o header — len@16); um `.asciz` cru faz `e` virar lixo e o uso de
+        // `e` SIGSEGVA (medido). kof_string_from_literal constroi a KofString.
         sb.append("    leaq .Ldivz_msg_").append(sfx).append("(%rip), %rdi\n");
+        sb.append("    movl $9, %esi\n");  // len("/ by zero")
+        sb.append("    call kof_string_from_literal\n");
+        sb.append("    movq %rax, %rdi\n");
         sb.append("    call kof_throw_string\n");
         sb.append("    ud2\n");
         sb.append(".Ldivz_done_").append(sfx).append(":\n");

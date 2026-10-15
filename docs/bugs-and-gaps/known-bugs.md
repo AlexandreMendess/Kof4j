@@ -19317,7 +19317,7 @@ try { println(listOf(1, 2).get(99)) } catch (String e) { println("msg=[" + e + "
 
 <!-- pt-switch --> **PT:** [§728 (pt_BR)](known-bugs.pt_BR.md#728--js-os-throws-internos-do-runtime-agora-ligam-uma-string-mas-carregam-o-texto-proprio-do-runtime-js-bounds-parse-de-intdouble-jwt---a-linha-de-igualdade-de-mensagem-da-issue-843-continua-falsa-no-js---aberto-achado-1410-pela-lane-issuestooling-192168100219093-ao-corrigir-a-843-a-mudanca-de-texto-abrange-61-sitios-de-throw-em-16-arquivos-jsjsruntimejava)
 
-## §729 — NATIVE: a bounds error is a hard ABORT (kof_bounds_error → kof_panic), so a catch (String e) never sees it, while JVM/Script/JS catch the same out-of-range access — 🟡 OPEN (measured 14/10 by lane issues/tooling `192.168.100.21:9093` during the #843 probe; the native runtime lane's front)
+## §729 — NATIVE: a bounds error is a hard ABORT (kof_bounds_error → kof_panic), so a catch (String e) never sees it, while JVM/Script/JS catch the same out-of-range access — ✅ FIXED 14/10 (found 14/10 by lane issues/tooling `192.168.100.21:9093` during the #843 probe; fixed 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 
 **Symptom (measured 14/10, `kof-cli-0.6.5.jar`):**
 
@@ -19337,11 +19337,11 @@ JVM/Script/JS print `caught=true`; **native x86-64 prints `Runtime error: array 
 
 **Impact:** any Kof program that guards an out-of-range access with the documented `try`/`catch (String e)` idiom behaves differently on native — it ABORTS instead of taking the recovery path. The engine suites do not hit it (the AV1/WebP decoders are written never to read out of range), which is why it survived.
 
-**Fix (not attempted — the native runtime lane's front):** route `kof_bounds_error` to `kof_throw_string` — the uncaught behaviour stays identical (that helper already prints the message and exits 1 when no handler is installed) — with the per-arch blobs (x86/riscv64/aarch64 + the cross emitters) updated in lockstep.
+**Fix (LANDED 14/10):** route `kof_bounds_error` to `kof_throw_string` on all three native targets — x86 (`RuntimeGc.emitBoundsError`), riscv64 (`NativeRiscvAsmRt0`), aarch64 (via the riscv→aarch64 translator) — building the message as a real **KofString** via `kof_string_from_literal(chars, len)` (the runtime helper, always emitted) before the throw, so a `catch (String e)` that USES `e` reads a valid header. The SAME cycle found and fixed the sibling x86-only face (§732): the x86 div-by-zero guard was the lone guard passing an `.asciz` — a catch that used `e` SIGSEGV'd. **Proof (executed, RED-first):** the new `NativeCatchableRuntimeFaultE2ETest` **6 run / 0F** (JVM/Script/JS/native x86-64/riscv64/aarch64); with the fix REVERTED `nativeX86MatchesTheJvm` and `nativeRiscv64MatchesTheJvm` FAIL. **Boundary (documented):** the native fault TEXT stays the runtime's own (`Runtime error: array index out of bounds`) vs the JVM's `Index 99 out of bounds for length 2` — this fix makes the fault CATCHABLE with a usable KofString message, it does not align the text; the NULL fault (`kof_null_error`) was NOT measured.
 
 **Boundary:** out-of-range faults only. The native NULL fault (`kof_null_error`, the same `kof_panic` shape) was NOT measured this cycle and is not claimed here.
 
-<!-- pt-switch --> **PT:** [§729 (pt_BR)](known-bugs.pt_BR.md#729--native-um-erro-de-bounds-e-aborto-duro-kof_bounds_error--kof_panic-entao-o-catch-string-e-nunca-o-ve-enquanto-jvmscriptjs-capturam-o-mesmo-acesso-fora-de-faixa---aberto-medido-1410-pela-lane-issuestooling-192168100219093-na-sondagem-da-843-frente-da-lane-do-runtime-nativo)
+<!-- pt-switch --> **PT:** [§729 (pt_BR)](known-bugs.pt_BR.md#729--native-um-erro-de-bounds-e-aborto-duro-kof_bounds_error--kof_panic-entao-o-catch-string-e-nunca-o-ve-enquanto-jvmscriptjs-capturam-o-mesmo-acesso-fora-de-faixa---corrigido-1410-achado-1410-pela-lane-issuestooling-192168100219093-na-sondagem-da-843-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
 ## §730 — [JS] String.substring/charAt OUT OF RANGE silently clamp (empty string) where the JVM/Script raise the named Range/Index message — ✅ FIXED 14/10 (found 14/10 by lane issues/tooling `192.168.100.21:9093` during the #843 probe; fixed 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 
@@ -19384,3 +19384,26 @@ ffmpeg's item is `[OBU_SEQUENCE_HEADER][OBU_FRAME]` with no leading temporal del
 **RESOLVED 14/10 — the divergence was in the COMPOSITION GLUE, not the decoder.** Driving the solid-gray reproducer with a per-stage dump showed ONE mode-info block but 256 transform blocks with garbage coefficients and `txSz=0` (TX_4X4) for a 64x64 block. The tile driver's `txMode` parameter takes the AV1 `TxMode` VALUE (0=ONLY_4X4, 1=LARGEST, 2=SELECT), NOT the raw frame-header `tx_mode_select` bit — the glue passed the bit, so `tx_mode_select == 0` became TX_MODE_ONLY_4X4 and a 64x64 block decoded as 256 4x4 blocks. Mapping it (bit 0 -> LARGEST(1), bit 1 -> SELECT(2)) makes the frame read ONE block, one TX_64X64 transform, and reconstruct `Y=126` — EXACTLY ffmpeg's `libdav1d` output. Proof: `AvifRealFileE2ETest#realSolidGrayDecodesToReferenceOnJvm/OnScript`. **The Kof AVIF decoder was correct the whole time; this entry is retracted as a decoder bug and kept as the record of a real integration pitfall (the TxMode-value mapping) the composition must get right.**
 
 <!-- pt-switch --> **PT:** [§731 (pt_BR)](known-bugs.pt_BR.md#731--o-decode-de-tile-avif-em-kof-puro-diverge-do-decoder-de-referencia-mesmo-no-frame-real-mais-simples-um-avif-verde-cinza-solido-64x64-um-bloco-payload-de-tile-de-2-bytes-reconstroi-como-y--0173165-onde-o-libdav1d-do-ffmpeg-le-um-plano-126---corrigido-1410--diagnostico-errado-retratado-o-decode-de-tile-do-kof-esta-correto-a-divergencia-era-a-cola-da-composicao-passando-o-bit-cru-tx_mode_select-onde-o-driver-quer-o-valor-txmode-do-av1-0only_4x4-1largest-2select--ver-a-resolucao-abaixo-medido-pela-lane-pipelineimage-vision-19216815210)
+
+## §732 — [native x86] a caught RUNTIME fault message was an `.asciz` C-string, not a KofString: a `catch (String e)` that USED `e` (`e + "…"`, `e.length`) SIGSEGV'd — masked because §693's E2E never used `e` — ✅ FIXED 14/10 (found and fixed 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 14/10):** on native x86-64,
+
+```kof
+main() {
+    var z = 0
+    try { println(10 / z) } catch (String e) { println("caught=[" + e + "]") }
+}
+```
+
+SIGSEGV'd (exit 139) instead of printing `caught=[/ by zero]` — the catch FIRED but USING `e` crashed.
+
+**Root:** the x86 div-by-zero guard (§693) passed `.Ldivz_msg` — an `.asciz` (a raw C-string) — to `kof_throw_string`, while the CROSS guard (and every user `throw "msg"`) passes a real KofString. A KofString has a header (typeId@0 super@4 vtable@8 len@16 data@24); `e + "]"`/`e.length` read `len@16` of an `.asciz` → a garbage length → out-of-bounds read → SIGSEGV.
+
+**Fix (LANDED):** the x86 div guard builds a KofString via `kof_string_from_literal(chars, len)` before `kof_throw_string` — the same shape the CROSS guard already used. `NativeX86Arith`.
+
+**Proof (executed, RED-first):** `NativeCatchableRuntimeFaultE2ETest` covers the div catch USING `e` on JVM/Script/JS/native; with the fix reverted the native faces fail. **`CrossDivideByZeroE2ETest` (§693/§699) MASKED this** — it caught `(String e)` but only printed `"caught"`, never using `e`, so the catch firing was taken as success.
+
+**Boundary:** the x86 face; the CROSS guard was already correct (it used `kof_string_from_literal`).
+
+<!-- pt-switch --> **PT:** [§732](known-bugs.pt_BR.md#732--nativo-x86-uma-mensagem-de-falha-de-runtime-capturada-era-um-asciz-c-string-nao-uma-kofstring-um-catch-string-e-que-usesse-e-e---elength-sigsegvava--mascarado-porque-o-e2e-do-693-nunca-usou-e---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
