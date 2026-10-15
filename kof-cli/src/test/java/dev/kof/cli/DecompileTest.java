@@ -2429,6 +2429,53 @@ class DecompileTest {
                 "zero-drift: dist/quadrantes/inCircle id\u00eanticos ao Java");
     }
 
+    @Test
+    void multiInsnElseReturnJoinRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (14/10): o RETURN-JOIN com o ELSE MULTI-insn — o Fase C
+        // exigia o else de UMA insn; o avg real (`xs.isEmpty() ? 0 :
+        // (double) sum / xs.size()`) tem o else = [iload, i2d, aload, size,
+        // i2d, ddiv] (6 insns) caindo no bloco do dreturn. O stackValue
+        // decide (null = recusa, R6). Zero-drift executado: tier
+        // gold/silver/none, avg(listOf(2,4,6))=4.0, avg(listOf())=0.0 — 5/5
+        // id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Cu.java");
+        Files.writeString(javaFile, """
+                public class Cu {
+                    static String tier(int points) {
+                        String t = "none";
+                        if (points >= 1000) { t = "gold"; }
+                        else if (points >= 500) { t = "silver"; }
+                        return t;
+                    }
+                    static double avg(java.util.List<Integer> xs) {
+                        int sum = 0;
+                        for (int x : xs) { sum += x; }
+                        return xs.isEmpty() ? 0 : (double) sum / xs.size();
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cu.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("return if ("), "o return-ternário:\n" + kof);
+        String kofRun = kof + "\nmain() {\n    println(Cu.tier(1200))\n    println(Cu.tier(600))\n"
+                + "    println(Cu.tier(10))\n    println(Cu.avg(listOf(2, 4, 6)))\n"
+                + "    println(Cu.avg(listOf()))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: gold | silver | none | 4.0 | 0.0
+        assertEquals("gold\nsilver\nnone\n4.0\n0.0", output,
+                "zero-drift: tier/avg id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

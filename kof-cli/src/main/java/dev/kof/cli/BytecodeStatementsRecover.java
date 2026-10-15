@@ -238,8 +238,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 List<BytecodeReader.Insn> eIns = BytecodeDecoder.insnsWithin(elseBlk, insns);
                 int joinAfterElse = elseBlk.succ.get(elseBlk.succ.size() - 1);
                 BytecodeReader.Block joinBlk = byStart.get(joinAfterElse);
-                // o else-bloco é SÓ o push (o xreturn é o bloco do join)
-                boolean eShape = eIns.size() == 1;
+                // o else-bloco é push PURO (o xreturn é o bloco do join) —
+                // Fase E (14/10): a sequência pode ser MULTI-insn (medido no
+                // avg: [iload, i2d, aload, size, i2d, ddiv]); o stackValue
+                // decide (null = recusa, R6)
+                boolean eShape = !eIns.isEmpty()
+                        && BytecodeDecoder.stackValue(eIns, frame, cp) != null;
                 boolean tShape = thenBlk.succ.size() == 1 && thenBlk.succ.get(0) == joinAfterElse
                         && joinBlk != null && joinBlk.succ.isEmpty();
                 if (eShape && tShape) {
@@ -251,6 +255,8 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                         String tVal = BytecodeDecoder.stackValue(
                                 tIns.subList(0, tIns.size() - 1), frame, cp);
                         String eVal = BytecodeDecoder.stackValue(eIns, frame, cp);
+                        // (o eVal já saiu do gate eShape — reavaliado aqui
+                        // só p/ clareza; ambos null-checked abaixo)
                         if (tVal != null && eVal != null) {
                             // coerção Bool: método `Z` com braços 1/0 → true/false
                             // (o Kof exige Bool; medido — `return if (..) 1 else 0`
@@ -265,6 +271,44 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                             emitted.add(exitStart);
                             emitted.add(joinAfterElse);
                             return true;
+                        }
+                    }
+                }
+            }
+        }
+        // Fase E (14/10): o ELSE-RETURN DENTRO do próprio bloco — o else =
+        // [push..., xreturn] (o xreturn não é bloco separado) e o THEN salta
+        // DIRETO ao xreturn (compartilhado). Medido no avg:
+        // `return if (isEmpty) 0.0 else (sum as Double) / size`. Qualquer
+        // desvio → segue o walk (R6).
+        {
+            BytecodeReader.Block elseBlk = byStart.get(exitStart);
+            BytecodeReader.Block thenBlk = byStart.get(thenStart);
+            if (elseBlk != null && thenBlk != null && !thenBlk.succ.isEmpty()) {
+                List<BytecodeReader.Insn> eIns = BytecodeDecoder.insnsWithin(elseBlk, insns);
+                if (!eIns.isEmpty()) {
+                    int lastOp = eIns.get(eIns.size() - 1).opcode();
+                    if (lastOp >= 0xac && lastOp <= 0xb1
+                            && thenBlk.succ.get(0) == eIns.get(eIns.size() - 1).offset()
+                            && eIns.size() >= 2) {
+                        List<BytecodeReader.Insn> tIns = BytecodeDecoder.insnsWithin(thenBlk, insns);
+                        if (tIns.size() >= 2 && tIns.get(tIns.size() - 1).opcode() == 0xa7) {
+                            String tVal = BytecodeDecoder.stackValue(
+                                    tIns.subList(0, tIns.size() - 1), frame, cp);
+                            String eVal = BytecodeDecoder.stackValue(
+                                    eIns.subList(0, eIns.size() - 1), frame, cp);
+                            if (tVal != null && eVal != null) {
+                                if ("Z".equals(frame.retType())) {
+                                    if ("1".equals(tVal)) tVal = "true";
+                                    if ("0".equals(tVal)) tVal = "false";
+                                    if ("1".equals(eVal)) eVal = "true";
+                                    if ("0".equals(eVal)) eVal = "false";
+                                }
+                                out.add("    return if (" + cond + ") " + tVal + " else " + eVal);
+                                emitted.add(exitStart);
+                                emitted.add(eIns.get(eIns.size() - 1).offset());
+                                return true;
+                            }
                         }
                     }
                 }
