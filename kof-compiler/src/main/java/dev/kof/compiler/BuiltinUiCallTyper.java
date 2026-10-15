@@ -48,6 +48,10 @@ final class BuiltinUiCallTyper {
                 && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
             return KofUi.STACK;
         }
+        if (mc.receiver() == null && "Center".equals(mc.methodName())
+                && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
+            return KofUi.CENTER;
+        }
         if (mc.receiver() == null && "Spacer".equals(mc.methodName())
                 && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
             return KofUi.SPACER;

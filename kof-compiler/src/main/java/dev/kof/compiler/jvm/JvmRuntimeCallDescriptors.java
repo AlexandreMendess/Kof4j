@@ -104,6 +104,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_window_bind", "kof_ui_view_bind" -> "(II)V";
             case "kof_ui_row_bind", "kof_ui_column_bind" -> "(II)V";
             case "kof_ui_box_bind" -> "(II)V";
+            case "kof_ui_center_bind" -> "(II)V";
             case "kof_ui_stack_bind" -> "(II)V";
             case "kof_ui_scroll_bind" -> "(II)V";
             case "kof_ui_window_set_size" -> "(III)V";

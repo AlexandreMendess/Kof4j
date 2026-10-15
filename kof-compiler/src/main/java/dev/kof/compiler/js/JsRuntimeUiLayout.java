@@ -67,6 +67,13 @@ public final class JsRuntimeUiLayout {
                         { display: "flex", alignItems: "center", justifyContent: "center" });
             }
 
+            export function kofUiCenterBind(center, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[center]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[center].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiScrollNew(ids) {
                 return kofUiLayoutContainerNew("div", "kof-scroll", ids,
                         { overflow: "auto" });
