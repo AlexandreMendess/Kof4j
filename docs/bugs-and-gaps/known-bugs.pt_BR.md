@@ -17160,7 +17160,7 @@ b.length / return / passar como Int[]   OK em todos os alvos (sem acesso a eleme
 **Prova RED-first (executada):** `NarrowedNullableArrayE2ETest` **33 run / 15F / 8 skips de ambiente** na ponta sem o fix (incl. um teste de estrutura do bytecode exigindo `IALOAD` presente e `AALOAD` ausente) → **33 run / 0F** depois, sobre JVM + Script + JS + x86-64 + riscv64 + aarch64 (os 2 skips por face são RISCV32 / MCU ARM, sem toolchain). Bateria de não-regressão na família array+narrowing: **150 run / 0F / 22 skips**.
 
 **FACE IRMÃ — CORRIGIDA no mesmo dia, com entrada própria (§744, GitHub #882):** um `List<String>?` estreitado falha do MESMO jeito na JVM, porque o lowerer classifica o receptor pelo tipo ANULÁVEL (`BuiltinTypes.isList(NullableType)` é falso): `l[1]` → `VerifyError aaload` e `for (var s in l)` → `VerifyError arraylength`. `l.get(i)`/`l.size()` funcionam (resolução semântica) e `l[0] = x` dá o `SEM054` honesto. Não coberto pelas #878/#879 (essas são arrays — ganhou issue própria, a #882, e entrada própria, a §744).
-<!-- pt-switch --> **EN:** [§743 (en)](known-bugs.md#743--a-narrowed-nullable-primitive-array-emitted-reference-element-loads-and-stores-over-an-int-array-verifyerror-on-the-jvm-and-sigsegv-on-the-three-natives)
+<!-- pt-switch --> **EN:** [§743 (en)](known-bugs.md#745--a-list-inferred-with-a-bare-element-type-crashes-the-native-targets-when-a-primitive-is-added-sigsegv-the-jvmscriptjs-give-the-right-value)
 
 ## §744 — uma coleção anulável ESTREITADA emitia o caminho de ARRAY índice e iteração sobre uma List davam VerifyError na JVM
 
@@ -17184,3 +17184,24 @@ l[0] = "z"           SEM054 honesto ("use l.set(i, v)") — correto, não é o d
 
 **Nota honesta:** `m["k"]` NÃO é sintaxe de Kof (o `SEM054` honesto diz "use get(k)"), então o braço Map da suíte exercita a classificação do receptor via `.get()`/`.size()` e não via `[]`.
 <!-- pt-switch --> **EN:** [§744 (en)](known-bugs.md#744--a-narrowed-nullable-collection-emitted-the-array-path-index-and-iteration-over-a-list-raised-a-verifyerror-on-the-jvm)
+
+## §745 — uma List inferida com tipo de elemento NU QUEBRA os alvos nativos quando um primitivo e adicionado (SIGSEGV; JVM/Script/JS dao o valor certo)
+
+**Status:** 🟡 ABERTO (catalogado com a repro medida e o ponteiro do fix; NÃO corrigido).
+
+**CATALOGADO (medido) 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem cross-target das arestas de coleção (a veia do §738–§742). Uma lista criada do `listOf()` VAZIO recebe um tipo de elemento NU inferido; adicionar um PRIMITIVO a ela dentro de uma lambda QUEBRA os backends nativos onde os outros três alvos dão o valor certo — a pior classe (um crash, regra 5):
+
+```
+var b = listOf()
+listOf(1, 2, 3).forEach((x) -> b.add(x * 2))
+println(b)              JVM/Script/JS = [2, 4, 6]      NATIVO x86/riscv/arm = [?, ?, ?] ✗
+b.get(0)                JVM/Script/JS = 2, arith 3     NATIVO = o programa MORRE   ✗ (x86 e riscv64 param após o size; aarch64 SEGFAULT: `uncaught target signal 11`)
+List<Int> a = listOf()  OS QUATRO = [2, 4, 6] ✓ — um tipo de elemento EXPLÍCITO está bem em todos
+```
+
+**Causa raiz (o MESMO mecanismo que o NAT008 já recusa):** o elemento atravessa um type parameter NU, então o primitivo e armazenado SEM BOX onde o contentor espera uma referência — o `CollectionZipLowerer` recusa exactamente isto no `zip` com o `NAT008` ("the element crosses a bare type parameter and would be unboxed as a pointer (SIGSEGV)"). O caminho `add`/`get` não tem essa guarda, então o hazard chega ao backend: a lista guarda inteiros crus onde se esperam ponteiros, a impressão mostra `?` e ler um deles desreferencia um inteiro como ponteiro → o crash. Que a recusa exista no `zip` e não no `add` é a inconsistência que esta entrada regista.
+
+**Ponteiro do fix (próximo ciclo, decisão-livre — segue a política NAT008 estabelecida):** acrescentar a guarda-irmã no lowering nativo do `add`/`push`/`append` para um elemento de tipo NU recebendo um primitivo, espelhando o diagnóstico NAT do `CollectionZipLowerer` (mesmo mecanismo, mesma recusa honesta, só no nativo — JVM/Script/JS continuam a boxar e a ficar corretos). O sítio exacto e o lowering de chamadas de coleção (`CollectionCallLowerer`); o texto do diagnóstico deve citar a mesma causa para os dois gaps lerem como uma família.
+
+**Fronteira:** um tipo de elemento EXPLÍCITO em qualquer ponto do pipeline (`List<Int>`, ou um receptor `listOf(1,2,3)` não-vazio) está CORRETO nos quatro alvos — medido — logo a guarda tem de ser chaveada no tipo NU/inferido, não no `add` em si.
+<!-- pt-switch --> **EN:** [§743 (en)](known-bugs.md#743--a-narrowed-nullable-primitive-array-emitted-reference-element-loads-and-stores-over-an-int-array-verifyerror-on-the-jvm-and-sigsegv-on-the-three-natives)
