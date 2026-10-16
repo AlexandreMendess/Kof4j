@@ -3969,6 +3969,72 @@ class DecompileTest {
                 "zero-drift: expired/token/remaining/isValidFormat/purge id\u00eanticos ao Java");
     }
 
+    @Test
+    void cfgDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o dom\u00ednio CFG — 4 shapes sem c\u00f3digo novo: o
+        // max de TR\u00caS vars com os DOIS ifs de reatribui\u00e7\u00e3o
+        // encadeada (max — o padr\u00e3o running-max), o sign com os TR\u00caS
+        // returns antecipados (sign), o absDiff com a negação condicional
+        // (absDiff: `if (d < 0) return -d`) e a paridade com o MOD
+        // comparado (sameParity: `(a % 2) == (b % 2)`). Zero-drift
+        // executado: 9/9/9/+/-/0/7/7/true/false — 10/10 id\u00eanticos ao
+        // Java.
+        Path javaFile = dir.resolve("Cfg.java");
+        Files.writeString(javaFile, """
+                public class Cfg {
+                    static int max(int a, int b, int c) {
+                        int m = a;
+                        if (b > m) { m = b; }
+                        if (c > m) { m = c; }
+                        return m;
+                    }
+                    static String sign(int n) {
+                        if (n > 0) { return "+"; }
+                        if (n < 0) { return "-"; }
+                        return "0";
+                    }
+                    static int absDiff(int a, int b) {
+                        int d = a - b;
+                        if (d < 0) { return -d; }
+                        return d;
+                    }
+                    static boolean sameParity(int a, int b) {
+                        return (a % 2) == (b % 2);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cfg.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Cfg.max(3, 9, 5))
+                    println(Cfg.max(9, 3, 5))
+                    println(Cfg.max(3, 5, 9))
+                    println(Cfg.sign(42))
+                    println(Cfg.sign(-7))
+                    println(Cfg.sign(0))
+                    println(Cfg.absDiff(10, 3))
+                    println(Cfg.absDiff(3, 10))
+                    println(Cfg.sameParity(4, 8))
+                    println(Cfg.sameParity(4, 7))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 9 | 9 | 9 | + | - | 0 | 7 | 7 | true | false
+        assertEquals("9\n9\n9\n+\n-\n0\n7\n7\ntrue\nfalse", output,
+                "zero-drift: max/sign/absDiff/sameParity id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
