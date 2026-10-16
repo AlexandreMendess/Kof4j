@@ -5513,6 +5513,72 @@ class DecompileTest {
                 "zero-drift: tryOpen/code/matches/attemptsLeft id\u00eanticos ao Java");
     }
 
+    @Test
+    void recipeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio RECEITA — 4 shapes sem c\u00f3digo novo: o
+        // tempo com a soma direta, o spiceLevel com as faixas ==/<=
+        // (mild/medium/hot/inferno), o vegetarian com o || de equals DENTRO
+        // do early-false (`ing.equals("chicken") || ing.equals("beef")` —
+        // a cadeia || com o return antecipado) e o scale com a regra de
+        // três (`amount * target / servings`). Zero-drift executado: 55/
+        // mild/medium/hot/inferno/true/false/300.0 — 8/8 id\u00eanticos ao
+        // Java — a 32\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Recipe.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Recipe {
+                    static int totalTime(int prep, int cook) {
+                        return prep + cook;
+                    }
+                    static String spiceLevel(int peppers) {
+                        if (peppers == 0) { return "mild"; }
+                        if (peppers <= 2) { return "medium"; }
+                        if (peppers <= 5) { return "hot"; }
+                        return "inferno";
+                    }
+                    static boolean vegetarian(List<String> ingredients) {
+                        for (String ing : ingredients) {
+                            if (ing.equals("chicken") || ing.equals("beef")) { return false; }
+                        }
+                        return true;
+                    }
+                    static double scale(double amount, int servings, int target) {
+                        return amount * target / servings;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Recipe.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Recipe.totalTime(15, 40))
+                    println(Recipe.spiceLevel(0))
+                    println(Recipe.spiceLevel(2))
+                    println(Recipe.spiceLevel(4))
+                    println(Recipe.spiceLevel(9))
+                    var ings = listOf("rice", "beans", "salad")
+                    var meat = listOf("rice", "chicken")
+                    println(Recipe.vegetarian(ings))
+                    println(Recipe.vegetarian(meat))
+                    println(Recipe.scale(200.0, 4, 6))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 55 | mild | medium | hot | inferno | true | false | 300.0
+        assertEquals("55\nmild\nmedium\nhot\ninferno\ntrue\nfalse\n300.0", output,
+                "zero-drift: totalTime/spiceLevel/vegetarian/scale id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
