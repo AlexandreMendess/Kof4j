@@ -265,6 +265,17 @@ public sealed interface Type {
         return UnknownType.UNKNOWN;
     }
 
+    /**
+     * O mesmo tipo sem a ANULABILIDADE (#882): o receptor ESTREITADO por
+     * {@code if (l != null)} segue {@code Nullable(...)} no IR (o estreitamento é
+     * semântico), e toda CLASSIFICAÇÃO do receptor (é List? é Map? é array?) tem de
+     * olhar o tipo por baixo do `?` — senão um {@code List<T>?} cai no caminho de
+     * array ({@code aaload}/{@code arraylength} sobre ArrayList → VerifyError).
+     */
+    static Type withoutNullable(Type type) {
+        return type instanceof NullableType nt ? withoutNullable(nt.inner()) : type;
+    }
+
     static Type fromJvmDescriptor(String desc) {
         if (desc == null || desc.isEmpty()) return UnknownType.UNKNOWN;
         return parseJvmDescriptor(desc, 0).type();

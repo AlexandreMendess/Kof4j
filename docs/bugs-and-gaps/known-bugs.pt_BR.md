@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §744 (FIXED)
 last: §743 (FIXED)
 last: §738 (CATALOGADO)
 last: §731 (FIXED/RETRACTED)
@@ -17158,5 +17159,28 @@ b.length / return / passar como Int[]   OK em todos os alvos (sem acesso a eleme
 
 **Prova RED-first (executada):** `NarrowedNullableArrayE2ETest` **33 run / 15F / 8 skips de ambiente** na ponta sem o fix (incl. um teste de estrutura do bytecode exigindo `IALOAD` presente e `AALOAD` ausente) → **33 run / 0F** depois, sobre JVM + Script + JS + x86-64 + riscv64 + aarch64 (os 2 skips por face são RISCV32 / MCU ARM, sem toolchain). Bateria de não-regressão na família array+narrowing: **150 run / 0F / 22 skips**.
 
-**FACE IRMÃ — MEDIDA, ainda ABERTA, issue própria a abrir:** um `List<String>?` estreitado falha do MESMO jeito na JVM, porque o lowerer classifica o receptor pelo tipo ANULÁVEL (`BuiltinTypes.isList(NullableType)` é falso): `l[1]` → `VerifyError aaload` e `for (var s in l)` → `VerifyError arraylength`. `l.get(i)`/`l.size()` funcionam (resolução semântica) e `l[0] = x` dá o `SEM054` honesto. Não coberto pelas #878/#879 (essas são arrays); é a próxima unidade desta lane.
+**FACE IRMÃ — CORRIGIDA no mesmo dia, com entrada própria (§744, GitHub #882):** um `List<String>?` estreitado falha do MESMO jeito na JVM, porque o lowerer classifica o receptor pelo tipo ANULÁVEL (`BuiltinTypes.isList(NullableType)` é falso): `l[1]` → `VerifyError aaload` e `for (var s in l)` → `VerifyError arraylength`. `l.get(i)`/`l.size()` funcionam (resolução semântica) e `l[0] = x` dá o `SEM054` honesto. Não coberto pelas #878/#879 (essas são arrays — ganhou issue própria, a #882, e entrada própria, a §744).
 <!-- pt-switch --> **EN:** [§743 (en)](known-bugs.md#743--a-narrowed-nullable-primitive-array-emitted-reference-element-loads-and-stores-over-an-int-array-verifyerror-on-the-jvm-and-sigsegv-on-the-three-natives)
+
+## §744 — uma coleção anulável ESTREITADA emitia o caminho de ARRAY índice e iteração sobre uma List davam VerifyError na JVM
+
+**Status:** ✅ FIXED 16/10 (lane issues/tooling `192.168.100.21:9093`, GitHub #882 — a face irmã da §743/#878/#879, que ficaram restritas a ARRAYS).
+
+**CATALOGADO (medido) 16/10 — achado ao fechar a #878/#879, registado na §743.** Um `List<T>?` (e, pela mesma classificação, `Map`/`Set`) ESTREITADO por `if (l != null)` continuava classificado pelo tipo ANULÁVEL: `BuiltinTypes.isList`/`isMap`/`isSet` só reconhecem `ClassType` puro, então o receptor caía no caminho de ARRAY e o acesso saía por referência.
+
+```
+l[1]                 JVM VerifyError: Bad type on operand stack in aaload      Script b
+for (var s in l)     JVM VerifyError … in arraylength                          Script a / b
+l.get(1)             OK (resolução semântica, nunca o lowering)
+l.size()             OK
+l[0] = "z"           SEM054 honesto ("use l.set(i, v)") — correto, não é o defeito
+```
+
+**Causa raiz:** o MESMO invariante ausente da §743 — o estreitamento é semântico, o local segue `Nullable(ClassType kof.List)` no IR, e TODA classificação do receptor tem de olhar por baixo do `?`. Na §743 o fix foi o `Type.arrayElementType` atravessar o `NullableType`; aqui a própria classificação teve de atravessar.
+
+**Fix (aditivo; nenhum primitivo novo, nenhuma mudança na superfície da linguagem):** novo `Type.withoutNullable(Type)` (desembrulho idempotente) usado na classificação do receptor no `ExpressionLowerer` (`case ArrayAccessExpr`: `isList`/`isMap`/`isSet` + a extração do elemento/chave + o owner da chamada de get), no `ExpressionTyper` (`case ArrayAccessExpr`: o TIPO de `l[i]`) e no `StatementLowerer` (a classificação do `for-in` + os owners de `kof_list_size`/`kof_list_get`). O tipo DECLARADO do slot segue anulável — só a classificação é desembrulhada.
+
+**Prova RED-first (executada, com o próprio teste):** o novo `NarrowedNullableCollectionE2ETest` — com SÓ este delta revertido (o fix da §743 mantido): **33 run / 12F / 8 skips de ambiente**; com ele: **33 run / 0F / 8 skips** sobre JVM + Script + JS + x86-64 + riscv64 + aarch64 (os 2 skips por face são RISCV32 / MCU ARM, sem toolchain). A suíte fixa também os controles que já funcionavam (`.get()`/`.size()`) e um braço de coleção NÃO anulável, mais um teste de estrutura do bytecode exigindo nenhum `AALOAD`/`ARRAYLENGTH` sobre o receptor `ArrayList` e o `INVOKESTATIC` do get de runtime.
+
+**Nota honesta:** `m["k"]` NÃO é sintaxe de Kof (o `SEM054` honesto diz "use get(k)"), então o braço Map da suíte exercita a classificação do receptor via `.get()`/`.size()` e não via `[]`.
+<!-- pt-switch --> **EN:** [§744 (en)](known-bugs.md#744--a-narrowed-nullable-collection-emitted-the-array-path-index-and-iteration-over-a-list-raised-a-verifyerror-on-the-jvm)

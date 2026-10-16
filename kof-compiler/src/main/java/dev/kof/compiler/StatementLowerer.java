@@ -273,10 +273,13 @@ public final class StatementLowerer {
                 LabelId endLabel = LabelId.create();
                 LabelId continueLabel = LabelId.create();
                 Type collType = ExpressionTyper.inferExprType(driver, fis.collection(), locals);
+                // #882/#879: a CLASSIFICAÇÃO do receptor olha o tipo SEM a anulabilidade
+                // — o local ESTREITADO (`if (l != null)`) segue `Nullable(...)` no IR.
+                Type collBase = Type.withoutNullable(collType);
                 Type elemType = Type.UnknownType.UNKNOWN;
-                boolean isList = BuiltinTypes.isList(collType);
-                boolean isString = BuiltinTypes.isString(collType);
-                if (isList) elemType = driver.listElementType(collType);
+                boolean isList = BuiltinTypes.isList(collBase);
+                boolean isString = BuiltinTypes.isString(collBase);
+                if (isList) elemType = driver.listElementType(collBase);
                 else if (isString) {
                     // EVOLUÇÃO (`for (var c in s)`, a diretiva da mantenedora
                     // 13/10): a variável do loop é Char (a unidade do charAt);
@@ -305,9 +308,9 @@ public final class StatementLowerer {
                 ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxIdx));
                 ops.add(new KofLoadLocal(collType, collIdx));
                 if (isList) {
-                    ops.add(new KofCall(collType, "kof_list_size", List.of(), Type.PrimitiveType.INT, KofCallKind.INSTANCE));
+                    ops.add(new KofCall(collBase, "kof_list_size", List.of(), Type.PrimitiveType.INT, KofCallKind.INSTANCE));
                 } else if (isString) {
-                    ops.add(new KofCall(collType, "length", List.of(), Type.PrimitiveType.INT, KofCallKind.INSTANCE));
+                    ops.add(new KofCall(collBase, "length", List.of(), Type.PrimitiveType.INT, KofCallKind.INSTANCE));
                 } else {
                     ops.add(new KofArrayLength());
                 }
@@ -316,9 +319,9 @@ public final class StatementLowerer {
                 ops.add(new KofLoadLocal(collType, collIdx));
                 ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxIdx));
                 if (isList) {
-                    ops.add(new KofCall(collType, "kof_list_get", List.of(Type.PrimitiveType.INT), elemType, KofCallKind.INSTANCE));
+                    ops.add(new KofCall(collBase, "kof_list_get", List.of(Type.PrimitiveType.INT), elemType, KofCallKind.INSTANCE));
                 } else if (isString) {
-                    ops.add(new KofCall(collType, "charAt", List.of(Type.PrimitiveType.INT), elemType, KofCallKind.INSTANCE));
+                    ops.add(new KofCall(collBase, "charAt", List.of(Type.PrimitiveType.INT), elemType, KofCallKind.INSTANCE));
                 } else {
                     ops.add(new KofArrayLoad(elemType));
                 }

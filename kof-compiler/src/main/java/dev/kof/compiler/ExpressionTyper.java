@@ -219,7 +219,8 @@ public final class ExpressionTyper {
                 yield t;
             }
             case ArrayAccessExpr aa -> {
-                Type recvType = inferExprType(driver, aa.receiver(), locals);
+                // #882: sem a anulabilidade — o receptor ESTREITADO segue `Nullable(...)` no IR.
+                Type recvType = Type.withoutNullable(inferExprType(driver, aa.receiver(), locals));
                 // #152/#149: `list[i]`/`m[k]` sobre coleção = get do elemento
                 // (o emit baixa p/ kof_list_get/kof_map_get — espelha aqui).
                 if (BuiltinTypes.isList(recvType)) {
