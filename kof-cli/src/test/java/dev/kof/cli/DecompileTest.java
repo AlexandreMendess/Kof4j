@@ -4884,6 +4884,80 @@ class DecompileTest {
                 "zero-drift: join/repeat/isPalindrome/initials id\u00eanticos ao Java");
     }
 
+    @Test
+    void gradebookDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio DIÁRIO — 4 shapes sem código novo: a
+        // MÉDIA com o ternário de guarda (vazio → 0.0) + o cast (double)
+        // sum/size, a LETRA com as CINCO faixas encadeadas (A/B/C/D/F), o
+        // contador de abaixo-do-piso e o allPassed com o early-false.
+        // Zero-drift executado: 79.0/0.0/A/B/C/D/F/1/true/true — 10/10
+        // id\u00eanticos ao Java — a 23\u00aa valida\u00e7\u00e3o.
+        Path javaFile = dir.resolve("Grade2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Grade2 {
+                    static double average(List<Integer> grades) {
+                        int sum = 0;
+                        for (int g : grades) {
+                            sum += g;
+                        }
+                        return grades.isEmpty() ? 0 : (double) sum / grades.size();
+                    }
+                    static String letter(double avg) {
+                        if (avg >= 90) { return "A"; }
+                        if (avg >= 80) { return "B"; }
+                        if (avg >= 70) { return "C"; }
+                        if (avg >= 60) { return "D"; }
+                        return "F";
+                    }
+                    static int belowCount(List<Integer> grades, int floor) {
+                        int n = 0;
+                        for (int g : grades) {
+                            if (g < floor) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean allPassed(List<Integer> grades) {
+                        for (int g : grades) {
+                            if (g < 60) { return false; }
+                        }
+                        return true;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Grade2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var gs = listOf(95, 88, 72, 61)
+                    println(Grade2.average(gs))
+                    println(Grade2.average(listOf()))
+                    println(Grade2.letter(92.0))
+                    println(Grade2.letter(85.0))
+                    println(Grade2.letter(75.0))
+                    println(Grade2.letter(65.0))
+                    println(Grade2.letter(40.0))
+                    println(Grade2.belowCount(gs, 70))
+                    println(Grade2.allPassed(gs))
+                    println(Grade2.allPassed(listOf(75, 90)))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 79.0 | 0.0 | A | B | C | D | F | 1 | true | true
+        assertEquals("79.0\n0.0\nA\nB\nC\nD\nF\n1\ntrue\ntrue", output,
+                "zero-drift: average/letter/belowCount/allPassed id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
