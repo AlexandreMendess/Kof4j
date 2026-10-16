@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 42ª PASSAGEM: ESCRITOR NOMEADO — o fora-de-limites do 32x32 é a PREDIÇÃO intra lendo além da borda do quadro. Marcador antes do `av1IntraPredictBlock` (`x + 2*w > frameW + 1 || y + 2*h > frameH + 1`) DISPAROU: `IMAGE: DIAG predict-extent x=16 y=0 w=16 h=16 r=0 c=4 bs=6` (bloco 16x16 encostado na borda DIREITA do quadro 32; predição angular quer até x+2w-1 = 47 ⇒ 35 colunas além ⇒ índice 1186 no buffer luma). Fix (próximo): modelo de disponibilidade/clamp dos preditores (spec `AboveRow`/`LeftCol`, clamps do libaom) — o Kof lê o QUADRO direto com offsets crus. Diagnóstico REVERTIDO; árvore provada, AvifRealFileE2ETest 10/10.
-doing: §3bd — escritor NOMEADO: predição intra over-read na borda direita (32x32); fix = modelo de disponibilidade/clamp dos preditores
-next: §3bd — implementar o modelo de disponibilidade/clamp dos preditores intra (spec `AboveRow`/`LeftCol` com amostras indisponíveis marcadas; clamps `get_...` do libaom) e re-testar o fixture 32x32 (hoje OOB: índice 1186 em 1156)
+last: 16/10 — AVIF slice 3bd 43ª PASSAGEM (CORREÇÃO): a alegação da 42ª ("o escritor é a predição intra") está RETRATADA — a predição é ARITMETICAMENTE EXCLUÍDA. O `av1IntraPredictBlock` JÁ faz clamp (`maxX`/`maxY` = frameW/frameH, `limit = min(x + 2w - 1, maxX)`), e com coordenadas com borda isso é EQUIVALENTE ao clamp da spec. Aritmética: com stride 34 e acessos limitados a linha 32/coluna 32, o índice máximo é 32*34+32 = 1120 << 1156, enquanto o crash é 1186 = linha 34, col 30 ⇒ a predição não pode ser o escritor. O marcador da 42ª era fraco (lançava ANTES da chamada que deveria exonerar ⇒ nunca chegou ao crash real). Fica da 42ª: o croma não escreve buffer de quadro (escritor na LUMA) e os guards de BLOCO/TX excluem bloco/TX fora do quadro. Próximo: RASTRO de marcadores que IMPRIME (não lança) em cada escritor candidato (recon, edge filter intra, filter-intra, coeficientes) — a última linha antes do crash nomeia o escritor.
+doing: §3bd — 32x32: predição EXCLUÍDA por aritmética (máx 1120 << 1186); escritor está na LUMA, com offset além do bloco/TX ou stride errado
+next: §3bd — rastro de marcadores que IMPRIME (não lança) em cada escritor candidato (recon/edge-filter/filter-intra/coeficientes) para a última linha antes do crash nomear o escritor do índice 1186
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (70ª) — 3bd 43ª: CORREÇÃO — a predição está ARITMETICAMENTE EXCLUÍDA (retratação)
+- **Retratação:** a 42ª passagem afirmou "o escritor é a predição intra" — ERRADO. O `av1IntraPredictBlock` JÁ faz clamp: `maxX`/`maxY` (driver = frameW/frameH) e `limit = min(x + 2w - 1, maxX)`; com coordenadas com borda (`x+1`), isso é EQUIVALENTE ao clamp da spec (`maxX - 1`).
+- **Aritmética decisiva:** stride 34, acessos limitados a linha 32 / coluna 32 ⇒ índice máximo `32*34 + 32 = 1120` — muito dentro do buffer de 1156 — enquanto o crash é **1186 = linha 34, coluna 30**. Máximo 1120 não escreve 1186 ⇒ a predição NÃO é o escritor.
+- **Falha de método da 42ª:** o marcador LANÇAVA antes da chamada que deveria exonerar ⇒ a execução nunca chegou ao crash real ⇒ não localizou nada.
+- **Fica da 42ª:** o croma não escreve buffer de quadro (escritor na LUMA) e os guards de BLOCO/TX excluem bloco/TX fora do quadro.
+- **Próximo (método corrigido):** RASTRO de marcadores que IMPRIME em cada escritor candidato (recon, edge filter intra, filter-intra, coeficientes) — a última linha antes do crash nomeia o escritor. Um escritor que alcança a linha 34 precisa de offset além do bloco/TX ou stride errado (`frameW` onde o buffer usa `frameW + 2`).
+- **Árvore:** inalterada (docs-only); `AvifRealFileE2ETest` **10/10**.
 
 ## Sessão 16/10 (69ª) — 3bd 42ª: ESCRITOR NOMEADO (predição intra over-read na borda)
 - **Marcador** no laço de TX, antes do `av1IntraPredictBlock`: lança se `x + 2*w > frameW + 1 || y + 2*h > frameH + 1` ⇒ **DISPAROU**: `IMAGE: DIAG predict-extent x=16 y=0 w=16 h=16 r=0 c=4 bs=6`.
