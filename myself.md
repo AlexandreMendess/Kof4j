@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 34ª PASSAGEM: as CDFs de ÍNDICE DE COR de paleta landadas (`Palette_Color_Index_Cdf[7][5][9]` Y e UV, 35 linhas cada) + acessores, verificadas contra o `entropymode.c` do libaom; e a ORDEM de leitura fixada pela referência: libaom lê os TOKENS de paleta DEPOIS do mode info e ANTES do tx size (spec: mode_info -> palette_tokens -> read_block_tx_size), enquanto o driver do Kof lê o tx size logo após o mode info ⇒ num bloco com paleta lê o tx size onde estão os tokens (explica o consumo de 58% e os pixels errados do testsrc pós-fix do portão). Prova: Av1ModeCdfE2ETest 8/8 (suíte EXT com as 70 novas linhas; 1ª tentativa pegou meu erro de ordem PYC/PUC). Próximo: implementar palette_tokens e depois a reconstrução.
-doing: §3bd — CDFs de índice de cor de paleta landadas+verificadas; ordem da leitura dos tokens fixada pela referência (tokens ANTES do tx size); falta implementar palette_tokens + a reconstrução
-next: §3bd — implementar `palette_tokens` (mapa de índices, LIDO ANTES do tx size, usando `paletteYColorIndex`/`paletteUvColorIndex`) e depois a reconstrução por paleta
+last: 15/10 — AVIF slice 3bd 35ª PASSAGEM: o leitor de TOKENS de paleta landou como módulo novo `libs/image/Av1Palette.kf` (av1ReadUniform + av1PaletteColorIndexContext com a tabela de lookup do libaom + av1PaletteColorMap com a frente de onda), transcrito da referência (entropymode.c / detokenize.c). Prova: Av1PaletteTokensE2ETest 2/2 (lookup fixado nos valores do libaom + 2 casos de contexto calculados À MÃO, incl. deslocamento de ordem em n=3). Nome distinto porque já existe Av1PaletteE2ETest (fatia 3v, modo-info). AINDA NÃO ligado ao driver ⇒ nenhum comportamento muda. Próximo: chamar do driver DEPOIS do mode info e ANTES do tx size, por plano, guardando os mapas de cores.
+doing: §3bd — leitor de tokens de paleta landado como módulo verificado (Av1Palette.kf); falta ligá-lo ao driver na posição correta (antes do tx size) e a reconstrução
+next: §3bd — ligar `av1PaletteColorMap` ao driver DEPOIS do mode info e ANTES do tx size (por plano), guardar os mapas de cores, medir consumo/pixels; depois a reconstrução por paleta
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (62ª) — 3bd 35ª: leitor de tokens de paleta (`Av1Palette.kf`) landado e verificado
+- **Módulo novo:** `libs/image/Av1Palette.kf` — `av1ReadUniform`, `av1PaletteColorIndexContext` (pesos 2/1/2, ordenação top-3 que preenche `colorOrder`, hash + `av1_palette_color_index_context_lookup`) e `av1PaletteColorMap` (índice inicial uniforme, frente de onda, cópia da última coluna/linha). Transcrito de `av1/common/entropymode.c` e `av1/decoder/detokenize.c` (obtidos pelo gitiles).
+- **Prova:** `Av1PaletteTokensE2ETest` **2/2 (JVM + Script)** — lookup fixado nos valores EXATOS do libaom (`-1,-1,0,-1,-1,4,3,2,1`) + 2 casos de contexto calculados À MÃO (n=2 → ctx 0; n=3 com deslocamento da ordem → [0,2,1] e ctx 1).
+- **Colisão de nome evitada:** já existia `Av1PaletteE2ETest` (fatia 3v, o modo-info de paleta) ⇒ o novo é `Av1PaletteTokensE2ETest`.
+- **Caveat:** o módulo NÃO está ligado ao driver ⇒ nenhum comportamento muda nesta passagem (sem risco de regressão).
+- **Próximo:** ligar ao driver DEPOIS do mode info e ANTES do tx size, por plano; guardar os mapas; medir consumo/pixels; depois a reconstrução.
 
 ## Sessão 15/10 (61ª) — 3bd 34ª: CDFs de índice de cor da paleta + ORDEM dos tokens (da referência)
 - **Pré-requisito landado:** `Av1ModeCdf` tinha ZERO CDFs de índice de cor de paleta. Agora tem `Palette_Color_Index_Cdf[7][5][9]` (Y e UV, 35 linhas cada; a linha do tamanho s tem s-1 probabilidades) + `paletteYColorIndex(size,ctx)`/`paletteUvColorIndex(size,ctx)`, valores do `entropymode.c` do libaom.
