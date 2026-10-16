@@ -453,7 +453,8 @@ main() {
         // The prediction/reconstruction diagnostic is wired: it pairs each
         // transform block's PREDICTION with its RECONSTRUCTION at the block's
         // own origin (7 ints per TX block).
-        assertTrue(line.contains("PREDBLK tx0"), () -> "the prediction diagnostic is not wired: " + line);
+        assertTrue(line.contains("PREDBLK tx0") && line.contains("PATCH r0") && line.contains("PREDTEST mode="),
+                () -> "the prediction/patch diagnostics are not wired: " + line);
 
         // The per-block position record must be consistent: 2 ints per block,
         // non-decreasing across the tile, ending exactly at the walk's position.

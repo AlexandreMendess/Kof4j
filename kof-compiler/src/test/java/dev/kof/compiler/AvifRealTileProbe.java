@@ -76,6 +76,7 @@ final class AvifRealTileProbe {
 import image.Av1Block
 import image.Av1DecodeChroma
 import image.Av1DecodeTileRecon
+import image.Av1IntraBlock
 import image.Av1ModeInfo
 import image.Av1Partition
 import image.Av1Quant
@@ -230,6 +231,45 @@ main() {
         pbl = pbl + 1
     }
     println("PREDBLK " + pline)
+    // Experiment: reproduce block 1's BOTTOM transform block (8x8 at pixel
+    // origin (8,8)) by calling the predictor DIRECTLY with explicit arguments,
+    // for all four (aboveRight, belowLeft) combinations — so a wrong
+    // availability is separated from a wrong angle application without
+    // touching the driver.
+    var bmi = 17
+    if (modes.size >= 34) {
+        var bMode = modes[bmi + 5]
+        var bAng = modes[bmi + 6]
+        var bFI = modes[bmi + 11]
+        var bFIM = modes[bmi + 12]
+        var combos = ""
+        var ar = 0
+        while (ar <= 1) {
+            var bl = 0
+            while (bl <= 1) {
+                var pp = av1IntraPredictBlock(frame, stride, 9, 9, 8, 8, mw, mh, 1, 1, ar, bl, bMode, bAng, bFI, bFIM, seq.bitDepth, 0, true)
+                combos = combos + " ar" + ar + "bl" + bl + "=" + pp[0]
+                bl = bl + 1
+            }
+            ar = ar + 1
+    }
+    println("PREDTEST mode=" + bMode + " ang=" + bAng + " fi=" + bFI + " fim=" + bFIM + combos)
+    println("PREDREF above=" + frame[8 * stride + 9] + "," + frame[8 * stride + 10] + "," + frame[8 * stride + 11] + " left=" + frame[9 * stride + 8] + "," + frame[10 * stride + 8] + "," + frame[11 * stride + 8] + " corner=" + frame[8 * stride + 8])
+    }
+    // A PATCH of the FINAL frame (an 18x18 window at the origin, rows/cols
+    // 0..17): it shows where a block's write landed a value the reference
+    // never has, which localises an out-of-extent or desynced write.
+    var py2 = 0
+    while (py2 <= 17) {
+        var prow = ""
+        var px2 = 0
+        while (px2 <= 17) {
+            prow = prow + frame[(py2 + 1) * stride + (px2 + 1)] + " "
+            px2 = px2 + 1
+        }
+        println("PATCH r" + py2 + " " + prow)
+        py2 = py2 + 1
+    }
     println("PAYLOAD " + data.size + " " + ph + " path=" + path)
     var sl = sym.log()
     var sc = 0
