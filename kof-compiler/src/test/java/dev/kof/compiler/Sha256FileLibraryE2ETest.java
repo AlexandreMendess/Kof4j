@@ -32,6 +32,8 @@ class Sha256FileLibraryE2ETest implements LibraryInstallSupport {
 
     private static String probe(Path file) {
         return """
+                import security.Sha
+
                 main() {
                     println(sha256File("%s"))
                 }

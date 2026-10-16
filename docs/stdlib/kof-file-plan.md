@@ -349,6 +349,22 @@ possible.
 
 Consider security against path traversal inside archives.
 
+> **Landed 16/10 (the `D-KOF-FILE-GO` route): slice 1 of the ZIP reader is a Kof
+> official package — `libs/archive/Zip.kf` (`package archive`), issue #852.**
+> `Zip(path)` reads the CENTRAL DIRECTORY (`entries`: name, flags, method,
+> CRC-32, compressed/uncompressed sizes, external attributes, local-header
+> offset); `readEntry(entry, maxBytes)` returns a STORED entry as it is and
+> INFLATES a deflate one by COMPOSING the existing `libs/image/Inflate.kf` — no
+> new codec and no new language primitive — verifying CRC-32 at the end;
+> `readText` decodes it as UTF-8 (the XML/SPED/CSV case). The byte ceiling is the
+> CALLER's (`maxBytes`), never the size declared in the archive: a lying
+> declared size is refused instead of truncated, which is the
+> decompression-bomb defence. ZIP64, an encrypted entry and any method outside
+> {0, 8} are refused with an explicit diagnostic, never silence. **Still open in
+> #852:** `open()`/`readChunk()` streaming driven by the caller, `extractTo`
+> (which needs the confinement primitive from #854), GZIP and TAR, and the CP437
+> fallback for legacy names.
+
 ---
 
 # 17. Binary formats
