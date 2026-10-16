@@ -5311,6 +5311,73 @@ class DecompileTest {
                 "zero-drift: toSeconds/period/addMinutes/isBusinessDay id\u00eanticos ao Java");
     }
 
+    @Test
+    void votingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio VOTA\u00c7\u00c3O — 4 shapes sem c\u00f3digo novo:
+        // o contador de votos com o equals no for-each, o canVote com o
+        // gate do early-false + o return do boolean param, o runoff com as
+        // DUAS calls ANTES do if (o reuso dos resultados como locais) e o
+        // turnout com a PROMO\u00c7\u00c3O int→double no multiplicador (`votes *
+        // 100.0 / eligible`). Zero-drift executado: 3/0/false/true/false/
+        // ana/68.0 — 7/7 id\u00eanticos ao Java — a 29\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Voting.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Voting {
+                    static int countVotes(List<String> ballots, String cand) {
+                        int n = 0;
+                        for (String b : ballots) {
+                            if (b.equals(cand)) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean canVote(int age, boolean registered) {
+                        if (age < 18) { return false; }
+                        return registered;
+                    }
+                    static String runoff(String a, String b, List<String> ballots) {
+                        int va = countVotes(ballots, a);
+                        int vb = countVotes(ballots, b);
+                        if (va > vb) { return a; }
+                        if (vb > va) { return b; }
+                        return a;
+                    }
+                    static double turnout(int votes, int eligible) {
+                        return votes * 100.0 / eligible;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Voting.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var bs = listOf("ana", "bia", "ana", "ana", "bia")
+                    println(Voting.countVotes(bs, "ana"))
+                    println(Voting.countVotes(bs, "caio"))
+                    println(Voting.canVote(17, true))
+                    println(Voting.canVote(25, true))
+                    println(Voting.canVote(25, false))
+                    println(Voting.runoff("ana", "bia", bs))
+                    println(Voting.turnout(340, 500))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3 | 0 | false | true | false | ana | 68.0
+        assertEquals("3\n0\nfalse\ntrue\nfalse\nana\n68.0", output,
+                "zero-drift: countVotes/canVote/runoff/turnout id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
