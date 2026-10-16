@@ -207,6 +207,7 @@ public final class NativeRuntime {
         RuntimeStringOps.emitStringEqualsIgnoreCase(sb);
         RuntimeStringEdit.emitStringSplit(sb);
         RuntimeStringEdit.emitStringSplitLimit(sb);
+        RuntimeStringEdit.emitStringSplitChars(sb);
         RuntimeArray.emitArrayAlloc(sb);
         RuntimeArray.emitMultiArrayAlloc(sb);
         RuntimeArray.emitArrayLength(sb);

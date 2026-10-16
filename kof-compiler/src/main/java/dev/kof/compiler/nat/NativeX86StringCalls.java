@@ -259,6 +259,13 @@ public final class NativeX86StringCalls {
             int seq = nb.inlineSeq++;
             String empty = ".Lkof_split_empty_sep" + seq;
             String call = ".Lkof_split_call" + seq;
+            String done = ".Lkof_split_done" + seq;
+            // §738 (face NATIVA): separador VAZIO (`split("")`) — o ramo antigo
+            // passava `sep_char = 0` (NUL), que nunca casa → 1 elemento; o
+            // JVM/Script/JS devolvem UM elemento por CARACTERE. O ramo vazio
+            // agora vai p/ o helper dedicado `kof_string_split_chars` (por code
+            // point UTF-8, aditivo — o caminho do separador não-vazio fica
+            // BYTE-IDÊNTICO ao de antes).
             if (kc.parameterTypes().size() == 2) {
                 // §655: a sobrecarga (String, Int) tem UM operando a mais na
                 // pilha (o limit) — a sequência de 1 arg o deixava empilhado
@@ -272,11 +279,16 @@ public final class NativeX86StringCalls {
                 sb.append("    movzbl 24(%rsi), %esi\n");
                 sb.append("    jmp " + call + "\n");
                 sb.append(empty + ":\n");
-                sb.append("    xorl %esi, %esi\n");
+                sb.append("    popq %rdi\n");
+                sb.append("    movl %edx, %esi\n");
+                sb.append("    call kof_string_split_chars\n");
+                sb.append("    pushq %rax\n");
+                sb.append("    jmp " + done + "\n");
                 sb.append(call + ":\n");
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_string_split_limit\n");
                 sb.append("    pushq %rax\n");
+                sb.append(done + ":\n");
                 return true;
             }
             sb.append("    popq %rsi\n");
@@ -286,11 +298,16 @@ public final class NativeX86StringCalls {
             sb.append("    movzbl 24(%rsi), %esi\n");
             sb.append("    jmp " + call + "\n");
             sb.append(empty + ":\n");
+            sb.append("    popq %rdi\n");
             sb.append("    xorl %esi, %esi\n");
+            sb.append("    call kof_string_split_chars\n");
+            sb.append("    pushq %rax\n");
+            sb.append("    jmp " + done + "\n");
             sb.append(call + ":\n");
             sb.append("    popq %rdi\n");
             sb.append("    call kof_string_split\n");
             sb.append("    pushq %rax\n");
+            sb.append(done + ":\n");
             return true;
         }
         if ("kof_string_to_int".equals(kc.methodName())

@@ -324,6 +324,163 @@ public final class RuntimeStringEdit {
             """);
     }
 
+    /**
+     * §738 (face NATIVA x86): {@code String.split("")} — o emissor mandava
+     * {@code sep_char = 0} (NUL) ao {@code kof_string_split}, que nunca casa
+     * (um NUL não existe no texto) → 1 elemento; o JVM/Script/JS devolvem UM
+     * elemento por CARACTERE ({@code "abc".split("")} = 3). Este helper é
+     * ADITIVO (o caminho do separador não-vazio fica intacto) e percorre por
+     * CODE POINT UTF-8 — a direção já decidida no D-STR-UNICODE.
+     *
+     * <p>{@code limit} é a sobrecarga {@code (String, Int)}: {@code <= 0} =
+     * ilimitado; {@code > 0} = no máximo {@code limit} pieces e a ÚLTIMA é o
+     * RESTO não dividido (o contrato JDK, sem a poda §111 — o split por
+     * caractere nunca produz piece vazio à direita).
+     *
+     * <p>Fronteira honesta: um caractere ASTRAL vira 1 elemento (o JVM, que
+     * corta por code unit UTF-16, daria 2 para um par surrogado).
+     */
+    public static void emitStringSplitChars(StringBuilder sb) {
+        sb.append("""
+            .globl kof_string_split_chars
+            .type kof_string_split_chars, @function
+            kof_string_split_chars:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                pushq %r8
+                pushq %r9
+                pushq %r10
+                pushq %r11
+                movq %rdi, %rbx              # str
+                movl %esi, %r12d             # limit (<=0 = ilimitado)
+                movl 16(%rbx), %r13d         # nBytes
+                xorl %r14d, %r14d            # nº de code points
+                xorl %ecx, %ecx
+            .Lkof_spc_count:
+                cmpl %r13d, %ecx
+                jge .Lkof_spc_count_done
+                movzbl 24(%rbx,%rcx), %eax
+                andl $0xC0, %eax
+                cmpl $0x80, %eax
+                je .Lkof_spc_count_next      # byte de continuação → não é começo
+                incl %r14d
+            .Lkof_spc_count_next:
+                incq %rcx
+                jmp .Lkof_spc_count
+            .Lkof_spc_count_done:
+                cmpl $0, %r13d
+                jne .Lkof_spc_limit
+                movl $1, %r14d               # "" -> [""] (1 elemento), como o JVM
+                jmp .Lkof_spc_alloc
+            .Lkof_spc_limit:
+                testl %r12d, %r12d
+                jle .Lkof_spc_alloc
+                cmpl %r12d, %r14d
+                jle .Lkof_spc_alloc
+                movl %r12d, %r14d            # teto do array = limit
+            .Lkof_spc_alloc:
+                movl %r14d, %edi
+                movq $8, %rsi
+                call kof_array_alloc
+                movq %rax, %r15
+                xorl %r8d, %r8d              # idx do elemento
+                xorl %ecx, %ecx              # byte index
+            .Lkof_spc_loop:
+                cmpl %r13d, %ecx
+                jge .Lkof_spc_tail
+                movzbl 24(%rbx,%rcx), %edx
+                movl $1, %r10d               # comprimento do char (lead byte)
+                movl %edx, %eax
+                andl $0xE0, %eax
+                cmpl $0xC0, %eax
+                jne .Lkof_spc_l3
+                movl $2, %r10d
+                jmp .Lkof_spc_len
+            .Lkof_spc_l3:
+                movl %edx, %eax
+                andl $0xF0, %eax
+                cmpl $0xE0, %eax
+                jne .Lkof_spc_l4
+                movl $3, %r10d
+                jmp .Lkof_spc_len
+            .Lkof_spc_l4:
+                movl %edx, %eax
+                andl $0xF8, %eax
+                cmpl $0xF0, %eax
+                jne .Lkof_spc_len
+                movl $4, %r10d
+            .Lkof_spc_len:
+                testl %r12d, %r12d
+                jle .Lkof_spc_cut
+                leal 1(%r8d), %eax           # idx+1 == limit -> último = RESTO
+                cmpl %r12d, %eax
+                jne .Lkof_spc_cut
+                movl %r13d, %r10d
+                subl %ecx, %r10d
+            .Lkof_spc_cut:
+                movq %rcx, 0(%rsp)
+                movq %r8, 8(%rsp)
+                movl %r10d, 16(%rsp)
+                leal 25(%r10), %edi
+                call kof_alloc
+                movq %rax, %r11
+                movl 16(%rsp), %r10d
+                movq 8(%rsp), %r8
+                movq 0(%rsp), %rcx
+                movl $1, (%r11)
+                movl $0, 4(%r11)
+                movq $0, 8(%r11)
+                movl %r10d, 16(%r11)
+                movl $0, 20(%r11)
+                leaq 24(%r11), %rdi
+                leaq 24(%rbx), %rsi
+                addq %rcx, %rsi
+                movl %r10d, %edx
+                call kof_memcpy
+                movb $0, 24(%r11,%r10)
+                movq %r11, %rax
+                movq %r8, %rcx
+                shlq $3, %rcx
+                movq %rax, 24(%r15,%rcx)
+                movq 0(%rsp), %rcx
+                movl 16(%rsp), %r10d
+                addq %r10, %rcx              # avança o char INTEIRO
+                incl %r8d
+                testl %r12d, %r12d
+                jle .Lkof_spc_loop
+                cmpl %r12d, %r8d
+                jl .Lkof_spc_loop
+            .Lkof_spc_tail:
+                cmpl $0, %r13d
+                jne .Lkof_spc_setlen
+                movq $25, %rdi               # "" -> elemento [0] = ""
+                call kof_alloc
+                movl $1, (%rax)
+                movl $0, 4(%rax)
+                movq $0, 8(%rax)
+                movl $0, 16(%rax)
+                movl $0, 20(%rax)
+                movb $0, 24(%rax)
+                movq %rax, 24(%r15)
+            .Lkof_spc_setlen:
+                movl %r14d, 16(%r15)
+                movq %r15, %rax
+                popq %r11
+                popq %r10
+                popq %r9
+                popq %r8
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            """);
+    }
+
     // §655: kof_string_split_limit(str@rdi, sep_char@esi, limit@edx) — o
     // contrato JDK da sobrecarga (String, Int): limit>0 = no máximo `limit`
     // pieces e a ÚLTIMA é o resto não dividido (sem a poda §111),
