@@ -17110,3 +17110,26 @@ par                           JVM/Script   NATIVO (x86/riscv/arm)   JS
 
 **Prova RED-first:** com o fix revertido QUATRO das seis faces falham (js, nativo x86, riscv64, aarch64) e JVM/Script passam; `StringEqualsIgnoreCaseUnicodeE2ETest` 6/6 depois, sobre os nove pares medidos nos seis alvos.
 <!-- pt-switch --> **EN:** [§741 (en)](known-bugs.md#741--stringequalsignorecase-diverges-silently-on-the-native-backends-ascii-only-fold-and-on-js-host-full-fold)
+
+## §742 — String.split diverge com separadores com METACARACTERES de regex (o oráculo JVM/Script e regex, JS/nativo sao literais)
+
+**Status:** 🟡 ABERTO — **exige decisão da mantenedora** (a semântica do separador do split). Catalogado com a evidência medida; NÃO corrigido.
+
+**CATALOGADO (medido) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem cross-target da superfície do separador do split (a veia do §738/§739/§740/§741). Um separador com METACARACTERES de regex faz os alvos discordarem do VALOR e de o programa sobreviver (regra 5 + um crash INESPERÁVEL no JVM):
+
+```
+"a.b".split(".")     JVM/Script = 0 fatias []   NATIVO/JS = 2 [a][b] ✗
+"a|b".split("|")     JVM/Script = 3 [a][|][b]   NATIVO/JS = 2 [a][b] ✗
+"abXcd".split("X")   todos concordam = 2 [ab][cd]  (separador sem metacaractere)
+"a[b".split("[")     JVM = PatternSyntaxException NÃO-CAPTURÁVEL (traço Java cru mata o programa) / Script = a mesma mensagem como erro   NATIVO/JS = 2 [a][b] ✗
+```
+
+**O contrato está documentado como REGEX:** o registo do §111 no ledger diz o oráculo explicitamente — "Oracle = Java `String.split(regex)` which is `split(regex,0)`". Ou seja, o JVM/Script implementam o oráculo documentado e o JS/nativo são o lado divergente.
+
+**Por que isto é DECISÃO e não um fix direto:** a política estabelecida para os métodos de String dependentes de REGEX é RECUSÁ-LOS nos alvos não-JVM — `matches`, `replaceFirst` e `replaceAll` já falham honestamente com `STR003` em JS/nativo (medido no ciclo anterior). O `split` não pode seguir esse caminho como está: o separador é um valor de runtime, então nenhuma checagem de compilação recusaria só os casos regex. As opções reais são:
+- **(a) manter regex e portá-la** — a face JS é barata (o host tem `RegExp`), mas os backends nativos precisariam de um motor de regex (grande, e uma dependência nova que as regras de plataforma desaconselham);
+- **(b) decidir que o separador do split do Kof é LITERAL** (a leitura Kof-first de simplicidade) e fazer o JVM/Script citá-lo (`Pattern.quote` + o split literal do interpretador) — mudança pequena, mas de SEMÂNTICA da superfície da linguagem, contradizendo a nota do oráculo do §111, logo é chamada da mantenedora;
+- **(c) manter a política de recusa** e diagnosticar o `split` em JS/nativo quando um separador literal for reconhecidamente regex (guarda parcial, só de compilação).
+
+**Interação com o §740 (nota honesta):** o fix do §740 tornou o split nativo LITERAL (compõe `index_of2` + `substring`). Para um separador sem metacaracteres — o caso esmagadoramente comum — literal e regex coincidem, então o §740 está correto contra o oráculo aí (a prova das 19 formas passa contra o JVM). A classe residual é exactamente a desta entrada: separador com metacaracteres (e um literal regex-ESCAPED como `"\\."`, onde o oráculo divide no `.` e o nativo nos dois caracteres `\.`).
+<!-- pt-switch --> **EN:** [§742 (en)](known-bugs.md#742--stringsplit-diverges-on-separators-with-regex-metacharacters-the-jvmscript-oracle-is-regex-jsnative-are-literal)
