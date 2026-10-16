@@ -5579,6 +5579,76 @@ class DecompileTest {
                 "zero-drift: totalTime/spiceLevel/vegetarian/scale id\u00eanticos ao Java");
     }
 
+    @Test
+    void logDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio LOG — 4 shapes sem c\u00f3digo novo: o
+        // errorCount com o startsWith no for-each, o hasFatal com o
+        // EARLY-TRUE, o firstLine com o guard do isEmpty (o <empty> no
+        // vazio) e o join com o acumulador de concat + o \u005c\u005cn
+        // literal (o newline final PRESERVADO byte a byte). Zero-drift
+        // executado: 2/false/true/INFO ok/<empty>/a\u005cnb\u005cn (len 4) —
+        // id\u00eanticos ao Java — a 33\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Log.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Log {
+                    static int errorCount(List<String> lines) {
+                        int n = 0;
+                        for (String line : lines) {
+                            if (line.startsWith("ERROR")) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean hasFatal(List<String> lines) {
+                        for (String line : lines) {
+                            if (line.startsWith("FATAL")) { return true; }
+                        }
+                        return false;
+                    }
+                    static String firstLine(List<String> lines) {
+                        if (lines.isEmpty()) { return "<empty>"; }
+                        return lines.get(0);
+                    }
+                    static String join(List<String> lines) {
+                        String out = "";
+                        for (String line : lines) {
+                            out = out + line + "\\n";
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Log.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var lines = listOf("INFO ok", "ERROR falhou", "INFO de novo", "ERROR outra vez")
+                    println(Log.errorCount(lines))
+                    println(Log.hasFatal(lines))
+                    println(Log.hasFatal(listOf("INFO a", "FATAL x")))
+                    println(Log.firstLine(lines))
+                    println(Log.firstLine(listOf()))
+                    var j = Log.join(listOf("a", "b"))
+                    println(j.length())
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2 | false | true | INFO ok | <empty> | 4 (o join =
+        // "a\nb\n", o newline final preservado)
+        assertEquals("2\nfalse\ntrue\nINFO ok\n<empty>\n4", output,
+                "zero-drift: errorCount/hasFatal/firstLine/join id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
