@@ -5378,6 +5378,74 @@ class DecompileTest {
                 "zero-drift: countVotes/canVote/runoff/turnout id\u00eanticos ao Java");
     }
 
+    @Test
+    void weatherDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio CLIMA — 4 shapes sem c\u00f3digo novo: a
+        // média com o ACUMULADOR Double + o ternário de guarda (vazio →
+        // 0.0), o alerta com as DUAS faixas opostas (freezing/hot/normal),
+        // o hotDays com o contador de threshold e o willRain com a
+        // comparação direta no return. Zero-drift executado: 21.9/0.0/
+        // freezing/normal/hot/2/true/false — 8/8 id\u00eanticos ao Java —
+        // a 30\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Weather.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Weather {
+                    static double averageTemp(List<Double> temps) {
+                        double sum = 0;
+                        for (double t : temps) {
+                            sum += t;
+                        }
+                        return temps.isEmpty() ? 0 : sum / temps.size();
+                    }
+                    static String alert(double temp) {
+                        if (temp < 0) { return "freezing"; }
+                        if (temp > 35) { return "hot"; }
+                        return "normal";
+                    }
+                    static int hotDays(List<Double> temps, double threshold) {
+                        int n = 0;
+                        for (double t : temps) {
+                            if (t > threshold) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean willRain(int humidity) {
+                        return humidity > 80;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Weather.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var ts = listOf(22.0, 31.5, -2.0, 40.0, 18.0)
+                    println(Weather.averageTemp(ts))
+                    println(Weather.averageTemp(listOf()))
+                    println(Weather.alert(-5.0))
+                    println(Weather.alert(22.0))
+                    println(Weather.alert(38.0))
+                    println(Weather.hotDays(ts, 30.0))
+                    println(Weather.willRain(85))
+                    println(Weather.willRain(40))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 21.9 | 0.0 | freezing | normal | hot | 2 | true | false
+        assertEquals("21.9\n0.0\nfreezing\nnormal\nhot\n2\ntrue\nfalse", output,
+                "zero-drift: averageTemp/alert/hotDays/willRain id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
