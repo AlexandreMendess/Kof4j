@@ -484,10 +484,14 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                     "===",
                     new JsIr.JsCall(new JsIr.JsMember(args.get(0), "toUpperCase"), List.of())));
             case "replace" -> {
-                // Kof replace replaces all occurrences; JS replace only the
-                // first, so lower through split/join. With two String
-                // arguments the args are used as-is; with two characters
-                // (Kof Ints) they are converted with String.fromCharCode.
+                // §738: a agulha VAZIA divergia (SILENCIOSO, regra 5) — a baixa
+                // `split(from).join(to)` não gera elemento de BORDA, e o
+                // JVM/Script inserem `to` em TODA posição (`-a-X-b-X-c-`). O
+                // IR do JS não tem nó condicional de EXPRESSÃO, então o ramo
+                // vazio vive no helper `kofStrReplace`; o ramo não-vazio é a
+                // baixa anterior, preservada. With two String arguments the
+                // args are used as-is; with two characters (Kof Ints) they are
+                // converted with String.fromCharCode.
                 Type first = !kc.parameterTypes().isEmpty() ? kc.parameterTypes().get(0) : null;
                 boolean charArgs = first instanceof Type.PrimitiveType pt
                         && "char".equals(Type.canonicalPrimitiveName(pt.name()));
@@ -499,11 +503,9 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                         ? new JsIr.JsCall(new JsIr.JsMember(new JsIr.JsIdentifier("String"), "fromCharCode"),
                                 List.of(args.get(1)))
                         : args.get(1);
-                stack.add(new JsIr.JsCall(
-                        new JsIr.JsMember(
-                                new JsIr.JsCall(new JsIr.JsMember(receiver, "split"), List.of(from)),
-                                "join"),
-                        List.of(to)));
+                p.lc.registerRuntime("kofStrReplace");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStrReplace"),
+                        List.of(receiver, from, to)));
             }
             // Conversões String→número (github #51): não existem em String.prototype;
             // o backend JS baixa p/ helper top-level do runtime (paridade JVM/Native:

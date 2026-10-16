@@ -33,6 +33,16 @@ public final class JsRuntimeStrBounds {
                 if (start < 0 || start > end || end > s.length) throw "Range [" + start + ", " + end + ") out of bounds for length " + s.length;
                 return s.substring(start, end);
             }
+            // §738: `replace` com agulha VAZIA — a baixa `split(from).join(to)`
+            // não gera elemento de BORDA (o `split("")` do JS não tem as pontas),
+            // e o JVM/Script inserem `to` em TODA posição, inclusive nas pontas
+            // (`"aXbXc".replace("", "-")` = `-a-X-b-X-c-`; `"".replace("", "-")`
+            // = `-`). O ramo não-vazio é byte-idêntico à baixa anterior.
+            export function kofStrReplace(s, from, to) {
+                if (from.length !== 0) return s.split(from).join(to);
+                if (s.length === 0) return to;
+                return to + s.split("").join(to) + to;
+            }
 
             """;
 }
