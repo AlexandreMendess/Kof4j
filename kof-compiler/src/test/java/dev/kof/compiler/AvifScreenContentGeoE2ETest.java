@@ -1,0 +1,108 @@
+package dev.kof.compiler;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.ByteArrayOutputStream;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Coverage for a SMALL screen-content frame that bounds the open {@code 3bd}
+ * divergence far more tightly than the 64x64 {@code testsrc} fixture.
+ *
+ * <ul>
+ *   <li>{@code avif_real_sq1.avif} — 32x32, an 18-byte payload. The left half
+ *       is ONE {@code BLOCK_16X16} that reconstructs EXACTLY (flat 100) and the
+ *       payload is consumed to its LAST BIT (144/144), while the right half
+ *       (vertical 4px 16/235 stripes) decodes WRONG. It is the smallest
+ *       reproducer on this front and the first whose entropy is FULLY consumed
+ *       yet whose pixels still diverge — so full consumption alone is not a
+ *       correctness criterion.</li>
+ * </ul>
+ */
+class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
+
+    @Override
+    public String libraryName() { return "image"; }
+
+    @Override
+    public List<String> libraryMarkers() { return List.of("Av1Symbol.kf"); }
+
+    private final CompilerDriver compiler = new CompilerDriver();
+
+    @TempDir Path tmp;
+
+    @Test
+    void smallFrameConsumesTheWholePayloadYetDivergesOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_sq1.avif", "sq1.avif"));
+        assertTrue(line.contains("symBits=144 payloadBits=144"),
+                () -> "the whole payload must be consumed: " + line);
+        assertTrue(line.contains("Y 00=100 "), () -> "the left half is exact: " + line);
+        // Recorded, NOT asserted as correct: the left half is exact, the right
+        // half (reference: 16/235 vertical stripes) is not.
+        assertTrue(line.contains(
+                "PATCH r0 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 235 235"),
+                () -> "recorded divergence moved: " + line);
+    }
+
+    /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
+    private Path canonical(String resource, String name) throws Exception {
+        byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));
+        int m = -1;
+        for (int i = 0; i + 4 <= raw.length; i++) {
+            if (raw[i] == 'm' && raw[i + 1] == 'd' && raw[i + 2] == 'a' && raw[i + 3] == 't') {
+                m = i;
+                break;
+            }
+        }
+        int size = ((raw[m - 4] & 0xff) << 24) | ((raw[m - 3] & 0xff) << 16)
+                | ((raw[m - 2] & 0xff) << 8) | (raw[m - 1] & 0xff);
+        byte[] item = new byte[size - 8];
+        System.arraycopy(raw, m + 4, item, 0, item.length);
+        byte[] delim = AvifSeqSupport.delimiter();
+        byte[] both = new byte[delim.length + item.length];
+        System.arraycopy(delim, 0, both, 0, delim.length);
+        System.arraycopy(item, 0, both, delim.length, item.length);
+        Path out = tmp.resolve(name);
+        Files.write(out, AvifObuSupport.containerWithItem(both));
+        return out;
+    }
+
+    private String runKof(Path fixture) throws Exception {
+        String code = AvifRealTileProbe.probe(fixture.toString());
+        Path root = tmp.resolve("jvm-" + Math.abs(code.hashCode()));
+        Files.createDirectories(root);
+        Path source = root.resolve("Main.kf");
+        Files.writeString(source, code);
+        Path out = root.resolve("out");
+        installLib(root);
+        CompilationResult result = compiler.compile(source, out, Target.JVM);
+        assertTrue(result.success(), () -> "compile: " + result.diagnostics().getDiagnostics());
+        var stdout = new ByteArrayOutputStream();
+        var previousOut = System.out;
+        try {
+            System.setOut(new java.io.PrintStream(stdout, true, StandardCharsets.UTF_8));
+            try (var loader = new URLClassLoader(
+                    new java.net.URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+                Class.forName("Default.Main", true, loader)
+                        .getMethod("main", String[].class)
+                        .invoke(null, (Object) new String[0]);
+            }
+        } finally {
+            System.setOut(previousOut);
+        }
+        return stdout.toString(StandardCharsets.UTF_8).strip();
+    }
+
+    private void installLib(Path root) throws Exception {
+        copyLibrary(root.resolve("kof-install/lib/kof-libs"));
+        System.setProperty("kof.install.dir", root.resolve("kof-install").toString());
+    }
+}

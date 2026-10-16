@@ -259,11 +259,15 @@ main() {
     // A PATCH of the FINAL frame (an 18x18 window at the origin, rows/cols
     // 0..17): it shows where a block's write landed a value the reference
     // never has, which localises an out-of-extent or desynced write.
+    var pmaxr = 17
+    if (pmaxr >= mh) { pmaxr = mh - 1 }
+    var pmaxc = 17
+    if (pmaxc >= mw) { pmaxc = mw - 1 }
     var py2 = 0
-    while (py2 <= 17) {
+    while (py2 <= pmaxr) {
         var prow = ""
         var px2 = 0
-        while (px2 <= 17) {
+        while (px2 <= pmaxc) {
             prow = prow + frame[(py2 + 1) * stride + (px2 + 1)] + " "
             px2 = px2 + 1
         }
