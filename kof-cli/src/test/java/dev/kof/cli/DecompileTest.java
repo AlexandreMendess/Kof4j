@@ -5179,6 +5179,75 @@ class DecompileTest {
                 "zero-drift: diagonalSum/rowSums/isSquare/max id\u00eanticos ao Java");
     }
 
+    @Test
+    void payrollDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio FOLHA — 4 shapes sem c\u00f3digo novo: o
+        // l\u00edquido com a álgebra de Double (netSalary: `gross * (1 -
+        // taxRate)` + o benefício), as QUATRO faixas salariais (bracket), o
+        // bônus com o ACUMULADOR Double no for-each (a fatia dos stores
+        // wide por trás) e o deservesRaise com o && de comparações MISTAS
+        // (o `years >= 2` inteiro contra o `score >= 4.0` double).
+        // Zero-drift executado: 4300.0/exempt/low/mid/high/350.0/true/
+        // false/false — 9/9 id\u00eanticos ao Java — a 27\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Payroll.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Payroll {
+                    static double netSalary(double gross, double taxRate, double benefits) {
+                        double taxed = gross * (1 - taxRate);
+                        return taxed + benefits;
+                    }
+                    static String bracket(double salary) {
+                        if (salary < 2000) { return "exempt"; }
+                        if (salary < 5000) { return "low"; }
+                        if (salary < 10000) { return "mid"; }
+                        return "high";
+                    }
+                    static double bonus(List<Double> sales, double rate) {
+                        double total = 0;
+                        for (double s : sales) {
+                            total += s;
+                        }
+                        return total * rate;
+                    }
+                    static boolean deservesRaise(int years, double score) {
+                        return years >= 2 && score >= 4.0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Payroll.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Payroll.netSalary(5000.0, 0.2, 300.0))
+                    println(Payroll.bracket(1500.0))
+                    println(Payroll.bracket(3500.0))
+                    println(Payroll.bracket(8000.0))
+                    println(Payroll.bracket(12000.0))
+                    var sales = listOf(1000.0, 2000.0, 500.0)
+                    println(Payroll.bonus(sales, 0.1))
+                    println(Payroll.deservesRaise(3, 4.5))
+                    println(Payroll.deservesRaise(1, 4.5))
+                    println(Payroll.deservesRaise(3, 3.5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 4300.0 | exempt | low | mid | high | 350.0 | true | false | false
+        assertEquals("4300.0\nexempt\nlow\nmid\nhigh\n350.0\ntrue\nfalse\nfalse", output,
+                "zero-drift: netSalary/bracket/bonus/deservesRaise id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
