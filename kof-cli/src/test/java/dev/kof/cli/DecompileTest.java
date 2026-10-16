@@ -4162,6 +4162,66 @@ class DecompileTest {
                 "zero-drift: weighted/concept/approved/round10 id\u00eanticos ao Java");
     }
 
+    @Test
+    void medDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio M\u00c9DICO — 4 shapes sem c\u00f3digo
+        // novo: o \u00cdNDICE com a matem\u00e1tica intermedi\u00e1ria (imc:
+        // peso / (altura * altura) — a 16\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo), as faixas com os limiares encadeados de Double
+        // (faixa), a dose com o CAST Int de Double (`(int)(peso * 2)`) e o
+        // al\u00e9rgico com o contains de substring (alergico). Zero-drift
+        // executado: 22.857142857142858/abaixo/normal/sobrepeso/obeso/131/
+        // true/false — 8/8 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Med.java");
+        Files.writeString(javaFile, """
+                public class Med {
+                    static double imc(double peso, double altura) {
+                        return peso / (altura * altura);
+                    }
+                    static String faixa(double imc) {
+                        if (imc < 18.5) { return "abaixo"; }
+                        if (imc < 25) { return "normal"; }
+                        if (imc < 30) { return "sobrepeso"; }
+                        return "obeso";
+                    }
+                    static int doseMg(double peso) {
+                        return (int) (peso * 2);
+                    }
+                    static boolean alergico(String subst, String lista) {
+                        return lista.contains(subst);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Med.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Med.imc(70.0, 1.75))
+                    println(Med.faixa(17.0))
+                    println(Med.faixa(22.0))
+                    println(Med.faixa(27.0))
+                    println(Med.faixa(32.0))
+                    println(Med.doseMg(65.5))
+                    println(Med.alergico("penicilina", "aspirina,penicilina,ibuprofeno"))
+                    println(Med.alergico("codeina", "aspirina,penicilina"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 22.857142857142858 | abaixo | normal | sobrepeso | obeso | 131 | true | false
+        assertEquals("22.857142857142858\nabaixo\nnormal\nsobrepeso\nobeso\n131\ntrue\nfalse", output,
+                "zero-drift: imc/faixa/doseMg/alergico id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
