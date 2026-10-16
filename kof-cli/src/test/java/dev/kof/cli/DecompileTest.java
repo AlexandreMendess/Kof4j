@@ -4538,6 +4538,73 @@ class DecompileTest {
                 "zero-drift: o || de calls receiver-threaded idêntico ao Java");
     }
 
+    @Test
+    void mathDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio MATEM\u00c1TICO — 4 shapes sem c\u00f3digo
+        // novo: o clamp com os DOIS ifs limiares e o return do pr\u00f3prio
+        // param, a DIST\u00c2NCIA com os locais intermediários + o Math.sqrt +
+        // o dmul/dadd (dx * dx + dy * dy), o sign com o -1 literal e o
+        // power com o ACUMULADOR Long no for (r = r * base). Zero-drift
+        // executado: 5/0/10/5.0/1/-1/0/1024/243 — 9/9 id\u00eanticos ao Java
+        // — a 20\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Math2.java");
+        Files.writeString(javaFile, """
+                public class Math2 {
+                    static int clamp(int v, int lo, int hi) {
+                        if (v < lo) { return lo; }
+                        if (v > hi) { return hi; }
+                        return v;
+                    }
+                    static double distance(double x1, double y1, double x2, double y2) {
+                        double dx = x2 - x1;
+                        double dy = y2 - y1;
+                        return Math.sqrt(dx * dx + dy * dy);
+                    }
+                    static int sign(int v) {
+                        if (v > 0) { return 1; }
+                        if (v < 0) { return -1; }
+                        return 0;
+                    }
+                    static long power(int base, int exp) {
+                        long r = 1;
+                        for (int i = 0; i < exp; i++) {
+                            r = r * base;
+                        }
+                        return r;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Math2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Math2.clamp(5, 0, 10))
+                    println(Math2.clamp(-3, 0, 10))
+                    println(Math2.clamp(15, 0, 10))
+                    println(Math2.distance(0.0, 0.0, 3.0, 4.0))
+                    println(Math2.sign(7))
+                    println(Math2.sign(-7))
+                    println(Math2.sign(0))
+                    println(Math2.power(2, 10))
+                    println(Math2.power(3, 5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 5 | 0 | 10 | 5.0 | 1 | -1 | 0 | 1024 | 243
+        assertEquals("5\n0\n10\n5.0\n1\n-1\n0\n1024\n243", output,
+                "zero-drift: clamp/distance/sign/power id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
