@@ -5919,6 +5919,74 @@ class DecompileTest {
                 "zero-drift: wordCount/firstWord/isUpper/countChar id\u00eanticos ao Java");
     }
 
+    @Test
+    void parallelListsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio LISTAS-PARALELAS — 4 shapes sem
+        // c\u00f3digo novo: o subtotal com o for INDEXADO sobre DUAS listas
+        // (`qtys.get(i) * prices.get(i)` — o get duplo no mesmo \u00edndice),
+        // o cheapest com o tracking do melhor \u00cdNDICE (`prices.get(i) <
+        // prices.get(best)` — o get cruzado) + a concat no return, o
+        // inStock com a comparação direta e o shipping com o zero literal
+        // no early-return. Zero-drift executado: 57.0/item 2/true/false/
+        // 0.0/15.5 — 6/6 id\u00eanticos ao Java — a 38\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Cart2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Cart2 {
+                    static double subtotal(List<Integer> qtys, List<Double> prices) {
+                        double total = 0;
+                        for (int i = 0; i < qtys.size(); i++) {
+                            total += qtys.get(i) * prices.get(i);
+                        }
+                        return total;
+                    }
+                    static String cheapest(List<Double> prices) {
+                        int best = 0;
+                        for (int i = 1; i < prices.size(); i++) {
+                            if (prices.get(i) < prices.get(best)) { best = i; }
+                        }
+                        return "item " + best;
+                    }
+                    static boolean inStock(int qty) {
+                        return qty > 0;
+                    }
+                    static double shipping(double total) {
+                        if (total >= 200) { return 0; }
+                        return 15.5;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cart2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var qtys = listOf(2, 1, 3)
+                    var prices = listOf(10.0, 25.0, 4.0)
+                    println(Cart2.subtotal(qtys, prices))
+                    println(Cart2.cheapest(prices))
+                    println(Cart2.inStock(5))
+                    println(Cart2.inStock(0))
+                    println(Cart2.shipping(250.0))
+                    println(Cart2.shipping(100.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 57.0 | item 2 | true | false | 0.0 | 15.5
+        assertEquals("57.0\nitem 2\ntrue\nfalse\n0.0\n15.5", output,
+                "zero-drift: subtotal/cheapest/inStock/shipping id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
