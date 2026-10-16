@@ -1,0 +1,243 @@
+package archive
+
+import archive.Zip
+import archive.Gzip
+
+// kof-archive — reading an uncompressed TAR archive (POSIX ustar, plus the GNU
+// long-name extension). Issue #852, slice 3.
+//
+// Third slice of the same family and the same rule: COMPOSITION, no new codec,
+// no new language primitive. TAR carries no compression at all — it is 512-byte
+// header blocks and 512-byte-aligned data — so what it adds to the ZIP/GZIP pair
+// is the STRUCTURE, and the composition is the point:
+//
+//     tarEntriesFrom(gzipRead("lote.tar.gz", 1 << 20))
+//
+// reads a `.tar.gz` with no new machinery. That is why the core API takes BYTES
+// and the path helpers are thin wrappers over `File.readBytes()`.
+//
+//   * the header CHECKSUM is verified on every block (TAR's own integrity
+//     check, the counterpart of the ZIP's CRC-32): the field is summed as
+//     spaces, which is what makes it a check that survives the field itself;
+//   * GNU LONG NAME / LONG LINK (`L`/`K`, written by `tar` for names over 100
+//     bytes) are FOLLOWED — the next block's data is the real name and the
+//     marker entry is not exposed;
+//   * PAX extended headers (`x`/`g`) are REFUSED by name, never guessed at —
+//     a pax header carries key=value records whose semantics (mtime with
+//     sub-second precision, path overrides) would silently change the listing
+//     if ignored;
+//   * the caller's byte ceiling applies to reading an entry, and the declared
+//     size is bounds-checked against the archive before it is trusted.
+//
+// Honest limits: writing is not here (this is a reader); sparse files and the
+// old V7 names are read as their literal fields, not reconstructed.
+
+/** One TAR header, exactly as the archive declares it. */
+record TarEntry(String name, Int size, Int mode, Int mtime, Int typeByte, String linkName)
+
+Bool tarIsDir(TarEntry e) {
+    return e.typeByte == 53
+}                                  // '5'
+
+Bool tarIsLink(TarEntry e) {
+    return e.typeByte == 50 || e.typeByte == 49
+}                // '2' link, '1' hard link
+
+Bool tarIsFile(TarEntry e) {
+    return e.typeByte == 48 || e.typeByte == 0
+}                 // '0' or NUL
+
+/** Octal field: the digits run until a NUL or a space, which is the TAR way. */
+Int tarOctal(Int[] b, Int at, Int len) {
+    var v = 0
+    var i = 0
+    var seen = 0
+    while (i < len) {
+        var c = b[at + i] & 255
+        if (c == 0 || c == 32) {
+            if (seen == 1) {
+                return v
+            }
+            i = i + 1
+        } else if (c >= 48 && c <= 55) {
+            v = v * 8 + (c - 48)
+            seen = 1
+            i = i + 1
+        } else {
+            throw "archive: bad octal digit in the tar header at " + at
+        }
+    }
+    return v
+}
+
+String tarField(Int[] b, Int at, Int len) {
+    var n = 0
+    while (n < len && (b[at + n] & 255) != 0) {
+        n = n + 1
+    }
+    return zipUtf8(b, at, n)
+}
+
+Bool tarZeroBlock(Int[] b, Int at) {
+    var i = 0
+    while (i < 512) {
+        if ((b[at + i] & 255) != 0) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+/** The header checksum: every byte of the 512-byte block summed, with the
+ *  checksum field itself read as EIGHT SPACES — the definition that lets the
+ *  field check itself. */
+Int tarHeaderSum(Int[] b, Int at) {
+    var sum = 0
+    var i = 0
+    while (i < 512) {
+        sum = sum + (if (i >= 148 && i < 156) 32 else (b[at + i] & 255))
+        i = i + 1
+    }
+    return sum
+}
+
+Int tarBlock(Int[] b, Int at) {
+    if (at + 512 > b.length) {
+        throw "archive: tar header runs past the end of the archive"
+    }
+    var declared = tarOctal(b, at + 148, 8)
+    var computed = tarHeaderSum(b, at)
+    if (declared != computed) {
+        throw "archive: tar header checksum mismatch at " + at
+    }
+    return computed
+}
+
+/** The whole listing: every header walked, GNU long names followed, data
+ *  skipped by its declared size (never loaded). */
+List<TarEntry> tarEntriesFrom(Int[] b) {
+    var out: List<TarEntry> = listOf()
+    var at = 0
+    var pendingName = ""
+    var pendingLink = ""
+    while (at + 512 <= b.length) {
+        if (tarZeroBlock(b, at)) {
+            return out
+        }
+        tarBlock(b, at)
+        var rawName = tarField(b, at, 100)
+        var prefix = tarField(b, at + 345, 155)
+        var name = if (prefix == "") rawName else prefix + "/" + rawName
+        var size = tarOctal(b, at + 124, 12)
+        var mode = tarOctal(b, at + 100, 8)
+        var mtime = tarOctal(b, at + 136, 12)
+        var typeByte = b[at + 156] & 255
+        var linkName = tarField(b, at + 157, 100)
+        var dataAt = at + 512
+        if (dataAt + size > b.length) {
+            throw "archive: tar entry '" + name + "' declares " + size
+                + " bytes past the end of the archive"
+        }
+        if (typeByte == 76) {                  // GNU long name
+            if (size <= 0 || size > 4096) {
+                throw "archive: implausible GNU long tar name (" + size + " bytes)"
+            }
+            pendingName = tarField(b, dataAt, size)
+        } else if (typeByte == 75) {           // GNU long link target
+            if (size <= 0 || size > 4096) {
+                throw "archive: implausible GNU long tar link target (" + size + " bytes)"
+            }
+            pendingLink = tarField(b, dataAt, size)
+        } else if (typeByte == 120 || typeByte == 103) {
+            throw "archive: pax extended tar header ('" + (typeByte as Char)
+                + "') is not supported — refused"
+        } else {
+            var realName = if (pendingName == "") name else pendingName
+            var realLink = if (pendingLink == "") linkName else pendingLink
+            pendingName = ""
+            pendingLink = ""
+            out.add(TarEntry(realName, size, mode, mtime, typeByte, realLink))
+        }
+        at = dataAt + tarPadding(size)
+    }
+    return out
+}
+
+/** Data blocks are 512-aligned. */
+Int tarPadding(Int size) {
+    var rem = size % 512
+    if (rem == 0) {
+        return size
+    }
+    return size + (512 - rem)
+}
+
+/** Reads one entry's bytes, honouring the caller's ceiling. */
+Int[] tarReadEntryFrom(Int[] b, TarEntry e, Int maxBytes) {
+    if (tarIsDir(e)) {
+        throw "archive: '" + e.name + "' is a directory, not a file"
+    }
+    if (tarIsLink(e)) {
+        throw "archive: '" + e.name + "' is a link to '" + e.linkName + "' — not a file"
+    }
+    if (!tarIsFile(e)) {
+        throw "archive: '" + e.name + "' has tar type '" + (e.typeByte as Char) + "' — not a regular file"
+    }
+    if (e.size > maxBytes) {
+        throw "archive: entry '" + e.name + "' holds " + e.size
+            + " bytes, over the limit of " + maxBytes
+    }
+    var at = tarDataOffset(b, e)
+    return zipSlice(b, at, e.size)
+}
+
+Int tarDataOffset(Int[] b, TarEntry e) {
+    var at = 0
+    var pendingName = ""
+    var pendingLink = ""
+    while (at + 512 <= b.length) {
+        if (tarZeroBlock(b, at)) {
+            break
+        }
+        tarBlock(b, at)
+        var rawName = tarField(b, at, 100)
+        var prefix = tarField(b, at + 345, 155)
+        var name = if (prefix == "") rawName else prefix + "/" + rawName
+        var size = tarOctal(b, at + 124, 12)
+        var typeByte = b[at + 156] & 255
+        var linkName = tarField(b, at + 157, 100)
+        var dataAt = at + 512
+        if (typeByte == 76) {
+            pendingName = tarField(b, dataAt, size)
+        } else if (typeByte == 75) {
+            pendingLink = tarField(b, dataAt, size)
+        } else if (typeByte != 120 && typeByte != 103) {
+            var realName = if (pendingName == "") name else pendingName
+            if (realName == e.name) {
+                return dataAt
+            }
+            pendingName = ""
+            pendingLink = ""
+        }
+        at = dataAt + tarPadding(size)
+    }
+    throw "archive: entry '" + e.name + "' is not in this archive"
+}
+
+// --- conveniências sobre arquivo -------------------------------------------
+
+/** The listing of a `.tar` on disk. */
+List<TarEntry> tarEntries(String path) {
+    return tarEntriesFrom(File(path).readBytes())
+}
+
+/** One entry of a `.tar` on disk, honouring the caller's ceiling. */
+Int[] tarReadEntry(String path, TarEntry e, Int maxBytes) {
+    return tarReadEntryFrom(File(path).readBytes(), e, maxBytes)
+}
+
+/** A `.tar.gz`: the gzip slice decompresses, this slice untars. Nothing else. */
+List<TarEntry> tarGzEntries(String path, Int maxBytes) {
+    return tarEntriesFrom(gzipRead(path, maxBytes))
+}

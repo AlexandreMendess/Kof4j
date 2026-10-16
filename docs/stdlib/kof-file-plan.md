@@ -377,6 +377,14 @@ Consider security against path traversal inside archives.
 > member never walks off the window and would otherwise slip through the cap.
 > TAR, the chunked streaming API and CP437 names remain open.
 
+> **TAR landed the same day (slice 3 of #852):** `libs/archive/Tar.kf` reads
+> POSIX ustar (plus the GNU long-name `L`/`K` markers, which are followed), with
+> the header CHECKSUM verified on every block, the caller's ceiling on entry
+> reads, and pax extended headers (`x`/`g`) REFUSED by name. It carries no
+> compression, so what it adds is the structure — and the composition is the
+> point: `tarEntriesFrom(gzipRead(...))` (or the `tarGzEntries` wrapper) reads a
+> `.tar.gz` with no new machinery. Writing is not here (reader only).
+
 ---
 
 # 17. Binary formats

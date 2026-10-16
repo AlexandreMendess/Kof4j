@@ -561,6 +561,14 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > literais nunca estoura a janela e escaparia do teto. TAR, a API de streaming em
 > blocos e os nomes em CP437 seguem abertos.
 
+> **TAR entregue no mesmo dia (fatia 3 da #852):** o `libs/archive/Tar.kf` lê
+> POSIX ustar (mais os marcadores GNU de nome longo `L`/`K`, que são seguidos),
+> com o CHECKSUM do header conferido em todo bloco, o teto do chamador na leitura
+> da entrada e os headers estendidos pax (`x`/`g`) RECUSADOS pelo nome. Ele não
+> carrega compressão, então o que acrescenta é a ESTRUTURA — e a composição é o
+> ponto: `tarEntriesFrom(gzipRead(...))` (ou o wrapper `tarGzEntries`) lê um
+> `.tar.gz` sem máquina nova. Escrita não está aqui (só leitura).
+
 ---
 
 # 17. Formatos binários
