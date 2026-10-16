@@ -4222,6 +4222,73 @@ class DecompileTest {
                 "zero-drift: imc/faixa/doseMg/alergico id\u00eanticos ao Java");
     }
 
+    @Test
+    void calendarDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio CALEND\u00c1RIO — 4 shapes sem
+        // c\u00f3digo novo: o ANO BISSEXTO com o &&/|| MISTO e o m\u00f3dulo
+        // (isLeap: `(y % 4 == 0 && y % 100 != 0) || y % 400 == 0`), o
+        // diasNoM\u00eas com os ifs encadeados e o OR de igualdades
+        // (daysInMonth: `m == 4 || m == 6 || m == 9 || m == 11`), o
+        // dayType com o m\u00f3dulo no || (dayType: `d % 7 == 0 || d % 7 ==
+        // 6`) e o nextMonth com o wrap do m\u00f3dulo (`m % 12 + 1`).
+        // Zero-drift executado: true/false/true/false/29/28/30/31/weekend/
+        // weekday/1/4 — 12/12 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Sched2.java");
+        Files.writeString(javaFile, """
+                public class Sched2 {
+                    static boolean isLeap(int year) {
+                        return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+                    }
+                    static int daysInMonth(int month, int year) {
+                        if (month == 2 && isLeap(year)) { return 29; }
+                        if (month == 2) { return 28; }
+                        if (month == 4 || month == 6 || month == 9 || month == 11) { return 30; }
+                        return 31;
+                    }
+                    static String dayType(int day) {
+                        if (day % 7 == 0 || day % 7 == 6) { return "weekend"; }
+                        return "weekday";
+                    }
+                    static int nextMonth(int month) {
+                        return month % 12 + 1;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Sched2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Sched2.isLeap(2024))
+                    println(Sched2.isLeap(2023))
+                    println(Sched2.isLeap(2000))
+                    println(Sched2.isLeap(1900))
+                    println(Sched2.daysInMonth(2, 2024))
+                    println(Sched2.daysInMonth(2, 2023))
+                    println(Sched2.daysInMonth(4, 2024))
+                    println(Sched2.daysInMonth(7, 2024))
+                    println(Sched2.dayType(7))
+                    println(Sched2.dayType(8))
+                    println(Sched2.nextMonth(12))
+                    println(Sched2.nextMonth(3))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | true | false | 29 | 28 | 30 | 31 |
+        // weekend | weekday | 1 | 4
+        assertEquals("true\nfalse\ntrue\nfalse\n29\n28\n30\n31\nweekend\nweekday\n1\n4", output,
+                "zero-drift: isLeap/daysInMonth/dayType/nextMonth id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
