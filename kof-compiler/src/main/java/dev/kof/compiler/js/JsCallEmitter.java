@@ -472,6 +472,12 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                 sa.addAll(args);
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStrSubstring"), sa));
             }
+            case "trim" -> {
+                // §739: o trim do HOST nao segue o contrato do JVM (ve o helper).
+                p.lc.registerRuntime("kofStrTrim");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStrTrim"),
+                        List.of(receiver)));
+            }
             case "length" -> stack.add(new JsIr.JsMember(receiver, "length"));
             // §145 (12/09, #101): String.prototype NÃO tem isEmpty (é Java);
             // o default gerava `t.isEmpty()` = TypeError. length === 0.

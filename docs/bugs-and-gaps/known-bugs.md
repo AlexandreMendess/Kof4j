@@ -19552,3 +19552,27 @@ S.replace("","-")      JVM/Script = [-a-X-b-X-c-]            JS = [-a-X-b-X-c]  
 
 **Reproducer:** `tests/golden/`-style `Main.kf` with the three lines above; `java -jar kof-cli/target/kof-cli-*.jar run --target script Main.kf` (oracle) vs `build --target js` / `--target native`.
 <!-- pt-switch --> **PT:** [§738 (pt_BR)](known-bugs.pt_BR.md#738--divergencia-de-padrao-vazio-em-string-no-native-x86-e-js)
+
+## §739 — String.trim() diverges silently on the JS host trim and on the native backends
+
+**Status:** ✅ FIXED 15/10 — the JS branch routes to `kofStrTrim` and the native asm trims `<= ' '` (x86 `cmpb $32/jbe`, riscv `bltu`; aarch64 inherits via the translator).
+
+**CATALOGUED + FIXED 15/10 — lane compiler/JVM/native `192.168.15.30:9092`.** The contract is the JVM's: `String.trim()` removes EVERY char `<= ' '` (U+0020) and nothing above it. Two backends diverged SILENTLY (rule 5 — wrong value, no diagnostic), in OPPOSITE directions (measured on all six targets):
+
+```
+char                 JVM/Script   JS    NATIVE (x86/riscv/arm)
+\u0001, \u0008, \u001F   1 (stripped)  3 ✗   3 ✗
+\u000B (VT), \u000C (FF) 1 (stripped)  1 ✓   3 ✗
+' '                 1 ✓          1 ✓   1 ✓
+\u00A0 (NBSP)       3 (kept)      1 ✗   3 ✓
+\u2000              3 (kept)      1 ✗   3 ✓
+```
+
+**Root causes (read, not guessed):** the JS `String.prototype.trim` of the host uses the WhiteSpace+LineTerminator set — it strips NBSP/U+2000 (a SUPERSET of the JVM for high chars) and does NOT strip the C0 controls (a SUBSET for low chars), because `trim` was not handled in the String-instance switch and fell through to the host call; the native `kof_string_trim` (`RuntimeStringOps` x86, `NativeRiscvAsmStrn0` riscv) recognised only space/tab/LF/CR, so VT/FF/controls were untouched (a SUBSET).
+
+**Fix (ADDITIVE on the JS side, a strict SIMPLIFICATION on the native side):** the JS branch calls the new `kofStrTrim` helper (the `strbounds` slice shape, §730) which walks UTF-16 units comparing `<= 32`; the native asm replaces the four compares with ONE `<= 0x20` test (`cmpb $32/jbe`; riscv `li t1, 33; bltu` — chosen because the aarch64 translator already knows `bltu`, unlike `bleu`).
+
+**Proof RED-first:** with the fix reverted 4 of the 6 faces fail (js, x86, riscv64, aarch64) while JVM/Script pass; `StringTrimContractE2ETest` 6/6 afterwards (JVM/Script/JS/x86 native + riscv64/aarch64 under qemu, the same golden).
+
+**Related (measured, NOT a bug):** `Map.keys()` iteration order differs across targets (JVM/Script vs JS/native insertion order) — `docs/language-reference/semantics.md` §"hash/order of `Map.keys`/`Set`" declares it **Unspecified**, so this is within the documented contract and must NOT be "fixed" without a maintainer decision (frozen `List/Map/Set` semantics).
+<!-- pt-switch --> **PT:** [§739 (pt_BR)](known-bugs.pt_BR.md#739--stringtrim-diverge-em-silencio-no-trim-do-host-js-e-nos-backends-nativos)

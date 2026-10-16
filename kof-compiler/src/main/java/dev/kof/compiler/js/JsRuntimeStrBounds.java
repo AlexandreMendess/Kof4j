@@ -38,6 +38,15 @@ public final class JsRuntimeStrBounds {
             // e o JVM/Script inserem `to` em TODA posição, inclusive nas pontas
             // (`"aXbXc".replace("", "-")` = `-a-X-b-X-c-`; `"".replace("", "-")`
             // = `-`). O ramo não-vazio é byte-idêntico à baixa anterior.
+            // §739: o `String.prototype.trim` do host remove o conjunto Unicode
+            // WhiteSpace+LineTerminator (NBSP, U+2000...) e NAO remove os
+            // controles C0; o `String.trim()` do JVM tira TODO char <= ' '.
+            export function kofStrTrim(s) {
+                var a = 0, b = s.length;
+                while (a < b && s.charCodeAt(a) <= 32) a++;
+                while (b > a && s.charCodeAt(b - 1) <= 32) b--;
+                return s.substring(a, b);
+            }
             export function kofStrReplace(s, from, to) {
                 if (from.length !== 0) return s.split(from).join(to);
                 if (s.length === 0) return to;
