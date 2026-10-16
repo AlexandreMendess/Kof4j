@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 49ª PASSAGEM: a hipótese do CFL está REFUTADA pelo seu próprio teste (neutralizar `if (uvMode == 13)` — que desliga modulação E `av1CflAcFromLuma`, a única leitura da luma no croma — mantendo a entropia intacta: o 32x32 AINDA lança Index 1186/1156). Nota: a alegação estava rotulada HIPÓTESE ⇒ nenhuma retratação foi necessária (o rótulo pagou). ACHADO: com TODOS os acessos NOMEADOS à luma excluídos (paleta, bloco, bloco de TX, predição simples/arith 1120, escritas do croma, edge filter, filter-intra, CFL) o crash persiste ⇒ ao menos uma exclusão se apoia nos PARÂMETROS DO CALLER, não nos acessos reais. Próximo: registrar ÍNDICES REAIS DENTRO DOS ACESSORES (helpers), com o quadro alargado p/ completar e o print sobreviver.
-doing: §3bd — 32x32: CFL refutado; TODOS os acessos nomeados à luma excluídos e o crash persiste ⇒ uma exclusão de call-site é inválida; medir índices REAIS dentro dos helpers
-next: §3bd — instrumento por ÍNDICES REAIS: alargar o quadro (decode COMPLETA) + cada ACESSOR da luma atualiza um maxIndex de diagnóstico, impresso depois do decode ⇒ nomeia o escritor do índice 1186
+last: 16/10 — AVIF slice 3bd 50ª PASSAGEM: PROVA que fecha a convenção de bloco — na convenção de stride 34 (quadro 32x32), a predição intra (above limitado por `limit=min(x+2w-1, maxX=frameW)`, left pelo maxY) e a reconstrução (`plane[(y+i)*stride+(x+j)]` com i<h,j<w e y+h<=frameH pelos guards) NÃO PASSAM de 1120 ⇒ nenhum acessor na convenção de bloco produz 1186 ⇒ o crash EXIGE stride maior ou base diferente. Por isso todos os meus guards de call-site falharam estruturalmente: nenhum examina o STRIDE usado pelo acessor. ALVO (encanamento): `av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH, Int[] luma, Int lumaStride, …)` (Av1DecodeChroma.kf:77) tem DOIS pares (buffer,stride) e DOIS pares de dimensões ⇒ parear um buffer com o stride/dimensões do outro dá erro de stride que fica em faixa em algumas posições e estoura em outras. Instrumento: registrar (índice, stride, comprimento) DENTRO dos acessores, com o quadro alargado.
+doing: §3bd — PROVA: predição e reconstrução ≤ 1120 na convenção de bloco ⇒ o 1186 exige stride maior/base diferente; alvo = o encanamento de croma que carrega DOIS pares (buffer,stride)+dimensões
+next: §3bd — auditar `av1DecodeChromaPlane` (Av1DecodeChroma.kf:77): parear plane_buffer/stride com as dimensões certas; e/ou registrar (índice, stride, comprimento) dentro dos acessores com o quadro alargado
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (77ª) — 3bd 50ª: PROVA (≤1120) ⇒ o 1186 exige STRIDE/BASE diferente; alvo no encanamento de croma
+- **PROVA (stride 34, quadro 32x32):** (a) a predição intra ≤ 1120 (above limitado por `limit = min(x + 2w - 1, maxX = frameW)`; left pelo `maxY`) e (b) a reconstrução ≤ 1120 (`plane[(y+i)*stride + (x+j)]`, `i<h, j<w`, e `y+h <= frameH` pelos guards de extensão) ⇒ **nenhum acessor na convenção de bloco com stride 34 produz o índice 1186**.
+- **Consequência 1:** o crash EXIGE um STRIDE maior ou uma BASE diferente.
+- **Consequência 2 (por que a busca falhou):** todos os guards de call-site que escrevi são estruturalmente incapazes — **nenhum examina o STRIDE que o acessor usa** (o modo de falha identificado na 49ª).
+- **ALVO (do encanamento):** `av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH, Int[] luma, Int lumaStride, …)` (`Av1DecodeChroma.kf:77`) tem **DOIS pares `(buffer, stride)` e DOIS pares de dimensões** em escopo ⇒ parear o buffer de um plano com o stride/dimensões do OUTRO dá exatamente um erro de stride que (i) fica em faixa em algumas posições de bloco, (ii) estoura em outras e (iii) é invisível ao call-site.
+- **Instrumento refinado:** registrar `(índice, stride, comprimento)` em cada acesso DENTRO DOS ACESSORES (não nos call-sites), com o quadro alargado p/ a decodificação COMPLETAR.
+- **Árvore:** inalterada; `AvifRealFileE2ETest` **10/10** (commit docs-only).
 
 ## Sessão 16/10 (76ª) — 3bd 49ª: CFL REFUTADO; e a falha de toda exclusão por call-site é o achado
 - **Teste (como planejado):** neutralizar `if (uvMode == 13)` em `Av1DecodeChroma.kf` desliga a modulação E o `av1CflAcFromLuma` (única leitura da luma no croma) mantendo a ENTROPIA intacta ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **CFL não é o escritor**.
