@@ -549,6 +549,18 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > precisa da primitiva de confinamento da #854), GZIP e TAR, e o fallback CP437
 > para nomes legados.
 
+> **GZIP entregue no mesmo dia (fatia 2 da #852):** o `libs/archive/Gzip.kf` lê
+> fluxos RFC 1952 pela MESMA composição — o payload deflate vai para o
+> `image.Inflate` e o CRC-32/ISIZE do trailer são conferidos com o `zipCrc32` do
+> próprio ZIP — com os campos opcionais do cabeçalho (FEXTRA/FNAME/FCOMMENT/FHCRC)
+> pulados pelo nome, arquivos MULTI-MEMBRO CONCATENADOS suportados (o trailer é
+> achado onde o fluxo DEFLATE de fato terminou, nunca assumido como os últimos 8
+> bytes) e o teto de bytes do chamador valendo através de todos os membros. Lição
+> medida e registrada no arquivo: o `Inflate.run()` CLAMPA o retorno no tamanho do
+> buffer quando satura, então a contagem real é o campo `outPos` — um membro só de
+> literais nunca estoura a janela e escaparia do teto. TAR, a API de streaming em
+> blocos e os nomes em CP437 seguem abertos.
+
 ---
 
 # 17. Formatos binários

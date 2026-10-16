@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -49,7 +48,7 @@ class ZipLibraryE2ETest implements LibraryInstallSupport {
             e1.setMethod(ZipEntry.STORED);
             e1.setSize(stored.length);
             e1.setCompressedSize(stored.length);
-            e1.setCrc(crc32(stored));
+            e1.setCrc(ArchiveFixtureSupport.crc32(stored));
             out.putNextEntry(e1);
             out.write(stored);
             out.closeEntry();
@@ -59,49 +58,6 @@ class ZipLibraryE2ETest implements LibraryInstallSupport {
         }
         return zip;
     }
-
-    private static long crc32(byte[] data) {
-        CRC32 crc = new CRC32();
-        crc.update(data);
-        return crc.getValue();
-    }
-
-    private static byte[] read(Path p) throws Exception {
-        return Files.readAllBytes(p);
-    }
-
-    private static void putU16(byte[] b, int at, int value) {
-        b[at] = (byte) (value & 255);
-        b[at + 1] = (byte) ((value >>> 8) & 255);
-    }
-
-    private static void putU32(byte[] b, int at, long value) {
-        for (int i = 0; i < 4; i++) b[at + i] = (byte) ((value >>> (8 * i)) & 255);
-    }
-
-    private static int find(byte[] b, int sig, int from) {
-        for (int i = from; i + 4 <= b.length; i++) {
-            if ((b[i] & 255) == (sig & 255) && (b[i + 1] & 255) == ((sig >>> 8) & 255)
-                    && (b[i + 2] & 255) == ((sig >>> 16) & 255) && (b[i + 3] & 255) == ((sig >>> 24) & 255)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private static int rfind(byte[] b, int sig) {
-        for (int i = b.length - 4; i >= 0; i--) {
-            if ((b[i] & 255) == (sig & 255) && (b[i + 1] & 255) == ((sig >>> 8) & 255)
-                    && (b[i + 2] & 255) == ((sig >>> 16) & 255) && (b[i + 3] & 255) == ((sig >>> 24) & 255)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private static final int EOCD = 0x06054b50;
-    private static final int LOCAL = 0x04034b50;
-    private static final int CENTRAL = 0x02014b50;
 
     // --- programa Kof --------------------------------------------------------
 
@@ -202,21 +158,21 @@ class ZipLibraryE2ETest implements LibraryInstallSupport {
         // holds one record per entry, so `find(CENTRAL, 0)` is `alfa.txt` and
         // `rfind(CENTRAL)` is the LAST one (`dir/normal.txt`) — patching by hand
         // is exactly where a wrong offset reads as a false green.
-        int firstCentral = find(read(zip), CENTRAL, 0);
+        int firstCentral = ArchiveFixtureSupport.find(ArchiveFixtureSupport.read(zip), ArchiveFixtureSupport.CENTRAL, 0);
 
-        byte[] method9 = read(zip);
-        putU16(method9, find(method9, LOCAL, 0) + 8, 9);   // local header do alfa.txt
-        putU16(method9, firstCentral + 10, 9);             // diretório central do alfa.txt
+        byte[] method9 = ArchiveFixtureSupport.read(zip);
+        ArchiveFixtureSupport.putU16(method9, ArchiveFixtureSupport.find(method9, ArchiveFixtureSupport.LOCAL, 0) + 8, 9);   // local header do alfa.txt
+        ArchiveFixtureSupport.putU16(method9, firstCentral + 10, 9);             // diretório central do alfa.txt
         Path method9Path = root.resolve("method9.zip");
         Files.write(method9Path, method9);
 
-        byte[] encrypted = read(zip);
-        putU16(encrypted, firstCentral + 8, 1);
+        byte[] encrypted = ArchiveFixtureSupport.read(zip);
+        ArchiveFixtureSupport.putU16(encrypted, firstCentral + 8, 1);
         Path encryptedPath = root.resolve("enc.zip");
         Files.write(encryptedPath, encrypted);
 
-        byte[] zip64 = read(zip);
-        putU16(zip64, rfind(zip64, EOCD) + 10, 0xFFFF);
+        byte[] zip64 = ArchiveFixtureSupport.read(zip);
+        ArchiveFixtureSupport.putU16(zip64, ArchiveFixtureSupport.rfind(zip64, ArchiveFixtureSupport.EOCD) + 10, 0xFFFF);
         Path zip64Path = root.resolve("z64.zip");
         Files.write(zip64Path, zip64);
 
@@ -245,11 +201,11 @@ class ZipLibraryE2ETest implements LibraryInstallSupport {
     void refusesAnArchiveThatLiesAboutItsDeclaredSize() throws Exception {
         Path root = tmp.resolve("lying");
         Files.createDirectories(root);
-        byte[] lying = read(buildFixture(root, "lote.zip"));
+        byte[] lying = ArchiveFixtureSupport.read(buildFixture(root, "lote.zip"));
         // A mentira vai na entrada DEFLATED (`dir/normal.txt`, o ÚLTIMO registro do
         // diretório central): ela infla 220 bytes e passa a declarar 10. O teto do
         // chamador (4096) não barra nada — quem barra é o `got != declared`.
-        putU32(lying, rfind(lying, CENTRAL) + 24, 10);
+        ArchiveFixtureSupport.putU32(lying, ArchiveFixtureSupport.rfind(lying, ArchiveFixtureSupport.CENTRAL) + 24, 10);
         Path lyingPath = root.resolve("lying.zip");
         Files.write(lyingPath, lying);
 
@@ -264,8 +220,8 @@ class ZipLibraryE2ETest implements LibraryInstallSupport {
     void refusesACorruptedPayloadOnCrc32() throws Exception {
         Path root = tmp.resolve("crc");
         Files.createDirectories(root);
-        byte[] corrupted = read(buildFixture(root, "lote.zip"));
-        int payloadAt = find(corrupted, LOCAL, 0) + 30 + "alfa.txt".length();
+        byte[] corrupted = ArchiveFixtureSupport.read(buildFixture(root, "lote.zip"));
+        int payloadAt = ArchiveFixtureSupport.find(corrupted, ArchiveFixtureSupport.LOCAL, 0) + 30 + "alfa.txt".length();
         corrupted[payloadAt] = (byte) 'X';
         Path corruptedPath = root.resolve("bad.zip");
         Files.write(corruptedPath, corrupted);

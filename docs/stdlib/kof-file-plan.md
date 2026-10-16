@@ -365,6 +365,18 @@ Consider security against path traversal inside archives.
 > (which needs the confinement primitive from #854), GZIP and TAR, and the CP437
 > fallback for legacy names.
 
+> **GZIP landed the same day (slice 2 of #852):** `libs/archive/Gzip.kf` reads
+> RFC 1952 streams by the SAME composition — the deflate payload goes to
+> `image.Inflate` and the trailer's CRC-32/ISIZE are checked with the ZIP's own
+> `zipCrc32` — with the optional header fields (FEXTRA/FNAME/FCOMMENT/FHCRC)
+> skipped by name, CONCATENATED MULTI-MEMBER files supported (the trailer is
+> found where the DEFLATE stream actually ended, never assumed to be the last
+> 8 bytes), and the caller's byte ceiling enforced across all members. Measured
+> lesson recorded in the file: `Inflate.run()` CLAMPS its return to the buffer
+> size on saturation, so the real count is the `outPos` field — a literals-only
+> member never walks off the window and would otherwise slip through the cap.
+> TAR, the chunked streaming API and CP437 names remain open.
+
 ---
 
 # 17. Binary formats

@@ -55,13 +55,30 @@ Int zipU32(Int[] b, Int at) {
         | ((b[at + 2] & 255) << 16) | ((b[at + 3] & 255) << 24)
 }
 
-/** CRC-32 (reflected, polynomial 0xEDB88320), the same shape as `qrcode/QrPng`.
- *  `>> 1` is masked because Kof's Int is signed and the high bit is data. */
+/** A bounded copy — the shape both readers need (the ZIP slices a payload, the
+ *  GZIP collects members into one output). */
+Int[] zipSlice(Int[] b, Int from, Int len) {
+    var out = new Int[len]
+    var i = 0
+    while (i < len) {
+        out[i] = b[from + i] & 255
+        i = i + 1
+    }
+    return out
+}
+
+/** CRC-32 (reflected, polynomial 0xEDB88320) over the whole array. */
 Int zipCrc32(Int[] data) {
+    return zipCrc32(data, data.length)
+}
+
+/** CRC-32 over the first `len` bytes — the GZIP's `Inflate.out` is a
+ *  caller-sized window, so only the bytes the stream actually produced count. */
+Int zipCrc32(Int[] data, Int len) {
     var crc = -1
     var poly = -306674912
     var i = 0
-    while (i < data.length) {
+    while (i < len) {
         crc = crc ^ (data[i] & 255)
         var k = 0
         while (k < 8) {
@@ -258,10 +275,17 @@ class Zip {
                 throw "archive: entry '" + e.name + "' did not inflate to its declared "
                     + e.uncompressedSize + " bytes — refused"
             }
-            if (got != e.uncompressedSize) {
-                throw "archive: entry '" + e.name + "' inflated to " + got + " bytes but "
-                    + "declares " + e.uncompressedSize + " — refused"
+            // The REAL count is `inflate.outPos`, not `run()`'s return: the return
+            // is CLAMPED to the capacity when the output saturates (`return outLen`),
+            // so a stream that overran reports exactly the declared size and would
+            // read as honest here. The walk-off exception above only fires when a
+            // copy reaches past the window; literals-only streams never do. Both
+            // shapes must be refused with the SAME message.
+            if (inflate.outPos != e.uncompressedSize) {
+                throw "archive: entry '" + e.name + "' did not inflate to its declared "
+                    + e.uncompressedSize + " bytes — refused"
             }
+            got = e.uncompressedSize
             out = new Int[got]
             var k = 0
             while (k < got) {
