@@ -5248,6 +5248,69 @@ class DecompileTest {
                 "zero-drift: netSalary/bracket/bonus/deservesRaise id\u00eanticos ao Java");
     }
 
+    @Test
+    void clockDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio REL\u00d3GIO — 4 shapes sem c\u00f3digo novo:
+        // a conversão com a ARITMÉTICA ENCADEADA (toSeconds: `h * 3600 +
+        // m * 60 + s`), o período com as QUATRO faixas (dawn/morning/
+        // afternoon/night), o addMinutes com o wrap do módulo (`total / 60
+        // % 24` — o encadeamento de div+rem) e o isBusinessDay com o &&
+        // TRIPLO (a NEGAÇÃO + as duas comparações). Zero-drift executado:
+        // 3723/dawn/morning/afternoon/night/0/10/true/false/false — 10/10
+        // id\u00eanticos ao Java — a 28\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Time.java");
+        Files.writeString(javaFile, """
+                public class Time {
+                    static int toSeconds(int h, int m, int s) {
+                        return h * 3600 + m * 60 + s;
+                    }
+                    static String period(int hour) {
+                        if (hour < 6) { return "dawn"; }
+                        if (hour < 12) { return "morning"; }
+                        if (hour < 18) { return "afternoon"; }
+                        return "night";
+                    }
+                    static int addMinutes(int h, int m, int add) {
+                        int total = h * 60 + m + add;
+                        return total / 60 % 24;
+                    }
+                    static boolean isBusinessDay(int day, boolean holiday) {
+                        return !holiday && day >= 2 && day <= 6;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Time.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Time.toSeconds(1, 2, 3))
+                    println(Time.period(4))
+                    println(Time.period(9))
+                    println(Time.period(15))
+                    println(Time.period(23))
+                    println(Time.addMinutes(23, 50, 20))
+                    println(Time.addMinutes(10, 10, 5))
+                    println(Time.isBusinessDay(3, false))
+                    println(Time.isBusinessDay(1, false))
+                    println(Time.isBusinessDay(3, true))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3723 | dawn | morning | afternoon | night | 0 | 10 | true | false | false
+        assertEquals("3723\ndawn\nmorning\nafternoon\nnight\n0\n10\ntrue\nfalse\nfalse", output,
+                "zero-drift: toSeconds/period/addMinutes/isBusinessDay id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
