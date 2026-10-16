@@ -481,6 +481,145 @@ public final class RuntimeStringEdit {
             """);
     }
 
+    /**
+     * §738 (face NATIVA x86): {@code String.replace("", to)} — a agulha VAZIA.
+     * O {@code kof_string_replace} procura a SUBSTRING da agulha; uma agulha de
+     * 0 bytes nunca casa, então o native devolvia a string INTACTA (no-op) onde
+     * o JVM/Script inserem {@code to} em TODA posição, inclusive nas pontas:
+     * {@code "aXbXc".replace("", "-")} = {@code -a-X-b-X-c-},
+     * {@code "".replace("", "-")} = {@code -}. ADITIVO — o caminho da agulha
+     * não-vazia fica intacto.
+     *
+     * <p>Percorre por CODE POINT UTF-8 (a direção do D-STR-UNICODE), como o
+     * {@link #emitStringSplitChars}. Fronteira honesta: um caractere ASTRAL
+     * conta 1 (o JVM, por code unit UTF-16, inseriria 2 vezes).
+     */
+    public static void emitStringReplaceEmpty(StringBuilder sb) {
+        sb.append("""
+            .globl kof_string_replace_empty
+            .type kof_string_replace_empty, @function
+            kof_string_replace_empty:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                pushq %r8
+                pushq %r9
+                pushq %r10
+                pushq %r11
+                movq %rdi, %rbx              # str
+                movq %rsi, %r12              # to
+                movl 16(%rbx), %r13d         # nBytes(str)
+                movl 16(%r12), %r9d          # L = nBytes(to)
+                xorl %r14d, %r14d            # nº de code points
+                xorl %ecx, %ecx
+            .Lkof_rpe_count:
+                cmpl %r13d, %ecx
+                jge .Lkof_rpe_count_done
+                movzbl 24(%rbx,%rcx), %eax
+                andl $0xC0, %eax
+                cmpl $0x80, %eax
+                je .Lkof_rpe_count_next
+                incl %r14d
+            .Lkof_rpe_count_next:
+                incq %rcx
+                jmp .Lkof_rpe_count
+            .Lkof_rpe_count_done:
+                movl %r14d, %eax             # total = (nCP+1)*L + nBytes(str)
+                incl %eax
+                imull %r9d, %eax
+                addl %r13d, %eax
+                movl %eax, %r10d
+                movq %r10, 0(%rsp)           # total sobrevive ao kof_alloc
+                leal 25(%r10), %edi
+                call kof_alloc
+                movq %rax, %r15
+                movq 0(%rsp), %r10           # total de volta
+                movl 16(%r12), %r9d          # L (recarregado pós-alloc)
+                movl 16(%rbx), %r13d         # nBytes(str)
+                movl $1, (%r15)
+                movl $0, 4(%r15)
+                movq $0, 8(%r15)
+                movl %r10d, 16(%r15)
+                movl $0, 20(%r15)
+                movl %r10d, %eax
+                movb $0, 24(%r15,%rax)
+                leaq 24(%r15), %r11          # cursor de destino
+                xorl %ecx, %ecx              # byte index de origem
+            .Lkof_rpe_loop:
+                cmpl %r13d, %ecx
+                jge .Lkof_rpe_last
+                movzbl 24(%rbx,%rcx), %edx
+                movl $1, %r10d               # comprimento do char (lead byte)
+                movl %edx, %eax
+                andl $0xE0, %eax
+                cmpl $0xC0, %eax
+                jne .Lkof_rpe_l3
+                movl $2, %r10d
+                jmp .Lkof_rpe_copy
+            .Lkof_rpe_l3:
+                movl %edx, %eax
+                andl $0xF0, %eax
+                cmpl $0xE0, %eax
+                jne .Lkof_rpe_l4
+                movl $3, %r10d
+                jmp .Lkof_rpe_copy
+            .Lkof_rpe_l4:
+                movl %edx, %eax
+                andl $0xF8, %eax
+                cmpl $0xF0, %eax
+                jne .Lkof_rpe_copy
+                movl $4, %r10d
+            .Lkof_rpe_copy:
+                xorl %edi, %edi              # j = 0  (copia `to`)
+            .Lkof_rpe_to:
+                cmpl %r9d, %edi
+                jge .Lkof_rpe_char
+                movzbl 24(%r12,%rdi), %eax
+                movb %al, (%r11,%rdi)
+                incl %edi
+                jmp .Lkof_rpe_to
+            .Lkof_rpe_char:
+                addq %rdi, %r11              # cursor += L
+                xorl %edx, %edx              # k = 0  (copia o char)
+            .Lkof_rpe_ch:
+                cmpl %r10d, %edx
+                jge .Lkof_rpe_adv
+                movq %rcx, %rax
+                addq %rdx, %rax
+                movzbl 24(%rbx,%rax), %eax
+                movb %al, (%r11,%rdx)
+                incl %edx
+                jmp .Lkof_rpe_ch
+            .Lkof_rpe_adv:
+                addq %rdx, %r11              # cursor += cpLen
+                addq %r10, %rcx              # origem += cpLen
+                jmp .Lkof_rpe_loop
+            .Lkof_rpe_last:
+                xorl %edi, %edi              # `to` FINAL (a ponta direita)
+            .Lkof_rpe_fin:
+                cmpl %r9d, %edi
+                jge .Lkof_rpe_ret
+                movzbl 24(%r12,%rdi), %eax
+                movb %al, (%r11,%rdi)
+                incl %edi
+                jmp .Lkof_rpe_fin
+            .Lkof_rpe_ret:
+                movq %r15, %rax
+                popq %r11
+                popq %r10
+                popq %r9
+                popq %r8
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            """);
+    }
+
     // §655: kof_string_split_limit(str@rdi, sep_char@esi, limit@edx) — o
     // contrato JDK da sobrecarga (String, Int): limit>0 = no máximo `limit`
     // pieces e a ÚLTIMA é o resto não dividido (sem a poda §111),

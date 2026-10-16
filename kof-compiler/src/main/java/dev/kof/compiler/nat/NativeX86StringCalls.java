@@ -226,6 +226,7 @@ public final class NativeX86StringCalls {
         }
         if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
                 && "replace".equals(kc.methodName())) {
+            int seq = nb.inlineSeq++;
             sb.append("    popq %rdx\n");
             sb.append("    popq %rsi\n");
             sb.append("    popq %rdi\n");
@@ -235,10 +236,29 @@ public final class NativeX86StringCalls {
             Type first = !kc.parameterTypes().isEmpty() ? kc.parameterTypes().get(0) : null;
             boolean charArgs = first instanceof Type.PrimitiveType pt
                     && "char".equals(Type.canonicalPrimitiveName(pt.name()));
-            sb.append(charArgs
-                    ? "    call kof_string_replace_char\n"
-                    : "    call kof_string_replace\n");
+            if (charArgs) {
+                sb.append("    call kof_string_replace_char\n");
+                sb.append("    pushq %rax\n");
+                return true;
+            }
+            // §738 (face NATIVA): agulha VAZIA (`replace("", to)`) — o
+            // `kof_string_replace` procura a SUBSTRING da agulha e uma agulha de
+            // 0 bytes nunca casa, então o native no-opava enquanto o JVM/Script
+            // inserem `to` em TODA posição. O ramo vazio vai p/ o helper
+            // dedicado (aditivo; o caminho da agulha não-vazia fica intacto).
+            String empty = ".Lkof_rep_empty" + seq;
+            String done = ".Lkof_rep_done" + seq;
+            sb.append("    movl 16(%rsi), %ecx\n");
+            sb.append("    testl %ecx, %ecx\n");
+            sb.append("    jz " + empty + "\n");
+            sb.append("    call kof_string_replace\n");
             sb.append("    pushq %rax\n");
+            sb.append("    jmp " + done + "\n");
+            sb.append(empty + ":\n");
+            sb.append("    movq %rdx, %rsi\n");
+            sb.append("    call kof_string_replace_empty\n");
+            sb.append("    pushq %rax\n");
+            sb.append(done + ":\n");
             return true;
         }
         if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
