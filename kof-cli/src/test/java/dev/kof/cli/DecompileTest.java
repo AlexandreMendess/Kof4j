@@ -5026,6 +5026,77 @@ class DecompileTest {
                 "zero-drift: fuelCost/eta/stops/needsPassport id\u00eanticos ao Java");
     }
 
+    @Test
+    void chatDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio CHAT — 4 shapes sem c\u00f3digo novo: o
+        // unread com o contains + a NEGA\u00c7\u00c3O dentro do for-each duplo
+        // (o seen contra o all), o PREVIEW com o corte + o sufixo "..."
+        // (o if-simples + a concat no return), o mentions com o EARLY-TRUE
+        // (o contains dentro do loop) e o charCount com o ACUMULADOR Long
+        // (o ladd no for-each de Strings). Zero-drift executado: 2/ola
+        // mund.../curto/true/false/10 — 6/6 id\u00eanticos ao Java — a 25\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Chat.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Chat {
+                    static int unread(List<String> seen, List<String> all) {
+                        int n = 0;
+                        for (String m : all) {
+                            if (!seen.contains(m)) { n++; }
+                        }
+                        return n;
+                    }
+                    static String preview(String msg, int max) {
+                        if (msg.length() <= max) { return msg; }
+                        return msg.substring(0, max) + "...";
+                    }
+                    static boolean mentions(String msg, List<String> names) {
+                        for (String name : names) {
+                            if (msg.contains(name)) { return true; }
+                        }
+                        return false;
+                    }
+                    static long charCount(List<String> msgs) {
+                        long total = 0;
+                        for (String m : msgs) {
+                            total += m.length();
+                        }
+                        return total;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Chat.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var seen = listOf("oi", "tchau")
+                    var all = listOf("oi", "tchau", "e ai", "bom dia")
+                    println(Chat.unread(seen, all))
+                    println(Chat.preview("ola mundo tudo bem", 8))
+                    println(Chat.preview("curto", 8))
+                    println(Chat.mentions("oi joao", listOf("maria", "joao")))
+                    println(Chat.mentions("oi ze", listOf("maria", "joao")))
+                    var msgs = listOf("abc", "de", "fghij")
+                    println(Chat.charCount(msgs))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2 | ola mund... | curto | true | false | 10
+        assertEquals("2\nola mund...\ncurto\ntrue\nfalse\n10", output,
+                "zero-drift: unread/preview/mentions/charCount id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
