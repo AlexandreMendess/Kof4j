@@ -5428,6 +5428,7 @@ para o label) é o predicado correto e **já era usado** no `parseStatements`.
   Native; casos não-ASCII ficam em KofStringsTest (JVM+JS)"). A matriz trava
   só ASCII de propósito (`conformance-matrix.md` §"S2b ASCII"/NAT-STR01).
   **`reverse` deixou esta lista em 27/09** (D-FULL-PARITY-050 linha 11): agora
+  **MEDIDO 16/10 (lane compilador/JVM/nativo `192.168.15.30:9092`): a fronteira e PIOR que "ASCII-first" para o PAR do pad — um char de pad nao-ASCII emite UM BYTE por slot, entao o resultado e uma String Kof MALFORMADA (UTF-8 invalido), nao apenas uma aproximacao ASCII.** `padLeft("7", 3, 'é')` da `éé7` no JVM/Script/JS e `??7` (um 0xE9 solto por slot) nos TRES nativos; `padRight("7", 3, 'é')` → `7??`; pad de 3 bytes (`'€'`) igual; pad ASCII (`'x'`) correto em todos (medido). Os helpers leem `pad[0]` e fixam o comprimento a `n` BYTES (`RuntimeStringsConv` x86, `NativeRiscvAsmRtB9` riscv). **O fix vive na frente JA AUTORIZADA `D-FULL-PARITY-050` linha 11** (a que fechou o `reverse`): repetir a STRING do pad e truncar a `n` CARACTERES (code points no nativo) — sem decisao nova.
   está correto por code point UTF-8 nos três targets nativos.
 - **Estado do registro (13/09):** o `docs/development/README.md:91` já listava
   NAT-STR01 como "`known-bugs.md`/conformance-matrix", mas a seção **não

@@ -5430,6 +5430,7 @@ to the label) is the correct predicate and **was already used** in `parseStateme
   only ASCII on purpose (`conformance-matrix.md` §"S2b ASCII"/NAT-STR01).
   **`reverse` left this list 27/09** (D-FULL-PARITY-050 row 11): it is now
   UTF-8 code-point correct on the three native targets.
+  **MEASURED 16/10 (lane compiler/JVM/native `192.168.15.30:9092`): the boundary is WORSE than "ASCII-first" for the PAD PAIR — a non-ASCII pad char emits ONE BYTE per slot, so the result is a MALFORMED Kof String (invalid UTF-8), not merely an ASCII approximation.** `strings.padLeft("7", 3, 'é')` gives `éé7` on JVM/Script/JS and a lone-0xE9-per-slot `??7` on all THREE natives; `strings.padRight("7", 3, 'é')` → `7??`; a 3-byte pad (`'€'`) likewise; an ASCII pad (`'x'`) is CORRECT everywhere (measured). The helpers read `pad[0]` and set the result length to `n` BYTES (`RuntimeStringsConv` x86 `kof_strings_padLeft/padRight`, riscv `NativeRiscvAsmRtB9`). **The fix lives on the ALREADY-AUTHORIZED `D-FULL-PARITY-050` row-11 front** (the same one that closed `reverse` 27/09): repeat the pad STRING and truncate to `n` CHARACTERS (code points native-side), instead of one byte per slot — no new decision needed.
 - **Record status (13/09):** `docs/development/README.md:91` already listed
   NAT-STR01 as "`known-bugs.md`/conformance-matrix", but the section **did not
   exist here** (only the note in the matrix) — a record gap closed in this
