@@ -4289,6 +4289,70 @@ class DecompileTest {
                 "zero-drift: isLeap/daysInMonth/dayType/nextMonth id\u00eanticos ao Java");
     }
 
+    @Test
+    void queueDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio FILA — 4 shapes sem c\u00f3digo novo: o
+        // contador com o threshold no for-each (serve: `t > start`),
+        // os TR\u00caS returns com os limiares encadeados de Int (status),
+        // a multiplicação direta de params (waitMinutes) e a diferença com
+        // o threshold no `||` implícito do return (skip: `myTicket - now >
+        // 3`). Zero-drift executado: 3/done/soon/waiting/60/true/false —
+        // 7/7 id\u00eanticos ao Java — a 18\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Queue.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Queue {
+                    static int serve(List<Integer> tickets, int start) {
+                        int served = 0;
+                        for (int t : tickets) {
+                            if (t > start) { served++; }
+                        }
+                        return served;
+                    }
+                    static String status(int position) {
+                        if (position <= 0) { return "done"; }
+                        if (position < 5) { return "soon"; }
+                        return "waiting";
+                    }
+                    static int waitMinutes(int position, int perClient) {
+                        return position * perClient;
+                    }
+                    static boolean skip(int myTicket, int now) {
+                        return myTicket - now > 3;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Queue.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var ts = listOf(3, 7, 12, 5)
+                    println(Queue.serve(ts, 4))
+                    println(Queue.status(0))
+                    println(Queue.status(3))
+                    println(Queue.status(9))
+                    println(Queue.waitMinutes(4, 15))
+                    println(Queue.skip(20, 5))
+                    println(Queue.skip(6, 5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3 | done | soon | waiting | 60 | true | false
+        assertEquals("3\ndone\nsoon\nwaiting\n60\ntrue\nfalse", output,
+                "zero-drift: serve/status/waitMinutes/skip id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
