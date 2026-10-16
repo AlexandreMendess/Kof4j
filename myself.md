@@ -2,11 +2,21 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 44ª PASSAGEM: com o buffer ALARGADO (linhas extra, stride igual) o 32x32 COMPLETA e mostra o MESMO DESSINCRONISMO do testsrc 64x64: `blocks=8 covered=64 frame=64` mas `symBits=503 payloadBits=1968` (26%) e `Y(0,0)=17` batendo com o ffmpeg ⇒ a falha é uma escrita na linha 34 de um buffer de 34 linhas, e o ESTOURO é SINTOMA do desync (modo/geometria lixo) ⇒ a RAIZ compartilhada é o DESSINCRONISMO. Limitação do probe: amostras Y fixas de 64x64 ⇒ num 32x32 só (0,0) vale. Mudanças temporárias REVERTIDAS; árvore provada, AvifRealFileE2ETest 10/10. Próximo: o desync (discriminante = CONTEÚDO: testsrc mistura modos ANGULARES) ⇒ despejar yMode/uvMode/angleY por bloco.
-doing: §3bd — 32x32: estouro é SINTOMA; raiz compartilhada = o DESSINCRONISMO (26% no 32x32, 54% no 64x64); fixtures exatos são planos/xadrez/paleta
-next: §3bd — despejar yMode/uvMode/angleY por bloco de um testsrc que falha e procurar o modo/ângulo angular que os fixtures exatos nunca exercitam (o desync é o discriminante de CONTEÚDO)
+last: 16/10 — AVIF slice 3bd 45ª PASSAGEM: DISCRIMINANTE MEDIDO — os quadros que FALHAM leem DELTAS DE ÂNGULO, os EXATOS nunca. Fatia: o dump por bloco do probe agora inclui angleY/angleUV. Medido (txSz, yMode, angleY, uvMode, angleUV): testsrc-64 (FALHA) = (6,2,-2,2,3), (6,0,0,9,0), (5,2,2,9,0), (7,0,0,0,0), (2,0,0,13,0)… (modos LUMA ANGULARES + deltas NÃO-ZERO + UV direcional + CFL + uma leitura de 7 símbolos = o delta de ângulo); cb16 = (2,0,0,0,0)×4 e pskip = (3,0,0,0,0) — só DC, ângulos 0, ZERO leituras de 7 símbolos ⇒ primeiro discriminante por ENTROPIA. Caveat: o rastro imprime só 24 símbolos (contagem parcial). A leitura do ângulo já foi verificada vs libaom ⇒ suspeito = interação (adaptação da CDF no tile, ou get_uv_mode na linha do ângulo UV). Próximo: gradiente FORA DO EIXO (delta não-zero) com conteúdo simples ⇒ se falhar enquanto o no-eixo passa, o delta de ângulo é o gatilho. Prova: AvifRealFileE2ETest 10/10 (probe estendido landado).
+doing: §3bd — desync: discriminante MEDIDO = os que falham leem deltas de ÂNGULO (modos direcionais) e os exatos nunca; suspeito = a interação do caminho angular (CDF/UV)
+next: §3bd — gerar um 64x64 com gradiente FORA DO EIXO (força delta de ângulo não-zero) e conteúdo simples; se falhar enquanto o gradiente no eixo passa, o delta de ângulo é o gatilho (fix RED-first a seguir)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (72ª) — 3bd 45ª: DISCRIMINANTE por ENTROPIA medido (deltas de ângulo)
+- **Fatia (landada):** o dump por bloco do probe de tile agora inclui `angleY`/`angleUV` ⇒ o mix de modos de qualquer fixture se lê direto. Prova: `AvifRealFileE2ETest` **10/10**.
+- **MEDIDO** `(txSz, yMode, angleY, uvMode, angleUV)`:
+  - **testsrc-64 (FALHA):** `(6,2,-2,2,3)`, `(6,0,0,9,0)`, `(6,0,0,13,0)`, `(5,2,2,9,0)`, `(5,2,0,13,0)`, `(7,0,0,0,0)`, `(2,0,0,13,0)` — modos LUMA **ANGULARES** (2 = V_PRED) com deltas **NÃO-ZERO** (−2, +2), UV direcional (9), CFL (13), e uma leitura de **7 símbolos** no rastro = o delta de ângulo.
+  - **cb16 (EXATO):** `(2,0,0,0,0)` ×4 — só DC, ângulos 0, **ZERO** leituras de 7 símbolos.
+  - **pskip (EXATO):** `(3,0,0,0,0)` — só DC, ângulos 0, **ZERO** leituras de 7 símbolos.
+- **Conclusão:** é o primeiro discriminante que separa os fixtures por um elemento de ENTROPIA (leitura de modo/ângulo), não só por conteúdo ⇒ o caminho DIRECIONAL/ÂNGULO é o suspeito.
+- **Caveats:** (a) a linha de rastro imprime só os primeiros 24 símbolos ⇒ a contagem de 7-símbolos é parcial (o dump de modos é completo); (b) a leitura do ângulo JÁ foi verificada contra o libaom ⇒ o suspeito não é a forma da leitura, mas a interação (adaptação da CDF ao longo do tile, ou o mapeamento `get_uv_mode` para a linha do ângulo UV).
+- **Próximo:** gradiente FORA DO EIXO num 64x64 (força delta de ângulo não-zero) com conteúdo simples ⇒ se falhar enquanto o gradiente no eixo (que era EXATO) passa, o delta de ângulo é o gatilho.
 
 ## Sessão 16/10 (71ª) — 3bd 44ª: estouro = SINTOMA; a raiz é o DESSINCRONISMO (medido)
 - **Experimento (temporário, revertido):** buffer de quadro do probe com LINHAS EXTRA (`stride*(mh+8)`, stride 34 inalterado) ⇒ a escrita da linha 34 cai DENTRO ⇒ **o crash DESAPARECE e a decodificação COMPLETA**.
