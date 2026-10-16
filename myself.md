@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 41ª PASSAGEM: dois diagnósticos cirúrgicos ELIMINAM os escritores de nível de bloco no fora-de-limites do 32x32 (ambos REVERTIDOS, temporários): (1) guard de extensão do BLOCO no topo do decodeBlock NUNCA disparou ⇒ nenhum bloco ultrapassa o quadro; (2) guard de extensão do BLOCO DE TRANSFORMADA antes da caminhada de coeficientes NUNCA disparou ⇒ a enumeração de TX fica dentro do plano. Buffer confirmado = plano LUMA com borda (34*34 = 1156, stride 34) e o índice 1186 está 30 ALÉM do fim (não apenas uma linha além da borda). ⇒ o estouro vem de DENTRO de um estágio com extensões nominais dentro dos limites: candidatos = leituras de borda do `av1IntraPredictBlock`, edge filter intra, ou efeito luma da caminhada de croma. Próximo: instrumentar dentro desses helpers.
-doing: §3bd — 32x32: eliminados os escritores de nível de bloco (bloco e TX dentro do plano); o estouro é interno a um helper de borda (predict/edge-filter/croma)
-next: §3bd — instrumentar dentro do `av1IntraPredictBlock` (leituras de borda) e depois o edge filter intra, com a técnica de marcador, para nomear o escritor do estouro do 32x32
+last: 16/10 — AVIF slice 3bd 42ª PASSAGEM: ESCRITOR NOMEADO — o fora-de-limites do 32x32 é a PREDIÇÃO intra lendo além da borda do quadro. Marcador antes do `av1IntraPredictBlock` (`x + 2*w > frameW + 1 || y + 2*h > frameH + 1`) DISPAROU: `IMAGE: DIAG predict-extent x=16 y=0 w=16 h=16 r=0 c=4 bs=6` (bloco 16x16 encostado na borda DIREITA do quadro 32; predição angular quer até x+2w-1 = 47 ⇒ 35 colunas além ⇒ índice 1186 no buffer luma). Fix (próximo): modelo de disponibilidade/clamp dos preditores (spec `AboveRow`/`LeftCol`, clamps do libaom) — o Kof lê o QUADRO direto com offsets crus. Diagnóstico REVERTIDO; árvore provada, AvifRealFileE2ETest 10/10.
+doing: §3bd — escritor NOMEADO: predição intra over-read na borda direita (32x32); fix = modelo de disponibilidade/clamp dos preditores
+next: §3bd — implementar o modelo de disponibilidade/clamp dos preditores intra (spec `AboveRow`/`LeftCol` com amostras indisponíveis marcadas; clamps `get_...` do libaom) e re-testar o fixture 32x32 (hoje OOB: índice 1186 em 1156)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (69ª) — 3bd 42ª: ESCRITOR NOMEADO (predição intra over-read na borda)
+- **Marcador** no laço de TX, antes do `av1IntraPredictBlock`: lança se `x + 2*w > frameW + 1 || y + 2*h > frameH + 1` ⇒ **DISPAROU**: `IMAGE: DIAG predict-extent x=16 y=0 w=16 h=16 r=0 c=4 bs=6`.
+- **Leitura:** bloco 16x16 nos pixels x=16..31 (encostado na borda DIREITA do quadro 32) com predição angular quer amostras até x+2w-1 = 47 ⇒ **35 colunas além do quadro** ⇒ cai no índice 1186 do buffer luma (1156) — o que nem o guard de bloco nem o de TX podiam ver (ambos dentro dos limites).
+- **Causa:** pela spec/libaom os preditores intra leem um `AboveRow`/`LeftCol` PREPARADO (amostras indisponíveis marcadas + clamp `get_...`); o `av1IntraPredictBlock` do Kof lê o QUADRO DIRETO com offsets crus ⇒ over-read na borda direita.
+- **Fix (próxima fatia):** o modelo de disponibilidade/clamp — o fix correto (afeta também os PIXELS, não só o crash).
+- **Só o 32x32 alcança** hoje: precisa de modo angular num bloco de borda direita cuja extensão topo-direita passe do quadro; os fixtures 64x64 não atingem.
+- **Diagnóstico REVERTIDO** (temporário); árvore no estado provado, `AvifRealFileE2ETest` **10/10** (commit docs-only).
 
 ## Sessão 16/10 (68ª) — 3bd 41ª: eliminações medidas (bloco e TX dentro do plano); estouro é interno
 - **Diagnóstico 1 (REVERTIDO):** guard de extensão do BLOCO no topo do `decodeBlock` ⇒ **NUNCA DISPAROU** ⇒ nenhum bloco ultrapassa o quadro ⇒ elimina a hipótese de bloco fora do quadro (vindo da partição dessincronizada).
