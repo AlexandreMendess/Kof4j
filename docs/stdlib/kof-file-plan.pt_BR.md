@@ -545,8 +545,12 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > declarado mentiroso é RECUSADO em vez de truncado, que é a defesa contra bomba
 > de descompressão. ZIP64, entrada criptografada e método fora de {0, 8} são
 > recusados com diagnóstico explícito, nunca silêncio. **Segue aberto na #852:**
-> o streaming `open()`/`readChunk()` dirigido pelo chamador, o `extractTo` (que
-> precisa da primitiva de confinamento da #854) e a ESCRITA de TAR.
+> o streaming `open()`/`readChunk()` dirigido pelo chamador e a ESCRITA de TAR.
+> **O `extractTo` está DENTRO, com confinamento:** `Zip(path).extractTo(destDir, maxBytes)`
+> recusa `..`, absolutos, unidade Windows e o separador `\` — a barreira de NOME roda
+> antes de qualquer coisa tocar o disco — e nunca sobrescreve um caminho existente.
+> Limite honesto: a checagem de link é conferir-depois-gravar, então a janela TOCTOU
+> segue aberta até a primitiva `createNew` da #854 chegar.
 > **Os nomes já seguem a regra do formato:** quem decide é o bit 11 (UTF-8) — setado é UTF-8, limpo é CP437 (o caso legado, que antes saía com caracteres de substituição).
 
 > **GZIP entregue no mesmo dia (fatia 2 da #852):** o `libs/archive/Gzip.kf` lê

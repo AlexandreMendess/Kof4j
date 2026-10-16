@@ -13,6 +13,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -58,6 +59,116 @@ class ZipLibraryE2ETest implements LibraryInstallSupport {
             out.closeEntry();
         }
         return zip;
+    }
+
+    /** ZIP mínimo com entradas STORED de mesmo conteúdo e os nomes dados — escrito
+     *  byte a byte porque um `ZipOutputStream` do JDK NORMALIZA/recusa os nomes
+     *  maliciosos, e é exatamente deles que o confinamento precisa. */
+    private static byte[] zipWithNames(List<String> names, byte[] data) {
+        java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
+        List<Integer> offsets = new java.util.ArrayList<>();
+        for (String name : names) {
+            offsets.add(body.size());
+            byte[] nm = name.getBytes(StandardCharsets.UTF_8);
+            byte[] local = new byte[30 + nm.length];
+            ArchiveFixtureSupport.putU32(local, 0, ArchiveFixtureSupport.LOCAL);
+            ArchiveFixtureSupport.putU16(local, 4, 20);
+            ArchiveFixtureSupport.putU16(local, 6, 0);
+            ArchiveFixtureSupport.putU16(local, 8, 0);                 // método 0 = STORED
+            ArchiveFixtureSupport.putU32(local, 14, ArchiveFixtureSupport.crc32(data));
+            ArchiveFixtureSupport.putU32(local, 18, data.length);
+            ArchiveFixtureSupport.putU32(local, 22, data.length);
+            ArchiveFixtureSupport.putU16(local, 26, nm.length);
+            System.arraycopy(nm, 0, local, 30, nm.length);
+            body.write(local, 0, local.length);
+            body.write(data, 0, data.length);
+        }
+        int cdOffset = body.size();
+        for (int i = 0; i < names.size(); i++) {
+            byte[] nm = names.get(i).getBytes(StandardCharsets.UTF_8);
+            byte[] cd = new byte[46 + nm.length];
+            ArchiveFixtureSupport.putU32(cd, 0, ArchiveFixtureSupport.CENTRAL);
+            ArchiveFixtureSupport.putU16(cd, 4, 20);
+            ArchiveFixtureSupport.putU16(cd, 6, 20);
+            ArchiveFixtureSupport.putU16(cd, 10, 0);
+            ArchiveFixtureSupport.putU32(cd, 16, ArchiveFixtureSupport.crc32(data));
+            ArchiveFixtureSupport.putU32(cd, 20, data.length);
+            ArchiveFixtureSupport.putU32(cd, 24, data.length);
+            ArchiveFixtureSupport.putU16(cd, 28, nm.length);
+            ArchiveFixtureSupport.putU32(cd, 42, offsets.get(i));
+            System.arraycopy(nm, 0, cd, 46, nm.length);
+            body.write(cd, 0, cd.length);
+        }
+        int cdSize = body.size() - cdOffset;
+        byte[] eocd = new byte[22];
+        ArchiveFixtureSupport.putU32(eocd, 0, ArchiveFixtureSupport.EOCD);
+        ArchiveFixtureSupport.putU16(eocd, 8, names.size());
+        ArchiveFixtureSupport.putU16(eocd, 10, names.size());
+        ArchiveFixtureSupport.putU32(eocd, 12, cdSize);
+        ArchiveFixtureSupport.putU32(eocd, 16, cdOffset);
+        body.write(eocd, 0, eocd.length);
+        return body.toByteArray();
+    }
+
+    /**
+     * `extractTo` — o CONFINAMENTO que a issue pede: recusa `..`, absoluto,
+     * unidade Windows, separador `\` e NUNCA sobrescreve. O ZIP é construído
+     * byte a byte porque o `ZipOutputStream` do JDK normaliza/recusa esses nomes.
+     */
+    @Test
+    void extractToConfinesNamesAndNeverOverwrites(@TempDir Path dir) throws Exception {
+        byte[] payload = "malicioso".getBytes(StandardCharsets.UTF_8);
+        Path clean = dir.resolve("clean.zip");
+        Files.write(clean, zipWithNames(List.of("ok.txt", "sub/dir/nota.txt"), payload));
+        Path traversal = dir.resolve("trav.zip");
+        Files.write(traversal, zipWithNames(List.of("../escape.txt"), payload));
+        Path absolute = dir.resolve("abs.zip");
+        Files.write(absolute, zipWithNames(List.of("/abs.txt"), payload));
+        Path drive = dir.resolve("drive.zip");
+        Files.write(drive, zipWithNames(List.of("C:/win.txt"), payload));
+        Path backslash = dir.resolve("bs.zip");
+        Files.write(backslash, zipWithNames(List.of("dir\\evil.txt"), payload));
+
+        Path out = dir.resolve("out");
+        Files.createDirectories(out);
+        Files.writeString(out.resolve("ok.txt"), "preservado");
+
+        Files.writeString(dir.resolve("Main.kf"), """
+                import archive.Zip
+
+                void face(String path, String dest) {
+                    try {
+                        var z = Zip(path)
+                        println("ESCREVEU " + z.extractTo(dest, 4096))
+                    } catch (String m) {
+                        println("recusado: " + m)
+                    }
+                }
+
+                main() {
+                    face("%s", "%s")
+                    face("%s", "%s")
+                    face("%s", "%s")
+                    face("%s", "%s")
+                    face("%s", "%s")
+                }
+                """.formatted(
+                        traversal.toAbsolutePath(), out.toAbsolutePath(),
+                        absolute.toAbsolutePath(), out.toAbsolutePath(),
+                        drive.toAbsolutePath(), out.toAbsolutePath(),
+                        backslash.toAbsolutePath(), out.toAbsolutePath(),
+                        clean.toAbsolutePath(), out.toAbsolutePath()));
+
+        String expected = "recusado: archive: refusing entry '../escape.txt' — it escapes the destination\n"
+                + "recusado: archive: refusing entry '/abs.txt' — it escapes the destination\n"
+                + "recusado: archive: refusing entry 'C:/win.txt' — it escapes the destination\n"
+                + "recusado: archive: refusing entry 'dir\\evil.txt' — it escapes the destination\n"
+                + "recusado: archive: refusing to overwrite 'ok.txt' — it already exists";
+        assertEquals(expected, runOnJvm(dir), "recusas de confinamento (JVM)");
+        assertEquals(expected, runOnScript(dir), "recusas de confinamento (Script)");
+        assertEquals("preservado", Files.readString(out.resolve("ok.txt")), "o pré-existente NÃO foi tocado");
+        assertFalse(Files.exists(dir.resolve("escape.txt")), "nada pode escapar do destino");
+        assertFalse(Files.exists(Path.of("/abs.txt")), "nada pode ser escrito no absoluto");
     }
 
     // --- programa Kof --------------------------------------------------------

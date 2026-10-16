@@ -328,4 +328,85 @@ class Zip {
         }
         return out
     }
+
+// --- extração com CONFINAMENTO (a política que a #852 pede) -------------------
+
+/** Nome relativo SEGURO, ou `""` quando o nome ESCAPA do destino. Recusa:
+ *  caminho absoluto (`/...`), unidade Windows (`:`), separador `\` (contrabando
+ *  de separador), e os segmentos `..`, `.` e vazios. Esta é a barreira que
+ *  protege contra o ZIP malicioso comum — ela olha o NOME, não o sistema de
+ *  arquivos, e por isso vale antes de qualquer coisa tocar o disco. */
+String zipSafeRelative(String name) {
+    if (name.length == 0) {
+        return ""
+    }
+    if (name.indexOf("/") == 0) {
+        return ""
+    }
+    if (name.indexOf(":") >= 0) {
+        return ""
+    }
+    if (name.indexOf("\\") >= 0) {
+        return ""
+    }
+    var parts = name.split("/")
+    var out = ""
+    var i = 0
+    while (i < parts.length) {
+        var p = parts[i]
+        if (p == "" || p == "." || p == "..") {
+            return ""
+        }
+        out = if (out == "") p else out + "/" + p
+        i = i + 1
+    }
+    return out
+}
+
+/** Extrai TODAS as entradas para `destDir`, com confinamento obrigatório e SEM
+ *  sobrescrever nada. Devolve quantos ARQUIVOS escreveu (diretórios não contam).
+ *
+ *  Recusa, com mensagem explícita: entrada que escapa (via `zipSafeRelative`),
+ *  caminho que já existe (arquivo OU link) e conteúdo acima do teto do chamador
+ *  (`zip.readEntry` aplica o `maxBytes` por entrada, como em todo o resto).
+ *
+ *  LIMITE HONESTO, e é por isso que a #854 existe: a checagem de link é
+ *  "conferir-depois-gravar", então a JANELA TOCTOU entre `isSymlink()`/`exists()`
+ *  e a gravação continua aberta — um atacante que planta um link pendente entre
+ *  as duas chamadas ainda consegue escrever através dele. O que está fechado
+ *  aqui é o confinamento de NOME, que é o vetor do ZIP malicioso comum; o de
+ *  corrida exige a primitiva `createNew` (criação exclusiva) da #854. */
+    Int extractTo(String destDir, Int maxBytes) {
+        Directory(destDir).createDirectories()
+        var written = 0
+        for (var e in this.entries) {
+            var safe = zipSafeRelative(e.name)
+            if (safe == "") {
+                throw "archive: refusing entry '" + e.name + "' — it escapes the destination"
+            }
+            var isDirEntry = e.name.indexOf("/") == e.name.length - 1
+            var parts = safe.split("/")
+            var walked = destDir
+            var k = 0
+            while (k < parts.length - 1) {
+                walked = walked + "/" + parts[k]
+                Directory(walked).createDirectories()
+                k = k + 1
+            }
+            var full = destDir + "/" + safe
+            if (isDirEntry) {
+                Directory(full).createDirectories()
+            } else {
+                if (File(full).exists() || File(full).isSymlink()) {
+                    throw "archive: refusing to overwrite '" + safe + "' — it already exists"
+                }
+                // `writeBytes` toma Int[] (bytes como inteiros), a MESMA moeda que
+                // `readBytes` devolve — sem ponte aqui. (A face binária do crypto é
+                // que pede Byte[], e é a única conversão da família.)
+                File(full).writeBytes(this.readEntry(e, maxBytes))
+                written = written + 1
+            }
+        }
+        return written
+    }
 }

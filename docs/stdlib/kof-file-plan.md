@@ -361,8 +361,12 @@ Consider security against path traversal inside archives.
 > declared size is refused instead of truncated, which is the
 > decompression-bomb defence. ZIP64, an encrypted entry and any method outside
 > {0, 8} are refused with an explicit diagnostic, never silence. **Still open in
-> #852:** `open()`/`readChunk()` streaming driven by the caller, `extractTo`
-> (which needs the confinement primitive from #854) and TAR WRITING.
+> #852:** `open()`/`readChunk()` streaming driven by the caller and TAR WRITING.
+> **`extractTo` is IN, with confinement:** `Zip(path).extractTo(destDir, maxBytes)`
+> refuses `..`, absolute paths, Windows drives and the `\` separator — the NAME bar
+> runs before anything touches the disk — and never overwrites an existing path.
+> Honest limit: the symlink check is check-then-write, so the TOCTOU window stays
+> open until the `createNew` primitive of #854 lands.
 > **Names already follow the format's rule:** the UTF-8 flag (bit 11) decides — set means UTF-8, clear means CP437 (the legacy case, which used to come out with replacement characters).
 
 > **GZIP landed the same day (slice 2 of #852):** `libs/archive/Gzip.kf` reads
