@@ -174,6 +174,21 @@ main() {
         ph = ph + data[pi]
         pi = pi + 1
     }
+    var bs1 = 0
+    var st = 0
+    var yline = ""
+    while (st < steps.size) {
+        var s = steps.get(st)
+        if (s[0] == 1) {
+            if (bs1 < 12) {
+                if (bs1 > 0) { yline = yline + " " }
+                yline = yline + "(" + s[1] + "," + s[2] + ")=" + frame[(s[1] * 4 + 1) * stride + (s[2] * 4 + 1)]
+            }
+            bs1 = bs1 + 1
+        }
+        st = st + 1
+    }
+    println("BLKY " + yline)
     println("PAYLOAD " + data.size + " " + ph + " path=" + path)
     var sl = sym.log()
     var sc = 0

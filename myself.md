@@ -2,11 +2,21 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 54ª PASSAGEM: os ALFAS CFL estão EXONERADOS contra os macros REAIS do libaom (`av1/common/enums.h`): `CFL_CONTEXT_U(js) = js+1-3` (= js-2) e `CFL_CONTEXT_V(js) = signV*3 + signU - 3`. O `(signU-1)*3+signV` do Kof == js-2 para TODO js com signU!=0 (0..5 em js 2..7) e a linha V do Kof é a do libaom literalmente ⇒ caminho CFL correto (joint sign 8 + alfa 16; condições signU/signV != 0 ✓). LIÇÃO (3ª vez): comparação com libaom DE MEMÓRIA dá pista falsa (ordem de varredura, ramo SPLIT, agora as linhas CFL) ⇒ buscar a fonte, nunca lembrar. ESTADO: todos os caminhos de entropia que os testesrc exercitam e os exatos não estão verificados (ângulos, filter-intra, paleta, CFL) ⇒ o desync não é elemento de modo nomeável; próximo = comparar a SEQUÊNCIA DE SÍMBOLOS com oracle externo (estender o decodificador Python da 31ª), sem memória. AvifRealFileE2ETest 11/11.
-doing: §3bd — alfas CFL EXONERADOS (macros reais do libaom); todos os elementos de modo que os testesrc exercitam estão verificados ⇒ achar o desync comparando a SEQUÊNCIA DE SÍMBOLOS com oracle externo (decodificador Python da 31ª)
-next: §3bd — estender o decodificador de símbolos independente em Python (31ª) à região CFL/modo de um quadro que falha (mesmas linhas de CDF) e comparar símbolo a símbolo com o Kof, SEM comparação de memória
+last: 16/10 — AVIF slice 3bd 55ª PASSAGEM: o instrumento por bloco LOCALIZA a falha no PRIMEIRO BLOCO ANGULAR. Fatia landada: o probe imprime por bloco (12 primeiros) o Y reconstruído na origem 4x4 (`BLKY (r,c)=Y ...`). Medido (testsrc-64 vs ffmpeg): bloco 0 (0,0) y=0 txSz=7 → **16 = 16 EXATO** (a 29ª media 128 vs 16 ⇒ a paleta consertou); bloco 1 (0,2) y=7 (D203) angY=-1 uv=7 angUV=2 → **16 vs 81 = PRIMEIRA DIVERGÊNCIA**; bloco 2 → 192 vs 145; bloco 3 → 235 vs 16. ACHADO: o primeiro bloco (DC) é exato e o primeiro que diverge é o PRIMEIRO ANGULAR = o discriminante de entropia da 45ª, agora fixado a UM bloco. ESTREITAMENTO: o bloco 1 não é skip all-zero (TX 2 nz=2) e toda a sua ENTROPIA está verificada vs libaom ⇒ resta o caminho de PIXELS de um modo angular. Próximo: despejar a PREDIÇÃO do bloco 1 e comparar com a direcional calculada à mão dos vizinhos. AvifRealFileE2ETest 11/11.
+doing: §3bd — instrumento por bloco (BLKY) landado; a falha fica no PRIMEIRO BLOCO ANGULAR (bloco 1 = D203/angY=-1 vs bloco 0 DC exato); entropia de todos os elementos verificada ⇒ resta o caminho de PIXELS angular
+next: §3bd — despejar a PREDIÇÃO do bloco 1 de testsrc-64 (antes do residual) e comparar com a predição direcional calculada à mão dos vizinhos (aplicação do ângulo/edge filter é o espaço restante)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (82ª) — 3bd 55ª: instrumento por bloco ⇒ a falha está no PRIMEIRO BLOCO ANGULAR
+- **Fatia LANDADA (código):** o probe de tile imprime, para os 12 primeiros blocos, o Y reconstruído na origem 4x4 do próprio bloco (`BLKY (r,c)=Y ...`), pareando os passos `decode_block` da travessia com o quadro ⇒ comparável pixel a pixel com o ffmpeg. Prova: `AvifRealFileE2ETest` **11/11**.
+- **MEDIDO (testsrc-64, Kof vs ffmpeg na origem de cada bloco):**
+  - bloco 0 (0,0) `skip 0 txSz 7 y=0 angY=0 uv=0` → **16 = 16 EXATO** ✓ (a 29ª passagem media 128 vs 16; o trabalho de paleta desde então consertou).
+  - bloco 1 (0,2) `skip 0 txSz 1 **y=7 (D203)** **angY=-1** uv=7 angUV=2` → **16 vs 81 = PRIMEIRA DIVERGÊNCIA**.
+  - bloco 2 (0,4) `y=0 uv=13` → 192 vs 145. bloco 3 (4,0) `y=0 uv=0` → 235 vs 16.
+- **ACHADO (a localização mais afiada da frente):** o primeiro bloco (DC nos dois planos) é EXATO e o primeiro que diverge é o **primeiro a usar o caminho ANGULAR** — yMode 7 (D203), delta de ângulo NÃO-ZERO (−1) e UV direcional. É o discriminante de entropia da 45ª passagem, agora fixado a UM bloco.
+- **ESTREITAMENTO:** o bloco 1 NÃO é skip all-zero (o TX 2 dele lê `nz=2`) e TODOS os seus elementos de entropia (modo Y, delta de ângulo, modo/ângulo UV) estão verificados contra o libaom ⇒ resta o caminho de PIXELS de um modo angular: a predição dos vizinhos, a aplicação do ângulo, ou o edge filter.
+- **Próximo:** despejar a PREDIÇÃO do bloco 1 (antes do residual) e comparar com a predição direcional calculada à mão dos vizinhos.
 
 ## Sessão 16/10 (81ª) — 3bd 54ª: alfas CFL EXONERADOS (macros reais); todos os elementos de modo verificados
 - **Hipótese testada:** a seleção de linha de CDF dos alf as CFL do Kof (`(signU-1)*3 + signV` para U; `(signV-1)*3 + signU` para V) parecia errada contra a MINHA lembrança (`js/3` e `3 + js%3`).
