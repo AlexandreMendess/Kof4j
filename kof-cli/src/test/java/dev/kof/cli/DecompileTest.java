@@ -4353,6 +4353,77 @@ class DecompileTest {
                 "zero-drift: serve/status/waitMinutes/skip id\u00eanticos ao Java");
     }
 
+    @Test
+    void stockDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio ESTOQUE — 4 shapes sem c\u00f3digo novo:
+        // o contador de BELOW-THRESHOLD no for-each (lowStock: `q < min`), os
+        // TR\u00caS returns com o ==/comparação (level: out/low/ok), o
+        // ACUMULADOR de déficit com o alvo menos o atual (restock: `added +=
+        // target - q`) e o ALL-POSITIVE invertido (hasAll: o return false
+        // antecipado + true). Zero-drift executado: 2/out/low/ok/27/true/
+        // false — 7/7 id\u00eanticos ao Java — a 19\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Stock.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Stock {
+                    static int lowStock(List<Integer> qtys, int min) {
+                        int n = 0;
+                        for (int q : qtys) {
+                            if (q < min) { n++; }
+                        }
+                        return n;
+                    }
+                    static String level(int qty) {
+                        if (qty == 0) { return "out"; }
+                        if (qty < 10) { return "low"; }
+                        return "ok";
+                    }
+                    static int restock(List<Integer> qtys, int min, int target) {
+                        int added = 0;
+                        for (int q : qtys) {
+                            if (q < min) { added += target - q; }
+                        }
+                        return added;
+                    }
+                    static boolean hasAll(List<Integer> qtys, int min) {
+                        for (int q : qtys) {
+                            if (q < min) { return false; }
+                        }
+                        return true;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Stock.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var qs = listOf(20, 5, 40, 8)
+                    println(Stock.lowStock(qs, 10))
+                    println(Stock.level(0))
+                    println(Stock.level(7))
+                    println(Stock.level(50))
+                    println(Stock.restock(qs, 10, 20))
+                    println(Stock.hasAll(qs, 5))
+                    println(Stock.hasAll(qs, 10))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2 | out | low | ok | 27 | true | false
+        assertEquals("2\nout\nlow\nok\n27\ntrue\nfalse", output,
+                "zero-drift: lowStock/level/restock/hasAll id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
