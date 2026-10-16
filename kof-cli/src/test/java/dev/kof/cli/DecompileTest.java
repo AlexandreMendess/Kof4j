@@ -5843,6 +5843,82 @@ class DecompileTest {
                 "zero-drift: isCritical/damage/rank/canLevel id\u00eanticos ao Java");
     }
 
+    @Test
+    void docDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio DOC — 4 shapes sem c\u00f3digo novo: o
+        // wordCount com a MÁQUINA DE ESTADOS de char (o boolean inWord + o
+        // if/else-if dentro do loop de charAt), o firstWord com o while de
+        // CONDIÇÃO COMPOSTA + o substring, o isUpper com as CALLS
+        // ENCADEADAS no return (equals(toUpperCase())) e o countChar com o
+        // char PARAM na comparação. Zero-drift executado: 4/1/ola/so/true/
+        // false/3/0 — 8/8 id\u00eanticos ao Java — a 37\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Doc.java");
+        Files.writeString(javaFile, """
+                public class Doc {
+                    static int wordCount(String text) {
+                        int n = 0;
+                        boolean inWord = false;
+                        for (int i = 0; i < text.length(); i++) {
+                            char c = text.charAt(i);
+                            if (c == ' ') {
+                                inWord = false;
+                            } else if (!inWord) {
+                                n++;
+                                inWord = true;
+                            }
+                        }
+                        return n;
+                    }
+                    static String firstWord(String text) {
+                        int end = 0;
+                        while (end < text.length() && text.charAt(end) != ' ') {
+                            end++;
+                        }
+                        return text.substring(0, end);
+                    }
+                    static boolean isUpper(String tag) {
+                        return tag.equals(tag.toUpperCase());
+                    }
+                    static int countChar(String s, char target) {
+                        int n = 0;
+                        for (int i = 0; i < s.length(); i++) {
+                            if (s.charAt(i) == target) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Doc.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Doc.wordCount("um dois tres quatro"))
+                    println(Doc.wordCount("unico"))
+                    println(Doc.firstWord("ola mundo"))
+                    println(Doc.firstWord("so"))
+                    println(Doc.isUpper("ABC"))
+                    println(Doc.isUpper("AbC"))
+                    println(Doc.countChar("banana", 'a'))
+                    println(Doc.countChar("teste", 'z'))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 4 | 1 | ola | so | true | false | 3 | 0
+        assertEquals("4\n1\nola\nso\ntrue\nfalse\n3\n0", output,
+                "zero-drift: wordCount/firstWord/isUpper/countChar id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
