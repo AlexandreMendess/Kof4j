@@ -23,7 +23,7 @@ The CLI is the central tool of the Kof platform.
 | `kof serve <file.kf>` | HTTP web server (native `web.app()` + legacy `handle()` API) |
 | `kof check <file.kf\|dir> [--target <t>] [--json]` | Type-check without emitting code (target-aware gaps, e.g. `AND002` on android) |
 | `kof test <file.kf\|dir> [--target jvm|native|js]` | Structured suite `test "nome" { assert(...) }` on the 3 targets + whole programs by exit code; a directory recurses into **named suites** (one per directory) |
-| `kof deploy <dir|file.kf> [--target jvm|native|js|android] [--output <dir>] [--name <n>] [--version <v>]` | Packages a self-contained release: artifact (fat jar / ELF 0755 / `Default.mjs` + runtime closure / signed APK) + `RELEASE.md` + `SHA256SUMS` + `.tar.gz`; cross riscv64/aarch64 and `--publish` refuse honestly with `DEP001` |
+| `kof deploy <dir|file.kf> [--target jvm|native|js|android] [--output <dir>] [--name <n>] [--version <v>] [--jvm-option <opt>]` | Packages a self-contained release: artifact (fat jar / ELF 0755 / `Default.mjs` + runtime closure / signed APK) + `RELEASE.md` + `SHA256SUMS` + `.tar.gz`; cross riscv64/aarch64 and `--publish` refuse honestly with `DEP001` |
 | `kof bench [paths...] [--target ...] [--iterations N] [--baseline <file>] [--threshold <ratio>] [--json] [--fail-on-regression]` | Benchmark harness (compile, run, validate, metrics, baseline) |
 | `kof profile <file.kf> [--target ...] [--methods]` | Execution + metrics (CPU, RSS, GC); `--methods`: in-house method-level **sampling** profiler (own JDK JFR on the JVM, Node `--cpu-prof` on JS) with the hot spots mapped back to the `.kf` line |
 | `kof inspect <file.kf> [--json]` | IR statistics: ops before/after optimization |
