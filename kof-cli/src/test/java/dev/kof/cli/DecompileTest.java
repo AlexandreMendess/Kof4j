@@ -4738,6 +4738,78 @@ class DecompileTest {
                 "zero-drift: winner/blankCount/unanimous id\u00eanticos ao Java");
     }
 
+    @Test
+    void bankDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio BANCO — o for-each sobre elementos
+        // DOUBLE (o unboxing doubleValue → dstore) fatia LANÇADA: o scan da
+        // binding do for-each cobre os stores WIDE (lstore/fstore/dstore
+        // genéricos + _n) e o evalInto os modela (a sombra do slot wide
+        // nunca é lida). Os shapes: o SALDO acumulando no for-each
+        // (balance), o OVERDRAWN com o early-return DENTRO do loop (o teste
+        // do saldo corrente), as 4 faixas de fee (feeTier) e a formatação
+        // com o int-div/módulo + concat (formatCents). Zero-drift
+        // executado: 82.5/true/false/0/2/3/$12.34 — 7/7 id\u00eanticos ao
+        // Java — a 23\u00aa valida\u00e7\u00e3o.
+        Path javaFile = dir.resolve("Bank.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Bank {
+                    static double balance(List<Double> txs) {
+                        double bal = 0;
+                        for (double t : txs) {
+                            bal += t;
+                        }
+                        return bal;
+                    }
+                    static boolean overdrawn(List<Double> txs, double limit) {
+                        double bal = 0;
+                        for (double t : txs) {
+                            bal += t;
+                            if (bal < limit) { return true; }
+                        }
+                        return false;
+                    }
+                    static int feeTier(int ops) {
+                        if (ops < 10) { return 0; }
+                        if (ops < 50) { return 1; }
+                        if (ops < 200) { return 2; }
+                        return 3;
+                    }
+                    static String formatCents(int cents) {
+                        return "$" + cents / 100 + "." + cents % 100;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bank.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var txs = listOf(100.0, -30.0, 12.5)
+                    println(Bank.balance(txs))
+                    println(Bank.overdrawn(listOf(50.0, -60.0, 5.0), -5.0))
+                    println(Bank.overdrawn(listOf(50.0, -40.0), -5.0))
+                    println(Bank.feeTier(5))
+                    println(Bank.feeTier(100))
+                    println(Bank.feeTier(500))
+                    println(Bank.formatCents(1234))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 82.5 | true | false | 0 | 2 | 3 | $12.34
+        assertEquals("82.5\ntrue\nfalse\n0\n2\n3\n$12.34", output,
+                "zero-drift: balance/overdrawn/feeTier/formatCents id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
