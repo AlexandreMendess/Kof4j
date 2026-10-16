@@ -40,7 +40,7 @@ final class Av1ModeCdfSupport {
 
     /** Expected SHA-256 of the decoded EXT golden text, to catch a stale resource. */
     static final String GOLDEN_EXT_SHA256 =
-        "a6b9f8d401aa6da20282dc1066c89fc1df0b7af5bb78c5629acf6f888c48eb54";
+        "b324b339e9b60c40285c89774abd2eafce9db6160b70d3cb7e71f7a0f07fd7a8";
 
     /** The canonical dump the Kof probe must reproduce. */
     static String golden() {
@@ -128,6 +128,16 @@ main() {
     while (um < 2) {
         println(row("PUM", um, m.paletteUvMode(um)))
         um = um + 1
+    }
+    var py = 0
+    while (py < 7) {
+        var pc = 0
+        while (pc < 5) {
+            println(row("PYC", py * 5 + pc, m.paletteYColorIndex(py, pc)))
+            println(row("PUC", py * 5 + pc, m.paletteUvColorIndex(py, pc)))
+            pc = pc + 1
+        }
+        py = py + 1
     }
 }
 """;

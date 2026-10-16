@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 33ª PASSAGEM: o throw `Index -2` do caminho de PALETA foi CORRIGIDO (RED-first). Causa: o portão não tinha o limite inferior `BLOCK_8X8` do `av1_allow_palette` do libaom, então um bloco 4x8/8x4 dava `palette_bsize_ctx = num_pels_log2-6 = -1` ⇒ `PalYModeStore[-2]` no store de 21. Fix: `av1AllowPalette(sct, bs)`. Prova: com o código antigo o testsrc LANÇAVA; com o fix `blocks` 21->25, `symBits` 862->1351 de 2344 (37%->58%), `nzTot` 0->171, `nzHead` 7,21,6,8,... (os primeiros blocos de TX agora decodificam coeficientes). Restante: pixels ainda errados (cores de paleta não aplicadas) e 58% de consumo (índices de paleta por pixel provavelmente não lidos). Prova: AvifRealFileE2ETest 9/9.
-doing: §3bd — throw da paleta CORRIGIDO (gate `av1AllowPalette` com o limite BLOCK_8X8); residual do testsrc agora real (nzTot 171, consumo 58%); falta a reconstrução por paleta + os índices de paleta
-next: §3bd — ler os ÍNDICES de paleta por pixel e implementar a reconstrução por paleta; depois remedir o consumo/pixels do testsrc
+last: 15/10 — AVIF slice 3bd 34ª PASSAGEM: as CDFs de ÍNDICE DE COR de paleta landadas (`Palette_Color_Index_Cdf[7][5][9]` Y e UV, 35 linhas cada) + acessores, verificadas contra o `entropymode.c` do libaom; e a ORDEM de leitura fixada pela referência: libaom lê os TOKENS de paleta DEPOIS do mode info e ANTES do tx size (spec: mode_info -> palette_tokens -> read_block_tx_size), enquanto o driver do Kof lê o tx size logo após o mode info ⇒ num bloco com paleta lê o tx size onde estão os tokens (explica o consumo de 58% e os pixels errados do testsrc pós-fix do portão). Prova: Av1ModeCdfE2ETest 8/8 (suíte EXT com as 70 novas linhas; 1ª tentativa pegou meu erro de ordem PYC/PUC). Próximo: implementar palette_tokens e depois a reconstrução.
+doing: §3bd — CDFs de índice de cor de paleta landadas+verificadas; ordem da leitura dos tokens fixada pela referência (tokens ANTES do tx size); falta implementar palette_tokens + a reconstrução
+next: §3bd — implementar `palette_tokens` (mapa de índices, LIDO ANTES do tx size, usando `paletteYColorIndex`/`paletteUvColorIndex`) e depois a reconstrução por paleta
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (61ª) — 3bd 34ª: CDFs de índice de cor da paleta + ORDEM dos tokens (da referência)
+- **Pré-requisito landado:** `Av1ModeCdf` tinha ZERO CDFs de índice de cor de paleta. Agora tem `Palette_Color_Index_Cdf[7][5][9]` (Y e UV, 35 linhas cada; a linha do tamanho s tem s-1 probabilidades) + `paletteYColorIndex(size,ctx)`/`paletteUvColorIndex(size,ctx)`, valores do `entropymode.c` do libaom.
+- **Ordem CORRETA (da referência):** libaom `parse_decode_block` → `decode_mbmi_block()` e DEPOIS `av1_visit_palette(..., av1_decode_palette_tokens)` ANTES do tx size; spec: `mode_info()` → `palette_tokens()` → `read_block_tx_size()`. O driver do Kof lê o tx size logo após o mode info ⇒ lê o tx size onde estão os TOKENS ⇒ desync (explica 58% + pixels errados).
+- **Prova:** `Av1ModeCdfE2ETest` **8/8** (EXT ganhou 70 linhas, golden regerado do libaom + novo pin de SHA). A 1ª tentativa FALHOU e o teste pegou meu próprio erro de ordem (probe intercala PYC/PUC; golden agrupava).
+- **Caveat:** mudança aditiva (dados+acessores), sem consumidor ainda ⇒ nenhum comportamento de decodificação mudou; não re-rodei as suítes AVIF por isso (risco nulo de comportamento), mas o teste de paridade cobre os valores.
+- **Próximo:** implementar `palette_tokens` e depois a reconstrução por paleta.
 
 ## Sessão 15/10 (60ª) — 3bd 33ª: FIX RED-first do throw de paleta (`av1AllowPalette`)
 - **Bug:** `read_palette_mode_info` deve ser guardado por `av1_allow_palette` = screen-content tools **E `sb_type >= BLOCK_8X8`** (e bloco ≤ 64x64). O port do Kof checava só `palettePossible == 1`.
