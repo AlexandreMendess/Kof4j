@@ -270,6 +270,7 @@ main() {
         println("PATCH r" + py2 + " " + prow)
         py2 = py2 + 1
     }
+    println("SEG segEnabled=" + h.segEnabled + " altQ0=" + h.segAltQ[0] + " altQ1=" + h.segAltQ[1])
     println("PAYLOAD " + data.size + " " + ph + " path=" + path)
     var sl = sym.log()
     var sc = 0
