@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 47ª PASSAGEM: o ramo FILTER-INTRA está EXCLUÍDO (com `useFilterIntra=0` o 32x32 ainda lança Index 1186/1156). Excluídos: paleta, bloco, bloco de TX, predição simples (arith 1120), croma, edge filter, filter-intra. LEITURA REFINADA: 1186 = linha 34 col 30 com stride 34 = DUAS linhas além da última interior, mas o guard provou que nenhum bloco tem y+h > frameH ⇒ um escritor com a convenção de bloco alcança no máximo 1120 ⇒ o escritor usa STRIDE DIFERENTE (frameW=32 onde o buffer usa 34 ⇒ linha 37 col 2) ou OFFSET fora da extensão ⇒ procurar erro de STRIDE/OFFSET, não de geometria. MÉTODO PARA A PRÓXIMA (decisivo): alargar o quadro p/ o decode COMPLETAR (truque da 44ª) + instrumentar cada escritor luma p/ REGISTRAR seu índice máximo numa lista que o probe IMPRIME depois (sem crash o print sobrevive; stdout é perdido num crash). Árvore provada, 10/10.
-doing: §3bd — 32x32: excluídos paleta/bloco/TX/predição-simples/croma/edge-filter/filter-intra; o índice 1186 implica erro de STRIDE ou OFFSET (não de geometria de bloco)
-next: §3bd — alargar o quadro (decode COMPLETA) e instrumentar cada escritor luma para REGISTRAR o índice máximo tocado numa lista impressa depois ⇒ o escritor com máximo > 1156 fica nomeado (método que sobrevive ao crash)
+last: 16/10 — AVIF slice 3bd 48ª PASSAGEM: HIPÓTESE mais afiada (medida, não conclusão) — os fixtures que FALHAM usam CFL (`uvMode=13`: testsrc-64 tem `(6,0,0,13,0)`, `(5,2,0,13,0)`, `(2,0,0,13,0)`), os EXATOS não (cb16 `(2,0,0,0,0)`×4, pskip `(3,0,0,0,0)`); o cb8 é exato e NÃO pode CFL (bloco 64x64 > 32) ⇒ o conjunto que falha = o conjunto que pode CFL. Mecânica: a caminhada de croma é a ÚNICA que LÊ a luma, via `av1CflAcFromLuma(luma, lumaStride, ...)` (Av1DecodeChroma.kf:184) ⇒ erro de limite/offset ali estoura o buffer nas bordas E está no caminho de PIXELS (invisível aos discriminadores de entropia) — casa com a conclusão de stride/offset da 47ª. Rotulado HIPÓTESE (lição da 42ª). Próximo: neutralizar o ramo CFL e rodar o 32x32 (se crash E desync sumirem, CFL é o gatilho).
+doing: §3bd — hipótese MECÂNICA: CFL (`uvMode=13`) só aparece nos fixtures que falham e é a ÚNICA leitura da luma (via `av1CflAcFromLuma`) ⇒ candidato a estouro + desync nas bordas
+next: §3bd — neutralizar o ramo CFL (predição UV simples, sem a modulação CFL) e rodar o 32x32: se o crash E o desync sumirem, o CFL é o gatilho; se só o crash sumir, o desync é defeito separado
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (75ª) — 3bd 48ª: HIPÓTESE — CFL é a única leitura da luma e só aparece nos que falham
+- **Medido (dump da 45ª, já no plano):** testsrc-64 tem `uvMode=13` (CFL) — `(6,0,0,13,0)`, `(5,2,0,13,0)`, `(2,0,0,13,0)`; cb16 = `(2,0,0,0,0)`×4 e pskip = `(3,0,0,0,0)` ⇒ **CFL SÓ no fixture que falha**.
+- **E o cb8?** Exato e NÃO pode CFL (bloco 64x64 > 32; `is_cfl_allowed` exige ambas as dimensões ≤ 32) ⇒ **o conjunto que falha = o conjunto que pode CFL**.
+- **Mecânica (por que casa):** a caminhada de croma é o ÚNICO lugar que LÊ a luma, via `av1CflAcFromLuma(luma, lumaStride, ...)` (`Av1DecodeChroma.kf:184`). Um erro de limite/offset ali (a) estoura o buffer luma nas bordas e (b) está no caminho de PIXELS, invisível a todos os discriminadores de ENTROPIA já tentados. Casa com a conclusão de stride/offset da 47ª.
+- **Honestidade:** rotulado **HIPÓTESE** ✗ conclusão — a 42ª passagem ensinou o custo de nomear escritor por sinal indireto. O medido é a presença do CFL e que a caminhada de croma é a única leitora da luma.
+- **Próximo (decisivo, um tiro):** neutralizar o ramo CFL (predição UV simples, sem a modulação `av1CflAcFromLuma`) e rodar o 32x32 — se o crash E o desync sumirem, CFL é o gatilho; se só o crash sumir, o desync é defeito separado.
+- **Árvore:** inalterada; `AvifRealFileE2ETest` **10/10** (commit docs-only).
 
 ## Sessão 16/10 (74ª) — 3bd 47ª: FILTER-INTRA excluído; o índice implica STRIDE/OFFSET, não geometria de bloco
 - **Discriminador:** `useFilterIntra = 0` (temp, na chamada de predição do driver) ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **filter-intra NÃO é o escritor**.
