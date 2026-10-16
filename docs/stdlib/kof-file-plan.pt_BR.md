@@ -546,6 +546,11 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > de descompressão. ZIP64, entrada criptografada e método fora de {0, 8} são
 > recusados com diagnóstico explícito, nunca silêncio. **Segue aberto na #852:**
 > o streaming `open()`/`readChunk()` dirigido pelo chamador.
+> **A validação estrutural está DENTRO:** o `Zip.validate()` recusa um arquivo cujo header
+> LOCAL e diretório CENTRAL discordam (nome/método/tamanhos/CRC-32, tolerando o data
+> descriptor legítimo da especificação) e qualquer par de entradas com faixas de dados
+> SOBREPOSTAS — as duas mentiras que a issue nomeia e que a leitura sozinha nunca pega.
+> O `extractTo` roda isso ANTES de escrever qualquer coisa.
 > **A ESCRITA de TAR também está DENTRO:** `TarWriter(path)` + `addFile`/`addText` +
 > `close()` escreve ustar (store-only, sem compressão) incrementalmente, com `mtime`
 > zero para o mesmo input sair byte-idêntico. Nomes acima de 100 bytes são recusados

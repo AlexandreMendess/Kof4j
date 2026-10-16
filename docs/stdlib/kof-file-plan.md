@@ -362,6 +362,10 @@ Consider security against path traversal inside archives.
 > decompression-bomb defence. ZIP64, an encrypted entry and any method outside
 > {0, 8} are refused with an explicit diagnostic, never silence. **Still open in
 > #852:** `open()`/`readChunk()` streaming driven by the caller.
+> **Structural validation is IN:** `Zip.validate()` refuses an archive whose LOCAL header and
+> CENTRAL directory disagree (name/method/sizes/CRC-32, tolerating the spec's legitimate
+> data descriptor) and any pair of entries whose data ranges OVERLAP — the two lies the
+> issue names, which reading alone never catches. `extractTo` runs it BEFORE writing anything.
 > **TAR WRITING is IN too:** `TarWriter(path)` + `addFile`/`addText` + `close()`
 > writes ustar (store-only, no compression) incrementally, with `mtime` zero so the
 > same input is byte-identical. Names over 100 bytes are refused (GNU long names
