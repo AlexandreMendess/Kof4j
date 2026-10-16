@@ -45,6 +45,12 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         assertTrue(line.contains("symBits=144 payloadBits=144"),
                 () -> "the whole payload must be consumed: " + line);
         assertTrue(line.contains("Y 00=100 "), () -> "the left half is exact: " + line);
+        // RECORDED, not asserted as correct. The palette-token stage of block 1
+        // (window 107..144) costs 37 bits. Its symbol count is a LOWER BOUND:
+        // the reader saturates at the payload end, so every later read reports
+        // the SAME position and cannot be told apart from a palette read.
+        assertTrue(line.contains("PALTOK window=107..144 bits=37 symbols=61"),
+                () -> "the palette-stage measurement moved: " + line);
         // Recorded, NOT asserted as correct: the left half is exact, the right
         // half (reference: 16/235 vertical stripes) is not.
         assertTrue(line.contains(

@@ -242,6 +242,20 @@ main() {
         si = si + 1
     }
     println("STAGES" + sline2)
+    // How many symbols the palette-token stage of block 1 read (its window comes
+    // from STAGES: body end .. palette end), to compare against the colour map's
+    // expected `rows * cols - 1` index symbols.
+    var tsl = sym.log()
+    var pcount = 0
+    var plast = 0
+    var ti = 0
+    while (ti < tsl.size / 3) {
+        var tpos = tsl[ti * 3 + 2]
+        if (tpos > sg[2] && tpos < sg[3]) { pcount = pcount + 1 }
+        if (tpos > sg[2] && tpos <= sg[3]) { plast = tpos }
+        ti = ti + 1
+    }
+    println("PALTOK window=" + sg[2] + ".." + sg[3] + " bits=" + (sg[3] - sg[2]) + " symbols=" + pcount + " lastPos=" + plast + " total=" + (tsl.size / 3))
     // Experiment: reproduce block 1's BOTTOM transform block (8x8 at pixel
     // origin (8,8)) by calling the predictor DIRECTLY with explicit arguments,
     // for all four (aboveRight, belowLeft) combinations — so a wrong
