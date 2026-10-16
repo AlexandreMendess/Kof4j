@@ -185,7 +185,16 @@ main() {
     }
     println("TRACE n=" + (sl.size / 3) + " " + sline)
     println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + walk.position() + " payloadBits=" + (data.size * 8) + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head)
-    println("Y 00=" + frame[1 * stride + 1] + " 032=" + frame[1 * stride + 33] + " 063=" + frame[1 * stride + 64] + " 320=" + frame[33 * stride + 1] + " 3232=" + frame[33 * stride + 33] + " 3263=" + frame[33 * stride + 64])
+        // The sample positions are clamped to the frame: they were hardcoded for a
+    // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
+    // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
+    var sx1 = 32
+    if (sx1 >= mw) { sx1 = mw - 1 }
+    var sx2 = 63
+    if (sx2 >= mw) { sx2 = mw - 1 }
+    var sy = 32
+    if (sy >= mh) { sy = mh - 1 }
+    println("Y 00=" + frame[1 * stride + 1] + " 032=" + frame[1 * stride + (sx1 + 1)] + " 063=" + frame[1 * stride + (sx2 + 1)] + " 320=" + frame[(sy + 1) * stride + 1] + " 3232=" + frame[(sy + 1) * stride + (sx1 + 1)] + " 3263=" + frame[(sy + 1) * stride + (sx2 + 1)])
     var pos = tile.positions()
     var b2 = 0
     while (b2 < modes.size / 17) {

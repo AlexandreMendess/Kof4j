@@ -378,6 +378,32 @@ main() {
                 () -> "must match the ffmpeg reference: " + line);
     }
 
+    /**
+     * A SMALLER frame (32x32) — the fixture that used to "crash the decoder".
+     * It never did: the tile probe's Y SAMPLE POSITIONS were hardcoded for a
+     * 64x64 frame, so the `(32,63)` sample read index 1186 of a 1156-entry
+     * plane+border buffer and threw. The probe now clamps its sample positions
+     * to the frame, and this test pins that: the fixture decodes to completion
+     * and its block grid tiles the frame. The PIXELS are still wrong (a real
+     * desync: 503 of 1968 payload bits consumed), so only the reference-free
+     * invariants are asserted and the consumption is RECORDED.
+     */
+    @Test
+    void realSmallFrameDecodesWithoutCrashOnJvm() throws Exception {
+        var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_ts32.avif", "ts32.avif").toString()));
+        var parts = summary(line).split(" ");
+        var covered = Integer.parseInt(parts[1].split("=")[1]);
+        var frameMi = Integer.parseInt(parts[2].split("=")[1]);
+        var overlap = Integer.parseInt(parts[3].split("=")[1]);
+        var symBits = Integer.parseInt(parts[4].split("=")[1]);
+        var payloadBits = Integer.parseInt(parts[5].split("=")[1]);
+        assertEquals(frameMi, covered, () -> "the block grid does not cover the frame: " + line);
+        assertEquals(0, overlap, () -> "the block grid overlaps blocks: " + line);
+        assertTrue(symBits <= payloadBits, () -> "the walk read past the payload: " + line);
+        // Recorded, NOT asserted as correct: the frame is still desynced.
+        assertTrue(line.contains("symBits=503 payloadBits=1968"), () -> "consumption moved: " + line);
+    }
+
     @Test
     void realChecker8UnderConsumptionRecordedOnJvm() throws Exception {
         var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_cb8.avif", "cb8.avif").toString()));
