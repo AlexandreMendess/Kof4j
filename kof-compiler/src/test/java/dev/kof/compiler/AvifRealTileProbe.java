@@ -174,6 +174,30 @@ main() {
         ph = ph + data[pi]
         pi = pi + 1
     }
+    var lvOut = ""
+    var ln = 0
+    var li = 0
+    while (li < levels.size && ln < 3) {
+        var lv = levels.get(li)
+        var nzq = 0
+        var q2 = 0
+        while (q2 < lv.size) {
+            if (lv[q2] != 0) { nzq = nzq + 1 }
+            q2 = q2 + 1
+        }
+        if (nzq > 0) {
+            if (ln > 0) { lvOut = lvOut + " | " }
+            lvOut = lvOut + "tx" + li + ":"
+            var q3 = 0
+            while (q3 < lv.size && q3 < 10) {
+                lvOut = lvOut + lv[q3]
+                q3 = q3 + 1
+            }
+            ln = ln + 1
+        }
+        li = li + 1
+    }
+    println("LEVELS " + lvOut)
     var bs1 = 0
     var st = 0
     var yline = ""
