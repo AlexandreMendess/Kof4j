@@ -4424,6 +4424,56 @@ class DecompileTest {
                 "zero-drift: lowStock/level/restock/hasAll id\u00eanticos ao Java");
     }
 
+    @Test
+    void fusedHeadTernaryArgRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o HEAD FUNDIDO do for-each com o TERNÁRIO-COMO-ARG
+        // — o blkSeq corta o prefixo da binding (o elemento: it.next +
+        // checkcast + astore) e o teste fica no mesmo bloco; o corpo é
+        // `v1.add(if (v3.length > 10) v3.substring(0, 10) else v3)` — o
+        // if-EXPRESSÃO como o argumento do add (o join = [call 1-arg, pop]).
+        // O slice: (i) a binding podada (o for-each já declara o elemento no
+        // cabeçalho — registra o slot sem re-emitir) + (ii) o split com
+        // allowLoad + (iii) a emissão recv.call(if (cond) t else e) com o
+        // skip do call/pop no join. Zero-drift executado: 4/alexandre/bia/
+        // guilherme/ca — 5/5 idênticos ao Java.
+        Path javaFile = dir.resolve("TernHead.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class TernHead {
+                    static List<String> heads(List<String> names) {
+                        List<String> out = new java.util.ArrayList<>();
+                        for (String n : names) {
+                            out.add(n.length() > 10 ? n.substring(0, 10) : n);
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("TernHead.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var ws = listOf("alexandre", "bia", "guilherme", "ca")
+                    println(TernHead.heads(ws).size())
+                    for (var h in TernHead.heads(ws)) { println(h) }
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 4 | alexandre | bia | guilherme | ca
+        assertEquals("4\nalexandre\nbia\nguilherme\nca", output,
+                "zero-drift: o ternário-como-arg no head fundido idêntico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
