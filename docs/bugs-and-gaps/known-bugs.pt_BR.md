@@ -17087,3 +17087,26 @@ char                      JVM/Script   JS    NATIVO (x86/riscv/arm)
 
 **Nota de fronteira:** `String.split` devolve um ARRAY no Kof (`arr[i]`; não há `.get`, SEM028), então o fix tem de produzir a mesma forma de array de hoje.
 <!-- pt-switch --> **EN:** [§740 (en)](known-bugs.md#740--stringsplit-with-a-multi-character-separator-silently-splits-on-its-first-byte-on-the-native-backends)
+
+## §741 — String.equalsIgnoreCase diverge em silêncio nos backends nativos (fold só ASCII) e no JS (fold completo do host)
+
+**Status:** ✅ CORRIGIDO 15/10 — as faces nativas (x86/riscv64/aarch64) compõem o fold Unicode já existente e a face JS usa o helper novo `kofStrEqIgnoreCase`.
+
+**CATALOGADO + CORRIGIDO 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem cross-target da superfície de String (a veia do §738/§739/§740). O contrato é o do JVM: comparação CHAR-A-CHAR com fold por code unit (upper OU lower, mapeamento SIMPLES 1:1). DUAS faces divergiam em SILÊNCIO — um BOOLEANO errado, em sentidos OPOSTOS (medido nos cinco alvos de código):
+
+```
+par                           JVM/Script   NATIVO (x86/riscv/arm)   JS
+"É" / "é"                     true         false ✗                  true ✓
+"café" / "CAFÉ"               true         false ✗                  true ✓
+"straße" / "STRASSE"          false        false ✓                  true ✗
+"İ" / "i"                     true         false ✗                  false ✗
+"ABC"/"abc", "123!"/"123!"    true/…       ✓                        ✓
+"abc"/"abd", "abc"/"ab"       false        ✓                        ✓
+```
+
+**Causas raiz (lidas, não adivinhadas):** o `kof_string_equals_ignore_case` nativo (`RuntimeStringOps` x86, `NativeRiscvAsmStrn1` riscv) comparava BYTES com fold ASCII inline (A-Z/a-z), então qualquer par não-ASCII era simplesmente desigual; a baixa JS era `receiver.toUpperCase() === arg.toUpperCase()` no HOST, cujo mapeamento COMPLETO expande o eszett (`"straße"` vs `"STRASSE"` => `true`, errado) e transforma o I-dot em `"i"` + marca combinante (`"İ"` vs `"i"` => `false`, errado).
+
+**Correção (ADITIVA no lado JS, reuso-e-simplificação no nativo):** os helpers nativos agora COMPÕEM o fold Unicode por code unit que o `D-STR-UNICODE` já tinha corrigido (`kof_string_to_upper` / `kof_string_to_lower`) com o `kof_string_equals` — comparando `upper(a)==upper(b)` OU `lower(a)==lower(b)`, que é exactamente a regra char-a-char do JVM; o ramo JS chama o helper novo `kofStrEqIgnoreCase` (fatia `strbounds`), cujo `kofStrSimpleFold` implementa o mapeamento SIMPLES 1:1 por code unit (uma expansão "base + marcas combinantes" usa a base — o caso I-dot; qualquer outra expansão mantém o original — o caso eszett).
+
+**Prova RED-first:** com o fix revertido QUATRO das seis faces falham (js, nativo x86, riscv64, aarch64) e JVM/Script passam; `StringEqualsIgnoreCaseUnicodeE2ETest` 6/6 depois, sobre os nove pares medidos nos seis alvos.
+<!-- pt-switch --> **EN:** [§741 (en)](known-bugs.md#741--stringequalsignorecase-diverges-silently-on-the-native-backends-ascii-only-fold-and-on-js-host-full-fold)

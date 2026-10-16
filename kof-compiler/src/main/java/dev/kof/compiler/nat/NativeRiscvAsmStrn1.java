@@ -15,43 +15,28 @@ public final class NativeRiscvAsmStrn1 {
                 sd   s0, 24(sp)
                 sd   s1, 16(sp)
                 sd   s2, 8(sp)
-                sd   s3, 0(sp)
                 mv   s0, a0
                 mv   s1, a1
-                lw   s2, 16(s0)
-                lw   s3, 16(s1)
-                bne  s2, s3, .Lec_no
-                li   t0, 0
-            .Lec_loop:
-                bge  t0, s2, .Lec_yes
-                addi t1, s0, 24
-                add  t1, t1, t0
-                lbu  t1, 0(t1)
-                addi t2, s1, 24
-                add  t2, t2, t0
-                lbu  t2, 0(t2)
-                li   t3, 65
-                blt  t1, t3, .Lec_f2
-                li   t3, 90
-                bgt  t1, t3, .Lec_f2
-                addi t1, t1, 32
-            .Lec_f2:
-                li   t3, 65
-                blt  t2, t3, .Lec_cmp
-                li   t3, 90
-                bgt  t2, t3, .Lec_cmp
-                addi t2, t2, 32
-            .Lec_cmp:
-                bne  t1, t2, .Lec_no
-                addi t0, t0, 1
-                j    .Lec_loop
-            .Lec_yes:
-                li   a0, 1
-                j    .Lec_ret
-            .Lec_no:
-                li   a0, 0
+                # §741: contrato do JVM (fold char-a-char: upper OU lower) — o
+                # antigo era ASCII-only (É/é dava false). Reusa o fold Unicode.
+                mv   a0, s0
+                call kof_string_to_upper
+                mv   s2, a0
+                mv   a0, s1
+                call kof_string_to_upper
+                mv   a1, a0
+                mv   a0, s2
+                call kof_string_equals
+                bnez a0, .Lec_ret
+                mv   a0, s0
+                call kof_string_to_lower
+                mv   s2, a0
+                mv   a0, s1
+                call kof_string_to_lower
+                mv   a1, a0
+                mv   a0, s2
+                call kof_string_equals
             .Lec_ret:
-                ld   s3, 0(sp)
                 ld   s2, 8(sp)
                 ld   s1, 16(sp)
                 ld   s0, 24(sp)
