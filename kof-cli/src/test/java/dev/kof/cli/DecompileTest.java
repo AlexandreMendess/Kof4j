@@ -4101,6 +4101,67 @@ class DecompileTest {
                 "zero-drift: totalKm/cheapest/needsService/avg id\u00eanticos ao Java");
     }
 
+    @Test
+    void grade2DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o domínio NOTAS-2 — 4 shapes sem código novo: a
+        // média PONDERADA com as constantes Double (weighted: a*0.6 + b*0.4
+        // — a 15\u00aa valida\u00e7\u00e3o zero-c\u00f3digo), a cadeia de
+        // conceitos com os TR\u00caS ifs de retorno (concept), o boolean
+        // composto chamando outro m\u00e9todo (approved: `weighted(a, b)
+        // >= 5`) e o ARREDONDAMENTO para dezenas com o cast Int e a
+        // reatribui\u00e7\u00e3o (round10: `(int)(v/10) * 10`). Zero-drift
+        // executado: 7.2/A/B/C/F/true/false/70 — 8/8 id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Grade2.java");
+        Files.writeString(javaFile, """
+                public class Grade2 {
+                    static double weighted(double a, double b) {
+                        return a * 0.6 + b * 0.4;
+                    }
+                    static String concept(double avg) {
+                        if (avg >= 9) { return "A"; }
+                        if (avg >= 7) { return "B"; }
+                        if (avg >= 5) { return "C"; }
+                        return "F";
+                    }
+                    static boolean approved(double a, double b) {
+                        return weighted(a, b) >= 5;
+                    }
+                    static int round10(double v) {
+                        int r = (int) (v / 10);
+                        return r * 10;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Grade2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Grade2.weighted(8.0, 6.0))
+                    println(Grade2.concept(9.5))
+                    println(Grade2.concept(7.2))
+                    println(Grade2.concept(5.8))
+                    println(Grade2.concept(4.0))
+                    println(Grade2.approved(8.0, 6.0))
+                    println(Grade2.approved(4.0, 5.0))
+                    println(Grade2.round10(75.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 7.2 | A | B | C | F | true | false | 70
+        assertEquals("7.2\nA\nB\nC\nF\ntrue\nfalse\n70", output,
+                "zero-drift: weighted/concept/approved/round10 id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
