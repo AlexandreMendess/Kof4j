@@ -126,7 +126,7 @@ final class NativeMethodEmitter {
         java.util.List<IRLocalVariable> sortedLocals = new java.util.ArrayList<>(method.localVariables());
         sortedLocals.sort(java.util.Comparator.comparingInt(lv -> lv.index()));
         for (IRLocalVariable lv : sortedLocals) {
-            if (lv.name().equals("this")) {
+            if (NativeLambdaReceiver.isThisReceiver(lv)) {
                 sb.append("    movq %rdi, -").append((lv.index() + 1) * 8).append("(%rbp)\n");
                 intArgIdx++;
                 continue;
@@ -202,7 +202,7 @@ final class NativeMethodEmitter {
                 }
                 NativeDwarf.Local slot = new NativeDwarf.Local(lv.name(),
                         NativeDwarf.slotOffset(lv.index()), NativeDwarf.dwarfKindOf(lv.type()));
-                if (lv.name().equals("this") || lv.index() < paramSlotMax) {
+                if (lv.index() < paramSlotMax) {
                     params.add(slot);
                 } else {
                     locals.add(slot);
