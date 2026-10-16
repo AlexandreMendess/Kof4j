@@ -4605,6 +4605,74 @@ class DecompileTest {
                 "zero-drift: clamp/distance/sign/power id\u00eanticos ao Java");
     }
 
+    @Test
+    void rentalDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio ALUGUEL — 4 shapes sem c\u00f3digo novo: o
+        // custo com o local intermediário + o REBATE condicional (cost:
+        // `base = base * 0.9` dentro do if), as TR\u00caS faixas de idade
+        // (category), o ACUMULADOR de km no for-each (totalKm) e o
+        // available com o contains + a NEGAÇÃO (o `!` na expressão do
+        // return). Zero-drift executado: 300.0/900.0/young/standard/
+        // senior/405/true/false — 8/8 id\u00eanticos ao Java — a 21\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Rental.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Rental {
+                    static double cost(int days, double dailyRate) {
+                        double base = days * dailyRate;
+                        if (days > 7) { base = base * 0.9; }
+                        return base;
+                    }
+                    static String category(int age) {
+                        if (age < 25) { return "young"; }
+                        if (age > 70) { return "senior"; }
+                        return "standard";
+                    }
+                    static int totalKm(List<Integer> dailyKm) {
+                        int total = 0;
+                        for (int km : dailyKm) {
+                            total += km;
+                        }
+                        return total;
+                    }
+                    static boolean available(String model, List<String> rented) {
+                        return !rented.contains(model);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Rental.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Rental.cost(3, 100.0))
+                    println(Rental.cost(10, 100.0))
+                    println(Rental.category(21))
+                    println(Rental.category(35))
+                    println(Rental.category(75))
+                    var kms = listOf(120, 85, 200)
+                    println(Rental.totalKm(kms))
+                    var rented = listOf("sedan", "suv")
+                    println(Rental.available("hatch", rented))
+                    println(Rental.available("suv", rented))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 300.0 | 900.0 | young | standard | senior | 405 | true | false
+        assertEquals("300.0\n900.0\nyoung\nstandard\nsenior\n405\ntrue\nfalse", output,
+                "zero-drift: cost/category/totalKm/available id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
