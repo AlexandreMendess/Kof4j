@@ -358,6 +358,26 @@ main() {
      * invariants are asserted (a red suite is not allowed); the wrong values are
      * recorded in the plan's 30th pass.
      */
+    /**
+     * A MINIMAL screen-content fixture — a 64x64 frame whose left half is FLAT
+     * (100) and whose right half is a 4px horizontal ramp — generated with
+     * `ffmpeg -f lavfi -i "nullsrc=size=64x64,geq=lum='if(lt(X,32),100,235-4*mod(X,8))':cb=128:cr=128"
+     * -c:v libaom-av1 -crf 30 -cpu-used 6 -still-picture 1`. It sets
+     * `allow_screen_content_tools` and codes as ONE block; it consumes its whole
+     * payload and reconstructs EXACTLY (ffmpeg's reference Y is (0,0)=100
+     * (0,32)=235 (0,63)=207 (32,0)=100 (32,32)=234 (32,63)=208).
+     */
+    @Test
+    void realMinimalScreenContentDecodesToReferenceOnJvm() throws Exception {
+        var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_pskip.avif", "ps.avif").toString()));
+        var parts = summary(line).split(" ");
+        var symBits = Integer.parseInt(parts[4].split("=")[1]);
+        var payloadBits = Integer.parseInt(parts[5].split("=")[1]);
+        assertEquals(payloadBits, symBits, () -> "the whole payload must be consumed: " + line);
+        assertTrue(line.contains("Y 00=100 032=235 063=207 320=100 3232=234 3263=208"),
+                () -> "must match the ffmpeg reference: " + line);
+    }
+
     @Test
     void realChecker8UnderConsumptionRecordedOnJvm() throws Exception {
         var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_cb8.avif", "cb8.avif").toString()));

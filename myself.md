@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 38ª PASSAGEM: a pista do reset de contexto em bloco PULADO está REFUTADA por medição. Implementei o `av1_reset_entropy_context` do libaom fielmente e MEDI no testsrc: NADA mudou (blocks=26 symBits=1257 txb=62 nzTot=103). O dump por bloco explica: todos os 26 blocos do testsrc têm skip=0 ⇒ o reset nunca dispara ⇒ a pista da 37ª não se aplica. REVERTIDO (não lando comportamento não exercitável; árvore no último estado provado). cb8 segue EXATO (16,16,235,16,16,235) e 9/9 verde. FALTA: o dessincronismo do testsrc não é o reset; cb8 (1 bloco) é exato ⇒ é INTERAÇÃO MULTI-BLOCO e a contagem de blocos se move (25->41->26) ⇒ divergência CEDO no tile. Próximo: fixture de screen-content MÍNIMO com poucos blocos p/ isolar o primeiro bloco divergente.
-doing: §3bd — reset de contexto em bloco pulado REFUTADO (testsrc não tem bloco com skip=1); paleta correta onde exercitada (cb8 exato); resta o dessincronismo MULTI-BLOCO do testsrc
-next: §3bd — gerar um fixture de screen-content MÍNIMO com POUCOS blocos (receita ffmpeg no plano) e isolar o primeiro bloco divergente com o dump por bloco; depois remedir
+last: 16/10 — AVIF slice 3bd 39ª PASSAGEM: fixture de screen-content MÍNIMO `avif_real_pskip.avif` (metade plana 100 / metade rampa 4px) decodifica EXATAMENTE (328/328 bits, Y 100,235,207,100,234,208 = ffmpeg) ⇒ teste permanente, AvifRealFileE2ETest 10/10. DEFEITO NOVO (pista forte): testsrc 32x32 LANÇA `Index 1186 out of bounds for length 1156` dentro da decodificação Kof — fora-de-limites em quadro pequeno (não dessincronismo), um índice derivado de geometria pode ser a mesma raiz do dessincronismo do 64x64. Fixture NÃO commitado (lança; suíte vermelha não é permitida). testsrc 64x64 segue 1257/2344.
+doing: §3bd — fixture de screen-content mínimo EXATO (landado); NOVO defeito: fora-de-limites (1186 > 1156) num testsrc 32x32; testsrc 64x64 ainda dessincronizado
+next: §3bd — investigar o fora-de-limites do 32x32 (qual array tem 1156 entradas, de onde vem o 1186) — é menor e determinístico, e pode ser a raiz do dessincronismo do 64x64
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (66ª) — 3bd 39ª: fixture mínimo EXATO landado + NOVO defeito (fora-de-limites no 32x32)
+- **Landado:** `avif_real_pskip.avif` — 64x64, metade esquerda plana (100), direita rampa de 4px, `allow_screen_content_tools`; 1 bloco, **328/328 bits**, Y **EXATO** vs ffmpeg (100,235,207,100,234,208) ⇒ teste permanente; `AvifRealFileE2ETest` **10/10**.
+- **DEFEITO NOVO (pista forte):** testsrc 32x32 LANÇA `Index 1186 out of bounds for length 1156` DENTRO da decodificação Kof ⇒ fora-de-limites em quadro pequeno (não dessincronismo). Um índice derivado de geometria pode ser a MESMA raiz do dessincronismo do 64x64.
+- **Não commitei** o fixture 32x32 (ele lança; suíte vermelha não é permitida) — a receita ffmpeg fica no plano e é reprodutível.
+- **testsrc 64x64** segue em 1257/2344 (26 blocos).
+- **Próximo:** investigar o fora-de-limites do 32x32 (qual array tem 1156 entradas e de onde vem o 1186) — alvo menor, determinístico e autocontido.
 
 ## Sessão 16/10 (65ª) — 3bd 38ª: reset em bloco pulado REFUTADO (medido); revertido
 - **Implementei** o `av1_reset_entropy_context` do libaom fiel (zera above/left de coeficiente na extensão 4x4 do bloco, croma com subsampling, logo após o tx size).
