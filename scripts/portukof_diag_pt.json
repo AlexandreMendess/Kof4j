@@ -694,6 +694,13 @@
       "pt": "tipos curinga '? extends/super' não são suportados no Kof; use um tipo concreto ou nullability 'T?'"
     }
   ],
+  "PARSE087": [
+    {
+      "arity": 0,
+      "en": "assert message must be a string literal (statements.md §9)",
+      "pt": "a mensagem do assert deve ser um literal de texto (statements.md §9)"
+    }
+  ],
   "PARSE090": [
     {
       "arity": 0,
