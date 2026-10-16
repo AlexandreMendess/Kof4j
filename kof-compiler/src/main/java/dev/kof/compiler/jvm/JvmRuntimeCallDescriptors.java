@@ -297,6 +297,7 @@ public final class JvmRuntimeCallDescriptors {
             // S7e (D-STDLIB 13/09): hoje/formato UTC-only
             case "kof_time_todayIso" -> "()Ljava/lang/String;";
             case "kof_time_formatDateIso" -> "(III)Ljava/lang/String;";
+            case "kof_time_formatInstantIso" -> "(J)Ljava/lang/String;";
             case "kof_time_isToday" -> "(III)Z";
             case "kof_time_hoursBetween" -> "(IIIIIIII)I";
             case "kof_time_parseDateIso" -> "(Ljava/lang/String;)I";
