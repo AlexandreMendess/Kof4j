@@ -4810,6 +4810,80 @@ class DecompileTest {
                 "zero-drift: balance/overdrawn/feeTier/formatCents id\u00eanticos ao Java");
     }
 
+    @Test
+    void orInLoopSharedContinueJoinRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o || dentro de loop com o CONTINUE-JOIN
+        // COMPARTILHADO fatia LANÇADA — o alvo do falso real do || = a
+        // CONTINUAÇÃO do loop (os preds = os testes da cadeia + a QUEDA do
+        // then; o discriminador = o pred da queda) → if-SEM-ELSE e o join
+        // (o iinc compartilhado) anda DEPOIS, fora do if; o else não
+        // re-emite. Os shapes: as INICIAIS com o || de `i == 0 || charAt(
+        // i-1) == ' '` (o isub no índice + o char contra const), o palíndromo
+        // com o while de 2 ponteiros e o early-false, o repeat com o
+        // acumulador de concat no for e o join de 3 com o sep. Zero-drift
+        // executado: a-b-c/ababab/true/false/amt/g — 6/6 idênticos ao Java.
+        Path javaFile = dir.resolve("Text.java");
+        Files.writeString(javaFile, """
+                public class Text {
+                    static String join(String sep, String a, String b, String c) {
+                        return a + sep + b + sep + c;
+                    }
+                    static String repeat(String s, int n) {
+                        String r = "";
+                        for (int i = 0; i < n; i++) {
+                            r = r + s;
+                        }
+                        return r;
+                    }
+                    static boolean isPalindrome(String s) {
+                        int i = 0;
+                        int j = s.length() - 1;
+                        while (i < j) {
+                            if (s.charAt(i) != s.charAt(j)) { return false; }
+                            i++;
+                            j--;
+                        }
+                        return true;
+                    }
+                    static String initials(String name) {
+                        String out = "";
+                        for (int i = 0; i < name.length(); i++) {
+                            if (i == 0 || name.charAt(i - 1) == ' ') {
+                                out = out + name.charAt(i);
+                            }
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Text.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Text.join("-", "a", "b", "c"))
+                    println(Text.repeat("ab", 3))
+                    println(Text.isPalindrome("arara"))
+                    println(Text.isPalindrome("java"))
+                    println(Text.initials("alan mathison turing"))
+                    println(Text.initials("guido"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: a-b-c | ababab | true | false | amt | g
+        assertEquals("a-b-c\nababab\ntrue\nfalse\namt\ng", output,
+                "zero-drift: join/repeat/isPalindrome/initials id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
