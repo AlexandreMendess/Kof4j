@@ -63,6 +63,14 @@ final class AvifRealTileProbe {
  * symBits 862 -> 1302). So {@code position()} is a consumed counter and the
  * 63% shortfall is real, not a reader-window artifact.
  */
+    /** The probe's `blocks=...` summary line (the trace line comes first). */
+    static String summary(String out) {
+        for (var l : out.split("\n")) {
+            if (l.startsWith("blocks=")) return l;
+        }
+        throw new IllegalStateException("no summary line in: " + out);
+    }
+
     static String probe(String path) {
         return """
 import image.Av1Block
@@ -213,6 +221,15 @@ main() {
         st = st + 1
     }
     println("BLKY " + yline)
+    var pl = tile.predBlocks()
+    var pbl = 0
+    var pline = ""
+    while (pbl < pl.size / 7 && pbl < 12) {
+        if (pbl > 0) { pline = pline + " " }
+        pline = pline + "tx" + pl[pbl * 7] + "(r" + pl[pbl * 7 + 1] + ",c" + pl[pbl * 7 + 2] + ")+" + pl[pbl * 7 + 3] + "," + pl[pbl * 7 + 4] + " p=" + pl[pbl * 7 + 5] + "/r=" + pl[pbl * 7 + 6]
+        pbl = pbl + 1
+    }
+    println("PREDBLK " + pline)
     println("PAYLOAD " + data.size + " " + ph + " path=" + path)
     var sl = sym.log()
     var sc = 0

@@ -119,6 +119,12 @@ class Av1TileDecode {
     List<Int> txTypeOut
     List<Int> modeOut
     List<Int> posOut
+    // Per-TX-block prediction/reconstruction diagnostic (read via `predBlocks()`):
+    // 7 ints per transform block — the global TX index, the mode block's `(r, c)`,
+    // the TX block's pixel origin `(x, y)`, the predicted sample at that origin
+    // and the reconstructed sample there after the residual. It pairs a
+    // prediction with its own block without touching the reconstruction path.
+    List<Int> predLog
     Int[] colorIndexY
     Int[] colorIndexUv
     Av1ChromaPlanes chroma
@@ -203,6 +209,7 @@ class Av1TileDecode {
         // Per-block reader positions (diagnostic): two ints per block,
         // the position after the mode info and after the block's residuals.
         this.posOut = listOf()
+        this.predLog = listOf()
         // The palette COLOUR-INDEX maps the `palette_tokens()` stage fills
         // (per pixel, per plane); the reconstruction reads them.
         this.colorIndexY = new Int[this.frameW * this.frameH]
@@ -433,6 +440,16 @@ class Av1TileDecode {
             av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, txSz,
                               txType, bitDepth, false, dcQuant, acQuant)
 
+            // Diagnostic: pair this transform block's PREDICTION with its
+            // RECONSTRUCTION at the block's own origin (post-residual).
+            predLog.add(this.levelsOut.size - 1)
+            predLog.add(r)
+            predLog.add(c)
+            predLog.add(x)
+            predLog.add(y)
+            predLog.add(pred[0])
+            predLog.add(frame[(y + 1) * stride + (x + 1)])
+
             bi = bi + 1
         }
 
@@ -511,6 +528,14 @@ class Av1TileDecode {
     // The per-block reader positions (diagnostic), two ints per block.
     List<Int> positions() {
         return this.posOut
+    }
+
+    // The per-TX-block prediction/reconstruction record (diagnostic), 7 ints per
+    // transform block: TX index, mode-block `(r, c)`, TX pixel origin `(x, y)`,
+    // the predicted sample at the origin, and the reconstructed sample there
+    // after the residual.
+    List<Int> predBlocks() {
+        return this.predLog
     }
 
     // The reconstructed plane, flat row-major of size `frameW * frameH`
