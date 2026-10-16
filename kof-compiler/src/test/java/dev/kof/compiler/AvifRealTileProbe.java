@@ -206,7 +206,7 @@ main() {
         if (s[0] == 1) {
             if (bs1 < 12) {
                 if (bs1 > 0) { yline = yline + " " }
-                yline = yline + "(" + s[1] + "," + s[2] + ")=" + frame[(s[1] * 4 + 1) * stride + (s[2] * 4 + 1)]
+                yline = yline + "(" + s[1] + "," + s[2] + ",bs" + s[3] + ")=" + frame[(s[1] * 4 + 1) * stride + (s[2] * 4 + 1)]
             }
             bs1 = bs1 + 1
         }
