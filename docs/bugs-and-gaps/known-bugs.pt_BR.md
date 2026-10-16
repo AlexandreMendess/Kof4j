@@ -17186,8 +17186,10 @@ l[0] = "z"           SEM054 honesto ("use l.set(i, v)") — correto, não é o d
 <!-- pt-switch --> **EN:** [§744 (en)](known-bugs.md#744--a-narrowed-nullable-collection-emitted-the-array-path-index-and-iteration-over-a-list-raised-a-verifyerror-on-the-jvm)
 
 ## §745 — uma List inferida com tipo de elemento NU QUEBRA os alvos nativos quando um primitivo e adicionado (SIGSEGV; JVM/Script/JS dao o valor certo)
+**FIX 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Os alvos nativos agora RECUSAM o hazard em tempo de COMPILACAO, espelhando a politica do NAT008: o `MemberCallTyper` (no sitio de tipagem do `add`/`push`/`append`) checa `sa.target().isNative()`, um tipo de elemento NU (`Object`/unknown) e um argumento PRIMITIVO, e emite `NAT009` explicando a causa e apontando o conserto. A guarda chaveia no tipo NU E no argumento primitivo, entao um elemento de REFERENCIA numa lista nua e um tipo explicito continuam aceitos — medido correto nos seis alvos. Nova linha de gap no `docs/backend-parity.md` ao lado do `NAT008` (o ficheiro PT nao tem tabela de gap codes — estado pre-existente EN-only, igual ao irmao NAT008), cuja nota estale 'NAT004 e o unico gap NAT* VIVO' foi corrigida. Prova RED-first: sem a guarda o `addPrimitiveToBareListOnNativeIsNat009` FALHA e o `bareListBoundaryIsNotOverRefusedOnNative` passa; com ela, the gap tests 33/33 (`DomainGapCodesTest` 31 + the split-out `NativeBareListStoreGapTest` 2).
 
-**Status:** 🟡 ABERTO (catalogado com a repro medida e o ponteiro do fix; NÃO corrigido).
+
+**Status:** ✅ CORRIGIDO 16/10 — os alvos nativos recusam o hazard em tempo de compilacao com `NAT009` (`MemberCallTyper`), espelhando a politica do NAT008; JVM/Script/JS seguem boxando.
 
 **CATALOGADO (medido) 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem cross-target das arestas de coleção (a veia do §738–§742). Uma lista criada do `listOf()` VAZIO recebe um tipo de elemento NU inferido; adicionar um PRIMITIVO a ela dentro de uma lambda QUEBRA os backends nativos onde os outros três alvos dão o valor certo — a pior classe (um crash, regra 5):
 

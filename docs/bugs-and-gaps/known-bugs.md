@@ -19699,8 +19699,10 @@ l[0] = "z"           honest SEM054 ("use l.set(i, v)") — correct, not the defe
 <!-- pt-switch --> **PT:** [§744 (pt_BR)](known-bugs.pt_BR.md#744--uma-colecao-anulavel-estreitada-emitia-o-caminho-de-array-indice-e-iteracao-sobre-uma-list-davam-verifyerror-na-jvm)
 
 ## §745 — a List inferred with a BARE element type CRASHES the native targets when a primitive is added (SIGSEGV; the JVM/Script/JS give the right value)
+**FIX 16/10 — lane compiler/JVM/native `192.168.15.30:9092`.** The native targets now refuse the hazard at COMPILE time, mirroring the NAT008 policy: `MemberCallTyper` (at the `add`/`push`/`append` typing site) checks `sa.target().isNative()`, a BARE element type (`Object`/unknown) and a PRIMITIVE argument, and emits `NAT009` explaining the cause and pointing at the fix (`declare the element type (e.g. List<Int>) or use the JVM/Script/JS targets`). The guard keys on the BARE element type AND the primitive argument, so a reference element on a bare list and an explicit element type stay accepted — measured correct on all six targets. New gap row in `docs/backend-parity.md` beside `NAT008` (the PT parity file carries no gap-code table — a pre-existing EN-only state, the same as its NAT008 sibling), whose stale 'NAT004 is the one LIVE NAT* gap' note was corrected. Proof RED-first: without the guard `DomainGapCodesTest.addPrimitiveToBareListOnNativeIsNat009` FAILS ('NATIVE should refuse the call (NAT009) ==> expected false but was true') while `bareListBoundaryIsNotOverRefusedOnNative` passes; with it, the gap tests 33/33 (`DomainGapCodesTest` 31 + the split-out `NativeBareListStoreGapTest` 2).
 
-**Status:** 🟡 OPEN (catalogued with the measured repro and the fix pointer; NOT fixed).
+
+**Status:** ✅ FIXED 16/10 — the native targets refuse the hazard at compile time with `NAT009` (`MemberCallTyper`), mirroring the NAT008 policy; JVM/Script/JS keep boxing and print the right value.
 
 **CATALOGUED (measured) 16/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found by the cross-target probe of the collection edges (the vein of §738–§742). A list created from the EMPTY `listOf()` gets an INFERRED bare element type; adding a PRIMITIVE to it inside a lambda then CRASHES the native backends where the other three targets give the right value — the worst class (a crash, rule 5):
 
