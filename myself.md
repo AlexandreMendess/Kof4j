@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 36ª PASSAGEM: os TOKENS de paleta foram LIGADOS ao driver na ordem da referência (mode info -> palette_tokens -> tx size), por plano, guardando mapas de índices de cor. Precisou de 70 linhas persistentes de CDF no Av1ModeInfo (para a adaptação sobreviver ao tile). MEDIDO: cb8 23/152 -> 152/152 bits e testsrc 1351/2344 -> 2344/2344 = 100% nos DOIS fixtures de screen-content (cb16 384/384 inalterado) ⇒ ENTROPIA TOTALMENTE EM SINCRONIA (leitor, ordem, contextos e CDFs confirmados sobre saída real). O txb do cb8 cai 16->4 com nzTot 0 porque bloco de paleta carrega o MAPA DE ÍNDICES. Prova: AvifRealFileE2ETest 9/9 + Av1PaletteTokensE2ETest 2/2. FALTA: a reconstrução por paleta (o Y do cb8 ainda é 128).
-doing: §3bd — tokens de paleta ligados ⇒ entropia 100% em sincronia em todos os fixtures; resta SÓ a reconstrução por paleta
-next: §3bd — reconstrução por paleta: pintar os pixels a partir de colorIndexY/colorIndexUv + as cores de paleta; depois remedir os pixels contra o ffmpeg
+last: 15/10 — AVIF slice 3bd 37ª PASSAGEM: RECONSTRUÇÃO por paleta landada ⇒ `avif_real_cb8.avif` (xadrez 8x8, alta frequência) decodifica EXATAMENTE (Y 16,16,235,16,16,235 = ffmpeg), assertado; primeiro fixture de alta frequência exato nesta frente. Pixels pintados das cores indexadas pelo mapa; laço de coeficientes esvaziado p/ paleta LUMA e caminhada de croma pulada p/ paleta UV (o plano carrega o MAPA DE ÍNDICES); UV pintada uma vez p/ U e V. CORREÇÃO honesta: o consumo do testsrc caiu p/ 1257/2344 ⇒ o "100%" da 36ª era EM PARTE SORTE (leituras espúrias comiam a cauda); testsrc AINDA tem dessincronismo. PISTA: libaom faz `if (mbmi->skip_txfm) av1_reset_entropy_context(...)` — bloco pulado reseta contextos; cb8 (1 bloco) não expõe, testsrc (41) sim. Prova: AvifRealFileE2ETest 9/9 + Av1PaletteTokensE2ETest 2/2.
+doing: §3bd — reconstrução por paleta landada (cb8 EXATO vs ffmpeg); resta o dessincronismo do testsrc, com a pista do `av1_reset_entropy_context` em blocos pulados
+next: §3bd — implementar o reset dos contextos de entropia em bloco PULADO (libaom `if (mbmi->skip_txfm) av1_reset_entropy_context(...)`) e remedir o consumo/pixels do testsrc
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (64ª) — 3bd 37ª: reconstrução por paleta ⇒ cb8 EXATO (marco) + correção do "100%"
+- **Fatia:** pixels de plano de paleta pintados direto das cores (índice → mapa), laço de coeficientes esvaziado p/ paleta LUMA, caminhada de croma pulada p/ paleta UV, UV pintada uma vez p/ U e V.
+- **MARCO:** `avif_real_cb8.avif` (xadrez 8x8, ALTA frequência) agora bate EXATAMENTE com o ffmpeg (Y 16,16,235,16,16,235) — assertado. Primeiro fixture de alta frequência exato.
+- **CORREÇÃO (importante):** o consumo do testsrc caiu para **1257/2344** ⇒ o "100% em sincronia" da 36ª passagem era EM PARTE SORTE (as leituras espúrias de coeficientes comiam a cauda do fluxo). testsrc AINDA tem dessincronismo; a afirmação fica corrigida no plano (EN+PT).
+- **PISTA p/ o próximo:** libaom faz `if (mbmi->skip_txfm) av1_reset_entropy_context(xd, bsize, num_planes);` — bloco PULADO reseta os contextos de entropia de coeficientes. cb8 é 1 bloco (não expõe); testsrc tem 41 blocos (expõe) ⇒ encaixa no dessincronismo restante.
+- **Prova:** AvifRealFileE2ETest 9/9 (cb8 assere pixels exatos + consumo total) + Av1PaletteTokensE2ETest 2/2.
 
 ## Sessão 15/10 (63ª) — 3bd 36ª: TOKENS ligados ⇒ ENTROPIA 100% EM SINCRONIA (marco)
 - **Fatia:** `av1PaletteColorMap` ligado ao driver na ordem da referência (mode info → tokens → tx size), por plano (Y/UV), com mapas `colorIndexY`/`colorIndexUv`.

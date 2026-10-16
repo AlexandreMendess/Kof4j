@@ -381,6 +381,11 @@ class Av1TileDecode {
         var w = av1TxWidth(txSz)
         var h = av1TxHeight(txSz)
         var n = order.size / 2
+        // A palette plane carries the INDEX MAP instead of transform coefficients
+        // (av1_decode_palette_tokens already consumed them), so the TX loop is empty.
+        if (palY > 0) {
+            n = 0
+        }
         var bi = 0
         while (bi < n) {
             var br = r + order.get(bi * 2)
@@ -431,6 +436,45 @@ class Av1TileDecode {
             bi = bi + 1
         }
 
+        // 3b. The PALETTE reconstruction: each pixel takes the block's palette
+        //     colour indexed by the decoded colour map — no prediction, no
+        //     dequantization, no inverse transform.
+        if (palY > 0) {
+            var pbh = av1BlockHeight(bs)
+            var pbw = av1BlockWidth(bs)
+            var pyy = 0
+            while (pyy < pbh) {
+                var pxx = 0
+                while (pxx < pbw) {
+                    var pidx = this.colorIndexY[(r * 4 + pyy) * this.frameW + (c * 4 + pxx)]
+                    frame[(r * 4 + pyy + 1) * stride + (c * 4 + pxx + 1)] = modeInfo.palColorYAt(r, c, pidx)
+                    pxx = pxx + 1
+                }
+                pyy = pyy + 1
+            }
+        }
+
+        // 3c. The UV palette, once, for BOTH chroma planes (the UV colour map is
+        //     shared; av1_decode_palette_tokens takes plane 1 only).
+        if (palUv > 0) {
+            var pbs2 = av1PlaneBlockSize(bs, ssX, ssY)
+            var puw2 = av1BlockWidth(pbs2)
+            var puh2 = av1BlockHeight(pbs2)
+            var u0r2 = r >> ssY
+            var u0c2 = c >> ssX
+            var puy = 0
+            while (puy < puh2) {
+                var pux = 0
+                while (pux < puw2) {
+                    var pidx2 = this.colorIndexUv[(u0r2 * 4 + puy) * chroma.wU + (u0c2 * 4 + pux)]
+                    chroma.u[(u0r2 * 4 + puy + 1) * chroma.strideU + (u0c2 * 4 + pux + 1)] = modeInfo.palColorUAt(r, c, pidx2)
+                    chroma.v[(u0r2 * 4 + puy + 1) * chroma.strideV + (u0c2 * 4 + pux + 1)] = modeInfo.palColorVAt(r, c, pidx2)
+                    pux = pux + 1
+                }
+                puy = puy + 1
+            }
+        }
+
         // 4. The CHROMA planes of THIS block, after its luma plane — libaom's
         //    `decode_token_recon_block` runs `plane = 0` then U then V for the
         //    same block, each with its own derived transform size and its own
@@ -438,7 +482,7 @@ class Av1TileDecode {
         //    chroma reference (`xd->is_chroma_ref`).
         // `av1_num_planes(cm)`: a luma-only stream has no chroma symbols to
         // consume, so the chroma walk runs only for a multi-plane frame.
-        if (numPlanes > 1 && hasChroma == 1) {
+        if (numPlanes > 1 && hasChroma == 1 && palUv == 0) {
             av1DecodeChromaBlock(chroma, bs, ssX, ssY, frame, stride,
                     r, c, body[2], body[3], body[4], body[5],
                     useFilterIntra, filterIntraMode, bitDepth,

@@ -380,6 +380,12 @@ main() {
         // read in the reference order, the whole tile is consumed — before the
         // tokens were wired this fixture stopped at 23/152 bits (15%).
         assertEquals(payloadBits, symBits, () -> "the whole payload must be consumed: " + line);
+        // The PALETTE RECONSTRUCTION: every pixel takes the block's palette colour
+        // indexed by the decoded colour map, so this HIGH-FREQUENCY 8x8
+        // checkerboard reconstructs EXACTLY — ffmpeg's reference Y is
+        // (0,0)=16 (0,32)=16 (0,63)=235 (32,0)=16 (32,32)=16 (32,63)=235.
+        assertTrue(line.contains("Y 00=16 032=16 063=235 320=16 3232=16 3263=235"),
+                () -> "the palette reconstruction must match ffmpeg: " + line);
     }
 
     @Test
