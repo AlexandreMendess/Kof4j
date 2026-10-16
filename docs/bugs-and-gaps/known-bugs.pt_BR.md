@@ -17063,3 +17063,23 @@ char                      JVM/Script   JS    NATIVO (x86/riscv/arm)
 
 **Relacionado (medido, NÃO é bug):** a ordem de iteração do `Map.keys()` difere entre alvos (JVM/Script vs ordem de inserção no JS/nativo) — `docs/language-reference/semantics.md` §"hash/order of `Map.keys`/`Set`" a declara **Unspecified**, então está dentro do contrato documentado e NÃO deve ser "corrigido" sem decisão da mantenedora (semântica CONGELADA de `List/Map/Set`).
 <!-- pt-switch --> **EN:** [§739 (en)](known-bugs.md#739--stringtrim-diverges-silently-on-the-js-host-trim-and-on-the-native-backends)
+
+## §740 — String.split com separador de VÁRIOS caracteres divide pelo PRIMEIRO byte nos backends nativos
+**Status:** 🟡 ABERTO (catalogado 15/10 com o desenho do fix; NÃO corrigido).
+
+**CATALOGADO (medido) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado por uma sondagem cross-target da superfície do separador do `split` (a veia irmã do §738). Um separador de MAIS de um caractere é dividido errado em SILÊNCIO nos backends nativos (x86 E riscv64; o aarch64 herda pelo tradutor): o código roda e devolve um resultado ERRADO plausível (regra 5).
+
+```
+"aXXb".split("XX")        JVM/Script/JS = 2  [a][b]      NATIVO = 3  [a][][b] ✗
+"abc".split("bc")         JVM/Script/JS = 1  [abc]       NATIVO = 2           ✗
+"aaa".split("aa")         JVM/Script/JS = 2              NATIVO = 0           ✗
+"aXXbXXc".split("XX", 2)  JVM/Script/JS = 2  [a][bXXc]   NATIVO = 2 [a][XbXXc] ✗ (conteúdo)
+"aXbXc".split("X")        os quatro          = 3         (um caractere está correto)
+```
+
+**Causa raiz (lida no emissor, não adivinhada):** os dois emissores nativos passam só o PRIMEIRO BYTE do separador ao runtime — o `NativeX86StringCalls` emite `movzbl 24(%rsi), %esi` e o `NativeRiscvCrossOps` depende dos mesmos helpers de `sep_char` único (`kof_string_split` / `kof_string_split_limit`, que varrem UM byte). Então `"XX"` divide no `'X'`; `"bc"` no `'b'` (2 fatias); `"aa"` no `'a'` (3 vazias → a poda §111 de vazios à direita as reduz a 0).
+
+**Desenho do fix (para o próximo ciclo; as peças já existem):** um helper ADITIVO novo `kof_string_split_str(str@rdi, sep@rsi, limit@edx)` que COMPÕE o `kof_string_index_of2` já existente (busca de substring, em code units) com o `kof_string_substring` (fatias em code units) — conta os casamentos não-sobrepostos avançando pelo comprimento do separador em CODE UNITS (contado inline, para não criar dependência de símbolo de outra fatia sob a poda de runtime), aloca o array, corta as fatias e mantém a poda §111 dos vazios à direita quando `limit <= 0`; o emissor roteia as duas sobrecargas para ele, passando o PONTEIRO do separador em vez do primeiro byte (o ramo do separador vazio continua indo para o `kof_string_split_chars` do §738). Atenção: no nativo o `index_of`/`substring` são em code units, então o avanço tem de ser em code units (um separador astral conta 2).
+
+**Nota de fronteira:** `String.split` devolve um ARRAY no Kof (`arr[i]`; não há `.get`, SEM028), então o fix tem de produzir a mesma forma de array de hoje.
+<!-- pt-switch --> **EN:** [§740 (en)](known-bugs.md#740--stringsplit-with-a-multi-character-separator-silently-splits-on-its-first-byte-on-the-native-backends)
