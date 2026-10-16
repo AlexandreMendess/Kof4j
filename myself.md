@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 46ª PASSAGEM: o EDGE FILTER intra está EXCLUÍDO como escritor do estouro do 32x32 (com `de=1` — edge filter off — o crash persiste IDÊNTICO: Index 1186/1156). Excluídos até agora: paleta (`pal=0`), bloco além do quadro, bloco de TX além do quadro, predição intra SIMPLES (limite maxX/maxY ⇒ máx 1120), croma (não escreve quadro), edge filter. Qualificação honesta: o limite 1120 cobre só as leituras SIMPLES — o ramo de FILTER-INTRA do `av1IntraPredictBlock` NÃO está coberto. Sobra: filter-intra (borda de 2-3 amostras) ou a borda/cópia da predição luma — AMBOS SÓ-ANGULARES, casando com o estouro só nos fixtures que falham. Próximo: forçar `useFilterIntra = 0` no probe e rodar o 32x32.
-doing: §3bd — 32x32: excluídos paleta/bloco/TX/predição-simples/croma/edge-filter; sobra o ramo FILTER-INTRA (ou a borda/cópia angular) — ambos só-angulares
-next: §3bd — forçar `useFilterIntra = 0` no probe (discriminador de um tiro) e rodar o 32x32; se o crash sumir, o ramo filter-intra é o escritor do índice 1186
+last: 16/10 — AVIF slice 3bd 47ª PASSAGEM: o ramo FILTER-INTRA está EXCLUÍDO (com `useFilterIntra=0` o 32x32 ainda lança Index 1186/1156). Excluídos: paleta, bloco, bloco de TX, predição simples (arith 1120), croma, edge filter, filter-intra. LEITURA REFINADA: 1186 = linha 34 col 30 com stride 34 = DUAS linhas além da última interior, mas o guard provou que nenhum bloco tem y+h > frameH ⇒ um escritor com a convenção de bloco alcança no máximo 1120 ⇒ o escritor usa STRIDE DIFERENTE (frameW=32 onde o buffer usa 34 ⇒ linha 37 col 2) ou OFFSET fora da extensão ⇒ procurar erro de STRIDE/OFFSET, não de geometria. MÉTODO PARA A PRÓXIMA (decisivo): alargar o quadro p/ o decode COMPLETAR (truque da 44ª) + instrumentar cada escritor luma p/ REGISTRAR seu índice máximo numa lista que o probe IMPRIME depois (sem crash o print sobrevive; stdout é perdido num crash). Árvore provada, 10/10.
+doing: §3bd — 32x32: excluídos paleta/bloco/TX/predição-simples/croma/edge-filter/filter-intra; o índice 1186 implica erro de STRIDE ou OFFSET (não de geometria de bloco)
+next: §3bd — alargar o quadro (decode COMPLETA) e instrumentar cada escritor luma para REGISTRAR o índice máximo tocado numa lista impressa depois ⇒ o escritor com máximo > 1156 fica nomeado (método que sobrevive ao crash)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (74ª) — 3bd 47ª: FILTER-INTRA excluído; o índice implica STRIDE/OFFSET, não geometria de bloco
+- **Discriminador:** `useFilterIntra = 0` (temp, na chamada de predição do driver) ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **filter-intra NÃO é o escritor**.
+- **Excluídos (todos):** paleta (`pal=0`), BLOCO além do quadro (guard), BLOCO DE TX além do quadro (guard), predição intra SIMPLES (arith: máx 1120), CROMA (não escreve quadro), EDGE FILTER (`de=1`), FILTER-INTRA (`useFilterIntra=0`).
+- **Leitura refinada do índice:** 1186 com stride 34 = linha 34, col 30 = DUAS linhas além da última interior (31). Mas o guard provou que nenhum bloco tem `y+h > frameH` (32) ⇒ um escritor com a convenção de bloco chega no máximo a `32*34+32 = 1120` ⇒ **o escritor deve usar STRIDE DIFERENTE** (p.ex. `frameW`=32 onde o buffer usa `frameW+2`=34 ⇒ 1186 = linha 37, col 2) **ou um OFFSET fora da extensão do bloco/TX** ⇒ a busca deixa de ser geometria de bloco.
+- **Método para a próxima (decisivo):** (1) alargar o quadro (truque da 44ª) para a decodificação COMPLETAR sem crash; (2) instrumentar cada escritor luma para REGISTRAR seu índice máximo tocado numa lista que o probe IMPRIME **depois** da decodificação ⇒ o print sobrevive (stdout é PERDIDO num crash, e é por isso que a ideia do rastro de marcadores falhou) ⇒ o escritor com máximo > 1156 fica NOMEADO.
+- **Árvore:** temporários revertidos; `AvifRealFileE2ETest` **10/10** (commit docs-only).
 
 ## Sessão 16/10 (73ª) — 3bd 46ª: EDGE FILTER excluído; sobra o ramo FILTER-INTRA (só-angular)
 - **Discriminador:** `de = 1` no probe (edge filter intra NUNCA aplicado) ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **o edge filter NÃO é o escritor**.
