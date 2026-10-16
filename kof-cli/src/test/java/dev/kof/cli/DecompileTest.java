@@ -6058,6 +6058,70 @@ class DecompileTest {
                 "zero-drift: applyFee/riskLevel/canLoan/monthsToPay id\u00eanticos ao Java");
     }
 
+    @Test
+    void pizzaDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio PIZZA — 4 shapes sem c\u00f3digo novo: o
+        // preço com o ACUMULADOR RE-ATRIBUÍDO no for-each (`base = base +
+        // 2.5` — a forma explícita, não o +=), o sizeName com as faixas ==
+        // (small/medium/large), o isVegetarian com o && de NEGAÇÕES no
+        // return e o slicesFor com a multiplicação direta. Zero-drift
+        // executado: 17.5/5.0/small/medium/large/true/false/12 — 8/8
+        // id\u00eanticos ao Java — a 40\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Pizza.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Pizza {
+                    static double price(int size, List<String> toppings) {
+                        double base = size * 5.0;
+                        for (String t : toppings) {
+                            base = base + 2.5;
+                        }
+                        return base;
+                    }
+                    static String sizeName(int size) {
+                        if (size == 1) { return "small"; }
+                        if (size == 2) { return "medium"; }
+                        return "large";
+                    }
+                    static boolean isVegetarian(List<String> toppings) {
+                        return !toppings.contains("pepperoni") && !toppings.contains("ham");
+                    }
+                    static int slicesFor(int people) {
+                        return people * 3;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Pizza.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var tops = listOf("queijo", "milho", "catupiry")
+                    println(Pizza.price(2, tops))
+                    println(Pizza.price(1, listOf()))
+                    println(Pizza.sizeName(1))
+                    println(Pizza.sizeName(2))
+                    println(Pizza.sizeName(3))
+                    println(Pizza.isVegetarian(tops))
+                    println(Pizza.isVegetarian(listOf("queijo", "ham")))
+                    println(Pizza.slicesFor(4))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 17.5 | 5.0 | small | medium | large | true | false | 12
+        assertEquals("17.5\n5.0\nsmall\nmedium\nlarge\ntrue\nfalse\n12", output,
+                "zero-drift: price/sizeName/isVegetarian/slicesFor id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
