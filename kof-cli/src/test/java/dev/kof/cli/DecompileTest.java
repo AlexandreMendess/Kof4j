@@ -4673,6 +4673,71 @@ class DecompileTest {
                 "zero-drift: cost/category/totalKm/available id\u00eanticos ao Java");
     }
 
+    @Test
+    void pollDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio ELEI\u00c7\u00c3O — 3 shapes sem c\u00f3digo novo:
+        // os DOIS contadores com o ELSE-IF na cadeia (winner: `if (v.equals(
+        // "A")) a++; else if (v.equals("B")) b++;`), o contador de BRANCOS
+        // com o && NEGADO (`!v.equals("A") && !v.equals("B")`) e o
+        // UNANIME com o early-false invertido (unanimous). Zero-drift
+        // executado: A/1/false/true — 4/4 id\u00eanticos ao Java — a 22\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Poll.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Poll {
+                    static String winner(List<String> votes) {
+                        int a = 0, b = 0;
+                        for (String v : votes) {
+                            if (v.equals("A")) { a++; }
+                            else if (v.equals("B")) { b++; }
+                        }
+                        if (a > b) { return "A"; }
+                        if (b > a) { return "B"; }
+                        return "tie";
+                    }
+                    static int blankCount(List<String> votes) {
+                        int n = 0;
+                        for (String v : votes) {
+                            if (!v.equals("A") && !v.equals("B")) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean unanimous(List<String> votes, String cand) {
+                        for (String v : votes) {
+                            if (!v.equals(cand)) { return false; }
+                        }
+                        return true;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Poll.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var vs = listOf("A", "B", "A", "A", "C")
+                    println(Poll.winner(vs))
+                    println(Poll.blankCount(vs))
+                    println(Poll.unanimous(vs, "A"))
+                    println(Poll.unanimous(listOf("A", "A"), "A"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: A | 1 | false | true
+        assertEquals("A\n1\nfalse\ntrue", output,
+                "zero-drift: winner/blankCount/unanimous id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
