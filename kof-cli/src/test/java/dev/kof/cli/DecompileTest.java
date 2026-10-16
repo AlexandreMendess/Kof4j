@@ -4474,6 +4474,70 @@ class DecompileTest {
                 "zero-drift: o ternário-como-arg no head fundido idêntico ao Java");
     }
 
+    @Test
+    void orOfReceiverThreadedCallsRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o || de DUAS calls receiver-threaded — cada termo
+        // = [dload, invokestatic, ldc2_w, dcmp, ifXX] (o dcmpl/dcmpg de
+        // sinal com o const Long/Double do CP) e a orientação MISTO dentro
+        // da cadeia (o 1º salta-VERDADEIRO, o 2º salta-FALSO). O slice: o
+        // PAR-CMP GERAL no blockConditionTaken (a direção do JUMP) + o
+        // espelho no blockCondition (a queda) + o fallback no walk do ||
+        // quando o testExpr fechado recusa. Zero-drift executado:
+        // true/true/false/true/1/2/3/4/60.0 — 9/9 idênticos ao Java.
+        Path javaFile = dir.resolve("Trig.java");
+        Files.writeString(javaFile, """
+                public class Trig {
+                    static double normalize(double deg) {
+                        double d = deg % 360;
+                        if (d < 0) { d = d + 360; }
+                        return d;
+                    }
+                    static int quadrant(double deg) {
+                        double n = normalize(deg);
+                        if (n < 90) { return 1; }
+                        if (n < 180) { return 2; }
+                        if (n < 270) { return 3; }
+                        return 4;
+                    }
+                    static boolean isRightAngle(double deg) {
+                        return normalize(deg) == 90 || normalize(deg) == 270;
+                    }
+                    static double complement(double deg) {
+                        return 90 - normalize(deg);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Trig.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Trig.isRightAngle(90.0))
+                    println(Trig.isRightAngle(270.0))
+                    println(Trig.isRightAngle(45.0))
+                    println(Trig.isRightAngle(-90.0))
+                    println(Trig.quadrant(45.0))
+                    println(Trig.quadrant(135.0))
+                    println(Trig.quadrant(225.0))
+                    println(Trig.quadrant(315.0))
+                    println(Trig.complement(30.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | true | false | true | 1 | 2 | 3 | 4 | 60.0
+        assertEquals("true\ntrue\nfalse\ntrue\n1\n2\n3\n4\n60.0", output,
+                "zero-drift: o || de calls receiver-threaded idêntico ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);

@@ -324,9 +324,18 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                         String top = BytecodeCp.takenCond(fusedLastOp);
                         c2 = top == null ? null
                                 : BytecodeDecoder.testExpr(suf, frame, fusedK, top, cp);
-                    } else {
+                        } else {
                         c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
                     }
+                    if (c2 == null) {
+                        // Fase E (16/10): o split recusou (o testExpr fechado
+                        // não modela o cmp de sinal) — cai no blockCondition
+                        // Taken (o par-cmp geral cobre o [ops, cmp, ifXX]).
+                        c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
+                    }
+                    if (System.getenv("KOF_CA") != null)
+                        System.out.println("OR-ITER tb=[" + tb.start + ") sz=" + BytecodeDecoder.insnsWithin(tb, insns).size()
+                                + " c2=" + (c2 == null ? "NULL" : c2) + " split=" + (split != null));
                     if (c2 == null) break;
                     orCond = orCond == null ? c2 : orCond + " || " + c2;
                     tb = byStart.get(tb.succ.get(1));
