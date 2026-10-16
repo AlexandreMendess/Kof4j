@@ -55,12 +55,12 @@ class NativeReplaceEmptySeparatorE2ETest {
             "r7=[-a-]");
 
     @Test
-    void jvmIsTheContractForReplaceEmpty() throws Exception {
+    void jvmIsTheContractForNativeReplaceEmpty() throws Exception {
         assertEquals(GOLDEN, runJvm(), "o oráculo JVM mudou — revise o caso");
     }
 
     @Test
-    void scriptMatchesTheJvmOnReplaceEmpty() throws Exception {
+    void scriptMatchesTheJvmOnNativeReplaceEmpty() throws Exception {
         Path dir = tmp.resolve("script");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("Main.kf"), SRC);
@@ -71,7 +71,7 @@ class NativeReplaceEmptySeparatorE2ETest {
     }
 
     @Test
-    void jsMatchesTheJvmOnReplaceEmpty() throws Exception {
+    void jsMatchesTheJvmOnNativeReplaceEmpty() throws Exception {
         Path dir = tmp.resolve("js");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("Main.kf"), SRC);
