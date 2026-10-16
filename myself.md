@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 39ª PASSAGEM: fixture de screen-content MÍNIMO `avif_real_pskip.avif` (metade plana 100 / metade rampa 4px) decodifica EXATAMENTE (328/328 bits, Y 100,235,207,100,234,208 = ffmpeg) ⇒ teste permanente, AvifRealFileE2ETest 10/10. DEFEITO NOVO (pista forte): testsrc 32x32 LANÇA `Index 1186 out of bounds for length 1156` dentro da decodificação Kof — fora-de-limites em quadro pequeno (não dessincronismo), um índice derivado de geometria pode ser a mesma raiz do dessincronismo do 64x64. Fixture NÃO commitado (lança; suíte vermelha não é permitida). testsrc 64x64 segue 1257/2344.
-doing: §3bd — fixture de screen-content mínimo EXATO (landado); NOVO defeito: fora-de-limites (1186 > 1156) num testsrc 32x32; testsrc 64x64 ainda dessincronizado
-next: §3bd — investigar o fora-de-limites do 32x32 (qual array tem 1156 entradas, de onde vem o 1186) — é menor e determinístico, e pode ser a raiz do dessincronismo do 64x64
+last: 16/10 — AVIF slice 3bd 40ª PASSAGEM: fora-de-limites do 32x32 ESTREITADO e a pintura da PALETA EXONERADA por experimento. `1156 = 34*34` = plano 32x32 + borda (stride 34); `1186` = linha 34, col 30 ⇒ uma linha além da borda inferior. Discriminador: o fix óbvio (recortar a pintura da paleta ao plano) NÃO corrigiu; desligando o caminho de paleta (`pal=0`) o throw persistiu IDÊNTICO ⇒ a pintura da paleta não é o escritor; o estouro está no caminho GERAL (sem paleta) de um bloco de borda. Ambas as mudanças REVERTIDAS (não provadas) — árvore no estado provado, AvifRealFileE2ETest 10/10. cb16/pskip/testsrc-64 (todos 64x64) não lançam ⇒ específico de quadro pequeno. Próximo: achar o escritor (luma recon/laço de TX num bloco de borda, ou croma).
+doing: §3bd — fora-de-limites do 32x32 estreitado (uma linha além da borda; `34*34`); pintura da paleta EXONERADA por experimento; escritor está no caminho GERAL de bloco de borda
+next: §3bd — achar o escritor do estouro (luma `av1ReconBlockInto`/laço de TX num bloco de borda inferior, ou o caminho de croma) usando o discriminador `pal = 0`
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (67ª) — 3bd 40ª: fora-de-limites do 32x32 estreitado; paleta EXONERADA por experimento
+- **Array identificado:** `1156 = 34*34` = plano 32x32 + borda de 1 amostra (stride 34); `1186` = linha 34, col 30 ⇒ **uma linha além da borda inferior** (linhas 0..33).
+- **Discriminador (duas rodadas):** (1) implementei o fix óbvio (recortar a pintura da paleta ao plano) ⇒ o throw PERSISTIU; (2) DESLIGUEI o caminho de paleta (`pal = 0` no `AvifRealTileProbe`) ⇒ o throw persistiu **IDÊNTICO**. Uma falha que sobrevive à remoção do suspeito não é dele ⇒ **a pintura da paleta não é o escritor**.
+- **Revertido:** as duas mudanças (a não-provada e o discriminador temporário) — árvore no estado provado; `AvifRealFileE2ETest` **10/10**.
+- **Defeito como está:** fora-de-limites no caminho SEM paleta, um escritor uma linha além da borda inferior, num quadro 32x32; cb16/pskip/testsrc (64x64) não lançam ⇒ específico de quadro pequeno/geometria de borda.
+- **Próximo:** achar o escritor (luma `av1ReconBlockInto`/laço de TX num bloco de borda inferior, ou o caminho de croma) com o discriminador registrado.
 
 ## Sessão 16/10 (66ª) — 3bd 39ª: fixture mínimo EXATO landado + NOVO defeito (fora-de-limites no 32x32)
 - **Landado:** `avif_real_pskip.avif` — 64x64, metade esquerda plana (100), direita rampa de 4px, `allow_screen_content_tools`; 1 bloco, **328/328 bits**, Y **EXATO** vs ffmpeg (100,235,207,100,234,208) ⇒ teste permanente; `AvifRealFileE2ETest` **10/10**.
