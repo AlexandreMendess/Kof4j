@@ -2,11 +2,20 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 37ª PASSAGEM: RECONSTRUÇÃO por paleta landada ⇒ `avif_real_cb8.avif` (xadrez 8x8, alta frequência) decodifica EXATAMENTE (Y 16,16,235,16,16,235 = ffmpeg), assertado; primeiro fixture de alta frequência exato nesta frente. Pixels pintados das cores indexadas pelo mapa; laço de coeficientes esvaziado p/ paleta LUMA e caminhada de croma pulada p/ paleta UV (o plano carrega o MAPA DE ÍNDICES); UV pintada uma vez p/ U e V. CORREÇÃO honesta: o consumo do testsrc caiu p/ 1257/2344 ⇒ o "100%" da 36ª era EM PARTE SORTE (leituras espúrias comiam a cauda); testsrc AINDA tem dessincronismo. PISTA: libaom faz `if (mbmi->skip_txfm) av1_reset_entropy_context(...)` — bloco pulado reseta contextos; cb8 (1 bloco) não expõe, testsrc (41) sim. Prova: AvifRealFileE2ETest 9/9 + Av1PaletteTokensE2ETest 2/2.
-doing: §3bd — reconstrução por paleta landada (cb8 EXATO vs ffmpeg); resta o dessincronismo do testsrc, com a pista do `av1_reset_entropy_context` em blocos pulados
-next: §3bd — implementar o reset dos contextos de entropia em bloco PULADO (libaom `if (mbmi->skip_txfm) av1_reset_entropy_context(...)`) e remedir o consumo/pixels do testsrc
+last: 16/10 — AVIF slice 3bd 38ª PASSAGEM: a pista do reset de contexto em bloco PULADO está REFUTADA por medição. Implementei o `av1_reset_entropy_context` do libaom fielmente e MEDI no testsrc: NADA mudou (blocks=26 symBits=1257 txb=62 nzTot=103). O dump por bloco explica: todos os 26 blocos do testsrc têm skip=0 ⇒ o reset nunca dispara ⇒ a pista da 37ª não se aplica. REVERTIDO (não lando comportamento não exercitável; árvore no último estado provado). cb8 segue EXATO (16,16,235,16,16,235) e 9/9 verde. FALTA: o dessincronismo do testsrc não é o reset; cb8 (1 bloco) é exato ⇒ é INTERAÇÃO MULTI-BLOCO e a contagem de blocos se move (25->41->26) ⇒ divergência CEDO no tile. Próximo: fixture de screen-content MÍNIMO com poucos blocos p/ isolar o primeiro bloco divergente.
+doing: §3bd — reset de contexto em bloco pulado REFUTADO (testsrc não tem bloco com skip=1); paleta correta onde exercitada (cb8 exato); resta o dessincronismo MULTI-BLOCO do testsrc
+next: §3bd — gerar um fixture de screen-content MÍNIMO com POUCOS blocos (receita ffmpeg no plano) e isolar o primeiro bloco divergente com o dump por bloco; depois remedir
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (65ª) — 3bd 38ª: reset em bloco pulado REFUTADO (medido); revertido
+- **Implementei** o `av1_reset_entropy_context` do libaom fiel (zera above/left de coeficiente na extensão 4x4 do bloco, croma com subsampling, logo após o tx size).
+- **MEDI no testsrc: NADA mudou** (blocks=26 symBits=1257 txb=62 nzTot=103, mesmos pixels).
+- **Por quê (do instrumento):** o dump por bloco mostra que **todos os 26 blocos têm skip=0** ⇒ o reset nunca dispara ⇒ a pista da 37ª passagem não se aplica.
+- **Decisão:** REVERTI (não lando comportamento que não consigo exercitar; a árvore fica no último estado provado). `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_plan_index` rc=0.
+- **O que fica:** paleta correta onde exercitada (cb8 EXATO); o dessincronismo do testsrc NÃO é o reset; cb8 tem 1 bloco e é exato ⇒ a falha é INTERAÇÃO MULTI-BLOCO; a contagem de blocos se move a cada correção (25→41→26) ⇒ divergência CEDO no tile.
+- **Próximo:** fixture de screen-content MÍNIMO com poucos blocos (receita ffmpeg no plano) para isolar o primeiro bloco divergente.
+- **Caveat:** o fixture gerado em /tmp nesta passagem não chegou a ser medido (erro de compilação no harness temporário) ⇒ não landei o fixture; a receita fica registrada e é reprodutível.
 
 ## Sessão 15/10 (64ª) — 3bd 37ª: reconstrução por paleta ⇒ cb8 EXATO (marco) + correção do "100%"
 - **Fatia:** pixels de plano de paleta pintados direto das cores (índice → mapa), laço de coeficientes esvaziado p/ paleta LUMA, caminhada de croma pulada p/ paleta UV, UV pintada uma vez p/ U e V.
