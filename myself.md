@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 48ª PASSAGEM: HIPÓTESE mais afiada (medida, não conclusão) — os fixtures que FALHAM usam CFL (`uvMode=13`: testsrc-64 tem `(6,0,0,13,0)`, `(5,2,0,13,0)`, `(2,0,0,13,0)`), os EXATOS não (cb16 `(2,0,0,0,0)`×4, pskip `(3,0,0,0,0)`); o cb8 é exato e NÃO pode CFL (bloco 64x64 > 32) ⇒ o conjunto que falha = o conjunto que pode CFL. Mecânica: a caminhada de croma é a ÚNICA que LÊ a luma, via `av1CflAcFromLuma(luma, lumaStride, ...)` (Av1DecodeChroma.kf:184) ⇒ erro de limite/offset ali estoura o buffer nas bordas E está no caminho de PIXELS (invisível aos discriminadores de entropia) — casa com a conclusão de stride/offset da 47ª. Rotulado HIPÓTESE (lição da 42ª). Próximo: neutralizar o ramo CFL e rodar o 32x32 (se crash E desync sumirem, CFL é o gatilho).
-doing: §3bd — hipótese MECÂNICA: CFL (`uvMode=13`) só aparece nos fixtures que falham e é a ÚNICA leitura da luma (via `av1CflAcFromLuma`) ⇒ candidato a estouro + desync nas bordas
-next: §3bd — neutralizar o ramo CFL (predição UV simples, sem a modulação CFL) e rodar o 32x32: se o crash E o desync sumirem, o CFL é o gatilho; se só o crash sumir, o desync é defeito separado
+last: 16/10 — AVIF slice 3bd 49ª PASSAGEM: a hipótese do CFL está REFUTADA pelo seu próprio teste (neutralizar `if (uvMode == 13)` — que desliga modulação E `av1CflAcFromLuma`, a única leitura da luma no croma — mantendo a entropia intacta: o 32x32 AINDA lança Index 1186/1156). Nota: a alegação estava rotulada HIPÓTESE ⇒ nenhuma retratação foi necessária (o rótulo pagou). ACHADO: com TODOS os acessos NOMEADOS à luma excluídos (paleta, bloco, bloco de TX, predição simples/arith 1120, escritas do croma, edge filter, filter-intra, CFL) o crash persiste ⇒ ao menos uma exclusão se apoia nos PARÂMETROS DO CALLER, não nos acessos reais. Próximo: registrar ÍNDICES REAIS DENTRO DOS ACESSORES (helpers), com o quadro alargado p/ completar e o print sobreviver.
+doing: §3bd — 32x32: CFL refutado; TODOS os acessos nomeados à luma excluídos e o crash persiste ⇒ uma exclusão de call-site é inválida; medir índices REAIS dentro dos helpers
+next: §3bd — instrumento por ÍNDICES REAIS: alargar o quadro (decode COMPLETA) + cada ACESSOR da luma atualiza um maxIndex de diagnóstico, impresso depois do decode ⇒ nomeia o escritor do índice 1186
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (76ª) — 3bd 49ª: CFL REFUTADO; e a falha de toda exclusão por call-site é o achado
+- **Teste (como planejado):** neutralizar `if (uvMode == 13)` em `Av1DecodeChroma.kf` desliga a modulação E o `av1CflAcFromLuma` (única leitura da luma no croma) mantendo a ENTROPIA intacta ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **CFL não é o escritor**.
+- **Nota de processo:** a alegação da 48ª estava rotulada **HIPÓTESE** ⇒ esta refutação NÃO exigiu retratação — o rótulo pagou (contraste com a 42ª, onde uma conclusão mal rotulada custou uma retratação).
+- **Excluídos (todos os acessos NOMEADOS à luma):** paleta, BLOCO, BLOCO DE TX, predição simples (arith 1120), escritas do plano de CROMA (outro buffer), EDGE FILTER, FILTER-INTRA, e agora CFL (leitura + modulação).
+- **ACHADO:** todo acesso nomeado excluído e o crash persiste ⇒ **ao menos uma exclusão se apoia nos PARÂMETROS DO CALLER, não nos acessos realmente executados** (um helper cuja aritmética interna de índice sai de faixa sobrevive a todos os guards de call-site).
+- **Próximo:** instrumento por ÍNDICES REAIS — o registro deve viver DENTRO DOS ACESSORES (helpers), não nos call-sites; quadro alargado p/ a decodificação COMPLETAR; imprimir o `maxIndex` depois (o stdout sobrevive sem crash).
+- **Árvore:** temporários revertidos; `AvifRealFileE2ETest` **10/10** (commit docs-only).
 
 ## Sessão 16/10 (75ª) — 3bd 48ª: HIPÓTESE — CFL é a única leitura da luma e só aparece nos que falham
 - **Medido (dump da 45ª, já no plano):** testsrc-64 tem `uvMode=13` (CFL) — `(6,0,0,13,0)`, `(5,2,0,13,0)`, `(2,0,0,13,0)`; cb16 = `(2,0,0,0,0)`×4 e pskip = `(3,0,0,0,0)` ⇒ **CFL SÓ no fixture que falha**.
