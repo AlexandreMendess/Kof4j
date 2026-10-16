@@ -5097,6 +5097,88 @@ class DecompileTest {
                 "zero-drift: unread/preview/mentions/charCount id\u00eanticos ao Java");
     }
 
+    @Test
+    void matrix3DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio MATRIZ-3 — 4 shapes sem c\u00f3digo novo: a
+        // DIAGONAL com o `m[i][i]` no for contado, o rowSums com o LOOP
+        // ANINHADO completo + o array de sa\u00edda preenchido por \u00edndice
+        // (`out[i] = r`), o isSquare com o early-false do comprimento e o
+        // MAX com o best inicializado + o aninhado. Zero-drift executado:
+        // 16/2/5/9/true/9 — 6/6 id\u00eanticos ao Java — a 26\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Matrix3.java");
+        Files.writeString(javaFile, """
+                public class Matrix3 {
+                    static int diagonalSum(int[][] m) {
+                        int sum = 0;
+                        for (int i = 0; i < m.length; i++) {
+                            sum += m[i][i];
+                        }
+                        return sum;
+                    }
+                    static int[] rowSums(int[][] m) {
+                        int[] out = new int[m.length];
+                        for (int i = 0; i < m.length; i++) {
+                            int r = 0;
+                            for (int j = 0; j < m[i].length; j++) {
+                                r += m[i][j];
+                            }
+                            out[i] = r;
+                        }
+                        return out;
+                    }
+                    static boolean isSquare(int[][] m) {
+                        for (int i = 0; i < m.length; i++) {
+                            if (m[i].length != m.length) { return false; }
+                        }
+                        return true;
+                    }
+                    static int max(int[][] m) {
+                        int best = m[0][0];
+                        for (int i = 0; i < m.length; i++) {
+                            for (int j = 0; j < m[i].length; j++) {
+                                if (m[i][j] > best) { best = m[i][j]; }
+                            }
+                        }
+                        return best;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Matrix3.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var m = new Int[3][0]
+                    var r0 = new Int[3]
+                    r0[0] = 2; r0[1] = 0; r0[2] = 0
+                    var r1 = new Int[3]
+                    r1[0] = 0; r1[1] = 5; r1[2] = 0
+                    var r2 = new Int[3]
+                    r2[0] = 0; r2[1] = 0; r2[2] = 9
+                    m[0] = r0; m[1] = r1; m[2] = r2
+                    println(Matrix3.diagonalSum(m))
+                    var rs = Matrix3.rowSums(m)
+                    for (var r in rs) { println(r) }
+                    println(Matrix3.isSquare(m))
+                    println(Matrix3.max(m))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 16 | 2 | 5 | 9 | true | 9
+        assertEquals("16\n2\n5\n9\ntrue\n9", output,
+                "zero-drift: diagonalSum/rowSums/isSquare/max id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
