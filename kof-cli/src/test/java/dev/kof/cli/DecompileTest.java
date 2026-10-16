@@ -5708,6 +5708,78 @@ class DecompileTest {
                 "zero-drift: bmi/category/caloriesBurned/hitGoal id\u00eanticos ao Java");
     }
 
+    @Test
+    void orderDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio PEDIDO — 4 shapes sem c\u00f3digo novo: o
+        // total com o acumulador + o desconto algébrico (`sum * (1 -
+        // discount)`), o status com as faixas ==/> (empty/bulk/standard),
+        // o freeShipping com o gate do early-true + o return do boolean
+        // param e o itemCount com o equals contra um PARAM (o sku
+        // dinâmico). Zero-drift executado: 90.0/empty/bulk/standard/true/
+        // true/false/2/0 — 9/9 id\u00eanticos ao Java — a 35\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Order.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Order {
+                    static double total(List<Double> prices, double discount) {
+                        double sum = 0;
+                        for (double p : prices) {
+                            sum += p;
+                        }
+                        return sum * (1 - discount);
+                    }
+                    static String status(int items) {
+                        if (items == 0) { return "empty"; }
+                        if (items > 20) { return "bulk"; }
+                        return "standard";
+                    }
+                    static boolean freeShipping(double total, boolean member) {
+                        if (total >= 100) { return true; }
+                        return member;
+                    }
+                    static int itemCount(List<String> skus, String sku) {
+                        int n = 0;
+                        for (String s : skus) {
+                            if (s.equals(sku)) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Order.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var prices = listOf(50.0, 30.0, 20.0)
+                    println(Order.total(prices, 0.1))
+                    println(Order.status(0))
+                    println(Order.status(25))
+                    println(Order.status(3))
+                    println(Order.freeShipping(150.0, false))
+                    println(Order.freeShipping(50.0, true))
+                    println(Order.freeShipping(50.0, false))
+                    var skus = listOf("a", "b", "a", "c")
+                    println(Order.itemCount(skus, "a"))
+                    println(Order.itemCount(skus, "z"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 90.0 | empty | bulk | standard | true | true | false | 2 | 0
+        assertEquals("90.0\nempty\nbulk\nstandard\ntrue\ntrue\nfalse\n2\n0", output,
+                "zero-drift: total/status/freeShipping/itemCount id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
