@@ -5649,6 +5649,65 @@ class DecompileTest {
                 "zero-drift: errorCount/hasFatal/firstLine/join id\u00eanticos ao Java");
     }
 
+    @Test
+    void fitnessDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio FITNESS — 4 shapes sem c\u00f3digo novo: o
+        // IMC com o denominador parentesado (bmi: `weight / (h * h)`), as
+        // QUATRO faixas de categoria (under/normal/over/obese), as
+        // calorias com o CAST d2i no return (`(int) (minutes * rate)`) e
+        // o hitGoal com a comparação direta. Zero-drift executado:
+        // 22.857142857142858/under/normal/over/obese/225/true/false — 8/8
+        // id\u00eanticos ao Java — a 34\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Fit.java");
+        Files.writeString(javaFile, """
+                public class Fit {
+                    static double bmi(double weightKg, double heightM) {
+                        return weightKg / (heightM * heightM);
+                    }
+                    static String category(double bmi) {
+                        if (bmi < 18.5) { return "under"; }
+                        if (bmi < 25) { return "normal"; }
+                        if (bmi < 30) { return "over"; }
+                        return "obese";
+                    }
+                    static int caloriesBurned(int minutes, double rate) {
+                        return (int) (minutes * rate);
+                    }
+                    static boolean hitGoal(int steps, int goal) {
+                        return steps >= goal;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Fit.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Fit.bmi(70.0, 1.75))
+                    println(Fit.category(17.0))
+                    println(Fit.category(22.0))
+                    println(Fit.category(27.0))
+                    println(Fit.category(33.0))
+                    println(Fit.caloriesBurned(30, 7.5))
+                    println(Fit.hitGoal(11000, 10000))
+                    println(Fit.hitGoal(9000, 10000))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 22.857142857142858 | under | normal | over | obese | 225 | true | false
+        assertEquals("22.857142857142858\nunder\nnormal\nover\nobese\n225\ntrue\nfalse", output,
+                "zero-drift: bmi/category/caloriesBurned/hitGoal id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
