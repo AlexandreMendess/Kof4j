@@ -4958,6 +4958,74 @@ class DecompileTest {
                 "zero-drift: average/letter/belowCount/allPassed id\u00eanticos ao Java");
     }
 
+    @Test
+    void tripDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio VIAGEM — 4 shapes sem c\u00f3digo novo: o
+        // custo com a cadeia de ddiv/dmul (fuelCost), a ETA com o local
+        // intermediário + TR\u00caS faixas, o WHILE com a SUBTRA\u00c7\u00c3O
+        // decrementante (stops: `left = left - range` com o contador) e o
+        // needsPassport com o contains + a NEGA\u00c7\u00c3O. Zero-drift
+        // executado: 137.5/less-than-an-hour/same-day/overnight/3/0/true/
+        // false — 8/8 id\u00eanticos ao Java — a 24\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Trip.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Trip {
+                    static double fuelCost(double km, double kmPerLiter, double pricePerLiter) {
+                        return km / kmPerLiter * pricePerLiter;
+                    }
+                    static String eta(double km, double kmPerHour) {
+                        double hours = km / kmPerHour;
+                        if (hours < 1) { return "less than an hour"; }
+                        if (hours < 5) { return "same day"; }
+                        return "overnight";
+                    }
+                    static int stops(double km, double range) {
+                        int n = 0;
+                        double left = km;
+                        while (left > range) {
+                            left = left - range;
+                            n++;
+                        }
+                        return n;
+                    }
+                    static boolean needsPassport(String country, List<String> domestic) {
+                        return !domestic.contains(country);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Trip.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Trip.fuelCost(300.0, 12.0, 5.5))
+                    println(Trip.eta(40.0, 60.0))
+                    println(Trip.eta(200.0, 60.0))
+                    println(Trip.eta(600.0, 60.0))
+                    println(Trip.stops(350.0, 100.0))
+                    println(Trip.stops(90.0, 100.0))
+                    var domestic = listOf("BR", "UY")
+                    println(Trip.needsPassport("AR", domestic))
+                    println(Trip.needsPassport("BR", domestic))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 137.5 | less than an hour | same day | overnight | 3 | 0 | true | false
+        assertEquals("137.5\nless than an hour\nsame day\novernight\n3\n0\ntrue\nfalse", output,
+                "zero-drift: fuelCost/eta/stops/needsPassport id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
