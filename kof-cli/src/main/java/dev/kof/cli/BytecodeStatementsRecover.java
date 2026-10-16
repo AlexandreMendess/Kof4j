@@ -896,6 +896,11 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // acima já emitiu o return. Guarda o get(0) (os corpos mais fundos do
         // callarg/binding alcançam este caminho agora).
         if (b.succ.isEmpty()) return true;
+        // Fase E (16/10): o goto de VOLTA ao header do próprio loop = o
+        // continue implícito — o loop walk fecha o corpo; não re-andar o
+        // header (o re-andar duplicava a emissão e quebrava o else do ||
+        // dentro do loop; medido no Text.initials).
+        if (header >= 0 && b.succ.get(0) == header) return true;
         // Fase C (13/10): goto para a SAÍDA do loop aberto = `break`
         if (BytecodeStatements.currentLoopExit >= 0 && b.succ.get(0) == BytecodeStatements.currentLoopExit) {
             out.add("break");
