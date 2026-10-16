@@ -5780,6 +5780,69 @@ class DecompileTest {
                 "zero-drift: total/status/freeShipping/itemCount id\u00eanticos ao Java");
     }
 
+    @Test
+    void gameDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio JOGO — 4 shapes sem c\u00f3digo novo: o
+        // cr\u00edtico com o == no return, o damage com o CAST d2i
+        // BRANCH-DEPENDENTE (os DOIS returns com casts, o cr\u00edtico
+        // multiplicando x2), o rank com as QUATRO faixas e o canLevel com
+        // a comparação contra a PRODUTORIA (`xp >= level * 100` — a
+        // multiplicação no lado direito). Zero-drift executado: true/
+        // false/30/15/legend/master/novice/beginner/true/false — 10/10
+        // id\u00eanticos ao Java — a 36\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Game.java");
+        Files.writeString(javaFile, """
+                public class Game {
+                    static boolean isCritical(int roll) {
+                        return roll == 20;
+                    }
+                    static int damage(int base, double multiplier, boolean crit) {
+                        if (crit) { return (int) (base * multiplier * 2); }
+                        return (int) (base * multiplier);
+                    }
+                    static String rank(int score) {
+                        if (score >= 1000) { return "legend"; }
+                        if (score >= 500) { return "master"; }
+                        if (score >= 100) { return "novice"; }
+                        return "beginner";
+                    }
+                    static boolean canLevel(int xp, int level) {
+                        return xp >= level * 100;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Game.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Game.isCritical(20))
+                    println(Game.isCritical(18))
+                    println(Game.damage(10, 1.5, true))
+                    println(Game.damage(10, 1.5, false))
+                    println(Game.rank(1200))
+                    println(Game.rank(700))
+                    println(Game.rank(150))
+                    println(Game.rank(50))
+                    println(Game.canLevel(350, 3))
+                    println(Game.canLevel(250, 3))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | 30 | 15 | legend | master | novice | beginner | true | false
+        assertEquals("true\nfalse\n30\n15\nlegend\nmaster\nnovice\nbeginner\ntrue\nfalse", output,
+                "zero-drift: isCritical/damage/rank/canLevel id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
