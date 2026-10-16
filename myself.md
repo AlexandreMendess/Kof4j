@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 40ª PASSAGEM: fora-de-limites do 32x32 ESTREITADO e a pintura da PALETA EXONERADA por experimento. `1156 = 34*34` = plano 32x32 + borda (stride 34); `1186` = linha 34, col 30 ⇒ uma linha além da borda inferior. Discriminador: o fix óbvio (recortar a pintura da paleta ao plano) NÃO corrigiu; desligando o caminho de paleta (`pal=0`) o throw persistiu IDÊNTICO ⇒ a pintura da paleta não é o escritor; o estouro está no caminho GERAL (sem paleta) de um bloco de borda. Ambas as mudanças REVERTIDAS (não provadas) — árvore no estado provado, AvifRealFileE2ETest 10/10. cb16/pskip/testsrc-64 (todos 64x64) não lançam ⇒ específico de quadro pequeno. Próximo: achar o escritor (luma recon/laço de TX num bloco de borda, ou croma).
-doing: §3bd — fora-de-limites do 32x32 estreitado (uma linha além da borda; `34*34`); pintura da paleta EXONERADA por experimento; escritor está no caminho GERAL de bloco de borda
-next: §3bd — achar o escritor do estouro (luma `av1ReconBlockInto`/laço de TX num bloco de borda inferior, ou o caminho de croma) usando o discriminador `pal = 0`
+last: 16/10 — AVIF slice 3bd 41ª PASSAGEM: dois diagnósticos cirúrgicos ELIMINAM os escritores de nível de bloco no fora-de-limites do 32x32 (ambos REVERTIDOS, temporários): (1) guard de extensão do BLOCO no topo do decodeBlock NUNCA disparou ⇒ nenhum bloco ultrapassa o quadro; (2) guard de extensão do BLOCO DE TRANSFORMADA antes da caminhada de coeficientes NUNCA disparou ⇒ a enumeração de TX fica dentro do plano. Buffer confirmado = plano LUMA com borda (34*34 = 1156, stride 34) e o índice 1186 está 30 ALÉM do fim (não apenas uma linha além da borda). ⇒ o estouro vem de DENTRO de um estágio com extensões nominais dentro dos limites: candidatos = leituras de borda do `av1IntraPredictBlock`, edge filter intra, ou efeito luma da caminhada de croma. Próximo: instrumentar dentro desses helpers.
+doing: §3bd — 32x32: eliminados os escritores de nível de bloco (bloco e TX dentro do plano); o estouro é interno a um helper de borda (predict/edge-filter/croma)
+next: §3bd — instrumentar dentro do `av1IntraPredictBlock` (leituras de borda) e depois o edge filter intra, com a técnica de marcador, para nomear o escritor do estouro do 32x32
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (68ª) — 3bd 41ª: eliminações medidas (bloco e TX dentro do plano); estouro é interno
+- **Diagnóstico 1 (REVERTIDO):** guard de extensão do BLOCO no topo do `decodeBlock` ⇒ **NUNCA DISPAROU** ⇒ nenhum bloco ultrapassa o quadro ⇒ elimina a hipótese de bloco fora do quadro (vindo da partição dessincronizada).
+- **Diagnóstico 2 (REVERTIDO):** guard de extensão do BLOCO DE TRANSFORMADA antes da caminhada de coeficientes (`y+h>frameH || x+w>frameW`, x/y absolutos) ⇒ **NUNCA DISPAROU** ⇒ a enumeração de TX fica dentro do plano.
+- **Confirmado:** o buffer é o plano LUMA com borda (`34*34 = 1156` num 32x32, stride 34) e o índice 1186 está **30 além do fim do buffer** (não apenas uma linha além da borda — a linha 34 não existe).
+- **Conclusão:** o estouro vem de DENTRO de um estágio com extensões nominais dentro dos limites ⇒ candidatos = leituras de borda do `av1IntraPredictBlock`, o edge filter intra, ou efeito luma da caminhada de croma. cb16/pskip/testsrc (64x64) limpos.
+- **Árvore no estado provado:** `AvifRealFileE2ETest` **10/10** (nada landado — commit docs-only).
+- **Próximo:** instrumentar dentro do `av1IntraPredictBlock`/edge filter com a mesma técnica de marcador.
 
 ## Sessão 16/10 (67ª) — 3bd 40ª: fora-de-limites do 32x32 estreitado; paleta EXONERADA por experimento
 - **Array identificado:** `1156 = 34*34` = plano 32x32 + borda de 1 amostra (stride 34); `1186` = linha 34, col 30 ⇒ **uma linha além da borda inferior** (linhas 0..33).
