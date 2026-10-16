@@ -19720,3 +19720,25 @@ List<Int> a = listOf()  ALL FOUR = [2, 4, 6] ✓ — an EXPLICIT element type is
 
 **Boundary:** an explicit element type anywhere in the pipeline (`List<Int>`, or a non-empty `listOf(1,2,3)` receiver) is CORRECT on all four targets — measured — so the guard must key on the BARE/inferred element type, not on `add` itself.
 <!-- pt-switch --> **PT:** [§743 (pt_BR)](known-bugs.pt_BR.md#743--um-array-anulavel-de-primitivo-estreitado-emitia-cargas-e-stores-do-elemento-por-referencia-sobre-um-array-de-int-verifyerror-na-jvm-e-sigsegv-nos-tres-nativos)
+
+## §746 — the JS record toString rendered a collection FIELD with JavaScript coercion (a List as a,b and a Map as [object Map])
+
+**Status:** ✅ FIXED 16/10 — every field value now goes through `kofFormat`.
+
+**CATALOGUED + FIXED 16/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found by the cross-target probe of the nested-record surface (the vein of §738–§745). The JS synthetic record `toString` joined each field value with JavaScript's `+`, so a COLLECTION field was coerced by the HOST's own rules — a `List` rendered as `xs=2,3` (no brackets/space) and a `Map` as the useless `mm=[object Map]`, where the JVM/Script and all three native targets agree:
+
+```
+Outer(Inner(1,"x"), listOf(2,3), "t")   JVM/Script/native = Outer[in1=Inner[a=1, b=x], xs=[2, 3], tag=t]
+                                        JS = Outer[in1=Inner[a=1, b=x], xs=2,3, tag=t] ✗
+Plain(listOf("a","b"), mapOf("k",1))    JVM/Script/native = Plain[ss=[a, b], mm={k=1}]
+                                        JS = Plain[ss=a,b, mm=[object Map]] ✗
+```
+
+**Root cause (read, not guessed):** `JsRecordSynthetics.lowerRecordToString` built `"Name[" + "f=" + value + …` and the `+` let JS stringify a raw array/Map. The compiler ALREADY has the right formatter — `kofFormat` (the `JsRuntimeCore` helper the bare `println(list)` path uses, producing the Kof shapes `[a, b]` / `{k=1}`) — it simply was not applied to record FIELDS.
+
+**Fix (additive, no shape change for scalars):** each field value is wrapped in `kofFormat(...)` and the helper is registered (`p.lc.registerRuntime("kofFormat")`) — the same pattern the neighbouring synthetics use for `kofValEq`/`kofHashCode`. `kofFormat` falls through to `String(x)` for scalars, so a String field stays UNQUOTED (`b=x`, as the oracle prints) and a nested record still renders through its own synthetic `toString`. Measured after: the JS face is identical to the JVM on all four shapes.
+
+**Proof RED-first:** with the fix reverted ONLY the JS face fails (`jsRecordToStringMatchesTheJvm`) while JVM/Script/x86/riscv64/aarch64 pass; with it, `JsRecordToStringCollectionFieldE2ETest` 6/6 (the same golden on all six targets).
+
+**Related (measured, NOT a bug):** the native JSON encoder refuses nested-record/List fields on all native targets with an HONEST `JSN002` diagnostic ("class Outer has field of type Inner not supported by the Native JSON encoder yet … nested objects coming soon") — no silent fallback, so it is a documented limitation, not a divergence.
+<!-- pt-switch --> **PT:** [§746 (pt_BR)](known-bugs.pt_BR.md#746--o-tostring-de-record-no-js-renderizava-um-campo-de-colecao-com-a-coercao-do-javascript-list-como-ab-e-map-como-object-map)

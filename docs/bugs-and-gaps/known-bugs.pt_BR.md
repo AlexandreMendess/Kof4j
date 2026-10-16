@@ -17207,3 +17207,25 @@ List<Int> a = listOf()  OS QUATRO = [2, 4, 6] ✓ — um tipo de elemento EXPLÍ
 
 **Fronteira:** um tipo de elemento EXPLÍCITO em qualquer ponto do pipeline (`List<Int>`, ou um receptor `listOf(1,2,3)` não-vazio) está CORRETO nos quatro alvos — medido — logo a guarda tem de ser chaveada no tipo NU/inferido, não no `add` em si.
 <!-- pt-switch --> **EN:** [§743 (en)](known-bugs.md#743--a-narrowed-nullable-primitive-array-emitted-reference-element-loads-and-stores-over-an-int-array-verifyerror-on-the-jvm-and-sigsegv-on-the-three-natives)
+
+## §746 — o toString de record no JS renderizava um CAMPO de colecao com a coercao do JavaScript (List como a,b e Map como [object Map])
+
+**Status:** ✅ CORRIGIDO 16/10 — o valor de cada campo passa agora pelo `kofFormat`.
+
+**CATALOGADO + CORRIGIDO 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem cross-target da superficie de records aninhados (a veia do §738–§745). O `toString` sintetico de record no JS juntava o valor de cada campo com o `+` do JavaScript, entao um campo de COLECAO era coagido pelas regras do HOST — uma `List` saia como `xs=2,3` (sem [ ]/espaco) e um `Map` como o inutil `mm=[object Map]`, onde JVM/Script e os tres alvos nativos concordam:
+
+```
+Outer(Inner(1,"x"), listOf(2,3), "t")   JVM/Script/nativo = Outer[in1=Inner[a=1, b=x], xs=[2, 3], tag=t]
+                                        JS = Outer[in1=Inner[a=1, b=x], xs=2,3, tag=t] ✗
+Plain(listOf("a","b"), mapOf("k",1))    JVM/Script/nativo = Plain[ss=[a, b], mm={k=1}]
+                                        JS = Plain[ss=a,b, mm=[object Map]] ✗
+```
+
+**Causa raiz (lida, nao adivinhada):** o `JsRecordSynthetics.lowerRecordToString` montava `"Name[" + "f=" + value + …` e o `+` deixava o JS stringificar o array/Map cru. O compilador JA tem o formatador certo — o `kofFormat` (helper do `JsRuntimeCore` que o caminho do `println(list)` nu usa, produzindo as formas Kof `[a, b]` / `{k=1}`) — so nao estava aplicado aos CAMPOS do record.
+
+**Correcao (aditiva, sem mudar a forma dos escalares):** o valor de cada campo e envolvido em `kofFormat(...)` e o helper e registrado (`p.lc.registerRuntime("kofFormat")`) — o mesmo padrao que os sinteticos vizinhos usam para `kofValEq`/`kofHashCode`. O `kofFormat` cai em `String(x)` para escalares, entao um campo String fica SEM aspas (`b=x`, como o oraculo imprime) e um record aninhado continua saindo pelo seu proprio `toString` sintetico. Medido depois: a face JS e identica a do JVM nas quatro formas.
+
+**Prova RED-first:** com o fix revertido SO a face JS falha (`jsRecordToStringMatchesTheJvm`) e JVM/Script/x86/riscv64/aarch64 passam; com ele, `JsRecordToStringCollectionFieldE2ETest` 6/6 (o mesmo golden nos seis alvos).
+
+**Relacionado (medido, NAO e bug):** o encoder JSON nativo recusa campos de record aninhado/List nos alvos nativos com um diagnostico `JSN002` HONESTO ("class Outer has field of type Inner not supported by the Native JSON encoder yet …") — sem fallback silencioso, logo e limitacao documentada, nao divergencia.
+<!-- pt-switch --> **EN:** [§746 (en)](known-bugs.md#746--the-js-record-tostring-rendered-a-collection-field-with-javascript-coercion-a-list-as-ab-and-a-map-as-object-map)
