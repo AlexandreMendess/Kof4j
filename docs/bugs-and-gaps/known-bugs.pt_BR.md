@@ -17251,3 +17251,22 @@ strings.padLeft("7", 3, 'x')      todos = xx7 ✓ (pads ASCII sempre estiveram c
 
 **Prova RED-first:** com o fix revertido falham EXACTAMENTE as tres faces nativas (`nativeX86`/`riscv64`/`aarch64`) e JVM/Script/JS passam; `StringsPadUnicodeE2ETest` 6/6 depois (o mesmo golden nos seis alvos, incluindo o pad de 3 bytes `€`).
 <!-- pt-switch --> **EN:** [§747 (en)](known-bugs.md#747--stringspadleftpadright-corrupted-the-value-for-a-non-ascii-pad-and-mis-counted-a-multi-byte-victim-on-all-three-native-targets)
+
+## §748 — math.abs(Int.MIN_VALUE) divergia no JS e nos nativos CROSS (sem estouro de 32 bits; JVM e x86 voltam a MIN_VALUE)
+
+**Status:** ✅ CORRIGIDO 16/10 — o helper JS coerciona para Int32 e o riscv re-estende o sinal do resultado de 32 bits.
+
+**CATALOGADO + CORRIGIDO 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem do namespace `math.` (37 funcoes). O `Math.abs(int)` do JVM ESTOURA no `Int.MIN_VALUE` e devolve o proprio `MIN_VALUE` — facto documentado do Java, seguido pelo interpretador Script e pelo NATIVO x86 (`negl`, 32 bits). Duas faces NAO faziam o wrap:
+
+```
+math.abs(minInt())   JVM/Script/x86 = -2147483648 ✓   JS = 2147483648 ✗   riscv64/aarch64 = 2147483648 ✗
+```
+
+**Causas raiz (lidas, nao adivinhadas):** o helper JS era `v < 0 ? -v : v` (`JsRuntimeUiStdlib`), e negar `-2147483648` no JavaScript da `2147483648` (um numero comum, sem wrap de Int32); o helper riscv (`NativeRiscvAsmRtB5`) fazia `neg a0, a0` — em RV64 a negacao de 64 bits de `-2^31` e `+2^31`, logo o valor tambem nao envolvia.
+
+**Correcao (uma linha em cada, ADITIVA):** o JS usa agora `Math.abs(v) | 0` — a mesma coercao Int32 de toda a superficie Int, que envolve `2^31` de volta a `-2^31` e deixa os outros Int intactos; o riscv nega e re-estende o sinal dos 32 bits baixos (`slli 32` + `srai 32` — escolhido porque o tradutor aarch64 ja trata `neg`/`slli`/`srai`, ao contrario de `negw`). Medido depois: os seis alvos imprimem `-2147483648`, e `abs(-5)`/`abs(7)`/`sign`/`isNegative` ficam iguais.
+
+**Prova RED-first:** com o helper JS revertido SO `jsAbsOverflowMatchesTheJvm` falha; a face cross foi apanhada pelo proprio teste de seis faces (a minha sonda anterior so construia o nativo x86, onde o `negl` ja estava certo — a licao e que uma sonda de um alvo pode esconder uma face cross). `MathAbsIntOverflowE2ETest` 6/6 depois. O valor e derivado em RUNTIME (uma funcao pequena) para o constant folding nao o mascarar.
+
+**Relacionado (medido, NAO e bug):** o resto da superficie math sondada concorda entre JVM/Script/x86/JS — `roundTo` half-away-from-zero, o artefacto de binario `roundTo(1.005,2)` = 1.0, `sqrt(-1)` = NaN, `pow`/`percentage`/`lerp`/`toDegrees(pi)` — e `math.toDegrees`/`toRadians` sao recusados nos nativos com um `MATH001` HONESTO.
+<!-- pt-switch --> **EN:** [§748 (en)](known-bugs.md#748--mathabsintmin_value-diverged-on-js-and-on-the-cross-natives-no-32-bit-overflow-the-jvm-and-x86-wrap-back-to-min_value)

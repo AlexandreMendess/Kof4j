@@ -11,7 +11,10 @@ final class JsRuntimeUiStdlib {
 
     static  String STDLIB_RUNTIME = """
             // ── kof.math (STDLIB S1) — Int-only, paridade JVM/Native ─────
-            export function kofMathAbs(v) { return v < 0 ? -v : v; }
+            // §748: o `Math.abs` do JVM e de 32 BITS — abs(Int.MIN_VALUE)
+            // ESTOURA e devolve MIN_VALUE (-2147483648); o `-v` cru dava
+            // 2147483648 no JS. O `| 0` aplica a mesma coercao Int32.
+            export function kofMathAbs(v) { return Math.abs(v) | 0; }
             export function kofMathSign(v) { return v > 0 ? 1 : (v < 0 ? -1 : 0); }
             export function kofMathClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
             export function kofMathMin(a, b) { return a <= b ? a : b; }
