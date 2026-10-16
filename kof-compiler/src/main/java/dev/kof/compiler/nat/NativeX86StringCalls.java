@@ -296,17 +296,17 @@ public final class NativeX86StringCalls {
                 sb.append("    movl 16(%rsi), %ecx\n");
                 sb.append("    testl %ecx, %ecx\n");
                 sb.append("    jz " + empty + "\n");
-                sb.append("    movzbl 24(%rsi), %esi\n");
-                sb.append("    jmp " + call + "\n");
+                // §740: separador NAO-vazio → helper de SUBSTRING (o antigo
+                // passava so o 1o byte e dividia errado "XX"); rsi = o
+                // PONTEIRO do separador, edx = o limit.
+                sb.append("    popq %rdi\n");
+                sb.append("    call kof_string_split_str\n");
+                sb.append("    pushq %rax\n");
+                sb.append("    jmp " + done + "\n");
                 sb.append(empty + ":\n");
                 sb.append("    popq %rdi\n");
                 sb.append("    movl %edx, %esi\n");
                 sb.append("    call kof_string_split_chars\n");
-                sb.append("    pushq %rax\n");
-                sb.append("    jmp " + done + "\n");
-                sb.append(call + ":\n");
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_string_split_limit\n");
                 sb.append("    pushq %rax\n");
                 sb.append(done + ":\n");
                 return true;
@@ -315,17 +315,15 @@ public final class NativeX86StringCalls {
             sb.append("    movl 16(%rsi), %ecx\n");
             sb.append("    testl %ecx, %ecx\n");
             sb.append("    jz " + empty + "\n");
-            sb.append("    movzbl 24(%rsi), %esi\n");
-            sb.append("    jmp " + call + "\n");
+            sb.append("    xorl %edx, %edx\n");          // §740: limit 0 = ilimitado
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_split_str\n");
+            sb.append("    pushq %rax\n");
+            sb.append("    jmp " + done + "\n");
             sb.append(empty + ":\n");
             sb.append("    popq %rdi\n");
             sb.append("    xorl %esi, %esi\n");
             sb.append("    call kof_string_split_chars\n");
-            sb.append("    pushq %rax\n");
-            sb.append("    jmp " + done + "\n");
-            sb.append(call + ":\n");
-            sb.append("    popq %rdi\n");
-            sb.append("    call kof_string_split\n");
             sb.append("    pushq %rax\n");
             sb.append(done + ":\n");
             return true;

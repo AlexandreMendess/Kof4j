@@ -777,4 +777,149 @@ public final class RuntimeStringEdit {
                 popq %rbx
                 ret
             """);
-    }}
+    }    /**
+     * §740: {@code String.split} com separador de MAIS de um caractere. Os
+     * emissores nativos passavam só o PRIMEIRO BYTE do separador aos helpers de
+     * {@code sep_char} único, então {@code "aXXb".split("XX")} dividia no
+     * {@code 'X'} (3 fatias em vez de 2). Este helper é ADITIVO e COMPÕE o
+     * {@code kof_string_index_of2} (busca de substring em code units) com o
+     * {@code kof_string_substring} (fatia em code units): conta os casamentos
+     * NÃO-sobrepostos avançando pelo comprimento do separador em code units,
+     * materializa as fatias e mantém a poda §111 dos vazios à direita quando
+     * {@code limit <= 0} (com {@code limit > 0} a última fatia é o RESTO, sem
+     * poda — o contrato do §655).
+     */
+    public static void emitStringSplitStr(StringBuilder sb) {
+        sb.append("""
+            .globl kof_string_split_str
+            .type kof_string_split_str, @function
+            kof_string_split_str:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                pushq %rbp
+                pushq %r8
+                pushq %r9
+                pushq %r10
+                pushq %r11
+                movq %rdi, %rbx
+                movq %rsi, %r12
+                movl %edx, %r13d
+                xorl %r14d, %r14d
+                movl 16(%r12), %r10d
+                xorl %ecx, %ecx
+            .Lsstr_u_loop:
+                cmpl %r10d, %ecx
+                jge .Lsstr_u_done
+                movzbl 24(%r12,%rcx), %eax
+                movl %eax, %edx
+                andl $0xC0, %edx
+                cmpl $0x80, %edx
+                je .Lsstr_u_next
+                movl %eax, %edx
+                andl $0xF8, %edx
+                cmpl $0xF0, %edx
+                jne .Lsstr_u_one
+                addl $2, %r14d
+                jmp .Lsstr_u_next
+            .Lsstr_u_one:
+                incl %r14d
+            .Lsstr_u_next:
+                incq %rcx
+                jmp .Lsstr_u_loop
+            .Lsstr_u_done:
+                movl $1, %r15d
+                xorl %ebp, %ebp
+            .Lsstr_c_loop:
+                testl %r13d, %r13d
+                jle .Lsstr_c_search
+                cmpl %r13d, %r15d
+                jge .Lsstr_c_done
+            .Lsstr_c_search:
+                movq %rbx, %rdi
+                movq %r12, %rsi
+                movl %ebp, %edx
+                call kof_string_index_of2
+                cmpl $-1, %eax
+                je .Lsstr_c_done
+                incl %r15d
+                movl %eax, %ebp
+                addl %r14d, %ebp
+                jmp .Lsstr_c_loop
+            .Lsstr_c_done:
+                movq %r15, 24(%rsp)
+                movl %r15d, %edi
+                movq $8, %rsi
+                call kof_array_alloc
+                movq %rax, 0(%rsp)
+                xorl %ebp, %ebp
+                movq $0, 8(%rsp)
+            .Lsstr_m_loop:
+                movq 8(%rsp), %rax
+                movq 24(%rsp), %rcx
+                decq %rcx
+                cmpq %rcx, %rax
+                jge .Lsstr_m_last
+                movq %rbx, %rdi
+                movq %r12, %rsi
+                movl %ebp, %edx
+                call kof_string_index_of2
+                movl %eax, 16(%rsp)
+                movq %rbx, %rdi
+                movl %ebp, %esi
+                movl %eax, %edx
+                call kof_string_substring
+                movq 0(%rsp), %r10
+                movq 8(%rsp), %rcx
+                movq %rax, 24(%r10,%rcx,8)
+                movl 16(%rsp), %ebp
+                addl %r14d, %ebp
+                incq 8(%rsp)
+                jmp .Lsstr_m_loop
+            .Lsstr_m_last:
+                movq %rbx, %rdi
+                movl %ebp, %esi
+                movl $-1, %edx
+                call kof_string_substring
+                movq 0(%rsp), %r10
+                movq 8(%rsp), %rcx
+                movq %rax, 24(%r10,%rcx,8)
+                movq 0(%rsp), %r10
+                movq 24(%rsp), %rcx
+                movl %ecx, 16(%r10)
+                testl %r13d, %r13d
+                jg .Lsstr_ret
+                movl 16(%rbx), %eax
+                testl %eax, %eax
+                jz .Lsstr_ret
+                movl %ecx, %edx
+            .Lsstr_trim:
+                decl %edx
+                js .Lsstr_zero
+                movslq %edx, %rax
+                movq 24(%r10,%rax,8), %rsi
+                cmpl $0, 16(%rsi)
+                je .Lsstr_trim
+                incl %edx
+                movl %edx, 16(%r10)
+                jmp .Lsstr_ret
+            .Lsstr_zero:
+                movl $0, 16(%r10)
+            .Lsstr_ret:
+                movq %r10, %rax
+                popq %r11
+                popq %r10
+                popq %r9
+                popq %r8
+                popq %rbp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            """);
+    }
+}
