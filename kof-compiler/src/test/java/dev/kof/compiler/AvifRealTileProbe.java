@@ -231,6 +231,17 @@ main() {
         pbl = pbl + 1
     }
     println("PREDBLK " + pline)
+    // Per-block STAGE reader positions: body end > palette-token end > tx-size end
+    // > residual end. It shows which stage of a block eats the bits.
+    var sg = tile.stages()
+    var po2 = tile.positions()
+    var si = 0
+    var sline2 = ""
+    while (si < sg.size / 2 && si < 4) {
+        sline2 = sline2 + " b" + si + ":" + sg[si * 2] + ">" + sg[si * 2 + 1] + ">" + po2[si * 2] + ">" + po2[si * 2 + 1]
+        si = si + 1
+    }
+    println("STAGES" + sline2)
     // Experiment: reproduce block 1's BOTTOM transform block (8x8 at pixel
     // origin (8,8)) by calling the predictor DIRECTLY with explicit arguments,
     // for all four (aboveRight, belowLeft) combinations — so a wrong

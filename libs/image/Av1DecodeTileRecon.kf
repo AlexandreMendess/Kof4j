@@ -125,6 +125,13 @@ class Av1TileDecode {
     // and the reconstructed sample there after the residual. It pairs a
     // prediction with its own block without touching the reconstruction path.
     List<Int> predLog
+    // Per-block STAGE reader positions (diagnostic, read via `stages()`):
+    // two ints per block — the position after the mode-info BODY (Y/UV mode,
+    // angles, CFL, palette MODE info, filter-intra) and after the palette
+    // TOKENS, i.e. immediately before the transform size. Paired with
+    // `positions()` (after the transform size, and after the residuals) it
+    // shows which stage of one block eats the bits.
+    List<Int> stagesOut
     Int[] colorIndexY
     Int[] colorIndexUv
     Av1ChromaPlanes chroma
@@ -210,6 +217,7 @@ class Av1TileDecode {
         // the position after the mode info and after the block's residuals.
         this.posOut = listOf()
         this.predLog = listOf()
+        this.stagesOut = listOf()
         // The palette COLOUR-INDEX maps the `palette_tokens()` stage fills
         // (per pixel, per plane); the reconstruction reads them.
         this.colorIndexY = new Int[this.frameW * this.frameH]
@@ -314,6 +322,7 @@ class Av1TileDecode {
         var angleY = body[1]
         var useFilterIntra = body[6]
         var filterIntraMode = body[7]
+        this.stagesOut.add(this.reader.position())
 
         // 1d. `palette_tokens()`, BETWEEN the mode info and the transform size:
         // av1/decoder/decodeframe.c `parse_decode_block` runs `decode_mbmi_block(..)`
@@ -352,6 +361,8 @@ class Av1TileDecode {
                 pru = pru + 1
             }
         }
+
+        this.stagesOut.add(this.reader.position())
 
         // 2. Transform size + the transform-context broadcast.
         var txSz = txSize.readTxSize(r, c, bs, skip, txMode, 0, lossless)
@@ -528,6 +539,12 @@ class Av1TileDecode {
     // The per-block reader positions (diagnostic), two ints per block.
     List<Int> positions() {
         return this.posOut
+    }
+
+    // The per-block STAGE reader positions (diagnostic), 2 ints per block: after
+    // the mode-info body and after the palette tokens (before the tx size).
+    List<Int> stages() {
+        return this.stagesOut
     }
 
     // The per-TX-block prediction/reconstruction record (diagnostic), 7 ints per
