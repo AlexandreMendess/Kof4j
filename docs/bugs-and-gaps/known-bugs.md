@@ -5430,6 +5430,7 @@ to the label) is the correct predicate and **was already used** in `parseStateme
   only ASCII on purpose (`conformance-matrix.md` §"S2b ASCII"/NAT-STR01).
   **`reverse` left this list 27/09** (D-FULL-PARITY-050 row 11): it is now
   UTF-8 code-point correct on the three native targets.
+  **`padLeft`/`padRight` left this list 16/10 (`§747`):** measured non-ASCII corruption fixed on all three natives — the victim is now counted in CODE POINTS and the pad char's full UTF-8 bytes are written (the ASCII outputs are byte-identical); the pad pair is UTF-8 correct on x86/riscv64/aarch64, `StringsPadUnicodeE2ETest` 6/6.
   **MEASURED 16/10 (lane compiler/JVM/native `192.168.15.30:9092`): the boundary is WORSE than "ASCII-first" for the PAD PAIR — a non-ASCII pad char emits ONE BYTE per slot, so the result is a MALFORMED Kof String (invalid UTF-8), not merely an ASCII approximation.** `strings.padLeft("7", 3, 'é')` gives `éé7` on JVM/Script/JS and a lone-0xE9-per-slot `??7` on all THREE natives; `strings.padRight("7", 3, 'é')` → `7??`; a 3-byte pad (`'€'`) likewise; an ASCII pad (`'x'`) is CORRECT everywhere (measured). The helpers read `pad[0]` and set the result length to `n` BYTES (`RuntimeStringsConv` x86 `kof_strings_padLeft/padRight`, riscv `NativeRiscvAsmRtB9`). **The fix lives on the ALREADY-AUTHORIZED `D-FULL-PARITY-050` row-11 front** (the same one that closed `reverse` 27/09): repeat the pad STRING and truncate to `n` CHARACTERS (code points native-side), instead of one byte per slot — no new decision needed.
 - **Record status (13/09):** `docs/development/README.md:91` already listed
   NAT-STR01 as "`known-bugs.md`/conformance-matrix", but the section **did not
@@ -19743,3 +19744,23 @@ Plain(listOf("a","b"), mapOf("k",1))    JVM/Script/native = Plain[ss=[a, b], mm=
 
 **Related (measured, NOT a bug):** the native JSON encoder refuses nested-record/List fields on all native targets with an HONEST `JSN002` diagnostic ("class Outer has field of type Inner not supported by the Native JSON encoder yet … nested objects coming soon") — no silent fallback, so it is a documented limitation, not a divergence.
 <!-- pt-switch --> **PT:** [§746 (pt_BR)](known-bugs.pt_BR.md#746--o-tostring-de-record-no-js-renderizava-um-campo-de-colecao-com-a-coercao-do-javascript-list-como-ab-e-map-como-object-map)
+
+## §747 — strings.padLeft/padRight CORRUPTED the value for a non-ASCII pad (and mis-counted a multi-byte victim) on all three native targets
+
+**Status:** ✅ FIXED 16/10 — both native helpers now measure the victim in code points and write the pad char's full UTF-8 bytes.
+
+**CATALOGUED + FIXED 16/10 — lane compiler/JVM/native `192.168.15.30:9092` (the `D-FULL-PARITY-050` row-11 NAT-STR01 front — the same one that closed `reverse` on 27/09).** Found by the probe of the `strings.` namespace (24 functions). The pad pair was worse than the family's documented "ASCII-first in Native" boundary — it did not approximate, it CORRUPTED (rule 5, a MALFORMED Kof String, invalid UTF-8):
+
+```
+strings.padLeft("7", 3, 'é')      JVM/Script/JS = éé7      NATIVE = ??7 (a lone 0xE9 per slot) ✗
+strings.padLeft("7", 3, '€')      JVM/Script/JS = €€7      NATIVE = ??7 ✗
+strings.padRight("café", 6, '-')  JVM/Script/JS = café--   NATIVE = café- ✗ (the pad COUNT used the victim's BYTES)
+strings.padLeft("7", 3, 'x')      all = xx7 ✓ (ASCII pads were always right)
+```
+
+**The measured contract** (JVM ≡ Script ≡ JS): pad with the pad's FIRST CHARACTER repeated until the result reaches `n` CHARACTERS — a multi-char pad string contributes only its first char (`padLeft("7",5,"ab")` = `aaaa7`, NOT Java's `abab7`), `n <= len(s)` or an empty pad returns the string unchanged. So the native's structure was right; only the byte/char accounting was wrong.
+
+**Fix (ADDITIVE — the ASCII outputs are byte-identical):** both helpers (`RuntimeStringsEdit`… namely `RuntimeStringsConv` x86 `kof_strings_padLeft/padRight` and riscv `NativeRiscvAsmRtB9`, aarch64 inheriting through the translator) now (a) count the victim in CODE POINTS, (b) take the pad char's 1-4 UTF-8 bytes from its lead byte, (c) set the result's BYTE length to `vBytes + pads*padBytes` and fill byte-wise. That second face means a multi-byte VICTIM now also gets the right number of pads.
+
+**Proof RED-first:** with the fix reverted EXACTLY the three native faces fail (`nativeX86`/`riscv64`/`aarch64`) while JVM/Script/JS pass; `StringsPadUnicodeE2ETest` 6/6 afterwards (the same golden on all six targets, including the `€` 3-byte pad).
+<!-- pt-switch --> **PT:** [§747 (pt_BR)](known-bugs.pt_BR.md#747--stringspadleftpadright-corrompiam-o-valor-com-pad-nao-ascii-e-contavam-mal-a-vitima-multi-byte-nos-tres-alvos-nativos)

@@ -5428,6 +5428,7 @@ para o label) é o predicado correto e **já era usado** no `parseStatements`.
   Native; casos não-ASCII ficam em KofStringsTest (JVM+JS)"). A matriz trava
   só ASCII de propósito (`conformance-matrix.md` §"S2b ASCII"/NAT-STR01).
   **`reverse` deixou esta lista em 27/09** (D-FULL-PARITY-050 linha 11): agora
+  **`padLeft`/`padRight` sairam desta lista em 16/10 (`§747`):** a corrupcao com pad nao-ASCII foi corrigida nos tres nativos — a vitima agora e contada em CODE POINTS e os bytes UTF-8 do char de pad sao escritos por inteiro (as saidas ASCII ficam byte-identicas); `StringsPadUnicodeE2ETest` 6/6.
   **MEDIDO 16/10 (lane compilador/JVM/nativo `192.168.15.30:9092`): a fronteira e PIOR que "ASCII-first" para o PAR do pad — um char de pad nao-ASCII emite UM BYTE por slot, entao o resultado e uma String Kof MALFORMADA (UTF-8 invalido), nao apenas uma aproximacao ASCII.** `padLeft("7", 3, 'é')` da `éé7` no JVM/Script/JS e `??7` (um 0xE9 solto por slot) nos TRES nativos; `padRight("7", 3, 'é')` → `7??`; pad de 3 bytes (`'€'`) igual; pad ASCII (`'x'`) correto em todos (medido). Os helpers leem `pad[0]` e fixam o comprimento a `n` BYTES (`RuntimeStringsConv` x86, `NativeRiscvAsmRtB9` riscv). **O fix vive na frente JA AUTORIZADA `D-FULL-PARITY-050` linha 11** (a que fechou o `reverse`): repetir a STRING do pad e truncar a `n` CARACTERES (code points no nativo) — sem decisao nova.
   está correto por code point UTF-8 nos três targets nativos.
 - **Estado do registro (13/09):** o `docs/development/README.md:91` já listava
@@ -17230,3 +17231,23 @@ Plain(listOf("a","b"), mapOf("k",1))    JVM/Script/nativo = Plain[ss=[a, b], mm=
 
 **Relacionado (medido, NAO e bug):** o encoder JSON nativo recusa campos de record aninhado/List nos alvos nativos com um diagnostico `JSN002` HONESTO ("class Outer has field of type Inner not supported by the Native JSON encoder yet …") — sem fallback silencioso, logo e limitacao documentada, nao divergencia.
 <!-- pt-switch --> **EN:** [§746 (en)](known-bugs.md#746--the-js-record-tostring-rendered-a-collection-field-with-javascript-coercion-a-list-as-ab-and-a-map-as-object-map)
+
+## §747 — strings.padLeft/padRight CORROMPIAM o valor com pad nao-ASCII (e contavam mal a vitima multi-byte) nos tres alvos nativos
+
+**Status:** ✅ CORRIGIDO 16/10 — os dois helpers nativos medem agora a vitima em code points e escrevem os bytes UTF-8 completos do char de pad.
+
+**CATALOGADO + CORRIGIDO 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092` (a frente NAT-STR01 da linha 11 de `D-FULL-PARITY-050` — a mesma que fechou o `reverse` em 27/09).** Achado na sondagem do namespace `strings.` (24 funcoes). O par do pad era pior que a fronteira documentada "ASCII-first in Native" — nao aproximava, CORROMPIA (regra 5, uma String Kof MALFORMADA, UTF-8 invalido):
+
+```
+strings.padLeft("7", 3, 'é')      JVM/Script/JS = éé7      NATIVO = ??7 (um 0xE9 solto por slot) ✗
+strings.padLeft("7", 3, '€')      JVM/Script/JS = €€7      NATIVO = ??7 ✗
+strings.padRight("café", 6, '-')  JVM/Script/JS = café--   NATIVO = café- ✗ (a CONTAGEM usou os BYTES da vitima)
+strings.padLeft("7", 3, 'x')      todos = xx7 ✓ (pads ASCII sempre estiveram certos)
+```
+
+**O contrato medido** (JVM ≡ Script ≡ JS): pad com o PRIMEIRO CARACTERE do pad repetido ate o resultado chegar a `n` CARACTERES — um pad de varios chars contribui so com o primeiro (`padLeft("7",5,"ab")` = `aaaa7`, NAO o `abab7` do Java), `n <= len(s)` ou pad vazio devolvem a string intacta. A estrutura nativa estava certa; so a contabilidade byte/char estava errada.
+
+**Correcao (ADITIVA — as saidas ASCII ficam byte-identicas):** os dois helpers (`RuntimeStringsConv` x86 e `NativeRiscvAsmRtB9` riscv, o aarch64 herdando pelo tradutor) agora (a) contam a vitima em CODE POINTS, (b) pegam os 1-4 bytes UTF-8 do char de pad pelo lead byte, (c) fixam o comprimento em BYTES a `vBytes + pads*padBytes` e preenchem byte a byte. A segunda face significa que uma VITIMA multi-byte agora tambem recebe o numero certo de pads.
+
+**Prova RED-first:** com o fix revertido falham EXACTAMENTE as tres faces nativas (`nativeX86`/`riscv64`/`aarch64`) e JVM/Script/JS passam; `StringsPadUnicodeE2ETest` 6/6 depois (o mesmo golden nos seis alvos, incluindo o pad de 3 bytes `€`).
+<!-- pt-switch --> **EN:** [§747 (en)](known-bugs.md#747--stringspadleftpadright-corrupted-the-value-for-a-non-ascii-pad-and-mis-counted-a-multi-byte-victim-on-all-three-native-targets)
