@@ -5446,6 +5446,73 @@ class DecompileTest {
                 "zero-drift: averageTemp/alert/hotDays/willRain id\u00eanticos ao Java");
     }
 
+    @Test
+    void lockDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio COFE — 4 shapes sem c\u00f3digo novo: o
+        // tryOpen com o gate do boolean + as TR\u00caS sa\u00eddas, o code com a
+        // combinação posicional (`a * 100 + b * 10 + c`), o matches com o
+        // WHILE de DOIS decrementos paralelos (os d\u00edgitos por div/10 +
+        // o early-false no %10) e o attemptsLeft com a subtração direta.
+        // Zero-drift executado: open/locked/waiting/472/true/false/false/4
+        // — 8/8 id\u00eanticos ao Java — a 31\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Lock.java");
+        Files.writeString(javaFile, """
+                public class Lock {
+                    static String tryOpen(int attempts, int max, boolean keyFound) {
+                        if (keyFound) { return "open"; }
+                        if (attempts >= max) { return "locked"; }
+                        return "waiting";
+                    }
+                    static int code(int a, int b, int c) {
+                        return a * 100 + b * 10 + c;
+                    }
+                    static boolean matches(int guess, int secret) {
+                        int digits = 0;
+                        int g = guess;
+                        int s = secret;
+                        while (g > 0 && s > 0) {
+                            if (g % 10 != s % 10) { return false; }
+                            g = g / 10;
+                            s = s / 10;
+                            digits++;
+                        }
+                        return digits == 3;
+                    }
+                    static int attemptsLeft(int used, int max) {
+                        return max - used;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Lock.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Lock.tryOpen(2, 3, true))
+                    println(Lock.tryOpen(3, 3, false))
+                    println(Lock.tryOpen(1, 3, false))
+                    println(Lock.code(4, 7, 2))
+                    println(Lock.matches(123, 123))
+                    println(Lock.matches(125, 123))
+                    println(Lock.matches(12, 123))
+                    println(Lock.attemptsLeft(1, 5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: open | locked | waiting | 472 | true | false | false | 4
+        assertEquals("open\nlocked\nwaiting\n472\ntrue\nfalse\nfalse\n4", output,
+                "zero-drift: tryOpen/code/matches/attemptsLeft id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
