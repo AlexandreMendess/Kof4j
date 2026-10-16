@@ -34,6 +34,8 @@ kof test Suite.kf --target js         # js
 kof test --module-root src test/Suite.kf       # roda UM arquivo so, com os
                                                # pacotes resolvidos pelo modulo
 kof test --module-root src test/               # a pasta de testes inteira
+kof test --module-root src --tests-only src    # so testes: o `main` do modulo
+                                               # NAO roda como teste (SKIP nomeado)
 ```
 
 Saída:

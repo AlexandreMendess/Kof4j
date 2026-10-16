@@ -68,6 +68,46 @@ class CmdTestModuleRootTest {
         assertTrue(c.out().contains("PASS"), "o teste deve passar (nao PKG004):\n" + c.out());
     }
 
+    /** #856(a): um modulo com `main` (programa) + testes — `--tests-only` NAO roda o programa. */
+    private static void writeProgramAndTest(Path dir) throws Exception {
+        Files.createDirectories(dir.resolve("src/area"));
+        Files.createDirectories(dir.resolve("src/testes"));
+        Files.writeString(dir.resolve("src/area/Calc.kf"), """
+                package area
+                Int dobro(Int n) { return n * 2 }
+                """);
+        Files.writeString(dir.resolve("src/Main.kf"), """
+                main() { println("PROGRAMA RODOU") }
+                """);
+        Files.writeString(dir.resolve("src/testes/CalcTest.kf"), """
+                package testes
+                import area.Calc
+                test "dobro" {
+                    assert(dobro(21) == 42)
+                }
+                """);
+    }
+
+    @Test
+    void testsOnlyDoesNotRunTheModuleProgram(@TempDir Path dir) throws Exception {
+        writeProgramAndTest(dir);
+        Cli c = cli(dir, "test", "--module-root", "src", "--tests-only", "src");
+        assertEquals(0, c.exit(), "--tests-only nao pode falhar (0 passed, 0 failed nao e verde):\n" + c.out());
+        assertTrue(c.out().contains("PASS"), "os testes do modulo rodam:\n" + c.out());
+        assertFalse(c.out().contains("PROGRAMA RODOU"),
+                "--tests-only NAO pode executar o `main` do modulo:\n" + c.out());
+        assertTrue(c.out().contains("--tests-only"), "o SKIP nomeado aparece para o programa:\n" + c.out());
+    }
+
+    @Test
+    void withoutTestsOnlyTheModuleProgramStillRuns(@TempDir Path dir) throws Exception {
+        writeProgramAndTest(dir);
+        Cli c = cli(dir, "test", "--module-root", "src", "src");
+        assertEquals(0, c.exit(), "o caminho historico segue rodando:\n" + c.out());
+        assertTrue(c.out().contains("PROGRAMA RODOU"),
+                "sem a flag o `main` do modulo CONTINUA sendo executado (comportamento preservado):\n" + c.out());
+    }
+
     @Test
     void withoutTheFlagTheSingleFileKeepsTheOldBehaviour(@TempDir Path dir) throws Exception {
         writeModuleFixture(dir);

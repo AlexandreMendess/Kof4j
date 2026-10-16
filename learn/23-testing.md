@@ -34,6 +34,9 @@ kof test Suite.kf --target js         # js
 kof test --module-root src tests/Suite.kf      # run ONE file, packages
                                                # resolve against the module
 kof test --module-root src tests/              # the whole tests dir
+kof test --module-root src --tests-only src    # tests only: the module's
+                                               # `main` is NOT run as a
+                                               # program test (SKIP, named)
 ```
 
 Output:

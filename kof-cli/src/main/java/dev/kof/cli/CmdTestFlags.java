@@ -17,11 +17,13 @@ import java.nio.file.Path;
 final class CmdTestFlags {
 
     static final String USAGE =
-            "usage: kof test <file.kf|dir> [--module-root <dir>] [--target jvm|native|js]"
+            "usage: kof test <file.kf|dir> [--module-root <dir>] [--tests-only]"
+            + " [--target jvm|native|js]"
             + " [--timeout <sec>] [--tag <tag>[,<tag>...]]";
 
     /** O que as flags pediram. {@code positional} = o alvo passado depois delas. */
-    record Parsed(Target target, long timeoutSec, String tag, Path moduleRoot, Path positional) {}
+    record Parsed(Target target, long timeoutSec, String tag, Path moduleRoot, Path positional,
+                  boolean testsOnly) {}
 
     private CmdTestFlags() {}
 
@@ -30,6 +32,7 @@ final class CmdTestFlags {
         long timeoutSec = 0;   // 0 = sem limite (comportamento historico, aditivo)
         Path moduleRoot = null;
         Path positional = null;
+        boolean testsOnly = false;   // #856(a): nao roda o `main` como programa de teste
         String tag = null;
         boolean positionalTarget = false;
     for (int i = argStart; i < args.length; i++) {
@@ -47,6 +50,8 @@ final class CmdTestFlags {
             if (t == null) { badTimeout(); return null; }
             timeoutSec = t;
             i++;
+        } else if (args[i].equals("--tests-only")) {
+            testsOnly = true;
         } else if (args[i].startsWith("--module-root=")) {
             moduleRoot = Path.of(args[i].substring("--module-root=".length()));
         } else if (args[i].equals("--module-root") && i + 1 < args.length) {
@@ -80,19 +85,19 @@ final class CmdTestFlags {
             // R6: an unknown flag (or --target/--timeout without its value) must
             // never be silently ignored — the user/CI would believe it took effect.
             System.err.println("test: unknown or incomplete flag: " + args[i]
-                    + " (accepts: --module-root <dir>, --target jvm|native|js,"
+                    + " (accepts: --module-root <dir>, --tests-only, --target jvm|native|js,"
                     + " --timeout <sec>, --tag <tag>[,<tag>...])");
             System.exit(1);
             return null;
         } else {
             System.err.println("test: unexpected argument: " + args[i]
-                    + " (accepts: --module-root <dir>, --target jvm|native|js,"
+                    + " (accepts: --module-root <dir>, --tests-only, --target jvm|native|js,"
                     + " --timeout <sec>, --tag <tag>[,<tag>...])");
             System.exit(1);
             return null;
         }
     }
-        return new Parsed(target, timeoutSec, tag, moduleRoot, positional);
+        return new Parsed(target, timeoutSec, tag, moduleRoot, positional, testsOnly);
     }
 
     private static void badTag() {

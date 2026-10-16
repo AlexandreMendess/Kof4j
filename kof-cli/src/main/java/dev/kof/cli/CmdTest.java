@@ -61,6 +61,7 @@ final class CmdTest {
         long timeoutSec = fl.timeoutSec();
         String tag = fl.tag();
         Path moduleRoot = fl.moduleRoot();
+        boolean testsOnly = fl.testsOnly();   // #856(a)
         if (fl.positional() != null) src = fl.positional();
         if (src == null) {
             System.err.println("test: no test root given and no [sources] test"
@@ -199,6 +200,17 @@ final class CmdTest {
             // executável, o runner falha — zero não é sucesso (#708).
             boolean hasTests = !driver.discoveredTests().isEmpty();
             boolean hasMain = driver.hasMainEntryPoint();
+            if (ok && testsOnly && !hasTests) {
+                // #856(a): com --tests-only o `main` do modulo NAO roda como
+                // programa de teste — o arquivo so-programa vira SKIP nomeado.
+                System.out.println("SKIP " + f + " (--tests-only: program main not executed)");
+                skipped++;
+                KofCliSupport.cleanup(tmp);
+                long el = (System.nanoTime() - startNanos) / 1_000_000;
+                totalMs += el;
+                if (el > slowestMs) { slowestMs = el; slowestFile = f; }
+                continue;
+            }
             if (ok && !hasTests && !hasMain) {
                 System.out.println("SKIP " + f + " (no tests, no main)");
                 skipped++;
