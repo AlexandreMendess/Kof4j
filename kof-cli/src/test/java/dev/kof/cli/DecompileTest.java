@@ -4035,6 +4035,72 @@ class DecompileTest {
                 "zero-drift: max/sign/absDiff/sameParity id\u00eanticos ao Java");
     }
 
+    @Test
+    void fleetDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (15/10): o domínio FROTA — 4 shapes sem código novo: o
+        // somatório simples (totalKm), a busca do MÍNIMO por listas
+        // PARALELAS com o get(i) no índice (cheapest — o arg-min em DUAS
+        // listas), o check com a negação do intervalo (needsService: `since
+        // > 10000 || since < 0`) e o avg com o guard vazio + a call
+        // cross-método (avg — a 14\u00aa validação zero-código). Zero-drift
+        // executado: 67000/car2/false/true/22333.333333333332/0.0 — 6/6
+        // id\u00eanticos ao Java.
+        Path javaFile = dir.resolve("Fleet.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Fleet {
+                    static int totalKm(List<Integer> kms) {
+                        int t = 0;
+                        for (int k : kms) { t += k; }
+                        return t;
+                    }
+                    static String cheapest(List<String> names, List<Integer> prices) {
+                        int best = 0;
+                        for (int i = 1; i < prices.size(); i++) {
+                            if (prices.get(i) < prices.get(best)) { best = i; }
+                        }
+                        return names.get(best);
+                    }
+                    static boolean needsService(int km, int lastService) {
+                        int since = km - lastService;
+                        return since > 10000 || since < 0;
+                    }
+                    static double avg(List<Integer> kms) {
+                        if (kms.isEmpty()) { return 0.0; }
+                        return (double) totalKm(kms) / kms.size();
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Fleet.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var km = listOf(12000, 30000, 25000)
+                    var nm = listOf("car1", "car2", "car3")
+                    println(Fleet.totalKm(km))
+                    println(Fleet.cheapest(nm, listOf(50000, 30000, 40000)))
+                    println(Fleet.needsService(12000, 5000))
+                    println(Fleet.needsService(12000, 20000))
+                    println(Fleet.avg(km))
+                    println(Fleet.avg(listOf()))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 67000 | car2 | false | true | 22333.333333333332 | 0.0
+        assertEquals("67000\ncar2\nfalse\ntrue\n22333.333333333332\n0.0", output,
+                "zero-drift: totalKm/cheapest/needsService/avg id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
