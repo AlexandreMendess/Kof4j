@@ -19803,6 +19803,8 @@ println(Dir.valueOf("S")) JVM/JS/native = S   Script = Dir@6b832551 ✗
 <!-- pt-switch --> **PT:** [§749 (pt_BR)](known-bugs.pt_BR.md#749--o-interpretador-script-vazava-enumhash-onde-todos-os-outros-alvos-imprimem-o-nome-da-constante)
 
 ## §750 — Enum.valueOf(String) SEGFAULTS on the riscv64/aarch64 natives (x86 gives the right constant)
+**MEASURED MECHANISM 16/10 (lane compiler/JVM/native `192.168.15.30:9092`) — the dead end is as useful as the hit.** Bisected shape by shape on riscv64 under qemu: `Dir.N`, `Dir.N.name()`, `Dir.values().size` and a `Map` keyed by enum constants are all CORRECT; ONLY `valueOf(String)` dies. Three hypotheses were measured and REFUTED, so the next attempt should not repeat them: (a) it is NOT a general construct — a HAND-WRITTEN equivalent (a `for (var d in Dir.values())` comparing `d.name() == n`, returning the match or `null`) WORKS on the cross; (b) it is NOT a bool-vs-int compare bug — source-level BOOL conditions (`if (s.contains(..))`, `while (bool && …)`, `if ("a" == "a")`) all work there; (c) the generated jump DID carry a wrong `operandType` (INT over the BOOL that `kof_string_equals` returns — the 3-arg `KofConditionalJump` constructor defaults to `INT`), and correcting it to `BOOL` is a REAL IR-type fix but did NOT stop the crash (measured, then REVERTED so the tree carries no unverified change). The trigger therefore lies elsewhere in the generated `valueOf` — the `KofGetStatic(constant)` + the early `KofReturn` + the label layout — and that is where a fix should start.
+
 
 **Status:** 🟡 OPEN — catalogued with the exact repro; NOT fixed.
 

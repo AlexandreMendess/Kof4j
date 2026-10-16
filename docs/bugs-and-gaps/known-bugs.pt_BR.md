@@ -17290,6 +17290,8 @@ println(Dir.valueOf("S")) JVM/JS/native = S   Script = Dir@6b832551 ✗
 <!-- pt-switch --> **EN:** [§749 (en)](known-bugs.md#749--the-script-interpreter-leaked-enumhash-where-every-other-target-prints-the-constant-name)
 
 ## §750 — Enum.valueOf(String) faz SEGFAULT nos nativos riscv64/aarch64 (o x86 devolve a constante certa)
+**MECANISMO MEDIDO 16/10 (lane compilador/JVM/nativo `192.168.15.30:9092`) — o beco sem saida e tao util como o acerto.** Bissecei forma a forma no riscv64 sob qemu: `Dir.N`, `Dir.N.name()`, `Dir.values().size` e um `Map` com chaves enum estao CERTOS; SO o `valueOf(String)` morre. Tres hipoteses foram medidas e REFUTADAS, para a proxima tentativa nao as repetir: (a) NAO e um construto geral — um equivalente ESCRITO A MAO (um `for (var d in Dir.values())` a comparar `d.name() == n`, devolvendo o match ou `null`) FUNCIONA no cross; (b) NAO e um bug de comparacao bool-vs-int — condicoes BOOL da fonte (`if (s.contains(..))`, etc.) funcionam la; (c) o salto gerado TINHA um `operandType` errado (INT sobre o BOOL do `kof_string_equals` — o construtor de 3 args de `KofConditionalJump` assume INT) e corrigi-lo para BOOL e um fix REAL de tipo do IR, mas NAO parou o crash (medido e REVERTIDO, para a arvore nao ficar com mudanca nao verificada). O gatilho esta portanto noutro sitio do `valueOf` gerado — o `KofGetStatic` da constante + o `KofReturn` cedo + o layout das labels.
+
 
 **Status:** 🟡 ABERTO — catalogued with the exact repro; NOT fixed.
 
