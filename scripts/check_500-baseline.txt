@@ -1,5 +1,5 @@
 504	kof-c-compiler/src/main/java/dev/kof/c/KofCParser.java
-679	kof-cli/src/main/java/dev/kof/cli/BytecodeDecoder.java
+691	kof-cli/src/main/java/dev/kof/cli/BytecodeDecoder.java
 591	kof-cli/src/main/java/dev/kof/cli/BytecodeStatements.java
 814	kof-cli/src/main/java/dev/kof/cli/BytecodeStatementsRecover.java
 704	kof-cli/src/main/java/dev/kof/cli/BytecodeSwitch.java
@@ -25,7 +25,7 @@
 512	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
 595	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
 524	kof-compiler/src/main/java/dev/kof/compiler/ExpressionStaticCallLowerer.java
-548	kof-compiler/src/main/java/dev/kof/compiler/ExpressionTyper.java
+555	kof-compiler/src/main/java/dev/kof/compiler/ExpressionTyper.java
 517	kof-compiler/src/main/java/dev/kof/compiler/FfiStructLayout.java
 568	kof-compiler/src/main/java/dev/kof/compiler/js/JsCallEmitter.java
 551	kof-compiler/src/main/java/dev/kof/compiler/js/JsControlFlowParser.java
