@@ -546,8 +546,8 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > de descompressão. ZIP64, entrada criptografada e método fora de {0, 8} são
 > recusados com diagnóstico explícito, nunca silêncio. **Segue aberto na #852:**
 > o streaming `open()`/`readChunk()` dirigido pelo chamador, o `extractTo` (que
-> precisa da primitiva de confinamento da #854), GZIP e TAR, e o fallback CP437
-> para nomes legados.
+> precisa da primitiva de confinamento da #854) e a ESCRITA de TAR.
+> **Os nomes já seguem a regra do formato:** quem decide é o bit 11 (UTF-8) — setado é UTF-8, limpo é CP437 (o caso legado, que antes saía com caracteres de substituição).
 
 > **GZIP entregue no mesmo dia (fatia 2 da #852):** o `libs/archive/Gzip.kf` lê
 > fluxos RFC 1952 pela MESMA composição — o payload deflate vai para o

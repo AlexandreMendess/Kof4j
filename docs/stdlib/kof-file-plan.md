@@ -362,8 +362,8 @@ Consider security against path traversal inside archives.
 > decompression-bomb defence. ZIP64, an encrypted entry and any method outside
 > {0, 8} are refused with an explicit diagnostic, never silence. **Still open in
 > #852:** `open()`/`readChunk()` streaming driven by the caller, `extractTo`
-> (which needs the confinement primitive from #854), GZIP and TAR, and the CP437
-> fallback for legacy names.
+> (which needs the confinement primitive from #854) and TAR WRITING.
+> **Names already follow the format's rule:** the UTF-8 flag (bit 11) decides — set means UTF-8, clear means CP437 (the legacy case, which used to come out with replacement characters).
 
 > **GZIP landed the same day (slice 2 of #852):** `libs/archive/Gzip.kf` reads
 > RFC 1952 streams by the SAME composition — the deflate payload goes to

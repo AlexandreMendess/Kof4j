@@ -34,10 +34,11 @@ import image.Inflate
 // confinement primitive of #854 (`createNew`), which is a maintainer scope
 // decision.
 //
-// Honest limit: an entry name is decoded as UTF-8. APPNOTE allows CP437 when
-// the UTF-8 flag (bit 11) is clear; we do not transliterate CP437, so a legacy
-// archive with accented names shows the replacement characters. The raw bytes
-// stay reachable by reading `nameOffset`/`nameLength` from the file.
+// Names follow the format's own rule: the UTF-8 flag (bit 11) decides. With it
+// set the name is UTF-8; CLEAR means CP437 (code page 437), the encoding the
+// spec mandates for legacy archives — decoding those as UTF-8 used to show
+// replacement characters. Both halves are covered: 0x00..0x7F is ASCII and the
+// 0x80..0xFF table lives below.
 
 /** One central-directory entry, exactly as the archive declares it. */
 record ZipEntry(String name, Int flags, Int method, Int crc32, Int compressedSize,
@@ -92,6 +93,31 @@ Int zipCrc32(Int[] data, Int len) {
         i = i + 1
     }
     return crc ^ -1
+}
+
+/** The 0x80..0xFF half of CP437 (code page 437) — the table APPNOTE 6.3.x
+ *  mandates for an entry name when the UTF-8 flag (bit 11) is CLEAR. The
+ *  0x00..0x7F half is ASCII, so only this half needs a table. */
+String zipCp437High() {
+    return "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ "
+}
+
+/** CP437 of `len` bytes from `from`. Used for a legacy archive (bit 11 clear):
+ *  decoding those names as UTF-8 produced replacement characters. */
+String zipCp437(Int[] b, Int from, Int len) {
+    var high = zipCp437High()
+    var s = ""
+    var i = 0
+    while (i < len) {
+        var c = b[from + i] & 255
+        if (c < 128) {
+            s = s + (c as Char)
+        } else {
+            s = s + high.charAt(c - 128)
+        }
+        i = i + 1
+    }
+    return s
 }
 
 /** UTF-8 of `len` bytes from `from` (see the CP437 limit in the header). */
@@ -169,7 +195,9 @@ List<ZipEntry> zipReadCentralDirectory(Int[] b) {
         var commentLen = zipU16(b, at + 32)
         var externAttrs = zipU32(b, at + 38)
         var localOffset = zipU32(b, at + 42)
-        var name = zipUtf8(b, at + 46, nameLen)
+        // APPNOTE 6.3.x: bit 11 (EFS) set = the name is UTF-8; CLEAR = CP437.
+        var name = (if ((flags & 2048) != 0) zipUtf8(b, at + 46, nameLen)
+                else zipCp437(b, at + 46, nameLen))
         out.add(ZipEntry(name, flags, method, crc, compressed, uncompressed,
                 externAttrs, localOffset, nameLen))
         at = at + 46 + nameLen + extraLen + commentLen

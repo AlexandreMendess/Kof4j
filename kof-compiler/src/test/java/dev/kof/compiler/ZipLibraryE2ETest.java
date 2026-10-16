@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.nio.charset.Charset;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -230,6 +231,55 @@ class ZipLibraryE2ETest implements LibraryInstallSupport {
         String out = runOnJvm(root);
         assertTrue(out.startsWith("recusado: archive: CRC-32 mismatch for 'alfa.txt'"),
                 "CRC tem de pegar o byte trocado, veio: " + out);
+    }
+
+    /**
+     * Nomes seguem a REGRA DO FORMATO (APPNOTE 6.3.x): o bit 11 (EFS) decide.
+     * Com ele LIMPO o nome é CP437 — o caso dos arquivos legados, que antes saíam
+     * com caracteres de substituição — e com ele SET o nome é UTF-8. O oráculo do
+     * CP437 é o charset IBM437 do PRÓPRIO JDK (implementação independente da minha
+     * tabela), e o de UTF-8 é o próprio `ZipOutputStream` padrão.
+     */
+    @Test
+    void decodesLegacyCp437NamesAndKeepsTheUtf8FlagRule(@TempDir Path dir) throws Exception {
+        String accented = "caf\u00e9.txt";                       // "café.txt"
+
+        Path legacy = dir.resolve("legacy.zip");
+        try (OutputStream raw = Files.newOutputStream(legacy);
+             ZipOutputStream out = new ZipOutputStream(raw, Charset.forName("IBM437"))) {
+            byte[] data = "legado".getBytes(StandardCharsets.UTF_8);
+            ZipEntry e = new ZipEntry(accented);
+            e.setMethod(ZipEntry.STORED);
+            e.setSize(data.length);
+            e.setCompressedSize(data.length);
+            e.setCrc(ArchiveFixtureSupport.crc32(data));
+            out.putNextEntry(e);
+            out.write(data);
+            out.closeEntry();
+        }
+
+        Path modern = dir.resolve("modern.zip");
+        try (OutputStream raw = Files.newOutputStream(modern); ZipOutputStream out = new ZipOutputStream(raw)) {
+            out.putNextEntry(new ZipEntry(accented));             // default = UTF-8
+            out.write("moderno".getBytes(StandardCharsets.UTF_8));
+            out.closeEntry();
+        }
+
+        Path main = dir.resolve("Main.kf");
+        Files.writeString(main, """
+                import archive.Zip
+
+                main() {
+                    var l = Zip("%s")
+                    var m = Zip("%s")
+                    println("legacy=" + l.entries.get(0).name + "|efs=" + ((l.entries.get(0).flags & 2048) != 0))
+                    println("modern=" + m.entries.get(0).name + "|efs=" + ((m.entries.get(0).flags & 2048) != 0))
+                }
+                """.formatted(legacy.toAbsolutePath(), modern.toAbsolutePath()));
+
+        String expected = "legacy=" + accented + "|efs=false\nmodern=" + accented + "|efs=true";
+        assertEquals(expected, runOnJvm(dir), "CP437 legado + UTF-8 sinalizado (JVM)");
+        assertEquals(expected, runOnScript(dir), "CP437 legado + UTF-8 sinalizado (Script)");
     }
 
     // --- execução ------------------------------------------------------------
