@@ -19783,3 +19783,36 @@ math.abs(minInt())   JVM/Script/x86 = -2147483648 ✓   JS = 2147483648 ✗   ri
 
 **Related (measured, NOT bugs):** the rest of the probed math surface agrees on the JVM/Script/x86/JS — `roundTo` half-away-from-zero (`roundTo(-2.5,0)` = -3, `roundTo(0.5,0)` = 1), the binary-float artifact `roundTo(1.005,2)` = 1.0, `sqrt(-1)` = NaN, `pow`/`percentage`/`lerp`/`toDegrees(pi)` — and `math.toDegrees`/`toRadians` are refused on the native targets with an HONEST `MATH001`.
 <!-- pt-switch --> **PT:** [§748 (pt_BR)](known-bugs.pt_BR.md#748--mathabsintmin_value-divergia-no-js-e-nos-nativos-cross-sem-estouro-de-32-bits-jvm-e-x86-voltam-a-min_value)
+
+## §749 — the Script interpreter leaked Enum@hash where every other target prints the constant NAME
+
+**Status:** ✅ FIXED 16/10 — `kofToString` reads the enum's `kofName` field.
+
+**CATALOGUED + FIXED 16/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found by the probe of the `enum` surface. Turning an enum VALUE into a String — `println(Dir.N)` or a `Dir.valueOf("S")` result — printed the interpreter's internal representation where the JVM/JS/native print the constant's name:
+
+```
+println(Dir.N)          JVM/JS/native = N     Script = Dir@3ace6346 ✗
+println(Dir.valueOf("S")) JVM/JS/native = S   Script = Dir@6b832551 ✗
+```
+
+**Root cause (read, not guessed):** an enum is a REAL class (§211) carrying the field `kofName` plus a synthetic `toString` accessor that returns it (`CompilerEnumLowering`), so the compiled backends were already right; the interpreter's own `kofToString` dispatched RECORDS and then fell through to `Name@identityHash` for every other object — and an enum instance is exactly that "other object".
+
+**Fix (precise marker, additive):** `kofToString` now returns `kofName` when the object's class carries that field (a normal class has no such field, so nothing else changes); the record shape and the identity fallback stay untouched. Measured after: the Script prints `N`/`S`, and `name()`/`ordinal()`/`values()`/`==`/Map-with-enum-keys are unchanged.
+
+**Proof RED-first:** with the fix reverted ONLY `scriptEnumToStringMatchesTheJvm` fails; `ScriptEnumAsStringE2ETest` 4/4 afterwards (JVM/Script/JS/native x86).
+<!-- pt-switch --> **PT:** [§749 (pt_BR)](known-bugs.pt_BR.md#749--o-interpretador-script-vazava-enumhash-onde-todos-os-outros-alvos-imprimem-o-nome-da-constante)
+
+## §750 — Enum.valueOf(String) SEGFAULTS on the riscv64/aarch64 natives (x86 gives the right constant)
+
+**Status:** 🟡 OPEN — catalogued with the exact repro; NOT fixed.
+
+**CATALOGUED (measured) 16/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found while writing §749's six-face test: `Dir.valueOf("S")` CRASHES on BOTH cross native targets — a SEGFAULT, the worst class — where the x86 native returns the right constant. My earlier probe had only built the x86 native, so the cross face stayed hidden until the test covered it.
+
+```
+println(Dir.valueOf("S"))   jvm/script/js = S ✓   native x86 = S (exit 0) ✓   riscv64 = SEGFAULT (exit 139) ✗   aarch64 = SEGFAULT (exit 139) ✗
+```
+
+**Bisected shape by shape on riscv64:** `Dir.N`, `Dir.N.name()`, `Dir.values().size` and a `Map` keyed by enum constants all print correctly — ONLY `valueOf(String)` dies (it produces no output at all before the fault). So the defect is confined to the cross implementation of the enum's `valueOf` (the JVM/JS/x86 emitters are fine), which makes it a bounded face rather than a systemic enum problem.
+
+**Next step (the fix is a cross-side unit of its own):** locate the cross lowering/runtime for the generated `valueOf` (`CompilerEnumLowering` emits it; the riscv path — and aarch64 through the translator — is where it goes wrong) and pin it with the cross face of `ScriptEnumAsStringE2ETest` (currently scoped to the four working targets, with the exclusion documented in its javadoc).
+<!-- pt-switch --> **PT:** [§750 (pt_BR)](known-bugs.pt_BR.md#750--enumvalueofstring-faz-segfault-nos-nativos-riscv64aarch64-o-x86-devolve-a-constante-certa)
