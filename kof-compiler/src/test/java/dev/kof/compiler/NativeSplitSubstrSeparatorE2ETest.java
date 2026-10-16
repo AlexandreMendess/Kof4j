@@ -57,6 +57,13 @@ class NativeSplitSubstrSeparatorE2ETest {
                 println("l=" + j("aXXb".split("XX", 5)))
                 println("m=" + j("caf\\u00e9,\\u00fcber".split(",")))
                 println("n=" + j("a\\u00A0b".split("\\u00A0")))
+                // §740 (JDK): limit NEGATIVO mantem TODOS os vazios; limit 0 poda; limit > 0 = no maximo N, ultima = o RESTO.
+                println("o=" + j("a,,b,,".split(",", -1)))
+                println("p=" + j("a,,b,,".split(",", 0)))
+                println("q=" + j("a,b,c".split(",", 2)))
+                println("r=" + j("a,,b,,".split(",", 5)))
+                println("s=" + j("".split(",", 3)))
+                println("t=" + j("abc".split(",", 2)))
             }
             """;
 
@@ -73,7 +80,13 @@ class NativeSplitSubstrSeparatorE2ETest {
             "k=1|[aXXbXXc]",
             "l=2|[a][b]",
             "m=2|[caf\u00e9][\u00fcber]",
-            "n=2|[a][b]");
+            "n=2|[a][b]",
+            "o=5|[a][][b][][]",
+            "p=3|[a][][b]",
+            "q=2|[a][b,c]",
+            "r=5|[a][][b][][]",
+            "s=1|[]",
+            "t=1|[abc]");
 
     @Test
     void jvmIsTheContractForSplitSubstr() throws Exception {

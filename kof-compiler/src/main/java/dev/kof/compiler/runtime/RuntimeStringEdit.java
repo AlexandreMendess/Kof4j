@@ -890,7 +890,8 @@ public final class RuntimeStringEdit {
                 movq 24(%rsp), %rcx
                 movl %ecx, 16(%r10)
                 testl %r13d, %r13d
-                jg .Lsstr_ret
+                jne .Lsstr_ret               # §740 (JDK): a poda §111 so vale com
+                                             # limit == 0; limit < 0 mantem TODOS
                 movl 16(%rbx), %eax
                 testl %eax, %eax
                 jz .Lsstr_ret
