@@ -207,7 +207,7 @@ assert-stmt = "assert" , "(" , expression , [ "," , string-literal ] , ")"
 `
 
 - If the condition is false: throws `"assertion failed"` (or the given message).
-- The message must be a **string literal** (not an expression) — `:901`.
+- The message must be a **string literal** (not an expression) — `:901`. Any other expression is a parse error `PARSE087` pointing at it (issue #849; before, it compiled and the message was dropped silently).
 - Used by the `kof test` harness (exit code ≠ 0).
 
 ---
