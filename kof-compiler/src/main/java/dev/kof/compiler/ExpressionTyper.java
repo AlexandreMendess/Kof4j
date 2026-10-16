@@ -232,8 +232,8 @@ public final class ExpressionTyper {
                             ? ct.typeArguments().get(1) : Type.UnknownType.UNKNOWN;
                     yield val;
                 }
-                if (recvType instanceof Type.ArrayType at) yield at.componentType();
-                yield Type.UnknownType.UNKNOWN;
+                // #878: `arrayElementType` atravessa o `NullableType` (o local ESTREITADO de `T[]?` é `Nullable(ArrayType)`).
+                yield Type.arrayElementType(recvType);
             }
             case FieldAccessExpr fa -> ExpressionFieldAccessTyper.type(driver, fa, locals);
             case LambdaExpr le -> {

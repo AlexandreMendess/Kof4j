@@ -252,8 +252,16 @@ public sealed interface Type {
         return name;
     }
 
+    /**
+     * Elemento de um array — atravessando a ANULABILIDADE (#878/#879): o elemento de
+     * {@code T[]?} é o de {@code T[]} (a anulabilidade é do valor inteiro; o local
+     * ESTREITADO por {@code if (b != null)} segue {@code Nullable(ArrayType)} no IR,
+     * porque o estreitamento é semântico). Sem isto o acesso saía por referência
+     * ({@code aaload} sobre {@code [I}): VerifyError na JVM, SIGSEGV nos nativos.
+     */
     static Type arrayElementType(Type type) {
         if (type instanceof ArrayType at) return at.componentType();
+        if (type instanceof NullableType nt) return arrayElementType(nt.inner());
         return UnknownType.UNKNOWN;
     }
 

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §743 (FIXED)
 last: §738 (CATALOGUED)
 last: §731 (FIXED/RETRACTED)
 last: §718
@@ -19646,3 +19647,29 @@ pair                          JVM/Script   NATIVE (x86/riscv/arm)   JS
 
 **Interaction with §740 (honest note):** the §740 fix made the native split LITERAL (composing `index_of2` + `substring`). For a metacharacter-free separator — the overwhelmingly common case — literal and regex agree, so §740 is oracle-correct there (its 19-shape proof passes against the JVM). The residual class is exactly THIS entry's: a separator with metacharacters (and a regex-ESCAPED literal like `"\\."`, where the oracle splits on `.` and the native splits on the two characters `\.`).
 <!-- pt-switch --> **PT:** [§742 (pt_BR)](known-bugs.pt_BR.md#742--stringsplit-diverge-com-separadores-com-metacaracteres-de-regex-o-oraculo-jvmscript-e-regex-jsnativo-sao-literais)
+
+## §743 — a NARROWED nullable primitive array emitted reference element loads and stores over an int array VerifyError on the JVM and SIGSEGV on the three natives
+
+**Status:** ✅ FIXED 16/10 (lane issues/tooling `192.168.100.21:9093`, GitHub #878 + #879 as ONE unit — the same missing invariant in three lowering sites plus the typer).
+
+**CATALOGUED (measured) 16/10 — reporter `jonasrochasilva-prog`, re-measured at `1b3c8ced6` with the reporter's exact repro.** Inside `if (b != null)`, a nullable primitive array (`var b = maybe(true)` with `Int[]?`/`Double[]?`) was indexed, compounded and iterated with a REFERENCE element type. The Script was always correct; `String[]?` was never affected (its element already is a reference) — that is the control in the suite.
+
+```
+b[1] on Int[]?        JVM VerifyError (aaload over [I)   natives SIGSEGV rc=139   Script 9
+b[0] = 5 on Int[]?    JVM VerifyError (aastore)          natives OK               Script OK
+b[1] on Double[]?     JVM VerifyError (aaload)           natives SIGSEGV rc=139   Script 2.5
+b[0] += 3             JVM VerifyError                    natives SIGSEGV          Script OK
+for (var x in b)      JVM VerifyError (aaload)           natives SIGSEGV rc=139   Script 7/9
+b.length / return / pass as Int[]   OK everywhere (no element access)
+```
+
+**The JVM failure is MASKED:** the launcher prints `Erro: os componentes de runtime do JavaFX não foram encontrados`, hiding the `VerifyError` (§556). The class does not load; `-Xverify:all` plus a reflective load exposes it.
+
+**Root cause (confirmed by reading the lowering):** the narrowed `b` keeps the DECLARED type `Nullable(ArrayType)` in the IR — narrowing is semantic, not physical (the §736/#845 family). `Type.arrayElementType` recognised only a pure `ArrayType`, so the element came back `Unknown` and `KofArrayLoad`/`KofArrayStore` were emitted as reference accesses. Sites: `ExpressionLowerer` (`case ArrayAccessExpr`), `ExpressionAssignmentLowerer` (`aaElemType`), `CompilerEmission2` (compound increment), `StatementLowerer` (the `for-in` element extraction), and `ExpressionTyper` (the TYPE of `b[i]`, which would have sent the consumer down the reference path even with a correct load).
+
+**Fix (one invariant, additive):** `Type.arrayElementType` now crosses the `NullableType` — the element of `T[]?` IS the element of `T[]` (arrays are references; nullability belongs to the whole value, never to the element). The `for-in` and the typer now consume that helper instead of a raw `instanceof ArrayType`. No new primitive, no language-surface change.
+
+**Proof RED-first (executed):** `NarrowedNullableArrayE2ETest` **33 run / 15F / 8 env skips** on the unfixed tip (incl. a bytecode structure test asserting `IALOAD` present and `AALOAD` absent) → **33 run / 0F** after, over JVM + Script + JS + x86-64 + riscv64 + aarch64 (the 2 skips per face are RISCV32 / MCU ARM, no toolchain). Non-regression battery on the array+narrowing family: **150 run / 0F / 22 skips**.
+
+**SIBLING FACE — MEASURED, still OPEN, own issue to file:** a narrowed `List<String>?` fails the SAME way on the JVM, because the lowerer classifies the receiver by the NULLABLE type (`BuiltinTypes.isList(NullableType)` is false): `l[1]` → `VerifyError aaload` and `for (var s in l)` → `VerifyError arraylength`. `l.get(i)`/`l.size()` work (semantic resolution) and `l[0] = x` gives the honest `SEM054`. Not covered by #878/#879 (those are arrays); it is the next unit of this lane.
+<!-- pt-switch --> **PT:** [§743 (pt_BR)](known-bugs.pt_BR.md#743--um-array-anulavel-de-primitivo-estreitado-emitia-cargas-e-stores-do-elemento-por-referencia-sobre-um-array-de-int-verifyerror-na-jvm-e-sigsegv-nos-tres-nativos)

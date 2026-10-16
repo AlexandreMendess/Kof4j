@@ -284,7 +284,12 @@ public final class StatementLowerer {
                     // que os métodos de string emitem — os 4 alvos de graça.
                     elemType = Type.PrimitiveType.CHAR;
                 }
-                else if (collType instanceof Type.ArrayType at) elemType = at.componentType();
+                // #879: array — o tipo do local ESTREITADO (`if (b != null)`) é
+                // `Nullable(ArrayType)`, então o elemento vem de `arrayElementType`
+                // (que atravessa a anulabilidade), não de um `instanceof ArrayType`
+                // cru: sem isto o `KofArrayLoad` do elemento saía como referência
+                // (`aaload` sobre `[I`) — VerifyError na JVM, SIGSEGV nos nativos.
+                else elemType = Type.arrayElementType(collType);
                 int collIdx = localIdx++;
                 int idxIdx = localIdx++;
                 int varIdx = localIdx++;
