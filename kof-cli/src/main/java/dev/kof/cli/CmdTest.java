@@ -22,9 +22,7 @@ final class CmdTest {
     private CmdTest() {
     }
 
-    private static final String USAGE =
-            "usage: kof test <file.kf|dir> [--target jvm|native|js] [--timeout <sec>]"
-            + " [--tag <tag>[,<tag>...]]";
+    private static final String USAGE = CmdTestFlags.USAGE;
 
     static void run(String[] args) {
         if (args.length >= 2 && (args[1].equals("--help") || args[1].equals("-h"))) {
@@ -58,49 +56,12 @@ final class CmdTest {
                 appRoot = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceApp(), null);
             }
         }
-        Target target = Target.JVM;
-        long timeoutSec = 0;   // 0 = sem limite (comportamento histórico, aditivo)
-        String tag = null;     // X8 fatia 3: filtro por tag (compile-time, único p/ 4 alvos);
-                               // §7.1: aceita lista separada por vírgula (OR) — "smoke,ui"
-        for (int i = argStart; i < args.length; i++) {
-            if (args[i].startsWith("--target=")) {
-                target = KofCliSupport.parseTarget(args[i].substring("--target=".length()));
-            } else if (args[i].equals("--target") && i + 1 < args.length) {
-                target = KofCliSupport.parseTarget(args[i + 1]);
-                i++;
-            } else if (args[i].startsWith("--timeout=")) {
-                Long t = parseTimeout(args[i].substring("--timeout=".length()));
-                if (t == null) { badTimeout(); return; }
-                timeoutSec = t;
-            } else if (args[i].equals("--timeout") && i + 1 < args.length) {
-                Long t = parseTimeout(args[i + 1]);
-                if (t == null) { badTimeout(); return; }
-                timeoutSec = t;
-                i++;
-            } else if (args[i].startsWith("--tag=")) {
-                tag = args[i].substring("--tag=".length());
-                if (tag.isEmpty()) { badTag(); return; }
-            } else if (args[i].equals("--tag") && i + 1 < args.length) {
-                tag = args[i + 1];
-                if (tag.isEmpty()) { badTag(); return; }
-                i++;
-            } else if (args[i].equals("--help") || args[i].equals("-h")) {
-                System.err.println(USAGE);
-                return;
-            } else if (args[i].startsWith("-")) {
-                // R6: an unknown flag (or --target/--timeout without its value) must
-                // never be silently ignored — the user/CI would believe it took effect.
-                System.err.println("test: unknown or incomplete flag: " + args[i]
-                        + " (accepts: --target jvm|native|js, --timeout <sec>, --tag <tag>[,<tag>...])");
-                System.exit(1);
-                return;
-            } else {
-                System.err.println("test: unexpected argument: " + args[i]
-                        + " (accepts: --target jvm|native|js, --timeout <sec>, --tag <tag>[,<tag>...])");
-                System.exit(1);
-                return;
-            }
-        }
+        CmdTestFlags.Parsed fl = CmdTestFlags.parse(args, argStart);
+        Target target = fl.target();
+        long timeoutSec = fl.timeoutSec();
+        String tag = fl.tag();
+        Path moduleRoot = fl.moduleRoot();
+        if (fl.positional() != null) src = fl.positional();
         if (src == null) {
             System.err.println("test: no test root given and no [sources] test"
                     + " declared in kof.toml (see 'kof test --help')");
@@ -163,6 +124,9 @@ final class CmdTest {
         // resolve de src/main/kof sem cópia nem arquivo de entrada gerado.
         if (appRoot != null && Files.isDirectory(appRoot)) {
             driver.setDependencySourceRoots(java.util.List.of(appRoot));
+        } else if (moduleRoot != null && Files.isDirectory(moduleRoot)) {
+            // #856: sem raiz de app declarada, o MODULO e a raiz de fontes.
+            driver.setDependencySourceRoots(java.util.List.of(moduleRoot));
         }
         int passed = 0;
         int failed = 0;
@@ -216,7 +180,8 @@ final class CmdTest {
         // #708: a raiz de testes é a base dos pacotes por diretório. Em modo
         // diretório é o próprio `src` (fonte em exemplo/CalcTest.kf declara
         // `package exemplo`); em modo arquivo, o diretório do arquivo.
-        Path testsRoot = dirMode ? src : src.getParent();
+        // #856: o modulo manda na raiz dos pacotes.
+        Path testsRoot = moduleRoot != null ? moduleRoot : (dirMode ? src : src.getParent());
         for (Path f : files) {
             long startNanos = System.nanoTime();
             Path tmp;
@@ -476,11 +441,6 @@ final class CmdTest {
      * nomeada). Aditivo: a descoberta de build/run segue não-recursiva
      * (`KofCliSupport.collect`), porque lá um diretório é um pacote (PKG002).
      */
-    private static void badTag() {
-        System.err.println("test: --tag requires a non-empty value");
-        System.exit(1);
-    }
-
     private static List<Path> collectTests(Path dir) {
         List<Path> files = new java.util.ArrayList<>();
         try (var s = Files.walk(dir)) {
@@ -516,15 +476,6 @@ final class CmdTest {
         return rel == null ? "." : rel.toString();
     }
 
-    private static Long parseTimeout(String v) {
-        try {
-            long n = Long.parseLong(v.trim());
-            return n > 0 ? n : null;
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
     /** §6 provider gate: o binário do provider declarado é probeável? Retorna
      *  a versão impressa ou null (o gate recusa com motivo nomeado — nunca um
      *  false green). `npx playwright --version` é a semente; novos providers
@@ -548,11 +499,6 @@ final class CmdTest {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private static void badTimeout() {
-        System.err.println("test: --timeout expects a positive integer of seconds");
-        System.exit(1);
     }
 
     /**

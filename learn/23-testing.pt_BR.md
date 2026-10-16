@@ -29,6 +29,11 @@ main() {
 kof test Suite.kf                     # jvm
 kof test Suite.kf --target native     # native
 kof test Suite.kf --target js         # js
+
+# raiz de modulo, quando o teste vive fora da arvore de fontes (`src/`):
+kof test --module-root src test/Suite.kf       # roda UM arquivo so, com os
+                                               # pacotes resolvidos pelo modulo
+kof test --module-root src test/               # a pasta de testes inteira
 ```
 
 Saída:
