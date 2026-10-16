@@ -5987,6 +5987,77 @@ class DecompileTest {
                 "zero-drift: subtotal/cheapest/inStock/shipping id\u00eanticos ao Java");
     }
 
+    @Test
+    void creditDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio CR\u00c9DITO + a fatia dos CONSTS WIDE —
+        // o loadValue n\u00e3o cobria o lconst/fconst/dconst (0x09-0x0f): o
+        // `while (left > 0)` com Double compila o header como [dload,
+        // dconst_0, dcmpl, ifle] e o par-case recusava = cond-null (medido
+        // no Bank2.monthsToPay). Os shapes: a taxa dobrada no negativo, o
+        // riskLevel com a raz\u00e3o local + as faixas de double, o canLoan com
+        // o && TRIPLO misto (boolean >= int >=) e o monthsToPay com o
+        // while de subtra\u00e7\u00e3o. Zero-drift executado: -60.0/95.0/high/
+        // medium/low/true/false/false/4/3 — 10/10 id\u00eanticos ao Java — a
+        // 39\u00aa valida\u00e7\u00e3o.
+        Path javaFile = dir.resolve("Bank2.java");
+        Files.writeString(javaFile, """
+                public class Bank2 {
+                    static double applyFee(double balance, double fee) {
+                        if (balance < 0) { return balance - fee * 2; }
+                        return balance - fee;
+                    }
+                    static String riskLevel(double debt, double income) {
+                        double ratio = debt / income;
+                        if (ratio > 0.5) { return "high"; }
+                        if (ratio > 0.2) { return "medium"; }
+                        return "low";
+                    }
+                    static boolean canLoan(double income, int years, boolean employed) {
+                        return employed && income >= 2000 && years >= 1;
+                    }
+                    static int monthsToPay(double debt, double payment) {
+                        int m = 0;
+                        double left = debt;
+                        while (left > 0) {
+                            left -= payment;
+                            m++;
+                        }
+                        return m;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bank2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Bank2.applyFee(-50.0, 5.0))
+                    println(Bank2.applyFee(100.0, 5.0))
+                    println(Bank2.riskLevel(6000.0, 10000.0))
+                    println(Bank2.riskLevel(2500.0, 10000.0))
+                    println(Bank2.riskLevel(1000.0, 10000.0))
+                    println(Bank2.canLoan(3000.0, 2, true))
+                    println(Bank2.canLoan(3000.0, 2, false))
+                    println(Bank2.canLoan(1000.0, 2, true))
+                    println(Bank2.monthsToPay(100.0, 30.0))
+                    println(Bank2.monthsToPay(90.0, 30.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: -60.0 | 95.0 | high | medium | low | true | false | false | 4 | 3
+        assertEquals("-60.0\n95.0\nhigh\nmedium\nlow\ntrue\nfalse\nfalse\n4\n3", output,
+                "zero-drift: applyFee/riskLevel/canLoan/monthsToPay id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
