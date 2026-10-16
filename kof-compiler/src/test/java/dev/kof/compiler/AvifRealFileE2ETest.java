@@ -376,7 +376,10 @@ main() {
         // block; with it the walk reads the palette size symbol (arity 7) and
         // consumes 76 bits with 6 non-zero coefficients.
         assertTrue(line.contains(" 7:"), () -> "the palette size symbol was not read: " + line);
-        assertTrue(symBits > 40, () -> "the palette reads must be consumed: " + line);
+        // With the palette SYMBOLS, the colour-INDEX COLORS and the TOKENS all
+        // read in the reference order, the whole tile is consumed — before the
+        // tokens were wired this fixture stopped at 23/152 bits (15%).
+        assertEquals(payloadBits, symBits, () -> "the whole payload must be consumed: " + line);
     }
 
     @Test

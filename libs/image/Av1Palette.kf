@@ -1,7 +1,7 @@
 package image
 
 import image.Av1Block
-import image.Av1ModeCdf
+import image.Av1ModeInfo
 import image.Av1Symbol
 
 // kof.image — AV1 palette colour-index decoding (the `palette_tokens()` stage of
@@ -144,7 +144,7 @@ Int av1PaletteColorIndexContext(Int[] colorMap, Int stride, Int r, Int c, Int n,
 // into any area the plane block has beyond `cols`/`rows`. `planeW`/`planeH` are
 // the plane block's dimensions, `rows`/`cols` the coded (clamped) extents.
 // `plane` selects the Y (0) or UV (1) colour-index CDF.
-Int[] av1PaletteColorMap(Av1Symbol sym, Av1ModeCdf modes, Int plane, Int n,
+Int[] av1PaletteColorMap(Av1Symbol sym, Av1ModeInfo modeInfo, Int plane, Int n,
                          Int planeW, Int planeH, Int rows, Int cols) {
     var map = new Int[planeW * planeH]
     map[0] = av1ReadUniform(sym, n)
@@ -155,9 +155,9 @@ Int[] av1PaletteColorMap(Av1Symbol sym, Av1ModeCdf modes, Int plane, Int n,
         var lo = av1PaletteMaxI(0, i - rows + 1)
         while (j >= lo) {
             var ctx = av1PaletteColorIndexContext(map, planeW, i - j, j, n, order)
-            var cdf = modes.paletteYColorIndex(n - 2, ctx)
+            var cdf = modeInfo.palYColorIndexCdf(n - av1PaletteMinSize(), ctx)
             if (plane == 1) {
-                cdf = modes.paletteUvColorIndex(n - 2, ctx)
+                cdf = modeInfo.palUvColorIndexCdf(n - av1PaletteMinSize(), ctx)
             }
             var idx = sym.readSymbol(cdf, n)
             map[(i - j) * planeW + j] = order[idx]

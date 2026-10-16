@@ -254,6 +254,7 @@ class Av1ModeInfo {
     List<Int[]> segStore
     List<Int[]> skipStore
     List<Int[]> kfYStore
+    List<Int[]> palColorIndexStore
     List<Int[]> uvStore
     List<Int[]> angleStore
     List<Int[]> filterIntraStore
@@ -300,6 +301,19 @@ class Av1ModeInfo {
             this.segStore.add(this.modes.segmentId(i))
             this.skipStore.add(this.modes.skip(i))
             i = i + 1
+        }
+        // Palette_Color_Index_Cdf rows, kept ADAPTING across the tile: 35 Y rows
+        // then 35 UV rows, each at `size * 5 + ctx`.
+        this.palColorIndexStore = listOf()
+        var pci = 0
+        while (pci < 35) {
+            this.palColorIndexStore.add(this.modes.paletteYColorIndex(pci / 5, pci % 5))
+            pci = pci + 1
+        }
+        pci = 0
+        while (pci < 35) {
+            this.palColorIndexStore.add(this.modes.paletteUvColorIndex(pci / 5, pci % 5))
+            pci = pci + 1
         }
         this.kfYStore = listOf()
         i = 0
@@ -419,6 +433,14 @@ class Av1ModeInfo {
             }
             i = i + 1
         }
+    }
+
+    Int[] palYColorIndexCdf(Int size, Int ctx) {
+        return this.palColorIndexStore.get(size * 5 + ctx)
+    }
+
+    Int[] palUvColorIndexCdf(Int size, Int ctx) {
+        return this.palColorIndexStore.get(35 + size * 5 + ctx)
     }
 
     Int palSizeYAt(Int r, Int c) {

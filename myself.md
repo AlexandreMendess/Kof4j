@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 15/10 — AVIF slice 3bd 35ª PASSAGEM: o leitor de TOKENS de paleta landou como módulo novo `libs/image/Av1Palette.kf` (av1ReadUniform + av1PaletteColorIndexContext com a tabela de lookup do libaom + av1PaletteColorMap com a frente de onda), transcrito da referência (entropymode.c / detokenize.c). Prova: Av1PaletteTokensE2ETest 2/2 (lookup fixado nos valores do libaom + 2 casos de contexto calculados À MÃO, incl. deslocamento de ordem em n=3). Nome distinto porque já existe Av1PaletteE2ETest (fatia 3v, modo-info). AINDA NÃO ligado ao driver ⇒ nenhum comportamento muda. Próximo: chamar do driver DEPOIS do mode info e ANTES do tx size, por plano, guardando os mapas de cores.
-doing: §3bd — leitor de tokens de paleta landado como módulo verificado (Av1Palette.kf); falta ligá-lo ao driver na posição correta (antes do tx size) e a reconstrução
-next: §3bd — ligar `av1PaletteColorMap` ao driver DEPOIS do mode info e ANTES do tx size (por plano), guardar os mapas de cores, medir consumo/pixels; depois a reconstrução por paleta
+last: 15/10 — AVIF slice 3bd 36ª PASSAGEM: os TOKENS de paleta foram LIGADOS ao driver na ordem da referência (mode info -> palette_tokens -> tx size), por plano, guardando mapas de índices de cor. Precisou de 70 linhas persistentes de CDF no Av1ModeInfo (para a adaptação sobreviver ao tile). MEDIDO: cb8 23/152 -> 152/152 bits e testsrc 1351/2344 -> 2344/2344 = 100% nos DOIS fixtures de screen-content (cb16 384/384 inalterado) ⇒ ENTROPIA TOTALMENTE EM SINCRONIA (leitor, ordem, contextos e CDFs confirmados sobre saída real). O txb do cb8 cai 16->4 com nzTot 0 porque bloco de paleta carrega o MAPA DE ÍNDICES. Prova: AvifRealFileE2ETest 9/9 + Av1PaletteTokensE2ETest 2/2. FALTA: a reconstrução por paleta (o Y do cb8 ainda é 128).
+doing: §3bd — tokens de paleta ligados ⇒ entropia 100% em sincronia em todos os fixtures; resta SÓ a reconstrução por paleta
+next: §3bd — reconstrução por paleta: pintar os pixels a partir de colorIndexY/colorIndexUv + as cores de paleta; depois remedir os pixels contra o ffmpeg
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 15/10 (63ª) — 3bd 36ª: TOKENS ligados ⇒ ENTROPIA 100% EM SINCRONIA (marco)
+- **Fatia:** `av1PaletteColorMap` ligado ao driver na ordem da referência (mode info → tokens → tx size), por plano (Y/UV), com mapas `colorIndexY`/`colorIndexUv`.
+- **Precisou:** 70 linhas PERSISTENTES de CDF de índice de cor no `Av1ModeInfo` (`palColorIndexStore` + `palYColorIndexCdf`/`palUvColorIndexCdf`) — a adaptação tem de sobreviver ao tile; e `av1PaletteColorMap` passou a receber o mode-info em vez de um slice novo.
+- **MEDIÇÃO (o marco):** cb8 23/152 → **152/152** bits; testsrc 1351/2344 → **2344/2344**; cb16 384/384 (inalterado). **100% em todos** ⇒ o leitor, a ordem da sintaxe, os contextos e as CDFs estão em sincronia sobre saída real de encoder. O `txb` do cb8 cai 16→4 com `nzTot` 0 porque bloco de paleta carrega o MAPA DE ÍNDICES em vez de coeficientes (desenho do AV1).
+- **Prova:** `AvifRealFileE2ETest` **9/9** (cb8 agora assere `symBits == payloadBits`; travessia fixa testsrc em 2344/2344) + `Av1PaletteTokensE2ETest` **2/2**.
+- **Falta (última peça):** a reconstrução por paleta — o Y do cb8 ainda é 128 porque nada pinta as cores.
 
 ## Sessão 15/10 (62ª) — 3bd 35ª: leitor de tokens de paleta (`Av1Palette.kf`) landado e verificado
 - **Módulo novo:** `libs/image/Av1Palette.kf` — `av1ReadUniform`, `av1PaletteColorIndexContext` (pesos 2/1/2, ordenação top-3 que preenche `colorOrder`, hash + `av1_palette_color_index_context_lookup`) e `av1PaletteColorMap` (índice inicial uniforme, frente de onda, cópia da última coluna/linha). Transcrito de `av1/common/entropymode.c` e `av1/decoder/detokenize.c` (obtidos pelo gitiles).
