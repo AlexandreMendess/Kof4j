@@ -361,7 +361,11 @@ Consider security against path traversal inside archives.
 > declared size is refused instead of truncated, which is the
 > decompression-bomb defence. ZIP64, an encrypted entry and any method outside
 > {0, 8} are refused with an explicit diagnostic, never silence. **Still open in
-> #852:** `open()`/`readChunk()` streaming driven by the caller and TAR WRITING.
+> #852:** `open()`/`readChunk()` streaming driven by the caller.
+> **TAR WRITING is IN too:** `TarWriter(path)` + `addFile`/`addText` + `close()`
+> writes ustar (store-only, no compression) incrementally, with `mtime` zero so the
+> same input is byte-identical. Names over 100 bytes are refused (GNU long names
+> are a separate slice), never truncated.
 > **`extractTo` is IN, with confinement:** `Zip(path).extractTo(destDir, maxBytes)`
 > refuses `..`, absolute paths, Windows drives and the `\` separator — the NAME bar
 > runs before anything touches the disk — and never overwrites an existing path.
