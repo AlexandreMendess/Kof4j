@@ -1017,3 +1017,14 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **Por que isto é progresso:** o fio começou com "dessincronismo em toda parte" e chega a **um único lado do caminho** (a pintura), com quatro fixtures que reproduzem e um (LL) que isola o sintoma **sem** dessincronismo.
 - **Prova:** só documentação; **todos os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado, e NÃO precisa de leitura de fonte):** dumpar, para o bloco de paleta do fixture LL, as **cores decodificadas** (`colors[0..1]`) e os **primeiros 8 valores do mapa** lado a lado com os dois valores da referência (**16** e **235**) — uma única medição decide se estão invertidas as **cores** ou os **índices**.
+
+## Sessão 17/10 (sexta) — slice 3bd 80ª passagem: MEDIÇÃO DECISIVA (cores certas, índices errados)
+- **Unidade:** `Av1TileDecode.palColorAt(r, c, i)` + `palIndexAt(r, c, k)` (aditivos, sem mudança de assinatura) e a linha **`PALBLK`** na sonda — as cores do PRIMEIRO bloco de paleta e as oito primeiras células do seu mapa.
+- **MEDIÇÃO (uma só, como a 79ª previu):** `PALBLK pal(r0,c4,bs5,n2) col0=16 col1=235 idx0=1 idx1=1 idx2=1 idx3=1 idx4=1 idx5=1 idx6=1 idx7=1`.
+  - **As CORES estão CORRETAS:** 16 e 235 — os dois valores da referência, **em ordem monótona**, exatamente como a 78ª previu que o esquema de deltas força.
+  - **Os ÍNDICES estão ERRADOS:** as **oito** células da primeira linha do mapa decodificam para **1** (→ 235) onde a referência precisa de `0,0,0,0,1,1,1,1` (x = 16..23 são `16,16,16,16,235,235,235,235`).
+- **CONCLUSÃO (o resultado que reorienta o fio):** a pintura recebe um **ÍNDICE errado, não uma cor errada** ⇒ o defeito está na **decodificação do MAPA** (frente de onda + contexto/CDF de índice) — **não** na leitura de cores (78ª), **não** na tabela de cores (79ª), **não** na indexação da pintura.
+- **E o detalhe que torna isto afiado:** o payload continua consumido **por inteiro (152/152)** ⇒ as leituras do mapa estão **posicionadas certo** mas **decodificam valores errados** ⇒ assinatura de um **contexto/CDF errado para TODAS as células**, não de um dessincronismo.
+- **Hipótese que a medição produz (e é testável de imediato):** o **contexto de índice é CONSTANTE** (provavelmente sempre 0) onde devia variar com os vizinhos — um contexto constante precifica todas as células igualmente, e é exatamente isso que dá uma sequência de valores idênticos (todos 1).
+- **Prova:** `AvifScreenContentGeoE2ETest` **4/4** com a medição fixada como asserção **gravada**; `check_test_hygiene` rc=0.
+- **Próximo passo (nomeado):** dumpar o **CONTEXTO de cada uma das oito primeiras células** do mapa e conferi-lo à mão contra o `av1_get_palette_color_index_context` (verificado na 75ª). Se o contexto for constante, o defeito está em **como** o contexto é computado no call site, não na função.

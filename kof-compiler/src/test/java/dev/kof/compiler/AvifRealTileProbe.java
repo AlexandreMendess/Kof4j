@@ -252,6 +252,34 @@ main() {
         pil = pil + 1
     }
     println("PALINFO " + piline)
+    // For the FIRST palette block: its colours and its first 8 decoded map indices,
+    // beside the reference's two values.
+    var fi2 = 0
+    var found = 0
+    var fline = ""
+    var st3 = 0
+    while (st3 < steps.size) {
+        var s3 = steps.get(st3)
+        if (s3[0] == 1) {
+            if (found == 0 && pi2[fi2 * 2] > 0) {
+                fline = fline + "pal(r" + s3[1] + ",c" + s3[2] + ",bs" + s3[3] + ",n" + pi2[fi2 * 2] + ")"
+                var k3 = 0
+                while (k3 < pi2[fi2 * 2]) {
+                    fline = fline + " col" + k3 + "=" + tile.palColorAt(s3[1], s3[2], k3)
+                    k3 = k3 + 1
+                }
+                var k4 = 0
+                while (k4 < 8) {
+                    fline = fline + " idx" + k4 + "=" + tile.palIndexAt(s3[1], s3[2], k4)
+                    k4 = k4 + 1
+                }
+                found = 1
+            }
+            fi2 = fi2 + 1
+        }
+        st3 = st3 + 1
+    }
+    println("PALBLK " + fline)
     // The reader position at each block's ENTRY: after the partition symbols,
     // before the mode info. blockEntry - previous residual end = the partition cost.
     var bs2 = tile.blockStarts()

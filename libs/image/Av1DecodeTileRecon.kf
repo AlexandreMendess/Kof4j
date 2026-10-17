@@ -556,6 +556,18 @@ class Av1TileDecode {
         return this.posOut
     }
 
+    // The palette COLOUR TABLE of a block (diagnostic): `palColorYAt` indexed by
+    // the decoded map value. Paired with `palIndexAt` it settles whether a wrong
+    // paint comes from the COLOURS or from the INDICES.
+    Int palColorAt(Int r, Int c, Int i) {
+        return this.modeInfo.palColorYAt(r, c, i)
+    }
+
+    // The decoded palette INDEX at a pixel of the block (diagnostic).
+    Int palIndexAt(Int r, Int c, Int k) {
+        return this.colorIndexY[(r * 4) * this.frameW + (c * 4 + k)]
+    }
+
     // The per-block BODY field positions (diagnostic), four ints per block:
     // after the Y mode, the Y angle group, the UV/CFL/UV-angle group PLUS the
     // palette MODE info, and the filter-intra field (the end of the body).

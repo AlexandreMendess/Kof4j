@@ -147,6 +147,14 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 + "100 100 100 100 100 100 235 235"),
                 () -> "the recorded inverted palette moved: " + line);
         assertTrue(line.contains("Y 00=100 032=235"), () -> "samples moved: " + line);
+        // THE DECISIVE MEASUREMENT (RECORDED): the palette block's COLOURS are
+        // CORRECT (16 and 235, the reference's two values in monotone order) and
+        // its INDICES are WRONG — all eight cells of the map's first row decode
+        // to 1 where the reference needs 0,0,0,0,1,1,1,1. So the paint is fed a
+        // wrong INDEX, not a wrong colour, and the fault is in the MAP's decode.
+        assertTrue(line.contains("PALBLK pal(r0,c4,bs5,n2) col0=16 col1=235 "
+                + "idx0=1 idx1=1 idx2=1 idx3=1 idx4=1 idx5=1 idx6=1 idx7=1"),
+                () -> "the palette colour/index split moved: " + line);
     }
 
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
