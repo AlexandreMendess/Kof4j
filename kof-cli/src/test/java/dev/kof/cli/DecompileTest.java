@@ -6826,6 +6826,68 @@ class DecompileTest {
                 "zero-drift: wordLen/pad/isBlank/capitalize id\u00eanticos ao Java");
     }
 
+    @Test
+    void timerDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio TIMER — 4 shapes sem c\u00f3digo novo: o
+        // formatDuration com a concat MISTA int+literal (m + "m" + s +
+        // "s"), o isExpired com a compara\u00e7\u00e3o de Longs no return, o
+        // addSeconds com o encadeamento div/rem (%3600/60) e o countdown
+        // com o for DESCENDENTE (`i = n; i > 0; i--`) + o acumulador de
+        // concat + o sufixo "go". Zero-drift executado: 2m5s/1m0s/true/
+        // false/2/3 2 1 go — 6/6 id\u00eanticos ao Java — a 52\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Timer2.java");
+        Files.writeString(javaFile, """
+                public class Timer2 {
+                    static String formatDuration(int seconds) {
+                        int m = seconds / 60;
+                        int s = seconds % 60;
+                        return m + "m" + s + "s";
+                    }
+                    static boolean isExpired(long deadline, long now) {
+                        return now > deadline;
+                    }
+                    static int addSeconds(int h, int m, int s) {
+                        int total = s + m * 60 + h * 3600;
+                        return total % 3600 / 60;
+                    }
+                    static String countdown(int n) {
+                        String out = "";
+                        for (int i = n; i > 0; i--) {
+                            out = out + i + " ";
+                        }
+                        return out + "go";
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Timer2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Timer2.formatDuration(125))
+                    println(Timer2.formatDuration(60))
+                    println(Timer2.isExpired(100, 150))
+                    println(Timer2.isExpired(100, 50))
+                    println(Timer2.addSeconds(1, 2, 3))
+                    println(Timer2.countdown(3))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2m5s | 1m0s | true | false | 2 | 3 2 1 go
+        assertEquals("2m5s\n1m0s\ntrue\nfalse\n2\n3 2 1 go", output,
+                "zero-drift: formatDuration/isExpired/addSeconds/countdown id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
