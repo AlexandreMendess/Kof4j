@@ -6387,6 +6387,66 @@ class DecompileTest {
                 "zero-drift: fee/isFull/zone/spotsLeft id\u00eanticos ao Java");
     }
 
+    @Test
+    void metricDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio M\u00c9TRICAS — 4 shapes sem c\u00f3digo novo:
+        // a convers\u00e3o km→milhas com a constante longa, a FAHRENHEIT com a
+        // f\u00f3rmula mista int-double (`c * 9 / 5 + 32` — o 9/5 INTEIRO
+        // aplicado após a promoção), o sizeLabel com as QUATRO faixas e o
+        // isRoomTemp com o && de FAIXA (`>= 20 && <= 26`). Zero-drift
+        // executado: 6.21371/212.0/32.0/S/M/L/XL/true/false — 9/9
+        // id\u00eanticos ao Java — a 45\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Metric.java");
+        Files.writeString(javaFile, """
+                public class Metric {
+                    static double kmToMiles(double km) {
+                        return km * 0.621371;
+                    }
+                    static double celsiusToFahrenheit(double c) {
+                        return c * 9 / 5 + 32;
+                    }
+                    static String sizeLabel(int cm) {
+                        if (cm < 100) { return "S"; }
+                        if (cm < 150) { return "M"; }
+                        if (cm < 180) { return "L"; }
+                        return "XL";
+                    }
+                    static boolean isRoomTemp(double c) {
+                        return c >= 20 && c <= 26;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Metric.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Metric.kmToMiles(10.0))
+                    println(Metric.celsiusToFahrenheit(100.0))
+                    println(Metric.celsiusToFahrenheit(0.0))
+                    println(Metric.sizeLabel(80))
+                    println(Metric.sizeLabel(120))
+                    println(Metric.sizeLabel(165))
+                    println(Metric.sizeLabel(190))
+                    println(Metric.isRoomTemp(23.0))
+                    println(Metric.isRoomTemp(30.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 6.21371 | 212.0 | 32.0 | S | M | L | XL | true | false
+        assertEquals("6.21371\n212.0\n32.0\nS\nM\nL\nXL\ntrue\nfalse", output,
+                "zero-drift: kmToMiles/celsiusToFahrenheit/sizeLabel/isRoomTemp id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
