@@ -1007,3 +1007,13 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **Método:** duas refutações consecutivas contra a fonte (o merge e as cores), cada uma matando uma hipótese antes de virar código — e a segunda deixou um **intervalo de duas alternativas** em vez de uma vaga suspeita.
 - **Prova:** só documentação; **todos os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado):** verificar o `av1ReadUniform` e o **contexto da PRIMEIRA CÉLULA** contra a fonte buscada — o `av1_read_uniform` usa a `uniform_cdf[n]` de probabilidade igual, e o `av1_get_palette_color_index_context` **só** é chamado para `r > 0 || c > 0`, logo a origem é caso especial dos dois lados.
+
+## Sessão 17/10 (sexta) — slice 3bd 79ª passagem: o lado de DECODIFICAÇÃO da paleta está ESGOTADO
+- **Unidade (verificação das duas alternativas nomeadas na 78ª):**
+  - **`av1ReadUniform` VERIFICADO** contra o `av1_read_uniform` buscado: o Kof calcula `l = ceil(log2(n))`, `m = (1 << l) - n`, lê `l - 1` bits e, quando `v >= m`, soma um bit extra como `(v * 2) - m + extra` — o `(v << 1) - m + extra_bit` do libaom — **IDÊNTICO**, incluindo o caso **n = 2** (`l = 1`, `m = 0` ⇒ o bit extra decide 0/1) ✓.
+  - **Primeira célula VERIFICADA:** a origem `map[0]` é preenchida por essa leitura uniforme **nos dois lados** e o contexto só é usado para `r > 0 || c > 0` (verificado na 75ª) ⇒ a origem é caso especial **consistente**, não divergência.
+  - **Tabela de cores conferida:** `palColorYAt(r, c, i) = palColorYMap[(r * miCols + c) * 8 + i]` — tabela de 8 posições por bloco, indexada **pelo valor do mapa** e lida com a **origem do bloco** (`Av1DecodeTileRecon.kf:493`) — estruturalmente sólido.
+- **SALDO (o resultado desta passagem):** **toda alternativa que este fio nomeou para o lado de DECODIFICAÇÃO está agora verificada contra a fonte buscada** — e o fixture LL **continua** a pintar as duas cores invertidas com o payload consumido por inteiro. Por eliminação, o espaço restante é a **semântica da PINTURA/tabela de cores**: o que o índice decodificado *significa*.
+- **Por que isto é progresso:** o fio começou com "dessincronismo em toda parte" e chega a **um único lado do caminho** (a pintura), com quatro fixtures que reproduzem e um (LL) que isola o sintoma **sem** dessincronismo.
+- **Prova:** só documentação; **todos os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, e NÃO precisa de leitura de fonte):** dumpar, para o bloco de paleta do fixture LL, as **cores decodificadas** (`colors[0..1]`) e os **primeiros 8 valores do mapa** lado a lado com os dois valores da referência (**16** e **235**) — uma única medição decide se estão invertidas as **cores** ou os **índices**.
