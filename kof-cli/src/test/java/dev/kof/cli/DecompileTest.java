@@ -7155,6 +7155,65 @@ class DecompileTest {
                 "zero-drift: bmi/plan/isPeak/totalVisits id\u00eanticos ao Java");
     }
 
+    @Test
+    void vaultDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio COFRE-2 — 4 shapes sem c\u00f3digo novo: o
+        // unlocked com o == entre os DOIS params, o status com o boolean
+        // param nas TR\u00caS sa\u00eddas (open/seized/locked), o remaining com o
+        // zero literal no early-return e o alarmLevel com a divis\u00e3o
+        // int/double no return. Zero-drift executado: true/false/open/
+        // seized/locked/2/0/0.3 — 8/8 id\u00eanticos ao Java — a 57\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Vault.java");
+        Files.writeString(javaFile, """
+                public class Vault {
+                    static boolean unlocked(int code, int expected) {
+                        return code == expected;
+                    }
+                    static String status(int attempts, int max, boolean unlocked) {
+                        if (unlocked) { return "open"; }
+                        if (attempts >= max) { return "seized"; }
+                        return "locked";
+                    }
+                    static int remaining(int attempts, int max) {
+                        if (attempts >= max) { return 0; }
+                        return max - attempts;
+                    }
+                    static double alarmLevel(int failedRecently, double threshold) {
+                        return failedRecently / threshold;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Vault.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Vault.unlocked(1234, 1234))
+                    println(Vault.unlocked(999, 1234))
+                    println(Vault.status(2, 5, true))
+                    println(Vault.status(5, 5, false))
+                    println(Vault.status(2, 5, false))
+                    println(Vault.remaining(3, 5))
+                    println(Vault.remaining(5, 5))
+                    println(Vault.alarmLevel(3, 10.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | open | seized | locked | 2 | 0 | 0.3
+        assertEquals("true\nfalse\nopen\nseized\nlocked\n2\n0\n0.3", output,
+                "zero-drift: unlocked/status/remaining/alarmLevel id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
