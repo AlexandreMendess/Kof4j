@@ -6517,6 +6517,65 @@ class DecompileTest {
                 "zero-drift: totalPrice/spicyLabel/hasVegan/perPerson id\u00eanticos ao Java");
     }
 
+    @Test
+    void bikeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio BICICLETA — 4 shapes sem c\u00f3digo novo:
+        // o gear-inches com o CAST i2d NO MEIO (`chainring / (double) cog *
+        // wheelDiameter` — o cast mudando o tipo da divis\u00e3o), o
+        // terrainType com as TR\u00caS faixas de gradient, as calorias com o
+        // CAST d2i no return (`(int) (minutes * 8 * intensity)` — a
+        // promo\u00e7\u00e3o int→double na cadeia) e o needsService com a
+        // compara\u00e7\u00e3o direta. Zero-drift executado: 108.0/flat/rolling/
+        // climbing/360/true/false — 7/7 id\u00eanticos ao Java — a 47\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Bike.java");
+        Files.writeString(javaFile, """
+                public class Bike {
+                    static double gearInches(int chainring, int cog, double wheelDiameter) {
+                        return chainring / (double) cog * wheelDiameter;
+                    }
+                    static String terrainType(double gradient) {
+                        if (gradient < 2) { return "flat"; }
+                        if (gradient < 6) { return "rolling"; }
+                        return "climbing";
+                    }
+                    static int calories(int minutes, double intensity) {
+                        return (int) (minutes * 8 * intensity);
+                    }
+                    static boolean needsService(double kmSince, double limit) {
+                        return kmSince >= limit;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bike.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Bike.gearInches(52, 13, 27.0))
+                    println(Bike.terrainType(1.0))
+                    println(Bike.terrainType(4.0))
+                    println(Bike.terrainType(8.0))
+                    println(Bike.calories(30, 1.5))
+                    println(Bike.needsService(500.0, 400.0))
+                    println(Bike.needsService(300.0, 400.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 108.0 | flat | rolling | climbing | 360 | true | false
+        assertEquals("108.0\nflat\nrolling\nclimbing\n360\ntrue\nfalse", output,
+                "zero-drift: gearInches/terrainType/calories/needsService id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
