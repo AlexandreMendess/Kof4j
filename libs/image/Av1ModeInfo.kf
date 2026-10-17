@@ -745,7 +745,11 @@ class Av1ModeInfo {
         this.bodyPosOut.add(this.sym.position())
         var useFilterIntra = 0
         var filterMode = 0
-        if (enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <= 32) {
+        // libaom `av1_filter_intra_allowed`: DC_PRED AND NO PALETTE on the block
+        // AND both dims <= 32. The palette term is load-bearing: on a palette
+        // block the encoder never writes this flag, so reading it shifts the
+        // whole colour-index map (the 3bd desync of the <=32 palette blocks).
+        if (enableFilterIntra == 1 && yMode == 0 && this.palSizeYMap[r * this.miCols + c] == 0 && av1ModeInfoMaxDim(bs) <= 32) {
             useFilterIntra = this.sym.readSymbol(this.filterIntraStore.get(bs), 2)
             if (useFilterIntra == 1) {
                 filterMode = this.sym.readSymbol(this.filterModeStore, 5)

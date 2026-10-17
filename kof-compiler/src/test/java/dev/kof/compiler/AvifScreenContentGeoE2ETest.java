@@ -44,7 +44,7 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         var line = runKof(canonical("avif_real_sq1.avif", "sq1.avif"));
         assertTrue(line.contains("symBits=144 payloadBits=144"),
                 () -> "the whole payload must be consumed: " + line);
-        assertTrue(line.contains("Y 00=100 "), () -> "the left half is exact: " + line);
+        assertTrue(line.contains("Y 00=100 032=235"), () -> "the samples are not the reference: " + line);
         // RECORDED, not asserted as correct. The palette-token stage of block 1
         // (window 107..144) costs 37 bits. Its symbol count is a LOWER BOUND:
         // the reader saturates at the payload end, so every later read reports
@@ -58,23 +58,20 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // partition / mode-info / residual. sq1: b0 entry 19, b1 entry 76 —
         // so block 0 is 1 bit of partition + 5 body + 1 tx size + 49 residual,
         // and block 1 is 2 bits of partition + 31 body + 37 palette.
-        // RECORDED: the BODY field positions localize the over-consumption to the
-        // UV/CFL/UV-angle group PLUS the palette MODE info — block 1's second and
-        // third fields (76->78->78) and then 78->105, i.e. ~25 bits for the palette
-        // MODE info of a 2-colour palette, against a handful of symbols.
-        assertTrue(line.contains("BODYF 21 21 22 24 78 78 105 107"),
+        // The BODY field positions still decompose block 1's body.
+        assertTrue(line.contains("BODYF 21 21 22 24 78 78 "),
                 () -> "the body-field decomposition moved: " + line);
-        assertTrue(line.contains("BSTART b0:19 b1:76 b2:144"),
+        assertTrue(line.contains("BSTART b0:19 b1:76 b2:129"),
                 () -> "the block-entry decomposition moved: " + line);
         assertTrue(line.contains("PALINFO b0:palY0/palUv0 b1:palY2/palUv0"),
                 () -> "the palette MODE info moved: " + line);
-        assertTrue(line.contains("PALTOK window=107..144 bits=37 symbols=61"),
-                () -> "the palette-stage measurement moved: " + line);
+        assertTrue(line.contains("PALBLK pal(r0,c4,bs5,n2) col0=16 col1=235 idx0=0 idx1=0 "
+                + "idx2=0 idx3=0 idx4=1"), () -> "the palette map is not exact: " + line);
         // Recorded, NOT asserted as correct: the left half is exact, the right
         // half (reference: 16/235 vertical stripes) is not.
         assertTrue(line.contains(
-                "PATCH r0 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 235 235"),
-                () -> "recorded divergence moved: " + line);
+                "PATCH r0 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 16 16"),
+                () -> "the palette block is not the reference: " + line);
     }
 
     /**
@@ -95,11 +92,10 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
     @Test
     void overhangingHeightFramesRecordTheSameBlockOneDesyncOnJvm() throws Exception {
         var line = runKof(canonical("avif_real_oh24.avif", "oh24.avif"));
-        assertTrue(line.contains("STAGES b0:24>24>25>74 b1:107>136>136>136"),
-                () -> "the recorded stage positions moved (32x24): " + line);
+        assertTrue(line.contains("BLKY (0,0,bs6)=100 (0,4,bs5)=16"),
+                () -> "the 32x24 first palette block is not the reference: " + line);
         var line2 = runKof(canonical("avif_real_oh40.avif", "oh40.avif"));
-        assertTrue(line2.contains("STAGES b0:25>25>26>76 b1:109>152>152>152"),
-                () -> "the recorded stage positions moved (32x40): " + line2);
+        assertTrue(line2.contains("covered=80 frame=80"), () -> "the 32x40 walk moved: " + line2);
     }
 
     /**
@@ -115,14 +111,14 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
     @Test
     void tallFrameRecordsTheRightHalfDivergenceOnJvm() throws Exception {
         var line = runKof(canonical("avif_real_tall.avif", "tall.avif"));
-        assertTrue(line.contains("blocks=14 covered=1024 frame=1024 overlap=0 "
+        assertTrue(line.contains("blocks=30 covered=1024 frame=1024 overlap=0 "
                 + "symBits=296 payloadBits=296"), () -> "the tall walk moved: " + line);
         assertTrue(line.contains("Y 00=100 "), () -> "the left half must be exact: " + line);
-        assertTrue(line.contains("BLKY (0,0,bs9)=100 (0,8,bs5)=235"),
+        assertTrue(line.contains("BLKY (0,0,bs9)=100 (0,8,bs5)=16"),
                 () -> "the half-frame split moved: " + line);
         assertTrue(line.contains("PALINFO b0:palY0/palUv0 b1:palY2/palUv0"),
                 () -> "the tall palette MODE info moved: " + line);
-        assertTrue(line.contains("STAGES b0:22>22>23>82 b1:118>208>209>213"),
+        assertTrue(line.contains("STAGES b0:22>22>23>82 b1:117>139"),
                 () -> "the tall stage positions moved: " + line);
     }
 
@@ -138,23 +134,21 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
      * symptom, not a desync.
      */
     @Test
-    void losslessEncodeRecordsTheInvertedPaletteOnJvm() throws Exception {
+    void losslessEncodePaletteMapIsExactOnJvm() throws Exception {
         var line = runKof(canonical("avif_enc_ll.avif", "ll.avif"));
         assertTrue(line.contains("symBits=152 payloadBits=152"),
                 () -> "consumption moved: " + line);
         // The reference rows 0..5 are `100` x16 then `16 16` at x = 16,17.
         assertTrue(line.contains("PATCH r0 100 100 100 100 100 100 100 100 100 100 "
-                + "100 100 100 100 100 100 235 235"),
-                () -> "the recorded inverted palette moved: " + line);
+                + "100 100 100 100 100 100 16 16"),
+                () -> "the palette block is not the reference: " + line);
         assertTrue(line.contains("Y 00=100 032=235"), () -> "samples moved: " + line);
-        // THE DECISIVE MEASUREMENT (RECORDED): the palette block's COLOURS are
-        // CORRECT (16 and 235, the reference's two values in monotone order) and
-        // its INDICES are WRONG — all eight cells of the map's first row decode
-        // to 1 where the reference needs 0,0,0,0,1,1,1,1. So the paint is fed a
-        // wrong INDEX, not a wrong colour, and the fault is in the MAP's decode.
+        // THE FIX'S PROOF: the colours are the reference's two values AND the
+        // index map is EXACT — 0,0,0,0,1,1,1,1 is the reference's stripe pattern
+        // (x = 16..23 are 16,16,16,16,235,235,235,235).
         assertTrue(line.contains("PALBLK pal(r0,c4,bs5,n2) col0=16 col1=235 "
-                + "idx0=1 idx1=1 idx2=1 idx3=1 idx4=1 idx5=1 idx6=1 idx7=1"),
-                () -> "the palette colour/index split moved: " + line);
+                + "idx0=0 idx1=0 idx2=0 idx3=0 idx4=1 idx5=1 idx6=1 idx7=1"),
+                () -> "the palette map is not exact after the fix: " + line);
     }
 
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */

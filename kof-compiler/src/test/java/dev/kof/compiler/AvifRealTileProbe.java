@@ -280,6 +280,19 @@ main() {
         st3 = st3 + 1
     }
     println("PALBLK " + fline)
+    // The traced reads INSIDE a position window (80..130 bits): it exposes the
+    // palette block's mode-info/colour reading symbol by symbol.
+    var wsl = sym.log()
+    var wi = 0
+    var wline = ""
+    while (wi < wsl.size / 3) {
+        var wpos = wsl[wi * 3 + 2]
+        if (wpos >= 80 && wpos <= 130) {
+            wline = wline + " " + wsl[wi * 3] + ":" + wsl[wi * 3 + 1] + "@" + wpos
+        }
+        wi = wi + 1
+    }
+    println("TRACEW" + wline)
     // The reader position at each block's ENTRY: after the partition symbols,
     // before the mode info. blockEntry - previous residual end = the partition cost.
     var bs2 = tile.blockStarts()
