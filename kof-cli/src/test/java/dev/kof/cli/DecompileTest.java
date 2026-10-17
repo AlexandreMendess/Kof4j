@@ -8076,6 +8076,66 @@ class DecompileTest {
                 "zero-drift: weightKg/sizeClass/legal/pointsPerFish id\u00eanticos ao Java");
     }
 
+    @Test
+    void gardenDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio JARDIM — 4 shapes sem c\u00f3digo novo: o
+        // waterNeeded com o produto int×double, o growthStage com as
+        // QUATRO faixas (seed/sprout/growing/mature), o needsWater com a
+        // comparação direta e o weeklyWater com o PRODUTO TRIPLO
+        // (`plants * perPlant * dryDays` — a cadeia de 3 multiplicadores
+        // com a promoção int→double no meio). Zero-drift executado: 5.0/
+        // seed/sprout/growing/mature/true/false/35.0 — 8/8 id\u00eanticos
+        // ao Java — a 72\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Garden.java");
+        Files.writeString(javaFile, """
+                public class Garden {
+                    static double waterNeeded(int plants, double perPlant) {
+                        return plants * perPlant;
+                    }
+                    static String growthStage(int days) {
+                        if (days < 7) { return "seed"; }
+                        if (days < 21) { return "sprout"; }
+                        if (days < 60) { return "growing"; }
+                        return "mature";
+                    }
+                    static boolean needsWater(double moisture) {
+                        return moisture < 40;
+                    }
+                    static double weeklyWater(int plants, double perPlant, int dryDays) {
+                        return plants * perPlant * dryDays;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Garden.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Garden.waterNeeded(10, 0.5))
+                    println(Garden.growthStage(3))
+                    println(Garden.growthStage(14))
+                    println(Garden.growthStage(45))
+                    println(Garden.growthStage(90))
+                    println(Garden.needsWater(35.0))
+                    println(Garden.needsWater(50.0))
+                    println(Garden.weeklyWater(10, 0.5, 7))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 5.0 | seed | sprout | growing | mature | true | false | 35.0
+        assertEquals("5.0\nseed\nsprout\ngrowing\nmature\ntrue\nfalse\n35.0", output,
+                "zero-drift: waterNeeded/growthStage/needsWater/weeklyWater id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
