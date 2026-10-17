@@ -7951,6 +7951,74 @@ class DecompileTest {
                 "zero-drift: bill/usageLevel/leakDetected/daysLeft id\u00eanticos ao Java");
     }
 
+    @Test
+    void backpackDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio MOCHILA — 4 shapes sem c\u00f3digo novo: o
+        // weight com o acumulador Double, o canCarry com o PRODUTO no lado
+        // direito (`load <= strength * 2` — o i2d na promoção), o
+        // packPriority com os booleanos nas faixas (medical/hydration/food)
+        // e o pockets com o contador > 0. Zero-drift executado: 7.0/true/
+        // false/medical/hydration/food/2 — 7/7 id\u00eanticos ao Java — a
+        // 70\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Backpack.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Backpack {
+                    static double weight(List<Double> items) {
+                        double total = 0;
+                        for (double w : items) {
+                            total += w;
+                        }
+                        return total;
+                    }
+                    static boolean canCarry(double load, int strength) {
+                        return load <= strength * 2;
+                    }
+                    static String packPriority(boolean firstAid, boolean water) {
+                        if (firstAid) { return "medical"; }
+                        if (water) { return "hydration"; }
+                        return "food";
+                    }
+                    static int pockets(List<Integer> sizes) {
+                        int n = 0;
+                        for (int s : sizes) {
+                            if (s > 0) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Backpack.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var items = listOf(2.5, 1.5, 3.0)
+                    println(Backpack.weight(items))
+                    println(Backpack.canCarry(15.0, 10))
+                    println(Backpack.canCarry(25.0, 10))
+                    println(Backpack.packPriority(true, false))
+                    println(Backpack.packPriority(false, true))
+                    println(Backpack.packPriority(false, false))
+                    var sizes = listOf(2, 0, 3, 0)
+                    println(Backpack.pockets(sizes))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 7.0 | true | false | medical | hydration | food | 2
+        assertEquals("7.0\ntrue\nfalse\nmedical\nhydration\nfood\n2", output,
+                "zero-drift: weight/canCarry/packPriority/pockets id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
