@@ -556,6 +556,13 @@ class Av1TileDecode {
         return this.posOut
     }
 
+    // The per-block BODY field positions (diagnostic), four ints per block:
+    // after the Y mode, the Y angle group, the UV/CFL/UV-angle group PLUS the
+    // palette MODE info, and the filter-intra field (the end of the body).
+    List<Int> bodyFields() {
+        return this.modeInfo.bodyPositions()
+    }
+
     // The per-block reader position at block ENTRY (diagnostic), one int per
     // block: after the walk's partition symbols, before the mode info.
     List<Int> blockStarts() {

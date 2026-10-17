@@ -58,6 +58,12 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // partition / mode-info / residual. sq1: b0 entry 19, b1 entry 76 —
         // so block 0 is 1 bit of partition + 5 body + 1 tx size + 49 residual,
         // and block 1 is 2 bits of partition + 31 body + 37 palette.
+        // RECORDED: the BODY field positions localize the over-consumption to the
+        // UV/CFL/UV-angle group PLUS the palette MODE info — block 1's second and
+        // third fields (76->78->78) and then 78->105, i.e. ~25 bits for the palette
+        // MODE info of a 2-colour palette, against a handful of symbols.
+        assertTrue(line.contains("BODYF 21 21 22 24 78 78 105 107"),
+                () -> "the body-field decomposition moved: " + line);
         assertTrue(line.contains("BSTART b0:19 b1:76 b2:144"),
                 () -> "the block-entry decomposition moved: " + line);
         assertTrue(line.contains("PALINFO b0:palY0/palUv0 b1:palY2/palUv0"),

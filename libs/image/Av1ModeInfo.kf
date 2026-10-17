@@ -241,6 +241,12 @@ class Av1ModeInfo {
     Av1ModeCdf modes
     Int miCols
     Int miRows
+    // Per-block BODY field positions (diagnostic, read via `bodyPositions()`):
+    // FOUR ints per block — the reader position after the Y mode, after the Y
+    // angle group, after the UV mode/CFL/UV angle group PLUS the palette MODE
+    // info, and after the filter-intra field (the end of the body).
+    List<Int> bodyPosOut
+
     Int[] segMap
     Int[] skipMap
     Int[] yModeMap
@@ -275,6 +281,7 @@ class Av1ModeInfo {
     // at the block. A standalone caller wraps its bytes:
     // `Av1ModeInfo(Av1Symbol(data), w, h)`.
     constructor(Av1Symbol sym, Int miCols, Int miRows) {
+        this.bodyPosOut = listOf()
         this.sym = sym
         this.modes = Av1ModeCdf()
         this.miCols = miCols
@@ -632,6 +639,11 @@ class Av1ModeInfo {
                                palettePossible, 8)
     }
 
+    // The per-block BODY field positions (diagnostic), four ints per block.
+    List<Int> bodyPositions() {
+        return this.bodyPosOut
+    }
+
     Int[] readBodyBd(Int r, Int c, Int bs, Int lossless, Int hasChroma,
                      Int enableFilterIntra, Int palettePossible, Int bitDepth) {
         var hasU = 0
@@ -652,11 +664,13 @@ class Av1ModeInfo {
             leftMode = imc.get(this.yModeAt(r, c - 1))
         }
         var yMode = this.sym.readSymbol(this.kfYStore.get(aboveMode * 5 + leftMode), 13)
+        this.bodyPosOut.add(this.sym.position())
         var angleY = 0
         if (bs >= 3 && av1IsDirectionalMode(yMode) == 1) {
             var raw = this.sym.readSymbol(this.angleStore.get(yMode - 1), 7)
             angleY = raw - 3
         }
+        this.bodyPosOut.add(this.sym.position())
         var uvMode = 0
         var angleUV = 0
         var cflU = 0
@@ -719,6 +733,7 @@ class Av1ModeInfo {
                 this.readPaletteUv(r, c, bs, bitDepth)
             }
         }
+        this.bodyPosOut.add(this.sym.position())
         var useFilterIntra = 0
         var filterMode = 0
         if (enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <= 32) {
@@ -735,6 +750,7 @@ class Av1ModeInfo {
         out[3] = angleUV
         out[4] = cflU
         out[5] = cflV
+        this.bodyPosOut.add(this.sym.position())
         out[6] = useFilterIntra
         out[7] = filterMode
         return out

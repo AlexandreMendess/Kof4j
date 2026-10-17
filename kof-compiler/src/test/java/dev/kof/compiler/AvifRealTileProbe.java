@@ -263,6 +263,16 @@ main() {
         bl = bl + 1
     }
     println("BSTART " + bline)
+    // The mode-info BODY field positions (4 per block): which field eats the bits.
+    var bf = tile.bodyFields()
+    var bfl = 0
+    var bfline = ""
+    while (bfl < bf.size && bfl < 16) {
+        if (bfl > 0) { bfline = bfline + " " }
+        bfline = bfline + bf[bfl]
+        bfl = bfl + 1
+    }
+    println("BODYF " + bfline)
     // How many symbols the palette-token stage of block 1 read (its window comes
     // from STAGES: body end .. palette end), to compare against the colour map's
     // expected `rows * cols - 1` index symbols.
