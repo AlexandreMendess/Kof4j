@@ -8136,6 +8136,67 @@ class DecompileTest {
                 "zero-drift: waterNeeded/growthStage/needsWater/weeklyWater id\u00eanticos ao Java");
     }
 
+    @Test
+    void chessDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio XADREZ — 4 shapes sem c\u00f3digo novo: o
+        // pieceName com as faixas == (pawn/knight/bishop/other), o
+        // isValidMove com o != entre os DOIS params, o materialScore com a
+        // SOMA DE PRODUTOS (`pawns * 1 + knights * 3` — os pesos
+        // multiplicados) e o inCheck com o IDENTITY RETURN do boolean
+        // param. Zero-drift executado: pawn/knight/bishop/other/true/
+        // false/14/true/false — 9/9 id\u00eanticos ao Java — a 73\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Chess.java");
+        Files.writeString(javaFile, """
+                public class Chess {
+                    static String pieceName(int type) {
+                        if (type == 1) { return "pawn"; }
+                        if (type == 2) { return "knight"; }
+                        if (type == 3) { return "bishop"; }
+                        return "other";
+                    }
+                    static boolean isValidMove(int from, int to) {
+                        return from != to;
+                    }
+                    static int materialScore(int pawns, int knights) {
+                        return pawns * 1 + knights * 3;
+                    }
+                    static boolean inCheck(boolean kingAttacked) {
+                        return kingAttacked;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Chess.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Chess.pieceName(1))
+                    println(Chess.pieceName(2))
+                    println(Chess.pieceName(3))
+                    println(Chess.pieceName(5))
+                    println(Chess.isValidMove(3, 5))
+                    println(Chess.isValidMove(4, 4))
+                    println(Chess.materialScore(8, 2))
+                    println(Chess.inCheck(true))
+                    println(Chess.inCheck(false))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: pawn | knight | bishop | other | true | false | 14 | true | false
+        assertEquals("pawn\nknight\nbishop\nother\ntrue\nfalse\n14\ntrue\nfalse", output,
+                "zero-drift: pieceName/isValidMove/materialScore/inCheck id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
