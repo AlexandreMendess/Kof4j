@@ -7771,6 +7771,70 @@ class DecompileTest {
                 "zero-drift: fits/ringLabel/sparesNeeded/brassTag id\u00eanticos ao Java");
     }
 
+    @Test
+    void elevatorDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio ELEVADOR — 4 shapes sem c\u00f3digo novo: a
+        // dire\u00e7\u00e3o com as TR\u00caS faixas de sinal (up/down/here), o
+        // overloaded com a compara\u00e7\u00e3o direta, o floorsToTravel com a
+        // subtra\u00e7\u00e3o e o stopCount com o contador != PARAM no for-each
+        // (`floor != currentFloor` — o != contra param, o primeiro do
+        // corpus). Zero-drift executado: up/down/here/true/false/6/2/4 —
+        // 8/8 id\u00eanticos ao Java — a 67\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Elevator.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Elevator {
+                    static String direction(int current, int target) {
+                        if (target > current) { return "up"; }
+                        if (target < current) { return "down"; }
+                        return "here";
+                    }
+                    static boolean overloaded(int people, int capacity) {
+                        return people > capacity;
+                    }
+                    static int floorsToTravel(int from, int to) {
+                        return to - from;
+                    }
+                    static int stopCount(List<Integer> stops, int currentFloor) {
+                        int n = 0;
+                        for (int floor : stops) {
+                            if (floor != currentFloor) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Elevator.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Elevator.direction(3, 7))
+                    println(Elevator.direction(7, 3))
+                    println(Elevator.direction(5, 5))
+                    println(Elevator.overloaded(11, 10))
+                    println(Elevator.overloaded(10, 10))
+                    println(Elevator.floorsToTravel(3, 9))
+                    var stops = listOf(2, 5, 2, 7)
+                    println(Elevator.stopCount(stops, 2))
+                    println(Elevator.stopCount(stops, 9))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: up | down | here | true | false | 6 | 2 | 4
+        assertEquals("up\ndown\nhere\ntrue\nfalse\n6\n2\n4", output,
+                "zero-drift: direction/overloaded/floorsToTravel/stopCount id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
