@@ -6576,6 +6576,76 @@ class DecompileTest {
                 "zero-drift: gearInches/terrainType/calories/needsService id\u00eanticos ao Java");
     }
 
+    @Test
+    void courseDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CURSO — 4 shapes sem c\u00f3digo novo: a
+        // média com o acumulador int + o ternário de guarda + o CAST
+        // (`(double) total / size`), o grade com as QUATRO faixas, o
+        // approved com a compara\u00e7\u00e3o direta e o failedCount com o
+        // contador de abaixo-do-piso. Zero-drift executado: 76.25/0.0/A/
+        // B/C/F/true/false/1 — 9/9 id\u00eanticos ao Java — a 48\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Course.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Course {
+                    static double average(List<Integer> scores) {
+                        int total = 0;
+                        for (int s : scores) {
+                            total += s;
+                        }
+                        return scores.isEmpty() ? 0 : (double) total / scores.size();
+                    }
+                    static String grade(double score) {
+                        if (score >= 90) { return "A"; }
+                        if (score >= 75) { return "B"; }
+                        if (score >= 60) { return "C"; }
+                        return "F";
+                    }
+                    static boolean approved(double average) {
+                        return average >= 60;
+                    }
+                    static int failedCount(List<Integer> scores) {
+                        int n = 0;
+                        for (int s : scores) {
+                            if (s < 60) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Course.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var scores = listOf(85, 92, 58, 70)
+                    println(Course.average(scores))
+                    println(Course.average(listOf()))
+                    println(Course.grade(95.0))
+                    println(Course.grade(80.0))
+                    println(Course.grade(65.0))
+                    println(Course.grade(40.0))
+                    println(Course.approved(72.0))
+                    println(Course.approved(55.0))
+                    println(Course.failedCount(scores))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 76.25 | 0.0 | A | B | C | F | true | false | 1
+        assertEquals("76.25\n0.0\nA\nB\nC\nF\ntrue\nfalse\n1", output,
+                "zero-drift: average/grade/approved/failedCount id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
