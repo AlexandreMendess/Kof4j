@@ -8019,6 +8019,63 @@ class DecompileTest {
                 "zero-drift: weight/canCarry/packPriority/pockets id\u00eanticos ao Java");
     }
 
+    @Test
+    void fishingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio PESCA — 4 shapes sem c\u00f3digo novo: o
+        // weightKg com a constante decimal (`length * 0.15`), o sizeClass
+        // com as faixas < (small/medium/trophy), o legal com a comparação
+        // contra o min PARAM e o pointsPerFish com o CAST d2i no return
+        // (`(int) (kg * 10)` — 3.5×10 = 35). Zero-drift executado: 6.0/
+        // small/medium/trophy/true/false/35 — 7/7 id\u00eanticos ao Java —
+        // a 71\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Fishing.java");
+        Files.writeString(javaFile, """
+                public class Fishing {
+                    static double weightKg(int lengthCm) {
+                        return lengthCm * 0.15;
+                    }
+                    static String sizeClass(double kg) {
+                        if (kg < 1) { return "small"; }
+                        if (kg < 5) { return "medium"; }
+                        return "trophy";
+                    }
+                    static boolean legal(double kg, double minKg) {
+                        return kg >= minKg;
+                    }
+                    static int pointsPerFish(double kg) {
+                        return (int) (kg * 10);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Fishing.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Fishing.weightKg(40))
+                    println(Fishing.sizeClass(0.5))
+                    println(Fishing.sizeClass(3.0))
+                    println(Fishing.sizeClass(8.0))
+                    println(Fishing.legal(2.0, 1.5))
+                    println(Fishing.legal(1.0, 1.5))
+                    println(Fishing.pointsPerFish(3.5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 6.0 | small | medium | trophy | true | false | 35
+        assertEquals("6.0\nsmall\nmedium\ntrophy\ntrue\nfalse\n35", output,
+                "zero-drift: weightKg/sizeClass/legal/pointsPerFish id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
