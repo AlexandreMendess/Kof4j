@@ -58,6 +58,31 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "recorded divergence moved: " + line);
     }
 
+    /**
+     * Frame heights that are NOT a multiple of the block grid (32x24 and 32x40,
+     * the same screen content as {@code sq1}) — built to exercise the palette
+     * OVERHANG defect found in the 65th pass. RECORDED, not asserted as correct:
+     * both fail in the SAME pattern as the 32x32 frame, with block 1's
+     * palette-token stage consuming the rest of the payload
+     * ({@code b0:24>24>25>74 b1:107>136>136>136} at 32x24,
+     * {@code b0:25>25>26>76 b1:109>152>152>152} at 32x40), and the bottom-right
+     * pixel reads 81 where the reference is 235.
+     *
+     * <p>They also REFUTE the overhang defect as the trigger of this desync:
+     * block 1 is at (0,4) BLOCK_16X8 in a 32-wide frame, i.e. its
+     * {@code mb_to_right_edge == 0}, so {@code av1_get_block_dimensions} does
+     * NOT reduce it — the failure reproduces at a NON-overhanging block.
+     */
+    @Test
+    void overhangingHeightFramesRecordTheSameBlockOneDesyncOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_oh24.avif", "oh24.avif"));
+        assertTrue(line.contains("STAGES b0:24>24>25>74 b1:107>136>136>136"),
+                () -> "the recorded stage positions moved (32x24): " + line);
+        var line2 = runKof(canonical("avif_real_oh40.avif", "oh40.avif"));
+        assertTrue(line2.contains("STAGES b0:25>25>26>76 b1:109>152>152>152"),
+                () -> "the recorded stage positions moved (32x40): " + line2);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));
