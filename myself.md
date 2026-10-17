@@ -1106,3 +1106,12 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **Disciplina aplicada:** declarei a contradição como **pergunta com evidência**, e o primeiro passo do próximo ciclo é **verificar a minha própria atribuição** (pelas posições de entrada `BSTART b2:129` / `b3:144`) antes de acusar o código — a ordem que já evitou falsos positivos nesta frente.
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado):** atribuir cada leitura da janela a um bloco pelas posições de entrada medidas; se a leitura de 13 vias em 133 for mesmo do bloco 2, reconciliar o `0` reportado com o `12` decodificado — começando por verificar se os dois vêm do **mesmo valor**.
+
+## Sessão 17/10 (sexta) — slice 3bd 89ª passagem: verificação do CAMINHO DE CÓDIGO (o decodificador ilibado)
+- **Unidade:** antes de acusar o decodificador pela contradição da 88ª, verifiquei o **caminho de código** — e ele resolve a direção do problema.
+- **O caminho inteiro é UM valor:** `Av1ModeInfo.kf:760` `out[0] = yMode` (o valor que a leitura de 13 vias devolveu) → `Av1DecodeTileRecon.kf:334` `var yMode = body[0]` (o preditor) → `:392` `modeOut.add(body[0])` (o registo) → a sonda imprime `modes[mi + 5]` com `mi = b2 * 17` (índice 5 = `body[0]`).
+- **Conclusão:** **não existe caminho pelo qual o decodificador possa ler 12 e reportar 0** — o valor reportado **É** o valor lido. Logo a contradição é entre **dois instrumentos meus** (o TRACE cronológico e o registo `modeOut`), e o primeiro a corrigir é a **atribuição** (a janela do trace ou a minha indexação de campos na linha `B`).
+- **A ordem foi deliberada:** a 88ª levantou a contradição **como pergunta** exatamente para que esta verificação viesse primeiro — e é a segunda vez seguida que "verificar o meu próprio instrumento antes do código" muda a conclusão (86ª: o `136` era de outro log; 89ª: o `12 vs 0` não pode vir do decodificador).
+- **O que os dois instrumentos CONCORDAM:** o modo UV é **12** em ambos. A discordância está confinada ao campo do **modo Y** — a forma de um **erro de indexação num dos dois impressores**, não de uma diferença de decodificação.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, e elimina a questão da atribuição por completo):** imprimir **uma linha por bloco** com o modo Y **como o decodificador o leu** e o valor do `modeOut` para o **mesmo bloco** — um registo feito para o efeito, que não pode ser mal atribuído; depois disso a questão do modo Y fica resolvida num sentido ou no outro.
