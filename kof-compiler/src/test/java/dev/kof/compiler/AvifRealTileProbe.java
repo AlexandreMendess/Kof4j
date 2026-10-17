@@ -313,7 +313,7 @@ main() {
         bfline = bfline + bf[bfl]
         bfl = bfl + 1
     }
-    println("BODYF " + bfline)
+    println("BODYF n=" + (bf.size / 4) + " stages=" + (sg.size / 2) + " " + bfline)
     // How many symbols the palette-token stage of block 1 read (its window comes
     // from STAGES: body end .. palette end), to compare against the colour map's
     // expected `rows * cols - 1` index symbols.

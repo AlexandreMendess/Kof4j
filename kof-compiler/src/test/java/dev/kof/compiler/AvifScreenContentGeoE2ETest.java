@@ -59,7 +59,7 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // so block 0 is 1 bit of partition + 5 body + 1 tx size + 49 residual,
         // and block 1 is 2 bits of partition + 31 body + 37 palette.
         // The BODY field positions still decompose block 1's body.
-        assertTrue(line.contains("BODYF 21 21 22 24 78 78 "),
+        assertTrue(line.contains("BODYF n=8 stages=8 21 21 22 24 78 78 "),
                 () -> "the body-field decomposition moved: " + line);
         assertTrue(line.contains("BSTART b0:19 b1:76 b2:129"),
                 () -> "the block-entry decomposition moved: " + line);

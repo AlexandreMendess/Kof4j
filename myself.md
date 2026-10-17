@@ -1077,3 +1077,13 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **O que é SÓLIDO e não depende disso:** os blocos 0 e 1 estão **exatos** ⇒ os seus custos em bits **são** os do encoder ⇒ o esgotamento vem dos blocos cujos **valores** ainda estão errados (do bloco 2 em diante) — exatamente onde a 84ª apontou.
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado, dois passos):** (a) resolver a discordância `stagesOut`/`bodyPosOut` do bloco 3 (descobrir **qual** dos registos está errado) e (b) com os registos confiáveis, decompor o **bloco 2** — o primeiro bloco cujos valores estão errados e aquele cujas leituras esgotam o payload.
+
+## Sessão 17/10 (sexta) — slice 3bd 86ª passagem: RETRATAÇÃO (erro de proveniência meu)
+- **Unidade:** investiguei a "inconsistência de instrumento" que reportei na 85ª — e ela **não existe**. Com a sonda a imprimir os **tamanhos** das duas listas: `BODYF n=8 stages=8 21 21 22 24 78 78 105 105 133 133 134 134 **144 144 144 144**` vs `STAGES b0:24>24>25>74 b1:105>127>128>129 b2:134>134>138>144 b3:144>144>144>144` ⇒ as duas listas têm **oito** entradas e o fim-de-corpo do bloco 3 é **144 em AMBAS** ⇒ `stagesOut[2i]` e `bodyPosOut[4i+3]` **concordam em todos os blocos**.
+- **A causa real:** o `136 136 136 136` que reportei veio do **log de uma OUTRA execução**, emparelhado com a linha `STAGES` **desta**. **Comparei números de duas execuções diferentes como se fossem um só registo.**
+- **RETRATAÇÃO registada** (EN+PT, plano e DOING) — o instrumento está **bem** e **nenhuma mudança de código** é necessária.
+- **LIÇÃO (a quinta vez que esta frente se apanha assim):** um registo por bloco só tem sentido **com a sua proveniência** — nunca emparelhar um valor de um dump com um valor de outro; imprimir os tamanhos (ou o registo inteiro) e lê-los de **uma única execução**. As quatro anteriores: o preditor (42ª), o `PATCH` (53ª), o `PALTOK` (64ª), o `PKG006` (60ª).
+- **Melhoria permanente landada:** a linha `BODYF` passa a trazer `n=<blocos> stages=<blocos>` — os tamanhos das duas listas — para que a proveniência seja **visível na própria medição** (é a correção estrutural do erro, não só a sua retratação).
+- **O que se mantém da 85ª (medido numa só execução):** bloco 0 = 74 bits e **exato**; bloco 1 (paleta) **exato**; o payload de 18 bytes **esgota-se no bloco 3**, deixando os blocos 4-7 por decodificar.
+- **Prova:** `AvifScreenContentGeoE2ETest` **4/4** (com a asserção do `BODYF` atualizada para a nova forma); compile rc=0.
+- **Próximo passo (agora desbloqueado):** decompor o **bloco 2** — o primeiro bloco cujos valores estão errados e aquele cujas leituras esgotam o payload.
