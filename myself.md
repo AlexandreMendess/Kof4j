@@ -1115,3 +1115,16 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **O que os dois instrumentos CONCORDAM:** o modo UV é **12** em ambos. A discordância está confinada ao campo do **modo Y** — a forma de um **erro de indexação num dos dois impressores**, não de uma diferença de decodificação.
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado, e elimina a questão da atribuição por completo):** imprimir **uma linha por bloco** com o modo Y **como o decodificador o leu** e o valor do `modeOut` para o **mesmo bloco** — um registo feito para o efeito, que não pode ser mal atribuído; depois disso a questão do modo Y fica resolvida num sentido ou no outro.
+
+## Sessão 17/10 (sexta) — slice 3bd 90ª passagem: correlação por extensão + duas verificações limpas
+- **Unidade:** correlacionei as leituras do bloco 2 com a **sua própria extensão** (entrada 129 → fim do corpo 134), tudo de uma execução:
+  - `13:12@133` termina em **133** ⇒ **dentro** da extensão ⇒ é o **modo Y** do bloco 2;
+  - `14:12@134` termina em **134** ⇒ dentro ⇒ é o **modo UV** (14 vias = CFL permitido);
+  - `3:2@138` termina em **138** ⇒ **depois** do corpo, onde o **tx size** é lido.
+- **A atribuição É consistente** — não é ela o problema.
+- **Verificação LIMPA #1:** a "discordância" do tx size **não é uma** — o símbolo 2 do trace contra o `txSz` 1 do registo é um **mapeamento símbolo→tamanho de transformada** (o registo guarda o ÍNDICE, não o símbolo).
+- **Verificação LIMPA #2:** o `modeOut` recebe **exatamente 17 ints por bloco** (o laço de `deltaLf` é `while (lk < 4)` com preenchimento de zeros) ⇒ o **stride** da minha sonda (`mi = b2 * 17`, índice 5 = `body[0]`) está **certo**.
+- **Consequência:** com o caminho de código já ilibado (89ª) e o stride verificado, a contradição fica **confinada a UM campo** — o modo Y, lido como **12** e reportado como **0** — enquanto o seu modo UV (**12**) concorda dos dois lados.
+- **A leitura honesta:** **um único campo a discordar, com o caminho de dados e a indexação ambos verificados, é a assinatura de um problema de MEDIÇÃO na leitura do trace** — mas isso é **hipótese, não resultado**, e ficou assim rotulado.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, e não pode ser mal atribuído):** registar **por bloco** o valor do modo Y **e** a posição do leitor **imediatamente antes e depois** da sua leitura, **do mesmo call site** — assim o `13:12@133` do trace é conferido contra uma extensão registada **na própria leitura**, e não contra uma extensão que eu derivo de duas outras listas.
