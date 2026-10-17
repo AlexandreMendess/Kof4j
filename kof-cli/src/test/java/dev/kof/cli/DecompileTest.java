@@ -6766,6 +6766,66 @@ class DecompileTest {
                 "zero-drift: isValid/domain/mask/sameDomain id\u00eanticos ao Java");
     }
 
+    @Test
+    void noteDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio NOTA — 4 shapes sem c\u00f3digo novo: o
+        // pad com o repeat MAPEADO dentro da aritm\u00e9tica (`word + " "
+        // .repeat(width - word.length())` — o repeat com a EXPRESS\u00c3O
+        // calculada no arg), o isBlank com a cadeia trim().isEmpty() no
+        // return, o capitalize com o substring(0,1).toUpperCase() + a
+        // concat e o guard do isEmpty. Zero-drift executado: 6/ola+5
+        // espa\u00e7os/comprida.../true/false/Ola/Ola — 7/7 id\u00eanticos ao
+        // Java — a 51\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Note.java");
+        Files.writeString(javaFile, """
+                public class Note {
+                    static int wordLen(String word) {
+                        return word.length();
+                    }
+                    static String pad(String word, int width) {
+                        if (word.length() >= width) { return word; }
+                        return word + " ".repeat(width - word.length());
+                    }
+                    static boolean isBlank(String line) {
+                        return line.trim().isEmpty();
+                    }
+                    static String capitalize(String word) {
+                        if (word.isEmpty()) { return word; }
+                        return word.substring(0, 1).toUpperCase() + word.substring(1);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Note.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Note.wordLen("banana"))
+                    println(Note.pad("ola", 8) + "|")
+                    println(Note.pad("comprida o suficiente", 8) + "|")
+                    println(Note.isBlank("   "))
+                    println(Note.isBlank(" x "))
+                    println(Note.capitalize("ola"))
+                    println(Note.capitalize("").length())
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 6 | ola     | | comprida o suficiente | | true | false | Ola | 0
+        // (o capitalize("") imprime 0 — o length do vazio; o trim do harness
+        // comeria a linha vazia no println direto)
+        assertEquals("6\nola     |\ncomprida o suficiente|\ntrue\nfalse\nOla\n0", output,
+                "zero-drift: wordLen/pad/isBlank/capitalize id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
