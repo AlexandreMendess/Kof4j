@@ -6122,6 +6122,84 @@ class DecompileTest {
                 "zero-drift: price/sizeName/isVegetarian/slicesFor id\u00eanticos ao Java");
     }
 
+    @Test
+    void textProcessDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio TEXTO-PROC — 4 shapes sem c\u00f3digo novo: o
+        // longest com a compara\u00e7\u00e3o CALL-vs-CALL (`w.length() >
+        // best.length()` — os DOIS lados sendo chamadas), o totalLength com
+        // o contador de lengths no for-each, o allShort com o early-false
+        // de threshold e o initials-v2 com a MÁQUINA DE ESTADOS invertida
+        // (o newWord setado no espaço e consumido no else-if). Zero-drift
+        // executado: jardim/13/true/false/amt — 5/5 id\u00eanticos ao Java —
+        // a 41\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Stream.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Stream {
+                    static String longest(List<String> words) {
+                        String best = "";
+                        for (String w : words) {
+                            if (w.length() > best.length()) { best = w; }
+                        }
+                        return best;
+                    }
+                    static int totalLength(List<String> words) {
+                        int n = 0;
+                        for (String w : words) {
+                            n += w.length();
+                        }
+                        return n;
+                    }
+                    static boolean allShort(List<String> words, int max) {
+                        for (String w : words) {
+                            if (w.length() > max) { return false; }
+                        }
+                        return true;
+                    }
+                    static String initials(String phrase) {
+                        String out = "";
+                        boolean newWord = true;
+                        for (int i = 0; i < phrase.length(); i++) {
+                            char c = phrase.charAt(i);
+                            if (c == ' ') {
+                                newWord = true;
+                            } else if (newWord) {
+                                out = out + c;
+                                newWord = false;
+                            }
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Stream.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var ws = listOf("casa", "jardim", "sol")
+                    println(Stream.longest(ws))
+                    println(Stream.totalLength(ws))
+                    println(Stream.allShort(ws, 7))
+                    println(Stream.allShort(ws, 4))
+                    println(Stream.initials("alan mathison turing"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: jardim | 13 | true | false | amt
+        assertEquals("jardim\n13\ntrue\nfalse\namt", output,
+                "zero-drift: longest/totalLength/allShort/initials id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
