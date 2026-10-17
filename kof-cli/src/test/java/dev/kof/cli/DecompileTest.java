@@ -6959,6 +6959,79 @@ class DecompileTest {
                 "zero-drift: canEnter/doorState/openCount/anyOpen id\u00eanticos ao Java");
     }
 
+    @Test
+    void farmDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio FAZENDA — 4 shapes sem c\u00f3digo novo: o
+        // harvestValue com o unbox×double no for-each (`c * pricePerCrate`
+        // — a promo\u00e7\u00e3o int→double no acumulador), as esta\u00e7\u00f5es com o
+        // || de COMPARA\u00c7\u00d5ES nas faixas (`m <= 2 || m == 12` — o wrap do
+        // ano) e as TR\u00caS faixas encadeadas, o needsIrrigation com o && de
+        // compara\u00e7\u00e3o+nega\u00e7\u00e3o e o totalTrees com o acumulador int.
+        // Zero-drift executado: 200.0/summer/summer/autumn/winter/spring/
+        // true/false/false/16 — 10/10 id\u00eanticos ao Java — a 54\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Farm.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Farm {
+                    static double harvestValue(List<Integer> crates, double pricePerCrate) {
+                        double total = 0;
+                        for (int c : crates) {
+                            total += c * pricePerCrate;
+                        }
+                        return total;
+                    }
+                    static String season(int month) {
+                        if (month <= 2 || month == 12) { return "summer"; }
+                        if (month <= 5) { return "autumn"; }
+                        if (month <= 8) { return "winter"; }
+                        return "spring";
+                    }
+                    static boolean needsIrrigation(double soilMoisture, boolean forecastRain) {
+                        return soilMoisture < 30 && !forecastRain;
+                    }
+                    static int totalTrees(List<Integer> perRow) {
+                        int sum = 0;
+                        for (int t : perRow) {
+                            sum += t;
+                        }
+                        return sum;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Farm.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var crates = listOf(5, 3, 8)
+                    println(Farm.harvestValue(crates, 12.5))
+                    println(Farm.season(1))
+                    println(Farm.season(12))
+                    println(Farm.season(4))
+                    println(Farm.season(7))
+                    println(Farm.season(10))
+                    println(Farm.needsIrrigation(25.0, false))
+                    println(Farm.needsIrrigation(25.0, true))
+                    println(Farm.needsIrrigation(40.0, false))
+                    println(Farm.totalTrees(crates))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 200.0 | summer | summer | autumn | winter | spring | true | false | false | 16
+        assertEquals("200.0\nsummer\nsummer\nautumn\nwinter\nspring\ntrue\nfalse\nfalse\n16", output,
+                "zero-drift: harvestValue/season/needsIrrigation/totalTrees id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
