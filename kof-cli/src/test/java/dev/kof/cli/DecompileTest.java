@@ -6705,6 +6705,67 @@ class DecompileTest {
                 "zero-drift: rectArea/circleArea/kind/isSquare id\u00eanticos ao Java");
     }
 
+    @Test
+    void emailDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio EMAIL + a fatia do String.repeat — o
+        // mapeamento java-instance → stdlib-call: o `s.repeat(n)` do JDK
+        // vira `strings.repeat(s, n)` (o Kof NÃO tem String.repeat —
+        // SEM052 — mas a stdlib TEM strings.repeat/kof_strings_repeat; o
+        // precedente keySet→keys). Os shapes: o isValid com o && TRIPLO de
+        // calls encadeadas (o indexOf reusado), o domain com o indexOf +
+        // substring no local, o mask com o REPEAT MAPEADO + a concat e o
+        // sameDomain com a chamada local reusada duas vezes. Zero-drift
+        // executado: true/false/false/test.com/***@test.com/true/false —
+        // 7/7 id\u00eanticos ao Java — a 50\u00aa valida\u00e7\u00e3o.
+        Path javaFile = dir.resolve("Email.java");
+        Files.writeString(javaFile, """
+                public class Email {
+                    static boolean isValid(String email) {
+                        return email.contains("@") && email.indexOf("@") > 0 && email.indexOf("@") < email.length() - 1;
+                    }
+                    static String domain(String email) {
+                        int at = email.indexOf("@");
+                        return email.substring(at + 1);
+                    }
+                    static String mask(String email) {
+                        int at = email.indexOf("@");
+                        return "*".repeat(at) + email.substring(at);
+                    }
+                    static boolean sameDomain(String a, String b) {
+                        return domain(a).equals(domain(b));
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Email.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("strings.repeat"), "o repeat mapeado:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Email.isValid("ana@test.com"))
+                    println(Email.isValid("ana@"))
+                    println(Email.isValid("@test.com"))
+                    println(Email.domain("ana@test.com"))
+                    println(Email.mask("ana@test.com"))
+                    println(Email.sameDomain("a@x.com", "b@x.com"))
+                    println(Email.sameDomain("a@x.com", "b@y.com"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | false | test.com | ***@test.com | true | false
+        assertEquals("true\nfalse\nfalse\ntest.com\n***@test.com\ntrue\nfalse", output,
+                "zero-drift: isValid/domain/mask/sameDomain id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
