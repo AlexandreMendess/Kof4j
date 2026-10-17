@@ -1096,3 +1096,13 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **Nota de método:** este registo foi lido **todo da mesma execução** (`/tmp/sz1.log`), com a linha `BODYF` já a trazer `n=8 stages=8` — a correção estrutural da 86ª a funcionar na prática seguinte.
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado):** dumpar os **símbolos individuais do bloco 2** na janela do trace (modo Y, modo UV, tx size e a caminhada de coeficientes) e **precificar cada um contra a sintaxe** — um bloco plano com `txSz = 1` e zero coeficientes tem um custo esperado pequeno e conferível à mão.
+
+## Sessão 17/10 (sexta) — slice 3bd 88ª passagem: símbolos do bloco 2 + uma CONTRADIÇÃO
+- **Unidade:** movi a janela do trace para **120..150** (cobre a cauda do bloco de paleta + o bloco 2) e dumpámo-la.
+- **As leituras, em ordem:** a longa sequência de **2 vias** (o mapa de índices do bloco 1) até 128; `3:1@128`; `2:1@129 2:1@129 2:0@129`; **`13:12@133`** — um símbolo de **13 vias**, que é o **MODO Y intra**, com valor **12 (PAETH)**; `14:12@134` (o modo UV de 14 vias, valor 12); `3:2@138` (3 vias, na posição do tx size); e o resíduo a partir de 138.
+- **A CONTRADIÇÃO:** o registo do próprio bloco 2 imprime **`yMode = 0`** (`B 2 138 144 0 1 0 0 12 0`, campos skip/txSz/yMode/angleY/uvMode/angleUV) enquanto o trace mostra a **leitura do modo Y devolvendo 12**.
+- **Duas saídas possíveis:** (a) as leituras da janela pertencem a um bloco diferente do que eu lhes atribuo; ou (b) **o modo que o decodificador USA difere do modo que ele REPORTA** — defeito sério por si, e **invisível nos pixels** porque num bloco plano a predição dá 100 seja qual for o modo.
+- **Porque isto é a armadilha já registada:** a 9ª passagem deixou escrito que **os valores reportados não capturam o estado**; aqui a leitura e o valor reportado discordam, e é a LEITURA (o símbolo) que diz o que o stream contém.
+- **Disciplina aplicada:** declarei a contradição como **pergunta com evidência**, e o primeiro passo do próximo ciclo é **verificar a minha própria atribuição** (pelas posições de entrada `BSTART b2:129` / `b3:144`) antes de acusar o código — a ordem que já evitou falsos positivos nesta frente.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** atribuir cada leitura da janela a um bloco pelas posições de entrada medidas; se a leitura de 13 vias em 133 for mesmo do bloco 2, reconciliar o `0` reportado com o `12` decodificado — começando por verificar se os dois vêm do **mesmo valor**.
