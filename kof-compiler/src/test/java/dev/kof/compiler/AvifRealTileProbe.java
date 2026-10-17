@@ -252,6 +252,17 @@ main() {
         pil = pil + 1
     }
     println("PALINFO " + piline)
+    // The reader position at each block's ENTRY: after the partition symbols,
+    // before the mode info. blockEntry - previous residual end = the partition cost.
+    var bs2 = tile.blockStarts()
+    var bl = 0
+    var bline = ""
+    while (bl < bs2.size && bl < 6) {
+        if (bl > 0) { bline = bline + " " }
+        bline = bline + "b" + bl + ":" + bs2[bl]
+        bl = bl + 1
+    }
+    println("BSTART " + bline)
     // How many symbols the palette-token stage of block 1 read (its window comes
     // from STAGES: body end .. palette end), to compare against the colour map's
     // expected `rows * cols - 1` index symbols.

@@ -135,6 +135,11 @@ class Av1TileDecode {
     // Per-block palette MODE info (diagnostic, read via `palInfos()`): two ints
     // per block — the decoded Y and UV palette sizes (0 = no palette).
     List<Int> palOut
+    // Per-block reader position at block ENTRY (diagnostic, read via
+    // `blockStarts()`): one int per block, taken after the walk's partition
+    // symbols and before the mode info, so the PARTITION cost of a block is
+    // its entry minus the previous block's residual end.
+    List<Int> blockStartOut
     Int[] colorIndexY
     Int[] colorIndexUv
     Av1ChromaPlanes chroma
@@ -222,6 +227,7 @@ class Av1TileDecode {
         this.predLog = listOf()
         this.stagesOut = listOf()
         this.palOut = listOf()
+        this.blockStartOut = listOf()
         // The palette COLOUR-INDEX maps the `palette_tokens()` stage fills
         // (per pixel, per plane); the reconstruction reads them.
         this.colorIndexY = new Int[this.frameW * this.frameH]
@@ -241,6 +247,9 @@ class Av1TileDecode {
     // evolve across blocks (`qIndex` from delta-Q, `cur` from delta-LF) are
     // written back at the end.
     void decodeBlock(Int r, Int c, Int bs) {
+        // Diagnostic: the reader position at block ENTRY — i.e. after every
+        // partition symbol the walk read for this leaf, before the mode info.
+        this.blockStartOut.add(this.reader.position())
         var frame = this.frame
         var stride = this.stride
         var frameW = this.frameW
@@ -545,6 +554,12 @@ class Av1TileDecode {
     // The per-block reader positions (diagnostic), two ints per block.
     List<Int> positions() {
         return this.posOut
+    }
+
+    // The per-block reader position at block ENTRY (diagnostic), one int per
+    // block: after the walk's partition symbols, before the mode info.
+    List<Int> blockStarts() {
+        return this.blockStartOut
     }
 
     // The per-block palette MODE info (diagnostic), 2 ints per block: the Y and

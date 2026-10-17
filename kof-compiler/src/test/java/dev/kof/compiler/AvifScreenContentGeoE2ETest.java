@@ -54,6 +54,12 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // wrote none" is REFUTED — a 2-colour palette is exactly right for the
         // reference's 4px 16/235 stripes, and ~37 bits for its 128-cell index
         // map is plausible.
+        // RECORDED: the block-ENTRY reader positions decompose each block into
+        // partition / mode-info / residual. sq1: b0 entry 19, b1 entry 76 —
+        // so block 0 is 1 bit of partition + 5 body + 1 tx size + 49 residual,
+        // and block 1 is 2 bits of partition + 31 body + 37 palette.
+        assertTrue(line.contains("BSTART b0:19 b1:76 b2:144"),
+                () -> "the block-entry decomposition moved: " + line);
         assertTrue(line.contains("PALINFO b0:palY0/palUv0 b1:palY2/palUv0"),
                 () -> "the palette MODE info moved: " + line);
         assertTrue(line.contains("PALTOK window=107..144 bits=37 symbols=61"),

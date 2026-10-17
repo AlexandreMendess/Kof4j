@@ -904,3 +904,15 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **Método:** duas hipóteses minhas caíram em duas passagens consecutivas (a ultrapassagem da 65ª e a paleta espúria desta) — **ambas antes de eu escrever qualquer correção**, que é a ordem certa. O padrão que está a funcionar: instrumento → medição → hipótese testada → refutação honesta.
 - **Prova:** `AvifScreenContentGeoE2ETest` **2/2** com o registo `PALINFO` fixado como asserção **gravada**; `check_test_hygiene` rc=0.
 - **Próximo passo:** decompor os 74 bits do bloco 0 — dumpar as primeiras entradas do `TRACE` com posições para separar o custo de **partição** do de **mode info**, e dumpar a caminhada de coeficientes do `tx0` (eob, nível, posições por símbolo).
+
+## Sessão 16/10 (quinta) — slice 3bd 68ª passagem: decomposição partição/mode-info/resíduo por bloco
+- **Unidade:** `Av1TileDecode.blockStarts()` em `libs/image/Av1DecodeTileRecon.kf` — aditivo (sem mudança de assinatura): a posição do leitor na **ENTRADA** de cada bloco (depois dos símbolos de partição da caminhada, antes do mode info). A sonda imprime `BSTART b<i>:<pos>`.
+- **Medido (sq1):** `BSTART b0:19 b1:76 b2:144 …` com `STAGES b0:24>24>25>74 b1:107>144>144>144` ⇒
+  - bits **0..18** = o **cabeçalho do tile** (o primeiro símbolo do trace está em 18 ⇒ essas leituras não são traçadas);
+  - bloco 0 = **1 bit de partição** + **5 de corpo** + **1 de tx size** + **49 de resíduo**;
+  - bloco 1 = **2 de partição** + **31 de corpo** + **37 de tokens de paleta** → esgota o payload.
+- **RETIRA a leitura da 67ª passagem** ("os 74 bits do bloco 0 são a anomalia"): decomposto, o mode-info + partição do bloco 0 são **7 bits** e o custo está no **RESÍDUO** (49 bits para o único coeficiente não-nulo do `tx0`, eob=2 — plausível para um degrau DC grande). A ressalva que declarei na 67ª (a janela incluía os símbolos de partição) era exatamente a ressalva certa.
+- **Medido (testsrc-64):** `BSTART b0:24 b1:77 b2:92 b3:114 b4:470 b5:485` com `STAGES … b3:219>468>470>470` ⇒ bloco 3 = **3 bits de partição** + **105 bits de CORPO de mode-info** (o bloco com paleta nos **dois** planos, `palY=6`/`palUv=7`, contra um mínimo plausível de ~35 bits) + **249 bits de tokens de paleta**.
+- **Nova alavanca (nomeada):** o **CORPO do mode-info** é o estágio desproporcionado (105 bits no bloco 3 do testsrc). Próximo instrumento: posições por **CAMPO** dentro do `readBodyBd` (modo Y, angleY, modo UV, alfas CFL, angleUV, mode info de paleta, filter-intra) para ver qual campo come os 105 bits.
+- **Método:** três leituras minhas caíram em três passagens consecutivas (ultrapassagem na 65ª, paleta espúria na 67ª, bloco 0 na 67ª→retirada na 68ª) — **todas antes de qualquer correção**. O instrumento novo (posição na entrada do bloco) foi o que transformou "74 bits é muito" em "1+5+1+49".
+- **Prova:** `AvifScreenContentGeoE2ETest` **2/2** com a decomposição `BSTART` fixada como asserção **gravada**; `check_test_hygiene` rc=0.
