@@ -7835,6 +7835,65 @@ class DecompileTest {
                 "zero-drift: direction/overloaded/floorsToTravel/stopCount id\u00eanticos ao Java");
     }
 
+    @Test
+    void wardrobeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio GUARDA-ROUPA — 4 shapes sem c\u00f3digo
+        // novo: o sizeTag com as faixas < (P/M/G/GG), o fitsColor com o
+        // equals entre os DOIS params, o hangersNeeded com a soma direta e
+        // o isFormal com o STARTSWITH de 1 char no return. Zero-drift
+        // executado: P/M/G/GG/true/false/15/true/false — 9/9 id\u00eanticos
+        // ao Java — a 68\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Wardrobe.java");
+        Files.writeString(javaFile, """
+                public class Wardrobe {
+                    static String sizeTag(int waist) {
+                        if (waist < 30) { return "P"; }
+                        if (waist < 36) { return "M"; }
+                        if (waist < 42) { return "G"; }
+                        return "GG";
+                    }
+                    static boolean fitsColor(String item, String outfit) {
+                        return item.equals(outfit);
+                    }
+                    static int hangersNeeded(int items, int spare) {
+                        return items + spare;
+                    }
+                    static boolean isFormal(String tag) {
+                        return tag.startsWith("f");
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Wardrobe.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Wardrobe.sizeTag(28))
+                    println(Wardrobe.sizeTag(34))
+                    println(Wardrobe.sizeTag(40))
+                    println(Wardrobe.sizeTag(44))
+                    println(Wardrobe.fitsColor("azul", "azul"))
+                    println(Wardrobe.fitsColor("azul", "preto"))
+                    println(Wardrobe.hangersNeeded(10, 5))
+                    println(Wardrobe.isFormal("formal"))
+                    println(Wardrobe.isFormal("casual"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: P | M | G | GG | true | false | 15 | true | false
+        assertEquals("P\nM\nG\nGG\ntrue\nfalse\n15\ntrue\nfalse", output,
+                "zero-drift: sizeTag/fitsColor/hangersNeeded/isFormal id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
