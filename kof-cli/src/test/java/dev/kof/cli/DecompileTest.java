@@ -7467,6 +7467,68 @@ class DecompileTest {
                 "zero-drift: portfolioValue/performance/profitLots/worthSelling id\u00eanticos ao Java");
     }
 
+    @Test
+    void kitchenDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio COZINHA — 4 shapes sem c\u00f3digo novo: o
+        // costPerServing com a divis\u00e3o double/int, o doneness com as TR\u00caS
+        // faixas de temperatura (rare/medium/well done — o label com
+        // ESPA\u00c7O), o hasIngredient com o EARLY-TRUE do equals contra param
+        // e o servingsFor com a soma direta. Zero-drift executado: 15.0/
+        // rare/medium/well done/true/false/12 — 7/7 id\u00eanticos ao Java —
+        // a 62\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Recipe2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Recipe2 {
+                    static double costPerServing(double totalCost, int servings) {
+                        return totalCost / servings;
+                    }
+                    static String doneness(double internalTemp) {
+                        if (internalTemp < 52) { return "rare"; }
+                        if (internalTemp < 63) { return "medium"; }
+                        return "well done";
+                    }
+                    static boolean hasIngredient(List<String> ingredients, String wanted) {
+                        for (String ing : ingredients) {
+                            if (ing.equals(wanted)) { return true; }
+                        }
+                        return false;
+                    }
+                    static int servingsFor(int guests, int extra) {
+                        return guests + extra;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Recipe2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Recipe2.costPerServing(75.0, 5))
+                    println(Recipe2.doneness(48.0))
+                    println(Recipe2.doneness(58.0))
+                    println(Recipe2.doneness(70.0))
+                    var ings = listOf("farinha", "ovos", "leite")
+                    println(Recipe2.hasIngredient(ings, "ovos"))
+                    println(Recipe2.hasIngredient(ings, "fermento"))
+                    println(Recipe2.servingsFor(10, 2))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 15.0 | rare | medium | well done | true | false | 12
+        assertEquals("15.0\nrare\nmedium\nwell done\ntrue\nfalse\n12", output,
+                "zero-drift: costPerServing/doneness/hasIngredient/servingsFor id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
