@@ -1047,3 +1047,11 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **IMPACTO, SEM REGRESSÃO:** testsrc-64 (o dessincronismo de longa data) **1257 → 1779** bits consumidos (54% → **76%**); sq1 4/6 pixels amostrados exatos (era 1); ll/oh24/tall com o primeiro bloco de paleta exato; **cb8/cb16/pskip INALTERADOS e ainda exatos**.
 - **Prova:** `AvifScreenContentGeoE2ETest` **4/4** (asserções gravadas atualizadas para os valores pós-correção — várias agora **reforçadas** em asserções de correção, e uma renomeada: `losslessEncodePaletteMapIsExactOnJvm`) e `AvifRealFileE2ETest` **11/11**; compile rc=0; `check_test_hygiene` rc=0.
 - **Próximo passo:** catalogar como `known-bugs` §NNN (ledger EN+PT + CHANGELOG + contagem viva **na mesma unidade**) e depois perseguir a **divergência restante** — o testsrc está em **76%**, não em 100%.
+
+## Sessão 17/10 (sexta) — slice 3bd 83ª passagem: catalogação §752
+- **Unidade:** a correção da causa raiz está agora no **ledger máquina** — `known-bugs` **§752** EN+PT (`**Status:** ✅ FIXED 17/10` / `✅ CORRIGIDO 17/10`), com a cadeia buscada (`av1_filter_intra_allowed`: `mode == DC_PRED && palette_size[0] == 0 && bsize ok`), a evidência do trace (a leitura espúria `2:0@116` logo depois das cores), a correção de **um termo**, a prova RED-first (mapa `1,1,1,…` → `0,0,0,0,1,1,1,1`; pintura `16 16`; blocos de transformada alternando `p=16/r=16` / `p=235/r=235`) e o impacto medido **sem regressão** (testsrc **1257 → 1779** de 2344; sq1 4/6 pixels; cb8/cb16/pskip inalterados e exatos).
+- **Âncoras:** escrevi os slugs **na convenção do próprio gate** desta vez (título curto, sem acentos problemáticos) — e o `check_ledger_anchors` passou à primeira ✓ (na 73ª o gate teve de me dizer o slug).
+- **Nada muda na contagem viva:** §752 nasce **fechado** ⇒ o conjunto ABERTO e a contagem dos READMEs de development ficam intactos.
+- **CHANGELOG EN+PT:** as entradas que o gate exige para o fecho de um § ≥ 400.
+- **Prova:** `check_known_bugs_status`, `check_ledger_anchors`, `check_live_records`, `check_changelog_ledger` e `check_doc_refs` todos rc=0; **os 11 gates estruturais rc=0**.
+- **Próximo passo:** a **divergência restante** — o testsrc-64 está em **76%** (1779/2344), não em 100%; e o padrão dos quatro fixtures agora tem de ser re-medido (a correção mudou todos os números).

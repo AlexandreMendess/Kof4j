@@ -19832,3 +19832,20 @@ println(Dir.valueOf("S"))   jvm/script/js = S ✓   native x86 = S (exit 0) ✓ 
 
 **Companion defect found in the same pass (my own, test-side):** the probe's `PALTOK` counter indexed its stage array unguarded and threw on the one-block fixtures; guarded, `AvifRealFileE2ETest` 11/11.
 <!-- pt-switch --> **PT:** [§751 (pt_BR)](known-bugs.pt_BR.md#751--o-contexto-do-modo-de-paleta-tratava-o-vizinho-de-cima-como-indisponivel-em-todo-inicio-de-linha-de-superbloco-64x64)
+
+## §752 — the filter-intra guard was missing libaom's palette term
+**Status:** ✅ FIXED 17/10 — the guard now requires `palSizeYMap[r * miCols + c] == 0`.
+
+**CATALOGUED + FIXED 17/10 — lane pipeline/image-vision `192.168.15.21:0`.** Found by reading the tile decode's SYMBOL TRACE (a windowed `TRACEW` dump) of a palette block and FETCHING `av1_filter_intra_allowed` (`av1/common/blockd.h`):
+
+```
+mbmi->mode == DC_PRED && mbmi->palette_mode_info.palette_size[0] == 0 &&
+av1_filter_intra_allowed_bsize(cm, mbmi->bsize)
+```
+
+Kof's guard was `enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <= 32` — **the palette term was MISSING**. So on EVERY palette block whose two dimensions are <= 32 Kof read a `use_filter_intra` flag the encoder never wrote: the stream shifted by ~2 bits and the WHOLE colour-index map decoded wrong. That is the `3bd` desync: the block's palette COLOURS were correct (they precede the spurious read) while its INDICES were wrong, and the payload was still consumed to the last bit, because the map's reads simply ate whatever followed. It also explains why the 64x64 palette fixture (`avif_real_cb8.avif`) had been EXACT since the 37th pass: `maxDim <= 32` excludes it, so it never read the spurious flag.
+
+**Fix (precise, one term):** `palSizeYMap[r * this.miCols + c] == 0` added to the guard in `libs/image/Av1ModeInfo.kf`.
+
+**Proof (RED-first, in the fixture that isolates it):** the index map goes from `1,1,1,1,1,1,1,1` to `0,0,0,0,1,1,1,1` — the reference's stripe pattern — the paint reads `16 16` where it read `235 235`, and the palette block's transform blocks alternate `p=16/r=16` and `p=235/r=235`. Measured impact, with NO regression: the 64x64 testsrc frame goes from 1257 to 1779 consumed bits of 2344 (54% -> 76%), the 32x32 frame matches 4 of its 6 sampled pixels (was 1), and `avif_real_cb8.avif`, `avif_real_cb16.avif` and `avif_real_pskip.avif` are UNCHANGED and still exact. Suites: `AvifScreenContentGeoE2ETest` 4/4, `AvifRealFileE2ETest` 11/11.
+<!-- pt-switch --> **PT:** [§752 (pt_BR)](known-bugs.pt_BR.md#752--a-guarda-do-filter-intra-faltava-o-termo-da-paleta-do-libaom)

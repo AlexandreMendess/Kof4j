@@ -17319,3 +17319,20 @@ println(Dir.valueOf("S"))   jvm/script/js = S ✓   native x86 = S (exit 0) ✓ 
 
 **Defeito companheiro achado na mesma passagem (meu, do lado do teste):** o contador `PALTOK` da sonda indexava o seu array de estágios sem guarda e estourava nos fixtures de um bloco; guardado, o `AvifRealFileE2ETest` está 11/11.
 <!-- pt-switch --> **EN:** [§751 (en)](known-bugs.md#751--the-palette-y-mode-context-treated-the-above-neighbour-as-unavailable-at-every-64x64-superblock-row-start)
+
+## §752 — a guarda do filter-intra faltava o termo da paleta do libaom
+**Status:** ✅ CORRIGIDO 17/10 — a guarda passa a exigir `palSizeYMap[r * miCols + c] == 0`.
+
+**CATALOGADO + CORRIGIDO 17/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado ao ler o TRACE de SÍMBOLOS da decodificação do tile (um dump por janela, `TRACEW`) de um bloco de paleta e BUSCAR o `av1_filter_intra_allowed` (`av1/common/blockd.h`):
+
+```
+mbmi->mode == DC_PRED && mbmi->palette_mode_info.palette_size[0] == 0 &&
+av1_filter_intra_allowed_bsize(cm, mbmi->bsize)
+```
+
+A guarda do Kof era `enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <= 32` — **faltava o termo da paleta**. Logo em TODO bloco de paleta cujas duas dimensões são <= 32 o Kof lia uma bandeira `use_filter_intra` que o encoder nunca escreveu: o stream deslocava ~2 bits e o MAPA de índices inteiro decodificava errado. É esse o dessincronismo `3bd`: as CORES da paleta do bloco estavam certas (precedem a leitura espúria) enquanto os ÍNDICES estavam errados, e o payload continuava consumido até o último bit, porque as leituras do mapa simplesmente comiam o que viesse depois. Explica também porque o fixture de paleta 64x64 (`avif_real_cb8.avif`) era EXATO desde a 37ª passagem: `maxDim <= 32` exclui-o, logo ele nunca leu a bandeira espúria.
+
+**Correção (precisa, um termo):** `palSizeYMap[r * this.miCols + c] == 0` acrescentado à guarda em `libs/image/Av1ModeInfo.kf`.
+
+**Prova (RED-first, no fixture que o isola):** o mapa de índices passa de `1,1,1,1,1,1,1,1` para `0,0,0,0,1,1,1,1` — o padrão de faixas da referência — a pintura lê `16 16` onde lia `235 235`, e os blocos de transformada do bloco de paleta alternam `p=16/r=16` e `p=235/r=235`. Impacto medido, SEM regressão: o quadro testsrc 64x64 vai de 1257 para 1779 bits consumidos de 2344 (54% -> 76%), o quadro 32x32 bate 4 dos seus 6 pixels amostrados (era 1), e `avif_real_cb8.avif`, `avif_real_cb16.avif` e `avif_real_pskip.avif` ficam INALTERADOS e ainda exatos. Suítes: `AvifScreenContentGeoE2ETest` 4/4, `AvifRealFileE2ETest` 11/11.
+<!-- pt-switch --> **EN:** [§752 (en)](known-bugs.md#752--the-filter-intra-guard-was-missing-libaoms-palette-term)
