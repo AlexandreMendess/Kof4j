@@ -7710,6 +7710,67 @@ class DecompileTest {
                 "zero-drift: sellValue/verdict/worthIt/breakEven id\u00eanticos ao Java");
     }
 
+    @Test
+    void keychainDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CHAVEIRO — 4 shapes sem c\u00f3digo novo: o
+        // fits com o equals entre os DOIS params, o ringLabel com as faixas
+        // <= (empty/small/medium/large), o sparesNeeded com o ZERO no
+        // early-return e o brassTag com o ENDSWITH no return. Zero-drift
+        // executado: true/false/empty/small/medium/large/2/0/true/false —
+        // 10/10 id\u00eanticos ao Java — a 66\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Keychain.java");
+        Files.writeString(javaFile, """
+                public class Keychain {
+                    static boolean fits(String key, String lock) {
+                        return key.equals(lock);
+                    }
+                    static String ringLabel(int keys) {
+                        if (keys <= 1) { return "empty"; }
+                        if (keys <= 5) { return "small"; }
+                        if (keys <= 10) { return "medium"; }
+                        return "large";
+                    }
+                    static int sparesNeeded(int total, int have) {
+                        if (total <= have) { return 0; }
+                        return total - have;
+                    }
+                    static boolean brassTag(String key) {
+                        return key.endsWith("-brass");
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Keychain.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Keychain.fits("casa", "casa"))
+                    println(Keychain.fits("casa", "carro"))
+                    println(Keychain.ringLabel(0))
+                    println(Keychain.ringLabel(3))
+                    println(Keychain.ringLabel(8))
+                    println(Keychain.ringLabel(15))
+                    println(Keychain.sparesNeeded(5, 3))
+                    println(Keychain.sparesNeeded(3, 5))
+                    println(Keychain.brassTag("portao-brass"))
+                    println(Keychain.brassTag("portao-steel"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | empty | small | medium | large | 2 | 0 | true | false
+        assertEquals("true\nfalse\nempty\nsmall\nmedium\nlarge\n2\n0\ntrue\nfalse", output,
+                "zero-drift: fits/ringLabel/sparesNeeded/brassTag id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
