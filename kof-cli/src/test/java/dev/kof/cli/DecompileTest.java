@@ -6200,6 +6200,72 @@ class DecompileTest {
                 "zero-drift: longest/totalLength/allShort/initials id\u00eanticos ao Java");
     }
 
+    @Test
+    void investDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio INVESTIMENTO — 4 shapes sem c\u00f3digo
+        // novo: o juros compostos com o for de re-atribuição
+        // (`balance = balance * (1 + rate)`), o profitable com a comparação
+        // direta, o yearsToDouble com o WHILE contra a PRODUTÓRIA
+        // (`balance < principal * 2` — o threshold calculado no header) e
+        // o fee com as duas taxas por braço. Zero-drift executado:
+        // 1331.0/true/false/8/5.0/10.0 — 6/6 id\u00eanticos ao Java — a
+        // 42\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Invest.java");
+        Files.writeString(javaFile, """
+                public class Invest {
+                    static double compoundInterest(double principal, double rate, int years) {
+                        double balance = principal;
+                        for (int i = 0; i < years; i++) {
+                            balance = balance * (1 + rate);
+                        }
+                        return balance;
+                    }
+                    static boolean profitable(double initial, double current) {
+                        return current > initial;
+                    }
+                    static int yearsToDouble(double principal, double rate) {
+                        int years = 0;
+                        double balance = principal;
+                        while (balance < principal * 2) {
+                            balance = balance * (1 + rate);
+                            years++;
+                        }
+                        return years;
+                    }
+                    static double fee(double amount, boolean premium) {
+                        if (premium) { return amount * 0.005; }
+                        return amount * 0.01;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Invest.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Invest.compoundInterest(1000.0, 0.1, 3))
+                    println(Invest.profitable(1000.0, 1200.0))
+                    println(Invest.profitable(1000.0, 900.0))
+                    println(Invest.yearsToDouble(1000.0, 0.1))
+                    println(Invest.fee(1000.0, true))
+                    println(Invest.fee(1000.0, false))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1331.0 | true | false | 8 | 5.0 | 10.0
+        assertEquals("1331.0\ntrue\nfalse\n8\n5.0\n10.0", output,
+                "zero-drift: compoundInterest/profitable/yearsToDouble/fee id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
