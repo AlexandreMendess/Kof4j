@@ -1064,3 +1064,16 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **Porque isto é o resultado certo:** uma correção de causa raiz **move** o sintoma; se nada tivesse mudado, a correção seria suspeita. Aqui o bloco que o fix reparou ficou **exato** e o que sobra está **noutro lugar**, com uma localização nova e precisa.
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado):** dumpar as **posições de estágio e os registos de coeficientes** dos blocos `(4,4)`, `(4,6)` e `(6,4)` do sq1 — os três imediatamente depois do bloco de paleta reparado — para decidir entre **falha de resíduo/coeficientes** (as leituras alinham) e **um SEGUNDO deslocamento** (outra guarda em falta da mesma família).
+
+## Sessão 17/10 (sexta) — slice 3bd 85ª passagem: decomposição pós-correção + uma INCONSISTÊNCIA de instrumento
+- **Unidade:** leitura da decomposição por bloco do sq1 **depois** da correção §752, a partir dos dumps existentes.
+- **Medido (sq1 pós-correção):** `STAGES b0:24>24>25>74 b1:105>127>128>129 b2:134>134>138>144 b3:144>144>144>144` + `BODYF 21 21 22 24 78 78 105 105 133 133 134 134 136 136 136 136`:
+  - bloco 0 (16x16 DC) = 74 bits e **EXATO** (100 = a referência);
+  - bloco 1 (o de paleta) **EXATO**: 27 bits de mode info + cores, depois 22 de mapa de índices;
+  - bloco 2 = 15 bits;
+  - **blocos 3 a 7 não leem NADA** — o leitor está no fim do payload (144) ⇒ o quadro de 18 bytes esgota-se **com quatro blocos por decodificar**.
+- **A INCONSISTÊNCIA (o achado desta passagem):** `stagesOut[2i]` (gravado no `decodeBlock`) e `bodyPosOut[4i+3]` (gravado **dentro** do `readBodyBd`) **concordam** para os blocos 0/1/2 (24, 105, 134) mas **discordam no bloco 3 — 144 vs 136** — embora ambos sejam tirados **no mesmo ponto da mesma chamada**. Um dos dois registos está errado ali.
+- **Porque isto importa:** toda a minha localização recente se apoia em posições por estágio; se um dos dois registos pode divergir sem explicação, as conclusões tiradas deles (incluindo parte da 84ª) precisam do registo **verificado** antes de continuar. É a mesma disciplina que já salvou esta frente três vezes (o preditor, o `PATCH`, o `PALTOK`).
+- **O que é SÓLIDO e não depende disso:** os blocos 0 e 1 estão **exatos** ⇒ os seus custos em bits **são** os do encoder ⇒ o esgotamento vem dos blocos cujos **valores** ainda estão errados (do bloco 2 em diante) — exatamente onde a 84ª apontou.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, dois passos):** (a) resolver a discordância `stagesOut`/`bodyPosOut` do bloco 3 (descobrir **qual** dos registos está errado) e (b) com os registos confiáveis, decompor o **bloco 2** — o primeiro bloco cujos valores estão errados e aquele cujas leituras esgotam o payload.
