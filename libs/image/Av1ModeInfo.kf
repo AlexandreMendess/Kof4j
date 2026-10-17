@@ -157,6 +157,21 @@ Int av1CeilLog2(Int x) {
 // multiple of 16); the left palette when `c > 0`. Returns the number of cached
 // colors. `sizeMap` holds the per-MI palette size, `colorMap` the per-MI sorted
 // colors (`mi * 8 + i`).
+// libaom `av1_get_palette_mode_ctx` (av1/common/pred_common.h): the palette-Y
+// MODE context is the number of AVAILABLE neighbours that carry a palette —
+// availability being `mi_row > 0` / `mi_col > 0` (the neighbour exists), NOT a
+// superblock-row boundary.
+Int av1PaletteModeCtx(Int r, Int c, Int[] palSizeYMap, Int miCols) {
+    var ctx = 0
+    if (r > 0 && palSizeYMap[(r - 1) * miCols + c] > 0) {
+        ctx = ctx + 1
+    }
+    if (c > 0 && palSizeYMap[r * miCols + (c - 1)] > 0) {
+        ctx = ctx + 1
+    }
+    return ctx
+}
+
 Int av1GetPaletteCache(Int[] sizeMap, Int[] colorMap, Int r, Int c, Int miCols,
                        Int[] out) {
     var aboveN = 0
@@ -475,13 +490,7 @@ class Av1ModeInfo {
     // them over the block's MI grid and returns the size (0 when no palette).
     Int readPaletteY(Int r, Int c, Int bs, Int bitDepth) {
         var bsizeCtx = av1BlockNumPelsLog2(bs) - 6
-        var ctx = 0
-        if (r % 16 != 0 && this.palSizeYMap[(r - 1) * this.miCols + c] > 0) {
-            ctx = ctx + 1
-        }
-        if (c > 0 && this.palSizeYMap[r * this.miCols + (c - 1)] > 0) {
-            ctx = ctx + 1
-        }
+        var ctx = av1PaletteModeCtx(r, c, this.palSizeYMap, this.miCols)
         var modev = this.sym.readSymbol(this.palYModeStore.get(bsizeCtx * 3 + ctx), 2)
         if (modev == 0) {
             return 0
