@@ -8311,6 +8311,63 @@ class DecompileTest {
                 "zero-drift: percentRemaining/state/needsCharge/hoursLeft id\u00eanticos ao Java");
     }
 
+    @Test
+    void phoneDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio TELEFONE — 4 shapes sem c\u00f3digo novo: o
+        // dialKey com o CHAR ARITMÉTICO (`digit - '0'` — o char menos o
+        // literal de char), o isValidNumber com o && de COMPARAÇÃO+CALL
+        // (`length() == 11 && startsWith("55")`), o format com a concat de
+        // 4 termos com o parêntese no literal e o firstDigit com o charAt
+        // no return. Zero-drift executado: 7/0/false/false/false/(11)
+        // 999998888/5 — 7/7 id\u00eanticos ao Java — a 76\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo (o == 11 rejeita o 12 dígitos NOS DOIS — o drift
+        // zero honesto).
+        Path javaFile = dir.resolve("Phone.java");
+        Files.writeString(javaFile, """
+                public class Phone {
+                    static int dialKey(char digit) {
+                        return digit - '0';
+                    }
+                    static boolean isValidNumber(String number) {
+                        return number.length() == 11 && number.startsWith("55");
+                    }
+                    static String format(String areaCode, String local) {
+                        return "(" + areaCode + ") " + local;
+                    }
+                    static char firstDigit(String number) {
+                        return number.charAt(0);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Phone.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Phone.dialKey('7'))
+                    println(Phone.dialKey('0'))
+                    println(Phone.isValidNumber("551199998888"))
+                    println(Phone.isValidNumber("1199998888"))
+                    println(Phone.isValidNumber("331199998888"))
+                    println(Phone.format("11", "999998888"))
+                    println(Phone.firstDigit("5511"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 7 | 0 | false | false | false | (11) 999998888 | 5
+        assertEquals("7\n0\nfalse\nfalse\nfalse\n(11) 999998888\n5", output,
+                "zero-drift: dialKey/isValidNumber/format/firstDigit id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
