@@ -1087,3 +1087,12 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **O que se mantém da 85ª (medido numa só execução):** bloco 0 = 74 bits e **exato**; bloco 1 (paleta) **exato**; o payload de 18 bytes **esgota-se no bloco 3**, deixando os blocos 4-7 por decodificar.
 - **Prova:** `AvifScreenContentGeoE2ETest` **4/4** (com a asserção do `BODYF` atualizada para a nova forma); compile rc=0.
 - **Próximo passo (agora desbloqueado):** decompor o **bloco 2** — o primeiro bloco cujos valores estão errados e aquele cujas leituras esgotam o payload.
+
+## Sessão 17/10 (sexta) — slice 3bd 87ª passagem: registo por bloco de UMA execução (proveniência limpa)
+- **Unidade:** leitura do registo bloco a bloco do sq1 **de uma única execução** — aplicando imediatamente a lição da 86ª (nunca emparelhar números de dumps diferentes).
+- **Medido (uma execução):** `B 0 25 74 0 1 0 0 0 0` / `B 1 128 129 0 1 0 0 0 0` / `B 2 138 144 0 1 0 0 12 0` / `B 3 144 144 …` / `B 4-7 … 144 144`, com `BLKY (0,0,bs6)=100 (0,4,bs5)=16 (2,4,bs5)=16 (4,0,bs5)=100 (6,0,bs5)=100 (4,4,bs3)=24 (4,6,bs3)=75 (6,4,bs5)=71`.
+- **A estrutura da falha:** os blocos 0 e 1 são **exatos** ⇒ os seus custos em bits **são** os do encoder; o bloco 2 — um 16x8 na metade **plana** — também dá 100, **mas a sua exatidão não pode ser evidência: num bloco plano a PREDIÇÃO sozinha dá 100**. Com o `nzHead` todo a zero a partir do `tx0`, os blocos 2-7 **não têm coeficientes** ⇒ qualquer um deles pode imprimir o valor certo sem um único bit correto. **O bloco 2 é o último que ainda tem bits (129 → 144) e o primeiro cuja correção o valor não consegue verificar.**
+- **Os dois estágios a suspeitar no bloco 2:** o `tx size` custa **4 bits** para um símbolo `txSz = 1` (TX_8X8), e o resíduo **6 bits** sem nenhum coeficiente não-nulo — ambos caros para um bloco plano.
+- **Nota de método:** este registo foi lido **todo da mesma execução** (`/tmp/sz1.log`), com a linha `BODYF` já a trazer `n=8 stages=8` — a correção estrutural da 86ª a funcionar na prática seguinte.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** dumpar os **símbolos individuais do bloco 2** na janela do trace (modo Y, modo UV, tx size e a caminhada de coeficientes) e **precificar cada um contra a sintaxe** — um bloco plano com `txSz = 1` e zero coeficientes tem um custo esperado pequeno e conferível à mão.
