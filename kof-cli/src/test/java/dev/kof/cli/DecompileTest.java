@@ -6447,6 +6447,76 @@ class DecompileTest {
                 "zero-drift: kmToMiles/celsiusToFahrenheit/sizeLabel/isRoomTemp id\u00eanticos ao Java");
     }
 
+    @Test
+    void menuDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio MENU — 4 shapes sem c\u00f3digo novo: o
+        // total com o acumulador Double no for-each (a fatia dos stores
+        // wide), o spicyLabel com as faixas ==/<= (no-spice/mild/spicy/
+        // fire), o hasVegan com o EARLY-TRUE do equals e o perPerson com a
+        // divis\u00e3o double/int. Zero-drift executado: 56.0/no spice/mild/
+        // spicy/fire/false/true/30.0 — 8/8 id\u00eanticos ao Java — a
+        // 46\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Menu.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Menu {
+                    static double totalPrice(List<Double> items) {
+                        double sum = 0;
+                        for (double item : items) {
+                            sum += item;
+                        }
+                        return sum;
+                    }
+                    static String spicyLabel(int level) {
+                        if (level == 0) { return "no spice"; }
+                        if (level <= 3) { return "mild"; }
+                        if (level <= 6) { return "spicy"; }
+                        return "fire";
+                    }
+                    static boolean hasVegan(List<String> tags) {
+                        for (String tag : tags) {
+                            if (tag.equals("vegan")) { return true; }
+                        }
+                        return false;
+                    }
+                    static double perPerson(double total, int people) {
+                        return total / people;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Menu.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var items = listOf(25.5, 18.0, 12.5)
+                    println(Menu.totalPrice(items))
+                    println(Menu.spicyLabel(0))
+                    println(Menu.spicyLabel(2))
+                    println(Menu.spicyLabel(5))
+                    println(Menu.spicyLabel(9))
+                    var tags = listOf("veg", "gluten-free")
+                    var vegan = listOf("veg", "vegan")
+                    println(Menu.hasVegan(tags))
+                    println(Menu.hasVegan(vegan))
+                    println(Menu.perPerson(120.0, 4))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 56.0 | no spice | mild | spicy | fire | false | true | 30.0
+        assertEquals("56.0\nno spice\nmild\nspicy\nfire\nfalse\ntrue\n30.0", output,
+                "zero-drift: totalPrice/spicyLabel/hasVegan/perPerson id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
