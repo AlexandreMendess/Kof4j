@@ -1055,3 +1055,12 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **CHANGELOG EN+PT:** as entradas que o gate exige para o fecho de um § ≥ 400.
 - **Prova:** `check_known_bugs_status`, `check_ledger_anchors`, `check_live_records`, `check_changelog_ledger` e `check_doc_refs` todos rc=0; **os 11 gates estruturais rc=0**.
 - **Próximo passo:** a **divergência restante** — o testsrc-64 está em **76%** (1779/2344), não em 100%; e o padrão dos quatro fixtures agora tem de ser re-medido (a correção mudou todos os números).
+
+## Sessão 17/10 (sexta) — slice 3bd 84ª passagem: RE-MEDIÇÃO pós-correção (a divergência MUDOU)
+- **Unidade:** re-medição do padrão dos quatro fixtures depois da correção (§752), a partir dos dumps pós-correção — **a divergência mudou de lugar**, o que é exatamente o que uma correção verdadeira deve fazer.
+- **Medido (sq1):** `BLKY (0,0,bs6)=100 (0,4,bs5)=16 (2,4,bs5)=16 (4,0,bs5)=100 (6,0,bs5)=100 (4,4,bs3)=24 (4,6,bs3)=75 (6,4,bs5)=71` ⇒ o bloco de paleta `(0,4)` e o seu vizinho `(2,4)` reconstroem agora **16 = a referência** (liam **235** antes da correção) ✓✓. A referência nas origens **seguintes** é **16, 16, 16** (x = 16 e 24 são colunas de faixa de valor 16) e o Kof lê **24, 75, 71** ✗ ⇒ **a falha desceu e andou para a direita**: do próprio bloco de paleta para os blocos `(4,4)`, `(4,6)` e `(6,4)`.
+- **Mesma forma (tall):** `(0,8,bs5)=16` ✓ (a referência) e a divergência começa em `(2,8)` = 4 vs 16 e `(0,12)` = 236.
+- **Consumo:** testsrc-64 **1779/2344 (76%)**, sq1 144/144 com 2 de 6 amostras erradas, tall 296/296 com 2 de 6 erradas ⇒ **os quadros consomem o payload enquanto os pixels abaixo do bloco reparado estão errados** — a assinatura de uma falha no **resíduo/coeficientes dos blocos seguintes**, não de um deslocamento do stream.
+- **Porque isto é o resultado certo:** uma correção de causa raiz **move** o sintoma; se nada tivesse mudado, a correção seria suspeita. Aqui o bloco que o fix reparou ficou **exato** e o que sobra está **noutro lugar**, com uma localização nova e precisa.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** dumpar as **posições de estágio e os registos de coeficientes** dos blocos `(4,4)`, `(4,6)` e `(6,4)` do sq1 — os três imediatamente depois do bloco de paleta reparado — para decidir entre **falha de resíduo/coeficientes** (as leituras alinham) e **um SEGUNDO deslocamento** (outra guarda em falta da mesma família).
