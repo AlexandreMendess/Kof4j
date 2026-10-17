@@ -6327,6 +6327,66 @@ class DecompileTest {
                 "zero-drift: follows/handle/isNew/likesToLevel id\u00eanticos ao Java");
     }
 
+    @Test
+    void parkingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio ESTACIONAMENTO — 4 shapes sem c\u00f3digo
+        // novo: a tarifa com a DIVISÃO INT→DOUBLE no local (`minutes /
+        // 60.0` + o excedente multiplicado), o isFull com a comparação
+        // direta, o zone com o CHAR PARAM nas faixas (== 'A' / == 'B') e o
+        // spotsLeft com a subtra\u00e7\u00e3o dupla encadeada. Zero-drift
+        // executado: 5.0/8.0/true/false/premium/standard/economy/30 — 8/8
+        // id\u00eanticos ao Java — a 44\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Parking.java");
+        Files.writeString(javaFile, """
+                public class Parking {
+                    static double fee(int minutes) {
+                        double hours = minutes / 60.0;
+                        if (hours <= 1) { return 5.0; }
+                        return 5.0 + (hours - 1) * 3.0;
+                    }
+                    static boolean isFull(int occupied, int total) {
+                        return occupied >= total;
+                    }
+                    static String zone(char code) {
+                        if (code == 'A') { return "premium"; }
+                        if (code == 'B') { return "standard"; }
+                        return "economy";
+                    }
+                    static int spotsLeft(int total, int occupied, int reserved) {
+                        return total - occupied - reserved;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Parking.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Parking.fee(30))
+                    println(Parking.fee(120))
+                    println(Parking.isFull(50, 50))
+                    println(Parking.isFull(49, 50))
+                    println(Parking.zone('A'))
+                    println(Parking.zone('B'))
+                    println(Parking.zone('C'))
+                    println(Parking.spotsLeft(100, 60, 10))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 5.0 | 8.0 | true | false | premium | standard | economy | 30
+        assertEquals("5.0\n8.0\ntrue\nfalse\npremium\nstandard\neconomy\n30", output,
+                "zero-drift: fee/isFull/zone/spotsLeft id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
