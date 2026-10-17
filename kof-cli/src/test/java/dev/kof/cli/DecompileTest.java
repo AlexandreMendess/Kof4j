@@ -6646,6 +6646,65 @@ class DecompileTest {
                 "zero-drift: average/grade/approved/failedCount id\u00eanticos ao Java");
     }
 
+    @Test
+    void shapeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio GEOMETRIA — 4 shapes sem c\u00f3digo novo:
+        // o retângulo com o produto direto, o círculo com a CONSTANTE na
+        // FRENTE (`3.14159 * r * r` — a constante primeiro no encadeamento),
+        // o kind com as faixas == (triangle/quadrilateral/pentagon/polygon)
+        // e o isSquare com o == entre os DOIS params. Zero-drift executado:
+        // 20.0/12.56636/triangle/quadrilateral/pentagon/polygon/true/false
+        // — 8/8 id\u00eanticos ao Java — a 49\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Shape.java");
+        Files.writeString(javaFile, """
+                public class Shape {
+                    static double rectArea(double w, double h) {
+                        return w * h;
+                    }
+                    static double circleArea(double r) {
+                        return 3.14159 * r * r;
+                    }
+                    static String kind(int sides) {
+                        if (sides == 3) { return "triangle"; }
+                        if (sides == 4) { return "quadrilateral"; }
+                        if (sides == 5) { return "pentagon"; }
+                        return "polygon";
+                    }
+                    static boolean isSquare(double w, double h) {
+                        return w == h;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Shape.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Shape.rectArea(4.0, 5.0))
+                    println(Shape.circleArea(2.0))
+                    println(Shape.kind(3))
+                    println(Shape.kind(4))
+                    println(Shape.kind(5))
+                    println(Shape.kind(7))
+                    println(Shape.isSquare(3.0, 3.0))
+                    println(Shape.isSquare(3.0, 4.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 20.0 | 12.56636 | triangle | quadrilateral | pentagon | polygon | true | false
+        assertEquals("20.0\n12.56636\ntriangle\nquadrilateral\npentagon\npolygon\ntrue\nfalse", output,
+                "zero-drift: rectArea/circleArea/kind/isSquare id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
