@@ -6266,6 +6266,67 @@ class DecompileTest {
                 "zero-drift: compoundInterest/profitable/yearsToDouble/fee id\u00eanticos ao Java");
     }
 
+    @Test
+    void socialDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio SOCIAL — 4 shapes sem c\u00f3digo novo: o
+        // follows com o contains direto, o handle com a concat + o
+        // toLowerCase no return, o isNew com o equals NEGADO e o
+        // likesToLevel com as QUATRO faixas decrescentes (3/2/1/0).
+        // Zero-drift executado: true/false/@maria/true/false/3/2/1/0 —
+        // 9/9 id\u00eanticos ao Java — a 43\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Social.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Social {
+                    static boolean follows(List<String> myFollows, String user) {
+                        return myFollows.contains(user);
+                    }
+                    static String handle(String name) {
+                        return "@" + name.toLowerCase();
+                    }
+                    static boolean isNew(String post, String lastSeen) {
+                        return !post.equals(lastSeen);
+                    }
+                    static int likesToLevel(int likes) {
+                        if (likes >= 1000) { return 3; }
+                        if (likes >= 100) { return 2; }
+                        if (likes >= 10) { return 1; }
+                        return 0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Social.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var follows = listOf("ana", "bia")
+                    println(Social.follows(follows, "ana"))
+                    println(Social.follows(follows, "caio"))
+                    println(Social.handle("Maria"))
+                    println(Social.isNew("post2", "post1"))
+                    println(Social.isNew("post1", "post1"))
+                    println(Social.likesToLevel(1500))
+                    println(Social.likesToLevel(250))
+                    println(Social.likesToLevel(15))
+                    println(Social.likesToLevel(3))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | @maria | true | false | 3 | 2 | 1 | 0
+        assertEquals("true\nfalse\n@maria\ntrue\nfalse\n3\n2\n1\n0", output,
+                "zero-drift: follows/handle/isNew/likesToLevel id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
