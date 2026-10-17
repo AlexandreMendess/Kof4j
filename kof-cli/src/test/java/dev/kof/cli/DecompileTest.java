@@ -7401,6 +7401,72 @@ class DecompileTest {
                 "zero-drift: charge/display/canBuy/change id\u00eanticos ao Java");
     }
 
+    @Test
+    void stock2DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CARTEIRA — 4 shapes sem c\u00f3digo novo: o
+        // portfolioValue com o for indexado sobre DUAS listas (o get duplo
+        // × a promo\u00e7\u00e3o), o performance com as TR\u00caS faixas de sinal
+        // (gain/loss/flat), o profitLots com a subtra\u00e7\u00e3o direta e o
+        // worthSelling com a aritm\u00e9tica no && impl\u00edcito do return
+        // (`current - fee > purchase` — a subtra\u00e7\u00e3o no lado esquerdo da
+        // compara\u00e7\u00e3o). Zero-drift executado: 2350.0/gain/loss/flat/150/
+        // true/false — 7/7 id\u00eanticos ao Java — a 61\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Stock2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Stock2 {
+                    static double portfolioValue(List<Integer> shares, List<Double> prices) {
+                        double total = 0;
+                        for (int i = 0; i < shares.size(); i++) {
+                            total += shares.get(i) * prices.get(i);
+                        }
+                        return total;
+                    }
+                    static String performance(double change) {
+                        if (change > 0) { return "gain"; }
+                        if (change < 0) { return "loss"; }
+                        return "flat";
+                    }
+                    static int profitLots(int bought, int sold) {
+                        return sold - bought;
+                    }
+                    static boolean worthSelling(double current, double purchase, double fee) {
+                        return current - fee > purchase;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Stock2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var shares = listOf(100, 50, 200)
+                    var prices = listOf(10.5, 20.0, 1.5)
+                    println(Stock2.portfolioValue(shares, prices))
+                    println(Stock2.performance(0.5))
+                    println(Stock2.performance(-0.5))
+                    println(Stock2.performance(0.0))
+                    println(Stock2.profitLots(300, 450))
+                    println(Stock2.worthSelling(110.0, 100.0, 5.0))
+                    println(Stock2.worthSelling(103.0, 100.0, 5.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2350.0 | gain | loss | flat | 150 | true | false
+        assertEquals("2350.0\ngain\nloss\nflat\n150\ntrue\nfalse", output,
+                "zero-drift: portfolioValue/performance/profitLots/worthSelling id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
