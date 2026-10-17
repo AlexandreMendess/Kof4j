@@ -7529,6 +7529,66 @@ class DecompileTest {
                 "zero-drift: costPerServing/doneness/hasIngredient/servingsFor id\u00eanticos ao Java");
     }
 
+    @Test
+    void commuteDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
+        // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
+        // QUATRO faixas (walk/bike/bus/train), o arrivesEarly com a
+        // ARITMÉTICA na compara\u00e7\u00e3o (`h * 60 + m < limit` — a convers\u00e3o
+        // para minutos no && impl\u00edcito) e o weeklyCost com a
+        // multiplica\u00e7\u00e3o direta. Zero-drift executado: 10.0/walk/bike/bus/
+        // train/true/false/110 — 8/8 id\u00eanticos ao Java — a 63\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Commute.java");
+        Files.writeString(javaFile, """
+                public class Commute {
+                    static double costPerDay(double monthlyPass, int workdays) {
+                        return monthlyPass / workdays;
+                    }
+                    static String mode(int distanceKm) {
+                        if (distanceKm < 2) { return "walk"; }
+                        if (distanceKm < 8) { return "bike"; }
+                        if (distanceKm < 30) { return "bus"; }
+                        return "train";
+                    }
+                    static boolean arrivesEarly(int departHour, int departMin, int limitMin) {
+                        return departHour * 60 + departMin < limitMin;
+                    }
+                    static int weeklyCost(int daily) {
+                        return daily * 5;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Commute.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Commute.costPerDay(200.0, 20))
+                    println(Commute.mode(1))
+                    println(Commute.mode(5))
+                    println(Commute.mode(20))
+                    println(Commute.mode(45))
+                    println(Commute.arrivesEarly(7, 30, 500))
+                    println(Commute.arrivesEarly(8, 30, 500))
+                    println(Commute.weeklyCost(22))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10.0 | walk | bike | bus | train | true | false | 110
+        assertEquals("10.0\nwalk\nbike\nbus\ntrain\ntrue\nfalse\n110", output,
+                "zero-drift: costPerDay/mode/arrivesEarly/weeklyCost id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
