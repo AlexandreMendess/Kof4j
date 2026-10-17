@@ -8254,6 +8254,63 @@ class DecompileTest {
                 "zero-drift: dailyKwh/condition/batteryOk/savings id\u00eanticos ao Java");
     }
 
+    @Test
+    void batteryDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio BATERIA — 4 shapes sem c\u00f3digo novo: o
+        // percentRemaining com a FÓRMULA DE PERCENTUAL (`(capacity - used)
+        // * 100 / capacity` — o parêntese no numerador + a divisão
+        // inteira), o state com as faixas < (low/ok/full), o needsCharge
+        // com a comparação direta e o hoursLeft com a divisão int/double.
+        // Zero-drift executado: 70/low/ok/full/true/false/10.0 — 7/7
+        // id\u00eanticos ao Java — a 75\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Battery.java");
+        Files.writeString(javaFile, """
+                public class Battery {
+                    static int percentRemaining(int used, int capacity) {
+                        return (capacity - used) * 100 / capacity;
+                    }
+                    static String state(double pct) {
+                        if (pct < 20) { return "low"; }
+                        if (pct < 80) { return "ok"; }
+                        return "full";
+                    }
+                    static boolean needsCharge(double pct) {
+                        return pct < 15;
+                    }
+                    static double hoursLeft(int remainingPct, double drainPerHour) {
+                        return remainingPct / drainPerHour;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Battery.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Battery.percentRemaining(30, 100))
+                    println(Battery.state(10.0))
+                    println(Battery.state(50.0))
+                    println(Battery.state(90.0))
+                    println(Battery.needsCharge(10.0))
+                    println(Battery.needsCharge(50.0))
+                    println(Battery.hoursLeft(50, 5.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 70 | low | ok | full | true | false | 10.0
+        assertEquals("70\nlow\nok\nfull\ntrue\nfalse\n10.0", output,
+                "zero-drift: percentRemaining/state/needsCharge/hoursLeft id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
