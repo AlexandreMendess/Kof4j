@@ -7214,6 +7214,76 @@ class DecompileTest {
                 "zero-drift: unlocked/status/remaining/alarmLevel id\u00eanticos ao Java");
     }
 
+    @Test
+    void libraryDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio BIBLIOTECA — 4 shapes sem c\u00f3digo novo:
+        // o findTitle com o EARLY-RETURN DENTRO do for INDEXADO (o get +
+        // equals + o return do próprio elemento), a multa com o zero no
+        // early-return (o days <= 0 cobrindo 0 e negativo), o canBorrow
+        // com a comparação direta e o countByGenre com o equals contra um
+        // PARAM. Zero-drift executado: o cortico/not found/2.5/0.0/0.0/
+        // true/false/2 — 8/8 id\u00eanticos ao Java — a 58\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Library.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Library {
+                    static String findTitle(List<String> titles, String isbn) {
+                        for (int i = 0; i < titles.size(); i++) {
+                            if (titles.get(i).equals(isbn)) {
+                                return titles.get(i);
+                            }
+                        }
+                        return "not found";
+                    }
+                    static double lateFee(int days, double rate) {
+                        if (days <= 0) { return 0; }
+                        return days * rate;
+                    }
+                    static boolean canBorrow(int active, int limit) {
+                        return active < limit;
+                    }
+                    static int countByGenre(List<String> genres, String genre) {
+                        int n = 0;
+                        for (String g : genres) {
+                            if (g.equals(genre)) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Library.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var titles = listOf("dom casmurro", "o cortico", "iracema")
+                    println(Library.findTitle(titles, "o cortico"))
+                    println(Library.findTitle(titles, "ausente"))
+                    println(Library.lateFee(5, 0.5))
+                    println(Library.lateFee(0, 0.5))
+                    println(Library.lateFee(-2, 0.5))
+                    println(Library.canBorrow(2, 5))
+                    println(Library.canBorrow(5, 5))
+                    var genres = listOf("romance", "ficcao", "romance")
+                    println(Library.countByGenre(genres, "romance"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: o cortico | not found | 2.5 | 0.0 | 0.0 | true | false | 2
+        assertEquals("o cortico\nnot found\n2.5\n0.0\n0.0\ntrue\nfalse\n2", output,
+                "zero-drift: findTitle/lateFee/canBorrow/countByGenre id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
