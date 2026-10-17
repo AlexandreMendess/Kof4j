@@ -7284,6 +7284,64 @@ class DecompileTest {
                 "zero-drift: findTitle/lateFee/canBorrow/countByGenre id\u00eanticos ao Java");
     }
 
+    @Test
+    void planetDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio PLANETA — 4 shapes sem c\u00f3digo novo: a
+        // gravidade marciana com a constante decimal, o sizeClass com as
+        // TR\u00caS faixas (dwarf/terrestrial/giant), o hasMoon com a
+        // compara\u00e7\u00e3o direta e a escapeVelocity com a NOTA\u00c7\u00c3O
+        // CIENT\u00cdFICA no ldc2_w (`6.674e-11`) + o Math.sqrt + a cadeia
+        // mista (`2 * const * mass / radius`). Zero-drift executado:
+        // 30.4/dwarf/terrestrial/giant/false/true/11185.72649237147 — 7/7
+        // id\u00eanticos ao Java — a 59\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Planet.java");
+        Files.writeString(javaFile, """
+                public class Planet {
+                    static double weightOnMars(double earthKg) {
+                        return earthKg * 0.38;
+                    }
+                    static String sizeClass(double radiusKm) {
+                        if (radiusKm < 2500) { return "dwarf"; }
+                        if (radiusKm < 12000) { return "terrestrial"; }
+                        return "giant";
+                    }
+                    static boolean hasMoon(int moons) {
+                        return moons > 0;
+                    }
+                    static double escapeVelocity(double mass, double radius) {
+                        return Math.sqrt(2 * 6.674e-11 * mass / radius);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Planet.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Planet.weightOnMars(80.0))
+                    println(Planet.sizeClass(2000.0))
+                    println(Planet.sizeClass(6371.0))
+                    println(Planet.sizeClass(69911.0))
+                    println(Planet.hasMoon(0))
+                    println(Planet.hasMoon(2))
+                    println(Planet.escapeVelocity(5.972e24, 6.371e6))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 30.4 | dwarf | terrestrial | giant | false | true | 11185.72649237147
+        assertEquals("30.4\ndwarf\nterrestrial\ngiant\nfalse\ntrue\n11185.72649237147", output,
+                "zero-drift: weightOnMars/sizeClass/hasMoon/escapeVelocity id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
