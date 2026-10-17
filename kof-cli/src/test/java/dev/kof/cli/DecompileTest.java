@@ -7652,6 +7652,64 @@ class DecompileTest {
                 "zero-drift: cost/roomClass/hasVacancy/cancellationFee id\u00eanticos ao Java");
     }
 
+    @Test
+    void tradeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio COM\u00c9RCIO — 4 shapes sem c\u00f3digo novo:
+        // o sellValue com o produto int×double, o verdict com as TR\u00caS
+        // faixas de sinal (gain/even/loss — o == 0 no meio), o worthIt com
+        // o PRODUTO no lado direito (`expected > cost * 1.1` — a
+        // multiplicação como threshold) e o breakEven com o DIVISOR
+        // PARENTESADO (`fixed / (price - unit)`). Zero-drift executado:
+        // 1250.0/gain/even/loss/true/false/40 — 7/7 id\u00eanticos ao Java —
+        // a 65\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Trade.java");
+        Files.writeString(javaFile, """
+                public class Trade {
+                    static double sellValue(int quantity, double unitPrice) {
+                        return quantity * unitPrice;
+                    }
+                    static String verdict(double profit) {
+                        if (profit > 0) { return "gain"; }
+                        if (profit == 0) { return "even"; }
+                        return "loss";
+                    }
+                    static boolean worthIt(double expected, double cost) {
+                        return expected > cost * 1.1;
+                    }
+                    static int breakEven(int fixed, int unit, int price) {
+                        return fixed / (price - unit);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Trade.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Trade.sellValue(100, 12.5))
+                    println(Trade.verdict(100.0))
+                    println(Trade.verdict(0.0))
+                    println(Trade.verdict(-50.0))
+                    println(Trade.worthIt(120.0, 100.0))
+                    println(Trade.worthIt(105.0, 100.0))
+                    println(Trade.breakEven(1000, 20, 45))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1250.0 | gain | even | loss | true | false | 40
+        assertEquals("1250.0\ngain\neven\nloss\ntrue\nfalse\n40", output,
+                "zero-drift: sellValue/verdict/worthIt/breakEven id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
