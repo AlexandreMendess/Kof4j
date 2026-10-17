@@ -102,6 +102,30 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "the recorded stage positions moved (32x40): " + line2);
     }
 
+    /**
+     * The 64x256 TALL fixture (built to exercise the palette-Y MODE context at
+     * the 64x64 superblock row starts). RECORDED, not asserted as correct: it
+     * consumes its payload to the last bit (296/296) and its RIGHT half is wrong
+     * while the LEFT half is exact. Geometry it records: block 0 is a
+     * `BLOCK_32X32` covering the flat left half (reconstructed 100 = the
+     * reference) and the FIRST right-half block — `(0,8)` `BLOCK_16X8` — is a
+     * 2-colour palette block (`PALINFO b1:palY2`) whose palette-token stage costs
+     * 90 bits (118 -> 208) of the 296, after which the reader is exhausted.
+     */
+    @Test
+    void tallFrameRecordsTheRightHalfDivergenceOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_tall.avif", "tall.avif"));
+        assertTrue(line.contains("blocks=14 covered=1024 frame=1024 overlap=0 "
+                + "symBits=296 payloadBits=296"), () -> "the tall walk moved: " + line);
+        assertTrue(line.contains("Y 00=100 "), () -> "the left half must be exact: " + line);
+        assertTrue(line.contains("BLKY (0,0,bs9)=100 (0,8,bs5)=235"),
+                () -> "the half-frame split moved: " + line);
+        assertTrue(line.contains("PALINFO b0:palY0/palUv0 b1:palY2/palUv0"),
+                () -> "the tall palette MODE info moved: " + line);
+        assertTrue(line.contains("STAGES b0:22>22>23>82 b1:118>208>209>213"),
+                () -> "the tall stage positions moved: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));
