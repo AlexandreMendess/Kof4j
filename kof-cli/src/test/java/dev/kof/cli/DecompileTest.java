@@ -6888,6 +6888,77 @@ class DecompileTest {
                 "zero-drift: formatDuration/isExpired/addSeconds/countdown id\u00eanticos ao Java");
     }
 
+    @Test
+    void doorDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio PORTA — 4 shapes sem c\u00f3digo novo: o
+        // canEnter com o || de booleans no return, o doorState com as duas
+        // faixas booleanas, o openCount com o contador no for-each de
+        // Bool[] (o array PRIMITIVO de booleans iterado) e o anyOpen com o
+        // EARLY-TRUE. Zero-drift executado: true/true/false/open/locked/
+        // closed/2/true/0/false — 10/10 id\u00eanticos ao Java — a 53\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Door.java");
+        Files.writeString(javaFile, """
+                public class Door {
+                    static boolean canEnter(boolean hasKey, boolean isStaff) {
+                        return hasKey || isStaff;
+                    }
+                    static String doorState(boolean open, boolean locked) {
+                        if (open) { return "open"; }
+                        if (locked) { return "locked"; }
+                        return "closed";
+                    }
+                    static int openCount(boolean[] states) {
+                        int n = 0;
+                        for (boolean s : states) {
+                            if (s) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean anyOpen(boolean[] states) {
+                        for (boolean s : states) {
+                            if (s) { return true; }
+                        }
+                        return false;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Door.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Door.canEnter(true, false))
+                    println(Door.canEnter(false, true))
+                    println(Door.canEnter(false, false))
+                    println(Door.doorState(true, true))
+                    println(Door.doorState(false, true))
+                    println(Door.doorState(false, false))
+                    var st = new Bool[3]
+                    st[0] = true; st[1] = false; st[2] = true
+                    println(Door.openCount(st))
+                    println(Door.anyOpen(st))
+                    var st2 = new Bool[2]
+                    st2[0] = false; st2[1] = false
+                    println(Door.openCount(st2))
+                    println(Door.anyOpen(st2))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | true | false | open | locked | closed | 2 | true | 0 | false
+        assertEquals("true\ntrue\nfalse\nopen\nlocked\nclosed\n2\ntrue\n0\nfalse", output,
+                "zero-drift: canEnter/doorState/openCount/anyOpen id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
