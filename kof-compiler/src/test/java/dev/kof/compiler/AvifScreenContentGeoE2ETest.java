@@ -126,6 +126,29 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "the tall stage positions moved: " + line);
     }
 
+    /**
+     * The SAME 32x32 screen content re-encoded by libaom with `-lossless 1`.
+     * RECORDED, not asserted as correct — and it carries a SHARPER symptom than
+     * any previous fixture: the LEFT half is exact (`100` x16) and the right half
+     * is painted with the TWO PALETTE COLOURS INVERTED — Kof writes `235` at
+     * x = 16..19 where the reference writes `16` (the reference's stripes start
+     * with 16 at x = 16). A 2-colour palette whose index map or colour order is
+     * swapped produces exactly this, and the payload is fully consumed
+     * (152/152), so the entropy stays in sync: this is a MAP/COLOUR-ORDER
+     * symptom, not a desync.
+     */
+    @Test
+    void losslessEncodeRecordsTheInvertedPaletteOnJvm() throws Exception {
+        var line = runKof(canonical("avif_enc_ll.avif", "ll.avif"));
+        assertTrue(line.contains("symBits=152 payloadBits=152"),
+                () -> "consumption moved: " + line);
+        // The reference rows 0..5 are `100` x16 then `16 16` at x = 16,17.
+        assertTrue(line.contains("PATCH r0 100 100 100 100 100 100 100 100 100 100 "
+                + "100 100 100 100 100 100 235 235"),
+                () -> "the recorded inverted palette moved: " + line);
+        assertTrue(line.contains("Y 00=100 032=235"), () -> "samples moved: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));
