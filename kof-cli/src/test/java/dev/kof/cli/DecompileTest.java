@@ -7894,6 +7894,63 @@ class DecompileTest {
                 "zero-drift: sizeTag/fitsColor/hangersNeeded/isFormal id\u00eanticos ao Java");
     }
 
+    @Test
+    void gasDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio G\u00c1S — 4 shapes sem c\u00f3digo novo: a
+        // conta com o produto int×double, o usageLevel com as faixas < (low/
+        // normal/high), o leakDetected com a compara\u00e7\u00e3o direta e o
+        // daysLeft com o CAST d2i no return (`(int) (m3 / dailyUse)` — a
+        // divis\u00e3o truncada: 50/4.5 = 11). Zero-drift executado: 75.0/low/
+        // normal/high/true/false/11 — 7/7 id\u00eanticos ao Java — a
+        // 69\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Gas.java");
+        Files.writeString(javaFile, """
+                public class Gas {
+                    static double bill(int m3, double perM3) {
+                        return m3 * perM3;
+                    }
+                    static String usageLevel(int m3) {
+                        if (m3 < 10) { return "low"; }
+                        if (m3 < 25) { return "normal"; }
+                        return "high";
+                    }
+                    static boolean leakDetected(double ppm, double limit) {
+                        return ppm > limit;
+                    }
+                    static int daysLeft(int m3, double dailyUse) {
+                        return (int) (m3 / dailyUse);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Gas.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Gas.bill(30, 2.5))
+                    println(Gas.usageLevel(5))
+                    println(Gas.usageLevel(15))
+                    println(Gas.usageLevel(40))
+                    println(Gas.leakDetected(150.0, 100.0))
+                    println(Gas.leakDetected(50.0, 100.0))
+                    println(Gas.daysLeft(50, 4.5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 75.0 | low | normal | high | true | false | 11
+        assertEquals("75.0\nlow\nnormal\nhigh\ntrue\nfalse\n11", output,
+                "zero-drift: bill/usageLevel/leakDetected/daysLeft id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
