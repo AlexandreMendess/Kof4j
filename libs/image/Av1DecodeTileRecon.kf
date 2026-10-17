@@ -568,6 +568,11 @@ class Av1TileDecode {
         return this.colorIndexY[(r * 4) * this.frameW + (c * 4 + k)]
     }
 
+    // The per-block Y-MODE span (diagnostic), three ints per block.
+    List<Int> ySpans() {
+        return this.modeInfo.ySpans()
+    }
+
     // The per-block BODY field positions (diagnostic), four ints per block:
     // after the Y mode, the Y angle group, the UV/CFL/UV-angle group PLUS the
     // palette MODE info, and the filter-intra field (the end of the body).

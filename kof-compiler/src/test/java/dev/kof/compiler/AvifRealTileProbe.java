@@ -314,6 +314,16 @@ main() {
         bfl = bfl + 1
     }
     println("BODYF n=" + (bf.size / 4) + " stages=" + (sg.size / 2) + " " + bfline)
+    // The Y-MODE span per block, recorded AT the read: before-position, value, after.
+    var ys = tile.ySpans()
+    var yi = 0
+    var ysline = ""
+    while (yi < ys.size / 3 && yi < 4) {
+        if (yi > 0) { ysline = ysline + " " }
+        ysline = ysline + "b" + yi + ":" + ys[yi * 3] + "v" + ys[yi * 3 + 1] + ">" + ys[yi * 3 + 2]
+        yi = yi + 1
+    }
+    println("YSPAN n=" + (ys.size / 3) + " " + ysline + " modesY=" + modes[5] + "," + modes[22] + "," + modes[39] + "," + modes[56])
     // How many symbols the palette-token stage of block 1 read (its window comes
     // from STAGES: body end .. palette end), to compare against the colour map's
     // expected `rows * cols - 1` index symbols.

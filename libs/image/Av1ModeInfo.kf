@@ -261,6 +261,11 @@ class Av1ModeInfo {
     // angle group, after the UV mode/CFL/UV angle group PLUS the palette MODE
     // info, and after the filter-intra field (the end of the body).
     List<Int> bodyPosOut
+    // Per-block Y-MODE span (diagnostic, read via `ySpans()`): three ints per
+    // block — the reader position BEFORE the Y-mode read, the value the read
+    // returned, and the position AFTER it. Recorded AT the read, so a value
+    // cannot be attributed to the wrong block.
+    List<Int> ySpanOut
 
     Int[] segMap
     Int[] skipMap
@@ -297,6 +302,7 @@ class Av1ModeInfo {
     // `Av1ModeInfo(Av1Symbol(data), w, h)`.
     constructor(Av1Symbol sym, Int miCols, Int miRows) {
         this.bodyPosOut = listOf()
+        this.ySpanOut = listOf()
         this.sym = sym
         this.modes = Av1ModeCdf()
         this.miCols = miCols
@@ -648,6 +654,13 @@ class Av1ModeInfo {
                                palettePossible, 8)
     }
 
+    // The per-block Y-MODE span (diagnostic), three ints per block: the reader
+    // position before the Y-mode read, the value it returned, and the position
+    // after it.
+    List<Int> ySpans() {
+        return this.ySpanOut
+    }
+
     // The per-block BODY field positions (diagnostic), four ints per block.
     List<Int> bodyPositions() {
         return this.bodyPosOut
@@ -672,7 +685,10 @@ class Av1ModeInfo {
         if (hasL == 1) {
             leftMode = imc.get(this.yModeAt(r, c - 1))
         }
+        this.ySpanOut.add(this.sym.position())
         var yMode = this.sym.readSymbol(this.kfYStore.get(aboveMode * 5 + leftMode), 13)
+        this.ySpanOut.add(yMode)
+        this.ySpanOut.add(this.sym.position())
         this.bodyPosOut.add(this.sym.position())
         var angleY = 0
         if (bs >= 3 && av1IsDirectionalMode(yMode) == 1) {
