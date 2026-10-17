@@ -17307,3 +17307,15 @@ println(Dir.valueOf("S"))   jvm/script/js = S ✓   native x86 = S (exit 0) ✓ 
 
 **Next step (the fix is a cross-side unit of its own):** locate the cross lowering/runtime for the generated `valueOf` (`CompilerEnumLowering` emits it; the riscv path — and aarch64 through the translator — is where it goes wrong) and pin it with the cross face of `ScriptEnumAsStringE2ETest` (currently scoped to the four working targets, with the exclusion documented in its javadoc).
 <!-- pt-switch --> **EN:** [§750 (en)](known-bugs.md#750--enumvalueofstring-segfaults-on-the-riscv64aarch64-natives-x86-gives-the-right-constant)
+
+## §751 — o contexto do modo de paleta tratava o vizinho de cima como indisponível em todo início de linha de superbloco 64x64
+**Status:** ✅ CORRIGIDO 16/10 — `av1PaletteModeCtx` testa disponibilidade com `r > 0` (o `above_mi != NULL` do libaom).
+
+**CATALOGADO + CORRIGIDO 16/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado ao BUSCAR o `av1_get_palette_mode_ctx` do libaom (`av1/common/pred_common.h`) e compará-lo com o `readPaletteY` do Kof: o libaom testa os vizinhos com `above_mi != NULL` / `left_mi != NULL` — isto é `mi_row > 0` / `mi_col > 0` — enquanto o Kof guardava o vizinho de CIMA com `r % 16 != 0`, a primeira linha de mi DO SUPERBLOCO 64x64. Os dois concordam em `r = 0` e divergem em todo início de linha de superbloco (`r = 16, 32, 48, …`), onde o Kof escolhia `palette_y_mode_cdf[bsize_ctx][0]` em vez da linha 1 ou 2: o preço errado do símbolo `has_palette_y` e a possível inversão da bandeira de paleta, o que dessincroniza o tile a partir daquele bloco.
+
+**Correção (precisa, aditiva):** o contexto passa a ser a função exportada e testável `av1PaletteModeCtx(r, c, palSizeYMap, miCols)` em `libs/image/Av1ModeInfo.kf`, usando `r > 0`; o `readPaletteY` chama-a. Nada mais muda.
+
+**Prova RED-first:** o `Av1PaletteModeCtxE2ETest` FALHA com o predicado antigo em `ctx 16 0 = 0` e `ctx 16 1 = 1` onde a referência exige 1 e 2 (todas as células sondadas têm paleta, logo o contexto é exatamente o número de vizinhos que EXISTEM), e fica 1/1 com a correção. Escopo honesto: a divergência está DORMENTE nos fixtures que reproduzem o dessincronismo `3bd` — nenhum bloco de paleta deles cai num início de linha de superbloco com vizinho de cima com paleta — logo a correção NÃO muda a saída deles; está provada ao nível da FUNÇÃO, não ponta a ponta.
+
+**Defeito companheiro achado na mesma passagem (meu, do lado do teste):** o contador `PALTOK` da sonda indexava o seu array de estágios sem guarda e estourava nos fixtures de um bloco; guardado, o `AvifRealFileE2ETest` está 11/11.
+<!-- pt-switch --> **EN:** [§751 (en)](known-bugs.md#751--the-palette-y-mode-context-treated-the-above-neighbour-as-unavailable-at-every-64x64-superblock-row-start)

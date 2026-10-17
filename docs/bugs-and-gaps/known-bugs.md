@@ -19820,3 +19820,15 @@ println(Dir.valueOf("S"))   jvm/script/js = S ✓   native x86 = S (exit 0) ✓ 
 
 **Next step (the fix is a cross-side unit of its own):** locate the cross lowering/runtime for the generated `valueOf` (`CompilerEnumLowering` emits it; the riscv path — and aarch64 through the translator — is where it goes wrong) and pin it with the cross face of `ScriptEnumAsStringE2ETest` (currently scoped to the four working targets, with the exclusion documented in its javadoc).
 <!-- pt-switch --> **PT:** [§750 (pt_BR)](known-bugs.pt_BR.md#750--enumvalueofstring-faz-segfault-nos-nativos-riscv64aarch64-o-x86-devolve-a-constante-certa)
+
+## §751 — the palette-Y MODE context treated the above neighbour as unavailable at every 64x64 superblock row start
+**Status:** ✅ FIXED 16/10 — `av1PaletteModeCtx` tests availability with `r > 0` (libaom's `above_mi != NULL`).
+
+**CATALOGUED + FIXED 16/10 — lane pipeline/image-vision `192.168.15.21:0`.** Found by FETCHING libaom's `av1_get_palette_mode_ctx` (`av1/common/pred_common.h`) and comparing it with Kof's `readPaletteY`: libaom tests the neighbours with `above_mi != NULL` / `left_mi != NULL` — i.e. `mi_row > 0` / `mi_col > 0` — while Kof guarded the ABOVE neighbour with `r % 16 != 0`, the first mi ROW OF THE 64x64 SUPERBLOCK. The two agree at `r = 0` and diverge at every superblock row start (`r = 16, 32, 48, …`), where Kof selected `palette_y_mode_cdf[bsize_ctx][0]` instead of row 1 or 2: the wrong symbol price for `has_palette_y`, and a possible flipped palette flag, which desyncs the tile from that block on.
+
+**Fix (precise, additive):** the context is now the exported, testable `av1PaletteModeCtx(r, c, palSizeYMap, miCols)` in `libs/image/Av1ModeInfo.kf`, using `r > 0`; `readPaletteY` calls it. Nothing else changes.
+
+**Proof RED-first:** `Av1PaletteModeCtxE2ETest` FAILS with the old predicate on `ctx 16 0 = 0` and `ctx 16 1 = 1` where the reference requires 1 and 2 (every probed cell carries a palette, so the context is exactly the number of neighbours that EXIST), and is 1/1 with the fix. Honest scope: the divergence is DORMANT on the fixtures that reproduce the `3bd` desync — no palette block there sits at a superblock row start with an above palette neighbour — so the fix does NOT change their output; it is proven at the FUNCTION level, not end to end.
+
+**Companion defect found in the same pass (my own, test-side):** the probe's `PALTOK` counter indexed its stage array unguarded and threw on the one-block fixtures; guarded, `AvifRealFileE2ETest` 11/11.
+<!-- pt-switch --> **PT:** [§751 (pt_BR)](known-bugs.pt_BR.md#751--o-contexto-do-modo-de-paleta-tratava-o-vizinho-de-cima-como-indisponivel-em-todo-inicio-de-linha-de-superbloco-64x64)
