@@ -49,6 +49,13 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // (window 107..144) costs 37 bits. Its symbol count is a LOWER BOUND:
         // the reader saturates at the payload end, so every later read reports
         // the SAME position and cannot be told apart from a palette read.
+        // RECORDED: block 1 IS signalled as a 2-colour palette block (palY=2)
+        // over a 16x8 map, so "Kof takes the palette path where the encoder
+        // wrote none" is REFUTED — a 2-colour palette is exactly right for the
+        // reference's 4px 16/235 stripes, and ~37 bits for its 128-cell index
+        // map is plausible.
+        assertTrue(line.contains("PALINFO b0:palY0/palUv0 b1:palY2/palUv0"),
+                () -> "the palette MODE info moved: " + line);
         assertTrue(line.contains("PALTOK window=107..144 bits=37 symbols=61"),
                 () -> "the palette-stage measurement moved: " + line);
         // Recorded, NOT asserted as correct: the left half is exact, the right

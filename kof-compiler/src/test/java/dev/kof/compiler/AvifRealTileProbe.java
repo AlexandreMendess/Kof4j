@@ -242,6 +242,16 @@ main() {
         si = si + 1
     }
     println("STAGES" + sline2)
+    // Per-block palette MODE info: does the stream even signal a palette here?
+    var pi2 = tile.palInfos()
+    var pil = 0
+    var piline = ""
+    while (pil < pi2.size / 2 && pil < 6) {
+        if (pil > 0) { piline = piline + " " }
+        piline = piline + "b" + pil + ":palY" + pi2[pil * 2] + "/palUv" + pi2[pil * 2 + 1]
+        pil = pil + 1
+    }
+    println("PALINFO " + piline)
     // How many symbols the palette-token stage of block 1 read (its window comes
     // from STAGES: body end .. palette end), to compare against the colour map's
     // expected `rows * cols - 1` index symbols.

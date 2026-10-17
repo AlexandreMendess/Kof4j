@@ -132,6 +132,9 @@ class Av1TileDecode {
     // `positions()` (after the transform size, and after the residuals) it
     // shows which stage of one block eats the bits.
     List<Int> stagesOut
+    // Per-block palette MODE info (diagnostic, read via `palInfos()`): two ints
+    // per block — the decoded Y and UV palette sizes (0 = no palette).
+    List<Int> palOut
     Int[] colorIndexY
     Int[] colorIndexUv
     Av1ChromaPlanes chroma
@@ -218,6 +221,7 @@ class Av1TileDecode {
         this.posOut = listOf()
         this.predLog = listOf()
         this.stagesOut = listOf()
+        this.palOut = listOf()
         // The palette COLOUR-INDEX maps the `palette_tokens()` stage fills
         // (per pixel, per plane); the reconstruction reads them.
         this.colorIndexY = new Int[this.frameW * this.frameH]
@@ -344,6 +348,8 @@ class Av1TileDecode {
             }
         }
         var palUv = modeInfo.palSizeUvAt(r, c)
+        this.palOut.add(palY)
+        this.palOut.add(palUv)
         if (palUv > 0) {
             var pbs = av1PlaneBlockSize(bs, this.ssX, this.ssY)
             var puw = av1BlockWidth(pbs)
@@ -539,6 +545,12 @@ class Av1TileDecode {
     // The per-block reader positions (diagnostic), two ints per block.
     List<Int> positions() {
         return this.posOut
+    }
+
+    // The per-block palette MODE info (diagnostic), 2 ints per block: the Y and
+    // UV palette sizes (0 = no palette).
+    List<Int> palInfos() {
+        return this.palOut
     }
 
     // The per-block STAGE reader positions (diagnostic), 2 ints per block: after
