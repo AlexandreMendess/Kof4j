@@ -7342,6 +7342,65 @@ class DecompileTest {
                 "zero-drift: weightOnMars/sizeClass/hasMoon/escapeVelocity id\u00eanticos ao Java");
     }
 
+    @Test
+    void vendingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio MÁQUINA — 4 shapes sem c\u00f3digo novo: o
+        // charge com o get POR PARAM (o índice do item), o display com o
+        // early-string + a concat no return (`"credit: " + credit`), o
+        // canBuy com a compara\u00e7\u00e3o direta e o change com o early-return
+        // do pr\u00f3prio param. Zero-drift executado: 2.0/insert coins/
+        // credit: 2.5/true/false/1.5/2.0 — 7/7 id\u00eanticos ao Java — a
+        // 60\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Vending.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Vending {
+                    static double charge(List<Double> prices, int item) {
+                        return prices.get(item);
+                    }
+                    static String display(double credit) {
+                        if (credit <= 0) { return "insert coins"; }
+                        return "credit: " + credit;
+                    }
+                    static boolean canBuy(double credit, double price) {
+                        return credit >= price;
+                    }
+                    static double change(double credit, double price) {
+                        if (credit < price) { return credit; }
+                        return credit - price;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Vending.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var prices = listOf(3.5, 2.0, 4.75)
+                    println(Vending.charge(prices, 1))
+                    println(Vending.display(0.0))
+                    println(Vending.display(2.5))
+                    println(Vending.canBuy(5.0, 3.5))
+                    println(Vending.canBuy(2.0, 3.5))
+                    println(Vending.change(5.0, 3.5))
+                    println(Vending.change(2.0, 3.5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2.0 | insert coins | credit: 2.5 | true | false | 1.5 | 2.0
+        assertEquals("2.0\ninsert coins\ncredit: 2.5\ntrue\nfalse\n1.5\n2.0", output,
+                "zero-drift: charge/display/canBuy/change id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
