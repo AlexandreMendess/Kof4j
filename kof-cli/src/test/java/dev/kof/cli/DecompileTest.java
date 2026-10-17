@@ -7090,6 +7090,71 @@ class DecompileTest {
                 "zero-drift: price/loyaltyPoints/isMorning/tip id\u00eanticos ao Java");
     }
 
+    @Test
+    void gymDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio ACADEMIA — 4 shapes sem c\u00f3digo novo: o
+        // bmi com o get POR PARAM (`weights.get(idx)` — o índice
+        // dinâmico) + o denominador calculado, o plan com as faixas ==,
+        // o isPeak com o && de faixa e o totalVisits com o acumulador.
+        // Zero-drift executado: 22.857142857142858/27.755102040816325/
+        // basic/pro/custom/true/false/36 — 8/8 id\u00eanticos ao Java — a
+        // 56\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Gym.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Gym {
+                    static double bmi(List<Double> weights, int idx) {
+                        return weights.get(idx) / (1.75 * 1.75);
+                    }
+                    static String plan(int days) {
+                        if (days == 3) { return "basic"; }
+                        if (days == 5) { return "pro"; }
+                        return "custom";
+                    }
+                    static boolean isPeak(int hour) {
+                        return hour >= 17 && hour <= 20;
+                    }
+                    static int totalVisits(List<Integer> monthly) {
+                        int sum = 0;
+                        for (int v : monthly) {
+                            sum += v;
+                        }
+                        return sum;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Gym.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var weights = listOf(70.0, 85.0)
+                    println(Gym.bmi(weights, 0))
+                    println(Gym.bmi(weights, 1))
+                    println(Gym.plan(3))
+                    println(Gym.plan(5))
+                    println(Gym.plan(2))
+                    println(Gym.isPeak(18))
+                    println(Gym.isPeak(10))
+                    var visits = listOf(12, 15, 9)
+                    println(Gym.totalVisits(visits))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 22.857142857142858 | 27.755102040816325 | basic | pro | custom | true | false | 36
+        assertEquals("22.857142857142858\n27.755102040816325\nbasic\npro\ncustom\ntrue\nfalse\n36", output,
+                "zero-drift: bmi/plan/isPeak/totalVisits id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
