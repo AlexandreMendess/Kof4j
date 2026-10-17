@@ -7032,6 +7032,64 @@ class DecompileTest {
                 "zero-drift: harvestValue/season/needsIrrigation/totalTrees id\u00eanticos ao Java");
     }
 
+    @Test
+    void cafeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CAF\u00c9 — 4 shapes sem c\u00f3digo novo: o
+        // price com o TERN\u00c1RIO de call-condition no init (`size.equals(
+        // "large") ? 8.0 : 5.0`) + o RE-ATRIBUTO depois do if, o
+        // loyaltyPoints com o cast d2i no return, o isMorning com o && de
+        // faixa e o tip com a regra de três (`bill * percent / 100`).
+        // Zero-drift executado: 10.0/8.0/7.0/5.0/8/true/false/5.0 — 8/8
+        // id\u00eanticos ao Java — a 55\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Cafe.java");
+        Files.writeString(javaFile, """
+                public class Cafe {
+                    static double price(String size, boolean extraShot) {
+                        double base = size.equals("large") ? 8.0 : 5.0;
+                        if (extraShot) { base = base + 2.0; }
+                        return base;
+                    }
+                    static int loyaltyPoints(double amount) {
+                        return (int) (amount / 10);
+                    }
+                    static boolean isMorning(int hour) {
+                        return hour >= 6 && hour < 12;
+                    }
+                    static double tip(double bill, int percent) {
+                        return bill * percent / 100;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cafe.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Cafe.price("large", true))
+                    println(Cafe.price("large", false))
+                    println(Cafe.price("small", true))
+                    println(Cafe.price("small", false))
+                    println(Cafe.loyaltyPoints(85.0))
+                    println(Cafe.isMorning(8))
+                    println(Cafe.isMorning(14))
+                    println(Cafe.tip(50.0, 10))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10.0 | 8.0 | 7.0 | 5.0 | 8 | true | false | 5.0
+        assertEquals("10.0\n8.0\n7.0\n5.0\n8\ntrue\nfalse\n5.0", output,
+                "zero-drift: price/loyaltyPoints/isMorning/tip id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
