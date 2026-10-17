@@ -8197,6 +8197,63 @@ class DecompileTest {
                 "zero-drift: pieceName/isValidMove/materialScore/inCheck id\u00eanticos ao Java");
     }
 
+    @Test
+    void solarDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio SOLAR — 4 shapes sem c\u00f3digo novo: o
+        // dailyKwh com a CADEIA TRIPLO (`panels * 0.4 * hours` — a
+        // promoção no meio), o condition com as faixas < (cloudy/partial/
+        // full), o batteryOk com a comparação direta e o savings com o
+        // produto double×double. Zero-drift executado: 20.0/cloudy/
+        // partial/full/true/false/17.0 — 7/7 id\u00eanticos ao Java — a
+        // 74\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Solar.java");
+        Files.writeString(javaFile, """
+                public class Solar {
+                    static double dailyKwh(double panels, double hours) {
+                        return panels * 0.4 * hours;
+                    }
+                    static String condition(double kwh) {
+                        if (kwh < 2) { return "cloudy"; }
+                        if (kwh < 8) { return "partial"; }
+                        return "full";
+                    }
+                    static boolean batteryOk(double charge) {
+                        return charge > 20;
+                    }
+                    static double savings(double kwh, double rate) {
+                        return kwh * rate;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Solar.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Solar.dailyKwh(10, 5.0))
+                    println(Solar.condition(1.0))
+                    println(Solar.condition(5.0))
+                    println(Solar.condition(15.0))
+                    println(Solar.batteryOk(25.0))
+                    println(Solar.batteryOk(15.0))
+                    println(Solar.savings(20.0, 0.85))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 20.0 | cloudy | partial | full | true | false | 17.0
+        assertEquals("20.0\ncloudy\npartial\nfull\ntrue\nfalse\n17.0", output,
+                "zero-drift: dailyKwh/condition/batteryOk/savings id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
