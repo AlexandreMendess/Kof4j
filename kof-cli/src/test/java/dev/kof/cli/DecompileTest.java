@@ -7589,6 +7589,69 @@ class DecompileTest {
                 "zero-drift: costPerDay/mode/arrivesEarly/weeklyCost id\u00eanticos ao Java");
     }
 
+    @Test
+    void hotelDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio HOTEL — 4 shapes sem c\u00f3digo novo: o
+        // cost com o produto + o ADENDO condicional (`total = total +
+        // nights * 25.0` — a aritm\u00e9tica dupla no branch), o roomClass
+        // com as faixas == (single/double/suite), o hasVacancy com a
+        // compara\u00e7\u00e3o direta e o cancellationFee com o zero literal.
+        // Zero-drift executado: 525.0/450.0/single/double/suite/true/false/
+        // 0.0/50.0 — 9/9 id\u00eanticos ao Java — a 64\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Hotel.java");
+        Files.writeString(javaFile, """
+                public class Hotel {
+                    static double cost(int nights, double nightly, boolean breakfast) {
+                        double total = nights * nightly;
+                        if (breakfast) { total = total + nights * 25.0; }
+                        return total;
+                    }
+                    static String roomClass(int guests) {
+                        if (guests == 1) { return "single"; }
+                        if (guests == 2) { return "double"; }
+                        return "suite";
+                    }
+                    static boolean hasVacancy(int booked, int total) {
+                        return booked < total;
+                    }
+                    static double cancellationFee(int daysBefore) {
+                        if (daysBefore >= 7) { return 0; }
+                        return 50.0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Hotel.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Hotel.cost(3, 150.0, true))
+                    println(Hotel.cost(3, 150.0, false))
+                    println(Hotel.roomClass(1))
+                    println(Hotel.roomClass(2))
+                    println(Hotel.roomClass(4))
+                    println(Hotel.hasVacancy(10, 20))
+                    println(Hotel.hasVacancy(20, 20))
+                    println(Hotel.cancellationFee(10))
+                    println(Hotel.cancellationFee(2))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 525.0 | 450.0 | single | double | suite | true | false | 0.0 | 50.0
+        assertEquals("525.0\n450.0\nsingle\ndouble\nsuite\ntrue\nfalse\n0.0\n50.0", output,
+                "zero-drift: cost/roomClass/hasVacancy/cancellationFee id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
