@@ -497,24 +497,20 @@ main() {
     // above times the quantizer. The dequant is a plain multiply (the AV1's
     // dc_q/ac_q tables already carry the scaling), so a hand computation can
     // say whether the ±1 enters here or in the inverse transform.
+    // The DEQUANTIZED values of the first V transform block (the step between the
+    // levels and the pixel, where a +/-1 can enter with the entropy intact). Only
+    // when the block's shape matches the level array: on a multi-block fixture the
+    // first V TX may belong to a later block.
     var dqv = ""
-    if (levelsV.size > 0) {
-        // The block's own size index, taken from the walk's first decode_block
-        // step (kind 1; its value is the SUB block size).
-        var bs2 = 9
-        var s2 = 0
-        while (s2 < steps.size) {
-            if (steps.get(s2)[0] == 1) { bs2 = steps.get(s2)[3] }
-            s2 = s2 + 1
-        }
-        var uvTx2 = av1GetMaxUvTxSize(bs2, 1, 1)
-        // Only when the first V transform block really has that shape: on a
-        // multi-block fixture the first V TX may belong to a later block, and a
-        // mismatched size would index the level array out of range.
-        var dq2 = new Int[0]
-        if (av1TxWidth(uvTx2) * av1TxHeight(uvTx2) == levelsV.get(0).size) {
-            dq2 = av1Dequant(levelsV.get(0), uvTx2, seq.bitDepth, dcq, acq)
-        }
+    var bs2 = 9
+    var s2 = 0
+    while (s2 < steps.size) {
+        if (steps.get(s2)[0] == 1) { bs2 = steps.get(s2)[3] }
+        s2 = s2 + 1
+    }
+    var uvTx2 = av1GetMaxUvTxSize(bs2, 1, 1)
+    if (levelsV.size > 0 && av1TxWidth(uvTx2) * av1TxHeight(uvTx2) == levelsV.get(0).size) {
+        var dq2 = av1Dequant(levelsV.get(0), uvTx2, seq.bitDepth, dcq, acq)
         var k6 = 0
         while (k6 < dq2.size) {
             if (dq2[k6] != 0) { dqv = dqv + " t0[" + k6 + "]=" + dq2[k6] }
