@@ -472,6 +472,14 @@ main() {
     var sy = 32
     if (sy >= mh) { sy = mh - 1 }
     println("Y 00=" + frame[1 * stride + 1] + " 032=" + frame[1 * stride + (sx1 + 1)] + " 063=" + frame[1 * stride + (sx2 + 1)] + " 320=" + frame[(sy + 1) * stride + 1] + " 3232=" + frame[(sy + 1) * stride + (sx1 + 1)] + " 3263=" + frame[(sy + 1) * stride + (sx2 + 1)])
+    // The CHROMA at the same points: CFL acts on the chroma, so a luma oracle
+    // alone cannot see it (the 115th pass's instrument gap).
+    println("UV 00=" + chroma.u[1 * chroma.strideU + 1] + "," + chroma.v[1 * chroma.strideV + 1]
+        + " 032=" + chroma.u[1 * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx1 >> 1) + 1)]
+        + " 063=" + chroma.u[1 * chroma.strideU + ((sx2 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx2 >> 1) + 1)]
+        + " 320=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + 1] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + 1]
+        + " 3232=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + ((sx1 >> 1) + 1)]
+        + " 3263=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + ((sx2 >> 1) + 1)] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + ((sx2 >> 1) + 1)])
     var pos = tile.positions()
     var b2 = 0
     while (b2 < modes.size / 17) {

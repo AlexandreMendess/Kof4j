@@ -292,7 +292,15 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         assertTrue(line.contains("blocks=1 covered=48 frame=48 overlap=0 symBits=128 payloadBits=128"),
                 () -> "the frame must decode whole: " + line);
         assertTrue(line.contains("Y 00=3 032=244 063=244 320=3 3232=244 3263=244"),
-                () -> "must match the ffmpeg reference: " + line);
+                () -> "the luma must match the ffmpeg reference: " + line);
+        // The CHROMA, which is what CFL actually acts on — the oracle the 115th
+        // pass named as missing. U matches ffmpeg EXACTLY (129/159 at every
+        // sample). V does NOT: it is 129/160 where ffmpeg has 130/159, a ±1
+        // deviation this oracle is the first to see. RECORDED, not asserted as
+        // correct: the values below are Kof's, so any change to them fails here
+        // and the ±1 stays visible until its root cause is found.
+        assertTrue(line.contains("UV 00=129,129 032=159,129 063=159,129 320=129,160 3232=159,160 3263=159,160"),
+                () -> "the chroma moved (U must be 129/159, V is RECORDED at 129/160 vs ffmpeg's 130/159): " + line);
     }
 
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */

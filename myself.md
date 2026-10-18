@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 115ª PASSAGEM: CFL NUMA BORDA DE FRAME finalmente ALCANÇADO (`uvCFL=1`). Regra que faltava aplicar: o CFL exige AMBAS as dimensões do bloco <= 32 (`is_cfl_allowed`) ⇒ um bloco 64x64 nunca o pode usar (por isso o gradiente 64x40 da 114ª deu uvCFL=0 mesmo com cpu-used 4). Fixture novo `avif_real_cfl32x24.avif` (32x24, um superbloco a ultrapassar 8 linhas, gradiente com chroma correlacionada, cpu-used 4) ⇒ o bloco 32x32 é elegível e toma-o (`B 0 ... 13 ...`). E esse fixture apanhou um BUG MEU da 112ª: o preenchimento cobria os VALORES mas a SUBAMOSTRAGEM continuava a ler a luma das células fora do plano (para lá do buffer: `Index 885 out of bounds for length 884`) ⇒ agora limitada às células dentro dos limites (como o `cfl_store` do libaom). PROVA: `symBits=128 payloadBits=128`, `Y 00=3 032=244 063=244 320=3 3232=244 3263=244` = ffmpeg, `uvCFL=1`; corrida 23/23.
-doing: §3bd — CFL numa borda alcançado e provado (o fixture apanhou um bug meu da 112ª: subamostragem fora do plano); falta um oráculo de CHROMA (a probe só reporta luma)
-next: §3bd — (a) linha de amostras `UV` na probe para um oráculo de chroma fixar o resultado do CFL (o crash prova o caminho, mas um AC errado passaria); (b) tamanhos por tile explícitos; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
+last: 18/10 — 3bd 116ª PASSAGEM: o ORÁCULO DE CHROMA landado (linha `UV` na probe, a lacuna nomeada pela 115ª) e encontrou JÁ o primeiro desvio ao nível da chroma: num bloco CFL numa borda, o U bate o ffmpeg EXATAMENTE (129/159) mas o V está ±1 fora (Kof 129/160 vs ffmpeg 130/159) — 1 abaixo no topo e 1 acima no fundo ⇒ dispersão maior, uma diferença de AC ou DC. Já excluídos lendo a fonte: a forma e o escalonamento da predição (`get_scaled_luma_q0` = `ROUND_POWER_OF_TWO_SIGNED(alpha_q3*ac_q3, 6)` = o `av1CflScaledLuma`) e a ordem preencher-antes-da-média. Suspeitos: o q3 do AC (arredondamento da média) e o DC de chroma. O teste afirma o U e REGISTA o V (convenção do repo). PROVA: geo 11/11.
+doing: §3bd — oráculo de chroma landado e já a apontar um desvio de ±1 no plano V de um bloco CFL numa borda; próximo: a causa raiz (q3 do AC / DC de chroma)
+next: §3bd — causa raiz do ±1 no V do bloco CFL de `avif_real_cfl32x24.avif`: calcular à mão o q3 do AC (round_offset/num_pel_log2) e o DC de chroma do plano V e comparar com o Kof; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (116ª) — 3bd: o oráculo de chroma landado; desvio de ±1 no V encontrado
+- **LANDADO:** linha `UV` na probe (U/V nos mesmos pontos que a `Y`) + a asserção no teste do CFL numa borda (U exato; V REGISTADO com o desvio declarado).
+- **ACHADO:** V 129/160 vs ffmpeg 130/159 (±1, dispersão maior) ⇒ suspeitos: o q3 do AC e o DC de chroma; a predição e o escalonamento já batem o libaom.
+- **PROVA:** geo 11/11, BUILD SUCCESS.
 
 ## Sessão 18/10 (115ª) — 3bd: CFL numa borda alcançado; a subamostragem fora do plano corrigida
 - **LANDADO:** `avif_real_cfl32x24.avif` + `cflAtAFrameEdgeMatchesReferenceOnJvm` (uvCFL=1, a summary e as amostras do ffmpeg); `av1CflSubsample` LIMITADA às células dentro dos limites (`wIn`/`hIn`).
