@@ -167,6 +167,30 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "must match the ffmpeg reference: " + line);
     }
 
+    /**
+     * A frame whose dimensions are NOT multiples of 8: 20x20, carrying a 2px
+     * 16/235 checkerboard — the finest partition this encoder will choose at
+     * this size, which is what makes the edge block reachable. The spec and libaom size
+     * the mi grid as {@code 2 * ceil(w / 8)} (the spec's {@code MiCols} — the mi
+     * extent ROUNDED UP to a whole 8x8 block; fetched, av1/common/alloccommon.c
+     * {@code ALIGN_POWER_OF_TWO(width, 3) >> MI_SIZE_LOG2}), while the probe used
+     * {@code w >> 2}, a FLOOR: on a 20x20 frame the walk's {@code has_rows} /
+     * {@code has_cols} at the edge answered from a 5x5 grid instead of the
+     * reference's 6x6 and therefore took different partition BRANCHES (a full
+     * partition read where libaom gathers, or the reverse). ffmpeg's reference
+     * rows (columns 0..17) are {@code 16 16 235 235 16 16 235 235 16 16 235 235
+     * 16 16 235 235 16 16} at y = 0 and the inverse at y = 2 (a 2px checkerboard,
+     * the finest partition the encoder can reach at this size).
+     */
+    @Test
+    void unalignedFrameDecodesToReferenceOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_ua20.avif", "ua.avif"));
+        assertTrue(line.contains("PATCH r0 16 16 235 235 16 16 235 235 16 16 235 235 16 16 235 235 16 16"),
+                () -> "row 0 must match the ffmpeg reference: " + line);
+        assertTrue(line.contains("PATCH r2 235 235 16 16 235 235 16 16 235 235 16 16 235 235 16 16 235 235"),
+                () -> "row 2 must match the ffmpeg reference: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));

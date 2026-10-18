@@ -93,8 +93,16 @@ main() {
     var data = readAvifTilePayloads(path).get(0)
     var mw = h.codedWidth
     var mh = h.codedHeight
-    var miw = mw >> 2
-    var mih = mh >> 2
+    // The walk's mi grid is the SPEC's `MiCols`: libaom's decoder rounds the
+    // frame up to whole 8x8 luma blocks before deriving it — `dec_set_mb_mi`
+    // (fetched, av1/decoder/decoder.c) comments "Ensure that the decoded width
+    // and height are both multiples of 8 luma pixels" and sets
+    // `mi_cols = ALIGN_POWER_OF_TWO(width, 3) >> MI_SIZE_LOG2`. A FLOOR
+    // (`mw >> 2`) is smaller whenever a dimension is not a multiple of 8, which
+    // changes `has_rows`/`has_cols` at the frame's edge and therefore which
+    // PARTITION BRANCH the walk takes.
+    var miw = 2 * ((mw + 7) >> 3)
+    var mih = 2 * ((mh + 7) >> 3)
     var txMode = 1
     if (h.txModeSelect == 1) { txMode = 2 }
     var stride = mw + 2

@@ -14,6 +14,15 @@ import image.Av1Symbol
 // `kind` 0 for a `@@partition` read (value = bSize) and 1 for a `decode_block`
 // call (value = subSize), in walk order.
 //
+// THE MI GRID IS THE CALLER'S, and it must be the SPEC's `MiCols`/`MiRows` —
+// the frame ROUNDED UP to whole 8x8 luma blocks (`2 * ceil(w / 8)`), which is
+// what libaom's decoder derives: `dec_set_mb_mi` (av1/decoder/decoder.c)
+// comments "Ensure that the decoded width and height are both multiples of 8
+// luma pixels" and sets `mi_cols = ALIGN_POWER_OF_TWO(width, 3) >>
+// MI_SIZE_LOG2`. A FLOOR (`w >> 2`) is smaller whenever a dimension is not a
+// multiple of 8, and `has_rows`/`has_cols` below then answer from the wrong grid
+// at the frame's edge — which selects a different PARTITION BRANCH.
+//
 // The neighbour context is libaom's `partition_plane_context`: the `above`
 // (per column) and `left` (per row, mod 16) arrays hold `partition_context_lookup`
 // bytes, `above = (above[c] >> bsl) & 1`, `left = (left[r & 15] >> bsl) & 1`
