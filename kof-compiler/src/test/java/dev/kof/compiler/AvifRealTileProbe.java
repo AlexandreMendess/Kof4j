@@ -334,6 +334,21 @@ main() {
         ti2 = ti2 + 1
     }
     println("TXEND n=" + te.size + " " + teline)
+    // The walk's INTERNAL partition decisions (s[0] == 0): r, c, bs and the
+    // partition value the dispatch acted on.
+    var pst = 0
+    var ptline = ""
+    var pc = 0
+    while (pst < steps.size && pc < 8) {
+        var sp = steps.get(pst)
+        if (sp[0] == 0) {
+            if (pc > 0) { ptline = ptline + " " }
+            ptline = ptline + "(r" + sp[1] + ",c" + sp[2] + ",bs" + sp[3] + ")p" + sp[4]
+            pc = pc + 1
+        }
+        pst = pst + 1
+    }
+    println("PART n=" + pc + " " + ptline)
     // How many symbols the palette-token stage of block 1 read (its window comes
     // from STAGES: body end .. palette end), to compare against the colour map's
     // expected `rows * cols - 1` index symbols.
