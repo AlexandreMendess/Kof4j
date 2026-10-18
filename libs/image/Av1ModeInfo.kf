@@ -427,9 +427,31 @@ class Av1ModeInfo {
         return this.uvModeMap[r * this.miCols + c]
     }
 
+    // A mode-info block may OVERHANG the frame's mi grid: libaom's partition
+    // walk decodes blocks whose bottom/right edge lies past `mi_rows`/`mi_cols`
+    // (a HORZ partition at the frame's bottom edge keeps its full height, and
+    // libaom's mi grid carries PADDING rows for exactly that), so a 64x16 frame
+    // really does decode a 64x32 block. Kof's per-cell maps are frame-sized, so
+    // every broadcast over a block is CLAMPED to the cells that exist. Nothing
+    // is lost: a neighbour lookup is up/left only, and every in-frame cell of an
+    // overhanging block IS written.
+    Int clampedWidth(Int c, Int bw) {
+        if (c + bw > this.miCols) {
+            return this.miCols - c
+        }
+        return bw
+    }
+
+    Int clampedHeight(Int r, Int bh) {
+        if (r + bh > this.miRows) {
+            return this.miRows - r
+        }
+        return bh
+    }
+
     void setModes(Int r, Int c, Int bs, Int yMode, Int uvMode) {
-        var bw = av1BlockNum4x4Wide(bs)
-        var bh = av1BlockNum4x4High(bs)
+        var bw = this.clampedWidth(c, av1BlockNum4x4Wide(bs))
+        var bh = this.clampedHeight(r, av1BlockNum4x4High(bs))
         var i = 0
         while (i < bh) {
             var j = 0
@@ -449,8 +471,8 @@ class Av1ModeInfo {
     // it covers. `readSkip`/`readSegmentId` write only the block's origin cell;
     // this restores the block-shared semantics the skip/segment contexts read.
     void setSkipSeg(Int r, Int c, Int bs, Int skip, Int seg) {
-        var bw = av1BlockNum4x4Wide(bs)
-        var bh = av1BlockNum4x4High(bs)
+        var bw = this.clampedWidth(c, av1BlockNum4x4Wide(bs))
+        var bh = this.clampedHeight(r, av1BlockNum4x4High(bs))
         var i = 0
         while (i < bh) {
             var j = 0
@@ -620,8 +642,8 @@ class Av1ModeInfo {
     // Broadcasts a palette size and its colors over the block's MI grid.
     void storePalette(Int[] sizeMap, Int[] colorMap, Int r, Int c, Int bs,
                       Int n, Int[] colors) {
-        var w4 = av1BlockNum4x4Wide(bs)
-        var h4 = av1BlockNum4x4High(bs)
+        var w4 = this.clampedWidth(c, av1BlockNum4x4Wide(bs))
+        var h4 = this.clampedHeight(r, av1BlockNum4x4High(bs))
         var rr = 0
         while (rr < h4) {
             var cc = 0

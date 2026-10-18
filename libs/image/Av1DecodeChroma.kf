@@ -188,8 +188,11 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
                         av1TxWidthLog2(uvTx) + av1TxHeightLog2(uvTx))
                 pred = av1CflPredict(pred, ac, cflAlpha, w, h, bitDepth)
             }
-            av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, uvTx,
-                    txType, bitDepth, false, dcQuant, acQuant)
+            // CLIPPED: the luma block may overhang the frame (a HORZ partition
+            // at the bottom edge keeps its full height), so its chroma blocks
+            // can lie past this plane's rows/columns.
+            av1ReconBlockIntoClip(frame, stride, frameW, frameH, x + 1, y + 1,
+                    levels, pred, uvTx, txType, bitDepth, false, dcQuant, acQuant)
 
             j = j + utw4
         }

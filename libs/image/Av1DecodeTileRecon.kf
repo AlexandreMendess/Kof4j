@@ -351,11 +351,22 @@ class Av1TileDecode {
         if (palY > 0) {
             var pw = av1BlockWidth(bs)
             var ph = av1BlockHeight(bs)
-            var cmy = av1PaletteColorMap(reader, modeInfo, 0, palY, pw, ph, ph, pw)
+            // The block may OVERHANG the frame (a HORZ partition at the bottom
+            // edge keeps its full height), and libaom's palette map codes only
+            // the WITHIN-BOUNDS cells: `av1_get_block_dimensions` (fetched,
+            // av1/common/blockd.h) returns `block_rows = block_height +
+            // (mi_rows - bh - mi_row) * 4` as the wavefront's `rows`/`cols`,
+            // while the map's own width/height stay the FULL block — the cells
+            // past the edge are then filled by the last-column/last-row copy.
+            var hMax = ph
+            if (r * 4 + hMax > this.frameH) { hMax = this.frameH - r * 4 }
+            var wMax = pw
+            if (c * 4 + wMax > this.frameW) { wMax = this.frameW - c * 4 }
+            var cmy = av1PaletteColorMap(reader, modeInfo, 0, palY, pw, ph, hMax, wMax)
             var pry = 0
-            while (pry < ph) {
+            while (pry < hMax) {
                 var pcy = 0
-                while (pcy < pw) {
+                while (pcy < wMax) {
                     this.colorIndexY[(r * 4 + pry) * this.frameW + (c * 4 + pcy)] = cmy[pry * pw + pcy]
                     pcy = pcy + 1
                 }
@@ -369,13 +380,18 @@ class Av1TileDecode {
             var pbs = av1PlaneBlockSize(bs, this.ssX, this.ssY)
             var puw = av1BlockWidth(pbs)
             var puh = av1BlockHeight(pbs)
-            var cmu = av1PaletteColorMap(reader, modeInfo, 1, palUv, puw, puh, puh, puw)
             var u0r = r >> this.ssY
             var u0c = c >> this.ssX
+            // Same within-bounds rule as the luma map, on the chroma plane.
+            var uhMax = puh
+            if (u0r * 4 + uhMax > this.chroma.hU) { uhMax = this.chroma.hU - u0r * 4 }
+            var uwMax = puw
+            if (u0c * 4 + uwMax > this.chroma.wU) { uwMax = this.chroma.wU - u0c * 4 }
+            var cmu = av1PaletteColorMap(reader, modeInfo, 1, palUv, puw, puh, uhMax, uwMax)
             var pru = 0
-            while (pru < puh) {
+            while (pru < uhMax) {
                 var pcu = 0
-                while (pcu < puw) {
+                while (pcu < uwMax) {
                     this.colorIndexUv[(u0r * 4 + pru) * this.chroma.wU + (u0c * 4 + pcu)] = cmu[pru * puw + pcu]
                     pcu = pcu + 1
                 }
@@ -469,9 +485,13 @@ class Av1TileDecode {
                                             useFilterIntra, filterIntraMode,
                                             bitDepth, intraEdgeFilterType, edgeFilter)
 
-            // 3e. Dequantize + inverse transform + reconstruct (3z).
-            av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, txSz,
-                              txType, bitDepth, false, dcQuant, acQuant)
+            // 3e. Dequantize + inverse transform + reconstruct (3z). CLIPPED:
+            // this block may overhang the frame (a HORZ partition at the bottom
+            // edge keeps its full height), and the cells past the frame have no
+            // place in a frame-sized plane.
+            av1ReconBlockIntoClip(frame, stride, this.frameW, this.frameH,
+                                  x + 1, y + 1, levels, pred, txSz,
+                                  txType, bitDepth, false, dcQuant, acQuant)
 
             // Diagnostic: pair this transform block's PREDICTION with its
             // RECONSTRUCTION at the block's own origin (post-residual).
@@ -492,6 +512,11 @@ class Av1TileDecode {
         if (palY > 0) {
             var pbh = av1BlockHeight(bs)
             var pbw = av1BlockWidth(bs)
+            // The block may OVERHANG the frame (see `clampedWidth`): only the
+            // cells that exist are painted, which is also what keeps the colour
+            // MAP read inside its frame-sized array.
+            if (r * 4 + pbh > this.frameH) { pbh = this.frameH - r * 4 }
+            if (c * 4 + pbw > this.frameW) { pbw = this.frameW - c * 4 }
             var pyy = 0
             while (pyy < pbh) {
                 var pxx = 0
@@ -512,6 +537,8 @@ class Av1TileDecode {
             var puh2 = av1BlockHeight(pbs2)
             var u0r2 = r >> ssY
             var u0c2 = c >> ssX
+            if (u0r2 * 4 + puh2 > chroma.hU) { puh2 = chroma.hU - u0r2 * 4 }
+            if (u0c2 * 4 + puw2 > chroma.wU) { puw2 = chroma.wU - u0c2 * 4 }
             var puy = 0
             while (puy < puh2) {
                 var pux = 0

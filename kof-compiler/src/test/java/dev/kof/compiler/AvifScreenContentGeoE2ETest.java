@@ -151,6 +151,22 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "the palette map is not exact after the fix: " + line);
     }
 
+    /**
+     * A NON-SQUARE screen-content frame: 64x16, carrying the same 4px 16/235
+     * checkerboard the exact fixtures use. Every fixture that decoded EXACTLY
+     * before this one was square (or flat), and a 64x16 frame was measured to
+     * THROW inside the Kof decode (`Index 64 out of bounds for length 64`,
+     * recorded in the plan with its recipe and deliberately NOT committed).
+     * ffmpeg's reference Y is (0,0)=16 (32,0)=16 (63,0)=235 (0,15)=235
+     * (32,15)=235 (63,15)=16.
+     */
+    @Test
+    void nonSquareFrameDecodesToReferenceOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_ns6416.avif", "ns.avif"));
+        assertTrue(line.contains("Y 00=16 032=16 063=235 320=235 3232=235 3263=16"),
+                () -> "must match the ffmpeg reference: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));
