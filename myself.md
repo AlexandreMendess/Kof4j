@@ -1240,3 +1240,15 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **O que verificar ANTES de chamar isto um bug** (a disciplina das últimas dez passagens): (a) se a primeira leitura é mesmo **deste nível** (um quadro 32x32 dentro de um superbloco 64x64 **força** uma divisão no topo, sem ler símbolo ⇒ a primeira leitura deve ser a do nível 32x32); (b) se o valor **0** mapeia mesmo em `PARTITION_NONE` na **linha de CDF** que o Kof seleciona (a ordem é a da especificação, mas a **linha** vem do **contexto de partição**).
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado):** ler a primeira leitura da caminhada de partição **contra o código** — que linha de CDF ela seleciona para um bloco 32x32 na origem do superbloco, e o que o valor 0 significa ali — porque **uma única leitura de partição errada produziria exatamente os três blocos onde um pertence** que a aritmética acha implausível.
+
+## Sessão 17/10 (sexta) — slice 3bd 102ª passagem: a contradição de partição confirmada (três componentes verificados)
+- **Unidade:** em vez de acusar a partição, **li os três componentes** que poderiam explicar a contradição da 101ª — e os três estão **certos**.
+  1. **O despacho** (`Av1Partition.kf`): `partition == 0` ⇒ **UMA FOLHA** (`addStep(1, r, c, subSize, 0)`) com `subSize = av1BlockPartitionSubsize(partition, bs)` ✓ **correto**.
+  2. **A tabela de subsize** (`Av1Block.kf`): `av1BlockPartitionSubsize(0, 9) = 9` ⇒ `PARTITION_NONE` num `BLOCK_32X32` devolve um `BLOCK_32X32` ✓ **correta**.
+  3. **O nível**: para um quadro 32x32 dentro de um superbloco 64x64 o nível de topo é **forçado** a dividir e **não lê símbolo** (`hasRows`/`hasCols` ambos falsos) ⇒ a primeira leitura traçada **é** a do nível 32x32, e é uma leitura de **dez vias com valor 0** ✓.
+- **A contradição, agora mais forte:** `PARTITION_NONE` no nível 32x32 significa **um** bloco cobrindo o quadro, e a caminhada emitiu **oito** blocos cujo primeiro é um `BLOCK_16X16` em `(0,0)`. **Com o despacho, a tabela e o nível todos verificados, a árvore não decorre do símbolo lido** — duas das três saídas possíveis ficaram **excluídas por leitura**, não por presunção.
+- **O único elo não conferido (o próximo instrumento):** a caminhada **regista** cada decisão de partição (`addStep(0, r, c, bs, partition)`) e a sonda imprime **apenas as folhas**. Imprimir os **passos internos** mostra, uma linha por nó, **que valor de `partition` a caminhada usou em cada nível**:
+  - se for **0** no nível 32x32 enquanto a folha é um 16x16 ⇒ a falha é a **contabilidade entre as duas chamadas**;
+  - se for **3** (SPLIT) ⇒ o símbolo que o trace mostra **não** é aquele sobre o qual o despacho agiu, e a atribuição do próprio trace volta a estar errada.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** imprimir os **passos internos de partição** da caminhada e resolver numa execução — mudança só na sonda, resposta pequena e fechada, e o **último elo não conferido** na cadeia do símbolo à árvore.
