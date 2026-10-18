@@ -324,6 +324,16 @@ main() {
         yi = yi + 1
     }
     println("YSPAN n=" + (ys.size / 3) + " " + ysline + " modesY=" + modes[5] + "," + modes[22] + "," + modes[39] + "," + modes[56])
+    // The end of each transform block's coefficients (diagnostic).
+    var te = tile.txEnds()
+    var ti2 = 0
+    var teline = ""
+    while (ti2 < te.size && ti2 < 8) {
+        if (ti2 > 0) { teline = teline + "," }
+        teline = teline + te[ti2]
+        ti2 = ti2 + 1
+    }
+    println("TXEND n=" + te.size + " " + teline)
     // How many symbols the palette-token stage of block 1 read (its window comes
     // from STAGES: body end .. palette end), to compare against the colour map's
     // expected `rows * cols - 1` index symbols.

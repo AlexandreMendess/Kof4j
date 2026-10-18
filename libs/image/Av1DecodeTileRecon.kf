@@ -135,6 +135,11 @@ class Av1TileDecode {
     // Per-block palette MODE info (diagnostic, read via `palInfos()`): two ints
     // per block — the decoded Y and UV palette sizes (0 = no palette).
     List<Int> palOut
+    // Per-TRANSFORM-BLOCK end positions (diagnostic, read via `txEnds()`): the
+    // reader position right after each transform block's coefficients, so a
+    // symbol in the trace can be placed INSIDE one transform block's span
+    // instead of being inferred from a window.
+    List<Int> txEndOut
     // Per-block reader position at block ENTRY (diagnostic, read via
     // `blockStarts()`): one int per block, taken after the walk's partition
     // symbols and before the mode info, so the PARTITION cost of a block is
@@ -227,6 +232,7 @@ class Av1TileDecode {
         this.predLog = listOf()
         this.stagesOut = listOf()
         this.palOut = listOf()
+        this.txEndOut = listOf()
         this.blockStartOut = listOf()
         // The palette COLOUR-INDEX maps the `palette_tokens()` stage fills
         // (per pixel, per plane); the reconstruction reads them.
@@ -445,6 +451,7 @@ class Av1TileDecode {
             var txType = txTypes[br * (frameW >> 2) + bc]
             levelsOut.add(levels)
             txTypeOut.add(txType)
+            this.txEndOut.add(this.reader.position())
 
             // 3c. Availability (3ab) from the transform block's ABSOLUTE position.
             var avail = av1IntraAvail(12, bs, 0, txSz, 0, 0,
@@ -584,6 +591,12 @@ class Av1TileDecode {
     // block: after the walk's partition symbols, before the mode info.
     List<Int> blockStarts() {
         return this.blockStartOut
+    }
+
+    // The per-TRANSFORM-BLOCK end positions (diagnostic), one int per transform
+    // block: the reader position right after its coefficients.
+    List<Int> txEnds() {
+        return this.txEndOut
     }
 
     // The per-block palette MODE info (diagnostic), 2 ints per block: the Y and
