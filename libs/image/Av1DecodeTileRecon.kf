@@ -154,6 +154,7 @@ class Av1TileDecode {
     Int ssX
     Int ssY
     List<Int[]> levelsUOut
+    List<Int> chromaPredOut
     List<Int[]> levelsVOut
     List<Int> txTypeUOut
     List<Int> txTypeVOut
@@ -180,7 +181,8 @@ class Av1TileDecode {
                 List<Int[]> levelsOut, List<Int> txTypeOut,
                 List<Int> modeOut, Av1ChromaPlanes chroma, Int ssX, Int ssY,
                 List<Int[]> levelsUOut, List<Int[]> levelsVOut,
-                List<Int> txTypeUOut, List<Int> txTypeVOut) {
+                List<Int> txTypeUOut, List<Int> txTypeVOut,
+                List<Int> chromaPredOut) {
         this.frame = frame
         this.stride = stride
         this.frameW = frameW
@@ -216,6 +218,7 @@ class Av1TileDecode {
         this.ssX = ssX
         this.ssY = ssY
         this.levelsUOut = levelsUOut
+        this.chromaPredOut = chromaPredOut
         this.levelsVOut = levelsVOut
         this.txTypeUOut = txTypeUOut
         this.txTypeVOut = txTypeVOut
@@ -303,6 +306,7 @@ class Av1TileDecode {
         var ssX = this.ssX
         var ssY = this.ssY
         var levelsUOut = this.levelsUOut
+        var chromaPredOut = this.chromaPredOut
         var levelsVOut = this.levelsVOut
         var txTypeUOut = this.txTypeUOut
         var txTypeVOut = this.txTypeVOut
@@ -578,7 +582,7 @@ class Av1TileDecode {
                     intraEdgeFilterType, edgeFilter, dcQuant, acQuant, qIndex,
                     reducedTxSet, lossless, reader, store, txTypeStore, txTypes,
                     this.miW, frameW, frameH, levelsUOut, levelsVOut,
-                    txTypeUOut, txTypeVOut)
+                    txTypeUOut, txTypeVOut, chromaPredOut)
         }
         this.posOut.add(this.reader.position())
         this.qIndex = qIndex
@@ -705,7 +709,7 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
         segIdPreSkip, lastActiveSegId, segSkipActive, dcQuant, acQuant, disableEdgeFilter,
         intraEdgeFilterType, reducedTxSet, reader, store, txTypeStore, txTypes, above, left,
         levelsOut, txTypeOut, modeOut, chroma, ssX, ssY, levelsUOut, levelsVOut, txTypeUOut,
-        txTypeVOut)
+        txTypeVOut, listOf())
     tile.run(blocks)
     return tile.planes()
 }

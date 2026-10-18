@@ -338,6 +338,15 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // dequantization is exonerated (every plane legitimately uses the luma
         // quantizers). The values are exposed now instead of being parsed and
         // discarded, so any non-zero one would be visible.
+        // The chroma PREDICTIONS, MEASURED at last (the 127th/128th passes' last
+        // unmeasured term): 2 transform blocks, the U's (113, 115 — the CFL result
+        // with alpha_U = 1) then the V's (128, 128 — the DC ALONE, alpha_V = 0),
+        // which is EXACTLY the value the arithmetic derived. The prediction is
+        // therefore exonerated, and with the residual validated against libaom's
+        // transcription the V's ±1 is a ROUNDING (or multi-coefficient) difference
+        // between the two decoders, not a wrong term.
+        assertTrue(line.contains("CPRED n=2 [113, 115, 128, 128]"),
+                () -> "the chroma predictions moved: " + line);
         assertTrue(line.contains("QDELTAS [0, 0, 0, 0, 0, 0]"), () -> "the header deltas moved: " + line);
         assertTrue(line.contains("CFLA 1 0"), () -> "the CFL alphas moved: " + line);
         assertTrue(line.contains("URES (0,0)=16 (0,1)=16 (1,0)=16"),

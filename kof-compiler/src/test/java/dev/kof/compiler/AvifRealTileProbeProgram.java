@@ -91,6 +91,7 @@ main() {
     var levelsV = listOf<Int[]>()
     var txTypesU = listOf<Int>()
     var txTypesV = listOf<Int>()
+    var chromaPreds = listOf<Int>()
     var pal = 0
     if (h.allowScreenContent) { pal = 1 }
     var cfg = Av1ModeTail(12, h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
@@ -111,7 +112,7 @@ main() {
     var allSteps = listOf<Int[]>()
     var totalSymBits = 0
     var totalPayloadBits = 0
-    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV)
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV, chromaPreds)
     var walk = Av1Partition(data, miw, mih)
     var tline = ""
     var ti = 0
@@ -139,7 +140,8 @@ main() {
         levelsV = listOf<Int[]>()
         txTypesU = listOf<Int>()
         txTypesV = listOf<Int>()
-        tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, tsym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(tsym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV)
+        chromaPreds = listOf<Int>()
+        tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, tsym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(tsym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV, chromaPreds)
         walk = Av1Partition(tiles.get(ti), miw, mih)
         walk.useReader(tsym)
         walk.bindDecoder(tile)
@@ -476,7 +478,7 @@ main() {
         uc = uc + 1
     }
     println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + totalSymBits + " payloadBits=" + totalPayloadBits + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head + " uvCFL=" + uvCfl)
-    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes, txTypesV, levelsU, txTypesU, h.quantDeltas)
+    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes, txTypesV, levelsU, txTypesU, h.quantDeltas, chromaPreds)
 }
 """.formatted(path).replace("//#DIAG", AvifRealTileProbeDiag.source());
     }

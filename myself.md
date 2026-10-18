@@ -2,11 +2,15 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 128ª PASSAGEM: a instrumentação da predição REVERTIDA outra vez (é a 2ª) — quebrou nos SÍTIOS DE CHAMADA DO CONSTRUTOR, descobertos um erro de compilação de cada vez (`Av1DecodeTileRecon.kf:713` foi o que corrompeu a edição). Tudo de volta a `c6cd419e5`. A LISTA estrutural que a próxima tentativa precisa fica escrita: (a) as 2 assinaturas da chroma; (b) o campo + o parâmetro do construtor + o local + a chamada de chroma do driver; (c) OS DOIS sítios de construção (o laço de tiles do programa da probe E o helper `av1DecodeTileRecon`); (d) a lista + a impressão na probe.
-doing: §3bd — a instrumentação da predição revertida (2ª vez) e a lista estrutural escrita; a próxima tentativa faz a lista toda de uma vez
-next: §3bd — fazer a instrumentação da predição em UMA passagem a partir da lista escrita (as 2 assinaturas da chroma + o driver: campo/construtor/local/chamada + OS DOIS sítios de construção + a probe: lista e impressão), depois comparar a predição do V com o 128 derivado
+last: 18/10 — 3bd 129ª PASSAGEM: a PREDIÇÃO da chroma MEDIDA — `CPRED n=2 [113, 115, 128, 128]` (o U 113/115 = o CFL com alfa_U=1; o V 128/128 = o DC sozinho, alfa_V=0) ⇒ EXACTAMENTE o derivado ⇒ a predição EXONERADA. TODOS os termos da cadeia do V estão agora medidos; com a mesma predição e os mesmos coeficientes o decodificador dá 129/160 e o ffmpeg 130/159 ⇒ o ±1 é um ARREDONDAMENTO (ou uma diferença de níveis multi-coeficiente que a busca de um só coeficiente da 127ª não podia ver). O instrumento foi feito de uma peça só a partir da lista da 128ª (os TRÊS sítios do construtor).
+doing: §3bd — predição da chroma MEDIDA e exonerada; todos os termos da cadeia do V estão medidos ⇒ o ±1 é arredondamento/multi-coeficiente
+next: §3bd — procurar a diferença de ARREDONDAMENTO/multi-coeficiente entre os dois decodificadores (p.ex. o br/coeff_base dos níveis do V em conjunto, ou o estágio de arredondamento do add); depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (129ª) — 3bd: a predição da chroma medida e exonerada
+- **MEDIDO:** `CPRED n=2 [113, 115, 128, 128]`; o V = 128/128 = o DC derivado.
+- **FECHADO:** todos os termos da cadeia do V medidos ⇒ o ±1 é arredondamento/multi-coeficiente.
 
 ## Sessão 18/10 (128ª) — 3bd: a predição revertida (2ª) e a lista estrutural escrita
 - **REVERTIDO:** tudo de volta a `c6cd419e5` (nada meio-landado).
