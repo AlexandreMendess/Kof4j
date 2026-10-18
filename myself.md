@@ -2,11 +2,15 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 126ª PASSAGEM: os deltas de quantizador por plano do cabeçalho EXPORTOS (antes analisados e descartados) e medidos a ZERO — `QDELTAS [0, 0, 0, 0, 0, 0]` ⇒ a candidata da 125ª (V desquantizado com os quantizadores da luma) REFUTADA por medição; a desquantização exonerada também pelo lado do cabeçalho. RESTA: os níveis (12,-5,-1) e a desquantização são exatos mas o resíduo implícito do codificador é (2,31) vs (1,32) ⇒ o suspeito é a SINTAXE DE COEFICIENTES (um contexto/CDF errado dá um nível errado com o consumo exato — a implicação de mão única da 37ª).
-doing: §3bd — deltas por plano todos zero (candidata da 125ª REFUTADA) ⇒ o ±1 está na sintaxe de coeficientes do V (níveis); próximo: traçar os 3 símbolos e os seus contextos/CDFs
-next: §3bd — traçar os três símbolos de coeficiente do V (contextos e linhas de CDF) contra a sintaxe das posições de AC; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 127ª PASSAGEM: uma BUSCA DE MUDANÇA DE NÍVEL exclui o coeficiente mal decodificado (nenhuma perturbação de um só coeficiente — ±1/±2 níveis — reproduz o `(2,31)` implícito do codificador contra o `(1,32)` do decodificador) ⇒ o ±1 do V é a PREDIÇÃO: a saída 129/160 e o resíduo 1/32 implicam exatamente 128 (o DC correto, alfa_V=0) e o ffmpeg 130/159 implica 129/127. É o ÚNICO termo nunca medido; a tentativa desta passagem de o expor ficou incompleta e foi REVERTIDA (não meio-landada).
+doing: §3bd — a busca de nível exclui o coeficiente ⇒ o ±1 é a PREDIÇÃO (o único termo não medido); próximo: expor o pred da chroma pelas três assinaturas e imprimi-lo
+next: §3bd — expor a PREDIÇÃO da chroma (`pred[0]`/`pred[1]` antes de `av1ReconBlockIntoClip`) por `av1DecodeChromaPlane` -> `av1DecodeChromaBlock` -> o driver -> a probe, e comparar a do V com o 128 derivado e a do U com o seu resultado CFL
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (127ª) — 3bd: o coeficiente excluído; o ±1 é a predição (nunca medida)
+- **BUSCA:** nenhuma perturbação de ±1/±2 níveis reproduz o (2,31) implícito ⇒ o nível está certo.
+- **REVERTIDO:** a instrumentação incompleta da predição (não meio-landada).
 
 ## Sessão 18/10 (126ª) — 3bd: deltas por plano a zero (candidata refutada); o ±1 fica na sintaxe de coeficientes
 - **LANDADO:** os deltas (Y/Udc/Uac/Vdc/Vac/usingQm) capturados e expostos; `QDELTAS [0,0,0,0,0,0]` medido.
