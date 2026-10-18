@@ -493,6 +493,35 @@ main() {
         ci2 = ci2 + 1
     }
     println("VLEV n=" + levelsV.size + cl)
+    // The DEQUANTIZED values of that same V transform block: the three levels
+    // above times the quantizer. The dequant is a plain multiply (the AV1's
+    // dc_q/ac_q tables already carry the scaling), so a hand computation can
+    // say whether the ±1 enters here or in the inverse transform.
+    var dqv = ""
+    if (levelsV.size > 0) {
+        // The block's own size index, taken from the walk's first decode_block
+        // step (kind 1; its value is the SUB block size).
+        var bs2 = 9
+        var s2 = 0
+        while (s2 < steps.size) {
+            if (steps.get(s2)[0] == 1) { bs2 = steps.get(s2)[3] }
+            s2 = s2 + 1
+        }
+        var uvTx2 = av1GetMaxUvTxSize(bs2, 1, 1)
+        // Only when the first V transform block really has that shape: on a
+        // multi-block fixture the first V TX may belong to a later block, and a
+        // mismatched size would index the level array out of range.
+        var dq2 = new Int[0]
+        if (av1TxWidth(uvTx2) * av1TxHeight(uvTx2) == levelsV.get(0).size) {
+            dq2 = av1Dequant(levelsV.get(0), uvTx2, seq.bitDepth, dcq, acq)
+        }
+        var k6 = 0
+        while (k6 < dq2.size) {
+            if (dq2[k6] != 0) { dqv = dqv + " t0[" + k6 + "]=" + dq2[k6] }
+            k6 = k6 + 1
+        }
+    }
+    println("DQV dcq=" + dcq + " acq=" + acq + " qIdx=" + h.baseQIdx + dqv)
     println("UV 00=" + chroma.u[1 * chroma.strideU + 1] + "," + chroma.v[1 * chroma.strideV + 1]
         + " 032=" + chroma.u[1 * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx1 >> 1) + 1)]
         + " 063=" + chroma.u[1 * chroma.strideU + ((sx2 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx2 >> 1) + 1)]

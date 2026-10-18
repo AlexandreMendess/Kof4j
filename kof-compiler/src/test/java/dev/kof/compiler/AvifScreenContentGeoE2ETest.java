@@ -304,6 +304,14 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // half of the ±1 the AC oracle cannot see: the AC is hand-computed EXACT
         // and the prediction is exonerated, so the deviation lives in this
         // residual's dequantization/inverse transform.
+        // The DEQUANTIZED coefficients, and they are EXACT: 12*223 = 2676,
+        // -5*305 = -1525, -1*305 = -305 — a plain multiply by the quantizer, as
+        // the AV1 specifies (dc_q for the DC, ac_q for the rest; the tables carry
+        // the scaling). With the AC hand-computed EXACT and the prediction
+        // exonerated, the ±1 therefore lives in the 16x16 INVERSE TRANSFORM —
+        // which only the V exercises here, because the U's residual is zero.
+        assertTrue(line.contains("DQV dcq=223 acq=305 qIdx=160 t0[0]=2676 t0[16]=-1525 t0[32]=-305"),
+                () -> "the dequant moved: " + line);
         assertTrue(line.contains("VLEV n=1 t0[0]=12 t0[16]=-5 t0[32]=-1"),
                 () -> "the V residual moved: " + line);
         assertTrue(line.contains("UV 00=129,129 032=159,129 063=159,129 320=129,160 3232=159,160 3263=159,160"),

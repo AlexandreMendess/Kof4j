@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 117ª PASSAGEM: o AC do CFL é CALCULADO À MÃO e EXATO (sub(0,0)=44, avg=990, rampa simétrica [-946,-582,-186,186,578,946]) ⇒ a PREDIÇÃO fica exonerada (o U bate o ffmpeg pelo mesmo caminho e a predição não pode variar com a linha para esta luma) ⇒ o ±1 do V vive no seu RESÍDUO. Instrumento novo: a probe guardava listas DESCARTÁVEIS para os níveis da chroma; agora imprime `VLEV n=1 t0[0]=12 t0[16]=-5 t0[32]=-1` (um bloco de transformada do V, três coeficientes). O teste afirma-os como REGISTADOS.
-doing: §3bd — o ±1 do V fixado no seu resíduo (AC exato à mão, predição exonerada); o instrumento dos níveis da chroma landado (VLEV) e três coeficientes medidos
-next: §3bd — seguir os três coeficientes do V (t0[0]=12, t0[16]=-5, t0[32]=-1) pela desquantização e transformada inversa; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 118ª PASSAGEM: a DESQUANTIZAÇÃO medida EXATA ⇒ o ±1 do plano V fica fixado na TRANSFORMADA INVERSA de 16x16. Instrumento novo: a probe imprime `DQV dcq=223 acq=305 qIdx=160 t0[0]=2676 t0[16]=-1525 t0[32]=-305` e a aritmética bate (12x223=2676, -5x305=-1525, -1x305=-305) — multiplicação simples pelo quantizador, como o AV1 diz; a chroma usa os mesmos quantizadores que a luma. Com o AC exato à mão (117ª), a predição exonerada, os níveis exatos e agora a desquantização exata, o ±1 só pode vir do IDCT de 16x16 — o único estágio que este fixture exercita com entrada NÃO-NULA (o resíduo do U é zero; a luma é 32x32).
+doing: §3bd — desquantização exata ⇒ o ±1 do V fixado no IDCT de 16x16 (o único estágio com entrada não-nula neste fixture); próximo: comparar com o `av1_idct16` do libaom
+next: §3bd — comparar a transformada inversa de 16 pontos do Kof com o `av1_idct16` do libaom / o `inverse_transform` da especificação (estágios de arredondamento); depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (118ª) — 3bd: desquantização exata ⇒ o ±1 fica no IDCT de 16x16
+- **LANDADO:** o diagnóstico `DQV` (desquantizados do bloco V) + a asserção registada (12x223=2676, -5x305=-1525, -1x305=-305 = exato).
+- **FIXA:** o ±1 só pode vir do IDCT de 16x16 (entrada não-nula só aqui; o U é zero e a luma é 32x32).
+- **PRÓXIMO:** comparar o IDCT de 16 pontos com o `av1_idct16` do libaom.
 
 ## Sessão 18/10 (117ª) — 3bd: o ±1 do V fixado no resíduo (AC exato à mão)
 - **FEITO:** o AC calculado à mão (offline) e EXATO; a predição exonerada; a probe passa a reportar `VLEV` (níveis da chroma, antes descartados).
