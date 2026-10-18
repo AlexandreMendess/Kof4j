@@ -103,11 +103,30 @@ class Av1Partition {
     // Walks the whole frame, one 64x64 superblock at a time, zeroing the left
     // context per superblock row (libaom `av1_zero_left_context`).
     List<Int[]> walk() {
-        var r = 0
-        while (r < this.miRows) {
+        return this.walkTile(0, 0, this.miRows, this.miCols)
+    }
+
+    // Walks ONE TILE: the same superblock loop, bounded by the tile's mi
+    // rectangle. libaom's `decode_tile` iterates `mi_row` from
+    // `tile->mi_row_start` to `tile->mi_row_end` and `mi_col` from
+    // `tile->mi_col_start` to `tile->mi_col_end` (av1/decoder/decodeframe.c),
+    // while the EDGE logic inside a partition (`has_rows`/`has_cols` in
+    // `decode_partition`) uses the FRAME's `mi_rows`/`mi_cols` — a tile's right
+    // edge is not the frame's, so the two bounds must not be confused.
+    //
+    // A tile also carries its OWN entropy state: libaom gives every tile a copy
+    // of the frame context (`tile_data->tctx = *cm->fc`) and zeroes the above
+    // context over the tile's columns, so a caller decoding a whole multi-tile
+    // frame hands in a FRESH store and a fresh reader per tile. The `above`
+    // array needs no reset here: each tile writes only its own columns (blocks
+    // never cross a tile boundary — tiles are superblock-aligned), and the
+    // `left` context is zeroed per superblock row by the loop.
+    List<Int[]> walkTile(Int r0, Int c0, Int r1, Int c1) {
+        var r = r0
+        while (r < r1) {
             this.zeroLeft()
-            var c = 0
-            while (c < this.miCols) {
+            var c = c0
+            while (c < c1) {
                 this.decodePartition(r, c, 12)
                 c = c + 16
             }

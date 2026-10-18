@@ -207,6 +207,27 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "tile 0 must match the ffmpeg reference: " + line);
     }
 
+    /**
+     * The WHOLE multi-tile frame, not just its first tile: each tile gets its
+     * own reader, CDF store and driver (libaom gives every tile a copy of the
+     * frame context, `tile_data->tctx = *cm->fc`) and its own walk, bounded by
+     * the tile's mi rectangle (libaom's `decode_tile` bounds its superblock loop
+     * by `TileInfo.mi_row_start`/`mi_row_end`). ffmpeg's plane gives, at every
+     * tile's own origin pair, the checkerboard's even cell (16) and the one 4px
+     * right of it (235) — a tile decoded with another tile's CDFs, or a walk
+     * that ran past its tile, breaks that pattern.
+     */
+    @Test
+    void multiTileFrameDecodesTheWholeFrameToReferenceOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_mt128.avif", "mt.avif"));
+        assertTrue(line.contains("TILES n=4"), () -> "the fixture must be 2x2 tiles: " + line);
+        assertTrue(line.contains("TILEY t0(0,0)=16(4,0)=235 t1(64,0)=16(68,0)=235 "
+                        + "t2(0,64)=16(4,64)=235 t3(64,64)=16(68,64)=235"),
+                () -> "every tile must match the ffmpeg reference: " + line);
+        assertTrue(line.contains("covered=1024 frame=1024"),
+                () -> "the four tiles must cover the whole frame: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));

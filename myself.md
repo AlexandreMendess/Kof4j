@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 109ª PASSAGEM: o caminho MULTI-TILE é exercitado pela PRIMEIRA vez. Novo fixture `avif_real_mt128.avif` (128x128, xadrez 4px, `-tiles 2x2`) + linha `TILES n=<count>` na probe (para um teste PROVAR que é multi-tile). PROVA: `AvifScreenContentGeoE2ETest` 7/7 — `TILES n=4` e o tile 0 (64x64 superior esquerdo) bate o ffmpeg nas seis amostras; passou à primeira corrida ⇒ é PROVA DE CAPACIDADE (cobertura), não correção de bug. ACHADO que a limita (buscado): `tile_data->tctx = *cm->fc` (av1/decoder/decodeframe.c) ⇒ a adaptação de CDF é POR TILE; o driver do Kof tem UM store por decodificação ⇒ decodifica um tile só, e o resto exige store novo + caminhada limitada ao tile (hoje frame-based; o libaom limita por `TileInfo.mi_row_start`/`mi_row_end`).
-doing: §3bd — multi-tile: a divisão do payload e o tile 0 estão provados; a caminhada limitada ao tile + store por tile (para decodificar o frame inteiro) é o próximo passo
-next: §3bd — (a) caminhada limitada ao tile (`TileInfo.mi_row_start`/`mi_row_end`) + um store de CDF por tile, com `avif_real_mt128.avif` e o plano do ffmpeg como prova; (b) o AC do CFL dentro dos limites numa borda; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
+last: 18/10 — 3bd 110ª PASSAGEM: um frame MULTI-TILE decodifica INTEIRO. Biblioteca: `Av1Partition.walkTile(r0,c0,r1,c1)` (o `walk()` delega com o frame todo ✓ zero regressão) — o laço de superblocos limitado ao tile como o `decode_tile` do libaom, com a lógica de borda da partição a usar os limites do FRAME (a borda de um tile não é a do frame). Instrumento: a probe decodifica TODOS os tiles, cada um com leitor/`Av1CoeffCdfStore`/driver NOVOS (o libaom dá a cada tile a sua cópia do contexto: `tile_data->tctx = *cm->fc`) e a sua caminhada limitada; resumo = SOMA sobre tiles + linha nova `TILEY`. PROVA: geo 8/8 — `TILEY t0(0,0)=16(4,0)=235 t1(64,0)=16(68,0)=235 t2(0,64)=16(4,64)=235 t3(64,64)=16(68,64)=235` + `covered=1024 frame=1024`.
+doing: §3bd — multi-tile decodifica inteiro (caminhada por tile + store por tile); seguem (a) grelhas não-uniformes, (b) o CFL dentro dos limites, (c) o decodificador independente
+next: §3bd — (a) grelhas de tile NÃO-UNIFORMES (expor os tamanhos por tile que o cabeçalho já analisa) com um fixture `-tiles` desigual; (b) o AC do CFL dentro dos limites numa borda; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (110ª) — 3bd: multi-tile INTEIRO (caminhada por tile + CDF por tile)
+- **LANDADO:** `Av1Partition.walkTile` (o `walk()` delega) + a probe a decodificar todos os tiles com estado próprio e `TILEY` por tile; `multiTileFrameDecodesTheWholeFrameToReferenceOnJvm` afirma os quatro tiles + `covered=1024 frame=1024`.
+- **PROVA:** geo 8/8, BUILD SUCCESS; zero regressão por construção nos fixtures de um tile.
+- **ARMADILHAS (3 corridas):** o programa da probe é um text block Java via `String.formatted` ⇒ um `%` do Kof (o módulo) tem de ser duplicado, e uma percentagem num COMENTÁRIO também quebra; e os diagnósticos por bloco têm de ser reconstruídos POR TILE (partilhá-los cruza contagens de blocos entre tiles).
 
 ## Sessão 18/10 (109ª) — 3bd: multi-tile exercitado (tile 0 exato; store por tile é o próximo)
 - **LANDADO:** fixture `avif_real_mt128.avif` (128x128, xadrez 4px, `-tiles 2x2`) + `multiTileFrameDecodesItsFirstTileToReferenceOnJvm` (afirma `TILES n=4` e as seis amostras do tile 0 contra o ffmpeg) + a linha `TILES n=` na probe.
