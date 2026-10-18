@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 114ª PASSAGEM: dois CRASHES REAIS de ultrapassamento encontrados e corrigidos. Fixture novo `avif_real_grad64x40.avif` (64x40, gradiente com chroma correlacionada) cujo único bloco 64x64 ULTRAPASSA o frame ⇒ (a) `Index 10 out of bounds for length 10` em `av1DecodeCoeffsBlockCore` (a caminhada de coeficientes fatia os contextos de entropia `above`/`left` para lá do frame) e (b) `Index 160 ...` em `Av1TxType.readTxType` (o mapa de tipos de transformada). Correção: PREENCHER ambos até à grelha do superbloco como o libaom (`ALIGN_POWER_OF_TWO(num_mi_cols, MAX_MIB_SIZE_LOG2)`, `av1TxCtxExtent` da 106ª), contrato agora declarado no doc do driver. PROVA: `symBits=168 payloadBits=168`, `Y 00=2 032=128 063=249 320=2 3232=128 3263=249` = ffmpeg; geo 10/10. HONESTIDADE: NÃO alcança CFL (medido `uvCFL=0`) ⇒ o caso da correção da 112ª fica ABERTO; novo campo `uvCFL=` na probe torna isso medido.
-doing: §3bd — dois crashes de ultrapassamento corrigidos (contextos de entropia + mapa de tipos de transformada, ambos preenchidos como no libaom); o CFL numa borda continua ABERTO (o fixture mediu uvCFL=0)
-next: §3bd — (a) um fixture que alcance MESMO CFL numa borda de frame (a correção do AC da 112ª continua sem exercício por stream real); (b) tamanhos por tile explícitos; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
+last: 18/10 — 3bd 115ª PASSAGEM: CFL NUMA BORDA DE FRAME finalmente ALCANÇADO (`uvCFL=1`). Regra que faltava aplicar: o CFL exige AMBAS as dimensões do bloco <= 32 (`is_cfl_allowed`) ⇒ um bloco 64x64 nunca o pode usar (por isso o gradiente 64x40 da 114ª deu uvCFL=0 mesmo com cpu-used 4). Fixture novo `avif_real_cfl32x24.avif` (32x24, um superbloco a ultrapassar 8 linhas, gradiente com chroma correlacionada, cpu-used 4) ⇒ o bloco 32x32 é elegível e toma-o (`B 0 ... 13 ...`). E esse fixture apanhou um BUG MEU da 112ª: o preenchimento cobria os VALORES mas a SUBAMOSTRAGEM continuava a ler a luma das células fora do plano (para lá do buffer: `Index 885 out of bounds for length 884`) ⇒ agora limitada às células dentro dos limites (como o `cfl_store` do libaom). PROVA: `symBits=128 payloadBits=128`, `Y 00=3 032=244 063=244 320=3 3232=244 3263=244` = ffmpeg, `uvCFL=1`; corrida 23/23.
+doing: §3bd — CFL numa borda alcançado e provado (o fixture apanhou um bug meu da 112ª: subamostragem fora do plano); falta um oráculo de CHROMA (a probe só reporta luma)
+next: §3bd — (a) linha de amostras `UV` na probe para um oráculo de chroma fixar o resultado do CFL (o crash prova o caminho, mas um AC errado passaria); (b) tamanhos por tile explícitos; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (115ª) — 3bd: CFL numa borda alcançado; a subamostragem fora do plano corrigida
+- **LANDADO:** `avif_real_cfl32x24.avif` + `cflAtAFrameEdgeMatchesReferenceOnJvm` (uvCFL=1, a summary e as amostras do ffmpeg); `av1CflSubsample` LIMITADA às células dentro dos limites (`wIn`/`hIn`).
+- **RED:** o fixture ESTOURAVA antes (`Index 885 out of bounds for length 884`) ⇒ reparação RED-provada.
+- **ABERTO:** um oráculo de CHROMA (a probe só reporta luma; um AC errado ainda passaria).
 
 ## Sessão 18/10 (114ª) — 3bd: dois crashes de ultrapassamento (contextos de entropia + mapa de tipos)
 - **LANDADO:** `avif_real_grad64x40.avif` + o teste com as amostras do ffmpeg; a probe PREENCHE os contextos `above`/`left` e o mapa de tipos até à grelha do superbloco (`av1TxCtxExtent`); o contrato documentado no doc do `Av1DecodeTileRecon`.

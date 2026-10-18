@@ -269,6 +269,32 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "must match the ffmpeg reference: " + line);
     }
 
+    /**
+     * CFL AT A FRAME EDGE — the case the 112th pass's AC pad exists for, and the
+     * fixture that finally REACHES it: 32x24 (one superblock, overhanging by 8
+     * rows), a chroma-correlated ramp (luma with X, U with X, V with Y) encoded
+     * at {@code -cpu-used 4} so the encoder evaluates CFL. A 64x64 block CANNOT
+     * use it at all — {@code is_cfl_allowed} wants both dims &lt;= 32 — which is
+     * why the 64x40 gradient of the 114th pass never did; here the single 32x32
+     * block is eligible, and measured it takes it: {@code uvCFL=1} with
+     * {@code uvMode 13}.
+     *
+     * <p>It also caught a REAL BUG in the 112th pass's own fix: the pad covered
+     * the VALUES, but {@code av1CflSubsample} still READ the luma of the cells
+     * outside the plane — past the buffer for this frame
+     * ({@code Index 885 out of bounds for length 884}) — so the subsample is now
+     * bounded by the within-bounds cells, as libaom's store is.
+     */
+    @Test
+    void cflAtAFrameEdgeMatchesReferenceOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_cfl32x24.avif", "cfl.avif"));
+        assertTrue(line.contains("uvCFL=1"), () -> "the fixture must reach CFL: " + line);
+        assertTrue(line.contains("blocks=1 covered=48 frame=48 overlap=0 symBits=128 payloadBits=128"),
+                () -> "the frame must decode whole: " + line);
+        assertTrue(line.contains("Y 00=3 032=244 063=244 320=3 3232=244 3263=244"),
+                () -> "must match the ffmpeg reference: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));
