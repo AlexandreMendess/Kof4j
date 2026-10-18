@@ -8429,6 +8429,66 @@ class DecompileTest {
                 "zero-drift: ticketPrice/rating/isBlockbuster/runtimeInMinutes id\u00eanticos ao Java");
     }
 
+    @Test
+    void goalDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00eddio META — 4 shapes sem c\u00f3digo novo: o
+        // achieved com a comparação direta, o progressLabel com as QUATRO
+        // faixas (done/halfway/started/not started — o label ESPAÇADO), o
+        // daysToGoal com a divisão inteira e o completionPct com a
+        // PROMOÇÃO EXPLÍCITA (`done * 100.0 / total` — o 75.0 exato).
+        // Zero-drift executado: true/false/done/halfway/started/not
+        // started/10/75.0 — 8/8 id\u00eanticos ao Java — a 78\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Goal.java");
+        Files.writeString(javaFile, """
+                public class Goal {
+                    static boolean achieved(int current, int target) {
+                        return current >= target;
+                    }
+                    static String progressLabel(double pct) {
+                        if (pct >= 100) { return "done"; }
+                        if (pct >= 50) { return "halfway"; }
+                        if (pct > 0) { return "started"; }
+                        return "not started";
+                    }
+                    static int daysToGoal(int remaining, int perDay) {
+                        return remaining / perDay;
+                    }
+                    static double completionPct(int done, int total) {
+                        return done * 100.0 / total;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Goal.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Goal.achieved(15, 10))
+                    println(Goal.achieved(5, 10))
+                    println(Goal.progressLabel(100.0))
+                    println(Goal.progressLabel(75.0))
+                    println(Goal.progressLabel(25.0))
+                    println(Goal.progressLabel(0.0))
+                    println(Goal.daysToGoal(50, 5))
+                    println(Goal.completionPct(30, 40))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | done | halfway | started | not started | 10 | 75.0
+        assertEquals("true\nfalse\ndone\nhalfway\nstarted\nnot started\n10\n75.0", output,
+                "zero-drift: achieved/progressLabel/daysToGoal/completionPct id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
