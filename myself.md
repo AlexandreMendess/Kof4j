@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 125ª PASSAGEM: as linhas de FUNDO do resíduo do V medidas (`(0,11)=32 (8,11)=32` = a referência validada) e a aritmética FECHA: o final do decodificador (129/160) menos o seu próprio resíduo (1/32) é a CONSTANTE 128 (o DC correto sem vizinhos, alfa_V=0) ⇒ a PREDIÇÃO está certa; o ffmpeg (130/159) implica um resíduo de 2/31 ⇒ a discordância ±1 está nas ENTRADAS do resíduo (níveis/quantizadores). CANDIDATO REAL: o cabeçalho ANALISA `quantization_params()` e DESCARTA os deltas por plano ⇒ todos os planos desquantizados com os quantizadores da LUMA (invisível no U, só-DC; visível no V ✓ A FORMA OBSERVADA).
-doing: §3bd — o ±1 fixado nas ENTRADAS do resíduo (a predição é 128 correto); candidato real: os deltas de quantizador por plano do cabeçalho são descartados ⇒ próximo: guardá-los e aplicá-los
-next: §3bd — guardar `DeltaQUDc/Ac`/`DeltaQVDc/Ac` no `AvifFrameHeader` + imprimi-los para `avif_real_cfl32x24.avif`; se algum for não-nulo, aplicar por plano na desquantização (o ±1 do V deve fechar)
+last: 18/10 — 3bd 126ª PASSAGEM: os deltas de quantizador por plano do cabeçalho EXPORTOS (antes analisados e descartados) e medidos a ZERO — `QDELTAS [0, 0, 0, 0, 0, 0]` ⇒ a candidata da 125ª (V desquantizado com os quantizadores da luma) REFUTADA por medição; a desquantização exonerada também pelo lado do cabeçalho. RESTA: os níveis (12,-5,-1) e a desquantização são exatos mas o resíduo implícito do codificador é (2,31) vs (1,32) ⇒ o suspeito é a SINTAXE DE COEFICIENTES (um contexto/CDF errado dá um nível errado com o consumo exato — a implicação de mão única da 37ª).
+doing: §3bd — deltas por plano todos zero (candidata da 125ª REFUTADA) ⇒ o ±1 está na sintaxe de coeficientes do V (níveis); próximo: traçar os 3 símbolos e os seus contextos/CDFs
+next: §3bd — traçar os três símbolos de coeficiente do V (contextos e linhas de CDF) contra a sintaxe das posições de AC; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (126ª) — 3bd: deltas por plano a zero (candidata refutada); o ±1 fica na sintaxe de coeficientes
+- **LANDADO:** os deltas (Y/Udc/Uac/Vdc/Vac/usingQm) capturados e expostos; `QDELTAS [0,0,0,0,0,0]` medido.
+- **REFUTADO:** a candidata da 125ª.
+- **PRÓXIMO:** os 3 símbolos de coeficiente do V e os seus contextos/CDFs.
 
 ## Sessão 18/10 (125ª) — 3bd: a predição é 128 correto ⇒ o ±1 está nas entradas do resíduo; deltas por plano descartados
 - **MEDIDO:** `(0,11)=32 (8,11)=32` no resíduo do V; 129−1 = 160−32 = 128 ⇒ a predição está certa.

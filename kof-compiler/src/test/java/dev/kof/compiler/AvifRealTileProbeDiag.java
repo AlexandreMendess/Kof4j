@@ -20,7 +20,7 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
                Av1ChromaPlanes chroma, List<Int[]> levelsV, List<Int[]> steps,
                Int dcq, Int acq, Int baseQIdx, Int bitDepth,
                Av1TileDecode tile, List<Int> modes, List<Int> txTypesV,
-               List<Int[]> levelsU, List<Int> txTypesU) {
+               List<Int[]> levelsU, List<Int> txTypesU, List<Int> quantDeltas) {
         // The sample positions are clamped to the frame: they were hardcoded for a
     // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
     // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
@@ -52,6 +52,10 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
     // prediction as the last place the V plane's +/-1 can be.
     var aline = "none"
     if (modes.size >= 17) { aline = modes[9] + " " + modes[10] }
+    // The frame header's per-plane quantizer deltas [Y, Udc, Uac, Vdc, Vac] and
+    // the quantization-matrix flag: parsed and DISCARDED until the 126th pass,
+    // which is the 125th pass's candidate root cause for the V plane's +/-1.
+    println("QDELTAS " + quantDeltas)
     println("CFLA " + aline)
     println("VTXT n=" + txTypesV.size + " " + txTypesV)
     // The U plane's levels too: if the U's residual is ZERO then its exactness

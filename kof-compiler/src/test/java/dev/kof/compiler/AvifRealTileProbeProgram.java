@@ -476,7 +476,7 @@ main() {
         uc = uc + 1
     }
     println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + totalSymBits + " payloadBits=" + totalPayloadBits + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head + " uvCFL=" + uvCfl)
-    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes, txTypesV, levelsU, txTypesU)
+    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes, txTypesV, levelsU, txTypesU, h.quantDeltas)
 }
 """.formatted(path).replace("//#DIAG", AvifRealTileProbeDiag.source());
     }

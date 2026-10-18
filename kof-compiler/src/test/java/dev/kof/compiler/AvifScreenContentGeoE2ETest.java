@@ -333,6 +333,12 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // and the residual (validated in the 123rd pass) as the only terms, and a
         // DC error would shift the plane uniformly while the observed deviation is
         // a SPREAD — recorded here as the open discrepancy the next pass attacks.
+        // The frame header's per-plane quantizer deltas and the quantization-matrix
+        // flag — ALL ZERO, which REFUTES the 125th pass's candidate root cause: the
+        // dequantization is exonerated (every plane legitimately uses the luma
+        // quantizers). The values are exposed now instead of being parsed and
+        // discarded, so any non-zero one would be visible.
+        assertTrue(line.contains("QDELTAS [0, 0, 0, 0, 0, 0]"), () -> "the header deltas moved: " + line);
         assertTrue(line.contains("CFLA 1 0"), () -> "the CFL alphas moved: " + line);
         assertTrue(line.contains("URES (0,0)=16 (0,1)=16 (1,0)=16"),
                 () -> "the U residual moved: " + line);
