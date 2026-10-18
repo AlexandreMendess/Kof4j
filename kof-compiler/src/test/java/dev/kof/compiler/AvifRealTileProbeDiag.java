@@ -19,7 +19,7 @@ final class AvifRealTileProbeDiag {
 void probeTail(Int[] frame, Int stride, Int mw, Int mh,
                Av1ChromaPlanes chroma, List<Int[]> levelsV, List<Int[]> steps,
                Int dcq, Int acq, Int baseQIdx, Int bitDepth,
-               Av1TileDecode tile, List<Int> modes) {
+               Av1TileDecode tile, List<Int> modes, List<Int> txTypesV) {
         // The sample positions are clamped to the frame: they were hardcoded for a
     // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
     // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
@@ -43,6 +43,9 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         }
         ci2 = ci2 + 1
     }
+    // The V transform blocks' TYPES: the 16x16 DCT path is exercised exactly by
+    // other fixtures, so a different type here is the discriminator for the +/-1.
+    println("VTXT n=" + txTypesV.size + " " + txTypesV)
     println("VLEV n=" + levelsV.size + cl)
     // The DEQUANTIZED values of that same V transform block: the three levels
     // above times the quantizer. The dequant is a plain multiply (the AV1's

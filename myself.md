@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 119ª PASSAGEM: o ratchet que a 118ª deixou vermelho FECHADO por divisão por responsabilidade — a cauda de diagnósticos da probe (Y/UV/VLEV/DQV/B) é agora a função Kof `probeTail(...)` em `AvifRealTileProbeDiag.java`, injetada no mesmo programa via `//#DIAG` DEPOIS de `String.formatted` (logo sem duplicar `%`). Programa 476 linhas, companheiro 89, `check_test_hygiene` OK. Três quebras minhas corrigidas (a extração engoliu a chaveta do `main()`; os tipos dos parâmetros precisavam de imports que o programa não tem ⇒ a cauda recebe os VALORES `baseQIdx`/`bitDepth`). PROVA: geo 11/11, BUILD SUCCESS.
-doing: §3bd — ratchet fechado (cauda de diagnósticos em `probeTail`/`AvifRealTileProbeDiag`); próximo: a comparação do IDCT de 16 pontos com o `av1_idct16` (o item da 118ª)
-next: §3bd — comparar a transformada inversa de 16 pontos do Kof com o `av1_idct16` do libaom / o `inverse_transform` da especificação (onde o ±1 do plano V foi fixado); depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 120ª PASSAGEM: o TIPO de transformada do V medido = DCT_DCT (`VTXT n=1 [0]`) ⇒ a transformada inversa de 16x16 fica EXONERADA (o mesmo tipo/tamanho é exato noutros fixtures). EXPERIÊNCIA: inverti a direção do zigzag gerado (`av1ZigZagScan`) para a minha leitura do `default_scan_16x16` do libaom ⇒ **REFUTADA POR MEDIÇÃO**: quebrou o plano U (que era exato): `UV 00=130,129` em vez de `129,129` e `320=152,129` em vez de `129,159`, e piorou o V (`129,162`) ⇒ a direção original do Kof está certa e o VARRIMENTO fica CONFIRMADO por medição (a minha leitura da tabela do libaom era a transposta — a mesma armadilha da 27ª, na direção oposta). Revertido. PROVA: 22/22 BUILD SUCCESS. O ±1 do V continua sem explicação; o próximo instrumento é o RESÍDUO reconstruído do V (amostras com predição zero).
+doing: §3bd — txType do V medido (DCT_DCT ⇒ IDCT exonerado) e a experiência do varrimento REFUTADA por medição (o U exato quebrou) ⇒ varrimento confirmado; próximo: o resíduo reconstruído do V
+next: §3bd — instrumentar o RESÍDUO reconstruído do V (`av1ReconstructBlock` com predição zero) e compará-lo com o IDCT de referência calculado à mão; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (120ª) — 3bd: txType do V medido; a experiência do varrimento REFUTADA
+- **LANDADO:** `VTXT` (os tipos de transformada da chroma) + a asserção registada `VTXT n=1 [0]`.
+- **REFUTAÇÃO:** inverter o zigzag quebrou o U exato ⇒ o varrimento do Kof está certo (medido, não assumido).
+- **PROVA:** 22/22 BUILD SUCCESS após o revert.
 
 ## Sessão 18/10 (119ª) — 3bd: ratchet fechado (a cauda de diagnósticos é uma função companheira)
 - **LANDADO:** `AvifRealTileProbeDiag.java` + o marcador `//#DIAG` + `probeTail(...)`; programa 476 linhas, `check_test_hygiene` OK.

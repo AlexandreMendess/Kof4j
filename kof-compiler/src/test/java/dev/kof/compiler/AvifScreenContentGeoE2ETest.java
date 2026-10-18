@@ -310,6 +310,14 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // the scaling). With the AC hand-computed EXACT and the prediction
         // exonerated, the ±1 therefore lives in the 16x16 INVERSE TRANSFORM —
         // which only the V exercises here, because the U's residual is zero.
+        // The V transform block's TYPE: DCT_DCT (0). That EXONERATES the 16x16
+        // inverse transform as the ±1's source — the same type and size is
+        // exercised exactly by the other fixtures' luma — and it is why this
+        // pass's scan-order experiment mattered: flipping Kof's generated zigzag
+        // to what I read as libaom's table order BROKE this fixture's U (which
+        // was exact) and made V worse, so the original direction is right and the
+        // scan is CONFIRMED by measurement, not merely assumed.
+        assertTrue(line.contains("VTXT n=1 [0]"), () -> "the V transform type moved: " + line);
         assertTrue(line.contains("DQV dcq=223 acq=305 qIdx=160 t0[0]=2676 t0[16]=-1525 t0[32]=-305"),
                 () -> "the dequant moved: " + line);
         assertTrue(line.contains("VLEV n=1 t0[0]=12 t0[16]=-5 t0[32]=-1"),
