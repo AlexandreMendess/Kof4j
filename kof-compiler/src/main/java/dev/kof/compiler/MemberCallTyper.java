@@ -210,25 +210,6 @@ public final class MemberCallTyper {
                                 + "use set(index, value) to replace at an index",
                         "SEM072");
             }
-            // §745: no nativo um elemento PRIMITIVO e guardado CRU; uma lista
-            // de elemento NU (List<Object>/unknown) guardaria o primitivo SEM
-            // BOX onde se espera uma referencia -> o `get` desreferencia um
-            // inteiro como ponteiro (SIGSEGV no aarch64, morte no x86/riscv64;
-            // MEDIDO). Mesmo mecanismo do NAT008 (zip) — recusa honesta SO no
-            // nativo; JVM/Script/JS boxam e ficam corretos. Um argumento de
-            // REFERENCIA (String/record) continua aceito na lista nua.
-            if (("add".equals(mn) || "push".equals(mn) || "append".equals(mn))
-                    && mc.arguments().size() == 1 && sa.target().isNative()
-                    && sa.diagnostics() != null && bareElementType(elemType)) {
-                Type at = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
-                if (at instanceof Type.PrimitiveType pt && !Type.isVoid(pt)) {
-                    sa.diagnostics().error(mc, "List." + mn + ": the native targets cannot store a "
-                            + "primitive in a list whose element type is a BARE type parameter "
-                            + "(NAT009) — the element would be unboxed as a pointer (SIGSEGV); "
-                            + "declare the element type (e.g. List<Int>) or use the JVM/Script/JS targets",
-                            "NAT009");
-                }
-            }
             // #361 (§269(b)) — `reduce` SEMPRE takes TWO arguments: the lambda
             // and the seed, in either documented order (collections.md:
             // "(lambda, init)" and "(init, lambda) is also accepted"). A
