@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 121ª PASSAGEM: o resíduo do U medido como SÓ-DC (`ULEV n=1 t0[0]=9`) ⇒ as borboletas de AC da transformada inversa de 16 pontos só o V as exercita (o que a 118ª assumia está medido); os DESLOCAMENTOS 2D exonerados contra `inv_shift_16x16 = {-2,-4}` do libaom (= `rowShift 2`/`colShift 4` do Kof, os mesmos números); e o RESÍDUO RECONSTRUÍDO do V instrumentado (`VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34`, registado) — o último elo da cadeia sem oráculo. PRÓXIMO: o IDCT 2D de referência para a MESMA entrada (DC 2676 + dois ACs) a partir do `av1_idct16` de sete estágios do libaom.
-doing: §3bd — o resíduo do U é só-DC (medido) e o do V está instrumentado; os deslocamentos 2D exonerados; próximo: o IDCT 2D de referência para a entrada do V
-next: §3bd — transcrever o `av1_idct16` (sete estágios) do libaom como oráculo, calcular a transformada 2D de referência para a entrada do V (DC 2676 + os dois ACs) e comparar com `VRES`; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 122ª PASSAGEM: a transformada inversa 2D de referência transcrita da fonte buscada (`scripts/av1_idct16_ref.py` — `av1_idct16` de sete estágios + `cospi` 12-bit + as passagens/deslocamentos 2D; a passagem de "linhas" recolhe a COLUNA do raster, shifts 2 e 4). COMPARAÇÃO na entrada do V: referência `(0,0)=4 (0,1)=4 (1,0)=5 (1,1)=5 (15,15)=38` vs Kof `VRES 1/1/2/2/34` — a FORMA concorda, o nível difere ~4. NÃO É ACHADO: o decodificador acerta o plano U (só-DC) exatamente ⇒ o seu caminho DC está certo ⇒ a transcrição é a suspeita. ESTADO: NÃO RESOLVIDO (declarado no docstring da ferramenta). PRÓXIMO: validar a transcrição no caso só-DC do U.
+doing: §3bd — a referência 2D transcrita DISCORDA do Kof no resíduo do V, mas o decodificador acerta o caso só-DC do U ⇒ a transcrição é a suspeita; estado NÃO RESOLVIDO declarado
+next: §3bd — validar `scripts/av1_idct16_ref.py` contra o resíduo SÓ-DC do U (o caso que o decodificador acerta exatamente); só depois usá-la no V; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (122ª) — 3bd: a referência 2D transcrita; discorda, mas não é achado (não validada)
+- **LANDADO:** `scripts/av1_idct16_ref.py` (transcrição de sete estágios + o driver 2D), com o estado NÃO RESOLVIDO no docstring.
+- **MEDIDO:** referência 4/4/5/5/38 vs Kof 1/1/2/2/34 — forma igual, nível ~4 acima.
+- **PRÓXIMO:** validar no caso só-DC do U (exato no decodificador).
 
 ## Sessão 18/10 (121ª) — 3bd: U só-DC, shifts 2D exonerados, resíduo do V instrumentado
 - **LANDADO:** `ULEV` + `VRES` (o resíduo reconstruído do V) + as asserções registadas (`ULEV n=1 t0[0]=9`, `VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34`).
