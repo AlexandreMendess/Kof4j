@@ -247,6 +247,28 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "the two tiles must cover the whole frame: " + line);
     }
 
+    /**
+     * A GRADIENT whose single 64x64 block OVERHANGS its frame: 64x40 (a
+     * chroma-correlated ramp — luma with X, U with X, V with Y), encoded so the
+     * block at the bottom edge keeps its full height. It was written to reach
+     * CFL at a frame edge and does NOT (measured: `uvCFL=0`, the chroma is
+     * DC), so that case is still open — but the fixture EARNED ITS PLACE: it
+     * found two REAL crashes of the overhanging class, both fixed in this pass —
+     * the coefficient walk slicing the `above`/`left` entropy contexts past the
+     * frame (`Index 10 out of bounds for length 10`) and the transform-TYPE map
+     * (`Index 160 out of bounds for length 160`) — because libaom PADS those
+     * arrays (`ALIGN_POWER_OF_TWO(num_mi_cols, MAX_MIB_SIZE_LOG2)`) and Kof's
+     * were frame-sized.
+     */
+    @Test
+    void gradientFrameOverhangingItsSuperblockMatchesReferenceOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_grad64x40.avif", "grad.avif"));
+        assertTrue(line.contains("blocks=1 covered=160 frame=160 overlap=0 symBits=168 payloadBits=168"),
+                () -> "the frame must decode whole: " + line);
+        assertTrue(line.contains("Y 00=2 032=128 063=249 320=2 3232=128 3263=249"),
+                () -> "must match the ffmpeg reference: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));

@@ -58,7 +58,14 @@ main() {
     var cw = mw >> 1
     var ch = mh >> 1
     var cstride = cw + 2
-    var chroma = Av1ChromaPlanes(new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[miw], new Int[mih], new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[miw], new Int[mih])
+    // The entropy contexts (`above`/`left` for the coefficient walk) are PADDED
+    // to the superblock grid, exactly as libaom allocates them
+    // (`ALIGN_POWER_OF_TWO(num_mi_cols, MAX_MIB_SIZE_LOG2)`): a block at the
+    // frame's bottom edge keeps its full height, so its transform blocks slice
+    // these arrays PAST the frame's mi extent.
+    var ctxW = av1TxCtxExtent(miw)
+    var ctxH = av1TxCtxExtent(mih)
+    var chroma = Av1ChromaPlanes(new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[ctxW], new Int[ctxH], new Int[cstride * (ch + 2)], cstride, cw, ch, new Int[ctxW], new Int[ctxH])
     // TILE 0's reader carries the trace, and every diagnostic below reports
     // from it; the other tiles get their own reader in the loop.
     var sym = Av1Symbol(data)
@@ -94,7 +101,7 @@ main() {
     var allSteps = listOf<Int[]>()
     var totalSymBits = 0
     var totalPayloadBits = 0
-    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[miw * mih], new Int[miw], new Int[mih], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
     var walk = Av1Partition(data, miw, mih)
     var tline = ""
     var ti = 0
@@ -118,7 +125,7 @@ main() {
         // tile's block count.
         modes = listOf<Int>()
         levels = listOf<Int[]>()
-        tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, tsym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(tsym), new Int[miw * mih], new Int[miw], new Int[mih], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
+        tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, tsym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(tsym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
         walk = Av1Partition(tiles.get(ti), miw, mih)
         walk.useReader(tsym)
         walk.bindDecoder(tile)
@@ -445,7 +452,16 @@ main() {
         sc = sc + 1
     }
     println("TRACE n=" + (sl.size / 3) + " " + sline)
-    println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + totalSymBits + " payloadBits=" + totalPayloadBits + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head)
+    // How many blocks carry UV_CFL_PRED (uvMode 13): the CFL path is what a
+    // block at a frame edge exercises, and a test must be able to PROVE the
+    // fixture reaches it.
+    var uvCfl = 0
+    var uc = 0
+    while (uc < modes.size / 17) {
+        if (modes[uc * 17 + 7] == 13) { uvCfl = uvCfl + 1 }
+        uc = uc + 1
+    }
+    println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + totalSymBits + " payloadBits=" + totalPayloadBits + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head + " uvCFL=" + uvCfl)
         // The sample positions are clamped to the frame: they were hardcoded for a
     // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
     // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
