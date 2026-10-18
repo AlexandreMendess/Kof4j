@@ -64,8 +64,9 @@ import image.Av1TxType
 //     transform set of §5.9.2 to `TX_SET_INTRA_2`).
 //   - `store`: the tile's adapting coefficient CDF store.
 //   - `txTypeStore`/`txTypes`: the tile's adapting transform-type CDF store and
-//     the frame's `TxTypes` map (4x4 units, `frameW >> 2` columns), which the
-//     luma `transform_type` read fills per transform block.
+//     the frame's `TxTypes` map (4x4 units, `miW` columns — the same ALIGNED mi
+//     grid every other mi-keyed array here uses), which the luma
+//     `transform_type` read fills per transform block.
 //   - `above`/`left`: the plane's entropy-context arrays (4x4 units); the
 //     coefficient walk reads and updates them, so they must span the tile.
 //   - `levelsOut`: receives each transform block's decoded signed coefficients,
@@ -91,6 +92,8 @@ class Av1TileDecode {
     Int stride
     Int frameW
     Int frameH
+    Int miW
+    Int miH
     Av1ModeTail cfg
     Int lossless
     Int hasChroma
@@ -216,8 +219,17 @@ class Av1TileDecode {
         this.levelsVOut = levelsVOut
         this.txTypeUOut = txTypeUOut
         this.txTypeVOut = txTypeVOut
-        this.modeInfo = Av1ModeInfo(this.reader, this.frameW >> 2, this.frameH >> 2)
-        this.txSize = Av1TxSize(this.reader, this.frameW >> 2, this.frameH >> 2)
+        // The mi grid is the SPEC's `MiCols`/`MiRows` — the frame ROUNDED UP to
+        // whole 8x8 luma blocks (`2 * ceil(w / 8)`), which is what libaom's
+        // decoder derives (`dec_set_mb_mi`, av1/decoder/decoder.c) and what the
+        // partition walk is handed. EVERY mi-keyed array below uses it — the
+        // mode-info maps, the transform contexts, the CDEF units and the
+        // transform-type map all key on the SAME grid, so a FLOOR here would
+        // disagree with the walk's coordinates at the frame's edge.
+        this.miW = 2 * ((this.frameW + 7) >> 3)
+        this.miH = 2 * ((this.frameH + 7) >> 3)
+        this.modeInfo = Av1ModeInfo(this.reader, this.miW, this.miH)
+        this.txSize = Av1TxSize(this.reader, this.miW, this.miH)
         this.maxX = this.frameW
         this.maxY = this.frameH
         this.edgeFilter = true
@@ -239,7 +251,7 @@ class Av1TileDecode {
         this.colorIndexY = new Int[this.frameW * this.frameH]
         this.colorIndexUv = new Int[this.chroma.wU * this.chroma.hU]
         // The 64x64 CDEF-unit strengths, keyed by the unit origin (row*miCols+col).
-        this.cdefUnits = new Int[(this.frameW >> 2) * (this.frameH >> 2)]
+        this.cdefUnits = new Int[this.miW * this.miH]
         var ci = 0
         while (ci < this.cdefUnits.size) {
             this.cdefUnits[ci] = -1
@@ -322,7 +334,7 @@ class Av1TileDecode {
         var cdef = modeInfo.readCdef(r, c, bs, skip, cfg)
         var r0 = r - (r % 16)
         var c0 = c - (c % 16)
-        var uidx = r0 * (frameW >> 2) + c0
+        var uidx = r0 * this.miW + c0
         if (cdef >= 0) {
             cdefUnits[uidx] = cdef
         }
@@ -463,8 +475,8 @@ class Av1TileDecode {
             var levels = av1DecodeCoeffsBlockEdgeTx(reader, store, bs, 0,
                     br, bc, txSz, above, left, 0, 0, txTypeStore,
                     reducedTxSet, qIndex, yMode, useFilterIntra,
-                    filterIntraMode, txTypes, frameW >> 2, bc, br)
-            var txType = txTypes[br * (frameW >> 2) + bc]
+                    filterIntraMode, txTypes, this.miW, bc, br)
+            var txType = txTypes[br * this.miW + bc]
             levelsOut.add(levels)
             txTypeOut.add(txType)
             this.txEndOut.add(this.reader.position())
@@ -473,7 +485,7 @@ class Av1TileDecode {
             var avail = av1IntraAvail(12, bs, 0, txSz, 0, 0,
                     order.get(bi * 2), order.get(bi * 2 + 1), yMode,
                     angleY, useFilterIntra, haveTop, haveLeft, br, bc,
-                    frameW >> 2, frameH >> 2, frameW, frameH)
+                    this.miW, this.miH, frameW, frameH)
             var haveAboveRight = avail[0]
             var haveBelowLeft = avail[1]
 
@@ -565,7 +577,7 @@ class Av1TileDecode {
                     useFilterIntra, filterIntraMode, bitDepth,
                     intraEdgeFilterType, edgeFilter, dcQuant, acQuant, qIndex,
                     reducedTxSet, lossless, reader, store, txTypeStore, txTypes,
-                    frameW >> 2, frameW, frameH, levelsUOut, levelsVOut,
+                    this.miW, frameW, frameH, levelsUOut, levelsVOut,
                     txTypeUOut, txTypeVOut)
         }
         this.posOut.add(this.reader.position())
