@@ -107,6 +107,12 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         var s15 = 15
         if (s15 >= w2) { s15 = w2 - 1 }
         vres = vres + " (1,1)=" + rec[w2 + 1] + " (15,15)=" + rec[w2 * s15 + s15]
+        // The BOTTOM rows the derived prediction uses (the 124th pass): with
+        // alpha_V = 0 the prediction should be a per-block constant, so the
+        // spread 129 -> 127/125 has to be in the residual or in the DC.
+        var r11 = 11
+        if (r11 >= w2) { r11 = w2 - 1 }
+        vres = vres + " (0,11)=" + rec[w2 * r11] + " (8,11)=" + rec[w2 * r11 + (w2 >> 1)]
     }
     // The U transform block's residual too: it is DC-ONLY, so it is the case the
     // decoder is known to get EXACTLY right and the reference transcription can be

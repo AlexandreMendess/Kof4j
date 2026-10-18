@@ -336,7 +336,13 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         assertTrue(line.contains("CFLA 1 0"), () -> "the CFL alphas moved: " + line);
         assertTrue(line.contains("URES (0,0)=16 (0,1)=16 (1,0)=16"),
                 () -> "the U residual moved: " + line);
-        assertTrue(line.contains("VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34"),
+        // The BOTTOM rows too. With these, the arithmetic closes: the decoder's
+        // V final (129/160) minus its own residual (1/32) is a CONSTANT 128 — the
+        // correct neighbourless DC — so the prediction is NOT the ±1's source;
+        // ffmpeg's final (130/159) implies a residual of 2/31, i.e. the decoder
+        // and the encoder disagree by ±1 in the RESIDUAL's INPUTS (the levels or
+        // the quantizers), not in the prediction.
+        assertTrue(line.contains("VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34 (0,11)=32 (8,11)=32"),
                 () -> "the V residual moved: " + line);
         // The U's residual is DC-ONLY (one coefficient, 9): its exactness tests the
         // inverse transform's DC scaling and NOTHING of its AC butterflies, which

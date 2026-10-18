@@ -2,11 +2,15 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 124ª PASSAGEM: os ALFAS CFL medidos — `CFLA 1 0` (cflU=1, cflV=0) ⇒ a predição do V é o preditor DC SOZINHO (sem contribuição de AC) ⇒ o ±1 NÃO pode ser o AC. O instrumento não custou mudança de biblioteca: o driver já regista body[4]/body[5] no seu registo de 17 campos (deslocamentos 9 e 10). ARITMÉTICA: predição = ffmpeg − resíduo dá 129 no topo e 127/125 no fundo — uma variação ENTRE LINHAS que é discrepância aberta (com alfa 0 a predição devia ser constante; o resíduo é validado) ⇒ o próximo instrumento é o resíduo do decodificador nas linhas 0 e 11 (o VRES só amostra (15,15) do fundo).
-doing: §3bd — alfas CFL medidos (cflV=0 ⇒ a predição do V é só o DC) ⇒ o ±1 não é o AC; resta o resíduo vs o DC nas linhas do fundo
-next: §3bd — imprimir o resíduo do decodificador nas linhas 0 e 11 (o VRES só amostra o (15,15) do fundo) e decidir se a dispersão de 129→127/125 está no resíduo ou na predição DC
+last: 18/10 — 3bd 125ª PASSAGEM: as linhas de FUNDO do resíduo do V medidas (`(0,11)=32 (8,11)=32` = a referência validada) e a aritmética FECHA: o final do decodificador (129/160) menos o seu próprio resíduo (1/32) é a CONSTANTE 128 (o DC correto sem vizinhos, alfa_V=0) ⇒ a PREDIÇÃO está certa; o ffmpeg (130/159) implica um resíduo de 2/31 ⇒ a discordância ±1 está nas ENTRADAS do resíduo (níveis/quantizadores). CANDIDATO REAL: o cabeçalho ANALISA `quantization_params()` e DESCARTA os deltas por plano ⇒ todos os planos desquantizados com os quantizadores da LUMA (invisível no U, só-DC; visível no V ✓ A FORMA OBSERVADA).
+doing: §3bd — o ±1 fixado nas ENTRADAS do resíduo (a predição é 128 correto); candidato real: os deltas de quantizador por plano do cabeçalho são descartados ⇒ próximo: guardá-los e aplicá-los
+next: §3bd — guardar `DeltaQUDc/Ac`/`DeltaQVDc/Ac` no `AvifFrameHeader` + imprimi-los para `avif_real_cfl32x24.avif`; se algum for não-nulo, aplicar por plano na desquantização (o ±1 do V deve fechar)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (125ª) — 3bd: a predição é 128 correto ⇒ o ±1 está nas entradas do resíduo; deltas por plano descartados
+- **MEDIDO:** `(0,11)=32 (8,11)=32` no resíduo do V; 129−1 = 160−32 = 128 ⇒ a predição está certa.
+- **CANDIDATO REAL:** o `quantization_params()` é analisado e os deltas por plano DESCARTADOS ⇒ todos os planos usam os quantizadores da luma.
 
 ## Sessão 18/10 (124ª) — 3bd: alfas CFL medidos (cflV=0); a dispersão fica entre o resíduo e o DC
 - **MEDIDO:** `CFLA 1 0` ⇒ o AC do V não entra na predição; excluído por medição.
