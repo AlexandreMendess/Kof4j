@@ -323,7 +323,23 @@ main() {
         ysline = ysline + "b" + yi + ":" + ys[yi * 3] + "v" + ys[yi * 3 + 1] + ">" + ys[yi * 3 + 2]
         yi = yi + 1
     }
-    println("YSPAN n=" + (ys.size / 3) + " " + ysline + " modesY=" + modes[5] + "," + modes[22] + "," + modes[39] + "," + modes[56])
+    // The Y modes are sampled at FIXED indices, so a frame with fewer mode
+    // entries than the sample points (a one-block fixture: cb8, pskip) prints
+    // "-" instead of reading past the list — the probe must not crash on a
+    // frame that is simply smaller than the diagnostic's window.
+    var mline = ""
+    var mk = listOf(5, 22, 39, 56)
+    var mi = 0
+    while (mi < mk.size) {
+        if (mi > 0) { mline = mline + "," }
+        if (mk[mi] < modes.size) {
+            mline = mline + modes[mk[mi]]
+        } else {
+            mline = mline + "-"
+        }
+        mi = mi + 1
+    }
+    println("YSPAN n=" + (ys.size / 3) + " " + ysline + " modesY=" + mline)
     // The end of each transform block's coefficients (diagnostic).
     var te = tile.txEnds()
     var ti2 = 0
