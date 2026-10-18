@@ -8489,6 +8489,66 @@ class DecompileTest {
                 "zero-drift: achieved/progressLabel/daysToGoal/completionPct id\u00eanticos ao Java");
     }
 
+    @Test
+    void recipe3DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00eddio RECEITA-3 — 4 shapes sem c\u00f3digo novo:
+        // o pricePerServing com o DIVISOR PARENTESADO de soma (`(ingredients
+        // + overhead) / servings`), o spice com as faixas ==/<= (none/mild/
+        // medium/hot), o isVegetarian com o && de DUAS NEGAÇÕES de params
+        // booleanos e o totalMinutes com a soma tripla. Zero-drift
+        // executado: 10.0/none/mild/medium/hot/true/false/false/40 — 9/9
+        // id\u00eanticos ao Java — a 79\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Recipe3.java");
+        Files.writeString(javaFile, """
+                public class Recipe3 {
+                    static double pricePerServing(double ingredients, double overhead, int servings) {
+                        return (ingredients + overhead) / servings;
+                    }
+                    static String spice(int peppers) {
+                        if (peppers == 0) { return "none"; }
+                        if (peppers <= 2) { return "mild"; }
+                        if (peppers <= 5) { return "medium"; }
+                        return "hot";
+                    }
+                    static boolean isVegetarian(boolean hasMeat, boolean hasFish) {
+                        return !hasMeat && !hasFish;
+                    }
+                    static int totalMinutes(int prep, int cook, int rest) {
+                        return prep + cook + rest;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Recipe3.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Recipe3.pricePerServing(40.0, 10.0, 5))
+                    println(Recipe3.spice(0))
+                    println(Recipe3.spice(2))
+                    println(Recipe3.spice(4))
+                    println(Recipe3.spice(8))
+                    println(Recipe3.isVegetarian(false, false))
+                    println(Recipe3.isVegetarian(true, false))
+                    println(Recipe3.isVegetarian(false, true))
+                    println(Recipe3.totalMinutes(10, 25, 5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10.0 | none | mild | medium | hot | true | false | false | 40
+        assertEquals("10.0\nnone\nmild\nmedium\nhot\ntrue\nfalse\nfalse\n40", output,
+                "zero-drift: pricePerServing/spice/isVegetarian/totalMinutes id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
