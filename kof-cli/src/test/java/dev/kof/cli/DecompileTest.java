@@ -8368,6 +8368,67 @@ class DecompileTest {
                 "zero-drift: dialKey/isValidNumber/format/firstDigit id\u00eanticos ao Java");
     }
 
+    @Test
+    void movieDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CINEMA — 4 shapes sem c\u00f3digo novo: o
+        // ticketPrice com as faixas idade+boolean (10/14/20), o rating
+        // com as faixas >= (great/good/bad), o isBlockbuster com a
+        // compara\u00e7\u00e3o direta e o runtimeInMinutes com a convers\u00e3o
+        // (`hours * 60 + minutes` — o 135 exato). Zero-drift executado:
+        // 10.0/14.0/20.0/great/good/bad/true/false/135 — 9/9 id\u00eanticos
+        // ao Java — a 77\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Movie.java");
+        Files.writeString(javaFile, """
+                public class Movie {
+                    static double ticketPrice(int age, boolean student) {
+                        if (age < 12) { return 10.0; }
+                        if (student) { return 14.0; }
+                        return 20.0;
+                    }
+                    static String rating(double score) {
+                        if (score >= 8) { return "great"; }
+                        if (score >= 6) { return "good"; }
+                        return "bad";
+                    }
+                    static boolean isBlockbuster(double revenueM) {
+                        return revenueM >= 100;
+                    }
+                    static int runtimeInMinutes(int hours, int minutes) {
+                        return hours * 60 + minutes;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Movie.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Movie.ticketPrice(8, false))
+                    println(Movie.ticketPrice(20, true))
+                    println(Movie.ticketPrice(20, false))
+                    println(Movie.rating(9.0))
+                    println(Movie.rating(7.0))
+                    println(Movie.rating(4.0))
+                    println(Movie.isBlockbuster(150.0))
+                    println(Movie.isBlockbuster(50.0))
+                    println(Movie.runtimeInMinutes(2, 15))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10.0 | 14.0 | 20.0 | great | good | bad | true | false | 135
+        assertEquals("10.0\n14.0\n20.0\ngreat\ngood\nbad\ntrue\nfalse\n135", output,
+                "zero-drift: ticketPrice/rating/isBlockbuster/runtimeInMinutes id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
