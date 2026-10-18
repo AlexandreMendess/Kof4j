@@ -546,6 +546,11 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > de descompressão. ZIP64, entrada criptografada e método fora de {0, 8} são
 > recusados com diagnóstico explícito, nunca silêncio. **Segue aberto na #852:**
 > o streaming `open()`/`readChunk()` dirigido pelo chamador.
+> **A ESCRITA de ZIP está DENTRO:** `ZipWriter(path)` + `addFile`/`addText` + `close()` escreve
+> entradas STORED (método 0) — verbatim, SEM compressor — com o cabeçalho local gravado conforme
+> anda e o diretório central montado no `close()` a partir do que foi anotado (as cargas nunca
+> ficam em memória). Os nomes saem em UTF-8 com o bit EFS (11) ligado, o MESMO bit que o leitor
+> consulta, e nomes duplicados são recusados. Método 8 precisaria de compressor: fatia própria.
 > **A validação estrutural está DENTRO:** o `Zip.validate()` recusa um arquivo cujo header
 > LOCAL e diretório CENTRAL discordam (nome/método/tamanhos/CRC-32, tolerando o data
 > descriptor legítimo da especificação) e qualquer par de entradas com faixas de dados

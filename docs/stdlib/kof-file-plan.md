@@ -362,6 +362,11 @@ Consider security against path traversal inside archives.
 > decompression-bomb defence. ZIP64, an encrypted entry and any method outside
 > {0, 8} are refused with an explicit diagnostic, never silence. **Still open in
 > #852:** `open()`/`readChunk()` streaming driven by the caller.
+> **ZIP WRITING is IN:** `ZipWriter(path)` + `addFile`/`addText` + `close()` writes STORED (method 0)
+> entries — verbatim, NO compressor — with the local header written as it goes and the central
+> directory built at `close()` from what was recorded (the payloads are never held in memory).
+> Names go out as UTF-8 with the spec's EFS bit (11) set, which is the same bit the reader
+> consults, and duplicate names are refused. Method 8 would need a compressor: a separate slice.
 > **Structural validation is IN:** `Zip.validate()` refuses an archive whose LOCAL header and
 > CENTRAL directory disagree (name/method/sizes/CRC-32, tolerating the spec's legitimate
 > data descriptor) and any pair of entries whose data ranges OVERLAP — the two lies the

@@ -244,47 +244,6 @@ List<TarEntry> tarGzEntries(String path, Int maxBytes) {
 
 // --- escrita (ustar, sem compressão) -----------------------------------------
 
-/** Bytes UTF-8 de uma string. O TAR precisa dos BYTES do nome e do conteúdo, e
- *  o `kof.io` grava texto mas não expõe o codificador — então ele mora aqui, e é
- *  pequeno: 1/2/3/4 bytes por code point, com o par surrogate tratado (o
- *  armazenamento nativo tem WTF-8, §537). */
-Int[] tarUtf8Bytes(String s) {
-    var out: List<Int> = listOf()
-    var i = 0
-    while (i < s.length) {
-        var cp = s.charAt(i) as Int
-        if (cp >= 55296 && cp <= 56319 && i + 1 < s.length) {
-            var lo = s.charAt(i + 1) as Int
-            if (lo >= 56320 && lo <= 57343) {
-                cp = 65536 + ((cp - 55296) << 10) + (lo - 56320)
-                i = i + 1
-            }
-        }
-        if (cp < 128) {
-            out.add(cp)
-        } else if (cp < 2048) {
-            out.add(192 | (cp >> 6))
-            out.add(128 | (cp & 63))
-        } else if (cp < 65536) {
-            out.add(224 | (cp >> 12))
-            out.add(128 | ((cp >> 6) & 63))
-            out.add(128 | (cp & 63))
-        } else {
-            out.add(240 | (cp >> 18))
-            out.add(128 | ((cp >> 12) & 63))
-            out.add(128 | ((cp >> 6) & 63))
-            out.add(128 | (cp & 63))
-        }
-        i = i + 1
-    }
-    var bytes = new Int[out.size()]
-    var k = 0
-    while (k < out.size()) {
-        bytes[k] = out[k]
-        k = k + 1
-    }
-    return bytes
-}
 
 /** Campos octais do ustar: dígitos com zero à esquerda + terminador NUL. */
 void tarWriteOctal(Int[] block, Int at, Int len, Int value) {
@@ -343,7 +302,7 @@ class TarWriter {
 
     /** Acrescenta um arquivo regular com conteúdo em bytes. */
     void addFile(String name, Int[] data) {
-        var nameBytes = tarUtf8Bytes(name)
+        var nameBytes = zipUtf8Bytes(name)
         if (nameBytes.length == 0) {
             throw "archive: empty tar entry name"
         }
@@ -392,7 +351,7 @@ class TarWriter {
 
     /** Acrescenta um arquivo regular com conteúdo de TEXTO (UTF-8). */
     void addText(String name, String text) {
-        this.addFile(name, tarUtf8Bytes(text))
+        this.addFile(name, zipUtf8Bytes(text))
     }
 
     /** Fecha o arquivo (dois blocos de zero) e devolve o tamanho em bytes. */
