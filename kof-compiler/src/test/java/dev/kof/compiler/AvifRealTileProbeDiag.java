@@ -19,7 +19,8 @@ final class AvifRealTileProbeDiag {
 void probeTail(Int[] frame, Int stride, Int mw, Int mh,
                Av1ChromaPlanes chroma, List<Int[]> levelsV, List<Int[]> steps,
                Int dcq, Int acq, Int baseQIdx, Int bitDepth,
-               Av1TileDecode tile, List<Int> modes, List<Int> txTypesV) {
+               Av1TileDecode tile, List<Int> modes, List<Int> txTypesV,
+               List<Int[]> levelsU) {
         // The sample positions are clamped to the frame: they were hardcoded for a
     // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
     // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
@@ -46,6 +47,20 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
     // The V transform blocks' TYPES: the 16x16 DCT path is exercised exactly by
     // other fixtures, so a different type here is the discriminator for the +/-1.
     println("VTXT n=" + txTypesV.size + " " + txTypesV)
+    // The U plane's levels too: if the U's residual is ZERO then its exactness
+    // says nothing about the residual path, and the V is its only witness.
+    var cu = ""
+    var ui = 0
+    while (ui < levelsU.size) {
+        var lu = levelsU.get(ui)
+        var k7 = 0
+        while (k7 < lu.size) {
+            if (lu[k7] != 0) { cu = cu + " t" + ui + "[" + k7 + "]=" + lu[k7] }
+            k7 = k7 + 1
+        }
+        ui = ui + 1
+    }
+    println("ULEV n=" + levelsU.size + cu)
     println("VLEV n=" + levelsV.size + cl)
     // The DEQUANTIZED values of that same V transform block: the three levels
     // above times the quantizer. The dequant is a plain multiply (the AV1's
@@ -72,6 +87,21 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         }
     }
     println("DQV dcq=" + dcq + " acq=" + acq + " qIdx=" + baseQIdx + dqv)
+    // The V transform block's RECONSTRUCTED RESIDUAL (the inverse transform's
+    // own output): av1ReconstructBlock with a ZERO prediction returns it, and
+    // it is the one link of the chain with no oracle yet. The U's residual is
+    // DC-only, so the AC butterflies are exercised only here.
+    var vres = ""
+    if (levelsV.size > 0 && txTypesV.size > 0 && av1TxWidth(uvTx2) * av1TxHeight(uvTx2) == levelsV.get(0).size) {
+        var z = new Int[av1TxWidth(uvTx2) * av1TxHeight(uvTx2)]
+        var rec = av1ReconstructBlock(levelsV.get(0), z, uvTx2, txTypesV.get(0), bitDepth, false, dcq, acq)
+        var w2 = av1TxWidth(uvTx2)
+        vres = " (0,0)=" + rec[0] + " (0,1)=" + rec[1] + " (1,0)=" + rec[w2]
+        var s15 = 15
+        if (s15 >= w2) { s15 = w2 - 1 }
+        vres = vres + " (1,1)=" + rec[w2 + 1] + " (15,15)=" + rec[w2 * s15 + s15]
+    }
+    println("VRES" + vres)
     println("UV 00=" + chroma.u[1 * chroma.strideU + 1] + "," + chroma.v[1 * chroma.strideV + 1]
         + " 032=" + chroma.u[1 * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx1 >> 1) + 1)]
         + " 063=" + chroma.u[1 * chroma.strideU + ((sx2 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx2 >> 1) + 1)]

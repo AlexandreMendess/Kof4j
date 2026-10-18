@@ -2,11 +2,15 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 120ª PASSAGEM: o TIPO de transformada do V medido = DCT_DCT (`VTXT n=1 [0]`) ⇒ a transformada inversa de 16x16 fica EXONERADA (o mesmo tipo/tamanho é exato noutros fixtures). EXPERIÊNCIA: inverti a direção do zigzag gerado (`av1ZigZagScan`) para a minha leitura do `default_scan_16x16` do libaom ⇒ **REFUTADA POR MEDIÇÃO**: quebrou o plano U (que era exato): `UV 00=130,129` em vez de `129,129` e `320=152,129` em vez de `129,159`, e piorou o V (`129,162`) ⇒ a direção original do Kof está certa e o VARRIMENTO fica CONFIRMADO por medição (a minha leitura da tabela do libaom era a transposta — a mesma armadilha da 27ª, na direção oposta). Revertido. PROVA: 22/22 BUILD SUCCESS. O ±1 do V continua sem explicação; o próximo instrumento é o RESÍDUO reconstruído do V (amostras com predição zero).
-doing: §3bd — txType do V medido (DCT_DCT ⇒ IDCT exonerado) e a experiência do varrimento REFUTADA por medição (o U exato quebrou) ⇒ varrimento confirmado; próximo: o resíduo reconstruído do V
-next: §3bd — instrumentar o RESÍDUO reconstruído do V (`av1ReconstructBlock` com predição zero) e compará-lo com o IDCT de referência calculado à mão; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 121ª PASSAGEM: o resíduo do U medido como SÓ-DC (`ULEV n=1 t0[0]=9`) ⇒ as borboletas de AC da transformada inversa de 16 pontos só o V as exercita (o que a 118ª assumia está medido); os DESLOCAMENTOS 2D exonerados contra `inv_shift_16x16 = {-2,-4}` do libaom (= `rowShift 2`/`colShift 4` do Kof, os mesmos números); e o RESÍDUO RECONSTRUÍDO do V instrumentado (`VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34`, registado) — o último elo da cadeia sem oráculo. PRÓXIMO: o IDCT 2D de referência para a MESMA entrada (DC 2676 + dois ACs) a partir do `av1_idct16` de sete estágios do libaom.
+doing: §3bd — o resíduo do U é só-DC (medido) e o do V está instrumentado; os deslocamentos 2D exonerados; próximo: o IDCT 2D de referência para a entrada do V
+next: §3bd — transcrever o `av1_idct16` (sete estágios) do libaom como oráculo, calcular a transformada 2D de referência para a entrada do V (DC 2676 + os dois ACs) e comparar com `VRES`; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (121ª) — 3bd: U só-DC, shifts 2D exonerados, resíduo do V instrumentado
+- **LANDADO:** `ULEV` + `VRES` (o resíduo reconstruído do V) + as asserções registadas (`ULEV n=1 t0[0]=9`, `VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34`).
+- **MEDIDO:** o U é só-DC (as borboletas de AC só correm no V); os shifts 2D batem o libaom.
 
 ## Sessão 18/10 (120ª) — 3bd: txType do V medido; a experiência do varrimento REFUTADA
 - **LANDADO:** `VTXT` (os tipos de transformada da chroma) + a asserção registada `VTXT n=1 [0]`.

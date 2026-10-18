@@ -317,6 +317,17 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // to what I read as libaom's table order BROKE this fixture's U (which
         // was exact) and made V worse, so the original direction is right and the
         // scan is CONFIRMED by measurement, not merely assumed.
+        // The V's RECONSTRUCTED RESIDUAL (av1ReconstructBlock with a zero
+        // prediction): the last link of the chain that had no oracle. RECORDED —
+        // these are Kof's values, small and gradient-like, and the next step is to
+        // compute the reference 2D inverse transform for the SAME input (the DC
+        // 2676 plus the two ACs) from libaom's seven-stage av1_idct16 and compare.
+        assertTrue(line.contains("VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34"),
+                () -> "the V residual moved: " + line);
+        // The U's residual is DC-ONLY (one coefficient, 9): its exactness tests the
+        // inverse transform's DC scaling and NOTHING of its AC butterflies, which
+        // only the V's three coefficients exercise.
+        assertTrue(line.contains("ULEV n=1 t0[0]=9"), () -> "the U residual moved: " + line);
         assertTrue(line.contains("VTXT n=1 [0]"), () -> "the V transform type moved: " + line);
         assertTrue(line.contains("DQV dcq=223 acq=305 qIdx=160 t0[0]=2676 t0[16]=-1525 t0[32]=-305"),
                 () -> "the dequant moved: " + line);
