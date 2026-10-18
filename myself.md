@@ -1196,3 +1196,18 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **O PADRÃO (agora inconfundível, e vale como regra):** **todos os erros desta frente nas últimas dez passagens foram erros de ATRIBUIÇÃO** — de que **log** veio um número, a que **bloco** pertence uma leitura, que **estágio** uma tabela descreve — e **nenhum** foi erro de tabela, de fórmula ou de CDF. Ou seja: quando este fio erra, erra na **ligação entre a medição e o seu objecto**, não na aritmética.
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado):** voltar ao fio que os desvios de atribuição interromperam — o payload do quadro **esgota-se no bloco 3** enquanto o encoder codificou **oito** blocos; com a extensão do bloco 2 agora explicada por inteiro, **o custo de cada estágio pode finalmente ser comparado com o que a sintaxe deve**.
+
+## Sessão 17/10 (sexta) — slice 3bd 98ª passagem: custos por estágio vs a sintaxe (e um ORÇAMENTO)
+- **Unidade:** voltei ao fio interrompido pelos desvios de atribuição e comparei **o custo de cada bloco com o que a sintaxe deve** — agora com um número, não com um juízo.
+- **A aritmética (registos de UMA execução, `avif_real_sq1.avif`):**
+  - cabeçalho do tile: 0 → 19 = **19 bits**;
+  - bloco 0: 19 → 74 = **55 bits**;
+  - bloco 1: 76 → 129 = **53 bits**;
+  - bloco 2: 129 → 144 = **15 bits**.
+- **⇒ Os três primeiros blocos + cabeçalho tomam 142 dos 144 bits, e a média do encoder por bloco — OITO blocos nos 125 bits restantes — é 15,6.**
+- **O que isso significa:** os 15 bits do bloco 2 **batem** com a média do encoder; os blocos 0 (55) e 1 (53) são **3,5×** essa média. E ambos estão **exatos em valor** — o que é precisamente por que a inflação é **invisível nos pixels**: **um valor pode estar certo enquanto o seu custo está inflado, se os símbolos extra decodificarem benignamente.** É a lição da 9ª passagem e a forma exata do bug `3bd` que a 82ª encontrou.
+- **Onde o custo está (registos já em mão):** bloco 0 — mode info 5 bits, tx size 1, quatro blocos de transformada de luma terminando em 44/45/45/46 (o primeiro 19 bits, os outros três 1 bit cada) e o **croma 46 → 74 = 28 bits para dois planos**; bloco 1 — 29 bits de corpo (modos, bandeira de paleta, tamanho, as duas cores) e 22 de mapa de índices de 128 células.
+- **Cada um é plausível ISOLADAMENTE** — e é por isso que a inflação sobreviveu tanto tempo: **não é um número errado, é uma soma que não pode ser paga.**
+- **O ganho desta passagem:** esta frente **nunca teve um orçamento**; agora tem — **15,6 bits por bloco** — e qualquer estágio que o exceda fica suspeito por aritmética, não por opinião.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** dumpar os **símbolos individuais do bloco 0** — o seu primeiro bloco de transformada de **19 bits** e o seu **croma de 28 bits** — e precificar cada um contra a sintaxe, com o orçamento conhecido em vez de um juízo de plausibilidade.
