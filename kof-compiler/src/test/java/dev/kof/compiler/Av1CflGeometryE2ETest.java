@@ -216,7 +216,7 @@ class Av1CflGeometryE2ETest implements LibraryInstallSupport {
         sb.append("import image.Av1Cfl\n\n");
         sb.append("void emitRegion(Int[] buf, Int stride, Int cw, Int ch, Int ox, Int oy, ")
           .append("Int alpha, Int log2n) {\n");
-        sb.append("    var ac = av1CflAcFromLuma(buf, stride, ox + 1, oy + 1, cw, ch, 1, 1, log2n)\n");
+        sb.append("    var ac = av1CflAcFromLuma(buf, stride, ox + 1, oy + 1, cw, ch, 1, 1, log2n, PW, PW)\n");
         sb.append("    var dc = new Int[cw * ch]\n");
         sb.append("    var k = 0\n");
         sb.append("    while (k < dc.size) {\n");

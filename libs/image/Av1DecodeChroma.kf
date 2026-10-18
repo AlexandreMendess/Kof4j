@@ -185,7 +185,8 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
                         av1CflLumaOriginX(c, av1BlockNum4x4Wide(bs), ssX) + 1,
                         av1CflLumaOriginY(r, av1BlockNum4x4High(bs), ssY) + 1,
                         w, h, ssX, ssY,
-                        av1TxWidthLog2(uvTx) + av1TxHeightLog2(uvTx))
+                        av1TxWidthLog2(uvTx) + av1TxHeightLog2(uvTx),
+                        lumaFrameW, lumaFrameH)
                 pred = av1CflPredict(pred, ac, cflAlpha, w, h, bitDepth)
             }
             // CLIPPED: the luma block may overhang the frame (a HORZ partition

@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 111ª PASSAGEM: tiles DESIGUAIS decodificam contra a referência. O fixture 2x2 da 110ª tem tiles IGUAIS ⇒ o clamp da probe (`t1c > miw`) nunca disparava; novo fixture `avif_real_mt192.avif` (192x64 = 3x1 superblocos, xadrez 4px, `-tiles 2x1`) ⇒ `tileSbW = ceil(3/2) = 2` ⇒ primeiro tile 2 SB (128 px), último 1 SB (64 px) cujo fim mi 64 > 48 ⇒ LIMITADO. PROVA: geo 9/9 — `TILES n=2`, `TILEY t0(0,0)=16(4,0)=235 t1(128,0)=16(132,0)=235` e `covered=768 frame=768`; passou à primeira corrida (prova de cobertura). LIMITE HONESTO: é o espaçamento UNIFORME com resto desigual, não o ramo de tamanhos EXPLÍCITOS (`uniform_tile_spacing_flag = 0`), que este codificador não emite.
-doing: §3bd — tiles desiguais provados (clamp do último tile); seguem (a) tamanhos por tile explícitos, (b) o CFL dentro dos limites, (c) o decodificador independente
-next: §3bd — (a) tamanhos por tile EXPLÍCITOS (expor o que o ramo não-uniforme do cabeçalho analisa; precisa de um stream construído à mão ou de um codificador que os emita); (b) o AC do CFL dentro dos limites numa borda; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
+last: 18/10 — 3bd 112ª PASSAGEM: o AC do CFL PREENCHE as células para lá do plano de luma (desvio real, achado lendo a referência BUSCADA). O `av1CflAcFromLuma` subamostrava e tirava média sobre a extensão completa; um bloco pode ULTRAPASSAR o plano (classe da 106ª) e as células fora eram lidas da borda que a reconstrução recortada nunca escreveu. Regra do libaom (`cfl_pad`, comentário próprio): "we fill the missing pixels by repeating the last columns and/or rows" ⇒ o AC cobre o bloco INTEIRO com o exterior replicado da última coluna e depois da última linha. Correção: `av1CflAcFromLuma` recebe a extensão do plano + `av1CflPad` (replicação ao nível da CHROMA — replicar luma antes de subamostrar faria a média da amostra com a sua cópia); contagem dentro dos limites = `(lumaW - x + 1) >> ssX` (`x` com borda, célula = `1 << ssX` amostras). PROVA: `Av1CflAcPadE2ETest` 1/1 (bloco 4x2 na origem de luma (6,0) de um plano 8x8, borda = sentinela 200) contra oráculo independente; RED-provado por mutação.
+doing: §3bd — o AC do CFL preenche o que ultrapassa o plano (regra do `cfl_pad` do libaom), provado RED-first; seguem (a) um fixture com CFL numa borda, (b) tamanhos por tile explícitos, (c) o decodificador independente
+next: §3bd — (a) um fixture com CFL numa borda do frame (os fixtures da 106ª são blocos de paleta ⇒ esta correção ainda sem exercício por stream real); (b) tamanhos por tile explícitos; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (112ª) — 3bd: o AC do CFL preenche o exterior do plano (regra do libaom)
+- **LANDADO:** `av1CflPad` + `av1CflAcFromLuma` com a extensão do plano (3 call sites); novo `Av1CflAcPadE2ETest` (1/1) com oráculo independente e sentinela na borda.
+- **RED:** por mutação (remover a chamada ao pad ⇒ o sentinela vaza para o AC ⇒ o teste falha; restaurado ⇒ passa).
+- **LIÇÃO:** a regra veio do COMENTÁRIO do próprio `cfl_pad` ("repeating the last columns and/or rows") — buscar a fonte pagou outra vez.
 
 ## Sessão 18/10 (111ª) — 3bd: tiles desiguais (o clamp do último tile) provados
 - **LANDADO:** fixture `avif_real_mt192.avif` (192x64, xadrez 4px, `-tiles 2x1`) + `unequalTilesDecodeToReferenceOnJvm` (TILES n=2, TILEY dos dois tiles, covered=768).
