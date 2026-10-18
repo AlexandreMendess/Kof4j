@@ -2,11 +2,15 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 118ª PASSAGEM: a DESQUANTIZAÇÃO medida EXATA ⇒ o ±1 do plano V fica fixado na TRANSFORMADA INVERSA de 16x16. Instrumento novo: a probe imprime `DQV dcq=223 acq=305 qIdx=160 t0[0]=2676 t0[16]=-1525 t0[32]=-305` e a aritmética bate (12x223=2676, -5x305=-1525, -1x305=-305) — multiplicação simples pelo quantizador, como o AV1 diz; a chroma usa os mesmos quantizadores que a luma. Com o AC exato à mão (117ª), a predição exonerada, os níveis exatos e agora a desquantização exata, o ±1 só pode vir do IDCT de 16x16 — o único estágio que este fixture exercita com entrada NÃO-NULA (o resíduo do U é zero; a luma é 32x32).
-doing: §3bd — desquantização exata ⇒ o ±1 do V fixado no IDCT de 16x16 (o único estágio com entrada não-nula neste fixture); próximo: comparar com o `av1_idct16` do libaom
-next: §3bd — comparar a transformada inversa de 16 pontos do Kof com o `av1_idct16` do libaom / o `inverse_transform` da especificação (estágios de arredondamento); depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 119ª PASSAGEM: o ratchet que a 118ª deixou vermelho FECHADO por divisão por responsabilidade — a cauda de diagnósticos da probe (Y/UV/VLEV/DQV/B) é agora a função Kof `probeTail(...)` em `AvifRealTileProbeDiag.java`, injetada no mesmo programa via `//#DIAG` DEPOIS de `String.formatted` (logo sem duplicar `%`). Programa 476 linhas, companheiro 89, `check_test_hygiene` OK. Três quebras minhas corrigidas (a extração engoliu a chaveta do `main()`; os tipos dos parâmetros precisavam de imports que o programa não tem ⇒ a cauda recebe os VALORES `baseQIdx`/`bitDepth`). PROVA: geo 11/11, BUILD SUCCESS.
+doing: §3bd — ratchet fechado (cauda de diagnósticos em `probeTail`/`AvifRealTileProbeDiag`); próximo: a comparação do IDCT de 16 pontos com o `av1_idct16` (o item da 118ª)
+next: §3bd — comparar a transformada inversa de 16 pontos do Kof com o `av1_idct16` do libaom / o `inverse_transform` da especificação (onde o ±1 do plano V foi fixado); depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (119ª) — 3bd: ratchet fechado (a cauda de diagnósticos é uma função companheira)
+- **LANDADO:** `AvifRealTileProbeDiag.java` + o marcador `//#DIAG` + `probeTail(...)`; programa 476 linhas, `check_test_hygiene` OK.
+- **PROVA:** geo 11/11, BUILD SUCCESS (as asserções existentes intactas).
 
 ## Sessão 18/10 (118ª) — 3bd: desquantização exata ⇒ o ±1 fica no IDCT de 16x16
 - **LANDADO:** o diagnóstico `DQV` (desquantizados do bloco V) + a asserção registada (12x223=2676, -5x305=-1525, -1x305=-305 = exato).

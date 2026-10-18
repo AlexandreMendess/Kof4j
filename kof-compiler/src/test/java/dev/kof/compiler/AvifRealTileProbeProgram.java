@@ -29,7 +29,10 @@ import image.Av1TxType
 import image.AvifFrame
 import image.AvifGroup
 import image.AvifObu
+import image.AvifFrame
+import image.AvifSeq
 
+//#DIAG
 main() {
     var path = "%s"
     var h = readAvifFrameHeader(path)
@@ -469,69 +472,8 @@ main() {
         uc = uc + 1
     }
     println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + totalSymBits + " payloadBits=" + totalPayloadBits + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head + " uvCFL=" + uvCfl)
-        // The sample positions are clamped to the frame: they were hardcoded for a
-    // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
-    // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
-    var sx1 = 32
-    if (sx1 >= mw) { sx1 = mw - 1 }
-    var sx2 = 63
-    if (sx2 >= mw) { sx2 = mw - 1 }
-    var sy = 32
-    if (sy >= mh) { sy = mh - 1 }
-    println("Y 00=" + frame[1 * stride + 1] + " 032=" + frame[1 * stride + (sx1 + 1)] + " 063=" + frame[1 * stride + (sx2 + 1)] + " 320=" + frame[(sy + 1) * stride + 1] + " 3232=" + frame[(sy + 1) * stride + (sx1 + 1)] + " 3263=" + frame[(sy + 1) * stride + (sx2 + 1)])
-    // The CHROMA at the same points: CFL acts on the chroma, so a luma oracle
-    // alone cannot see it (the 115th pass's instrument gap).
-    var cl = ""
-    var ci2 = 0
-    while (ci2 < levelsV.size) {
-        var lv = levelsV.get(ci2)
-        var k5 = 0
-        while (k5 < lv.size) {
-            if (lv[k5] != 0) { cl = cl + " t" + ci2 + "[" + k5 + "]=" + lv[k5] }
-            k5 = k5 + 1
-        }
-        ci2 = ci2 + 1
-    }
-    println("VLEV n=" + levelsV.size + cl)
-    // The DEQUANTIZED values of that same V transform block: the three levels
-    // above times the quantizer. The dequant is a plain multiply (the AV1's
-    // dc_q/ac_q tables already carry the scaling), so a hand computation can
-    // say whether the ±1 enters here or in the inverse transform.
-    // The DEQUANTIZED values of the first V transform block (the step between the
-    // levels and the pixel, where a +/-1 can enter with the entropy intact). Only
-    // when the block's shape matches the level array: on a multi-block fixture the
-    // first V TX may belong to a later block.
-    var dqv = ""
-    var bs2 = 9
-    var s2 = 0
-    while (s2 < steps.size) {
-        if (steps.get(s2)[0] == 1) { bs2 = steps.get(s2)[3] }
-        s2 = s2 + 1
-    }
-    var uvTx2 = av1GetMaxUvTxSize(bs2, 1, 1)
-    if (levelsV.size > 0 && av1TxWidth(uvTx2) * av1TxHeight(uvTx2) == levelsV.get(0).size) {
-        var dq2 = av1Dequant(levelsV.get(0), uvTx2, seq.bitDepth, dcq, acq)
-        var k6 = 0
-        while (k6 < dq2.size) {
-            if (dq2[k6] != 0) { dqv = dqv + " t0[" + k6 + "]=" + dq2[k6] }
-            k6 = k6 + 1
-        }
-    }
-    println("DQV dcq=" + dcq + " acq=" + acq + " qIdx=" + h.baseQIdx + dqv)
-    println("UV 00=" + chroma.u[1 * chroma.strideU + 1] + "," + chroma.v[1 * chroma.strideV + 1]
-        + " 032=" + chroma.u[1 * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx1 >> 1) + 1)]
-        + " 063=" + chroma.u[1 * chroma.strideU + ((sx2 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx2 >> 1) + 1)]
-        + " 320=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + 1] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + 1]
-        + " 3232=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + ((sx1 >> 1) + 1)]
-        + " 3263=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + ((sx2 >> 1) + 1)] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + ((sx2 >> 1) + 1)])
-    var pos = tile.positions()
-    var b2 = 0
-    while (b2 < modes.size / 17) {
-        var mi = b2 * 17
-        println("B " + b2 + " " + pos[b2 * 2] + " " + pos[b2 * 2 + 1] + " " + modes[mi] + " " + modes[mi + 4] + " " + modes[mi + 5] + " " + modes[mi + 6] + " " + modes[mi + 7] + " " + modes[mi + 8])
-        b2 = b2 + 1
-    }
+    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes)
 }
-""".formatted(path);
+""".formatted(path).replace("//#DIAG", AvifRealTileProbeDiag.source());
     }
 }
