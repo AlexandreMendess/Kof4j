@@ -327,6 +327,13 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // coefficient (level 9 x dc_q 223 = 2007). Together with the V below, the
         // decoder's 16x16 inverse transform is PROVEN correct on both the DC-only
         // and the AC case, so the V plane's ±1 lies in the prediction or the add.
+        // The CFL alphas: U = 1, V = 0. The V's prediction therefore has NO AC
+        // contribution — it is the DC predictor alone — so the V plane's ±1 cannot
+        // be the AC. That leaves the DC prediction's VALUE (a per-block constant)
+        // and the residual (validated in the 123rd pass) as the only terms, and a
+        // DC error would shift the plane uniformly while the observed deviation is
+        // a SPREAD — recorded here as the open discrepancy the next pass attacks.
+        assertTrue(line.contains("CFLA 1 0"), () -> "the CFL alphas moved: " + line);
         assertTrue(line.contains("URES (0,0)=16 (0,1)=16 (1,0)=16"),
                 () -> "the U residual moved: " + line);
         assertTrue(line.contains("VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34"),

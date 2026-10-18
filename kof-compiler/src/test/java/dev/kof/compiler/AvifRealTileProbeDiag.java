@@ -46,6 +46,13 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
     }
     // The V transform blocks' TYPES: the 16x16 DCT path is exercised exactly by
     // other fixtures, so a different type here is the discriminator for the +/-1.
+    // The CFL ALPHAS of the first block (offsets 9 and 10 of the 17-field mode
+    // record: skip, segId, cdef, qIndex, txSz, body[0..7], deltaLf[0..3]).
+    // They are the prediction's only free input, and the 123rd pass left the
+    // prediction as the last place the V plane's +/-1 can be.
+    var aline = "none"
+    if (modes.size >= 17) { aline = modes[9] + " " + modes[10] }
+    println("CFLA " + aline)
     println("VTXT n=" + txTypesV.size + " " + txTypesV)
     // The U plane's levels too: if the U's residual is ZERO then its exactness
     // says nothing about the residual path, and the V is its only witness.

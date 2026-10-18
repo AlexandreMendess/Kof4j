@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 123ª PASSAGEM: a referência é VALIDADA e EXONERA a transformada inversa de 16x16 do Kof ⇒ o ±1 do V está na PREDIÇÃO (alfa CFL/DC) ou na SOMA; o "o ±1 está no IDCT" da 118ª fica REFUTADO. A validação que a 122ª nomeou falhou na transcrição da 122ª (uma entrada só-DC dava 0 e 16 — impossível numa transformada linear): o ESTÁGIO 6 estava como passagem directa onde o libaom combina as metades. Corrigido ⇒ só-DC plano; e o bloco do V reproduz EXATAMENTE o VRES do Kof (1/1/2/2/34). Segunda verificação independente: o resíduo do U do decodificador é PLANO em 16 = a saída da referência para 9x223=2007 ⇒ o decodificador coincide nos dois casos. A ferramenta leva as duas como AUTO-ASSERÇÕES.
-doing: §3bd — a transformada inversa de 16x16 PROVADA correta contra uma referência validada (DC-only + AC) ⇒ o ±1 do V está na predição/soma; próximo: instrumentar a PREDIÇÃO do V
-next: §3bd — instrumentar a PREDIÇÃO do plano V (a saída CFL antes do resíduo) e compará-la com o AC calculado à mão na 117ª e com o alfa que o decodificador usou; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 124ª PASSAGEM: os ALFAS CFL medidos — `CFLA 1 0` (cflU=1, cflV=0) ⇒ a predição do V é o preditor DC SOZINHO (sem contribuição de AC) ⇒ o ±1 NÃO pode ser o AC. O instrumento não custou mudança de biblioteca: o driver já regista body[4]/body[5] no seu registo de 17 campos (deslocamentos 9 e 10). ARITMÉTICA: predição = ffmpeg − resíduo dá 129 no topo e 127/125 no fundo — uma variação ENTRE LINHAS que é discrepância aberta (com alfa 0 a predição devia ser constante; o resíduo é validado) ⇒ o próximo instrumento é o resíduo do decodificador nas linhas 0 e 11 (o VRES só amostra (15,15) do fundo).
+doing: §3bd — alfas CFL medidos (cflV=0 ⇒ a predição do V é só o DC) ⇒ o ±1 não é o AC; resta o resíduo vs o DC nas linhas do fundo
+next: §3bd — imprimir o resíduo do decodificador nas linhas 0 e 11 (o VRES só amostra o (15,15) do fundo) e decidir se a dispersão de 129→127/125 está no resíduo ou na predição DC
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (124ª) — 3bd: alfas CFL medidos (cflV=0); a dispersão fica entre o resíduo e o DC
+- **MEDIDO:** `CFLA 1 0` ⇒ o AC do V não entra na predição; excluído por medição.
+- **ABERTO:** a predição derivada varia entre linhas (129→127/125) com alfa 0 ⇒ um dos lados da subtração não é o que parece.
+- **PRÓXIMO:** o resíduo do decodificador nas linhas 0 e 11.
 
 ## Sessão 18/10 (123ª) — 3bd: o IDCT de 16x16 PROVADO correto; o ±1 está na predição/soma
 - **VALIDAÇÃO:** só-DC plano + o V exato (1/1/2/2/34) ⇒ a referência validada e o decodificador coincidem; o U plano em 16 confirma do lado do decodificador.
