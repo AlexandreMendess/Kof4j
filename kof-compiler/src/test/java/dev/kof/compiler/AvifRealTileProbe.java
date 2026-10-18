@@ -90,7 +90,11 @@ main() {
     var path = "%s"
     var h = readAvifFrameHeader(path)
     var seq = readAvifItemObus(path).seq
-    var data = readAvifTilePayloads(path).get(0)
+    // How many tiles the stream carries: every fixture but the multi-tile
+    // one is single-tile, and this line is what lets a test PROVE it.
+    var tiles = readAvifTilePayloads(path)
+    println("TILES n=" + tiles.size)
+    var data = tiles.get(0)
     var mw = h.codedWidth
     var mh = h.codedHeight
     // The walk's mi grid is the SPEC's `MiCols`: libaom's decoder rounds the

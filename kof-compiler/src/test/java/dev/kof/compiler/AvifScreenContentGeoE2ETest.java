@@ -191,6 +191,22 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "row 2 must match the ffmpeg reference: " + line);
     }
 
+    /**
+     * A frame coded with MULTIPLE TILES: 128x128, the same 4px checkerboard,
+     * encoded with {@code -tiles 2x2}. Every other fixture in this suite is
+     * SINGLE-tile, so the tile-group header's per-tile sizes and the payload
+     * split were never exercised at all. The probe decodes the FIRST tile (the
+     * top-left 64x64), whose samples ffmpeg's plane gives as (0,0)=16 (32,0)=16
+     * (63,0)=235 (0,32)=16 (32,32)=16 (63,32)=235.
+     */
+    @Test
+    void multiTileFrameDecodesItsFirstTileToReferenceOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_mt128.avif", "mt.avif"));
+        assertTrue(line.contains("TILES n=4"), () -> "the fixture must be 2x2 tiles: " + line);
+        assertTrue(line.contains("Y 00=16 032=16 063=235 320=16 3232=16 3263=235"),
+                () -> "tile 0 must match the ffmpeg reference: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));
